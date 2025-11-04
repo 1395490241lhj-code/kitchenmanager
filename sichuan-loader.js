@@ -1,36 +1,47 @@
 
-// 自动加载四川菜谱（带缓存破除）
-(async function(jsonPath = './data/sichuan-recipes.json?v=5'){
+// v6 loader: merge once, skip if already merged
+(async function(jsonPath='./data/sichuan-recipes.json?v=6'){
   try{
-    const res = await fetch(jsonPath, { cache: 'no-store' });
-    if(!res.ok) { console.warn('sichuan-loader: JSON not found', res.status); return; }
+    const FLAG='sichuan_v6_merged';
+    if(localStorage.getItem(FLAG)){ console.log('[sichuan-loader v6] already merged'); return; }
+    const res = await fetch(jsonPath, {cache:'no-store'});
+    if(!res.ok) { console.warn('[sichuan-loader v6] JSON not available', res.status); return; }
     const pack = await res.json();
-    const addRecipes = Array.isArray(pack.recipes)? pack.recipes : [];
-    const addIngs = pack.recipe_ingredients || {};
+    const addRecipes = Array.isArray(pack.recipes)?pack.recipes:[];
+    const addMap = pack.recipe_ingredients || {};
 
-    const get=(k,d)=>{ try{return JSON.parse(localStorage.getItem(k)) ?? d;}catch(_){return d;} };
-    const set=(k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(_){ } };
-    const ings=get('ingredients',[]), recs=get('recipes',[]), rIngs=get('recipeIngs',[]);
-    const seen=new Set(recs.map(r=>(r.name||'').trim()));
+    const get=(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(_){ return d } };
+    const set=(k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(_){ } };
 
-    function nextIngId(){ return ings.length? (ings[ings.length-1].id||0)+1 : 1 }
-    function ensureIng(name, unit){ var it=ings.find(i=>i.name===name); if(it) return it; var obj={id:nextIngId(), name, unit:unit||'g', shelf:5}; ings.push(obj); return obj; }
+    let ings=get('ingredients',[]), recs=get('recipes',[]), rIngs=get('recipeIngs',[]);
+    const seenNames=new Set(recs.map(r=>(r.name||'').trim()));
+
+    const nextIngId = ()=> (ings.length? (ings[ings.length-1].id||0) : 0) + 1;
+    const ensureIng = (name, unit='g') => {
+      let x = ings.find(i=>i.name===name);
+      if (x) return x;
+      x = { id: nextIngId(), name, unit, shelf: unit==='pcs'?14:5 };
+      ings.push(x); return x;
+    };
 
     for(const r of addRecipes){
-      const k=(r.name||'').trim(); if(!k || seen.has(k)) continue;
-      recs.push({ id:r.id||k, name:r.name, tags:r.tags||['川菜'] });
-      seen.add(k);
-      const list=addIngs[r.id]||[];
+      const key=(r.name||'').trim();
+      if(!key || seenNames.has(key)) continue;
+      recs.push({ id:r.id||key, name:r.name, tags:r.tags||['川菜'] });
+      seenNames.add(key);
+      const list = addMap[r.id]||[];
       for(const it of list){
-        const ing=ensureIng(it.item, it.unit); rIngs.push({ recipeId: r.id||k, ingId: ing.id, name: it.item, need: it.qty, unit: it.unit||'g' });
+        const ing = ensureIng(it.item, it.unit||'g');
+        rIngs.push({ recipeId: r.id||key, ingId: ing.id, name: it.item, need: it.qty, unit: it.unit||'g' });
       }
     }
-    set('ingredients',ings); set('recipes',recs); set('recipeIngs',rIngs);
 
-    // 若当前在推荐或菜谱页，刷新一次
+    set('ingredients', ings); set('recipes', recs); set('recipeIngs', rIngs);
+    localStorage.setItem(FLAG,'1'); // mark once
+
     if(typeof window.onTab==='function'){
       const t=(location.hash||'#recommend').slice(1); window.onTab(t||'recommend');
     }
-    console.log('[sichuan-loader v5] merged', addRecipes.length, 'recipes');
-  }catch(e){ console.warn('sichuan-loader error', e); }
+    console.log('[sichuan-loader v6] merged', addRecipes.length, 'recipes');
+  }catch(e){ console.warn('[sichuan-loader v6] error', e); }
 })();
