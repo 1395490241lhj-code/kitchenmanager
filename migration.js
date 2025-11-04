@@ -1,77 +1,20 @@
 
-// v6 migration: deduplicate recipes & ingredients and remap IDs; run once
+// v8 migration: ensure no duplicates by name; run once
 (function(){
-  var FLAG='mig_v6_done';
-  if (localStorage.getItem(FLAG)) return;
+  var FLAG='mig_v8_done'; if(localStorage.getItem(FLAG)) return;
+  function get(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(_){ return d } }
+  function set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(_){ } }
+  var ings=get('ingredients',[]), recs=get('recipes',[]), rIngs=get('recipeIngs',[]), stock=get('stock',[]);
+  var byName={}, map={}, out=[]; 
+  for(var i=0;i<ings.length;i++){var it=ings[i], k=(it.name||'').trim(); if(!k) continue; if(!byName[k]){byName[k]=it; map[it.id]=it.id; out.push(it);} else {map[it.id]=byName[k].id;}}
+  for(var i=0;i<rIngs.length;i++){var row=rIngs[i]; if(map[row.ingId]!=null) row.ingId=map[row.ingId];}
+  for(var i=0;i<stock.length;i++){var b=stock[i]; if(map[b.ingId]!=null) b.ingId=map[b.ingId];}
+  set('ingredients',out);
 
-  function get(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } }
-  function set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} }
-
-  var ings = get('ingredients', []);
-  var recipes = get('recipes', []);
-  var rIngs = get('recipeIngs', []);
-  var stock = get('stock', []);
-
-  // --- Ingredient de-dup by name ---
-  var ingByName = Object.create(null);
-  var ingIdMap = Object.create(null);
-  var newIngs = [];
-  for (var i=0;i<ings.length;i++){
-    var ing = ings[i]; var key = (ing.name||'').trim();
-    if (!key) continue;
-    if (!ingByName[key]){
-      ingByName[key] = ing;
-      ingIdMap[ing.id] = ing.id;
-      newIngs.push(ing);
-    } else {
-      ingIdMap[ing.id] = ingByName[key].id;
-    }
-  }
-  // Remap references
-  for (var i=0;i<rIngs.length;i++){
-    var row = rIngs[i];
-    if (row && row.ingId!=null && ingIdMap[row.ingId]!=null){
-      row.ingId = ingIdMap[row.ingId];
-    }
-  }
-  for (var i=0;i<stock.length;i++){
-    var b = stock[i];
-    if (b && b.ingId!=null && ingIdMap[b.ingId]!=null){
-      b.ingId = ingIdMap[b.ingId];
-    }
-  }
-
-  // --- Recipe de-dup by name ---
-  var recByName = Object.create(null);
-  var recIdMap = Object.create(null);
-  var newRecs = [];
-  for (var i=0;i<recipes.length;i++){
-    var r = recipes[i]; var key = (r.name||'').trim();
-    if (!key) continue;
-    if (!recByName[key]){
-      recByName[key] = r;
-      recIdMap[r.id] = r.id;
-      newRecs.push(r);
-    } else {
-      recIdMap[r.id] = recByName[key].id;
-    }
-  }
-  // Remap recipeId in rIngs
-  for (var i=0;i<rIngs.length;i++){
-    var row = rIngs[i];
-    if (row && row.recipeId!=null && recIdMap[row.recipeId]!=null){
-      row.recipeId = recIdMap[row.recipeId];
-    }
-  }
-  // Filter rIngs to existing recipes
-  var keepIds = {}; for (var i=0;i<newRecs.length;i++){ keepIds[newRecs[i].id]=1 }
-  rIngs = rIngs.filter(function(x){ return keepIds[x.recipeId] });
-
-  set('ingredients', newIngs);
-  set('recipes', newRecs);
-  set('recipeIngs', rIngs);
-  set('stock', stock);
-
+  byName={}; map={}; var outR=[];
+  for(var i=0;i<recs.length;i++){var it=recs[i], k2=(it.name||'').trim(); if(!k2) continue; if(!byName[k2]){byName[k2]=it; map[it.id]=it.id; outR.push(it);} else {map[it.id]=byName[k2].id;}}
+  for(var i=0;i<rIngs.length;i++){var row=rIngs[i]; if(map[row.recipeId]!=null) row.recipeId=map[row.recipeId];}
+  set('recipeIngs', rIngs); set('recipes', outR); set('stock', stock);
   localStorage.setItem(FLAG,'1');
-  console.log('[migration v6] dedup done: ings=',newIngs.length,'recipes=',newRecs.length,'links=',rIngs.length);
+  console.log('[migration v8] done');
 })();
