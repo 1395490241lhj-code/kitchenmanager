@@ -1,22 +1,14 @@
+
 <!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <meta name="theme-color" content="#0ea5e9"/>
-  <link rel="manifest" href="manifest.webmanifest?v=6"/>
   <title>Kitchen Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=6"/>
 </head>
 <body>
   <div id="app"></div>
-  <!-- v6: migrate & dedup first -->
-  <script src="migration.js?v=6"></script>
-  <!-- keep your existing app.js (not included in this patch) -->
-  <script src="app.js?v=6"></script>
-  <!-- patch fmt bug & minor fixes -->
-  <script src="app.patch.v6.js?v=6"></script>
-  <!-- finally, merge Sichuan recipes once -->
-  <script src="sichuan-loader.js?v=6"></script>
+  <script src="app.js?v=7"></script>
+  <script src="sichuan-loader.js?v=7"></script>
 </body>
 </html>
