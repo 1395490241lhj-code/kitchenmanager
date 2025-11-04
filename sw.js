@@ -1,30 +1,24 @@
 
-// Bumped cache name to force update
-const CACHE = 'kitchen-cache-v3';
+const CACHE = 'kitchen-cache-v4';
 const ASSETS = [
-  './', './index.html', './styles.css', './app.js', './sichuan-loader.js',
-  './manifest.webmanifest', './icons/pwa-192.png', './icons/pwa-512.png',
-  './icons/maskable-192.png', './icons/maskable-512.png', './icons/apple-touch-180.png',
-  './data/sichuan-recipes.json'
+  './','./index.html','./index.html?v=4',
+  './app.js','./app.js?v=4',
+  './sichuan-loader.js','./sichuan-loader.js?v=4',
+  './manifest.webmanifest','./manifest.webmanifest?v=4',
+  './styles.css','./styles.css?v=4','./data/sichuan-recipes.json','./data/sichuan-recipes.json?v=4'
 ];
 self.addEventListener('install', e=>{
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });
 self.addEventListener('activate', e=>{
-  e.waitUntil(
-    caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
-    .then(()=>self.clients.claim())
-  );
+  e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
 });
 self.addEventListener('fetch', e=>{
   const url = new URL(e.request.url);
-  if (ASSETS.some(a => url.pathname.endsWith(a.replace('./','/')))){
-    e.respondWith(caches.match(e.request).then(r=> r || fetch(e.request)));
-    return;
+  const isAsset = ASSETS.some(a => (new URL(a, location.href)).pathname === url.pathname);
+  if(isAsset){
+    e.respondWith(caches.match(e.request).then(r => r || caches.match(url.pathname)).then(r => r || fetch(e.request)));
+  }else{
+    e.respondWith(fetch(e.request).then(res=>{ const copy=res.clone(); caches.open(CACHE).then(c=>c.put(e.request, copy)); return res; }).catch(()=>caches.match(e.request)));
   }
-  e.respondWith(fetch(e.request).then(res=>{
-    const copy = res.clone();
-    caches.open(CACHE).then(c=>c.put(e.request, copy));
-    return res;
-  }).catch(()=>caches.match(e.request)));
 });
