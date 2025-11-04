@@ -1,3 +1,42 @@
+<script>
+// —— 加载并合并四川菜谱 ——
+// 你可以把文件路径改成 './sichuan-recipes.json' 或 './data/sichuan-recipes.json'
+async function loadSichuanRecipes(jsonPath = './data/sichuan-recipes.json') {
+  try {
+    const res = await fetch(jsonPath, { cache: 'no-store' });
+    if (!res.ok) return;
+
+    const add = await res.json();
+
+    // 1) 取出当前已有菜谱（你项目里若有全局变量如 RECIPES/DB.recipes，这里都会兼容）
+    const localKey = 'recipes';
+    const fromLocal = JSON.parse(localStorage.getItem(localKey) || '[]');
+    const fromGlobal = (window.RECIPES && Array.isArray(window.RECIPES)) ? window.RECIPES : [];
+    let merged = [...fromGlobal, ...fromLocal, ...add];
+
+    // 2) 去重（以菜名为键）
+    const seen = new Set();
+    merged = merged.filter(r => {
+      const k = (r.name || '').trim();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+
+    // 3) 回写到全局与本地，供现有渲染逻辑使用
+    window.RECIPES = merged;
+    try { localStorage.setItem(localKey, JSON.stringify(merged)); } catch (e) {}
+    
+    // 4) 如果你的页面有刷新列表的函数，这里尝试调用；没有也不会报错
+    if (typeof window.renderRecipeList === 'function') window.renderRecipeList(merged);
+  } catch (err) {
+    console.warn('loadSichuanRecipes failed:', err);
+  }
+}
+
+// 页面初始化时加载
+document.addEventListener('DOMContentLoaded', () => loadSichuanRecipes());
+</script>
 
 // ---- storage helpers ----
 const store = {
@@ -448,42 +487,3 @@ if ('serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(()=>{})
   })
 }
-<script>
-// —— 加载并合并四川菜谱 ——
-// 你可以把文件路径改成 './sichuan-recipes.json' 或 './data/sichuan-recipes.json'
-async function loadSichuanRecipes(jsonPath = './data/sichuan-recipes.json') {
-  try {
-    const res = await fetch(jsonPath, { cache: 'no-store' });
-    if (!res.ok) return;
-
-    const add = await res.json();
-
-    // 1) 取出当前已有菜谱（你项目里若有全局变量如 RECIPES/DB.recipes，这里都会兼容）
-    const localKey = 'recipes';
-    const fromLocal = JSON.parse(localStorage.getItem(localKey) || '[]');
-    const fromGlobal = (window.RECIPES && Array.isArray(window.RECIPES)) ? window.RECIPES : [];
-    let merged = [...fromGlobal, ...fromLocal, ...add];
-
-    // 2) 去重（以菜名为键）
-    const seen = new Set();
-    merged = merged.filter(r => {
-      const k = (r.name || '').trim();
-      if (!k || seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-
-    // 3) 回写到全局与本地，供现有渲染逻辑使用
-    window.RECIPES = merged;
-    try { localStorage.setItem(localKey, JSON.stringify(merged)); } catch (e) {}
-    
-    // 4) 如果你的页面有刷新列表的函数，这里尝试调用；没有也不会报错
-    if (typeof window.renderRecipeList === 'function') window.renderRecipeList(merged);
-  } catch (err) {
-    console.warn('loadSichuanRecipes failed:', err);
-  }
-}
-
-// 页面初始化时加载
-document.addEventListener('DOMContentLoaded', () => loadSichuanRecipes());
-</script>
