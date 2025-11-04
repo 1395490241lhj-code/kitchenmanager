@@ -3,7 +3,7 @@
   "short_name": "Kitchen",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#0b1020",
   "theme_color": "#0ea5e9",
   "icons": [
     {
@@ -27,20 +27,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "库存",
-      "url": "#inventory"
-    },
-    {
-      "name": "推荐",
-      "url": "#recommend"
-    },
-    {
-      "name": "清单",
-      "url": "#list"
     }
   ]
 }
