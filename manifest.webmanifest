@@ -1,0 +1,46 @@
+{
+  "name": "Kitchen Assistant",
+  "short_name": "Kitchen",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    {
+      "src": "icons/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "库存",
+      "url": "#inventory"
+    },
+    {
+      "name": "推荐",
+      "url": "#recommend"
+    },
+    {
+      "name": "清单",
+      "url": "#list"
+    }
+  ]
+}
