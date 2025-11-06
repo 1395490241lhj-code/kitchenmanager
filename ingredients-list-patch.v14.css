@@ -1,0 +1,9 @@
+/* ingredients-list-patch.v14.css */
+.ing-list {
+  margin: 6px 0 12px;
+  padding-left: 1.2rem;
+}
+.ing-list li {
+  line-height: 1.6;
+  opacity: .9;
+}
