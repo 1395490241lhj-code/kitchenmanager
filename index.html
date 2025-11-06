@@ -5,25 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Kitchen Assistant · 厨房</title>
 
-    <!-- ✅ PATCH v14: 逐行显示用料（必须保留） -->
+    <!-- ✅ PATCH v14：逐行显示用料 -->
     <link rel="stylesheet" href="./ingredients-list-patch.v14.css?v=14">
 
-    <!-- KEEP: 这里放你原来的 CSS/图标等（不要删除你现有的这些标签） -->
-    <!-- 示例：
-    <link rel="icon" href="./favicon.ico">
-    <link rel="stylesheet" href="./assets/index-xxxx.css">
-    -->
+    <!-- ✅ Vite on GitHub Pages：强烈建议同时在 vite.config.* 里设置 base:'/kitchenmanager/' -->
+    <!-- REPLACE: 把下面两行的文件名替换成你 dist/assets 目录里的真实文件名 -->
+    <link rel="stylesheet" href="./assets/REPLACE_WITH_YOUR_CSS_FILE.css" />
   </head>
   <body>
-    <!-- KEEP: 这里是你原来的应用根节点（不要改动 id），例如： -->
     <div id="app"></div>
 
-    <!-- KEEP: 这里放你原来的 JS 入口（不要删除你现有的这些标签） -->
-    <!-- 示例（Vite构建后类似）：
-    <script type="module" crossorigin src="./assets/index-xxxxx.js"></script>
-    -->
+    <!-- 主入口 JS（Vite 构建后的 hashed 文件名），示例：index-abc123.js -->
+    <script type="module" crossorigin src="./assets/REPLACE_WITH_YOUR_JS_FILE.js"></script>
 
-    <!-- ✅ PATCH v14: 逐行显示用料（必须保留） -->
+    <!-- ✅ PATCH v14：逐行显示用料 -->
     <script src="./ingredients-list-patch.v14.js?v=14"></script>
   </body>
 </html>
