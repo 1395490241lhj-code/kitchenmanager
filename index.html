@@ -4,25 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0b132b" />
-    <title>Kitchen Assistant · 厨房</title>
-
-    <!-- 你的样式（仓库根目录已有 styles.css） -->
+    <title>Kitchen Assistant · 厨房 v16</title>
     <link rel="stylesheet" href="./styles.css">
-
-    <!-- ✅ 用料逐行显示补丁 -->
     <link rel="stylesheet" href="./ingredients-list-patch.v14.css?v=14">
   </head>
   <body>
-    <!-- 应用根节点 -->
-    <div id="app"></div>
+    <header class="topbar">
+      <h1>厨房 · v16</h1>
+      <nav>
+        <a href="#recipes">菜谱</a>
+        <a href="#recommend">推荐</a>
+      </nav>
+    </header>
+    <main id="app" class="container"></main>
 
-    <!-- 你的应用入口脚本 -->
     <script type="module" src="./app.js"></script>
-
-    <!-- ✅ 用料逐行显示补丁（自动把逗号分隔转成 <ul><li>） -->
     <script src="./ingredients-list-patch.v14.js?v=14"></script>
-
-    <!-- ✅ 注册 v16 Service Worker（强制更新缓存，避免空白页） -->
     <script src="./sw-register.v16.js"></script>
   </body>
 </html>

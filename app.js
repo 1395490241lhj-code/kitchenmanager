@@ -1,234 +1,77 @@
 
-// helpers
-var store={get:function(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-function nowISO(){return new Date().toISOString().slice(0,10)}
-function plusDays(d,n){return new Date(new Date(d).getTime()+n*86400000).toISOString().slice(0,10)}
-function daysBetween(a,b){return Math.ceil((new Date(a)-new Date(b))/86400000)}
-function last(arr){return (arr&&arr.length)?arr[arr.length-1]:undefined}
+const el = (sel) => document.querySelector(sel);
+const app = el('#app');
 
-// seed
-function seedIfEmpty(){
-  if(store.get('ingredients',null)) return;
-  var ingredients=[
-    {id:1,name:'西兰花',unit:'g',shelf:4},
-    {id:2,name:'鸡胸',unit:'g',shelf:2},
-    {id:3,name:'蒜',unit:'g',shelf:10},
-    {id:4,name:'番茄',unit:'g',shelf:6},
-    {id:5,name:'鸡蛋',unit:'pcs',shelf:14},
-    {id:6,name:'土豆',unit:'g',shelf:20},
-    {id:7,name:'牛腩',unit:'g',shelf:3},
-    {id:8,name:'洋葱',unit:'g',shelf:10},
-    {id:9,name:'青椒',unit:'g',shelf:7},
-    {id:10,name:'菠菜',unit:'g',shelf:4},
-    {id:11,name:'蘑菇',unit:'g',shelf:3}
-  ];
-  var recipes=[
-    {id:101,name:'西兰花炒鸡胸',tags:['家常','清淡']},
-    {id:102,name:'番茄炒蛋',tags:['家常']},
-    {id:103,name:'土豆烧牛肉',tags:['家常','炖']},
-    {id:104,name:'青椒土豆丝',tags:['家常','快手']},
-    {id:105,name:'蘑菇炒菠菜',tags:['清淡','素食']}
-  ];
-  var rIngs=[
-    {recipeId:101,ingId:1,name:'西兰花',need:300,unit:'g'},
-    {recipeId:101,ingId:2,name:'鸡胸',need:250,unit:'g'},
-    {recipeId:101,ingId:3,name:'蒜',need:10,unit:'g'},
-    {recipeId:102,ingId:4,name:'番茄',need:300,unit:'g'},
-    {recipeId:102,ingId:5,name:'鸡蛋',need:3,unit:'pcs'},
-    {recipeId:102,ingId:3,name:'蒜',need:5,unit:'g'},
-    {recipeId:103,ingId:7,name:'牛腩',need:400,unit:'g'},
-    {recipeId:103,ingId:6,name:'土豆',need:300,unit:'g'},
-    {recipeId:103,ingId:8,name:'洋葱',need:100,unit:'g'},
-    {recipeId:104,ingId:9,name:'青椒',need:100,unit:'g'},
-    {recipeId:104,ingId:6,name:'土豆',need:250,unit:'g'},
-    {recipeId:104,ingId:3,name:'蒜',need:10,unit:'g'},
-    {recipeId:105,ingId:11,name:'蘑菇',need:200,unit:'g'},
-    {recipeId:105,ingId:10,name:'菠菜',need:250,unit:'g'},
-    {recipeId:105,ingId:3,name:'蒜',need:10,unit:'g'}
-  ];
-  var today=nowISO();
-  var stock=[
-    {id:1,ingId:1,qty:320,unit:'g',purchase:today,expire:plusDays(today,3),location:'fridge'},
-    {id:2,ingId:2,qty:220,unit:'g',purchase:today,expire:plusDays(today,2),location:'fridge'},
-    {id:3,ingId:4,qty:400,unit:'g',purchase:today,expire:plusDays(today,5),location:'fridge'},
-    {id:4,ingId:6,qty:800,unit:'g',purchase:today,expire:plusDays(today,14),location:'pantry'}
-  ];
-  store.set('ingredients',ingredients); store.set('recipes',recipes); store.set('recipeIngs',rIngs);
-  store.set('stock',stock); store.set('prefs',{disliked:[],allergens:[],cuisines:['家常','川菜'],spice:2}); store.set('list',[]);
+function banner(msg){
+  const div = document.createElement('div');
+  div.className = 'banner';
+  div.textContent = msg;
+  return div;
 }
-seedIfEmpty();
 
-// state
-var S={
-  get ings(){return store.get('ingredients',[])}, set ings(v){store.set('ingredients',v)},
-  get stock(){return store.get('stock',[])}, set stock(v){store.set('stock',v)},
-  get recipes(){return store.get('recipes',[])}, set recipes(v){store.set('recipes',v)},
-  get rIngs(){return store.get('recipeIngs',[])}, set rIngs(v){store.set('recipeIngs',v)},
-  get prefs(){return store.get('prefs',{disliked:[],allergens:[],cuisines:[],spice:1})}, set prefs(v){store.set('prefs',v)},
-  get list(){return store.get('list',[])}, set list(v){store.set('list',v)}
-};
-function byId(arr,id){for(var i=0;i<arr.length;i++){if(arr[i].id===id)return arr[i]}return null}
-function ingName(id){var o=byId(S.ings,id);return o?o.name:('#'+id)}
-function perishScore(b){var shelf=Math.max(1,daysBetween(b.expire,b.purchase)); var left=daysBetween(b.expire,nowISO()); return Math.max(0,Math.min(1,1-left/shelf))}
-function aggregateStock(){var m=new Map(); for(var i=0;i<S.stock.length;i++){var b=S.stock[i]; var prev=m.get(b.ingId)||{available:0,perish:0}; m.set(b.ingId,{available:prev.available+b.qty,perish:Math.max(prev.perish,perishScore(b))});} return m}
-
-// recommend
-function recommendTop(k){k=k||5; var stock=aggregateStock(); var pref=S.prefs; 
-  var arr=[]; for(var i=0;i<S.recipes.length;i++){var r=S.recipes[i]; 
-    var list=S.rIngs.filter(function(x){return x.recipeId===r.id});
-    if(pref.allergens&&pref.allergens.length&&list.some(function(it){return pref.allergens.indexOf(it.name)>-1})) continue;
-    if(pref.disliked&&pref.disliked.length&&list.some(function(it){return pref.disliked.indexOf(it.name)>-1})) continue;
-    var coverSum=0, perishSum=0, miss=0, breakdown=[];
-    for(var j=0;j<list.length;j++){var it=list[j]; var s=stock.get(it.ingId)||{available:0,perish:0}; var avail=s.available; var perish=s.perish; var need=it.need; var cover=Math.min(1, (need>0?avail/need:1)); if(cover<1)miss++; coverSum+=cover; perishSum+= perish*Math.min(1,(need>0?avail/need:1)); breakdown.push({name:ingName(it.ingId),avail:avail,need:need,perish:perish});}
-    var cover=list.length?coverSum/list.length:0; var perishWeighted=list.length?perishSum/list.length:0;
-    var tasteBonus=(pref.cuisines && r.tags && r.tags.some(function(t){return pref.cuisines.indexOf(t)>-1}))?0.1:0;
-    var score=0.45*perishWeighted + 0.35*cover - 0.15*miss + 0.05*tasteBonus;
-    arr.push({recipe:r,score:score,cover:cover,miss:miss,perishWeighted:perishWeighted,breakdown:breakdown});
+async function loadData(){
+  // Prefer relative path for GitHub Pages project site.
+  const url = new URL('./data/sichuan-recipes.json', location).href + '?v=16';
+  try{
+    const res = await fetch(url, { cache: 'no-store' });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    return await res.json();
+  }catch(e){
+    console.warn('[data] load failed, using embedded fallback', e);
+    return window.__FALLBACK_DATA__;
   }
-  arr.sort(function(a,b){return b.score-a.score}); return arr.slice(0,k);
 }
-function diffForRecipe(id){var stock=aggregateStock(); 
-  return S.rIngs.filter(function(x){return x.recipeId===id}).map(function(it){
-    var avail=(stock.get(it.ingId)||{available:0}).available; var short=Math.max(0,it.need-avail); return short>0?{name:ingName(it.ingId),shortage:short,unit:it.unit}:null;
-  }).filter(Boolean);
-}
-function cookAndDeduct(id){
-  var items=S.rIngs.filter(function(x){return x.recipeId===id}); var batches=S.stock.slice().sort(function(a,b){return a.expire.localeCompare(b.expire)});
-  for(var i=0;i<items.length;i++){var it=items[i]; var remaining=it.need;
-    for(var j=0;j<batches.length;j++){var b=batches[j]; if(b.ingId!==it.ingId)continue; if(remaining<=0)break; var take=Math.min(b.qty,remaining); b.qty-=take; remaining-=take;
-      var idx=S.stock.findIndex?S.stock.findIndex(function(x){return x.id===b.id}):S.stock.map(function(x){return x.id}).indexOf(b.id);
-      if(b.qty<=0){ if(idx>-1) S.stock.splice(idx,1); } else { if(idx>-1) S.stock[idx]=b; }
+
+function renderRecipes(pack){
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  const map = pack.recipe_ingredients || {};
+  (pack.recipes || []).forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `<h3>${r.name}</h3>` +
+      `<p class="meta">${(r.tags||[]).join(' / ')}</p>` +
+      `<div class="ings"></div>`;
+    const list = map[r.id] || [];
+    const ul = document.createElement('ul');
+    ul.className = 'ing-list';
+    for(const it of list){
+      const q = (typeof it.qty==='number' && isFinite(it.qty)) ? (it.qty + (it.unit||'')) : '';
+      const li = document.createElement('li');
+      li.textContent = q ? `${it.item}  ${q}` : it.item;
+      ul.appendChild(li);
     }
-  } store.set('stock',S.stock);
+    card.querySelector('.ings').appendChild(ul);
+    grid.appendChild(card);
+  });
+  return grid;
 }
 
-// UI helpers
-function $(s){return document.querySelector(s)}
-function chip(t){return '<span class="chip">'+t+'</span>'}
-function fmt(q,u){ if(u==='pcs') return String(Math.round(q))+'个'; if(q>=1000) return (q/1000).toFixed(1)+(u==='g'?'kg':'L'); return String(q)+(u||'') }
-
-// renders
-function renderRecommend(){
-  var res=recommendTop(5); if(res.length===0){$('#page').innerHTML='<div class="card">没有可推荐的菜谱。请先添加库存与菜谱。</div>'; return;}
-  $('#page').innerHTML=res.map(function(it){
-    var miss=diffForRecipe(it.recipe.id);
-    var missHtml=miss.length?('<div style="margin-top:8px"><div class="label">缺料清单：</div><ul class="list">'+miss.map(function(m){return '<li class="row" style="justify-content:space-between"><span>'+m.name+'</span><span class="muted">'+fmt(Math.ceil(m.shortage),'g')+'</span></li>'}).join('')+'</ul></div>') : '';
-    return '<div class="card">'
-      +'<div class="row" style="justify-content:space-between"><h3 class="title">'+it.recipe.name+'</h3>'+chip('推荐分 '+it.score.toFixed(2))+'</div>'
-      +'<div class="kpi">'+chip('覆盖率 '+(it.cover*100).toFixed(0)+'%')+chip('缺料 '+it.miss+' 项')+chip('易腐加权 '+(it.perishWeighted*100).toFixed(0)+'%')+'</div>'
-      +'<div class="muted" style="margin-top:8px">将消耗：'+(it.breakdown.filter(function(b){return b.perish>0.4}).map(function(b){return b.name}).join('、')||'普通食材')+'</div>'
-      +missHtml
-      +'<div class="row" style="margin-top:12px"><button class="ok" onclick="onCook('+it.recipe.id+')">我就做这个</button><button class="ghost" onclick="onAddMissing('+it.recipe.id+')">加入购物清单</button></div>'
-      +'</div>';
-  }).join('');
-}
-function renderInventory(){
-  var batches=S.stock.slice().sort(function(a,b){return a.expire.localeCompare(b.expire)});
-  function badge(b){var left=daysBetween(b.expire,nowISO()); var color=(left<=0)?'danger':((1-left/Math.max(1,daysBetween(b.expire,b.purchase)))>0.7?'warn':'ok'); var label=(left<=0)?'已过期':('剩 '+left+' 天'); return '<span class="chip" style="border-color:transparent;background:rgba(255,255,255,.04)"><span class="muted">到期</span> <b class="'+color+'">'+label+'</b></span>'}
-  $('#page').innerHTML=''
-    +'<div class="card"><h3 class="title">添加库存（按批次）</h3>'
-    +'<div class="row"><input id="ingName" placeholder="食材名称（如：西兰花）"></div>'
-    +'<div class="row"><input id="qty" type="number" placeholder="数量">'
-    +'<select id="unit"><option value="g">g</option><option value="ml">ml</option><option value="pcs">个</option></select>'
-    +'<input id="days" type="number" placeholder="保质期（天）" value="3">'
-    +'<select id="loc"><option value="fridge">冷藏</option><option value="freezer">冷冻</option><option value="pantry">常温</option></select></div>'
-    +'<div class="row" style="margin-top:8px"><button onclick="onAddBatch()">保存</button></div></div>'
-    +'<div class="card"><h3 class="title">当前库存</h3><div class="list">'
-    +(batches.map(function(b){
-      return '<div class="row" style="justify-content:space-between"><div><div>'+ingName(b.ingId)+' · '+b.qty+b.unit+'</div><div class="muted">购入 '+b.purchase+' · 到期 '+b.expire+'</div></div><div class="row" style="gap:8px;align-items:center;justify-content:flex-end">'+badge(b)+'<button class="ghost" onclick="onRemoveBatch('+b.id+')">删除</button></div></div>'
-    }).join('') || '<div class="muted">暂无库存，先添加一些吧。</div>')
-    +'</div></div>';
-}
-function renderRecipes(){
-  var rs=S.recipes, rIngs=S.rIngs;
-  $('#page').innerHTML=''
-    +'<div class="card"><h3 class="title">新增菜谱</h3><div class="row"><input id="rname" placeholder="菜名"><input id="rtime" type="number" placeholder="时长(min)" value="15"><button onclick="onAddRecipe()">保存</button></div></div>'
-    +rs.map(function(r){
-      return '<div class="card"><div class="row" style="justify-content:space-between"><h3 class="title">'+r.name+'</h3><button class="ghost" onclick="onRemoveRecipe('+r.id+')">删除</button></div>'
-      +'<div class="muted">用料：</div><ul class="list">'+(rIngs.filter(function(x){return x.recipeId===r.id}).map(function(x){return '<li class="row" style="justify-content:space-between"><span>'+x.name+'</span><span class="muted">'+x.need+x.unit+'</span></li>'}).join('') || '<div class="muted">暂无用料</div>')+'</ul>'
-      +'<div class="row" style="margin-top:8px"><input id="ing-'+r.id+'" placeholder="用料名称"><input id="qty-'+r.id+'" type="number" placeholder="数量"><select id="unit-'+r.id+'"><option value="g">g</option><option value="ml">ml</option><option value="pcs">个</option></select><button onclick="onAddRecipeIng('+r.id+')">加入</button></div>'
-      +'</div>';
-    }).join('');
-}
-function renderList(){
-  var items=S.list;
-  $('#page').innerHTML=''
-    +'<div class="card"><h3 class="title">添加到购物清单</h3><div class="row"><input id="lname" placeholder="名称"><input id="lqty" type="number" placeholder="数量"><select id="lunit"><option value="g">g</option><option value="ml">ml</option><option value="pcs">个</option></select><button onclick="onAddList()">添加</button></div></div>'
-    +'<div class="card"><div class="row" style="justify-content:space-between"><h3 class="title">购物清单</h3><button class="ghost" onclick="onClearList()">清空</button></div><div class="list">'
-    +(items.map(function(i){return '<div class="row" style="justify-content:space-between"><span>'+i.name+'</span><div class="row" style="flex:none;gap:8px"><span class="muted">'+i.qty+i.unit+'</span><button class="ghost" onclick="onRemoveList(\''+i.name+'\')">删除</button></div></div>'}).join('') || '<div class="muted">暂无条目</div>')
-    +'</div></div>';
-}
-function renderSettings(){
-  var p=S.prefs;
-  $('#page').innerHTML=''
-    +'<div class="card"><h3 class="title">口味与禁忌</h3>'
-    +'<div class="row"><input id="disliked" placeholder="不喜欢的食材（逗号分隔）" value="'+(p.disliked||[]).join(',')+'"></div>'
-    +'<div class="row"><input id="allergens" placeholder="过敏原（逗号分隔）" value="'+(p.allergens||[]).join(',')+'"></div>'
-    +'<div class="row"><input id="cuisines" placeholder="偏好菜系（如 家常, 川菜）" value="'+(p.cuisines||[]).join(',')+'"></div>'
-    +'<div class="row"><label class="label">辣度</label><input id="spice" type="range" min="0" max="3" value="'+(p.spice||1)+'" oninput="document.getElementById(\'spiceValue\').innerText=this.value"><span id="spiceValue" class="muted">'+(p.spice||1)+'</span></div>'
-    +'<div class="row" style="margin-top:8px"><button onclick="onSavePrefs()">保存</button></div></div>'
-    +'<div class="card"><h3 class="title">关于</h3><div class="muted">本页面支持离线；若页面异常，请强制刷新或清除站点数据。</div></div>';
+function renderRecommend(pack){
+  // naive recommend: first 6 recipes
+  const div = document.createElement('div');
+  div.appendChild(document.createElement('div')).outerHTML = '<h2 class="section-title">今日推荐</h2>';
+  const sub = { recipes: (pack.recipes||[]).slice(0,6), recipe_ingredients: pack.recipe_ingredients||{} };
+  div.appendChild(renderRecipes(sub));
+  return div;
 }
 
-// handlers
-function onTab(t){
-  var tabs=document.querySelectorAll('.tabbar button'); for(var i=0;i<tabs.length;i++) tabs[i].classList.remove('active');
-  var el=document.getElementById('tab-'+t); if(el) el.classList.add('active');
-  location.hash=t;
-  if(t==='recommend') renderRecommend();
-  if(t==='inventory') renderInventory();
-  if(t==='recipes') renderRecipes();
-  if(t==='list') renderList();
-  if(t==='settings') renderSettings();
+async function onRoute(){
+  app.innerHTML = '';
+  const pack = await loadData();
+  if(!pack || !Array.isArray(pack.recipes)){
+    app.appendChild(banner('数据加载失败：未能读取 recipes。请确认 data/sichuan-recipes.json 存在。'));
+    return;
+  }
+  const hash = (location.hash || '#recipes').replace('#','');
+  if(hash === 'recommend'){
+    app.appendChild(renderRecommend(pack));
+  }else{
+    app.appendChild(renderRecipes(pack));
+  }
 }
-function onAddBatch(){
-  var name=document.getElementById('ingName').value.trim();
-  var qty=Number(document.getElementById('qty').value);
-  var unit=document.getElementById('unit').value;
-  var days=Number(document.getElementById('days').value||3);
-  var loc=document.getElementById('loc').value;
-  if(!name||qty<=0){alert('请输入名称与数量');return}
-  var ing=S.ings.find?S.ings.find(function(i){return i.name===name}):null;
-  if(!ing){var id=(last(S.ings)?last(S.ings).id:0)+1; ing={id:id,name:name,unit:unit,shelf:days}; S.ings.push(ing); store.set('ingredients',S.ings);}
-  var id2=(last(S.stock)?last(S.stock).id:0)+1; var purchase=nowISO(); var expire=plusDays(purchase,days);
-  S.stock.push({id:id2,ingId:ing.id,qty:qty,unit:unit,purchase:purchase,expire:expire,location:loc}); store.set('stock',S.stock); renderInventory();
-}
-function onRemoveBatch(id){S.stock=S.stock.filter(function(b){return b.id!==id}); store.set('stock',S.stock); renderInventory()}
-function onAddRecipe(){
-  var name=document.getElementById('rname').value.trim(); var time=Number(document.getElementById('rtime').value||15);
-  if(!name){alert('请输入菜名');return}
-  var id=(last(S.recipes)?last(S.recipes).id:100)+1; S.recipes.push({id:id,name:name,tags:['家常']}); store.set('recipes',S.recipes); renderRecipes();
-}
-function onRemoveRecipe(id){S.recipes=S.recipes.filter(function(r){return r.id!==id}); S.rIngs=S.rIngs.filter(function(x){return x.recipeId!==id}); store.set('recipes',S.recipes); store.set('recipeIngs',S.rIngs); renderRecipes()}
-function onAddRecipeIng(id){var name=document.getElementById('ing-'+id).value.trim(); var qty=Number(document.getElementById('qty-'+id).value); var unit=document.getElementById('unit-'+id).value;
-  if(!name||qty<=0){alert('请输入用料名称与数量');return}
-  var ing=S.ings.find?S.ings.find(function(i){return i.name===name}):null;
-  if(!ing){var nid=(last(S.ings)?last(S.ings).id:0)+1; ing={id:nid,name:name,unit:unit,shelf:5}; S.ings.push(ing); store.set('ingredients',S.ings);}
-  S.rIngs.push({recipeId:id,ingId:ing.id,name:ing.name,need:qty,unit:unit}); store.set('recipeIngs',S.rIngs); renderRecipes();
-}
-function onCook(id){cookAndDeduct(id); alert('已扣减库存'); onTab('inventory')}
-function onAddMissing(id){var miss=diffForRecipe(id); var list=S.list; for(var i=0;i<miss.length;i++){var m=miss[i]; var ex=list.find?list.find(function(x){return x.name===m.name&&x.unit===m.unit}):null; if(ex)ex.qty+=Math.ceil(m.shortage); else list.push({name:m.name,qty:Math.ceil(m.shortage),unit:m.unit});} store.set('list',list); alert('已加入购物清单')}
-function onAddList(){var name=document.getElementById('lname').value.trim(); var qty=Number(document.getElementById('lqty').value); var unit=document.getElementById('lunit').value; if(!name||qty<=0)return; S.list.push({name:name,qty:qty,unit:unit}); store.set('list',S.list); renderList()}
-function onRemoveList(name){S.list=S.list.filter(function(i){return i.name!==name}); store.set('list',S.list); renderList()}
-function onClearList(){S.list=[]; store.set('list',S.list); renderList()}
-function onSavePrefs(){var p={disliked:document.getElementById('disliked').value.split(/[，,\\s]+/).map(function(x){return x.trim()}).filter(Boolean),allergens:document.getElementById('allergens').value.split(/[，,\\s]+/).map(function(x){return x.trim()}).filter(Boolean),cuisines:document.getElementById('cuisines').value.split(/[，,\\s]+/).map(function(x){return x.trim()}).filter(Boolean),spice:Number(document.getElementById('spice').value||1)}; S.prefs=p; alert('已保存偏好设置')}
+window.addEventListener('hashchange', onRoute);
+onRoute();
 
-// init
-function renderApp(){
-  document.getElementById('app').innerHTML=''
-    +'<div class="app">'
-    +'<header><h1>Kitchen Assistant · 厨房</h1></header>'
-    +'<main class="container"><div id="page"></div></main>'
-    +'<nav class="tabbar">'
-    +'<button id="tab-recommend" onclick="onTab(\\'recommend\\')">推荐</button>'
-    +'<button id="tab-inventory" onclick="onTab(\\'inventory\\')">库存</button>'
-    +'<button id="tab-recipes" onclick="onTab(\\'recipes\\')">菜谱</button>'
-    +'<button id="tab-list" onclick="onTab(\\'list\\')">清单</button>'
-    +'<button id="tab-settings" onclick="onTab(\\'settings\\')">我的</button>'
-    +'</nav></div>';
-  var t=(location.hash&&location.hash.slice(1))||'recommend'; onTab(t);
-}
-renderApp();
-
-// SW
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
+// Embedded fallback data (will be overwritten if fetch succeeds)
+window.__FALLBACK_DATA__ = {"recipes": [{"id": "ex--17380d15", "name": "五彩吐司", "tags": ["川菜", "其它类"]}, {"id": "ex--7bfa8911", "name": "兰花吐司", "tags": ["川菜", "其它类"]}, {"id": "ex--c5d9eac5", "name": "兰花田鸡", "tags": ["川菜", "其它类"]}, {"id": "ex--852669de", "name": "凤尾鸽蛋", "tags": ["川菜", "其它类"]}, {"id": "ex--fc78bac6", "name": "凤眼鸽蛋", "tags": ["川菜", "其它类"]}, {"id": "ex--c4198d69", "name": "叉烧宣腿", "tags": ["川菜", "其它类"]}, {"id": "ex--bc364c56", "name": "子母烩", "tags": ["川菜", "其它类"]}, {"id": "ex--ce68cead", "name": "家常田鸡", "tags": ["川菜", "其它类"]}, {"id": "ex--61b37fd2", "name": "杏圆吐司", "tags": ["川菜", "其它类"]}, {"id": "ex--24b2a22b", "name": "椿芽烘蛋", "tags": ["川菜", "其它类"]}, {"id": "ex--995266ce", "name": "海味什锦", "tags": ["川菜", "其它类"]}, {"id": "ex--45e2d82e", "name": "火把玉兰片", "tags": ["川菜", "其它类"]}, {"id": "ex--3ebbfc57", "name": "炸熘田鸡腿", "tags": ["川菜", "其它类"]}, {"id": "ex--b29ada1a", "name": "炸玉兰", "tags": ["川菜", "其它类"]}, {"id": "ex--35411308", "name": "炸荷花卷", "tags": ["川菜", "其它类"]}, {"id": "ex--6f0a2183", "name": "熏牛肉", "tags": ["川菜", "其它类"]}, {"id": "ex--33a4fc8b", "name": "生片菊花锅", "tags": ["川菜", "其它类"]}, {"id": "ex--c5776d3a", "name": "白汁蛋饺", "tags": ["川菜", "其它类"]}, {"id": "ex--84d5489b", "name": "筋尾鸽蛋", "tags": ["川菜", "其它类"]}, {"id": "ex--4d95ebe3", "name": "红烧鸽子", "tags": ["川菜", "其它类"]}, {"id": "ex--3edf0403", "name": "芙蓉月光鸽蛋", "tags": ["川菜", "其它类"]}, {"id": "ex--04dfc7eb", "name": "蝴蝶竹荪", "tags": ["川菜", "其它类"]}, {"id": "ex--16899329", "name": "蟹黄银杏", "tags": ["川菜", "其它类"]}, {"id": "ex--1f16e8bb", "name": "蹄燕鸽蛋", "tags": ["川菜", "其它类"]}, {"id": "ex--8bd5bc3a", "name": "软炸口蘑", "tags": ["川菜", "其它类"]}, {"id": "ex--a0a57b1c", "name": "酸辣虾羹汤", "tags": ["川菜", "其它类"]}, {"id": "ex--e7dde848", "name": "酿两样", "tags": ["川菜", "其它类"]}, {"id": "ex--01308b6f", "name": "酿冬菇", "tags": ["川菜", "其它类"]}, {"id": "ex--e6d8d133", "name": "酿鸽蛋", "tags": ["川菜", "其它类"]}, {"id": "ex--20105a67", "name": "陈皮兔", "tags": ["川菜", "其它类"]}, {"id": "ex--90402dd0", "name": "鸡蒙兰花", "tags": ["川菜", "其它类"]}, {"id": "ex--d63a85ac", "name": "佛手海参", "tags": ["川菜", "山海味类"]}, {"id": "ex--e8f73168", "name": "佛手蜇卷", "tags": ["川菜", "山海味类"]}, {"id": "ex--8fc90027", "name": "凉拌麂肉", "tags": ["川菜", "山海味类"]}, {"id": "ex--ed0628d4", "name": "凤尾鱼翅", "tags": ["川菜", "山海味类"]}, {"id": "ex--b12ba6a4", "name": "家常海参", "tags": ["川菜", "山海味类"]}, {"id": "ex--6545606d", "name": "干烧鱼翅", "tags": ["川菜", "山海味类"]}, {"id": "ex--7aab63de", "name": "干煸鱿鱼丝", "tags": ["川菜", "山海味类"]}, {"id": "ex--e698be40", "name": "干煸鱿鱼笋丝", "tags": ["川菜", "山海味类"]}, {"id": "ex--d0b8e59b", "name": "桂花珧柱", "tags": ["川菜", "山海味类"]}, {"id": "ex--4a64befe", "name": "棋盘鱼肚", "tags": ["川菜", "山海味类"]}, {"id": "ex--7e4e79b7", "name": "清汤鱼翅把", "tags": ["川菜", "山海味类"]}, {"id": "ex--5e8fcce8", "name": "清汤鱼肚卷", "tags": ["川菜", "山海味类"]}, {"id": "ex--c6a2b71b", "name": "清炖鹿冲", "tags": ["川菜", "山海味类"]}, {"id": "ex--97bf4d9d", "name": "玻璃鱿鱼", "tags": ["川菜", "山海味类"]}, {"id": "ex--708e2f11", "name": "白酿海参", "tags": ["川菜", "山海味类"]}, {"id": "ex--027563d0", "name": "红烧熊掌", "tags": ["川菜", "山海味类"]}, {"id": "ex--0f97bc2e", "name": "红烧雪猪", "tags": ["川菜", "山海味类"]}, {"id": "ex--3e96b566", "name": "红烧鱼唇", "tags": ["川菜", "山海味类"]}, {"id": "ex--32fd38b8", "name": "红烧鹿筋", "tags": ["川菜", "山海味类"]}, {"id": "ex--638e863a", "name": "绣球珧柱", "tags": ["川菜", "山海味类"]}, {"id": "ex--caed9c66", "name": "绣球鱼翅", "tags": ["川菜", "山海味类"]}, {"id": "ex--806b8604", "name": "肝油海参", "tags": ["川菜", "山海味类"]}, {"id": "ex--d2712e05", "name": "荷包鱿鱼", "tags": ["川菜", "山海味类"]}, {"id": "ex--e1383df7", "name": "菊花珧柱", "tags": ["川菜", "山海味类"]}, {"id": "ex--4d9be6fe", "name": "菠饺鱼肚", "tags": ["川菜", "山海味类"]}, {"id": "ex--1fd5feec", "name": "蝴蝶海参", "tags": ["川菜", "山海味类"]}, {"id": "ex--2a0b89d9", "name": "酿海参", "tags": ["川菜", "山海味类"]}, {"id": "ex--c673b4db", "name": "鱼羊肚烩", "tags": ["川菜", "山海味类"]}, {"id": "ex--c7db9907", "name": "鱿鱼腐皮", "tags": ["川菜", "山海味类"]}, {"id": "ex--74c249e1", "name": "鲜花海参丝", "tags": ["川菜", "山海味类"]}, {"id": "ex--f5dc9b3f", "name": "鸡淖鱼翅", "tags": ["川菜", "山海味类"]}, {"id": "ex--d3361424", "name": "鸡皮鱼肚", "tags": ["川菜", "山海味类"]}, {"id": "ex--173deebd", "name": "冰糖银耳", "tags": ["川菜", "甜食类"]}, {"id": "ex--b1413caf", "name": "水晶球", "tags": ["川菜", "甜食类"]}, {"id": "ex--b29eabba", "name": "玫瑰锅炸", "tags": ["川菜", "甜食类"]}, {"id": "ex--68225ed3", "name": "糖粘羊尾", "tags": ["川菜", "甜食类"]}, {"id": "ex--177d2fcb", "name": "糯米圆子", "tags": ["川菜", "甜食类"]}, {"id": "ex--7d8a3eb3", "name": "网油枣卷", "tags": ["川菜", "甜食类"]}, {"id": "ex--b293c0ac", "name": "茨菰饼", "tags": ["川菜", "甜食类"]}, {"id": "ex--345f11ae", "name": "蒸枣糕", "tags": ["川菜", "甜食类"]}, {"id": "ex--ac9a32ca", "name": "蜜味锅蒸", "tags": ["川菜", "甜食类"]}, {"id": "ex--104e4239", "name": "蜜汁苕蛋", "tags": ["川菜", "甜食类"]}, {"id": "ex--cbd48606", "name": "酥扁豆泥", "tags": ["川菜", "甜食类"]}, {"id": "ex--948a7bbd", "name": "酥蚕豆泥", "tags": ["川菜", "甜食类"]}, {"id": "ex--b8c83177", "name": "酿藕", "tags": ["川菜", "甜食类"]}, {"id": "ex--4a651a29", "name": "兰花肚丝", "tags": ["川菜", "肉食类"]}, {"id": "ex--76b29e3f", "name": "南卤肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--c9a9309b", "name": "南煎圆子", "tags": ["川菜", "肉食类"]}, {"id": "ex--711a7f1a", "name": "叉烧奶猪", "tags": ["川菜", "肉食类"]}, {"id": "ex--bfe29685", "name": "双色肉糕", "tags": ["川菜", "肉食类"]}, {"id": "ex--10cdbeaf", "name": "咸烧白", "tags": ["川菜", "肉食类"]}, {"id": "ex--6966092b", "name": "四上玻璃肚", "tags": ["川菜", "肉食类"]}, {"id": "ex--4f93c5ac", "name": "回锅肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--a733388c", "name": "坛子肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--0b0bd95b", "name": "大南瓜蒸肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--0fd31741", "name": "夹沙肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--4d4ba1a1", "name": "奶汤大杂烩", "tags": ["川菜", "肉食类"]}, {"id": "ex--4d22a38d", "name": "小滑肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--91b33bcc", "name": "干煵肉丝", "tags": ["川菜", "肉食类"]}, {"id": "ex--2ea365f9", "name": "旱蒸回锅肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--2c917eeb", "name": "晾干肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--4c083d71", "name": "松子肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--e4ba161a", "name": "松花肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--c04a4822", "name": "水煮肉片", "tags": ["川菜", "肉食类"]}, {"id": "ex--13e84679", "name": "清汤腰方", "tags": ["川菜", "肉食类"]}, {"id": "ex--70d83944", "name": "炸扳指", "tags": ["川菜", "肉食类"]}, {"id": "ex--7581579c", "name": "烤酥方", "tags": ["川菜", "肉食类"]}, {"id": "ex--af18880d", "name": "烧皱皮肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--5f752c78", "name": "焦皮肘子", "tags": ["川菜", "肉食类"]}, {"id": "ex--00640549", "name": "煳辣腰块（宫保腰块）", "tags": ["川菜", "肉食类"]}, {"id": "ex--b62e6829", "name": "生烧筋尾舌", "tags": ["川菜", "肉食类"]}, {"id": "ex--addb85f5", "name": "白油猪肝", "tags": ["川菜", "肉食类"]}, {"id": "ex--a51fd86b", "name": "竹荪肝膏汤", "tags": ["川菜", "肉食类"]}, {"id": "ex--ec5d7e15", "name": "粉蒸肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--0d31aaec", "name": "红枣煨肘", "tags": ["川菜", "肉食类"]}, {"id": "ex--7b5e1492", "name": "红烧环喉", "tags": ["川菜", "肉食类"]}, {"id": "ex--39af818f", "name": "罐烧肉（东坡肉）", "tags": ["川菜", "肉食类"]}, {"id": "ex--bd01df02", "name": "肥肠豆沙汤", "tags": ["川菜", "肉食类"]}, {"id": "ex--c85b7fb4", "name": "芙蓉杂烩", "tags": ["川菜", "肉食类"]}, {"id": "ex--a101092a", "name": "芙蓉肉片", "tags": ["川菜", "肉食类"]}, {"id": "ex--b1645f9c", "name": "芙蓉肉糕", "tags": ["川菜", "肉食类"]}, {"id": "ex--3236ec59", "name": "芝麻肘子", "tags": ["川菜", "肉食类"]}, {"id": "ex--fb415ad1", "name": "苕菜狮子头", "tags": ["川菜", "肉食类"]}, {"id": "ex--0b5f9f77", "name": "荷叶蒸肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--2e85ab30", "name": "菠饺玻璃肚", "tags": ["川菜", "肉食类"]}, {"id": "ex--3a804c8d", "name": "菠饺白肺", "tags": ["川菜", "肉食类"]}, {"id": "ex--77fcc44c", "name": "萝卜连锅", "tags": ["川菜", "肉食类"]}, {"id": "ex--c6115523", "name": "葱末肝片", "tags": ["川菜", "肉食类"]}, {"id": "ex--a0816b36", "name": "豆渣猪头", "tags": ["川菜", "肉食类"]}, {"id": "ex--dbdc6e79", "name": "软炸子盖", "tags": ["川菜", "肉食类"]}, {"id": "ex--fa3fb59c", "name": "软炸肚头", "tags": ["川菜", "肉食类"]}, {"id": "ex--71b60f77", "name": "软炸腰卷", "tags": ["川菜", "肉食类"]}, {"id": "ex--8da90779", "name": "软炸蒸肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--3235554e", "name": "锅巴肉片", "tags": ["川菜", "肉食类"]}, {"id": "ex--115f74ca", "name": "锅贴腰片", "tags": ["川菜", "肉食类"]}, {"id": "ex--8ba1874a", "name": "陈皮肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--156e4d4a", "name": "鱼香肉片", "tags": ["川菜", "肉食类"]}, {"id": "ex--8cf2ee64", "name": "鹅黄肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--fa5e0f10", "name": "麻圆肉", "tags": ["川菜", "肉食类"]}, {"id": "ex--439aa371", "name": "龙眼咸烧白", "tags": ["川菜", "肉食类"]}, {"id": "ex--b7fdd52e", "name": "龙眼甜烧白", "tags": ["川菜", "肉食类"]}, {"id": "ex--800dee75", "name": "龙眼脊髓", "tags": ["川菜", "肉食类"]}, {"id": "ex--4a64235d", "name": "五色卷", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--f788bca6", "name": "双色豆腐淖", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--af862012", "name": "口袋豆腐", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--bc1b2c47", "name": "四吃芦笋", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--d98506e7", "name": "干煸冬笋", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--d5415621", "name": "格花豆腐皮", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--e09a0fd3", "name": "椒盐豆腐糕", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--09d24dd8", "name": "清汤三色卷", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--f505b80e", "name": "清汤白菜", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--9f93d3f9", "name": "炸豆芽饼", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--57fd9bbb", "name": "烧拌鲜笋", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--5f210377", "name": "白汁菠菜卷", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--2901826f", "name": "白汁豆腐饼", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--cb8016d0", "name": "盐白菜冬笋", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--c410dfe1", "name": "碎米豆腐", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--74ab30a9", "name": "菱角豆腐", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--f7a17857", "name": "蜂窝豆腐", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--e0fb2f18", "name": "蟹黄凤尾", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--514e3fd8", "name": "酿萝卜", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--563d2d9d", "name": "锅贴豆腐", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--c2205664", "name": "韭汁豆蕊", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--73715b26", "name": "鱼香茄饼", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--2d5041cd", "name": "鸡皮冬笋", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--b6f1009a", "name": "鸡皮慈笋", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--3946f051", "name": "鸡蒙葵菜", "tags": ["川菜", "蔬菜类"]}, {"id": "ex--c7a136f5", "name": "五柳鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--d5124139", "name": "五色虾球", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--462faa18", "name": "五色鱼圆", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--299ea735", "name": "兰花熘鱼片", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--a1208c21", "name": "凉粉鲫鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--011eaa5b", "name": "包烧鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--5bc40918", "name": "南卤醉虾", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--497d6220", "name": "干烧鲫鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--efa871b1", "name": "干煸鳝鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--1182aa5e", "name": "松鼠鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--36f76a55", "name": "椒盐虾饼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--5d2b35c0", "name": "椒盐鱼卷", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--a276fea5", "name": "泡菜鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--0b844aaa", "name": "清汤五彩鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--76a886b1", "name": "清汤鱼卷", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--6b17e20c", "name": "清烩虾仁", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--edba36af", "name": "清蒸青鳝", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--20e47827", "name": "清蒸鲢鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--d53ec5fc", "name": "炸熘鱼圆", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--b3cb383f", "name": "烟熏鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--09509a85", "name": "生爆虾仁", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--44bbc8ea", "name": "番茄炒虾仁", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--4b73d24b", "name": "白汁五柳鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--69ee3667", "name": "白汁鲜鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--14f19062", "name": "糖醋脆皮鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--22341635", "name": "红烧甲鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--9bfdb649", "name": "翡翠虾仁", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--46a1c25e", "name": "芙蓉虾仁", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--01914cb3", "name": "芝麻虾", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--6f5f3be0", "name": "芹黄鱼丝", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--64115033", "name": "萝卜丝中段", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--baed7d9b", "name": "葱酥鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--8aec747f", "name": "豆腐鲫鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--b12c0135", "name": "软炸虾包", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--d37d0851", "name": "软炸虾糕", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--c6960e2c", "name": "辣子鱼", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--7cece6e0", "name": "锅贴鱼片", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--1df98a3f", "name": "黄焖大鲢鱼头", "tags": ["川菜", "鱼虾类"]}, {"id": "ex--470534f7", "name": "三色鸡淖", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--96bf2cd4", "name": "三菌炖鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--b02be49d", "name": "五彩鸡片", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--51da0fa5", "name": "五香脆皮鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--3cf165c3", "name": "兰花鸡丝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--0701bcb2", "name": "冷汁盐水鸭", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--53372e7d", "name": "刷把鸡丝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--9f266e0d", "name": "包烧鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--c4da5f73", "name": "南边鸭子", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--206c805b", "name": "姜爆鸭丝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--e39f0328", "name": "家常鸡丝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--66aec1b8", "name": "怪味鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--cef89788", "name": "抄手鸭子", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--18761199", "name": "旱蒸全鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--0113f5ce", "name": "桃酥鸡糕", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--5b35a2c1", "name": "棒棒鸡丝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--26700cf1", "name": "樟茶鸭子", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--69ade0df", "name": "汆双脆", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--42c44d19", "name": "油淋仔鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--ac626a06", "name": "泥糊鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--06e9a919", "name": "海椒香辣鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--832d7c5d", "name": "热窝姜汁鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--e723c0c0", "name": "煳辣鸡丁（宫保鸡丁）", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--3b8f16e1", "name": "熘桃鸡卷", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--0fc93e9b", "name": "熘珊瑚鸡丁", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--4227ebbf", "name": "熘鸡米", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--513df904", "name": "熘鸭肝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--27b09470", "name": "牡丹鸡片", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--8032e8e6", "name": "生烧鸡翅", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--60b2b529", "name": "生烧鸡腿", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--6772a775", "name": "福建仔鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--5309ef14", "name": "竹荪双脆", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--0277ce8e", "name": "糯米全鸭", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--04a08cea", "name": "糯米鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--c63958e0", "name": "红烧卷筒鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--0ce59d78", "name": "红烧舌掌", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--571132b8", "name": "红烧鸭卷", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--d6977f49", "name": "网油鸡卷", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--96aa40ba", "name": "羊耳鸡卷", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--656a7835", "name": "自拌鸡丝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--efa3d164", "name": "芙蓉鸡片", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--0f045718", "name": "花椒鸡丁", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--033f63cc", "name": "虫草鸭子", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--2f122552", "name": "蛋酥鸭子", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--ea77d5d2", "name": "豆渣鸭子", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--1047a3ce", "name": "豆渣鸭脯", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--17b58243", "name": "豆芽拌鸡丝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--9e74bfc7", "name": "贵州鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--e7a796cd", "name": "软炸鸡糕", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--f4d04e7c", "name": "软炸鸭腰", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--b540e64d", "name": "辣子鸡丁", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--96260fe7", "name": "酿鸭脯", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--37b4cf03", "name": "醉鸭肝", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--1a5a6b86", "name": "银杏鸭脯", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--b33a6158", "name": "锅烧全鸭", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--9bbdceed", "name": "锅贴鸡片", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--b424d1ae", "name": "陈皮鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--efeb50d1", "name": "雪花鸡淖", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--fba998bf", "name": "香炸仔鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--0b1089d0", "name": "香酥鸭子", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--56a6ad20", "name": "魔芋烧鸭", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--63f003e2", "name": "鱼香八块鸡", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--396e2f23", "name": "鸡塔", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--4315683b", "name": "鸡淖脊髓", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--2a668d7b", "name": "鸡豆花", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--4e43ec23", "name": "鸭腰莼菜", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--49ddf534", "name": "麻辣肫松", "tags": ["川菜", "鸡鸭类"]}, {"id": "ex--22234c3a", "name": "麻酥鸡", "tags": ["川菜", "鸡鸭类"]}], "recipe_ingredients": {"ex--17380d15": [{"item": "吐司，鸡蛋，火腿", "qty": null, "unit": null}], "ex--7bfa8911": [{"item": "吐司，兰花（干黄花菜）", "qty": null, "unit": null}], "ex--c5d9eac5": [{"item": "田鸡，兰花（干黄花菜）", "qty": null, "unit": null}], "ex--852669de": [{"item": "鸽蛋", "qty": null, "unit": null}], "ex--fc78bac6": [{"item": "鸽蛋", "qty": null, "unit": null}], "ex--c4198d69": [{"item": "宣威火腿", "qty": null, "unit": null}], "ex--bc364c56": [{"item": "鸡肉，鸡蛋", "qty": null, "unit": null}], "ex--ce68cead": [{"item": "田鸡", "qty": null, "unit": null}], "ex--61b37fd2": [{"item": "吐司，杏仁", "qty": null, "unit": null}], "ex--24b2a22b": [{"item": "香椿芽，鸡蛋", "qty": null, "unit": null}], "ex--995266ce": [{"item": "海参，鱿鱼，鱼肚", "qty": null, "unit": null}], "ex--45e2d82e": [{"item": "玉兰片（笋片）", "qty": null, "unit": null}], "ex--3ebbfc57": [{"item": "田鸡腿", "qty": null, "unit": null}], "ex--b29ada1a": [{"item": "玉兰片（笋片）", "qty": null, "unit": null}], "ex--35411308": [{"item": "面粉（面点）", "qty": null, "unit": null}], "ex--6f0a2183": [{"item": "牛肉", "qty": null, "unit": null}], "ex--33a4fc8b": [{"item": "牛肉片", "qty": null, "unit": null}], "ex--c5776d3a": [{"item": "鸡蛋，猪肉", "qty": null, "unit": null}], "ex--84d5489b": [{"item": "鸽蛋，蹄筋", "qty": null, "unit": null}], "ex--4d95ebe3": [{"item": "鸽子", "qty": null, "unit": null}], "ex--3edf0403": [{"item": "鸽蛋，蛋清", "qty": null, "unit": null}], "ex--04dfc7eb": [{"item": "竹荪", "qty": null, "unit": null}], "ex--16899329": [{"item": "蟹黄，银杏", "qty": null, "unit": null}], "ex--1f16e8bb": [{"item": "鸽蛋，蹄筋，燕菜", "qty": null, "unit": null}], "ex--8bd5bc3a": [{"item": "口蘑", "qty": null, "unit": null}], "ex--a0a57b1c": [{"item": "虾", "qty": null, "unit": null}], "ex--e7dde848": [{"item": "冬菇，口蘑，肉馅", "qty": null, "unit": null}], "ex--01308b6f": [{"item": "冬菇（香菇），肉馅", "qty": null, "unit": null}], "ex--e6d8d133": [{"item": "鸽蛋，肉馅", "qty": null, "unit": null}], "ex--20105a67": [{"item": "兔肉，陈皮", "qty": null, "unit": null}], "ex--90402dd0": [{"item": "鸡肉，兰花（干黄花菜）", "qty": null, "unit": null}], "ex--d63a85ac": [{"item": "海参", "qty": null, "unit": null}], "ex--e8f73168": [{"item": "海蜇", "qty": null, "unit": null}], "ex--8fc90027": [{"item": "麂肉", "qty": null, "unit": null}], "ex--ed0628d4": [{"item": "鱼翅", "qty": null, "unit": null}], "ex--b12ba6a4": [{"item": "海参", "qty": null, "unit": null}], "ex--6545606d": [{"item": "鱼翅", "qty": null, "unit": null}], "ex--7aab63de": [{"item": "鱿鱼", "qty": null, "unit": null}], "ex--e698be40": [{"item": "鱿鱼，鲜笋", "qty": null, "unit": null}], "ex--d0b8e59b": [{"item": "珧柱（干贝）", "qty": null, "unit": null}], "ex--4a64befe": [{"item": "鱼肚", "qty": null, "unit": null}], "ex--7e4e79b7": [{"item": "鱼翅", "qty": null, "unit": null}], "ex--5e8fcce8": [{"item": "鱼肚", "qty": null, "unit": null}], "ex--c6a2b71b": [{"item": "鹿肉", "qty": null, "unit": null}], "ex--97bf4d9d": [{"item": "鱿鱼", "qty": null, "unit": null}], "ex--708e2f11": [{"item": "海参", "qty": null, "unit": null}], "ex--027563d0": [{"item": "熊掌", "qty": null, "unit": null}], "ex--0f97bc2e": [{"item": "猪肉", "qty": null, "unit": null}], "ex--3e96b566": [{"item": "鱼唇", "qty": null, "unit": null}], "ex--32fd38b8": [{"item": "鹿筋", "qty": null, "unit": null}], "ex--638e863a": [{"item": "珧柱（干贝）", "qty": null, "unit": null}], "ex--caed9c66": [{"item": "鱼翅", "qty": null, "unit": null}], "ex--806b8604": [{"item": "海参", "qty": null, "unit": null}], "ex--d2712e05": [{"item": "鱿鱼", "qty": null, "unit": null}], "ex--e1383df7": [{"item": "珧柱（干贝）", "qty": null, "unit": null}], "ex--4d9be6fe": [{"item": "菠饺（菠菜面饺），鱼肚", "qty": null, "unit": null}], "ex--1fd5feec": [{"item": "海参", "qty": null, "unit": null}], "ex--2a0b89d9": [{"item": "海参", "qty": null, "unit": null}], "ex--c673b4db": [{"item": "鱼肚，羊肚", "qty": null, "unit": null}], "ex--c7db9907": [{"item": "鱿鱼，腐皮（豆腐皮）", "qty": null, "unit": null}], "ex--74c249e1": [{"item": "海参", "qty": null, "unit": null}], "ex--f5dc9b3f": [{"item": "鸡淖，鱼翅", "qty": null, "unit": null}], "ex--d3361424": [{"item": "鸡皮，鱼肚", "qty": null, "unit": null}], "ex--173deebd": [{"item": "银耳", "qty": null, "unit": null}], "ex--b1413caf": [{"item": "澄粉（小麦淀粉）", "qty": null, "unit": null}], "ex--b29eabba": [{"item": "玫瑰花瓣", "qty": null, "unit": null}], "ex--68225ed3": [{"item": "羊尾", "qty": null, "unit": null}], "ex--177d2fcb": [{"item": "糯米", "qty": null, "unit": null}], "ex--7d8a3eb3": [{"item": "红枣，网油", "qty": null, "unit": null}], "ex--b293c0ac": [{"item": "茨菰", "qty": null, "unit": null}], "ex--345f11ae": [{"item": "红枣，面粉", "qty": null, "unit": null}], "ex--ac9a32ca": [{"item": "糯米", "qty": null, "unit": null}], "ex--104e4239": [{"item": "红薯（苕），鸡蛋", "qty": null, "unit": null}], "ex--cbd48606": [{"item": "蚕豆（扁豆）", "qty": null, "unit": null}], "ex--948a7bbd": [{"item": "蚕豆", "qty": null, "unit": null}], "ex--b8c83177": [{"item": "莲藕，糯米", "qty": null, "unit": null}], "ex--4a651a29": [{"item": "猪肚头，兰花（干黄花菜/金针菜），茨菰", "qty": null, "unit": null}], "ex--76b29e3f": [{"item": "猪肉", "qty": null, "unit": null}], "ex--c9a9309b": [{"item": "猪肉，火腿，玉兰片（笋片），香菌（香菇），鸡蛋，茨菰，菜心", "qty": null, "unit": null}], "ex--711a7f1a": [{"item": "乳猪", "qty": null, "unit": null}], "ex--bfe29685": [{"item": "猪肉，鸡蛋清", "qty": null, "unit": null}], "ex--10cdbeaf": [{"item": "五花肉", "qty": null, "unit": null}], "ex--6966092b": [{"item": "猪肚头，箩粉，番茄", "qty": null, "unit": null}], "ex--4f93c5ac": [{"item": "猪肉，蒜苗", "qty": null, "unit": null}], "ex--a733388c": [{"item": "猪肘子，肥鸭，鸡蛋，冬笋，海参，墨鱼，肥母鸡，虾米（大金钩），火腿，口蘑，鱼翅", "qty": null, "unit": null}], "ex--0b0bd95b": [{"item": "南瓜，五花肉，米粉", "qty": null, "unit": null}], "ex--0fd31741": [{"item": "猪肉，糯米，豆沙", "qty": null, "unit": null}], "ex--4d4ba1a1": [{"item": "干猪皮，熟猪肚，猪肉，青菜，熟猪舌，熟猪心，干笋，鸡蛋，鸡松菌", "qty": null, "unit": null}], "ex--4d22a38d": [{"item": "肥瘦猪肉，木耳，鲜笋，白葱头", "qty": null, "unit": null}], "ex--91b33bcc": [{"item": "瘦猪肉，鲜笋", "qty": null, "unit": null}], "ex--2ea365f9": [{"item": "猪肉，青蒜", "qty": null, "unit": null}], "ex--2c917eeb": [{"item": "瘦猪肉，大头菜", "qty": null, "unit": null}], "ex--4c083d71": [{"item": "豆油皮（豆腐皮），萝卜，猪肉，鸡蛋，松子", "qty": null, "unit": null}], "ex--e4ba161a": [{"item": "猪肉，口蘑，鸡蛋，豆尖", "qty": null, "unit": null}], "ex--c04a4822": [{"item": "猪里脊，白菜嫩叶", "qty": null, "unit": null}], "ex--13e84679": [{"item": "猪腰，青叶菜", "qty": null, "unit": null}], "ex--70d83944": [{"item": "猪肥肠头，生菜", "qty": null, "unit": null}], "ex--7581579c": [{"item": "整方块带骨猪肉", "qty": null, "unit": null}], "ex--af18880d": [{"item": "五花猪肉", "qty": null, "unit": null}], "ex--5f752c78": [{"item": "猪肘子", "qty": null, "unit": null}], "ex--00640549": [{"item": "猪腰", "qty": null, "unit": null}], "ex--b62e6829": [{"item": "猪舌，猪尾，猪蹄筋，青菜心", "qty": null, "unit": null}], "ex--addb85f5": [{"item": "猪肝，木耳，小白菜，葱", "qty": null, "unit": null}], "ex--a51fd86b": [{"item": "猪肝，竹荪，鸡蛋", "qty": null, "unit": null}], "ex--ec5d7e15": [{"item": "猪肉，大米粉，鲜豌豆", "qty": null, "unit": null}], "ex--0d31aaec": [{"item": "猪肘，红枣", "qty": null, "unit": null}], "ex--7b5e1492": [{"item": "环喉（喉管/食管部位），玉兰片（笋片），火腿，鸡松", "qty": null, "unit": null}], "ex--39af818f": [{"item": "五花猪肉", "qty": null, "unit": null}], "ex--bd01df02": [{"item": "猪肥肠，干豌豆", "qty": null, "unit": null}], "ex--c85b7fb4": [{"item": "酥肉，熟猪肚，熟猪舌，熟火腿，尖刀圆子，水发响皮，笋子，鸡松，鸡蛋", "qty": null, "unit": null}], "ex--a101092a": [{"item": "猪肉，鸡蛋清，面包粉", "qty": null, "unit": null}], "ex--b1645f9c": [{"item": "肥膘肉，鸡蛋", "qty": null, "unit": null}], "ex--3236ec59": [{"item": "猪肘子，芝麻", "qty": null, "unit": null}], "ex--fb415ad1": [{"item": "冬干苕菜，肥瘦猪肉，茨菰，金钩（虾米），火腿，鲜青豆，鸡蛋", "qty": null, "unit": null}], "ex--0b5f9f77": [{"item": "猪肥肉，瘦猪肉，鲜荷叶，嫩黄豆（青豆），大米", "qty": null, "unit": null}], "ex--2e85ab30": [{"item": "猪肚头，瘦猪肉，菠菜", "qty": null, "unit": null}], "ex--3a804c8d": [{"item": "猪肺，猪肉，熟火腿，菠菜，口蘑，熟鸡皮", "qty": null, "unit": null}], "ex--77fcc44c": [{"item": "猪肉，白萝卜", "qty": null, "unit": null}], "ex--c6115523": [{"item": "猪肝，葱白", "qty": null, "unit": null}], "ex--a0816b36": [{"item": "整猪头，豆渣", "qty": null, "unit": null}], "ex--dbdc6e79": [{"item": "五花肉", "qty": null, "unit": null}], "ex--fa3fb59c": [{"item": "猪肚头", "qty": null, "unit": null}], "ex--71b60f77": [{"item": "猪腰，猪肉，玉兰片（笋片），猪网油", "qty": null, "unit": null}], "ex--8da90779": [{"item": "肥膘肉，鲜豌豆或黄豆，面包，鸡蛋，大米粉", "qty": null, "unit": null}], "ex--3235554e": [{"item": "大米锅巴，猪腰柳肉，青菌，玉兰片（笋片）", "qty": null, "unit": null}], "ex--115f74ca": [{"item": "猪腰，熟猪肥膘肉，熟火腿，白头韭菜", "qty": null, "unit": null}], "ex--8ba1874a": [{"item": "瘦猪肉，陈皮", "qty": null, "unit": null}], "ex--156e4d4a": [{"item": "瘦猪肉，木耳", "qty": null, "unit": null}], "ex--8cf2ee64": [{"item": "肥瘦猪肉，鸡蛋", "qty": null, "unit": null}], "ex--fa5e0f10": [{"item": "猪肥膘，鸡蛋，面粉，芝麻", "qty": null, "unit": null}], "ex--439aa371": [{"item": "五花肉，芽菜", "qty": null, "unit": null}], "ex--b7fdd52e": [{"item": "猪肥肉，糯米，蜜樱桃，豆沙", "qty": null, "unit": null}], "ex--800dee75": [{"item": "脊髓，瘦猪肉，肥膘，火腿，鲜鱼，鸡蛋", "qty": null, "unit": null}], "ex--4a64235d": [{"item": "多种蔬菜拼", "qty": null, "unit": null}], "ex--f788bca6": [{"item": "豆腐，鸡蛋", "qty": null, "unit": null}], "ex--af862012": [{"item": "豆腐，猪肉", "qty": null, "unit": null}], "ex--bc1b2c47": [{"item": "芦笋", "qty": null, "unit": null}], "ex--d98506e7": [{"item": "冬笋", "qty": null, "unit": null}], "ex--d5415621": [{"item": "豆腐皮", "qty": null, "unit": null}], "ex--e09a0fd3": [{"item": "豆腐", "qty": null, "unit": null}], "ex--09d24dd8": [{"item": "菠菜，胡萝卜，豆苗（示意三色蔬）", "qty": null, "unit": null}], "ex--f505b80e": [{"item": "白菜", "qty": null, "unit": null}], "ex--9f93d3f9": [{"item": "豆芽", "qty": null, "unit": null}], "ex--57fd9bbb": [{"item": "鲜笋", "qty": null, "unit": null}], "ex--5f210377": [{"item": "菠菜", "qty": null, "unit": null}], "ex--2901826f": [{"item": "豆腐", "qty": null, "unit": null}], "ex--cb8016d0": [{"item": "冬笋，盐白菜", "qty": null, "unit": null}], "ex--c410dfe1": [{"item": "豆腐", "qty": null, "unit": null}], "ex--74ab30a9": [{"item": "菱角，豆腐", "qty": null, "unit": null}], "ex--f7a17857": [{"item": "豆腐", "qty": null, "unit": null}], "ex--e0fb2f18": [{"item": "蟹黄", "qty": null, "unit": null}], "ex--514e3fd8": [{"item": "白萝卜", "qty": null, "unit": null}], "ex--563d2d9d": [{"item": "豆腐", "qty": null, "unit": null}], "ex--c2205664": [{"item": "豆蕊，韭菜", "qty": null, "unit": null}], "ex--73715b26": [{"item": "茄子", "qty": null, "unit": null}], "ex--2d5041cd": [{"item": "冬笋，鸡皮", "qty": null, "unit": null}], "ex--b6f1009a": [{"item": "慈笋，鸡皮", "qty": null, "unit": null}], "ex--3946f051": [{"item": "葵菜，鸡肉", "qty": null, "unit": null}], "ex--c7a136f5": [{"item": "鲜鱼，玉兰片（笋片），香菇，木耳", "qty": null, "unit": null}], "ex--d5124139": [{"item": "虾球", "qty": null, "unit": null}], "ex--462faa18": [{"item": "鱼圆", "qty": null, "unit": null}], "ex--299ea735": [{"item": "鲜鱼，兰花（干黄花菜）", "qty": null, "unit": null}], "ex--a1208c21": [{"item": "鲫鱼，凉粉", "qty": null, "unit": null}], "ex--011eaa5b": [{"item": "鲜鱼", "qty": null, "unit": null}], "ex--5bc40918": [{"item": "虾", "qty": null, "unit": null}], "ex--497d6220": [{"item": "鲫鱼", "qty": null, "unit": null}], "ex--efa871b1": [{"item": "鳝鱼", "qty": null, "unit": null}], "ex--1182aa5e": [{"item": "鲜鱼", "qty": null, "unit": null}], "ex--36f76a55": [{"item": "虾饼", "qty": null, "unit": null}], "ex--5d2b35c0": [{"item": "鱼卷", "qty": null, "unit": null}], "ex--a276fea5": [{"item": "鲜鱼，泡菜", "qty": null, "unit": null}], "ex--0b844aaa": [{"item": "鲜鱼", "qty": null, "unit": null}], "ex--76a886b1": [{"item": "鱼卷", "qty": null, "unit": null}], "ex--6b17e20c": [{"item": "虾仁", "qty": null, "unit": null}], "ex--edba36af": [{"item": "青鳝", "qty": null, "unit": null}], "ex--20e47827": [{"item": "鲢鱼", "qty": null, "unit": null}], "ex--d53ec5fc": [{"item": "鱼圆", "qty": null, "unit": null}], "ex--b3cb383f": [{"item": "鲜鱼", "qty": null, "unit": null}], "ex--09509a85": [{"item": "虾仁", "qty": null, "unit": null}], "ex--44bbc8ea": [{"item": "虾仁，番茄", "qty": null, "unit": null}], "ex--4b73d24b": [{"item": "鲜鱼，玉兰片（笋片），香菇，木耳", "qty": null, "unit": null}], "ex--69ee3667": [{"item": "鲜鱼", "qty": null, "unit": null}], "ex--14f19062": [{"item": "鲜鱼", "qty": null, "unit": null}], "ex--22341635": [{"item": "甲鱼", "qty": null, "unit": null}], "ex--9bfdb649": [{"item": "虾仁，豌豆", "qty": null, "unit": null}], "ex--46a1c25e": [{"item": "虾仁，鸡蛋清", "qty": null, "unit": null}], "ex--01914cb3": [{"item": "虾，芝麻", "qty": null, "unit": null}], "ex--6f5f3be0": [{"item": "鲜鱼，芹菜心", "qty": null, "unit": null}], "ex--64115033": [{"item": "鲜鱼中段，白萝卜丝", "qty": null, "unit": null}], "ex--baed7d9b": [{"item": "鲜鱼，葱", "qty": null, "unit": null}], "ex--8aec747f": [{"item": "鲫鱼，豆腐", "qty": null, "unit": null}], "ex--b12c0135": [{"item": "虾", "qty": null, "unit": null}], "ex--d37d0851": [{"item": "虾，鸡蛋", "qty": null, "unit": null}], "ex--c6960e2c": [{"item": "鲜鱼", "qty": null, "unit": null}], "ex--7cece6e0": [{"item": "鱼片", "qty": null, "unit": null}], "ex--1df98a3f": [{"item": "鲢鱼头", "qty": null, "unit": null}], "ex--470534f7": [{"item": "鸡脯肉，鸡蛋", "qty": null, "unit": null}], "ex--96bf2cd4": [{"item": "鸡肉，三种鲜菌", "qty": null, "unit": null}], "ex--b02be49d": [{"item": "鸡片，火腿，口蘑，鲜笋，青菜", "qty": null, "unit": null}], "ex--51da0fa5": [{"item": "公鸡", "qty": null, "unit": null}], "ex--3cf165c3": [{"item": "鸡肉，兰花（干黄花菜）", "qty": null, "unit": null}], "ex--0701bcb2": [{"item": "鸭子", "qty": null, "unit": null}], "ex--53372e7d": [{"item": "鸡丝，白葱头", "qty": null, "unit": null}], "ex--9f266e0d": [{"item": "鸡肉", "qty": null, "unit": null}], "ex--c4da5f73": [{"item": "鸭子", "qty": null, "unit": null}], "ex--206c805b": [{"item": "鸭肉", "qty": null, "unit": null}], "ex--e39f0328": [{"item": "鸡肉，芹菜，蒜苗", "qty": null, "unit": null}], "ex--66aec1b8": [{"item": "鸡腿（或鸡肉），芝麻，葱白", "qty": null, "unit": null}], "ex--cef89788": [{"item": "鸭子", "qty": null, "unit": null}], "ex--18761199": [{"item": "全鸡", "qty": null, "unit": null}], "ex--0113f5ce": [{"item": "鸡肉，桃酥", "qty": null, "unit": null}], "ex--5b35a2c1": [{"item": "鸡肉，葱白", "qty": null, "unit": null}], "ex--26700cf1": [{"item": "鸭子，茶叶", "qty": null, "unit": null}], "ex--69ade0df": [{"item": "鸭肫，鸭腰", "qty": null, "unit": null}], "ex--42c44d19": [{"item": "仔鸡，葱，蒜", "qty": null, "unit": null}], "ex--ac626a06": [{"item": "鸡肉", "qty": null, "unit": null}], "ex--06e9a919": [{"item": "鸡肉，蒜苗", "qty": null, "unit": null}], "ex--832d7c5d": [{"item": "鸡肉", "qty": null, "unit": null}], "ex--e723c0c0": [{"item": "鸡肉，花生米，葱", "qty": null, "unit": null}], "ex--3b8f16e1": [{"item": "鸡脯肉，桃米，火腿，口蘑，建兰菜", "qty": null, "unit": null}], "ex--0fc93e9b": [{"item": "鸡肉，红萝卜", "qty": null, "unit": null}], "ex--4227ebbf": [{"item": "鸡肉，茨菰，白葱头", "qty": null, "unit": null}], "ex--513df904": [{"item": "鸭肝，葱", "qty": null, "unit": null}], "ex--27b09470": [{"item": "鸡脯，鸡蛋清，小白菜心，口蘑，火腿", "qty": null, "unit": null}], "ex--8032e8e6": [{"item": "鸡翅，口蘑，冬笋，火腿", "qty": null, "unit": null}], "ex--60b2b529": [{"item": "鸡腿，口蘑", "qty": null, "unit": null}], "ex--6772a775": [{"item": "仔鸡，葱", "qty": null, "unit": null}], "ex--5309ef14": [{"item": "竹荪，鸭肫，鸭腰", "qty": null, "unit": null}], "ex--0277ce8e": [{"item": "全鸭，糯米", "qty": null, "unit": null}], "ex--04a08cea": [{"item": "鸡肉，糯米", "qty": null, "unit": null}], "ex--c63958e0": [{"item": "鸡肉", "qty": null, "unit": null}], "ex--0ce59d78": [{"item": "鸭舌，鸭掌", "qty": null, "unit": null}], "ex--571132b8": [{"item": "鸭肉", "qty": null, "unit": null}], "ex--d6977f49": [{"item": "鸡脯，肥瘦肉，网油，茨菰，火腿，香菌，生菜", "qty": null, "unit": null}], "ex--96aa40ba": [{"item": "鸡脯肉，茨菰，网油，生菜", "qty": null, "unit": null}], "ex--656a7835": [{"item": "鸡肉，白葱头", "qty": null, "unit": null}], "ex--efa3d164": [{"item": "鸡片，鸡蛋清，口蘑，鲜笋，火腿，豌豆尖，鸡皮", "qty": null, "unit": null}], "ex--0f045718": [{"item": "鸡肉", "qty": null, "unit": null}], "ex--033f63cc": [{"item": "鸭子，虫草", "qty": null, "unit": null}], "ex--2f122552": [{"item": "鸭子，鸡蛋", "qty": null, "unit": null}], "ex--ea77d5d2": [{"item": "鸭子，豆渣", "qty": null, "unit": null}], "ex--1047a3ce": [{"item": "鸭脯，豆渣", "qty": null, "unit": null}], "ex--17b58243": [{"item": "鸡肉，绿豆芽", "qty": null, "unit": null}], "ex--9e74bfc7": [{"item": "鸡肉", "qty": null, "unit": null}], "ex--e7a796cd": [{"item": "鸡肉，鸡蛋", "qty": null, "unit": null}], "ex--f4d04e7c": [{"item": "鸭腰", "qty": null, "unit": null}], "ex--b540e64d": [{"item": "鸡肉", "qty": null, "unit": null}], "ex--96260fe7": [{"item": "鸭脯", "qty": null, "unit": null}], "ex--37b4cf03": [{"item": "鸭肝", "qty": null, "unit": null}], "ex--1a5a6b86": [{"item": "鸭脯，银杏", "qty": null, "unit": null}], "ex--b33a6158": [{"item": "全鸭", "qty": null, "unit": null}], "ex--9bbdceed": [{"item": "鸡脯肉，熟猪肥膘片，生菜，葱白", "qty": null, "unit": null}], "ex--b424d1ae": [{"item": "鸡肉，陈皮", "qty": null, "unit": null}], "ex--efeb50d1": [{"item": "鸡脯，鸡蛋清，火腿", "qty": null, "unit": null}], "ex--fba998bf": [{"item": "仔鸡，生菜", "qty": null, "unit": null}], "ex--0b1089d0": [{"item": "鸭子", "qty": null, "unit": null}], "ex--56a6ad20": [{"item": "鸭肉，魔芋", "qty": null, "unit": null}], "ex--63f003e2": [{"item": "鸡块，葱", "qty": null, "unit": null}], "ex--396e2f23": [{"item": "鸡脯肉，熟猪肥膘片，白头韭菜，火腿", "qty": null, "unit": null}], "ex--4315683b": [{"item": "脊髓，鸡脯肉，鸡蛋清", "qty": null, "unit": null}], "ex--2a668d7b": [{"item": "老鸡脯肉，鸡蛋清，菜心，火腿", "qty": null, "unit": null}], "ex--4e43ec23": [{"item": "鸭腰，莼菜", "qty": null, "unit": null}], "ex--49ddf534": [{"item": "鸭肫", "qty": null, "unit": null}], "ex--22234c3a": [{"item": "鸡肉，芝麻", "qty": null, "unit": null}]}};

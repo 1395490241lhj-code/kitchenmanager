@@ -5,7 +5,6 @@
   const KEY='km-sw-'+VERSION;
 
   if (location.hash.includes('sw=off')) {
-    // One-time kill switch
     navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r=>r.unregister()));
     if (window.caches && caches.keys) caches.keys().then(keys => keys.forEach(k=>caches.delete(k)));
     console.log('[SW] disabled via #sw=off');
@@ -13,15 +12,13 @@
   }
 
   navigator.serviceWorker.getRegistrations().then(async regs => {
-    // clean old ones not using sw.v16.js
     for (const r of regs) {
       const url = (r.active && r.active.scriptURL) || '';
       if (!/sw\.v16\.js/.test(url)) { try{ await r.unregister(); }catch(_){} }
     }
     try{
-      const reg = await navigator.serviceWorker.register('./sw.v16.js?'+VERSION, {scope:'./'});
+      const reg = await navigator.serviceWorker.register('./sw.v16.js?v='+VERSION, {scope:'./'});
       if (!localStorage.getItem(KEY)) {
-        // reload once after activation
         let reloaded = false;
         const listen = (w) => {
           if (!w) return;
