@@ -6,20 +6,23 @@
     <meta name="theme-color" content="#0b132b" />
     <title>Kitchen Assistant · 厨房</title>
 
-    <!-- 样式（你仓库根目录已有 styles.css） -->
+    <!-- 你的样式（仓库根目录已有 styles.css） -->
     <link rel="stylesheet" href="./styles.css">
 
-    <!-- ✅ 用料逐行显示补丁（保持相对路径） -->
+    <!-- ✅ 用料逐行显示补丁 -->
     <link rel="stylesheet" href="./ingredients-list-patch.v14.css?v=14">
   </head>
   <body>
     <!-- 应用根节点 -->
     <div id="app"></div>
 
-    <!-- 应用入口脚本（你仓库根目录已有 app.js） -->
+    <!-- 你的应用入口脚本 -->
     <script type="module" src="./app.js"></script>
 
     <!-- ✅ 用料逐行显示补丁（自动把逗号分隔转成 <ul><li>） -->
     <script src="./ingredients-list-patch.v14.js?v=14"></script>
+
+    <!-- ✅ 注册 v16 Service Worker（强制更新缓存，避免空白页） -->
+    <script src="./sw-register.v16.js"></script>
   </body>
 </html>
