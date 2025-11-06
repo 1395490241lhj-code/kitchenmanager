@@ -1,238 +1,29 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Kitchen Assistant · UI Rescue v9</title>
-<style>
-:root{ --bg:#0b1020; --card:#0f172a; --muted:#94a3b8; --text:#e2e8f0; --primary:#0ea5e9; --ok:#10b981; --warn:#f59e0b; --danger:#ef4444; }
-*{ box-sizing:border-box; } html,body,#app{ height:100%; } body{ margin:0; font-family:ui-sans-serif, system-ui, -apple-system, "SF Pro","PingFang SC", Arial; background:linear-gradient(180deg,#0b1020,#111827); color:var(--text); }
-.app{ display:flex; flex-direction:column; height:100%; } header{ position:sticky; top:0; background:rgba(15,23,42,.8); border-bottom:1px solid rgba(255,255,255,.06); padding:12px 16px; display:flex; align-items:center; gap:12px; z-index:10; backdrop-filter:blur(8px) saturate(140%); }
-header h1{ font-size:18px; margin:0; letter-spacing:.3px; }
-.container{ flex:1; padding:16px; max-width:920px; margin:0 auto; width:100%; }
-.grid{ display:grid; gap:12px; } .card{ background:var(--card); border:1px solid rgba(255,255,255,.06); border-radius:16px; padding:16px; box-shadow:0 4px 20px rgba(0,0,0,.2); }
-.title{ font-size:16px; font-weight:600; margin:0 0 8px; } .muted{ color:var(--muted); font-size:12px; }
-input, select, button, textarea{ font:inherit; } .row{ display:flex; gap:8px; align-items:center; } .row > *{ flex:1; }
-input, select, textarea{ background:#0b1224; border:1px solid rgba(255,255,255,.08); color:var(--text); border-radius:12px; padding:10px 12px; }
-button{ background:var(--primary); border:0; color:white; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600; }
-button.ghost{ background:transparent; border:1px solid rgba(255,255,255,.12); color:var(--text); } button.ok{ background:var(--ok); }
-.tabbar{ position:sticky; bottom:0; background:rgba(15,23,42,.9); border-top:1px solid rgba(255,255,255,.06); display:flex; gap:4px; padding:8px; }
-.tabbar button{ flex:1; text-align:center; padding:8px 4px; border-radius:12px; color:var(--text); background:transparent; border:1px solid rgba(255,255,255,.12); }
-.tabbar button.active{ background:#0b1224; } .label{ font-size:12px; color:var(--muted); } .chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.08); background:#0b1224; }
-.list{ display:flex; flex-direction:column; gap:8px; } .kpi{ display:flex; gap:12px; flex-wrap:wrap; } .kpi .chip{ background:#0f1b35; } small{ color:var(--muted); }
-</style>
-</head>
-<body>
-<div id="app"></div>
-<script>
-// ---- Kill any registered Service Workers to avoid stale blank pages
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(()=>{});
-}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kitchen Assistant · 厨房</title>
 
-// ---- simple store helpers
-var store={get:function(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-function nowISO(){return new Date().toISOString().slice(0,10)}
-function plusDays(d,n){return new Date(new Date(d).getTime()+n*86400000).toISOString().slice(0,10)}
-function daysBetween(a,b){return Math.ceil((new Date(a)-new Date(b))/86400000)}
-function last(arr){return (arr&&arr.length)?arr[arr.length-1]:undefined}
+    <!-- ✅ PATCH v14: 逐行显示用料（必须保留） -->
+    <link rel="stylesheet" href="./ingredients-list-patch.v14.css?v=14">
 
-// ---- seed minimal data if empty（仅首次，防止空白）
-(function seed(){
-  if(store.get('ingredients',null)) return;
-  var ingredients=[{id:1,name:'西兰花',unit:'g',shelf:4},{id:2,name:'鸡胸',unit:'g',shelf:2}];
-  var recipes=[{id:101,name:'西兰花炒鸡胸',tags:['家常']}];
-  var rIngs=[{recipeId:101,ingId:1,name:'西兰花',need:300,unit:'g'},{recipeId:101,ingId:2,name:'鸡胸',need:250,unit:'g'}];
-  var today=nowISO(); var stock=[{id:1,ingId:1,qty:320,unit:'g',purchase:today,expire:plusDays(today,3),location:'fridge'}];
-  store.set('ingredients',ingredients); store.set('recipes',recipes); store.set('recipeIngs',rIngs); store.set('stock',stock); store.set('list',[]); store.set('prefs',{cuisines:['家常','川菜'],spice:1,disliked:[],allergens:[]});
-})();
+    <!-- KEEP: 这里放你原来的 CSS/图标等（不要删除你现有的这些标签） -->
+    <!-- 示例：
+    <link rel="icon" href="./favicon.ico">
+    <link rel="stylesheet" href="./assets/index-xxxx.css">
+    -->
+  </head>
+  <body>
+    <!-- KEEP: 这里是你原来的应用根节点（不要改动 id），例如： -->
+    <div id="app"></div>
 
-// ---- v9 one-shot merge Sichuan data if存在
-(async function mergeSichuan(){
-  try{
-    if(localStorage.getItem('sichuan_v9_merged')) return;
-    const res=await fetch('./data/sichuan-recipes.json',{cache:'no-store'});
-    if(!res.ok) return;
-    const pack=await res.json(); const addRecipes=Array.isArray(pack.recipes)?pack.recipes:[]; const addMap=pack.recipe_ingredients||{};
-    const get=(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(_){ return d } };
-    const set=(k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(_){ } };
-    let ings=get('ingredients',[]), recs=get('recipes',[]), rIngs=get('recipeIngs',[]);
-    const seen=new Set(recs.map(r=>(r.name||'').trim()));
-    const nextIngId=()=> (ings.length?(ings[ings.length-1].id||0):0)+1;
-    function ensureIng(name, unit){ var x=ings.find(function(i){return i.name===name}); if(x) return x; x={id:nextIngId(), name:name, unit:unit||'g', shelf:(unit==='pcs'?14:5)}; ings.push(x); return x; }
-    for(var i=0;i<addRecipes.length;i++){
-      var r=addRecipes[i]; var key=(r.name||'').trim(); if(!key||seen.has(key)) continue;
-      recs.push({id:r.id||key, name:r.name, tags:r.tags||['川菜']}); seen.add(key);
-      var list=addMap[r.id]||[]; for(var j=0;j<list.length;j++){ var it=list[j]; var ing=ensureIng(it.item, it.unit||'g'); rIngs.push({recipeId:r.id||key, ingId:ing.id, name:it.item, need:it.qty, unit:it.unit||'g'}); }
-    }
-    set('ingredients',ings); set('recipes',recs); set('recipeIngs',rIngs); localStorage.setItem('sichuan_v9_merged','1');
-  }catch(e){ console.warn('merge sichuan failed',e); }
-})();
+    <!-- KEEP: 这里放你原来的 JS 入口（不要删除你现有的这些标签） -->
+    <!-- 示例（Vite构建后类似）：
+    <script type="module" crossorigin src="./assets/index-xxxxx.js"></script>
+    -->
 
-// ---- state & helpers
-var S={
-  get ings(){return store.get('ingredients',[])}, set ings(v){store.set('ingredients',v)},
-  get stock(){return store.get('stock',[])}, set stock(v){store.set('stock',v)},
-  get recipes(){return store.get('recipes',[])}, set recipes(v){store.set('recipes',v)},
-  get rIngs(){return store.get('recipeIngs',[])}, set rIngs(v){store.set('recipeIngs',v)},
-  get prefs(){return store.get('prefs',{disliked:[],allergens:[],cuisines:[],spice:1})}, set prefs(v){store.set('prefs',v)},
-  get list(){return store.get('list',[])}, set list(v){store.set('list',v)}
-};
-function byId(arr,id){for(var i=0;i<arr.length;i++){if(arr[i].id===id)return arr[i]}return null}
-function ingName(id){var o=byId(S.ings,id);return o?o.name:('#'+id)}
-function perishScore(b){var shelf=Math.max(1,daysBetween(b.expire,b.purchase)); var left=daysBetween(b.expire,nowISO()); return Math.max(0,Math.min(1,1-left/shelf))}
-function aggregateStock(){var m=new Map(); for(var i=0;i<S.stock.length;i++){var b=S.stock[i]; var prev=m.get(b.ingId)||{available:0,perish:0}; m.set(b.ingId,{available:prev.available+b.qty,perish:Math.max(prev.perish,perishScore(b))});} return m}
-function recommendTop(k){k=k||5; var stock=aggregateStock(); var pref=S.prefs; 
-  var arr=[]; for(var i=0;i<S.recipes.length;i++){var r=S.recipes[i]; 
-    var list=S.rIngs.filter(function(x){return x.recipeId===r.id});
-    if(pref.allergens&&pref.allergens.length&&list.some(function(it){return pref.allergens.indexOf(it.name)>-1})) continue;
-    if(pref.disliked&&pref.disliked.length&&list.some(function(it){return pref.disliked.indexOf(it.name)>-1})) continue;
-    var coverSum=0, perishSum=0, miss=0, breakdown=[];
-    for(var j=0;j<list.length;j++){var it=list[j]; var s=stock.get(it.ingId)||{available:0,perish:0}; var avail=s.available; var perish=s.perish; var need=it.need; var cover=Math.min(1, (need>0?avail/need:1)); if(cover<1)miss++; coverSum+=cover; perishSum+= perish*Math.min(1,(need>0?avail/need:1)); breakdown.push({name:ingName(it.ingId),avail:avail,need:need,perish:perish});}
-    var cover=list.length?coverSum/list.length:0; var perishWeighted=list.length?perishSum/list.length:0;
-    var tasteBonus=(pref.cuisines && r.tags && r.tags.some(function(t){return pref.cuisines.indexOf(t)>-1}))?0.1:0;
-    var score=0.45*perishWeighted + 0.35*cover - 0.15*miss + 0.05*tasteBonus;
-    arr.push({recipe:r,score:score,cover:cover,miss:miss,perishWeighted:perishWeighted,breakdown:breakdown});
-  }
-  arr.sort(function(a,b){return b.score-a.score}); return arr.slice(0,k);
-}
-function diffForRecipe(id){var stock=aggregateStock(); 
-  return S.rIngs.filter(function(x){return x.recipeId===id}).map(function(it){
-    var avail=(stock.get(it.ingId)||{available:0}).available; var short=Math.max(0,it.need-avail); return short>0?{name:ingName(it.ingId),shortage:short,unit:it.unit}:null;
-  }).filter(Boolean);
-}
-function cookAndDeduct(id){
-  var items=S.rIngs.filter(function(x){return x.recipeId===id}); var batches=S.stock.slice().sort(function(a,b){return a.expire.localeCompare(b.expire)});
-  for(var i=0;i<items.length;i++){var it=items[i]; var remaining=it.need;
-    for(var j=0;j<batches.length;j++){var b=batches[j]; if(b.ingId!==it.ingId)continue; if(remaining<=0)break; var take=Math.min(b.qty,remaining); b.qty-=take; remaining-=take;
-      var idx=S.stock.map(function(x){return x.id}).indexOf(b.id);
-      if(b.qty<=0){ if(idx>-1) S.stock.splice(idx,1); } else { if(idx>-1) S.stock[idx]=b; }
-    }
-  } store.set('stock',S.stock);
-}
-
-// ---- UI render
-function $(s){return document.querySelector(s)}
-function chip(t){return '<span class="chip">'+t+'</span>'}
-function fmt(q,u){ if(u==='pcs') return String(Math.round(q))+'个'; if(q>=1000) return (q/1000).toFixed(1)+(u==='g'?'kg':'L'); return String(q)+(u||'') }
-
-function renderRecommend(){
-  var res=recommendTop(5); if(res.length===0){$('#page').innerHTML='<div class="card">没有可推荐的菜谱。请先添加库存与菜谱。</div>'; return;}
-  $('#page').innerHTML=res.map(function(it){
-    var miss=diffForRecipe(it.recipe.id);
-    var missHtml=miss.length?('<div style="margin-top:8px"><div class="label">缺料清单：</div><ul class="list">'+miss.map(function(m){return '<li class="row" style="justify-content:space-between"><span>'+m.name+'</span><span class="muted">'+fmt(Math.ceil(m.shortage),'g')+'</span></li>'}).join('')+'</ul></div>') : '';
-    return '<div class="card">'
-      +'<div class="row" style="justify-content:space-between"><h3 class="title">'+it.recipe.name+'</h3>'+chip('推荐分 '+it.score.toFixed(2))+'</div>'
-      +'<div class="kpi">'+chip('覆盖率 '+(it.cover*100).toFixed(0)+'%')+chip('缺料 '+it.miss+' 项')+chip('易腐加权 '+(it.perishWeighted*100).toFixed(0)+'%')+'</div>'
-      +'<div class="muted" style="margin-top:8px">将消耗：'+(it.breakdown.filter(function(b){return b.perish>0.4}).map(function(b){return b.name}).join('、')||'普通食材')+'</div>'
-      +missHtml
-      +'<div class="row" style="margin-top:12px"><button class="ok" onclick="onCook('+it.recipe.id+')">我就做这个</button><button class="ghost" onclick="onAddMissing('+it.recipe.id+')">加入购物清单</button></div>'
-      +'</div>';
-  }).join('');
-}
-function renderInventory(){
-  var batches=S.stock.slice().sort(function(a,b){return a.expire.localeCompare(b.expire)});
-  function badge(b){var left=daysBetween(b.expire,nowISO()); var color=(left<=0)?'danger':((1-left/Math.max(1,daysBetween(b.expire,b.purchase)))>0.7?'warn':'ok'); var label=(left<=0)?'已过期':('剩 '+left+' 天'); return '<span class="chip" style="border-color:transparent;background:rgba(255,255,255,.04)"><span class="muted">到期</span> <b class="'+color+'">'+label+'</b></span>'}
-  $('#page').innerHTML=''
-    +'<div class="card"><h3 class="title">添加库存（按批次）</h3>'
-    +'<div class="row"><input id="ingName" placeholder="食材名称（如：西兰花）"></div>'
-    +'<div class="row"><input id="qty" type="number" placeholder="数量">'
-    +'<select id="unit"><option value="g">g</option><option value="ml">ml</option><option value="pcs">个</option></select>'
-    +'<input id="days" type="number" placeholder="保质期（天）" value="3">'
-    +'<select id="loc"><option value="fridge">冷藏</option><option value="freezer">冷冻</option><option value="pantry">常温</option></select></div>'
-    +'<div class="row" style="margin-top:8px"><button onclick="onAddBatch()">保存</button></div></div>'
-    +'<div class="card"><h3 class="title">当前库存</h3><div class="list">'
-    +(batches.map(function(b){
-      return '<div class="row" style="justify-content:space-between"><div><div>'+ingName(b.ingId)+' · '+b.qty+b.unit+'</div><div class="muted">购入 '+b.purchase+' · 到期 '+b.expire+'</div></div><div class="row" style="gap:8px;align-items:center;justify-content:flex-end">'+badge(b)+'<button class="ghost" onclick="onRemoveBatch('+b.id+')">删除</button></div></div>'
-    }).join('') || '<div class="muted">暂无库存，先添加一些吧。</div>')
-    +'</div></div>';
-}
-function renderRecipes(){
-  var rs=S.recipes, rIngs=S.rIngs;
-  $('#page').innerHTML=''
-    +'<div class="card"><h3 class="title">新增菜谱</h3><div class="row"><input id="rname" placeholder="菜名"><input id="rtime" type="number" placeholder="时长(min)" value="15"><button onclick="onAddRecipe()">保存</button></div></div>'
-    +rs.map(function(r){
-      return '<div class="card"><div class="row" style="justify-content:space-between"><h3 class="title">'+r.name+'</h3><button class="ghost" onclick="onRemoveRecipe('+r.id+')">删除</button></div>'
-      +'<div class="muted">用料：</div><ul class="list">'+(rIngs.filter(function(x){return x.recipeId===r.id}).map(function(x){return '<li class="row" style="justify-content:space-between"><span>'+x.name+'</span><span class="muted">'+x.need+x.unit+'</span></li>'}).join('') || '<div class="muted">暂无用料</div>')+'</ul>'
-      +'<div class="row" style="margin-top:8px"><input id="ing-'+r.id+'" placeholder="用料名称"><input id="qty-'+r.id+'" type="number" placeholder="数量"><select id="unit-'+r.id+'"><option value="g">g</option><option value="ml">ml</option><option value="pcs">个</option></select><button onclick="onAddRecipeIng('+r.id+')">加入</button></div>'
-      +'</div>';
-    }).join('');
-}
-function renderList(){
-  var items=S.list;
-  $('#page').innerHTML=''
-    +'<div class="card"><h3 class="title">添加到购物清单</h3><div class="row"><input id="lname" placeholder="名称"><input id="lqty" type="number" placeholder="数量"><select id="lunit"><option value="g">g</option><option value="ml">ml</option><option value="pcs">个</option></select><button onclick="onAddList()">添加</button></div></div>'
-    +'<div class="card"><div class="row" style="justify-content:space-between"><h3 class="title">购物清单</h3><button class="ghost" onclick="onClearList()">清空</button></div><div class="list">'
-    +(items.map(function(i){return '<div class="row" style="justify-content:space-between"><span>'+i.name+'</span><div class="row" style="flex:none;gap:8px"><span class="muted">'+i.qty+i.unit+'</span><button class="ghost" onclick="onRemoveList(\''+i.name+'\')">删除</button></div></div>'}).join('') || '<div class="muted">暂无条目</div>')
-    +'</div></div>';
-}
-function renderSettings(){
-  var p=S.prefs;
-  $('#page').innerHTML=''
-    +'<div class="card"><h3 class="title">口味与禁忌</h3>'
-    +'<div class="row"><input id="disliked" placeholder="不喜欢的食材（逗号分隔）" value="'+(p.disliked||[]).join(',')+'"></div>'
-    +'<div class="row"><input id="allergens" placeholder="过敏原（逗号分隔）" value="'+(p.allergens||[]).join(',')+'"></div>'
-    +'<div class="row"><input id="cuisines" placeholder="偏好菜系（如 家常, 川菜）" value="'+(p.cuisines||[]).join(',')+'"></div>'
-    +'<div class="row"><label class="label">辣度</label><input id="spice" type="range" min="0" max="3" value="'+(p.spice||1)+'" oninput="document.getElementById('+'\'spiceValue\''+').innerText=this.value"><span id="spiceValue" class="muted">'+(p.spice||1)+'</span></div>'
-    +'<div class="row" style="margin-top:8px"><button onclick="onSavePrefs()">保存</button></div></div>'
-    +'<div class="card"><h3 class="title">关于</h3><div class="muted">此为 UI 自救页（v9）。若恢复正常，可将站点切回常规 index.html。</div></div>';
-}
-
-// actions
-function onTab(t){
-  var tabs=document.querySelectorAll('.tabbar button'); for(var i=0;i<tabs.length;i++) tabs[i].classList.remove('active');
-  var el=document.getElementById('tab-'+t); if(el) el.classList.add('active');
-  location.hash=t;
-  if(t==='recommend') renderRecommend();
-  if(t==='inventory') renderInventory();
-  if(t==='recipes') renderRecipes();
-  if(t==='list') renderList();
-  if(t==='settings') renderSettings();
-}
-function onAddBatch(){
-  var name=document.getElementById('ingName').value.trim();
-  var qty=Number(document.getElementById('qty').value);
-  var unit=document.getElementById('unit').value;
-  var days=Number(document.getElementById('days').value||3);
-  var loc=document.getElementById('loc').value;
-  if(!name||qty<=0){alert('请输入名称与数量');return}
-  var ing=S.ings.find?S.ings.find(function(i){return i.name===name}):null;
-  if(!ing){var id=(last(S.ings)?last(S.ings).id:0)+1; ing={id:id,name:name,unit:unit,shelf:days}; S.ings.push(ing); store.set('ingredients',S.ings);}
-  var id2=(last(S.stock)?last(S.stock).id:0)+1; var purchase=nowISO(); var expire=plusDays(purchase,days);
-  S.stock.push({id:id2,ingId:ing.id,qty:qty,unit:unit,purchase:purchase,expire:expire,location:loc}); store.set('stock',S.stock); renderInventory();
-}
-function onRemoveBatch(id){S.stock=S.stock.filter(function(b){return b.id!==id}); store.set('stock',S.stock); renderInventory()}
-function onAddRecipe(){
-  var name=document.getElementById('rname').value.trim(); var time=Number(document.getElementById('rtime').value||15);
-  if(!name){alert('请输入菜名');return}
-  var id=(last(S.recipes)?last(S.recipes).id:100)+1; S.recipes.push({id:id,name:name,tags:['家常']}); store.set('recipes',S.recipes); renderRecipes();
-}
-function onRemoveRecipe(id){S.recipes=S.recipes.filter(function(r){return r.id!==id}); S.rIngs=S.rIngs.filter(function(x){return x.recipeId!==id}); store.set('recipes',S.recipes); store.set('recipeIngs',S.rIngs); renderRecipes()}
-function onAddRecipeIng(id){var name=document.getElementById('ing-'+id).value.trim(); var qty=Number(document.getElementById('qty-'+id).value); var unit=document.getElementById('unit-'+id).value;
-  if(!name||qty<=0){alert('请输入用料名称与数量');return}
-  var ing=S.ings.find?S.ings.find(function(i){return i.name===name}):null;
-  if(!ing){var nid=(last(S.ings)?last(S.ings).id:0)+1; ing={id:nid,name:name,unit:unit,shelf:5}; S.ings.push(ing); store.set('ingredients',S.ings);}
-  S.rIngs.push({recipeId:id,ingId:ing.id,name:ing.name,need:qty,unit:unit}); store.set('recipeIngs',S.rIngs); renderRecipes();
-}
-function onCook(id){cookAndDeduct(id); alert('已扣减库存'); onTab('inventory')}
-function onAddMissing(id){var miss=diffForRecipe(id); var list=S.list; for(var i=0;i<miss.length;i++){var m=miss[i]; var ex=list.find?list.find(function(x){return x.name===m.name&&x.unit===m.unit}):null; if(ex)ex.qty+=Math.ceil(m.shortage); else list.push({name:m.name,qty:Math.ceil(m.shortage),unit:m.unit});} store.set('list',list); alert('已加入购物清单')}
-function onAddList(){var name=document.getElementById('lname').value.trim(); var qty=Number(document.getElementById('lqty').value); var unit=document.getElementById('lunit').value; if(!name||qty<=0)return; S.list.push({name:name,qty:qty,unit:unit}); store.set('list',S.list); renderList()}
-function onRemoveList(name){S.list=S.list.filter(function(i){return i.name!==name}); store.set('list',S.list); renderList()}
-function onClearList(){S.list=[]; store.set('list',S.list); renderList()}
-function onSavePrefs(){var p={disliked:document.getElementById('disliked').value.split(/[，,\s]+/).map(function(x){return x.trim()}).filter(Boolean),allergens:document.getElementById('allergens').value.split(/[，,\s]+/).map(function(x){return x.trim()}).filter(Boolean),cuisines:document.getElementById('cuisines').value.split(/[，,\s]+/).map(function(x){return x.trim()}).filter(Boolean),spice:Number(document.getElementById('spice').value||1)}; S.prefs=p; alert('已保存偏好设置')}
-
-// ---- mount
-document.getElementById('app').innerHTML=''
-  +'<div class="app">'
-  +'<header><h1>Kitchen Assistant · 厨房</h1></header>'
-  +'<main class="container"><div id="page"></div></main>'
-  +'<nav class="tabbar">'
-  +'<button id="tab-recommend" onclick="onTab(\'recommend\')">推荐</button>'
-  +'<button id="tab-inventory" onclick="onTab(\'inventory\')">库存</button>'
-  +'<button id="tab-recipes" onclick="onTab(\'recipes\')">菜谱</button>'
-  +'<button id="tab-list" onclick="onTab(\'list\')">清单</button>'
-  +'<button id="tab-settings" onclick="onTab(\'settings\')">我的</button>'
-  +'</nav></div>';
-onTab((location.hash||'#recommend').slice(1));
-</script>
-</body></html>
+    <!-- ✅ PATCH v14: 逐行显示用料（必须保留） -->
+    <script src="./ingredients-list-patch.v14.js?v=14"></script>
+  </body>
+</html>
