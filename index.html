@@ -3,22 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b132b" />
     <title>Kitchen Assistant · 厨房</title>
 
-    <!-- ✅ PATCH v14：逐行显示用料 -->
-    <link rel="stylesheet" href="./ingredients-list-patch.v14.css?v=14">
+    <!-- 样式（你仓库根目录已有 styles.css） -->
+    <link rel="stylesheet" href="./styles.css">
 
-    <!-- ✅ Vite on GitHub Pages：强烈建议同时在 vite.config.* 里设置 base:'/kitchenmanager/' -->
-    <!-- REPLACE: 把下面两行的文件名替换成你 dist/assets 目录里的真实文件名 -->
-    <link rel="stylesheet" href="./assets/REPLACE_WITH_YOUR_CSS_FILE.css" />
+    <!-- ✅ 用料逐行显示补丁（保持相对路径） -->
+    <link rel="stylesheet" href="./ingredients-list-patch.v14.css?v=14">
   </head>
   <body>
+    <!-- 应用根节点 -->
     <div id="app"></div>
 
-    <!-- 主入口 JS（Vite 构建后的 hashed 文件名），示例：index-abc123.js -->
-    <script type="module" crossorigin src="./assets/REPLACE_WITH_YOUR_JS_FILE.js"></script>
+    <!-- 应用入口脚本（你仓库根目录已有 app.js） -->
+    <script type="module" src="./app.js"></script>
 
-    <!-- ✅ PATCH v14：逐行显示用料 -->
+    <!-- ✅ 用料逐行显示补丁（自动把逗号分隔转成 <ul><li>） -->
     <script src="./ingredients-list-patch.v14.js?v=14"></script>
   </body>
 </html>
