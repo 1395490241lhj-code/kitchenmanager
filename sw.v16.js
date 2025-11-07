@@ -1,4 +1,4 @@
-// km · service worker · v16
+// sw.v16.js（保持不变：HTML 网络优先 + 新缓存名）
 const CACHE_NAME = 'km-v16';
 const CORE = ['./','./index.html','./styles.css','./app.js','./ingredients-list-patch.v15.css','./ingredients-list-patch.v15.js','./data/sichuan-recipes.json'];
 self.addEventListener('install',(e)=>{self.skipWaiting();e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(CORE)).catch(()=>{}));});

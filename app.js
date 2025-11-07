@@ -1,3 +1,4 @@
+// v18 app.js（含“合并项自动拆分”修复）
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -13,7 +14,6 @@ async function loadPack(){
   catch{ return window.__FALLBACK_DATA__ || {recipes:[], recipe_ingredients:{}}; }
 }
 
-// --- Normalize helpers (fix "two items merged into one" cases) ---
 const SEP_RE = /[，,、/;；|]+/;
 function explodeCombinedItems(list){
   const out = [];
@@ -125,5 +125,3 @@ function renderShopping(pack){
 async function onRoute(){ app.innerHTML=''; const pack=await loadPack(); const hash=(location.hash||'#recipes').replace('#',''); if(hash==='recommend') app.appendChild(renderRecommend(pack));
   else if(hash==='inventory') app.appendChild(renderInventory(pack)); else if(hash==='shopping') app.appendChild(renderShopping(pack)); else app.appendChild(renderRecipes(pack)); }
 window.addEventListener('hashchange', onRoute); onRoute();
-
-window.__FALLBACK_DATA__={"recipes":[{"id":"ex-huiguorou-0001","name":"回锅肉","tags":["川菜","肉食类"]},{"id":"ex-yuxiangroupian-0002","name":"鱼香肉片","tags":["川菜","肉食类"]},{"id":"ex-shuizhu-0003","name":"水煮肉片","tags":["川菜","肉食类"]}],"recipe_ingredients":{"ex-huiguorou-0001":[{"item":"猪肉","qty":650,"unit":"g"},{"item":"蒜苗","qty":100,"unit":"g"}],"ex-yuxiangroupian-0002":[{"item":"瘦肉","qty":250,"unit":"g"},{"item":"木耳","qty":50,"unit":"g"},{"item":"胡萝卜","qty":60,"unit":"g"}],"ex-shuizhu-0003":[{"item":"猪里脊","qty":250,"unit":"g"},{"item":"白菜嫩叶","qty":100,"unit":"g"}]}};
