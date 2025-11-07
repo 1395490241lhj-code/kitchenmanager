@@ -8,14 +8,37 @@ const S = { save(k, v){ localStorage.setItem(k, JSON.stringify(v)); },
   keys: { inventory: 'km_v17_inventory', plan: 'km_v17_plan' } };
 
 async function loadPack(){
-  const url = new URL('./data/sichuan-recipes.json', location).href + '?v=17';
+  const url = new URL('./data/sichuan-recipes.json', location).href + '?v=18';
   try{ const res = await fetch(url, { cache: 'no-store' }); if(!res.ok) throw 0; return await res.json(); }
   catch{ return window.__FALLBACK_DATA__ || {recipes:[], recipe_ingredients:{}}; }
 }
+
+// --- Normalize helpers (fix "two items merged into one" cases) ---
+const SEP_RE = /[，,、/;；|]+/;
+function explodeCombinedItems(list){
+  const out = [];
+  for(const it of (list||[])){
+    const name = (it.item||'').trim();
+    if(!name) continue;
+    const hasQty = typeof it.qty === 'number' && isFinite(it.qty);
+    if(SEP_RE.test(name) && !hasQty){
+      for(const n of name.split(SEP_RE).map(s=>s.trim()).filter(Boolean)){
+        out.push({ item:n, qty:null, unit:null });
+      }
+    }else{
+      out.push(it);
+    }
+  }
+  return out;
+}
+
 function buildCatalog(pack){
   const units = {}, set = new Set();
   for(const list of Object.values(pack.recipe_ingredients||{})){
-    for(const it of list){ const n=(it.item||'').trim(); if(!n) continue; set.add(n); units[n]=units[n]||it.unit||'g'; }
+    for(const it of explodeCombinedItems(list)){
+      const n=(it.item||'').trim(); if(!n) continue;
+      set.add(n); units[n]=units[n]||it.unit||'g';
+    }
   }
   return Array.from(set).sort().map(n=>({name:n, unit:units[n]||'g', shelf:guessShelfDays(n, units[n]||'g')}));
 }
@@ -29,11 +52,12 @@ function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO
 function badgeFor(e){ const r=remainingDays(e); if(r<=1) return `<span class="kchip bad">即将过期 ${r}天</span>`; if(r<=3) return `<span class="kchip warn">优先消耗 ${r}天</span>`; return `<span class="kchip ok">新鲜 ${r}天</span>`; }
 
 function renderRecipes(pack){
-  const grid=document.createElement('div'); grid.className='grid'; const map=pack.recipe_ingredients||{}; const plan=new Set((S.load(S.keys.plan,[])).map(x=>x.id));
+  const grid=document.createElement('div'); grid.className='grid';
+  const map=pack.recipe_ingredients||{}; const plan=new Set((S.load(S.keys.plan,[])).map(x=>x.id));
   (pack.recipes||[]).forEach(r=>{ const card=document.createElement('div'); card.className='card';
     card.innerHTML=`<h3>${r.name}</h3><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="ings"></div><div class="controls"></div>`;
     const ul=document.createElement('ul'); ul.className='ing-list';
-    for(const it of (map[r.id]||[])){ const q=(typeof it.qty==='number'&&isFinite(it.qty))?(it.qty+(it.unit||'')):''; const li=document.createElement('li'); li.textContent=q?`${it.item}  ${q}`:it.item; ul.appendChild(li); }
+    for(const it of explodeCombinedItems(map[r.id]||[])){ const q=(typeof it.qty==='number'&&isFinite(it.qty))?(it.qty+(it.unit||'')):''; const li=document.createElement('li'); li.textContent=q?`${it.item}  ${q}`:it.item; ul.appendChild(li); }
     card.querySelector('.ings').appendChild(ul);
     const btn=document.createElement('a'); btn.href='javascript:void(0)'; btn.className='btn'; btn.textContent=plan.has(r.id)?'已加入计划':'加入购物计划';
     btn.onclick=()=>{ const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else p.push({id:r.id, servings:1}); S.save(S.keys.plan,p); onRoute(); };
@@ -76,10 +100,10 @@ function renderInventory(pack){
 }
 
 function renderShopping(pack){
-  const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
+  const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
   const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
-  for(const p of plan){ for(const it of (map[p.id]||[])){ if(typeof it.qty==='number') addNeed(it.item, it.qty*(p.servings||1), it.unit); }}
-  const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=inv.filter(x=>x.name===n&&x.unit===u).reduce((s,x)=>s+(+x.qty||0),0); const m=Math.max(0, Math.round((req-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m}); }
+  for(const p of plan){ for(const it of explodeCombinedItems(map[p.id]||[])){ if(typeof it.qty==='number') addNeed(it.item, it.qty*(p.servings||1), it.unit); }}
+  const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=(inv.filter(x=>x.name===n&&x.unit===u).reduce((s,x)=>s+(+x.qty||0),0)); const m=Math.max(0, Math.round((req-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m}); }
   const d=document.createElement('div'); const h=document.createElement('h2'); h.className='section-title'; h.textContent='购物清单'; d.appendChild(h);
   const pd=document.createElement('div'); pd.className='card'; pd.innerHTML='<h3>今日计划</h3>'; const pl=document.createElement('div'); pd.appendChild(pl);
   function drawPlan(){ pl.innerHTML=''; if(plan.length===0){ const p=document.createElement('p'); p.className='small'; p.textContent='暂未添加菜谱。去“菜谱/推荐”点“加入购物计划”。'; pl.appendChild(p); return; }
