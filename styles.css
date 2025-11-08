@@ -5,7 +5,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:s
 .topbar h1{font-size:18px;margin:0}
 .topbar nav a{color:var(--ink);opacity:.85;margin-right:12px;text-decoration:none}
 .topbar nav a:hover{opacity:1;color:#fff}
-.container{max-width:1080px;margin:20px auto;padding:0 16px 60px}
+.container{max-width:1100px;margin:20px auto;padding:0 16px 60px}
 .banner{background:#f44336;color:#fff;padding:10px 12px;border-radius:8px;margin:12px 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:16px}
 .card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:12px 12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
@@ -16,7 +16,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:s
 .ing-list li{line-height:1.6;opacity:.9}
 a.btn{display:inline-block;border:1px solid rgba(255,255,255,.14);padding:6px 10px;border-radius:10px;text-decoration:none;color:var(--ink);font-size:13px;margin:4px 4px 0 0}
 .controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-.controls input, .controls select{background:#0f1935;color:var(--ink);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:6px 8px}
+.controls input, .controls select, .controls textarea{background:#0f1935;color:var(--ink);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:6px 8px}
 .table{width:100%;border-collapse:collapse;margin-top:10px}
 .table th,.table td{border-bottom:1px solid rgba(255,255,255,.08);padding:8px 6px;font-size:14px;vertical-align:middle}
 .kchip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;border:1px solid rgba(255,255,255,.14);opacity:.9}
@@ -29,3 +29,9 @@ input[type="number"]{width:90px}
 input[type="date"]{width:150px}
 .qty{white-space:nowrap}
 .right{display:flex; justify-content:flex-end; gap:8px; align-items:center}
+.tag{display:inline-block;margin-right:6px;padding:2px 8px;border-radius:999px;background:#0f1935;border:1px solid rgba(255,255,255,.1);font-size:12px}
+.badge{font-size:12px;color:#bbb}
+.editor{display:grid;grid-template-columns:320px 1fr;gap:16px}
+.editor .list{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:12px}
+.editor .panel{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:12px}
+.search{width:100%}

@@ -1,4 +1,4 @@
-// ingredients-list-patch.v15.js（允许一个分隔符也拆分）
+// ingredients-list-patch.v15.js（一个分隔符也拆分，范围限定到 .ings/用料邻近）
 (function(){
   const SEP = /[，,、/;；|]+/g;
   function tokenize(t){ return (t||'').split(SEP).map(s=>s.trim()).filter(Boolean).filter(s=>!/nullg/i.test(s)); }
