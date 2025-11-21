@@ -1,4 +1,4 @@
-// v26 app.js - 增加库存搜索功能
+// v27 app.js - 添加食材窗口支持搜索 + 自动匹配单位
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -214,7 +214,7 @@ function renderSettings(){
   return div;
 }
 
-// --- 改进后的库存模块：带搜索 ---
+// --- 库存模块：支持搜索的添加 ---
 function renderInventory(pack){
   const catalog=buildCatalog(pack);
   const inv=loadInventory(catalog);
@@ -225,24 +225,38 @@ function renderInventory(pack){
   h.textContent='库存管理';
   wrap.appendChild(h);
 
-  // 1. 搜索框
+  // 1. 搜索框 (保留您的需求)
   const searchDiv = document.createElement('div');
   searchDiv.className = 'controls';
   searchDiv.style.marginBottom = '8px';
   searchDiv.innerHTML = `<input id="invSearch" placeholder="🔍 搜索库存..." style="width:100%;padding:10px;background:var(--card);border:1px solid rgba(255,255,255,0.1);">`;
   wrap.appendChild(searchDiv);
 
-  // 2. 添加控件
+  // 2. 添加控件 (改为 input + datalist)
   const ctr=document.createElement('div');
   ctr.className='controls';
   ctr.innerHTML=`
-    <select id="addName"><option value="">选择食材</option>${catalog.map(c=>`<option>${c.name}</option>`).join('')}</select>
+    <div style="flex:1; min-width:120px;">
+      <input id="addName" list="catalogList" placeholder="选择/搜索食材" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:#0f1935;color:#fff;">
+      <datalist id="catalogList">
+        ${catalog.map(c=>`<option value="${c.name}">`).join('')}
+      </datalist>
+    </div>
     <input id="addQty" type="number" step="1" placeholder="数量">
     <select id="addUnit"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
     <input id="addDate" type="date" value="${todayISO()}">
     <select id="addKind"><option value="raw">原材料</option><option value="semi">半成品</option></select>
     <button id="addBtn" class="btn">入库</button>`;
   wrap.appendChild(ctr);
+
+  // 2.1 自动匹配单位 (小优化)
+  ctr.querySelector('#addName').addEventListener('input', (e)=>{
+    const val = e.target.value.trim();
+    const match = catalog.find(c => c.name === val);
+    if(match && match.unit){
+      ctr.querySelector('#addUnit').value = match.unit;
+    }
+  });
 
   // 3. 表格
   const tbl=document.createElement('table');
@@ -254,14 +268,8 @@ function renderInventory(pack){
   function renderTable(){
     const tb=tbl.querySelector('tbody');
     tb.innerHTML='';
-    
-    // 获取搜索词
     const filterText = (searchDiv.querySelector('#invSearch').value || '').trim().toLowerCase();
-    
-    // 过滤
     const filteredInv = inv.filter(e => e.name.toLowerCase().includes(filterText));
-    
-    // 排序
     filteredInv.sort((a,b)=>remainingDays(a)-remainingDays(b));
 
     if(filteredInv.length === 0 && inv.length > 0) {
@@ -287,23 +295,17 @@ function renderInventory(pack){
       const qtyEl=inputs[0], dateEl=inputs[1], shelfEl=inputs[2]; 
       const unitEl=els('select',tr)[0]; 
       const [saveBtn, delBtn]=els('.btn',tr).slice(-2);
-      
       saveBtn.onclick=()=>{ e.qty=+qtyEl.value||0; e.unit=unitEl.value; e.buyDate=dateEl.value||todayISO(); e.shelf=+shelfEl.value||7; saveInventory(inv); renderTable(); };
-      
-      delBtn.onclick=()=>{ 
-        const i=inv.indexOf(e); // 即使在过滤视图中，indexOf 也能找到原始数组中的正确对象
-        if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); }
-      }; 
+      delBtn.onclick=()=>{ const i=inv.indexOf(e); if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); }}; 
       tb.appendChild(tr);
     }
   }
 
-  // 绑定事件
   searchDiv.querySelector('#invSearch').oninput = () => renderTable();
   
   ctr.querySelector('#addBtn').onclick=()=>{ 
     const name=ctr.querySelector('#addName').value.trim(); 
-    if(!name) return alert('请选择食材'); 
+    if(!name) return alert('请选择或输入食材名称'); 
     const qty=+ctr.querySelector('#addQty').value||0; 
     const unit=ctr.querySelector('#addUnit').value; 
     const date=ctr.querySelector('#addDate').value||todayISO(); 
@@ -311,8 +313,10 @@ function renderInventory(pack){
     const cat=catalog.find(c=>c.name===name); 
     upsertInventory(inv,{name, qty, unit, buyDate:date, kind, shelf:(cat&&cat.shelf)||7}); 
     
-    // 清空搜索框以便看到新加的项（可选，这里我选择不清空，方便批量操作）
-    // searchDiv.querySelector('#invSearch').value = ''; 
+    // 可选：添加后清空输入框
+    ctr.querySelector('#addName').value = '';
+    ctr.querySelector('#addQty').value = '';
+    
     renderTable(); 
   };
 
