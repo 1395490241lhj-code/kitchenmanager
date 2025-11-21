@@ -9,7 +9,7 @@ const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
   MODEL: "qwen/qwen-2.5-32b", 
-  VISION_MODEL: "llama-3.2-11b-vision-preview" 
+  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
 // -------- Storage --------
