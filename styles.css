@@ -47,10 +47,9 @@ a.btn.ai{background:linear-gradient(135deg, #6366f1, #8a2be2);color:#fff;border:
 .setting-group label { display:block; margin-bottom:8px; color:var(--muted); font-size:13px; }
 .setting-group input, .setting-group select { width:100%; padding:10px; background:#0f1935; border:1px solid rgba(255,255,255,.1); color:#fff; border-radius:8px; }
 
-/* v28 详情页样式 */
-.detail-view h2 { font-size: 22px; margin-bottom: 12px; }
-.detail-view .tags { margin-bottom: 20px; }
-.detail-view .block { background: rgba(255,255,255,0.03); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-.detail-view .block h4 { margin: 0 0 12px 0; color: var(--muted); text-transform: uppercase; font-size: 12px; letter-spacing: 1px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
-.detail-view .method-text { line-height: 1.8; font-size: 15px; white-space: pre-wrap; color: #e0e6f7; }
-.detail-view .method-text p { margin-bottom: 12px; }
+/* 详情页优化 */
+.detail-view h2 { font-size: 24px; margin-bottom: 12px; color: #fff; }
+.detail-view .tags { margin-bottom: 20px; color: var(--muted); }
+.detail-view .block { background: rgba(255,255,255,0.03); border-radius: 12px; padding: 20px; margin-bottom: 16px; border:1px solid rgba(255,255,255,0.05); }
+.detail-view .block h4 { margin: 0 0 16px 0; color: var(--accent); text-transform: uppercase; font-size: 13px; letter-spacing: 1px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px; }
+.detail-view .method-text { line-height: 1.8; font-size: 16px; color: #e0e6f7; white-space: pre-wrap; }
