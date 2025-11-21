@@ -1,4 +1,4 @@
-// v38 app.js - 增强中文小票识别 Prompt
+// v39 app.js - 增强版 Prompt：支持中英混杂、自动翻译与标准化
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -8,9 +8,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
-  // 文本生成模型 (写菜谱、推荐)
   MODEL: "qwen/qwen-2.5-32b", 
-  // 视觉模型 (识图) - Llama 3.2 Vision
   VISION_MODEL: "llama-3.2-11b-vision-preview" 
 };
 
@@ -110,10 +108,8 @@ function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
   const apiKey = CUSTOM_AI.KEY || localSettings.apiKey;
   const apiUrl = CUSTOM_AI.KEY ? CUSTOM_AI.URL : (localSettings.apiUrl || CUSTOM_AI.URL);
-  // 混合模型选择逻辑
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
-  
   if (!apiKey) throw new Error("未配置 API Key。请在设置页面配置。");
   return { apiKey, apiUrl, textModel, visionModel };
 }
@@ -157,7 +153,6 @@ function compressImage(file) {
 async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
   let messages = [];
-  // 有图片时强制使用 Vision 模型，否则使用 Text 模型
   let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
 
   if (imageBase64) {
@@ -175,7 +170,7 @@ async function callAiService(prompt, imageBase64 = null) {
   try {
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
-      body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.3 }) // 识图时调低温度以提高准确率
+      body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.3 })
     });
     if(!res.ok) {
         const err = await res.json();
@@ -187,22 +182,28 @@ async function callAiService(prompt, imageBase64 = null) {
   } catch(e) { throw e; }
 }
 
-// 识别小票 (增强 Prompt)
+// ★★★ 识别小票 (强化版 Prompt) ★★★
 async function recognizeReceipt(file) {
   const base64 = await compressImage(file);
   const prompt = `
-  你是一个专业的中文收据识别助手。请仔细查看图片，识别出购物小票中的【食品/食材】列表。
+  你是一个精通中英文的厨房食材管理专家。请分析这张收据/发票图片。
   
-  注意事项：
-  1. **目标**：只提取食材（如蔬菜、肉类、水果、调料），忽略塑料袋、日用品等。
-  2. **中文优化**：图片可能包含中文，请结合“厨房食材”的上下文进行OCR纠错。例如将“白来”修正为“白菜”，将“土”修正为“土豆”。
-  3. **字段提取**：
-     - name: 食材名称（去除“特价”、“打折”等修饰词）。
-     - qty: 数量或重量。如果是重量（如 0.560 kg），提取数值 0.56。如果未标明，默认为 1。
-     - unit: 单位（如 kg, g, 斤, 个, 包, 瓶）。若无单位则填 "pcs"。
+  核心任务：识别食品/食材，并转换为标准的简体中文名称。
   
-  请严格只返回一个 JSON 数组，不要包含任何 Markdown 标记或解释文字：
-  [{"name": "猪肉", "qty": 0.5, "unit": "kg"}, {"name": "青椒", "qty": 2, "unit": "pcs"}]
+  规则：
+  1. **多语言翻译**：如果遇到英文、繁体或缩写，必须翻译成通用的简体中文名。
+     - 例如: 'Pork Belly' -> '五花肉'
+     - 例如: 'Ribeye' -> '牛排'
+     - 例如: 'Scallion' / 'Green Onion' -> '葱'
+     - 例如: 'Potato' / 'Russet' -> '土豆'
+  2. **去噪**：忽略非食品（如 Tax, Plastic Bag, Bottle Deposit）。去除修饰词（如 'Organic', 'Premium', 'Fresh', '特价'）。
+  3. **单位标准化**：
+     - 'lb' 或 'pound' -> 尽量换算为 'g' (1 lb ≈ 450g) 或保留为 'lb'。
+     - 'ea' -> 'pcs'。
+     - 如果没有明确单位，默认为 'pcs'。
+  
+  请严格只返回一个 JSON 数组，不要包含任何解释：
+  [{"name": "五花肉", "qty": 450, "unit": "g"}, {"name": "鸡蛋", "qty": 12, "unit": "pcs"}]
   `;
   
   const jsonStr = await callAiService(prompt, base64);
@@ -212,7 +213,7 @@ async function recognizeReceipt(file) {
 // 生成做法
 async function callAiForMethod(recipeName, ingredients) {
   const ingStr = ingredients.map(i => i.item + (i.qty ? i.qty + (i.unit||'') : '')).join('、');
-  const prompt = `请为川菜【${recipeName}】写一份详细的烹饪做法。已知用料：${ingStr}。请直接输出做法步骤，分条列出，简洁专业。不要输出思考过程。`;
+  const prompt = `请为川菜【${recipeName}】写一份详细的烹饪做法。已知用料：${ingStr}。请直接输出做法步骤，分条列出。不要输出思考过程。`;
   return await callAiService(prompt);
 }
 
@@ -299,12 +300,7 @@ function renderRecipeDetail(id, pack) {
 
 function renderRecipes(pack){ const wrap = document.createElement('div'); wrap.innerHTML = `<div class="controls" style="margin-bottom:16px;gap:10px;"><input id="search" placeholder="搜菜谱..." style="flex:1;padding:10px;"><a class="btn ok" id="addBtn" style="padding:10px;">+ 新建</a><a class="btn" id="exportBtn">导出</a><label class="btn"><input type="file" id="importFile" hidden>导入</label></div><div class="grid" id="grid"></div>`; const grid = wrap.querySelector('#grid'); const map = pack.recipe_ingredients||{}; function draw(filter=''){ grid.innerHTML = ''; const f = filter.trim(); (pack.recipes||[]).filter(r => !f || r.name.includes(f)).forEach(r=>{ grid.appendChild(recipeCard(r, map[r.id])); }); } draw(); wrap.querySelector('#search').oninput = e => draw(e.target.value); wrap.querySelector('#addBtn').onclick = () => { const id = genId(); const overlay = loadOverlay(); overlay.recipes = overlay.recipes || {}; overlay.recipes[id] = { name: '新菜谱', tags: ['自定义'] }; overlay.recipe_ingredients = overlay.recipe_ingredients || {}; overlay.recipe_ingredients[id] = [{item:'', qty:null, unit:'g'}]; saveOverlay(overlay); location.hash = `#recipe-edit:${id}`; }; wrap.querySelector('#exportBtn').onclick = ()=>{ const blob = new Blob([JSON.stringify(loadOverlay(), null, 2)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kitchen-overlay.json'; a.click(); }; wrap.querySelector('#importFile').onchange = (e)=>{ const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = ()=>{ try{ const inc = JSON.parse(reader.result); const cur = loadOverlay(); const m = {...cur, recipes:{...cur.recipes,...(inc.recipes||{})}, recipe_ingredients:{...cur.recipe_ingredients,...(inc.recipe_ingredients||{})}, deletes:{...cur.deletes,...(inc.deletes||{})} }; saveOverlay(m); alert('导入成功'); location.reload(); }catch(err){ alert('导入失败'); } }; reader.readAsText(file); }; return wrap; }
 function renderHome(pack){ const container = document.createElement('div'); const recDiv = document.createElement('div'); recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 12px;"><h2 class="section-title" style="margin:0;border:none;padding:0">今日推荐</h2><a class="btn ai" id="callAiBtn">✨ 呼叫 AI 厨师</a></div><div id="rec-content" class="grid"></div>`; const recGrid = recDiv.querySelector('#rec-content'); container.appendChild(recDiv); const catalog = buildCatalog(pack); const inv = loadInventory(catalog); const localRecs = getLocalRecommendations(pack, inv); function showCards(list) { recGrid.innerHTML = ''; if(list.length===0) { recGrid.innerHTML = '<div class="small" style="grid-column:1/-1;padding:20px;text-align:center;">冰箱空空如也，快去“库存”添加食材，或点击右上角“呼叫 AI”获取灵感！</div>'; return; } const map = pack.recipe_ingredients || {}; list.forEach(item => { recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], { reason: item.reason, isAi: item.isAi })); }); } showCards(localRecs); const aiBtn = recDiv.querySelector('#callAiBtn'); aiBtn.onclick = async () => { aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; try { const aiResult = await callCloudAI(pack, inv); const newCards = []; if(aiResult.local && Array.isArray(aiResult.local)){ aiResult.local.forEach(l => { const found = (pack.recipes||[]).find(r => r.name === l.name); if(found) newCards.push({ r: found, reason: l.reason, isAi: true }); }); } if(aiResult.creative){ const c = aiResult.creative; newCards.push({ r: { id: 'creative-'+Date.now(), name: c.name, tags: ['AI创意菜'] }, list: [{item: c.ingredients || '请根据描述自由发挥'}], reason: c.reason, isAi: true }); } if(newCards.length > 0) showCards(newCards); else alert('AI 虽然响应了，但没有给出有效推荐。'); } catch(e) { alert(e.message); } finally { aiBtn.innerHTML = '✨ 呼叫 AI 厨师'; aiBtn.style.opacity = '1'; } }; container.appendChild(renderInventory(pack)); return container; }
-function renderSettings(){ const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' }); 
-  const displayUrl = s.apiUrl || CUSTOM_AI.URL; const displayKey = s.apiKey || CUSTOM_AI.KEY; const displayModel = s.model || CUSTOM_AI.MODEL;
-  const div = document.createElement('div'); div.innerHTML = `<h2 class="section-title">AI 设置</h2><div class="card"><div class="setting-group"><label>快速预设</label><select id="sPreset"><option value="">请选择...</option><option value="silicon">SiliconFlow (硅基流动)</option><option value="groq">Groq (Llama/Mixtral)</option><option value="groq-v">Groq (Llama-Vision)</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></div><hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:16px 0"><div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}" placeholder="https://..."></div><div class="setting-group"><label>模型名称 (Model)</label><input id="sModel" value="${displayModel}"></div><div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}" placeholder="sk-..."></div><div class="right"><a class="btn ok" id="saveSet">保存</a></div><p class="small" style="margin-top:20px;color:var(--muted)">* 当前配置：<br>文本模型: ${CUSTOM_AI.MODEL}<br>视觉模型: ${CUSTOM_AI.VISION_MODEL} (固定)</p></div>`; 
-  const presets = { silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, "groq-v": { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.2-11b-vision-preview' }, deepseek: { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' }, openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } }; 
-  div.querySelector('#sPreset').onchange = (e) => { const val = e.target.value; if(presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; } }; 
-  div.querySelector('#saveSet').onclick = () => { const newS = { apiUrl: div.querySelector('#sUrl').value.trim(), apiKey: div.querySelector('#sKey').value.trim(), model: div.querySelector('#sModel').value.trim() }; S.save(S.keys.settings, newS); alert('设置已保存，下次刷新将优先使用此设置。'); }; return div; }
+function renderSettings(){ const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' }); const displayUrl = s.apiUrl || CUSTOM_AI.URL; const displayKey = s.apiKey || CUSTOM_AI.KEY; const displayModel = s.model || CUSTOM_AI.MODEL; const div = document.createElement('div'); div.innerHTML = `<h2 class="section-title">AI 设置</h2><div class="card"><div class="setting-group"><label>快速预设</label><select id="sPreset"><option value="">请选择...</option><option value="silicon">SiliconFlow (硅基流动)</option><option value="groq">Groq (Llama/Mixtral)</option><option value="groq-v">Groq (Llama-Vision)</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></div><hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:16px 0"><div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}" placeholder="https://..."></div><div class="setting-group"><label>模型名称 (Model)</label><input id="sModel" value="${displayModel}"></div><div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}" placeholder="sk-..."></div><div class="right"><a class="btn ok" id="saveSet">保存</a></div><p class="small" style="margin-top:20px;color:var(--muted)">* 当前已集成默认配置：<br>URL: ${CUSTOM_AI.URL}<br>Model: ${CUSTOM_AI.MODEL}<br>Vision Model: ${CUSTOM_AI.VISION_MODEL}</p></div>`; const presets = { silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, "groq-v": { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.2-11b-vision-preview' }, deepseek: { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' }, openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } }; div.querySelector('#sPreset').onchange = (e) => { const val = e.target.value; if(presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; } }; div.querySelector('#saveSet').onclick = () => { const newS = { apiUrl: div.querySelector('#sUrl').value.trim(), apiKey: div.querySelector('#sKey').value.trim(), model: div.querySelector('#sModel').value.trim() }; S.save(S.keys.settings, newS); alert('设置已保存，下次刷新将优先使用此设置。'); }; return div; }
 
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); const h=document.createElement('h2'); h.className='section-title'; h.textContent='库存管理'; wrap.appendChild(h); const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
   searchDiv.innerHTML = `<div style="display:flex; gap:8px;"><input id="invSearch" placeholder="🔍 搜索库存..." style="flex:1;padding:10px;background:var(--card);border:1px solid rgba(255,255,255,0.1);"><label class="btn ai" style="padding:10px 12px; white-space:nowrap; cursor:pointer;"><input type="file" id="camInput" accept="image/*" capture="environment" hidden>📷 拍小票</label></div><div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>`; wrap.appendChild(searchDiv);
