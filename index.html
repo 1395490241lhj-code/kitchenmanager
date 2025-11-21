@@ -4,23 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0b132b" />
-    <title>Kitchen Assistant · 厨房 v19</title>
+    <title>Kitchen Assistant · 厨房 v20</title>
     <link rel="stylesheet" href="./styles.css">
+    <!-- 保留之前的补丁样式，防止老数据样式崩坏 -->
     <link rel="stylesheet" href="./ingredients-list-patch.v15.css?v=15">
   </head>
   <body>
     <header class="topbar">
-      <h1>厨房 · v19</h1>
+      <h1>厨房 · v20</h1>
       <nav>
-        <a href="#recipes">菜谱</a>
-        <a href="#recommend">推荐</a>
+        <!-- 导航顺序调整：库存(首页) -> 购物 -> 菜谱 -->
         <a href="#inventory">库存</a>
-        <a href="#shopping">购物清单</a>
-        <a href="#editor">编辑</a>
+        <a href="#shopping">清单</a>
+        <a href="#recipes">菜谱</a>
       </nav>
     </header>
     <main id="app" class="container"></main>
     <script type="module" src="./app.js"></script>
+    <!-- 保留辅助脚本 -->
     <script src="./ingredients-list-patch.v15.js?v=15"></script>
     <script src="./sw-register.v16.js"></script>
   </body>
