@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0b132b" />
-    <title>Kitchen v29 · 书籍做法</title>
+    <title>Kitchen v32 · 完整功能版</title>
     <link rel="stylesheet" href="./styles.css?v=28">
     <link rel="stylesheet" href="./ingredients-list-patch.v15.css?v=15">
   </head>
   <body>
     <header class="topbar">
-      <h1>厨房 v29</h1>
+      <h1>厨房 v32</h1>
       <nav>
         <a href="#inventory" id="nav-home">首页</a>
         <a href="#shopping" id="nav-shop">清单</a>
@@ -20,11 +20,8 @@
     </header>
     <main id="app" class="container"></main>
     
-    <!-- 新增：先加载做法数据 -->
-    <script src="./data/recipe-methods.js?v=1"></script>
-    <!-- 后加载主逻辑 -->
-    <script type="module" src="./app.js?v=29"></script>
-    
+    <script src="./data/recipe-methods.js?v=32"></script>
+    <script type="module" src="./app.js?v=32"></script>
     <script src="./ingredients-list-patch.v15.js?v=15"></script>
     <script src="./sw-register.v16.js"></script>
   </body>
