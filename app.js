@@ -11,7 +11,7 @@ const CUSTOM_AI = {
   // 文本模型 (写菜谱/推荐用)
   MODEL: "qwen/qwen-2.5-32b", 
   // 视觉模型 (拍小票用) - Groq 支持的视觉模型
-  VISION_MODEL: "llama-3.2-11b-vision-preview" 
+  VISION_MODEL: "meta-llama/llama-4-maverick-17b-128e-instruct" 
 };
 
 // -------- Storage --------
