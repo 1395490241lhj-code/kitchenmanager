@@ -1,4 +1,4 @@
-// v32 app.js - 集成自定义 API 配置
+// v33 app.js - 修复 AI 返回 <think> 标签导致的 JSON 解析错误
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -9,7 +9,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
-  MODEL: "qwen/qwen3-32b" // 注意：若 Groq 暂不支持此模型，请改回 llama3-70b-8192
+  MODEL: "qwen/qwen3-32b" 
 };
 
 // -------- Storage --------
@@ -103,9 +103,8 @@ function badgeFor(e){ const r=remainingDays(e); if(r<=1) return `<span class="kc
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
 function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g')}); } saveInventory(inv); }
 
-// -------- AI Services (Integrated Config) --------
+// -------- AI Services (Robust Parsing) --------
 function getAiConfig() {
-  // 优先使用代码中的配置，如果没有填 Key，再尝试从 localStorage 读取
   const localSettings = S.load(S.keys.settings, {});
   const apiKey = CUSTOM_AI.KEY || localSettings.apiKey;
   const apiUrl = CUSTOM_AI.KEY ? CUSTOM_AI.URL : (localSettings.apiUrl || CUSTOM_AI.URL);
@@ -115,12 +114,30 @@ function getAiConfig() {
   return { apiKey, apiUrl, model };
 }
 
+// 清洗 AI 响应内容的通用函数
+function cleanAiResponse(text) {
+  // 1. 去除 <think>...</think> 标签及其内容
+  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  // 2. 去除 Markdown 代码块标记 (```json ... ```)
+  cleaned = cleaned.replace(/```json/gi, '').replace(/```/g, '').trim();
+  return cleaned;
+}
+
+// 提取 JSON 的通用函数
+function extractJson(text) {
+  const cleaned = cleanAiResponse(text);
+  // 尝试提取第一个 { ... } 之间的内容
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) return match[0];
+  return cleaned;
+}
+
 async function callAiForMethod(recipeName, ingredients) {
   const conf = getAiConfig();
   const ingStr = ingredients.map(i => i.item + (i.qty ? i.qty + (i.unit||'') : '')).join('、');
   const prompt = `请为川菜【${recipeName}】写一份详细的烹饪做法。
   已知用料：${ingStr}。
-  请直接输出做法步骤，分条列出，文字风格简洁、专业（类似《四川菜谱》风格）。不要多余的寒暄。`;
+  请直接输出做法步骤，分条列出，文字风格简洁、专业。不要输出任何 <think> 思考过程，也不要包含 JSON 格式，直接输出文本即可。`;
   try {
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
@@ -128,7 +145,8 @@ async function callAiForMethod(recipeName, ingredients) {
     });
     if(!res.ok) throw new Error("API 失败: " + res.status);
     const data = await res.json();
-    return data.choices?.[0]?.message?.content || "AI 未返回内容";
+    const rawText = data.choices?.[0]?.message?.content || "AI 未返回内容";
+    return cleanAiResponse(rawText); // 这里的做法是纯文本，只需要清洗掉 think 标签
   } catch(e) { throw e; }
 }
 
@@ -138,15 +156,17 @@ async function callCloudAI(pack, inv) {
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
   const prompt = `我冰箱里有：【${invNames}】。我的菜谱数据库有：【${recipeNames}】。
   请：1. 挑选 3 道最适合现在做的菜（消耗库存）。2. 推荐 1 道创意菜。
-  只返回 JSON：{ "local": [ {"name": "菜名", "reason": "理由"} ], "creative": { "name": "菜名", "reason": "理由", "ingredients": "用料" } }`;
+  只返回 JSON，不要包含 <think> 思考过程，格式：{ "local": [ {"name": "菜名", "reason": "理由"} ], "creative": { "name": "菜名", "reason": "理由", "ingredients": "用料" } }`;
   try {
     const res = await fetch(conf.apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` }, body: JSON.stringify({ model: conf.model, messages: [{role: "user", content: prompt}], temperature: 0.7 }) });
     if(!res.ok) throw new Error("API Error " + res.status);
     const data = await res.json();
-    const jsonStr = (data.choices?.[0]?.message?.content || "{}").replace(/```json/g, '').replace(/```/g, '').trim();
+    const rawText = data.choices?.[0]?.message?.content || "{}";
+    const jsonStr = extractJson(rawText); // 这里需要严格提取 JSON 对象
     return JSON.parse(jsonStr);
   } catch(e) { console.error(e); throw e; }
 }
+
 function getLocalRecommendations(pack, inv) {
   const invNames = inv.map(x => x.name.trim()).filter(Boolean);
   if (invNames.length === 0) return [];
@@ -222,13 +242,8 @@ function renderRecipeDetail(id, pack) {
 function renderRecipes(pack){ const wrap = document.createElement('div'); wrap.innerHTML = `<div class="controls" style="margin-bottom:16px;gap:10px;"><input id="search" placeholder="搜菜谱..." style="flex:1;padding:10px;"><a class="btn ok" id="addBtn" style="padding:10px;">+ 新建</a><a class="btn" id="exportBtn">导出</a><label class="btn"><input type="file" id="importFile" hidden>导入</label></div><div class="grid" id="grid"></div>`; const grid = wrap.querySelector('#grid'); const map = pack.recipe_ingredients||{}; function draw(filter=''){ grid.innerHTML = ''; const f = filter.trim(); (pack.recipes||[]).filter(r => !f || r.name.includes(f)).forEach(r=>{ grid.appendChild(recipeCard(r, map[r.id])); }); } draw(); wrap.querySelector('#search').oninput = e => draw(e.target.value); wrap.querySelector('#addBtn').onclick = () => { const id = genId(); const overlay = loadOverlay(); overlay.recipes = overlay.recipes || {}; overlay.recipes[id] = { name: '新菜谱', tags: ['自定义'] }; overlay.recipe_ingredients = overlay.recipe_ingredients || {}; overlay.recipe_ingredients[id] = [{item:'', qty:null, unit:'g'}]; saveOverlay(overlay); location.hash = `#recipe-edit:${id}`; }; wrap.querySelector('#exportBtn').onclick = ()=>{ const blob = new Blob([JSON.stringify(loadOverlay(), null, 2)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kitchen-overlay.json'; a.click(); }; wrap.querySelector('#importFile').onchange = (e)=>{ const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = ()=>{ try{ const inc = JSON.parse(reader.result); const cur = loadOverlay(); const m = {...cur, recipes:{...cur.recipes,...(inc.recipes||{})}, recipe_ingredients:{...cur.recipe_ingredients,...(inc.recipe_ingredients||{})}, deletes:{...cur.deletes,...(inc.deletes||{})} }; saveOverlay(m); alert('导入成功'); location.reload(); }catch(err){ alert('导入失败'); } }; reader.readAsText(file); }; return wrap; }
 function renderHome(pack){ const container = document.createElement('div'); const recDiv = document.createElement('div'); recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 12px;"><h2 class="section-title" style="margin:0;border:none;padding:0">今日推荐</h2><a class="btn ai" id="callAiBtn">✨ 呼叫 AI 厨师</a></div><div id="rec-content" class="grid"></div>`; const recGrid = recDiv.querySelector('#rec-content'); container.appendChild(recDiv); const catalog = buildCatalog(pack); const inv = loadInventory(catalog); const localRecs = getLocalRecommendations(pack, inv); function showCards(list) { recGrid.innerHTML = ''; if(list.length===0) { recGrid.innerHTML = '<div class="small" style="grid-column:1/-1;padding:20px;text-align:center;">冰箱空空如也，快去“库存”添加食材，或点击右上角“呼叫 AI”获取灵感！</div>'; return; } const map = pack.recipe_ingredients || {}; list.forEach(item => { recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], { reason: item.reason, isAi: item.isAi })); }); } showCards(localRecs); const aiBtn = recDiv.querySelector('#callAiBtn'); aiBtn.onclick = async () => { aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; try { const aiResult = await callCloudAI(pack, inv); const newCards = []; if(aiResult.local && Array.isArray(aiResult.local)){ aiResult.local.forEach(l => { const found = (pack.recipes||[]).find(r => r.name === l.name); if(found) newCards.push({ r: found, reason: l.reason, isAi: true }); }); } if(aiResult.creative){ const c = aiResult.creative; newCards.push({ r: { id: 'creative-'+Date.now(), name: c.name, tags: ['AI创意菜'] }, list: [{item: c.ingredients || '请根据描述自由发挥'}], reason: c.reason, isAi: true }); } if(newCards.length > 0) showCards(newCards); else alert('AI 虽然响应了，但没有给出有效推荐。'); } catch(e) { alert(e.message); } finally { aiBtn.innerHTML = '✨ 呼叫 AI 厨师'; aiBtn.style.opacity = '1'; } }; container.appendChild(renderInventory(pack)); return container; }
 function renderSettings(){ const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' }); 
-  // 若未手动设置，显示默认值
-  const displayUrl = s.apiUrl || CUSTOM_AI.URL;
-  const displayKey = s.apiKey || CUSTOM_AI.KEY;
-  const displayModel = s.model || CUSTOM_AI.MODEL;
-
-  const div = document.createElement('div'); 
-  div.innerHTML = `<h2 class="section-title">AI 设置</h2><div class="card"><div class="setting-group"><label>快速预设</label><select id="sPreset"><option value="">请选择...</option><option value="silicon">SiliconFlow (硅基流动)</option><option value="groq">Groq</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></div><hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:16px 0"><div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}" placeholder="https://..."></div><div class="setting-group"><label>模型名称 (Model)</label><input id="sModel" value="${displayModel}"></div><div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}" placeholder="sk-..."></div><div class="right"><a class="btn ok" id="saveSet">保存</a></div><p class="small" style="margin-top:20px;color:var(--muted)">* 当前已集成默认配置：<br>URL: ${CUSTOM_AI.URL}<br>Model: ${CUSTOM_AI.MODEL}</p></div>`; 
+  const displayUrl = s.apiUrl || CUSTOM_AI.URL; const displayKey = s.apiKey || CUSTOM_AI.KEY; const displayModel = s.model || CUSTOM_AI.MODEL;
+  const div = document.createElement('div'); div.innerHTML = `<h2 class="section-title">AI 设置</h2><div class="card"><div class="setting-group"><label>快速预设</label><select id="sPreset"><option value="">请选择...</option><option value="silicon">SiliconFlow (硅基流动)</option><option value="groq">Groq</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></div><hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:16px 0"><div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}" placeholder="https://..."></div><div class="setting-group"><label>模型名称 (Model)</label><input id="sModel" value="${displayModel}"></div><div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}" placeholder="sk-..."></div><div class="right"><a class="btn ok" id="saveSet">保存</a></div><p class="small" style="margin-top:20px;color:var(--muted)">* 当前已集成默认配置：<br>URL: ${CUSTOM_AI.URL}<br>Model: ${CUSTOM_AI.MODEL}</p></div>`; 
   const presets = { silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-8b-8192' }, deepseek: { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' }, openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-3.5-turbo' } }; 
   div.querySelector('#sPreset').onchange = (e) => { const val = e.target.value; if(presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; } }; 
   div.querySelector('#saveSet').onclick = () => { const newS = { apiUrl: div.querySelector('#sUrl').value.trim(), apiKey: div.querySelector('#sKey').value.trim(), model: div.querySelector('#sModel').value.trim() }; S.save(S.keys.settings, newS); alert('设置已保存，下次刷新将优先使用此设置。'); }; return div; }
