@@ -1,45 +1,37 @@
-// v43 app.js - 增加田鸡/肥瘦肉归一化 + 严格模型配置
+// v45 app.js - UI Updated to iOS Style (Logic same as v43)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (严格遵循用户指令) ---
+// --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
-  MODEL: "qwen/qwen3-32b", // 文本模型
-  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" // 视觉模型
+  MODEL: "qwen/qwen3-32b", 
+  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
-// --- 食材归一化字典 (精细化版) ---
+// --- 食材归一化字典 ---
 const INGREDIENT_ALIASES = {
-  // --- 猪肉类 ---
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
   "瘦肉": ["猪瘦肉", "精瘦肉", "里脊", "里脊肉"],
-  // ★★★ 更新：加入了肥瘦肉、肥瘦猪肉 ★★★
   "猪肉": ["肉", "猪肉片", "猪肉丝", "肉丝", "肉片", "肉末", "猪腿肉", "二刀肉", "肥瘦肉", "肥瘦猪肉"], 
   "排骨": ["猪排", "猪排骨", "小排", "大排", "纤排"],
   "猪蹄": ["猪脚", "猪手", "蹄花"],
   "猪肚": ["肚头", "猪肚头"],
   "猪腰": ["猪腰子", "腰花", "腰片"],
   "猪肝": ["沙肝", "肝片"],
-
-  // --- 牛羊肉 ---
   "牛肉": ["黄牛肉", "嫩牛肉", "牛肉片", "牛肉丝", "牛柳", "肥牛"],
   "牛腩": ["牛肋条"],
   "羊肉": ["羊肉片", "羊肉卷"],
-
-  // --- 禽类 ---
   "鸡肉": ["仔鸡", "公鸡", "嫩鸡", "土鸡", "三黄鸡", "鸡块", "鸡丁", "鸡丝", "鸡条", "生鸡肉"],
   "鸡脯肉": ["鸡脯", "鸡胸", "鸡胸肉", "鸡柳", "生鸡脯", "熟鸡脯"],
   "鸡腿": ["大鸡腿", "小鸡腿", "琵琶腿", "鸡腿肉", "熟鸡腿"],
   "鸡翅": ["鸡翅膀", "鸡中翅", "翅尖"],
   "鸭肉": ["鸭", "鸭子", "仔鸭", "公鸭", "母鸭", "鸭脯", "鸭肉丝", "鸭肉片"],
   "鸭掌": ["鸭脚"],
-
-  // --- 水产 & 特种 ---
   "鲜鱼": ["鱼肉", "鱼头", "鱼片", "鲜鱼中段", "鱼"], 
   "鲫鱼": ["土鲫鱼", "活鲫鱼"],
   "鲤鱼": ["江鲤", "活鲤鱼", "岩鲤"],
@@ -49,10 +41,7 @@ const INGREDIENT_ALIASES = {
   "虾仁": ["鲜虾仁", "冻虾仁"],
   "鱿鱼": ["鲜鱿鱼", "水发鱿鱼", "干鱿鱼", "鱿鱼须", "鱿鱼圈"],
   "海参": ["水发海参", "刺参", "开乌参"],
-  // ★★★ 更新：加入了田鸡 ★★★
   "田鸡": ["田鸡腿", "青蛙"],
-
-  // --- 蔬菜 & 菌菇 ---
   "冬笋": ["鲜冬笋", "冬笋尖", "冬笋片"],
   "春笋": ["鲜春笋"],
   "玉兰片": ["兰片", "水发兰片", "水发玉兰片"], 
@@ -67,15 +56,11 @@ const INGREDIENT_ALIASES = {
   "莴笋": ["青笋", "莴苣", "莴笋头", "莴笋尖", "凤尾"],
   "蚕豆": ["胡豆", "鲜蚕豆", "扁豆", "蚕豆（扁豆）"],
   "豌豆": ["青豆", "鲜豌豆", "豌豆尖", "豆尖", "鲜豌豆仁"],
-
-  // --- 菌菇 & 干货 ---
   "香菇": ["冬菇", "花菇", "干香菇", "水发香菇", "冬菇（香菇）"],
   "口蘑": ["干口蘑", "水发口蘑"],
   "木耳": ["黑木耳", "云耳", "水发木耳"],
   "黄花菜": ["兰花", "干黄花菜", "兰花（干黄花菜）", "金针菜"],
   "竹荪": ["水发竹荪", "干竹荪"],
-
-  // --- 调料 & 其他 ---
   "面粉": ["中筋面粉", "白面", "面粉（面点）"],
   "花椒": ["红花椒", "青花椒", "花椒粒", "花椒面"],
   "干辣椒": ["干海椒", "干红辣椒", "辣椒节", "辣椒面"],
@@ -89,28 +74,19 @@ const INGREDIENT_ALIASES = {
   "葱": ["大葱", "小葱", "香葱", "葱白", "葱花", "葱段", "葱节"]
 };
 
-// ★★★ 智能归一化函数 ★★★
 function getCanonicalName(name) {
   if(!name) return "";
   let n = name.trim();
-  
-  // 1. 去除括号及内容
   if (checkAlias(n)) return checkAlias(n);
   const noParens = n.replace(/（.*?）|\(.*?\)/g, '').trim();
   if (noParens !== n && checkAlias(noParens)) return checkAlias(noParens);
-
-  // 2. 去除常见的前缀
   const prefixes = ["熟", "生", "鲜", "干", "水发", "净", "嫩"];
   let cleanPrefix = n;
   for (const p of prefixes) {
-    if (cleanPrefix.startsWith(p)) {
-      cleanPrefix = cleanPrefix.substring(p.length).trim();
-    }
+    if (cleanPrefix.startsWith(p)) cleanPrefix = cleanPrefix.substring(p.length).trim();
   }
   if (checkAlias(cleanPrefix)) return checkAlias(cleanPrefix);
-
-  // 3. 去除常见的形状后缀
-  const suffixes = ["肉", "片", "丝", "末", "丁", "块", "条", "泥", "茸", "尖", "头", "仁", "皮", "腿"]; // 增加了 "腿"
+  const suffixes = ["肉", "片", "丝", "末", "丁", "块", "条", "泥", "茸", "尖", "头", "仁", "皮", "腿"];
   let cleanSuffix = cleanPrefix;
   for (const s of suffixes) {
      if (cleanSuffix.endsWith(s)) {
@@ -118,11 +94,8 @@ function getCanonicalName(name) {
        if (checkAlias(tryName)) return checkAlias(tryName);
      }
   }
-
-  return n; // 实在匹配不上，返回原名
+  return n;
 }
-
-// 辅助函数：检查名称是否在字典中
 function checkAlias(name) {
   if (INGREDIENT_ALIASES[name]) return name;
   for (const [canonical, aliases] of Object.entries(INGREDIENT_ALIASES)) {
@@ -131,14 +104,12 @@ function checkAlias(name) {
   return null;
 }
 
-// -------- Storage --------
 const S = {
   save(k, v){ localStorage.setItem(k, JSON.stringify(v)); },
   load(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch{ return d } },
   keys: { inventory:'km_v19_inventory', plan:'km_v19_plan', overlay:'km_v19_overlay', settings:'km_v23_settings' }
 };
 
-// -------- Data Loading --------
 async function loadBasePack(){
   const url = new URL('./data/sichuan-recipes.json', location).href + '?v=23';
   let pack = {recipes:[], recipe_ingredients:{}};
@@ -154,7 +125,6 @@ async function loadBasePack(){
   return pack;
 }
 
-// -------- Overlay Logic --------
 function emptyOverlay(){ return {version:1, recipes:{}, recipe_ingredients:{}, deletes:{}}; }
 function loadOverlay(){ return S.load(S.keys.overlay, emptyOverlay()); }
 function saveOverlay(o){ S.save(S.keys.overlay, o); }
@@ -192,7 +162,6 @@ function applyOverlay(base, overlay){
   return {recipes, recipe_ingredients:ingMap};
 }
 
-// -------- Utils --------
 const SEP_RE = /[，,、/;；|]+/;
 function explodeCombinedItems(list){
   const out = [];
@@ -208,7 +177,6 @@ function explodeCombinedItems(list){
 }
 function guessShelfDays(name, unit){ const veg=['菜','叶','苔','苗','芹','香菜','葱','椒','瓜','番茄','西红柿','豆角','笋','蘑','菇','花菜','西兰花','菜花','茄子','豆腐','生菜','莴','空心菜','韭','蒜苗','青椒','黄瓜']; if(veg.some(w=>name.includes(w)))return 5; if(unit==='ml')return 30; if(unit==='pcs')return 14; return 7; }
 
-// ★★★ 优化后的目录构建：只返回标准名 ★★★
 function buildCatalog(pack){
   const units = {}, set = new Set();
   for(const list of Object.values(pack.recipe_ingredients||{})){
@@ -216,12 +184,8 @@ function buildCatalog(pack){
       const n=(it.item||'').trim(); 
       if(!n) continue; 
       units[n]=units[n]||it.unit||'g';
-      
-      // 使用新的归一化逻辑
       const canon = getCanonicalName(n);
       set.add(canon);
-      
-      // 继承单位
       if(!units[canon]) units[canon] = units[n];
     }
   }
@@ -236,7 +200,6 @@ function badgeFor(e){ const r=remainingDays(e); if(r<=1) return `<span class="kc
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
 function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g')}); } saveInventory(inv); }
 
-// -------- AI Services --------
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
   const apiKey = CUSTOM_AI.KEY || localSettings.apiKey;
@@ -315,7 +278,6 @@ async function callAiService(prompt, imageBase64 = null) {
   } catch(e) { throw e; }
 }
 
-// 识别小票 (Prompt 微调)
 async function recognizeReceipt(file) {
   const base64 = await compressImage(file);
   const prompt = `
@@ -329,14 +291,12 @@ async function recognizeReceipt(file) {
   return JSON.parse(jsonStr);
 }
 
-// 生成做法
 async function callAiForMethod(recipeName, ingredients) {
   const ingStr = ingredients.map(i => i.item).join('、');
   const prompt = `请为川菜【${recipeName}】写一份详细的烹饪做法。已知用料：${ingStr}。请直接输出做法步骤，简洁专业。`;
   return await callAiService(prompt);
 }
 
-// 首页推荐
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
@@ -347,31 +307,17 @@ async function callCloudAI(pack, inv) {
   return JSON.parse(jsonStr);
 }
 
-// ★★★ 优化后的本地推荐算法 (支持归一化匹配) ★★★
 function getLocalRecommendations(pack, inv) {
-  // 1. 获取库存的标准名列表
   const invCanons = inv.map(x => getCanonicalName(x.name)).filter(Boolean);
-  
   if (invCanons.length === 0) return [];
-  
   const scores = (pack.recipes || []).map(r => {
     const ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
     let matchCount = 0;
-    
     ingredients.forEach(ing => { 
       const itemRaw = (ing.item||'').trim();
       if(!itemRaw) return;
       const itemCanon = getCanonicalName(itemRaw);
-      
-      // 2. 匹配逻辑：标准名相同，或存在包含关系
-      // 例如：库存有"牛肉"(标准名)，菜谱要"嫩牛肉"(标准名:牛肉) -> 匹配
-      // 库存有"猪肉"，菜谱要"瘦肉"(标准名:猪肉) -> 匹配
-      const hit = invCanons.some(invC => 
-        invC === itemCanon || 
-        itemCanon.includes(invC) || 
-        invC.includes(itemCanon)
-      );
-      
+      const hit = invCanons.some(invC => invC === itemCanon || itemCanon.includes(invC) || invC.includes(itemCanon));
       if(hit) matchCount++;
     });
     return { r, matchCount };
@@ -379,7 +325,6 @@ function getLocalRecommendations(pack, inv) {
   return scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6).map(s=>({r:s.r, reason:`本地匹配：含 ${s.matchCount} 种库存`}));
 }
 
-// -------- Renderers (保持 v40 界面) --------
 function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
   let topHtml = ''; if(extraInfo && extraInfo.isAi) { topHtml = `<div class="ai-badge">✨ AI 推荐</div>`; }
