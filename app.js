@@ -1,4 +1,4 @@
-// v45 app.js - UI Updated to iOS Style (Logic same as v43)
+// v47 app.js - 修复 AI 生成做法后不显示的问题
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -357,24 +357,42 @@ function recipeCard(r, list, extraInfo=null){
   return card;
 }
 
+// ★★★ 修复点：渲染详情页时，实时读取并合并 Overlay ★★★
 function renderRecipeDetail(id, pack) {
-  const r = (pack.recipes||[]).find(x=>x.id===id);
+  // 1. 获取基础菜谱对象
+  let r = (pack.recipes||[]).find(x=>x.id===id);
   if(!r) return document.createTextNode('未找到菜谱');
+
+  // 2. 实时读取 Overlay (用户补丁)，确保拿到最新的 method
+  const overlay = loadOverlay();
+  const ovRecipe = (overlay.recipes || {})[id];
+  if (ovRecipe) {
+    // 合并：用补丁覆盖基础数据
+    r = { ...r, ...ovRecipe, method: ovRecipe.method || r.method || '' };
+  }
+
   const ingList = pack.recipe_ingredients[id] || [];
   const items = explodeCombinedItems(ingList);
   const div = document.createElement('div'); div.className = 'detail-view';
+  
+  // 3. 渲染做法内容
   const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #555;border-radius:8px;">暂无详细做法。您可以点击下方按钮让 AI 生成，或者点击“编辑”手动录入书上的内容。</div><a class="btn ai" id="genMethodBtn">✨ 让 AI 自动生成做法</a>`;
-  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><a class="btn" onclick="history.back()">← 返回</a><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:#fff;font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><ul class="ing-list" style="columns:2; -webkit-columns:2; gap:20px;">${items.map(it => `<li><span style="color:#fff;">${it.item}</span> <span class="small" style="color:var(--accent);">${it.qty?it.qty+(it.unit||''):''}</span></li>`).join('')}</ul></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  
+  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><a class="btn" onclick="history.back()">← 返回</a><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><ul class="ing-list" style="columns:2; -webkit-columns:2; gap:20px;">${items.map(it => `<li><span style="color:var(--text-main);">${it.item}</span> <span class="small" style="color:var(--accent);">${it.qty?it.qty+(it.unit||''):''}</span></li>`).join('')}</ul></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  
   const genBtn = div.querySelector('#genMethodBtn');
   if(genBtn) {
     genBtn.onclick = async () => {
       genBtn.innerHTML = '<span class="spinner"></span> 正在生成...';
       try {
         const text = await callAiForMethod(r.name, items);
-        const overlay = loadOverlay();
-        overlay.recipes = overlay.recipes || {};
-        overlay.recipes[id] = { ...(overlay.recipes[id]||{}), method: text };
-        saveOverlay(overlay);
+        // 保存到补丁
+        const currentOverlay = loadOverlay(); // 重新读取最新的 overlay
+        currentOverlay.recipes = currentOverlay.recipes || {};
+        currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text };
+        saveOverlay(currentOverlay);
+        
+        // 更新 UI
         div.querySelector('#methodArea').innerHTML = `<div class="method-text">${text}</div><div class="small ok" style="margin-top:10px">已保存到补丁</div>`;
       } catch(e) { alert('生成失败：' + e.message); genBtn.innerHTML = '✨ 让 AI 生成做法'; }
     };
