@@ -1,4 +1,4 @@
-// v48 app.js - 修复 AI 推荐消失问题 (持久化存储)
+// v49 app.js - 修复推荐消失问题 + 莫兰迪风格适配
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -104,7 +104,7 @@ function checkAlias(name) {
   return null;
 }
 
-// -------- Storage (新增 ai_recs 键) --------
+// -------- Storage --------
 const S = {
   save(k, v){ localStorage.setItem(k, JSON.stringify(v)); },
   load(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch{ return d } },
@@ -113,7 +113,9 @@ const S = {
     plan:'km_v19_plan', 
     overlay:'km_v19_overlay', 
     settings:'km_v23_settings',
-    ai_recs: 'km_v48_ai_recs' // ★ 新增：保存AI推荐结果
+    ai_recs: 'km_v48_ai_recs',
+    local_recs: 'km_v49_local_recs', // ★ 新增：缓存本地推荐
+    rec_time: 'km_v49_rec_time'      // ★ 新增：记录推荐时间
   }
 };
 
@@ -314,25 +316,65 @@ async function callCloudAI(pack, inv) {
   return JSON.parse(jsonStr);
 }
 
+// ★★★ 优化后的本地推荐算法 (带持久化检查) ★★★
 function getLocalRecommendations(pack, inv) {
+  // 1. 检查缓存是否有效 (1小时内有效)
+  const now = Date.now();
+  const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
+  const savedRecs = S.load(S.keys.local_recs, null);
+  
+  // 如果有缓存且未过期，直接返回缓存的推荐，避免刷新后变动
+  if (savedRecs && (now - lastRecTime < 3600000)) {
+    // 还原 recipe 对象
+    return savedRecs.map(s => {
+       const r = (pack.recipes||[]).find(x => x.id === s.id);
+       return r ? { r, matchCount: s.matchCount, reason: s.reason } : null;
+    }).filter(Boolean);
+  }
+
+  // 2. 重新计算推荐
   const invCanons = inv.map(x => getCanonicalName(x.name)).filter(Boolean);
-  if (invCanons.length === 0) return [];
-  const scores = (pack.recipes || []).map(r => {
-    const ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
-    let matchCount = 0;
-    ingredients.forEach(ing => { 
-      const itemRaw = (ing.item||'').trim();
-      if(!itemRaw) return;
-      const itemCanon = getCanonicalName(itemRaw);
-      const hit = invCanons.some(invC => invC === itemCanon || itemCanon.includes(invC) || invC.includes(itemCanon));
-      if(hit) matchCount++;
+  let scores = [];
+  
+  if (invCanons.length > 0) {
+    scores = (pack.recipes || []).map(r => {
+      const ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
+      let matchCount = 0;
+      ingredients.forEach(ing => { 
+        const itemRaw = (ing.item||'').trim();
+        if(!itemRaw) return;
+        const itemCanon = getCanonicalName(itemRaw);
+        const hit = invCanons.some(invC => invC === itemCanon || itemCanon.includes(invC) || invC.includes(itemCanon));
+        if(hit) matchCount++;
+      });
+      return { r, matchCount };
     });
-    return { r, matchCount };
-  });
-  return scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6).map(s=>({r:s.r, reason:`本地匹配：含 ${s.matchCount} 种库存`}));
+    scores = scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6);
+  }
+  
+  // 兜底：随机推荐
+  if (scores.length === 0) {
+    const all = (pack.recipes||[]);
+    const shuffled = [...all].sort(() => 0.5 - Math.random()).slice(0, 6);
+    scores = shuffled.map(r => ({ r, matchCount: 0 }));
+  }
+
+  // 3. 保存结果到本地
+  const toSave = scores.map(s => ({ 
+      id: s.r.id, 
+      matchCount: s.matchCount, 
+      reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索' 
+  }));
+  S.save(S.keys.local_recs, toSave);
+  S.save(S.keys.rec_time, now);
+
+  return scores.map(s => ({
+      r: s.r,
+      matchCount: s.matchCount, 
+      reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索'
+  }));
 }
 
-// -------- Renderers --------
 function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
   let topHtml = ''; if(extraInfo && extraInfo.isAi) { topHtml = `<div class="ai-badge">✨ AI 推荐</div>`; }
@@ -351,7 +393,7 @@ function recipeCard(r, list, extraInfo=null){
   const items = explodeCombinedItems(list||[]);
   const showItems = items.slice(0, 5);
   for(const it of showItems){ const q=(typeof it.qty==='number'&&isFinite(it.qty))?(it.qty+(it.unit||'')):''; const li=document.createElement('li'); li.textContent=q?`${it.item}  ${q}`:it.item; ul.appendChild(li); }
-  if(items.length > 5) { const li=document.createElement('li'); li.textContent='...'; li.style.color='var(--muted)'; ul.appendChild(li); }
+  if(items.length > 5) { const li=document.createElement('li'); li.textContent='...'; li.style.color='var(--text-secondary)'; ul.appendChild(li); }
   card.querySelector('.ings').appendChild(ul);
   if(!r.id.startsWith('creative-')){
     const plan = new Set((S.load(S.keys.plan,[])).map(x=>x.id));
@@ -365,34 +407,18 @@ function recipeCard(r, list, extraInfo=null){
   return card;
 }
 
-// ★★★ 修复详情页：支持读取 AI 创意菜 ★★★
 function renderRecipeDetail(id, pack) {
   let r = (pack.recipes||[]).find(x=>x.id===id);
-  
-  // 特殊处理：如果 ID 是 'creative-ai-temp'，说明是刚生成的创意菜
   if (!r && id === 'creative-ai-temp') {
       const aiData = S.load(S.keys.ai_recs, null);
       if (aiData && aiData.creative) {
-          r = { 
-              id: 'creative-ai-temp', 
-              name: aiData.creative.name, 
-              tags: ['AI创意菜'], 
-              method: '', // 初始为空，点击生成后才会有
-              isCreative: true 
-          };
+          r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true };
       }
   }
-
   if(!r) return document.createTextNode('未找到菜谱或缓存已过期');
-
-  // 优先读取 Overlay 中的 method (包含用户生成的 AI 做法)
   const overlay = loadOverlay();
   const ovRecipe = (overlay.recipes || {})[id];
-  if (ovRecipe) {
-    r = { ...r, ...ovRecipe, method: ovRecipe.method || r.method || '' };
-  }
-
-  // 创意菜的食材处理
+  if (ovRecipe) { r = { ...r, ...ovRecipe, method: ovRecipe.method || r.method || '' }; }
   let items = [];
   if (r.isCreative) {
        const aiData = S.load(S.keys.ai_recs, null);
@@ -401,10 +427,9 @@ function renderRecipeDetail(id, pack) {
        const ingList = pack.recipe_ingredients[id] || [];
        items = explodeCombinedItems(ingList);
   }
-
   const div = document.createElement('div'); div.className = 'detail-view';
-  const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #555;border-radius:8px;">暂无详细做法。点击按钮让 AI 生成。</div><a class="btn ai" id="genMethodBtn">✨ 让 AI 生成做法</a>`;
-  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><a class="btn" onclick="history.back()">← 返回</a><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><ul class="ing-list" style="columns:2; -webkit-columns:2; gap:20px;">${items.map(it => `<li><span style="color:var(--text-main);">${it.item}</span> <span class="small" style="color:var(--accent);">${it.qty?it.qty+(it.unit||''):''}</span></li>`).join('')}</ul></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #ccc;border-radius:8px;">暂无详细做法。点击按钮让 AI 生成。</div><a class="btn ai" id="genMethodBtn">✨ 让 AI 生成做法</a>`;
+  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><a class="btn" onclick="history.back()">← 返回</a><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><ul class="ing-list" style="columns:2; -webkit-columns:2; gap:20px;">${items.map(it => `<li><span style="color:var(--text-main);">${it.item}</span> <span class="small" style="color:var(--primary);">${it.qty?it.qty+(it.unit||''):''}</span></li>`).join('')}</ul></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
   const genBtn = div.querySelector('#genMethodBtn');
   if(genBtn) {
     genBtn.onclick = async () => {
@@ -424,7 +449,6 @@ function renderRecipeDetail(id, pack) {
 
 function renderRecipes(pack){ const wrap = document.createElement('div'); wrap.innerHTML = `<div class="controls" style="margin-bottom:16px;gap:10px;"><input id="search" placeholder="搜菜谱..." style="flex:1;padding:10px;"><a class="btn ok" id="addBtn" style="padding:10px;">+ 新建</a><a class="btn" id="exportBtn">导出</a><label class="btn"><input type="file" id="importFile" hidden>导入</label></div><div class="grid" id="grid"></div>`; const grid = wrap.querySelector('#grid'); const map = pack.recipe_ingredients||{}; function draw(filter=''){ grid.innerHTML = ''; const f = filter.trim(); (pack.recipes||[]).filter(r => !f || r.name.includes(f)).forEach(r=>{ grid.appendChild(recipeCard(r, map[r.id])); }); } draw(); wrap.querySelector('#search').oninput = e => draw(e.target.value); wrap.querySelector('#addBtn').onclick = () => { const id = genId(); const overlay = loadOverlay(); overlay.recipes = overlay.recipes || {}; overlay.recipes[id] = { name: '新菜谱', tags: ['自定义'] }; overlay.recipe_ingredients = overlay.recipe_ingredients || {}; overlay.recipe_ingredients[id] = [{item:'', qty:null, unit:'g'}]; saveOverlay(overlay); location.hash = `#recipe-edit:${id}`; }; wrap.querySelector('#exportBtn').onclick = ()=>{ const blob = new Blob([JSON.stringify(loadOverlay(), null, 2)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kitchen-overlay.json'; a.click(); }; wrap.querySelector('#importFile').onchange = (e)=>{ const file = e.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = ()=>{ try{ const inc = JSON.parse(reader.result); const cur = loadOverlay(); const m = {...cur, recipes:{...cur.recipes,...(inc.recipes||{})}, recipe_ingredients:{...cur.recipe_ingredients,...(inc.recipe_ingredients||{})}, deletes:{...cur.deletes,...(inc.deletes||{})} }; saveOverlay(m); alert('导入成功'); location.reload(); }catch(err){ alert('导入失败'); } }; reader.readAsText(file); }; return wrap; }
 
-// ★★★ 修复首页：优先读取已保存的 AI 推荐 ★★★
 function renderHome(pack){ 
   const container = document.createElement('div'); 
   const recDiv = document.createElement('div'); 
@@ -434,7 +458,6 @@ function renderHome(pack){
 
   const catalog = buildCatalog(pack); 
   const inv = loadInventory(catalog); 
-  const localRecs = getLocalRecommendations(pack, inv); 
 
   // 辅助：将 AI 结果转为卡片数据
   function processAiData(aiResult) {
@@ -465,7 +488,7 @@ function renderHome(pack){
     } 
     const map = pack.recipe_ingredients || {}; 
     list.forEach(item => { 
-      recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], { reason: item.reason, isAi: item.isAi })); 
+      recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], item.matchCount!==undefined ? {reason: item.reason} : {reason: item.reason, isAi: item.isAi})); 
     }); 
   } 
   
@@ -475,21 +498,21 @@ function renderHome(pack){
      const savedCards = processAiData(savedAiRecs);
      if (savedCards.length > 0) {
        showCards(savedCards);
-       // 添加清除按钮
        const clearBtn = document.createElement('a');
        clearBtn.className = 'btn bad small';
        clearBtn.style.cssText = 'margin-left:10px;';
        clearBtn.textContent = '清除推荐';
        clearBtn.onclick = () => {
          localStorage.removeItem(S.keys.ai_recs);
-         onRoute(); // 刷新
+         onRoute(); 
        };
        recDiv.querySelector('.section-title').appendChild(clearBtn);
      } else {
-       showCards(localRecs);
+       // 2. 如果没有 AI 推荐，则获取本地推荐 (现在本地推荐也是持久化的)
+       showCards(getLocalRecommendations(pack, inv));
      }
   } else {
-     showCards(localRecs); // 默认显示本地推荐
+     showCards(getLocalRecommendations(pack, inv)); 
   }
 
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
@@ -497,13 +520,11 @@ function renderHome(pack){
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
     try { 
       const aiResult = await callCloudAI(pack, inv); 
-      // ★★★ 保存 AI 结果到本地存储 ★★★
       S.save(S.keys.ai_recs, aiResult);
       
       const newCards = processAiData(aiResult);
       if(newCards.length > 0) {
         showCards(newCards); 
-        // 刷新页面以显示清除按钮等状态
         setTimeout(() => onRoute(), 500); 
       } else {
         alert('AI 虽然响应了，但没有给出有效推荐。');
@@ -517,14 +538,14 @@ function renderHome(pack){
 
 function renderSettings(){ const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' }); 
   const displayUrl = s.apiUrl || CUSTOM_AI.URL; const displayKey = s.apiKey || CUSTOM_AI.KEY; const displayModel = s.model || CUSTOM_AI.MODEL;
-  const div = document.createElement('div'); div.innerHTML = `<h2 class="section-title">AI 设置</h2><div class="card"><div class="setting-group"><label>快速预设</label><select id="sPreset"><option value="">请选择...</option><option value="silicon">SiliconFlow (硅基流动)</option><option value="groq">Groq (Llama/Mixtral)</option><option value="groq-v">Groq (Llama-Vision)</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></div><hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:16px 0"><div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}" placeholder="https://..."></div><div class="setting-group"><label>模型名称 (Model)</label><input id="sModel" value="${displayModel}"></div><div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}" placeholder="sk-..."></div><div class="right"><a class="btn ok" id="saveSet">保存</a></div><p class="small" style="margin-top:20px;color:var(--muted)">* 当前配置：<br>文本模型: ${CUSTOM_AI.MODEL}<br>视觉模型: ${CUSTOM_AI.VISION_MODEL} (固定)</p></div>`; 
+  const div = document.createElement('div'); div.innerHTML = `<h2 class="section-title">AI 设置</h2><div class="card"><div class="setting-group"><label>快速预设</label><select id="sPreset"><option value="">请选择...</option><option value="silicon">SiliconFlow (硅基流动)</option><option value="groq">Groq (Llama/Mixtral)</option><option value="groq-v">Groq (Llama-Vision)</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option></select></div><hr style="border:0;border-top:1px solid var(--separator);margin:16px 0"><div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}" placeholder="https://..."></div><div class="setting-group"><label>模型名称 (Model)</label><input id="sModel" value="${displayModel}"></div><div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}" placeholder="sk-..."></div><div class="right"><a class="btn ok" id="saveSet">保存</a></div><p class="small" style="margin-top:20px;color:var(--text-secondary)">* 当前配置：<br>文本模型: ${CUSTOM_AI.MODEL}<br>视觉模型: ${CUSTOM_AI.VISION_MODEL} (固定)</p></div>`; 
   const presets = { silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, "groq-v": { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama-3.2-11b-vision-preview' }, deepseek: { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat' }, openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } }; 
   div.querySelector('#sPreset').onchange = (e) => { const val = e.target.value; if(presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; } }; 
   div.querySelector('#saveSet').onclick = () => { const newS = { apiUrl: div.querySelector('#sUrl').value.trim(), apiKey: div.querySelector('#sKey').value.trim(), model: div.querySelector('#sModel').value.trim() }; S.save(S.keys.settings, newS); alert('设置已保存，下次刷新将优先使用此设置。'); }; return div; }
 
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); const h=document.createElement('h2'); h.className='section-title'; h.textContent='库存管理'; wrap.appendChild(h); const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
-  searchDiv.innerHTML = `<div style="display:flex; gap:8px;"><input id="invSearch" placeholder="🔍 搜索库存..." style="flex:1;padding:10px;background:var(--card);border:1px solid rgba(255,255,255,0.1);"><label class="btn ai" style="padding:10px 12px; white-space:nowrap; cursor:pointer;"><input type="file" id="camInput" accept="image/*" capture="environment" hidden>📷 拍小票</label></div><div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>`; wrap.appendChild(searchDiv);
-  const ctr=document.createElement('div'); ctr.className='controls'; ctr.innerHTML=`<div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="选择/搜索食材" style="width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.14);background:#0f1935;color:#fff;"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div><input id="addQty" type="number" step="1" placeholder="数量"><select id="addUnit"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select><input id="addDate" type="date" value="${todayISO()}"><select id="addKind"><option value="raw">原材料</option><option value="semi">半成品</option></select><button id="addBtn" class="btn">入库</button>`; wrap.appendChild(ctr); ctr.querySelector('#addName').addEventListener('input', (e)=>{ const val = e.target.value.trim(); const match = catalog.find(c => c.name === val); if(match && match.unit){ ctr.querySelector('#addUnit').value = match.unit; } }); const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th>食材</th><th>数量</th><th>单位</th><th>购买日期</th><th>保质</th><th>状态</th><th></th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
+  searchDiv.innerHTML = `<div style="display:flex; gap:8px;"><input id="invSearch" placeholder="🔍 搜索库存..." style="flex:1;padding:10px;background:var(--bg-card);border:1px solid var(--separator);"><label class="btn ai" style="padding:10px 12px; white-space:nowrap; cursor:pointer;"><input type="file" id="camInput" accept="image/*" capture="environment" hidden>📷 拍小票</label></div><div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>`; wrap.appendChild(searchDiv);
+  const ctr=document.createElement('div'); ctr.className='controls'; ctr.innerHTML=`<div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="选择/搜索食材" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);background:var(--bg-input);color:var(--text-main);"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div><input id="addQty" type="number" step="1" placeholder="数量"><select id="addUnit"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select><input id="addDate" type="date" value="${todayISO()}"><select id="addKind"><option value="raw">原材料</option><option value="semi">半成品</option></select><button id="addBtn" class="btn">入库</button>`; wrap.appendChild(ctr); ctr.querySelector('#addName').addEventListener('input', (e)=>{ const val = e.target.value.trim(); const match = catalog.find(c => c.name === val); if(match && match.unit){ ctr.querySelector('#addUnit').value = match.unit; } }); const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th>食材</th><th>数量</th><th>单位</th><th>购买日期</th><th>保质</th><th>状态</th><th></th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
   const scanStatus = searchDiv.querySelector('#scanStatus');
   searchDiv.querySelector('#camInput').onchange = async (e) => {
     const file = e.target.files[0]; if(!file) return;
@@ -533,13 +554,12 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
       const items = await recognizeReceipt(file);
       scanStatus.innerHTML = `✅ 识别成功！发现 ${items.length} 个物品，正在加入...`;
       let count = 0; for(const it of items) { if(!it.name) continue; let unit = it.unit || 'g'; 
-        // 归一化名称入库
         const name = getCanonicalName(it.name);
         const match = catalog.find(c => c.name === name); 
         if(match && match.unit) unit = match.unit; 
         upsertInventory(inv, { name: name, qty: Number(it.qty) || 1, unit: unit, buyDate: todayISO(), kind: 'raw', shelf: guessShelfDays(name, unit) }); count++; }
       setTimeout(() => { scanStatus.style.display = 'none'; alert(`成功识别并添加了 ${count} 种食材！`); renderTable(); }, 1000);
-    } catch(err) { scanStatus.innerHTML = `<span style="color:var(--bad)">❌ 识别失败: ${err.message}</span>`; }
+    } catch(err) { scanStatus.innerHTML = `<span style="color:var(--danger)">❌ 识别失败: ${err.message}</span>`; }
   };
   function renderTable(){ const tb=tbl.querySelector('tbody'); tb.innerHTML=''; const filterText = (searchDiv.querySelector('#invSearch').value || '').trim().toLowerCase(); const filteredInv = inv.filter(e => e.name.toLowerCase().includes(filterText)); filteredInv.sort((a,b)=>remainingDays(a)-remainingDays(b)); if(filteredInv.length === 0 && inv.length > 0) { tb.innerHTML = `<tr><td colspan="7" class="small" style="text-align:center;padding:16px;">没有找到包含 "${filterText}" 的食材</td></tr>`; return; } else if(inv.length === 0) { tb.innerHTML = `<tr><td colspan="7" class="small" style="text-align:center;padding:16px;">库存为空，快去添加点什么吧！</td></tr>`; return; } for(const e of filteredInv){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${e.name}<div class="small">${(e.kind||'raw')==='semi'?'半成品':'原材料'}</div></td><td class="qty"><input type="number" step="1" value="${+e.qty||0}" style="width:60px"></td><td><select><option value="g"${e.unit==='g'?' selected':''}>g</option><option value="ml"${e.unit==='ml'?' selected':''}>ml</option><option value="pcs"${e.unit==='pcs'?' selected':''}>pcs</option></select></td><td><input type="date" value="${e.buyDate||todayISO()}" style="width:110px"></td><td><input type="number" step="1" value="${+e.shelf||7}" style="width:50px"></td><td>${badgeFor(e)}</td><td class="right"><a class="btn" href="javascript:void(0)">保存</a><a class="btn" href="javascript:void(0)">删</a></td>`; const inputs=els('input',tr); const qtyEl=inputs[0], dateEl=inputs[1], shelfEl=inputs[2]; const unitEl=els('select',tr)[0]; const [saveBtn, delBtn]=els('.btn',tr).slice(-2); saveBtn.onclick=()=>{ e.qty=+qtyEl.value||0; e.unit=unitEl.value; e.buyDate=dateEl.value||todayISO(); e.shelf=+shelfEl.value||7; saveInventory(inv); renderTable(); }; delBtn.onclick=()=>{ const i=inv.indexOf(e); if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); }}; tb.appendChild(tr); } } searchDiv.querySelector('#invSearch').oninput = () => renderTable(); ctr.querySelector('#addBtn').onclick=()=>{ const name=ctr.querySelector('#addName').value.trim(); if(!name) return alert('请选择或输入食材名称'); const qty=+ctr.querySelector('#addQty').value||0; const unit=ctr.querySelector('#addUnit').value; const date=ctr.querySelector('#addDate').value||todayISO(); const kind=ctr.querySelector('#addKind').value; const cat=catalog.find(c=>c.name===name); upsertInventory(inv,{name, qty, unit, buyDate:date, kind, shelf:(cat&&cat.shelf)||7}); ctr.querySelector('#addName').value = ''; ctr.querySelector('#addQty').value = ''; renderTable(); }; renderTable(); return wrap; }
 
