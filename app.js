@@ -1,4 +1,4 @@
-// v63 app.js - 首页重构：库存置顶 + 横向推荐 + 紧凑卡片
+// v64 app.js - 完整修复版：推荐持久化 + 归一化修复 + 紧凑布局
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -12,7 +12,7 @@ const CUSTOM_AI = {
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
-// --- 食材归一化字典 (保持不变) ---
+// --- 食材归一化字典 (修复蒜苔/蒜苗) ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -49,7 +49,7 @@ const INGREDIENT_ALIASES = {
   "白菜": ["大白菜", "黄芽白", "绍菜", "莲花白", "卷心菜", "黄秧白"],
   "菠菜": ["菠菜叶", "菠菜心"],
   "芹菜": ["西芹", "旱芹", "药芹", "芹黄"],
-  "蒜苗": ["青蒜"],
+  "蒜苗": ["青蒜"], 
   "蒜苔": ["蒜薹"],
   "韭菜": ["韭黄", "韭菜头", "白头韭菜"],
   "土豆": ["马铃薯", "洋芋", "土豆片", "土豆丝"],
@@ -125,6 +125,7 @@ async function loadBasePack(){
   let pack = {recipes:[], recipe_ingredients:{}};
   try{ const res = await fetch(url, { cache:'no-store' }); if(res.ok) pack = await res.json(); }
   catch(e){ console.error('Base pack error', e); }
+  
   const staticMethods = window.RECIPE_METHODS || {};
   const existingNames = new Set(pack.recipes.map(r => r.name));
   Object.keys(staticMethods).forEach(name => {
@@ -133,6 +134,7 @@ async function loadBasePack(){
       pack.recipes.push({ id: newId, name: name, tags: ["家常菜", "新增"] });
     }
   });
+
   if(pack.recipes){
     pack.recipes.forEach(r => {
       const method = staticMethods[r.id] || staticMethods[r.name];
