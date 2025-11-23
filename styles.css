@@ -1,8 +1,10 @@
-/* Kitchen Assistant v63 - Compact Layout & Horizontal Scroll */
+/* Kitchen Assistant v65 - Compact Layout & Horizontal Scroll & Dynamic Aurora BG */
 
 :root {
   /* --- 浅色模式 (Morandi Light) --- */
-  --bg-body: #F5F5F2;
+  /* 移除纯色背景，改为动态极光渐变背景 */
+  /* --bg-body: #F5F5F2; */
+  --bg-gradient-light: linear-gradient(-45deg, #F5F5F2, #E8EAF6, #F0F4C3, #F8BBD0);
   --bg-card: #FFFFFF;
   --bg-input: #EFEFEF;
   
@@ -27,7 +29,9 @@
 /* --- 深色模式 (Morandi Dark) --- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-body: #1C1C1E;
+    /* 移除纯色背景，改为动态极光渐变背景 */
+    /* --bg-body: #1C1C1E; */
+    --bg-gradient-dark: linear-gradient(-45deg, #1C1C1E, #2C2C2E, #3A3A3C, #4A4A4A);
     --bg-card: #2C2C2E;
     --bg-input: #3A3A3C;
     
@@ -52,10 +56,29 @@
 
 html, body {
   margin: 0; padding: 0;
-  background-color: var(--bg-body); color: var(--text-main);
+  /* 应用动态极光渐变背景 */
+  background: var(--bg-gradient-light);
+  background-size: 400% 400%;
+  animation: gradientBG 15s ease infinite;
+  
+  color: var(--text-main);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   line-height: 1.5; font-size: 15px;
   transition: background 0.3s, color 0.3s;
+}
+
+@media (prefers-color-scheme: dark) {
+  html, body {
+    background: var(--bg-gradient-dark);
+    background-size: 400% 400%;
+  }
+}
+
+/* 定义极光背景动画 */
+@keyframes gradientBG {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 /* --- 顶部导航 --- */
