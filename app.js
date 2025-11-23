@@ -1,4 +1,4 @@
-// v67 app.js - 首页全能搜索：搜菜谱 + 匹配库存 + AI 联网
+// v68 app.js - 智能过滤佐料 (Smart Ingredient Filter)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -12,7 +12,25 @@ const CUSTOM_AI = {
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
-// --- 食材归一化字典 (v62修正版) ---
+// --- 佐料黑名单 (前端二次过滤) ---
+const SEASONINGS = new Set([
+  "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
+  "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
+  "油", "猪油", "菜油", "香油", "芝麻油", "豆粉", "淀粉", "水豆粉", "豆瓣", "豆瓣酱", "泡椒", "清汤", "水"
+]);
+
+// 判断是否为佐料
+function isSeasoning(name) {
+  if (!name) return true;
+  const n = name.trim();
+  // 1. 直接在黑名单中
+  if (SEASONINGS.has(n)) return true;
+  // 2. 包含特定关键字且长度较短 (防止误伤 "葱油饼" 这种菜名，但这里是食材检查)
+  if (n.length <= 3 && (n.includes("盐") || n.includes("糖") || n.includes("醋") || n.includes("酱") || n.includes("油"))) return true;
+  return false;
+}
+
+// --- 食材归一化字典 ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -288,7 +306,13 @@ async function callAiService(prompt, imageBase64 = null) {
 
 async function recognizeReceipt(file) {
   const base64 = await compressImage(file);
-  const prompt = `你是一个中文食材管理助手。请分析图片收据。1. 提取【食品/食材】。2. 提取【名称】、【数量】(默认1)、【单位】。3. 尽可能将英文名或别名转换为通用中文名（如 Pork Belly->五花肉, Potato->土豆）。返回 JSON 数组: [{"name": "五花肉", "qty": 0.5, "unit": "kg"}]`;
+  // ★★★ 优化 Prompt：要求忽略佐料 ★★★
+  const prompt = `你是一个中文食材管理助手。请分析图片收据。
+  1. 提取【食品/食材】。
+  2. **重要：请自动忽略所有佐料（如葱、姜、蒜、盐、糖、酱油、醋、味精、花椒、辣椒等），只保留核心肉类、蔬菜、蛋奶等。**
+  3. 提取【名称】、【数量】(默认1)、【单位】。
+  4. 尽可能将英文名或别名转换为通用中文名。
+  返回 JSON 数组: [{"name": "五花肉", "qty": 0.5, "unit": "kg"}]`;
   const jsonStr = await callAiService(prompt, base64);
   return JSON.parse(jsonStr);
 }
@@ -299,50 +323,57 @@ async function callAiForMethod(recipeName, ingredients) {
   return await callAiService(prompt);
 }
 
+// ★★★ 优化 Prompt：搜索菜谱时去除佐料 ★★★
 async function callAiSearchRecipe(query, invNames) {
   const prompt = `我冰箱里有：【${invNames}】。我想找菜谱：【${query}】。
   请提供一道符合搜索的菜谱。
-  返回 JSON：{ "name": "标准菜名", "ingredients": "主要食材1,食材2", "method": "1. 步骤... 2. 步骤..." }`;
+  要求：
+  1. "ingredients" 字段中，**请剔除所有姜、葱、蒜、花椒、辣椒、油、盐、酱、醋等佐料**，只列出肉、菜等核心食材。
+  2. "method" 字段包含详细做法。
+  返回 JSON：{ "name": "标准菜名", "ingredients": "核心食材1,核心食材2", "method": "1. 步骤... 2. 步骤..." }`;
   const jsonStr = await callAiService(prompt);
   return JSON.parse(jsonStr);
 }
 
+// ★★★ 优化 Prompt：推荐菜谱时去除佐料 ★★★
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
-  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。请规划今日推荐：1. **Local**: 选3道适合库存的菜。2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "主要用料" } }`;
+  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。
+  请规划今日推荐：
+  1. **Local**: 选3道适合库存的菜。
+  2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。
+  
+  **重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。**
+
+  返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
   const jsonStr = await callAiService(prompt);
   return JSON.parse(jsonStr);
 }
 
-// ★★★ 核心：库存匹配状态计算 ★★★
 function calculateStockStatus(recipe, pack, inv) {
   const rawIngs = pack.recipe_ingredients[recipe.id] || [];
-  const ingredients = explodeCombinedItems(rawIngs);
+  let ingredients = explodeCombinedItems(rawIngs);
+  // ★★★ 核心修复：在比对库存前，先过滤掉菜谱里的佐料 ★★★
+  ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
+
   if (ingredients.length === 0) return { status: 'unknown', missing: [] };
 
   const missing = [];
   let matchCount = 0;
-
-  // 1. 准备库存的标准名 Set，方便快速查找
   const invMap = new Map();
   inv.forEach(i => invMap.set(getCanonicalName(i.name), i));
 
   ingredients.forEach(ing => {
     const needName = getCanonicalName(ing.item);
     const stockItem = invMap.get(needName);
-    
-    if (stockItem) {
-      // 有库存，这里暂不比较数量 (简化逻辑)，只要有就算匹配
-      matchCount++;
-    } else {
-      missing.push({ name: ing.item, canon: needName });
-    }
+    if (stockItem) { matchCount++; } 
+    else { missing.push({ name: ing.item, canon: needName }); }
   });
 
-  if (missing.length === 0) return { status: 'ok', missing: [] }; // 完全满足
-  if (matchCount > 0) return { status: 'partial', missing }; // 部分满足
-  return { status: 'none', missing }; // 完全没有
+  if (missing.length === 0) return { status: 'ok', missing: [] };
+  if (matchCount > 0) return { status: 'partial', missing };
+  return { status: 'none', missing };
 }
 
 function getLocalRecommendations(pack, inv) {
@@ -359,7 +390,10 @@ function getLocalRecommendations(pack, inv) {
   let scores = [];
   if (invCanons.length > 0) {
     scores = (pack.recipes || []).map(r => {
-      const ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
+      // ★★★ 计算本地推荐分值时，也过滤佐料，避免因为缺葱姜蒜而降低排名 ★★★
+      let ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
+      ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
+
       let matchCount = 0;
       ingredients.forEach(ing => { 
         const itemRaw = (ing.item||'').trim();
@@ -383,80 +417,48 @@ function getLocalRecommendations(pack, inv) {
   return scores.map(s => ({ r: s.r, matchCount: s.matchCount, reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索' }));
 }
 
-// ★★★ 搜索结果卡片：带库存状态 ★★★
 function searchResultCard(r, statusData) {
   const card = document.createElement('div'); card.className = 'card';
-  
-  let statusBadge = '';
-  let actionArea = '';
-
-  if (statusData.status === 'ok') {
-    statusBadge = `<span class="kchip ok">✅ 库存充足</span>`;
-  } else if (statusData.status === 'partial') {
+  let statusBadge = '', actionArea = '';
+  if (statusData.status === 'ok') { statusBadge = `<span class="kchip ok">✅ 库存充足</span>`; } 
+  else if (statusData.status === 'partial') {
     const missingStr = statusData.missing.map(m => m.name).join('、');
     statusBadge = `<span class="kchip warn">⚠️ 缺：${missingStr}</span>`;
-    // 一键加入购物清单按钮
     actionArea = `<a class="btn small" id="addMissingBtn" style="margin-top:8px;">🛒 缺货加入清单</a>`;
   } else {
     statusBadge = `<span class="kchip bad">❌ 暂无食材</span>`;
     actionArea = `<a class="btn small" id="addMissingBtn" style="margin-top:8px;">🛒 全部加入清单</a>`;
   }
-
-  card.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-      <h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>
-      ${statusBadge}
-    </div>
-    <p class="meta">${(r.tags||[]).join(' / ')}</p>
-    <div class="controls">
-      <a class="btn small" onclick="location.hash='#recipe:${r.id}'">查看做法</a>
-      ${actionArea}
-    </div>
-  `;
-  
+  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${statusBadge}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><a class="btn small" onclick="location.hash='#recipe:${r.id}'">查看做法</a>${actionArea}</div>`;
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
-  
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {
     addBtn.onclick = () => {
       const plan = S.load(S.keys.plan, []);
-      // 将菜谱加入计划（后续 shopping 页面会自动计算缺少的食材）
-      if (!plan.find(x => x.id === r.id)) {
-        plan.push({ id: r.id, servings: 1 });
-        S.save(S.keys.plan, plan);
-        alert(`已将 ${r.name} 加入购物计划，请去“清单”页面查看详情。`);
-      } else {
-        alert('该菜谱已在购物计划中。');
-      }
+      if (!plan.find(x => x.id === r.id)) { plan.push({ id: r.id, servings: 1 }); S.save(S.keys.plan, plan); alert(`已加入清单。`); } 
+      else { alert('已在清单中。'); }
     };
   }
-
   return card;
 }
 
 function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
   let topHtml = ''; if(extraInfo && extraInfo.isAi) { topHtml = `<div class="ai-badge">✨ AI 推荐</div>`; }
-  card.innerHTML=`${topHtml}
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-      <h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>
-      <a class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;">编辑</a>
-    </div>
-    <p class="meta">${(r.tags||[]).join(' / ')}</p>
-    <div class="ing-compact-container"></div>
-    ${extraInfo && extraInfo.reason ? `<div class="ai-reason" style="margin-top:8px;padding:8px;font-size:12px;">${extraInfo.reason}</div>` : ''}
-    <div class="controls"></div>`;
+  card.innerHTML=`${topHtml}<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3><a class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;">编辑</a></div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="ing-compact-container"></div>${extraInfo && extraInfo.reason ? `<div class="ai-reason" style="margin-top:8px;padding:8px;font-size:12px;">${extraInfo.reason}</div>` : ''}<div class="controls"></div>`;
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
   if(!r.id.startsWith('creative-')) { card.querySelector('.btn-edit').onclick = (e) => { e.stopPropagation(); location.hash = `#recipe-edit:${r.id}`; }; } else { card.querySelector('.btn-edit').remove(); }
   const tagContainer = card.querySelector('.ing-compact-container');
-  const items = explodeCombinedItems(list||[]);
-  const showItems = items.slice(0, 4); 
+  let items = explodeCombinedItems(list||[]);
+  // ★★★ 显示卡片时也尽量过滤佐料，让界面更清爽 ★★★
+  const coreItems = items.filter(it => !isSeasoning(it.item));
+  const displayItems = coreItems.length > 0 ? coreItems : items; // 如果过滤完没了，就显示全部
+  const showItems = displayItems.slice(0, 4); 
   for(const it of showItems){ const span = document.createElement('span'); span.className = 'ing-tag-pill'; span.innerHTML = `${it.item}`; tagContainer.appendChild(span); }
-  if(items.length > 4) { const more = document.createElement('span'); more.className = 'ing-tag-pill'; more.style.background = 'transparent'; more.textContent = '...'; tagContainer.appendChild(more); }
+  if(displayItems.length > 4) { const more = document.createElement('span'); more.className = 'ing-tag-pill'; more.style.background = 'transparent'; more.textContent = '...'; tagContainer.appendChild(more); }
   if(!r.id.startsWith('creative-')){
     const plan = new Set((S.load(S.keys.plan,[])).map(x=>x.id));
-    const btn=document.createElement('a'); btn.href='javascript:void(0)'; btn.className='btn ok small'; 
-    btn.textContent=plan.has(r.id)?'已加入':'加入清单';
+    const btn=document.createElement('a'); btn.href='javascript:void(0)'; btn.className='btn ok small'; btn.textContent=plan.has(r.id)?'已加入':'加入清单';
     btn.onclick=()=>{ const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else p.push({id:r.id, servings:1}); S.save(S.keys.plan,p); onRoute(); };
     card.querySelector('.controls').appendChild(btn);
     const detailBtn = document.createElement('a'); detailBtn.className='btn small'; detailBtn.textContent='查看';
@@ -470,22 +472,15 @@ function renderRecipeDetail(id, pack) {
   let r = (pack.recipes||[]).find(x=>x.id===id);
   if (!r && id === 'creative-ai-temp') {
       const aiData = S.load(S.keys.ai_recs, null);
-      if (aiData && aiData.creative) {
-          r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true };
-      }
+      if (aiData && aiData.creative) { r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true }; }
   }
   if(!r) return document.createTextNode('未找到菜谱或缓存已过期');
   const overlay = loadOverlay();
   const ovRecipe = (overlay.recipes || {})[id];
   if (ovRecipe) { r = { ...r, ...ovRecipe, method: ovRecipe.method || r.method || '' }; }
   let items = [];
-  if (r.isCreative) {
-       const aiData = S.load(S.keys.ai_recs, null);
-       items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; 
-  } else {
-       const ingList = pack.recipe_ingredients[id] || [];
-       items = explodeCombinedItems(ingList);
-  }
+  if (r.isCreative) { const aiData = S.load(S.keys.ai_recs, null); items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; } 
+  else { const ingList = pack.recipe_ingredients[id] || []; items = explodeCombinedItems(ingList); }
   const div = document.createElement('div'); div.className = 'detail-view';
   const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #ccc;border-radius:8px;">暂无详细做法。点击按钮让 AI 生成。</div><a class="btn ai" id="genMethodBtn">✨ 让 AI 生成做法</a>`;
   div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><a class="btn" onclick="history.back()">← 返回</a><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${it.item} ${it.qty ? `<span class="qty">${it.qty}${it.unit||''}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
@@ -500,35 +495,24 @@ function renderRecipeDetail(id, pack) {
         currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text };
         saveOverlay(currentOverlay);
         div.querySelector('#methodArea').innerHTML = `<div class="method-text">${text}</div><div class="small ok" style="margin-top:10px">已保存到补丁</div>`;
-      } catch(e) { alert('生成失败：' + e.message); genBtn.innerHTML = '✨ AI 生成'; }
+      } catch(e) { alert('生成失败：' + e.message); genBtn.innerHTML = '✨ 让 AI 生成做法'; }
     };
   }
   return div;
 }
 
-// ★★★ 搜索结果渲染 ★★★
 function renderRecipeSearchResults(query, pack, inv) {
   const container = document.createElement('div');
   container.innerHTML = `<h2 class="section-title">搜索结果：${query}</h2><div class="grid" id="search-grid"></div>`;
   const grid = container.querySelector('#search-grid');
-
-  // 1. 模糊搜索菜谱
   const results = (pack.recipes||[]).filter(r => r.name.includes(query));
-  
   if (results.length > 0) {
     results.forEach(r => {
-      // 2. 计算每个结果的库存状态
       const status = calculateStockStatus(r, pack, inv);
       grid.appendChild(searchResultCard(r, status));
     });
   } else {
-    // 3. AI 兜底搜索按钮
-    container.innerHTML += `
-      <div style="text-align:center; padding:40px;">
-        <p style="color:var(--text-secondary)">未找到相关菜谱。</p>
-        <a class="btn ai" id="aiSearchBtn">🤖 呼叫 AI 搜索并生成【${query}】</a>
-      </div>`;
-      
+    container.innerHTML += `<div style="text-align:center; padding:40px;"><p style="color:var(--text-secondary)">未找到相关菜谱。</p><a class="btn ai" id="aiSearchBtn">🤖 呼叫 AI 搜索并生成【${query}】</a></div>`;
     setTimeout(() => {
         const btn = container.querySelector('#aiSearchBtn');
         if(btn) {
@@ -537,28 +521,20 @@ function renderRecipeSearchResults(query, pack, inv) {
                 try {
                     const invNames = inv.map(x=>x.name).join(',');
                     const aiRes = await callAiSearchRecipe(query, invNames);
-                    // 将 AI 结果保存为临时菜谱并显示
                     const tempId = 'ai-search-' + Date.now();
                     const overlay = loadOverlay();
                     overlay.recipes = overlay.recipes || {};
                     overlay.recipes[tempId] = { name: aiRes.name, tags: ['AI搜索'], method: aiRes.method };
                     overlay.recipe_ingredients = overlay.recipe_ingredients || {};
-                    // 简单的食材解析 (假设 AI 返回 "猪肉,青椒")
                     const ings = (aiRes.ingredients||'').split(/[，,]/).map(s => ({item: s.trim()}));
                     overlay.recipe_ingredients[tempId] = ings;
                     saveOverlay(overlay);
-                    
-                    location.hash = `#recipe:${tempId}`;
-                    location.reload(); // 刷新以加载新数据
-                } catch(e) {
-                    alert('AI 搜索失败：' + e.message);
-                    btn.innerHTML = '🤖 呼叫 AI 搜索';
-                }
+                    location.hash = `#recipe:${tempId}`; location.reload();
+                } catch(e) { alert('AI 搜索失败：' + e.message); btn.innerHTML = '🤖 呼叫 AI 搜索'; }
             };
         }
     }, 0);
   }
-  
   return container;
 }
 
@@ -566,61 +542,28 @@ function renderHome(pack){
   const container = document.createElement('div'); 
   const catalog = buildCatalog(pack); 
   const inv = loadInventory(catalog); 
-
-  // ★★★ 1. 顶部全能搜索栏 ★★★
   const searchBar = document.createElement('div');
   searchBar.style.marginBottom = '24px';
-  searchBar.innerHTML = `
-    <div style="display:flex; gap:10px;">
-        <input id="mainSearch" placeholder="🔍 搜菜谱 (如：回锅肉)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--separator); box-shadow:var(--shadow);">
-        <button class="btn ok" id="doSearch">搜索</button>
-    </div>
-  `;
+  searchBar.innerHTML = `<div style="display:flex; gap:10px;"><input id="mainSearch" placeholder="🔍 搜菜谱 (如：回锅肉)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--separator); box-shadow:var(--shadow);"><button class="btn ok" id="doSearch">搜索</button></div>`;
   container.appendChild(searchBar);
-  
-  // 搜索事件
   const doSearch = () => {
       const q = searchBar.querySelector('#mainSearch').value.trim();
       if(q) {
-          // 渲染搜索结果页替代首页内容
-          container.innerHTML = '';
-          container.appendChild(searchBar); // 保留搜索栏
-          // 重新绑定事件，因为innerHTML清空了
-          searchBar.querySelector('#mainSearch').value = q;
-          searchBar.querySelector('#doSearch').onclick = doSearch;
-          
+          container.innerHTML = ''; container.appendChild(searchBar);
+          searchBar.querySelector('#mainSearch').value = q; searchBar.querySelector('#doSearch').onclick = doSearch;
           container.appendChild(renderRecipeSearchResults(q, pack, inv));
       }
   };
   searchBar.querySelector('#doSearch').onclick = doSearch;
-
-  // 2. 库存管理 (置顶)
   container.appendChild(renderInventory(pack));
-
-  // 3. 推荐模块 (Horizontal Scroll)
-  const recDiv = document.createElement('div'); 
-  recDiv.style.marginTop = '32px'; 
+  const recDiv = document.createElement('div'); recDiv.style.marginTop = '32px'; 
   recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><a class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</a></div><div id="rec-content" class="horizontal-scroll"></div>`; 
   const recGrid = recDiv.querySelector('#rec-content'); 
   container.appendChild(recDiv); 
-
   function processAiData(aiResult) {
       const cards = [];
-      if(aiResult.local && Array.isArray(aiResult.local)){
-        aiResult.local.forEach(l => {
-           const found = (pack.recipes||[]).find(r => r.name === l.name);
-           if(found) cards.push({ r: found, reason: l.reason, isAi: true });
-        });
-      }
-      if(aiResult.creative){
-        const c = aiResult.creative;
-        cards.push({
-           r: { id: 'creative-ai-temp', name: c.name, tags: ['AI创意菜'] },
-           list: [{item: c.ingredients}],
-           reason: c.reason,
-           isAi: true
-        });
-      }
+      if(aiResult.local && Array.isArray(aiResult.local)){ aiResult.local.forEach(l => { const found = (pack.recipes||[]).find(r => r.name === l.name); if(found) cards.push({ r: found, reason: l.reason, isAi: true }); }); }
+      if(aiResult.creative){ const c = aiResult.creative; cards.push({ r: { id: 'creative-ai-temp', name: c.name, tags: ['AI创意菜'] }, list: [{item: c.ingredients}], reason: c.reason, isAi: true }); }
       return cards;
   }
   function showCards(list) { 
@@ -629,19 +572,16 @@ function renderHome(pack){
     const map = pack.recipe_ingredients || {}; 
     list.forEach(item => { recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], item.matchCount!==undefined ? {reason: item.reason} : {reason: item.reason, isAi: item.isAi})); }); 
   } 
-  
   const savedAiRecs = S.load(S.keys.ai_recs, null);
   if (savedAiRecs) {
      const savedCards = processAiData(savedAiRecs);
      if (savedCards.length > 0) {
        showCards(savedCards);
-       const clearBtn = document.createElement('a');
-       clearBtn.className = 'btn bad small'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除';
+       const clearBtn = document.createElement('a'); clearBtn.className = 'btn bad small'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除';
        clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
        recDiv.querySelector('.section-title').appendChild(clearBtn);
      } else { showCards(getLocalRecommendations(pack, inv)); }
   } else { showCards(getLocalRecommendations(pack, inv)); }
-
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   aiBtn.onclick = async () => { 
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
@@ -654,48 +594,19 @@ function renderHome(pack){
     } catch(e) { alert(e.message); } 
     finally { aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; } 
   }; 
-  
   return container; 
 }
 
-function renderInventory(pack){ 
-  const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
+function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
   const header = document.createElement('div'); header.className = 'section-title'; header.innerHTML = '<span>库存管理</span>'; wrap.appendChild(header);
-  
-  // ★★★ 修改：移除原有的搜索框，只保留拍照和添加按钮 ★★★
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
-  searchDiv.innerHTML = `
-    <div style="display:flex; gap:8px; width:100%; justify-content:flex-end;">
-      <label class="btn ai icon-only" style="cursor:pointer;"><input type="file" id="camInput" accept="image/*" capture="environment" hidden>📷</label>
-      <a class="btn ok icon-only" id="toggleAddBtn">＋</a>
-    </div>
-    <div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>
-  `; 
-  wrap.appendChild(searchDiv);
-  
+  searchDiv.innerHTML = `<div style="display:flex; gap:8px; width:100%; justify-content:flex-end;"><label class="btn ai icon-only" style="cursor:pointer;"><input type="file" id="camInput" accept="image/*" capture="environment" hidden>📷</label><a class="btn ok icon-only" id="toggleAddBtn">＋</a></div><div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>`; wrap.appendChild(searchDiv);
   const formContainer = document.createElement('div'); formContainer.className = 'add-form-container'; 
-  formContainer.innerHTML = `
-    <div style="display:flex; gap:8px; margin-bottom:8px;">
-      <div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div>
-      <input id="addQty" type="number" step="1" placeholder="数量" style="width:70px;">
-      <select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <input id="addDate" type="date" value="${todayISO()}" style="flex:1;">
-      <button id="addBtn" class="btn ok" style="flex:1;">入库</button>
-    </div>`; 
-  wrap.appendChild(formContainer);
-  
-  searchDiv.querySelector('#toggleAddBtn').onclick = () => { 
-    formContainer.classList.toggle('open'); 
-    searchDiv.querySelector('#toggleAddBtn').textContent = formContainer.classList.contains('open') ? '－' : '＋'; 
-  };
-  
+  formContainer.innerHTML = `<div style="display:flex; gap:8px; margin-bottom:8px;"><div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div><input id="addQty" type="number" step="1" placeholder="数量" style="width:70px;"><select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select></div><div style="display:flex; gap:8px;"><input id="addDate" type="date" value="${todayISO()}" style="flex:1;"><button id="addBtn" class="btn ok" style="flex:1;">入库</button></div>`; wrap.appendChild(formContainer);
+  searchDiv.querySelector('#toggleAddBtn').onclick = () => { formContainer.classList.toggle('open'); searchDiv.querySelector('#toggleAddBtn').textContent = formContainer.classList.contains('open') ? '－' : '＋'; };
   formContainer.querySelector('#addName').addEventListener('input', (e)=>{ const val = e.target.value.trim(); const match = catalog.find(c => c.name === val); if(match && match.unit){ formContainer.querySelector('#addUnit').value = match.unit; } }); 
   formContainer.querySelector('#addBtn').onclick=()=>{ const name=formContainer.querySelector('#addName').value.trim(); if(!name) return alert('请输入食材名称'); const qty=+formContainer.querySelector('#addQty').value||0; const unit=formContainer.querySelector('#addUnit').value; const date=formContainer.querySelector('#addDate').value||todayISO(); upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:guessShelfDays(name, unit)}); formContainer.querySelector('#addName').value = ''; formContainer.querySelector('#addQty').value = ''; renderTable(); };
-  
   const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th style="width:35%">食材</th><th style="width:20%">数量</th><th style="width:25%">保质</th><th class="right">操作</th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
-  
   const scanStatus = searchDiv.querySelector('#scanStatus');
   searchDiv.querySelector('#camInput').onchange = async (e) => {
     const file = e.target.files[0]; if(!file) return;
@@ -707,10 +618,9 @@ function renderInventory(pack){
       setTimeout(() => { scanStatus.style.display = 'none'; renderTable(); }, 1500);
     } catch(err) { scanStatus.innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`; }
   };
-  
   function renderTable(){ 
     const tb=tbl.querySelector('tbody'); tb.innerHTML=''; 
-    const filteredInv = inv; // 移除过滤逻辑，显示全部
+    const filteredInv = inv; 
     filteredInv.sort((a,b)=>remainingDays(a)-remainingDays(b)); 
     if(filteredInv.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="small" style="text-align:center;padding:20px;">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</td></tr>`; return; } 
     for(const e of filteredInv){ 
