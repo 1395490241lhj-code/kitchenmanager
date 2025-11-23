@@ -1,4 +1,4 @@
-// v68 app.js - 智能过滤佐料 (Smart Ingredient Filter)
+// v69 app.js - 修复 (it.item || "").trim 报错 (强制类型转换)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -19,13 +19,10 @@ const SEASONINGS = new Set([
   "油", "猪油", "菜油", "香油", "芝麻油", "豆粉", "淀粉", "水豆粉", "豆瓣", "豆瓣酱", "泡椒", "清汤", "水"
 ]);
 
-// 判断是否为佐料
 function isSeasoning(name) {
   if (!name) return true;
-  const n = name.trim();
-  // 1. 直接在黑名单中
+  const n = String(name).trim(); // 修复：强制转字符串
   if (SEASONINGS.has(n)) return true;
-  // 2. 包含特定关键字且长度较短 (防止误伤 "葱油饼" 这种菜名，但这里是食材检查)
   if (n.length <= 3 && (n.includes("盐") || n.includes("糖") || n.includes("醋") || n.includes("酱") || n.includes("油"))) return true;
   return false;
 }
@@ -95,6 +92,7 @@ const INGREDIENT_ALIASES = {
 
 function getCanonicalName(name) {
   if(!name) return "";
+  // ★★★ 修复：强制转为字符串再 trim，防止数字类型报错 ★★★
   let n = String(name).trim();
   if (checkAlias(n)) return checkAlias(n);
   const noParens = n.replace(/（.*?）|\(.*?\)/g, '').trim();
@@ -146,10 +144,15 @@ async function loadBasePack(){
   
   const staticMethods = window.RECIPE_METHODS || {};
   const existingNames = new Set(pack.recipes.map(r => r.name));
+  
   Object.keys(staticMethods).forEach(name => {
     if(!existingNames.has(name)){
       const newId = 'static-' + Math.abs(name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
-      pack.recipes.push({ id: newId, name: name, tags: ["家常菜", "新增"] });
+      pack.recipes.push({
+        id: newId,
+        name: name,
+        tags: ["家常菜", "新增"]
+      });
     }
   });
 
@@ -203,6 +206,7 @@ const SEP_RE = /[，,、/;；|]+/;
 function explodeCombinedItems(list){
   const out = [];
   for(const it of (list||[])){
+    // ★★★ 修复：强制转为字符串再 trim，避免 (123).trim() 报错 ★★★
     const name = String(it.item||'').trim();
     if(!name) continue;
     const hasQty = typeof it.qty === 'number' && isFinite(it.qty);
@@ -218,7 +222,8 @@ function buildCatalog(pack){
   const units = {}, set = new Set();
   for(const list of Object.values(pack.recipe_ingredients||{})){
     for(const it of explodeCombinedItems(list)){ 
-      const n=(it.item||'').trim(); 
+      // ★★★ 修复：强制转字符串 ★★★
+      const n = String(it.item||'').trim(); 
       if(!n) continue; 
       units[n]=units[n]||it.unit||'g';
       const canon = getCanonicalName(n);
@@ -306,7 +311,6 @@ async function callAiService(prompt, imageBase64 = null) {
 
 async function recognizeReceipt(file) {
   const base64 = await compressImage(file);
-  // ★★★ 优化 Prompt：要求忽略佐料 ★★★
   const prompt = `你是一个中文食材管理助手。请分析图片收据。
   1. 提取【食品/食材】。
   2. **重要：请自动忽略所有佐料（如葱、姜、蒜、盐、糖、酱油、醋、味精、花椒、辣椒等），只保留核心肉类、蔬菜、蛋奶等。**
@@ -323,7 +327,6 @@ async function callAiForMethod(recipeName, ingredients) {
   return await callAiService(prompt);
 }
 
-// ★★★ 优化 Prompt：搜索菜谱时去除佐料 ★★★
 async function callAiSearchRecipe(query, invNames) {
   const prompt = `我冰箱里有：【${invNames}】。我想找菜谱：【${query}】。
   请提供一道符合搜索的菜谱。
@@ -335,7 +338,6 @@ async function callAiSearchRecipe(query, invNames) {
   return JSON.parse(jsonStr);
 }
 
-// ★★★ 优化 Prompt：推荐菜谱时去除佐料 ★★★
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
@@ -354,7 +356,6 @@ async function callCloudAI(pack, inv) {
 function calculateStockStatus(recipe, pack, inv) {
   const rawIngs = pack.recipe_ingredients[recipe.id] || [];
   let ingredients = explodeCombinedItems(rawIngs);
-  // ★★★ 核心修复：在比对库存前，先过滤掉菜谱里的佐料 ★★★
   ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
 
   if (ingredients.length === 0) return { status: 'unknown', missing: [] };
@@ -390,13 +391,13 @@ function getLocalRecommendations(pack, inv) {
   let scores = [];
   if (invCanons.length > 0) {
     scores = (pack.recipes || []).map(r => {
-      // ★★★ 计算本地推荐分值时，也过滤佐料，避免因为缺葱姜蒜而降低排名 ★★★
       let ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
       ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
 
       let matchCount = 0;
       ingredients.forEach(ing => { 
-        const itemRaw = (ing.item||'').trim();
+        // ★★★ 修复：强制转字符串 ★★★
+        const itemRaw = String(ing.item||'').trim();
         if(!itemRaw) return;
         const itemCanon = getCanonicalName(itemRaw);
         const hit = invCanons.some(invC => invC === itemCanon || itemCanon.includes(invC) || invC.includes(itemCanon));
@@ -450,9 +451,8 @@ function recipeCard(r, list, extraInfo=null){
   if(!r.id.startsWith('creative-')) { card.querySelector('.btn-edit').onclick = (e) => { e.stopPropagation(); location.hash = `#recipe-edit:${r.id}`; }; } else { card.querySelector('.btn-edit').remove(); }
   const tagContainer = card.querySelector('.ing-compact-container');
   let items = explodeCombinedItems(list||[]);
-  // ★★★ 显示卡片时也尽量过滤佐料，让界面更清爽 ★★★
   const coreItems = items.filter(it => !isSeasoning(it.item));
-  const displayItems = coreItems.length > 0 ? coreItems : items; // 如果过滤完没了，就显示全部
+  const displayItems = coreItems.length > 0 ? coreItems : items; 
   const showItems = displayItems.slice(0, 4); 
   for(const it of showItems){ const span = document.createElement('span'); span.className = 'ing-tag-pill'; span.innerHTML = `${it.item}`; tagContainer.appendChild(span); }
   if(displayItems.length > 4) { const more = document.createElement('span'); more.className = 'ing-tag-pill'; more.style.background = 'transparent'; more.textContent = '...'; tagContainer.appendChild(more); }
@@ -495,7 +495,7 @@ function renderRecipeDetail(id, pack) {
         currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text };
         saveOverlay(currentOverlay);
         div.querySelector('#methodArea').innerHTML = `<div class="method-text">${text}</div><div class="small ok" style="margin-top:10px">已保存到补丁</div>`;
-      } catch(e) { alert('生成失败：' + e.message); genBtn.innerHTML = '✨ 让 AI 生成做法'; }
+      } catch(e) { alert('生成失败：' + e.message); genBtn.innerHTML = '✨ AI 生成'; }
     };
   }
   return div;
