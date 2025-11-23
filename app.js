@@ -1,4 +1,4 @@
-// v58 app.js - 详情页食材显示优化 (紧凑标签)
+// v59 app.js - 修正 AI 推荐逻辑，拒绝黑暗料理 (Prompt 优化)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -287,9 +287,10 @@ async function callAiService(prompt, imageBase64 = null) {
   }
 
   try {
+    // 调低 temperature 以减少幻觉
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
-      body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.3 })
+      body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.2 }) 
     });
     if(!res.ok) {
         const err = await res.json();
@@ -314,18 +315,52 @@ async function recognizeReceipt(file) {
   return JSON.parse(jsonStr);
 }
 
+// ★★★ 生成做法 Prompt 优化：强调正宗和简洁 ★★★
 async function callAiForMethod(recipeName, ingredients) {
   const ingStr = ingredients.map(i => i.item).join('、');
-  const prompt = `请为川菜【${recipeName}】写一份详细的烹饪做法。已知用料：${ingStr}。请直接输出做法步骤，简洁专业。`;
+  const prompt = `
+  你是一位精通川菜和中式家常菜的资深大厨。
+  请为菜品【${recipeName}】编写一份做法。
+  已知用料：${ingStr}。
+
+  要求：
+  1. **拒绝黑暗料理**：如果这道菜名看起来很不合理（如“西瓜炒肉”），请礼貌指出并提供一个修正后的做法（如推荐“西瓜皮炒肉”或忽略西瓜）。
+  2. **正宗做法**：如果它是经典菜（如回锅肉、麻婆豆腐），严格遵循传统工序。
+  3. **家常做法**：如果是家常炒菜，注重实用性和口味。
+  4. **格式**：直接输出步骤 1. 2. 3.，语言简洁明了。不要输出任何“思考过程”或“好的”之类的废话。
+  `;
   return await callAiService(prompt);
 }
 
+// ★★★ 首页推荐 Prompt 优化：严禁瞎编，优先本地匹配 ★★★
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
-  const prompt = `冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。
-  请：1. 挑选 3 道最匹配库存的菜。2. 推荐 1 道创意菜。
-  返回 JSON：{ "local": [ {"name": "菜名", "reason": "理由"} ], "creative": { "name": "菜名", "reason": "理由", "ingredients": "用料" } }`;
+  
+  const prompt = `
+  你是一名资深家庭主厨。
+  我冰箱里有：【${invNames}】。
+  我的菜谱数据库里有：【${recipeNames}】。
+
+  请帮我规划今日推荐：
+  1. **Local (本地匹配)**：从我的【菜谱数据库】中，挑选 3 道最适合当前库存的菜。优先选择库存食材匹配度高的。
+  2. **Extension (扩展推荐)**：推荐 1 道【菜谱数据库】里没有，但非常适合当前库存的**经典川菜或家常菜**。
+     - **严禁胡编乱造**：绝对不要推荐不存在的怪菜（如“猪肉炖香蕉”）。
+     - **合理性**：必须是中餐里常见的、符合常理的搭配。
+     - **用料**：列出扩展菜需要的主要食材。
+  
+  请严格只返回 JSON，格式如下，不要包含任何其他文字：
+  { 
+    "local": [ 
+      {"name": "数据库里的准确菜名", "reason": "简短理由"} 
+    ], 
+    "creative": { 
+      "name": "扩展推荐的经典菜名", 
+      "reason": "理由", 
+      "ingredients": "主要用料" 
+    } 
+  }`;
+  
   const jsonStr = await callAiService(prompt);
   return JSON.parse(jsonStr);
 }
