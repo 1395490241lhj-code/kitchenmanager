@@ -1,4 +1,4 @@
-// v69 app.js - 修复 (it.item || "").trim 报错 (强制类型转换)
+// v70 app.js - 修复白屏问题 (数据加载与渲染容错增强)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -11,21 +11,6 @@ const CUSTOM_AI = {
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
-
-// --- 佐料黑名单 (前端二次过滤) ---
-const SEASONINGS = new Set([
-  "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
-  "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
-  "油", "猪油", "菜油", "香油", "芝麻油", "豆粉", "淀粉", "水豆粉", "豆瓣", "豆瓣酱", "泡椒", "清汤", "水"
-]);
-
-function isSeasoning(name) {
-  if (!name) return true;
-  const n = String(name).trim(); // 修复：强制转字符串
-  if (SEASONINGS.has(n)) return true;
-  if (n.length <= 3 && (n.includes("盐") || n.includes("糖") || n.includes("醋") || n.includes("酱") || n.includes("油"))) return true;
-  return false;
-}
 
 // --- 食材归一化字典 ---
 const INGREDIENT_ALIASES = {
@@ -92,7 +77,6 @@ const INGREDIENT_ALIASES = {
 
 function getCanonicalName(name) {
   if(!name) return "";
-  // ★★★ 修复：强制转为字符串再 trim，防止数字类型报错 ★★★
   let n = String(name).trim();
   if (checkAlias(n)) return checkAlias(n);
   const noParens = n.replace(/（.*?）|\(.*?\)/g, '').trim();
@@ -121,6 +105,20 @@ function checkAlias(name) {
   return null;
 }
 
+// --- 佐料过滤 ---
+const SEASONINGS = new Set([
+  "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
+  "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
+  "油", "猪油", "菜油", "香油", "芝麻油", "豆粉", "淀粉", "水豆粉", "豆瓣", "豆瓣酱", "泡椒", "清汤", "水"
+]);
+function isSeasoning(name) {
+  if (!name) return true;
+  const n = String(name).trim();
+  if (SEASONINGS.has(n)) return true;
+  if (n.length <= 3 && (n.includes("盐") || n.includes("糖") || n.includes("醋") || n.includes("酱") || n.includes("油"))) return true;
+  return false;
+}
+
 // -------- Storage --------
 const S = {
   save(k, v){ localStorage.setItem(k, JSON.stringify(v)); },
@@ -136,11 +134,19 @@ const S = {
   }
 };
 
+// ★★★ 修复：数据加载容错 ★★★
 async function loadBasePack(){
   const url = new URL('./data/sichuan-recipes.json', location).href + '?v=23';
   let pack = {recipes:[], recipe_ingredients:{}};
-  try{ const res = await fetch(url, { cache:'no-store' }); if(res.ok) pack = await res.json(); }
-  catch(e){ console.error('Base pack error', e); }
+  try{ 
+      const res = await fetch(url, { cache:'no-store' }); 
+      if(res.ok) {
+          pack = await res.json(); 
+          // 确保 recipes 始终是数组
+          if (!Array.isArray(pack.recipes)) pack.recipes = [];
+          if (!pack.recipe_ingredients) pack.recipe_ingredients = {};
+      }
+  } catch(e){ console.error('Base pack error', e); }
   
   const staticMethods = window.RECIPE_METHODS || {};
   const existingNames = new Set(pack.recipes.map(r => r.name));
@@ -148,11 +154,7 @@ async function loadBasePack(){
   Object.keys(staticMethods).forEach(name => {
     if(!existingNames.has(name)){
       const newId = 'static-' + Math.abs(name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
-      pack.recipes.push({
-        id: newId,
-        name: name,
-        tags: ["家常菜", "新增"]
-      });
+      pack.recipes.push({ id: newId, name: name, tags: ["家常菜", "新增"] });
     }
   });
 
@@ -206,7 +208,6 @@ const SEP_RE = /[，,、/;；|]+/;
 function explodeCombinedItems(list){
   const out = [];
   for(const it of (list||[])){
-    // ★★★ 修复：强制转为字符串再 trim，避免 (123).trim() 报错 ★★★
     const name = String(it.item||'').trim();
     if(!name) continue;
     const hasQty = typeof it.qty === 'number' && isFinite(it.qty);
@@ -222,8 +223,7 @@ function buildCatalog(pack){
   const units = {}, set = new Set();
   for(const list of Object.values(pack.recipe_ingredients||{})){
     for(const it of explodeCombinedItems(list)){ 
-      // ★★★ 修复：强制转字符串 ★★★
-      const n = String(it.item||'').trim(); 
+      const n=(it.item||'').trim(); 
       if(!n) continue; 
       units[n]=units[n]||it.unit||'g';
       const canon = getCanonicalName(n);
@@ -311,12 +311,7 @@ async function callAiService(prompt, imageBase64 = null) {
 
 async function recognizeReceipt(file) {
   const base64 = await compressImage(file);
-  const prompt = `你是一个中文食材管理助手。请分析图片收据。
-  1. 提取【食品/食材】。
-  2. **重要：请自动忽略所有佐料（如葱、姜、蒜、盐、糖、酱油、醋、味精、花椒、辣椒等），只保留核心肉类、蔬菜、蛋奶等。**
-  3. 提取【名称】、【数量】(默认1)、【单位】。
-  4. 尽可能将英文名或别名转换为通用中文名。
-  返回 JSON 数组: [{"name": "五花肉", "qty": 0.5, "unit": "kg"}]`;
+  const prompt = `你是一个中文食材管理助手。请分析图片收据。1. 提取【食品/食材】。2. **重要：请自动忽略所有佐料（如葱、姜、蒜、盐、糖、酱油、醋、味精、花椒、辣椒等），只保留核心肉类、蔬菜、蛋奶等。**3. 提取【名称】、【数量】(默认1)、【单位】。4. 尽可能将英文名或别名转换为通用中文名。返回 JSON 数组: [{"name": "五花肉", "qty": 0.5, "unit": "kg"}]`;
   const jsonStr = await callAiService(prompt, base64);
   return JSON.parse(jsonStr);
 }
@@ -328,12 +323,7 @@ async function callAiForMethod(recipeName, ingredients) {
 }
 
 async function callAiSearchRecipe(query, invNames) {
-  const prompt = `我冰箱里有：【${invNames}】。我想找菜谱：【${query}】。
-  请提供一道符合搜索的菜谱。
-  要求：
-  1. "ingredients" 字段中，**请剔除所有姜、葱、蒜、花椒、辣椒、油、盐、酱、醋等佐料**，只列出肉、菜等核心食材。
-  2. "method" 字段包含详细做法。
-  返回 JSON：{ "name": "标准菜名", "ingredients": "核心食材1,核心食材2", "method": "1. 步骤... 2. 步骤..." }`;
+  const prompt = `我冰箱里有：【${invNames}】。我想找菜谱：【${query}】。请提供一道符合搜索的菜谱。要求：1. "ingredients" 字段中，**请剔除所有姜、葱、蒜、花椒、辣椒、油、盐、酱、醋等佐料**，只列出肉、菜等核心食材。2. "method" 字段包含详细做法。返回 JSON：{ "name": "标准菜名", "ingredients": "核心食材1,核心食材2", "method": "1. 步骤... 2. 步骤..." }`;
   const jsonStr = await callAiService(prompt);
   return JSON.parse(jsonStr);
 }
@@ -341,14 +331,7 @@ async function callAiSearchRecipe(query, invNames) {
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
-  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。
-  请规划今日推荐：
-  1. **Local**: 选3道适合库存的菜。
-  2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。
-  
-  **重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。**
-
-  返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
+  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。请规划今日推荐：1. **Local**: 选3道适合库存的菜。2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。**重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。** 返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
   const jsonStr = await callAiService(prompt);
   return JSON.parse(jsonStr);
 }
@@ -396,7 +379,6 @@ function getLocalRecommendations(pack, inv) {
 
       let matchCount = 0;
       ingredients.forEach(ing => { 
-        // ★★★ 修复：强制转字符串 ★★★
         const itemRaw = String(ing.item||'').trim();
         if(!itemRaw) return;
         const itemCanon = getCanonicalName(itemRaw);
@@ -469,21 +451,39 @@ function recipeCard(r, list, extraInfo=null){
 }
 
 function renderRecipeDetail(id, pack) {
+  // ★★★ 修复：处理 r 为空的情况 ★★★
   let r = (pack.recipes||[]).find(x=>x.id===id);
+  
   if (!r && id === 'creative-ai-temp') {
       const aiData = S.load(S.keys.ai_recs, null);
-      if (aiData && aiData.creative) { r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true }; }
+      if (aiData && aiData.creative) { 
+        r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true }; 
+      }
   }
-  if(!r) return document.createTextNode('未找到菜谱或缓存已过期');
+  
+  if(!r) {
+      const div = document.createElement('div');
+      div.innerHTML = `<div style="padding:20px;text-align:center;">菜谱不存在，请返回。<br><a class="btn ok" onclick="history.back()">返回</a></div>`;
+      return div;
+  }
+  
   const overlay = loadOverlay();
   const ovRecipe = (overlay.recipes || {})[id];
   if (ovRecipe) { r = { ...r, ...ovRecipe, method: ovRecipe.method || r.method || '' }; }
+  
   let items = [];
-  if (r.isCreative) { const aiData = S.load(S.keys.ai_recs, null); items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; } 
-  else { const ingList = pack.recipe_ingredients[id] || []; items = explodeCombinedItems(ingList); }
+  if (r.isCreative) { 
+    const aiData = S.load(S.keys.ai_recs, null); 
+    items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; 
+  } else { 
+    const ingList = pack.recipe_ingredients[id] || []; 
+    items = explodeCombinedItems(ingList); 
+  }
+  
   const div = document.createElement('div'); div.className = 'detail-view';
   const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #ccc;border-radius:8px;">暂无详细做法。点击按钮让 AI 生成。</div><a class="btn ai" id="genMethodBtn">✨ 让 AI 生成做法</a>`;
   div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><a class="btn" onclick="history.back()">← 返回</a><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${it.item} ${it.qty ? `<span class="qty">${it.qty}${it.unit||''}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  
   const genBtn = div.querySelector('#genMethodBtn');
   if(genBtn) {
     genBtn.onclick = async () => {
@@ -636,4 +636,29 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
 function renderSettings(){ const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' }); const displayUrl = s.apiUrl || CUSTOM_AI.URL; const displayKey = s.apiKey || CUSTOM_AI.KEY; const displayModel = s.model || CUSTOM_AI.MODEL; const div = document.createElement('div'); div.innerHTML = `<h2 class="section-title">AI 设置</h2><div class="card"><div class="setting-group"><label>快速预设</label><select id="sPreset"><option value="">请选择...</option><option value="silicon">SiliconFlow</option><option value="groq">Groq</option><option value="openai">OpenAI</option></select></div><hr style="border:0;border-top:1px solid var(--separator);margin:16px 0"><div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}"></div><div class="setting-group"><label>模型名称</label><input id="sModel" value="${displayModel}"></div><div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div><div class="right"><a class="btn ok" id="saveSet">保存</a></div></div>`; 
 const presets = { silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } }; div.querySelector('#sPreset').onchange = (e) => { const val = e.target.value; if(presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; } }; div.querySelector('#saveSet').onclick = () => { const newS = { apiUrl: div.querySelector('#sUrl').value.trim(), apiKey: div.querySelector('#sKey').value.trim(), model: div.querySelector('#sModel').value.trim() }; S.save(S.keys.settings, newS); alert('已保存'); }; return div; }
 
-async function onRoute(){ app.innerHTML=''; const base = await loadBasePack(); const overlay = loadOverlay(); const pack = applyOverlay(base, overlay); let hash = location.hash.replace('#',''); els('nav a').forEach(a=>a.classList.remove('active')); if(hash==='recipes') el('#nav-recipe').classList.add('active'); else if(hash==='shopping') el('#nav-shop').classList.add('active'); else if(hash==='settings') el('#nav-set').classList.add('active'); else if(!hash || hash==='inventory') el('#nav-home').classList.add('active'); if(hash.startsWith('recipe-edit:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeEditor(id, base)); } else if(hash.startsWith('recipe:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeDetail(id, pack)); } else if(hash==='shopping'){ app.appendChild(renderShopping(pack)); } else if(hash==='recipes'){ app.appendChild(renderRecipes(pack)); } else if(hash==='settings'){ app.appendChild(renderSettings()); } else { app.appendChild(renderHome(pack)); } } window.addEventListener('hashchange', onRoute); onRoute();
+// ★★★ 路由容错 ★★★
+async function onRoute(){ 
+  try {
+    app.innerHTML=''; 
+    const base = await loadBasePack(); 
+    const overlay = loadOverlay(); 
+    const pack = applyOverlay(base, overlay); 
+    let hash = location.hash.replace('#',''); 
+    els('nav a').forEach(a=>a.classList.remove('active')); 
+    if(hash==='recipes') el('#nav-recipe').classList.add('active'); 
+    else if(hash==='shopping') el('#nav-shop').classList.add('active'); 
+    else if(hash==='settings') el('#nav-set').classList.add('active'); 
+    else if(!hash || hash==='inventory') el('#nav-home').classList.add('active'); 
+    
+    if(hash.startsWith('recipe-edit:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeEditor(id, base)); } 
+    else if(hash.startsWith('recipe:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeDetail(id, pack)); } 
+    else if(hash==='shopping'){ app.appendChild(renderShopping(pack)); } 
+    else if(hash==='recipes'){ app.appendChild(renderRecipes(pack)); } 
+    else if(hash==='settings'){ app.appendChild(renderSettings()); } 
+    else { app.appendChild(renderHome(pack)); } 
+  } catch(e) {
+    console.error('Routing Error:', e);
+    app.innerHTML = `<div style="padding:20px;text-align:center;color:red;">页面加载出错：${e.message}<br><button class="btn" onclick="location.reload()">重试</button></div>`;
+  }
+} 
+window.addEventListener('hashchange', onRoute); onRoute();
