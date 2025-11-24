@@ -1,13 +1,13 @@
-// v74 app.js - API 容错降级 + 渲染保护
+// v75 app.js - 修复白屏 + 切换 SiliconFlow + 增强容错
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 ---
+// --- AI 配置 (改回 SiliconFlow 免费版) ---
 const CUSTOM_AI = {
   URL: "https://api.siliconflow.cn/v1/chat/completions",
-  KEY: "", // 如果没有 key，代码会自动 fallback 到本地逻辑
+  KEY: "", // 用户需自行填写或使用本地缓存
   MODEL: "Qwen/Qwen2.5-7B-Instruct", 
   VISION_MODEL: "Qwen/Qwen2-VL-7B-Instruct" 
 };
@@ -105,6 +105,7 @@ function checkAlias(name) {
   return null;
 }
 
+// --- 佐料过滤 ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -268,7 +269,6 @@ function getAiConfig() {
   const apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
-  // 如果 key 为空，返回 null，后续逻辑会降级
   if (!apiKey) return null;
   return { apiKey, apiUrl, textModel, visionModel };
 }
@@ -311,7 +311,6 @@ function compressImage(file) {
 
 async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
-  // ★★★ 降级逻辑：如果没有 Key，直接抛出错误，触发 Fallback ★★★
   if (!conf) throw new Error("未配置 API Key，转为本地模式");
 
   let messages = [];
@@ -326,7 +325,13 @@ async function callAiService(prompt, imageBase64 = null) {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
       body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.2 }) 
     });
-    if(!res.ok) throw new Error(`API 错误 (${res.status})`);
+    if(!res.ok) {
+        if(res.status === 429) {
+            throw new Error("FALLBACK_LOCAL");
+        }
+        const errData = await res.json().catch(()=>({}));
+        throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
+    }
     const data = await res.json();
     const rawText = data.choices?.[0]?.message?.content || "";
     return extractJson(rawText);
@@ -352,7 +357,6 @@ async function callAiSearchRecipe(query, invNames) {
   return JSON.parse(jsonStr);
 }
 
-// ★★★ AI 推荐入口 (带自动降级) ★★★
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
@@ -363,7 +367,6 @@ async function callCloudAI(pack, inv) {
     return JSON.parse(jsonStr);
   } catch (e) {
     console.warn("AI 推荐失败，切换到本地算法", e);
-    // 抛出特定错误，外层捕获后转本地
     throw new Error("FALLBACK_LOCAL");
   }
 }
@@ -392,8 +395,16 @@ function calculateStockStatus(recipe, pack, inv) {
   return { status: 'none', missing };
 }
 
-// 本地推荐逻辑 (兜底用)
 function getLocalRecommendations(pack, inv) {
+  const now = Date.now();
+  const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
+  const savedRecs = S.load(S.keys.local_recs, null);
+  if (savedRecs && (now - lastRecTime < 3600000)) {
+    return savedRecs.map(s => {
+       const r = (pack.recipes||[]).find(x => x.id === s.id);
+       return r ? { r, matchCount: s.matchCount, reason: s.reason } : null;
+    }).filter(Boolean);
+  }
   const invCanons = inv.map(x => getCanonicalName(x.name)).filter(Boolean);
   let scores = [];
   if (invCanons.length > 0) {
@@ -579,23 +590,18 @@ function renderHome(pack){
   recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><a class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</a></div><div id="rec-content" class="horizontal-scroll"></div>`; 
   const recGrid = recDiv.querySelector('#rec-content'); 
   container.appendChild(recDiv); 
-  
-  // ★★★ 辅助函数：展示推荐卡片 ★★★
-  function showRecCards(list) { 
-    recGrid.innerHTML = ''; 
-    if(list.length===0) { recGrid.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>'; return; } 
-    const map = pack.recipe_ingredients || {}; 
-    list.forEach(item => { recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], item.matchCount!==undefined ? {reason: item.reason} : {reason: item.reason, isAi: item.isAi})); }); 
-  } 
-  
   function processAiData(aiResult) {
       const cards = [];
       if(aiResult.local && Array.isArray(aiResult.local)){ aiResult.local.forEach(l => { const found = (pack.recipes||[]).find(r => r.name === l.name); if(found) cards.push({ r: found, reason: l.reason, isAi: true }); }); }
       if(aiResult.creative){ const c = aiResult.creative; cards.push({ r: { id: 'creative-ai-temp', name: c.name, tags: ['AI创意菜'] }, list: [{item: c.ingredients}], reason: c.reason, isAi: true }); }
       return cards;
   }
-
-  // 优先显示已保存的 AI 推荐
+  function showCards(list) { 
+    recGrid.innerHTML = ''; 
+    if(list.length===0) { recGrid.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>'; return; } 
+    const map = pack.recipe_ingredients || {}; 
+    list.forEach(item => { recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], item.matchCount!==undefined ? {reason: item.reason} : {reason: item.reason, isAi: item.isAi})); }); 
+  } 
   const savedAiRecs = S.load(S.keys.ai_recs, null);
   if (savedAiRecs) {
      const savedCards = processAiData(savedAiRecs);
@@ -606,8 +612,6 @@ function renderHome(pack){
        recDiv.querySelector('.section-title').appendChild(clearBtn);
      } else { showCards(getLocalRecommendations(pack, inv)); }
   } else { showCards(getLocalRecommendations(pack, inv)); }
-
-  // AI 按钮逻辑
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   aiBtn.onclick = async () => { 
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
@@ -617,7 +621,6 @@ function renderHome(pack){
       const newCards = processAiData(aiResult);
       if(newCards.length > 0) { showCards(newCards); setTimeout(() => onRoute(), 500); } 
     } catch(e) { 
-      // ★★★ 自动降级处理 ★★★
       if (e.message === "FALLBACK_LOCAL" || e.message.includes("429")) {
          alert("AI 服务繁忙，已自动为您切换到本地推荐模式！");
          showCards(getLocalRecommendations(pack, inv));
@@ -666,6 +669,7 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   renderTable(); return wrap; 
 }
 
+// ★★★ 补回：菜谱列表页 (修复白屏) ★★★
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
   wrap.innerHTML = `
@@ -858,6 +862,7 @@ function renderRecipeEditor(id, base){
   return wrap;
 }
 
+// ★★★ 路由容错 ★★★
 async function onRoute(){ 
   try {
     app.innerHTML=''; 
@@ -874,7 +879,7 @@ async function onRoute(){
     if(hash.startsWith('recipe-edit:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeEditor(id, base)); } 
     else if(hash.startsWith('recipe:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeDetail(id, pack)); } 
     else if(hash==='shopping'){ app.appendChild(renderShopping(pack)); } 
-    else if(hash==='recipes'){ app.appendChild(renderRecipes(pack)); } 
+    else if(hash==='recipes'){ app.appendChild(renderRecipes(pack)); } // 确保 renderRecipes 函数已定义
     else if(hash==='settings'){ app.appendChild(renderSettings()); } 
     else { app.appendChild(renderHome(pack)); } 
   } catch(e) {
