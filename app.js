@@ -1,4 +1,4 @@
-// v72 app.js - 集成 CookLikeHOC 菜谱数据
+// v74 app.js - API 容错降级 + 渲染保护
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -6,10 +6,10 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 
 // --- AI 配置 ---
 const CUSTOM_AI = {
-  URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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",
-  MODEL: "qwen/qwen3-32b", 
-  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
+  URL: "https://api.siliconflow.cn/v1/chat/completions",
+  KEY: "", // 如果没有 key，代码会自动 fallback 到本地逻辑
+  MODEL: "Qwen/Qwen2.5-7B-Instruct", 
+  VISION_MODEL: "Qwen/Qwen2-VL-7B-Instruct" 
 };
 
 // --- 食材归一化字典 ---
@@ -133,12 +133,10 @@ const S = {
   }
 };
 
-// -------- Data Loading (Enhanced with HOC Data) --------
+// -------- Data Loading --------
 async function loadBasePack(){
   const url = new URL('./data/sichuan-recipes.json', location).href + '?v=23';
   let pack = {recipes:[], recipe_ingredients:{}};
-  
-  // 1. Load Base JSON
   try{ 
       const res = await fetch(url, { cache:'no-store' }); 
       if(res.ok) {
@@ -148,31 +146,27 @@ async function loadBasePack(){
       }
   } catch(e){ console.error('Base pack error', e); }
   
-  const existingNames = new Set(pack.recipes.map(r => r.name));
-
-  // 2. Load Static Methods (Old)
   const staticMethods = window.RECIPE_METHODS || {};
+  const existingNames = new Set(pack.recipes.map(r => r.name));
+  
   Object.keys(staticMethods).forEach(name => {
     if(!existingNames.has(name)){
       const newId = 'static-' + Math.abs(name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
-      pack.recipes.push({ id: newId, name: name, tags: ["家常菜"] });
-      existingNames.add(name); // Mark as exists
+      pack.recipes.push({ id: newId, name: name, tags: ["家常菜", "新增"] });
+      existingNames.add(name);
     }
   });
 
-  // 3. Load HOC Data (New)
   const hocData = window.HOC_DATA || [];
   hocData.forEach(item => {
       if(!existingNames.has(item.name)){
           const newId = 'hoc-' + Math.abs(item.name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
-          // Add Recipe
           pack.recipes.push({
               id: newId,
               name: item.name,
               tags: item.tags || ["家常菜"],
-              staticMethod: item.method // Attach method directly
+              staticMethod: item.method
           });
-          // Add Ingredients
           if(item.ingredients && Array.isArray(item.ingredients)){
               pack.recipe_ingredients[newId] = item.ingredients.map(ingName => ({
                   item: ingName, qty: null, unit: null
@@ -182,15 +176,11 @@ async function loadBasePack(){
       }
   });
 
-  // 4. Merge Methods
   if(pack.recipes){
     pack.recipes.forEach(r => {
-      // Priority: HOC Method (attached above) > Static Method File
-      if(r.staticMethod) {
-          // Already has method from HOC
-      } else {
-          const method = staticMethods[r.id] || staticMethods[r.name];
-          if(method) r.staticMethod = method;
+      if(!r.staticMethod) {
+        const method = staticMethods[r.id] || staticMethods[r.name];
+        if(method) r.staticMethod = method;
       }
     });
   }
@@ -274,11 +264,12 @@ function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
-  const apiKey = CUSTOM_AI.KEY || localSettings.apiKey;
-  const apiUrl = CUSTOM_AI.KEY ? CUSTOM_AI.URL : (localSettings.apiUrl || CUSTOM_AI.URL);
+  const apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
+  const apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
-  if (!apiKey) throw new Error("未配置 API Key。请在设置页面配置。");
+  // 如果 key 为空，返回 null，后续逻辑会降级
+  if (!apiKey) return null;
   return { apiKey, apiUrl, textModel, visionModel };
 }
 
@@ -320,6 +311,9 @@ function compressImage(file) {
 
 async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
+  // ★★★ 降级逻辑：如果没有 Key，直接抛出错误，触发 Fallback ★★★
+  if (!conf) throw new Error("未配置 API Key，转为本地模式");
+
   let messages = [];
   let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
   if (imageBase64) {
@@ -358,12 +352,20 @@ async function callAiSearchRecipe(query, invNames) {
   return JSON.parse(jsonStr);
 }
 
+// ★★★ AI 推荐入口 (带自动降级) ★★★
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
   const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。请规划今日推荐：1. **Local**: 选3道适合库存的菜。2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。**重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。** 返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
-  const jsonStr = await callAiService(prompt);
-  return JSON.parse(jsonStr);
+  
+  try {
+    const jsonStr = await callAiService(prompt);
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.warn("AI 推荐失败，切换到本地算法", e);
+    // 抛出特定错误，外层捕获后转本地
+    throw new Error("FALLBACK_LOCAL");
+  }
 }
 
 function calculateStockStatus(recipe, pack, inv) {
@@ -390,16 +392,8 @@ function calculateStockStatus(recipe, pack, inv) {
   return { status: 'none', missing };
 }
 
+// 本地推荐逻辑 (兜底用)
 function getLocalRecommendations(pack, inv) {
-  const now = Date.now();
-  const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
-  const savedRecs = S.load(S.keys.local_recs, null);
-  if (savedRecs && (now - lastRecTime < 3600000)) {
-    return savedRecs.map(s => {
-       const r = (pack.recipes||[]).find(x => x.id === s.id);
-       return r ? { r, matchCount: s.matchCount, reason: s.reason } : null;
-    }).filter(Boolean);
-  }
   const invCanons = inv.map(x => getCanonicalName(x.name)).filter(Boolean);
   let scores = [];
   if (invCanons.length > 0) {
@@ -419,14 +413,12 @@ function getLocalRecommendations(pack, inv) {
     });
     scores = scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6);
   }
+  
   if (scores.length === 0) {
     const all = (pack.recipes||[]);
     const shuffled = [...all].sort(() => 0.5 - Math.random()).slice(0, 6);
     scores = shuffled.map(r => ({ r, matchCount: 0 }));
   }
-  const toSave = scores.map(s => ({ id: s.r.id, matchCount: s.matchCount, reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索' }));
-  S.save(S.keys.local_recs, toSave);
-  S.save(S.keys.rec_time, now);
   return scores.map(s => ({ r: s.r, matchCount: s.matchCount, reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索' }));
 }
 
@@ -482,14 +474,12 @@ function recipeCard(r, list, extraInfo=null){
 
 function renderRecipeDetail(id, pack) {
   let r = (pack.recipes||[]).find(x=>x.id===id);
-  
   if (!r && id === 'creative-ai-temp') {
       const aiData = S.load(S.keys.ai_recs, null);
       if (aiData && aiData.creative) { 
         r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true }; 
       }
   }
-  
   if(!r) {
       const div = document.createElement('div');
       div.innerHTML = `<div style="padding:20px;text-align:center;">菜谱不存在，请返回。<br><a class="btn ok" onclick="history.back()">返回</a></div>`;
@@ -589,18 +579,23 @@ function renderHome(pack){
   recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><a class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</a></div><div id="rec-content" class="horizontal-scroll"></div>`; 
   const recGrid = recDiv.querySelector('#rec-content'); 
   container.appendChild(recDiv); 
+  
+  // ★★★ 辅助函数：展示推荐卡片 ★★★
+  function showRecCards(list) { 
+    recGrid.innerHTML = ''; 
+    if(list.length===0) { recGrid.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>'; return; } 
+    const map = pack.recipe_ingredients || {}; 
+    list.forEach(item => { recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], item.matchCount!==undefined ? {reason: item.reason} : {reason: item.reason, isAi: item.isAi})); }); 
+  } 
+  
   function processAiData(aiResult) {
       const cards = [];
       if(aiResult.local && Array.isArray(aiResult.local)){ aiResult.local.forEach(l => { const found = (pack.recipes||[]).find(r => r.name === l.name); if(found) cards.push({ r: found, reason: l.reason, isAi: true }); }); }
       if(aiResult.creative){ const c = aiResult.creative; cards.push({ r: { id: 'creative-ai-temp', name: c.name, tags: ['AI创意菜'] }, list: [{item: c.ingredients}], reason: c.reason, isAi: true }); }
       return cards;
   }
-  function showCards(list) { 
-    recGrid.innerHTML = ''; 
-    if(list.length===0) { recGrid.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>'; return; } 
-    const map = pack.recipe_ingredients || {}; 
-    list.forEach(item => { recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], item.matchCount!==undefined ? {reason: item.reason} : {reason: item.reason, isAi: item.isAi})); }); 
-  } 
+
+  // 优先显示已保存的 AI 推荐
   const savedAiRecs = S.load(S.keys.ai_recs, null);
   if (savedAiRecs) {
      const savedCards = processAiData(savedAiRecs);
@@ -611,6 +606,8 @@ function renderHome(pack){
        recDiv.querySelector('.section-title').appendChild(clearBtn);
      } else { showCards(getLocalRecommendations(pack, inv)); }
   } else { showCards(getLocalRecommendations(pack, inv)); }
+
+  // AI 按钮逻辑
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   aiBtn.onclick = async () => { 
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
@@ -619,8 +616,15 @@ function renderHome(pack){
       S.save(S.keys.ai_recs, aiResult);
       const newCards = processAiData(aiResult);
       if(newCards.length > 0) { showCards(newCards); setTimeout(() => onRoute(), 500); } 
-      else { alert('AI 无有效推荐'); }
-    } catch(e) { alert(e.message); } 
+    } catch(e) { 
+      // ★★★ 自动降级处理 ★★★
+      if (e.message === "FALLBACK_LOCAL" || e.message.includes("429")) {
+         alert("AI 服务繁忙，已自动为您切换到本地推荐模式！");
+         showCards(getLocalRecommendations(pack, inv));
+      } else {
+         alert(e.message); 
+      }
+    } 
     finally { aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; } 
   }; 
   return container; 
@@ -662,7 +666,6 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   renderTable(); return wrap; 
 }
 
-// ★★★ 补回：菜谱列表页 (修复白屏) ★★★
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
   wrap.innerHTML = `
@@ -688,7 +691,6 @@ function renderRecipes(pack){
   
   wrap.querySelector('#search').oninput = e => draw(e.target.value); 
   
-  // 绑定新建、导出、导入逻辑
   wrap.querySelector('#addBtn').onclick = () => { 
     const id = genId(); 
     const overlay = loadOverlay(); 
@@ -856,7 +858,6 @@ function renderRecipeEditor(id, base){
   return wrap;
 }
 
-// ★★★ 路由容错 ★★★
 async function onRoute(){ 
   try {
     app.innerHTML=''; 
