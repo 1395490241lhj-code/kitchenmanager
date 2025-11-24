@@ -1,15 +1,15 @@
-// v75 app.js - 修复白屏 + 切换 SiliconFlow + 增强容错
+// v77 app.js - 恢复 Groq 配置 + 包含所有 UI/逻辑修复
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (改回 SiliconFlow 免费版) ---
+// --- AI 配置 (恢复用户指定配置) ---
 const CUSTOM_AI = {
-  URL: "https://api.siliconflow.cn/v1/chat/completions",
-  KEY: "", // 用户需自行填写或使用本地缓存
-  MODEL: "Qwen/Qwen2.5-7B-Instruct", 
-  VISION_MODEL: "Qwen/Qwen2-VL-7B-Instruct" 
+  URL: "https://api.groq.com/openai/v1/chat/completions",
+  KEY: "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",
+  MODEL: "qwen/qwen3-32b", 
+  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
 // --- 食材归一化字典 ---
@@ -269,7 +269,8 @@ function getAiConfig() {
   const apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
-  if (!apiKey) return null;
+  
+  if (!apiKey) return null; // Let it fall through to error handler for helpful message
   return { apiKey, apiUrl, textModel, visionModel };
 }
 
@@ -311,7 +312,7 @@ function compressImage(file) {
 
 async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
-  if (!conf) throw new Error("未配置 API Key，转为本地模式");
+  if (!conf) throw new Error("未配置 API Key (Groq/SiliconFlow)。请在设置中填写。");
 
   let messages = [];
   let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
@@ -327,7 +328,7 @@ async function callAiService(prompt, imageBase64 = null) {
     });
     if(!res.ok) {
         if(res.status === 429) {
-            throw new Error("FALLBACK_LOCAL");
+            throw new Error("FALLBACK_LOCAL"); // Signal to downgrade
         }
         const errData = await res.json().catch(()=>({}));
         throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
@@ -424,12 +425,14 @@ function getLocalRecommendations(pack, inv) {
     });
     scores = scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6);
   }
-  
   if (scores.length === 0) {
     const all = (pack.recipes||[]);
     const shuffled = [...all].sort(() => 0.5 - Math.random()).slice(0, 6);
     scores = shuffled.map(r => ({ r, matchCount: 0 }));
   }
+  const toSave = scores.map(s => ({ id: s.r.id, matchCount: s.matchCount, reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索' }));
+  S.save(S.keys.local_recs, toSave);
+  S.save(S.keys.rec_time, now);
   return scores.map(s => ({ r: s.r, matchCount: s.matchCount, reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索' }));
 }
 
@@ -456,6 +459,41 @@ function searchResultCard(r, statusData) {
     };
   }
   return card;
+}
+
+// ★★★ 全局 helper：渲染推荐卡片 (避免作用域问题) ★★★
+function showRecommendationCards(container, list, pack) { 
+  container.innerHTML = ''; 
+  if(!list || list.length===0) { 
+    container.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>'; 
+    return; 
+  } 
+  const map = pack.recipe_ingredients || {}; 
+  list.forEach(item => { 
+    // 兼容 AI 返回结构和本地推荐结构
+    const isAi = item.isAi !== undefined ? item.isAi : false;
+    container.appendChild(recipeCard(item.r, item.list || map[item.r.id], {reason: item.reason, isAi: isAi})); 
+  }); 
+} 
+
+function processAiData(aiResult, pack) {
+  const cards = [];
+  if(aiResult.local && Array.isArray(aiResult.local)){ 
+    aiResult.local.forEach(l => { 
+       const found = (pack.recipes||[]).find(r => r.name === l.name); 
+       if(found) cards.push({ r: found, reason: l.reason, isAi: true }); 
+    }); 
+  }
+  if(aiResult.creative){ 
+    const c = aiResult.creative; 
+    cards.push({ 
+       r: { id: 'creative-ai-temp', name: c.name, tags: ['AI创意菜'] }, 
+       list: [{item: c.ingredients}], 
+       reason: c.reason, 
+       isAi: true 
+    }); 
+  }
+  return cards;
 }
 
 function recipeCard(r, list, extraInfo=null){
@@ -590,40 +628,30 @@ function renderHome(pack){
   recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><a class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</a></div><div id="rec-content" class="horizontal-scroll"></div>`; 
   const recGrid = recDiv.querySelector('#rec-content'); 
   container.appendChild(recDiv); 
-  function processAiData(aiResult) {
-      const cards = [];
-      if(aiResult.local && Array.isArray(aiResult.local)){ aiResult.local.forEach(l => { const found = (pack.recipes||[]).find(r => r.name === l.name); if(found) cards.push({ r: found, reason: l.reason, isAi: true }); }); }
-      if(aiResult.creative){ const c = aiResult.creative; cards.push({ r: { id: 'creative-ai-temp', name: c.name, tags: ['AI创意菜'] }, list: [{item: c.ingredients}], reason: c.reason, isAi: true }); }
-      return cards;
-  }
-  function showCards(list) { 
-    recGrid.innerHTML = ''; 
-    if(list.length===0) { recGrid.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>'; return; } 
-    const map = pack.recipe_ingredients || {}; 
-    list.forEach(item => { recGrid.appendChild(recipeCard(item.r, item.list || map[item.r.id], item.matchCount!==undefined ? {reason: item.reason} : {reason: item.reason, isAi: item.isAi})); }); 
-  } 
+  
   const savedAiRecs = S.load(S.keys.ai_recs, null);
   if (savedAiRecs) {
-     const savedCards = processAiData(savedAiRecs);
+     const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
-       showCards(savedCards);
+       showRecommendationCards(recGrid, savedCards, pack);
        const clearBtn = document.createElement('a'); clearBtn.className = 'btn bad small'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除';
        clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
        recDiv.querySelector('.section-title').appendChild(clearBtn);
-     } else { showCards(getLocalRecommendations(pack, inv)); }
-  } else { showCards(getLocalRecommendations(pack, inv)); }
+     } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
+  } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
+  
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   aiBtn.onclick = async () => { 
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
     try { 
       const aiResult = await callCloudAI(pack, inv); 
       S.save(S.keys.ai_recs, aiResult);
-      const newCards = processAiData(aiResult);
-      if(newCards.length > 0) { showCards(newCards); setTimeout(() => onRoute(), 500); } 
+      const newCards = processAiData(aiResult, pack);
+      if(newCards.length > 0) { showRecommendationCards(recGrid, newCards, pack); setTimeout(() => onRoute(), 500); } 
     } catch(e) { 
       if (e.message === "FALLBACK_LOCAL" || e.message.includes("429")) {
          alert("AI 服务繁忙，已自动为您切换到本地推荐模式！");
-         showCards(getLocalRecommendations(pack, inv));
+         showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
       } else {
          alert(e.message); 
       }
@@ -669,7 +697,6 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   renderTable(); return wrap; 
 }
 
-// ★★★ 补回：菜谱列表页 (修复白屏) ★★★
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
   wrap.innerHTML = `
@@ -695,6 +722,7 @@ function renderRecipes(pack){
   
   wrap.querySelector('#search').oninput = e => draw(e.target.value); 
   
+  // 绑定新建、导出、导入逻辑
   wrap.querySelector('#addBtn').onclick = () => { 
     const id = genId(); 
     const overlay = loadOverlay(); 
@@ -862,7 +890,6 @@ function renderRecipeEditor(id, base){
   return wrap;
 }
 
-// ★★★ 路由容错 ★★★
 async function onRoute(){ 
   try {
     app.innerHTML=''; 
@@ -879,7 +906,7 @@ async function onRoute(){
     if(hash.startsWith('recipe-edit:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeEditor(id, base)); } 
     else if(hash.startsWith('recipe:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeDetail(id, pack)); } 
     else if(hash==='shopping'){ app.appendChild(renderShopping(pack)); } 
-    else if(hash==='recipes'){ app.appendChild(renderRecipes(pack)); } // 确保 renderRecipes 函数已定义
+    else if(hash==='recipes'){ app.appendChild(renderRecipes(pack)); } 
     else if(hash==='settings'){ app.appendChild(renderSettings()); } 
     else { app.appendChild(renderHome(pack)); } 
   } catch(e) {
