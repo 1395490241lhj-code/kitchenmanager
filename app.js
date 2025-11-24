@@ -1,18 +1,18 @@
-// v79 app.js - 同步 UI 修复 (Fix Settings UI Overlap)
+// v78 app.js - 修复“设置”页面白屏 (补回 renderSettings)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (SiliconFlow Default) ---
+// --- AI 配置 (Groq) ---
 const CUSTOM_AI = {
-  URL: "https://api.siliconflow.cn/v1/chat/completions",
-  KEY: "", // 用户需在设置中填写
-  MODEL: "Qwen/Qwen2.5-7B-Instruct", 
-  VISION_MODEL: "Qwen/Qwen2-VL-7B-Instruct" 
+  URL: "https://api.groq.com/openai/v1/chat/completions",
+  KEY: "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",
+  MODEL: "qwen/qwen3-32b", 
+  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
-// --- 食材归一化字典 (保持不变) ---
+// --- 食材归一化字典 ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -105,6 +105,7 @@ function checkAlias(name) {
   return null;
 }
 
+// --- 佐料过滤 ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -423,6 +424,7 @@ function getLocalRecommendations(pack, inv) {
     });
     scores = scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6);
   }
+  
   if (scores.length === 0) {
     const all = (pack.recipes||[]);
     const shuffled = [...all].sort(() => 0.5 - Math.random()).slice(0, 6);
