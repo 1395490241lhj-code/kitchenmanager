@@ -1,10 +1,10 @@
-// v78 app.js - 修复“设置”页面白屏 (补回 renderSettings)
+// v79 app.js - 同步 UI 修复
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (Groq) ---
+// --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
@@ -12,7 +12,7 @@ const CUSTOM_AI = {
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
-// --- 食材归一化字典 ---
+// --- 食材归一化字典 (保持 v76 不变) ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -265,7 +265,6 @@ function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
-  // 优先使用本地设置的 Key，如果没设置，检查代码中是否硬编码了
   const apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   const apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
@@ -313,7 +312,7 @@ function compressImage(file) {
 
 async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
-  if (!conf) throw new Error("未配置 API Key (Groq/SiliconFlow)。请在设置中填写。");
+  if (!conf) throw new Error("未配置 API Key，转为本地模式");
 
   let messages = [];
   let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
@@ -463,7 +462,6 @@ function searchResultCard(r, statusData) {
   return card;
 }
 
-// ★★★ 全局 helper：渲染推荐卡片 (避免作用域问题) ★★★
 function showRecommendationCards(container, list, pack) { 
   container.innerHTML = ''; 
   if(!list || list.length===0) { 
@@ -472,7 +470,6 @@ function showRecommendationCards(container, list, pack) {
   } 
   const map = pack.recipe_ingredients || {}; 
   list.forEach(item => { 
-    // 兼容 AI 返回结构和本地推荐结构
     const isAi = item.isAi !== undefined ? item.isAi : false;
     container.appendChild(recipeCard(item.r, item.list || map[item.r.id], {reason: item.reason, isAi: isAi})); 
   }); 
