@@ -1,60 +1,57 @@
-/* Kitchen Assistant v75 - True Night Aurora & Robust UI */
+/* Kitchen Assistant v76 - Apple Official Website Style */
 
 :root {
-  /* --- 浅色模式 (Daylight) --- */
-  --bg-base: #F5F5F7;
-  --bg-card: rgba(255, 255, 255, 0.7);
-  --bg-input: rgba(255, 255, 255, 0.5);
+  /* --- 浅色模式 (Apple Store Light) --- */
+  --bg-base: #F5F5F7; /* 经典的苹果浅灰背景 */
+  --bg-card: #FFFFFF;
+  --bg-input: #E8E8ED; /* 搜索框/输入框背景 */
   
   --text-main: #1D1D1F;
-  --text-secondary: #86868b;
+  --text-secondary: #86868B;
   
-  --primary: #007AFF;
-  --accent: #5856D6;
-  --success: #34C759;
-  --danger: #FF3B30;
-  --warning: #FF9500;
+  /* Apple 官方色板 */
+  --primary: #0071E3; /* Apple Blue */
+  --accent: #5E5CE6;  /* Indigo */
+  --success: #34C759; /* Green */
+  --danger: #FF3B30;  /* Red */
+  --warning: #FF9F0A; /* Orange */
   
-  --separator: rgba(60, 60, 67, 0.1);
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.6);
-  --nav-bg: rgba(255, 255, 255, 0.65);
-  --tag-bg: rgba(0, 122, 255, 0.1);
-  --option-bg: #FFFFFF;
+  --separator: rgba(0, 0, 0, 0.1); /* 极细分割线 */
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.04); /* 克制的阴影 */
+  --radius-card: 18px;
+  --radius-btn: 980px; /* 胶囊圆角 */
   
-  /* 浅色光斑 */
-  --aurora-1: #E0F2FE; /* Sky */
-  --aurora-2: #F3E8FF; /* Purple */
-  --aurora-3: #FEF3C7; /* Amber */
+  --nav-bg: rgba(255, 255, 255, 0.8); /* 磨砂导航栏 */
+  --tag-bg: #F5F5F7;
+  
+  --aurora-1: #F5F5F7;
+  --aurora-2: #E5F0FF;
+  --aurora-3: #F2E6FF;
 }
 
-/* --- 深色模式 (Midnight Aurora) --- */
+/* --- 深色模式 (Apple Pro Dark) --- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-base: #020617; /* 深邃午夜蓝黑 */
-    --bg-card: rgba(30, 41, 59, 0.6); /* 深蓝灰玻璃 */
-    --bg-input: rgba(255, 255, 255, 0.1);
+    --bg-base: #000000; /* 纯黑，凸显内容 */
+    --bg-card: #1D1D1F; /* 深灰卡片，非纯黑 */
+    --bg-input: #2C2C2E;
     
-    --text-main: #F1F5F9;
-    --text-secondary: #94A3B8;
+    --text-main: #F5F5F7;
+    --text-secondary: #86868B;
     
-    --primary: #38BDF8; /* 亮蓝 */
-    --accent: #A78BFA;  /* 亮紫 */
-    --success: #4ADE80;
-    --danger: #F87171;
-    --warning: #FBBF24;
+    --primary: #2997FF; /* 深色模式下的蓝更亮 */
+    --accent: #5E5CE6;
     
-    --separator: rgba(255, 255, 255, 0.1);
-    --shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-    --glass-border: rgba(255, 255, 255, 0.1);
-    --nav-bg: rgba(15, 23, 42, 0.7);
-    --tag-bg: rgba(56, 189, 248, 0.15);
-    --option-bg: #1e293b;
+    --separator: #38383A;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     
-    /* 深色极光光斑 (高饱和度) */
-    --aurora-1: #1e1b4b; /* Indigo */
-    --aurora-2: #581c87; /* Violet */
-    --aurora-3: #064e3b; /* Emerald */
+    --nav-bg: rgba(29, 29, 31, 0.8);
+    --tag-bg: #2C2C2E;
+    
+    /* Pro 级极光：幽蓝、钛灰、深紫 */
+    --aurora-1: #000000;
+    --aurora-2: #101028; /* 深蓝微光 */
+    --aurora-3: #1a1520; /* 深紫微光 */
   }
 }
 
@@ -62,152 +59,153 @@
 
 body {
   margin: 0; padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: var(--text-main);
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 17px; /* iOS 标准字号 */
+  line-height: 1.47059;
+  font-weight: 400;
+  letter-spacing: -0.022em;
   min-height: 100vh;
   
-  /* --- 动态背景 --- */
+  /* 动态背景：极简呼吸感 */
+  background: radial-gradient(circle at 50% 0%, var(--aurora-2) 0%, var(--bg-base) 60%),
+              radial-gradient(circle at 80% 80%, var(--aurora-3) 0%, var(--bg-base) 60%);
   background-color: var(--bg-base);
-  background-image: 
-    radial-gradient(at 0% 0%, var(--aurora-1) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, var(--aurora-2) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, var(--aurora-3) 0px, transparent 50%),
-    radial-gradient(at 0% 100%, var(--aurora-1) 0px, transparent 50%);
-  background-size: 180% 180%;
   background-attachment: fixed;
-  animation: auroraFlow 20s ease-in-out infinite alternate;
-  transition: background-color 0.5s;
+  transition: background-color 0.5s ease;
 }
 
-@keyframes auroraFlow {
-  0% { background-position: 0% 0%; }
-  100% { background-position: 100% 100%; }
-}
-
-/* --- 玻璃态组件 --- */
-.topbar, .card, .add-form-container {
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid var(--glass-border);
-}
-
-/* --- 顶部导航 --- */
+/* --- 顶部导航 (Unified Bar) --- */
 .topbar {
   position: sticky; top: 0; z-index: 100;
   background: var(--nav-bg);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--separator);
-  padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
 }
 .topbar h1 { 
-  font-size: 20px; font-weight: 800; margin: 0; 
-  background: linear-gradient(90deg, var(--primary), var(--accent));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  font-size: 19px; font-weight: 600; margin: 0; color: var(--text-main); 
 }
-.topbar nav { display: flex; gap: 20px; }
-.topbar nav a { color: var(--text-secondary); text-decoration: none; font-size: 15px; font-weight: 600; transition: color 0.2s; }
-.topbar nav a.active { color: var(--text-main); transform: scale(1.05); }
+.topbar nav { display: flex; gap: 24px; }
+.topbar nav a { 
+  color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 400; 
+  transition: color 0.2s; 
+}
+.topbar nav a.active { color: var(--text-main); font-weight: 600; }
 
-.container { max-width: 900px; margin: 0 auto; padding: 20px 16px 100px; }
+.container { max-width: 980px; margin: 0 auto; padding: 40px 20px 100px; }
 
-/* --- 标题 --- */
+/* --- 标题 (Typography) --- */
 .section-title {
-  font-size: 22px; font-weight: 800; margin: 32px 4px 16px; color: var(--text-main);
-  display: flex; justify-content: space-between; align-items: center;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  font-size: 28px; line-height: 1.1; font-weight: 700; 
+  margin: 40px 0 20px; color: var(--text-main);
+  display: flex; justify-content: space-between; align-items: baseline;
 }
 
-/* --- 卡片布局 --- */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+/* --- 卡片 (Cards) --- */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
 .horizontal-scroll {
-  display: flex; overflow-x: auto; gap: 12px; padding: 4px 16px 24px; margin: 0 -16px;
-  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+  display: flex; overflow-x: auto; gap: 16px; padding: 4px 4px 30px; margin: 0 -20px;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding-left: 20px; padding-right: 20px;
 }
 .horizontal-scroll::-webkit-scrollbar { display: none; }
-.horizontal-scroll .card { min-width: 85vw; max-width: 320px; flex-shrink: 0; scroll-snap-align: center; margin-bottom: 0; }
-@media (min-width: 600px) { .horizontal-scroll .card { min-width: 280px; } }
+.horizontal-scroll .card { 
+  min-width: 85vw; max-width: 320px; flex-shrink: 0; scroll-snap-align: center; 
+}
+@media (min-width: 600px) { .horizontal-scroll .card { min-width: 300px; } }
 
 .card {
   background: var(--bg-card);
-  border-radius: 24px; padding: 20px;
+  border-radius: var(--radius-card);
+  padding: 24px;
+  /* 极简阴影，深色模式下几乎无阴影 */
   box-shadow: var(--shadow);
   display: flex; flex-direction: column; position: relative;
-  transition: transform 0.2s;
+  transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
-.card:active { transform: scale(0.98); }
-.card h3 { font-size: 18px; font-weight: 700; margin: 0 0 6px 0; color: var(--text-main); }
-.meta { color: var(--text-secondary); font-size: 12px; margin-bottom: 12px; font-weight: 500; display: block; }
+.card:hover { transform: scale(1.01); }
 
-/* --- 按钮 --- */
-.controls { margin-top: auto; padding-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.card h3 { 
+  font-size: 21px; line-height: 1.2; font-weight: 600; margin: 0 0 8px 0; color: var(--text-main); 
+}
+.meta { 
+  color: var(--text-secondary); font-size: 13px; font-weight: 500; margin-bottom: 16px; display: block; 
+}
+
+/* --- 按钮 (Apple Buttons) --- */
+.controls { margin-top: auto; padding-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .card .controls { justify-content: flex-start; }
 
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; padding: 10px 18px;
-  border-radius: 99px; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; border: none;
+  display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px;
+  border-radius: var(--radius-btn); font-size: 14px; font-weight: 500; text-decoration: none; cursor: pointer; border: none;
   user-select: none; white-space: nowrap; transition: all 0.2s;
-  background: rgba(128,128,128,0.1); color: var(--text-main);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+  background: var(--bg-input); color: var(--text-main);
 }
-.btn:active { transform: scale(0.94); opacity: 0.8; }
-.btn.ok { background: var(--primary); color: #fff; box-shadow: 0 4px 15px rgba(0, 122, 255, 0.3); }
-.btn.ai { background: linear-gradient(135deg, var(--accent), var(--primary)); color: #fff; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3); }
-.btn.bad { background: rgba(255, 59, 48, 0.15); color: var(--danger); }
-.btn.small { padding: 6px 12px; font-size: 12px; }
-.btn.icon-only { width: 42px; height: 42px; padding: 0; border-radius: 50%; font-size: 20px; }
+.btn:active { transform: scale(0.96); opacity: 0.7; }
 
-/* --- 输入框 --- */
-input, select, textarea {
-  appearance: none; background: var(--bg-input); border: none; border-radius: 16px;
-  padding: 12px 16px; font-size: 16px; color: var(--text-main); font-family: inherit; flex: 1; transition: background 0.2s;
+/* Primary Button (Blue) */
+.btn.ok, .btn.ai { 
+  background: var(--primary); color: #FFFFFF; 
 }
-input:focus, textarea:focus, select:focus { background: var(--bg-card); outline: 2px solid var(--primary); outline-offset: -2px; }
-select option { background-color: var(--option-bg); color: var(--text-main); }
+.btn.ai {
+  background: linear-gradient(135deg, #0071E3, #42A5F5); /* 更纯粹的蓝 */
+}
+.btn.bad { color: var(--danger); background: rgba(255, 59, 48, 0.1); }
+
+.btn.small { padding: 5px 12px; font-size: 12px; }
+.btn.icon-only { width: 38px; height: 38px; padding: 0; font-size: 18px; border-radius: 50%; }
+
+/* --- 输入框 (Apple Input) --- */
+input, select, textarea {
+  appearance: none; background: var(--bg-input); border: none; border-radius: 12px;
+  padding: 12px 16px; font-size: 17px; color: var(--text-main); font-family: inherit; flex: 1;
+  transition: background 0.2s;
+}
+input:focus, textarea:focus, select:focus { 
+  background: var(--bg-card); 
+  box-shadow: 0 0 0 2px var(--primary); /* 聚焦蓝框 */
+  outline: none; 
+}
+select option { background-color: var(--bg-card); color: var(--text-main); }
+
+/* --- 标签 (Tags) --- */
+.ing-compact-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0; }
+.ing-tag-pill {
+  background: var(--tag-bg); border-radius: 6px; padding: 4px 8px;
+  font-size: 13px; font-weight: 500; color: var(--text-main);
+}
+.ing-tag-pill .qty { color: var(--text-secondary); margin-left: 4px; font-weight: 400; }
+
+/* --- 列表 --- */
+.ing-list { margin: 0; padding: 0; list-style: none; }
+.ing-list li { padding: 12px 0; border-bottom: 1px solid var(--separator); display: flex; justify-content: space-between; font-size: 15px; }
+.ing-list li:last-child { border-bottom: none; }
+
+.kchip { font-size: 12px; font-weight: 600; padding: 2px 0; color: var(--text-secondary); background: none; }
+.kchip.ok { color: var(--success); }
+.kchip.warn { color: var(--warning); }
+.kchip.bad { color: var(--danger); }
+
+/* AI Badge - 简约风格 */
+.ai-badge { 
+  font-size: 10px; font-weight: 700; color: #fff; 
+  background: var(--text-main); /* 黑底白字 */
+  padding: 3px 8px; border-radius: 4px; margin-bottom: 8px; display: inline-block; 
+}
+.ai-reason { 
+  background: var(--bg-input); padding: 16px; border-radius: 12px; 
+  font-size: 14px; line-height: 1.6; color: var(--text-main); margin-top: 16px;
+}
 
 .add-form-container {
-  background: var(--bg-card); border-radius: 24px; padding: 20px; margin-bottom: 24px; display: none; box-shadow: var(--shadow);
+  background: var(--bg-card); border-radius: 20px; padding: 20px; margin-bottom: 20px; display: none;
+  border: 1px solid var(--separator);
 }
 .add-form-container.open { display: block; animation: slideDown 0.3s ease; }
 
-/* --- 列表 & 标签 --- */
-.ing-list { margin: 12px 0; padding: 0; list-style: none; flex: 1; }
-.ing-list li { padding: 8px 0; border-bottom: 1px solid var(--separator); display: flex; justify-content: space-between; font-size: 14px; color: var(--text-main); }
-.ing-list li:last-child { border-bottom: none; }
-
-.ing-compact-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.ing-tag-pill {
-  background: var(--tag-bg); border-radius: 8px; padding: 4px 8px;
-  font-size: 13px; color: var(--text-main); border: 1px solid var(--separator);
-}
-.ing-tag-pill .qty { color: var(--primary); margin-left: 4px; font-weight: 700; font-size: 12px; }
-
-/* --- 徽章 --- */
-.kchip { font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; }
-.kchip.ok { background: rgba(52, 211, 153, 0.15); color: var(--success); }
-.kchip.warn { background: rgba(251, 191, 36, 0.15); color: var(--warning); }
-.kchip.bad { background: rgba(248, 113, 113, 0.15); color: var(--danger); }
-
-.ai-badge { font-size: 10px; font-weight: 800; color: #fff; background: var(--accent); padding: 3px 6px; border-radius: 6px; margin-bottom: 6px; display: inline-block; }
-.ai-reason { background: var(--bg-input); padding: 12px; border-radius: 12px; font-size: 13px; color: var(--text-main); margin-top: 12px; line-height: 1.5; }
-
-/* --- 详情页 --- */
-.detail-view { animation: fadeIn 0.4s ease; }
-.detail-view h2 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
-.detail-view .tags { margin-bottom: 24px; color: var(--text-secondary); font-weight: 600; }
-.detail-view .block { background: var(--bg-card); border-radius: 24px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
-.method-text { font-size: 16px; line-height: 1.7; color: var(--text-main); white-space: pre-wrap; }
-
-.table { width: 100%; border-collapse: collapse; }
-.table th { text-align: left; color: var(--text-secondary); font-size: 12px; padding: 10px 6px; border-bottom: 1px solid var(--separator); }
-.table td { border-bottom: 1px solid var(--separator); padding: 10px 6px; font-size: 14px; }
-.table .qty-input { width: 40px; text-align: center; padding: 4px; background: var(--bg-input); border-radius: 6px; }
-
-.spinner { width: 16px; height: 16px; border: 2px solid var(--text-secondary); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; margin-right: 6px; }
-.setting-group { margin-bottom: 24px; }
-.setting-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 15px; }
-
+.spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; margin-right: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 @keyframes slideDown { from { opacity: 0; height: 0; overflow: hidden; } to { opacity: 1; height: auto; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
