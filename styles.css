@@ -1,15 +1,13 @@
-/* Kitchen Assistant v66 - True Dynamic Aurora Background */
+/* Kitchen Assistant v74 - Night Aurora & Robust UI */
 
 :root {
-  /* --- 浅色模式 (Morning Haze Aurora) --- */
-  /* 使用高明度、低饱和度的彩色，营造通透感 */
-  --bg-gradient-light: linear-gradient(125deg, #E0F7FA, #F3E5F5, #FFFDE7, #E8F5E9);
-  
-  --bg-card: rgba(255, 255, 255, 0.75);
-  --bg-input: rgba(118, 118, 128, 0.12);
+  /* --- 浅色模式 (Morning Mist) --- */
+  --bg-base: #F2F2F7;
+  --bg-card: rgba(255, 255, 255, 0.65); /* 高透白 */
+  --bg-input: rgba(255, 255, 255, 0.5);
   
   --text-main: #1D1D1F;
-  --text-secondary: #6E6E73;
+  --text-secondary: #86868b;
   
   --primary: #007AFF;
   --accent: #5856D6;
@@ -17,210 +15,192 @@
   --danger: #FF3B30;
   --warning: #FF9500;
   
-  --separator: rgba(60, 60, 67, 0.15);
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
-  --radius-card: 20px;
-  --radius-btn: 99px;
+  --separator: rgba(60, 60, 67, 0.1);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
   
-  --nav-bg: rgba(255, 255, 255, 0.6);
-  --tag-bg: rgba(0, 122, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --nav-bg: rgba(255, 255, 255, 0.65);
   
-  --option-bg: #FFFFFF;
-  
-  --btn-glass-bg: rgba(255, 255, 255, 0.65);
-  --btn-glass-border: rgba(255, 255, 255, 0.4);
-  --btn-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  /* 浅色背景光斑 */
+  --spot-1: #dbeafe; /* 浅蓝 */
+  --spot-2: #f3e8ff; /* 浅紫 */
+  --spot-3: #fff7ed; /* 浅橙 */
 }
 
-/* --- 深色模式 (Midnight Aurora) --- */
+/* --- 深色模式 (Aurora Borealis) --- */
 @media (prefers-color-scheme: dark) {
   :root {
-    /* ★★★ 修复：使用深蓝、深紫、深绿混合，而非纯灰，制造极光感 ★★★ */
-    --bg-gradient-dark: linear-gradient(125deg, #0f172a, #312e81, #4c1d95, #064e3b);
-    
-    --bg-card: rgba(30, 30, 35, 0.65); /* 提高透明度，让背景极光透出来 */
+    --bg-base: #050505; /* 纯黑基底 */
+    --bg-card: rgba(30, 30, 35, 0.6); /* 深色玻璃 */
     --bg-input: rgba(255, 255, 255, 0.1);
     
     --text-main: #F5F5F7;
-    --text-secondary: #86868B;
+    --text-secondary: #98989D;
     
     --primary: #0A84FF;
     --accent: #5E5CE6;
-    --success: #30D158;
+    --success: #32D74B;
     --danger: #FF453A;
-    --warning: #FF9F0A;
+    --warning: #FFD60A;
     
-    --separator: rgba(255, 255, 255, 0.15);
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    --separator: rgba(255, 255, 255, 0.12);
+    --shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
     
-    --nav-bg: rgba(30, 30, 35, 0.6);
-    --tag-bg: rgba(10, 132, 255, 0.15);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --nav-bg: rgba(30, 30, 35, 0.65);
     
-    --option-bg: #1C1C1E;
-    
-    --btn-glass-bg: rgba(255, 255, 255, 0.1);
-    --btn-glass-border: rgba(255, 255, 255, 0.15);
-    --btn-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    /* 深色极光光斑 (高饱和度) */
+    --spot-1: #1e1b4b; /* 深靛蓝 */
+    --spot-2: #4c1d95; /* 罗兰紫 */
+    --spot-3: #064e3b; /* 翡翠绿 */
   }
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-html, body {
+body {
   margin: 0; padding: 0;
-  
-  /* 应用动态极光背景 */
-  background: var(--bg-gradient-light);
-  background-size: 400% 400%; /* 放大背景以实现柔和过渡 */
-  animation: auroraFlow 15s ease infinite;
-  
-  color: var(--text-main);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-  line-height: 1.5; font-size: 16px;
-  transition: color 0.3s;
+  color: var(--text-main);
+  font-size: 16px;
+  line-height: 1.5;
   min-height: 100vh;
+  
+  /* --- 核心：动态光斑背景 --- */
+  background-color: var(--bg-base);
+  background-image: 
+    radial-gradient(at 0% 0%, var(--spot-1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, var(--spot-2) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, var(--spot-3) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, var(--spot-1) 0px, transparent 50%);
+  background-size: 180% 180%;
+  background-attachment: fixed; /* 固定背景，防止滚动时抖动 */
+  animation: auroraMove 15s ease-in-out infinite alternate;
 }
 
-@media (prefers-color-scheme: dark) {
-  html, body {
-    background: var(--bg-gradient-dark);
-    background-size: 400% 400%;
-  }
-}
-
-/* 极光流动动画 */
-@keyframes auroraFlow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+@keyframes auroraMove {
+  0% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
   100% { background-position: 0% 50%; }
+}
+
+/* --- 玻璃态组件 --- */
+.topbar, .card, .add-form-container {
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--glass-border);
 }
 
 /* --- 顶部导航 --- */
 .topbar {
   position: sticky; top: 0; z-index: 100;
-  background: var(--nav-bg); 
-  backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  border-bottom: 0.5px solid var(--separator);
-  padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--separator);
+  padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
 }
 .topbar h1 { 
-  font-size: 20px; font-weight: 700; margin: 0; 
-  /* 文字也加一点微渐变 */
+  font-size: 18px; font-weight: 700; margin: 0; 
   background: linear-gradient(90deg, var(--primary), var(--accent));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
-.topbar nav { display: flex; gap: 20px; }
-.topbar nav a { color: var(--text-secondary); text-decoration: none; font-size: 15px; font-weight: 500; transition: color 0.2s; }
-.topbar nav a.active { color: var(--text-main); font-weight: 600; }
+.topbar nav { display: flex; gap: 16px; }
+.topbar nav a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 600; transition: color 0.2s; }
+.topbar nav a.active { color: var(--text-main); }
 
-.container { max-width: 900px; margin: 0 auto; padding: 20px 20px 100px; }
+.container { max-width: 900px; margin: 0 auto; padding: 20px 16px 100px; }
 
 /* --- 标题 --- */
 .section-title {
-  font-size: 22px; font-weight: 800; margin: 32px 4px 16px; color: var(--text-main);
-  display: flex; justify-content: space-between; align-items: center; letter-spacing: -0.5px;
+  font-size: 20px; font-weight: 700; margin: 32px 4px 16px; color: var(--text-main);
+  display: flex; justify-content: space-between; align-items: center;
 }
 
-/* --- 玻璃卡片 --- */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+/* --- 卡片布局 --- */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
 .horizontal-scroll {
-  display: flex; overflow-x: auto; gap: 16px; padding: 4px 20px 24px; margin: 0 -20px;
+  display: flex; overflow-x: auto; gap: 12px; padding: 4px 16px 24px; margin: 0 -16px;
   scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
 }
 .horizontal-scroll::-webkit-scrollbar { display: none; }
-.horizontal-scroll .card { min-width: 85vw; max-width: 320px; flex-shrink: 0; scroll-snap-align: center; margin-bottom: 0; }
-@media (min-width: 600px) { .horizontal-scroll .card { min-width: 320px; } }
+.horizontal-scroll .card { min-width: 85vw; max-width: 300px; flex-shrink: 0; scroll-snap-align: center; margin-bottom: 0; }
+@media (min-width: 600px) { .horizontal-scroll .card { min-width: 280px; } }
 
 .card {
-  /* 玻璃拟态核心 */
   background: var(--bg-card);
-  backdrop-filter: blur(40px) saturate(120%);
-  -webkit-backdrop-filter: blur(40px) saturate(120%);
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-card);
-  padding: 24px;
+  border-radius: 20px; padding: 20px;
   box-shadow: var(--shadow);
   display: flex; flex-direction: column; position: relative;
   transition: transform 0.2s;
 }
 .card:active { transform: scale(0.98); }
-.card h3 { font-size: 19px; font-weight: 700; margin: 0 0 6px 0; color: var(--text-main); }
-.meta { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; font-weight: 500; display: block; }
-
-.controls { margin-top: auto; padding-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-.card .controls { justify-content: flex-start; }
+.card h3 { font-size: 17px; font-weight: 600; margin: 0 0 6px 0; color: var(--text-main); }
+.meta { color: var(--text-secondary); font-size: 12px; margin-bottom: 12px; font-weight: 500; display: block; }
 
 /* --- 按钮 --- */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; padding: 12px 20px;
-  border-radius: var(--radius-btn); font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; border: none;
-  user-select: none; white-space: nowrap; transition: all 0.2s;
-  background: var(--btn-glass-bg); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  color: var(--text-main); box-shadow: inset 0 0 0 0.5px var(--btn-glass-border), var(--btn-shadow);
-}
-.btn:active { transform: scale(0.94); opacity: 0.8; }
-.btn.ok { background: rgba(0, 122, 255, 0.85); color: #fff; box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.3), 0 4px 12px rgba(0, 122, 255, 0.3); }
-.btn.ai { background: linear-gradient(135deg, rgba(88, 86, 214, 0.85), rgba(0, 122, 255, 0.85)); color: #fff; box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.3), 0 4px 16px rgba(88, 86, 214, 0.4); }
-.btn.bad { background: rgba(255, 59, 48, 0.15); color: var(--danger); box-shadow: none; border: 1px solid rgba(255, 59, 48, 0.1); }
-.btn.icon-only { width: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 20px; }
+.controls { margin-top: auto; padding-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.card .controls { justify-content: flex-start; }
 
-/* --- 紧凑食材标签 --- */
-.ing-compact-container { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0; }
-.ing-tag-pill {
-  background: var(--tag-bg);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-main);
-  border: 1px solid var(--separator);
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px;
+  border-radius: 99px; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; border: none;
+  user-select: none; white-space: nowrap; transition: all 0.2s;
+  background: rgba(128,128,128,0.1); color: var(--text-main);
+  backdrop-filter: blur(10px);
 }
-.ing-tag-pill .qty { color: var(--primary); margin-left: 4px; font-weight: 700; font-size: 12px; opacity: 0.9; }
+.btn:active { transform: scale(0.95); opacity: 0.8; }
+.btn.ok { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(0,122,255,0.3); }
+.btn.ai { background: linear-gradient(135deg, var(--accent), var(--primary)); color: #fff; box-shadow: 0 4px 12px rgba(94,92,230,0.3); }
+.btn.bad { background: rgba(255, 59, 48, 0.15); color: var(--danger); }
+.btn.small { padding: 6px 12px; font-size: 12px; }
+.btn.icon-only { width: 40px; height: 40px; padding: 0; border-radius: 50%; font-size: 18px; }
 
 /* --- 输入框 --- */
 input, select, textarea {
-  appearance: none; -webkit-appearance: none; background: var(--bg-input); border: none; border-radius: 12px;
-  padding: 12px 16px; font-size: 16px; color: var(--text-main); font-family: inherit; flex: 1; transition: background 0.2s;
+  appearance: none; background: var(--bg-input); border: none; border-radius: 12px;
+  padding: 10px 14px; font-size: 16px; color: var(--text-main); font-family: inherit; flex: 1; transition: background 0.2s;
 }
-input:focus, textarea:focus, select:focus { background: rgba(118, 118, 128, 0.15); outline: 2px solid var(--primary); outline-offset: -2px; }
-select option { background-color: var(--option-bg); color: var(--text-main); }
+input:focus, textarea:focus, select:focus { background: rgba(128,128,128,0.15); outline: 2px solid var(--primary); outline-offset: -2px; }
+select option { background-color: #1C1C1E; color: #FFF; } /* 强制深色背景选项 */
 
-/* --- 折叠表单 --- */
 .add-form-container {
-  background: var(--bg-card); backdrop-filter: blur(20px); border: 1px solid var(--separator);
-  border-radius: 20px; padding: 20px; margin-bottom: 20px; display: none; box-shadow: var(--shadow);
+  background: var(--bg-card); border-radius: 20px; padding: 16px; margin-bottom: 20px; display: none; box-shadow: var(--shadow);
 }
 .add-form-container.open { display: block; animation: slideDown 0.3s ease; }
 
-/* --- 列表 --- */
-.ing-list { margin: 16px 0; padding: 0; list-style: none; flex: 1; }
-.ing-list li { padding: 10px 0; border-bottom: 0.5px solid var(--separator); display: flex; justify-content: space-between; font-size: 15px; color: var(--text-main); }
+/* --- 列表 & 标签 --- */
+.ing-list { margin: 12px 0; padding: 0; list-style: none; flex: 1; }
+.ing-list li { padding: 8px 0; border-bottom: 1px solid var(--separator); display: flex; justify-content: space-between; font-size: 14px; color: var(--text-main); }
 .ing-list li:last-child { border-bottom: none; }
 
+.ing-compact-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ing-tag-pill {
+  background: rgba(128,128,128,0.1); border-radius: 8px; padding: 4px 8px;
+  font-size: 13px; color: var(--text-main); border: 1px solid var(--separator);
+}
+.ing-tag-pill .qty { color: var(--primary); margin-left: 4px; font-weight: 700; font-size: 12px; }
+
+/* --- 徽章 --- */
 .kchip { font-size: 11px; font-weight: 700; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; }
 .kchip.ok { background: rgba(52, 199, 89, 0.2); color: var(--success); }
 .kchip.warn { background: rgba(255, 149, 0, 0.2); color: var(--warning); }
 .kchip.bad { background: rgba(255, 59, 48, 0.2); color: var(--danger); }
 
-.ai-badge { font-size: 11px; font-weight: 800; color: #fff; background: linear-gradient(90deg, var(--accent), var(--primary)); padding: 4px 10px; border-radius: 20px; margin-bottom: 8px; display: inline-block; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-.ai-reason { background: var(--bg-input); padding: 14px; border-radius: 16px; font-size: 14px; color: var(--text-main); margin-top: 12px; line-height: 1.5; }
+.ai-badge { font-size: 10px; font-weight: 800; color: #fff; background: var(--accent); padding: 3px 6px; border-radius: 6px; margin-bottom: 6px; display: inline-block; }
+.ai-reason { background: var(--bg-input); padding: 12px; border-radius: 12px; font-size: 13px; color: var(--text-main); margin-top: 12px; line-height: 1.5; }
 
 /* --- 详情页 --- */
 .detail-view { animation: fadeIn 0.4s ease; }
-.detail-view h2 { font-size: 32px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.5px; }
+.detail-view h2 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
 .detail-view .tags { margin-bottom: 24px; color: var(--text-secondary); font-weight: 600; }
-.detail-view .block { background: var(--bg-card); backdrop-filter: blur(30px); border-radius: var(--radius-card); padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); border: 1px solid var(--separator); }
-.detail-view h4 { font-size: 13px; color: var(--text-secondary); text-transform: uppercase; margin: 0 0 16px 0; letter-spacing: 1px; font-weight: 700; }
-.method-text { font-size: 17px; line-height: 1.6; color: var(--text-main); white-space: pre-wrap; }
+.detail-view .block { background: var(--bg-card); border-radius: 20px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); }
+.method-text { font-size: 16px; line-height: 1.7; color: var(--text-main); white-space: pre-wrap; }
 
-/* --- 表格 --- */
 .table { width: 100%; border-collapse: collapse; }
-.table th { text-align: left; color: var(--text-secondary); font-size: 12px; padding: 12px 8px; border-bottom: 1px solid var(--separator); }
-.table td { border-bottom: 1px solid var(--separator); padding: 12px 8px; font-size: 15px; }
-.table .qty-input { width: 50px; text-align: center; padding: 4px; background: var(--bg-input); border-radius: 6px; }
+.table th { text-align: left; color: var(--text-secondary); font-size: 12px; padding: 10px 6px; border-bottom: 1px solid var(--separator); }
+.table td { border-bottom: 1px solid var(--separator); padding: 10px 6px; font-size: 14px; }
+.table .qty-input { width: 40px; text-align: center; padding: 4px; background: var(--bg-input); border-radius: 6px; }
 
-.spinner { width: 18px; height: 18px; border: 2px solid var(--text-secondary); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--text-secondary); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; margin-right: 6px; }
 .setting-group { margin-bottom: 24px; }
 .setting-group label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 15px; }
 
