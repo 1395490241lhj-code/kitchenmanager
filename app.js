@@ -1,10 +1,10 @@
-// v77 app.js - 恢复 Groq 配置 + 包含所有 UI/逻辑修复
+// v78 app.js - 修复“设置”页面白屏 (补回 renderSettings)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (恢复用户指定配置) ---
+// --- AI 配置 (Groq) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
@@ -265,6 +265,7 @@ function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
+  // 优先使用本地设置的 Key，如果没设置，检查代码中是否硬编码了
   const apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   const apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
@@ -425,6 +426,7 @@ function getLocalRecommendations(pack, inv) {
     });
     scores = scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6);
   }
+  
   if (scores.length === 0) {
     const all = (pack.recipes||[]);
     const shuffled = [...all].sort(() => 0.5 - Math.random()).slice(0, 6);
@@ -697,6 +699,7 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   renderTable(); return wrap; 
 }
 
+// ★★★ 补回：菜谱列表页 (修复白屏) ★★★
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
   wrap.innerHTML = `
@@ -762,26 +765,59 @@ function renderRecipes(pack){
   return wrap; 
 }
 
-function renderShopping(pack){
-  const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
-  const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
-  for(const p of plan){ for(const it of explodeCombinedItems(map[p.id]||[])){ if(typeof it.qty==='number') addNeed(it.item, it.qty*(p.servings||1), it.unit); }}
-  const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=(inv.filter(x=>x.name===n&&x.unit===u).reduce((s,x)=>s+(+x.qty||0),0)); const m=Math.max(0, Math.round((req-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m}); }
-  const d=document.createElement('div'); const h=document.createElement('h2'); h.className='section-title'; h.textContent='购物清单'; d.appendChild(h);
-  const pd=document.createElement('div'); pd.className='card'; pd.innerHTML='<h3>今日计划</h3>'; const pl=document.createElement('div'); pd.appendChild(pl);
-  function drawPlan(){ pl.innerHTML=''; if(plan.length===0){ const p=document.createElement('p'); p.className='small'; p.textContent='暂未添加菜谱。去“菜谱/推荐”点“加入购物计划”。'; pl.appendChild(p); return; }
-    for(const p of plan){ const r=(pack.recipes||[]).find(x=>x.id===p.id); if(!r) continue; const row=document.createElement('div'); row.className='controls';
-      row.innerHTML=`<span>${r.name}</span><span class="small">份数</span><input type="number" min="1" max="8" step="1" value="${p.servings||1}" style="width:80px"><a class="btn" href="javascript:void(0)">移除</a>`;
-      const input=els('input',row)[0]; input.onchange=()=>{ const plans=S.load(S.keys.plan,[]); const it=plans.find(x=>x.id===p.id); if(it){ it.servings=+input.value||1; S.save(S.keys.plan,plans); onRoute(); } };
-      els('.btn',row)[0].onclick=()=>{ const plans=S.load(S.keys.plan,[]); const i=plans.findIndex(x=>x.id===p.id); if(i>=0){ plans.splice(i,1); S.save(S.keys.plan,plans); onRoute(); } };
-      pl.appendChild(row);
-    }} drawPlan(); d.appendChild(pd);
-  const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th>食材</th><th>缺少数量</th><th>单位</th><th class="right">操作</th></tr></thead><tbody></tbody>`; const tb=tbl.querySelector('tbody');
-  if(missing.length===0){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="4" class="small">库存已满足，不需要购买。</td>'; tb.appendChild(tr); }
-  else { for(const m of missing){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${m.name}</td><td>${m.qty}</td><td>${m.unit}</td><td class="right"><a class="btn" href="javascript:void(0)">标记已购 → 入库</a></td>`; els('.btn',tr)[0].onclick=()=>{ const invv=S.load(S.keys.inventory,[]); addInventoryQty(invv,m.name,m.qty,m.unit,'raw'); tr.remove(); }; tb.appendChild(tr); } }
-  d.appendChild(tbl);
-  const tools=document.createElement('div'); tools.className='controls'; const copy=document.createElement('a'); copy.className='btn'; copy.textContent='复制清单'; copy.onclick=()=>{ const lines=missing.map(m=>`${m.name} ${m.qty}${m.unit}`); navigator.clipboard.writeText(lines.join('\\n')).then(()=>alert('已复制到剪贴板')); }; tools.appendChild(copy); d.appendChild(tools);
-  return d;
+// ★★★ 补回：设置页面 (修复白屏) ★★★
+function renderSettings(){
+  const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
+  const displayUrl = s.apiUrl || CUSTOM_AI.URL;
+  const displayKey = s.apiKey || CUSTOM_AI.KEY;
+  const displayModel = s.model || CUSTOM_AI.MODEL;
+  
+  const div = document.createElement('div');
+  div.innerHTML = `
+    <h2 class="section-title">AI 设置</h2>
+    <div class="card">
+      <div class="setting-group">
+        <label>快速预设</label>
+        <select id="sPreset">
+          <option value="">请选择...</option>
+          <option value="silicon">SiliconFlow (硅基流动 - 推荐)</option>
+          <option value="groq">Groq</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </div>
+      <hr style="border:0;border-top:1px solid var(--separator);margin:16px 0">
+      <div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}"></div>
+      <div class="setting-group"><label>模型名称</label><input id="sModel" value="${displayModel}"></div>
+      <div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div>
+      <div class="right"><a class="btn ok" id="saveSet">保存</a></div>
+    </div>
+  `;
+  
+  const presets = { 
+    silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, 
+    groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, 
+    openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } 
+  };
+  
+  div.querySelector('#sPreset').onchange = (e) => { 
+    const val = e.target.value; 
+    if(presets[val]) { 
+      div.querySelector('#sUrl').value = presets[val].url; 
+      div.querySelector('#sModel').value = presets[val].model; 
+    } 
+  };
+  
+  div.querySelector('#saveSet').onclick = () => { 
+    const newS = { 
+      apiUrl: div.querySelector('#sUrl').value.trim(), 
+      apiKey: div.querySelector('#sKey').value.trim(), 
+      model: div.querySelector('#sModel').value.trim() 
+    }; 
+    S.save(S.keys.settings, newS); 
+    alert('已保存，刷新后生效。'); 
+    location.reload();
+  };
+  return div;
 }
 
 function renderRecipeEditor(id, base){
