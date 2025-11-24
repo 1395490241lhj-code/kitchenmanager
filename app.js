@@ -1,4 +1,4 @@
-// v71 app.js - 修复“菜谱”页面白屏 (补回缺失的 renderRecipes 函数)
+// v72 app.js - 集成 CookLikeHOC 菜谱数据
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -105,7 +105,6 @@ function checkAlias(name) {
   return null;
 }
 
-// --- 佐料过滤 ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -134,10 +133,12 @@ const S = {
   }
 };
 
-// -------- Data Loading --------
+// -------- Data Loading (Enhanced with HOC Data) --------
 async function loadBasePack(){
   const url = new URL('./data/sichuan-recipes.json', location).href + '?v=23';
   let pack = {recipes:[], recipe_ingredients:{}};
+  
+  // 1. Load Base JSON
   try{ 
       const res = await fetch(url, { cache:'no-store' }); 
       if(res.ok) {
@@ -147,20 +148,50 @@ async function loadBasePack(){
       }
   } catch(e){ console.error('Base pack error', e); }
   
-  const staticMethods = window.RECIPE_METHODS || {};
   const existingNames = new Set(pack.recipes.map(r => r.name));
-  
+
+  // 2. Load Static Methods (Old)
+  const staticMethods = window.RECIPE_METHODS || {};
   Object.keys(staticMethods).forEach(name => {
     if(!existingNames.has(name)){
       const newId = 'static-' + Math.abs(name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
-      pack.recipes.push({ id: newId, name: name, tags: ["家常菜", "新增"] });
+      pack.recipes.push({ id: newId, name: name, tags: ["家常菜"] });
+      existingNames.add(name); // Mark as exists
     }
   });
 
+  // 3. Load HOC Data (New)
+  const hocData = window.HOC_DATA || [];
+  hocData.forEach(item => {
+      if(!existingNames.has(item.name)){
+          const newId = 'hoc-' + Math.abs(item.name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
+          // Add Recipe
+          pack.recipes.push({
+              id: newId,
+              name: item.name,
+              tags: item.tags || ["家常菜"],
+              staticMethod: item.method // Attach method directly
+          });
+          // Add Ingredients
+          if(item.ingredients && Array.isArray(item.ingredients)){
+              pack.recipe_ingredients[newId] = item.ingredients.map(ingName => ({
+                  item: ingName, qty: null, unit: null
+              }));
+          }
+          existingNames.add(item.name);
+      }
+  });
+
+  // 4. Merge Methods
   if(pack.recipes){
     pack.recipes.forEach(r => {
-      const method = staticMethods[r.id] || staticMethods[r.name];
-      if(method) r.staticMethod = method;
+      // Priority: HOC Method (attached above) > Static Method File
+      if(r.staticMethod) {
+          // Already has method from HOC
+      } else {
+          const method = staticMethods[r.id] || staticMethods[r.name];
+          if(method) r.staticMethod = method;
+      }
     });
   }
   return pack;
@@ -322,12 +353,7 @@ async function callAiForMethod(recipeName, ingredients) {
 }
 
 async function callAiSearchRecipe(query, invNames) {
-  const prompt = `我冰箱里有：【${invNames}】。我想找菜谱：【${query}】。
-  请提供一道符合搜索的菜谱。
-  要求：
-  1. "ingredients" 字段中，**请剔除所有姜、葱、蒜、花椒、辣椒、油、盐、酱、醋等佐料**，只列出肉、菜等核心食材。
-  2. "method" 字段包含详细做法。
-  返回 JSON：{ "name": "标准菜名", "ingredients": "核心食材1,核心食材2", "method": "1. 步骤... 2. 步骤..." }`;
+  const prompt = `我冰箱里有：【${invNames}】。我想找菜谱：【${query}】。请提供一道符合搜索的菜谱。要求：1. "ingredients" 字段中，**请剔除所有姜、葱、蒜、花椒、辣椒、油、盐、酱、醋等佐料**，只列出肉、菜等核心食材。2. "method" 字段包含详细做法。返回 JSON：{ "name": "标准菜名", "ingredients": "核心食材1,核心食材2", "method": "1. 步骤... 2. 步骤..." }`;
   const jsonStr = await callAiService(prompt);
   return JSON.parse(jsonStr);
 }
@@ -335,14 +361,7 @@ async function callAiSearchRecipe(query, invNames) {
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
-  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。
-  请规划今日推荐：
-  1. **Local**: 选3道适合库存的菜。
-  2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。
-  
-  **重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。**
-
-  返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
+  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。请规划今日推荐：1. **Local**: 选3道适合库存的菜。2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。**重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。** 返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
   const jsonStr = await callAiService(prompt);
   return JSON.parse(jsonStr);
 }
@@ -643,9 +662,6 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   renderTable(); return wrap; 
 }
 
-function renderSettings(){ const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' }); const displayUrl = s.apiUrl || CUSTOM_AI.URL; const displayKey = s.apiKey || CUSTOM_AI.KEY; const displayModel = s.model || CUSTOM_AI.MODEL; const div = document.createElement('div'); div.innerHTML = `<h2 class="section-title">AI 设置</h2><div class="card"><div class="setting-group"><label>快速预设</label><select id="sPreset"><option value="">请选择...</option><option value="silicon">SiliconFlow</option><option value="groq">Groq</option><option value="openai">OpenAI</option></select></div><hr style="border:0;border-top:1px solid var(--separator);margin:16px 0"><div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}"></div><div class="setting-group"><label>模型名称</label><input id="sModel" value="${displayModel}"></div><div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div><div class="right"><a class="btn ok" id="saveSet">保存</a></div></div>`; 
-const presets = { silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } }; div.querySelector('#sPreset').onchange = (e) => { const val = e.target.value; if(presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; } }; div.querySelector('#saveSet').onclick = () => { const newS = { apiUrl: div.querySelector('#sUrl').value.trim(), apiKey: div.querySelector('#sKey').value.trim(), model: div.querySelector('#sModel').value.trim() }; S.save(S.keys.settings, newS); alert('已保存'); }; return div; }
-
 // ★★★ 补回：菜谱列表页 (修复白屏) ★★★
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
@@ -710,6 +726,28 @@ function renderRecipes(pack){
   }; 
   
   return wrap; 
+}
+
+function renderShopping(pack){
+  const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
+  const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
+  for(const p of plan){ for(const it of explodeCombinedItems(map[p.id]||[])){ if(typeof it.qty==='number') addNeed(it.item, it.qty*(p.servings||1), it.unit); }}
+  const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=(inv.filter(x=>x.name===n&&x.unit===u).reduce((s,x)=>s+(+x.qty||0),0)); const m=Math.max(0, Math.round((req-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m}); }
+  const d=document.createElement('div'); const h=document.createElement('h2'); h.className='section-title'; h.textContent='购物清单'; d.appendChild(h);
+  const pd=document.createElement('div'); pd.className='card'; pd.innerHTML='<h3>今日计划</h3>'; const pl=document.createElement('div'); pd.appendChild(pl);
+  function drawPlan(){ pl.innerHTML=''; if(plan.length===0){ const p=document.createElement('p'); p.className='small'; p.textContent='暂未添加菜谱。去“菜谱/推荐”点“加入购物计划”。'; pl.appendChild(p); return; }
+    for(const p of plan){ const r=(pack.recipes||[]).find(x=>x.id===p.id); if(!r) continue; const row=document.createElement('div'); row.className='controls';
+      row.innerHTML=`<span>${r.name}</span><span class="small">份数</span><input type="number" min="1" max="8" step="1" value="${p.servings||1}" style="width:80px"><a class="btn" href="javascript:void(0)">移除</a>`;
+      const input=els('input',row)[0]; input.onchange=()=>{ const plans=S.load(S.keys.plan,[]); const it=plans.find(x=>x.id===p.id); if(it){ it.servings=+input.value||1; S.save(S.keys.plan,plans); onRoute(); } };
+      els('.btn',row)[0].onclick=()=>{ const plans=S.load(S.keys.plan,[]); const i=plans.findIndex(x=>x.id===p.id); if(i>=0){ plans.splice(i,1); S.save(S.keys.plan,plans); onRoute(); } };
+      pl.appendChild(row);
+    }} drawPlan(); d.appendChild(pd);
+  const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th>食材</th><th>缺少数量</th><th>单位</th><th class="right">操作</th></tr></thead><tbody></tbody>`; const tb=tbl.querySelector('tbody');
+  if(missing.length===0){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="4" class="small">库存已满足，不需要购买。</td>'; tb.appendChild(tr); }
+  else { for(const m of missing){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${m.name}</td><td>${m.qty}</td><td>${m.unit}</td><td class="right"><a class="btn" href="javascript:void(0)">标记已购 → 入库</a></td>`; els('.btn',tr)[0].onclick=()=>{ const invv=S.load(S.keys.inventory,[]); addInventoryQty(invv,m.name,m.qty,m.unit,'raw'); tr.remove(); }; tb.appendChild(tr); } }
+  d.appendChild(tbl);
+  const tools=document.createElement('div'); tools.className='controls'; const copy=document.createElement('a'); copy.className='btn'; copy.textContent='复制清单'; copy.onclick=()=>{ const lines=missing.map(m=>`${m.name} ${m.qty}${m.unit}`); navigator.clipboard.writeText(lines.join('\\n')).then(()=>alert('已复制到剪贴板')); }; tools.appendChild(copy); d.appendChild(tools);
+  return d;
 }
 
 function renderRecipeEditor(id, base){
