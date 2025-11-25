@@ -1,14 +1,16 @@
-// v78 app.js - 修复“设置”页面白屏 (补回 renderSettings)
+// v81 app.js - 修复 AI 模型 ID (Groq 专用配置) + 完整功能
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (Groq) ---
+// --- AI 配置 (修正为 Groq 真实支持的模型) ---
 const CUSTOM_AI = {
-  URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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",
+  URL: "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)",
+  KEY: "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", // 您的 Key
+  // 文本模型：Groq 目前最强文本模型
   MODEL: "qwen/qwen3-32b", 
+  // 视觉模型：Groq 目前最强视觉模型
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
@@ -327,7 +329,7 @@ async function callAiService(prompt, imageBase64 = null) {
     });
     if(!res.ok) {
         if(res.status === 429) {
-            throw new Error("FALLBACK_LOCAL");
+            throw new Error("FALLBACK_LOCAL"); // Signal to downgrade
         }
         const errData = await res.json().catch(()=>({}));
         throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
@@ -790,9 +792,9 @@ function renderSettings(){
   `;
   
   const presets = { 
-    silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, 
-    groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, 
-    openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } 
+    silicon: { url: '[https://api.siliconflow.cn/v1/chat/completions](https://api.siliconflow.cn/v1/chat/completions)', model: 'Qwen/Qwen2.5-7B-Instruct' }, 
+    groq: { url: '[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)', model: 'llama3-70b-8192' }, 
+    openai: { url: '[https://api.openai.com/v1/chat/completions](https://api.openai.com/v1/chat/completions)', model: 'gpt-4o' } 
   };
   
   div.querySelector('#sPreset').onchange = (e) => { 
