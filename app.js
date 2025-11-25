@@ -1,10 +1,10 @@
-// v80 app.js - 集成 HOC 数据 + 修复 UI/Logic (Final Groq Version)
+// v80 app.js - 集成 HOC 菜谱 + 修复设置页 UI 重叠
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (恢复 Groq) ---
+// --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
@@ -12,7 +12,7 @@ const CUSTOM_AI = {
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
-// --- 食材归一化字典 ---
+// --- 食材归一化字典 (保持 v62 修正) ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -150,7 +150,6 @@ async function loadBasePack(){
   const staticMethods = window.RECIPE_METHODS || {};
   const existingNames = new Set(pack.recipes.map(r => r.name));
   
-  // 1. Load Static Methods
   Object.keys(staticMethods).forEach(name => {
     if(!existingNames.has(name)){
       const newId = 'static-' + Math.abs(name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
@@ -159,7 +158,7 @@ async function loadBasePack(){
     }
   });
 
-  // 2. Load HOC Data (New)
+  // ★★★ 集成 HOC 数据 ★★★
   const hocData = window.HOC_DATA || [];
   hocData.forEach(item => {
       if(!existingNames.has(item.name)){
@@ -168,9 +167,8 @@ async function loadBasePack(){
               id: newId,
               name: item.name,
               tags: item.tags || ["家常菜"],
-              staticMethod: item.method
+              staticMethod: item.method // 直接挂载做法
           });
-          // Register ingredients
           if(item.ingredients && Array.isArray(item.ingredients)){
               pack.recipe_ingredients[newId] = item.ingredients.map(ingName => ({
                   item: ingName, qty: null, unit: null
@@ -180,7 +178,6 @@ async function loadBasePack(){
       }
   });
 
-  // 3. Merge Methods
   if(pack.recipes){
     pack.recipes.forEach(r => {
       if(!r.staticMethod) {
@@ -315,7 +312,7 @@ function compressImage(file) {
 
 async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
-  if (!conf) throw new Error("未配置 API Key (Groq)。请在设置中填写。");
+  if (!conf) throw new Error("未配置 API Key，转为本地模式");
 
   let messages = [];
   let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
@@ -330,7 +327,9 @@ async function callAiService(prompt, imageBase64 = null) {
       body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.2 }) 
     });
     if(!res.ok) {
-        if(res.status === 429) throw new Error("FALLBACK_LOCAL");
+        if(res.status === 429) {
+            throw new Error("FALLBACK_LOCAL");
+        }
         const errData = await res.json().catch(()=>({}));
         throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
     }
@@ -697,6 +696,7 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   renderTable(); return wrap; 
 }
 
+// ★★★ 补回：菜谱列表页 (修复白屏) ★★★
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
   wrap.innerHTML = `
@@ -762,26 +762,75 @@ function renderRecipes(pack){
   return wrap; 
 }
 
-function renderShopping(pack){
-  const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
-  const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
-  for(const p of plan){ for(const it of explodeCombinedItems(map[p.id]||[])){ if(typeof it.qty==='number') addNeed(it.item, it.qty*(p.servings||1), it.unit); }}
-  const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=(inv.filter(x=>x.name===n&&x.unit===u).reduce((s,x)=>s+(+x.qty||0),0)); const m=Math.max(0, Math.round((req-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m}); }
-  const d=document.createElement('div'); const h=document.createElement('h2'); h.className='section-title'; h.textContent='购物清单'; d.appendChild(h);
-  const pd=document.createElement('div'); pd.className='card'; pd.innerHTML='<h3>今日计划</h3>'; const pl=document.createElement('div'); pd.appendChild(pl);
-  function drawPlan(){ pl.innerHTML=''; if(plan.length===0){ const p=document.createElement('p'); p.className='small'; p.textContent='暂未添加菜谱。去“菜谱/推荐”点“加入购物计划”。'; pl.appendChild(p); return; }
-    for(const p of plan){ const r=(pack.recipes||[]).find(x=>x.id===p.id); if(!r) continue; const row=document.createElement('div'); row.className='controls';
-      row.innerHTML=`<span>${r.name}</span><span class="small">份数</span><input type="number" min="1" max="8" step="1" value="${p.servings||1}" style="width:80px"><a class="btn" href="javascript:void(0)">移除</a>`;
-      const input=els('input',row)[0]; input.onchange=()=>{ const plans=S.load(S.keys.plan,[]); const it=plans.find(x=>x.id===p.id); if(it){ it.servings=+input.value||1; S.save(S.keys.plan,plans); onRoute(); } };
-      els('.btn',row)[0].onclick=()=>{ const plans=S.load(S.keys.plan,[]); const i=plans.findIndex(x=>x.id===p.id); if(i>=0){ plans.splice(i,1); S.save(S.keys.plan,plans); onRoute(); } };
-      pl.appendChild(row);
-    }} drawPlan(); d.appendChild(pd);
-  const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th>食材</th><th>缺少数量</th><th>单位</th><th class="right">操作</th></tr></thead><tbody></tbody>`; const tb=tbl.querySelector('tbody');
-  if(missing.length===0){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="4" class="small">库存已满足，不需要购买。</td>'; tb.appendChild(tr); }
-  else { for(const m of missing){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${m.name}</td><td>${m.qty}</td><td>${m.unit}</td><td class="right"><a class="btn" href="javascript:void(0)">标记已购 → 入库</a></td>`; els('.btn',tr)[0].onclick=()=>{ const invv=S.load(S.keys.inventory,[]); addInventoryQty(invv,m.name,m.qty,m.unit,'raw'); tr.remove(); }; tb.appendChild(tr); } }
-  d.appendChild(tbl);
-  const tools=document.createElement('div'); tools.className='controls'; const copy=document.createElement('a'); copy.className='btn'; copy.textContent='复制清单'; copy.onclick=()=>{ const lines=missing.map(m=>`${m.name} ${m.qty}${m.unit}`); navigator.clipboard.writeText(lines.join('\\n')).then(()=>alert('已复制到剪贴板')); }; tools.appendChild(copy); d.appendChild(tools);
-  return d;
+// ★★★ 修复设置 UI 重叠：使用 styles.css 中的垂直布局 ★★★
+function renderSettings(){
+  const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
+  const displayUrl = s.apiUrl || CUSTOM_AI.URL;
+  const displayKey = s.apiKey || CUSTOM_AI.KEY;
+  const displayModel = s.model || CUSTOM_AI.MODEL;
+  
+  const div = document.createElement('div');
+  div.innerHTML = `
+    <h2 class="section-title">AI 设置</h2>
+    <div class="card">
+      <div class="setting-group">
+        <label>快速预设</label>
+        <select id="sPreset">
+          <option value="">请选择...</option>
+          <option value="silicon">SiliconFlow (硅基流动 - 推荐)</option>
+          <option value="groq">Groq</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </div>
+      <hr style="border:0;border-top:1px solid var(--separator);margin:16px 0">
+      
+      <!-- 使用 setting-group 确保垂直排列 -->
+      <div class="setting-group">
+        <label>API 地址</label>
+        <input id="sUrl" value="${displayUrl}" placeholder="https://...">
+      </div>
+      
+      <div class="setting-group">
+        <label>模型名称</label>
+        <input id="sModel" value="${displayModel}" placeholder="例如: gpt-4o">
+      </div>
+      
+      <div class="setting-group">
+        <label>API Key</label>
+        <input id="sKey" type="password" value="${displayKey}" placeholder="sk-...">
+      </div>
+      
+      <div class="right">
+        <a class="btn ok" id="saveSet">保存设置</a>
+      </div>
+    </div>
+  `;
+  
+  const presets = { 
+    silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, 
+    groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, 
+    openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } 
+  };
+  
+  div.querySelector('#sPreset').onchange = (e) => { 
+    const val = e.target.value; 
+    if(presets[val]) { 
+      div.querySelector('#sUrl').value = presets[val].url; 
+      div.querySelector('#sModel').value = presets[val].model; 
+    } 
+  };
+  
+  div.querySelector('#saveSet').onclick = () => { 
+    const newS = { 
+      apiUrl: div.querySelector('#sUrl').value.trim(), 
+      apiKey: div.querySelector('#sKey').value.trim(), 
+      model: div.querySelector('#sModel').value.trim() 
+    }; 
+    S.save(S.keys.settings, newS); 
+    alert('已保存，刷新后生效。'); 
+    location.reload();
+  };
+  return div;
 }
 
 function renderRecipeEditor(id, base){
@@ -888,61 +937,6 @@ function renderRecipeEditor(id, base){
   };
 
   return wrap;
-}
-
-// ★★★ 补回：设置页面 (修复白屏) ★★★
-function renderSettings(){
-  const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
-  const displayUrl = s.apiUrl || CUSTOM_AI.URL;
-  const displayKey = s.apiKey || CUSTOM_AI.KEY;
-  const displayModel = s.model || CUSTOM_AI.MODEL;
-  
-  const div = document.createElement('div');
-  div.innerHTML = `
-    <h2 class="section-title">AI 设置</h2>
-    <div class="card">
-      <div class="setting-group">
-        <label>快速预设</label>
-        <select id="sPreset">
-          <option value="">请选择...</option>
-          <option value="silicon">SiliconFlow (硅基流动 - 推荐)</option>
-          <option value="groq">Groq</option>
-          <option value="openai">OpenAI</option>
-        </select>
-      </div>
-      <hr style="border:0;border-top:1px solid var(--separator);margin:16px 0">
-      <div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}"></div>
-      <div class="setting-group"><label>模型名称</label><input id="sModel" value="${displayModel}"></div>
-      <div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div>
-      <div class="right"><a class="btn ok" id="saveSet">保存</a></div>
-    </div>
-  `;
-  
-  const presets = { 
-    silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' }, 
-    groq: { url: 'https://api.groq.com/openai/v1/chat/completions', model: 'llama3-70b-8192' }, 
-    openai: { url: 'https://api.openai.com/v1/chat/completions', model: 'gpt-4o' } 
-  };
-  
-  div.querySelector('#sPreset').onchange = (e) => { 
-    const val = e.target.value; 
-    if(presets[val]) { 
-      div.querySelector('#sUrl').value = presets[val].url; 
-      div.querySelector('#sModel').value = presets[val].model; 
-    } 
-  };
-  
-  div.querySelector('#saveSet').onclick = () => { 
-    const newS = { 
-      apiUrl: div.querySelector('#sUrl').value.trim(), 
-      apiKey: div.querySelector('#sKey').value.trim(), 
-      model: div.querySelector('#sModel').value.trim() 
-    }; 
-    S.save(S.keys.settings, newS); 
-    alert('已保存，刷新后生效。'); 
-    location.reload();
-  };
-  return div;
 }
 
 async function onRoute(){ 
