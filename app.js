@@ -1,4 +1,4 @@
-// v80 app.js - 集成 HOC 菜谱 + 修复设置页 UI 重叠
+// v81 app.js - 使用 SVG 图标 + 修复隐藏元素 Bug
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -6,13 +6,13 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 
 // --- AI 配置 ---
 const CUSTOM_AI = {
-  URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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",
-  MODEL: "qwen/qwen3-32b", 
-  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
+  URL: "https://api.siliconflow.cn/v1/chat/completions",
+  KEY: "", 
+  MODEL: "Qwen/Qwen2.5-7B-Instruct", 
+  VISION_MODEL: "Qwen/Qwen2-VL-7B-Instruct" 
 };
 
-// --- 食材归一化字典 (保持 v62 修正) ---
+// --- 食材归一化字典 ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -105,7 +105,6 @@ function checkAlias(name) {
   return null;
 }
 
-// --- 佐料过滤 ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -158,7 +157,6 @@ async function loadBasePack(){
     }
   });
 
-  // ★★★ 集成 HOC 数据 ★★★
   const hocData = window.HOC_DATA || [];
   hocData.forEach(item => {
       if(!existingNames.has(item.name)){
@@ -167,7 +165,7 @@ async function loadBasePack(){
               id: newId,
               name: item.name,
               tags: item.tags || ["家常菜"],
-              staticMethod: item.method // 直接挂载做法
+              staticMethod: item.method
           });
           if(item.ingredients && Array.isArray(item.ingredients)){
               pack.recipe_ingredients[newId] = item.ingredients.map(ingName => ({
@@ -270,7 +268,8 @@ function getAiConfig() {
   const apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
-  if (!apiKey) return null;
+  
+  if (!apiKey) return null; 
   return { apiKey, apiUrl, textModel, visionModel };
 }
 
@@ -660,13 +659,38 @@ function renderHome(pack){
   return container; 
 }
 
+// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input ★★★
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
   const header = document.createElement('div'); header.className = 'section-title'; header.innerHTML = '<span>库存管理</span>'; wrap.appendChild(header);
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
-  searchDiv.innerHTML = `<div style="display:flex; gap:8px; width:100%; justify-content:flex-end;"><label class="btn ai icon-only" style="cursor:pointer;"><input type="file" id="camInput" accept="image/*" capture="environment" hidden>📷</label><a class="btn ok icon-only" id="toggleAddBtn">＋</a></div><div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>`; wrap.appendChild(searchDiv);
+  
+  // 使用 SVG 图标替换 Emoji，并强制 input 隐藏
+  searchDiv.innerHTML = `
+    <div style="display:flex; gap:8px; width:100%; justify-content:flex-end;">
+      <label class="btn ai icon-only" style="cursor:pointer;">
+        <input type="file" id="camInput" accept="image/*" capture="environment" style="display:none" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+      </label>
+      <a class="btn ok icon-only" id="toggleAddBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </a>
+    </div>
+    <div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>
+  `; 
+  wrap.appendChild(searchDiv);
+  
   const formContainer = document.createElement('div'); formContainer.className = 'add-form-container'; 
   formContainer.innerHTML = `<div style="display:flex; gap:8px; margin-bottom:8px;"><div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div><input id="addQty" type="number" step="1" placeholder="数量" style="width:70px;"><select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select></div><div style="display:flex; gap:8px;"><input id="addDate" type="date" value="${todayISO()}" style="flex:1;"><button id="addBtn" class="btn ok" style="flex:1;">入库</button></div>`; wrap.appendChild(formContainer);
-  searchDiv.querySelector('#toggleAddBtn').onclick = () => { formContainer.classList.toggle('open'); searchDiv.querySelector('#toggleAddBtn').textContent = formContainer.classList.contains('open') ? '－' : '＋'; };
+  searchDiv.querySelector('#toggleAddBtn').onclick = () => { 
+    formContainer.classList.toggle('open'); 
+    // Toggle icon (Plus vs Minus)
+    const btn = searchDiv.querySelector('#toggleAddBtn');
+    if (formContainer.classList.contains('open')) {
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
+    } else {
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
+    }
+  };
   formContainer.querySelector('#addName').addEventListener('input', (e)=>{ const val = e.target.value.trim(); const match = catalog.find(c => c.name === val); if(match && match.unit){ formContainer.querySelector('#addUnit').value = match.unit; } }); 
   formContainer.querySelector('#addBtn').onclick=()=>{ const name=formContainer.querySelector('#addName').value.trim(); if(!name) return alert('请输入食材名称'); const qty=+formContainer.querySelector('#addQty').value||0; const unit=formContainer.querySelector('#addUnit').value; const date=formContainer.querySelector('#addDate').value||todayISO(); upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:guessShelfDays(name, unit)}); formContainer.querySelector('#addName').value = ''; formContainer.querySelector('#addQty').value = ''; renderTable(); };
   const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th style="width:35%">食材</th><th style="width:20%">数量</th><th style="width:25%">保质</th><th class="right">操作</th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
@@ -699,10 +723,13 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
 // ★★★ 补回：菜谱列表页 (修复白屏) ★★★
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
+  // 使用 SVG 替换新建图标
   wrap.innerHTML = `
     <div class="controls" style="margin-bottom:16px;gap:10px;">
       <input id="search" placeholder="搜菜谱..." style="flex:1;padding:12px;border-radius:12px;border:1px solid var(--separator);">
-      <a class="btn ok" id="addBtn">＋ 新建</a>
+      <a class="btn ok icon-only" id="addBtn" title="新建菜谱">
+         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      </a>
       <a class="btn" id="exportBtn">导出</a>
       <label class="btn"><input type="file" id="importFile" hidden>导入</label>
     </div>
@@ -762,7 +789,7 @@ function renderRecipes(pack){
   return wrap; 
 }
 
-// ★★★ 修复设置 UI 重叠：使用 styles.css 中的垂直布局 ★★★
+// ★★★ 补回：设置页面 (修复白屏) ★★★
 function renderSettings(){
   const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
   const displayUrl = s.apiUrl || CUSTOM_AI.URL;
@@ -783,26 +810,10 @@ function renderSettings(){
         </select>
       </div>
       <hr style="border:0;border-top:1px solid var(--separator);margin:16px 0">
-      
-      <!-- 使用 setting-group 确保垂直排列 -->
-      <div class="setting-group">
-        <label>API 地址</label>
-        <input id="sUrl" value="${displayUrl}" placeholder="https://...">
-      </div>
-      
-      <div class="setting-group">
-        <label>模型名称</label>
-        <input id="sModel" value="${displayModel}" placeholder="例如: gpt-4o">
-      </div>
-      
-      <div class="setting-group">
-        <label>API Key</label>
-        <input id="sKey" type="password" value="${displayKey}" placeholder="sk-...">
-      </div>
-      
-      <div class="right">
-        <a class="btn ok" id="saveSet">保存设置</a>
-      </div>
+      <div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}"></div>
+      <div class="setting-group"><label>模型名称</label><input id="sModel" value="${displayModel}"></div>
+      <div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div>
+      <div class="right"><a class="btn ok" id="saveSet">保存</a></div>
     </div>
   `;
   
