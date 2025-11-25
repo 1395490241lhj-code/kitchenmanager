@@ -1,227 +1,60 @@
-/* Kitchen Assistant v79 - Fix Settings Overlap & Vertical Layout */
-
-:root {
-  /* --- 浅色模式 --- */
-  --bg-base: #F5F5F7;
-  --bg-card: #FFFFFF;
-  --bg-input: #E8E8ED;
-  
-  --text-main: #1D1D1F;
-  --text-secondary: #86868B;
-  
-  --primary: #0071E3;
-  --accent: #5E5CE6;
-  --success: #34C759;
-  --danger: #FF3B30;
-  --warning: #FF9500;
-  
-  --separator: rgba(0, 0, 0, 0.1);
-  --shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-  --radius-card: 18px;
-  --radius-btn: 980px;
-  
-  --nav-bg: rgba(255, 255, 255, 0.8);
-  --tag-bg: #F5F5F7;
-  
-  --aurora-1: #F5F5F7;
-  --aurora-2: #E5F0FF;
-  --aurora-3: #F2E6FF;
-  
-  /* 下拉箭头图标 (灰色) */
-  --select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-}
-
-/* --- 深色模式 --- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-base: #000000;
-    --bg-card: #1D1D1F;
-    --bg-input: #2C2C2E;
-    
-    --text-main: #F5F5F7;
-    --text-secondary: #86868B;
-    
-    --primary: #2997FF;
-    --accent: #5E5CE6;
-    
-    --separator: #38383A;
-    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    
-    --nav-bg: rgba(29, 29, 31, 0.8);
-    --tag-bg: #2C2C2E;
-    
-    --aurora-1: #000000;
-    --aurora-2: #101028;
-    --aurora-3: #1a1520;
-    
-    /* 下拉箭头图标 (浅灰) */
-    --select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-  }
-}
-
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-body {
-  margin: 0; padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  color: var(--text-main);
-  font-size: 17px;
-  line-height: 1.47059;
-  min-height: 100vh;
-  
-  background: radial-gradient(circle at 50% 0%, var(--aurora-2) 0%, var(--bg-base) 60%),
-              radial-gradient(circle at 80% 80%, var(--aurora-3) 0%, var(--bg-base) 60%);
-  background-color: var(--bg-base);
-  background-attachment: fixed;
-  transition: background-color 0.5s ease;
-}
-
-/* --- 顶部导航 --- */
-.topbar {
-  position: sticky; top: 0; z-index: 100;
-  background: var(--nav-bg);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid var(--separator);
-  padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
-}
-.topbar h1 { font-size: 19px; font-weight: 600; margin: 0; color: var(--text-main); }
-.topbar nav { display: flex; gap: 24px; }
-.topbar nav a { color: var(--text-secondary); text-decoration: none; font-size: 14px; font-weight: 400; transition: color 0.2s; }
-.topbar nav a.active { color: var(--text-main); font-weight: 600; }
-
-.container { max-width: 980px; margin: 0 auto; padding: 40px 20px 100px; }
-
-/* --- 标题 --- */
-.section-title {
-  font-size: 28px; line-height: 1.1; font-weight: 700; 
-  margin: 40px 0 20px; color: var(--text-main);
-  display: flex; justify-content: space-between; align-items: baseline;
-}
-
-/* --- 卡片 --- */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-.horizontal-scroll {
-  display: flex; overflow-x: auto; gap: 16px; padding: 4px 4px 30px; margin: 0 -20px;
-  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding-left: 20px; padding-right: 20px;
-}
-.horizontal-scroll::-webkit-scrollbar { display: none; }
-.horizontal-scroll .card { min-width: 85vw; max-width: 320px; flex-shrink: 0; scroll-snap-align: center; }
-@media (min-width: 600px) { .horizontal-scroll .card { min-width: 300px; } }
-
-.card {
-  background: var(--bg-card); border-radius: var(--radius-card); padding: 24px;
-  box-shadow: var(--shadow); display: flex; flex-direction: column; position: relative;
-  transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-.card:hover { transform: scale(1.01); }
-.card h3 { font-size: 21px; line-height: 1.2; font-weight: 600; margin: 0 0 8px 0; color: var(--text-main); }
-.meta { color: var(--text-secondary); font-size: 13px; font-weight: 500; margin-bottom: 16px; display: block; }
-
-/* --- ★★★ 表单布局核心修复 ★★★ --- */
-.setting-group {
-  display: flex;
-  flex-direction: column; /* 强制垂直排列：标签在上，输入框在下 */
-  align-items: flex-start;
-  margin-bottom: 24px;
-  width: 100%;
-}
-
-.setting-group label {
-  display: block;
-  margin-bottom: 10px;
-  color: var(--text-main);
-  font-weight: 600;
-  font-size: 15px;
-}
-
-/* 强制输入框占满整行 */
-input, select, textarea {
-  appearance: none; -webkit-appearance: none;
-  background: var(--bg-input); 
-  border: none; 
-  border-radius: 12px;
-  padding: 12px 16px; 
-  font-size: 17px; 
-  color: var(--text-main); 
-  font-family: inherit;
-  width: 100%; /* 关键：宽度100% */
-  box-sizing: border-box;
-  display: block;
-  min-height: 48px; /* 增加高度，更易点击 */
-  transition: background 0.2s, box-shadow 0.2s;
-}
-
-/* 修复下拉菜单箭头 */
-select {
-  background-image: var(--select-arrow);
-  background-position: right 16px center;
-  background-repeat: no-repeat;
-  background-size: 1.2em 1.2em;
-  padding-right: 40px;
-}
-
-input:focus, textarea:focus, select:focus { 
-  background: var(--bg-card); 
-  box-shadow: 0 0 0 2px var(--primary); 
-  outline: none; 
-}
-select option { background-color: var(--bg-card); color: var(--text-main); }
-
-/* 按钮右对齐容器 */
-.right { display: flex; justify-content: flex-end; width: 100%; margin-top: 20px; }
-
-/* --- 按钮 --- */
-.controls { margin-top: auto; padding-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.card .controls { justify-content: flex-start; }
-
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; padding: 8px 20px;
-  border-radius: var(--radius-btn); font-size: 15px; font-weight: 500; text-decoration: none; cursor: pointer; border: none;
-  user-select: none; white-space: nowrap; transition: all 0.2s;
-  background: var(--bg-input); color: var(--text-main);
-}
-.btn:active { transform: scale(0.96); opacity: 0.7; }
-.btn.ok { background: var(--primary); color: #FFFFFF; }
-.btn.ai { background: linear-gradient(135deg, #0071E3, #42A5F5); color: #FFFFFF; }
-.btn.bad { color: var(--danger); background: rgba(255, 59, 48, 0.1); }
-.btn.small { padding: 5px 12px; font-size: 13px; }
-.btn.icon-only { width: 40px; height: 40px; padding: 0; font-size: 20px; border-radius: 50%; }
-
-/* --- 列表 & 标签 --- */
-.ing-compact-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0; }
-.ing-tag-pill {
-  background: var(--tag-bg); border-radius: 6px; padding: 4px 8px;
-  font-size: 13px; font-weight: 500; color: var(--text-main);
-}
-.ing-tag-pill .qty { color: var(--text-secondary); margin-left: 4px; font-weight: 400; }
-
-.ing-list { margin: 0; padding: 0; list-style: none; }
-.ing-list li { padding: 12px 0; border-bottom: 1px solid var(--separator); display: flex; justify-content: space-between; font-size: 15px; }
-.ing-list li:last-child { border-bottom: none; }
-
-.kchip { font-size: 12px; font-weight: 600; padding: 2px 0; color: var(--text-secondary); background: none; }
-.kchip.ok { color: var(--success); }
-.kchip.warn { color: var(--warning); }
-.kchip.bad { color: var(--danger); }
-
-.ai-badge { font-size: 10px; font-weight: 700; color: #fff; background: var(--text-main); padding: 3px 8px; border-radius: 4px; margin-bottom: 8px; display: inline-block; }
-.ai-reason { background: var(--bg-input); padding: 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; color: var(--text-main); margin-top: 16px; }
-
-.add-form-container {
-  background: var(--bg-card); border-radius: 20px; padding: 20px; margin-bottom: 20px; display: none;
-  border: 1px solid var(--separator);
-}
-.add-form-container.open { display: block; animation: slideDown 0.3s ease; }
-
-/* 表格内输入框微调 */
-.table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-.table th { text-align: left; color: var(--text-secondary); font-size: 13px; padding: 12px 8px; border-bottom: 1px solid var(--separator); }
-.table td { border-bottom: 1px solid var(--separator); padding: 12px 8px; font-size: 15px; vertical-align: middle; }
-.table input, .table select { padding: 6px 10px; font-size: 14px; min-height: 36px; }
-.table .qty-input { width: 60px; text-align: center; }
-
-.spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.5); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; margin-right: 6px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes slideDown { from { opacity: 0; height: 0; overflow: hidden; } to { opacity: 1; height: auto; } }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+ (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
+diff --git a/styles.css b/styles.css
+index 8f2471b0156b22118a955b48ab2d38fddff5aba8..bd963c3f6d2e0eded19eec35379e145b7ff01287 100644
+--- a/styles.css
++++ b/styles.css
+@@ -165,50 +165,51 @@ input:focus, textarea:focus, select:focus {
+   background: var(--bg-card); 
+   box-shadow: 0 0 0 2px var(--primary); 
+   outline: none; 
+ }
+ select option { background-color: var(--bg-card); color: var(--text-main); }
+ 
+ /* 按钮右对齐容器 */
+ .right { display: flex; justify-content: flex-end; width: 100%; margin-top: 20px; }
+ 
+ /* --- 按钮 --- */
+ .controls { margin-top: auto; padding-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+ .card .controls { justify-content: flex-start; }
+ 
+ .btn {
+   display: inline-flex; align-items: center; justify-content: center; padding: 8px 20px;
+   border-radius: var(--radius-btn); font-size: 15px; font-weight: 500; text-decoration: none; cursor: pointer; border: none;
+   user-select: none; white-space: nowrap; transition: all 0.2s;
+   background: var(--bg-input); color: var(--text-main);
+ }
+ .btn:active { transform: scale(0.96); opacity: 0.7; }
+ .btn.ok { background: var(--primary); color: #FFFFFF; }
+ .btn.ai { background: linear-gradient(135deg, #0071E3, #42A5F5); color: #FFFFFF; }
+ .btn.bad { color: var(--danger); background: rgba(255, 59, 48, 0.1); }
+ .btn.small { padding: 5px 12px; font-size: 13px; }
+ .btn.icon-only { width: 40px; height: 40px; padding: 0; font-size: 20px; border-radius: 50%; }
++.btn.icon-only svg { width: 18px; height: 18px; stroke: currentColor; }
+ 
+ /* --- 列表 & 标签 --- */
+ .ing-compact-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0; }
+ .ing-tag-pill {
+   background: var(--tag-bg); border-radius: 6px; padding: 4px 8px;
+   font-size: 13px; font-weight: 500; color: var(--text-main);
+ }
+ .ing-tag-pill .qty { color: var(--text-secondary); margin-left: 4px; font-weight: 400; }
+ 
+ .ing-list { margin: 0; padding: 0; list-style: none; }
+ .ing-list li { padding: 12px 0; border-bottom: 1px solid var(--separator); display: flex; justify-content: space-between; font-size: 15px; }
+ .ing-list li:last-child { border-bottom: none; }
+ 
+ .kchip { font-size: 12px; font-weight: 600; padding: 2px 0; color: var(--text-secondary); background: none; }
+ .kchip.ok { color: var(--success); }
+ .kchip.warn { color: var(--warning); }
+ .kchip.bad { color: var(--danger); }
+ 
+ .ai-badge { font-size: 10px; font-weight: 700; color: #fff; background: var(--text-main); padding: 3px 8px; border-radius: 4px; margin-bottom: 8px; display: inline-block; }
+ .ai-reason { background: var(--bg-input); padding: 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; color: var(--text-main); margin-top: 16px; }
+ 
+ .add-form-container {
+   background: var(--bg-card); border-radius: 20px; padding: 20px; margin-bottom: 20px; display: none;
+   border: 1px solid var(--separator);
+ }
+ 
+EOF
+)
