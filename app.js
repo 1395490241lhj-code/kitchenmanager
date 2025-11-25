@@ -7,7 +7,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 (修正为 Groq 真实支持的模型) ---
 const CUSTOM_AI = {
   URL: "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)",
-  KEY: "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", // 您的 Key
+  KEY: "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", // 您的 Key
   // 文本模型：Groq 目前最强文本模型
   MODEL: "qwen/qwen3-32b", 
   // 视觉模型：Groq 目前最强视觉模型
