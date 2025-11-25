@@ -1,4 +1,4 @@
-/* Kitchen Assistant v79 - Fix Settings Overlap & Vertical Layout */
+/* Kitchen Assistant v81 - Fix Hidden Input Bug & Icons */
 
 :root {
   /* --- 浅色模式 --- */
@@ -27,7 +27,6 @@
   --aurora-2: #E5F0FF;
   --aurora-3: #F2E6FF;
   
-  /* 下拉箭头图标 (灰色) */
   --select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
 }
 
@@ -54,10 +53,12 @@
     --aurora-2: #101028;
     --aurora-3: #1a1520;
     
-    /* 下拉箭头图标 (浅灰) */
     --select-arrow: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
   }
 }
+
+/* ★★★ 核心修复：最高优先级隐藏 hidden 属性元素 ★★★ */
+[hidden] { display: none !important; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -118,57 +119,30 @@ body {
 .card h3 { font-size: 21px; line-height: 1.2; font-weight: 600; margin: 0 0 8px 0; color: var(--text-main); }
 .meta { color: var(--text-secondary); font-size: 13px; font-weight: 500; margin-bottom: 16px; display: block; }
 
-/* --- ★★★ 表单布局核心修复 ★★★ --- */
+/* --- 表单控件 --- */
 .setting-group {
-  display: flex;
-  flex-direction: column; /* 强制垂直排列：标签在上，输入框在下 */
-  align-items: flex-start;
-  margin-bottom: 24px;
-  width: 100%;
+  display: flex; flex-direction: column; align-items: flex-start;
+  margin-bottom: 24px; width: 100%;
 }
-
 .setting-group label {
-  display: block;
-  margin-bottom: 10px;
-  color: var(--text-main);
-  font-weight: 600;
-  font-size: 15px;
+  display: block; margin-bottom: 10px; color: var(--text-main); font-weight: 600; font-size: 15px;
 }
-
-/* 强制输入框占满整行 */
 input, select, textarea {
   appearance: none; -webkit-appearance: none;
-  background: var(--bg-input); 
-  border: none; 
-  border-radius: 12px;
-  padding: 12px 16px; 
-  font-size: 17px; 
-  color: var(--text-main); 
-  font-family: inherit;
-  width: 100%; /* 关键：宽度100% */
-  box-sizing: border-box;
-  display: block;
-  min-height: 48px; /* 增加高度，更易点击 */
-  transition: background 0.2s, box-shadow 0.2s;
+  background: var(--bg-input); border: none; border-radius: 12px;
+  padding: 12px 16px; font-size: 17px; color: var(--text-main); font-family: inherit;
+  width: 100%; box-sizing: border-box; display: block;
+  min-height: 48px; transition: background 0.2s, box-shadow 0.2s;
 }
-
-/* 修复下拉菜单箭头 */
 select {
   background-image: var(--select-arrow);
-  background-position: right 16px center;
-  background-repeat: no-repeat;
-  background-size: 1.2em 1.2em;
-  padding-right: 40px;
+  background-position: right 16px center; background-repeat: no-repeat;
+  background-size: 1.2em 1.2em; padding-right: 40px;
 }
-
 input:focus, textarea:focus, select:focus { 
-  background: var(--bg-card); 
-  box-shadow: 0 0 0 2px var(--primary); 
-  outline: none; 
+  background: var(--bg-card); box-shadow: 0 0 0 2px var(--primary); outline: none; 
 }
 select option { background-color: var(--bg-card); color: var(--text-main); }
-
-/* 按钮右对齐容器 */
 .right { display: flex; justify-content: flex-end; width: 100%; margin-top: 20px; }
 
 /* --- 按钮 --- */
@@ -186,7 +160,14 @@ select option { background-color: var(--bg-card); color: var(--text-main); }
 .btn.ai { background: linear-gradient(135deg, #0071E3, #42A5F5); color: #FFFFFF; }
 .btn.bad { color: var(--danger); background: rgba(255, 59, 48, 0.1); }
 .btn.small { padding: 5px 12px; font-size: 13px; }
-.btn.icon-only { width: 40px; height: 40px; padding: 0; font-size: 20px; border-radius: 50%; }
+
+/* 纯图标按钮优化 */
+.btn.icon-only { 
+  width: 44px; height: 44px; padding: 0; border-radius: 50%; 
+  display: flex; align-items: center; justify-content: center;
+}
+/* SVG 图标样式 */
+.btn svg { width: 22px; height: 22px; display: block; }
 
 /* --- 列表 & 标签 --- */
 .ing-compact-container { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 0; }
@@ -214,7 +195,6 @@ select option { background-color: var(--bg-card); color: var(--text-main); }
 }
 .add-form-container.open { display: block; animation: slideDown 0.3s ease; }
 
-/* 表格内输入框微调 */
 .table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 .table th { text-align: left; color: var(--text-secondary); font-size: 13px; padding: 12px 8px; border-bottom: 1px solid var(--separator); }
 .table td { border-bottom: 1px solid var(--separator); padding: 12px 8px; font-size: 15px; vertical-align: middle; }
