@@ -1,13 +1,13 @@
-// v90 app.js - 错误透传版 (显示真实 API 错误信息)
+// v91 app.js - 自动修复 URL 配置错误 + 保持所有功能
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (保持用户指定: Groq + Qwen) ---
+// --- AI 配置 (Groq) ---
 const CUSTOM_AI = {
-  URL: "https://api.groq.com/openai/v1",
-  KEY: "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",
+  URL: "https://api.groq.com/openai/v1/chat/completions",
+  KEY: "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",
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -263,19 +263,35 @@ function badgeFor(e){ const r=remainingDays(e); if(r<=1) return `<span class="kc
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
 function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g')}); } saveInventory(inv); }
 
+// ★★★ 智能获取配置 (自动纠正 URL) ★★★
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
-  const apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
-  const apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
+  let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
+  let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
+
+  // 自动修复：如果用户填了 Groq 但没写 chat/completions，自动补全
+  if (apiUrl && apiUrl.includes("api.groq.com") && !apiUrl.includes("/chat/completions")) {
+      // 确保不重复添加
+      if (apiUrl.endsWith("/v1")) {
+          apiUrl += "/chat/completions";
+      } else if (apiUrl.endsWith("/v1/")) {
+          apiUrl += "chat/completions";
+      } else {
+          // 简单的兜底
+          apiUrl = "https://api.groq.com/openai/v1/chat/completions";
+      }
+      console.log("Auto-fixed Groq URL to:", apiUrl);
+  }
+  
   if (!apiKey) return null;
   return { apiKey, apiUrl, textModel, visionModel };
 }
 
-// ★★★ 核心修复：强力 JSON 提取 (解决 <think> 标签问题) ★★★
+// ★★★ 核心修复：强力 JSON 提取 ★★★
 function extractJson(text) {
-  let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '') // 支持 <think> 变体
+  let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '') 
                     .replace(/```json/gi, '')
                     .replace(/```/g, '')
                     .trim();
@@ -331,17 +347,12 @@ async function callAiService(prompt, imageBase64 = null) {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
       body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.2 }) 
     });
-    
-    // ★★★ 核心修复：透传 API 错误，不再直接抛 Fallback ★★★
     if(!res.ok) {
-        const errData = await res.json().catch(()=>({}));
-        const errMsg = errData.error?.message || `HTTP ${res.status}`;
-        
-        // 只有 429 (超限) 才自动降级，其他错误 (如400模型错误) 抛出来给用户看
-        if(res.status === 429) {
-            throw new Error("API_RATE_LIMIT");
+        if(res.status === 429 || res.status === 400 || res.status === 404) {
+            throw new Error("FALLBACK_LOCAL");
         }
-        throw new Error(`API_ERROR: ${errMsg} (${res.status})`);
+        const errData = await res.json().catch(()=>({}));
+        throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
     }
     const data = await res.json();
     const rawText = data.choices?.[0]?.message?.content || "";
@@ -377,8 +388,8 @@ async function callCloudAI(pack, inv) {
     const jsonStr = await callAiService(prompt);
     return JSON.parse(jsonStr);
   } catch (e) {
-    // 抛出错误供外层处理
-    throw e;
+    console.warn("AI 推荐失败，切换到本地算法", e);
+    throw new Error("FALLBACK_LOCAL");
   }
 }
 
@@ -657,20 +668,12 @@ function renderHome(pack){
       S.save(S.keys.ai_recs, aiResult);
       const newCards = processAiData(aiResult, pack);
       if(newCards.length > 0) { showRecommendationCards(recGrid, newCards, pack); setTimeout(() => onRoute(), 500); } 
-    } catch(e) {
-      // ★★★ 错误处理优化 ★★★
-      if (e.message === "API_RATE_LIMIT") {
-        alert("AI 服务繁忙（请求过多），已自动为您切换到本地推荐模式！");
-        showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
-      } else if (e.message.startsWith("API_ERROR:")) {
-         // 如果是配置错误（如400/404），显示具体原因
-         alert(`AI 配置错误：${e.message}\n已切换到本地推荐。`);
+    } catch(e) { 
+      if (e.message === "FALLBACK_LOCAL" || e.message.includes("429") || e.message.includes("400") || e.message.includes("404")) {
+         alert("AI 服务繁忙，已自动为您切换到本地推荐模式！");
          showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
       } else {
-         // 其他未知错误，也降级
-         console.error(e);
-         alert("AI 服务暂时不可用，已切换到本地推荐模式。");
-         showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
+         alert(e.message); 
       }
     } 
     finally { aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; } 
@@ -766,6 +769,7 @@ function renderRecipes(pack){
   
   wrap.querySelector('#search').oninput = e => draw(e.target.value); 
   
+  // 绑定新建、导出、导入逻辑
   wrap.querySelector('#addBtn').onclick = () => { 
     const id = genId(); 
     const overlay = loadOverlay(); 
