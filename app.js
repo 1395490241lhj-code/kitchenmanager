@@ -7,7 +7,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 (保持用户指定: Groq + Qwen) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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",
+  KEY: "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",
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
