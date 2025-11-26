@@ -1,10 +1,10 @@
-// v91 app.js - 自动修复 URL 配置错误 + 保持所有功能
+// v92 app.js - 智能兼容修复版 (自动修正 Groq URL 和 Model)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (Groq) ---
+// --- AI 配置 (保持原样，逻辑层自动修复) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
@@ -263,33 +263,33 @@ function badgeFor(e){ const r=remainingDays(e); if(r<=1) return `<span class="kc
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
 function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g')}); } saveInventory(inv); }
 
-// ★★★ 智能获取配置 (自动纠正 URL) ★★★
+// ★★★ 核心修复：智能配置获取与自动纠错 ★★★
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
+  
   let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
-  const textModel = localSettings.model || CUSTOM_AI.MODEL;
+  let model = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
 
-  // 自动修复：如果用户填了 Groq 但没写 chat/completions，自动补全
+  // 1. 自动修复 URL：如果是 Groq 但没写 chat/completions，自动补全
   if (apiUrl && apiUrl.includes("api.groq.com") && !apiUrl.includes("/chat/completions")) {
-      // 确保不重复添加
+      // 移除末尾斜杠
+      apiUrl = apiUrl.replace(/\/$/, '');
       if (apiUrl.endsWith("/v1")) {
           apiUrl += "/chat/completions";
-      } else if (apiUrl.endsWith("/v1/")) {
-          apiUrl += "chat/completions";
       } else {
-          // 简单的兜底
+          // 默认补全
           apiUrl = "https://api.groq.com/openai/v1/chat/completions";
       }
       console.log("Auto-fixed Groq URL to:", apiUrl);
   }
-  
+
   if (!apiKey) return null;
-  return { apiKey, apiUrl, textModel, visionModel };
+  return { apiKey, apiUrl, textModel: model, visionModel };
 }
 
-// ★★★ 核心修复：强力 JSON 提取 ★★★
+// ★★★ 核心修复：暴力 JSON 提取 (解决 <think> 标签问题) ★★★
 function extractJson(text) {
   let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '') 
                     .replace(/```json/gi, '')
@@ -335,19 +335,33 @@ async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
   if (!conf) throw new Error("未配置 API Key，转为本地模式");
 
+  // ★★★ 核心修复：自动适配模型 (Groq 不支持 Qwen) ★★★
+  // 如果检测到是 Groq 平台，强制切换为 Llama-3，防止 400 错误
+  let activeModel = conf.textModel;
+  if (conf.apiUrl.includes("groq.com") && activeModel.toLowerCase().includes("qwen")) {
+      console.warn("Detected Groq + Qwen mismatch. Auto-switching to Llama-3.3.");
+      activeModel = "llama-3.3-70b-versatile"; // Groq 官方支持的模型
+  }
+
+  if (imageBase64) {
+     activeModel = conf.visionModel; // 视觉模型保持默认 (Llama 3.2 Vision)
+  }
+
   let messages = [];
-  let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
   if (imageBase64) {
     messages = [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: imageBase64 } }] }];
   } else {
     messages = [{ role: "user", content: prompt }];
   }
+
   try {
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
       body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.2 }) 
     });
+    
     if(!res.ok) {
+        // 遇到错误，抛出特定代码触发降级
         if(res.status === 429 || res.status === 400 || res.status === 404) {
             throw new Error("FALLBACK_LOCAL");
         }
@@ -388,8 +402,8 @@ async function callCloudAI(pack, inv) {
     const jsonStr = await callAiService(prompt);
     return JSON.parse(jsonStr);
   } catch (e) {
-    console.warn("AI 推荐失败，切换到本地算法", e);
-    throw new Error("FALLBACK_LOCAL");
+    // 抛出错误让外层捕获并降级
+    throw e;
   }
 }
 
