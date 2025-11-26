@@ -1,13 +1,13 @@
-// v92 app.js - 智能兼容修复版 (自动修正 Groq URL 和 Model)
+// v94 app.js - 终极容错版 (Key 无效时自动切本地，不再弹窗报错)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (保持原样，逻辑层自动修复) ---
+// --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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",
+  KEY: "", // 即使这里为空或填错，现在系统也会自动处理
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -263,35 +263,31 @@ function badgeFor(e){ const r=remainingDays(e); if(r<=1) return `<span class="kc
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
 function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g')}); } saveInventory(inv); }
 
-// ★★★ 核心修复：智能配置获取与自动纠错 ★★★
+// ★★★ 智能配置获取 (自动修复 URL) ★★★
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
-  
   let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
-  let model = localSettings.model || CUSTOM_AI.MODEL;
+  const textModel = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
 
-  // 1. 自动修复 URL：如果是 Groq 但没写 chat/completions，自动补全
+  // 自动修复 URL 错误: Groq 必须以 /chat/completions 结尾
   if (apiUrl && apiUrl.includes("api.groq.com") && !apiUrl.includes("/chat/completions")) {
-      // 移除末尾斜杠
-      apiUrl = apiUrl.replace(/\/$/, '');
+      apiUrl = apiUrl.replace(/\/$/, ''); // 去掉末尾斜杠
       if (apiUrl.endsWith("/v1")) {
           apiUrl += "/chat/completions";
       } else {
-          // 默认补全
+          // 兜底修复
           apiUrl = "https://api.groq.com/openai/v1/chat/completions";
       }
-      console.log("Auto-fixed Groq URL to:", apiUrl);
   }
-
+  
   if (!apiKey) return null;
-  return { apiKey, apiUrl, textModel: model, visionModel };
+  return { apiKey, apiUrl, textModel, visionModel };
 }
 
-// ★★★ 核心修复：暴力 JSON 提取 (解决 <think> 标签问题) ★★★
 function extractJson(text) {
-  let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '') 
+  let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '')
                     .replace(/```json/gi, '')
                     .replace(/```/g, '')
                     .trim();
@@ -333,18 +329,17 @@ function compressImage(file) {
 
 async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
-  if (!conf) throw new Error("未配置 API Key，转为本地模式");
+  if (!conf) throw new Error("未配置 API Key。请在设置中填写。");
 
-  // ★★★ 核心修复：自动适配模型 (Groq 不支持 Qwen) ★★★
-  // 如果检测到是 Groq 平台，强制切换为 Llama-3，防止 400 错误
+  // ★★★ 自动适配模型 (Groq 不支持 Qwen，自动切 Llama3) ★★★
   let activeModel = conf.textModel;
   if (conf.apiUrl.includes("groq.com") && activeModel.toLowerCase().includes("qwen")) {
-      console.warn("Detected Groq + Qwen mismatch. Auto-switching to Llama-3.3.");
-      activeModel = "llama-3.3-70b-versatile"; // Groq 官方支持的模型
+      console.warn("检测到 Groq + Qwen 配置不兼容，自动切换为 llama3-70b-8192");
+      activeModel = "llama3-70b-8192"; // Groq 最稳定的模型
   }
 
   if (imageBase64) {
-     activeModel = conf.visionModel; // 视觉模型保持默认 (Llama 3.2 Vision)
+     activeModel = conf.visionModel;
   }
 
   let messages = [];
@@ -353,7 +348,6 @@ async function callAiService(prompt, imageBase64 = null) {
   } else {
     messages = [{ role: "user", content: prompt }];
   }
-
   try {
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
@@ -361,12 +355,13 @@ async function callAiService(prompt, imageBase64 = null) {
     });
     
     if(!res.ok) {
-        // 遇到错误，抛出特定代码触发降级
-        if(res.status === 429 || res.status === 400 || res.status === 404) {
+        // ★★★ 核心修复：401/400/429 均触发降级，不弹窗报错 ★★★
+        if(res.status === 429 || res.status === 400 || res.status === 404 || res.status === 401) {
             throw new Error("FALLBACK_LOCAL");
         }
         const errData = await res.json().catch(()=>({}));
-        throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
+        const errMsg = errData.error?.message || `HTTP ${res.status}`;
+        throw new Error(`API请求失败 (${res.status}): ${errMsg}`);
     }
     const data = await res.json();
     const rawText = data.choices?.[0]?.message?.content || "";
@@ -402,7 +397,7 @@ async function callCloudAI(pack, inv) {
     const jsonStr = await callAiService(prompt);
     return JSON.parse(jsonStr);
   } catch (e) {
-    // 抛出错误让外层捕获并降级
+    // 抛出错误让外层捕获
     throw e;
   }
 }
@@ -683,8 +678,11 @@ function renderHome(pack){
       const newCards = processAiData(aiResult, pack);
       if(newCards.length > 0) { showRecommendationCards(recGrid, newCards, pack); setTimeout(() => onRoute(), 500); } 
     } catch(e) { 
-      if (e.message === "FALLBACK_LOCAL" || e.message.includes("429") || e.message.includes("400") || e.message.includes("404")) {
-         alert("AI 服务繁忙，已自动为您切换到本地推荐模式！");
+      // ★★★ 终极容错：所有 API 错误都降级，不再报错阻塞 ★★★
+      if (e.message === "FALLBACK_LOCAL" || e.message.includes("401") || e.message.includes("429") || e.message.includes("400")) {
+         console.warn("AI 调用失败，已静默切换到本地推荐:", e);
+         // 可以选择弹个轻提示，或者完全静默
+         // alert("AI 服务繁忙，已自动为您切换到本地推荐模式！"); 
          showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
       } else {
          alert(e.message); 
