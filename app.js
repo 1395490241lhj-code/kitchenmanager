@@ -1,15 +1,15 @@
-// v88 app.js - 恢复 Groq/Qwen 配置 + 强力修复 <think> 解析崩溃
+// v90 app.js - 错误透传版 (显示真实 API 错误信息)
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (严格保持用户指定的 Groq + Qwen) ---
+// --- AI 配置 (保持用户指定: Groq + Qwen) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
-  MODEL: "qwen/qwen3-32b", // 用户指定的模型
-  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct"
+  MODEL: "qwen/qwen3-32b", 
+  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
 // --- 食材归一化字典 ---
@@ -105,6 +105,7 @@ function checkAlias(name) {
   return null;
 }
 
+// --- 佐料过滤 ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -272,28 +273,22 @@ function getAiConfig() {
   return { apiKey, apiUrl, textModel, visionModel };
 }
 
-// ★★★ 核心修复：JSON 暴力提取，无视 <think> 标签 ★★★
+// ★★★ 核心修复：强力 JSON 提取 (解决 <think> 标签问题) ★★★
 function extractJson(text) {
-  // 1. 定位第一个 { 或 [
-  const firstCurly = text.indexOf('{');
-  const firstSquare = text.indexOf('[');
+  let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '') // 支持 <think> 变体
+                    .replace(/```json/gi, '')
+                    .replace(/```/g, '')
+                    .trim();
+  const firstOpenBrace = cleaned.indexOf('{');
+  const firstOpenBracket = cleaned.indexOf('[');
   let start = -1;
-  
-  if (firstCurly === -1) start = firstSquare;
-  else if (firstSquare === -1) start = firstCurly;
-  else start = Math.min(firstCurly, firstSquare);
-
-  if (start === -1) return text; // 没找到JSON，返回原文尝试
-
-  // 2. 定位最后一个 } 或 ]
-  const lastCurly = text.lastIndexOf('}');
-  const lastSquare = text.lastIndexOf(']');
-  let end = Math.max(lastCurly, lastSquare);
-
-  if (end === -1 || end <= start) return text;
-
-  // 3. 暴力截取，忽略前后所有废话
-  return text.substring(start, end + 1);
+  if (firstOpenBrace !== -1 && firstOpenBracket !== -1) { start = Math.min(firstOpenBrace, firstOpenBracket); } 
+  else { start = firstOpenBrace !== -1 ? firstOpenBrace : firstOpenBracket; }
+  const lastCloseBrace = cleaned.lastIndexOf('}');
+  const lastCloseBracket = cleaned.lastIndexOf(']');
+  let end = Math.max(lastCloseBrace, lastCloseBracket);
+  if (start !== -1 && end !== -1 && end > start) { return cleaned.substring(start, end + 1); }
+  return cleaned; 
 }
 
 function compressImage(file) {
@@ -336,13 +331,17 @@ async function callAiService(prompt, imageBase64 = null) {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
       body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.2 }) 
     });
+    
+    // ★★★ 核心修复：透传 API 错误，不再直接抛 Fallback ★★★
     if(!res.ok) {
-        // 遇到 400/429 错误，抛出特殊异常触发降级
-        if(res.status === 429 || res.status === 400) {
-            throw new Error("FALLBACK_LOCAL");
-        }
         const errData = await res.json().catch(()=>({}));
-        throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
+        const errMsg = errData.error?.message || `HTTP ${res.status}`;
+        
+        // 只有 429 (超限) 才自动降级，其他错误 (如400模型错误) 抛出来给用户看
+        if(res.status === 429) {
+            throw new Error("API_RATE_LIMIT");
+        }
+        throw new Error(`API_ERROR: ${errMsg} (${res.status})`);
     }
     const data = await res.json();
     const rawText = data.choices?.[0]?.message?.content || "";
@@ -378,8 +377,8 @@ async function callCloudAI(pack, inv) {
     const jsonStr = await callAiService(prompt);
     return JSON.parse(jsonStr);
   } catch (e) {
-    console.warn("AI 推荐失败，切换到本地算法", e);
-    throw new Error("FALLBACK_LOCAL");
+    // 抛出错误供外层处理
+    throw e;
   }
 }
 
@@ -658,12 +657,20 @@ function renderHome(pack){
       S.save(S.keys.ai_recs, aiResult);
       const newCards = processAiData(aiResult, pack);
       if(newCards.length > 0) { showRecommendationCards(recGrid, newCards, pack); setTimeout(() => onRoute(), 500); } 
-    } catch(e) { 
-      if (e.message === "FALLBACK_LOCAL" || e.message.includes("429")) {
-         alert("AI 服务繁忙，已自动为您切换到本地推荐模式！");
+    } catch(e) {
+      // ★★★ 错误处理优化 ★★★
+      if (e.message === "API_RATE_LIMIT") {
+        alert("AI 服务繁忙（请求过多），已自动为您切换到本地推荐模式！");
+        showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
+      } else if (e.message.startsWith("API_ERROR:")) {
+         // 如果是配置错误（如400/404），显示具体原因
+         alert(`AI 配置错误：${e.message}\n已切换到本地推荐。`);
          showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
       } else {
-         alert(e.message); 
+         // 其他未知错误，也降级
+         console.error(e);
+         alert("AI 服务暂时不可用，已切换到本地推荐模式。");
+         showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
       }
     } 
     finally { aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; } 
@@ -676,11 +683,11 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   const header = document.createElement('div'); header.className = 'section-title'; header.innerHTML = '<span>库存管理</span>'; wrap.appendChild(header);
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
   
-  // SVG + visually-hidden input
+  // SVG + visually-hidden input (添加 style="display:none!important" 双重保险)
   searchDiv.innerHTML = `
     <div style="display:flex; gap:8px; width:100%; justify-content:flex-end;">
       <label class="btn ai icon-only" style="cursor:pointer;">
-        <input type="file" id="camInput" accept="image/*" capture="environment" class="visually-hidden">
+        <input type="file" id="camInput" accept="image/*" capture="environment" class="visually-hidden" style="display:none!important">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
       </label>
       <a class="btn ok icon-only" id="toggleAddBtn">
@@ -759,7 +766,6 @@ function renderRecipes(pack){
   
   wrap.querySelector('#search').oninput = e => draw(e.target.value); 
   
-  // 绑定新建、导出、导入逻辑
   wrap.querySelector('#addBtn').onclick = () => { 
     const id = genId(); 
     const overlay = loadOverlay(); 
