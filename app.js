@@ -1,4 +1,4 @@
-// v105 app.js - 修复移动端点击无反应 + 按钮防卡死终极版
+// v106 app.js - 修复移动端点击不灵敏 (回归标准 Click) + 完整功能
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -667,12 +667,14 @@ function renderHome(pack){
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   
-  // ★★★ 修复移动端点击问题：绑定 touchend 和 click，防止事件冲突 ★★★
-  const handleAiClick = async (e) => {
-    e.preventDefault(); // 防止重复触发
+  // ★★★ 修复移动端点击问题：回归标准 click 事件，移除 touchend 避免冲突 ★★★
+  aiBtn.onclick = async () => {
     if (aiBtn.getAttribute('disabled')) return;
     
     aiBtn.setAttribute('disabled', 'true');
+    // 增加微小延迟，确保 UI 状态更新
+    await new Promise(r => setTimeout(r, 50));
+    
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
     
     // 超时保护
@@ -709,15 +711,8 @@ function renderHome(pack){
     finally { 
       aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; 
       aiBtn.removeAttribute('disabled'); 
-      // 强制重绘，解决移动端状态残留
-      aiBtn.style.display = 'none';
-      aiBtn.offsetHeight; 
-      aiBtn.style.display = '';
     } 
   };
-
-  aiBtn.addEventListener('click', handleAiClick);
-  aiBtn.addEventListener('touchend', handleAiClick);
   
   return container; 
 }
