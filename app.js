@@ -1,10 +1,10 @@
-// v104 app.js - 修复 AI 按钮超时卡死 Bug + 保持模型配置
+// v105 app.js - 修复移动端点击无反应 + 按钮防卡死终极版
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (保持用户指定: Groq + Qwen) ---
+// --- AI 配置 (保持用户指定) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
@@ -666,16 +666,20 @@ function renderHome(pack){
   } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
-  aiBtn.onclick = async () => { 
+  
+  // ★★★ 修复移动端点击问题：绑定 touchend 和 click，防止事件冲突 ★★★
+  const handleAiClick = async (e) => {
+    e.preventDefault(); // 防止重复触发
     if (aiBtn.getAttribute('disabled')) return;
+    
     aiBtn.setAttribute('disabled', 'true');
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
     
-    // ★★★ 超时保护修复：必须移除 disabled 属性 ★★★
+    // 超时保护
     const safetyTimer = setTimeout(() => {
        aiBtn.innerHTML = '✨ 呼叫 AI'; 
        aiBtn.style.opacity = '1';
-       aiBtn.removeAttribute('disabled'); // 关键修复
+       aiBtn.removeAttribute('disabled'); 
        alert("AI 响应超时，已自动切换到本地推荐。");
        showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
     }, 15000);
@@ -704,9 +708,17 @@ function renderHome(pack){
     } 
     finally { 
       aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; 
-      aiBtn.removeAttribute('disabled'); // 无论成功失败都解锁
+      aiBtn.removeAttribute('disabled'); 
+      // 强制重绘，解决移动端状态残留
+      aiBtn.style.display = 'none';
+      aiBtn.offsetHeight; 
+      aiBtn.style.display = '';
     } 
-  }; 
+  };
+
+  aiBtn.addEventListener('click', handleAiClick);
+  aiBtn.addEventListener('touchend', handleAiClick);
+  
   return container; 
 }
 
