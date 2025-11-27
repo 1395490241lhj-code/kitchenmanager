@@ -1,4 +1,4 @@
-/* Kitchen Assistant v86 - Final Icon & Hidden Input Fix */
+/* Kitchen Assistant v108 - Fix Mobile Black Screen & Rendering */
 
 :root {
   /* --- 浅色模式 --- */
@@ -60,7 +60,6 @@
   }
 }
 
-/* ★★★ 核心修复：彻底隐藏 hidden 元素，防止 Input 破坏布局 ★★★ */
 [hidden] { display: none !important; }
 .visually-hidden {
   position: absolute !important;
@@ -85,13 +84,14 @@ body {
   min-height: 100vh;
   
   background-color: var(--bg-base);
+  /* 核心修复：使用 scroll 而非 fixed，防止 iOS 渲染问题 */
   background-image: 
     radial-gradient(at 0% 0%, var(--aurora-1) 0px, transparent 50%),
     radial-gradient(at 100% 0%, var(--aurora-2) 0px, transparent 50%),
     radial-gradient(at 100% 100%, var(--aurora-3) 0px, transparent 50%),
     radial-gradient(at 0% 100%, var(--aurora-1) 0px, transparent 50%);
-  background-size: 180% 180%;
-  background-attachment: fixed;
+  background-size: 200% 200%; /* 稍微放大渐变 */
+  background-attachment: scroll; 
   animation: auroraFlow 20s ease-in-out infinite alternate;
   transition: background-color 0.5s;
 }
@@ -117,7 +117,12 @@ body {
   font-size: 20px; font-weight: 800; margin: 0; 
   background: linear-gradient(90deg, var(--primary), var(--accent));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  color: var(--primary); 
 }
+@supports (-webkit-background-clip: text) {
+  .topbar h1 { color: transparent; }
+}
+
 .topbar nav { display: flex; gap: 20px; }
 .topbar nav a { color: var(--text-secondary); text-decoration: none; font-size: 15px; font-weight: 600; transition: color 0.2s; }
 .topbar nav a.active { color: var(--text-main); transform: scale(1.05); }
@@ -170,7 +175,6 @@ body {
 .btn.bad { background: rgba(255, 59, 48, 0.15); color: var(--danger); }
 .btn.small { padding: 6px 12px; font-size: 12px; }
 
-/* ★★★ 圆形图标按钮 ★★★ */
 .btn.icon-only {
   width: 44px; height: 44px; padding: 0; border-radius: 50%; 
   display: flex; align-items: center; justify-content: center;
