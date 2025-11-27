@@ -1,14 +1,13 @@
-// v103 app.js - 恢复截图中的模型配置 + 购物清单修复 + 智能兼容
+// v104 app.js - 修复 AI 按钮超时卡死 Bug + 保持模型配置
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (已恢复为截图中的配置) ---
+// --- AI 配置 (保持用户指定: Groq + Qwen) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
-  // 恢复为您要求的配置
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -632,9 +631,6 @@ function renderRecipeSearchResults(query, pack, inv) {
   return container;
 }
 
-// ★★★ 核心修复：防止 AI 按钮卡死 (使用状态位 + 超时重置) ★★★
-let isAiThinking = false;
-
 function renderHome(pack){ 
   const container = document.createElement('div'); 
   const catalog = buildCatalog(pack); 
@@ -671,63 +667,50 @@ function renderHome(pack){
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   aiBtn.onclick = async () => { 
-    // ★★★ 按钮状态管理：防止重复点击 ★★★
-    if (isAiThinking) return;
-    isAiThinking = true;
-    aiBtn.style.opacity = '0.7'; 
-    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; 
-
-    // 15秒超时强制重置，防止卡死
+    if (aiBtn.getAttribute('disabled')) return;
+    aiBtn.setAttribute('disabled', 'true');
+    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
+    
+    // ★★★ 超时保护修复：必须移除 disabled 属性 ★★★
     const safetyTimer = setTimeout(() => {
-       if(isAiThinking) {
-           isAiThinking = false;
-           aiBtn.innerHTML = '✨ 呼叫 AI'; 
-           aiBtn.style.opacity = '1';
-           alert("AI 响应超时，已自动切换到本地推荐。");
-           showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
-       }
+       aiBtn.innerHTML = '✨ 呼叫 AI'; 
+       aiBtn.style.opacity = '1';
+       aiBtn.removeAttribute('disabled'); // 关键修复
+       alert("AI 响应超时，已自动切换到本地推荐。");
+       showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
     }, 15000);
 
     try { 
       const aiResult = await callCloudAI(pack, inv); 
-      clearTimeout(safetyTimer); // 成功返回，清除超时定时器
+      clearTimeout(safetyTimer);
       S.save(S.keys.ai_recs, aiResult);
       const newCards = processAiData(aiResult, pack);
       if(newCards.length > 0) { 
           showRecommendationCards(recGrid, newCards, pack); 
-          // 动态添加“清除”按钮
           if (!recDiv.querySelector('#clearAiBtn') && !recDiv.querySelector('.btn.bad.small')) {
-               const clearBtn = document.createElement('a'); 
-               clearBtn.className = 'btn bad small'; 
-               clearBtn.id = 'clearAiBtn';
-               clearBtn.style.marginLeft='10px'; 
-               clearBtn.textContent = '清除推荐';
+               const clearBtn = document.createElement('a'); clearBtn.className = 'btn bad small'; clearBtn.id = 'clearAiBtn'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除推荐';
                clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
                recDiv.querySelector('.section-title').appendChild(clearBtn);
           }
       } 
     } catch(e) { 
       clearTimeout(safetyTimer);
-      // ★★★ 终极容错：所有错误都降级到本地推荐 ★★★
       if (e.message === "FALLBACK_LOCAL" || e.message.includes("401") || e.message.includes("429") || e.message.includes("400") || e.message.includes("404")) {
-         console.warn("AI 调用失败 (已降级):", e.message);
-         // 强制刷新本地推荐（第三个参数 true）
+         console.warn("AI 调用失败，已静默切换到本地推荐:", e);
          showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
       } else {
-         alert("AI 错误：" + e.message); 
-         showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
+         alert(e.message); 
       }
     } 
     finally { 
-      isAiThinking = false;
-      aiBtn.innerHTML = '✨ 呼叫 AI'; 
-      aiBtn.style.opacity = '1'; 
+      aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; 
+      aiBtn.removeAttribute('disabled'); // 无论成功失败都解锁
     } 
   }; 
   return container; 
 }
 
-// ★★★ 核心补全：renderShopping 函数 (修复清单白屏) ★★★
+// ★★★ 补回：购物清单 (renderShopping) ★★★
 function renderShopping(pack){
   const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
   const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
