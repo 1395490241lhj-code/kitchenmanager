@@ -1,10 +1,10 @@
-// v98 app.js - 修复购物清单白屏 (补回 renderShopping) + 保持所有 AI/UI 修复
+// v99 app.js - 强制刷新推荐 (修复点击无变化) + 防抖 + 完整功能
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (保持用户指定: Groq + Qwen) ---
+// --- AI 配置 (Groq) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
@@ -419,16 +419,19 @@ function calculateStockStatus(recipe, pack, inv) {
   return { status: 'none', missing };
 }
 
-function getLocalRecommendations(pack, inv) {
+function getLocalRecommendations(pack, inv, forceRefresh = false) {
   const now = Date.now();
   const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
   const savedRecs = S.load(S.keys.local_recs, null);
-  if (savedRecs && (now - lastRecTime < 3600000)) {
+
+  // ★★★ 核心修复：如果强制刷新 (forceRefresh)，则忽略缓存，重新生成 ★★★
+  if (!forceRefresh && savedRecs && (now - lastRecTime < 3600000)) {
     return savedRecs.map(s => {
        const r = (pack.recipes||[]).find(x => x.id === s.id);
        return r ? { r, matchCount: s.matchCount, reason: s.reason } : null;
     }).filter(Boolean);
   }
+  
   const invCanons = inv.map(x => getCanonicalName(x.name)).filter(Boolean);
   let scores = [];
   if (invCanons.length > 0) {
@@ -485,7 +488,6 @@ function searchResultCard(r, statusData) {
   return card;
 }
 
-// ★★★ 全局函数：展示推荐卡片 (修复引用问题) ★★★
 function showRecommendationCards(container, list, pack) { 
   container.innerHTML = ''; 
   if(!list || list.length===0) { 
@@ -657,48 +659,44 @@ function renderHome(pack){
      const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
        showRecommendationCards(recGrid, savedCards, pack);
-       if (!recDiv.querySelector('#clearAiBtn')) {
-           const clearBtn = document.createElement('a'); 
-           clearBtn.className = 'btn bad small'; 
-           clearBtn.id = 'clearAiBtn';
-           clearBtn.style.marginLeft='10px'; 
-           clearBtn.textContent = '清除推荐';
-           clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
-           recDiv.querySelector('.section-title').appendChild(clearBtn);
-       }
+       const clearBtn = document.createElement('a'); clearBtn.className = 'btn bad small'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除';
+       clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+       recDiv.querySelector('.section-title').appendChild(clearBtn);
      } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   aiBtn.onclick = async () => { 
+    // 防抖
+    if (aiBtn.getAttribute('disabled')) return;
+    aiBtn.setAttribute('disabled', 'true');
+    
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
     try { 
       const aiResult = await callCloudAI(pack, inv); 
       S.save(S.keys.ai_recs, aiResult);
       const newCards = processAiData(aiResult, pack);
       if(newCards.length > 0) { 
-          // ★★★ 交互优化：原地更新卡片，不刷新页面，解决按钮失效问题 ★★★
           showRecommendationCards(recGrid, newCards, pack); 
-          // 动态添加“清除”按钮
-          if (!recDiv.querySelector('#clearAiBtn')) {
-             const clearBtn = document.createElement('a'); 
-             clearBtn.className = 'btn bad small'; 
-             clearBtn.id = 'clearAiBtn';
-             clearBtn.style.marginLeft='10px'; 
-             clearBtn.textContent = '清除推荐';
-             clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
-             recDiv.querySelector('.section-title').appendChild(clearBtn);
+          if (!recDiv.querySelector('.btn.bad.small')) {
+               const clearBtn = document.createElement('a'); clearBtn.className = 'btn bad small'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除';
+               clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+               recDiv.querySelector('.section-title').appendChild(clearBtn);
           }
       } 
     } catch(e) { 
       if (e.message === "FALLBACK_LOCAL" || e.message.includes("401") || e.message.includes("429") || e.message.includes("400") || e.message.includes("404")) {
          console.warn("AI 调用失败，已静默切换到本地推荐:", e);
-         showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
+         // 核心逻辑：强制刷新本地推荐（第三个参数 true）
+         showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
       } else {
          alert(e.message); 
       }
     } 
-    finally { aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; } 
+    finally { 
+      aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; 
+      aiBtn.removeAttribute('disabled');
+    } 
   }; 
   return container; 
 }
