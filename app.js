@@ -1,15 +1,47 @@
-// v106 app.js - 修复移动端点击不灵敏 (回归标准 Click) + 完整功能
+// v108 app.js - 修复 iOS 黑屏 (存储容错) + 全局错误显示
+// 1. 全局错误捕获：如果代码崩溃，直接在屏幕显示错误，而不是黑屏
+window.onerror = function(msg, url, line, col, error) {
+  const app = document.querySelector('body');
+  if(app) {
+    const errDiv = document.createElement('div');
+    errDiv.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:white;color:black;z-index:9999;padding:20px;overflow:auto;";
+    errDiv.innerHTML = `<h3>⚠️ 发生错误</h3><p>${msg}</p><p>Line: ${line}</p><button onclick="location.reload()" style="padding:10px;border:1px solid #333;margin-top:20px;">刷新重试</button>`;
+    app.appendChild(errDiv);
+  }
+};
+
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (保持用户指定) ---
+// --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
+};
+
+// --- Storage (核心修复：增加 try-catch 防止 iOS 无痕模式崩溃) ---
+const S = {
+  save(k, v){ 
+    try { localStorage.setItem(k, JSON.stringify(v)); } 
+    catch(e) { console.warn('Storage write failed (Private Mode?):', e); } 
+  },
+  load(k, d){ 
+    try { return JSON.parse(localStorage.getItem(k)) ?? d } 
+    catch(e) { console.warn('Storage read failed:', e); return d; } 
+  },
+  keys: { 
+    inventory:'km_v19_inventory', 
+    plan:'km_v19_plan', 
+    overlay:'km_v19_overlay', 
+    settings:'km_v23_settings',
+    ai_recs: 'km_v48_ai_recs',
+    local_recs: 'km_v49_local_recs',
+    rec_time: 'km_v49_rec_time'
+  }
 };
 
 // --- 食材归一化字典 ---
@@ -105,7 +137,6 @@ function checkAlias(name) {
   return null;
 }
 
-// --- 佐料过滤 ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -118,21 +149,6 @@ function isSeasoning(name) {
   if (n.length <= 3 && (n.includes("盐") || n.includes("糖") || n.includes("醋") || n.includes("酱") || n.includes("油"))) return true;
   return false;
 }
-
-// -------- Storage --------
-const S = {
-  save(k, v){ localStorage.setItem(k, JSON.stringify(v)); },
-  load(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch{ return d } },
-  keys: { 
-    inventory:'km_v19_inventory', 
-    plan:'km_v19_plan', 
-    overlay:'km_v19_overlay', 
-    settings:'km_v23_settings',
-    ai_recs: 'km_v48_ai_recs',
-    local_recs: 'km_v49_local_recs',
-    rec_time: 'km_v49_rec_time'
-  }
-};
 
 // -------- Data Loading --------
 async function loadBasePack(){
@@ -284,7 +300,6 @@ function getAiConfig() {
   return { apiKey, apiUrl, textModel: model, visionModel };
 }
 
-// ★★★ 强力 JSON 提取 ★★★
 function extractJson(text) {
   let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '')
                     .replace(/```json/gi, '')
@@ -335,7 +350,6 @@ async function callAiService(prompt, imageBase64 = null) {
   
   // ★★★ 兼容性修复：如果用户用 Groq 但配置了 Qwen，自动切 Llama-3 ★★★
   if (conf.apiUrl.includes("groq.com") && activeModel.toLowerCase().includes("qwen")) {
-      // console.warn("Groq + Qwen mismatch, auto-switching to llama-3.3-70b-versatile");
       activeModel = "llama-3.3-70b-versatile";
   }
 
