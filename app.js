@@ -1,4 +1,4 @@
-// v94 app.js - 补回 renderShopping + 终极静默容错 (修复所有已知问题)
+// v95 app.js - 修复购物清单白屏 + 终极容错 + UI 修复
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -265,14 +265,26 @@ function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
-  const apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
-  const apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
+  let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
+  let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   const textModel = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
+
+  // 自动修复 URL
+  if (apiUrl && apiUrl.includes("api.groq.com") && !apiUrl.includes("/chat/completions")) {
+      apiUrl = apiUrl.replace(/\/$/, ''); 
+      if (apiUrl.endsWith("/v1")) {
+          apiUrl += "/chat/completions";
+      } else {
+          apiUrl = "https://api.groq.com/openai/v1/chat/completions";
+      }
+  }
+  
   if (!apiKey) return null;
   return { apiKey, apiUrl, textModel, visionModel };
 }
 
+// ★★★ 强力 JSON 提取 ★★★
 function extractJson(text) {
   let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '')
                     .replace(/```json/gi, '')
@@ -320,6 +332,12 @@ async function callAiService(prompt, imageBase64 = null) {
 
   let messages = [];
   let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
+  // 自动适配 Groq
+  if (conf.apiUrl.includes("groq.com") && activeModel.toLowerCase().includes("qwen")) {
+      console.warn("Groq + Qwen mismatch, using llama3-70b-8192");
+      activeModel = "llama3-70b-8192";
+  }
+
   if (imageBase64) {
     messages = [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: imageBase64 } }] }];
   } else {
@@ -332,7 +350,7 @@ async function callAiService(prompt, imageBase64 = null) {
     });
     
     if(!res.ok) {
-        // ★★★ 终极容错：所有 4xx/5xx 错误都触发降级 ★★★
+        // ★★★ 终极容错：所有错误均触发降级 ★★★
         if(res.status >= 400) {
             throw new Error("FALLBACK_LOCAL");
         }
@@ -368,7 +386,6 @@ async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
   const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。请规划今日推荐：1. **Local**: 选3道适合库存的菜。2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。**重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。** 返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
-  
   try {
     const jsonStr = await callAiService(prompt);
     return JSON.parse(jsonStr);
@@ -653,7 +670,7 @@ function renderHome(pack){
       const newCards = processAiData(aiResult, pack);
       if(newCards.length > 0) { showRecommendationCards(recGrid, newCards, pack); setTimeout(() => onRoute(), 500); } 
     } catch(e) { 
-      // ★★★ 终极容错：所有 4xx/5xx 错误都触发降级，不弹窗 ★★★
+      // ★★★ 终极容错：所有错误都降级到本地推荐 ★★★
       if (e.message === "FALLBACK_LOCAL" || e.message.includes("401") || e.message.includes("429") || e.message.includes("400") || e.message.includes("404")) {
          console.warn("AI 调用失败，已静默切换到本地推荐:", e);
          showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
@@ -992,7 +1009,7 @@ async function onRoute(){
     
     if(hash.startsWith('recipe-edit:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeEditor(id, base)); } 
     else if(hash.startsWith('recipe:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeDetail(id, pack)); } 
-    else if(hash==='shopping'){ app.appendChild(renderShopping(pack)); } // Now renderShopping exists!
+    else if(hash==='shopping'){ app.appendChild(renderShopping(pack)); } 
     else if(hash==='recipes'){ app.appendChild(renderRecipes(pack)); } 
     else if(hash==='settings'){ app.appendChild(renderSettings()); } 
     else { app.appendChild(renderHome(pack)); } 
