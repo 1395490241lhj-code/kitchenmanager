@@ -1,4 +1,4 @@
-// v96 app.js - 补全丢失的 renderShopping 函数 + 所有 AI/UI 修复
+// v98 app.js - 修复购物清单白屏 (补回 renderShopping) + 保持所有 AI/UI 修复
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
@@ -105,6 +105,7 @@ function checkAlias(name) {
   return null;
 }
 
+// --- 佐料过滤 ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -484,6 +485,7 @@ function searchResultCard(r, statusData) {
   return card;
 }
 
+// ★★★ 全局函数：展示推荐卡片 (修复引用问题) ★★★
 function showRecommendationCards(container, list, pack) { 
   container.innerHTML = ''; 
   if(!list || list.length===0) { 
@@ -655,9 +657,15 @@ function renderHome(pack){
      const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
        showRecommendationCards(recGrid, savedCards, pack);
-       const clearBtn = document.createElement('a'); clearBtn.className = 'btn bad small'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除';
-       clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
-       recDiv.querySelector('.section-title').appendChild(clearBtn);
+       if (!recDiv.querySelector('#clearAiBtn')) {
+           const clearBtn = document.createElement('a'); 
+           clearBtn.className = 'btn bad small'; 
+           clearBtn.id = 'clearAiBtn';
+           clearBtn.style.marginLeft='10px'; 
+           clearBtn.textContent = '清除推荐';
+           clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+           recDiv.querySelector('.section-title').appendChild(clearBtn);
+       }
      } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   
@@ -668,9 +676,21 @@ function renderHome(pack){
       const aiResult = await callCloudAI(pack, inv); 
       S.save(S.keys.ai_recs, aiResult);
       const newCards = processAiData(aiResult, pack);
-      if(newCards.length > 0) { showRecommendationCards(recGrid, newCards, pack); setTimeout(() => onRoute(), 500); } 
+      if(newCards.length > 0) { 
+          // ★★★ 交互优化：原地更新卡片，不刷新页面，解决按钮失效问题 ★★★
+          showRecommendationCards(recGrid, newCards, pack); 
+          // 动态添加“清除”按钮
+          if (!recDiv.querySelector('#clearAiBtn')) {
+             const clearBtn = document.createElement('a'); 
+             clearBtn.className = 'btn bad small'; 
+             clearBtn.id = 'clearAiBtn';
+             clearBtn.style.marginLeft='10px'; 
+             clearBtn.textContent = '清除推荐';
+             clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+             recDiv.querySelector('.section-title').appendChild(clearBtn);
+          }
+      } 
     } catch(e) { 
-      // ★★★ 终极容错：所有错误都降级到本地推荐 ★★★
       if (e.message === "FALLBACK_LOCAL" || e.message.includes("401") || e.message.includes("429") || e.message.includes("400") || e.message.includes("404")) {
          console.warn("AI 调用失败，已静默切换到本地推荐:", e);
          showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack);
