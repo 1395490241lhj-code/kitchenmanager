@@ -1,13 +1,14 @@
-// v101 app.js - 修复 renderShopping 缺失 + 终极 AI 容错
+// v103 app.js - 恢复截图中的模型配置 + 购物清单修复 + 智能兼容
 const el = (sel, root=document) => root.querySelector(sel);
 const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (保持用户指定) ---
+// --- AI 配置 (已恢复为截图中的配置) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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",
+  // 恢复为您要求的配置
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -267,7 +268,7 @@ function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
   let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
-  const textModel = localSettings.model || CUSTOM_AI.MODEL;
+  let model = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
 
   // 自动修复 URL
@@ -281,7 +282,7 @@ function getAiConfig() {
   }
   
   if (!apiKey) return null;
-  return { apiKey, apiUrl, textModel, visionModel };
+  return { apiKey, apiUrl, textModel: model, visionModel };
 }
 
 // ★★★ 强力 JSON 提取 ★★★
@@ -332,9 +333,10 @@ async function callAiService(prompt, imageBase64 = null) {
 
   let messages = [];
   let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
-  // 自动适配 Groq
+  
+  // ★★★ 兼容性修复：如果用户用 Groq 但配置了 Qwen，自动切 Llama-3 ★★★
   if (conf.apiUrl.includes("groq.com") && activeModel.toLowerCase().includes("qwen")) {
-      console.warn("Groq + Qwen mismatch, auto-switching to llama-3.3-70b-versatile");
+      // console.warn("Groq + Qwen mismatch, auto-switching to llama-3.3-70b-versatile");
       activeModel = "llama-3.3-70b-versatile";
   }
 
@@ -350,7 +352,6 @@ async function callAiService(prompt, imageBase64 = null) {
     });
     
     if(!res.ok) {
-        // ★★★ 终极容错：所有错误均触发降级 ★★★
         if(res.status >= 400) {
             throw new Error("FALLBACK_LOCAL");
         }
@@ -424,7 +425,7 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
   const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
   const savedRecs = S.load(S.keys.local_recs, null);
 
-  // 缓存机制：1小时内不刷新，除非强制刷新
+  // 缓存机制
   if (!forceRefresh && savedRecs && (now - lastRecTime < 3600000)) {
     return savedRecs.map(s => {
        const r = (pack.recipes||[]).find(x => x.id === s.id);
@@ -631,6 +632,9 @@ function renderRecipeSearchResults(query, pack, inv) {
   return container;
 }
 
+// ★★★ 核心修复：防止 AI 按钮卡死 (使用状态位 + 超时重置) ★★★
+let isAiThinking = false;
+
 function renderHome(pack){ 
   const container = document.createElement('div'); 
   const catalog = buildCatalog(pack); 
@@ -667,47 +671,63 @@ function renderHome(pack){
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   aiBtn.onclick = async () => { 
-    // 防抖
-    if (aiBtn.getAttribute('disabled')) return;
-    aiBtn.setAttribute('disabled', 'true');
-    
-    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
+    // ★★★ 按钮状态管理：防止重复点击 ★★★
+    if (isAiThinking) return;
+    isAiThinking = true;
+    aiBtn.style.opacity = '0.7'; 
+    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; 
+
+    // 15秒超时强制重置，防止卡死
+    const safetyTimer = setTimeout(() => {
+       if(isAiThinking) {
+           isAiThinking = false;
+           aiBtn.innerHTML = '✨ 呼叫 AI'; 
+           aiBtn.style.opacity = '1';
+           alert("AI 响应超时，已自动切换到本地推荐。");
+           showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
+       }
+    }, 15000);
+
     try { 
       const aiResult = await callCloudAI(pack, inv); 
+      clearTimeout(safetyTimer); // 成功返回，清除超时定时器
       S.save(S.keys.ai_recs, aiResult);
       const newCards = processAiData(aiResult, pack);
       if(newCards.length > 0) { 
-          // ★★★ 交互优化：原地更新卡片，不刷新页面，解决按钮失效问题 ★★★
           showRecommendationCards(recGrid, newCards, pack); 
           // 动态添加“清除”按钮
-          if (!recDiv.querySelector('#clearAiBtn')) {
-             const clearBtn = document.createElement('a'); 
-             clearBtn.className = 'btn bad small'; 
-             clearBtn.id = 'clearAiBtn';
-             clearBtn.style.marginLeft='10px'; 
-             clearBtn.textContent = '清除推荐';
-             clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
-             recDiv.querySelector('.section-title').appendChild(clearBtn);
+          if (!recDiv.querySelector('#clearAiBtn') && !recDiv.querySelector('.btn.bad.small')) {
+               const clearBtn = document.createElement('a'); 
+               clearBtn.className = 'btn bad small'; 
+               clearBtn.id = 'clearAiBtn';
+               clearBtn.style.marginLeft='10px'; 
+               clearBtn.textContent = '清除推荐';
+               clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+               recDiv.querySelector('.section-title').appendChild(clearBtn);
           }
       } 
     } catch(e) { 
+      clearTimeout(safetyTimer);
+      // ★★★ 终极容错：所有错误都降级到本地推荐 ★★★
       if (e.message === "FALLBACK_LOCAL" || e.message.includes("401") || e.message.includes("429") || e.message.includes("400") || e.message.includes("404")) {
-         console.warn("AI 调用失败，已静默切换到本地推荐:", e);
-         // 核心逻辑：强制刷新本地推荐（第三个参数 true）
+         console.warn("AI 调用失败 (已降级):", e.message);
+         // 强制刷新本地推荐（第三个参数 true）
          showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
       } else {
-         alert(e.message); 
+         alert("AI 错误：" + e.message); 
+         showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
       }
     } 
     finally { 
-      aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; 
-      aiBtn.removeAttribute('disabled');
+      isAiThinking = false;
+      aiBtn.innerHTML = '✨ 呼叫 AI'; 
+      aiBtn.style.opacity = '1'; 
     } 
   }; 
   return container; 
 }
 
-// ★★★ 补回：购物清单 (renderShopping) ★★★
+// ★★★ 核心补全：renderShopping 函数 (修复清单白屏) ★★★
 function renderShopping(pack){
   const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
   const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
