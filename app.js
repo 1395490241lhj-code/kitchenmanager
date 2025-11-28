@@ -1,12 +1,17 @@
-// v109 app.js - 更新 API Key + 保持所有功能修复
+// v112 app.js - 终极完整版：指定模型 + 购物清单 + 移动端修复 + 错误显性化
+
 // 1. 全局错误捕获：如果代码崩溃，直接在屏幕显示错误，而不是黑屏
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
   if(app) {
-    const errDiv = document.createElement('div');
-    errDiv.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:white;color:black;z-index:9999;padding:20px;overflow:auto;";
-    errDiv.innerHTML = `<h3>⚠️ 发生错误</h3><p>${msg}</p><p>Line: ${line}</p><button onclick="location.reload()" style="padding:10px;border:1px solid #333;margin-top:20px;">刷新重试</button>`;
-    app.appendChild(errDiv);
+    let errDiv = document.getElementById('global-err-console');
+    if(!errDiv) {
+      errDiv = document.createElement('div');
+      errDiv.id = 'global-err-console';
+      errDiv.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:white;color:red;z-index:99999;padding:20px;overflow:auto;font-family:monospace;font-size:14px;";
+      app.appendChild(errDiv);
+    }
+    errDiv.innerHTML += `<h3>⚠️ 发生错误</h3><p>${msg}</p><p>Line: ${line}</p><hr>`;
   }
 };
 
@@ -15,10 +20,10 @@ const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (已更新 Key) ---
+// --- AI 配置 (严格按照用户要求，不含自动切换逻辑) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", // Updated Key
+  KEY: "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", 
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -27,11 +32,11 @@ const CUSTOM_AI = {
 const S = {
   save(k, v){ 
     try { localStorage.setItem(k, JSON.stringify(v)); } 
-    catch(e) { console.warn('Storage write failed (Private Mode?):', e); } 
+    catch(e) { console.warn('Storage write failed:', e); } 
   },
   load(k, d){ 
     try { return JSON.parse(localStorage.getItem(k)) ?? d } 
-    catch(e) { console.warn('Storage read failed:', e); return d; } 
+    catch(e) { return d; } 
   },
   keys: { 
     inventory:'km_v19_inventory', 
@@ -164,18 +169,9 @@ async function loadBasePack(){
       }
   } catch(e){ console.error('Base pack error', e); }
   
-  const staticMethods = window.RECIPE_METHODS || {};
-  const existingNames = new Set(pack.recipes.map(r => r.name));
-  
-  Object.keys(staticMethods).forEach(name => {
-    if(!existingNames.has(name)){
-      const newId = 'static-' + Math.abs(name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
-      pack.recipes.push({ id: newId, name: name, tags: ["家常菜", "新增"] });
-      existingNames.add(name);
-    }
-  });
-
+  // 补充 HOC 数据
   const hocData = window.HOC_DATA || [];
+  const existingNames = new Set(pack.recipes.map(r => r.name));
   hocData.forEach(item => {
       if(!existingNames.has(item.name)){
           const newId = 'hoc-' + Math.abs(item.name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
@@ -194,14 +190,6 @@ async function loadBasePack(){
       }
   });
 
-  if(pack.recipes){
-    pack.recipes.forEach(r => {
-      if(!r.staticMethod) {
-        const method = staticMethods[r.id] || staticMethods[r.name];
-        if(method) r.staticMethod = method;
-      }
-    });
-  }
   return pack;
 }
 
@@ -242,6 +230,7 @@ function applyOverlay(base, overlay){
   return {recipes, recipe_ingredients:ingMap};
 }
 
+// 辅助函数
 const SEP_RE = /[，,、/;；|]+/;
 function explodeCombinedItems(list){
   const out = [];
@@ -264,9 +253,7 @@ function buildCatalog(pack){
       const n=(it.item||'').trim(); 
       if(!n) continue; 
       units[n]=units[n]||it.unit||'g';
-      const canon = getCanonicalName(n);
-      set.add(canon);
-      if(!units[canon]) units[canon] = units[n];
+      set.add(n);
     }
   }
   return Array.from(set).sort().map(n=>({name:n, unit:units[n]||'g', shelf:guessShelfDays(n, units[n]||'g')}));
@@ -280,30 +267,27 @@ function badgeFor(e){ const r=remainingDays(e); if(r<=1) return `<span class="kc
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
 function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g')}); } saveInventory(inv); }
 
+// --- AI 逻辑 ---
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
-  // 优先使用本地配置，如果没有则使用代码硬编码的（已更新Key）
   let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   let model = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
 
-  // 自动修复 URL
+  // 自动修复 URL (确保 Groq URL 正确)
   if (apiUrl && apiUrl.includes("api.groq.com") && !apiUrl.includes("/chat/completions")) {
       apiUrl = apiUrl.replace(/\/$/, ''); 
-      if (apiUrl.endsWith("/v1")) {
-          apiUrl += "/chat/completions";
-      } else {
-          apiUrl = "https://api.groq.com/openai/v1/chat/completions";
-      }
+      if (apiUrl.endsWith("/v1")) apiUrl += "/chat/completions";
+      else apiUrl = "https://api.groq.com/openai/v1/chat/completions";
   }
   
   if (!apiKey) return null;
   return { apiKey, apiUrl, textModel: model, visionModel };
 }
 
-// ★★★ 强力 JSON 提取 ★★★
 function extractJson(text) {
+  // 强力清洗，去除 <think> 等标签
   let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '')
                     .replace(/```json/gi, '')
                     .replace(/```/g, '')
@@ -338,7 +322,6 @@ function compressImage(file) {
         ctx.drawImage(img, 0, 0, w, h);
         resolve(canvas.toDataURL('image/jpeg', 0.7));
       };
-      img.onerror = reject;
     };
     reader.onerror = reject;
   });
@@ -349,19 +332,17 @@ async function callAiService(prompt, imageBase64 = null) {
   if (!conf) throw new Error("未配置 API Key，转为本地模式");
 
   let messages = [];
-  let activeModel = imageBase64 ? conf.visionModel : conf.textModel;
   
-  // ★★★ 兼容性修复：如果用户用 Groq 但配置了 Qwen，自动切 Llama-3 ★★★
-  if (conf.apiUrl.includes("groq.com") && activeModel.toLowerCase().includes("qwen")) {
-      // console.warn("Groq + Qwen mismatch, auto-switching to llama-3.3-70b-versatile");
-      activeModel = "llama-3.3-70b-versatile";
-  }
-
+  // ★★★ 严格按照用户要求：不做自动切换，直接使用配置的模型 ★★★
+  let activeModel = conf.textModel; 
+  
   if (imageBase64) {
+    activeModel = conf.visionModel; // 视觉模型也保持配置
     messages = [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: imageBase64 } }] }];
   } else {
     messages = [{ role: "user", content: prompt }];
   }
+  
   try {
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
@@ -369,15 +350,13 @@ async function callAiService(prompt, imageBase64 = null) {
     });
     
     if(!res.ok) {
-        if(res.status >= 400) {
-            throw new Error("FALLBACK_LOCAL");
-        }
         const errData = await res.json().catch(()=>({}));
+        // 只有 429/404/401 才触发降级，但为了调试先抛出
+        // if(res.status >= 400) throw new Error("FALLBACK_LOCAL");
         throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
     }
     const data = await res.json();
-    const rawText = data.choices?.[0]?.message?.content || "";
-    return extractJson(rawText); 
+    return extractJson(data.choices?.[0]?.message?.content || ""); 
   } catch(e) { throw e; }
 }
 
@@ -413,11 +392,11 @@ async function callCloudAI(pack, inv) {
   }
 }
 
+// --- 核心推荐逻辑 ---
 function calculateStockStatus(recipe, pack, inv) {
   const rawIngs = pack.recipe_ingredients[recipe.id] || [];
   let ingredients = explodeCombinedItems(rawIngs);
   ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
-
   if (ingredients.length === 0) return { status: 'unknown', missing: [] };
 
   const missing = [];
@@ -427,9 +406,8 @@ function calculateStockStatus(recipe, pack, inv) {
 
   ingredients.forEach(ing => {
     const needName = getCanonicalName(ing.item);
-    const stockItem = invMap.get(needName);
-    if (stockItem) { matchCount++; } 
-    else { missing.push({ name: ing.item, canon: needName }); }
+    if (invMap.has(needName)) { matchCount++; } 
+    else { missing.push({ name: ing.item }); }
   });
 
   if (missing.length === 0) return { status: 'ok', missing: [] };
@@ -442,7 +420,6 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
   const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
   const savedRecs = S.load(S.keys.local_recs, null);
 
-  // 缓存机制
   if (!forceRefresh && savedRecs && (now - lastRecTime < 3600000)) {
     return savedRecs.map(s => {
        const r = (pack.recipes||[]).find(x => x.id === s.id);
@@ -451,50 +428,36 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
   }
   
   const invCanons = inv.map(x => getCanonicalName(x.name)).filter(Boolean);
-  let scores = [];
-  if (invCanons.length > 0) {
-    scores = (pack.recipes || []).map(r => {
-      let ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
-      ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
-
-      let matchCount = 0;
-      ingredients.forEach(ing => { 
-        const itemRaw = String(ing.item||'').trim();
-        if(!itemRaw) return;
-        const itemCanon = getCanonicalName(itemRaw);
-        const hit = invCanons.some(invC => invC === itemCanon || itemCanon.includes(invC) || invC.includes(itemCanon));
-        if(hit) matchCount++;
-      });
-      return { r, matchCount };
+  let scores = (pack.recipes || []).map(r => {
+    let ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
+    ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
+    let matchCount = 0;
+    ingredients.forEach(ing => { 
+      const itemRaw = String(ing.item||'').trim();
+      const itemCanon = getCanonicalName(itemRaw);
+      if (invCanons.some(invC => invC === itemCanon || itemCanon.includes(invC) || invC.includes(itemCanon))) matchCount++;
     });
-    scores = scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6);
-  }
+    return { r, matchCount };
+  });
   
+  scores = scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6);
   if (scores.length === 0) {
     const all = (pack.recipes||[]);
-    const shuffled = [...all].sort(() => 0.5 - Math.random()).slice(0, 6);
-    scores = shuffled.map(r => ({ r, matchCount: 0 }));
+    scores = [...all].sort(() => 0.5 - Math.random()).slice(0, 6).map(r => ({ r, matchCount: 0 }));
   }
-  const toSave = scores.map(s => ({ id: s.r.id, matchCount: s.matchCount, reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索' }));
+
+  const toSave = scores.map(s => ({ id: s.r.id, matchCount: s.matchCount, reason: s.matchCount > 0 ? `匹配库存：含 ${s.matchCount} 种食材` : '随机探索' }));
   S.save(S.keys.local_recs, toSave);
   S.save(S.keys.rec_time, now);
-  return scores.map(s => ({ r: s.r, matchCount: s.matchCount, reason: s.matchCount > 0 ? `本地匹配：含 ${s.matchCount} 种库存` : '随机探索' }));
+  return scores.map(s => ({ r: s.r, matchCount: s.matchCount, reason: s.matchCount > 0 ? `匹配库存：含 ${s.matchCount} 种食材` : '随机探索' }));
 }
 
 function searchResultCard(r, statusData) {
   const card = document.createElement('div'); card.className = 'card';
-  let statusBadge = '', actionArea = '';
-  if (statusData.status === 'ok') { statusBadge = `<span class="kchip ok">✅ 库存充足</span>`; } 
-  else if (statusData.status === 'partial') {
-    const missingStr = statusData.missing.map(m => m.name).join('、');
-    statusBadge = `<span class="kchip warn">⚠️ 缺：${missingStr}</span>`;
-    actionArea = `<a class="btn small" id="addMissingBtn" style="margin-top:8px;">🛒 缺货加入清单</a>`;
-  } else {
-    statusBadge = `<span class="kchip bad">❌ 暂无食材</span>`;
-    actionArea = `<a class="btn small" id="addMissingBtn" style="margin-top:8px;">🛒 全部加入清单</a>`;
-  }
-  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${statusBadge}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><a class="btn small" onclick="location.hash='#recipe:${r.id}'">查看做法</a>${actionArea}</div>`;
-  card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
+  let statusBadge = statusData.status === 'ok' ? `<span class="kchip ok">✅ 库存充足</span>` : (statusData.status === 'partial' ? `<span class="kchip warn">⚠️ 缺食材</span>` : `<span class="kchip bad">❌ 暂无食材</span>`);
+  
+  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${statusBadge}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">查看做法</button><button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button></div>`;
+  
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {
     addBtn.onclick = () => {
@@ -528,11 +491,10 @@ function processAiData(aiResult, pack) {
     }); 
   }
   if(aiResult.creative){ 
-    const c = aiResult.creative; 
     cards.push({ 
-       r: { id: 'creative-ai-temp', name: c.name, tags: ['AI创意菜'] }, 
-       list: [{item: c.ingredients}], 
-       reason: c.reason, 
+       r: { id: 'creative-ai-temp', name: aiResult.creative.name, tags: ['AI创意菜'] }, 
+       list: [{item: aiResult.creative.ingredients}], 
+       reason: aiResult.creative.reason, 
        isAi: true 
     }); 
   }
@@ -541,24 +503,32 @@ function processAiData(aiResult, pack) {
 
 function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
-  let topHtml = ''; if(extraInfo && extraInfo.isAi) { topHtml = `<div class="ai-badge">✨ AI 推荐</div>`; }
-  card.innerHTML=`${topHtml}<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3><a class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;">编辑</a></div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="ing-compact-container"></div>${extraInfo && extraInfo.reason ? `<div class="ai-reason" style="margin-top:8px;padding:8px;font-size:12px;">${extraInfo.reason}</div>` : ''}<div class="controls"></div>`;
+  let topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ AI 推荐</div>` : '';
+  
+  // 核心修复：使用 button 替代 a 标签
+  card.innerHTML=`${topHtml}<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${!r.id.startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;border:none;">编辑</button>` : ''}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="ing-compact-container"></div>${extraInfo && extraInfo.reason ? `<div class="ai-reason" style="margin-top:8px;padding:8px;font-size:12px;">${extraInfo.reason}</div>` : ''}<div class="controls"></div>`;
+  
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
-  if(!r.id.startsWith('creative-')) { card.querySelector('.btn-edit').onclick = (e) => { e.stopPropagation(); location.hash = `#recipe-edit:${r.id}`; }; } else { card.querySelector('.btn-edit').remove(); }
+  const editBtn = card.querySelector('.btn-edit');
+  if(editBtn) editBtn.onclick = (e) => { e.stopPropagation(); location.hash = `#recipe-edit:${r.id}`; };
+  
   const tagContainer = card.querySelector('.ing-compact-container');
   let items = explodeCombinedItems(list||[]);
   const coreItems = items.filter(it => !isSeasoning(it.item));
   const displayItems = coreItems.length > 0 ? coreItems : items; 
   const showItems = displayItems.slice(0, 4); 
   for(const it of showItems){ const span = document.createElement('span'); span.className = 'ing-tag-pill'; span.innerHTML = `${it.item}`; tagContainer.appendChild(span); }
-  if(displayItems.length > 4) { const more = document.createElement('span'); more.className = 'ing-tag-pill'; more.style.background = 'transparent'; more.textContent = '...'; tagContainer.appendChild(more); }
+  
   if(!r.id.startsWith('creative-')){
     const plan = new Set((S.load(S.keys.plan,[])).map(x=>x.id));
-    const btn=document.createElement('a'); btn.href='javascript:void(0)'; btn.className='btn ok small'; btn.textContent=plan.has(r.id)?'已加入':'加入清单';
-    btn.onclick=()=>{ const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else p.push({id:r.id, servings:1}); S.save(S.keys.plan,p); onRoute(); };
-    card.querySelector('.controls').appendChild(btn);
-    const detailBtn = document.createElement('a'); detailBtn.className='btn small'; detailBtn.textContent='查看';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className='btn ok small'; 
+    btn.textContent = plan.has(r.id) ? '已加入' : '加入清单';
+    btn.onclick = () => { const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else p.push({id:r.id, servings:1}); S.save(S.keys.plan,p); onRoute(); };
+    
+    const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className='btn small'; detailBtn.textContent='查看';
     detailBtn.onclick = () => location.hash = `#recipe:${r.id}`;
+    
+    card.querySelector('.controls').appendChild(btn);
     card.querySelector('.controls').appendChild(detailBtn);
   }
   return card;
@@ -574,7 +544,7 @@ function renderRecipeDetail(id, pack) {
   }
   if(!r) {
       const div = document.createElement('div');
-      div.innerHTML = `<div style="padding:20px;text-align:center;">菜谱不存在，请返回。<br><a class="btn ok" onclick="history.back()">返回</a></div>`;
+      div.innerHTML = `<div style="padding:20px;text-align:center;">菜谱不存在。<br><button class="btn" onclick="history.back()">返回</button></div>`;
       return div;
   }
   
@@ -592,8 +562,9 @@ function renderRecipeDetail(id, pack) {
   }
   
   const div = document.createElement('div'); div.className = 'detail-view';
-  const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #ccc;border-radius:8px;">暂无详细做法。点击按钮让 AI 生成。</div><a class="btn ai" id="genMethodBtn">✨ 让 AI 生成做法</a>`;
-  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><a class="btn" onclick="history.back()">← 返回</a><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${it.item} ${it.qty ? `<span class="qty">${it.qty}${it.unit||''}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #ccc;border-radius:8px;">暂无详细做法。点击按钮让 AI 生成。</div><button type="button" class="btn ai" id="genMethodBtn">✨ 让 AI 生成做法</button>`;
+  
+  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${it.item} ${it.qty ? `<span class="qty">${it.qty}${it.unit||''}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
   
   const genBtn = div.querySelector('#genMethodBtn');
   if(genBtn) {
@@ -623,7 +594,7 @@ function renderRecipeSearchResults(query, pack, inv) {
       grid.appendChild(searchResultCard(r, status));
     });
   } else {
-    container.innerHTML += `<div style="text-align:center; padding:40px;"><p style="color:var(--text-secondary)">未找到相关菜谱。</p><a class="btn ai" id="aiSearchBtn">🤖 呼叫 AI 搜索并生成【${query}】</a></div>`;
+    container.innerHTML += `<div style="text-align:center; padding:40px;"><p style="color:var(--text-secondary)">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">🤖 呼叫 AI 搜索并生成【${query}】</button></div>`;
     setTimeout(() => {
         const btn = container.querySelector('#aiSearchBtn');
         if(btn) {
@@ -655,7 +626,7 @@ function renderHome(pack){
   const inv = loadInventory(catalog); 
   const searchBar = document.createElement('div');
   searchBar.style.marginBottom = '24px';
-  searchBar.innerHTML = `<div style="display:flex; gap:10px;"><input id="mainSearch" placeholder="🔍 搜菜谱 (如：回锅肉)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--separator); box-shadow:var(--shadow);"><button class="btn ok" id="doSearch">搜索</button></div>`;
+  searchBar.innerHTML = `<div style="display:flex; gap:10px;"><input id="mainSearch" placeholder="🔍 搜菜谱 (如：回锅肉)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--separator); box-shadow:var(--shadow);"><button type="button" class="btn ok" id="doSearch">搜索</button></div>`;
   container.appendChild(searchBar);
   const doSearch = () => {
       const q = searchBar.querySelector('#mainSearch').value.trim();
@@ -668,7 +639,10 @@ function renderHome(pack){
   searchBar.querySelector('#doSearch').onclick = doSearch;
   container.appendChild(renderInventory(pack));
   const recDiv = document.createElement('div'); recDiv.style.marginTop = '32px'; 
-  recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><a class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</a></div><div id="rec-content" class="horizontal-scroll"></div>`; 
+  
+  // ★★★ 核心修复：将 <a> 换成 <button> ★★★
+  recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
+  
   const recGrid = recDiv.querySelector('#rec-content'); 
   container.appendChild(recDiv); 
   
@@ -677,25 +651,32 @@ function renderHome(pack){
      const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
        showRecommendationCards(recGrid, savedCards, pack);
-       const clearBtn = document.createElement('a'); clearBtn.className = 'btn bad small'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除';
-       clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
-       recDiv.querySelector('.section-title').appendChild(clearBtn);
+       // 清除按钮也改为 button
+       if (!recDiv.querySelector('#clearAiBtn')) {
+           const clearBtn = document.createElement('button'); 
+           clearBtn.type = 'button';
+           clearBtn.className = 'btn bad small'; 
+           clearBtn.id = 'clearAiBtn';
+           clearBtn.style.marginLeft='10px'; 
+           clearBtn.textContent = '清除推荐';
+           clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+           recDiv.querySelector('.section-title').appendChild(clearBtn);
+       }
      } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   
-  // ★★★ 修复移动端点击问题：回归标准 click 事件，移除 touchend 避免冲突 ★★★
+  // ★★★ 标准 Click 事件处理 (无 Touchend 冲突) ★★★
   aiBtn.onclick = async () => {
     if (aiBtn.getAttribute('disabled')) return;
     
     aiBtn.setAttribute('disabled', 'true');
-    // 增加微小延迟，确保 UI 状态更新
+    // 视觉延迟反馈
     await new Promise(r => setTimeout(r, 50));
     
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
     
-    // 超时保护
     const safetyTimer = setTimeout(() => {
        aiBtn.innerHTML = '✨ 呼叫 AI'; 
        aiBtn.style.opacity = '1';
@@ -711,8 +692,13 @@ function renderHome(pack){
       const newCards = processAiData(aiResult, pack);
       if(newCards.length > 0) { 
           showRecommendationCards(recGrid, newCards, pack); 
-          if (!recDiv.querySelector('#clearAiBtn') && !recDiv.querySelector('.btn.bad.small')) {
-               const clearBtn = document.createElement('a'); clearBtn.className = 'btn bad small'; clearBtn.id = 'clearAiBtn'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除推荐';
+          if (!recDiv.querySelector('#clearAiBtn')) {
+               const clearBtn = document.createElement('button'); 
+               clearBtn.type = 'button';
+               clearBtn.className = 'btn bad small'; 
+               clearBtn.id = 'clearAiBtn';
+               clearBtn.style.marginLeft='10px'; 
+               clearBtn.textContent = '清除推荐';
                clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
                recDiv.querySelector('.section-title').appendChild(clearBtn);
           }
@@ -729,6 +715,9 @@ function renderHome(pack){
     finally { 
       aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; 
       aiBtn.removeAttribute('disabled'); 
+      aiBtn.style.display = 'none';
+      aiBtn.offsetHeight; 
+      aiBtn.style.display = '';
     } 
   };
   
@@ -770,9 +759,9 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
         <input type="file" id="camInput" accept="image/*" capture="environment" class="visually-hidden" style="display:none!important">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
       </label>
-      <a class="btn ok icon-only" id="toggleAddBtn">
+      <button type="button" class="btn ok icon-only" id="toggleAddBtn">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      </a>
+      </button>
     </div>
     <div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>
   `; 
@@ -782,7 +771,6 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   formContainer.innerHTML = `<div style="display:flex; gap:8px; margin-bottom:8px;"><div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div><input id="addQty" type="number" step="1" placeholder="数量" style="width:70px;"><select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select></div><div style="display:flex; gap:8px;"><input id="addDate" type="date" value="${todayISO()}" style="flex:1;"><button id="addBtn" class="btn ok" style="flex:1;">入库</button></div>`; wrap.appendChild(formContainer);
   searchDiv.querySelector('#toggleAddBtn').onclick = () => { 
     formContainer.classList.toggle('open'); 
-    // Toggle icon (Plus vs Minus)
     const btn = searchDiv.querySelector('#toggleAddBtn');
     if (formContainer.classList.contains('open')) {
       btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
@@ -811,7 +799,7 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
     if(filteredInv.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="small" style="text-align:center;padding:20px;">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</td></tr>`; return; } 
     for(const e of filteredInv){ 
       const tr=document.createElement('tr'); 
-      tr.innerHTML=`<td><span style="font-weight:600;color:var(--text-main)">${e.name}</span></td><td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td><td>${badgeFor(e)}</td><td class="right"><a class="btn bad small" style="padding:4px 8px;">删</a></td>`; 
+      tr.innerHTML=`<td><span style="font-weight:600;color:var(--text-main)">${e.name}</span></td><td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td><td>${badgeFor(e)}</td><td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
       const qtyInput = tr.querySelector('input'); qtyInput.onchange = () => { e.qty = +qtyInput.value||0; saveInventory(inv); };
       els('.btn',tr)[0].onclick=()=>{ const i=inv.indexOf(e); if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); }}; tb.appendChild(tr); 
     } 
