@@ -1,4 +1,5 @@
-// v113 app.js - 终极完整版：修复手机黑屏 + 购物清单 + AI 按钮灵敏度
+// v113 app.js - 终极完整版：修复手机黑屏 + 购物清单 + AI 按钮灵敏度 + 错误显性化
+
 // 1. 全局错误捕获：如果代码崩溃，直接在屏幕显示错误，而不是黑屏
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -331,15 +332,14 @@ async function callAiService(prompt, imageBase64 = null) {
   if (!conf) throw new Error("未配置 API Key，转为本地模式");
 
   let messages = [];
-  let activeModel = conf.textModel; 
+  let activeModel = conf.textModel; // 严格保持用户指定
   
   if (imageBase64) {
-    activeModel = conf.visionModel; // 视觉模型也保持配置
+    activeModel = conf.visionModel; // 视觉模型
     messages = [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: imageBase64 } }] }];
   } else {
     messages = [{ role: "user", content: prompt }];
   }
-  
   try {
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
