@@ -1,5 +1,4 @@
-// v112 app.js - 终极完整版：指定模型 + 购物清单 + 移动端修复 + 错误显性化
-
+// v113 app.js - 终极完整版：修复手机黑屏 + 购物清单 + AI 按钮灵敏度
 // 1. 全局错误捕获：如果代码崩溃，直接在屏幕显示错误，而不是黑屏
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -20,7 +19,7 @@ const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (严格按照用户要求，不含自动切换逻辑) ---
+// --- AI 配置 (严格按照用户要求) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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", 
@@ -332,8 +331,6 @@ async function callAiService(prompt, imageBase64 = null) {
   if (!conf) throw new Error("未配置 API Key，转为本地模式");
 
   let messages = [];
-  
-  // ★★★ 严格按照用户要求：不做自动切换，直接使用配置的模型 ★★★
   let activeModel = conf.textModel; 
   
   if (imageBase64) {
@@ -351,8 +348,6 @@ async function callAiService(prompt, imageBase64 = null) {
     
     if(!res.ok) {
         const errData = await res.json().catch(()=>({}));
-        // 只有 429/404/401 才触发降级，但为了调试先抛出
-        // if(res.status >= 400) throw new Error("FALLBACK_LOCAL");
         throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
     }
     const data = await res.json();
