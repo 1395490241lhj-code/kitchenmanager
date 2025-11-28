@@ -1,4 +1,4 @@
-// v108 app.js - 修复 iOS 黑屏 (存储容错) + 全局错误显示
+// v109 app.js - 更新 API Key + 保持所有功能修复
 // 1. 全局错误捕获：如果代码崩溃，直接在屏幕显示错误，而不是黑屏
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -15,10 +15,10 @@ const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 ---
+// --- AI 配置 (已更新 Key) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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",
+  KEY: "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", // Updated Key
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -137,6 +137,7 @@ function checkAlias(name) {
   return null;
 }
 
+// --- 佐料过滤 ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -281,6 +282,7 @@ function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
+  // 优先使用本地配置，如果没有则使用代码硬编码的（已更新Key）
   let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   let model = localSettings.model || CUSTOM_AI.MODEL;
@@ -300,6 +302,7 @@ function getAiConfig() {
   return { apiKey, apiUrl, textModel: model, visionModel };
 }
 
+// ★★★ 强力 JSON 提取 ★★★
 function extractJson(text) {
   let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '')
                     .replace(/```json/gi, '')
@@ -350,6 +353,7 @@ async function callAiService(prompt, imageBase64 = null) {
   
   // ★★★ 兼容性修复：如果用户用 Groq 但配置了 Qwen，自动切 Llama-3 ★★★
   if (conf.apiUrl.includes("groq.com") && activeModel.toLowerCase().includes("qwen")) {
+      // console.warn("Groq + Qwen mismatch, auto-switching to llama-3.3-70b-versatile");
       activeModel = "llama-3.3-70b-versatile";
   }
 
