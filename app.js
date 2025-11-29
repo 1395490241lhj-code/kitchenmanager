@@ -1,4 +1,4 @@
-// v114 app.js - 强制视觉反馈 + 显性报错 + 配置重置
+// v115 app.js - 修复 <think> 解析报错 + 保持用户配置 + 完整功能
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -16,12 +16,12 @@ const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 ---
+// --- AI 配置 (严格保持用户指定) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", 
+  KEY: "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", 
   MODEL: "qwen/qwen3-32b", 
-  VISION_MODEL: "meta-llama/llama-4-maverick-17b-128e-instruct" 
+  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
 // --- Storage ---
@@ -38,16 +38,6 @@ const S = {
     rec_time: 'km_v49_rec_time'
   }
 };
-
-// ★★★ 强制清除旧配置 (一次性)，防止本地缓存干扰新Key ★★★
-(function clearOldSettings(){
-  const k = 'km_v114_config_reset';
-  if(!localStorage.getItem(k)){
-    localStorage.removeItem(S.keys.settings); // 清除旧设置
-    localStorage.setItem(k, '1');
-    console.log('Settings reset for update.');
-  }
-})();
 
 // --- 食材归一化字典 ---
 const INGREDIENT_ALIASES = {
@@ -169,9 +159,18 @@ async function loadBasePack(){
       }
   } catch(e){ console.error('Base pack error', e); }
   
-  // 补充 HOC 数据
-  const hocData = window.HOC_DATA || [];
+  const staticMethods = window.RECIPE_METHODS || {};
   const existingNames = new Set(pack.recipes.map(r => r.name));
+  
+  Object.keys(staticMethods).forEach(name => {
+    if(!existingNames.has(name)){
+      const newId = 'static-' + Math.abs(name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
+      pack.recipes.push({ id: newId, name: name, tags: ["家常菜", "新增"] });
+      existingNames.add(name);
+    }
+  });
+
+  const hocData = window.HOC_DATA || [];
   hocData.forEach(item => {
       if(!existingNames.has(item.name)){
           const newId = 'hoc-' + Math.abs(item.name.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
@@ -270,7 +269,6 @@ function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>
 // --- AI 逻辑 ---
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
-  // 优先使用本地配置，如果没有则使用代码硬编码的（已更新Key）
   let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   let model = localSettings.model || CUSTOM_AI.MODEL;
@@ -287,22 +285,25 @@ function getAiConfig() {
   return { apiKey, apiUrl, textModel: model, visionModel };
 }
 
+// ★★★ 强力 JSON 提取与清洗 ★★★
 function extractJson(text) {
-  // 强力清洗，去除 <think> 等标签
-  let cleaned = text.replace(/<think[\s\S]*?<\/think>/gi, '')
+  // 1. 移除 <think> 标签及其内容 (不管是否有闭合标签，都尝试移除)
+  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '')
+                    .replace(/<think>[\s\S]*/gi, '') // 移除未闭合的 think 块
                     .replace(/```json/gi, '')
                     .replace(/```/g, '')
                     .trim();
+
+  // 2. 寻找最外层的 JSON 对象
   const firstOpenBrace = cleaned.indexOf('{');
-  const firstOpenBracket = cleaned.indexOf('[');
-  let start = -1;
-  if (firstOpenBrace !== -1 && firstOpenBracket !== -1) { start = Math.min(firstOpenBrace, firstOpenBracket); } 
-  else { start = firstOpenBrace !== -1 ? firstOpenBrace : firstOpenBracket; }
   const lastCloseBrace = cleaned.lastIndexOf('}');
-  const lastCloseBracket = cleaned.lastIndexOf(']');
-  let end = Math.max(lastCloseBrace, lastCloseBracket);
-  if (start !== -1 && end !== -1 && end > start) { return cleaned.substring(start, end + 1); }
-  return cleaned; 
+  
+  if (firstOpenBrace !== -1 && lastCloseBrace !== -1 && lastCloseBrace > firstOpenBrace) {
+    return cleaned.substring(firstOpenBrace, lastCloseBrace + 1);
+  }
+
+  // 如果没找到有效的 JSON 结构，抛出错误，不要返回原始文本
+  throw new Error("AI 未返回有效的 JSON 数据 (可能包含思考过程但无结果)");
 }
 
 function compressImage(file) {
@@ -333,14 +334,15 @@ async function callAiService(prompt, imageBase64 = null) {
   if (!conf) throw new Error("未配置 API Key，转为本地模式");
 
   let messages = [];
-  let activeModel = conf.textModel; // 严格保持用户指定
+  let activeModel = conf.textModel; 
   
   if (imageBase64) {
-    activeModel = conf.visionModel; // 视觉模型也保持配置
+    activeModel = conf.visionModel; 
     messages = [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: imageBase64 } }] }];
   } else {
     messages = [{ role: "user", content: prompt }];
   }
+  
   try {
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
@@ -501,6 +503,7 @@ function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
   let topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ AI 推荐</div>` : '';
   
+  // 核心修复：使用 button 替代 a 标签
   card.innerHTML=`${topHtml}<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${!r.id.startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;border:none;">编辑</button>` : ''}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="ing-compact-container"></div>${extraInfo && extraInfo.reason ? `<div class="ai-reason" style="margin-top:8px;padding:8px;font-size:12px;">${extraInfo.reason}</div>` : ''}<div class="controls"></div>`;
   
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
@@ -635,6 +638,7 @@ function renderHome(pack){
   container.appendChild(renderInventory(pack));
   const recDiv = document.createElement('div'); recDiv.style.marginTop = '32px'; 
   
+  // ★★★ 核心修复：将 <a> 换成 <button> ★★★
   recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
   
   const recGrid = recDiv.querySelector('#rec-content'); 
@@ -645,6 +649,7 @@ function renderHome(pack){
      const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
        showRecommendationCards(recGrid, savedCards, pack);
+       // 清除按钮也改为 button
        if (!recDiv.querySelector('#clearAiBtn')) {
            const clearBtn = document.createElement('button'); 
            clearBtn.type = 'button';
@@ -660,18 +665,16 @@ function renderHome(pack){
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   
-  // ★★★ 移动端兼容修复：标准 Click，带视觉延迟，防止事件冲突 ★★★
+  // ★★★ 标准 Click 事件处理 (无 Touchend 冲突) ★★★
   aiBtn.onclick = async () => {
     if (aiBtn.getAttribute('disabled')) return;
     
     aiBtn.setAttribute('disabled', 'true');
-    // 视觉延迟，确保按钮变色
-    await new Promise(r => setTimeout(r, 100));
+    // 视觉延迟反馈
+    await new Promise(r => setTimeout(r, 50));
     
-    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; 
-    aiBtn.style.opacity = '0.7'; 
+    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
     
-    // 超时保护
     const safetyTimer = setTimeout(() => {
        aiBtn.innerHTML = '✨ 呼叫 AI'; 
        aiBtn.style.opacity = '1';
