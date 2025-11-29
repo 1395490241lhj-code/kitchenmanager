@@ -1,17 +1,13 @@
-// v113 app.js - 终极完整版：修复手机黑屏 + 购物清单 + AI 按钮灵敏度 + 错误显性化
-
-// 1. 全局错误捕获：如果代码崩溃，直接在屏幕显示错误，而不是黑屏
+// v114 app.js - 强制视觉反馈 + 显性报错 + 配置重置
+// 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
-  if(app) {
-    let errDiv = document.getElementById('global-err-console');
-    if(!errDiv) {
-      errDiv = document.createElement('div');
-      errDiv.id = 'global-err-console';
-      errDiv.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:white;color:red;z-index:99999;padding:20px;overflow:auto;font-family:monospace;font-size:14px;";
-      app.appendChild(errDiv);
-    }
-    errDiv.innerHTML += `<h3>⚠️ 发生错误</h3><p>${msg}</p><p>Line: ${line}</p><hr>`;
+  if(app && !document.getElementById('global-err-console')) {
+    const errDiv = document.createElement('div');
+    errDiv.id = 'global-err-console';
+    errDiv.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:white;color:red;z-index:99999;padding:20px;overflow:auto;font-family:monospace;font-size:14px;border-bottom:2px solid red;";
+    errDiv.innerHTML = `<h3>⚠️ 发生错误</h3><p>${msg}</p><p>Line: ${line}</p><button onclick="this.parentElement.remove()" style="padding:5px 10px;border:1px solid #333;margin-top:10px;">关闭</button>`;
+    app.appendChild(errDiv);
   }
 };
 
@@ -20,7 +16,7 @@ const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (严格按照用户要求) ---
+// --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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", 
@@ -28,16 +24,10 @@ const CUSTOM_AI = {
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
 
-// --- Storage (核心修复：增加 try-catch 防止 iOS 无痕模式崩溃) ---
+// --- Storage ---
 const S = {
-  save(k, v){ 
-    try { localStorage.setItem(k, JSON.stringify(v)); } 
-    catch(e) { console.warn('Storage write failed:', e); } 
-  },
-  load(k, d){ 
-    try { return JSON.parse(localStorage.getItem(k)) ?? d } 
-    catch(e) { return d; } 
-  },
+  save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} },
+  load(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d } catch(e){ return d; } },
   keys: { 
     inventory:'km_v19_inventory', 
     plan:'km_v19_plan', 
@@ -48,6 +38,16 @@ const S = {
     rec_time: 'km_v49_rec_time'
   }
 };
+
+// ★★★ 强制清除旧配置 (一次性)，防止本地缓存干扰新Key ★★★
+(function clearOldSettings(){
+  const k = 'km_v114_config_reset';
+  if(!localStorage.getItem(k)){
+    localStorage.removeItem(S.keys.settings); // 清除旧设置
+    localStorage.setItem(k, '1');
+    console.log('Settings reset for update.');
+  }
+})();
 
 // --- 食材归一化字典 ---
 const INGREDIENT_ALIASES = {
@@ -270,6 +270,7 @@ function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>
 // --- AI 逻辑 ---
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
+  // 优先使用本地配置，如果没有则使用代码硬编码的（已更新Key）
   let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   let model = localSettings.model || CUSTOM_AI.MODEL;
@@ -335,7 +336,7 @@ async function callAiService(prompt, imageBase64 = null) {
   let activeModel = conf.textModel; // 严格保持用户指定
   
   if (imageBase64) {
-    activeModel = conf.visionModel; // 视觉模型
+    activeModel = conf.visionModel; // 视觉模型也保持配置
     messages = [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: imageBase64 } }] }];
   } else {
     messages = [{ role: "user", content: prompt }];
@@ -377,7 +378,7 @@ async function callAiSearchRecipe(query, invNames) {
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
-  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有：【${recipeNames}】。请规划今日推荐：1. **Local**: 选3道适合库存的菜。2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。**重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。** 返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
+  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有【${recipeNames}】。请规划今日推荐：1. **Local**: 选3道适合库存的菜。2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。**重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。** 返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
   
   try {
     const jsonStr = await callAiService(prompt);
@@ -500,7 +501,6 @@ function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
   let topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ AI 推荐</div>` : '';
   
-  // 核心修复：使用 button 替代 a 标签
   card.innerHTML=`${topHtml}<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${!r.id.startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;border:none;">编辑</button>` : ''}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="ing-compact-container"></div>${extraInfo && extraInfo.reason ? `<div class="ai-reason" style="margin-top:8px;padding:8px;font-size:12px;">${extraInfo.reason}</div>` : ''}<div class="controls"></div>`;
   
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
@@ -635,7 +635,6 @@ function renderHome(pack){
   container.appendChild(renderInventory(pack));
   const recDiv = document.createElement('div'); recDiv.style.marginTop = '32px'; 
   
-  // ★★★ 核心修复：将 <a> 换成 <button> ★★★
   recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
   
   const recGrid = recDiv.querySelector('#rec-content'); 
@@ -646,7 +645,6 @@ function renderHome(pack){
      const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
        showRecommendationCards(recGrid, savedCards, pack);
-       // 清除按钮也改为 button
        if (!recDiv.querySelector('#clearAiBtn')) {
            const clearBtn = document.createElement('button'); 
            clearBtn.type = 'button';
@@ -662,16 +660,18 @@ function renderHome(pack){
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   
-  // ★★★ 标准 Click 事件处理 (无 Touchend 冲突) ★★★
+  // ★★★ 移动端兼容修复：标准 Click，带视觉延迟，防止事件冲突 ★★★
   aiBtn.onclick = async () => {
     if (aiBtn.getAttribute('disabled')) return;
     
     aiBtn.setAttribute('disabled', 'true');
-    // 视觉延迟反馈
-    await new Promise(r => setTimeout(r, 50));
+    // 视觉延迟，确保按钮变色
+    await new Promise(r => setTimeout(r, 100));
     
-    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
+    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; 
+    aiBtn.style.opacity = '0.7'; 
     
+    // 超时保护
     const safetyTimer = setTimeout(() => {
        aiBtn.innerHTML = '✨ 呼叫 AI'; 
        aiBtn.style.opacity = '1';
@@ -700,16 +700,23 @@ function renderHome(pack){
       } 
     } catch(e) { 
       clearTimeout(safetyTimer);
-      if (e.message === "FALLBACK_LOCAL" || e.message.includes("401") || e.message.includes("429") || e.message.includes("400") || e.message.includes("404")) {
-         console.warn("AI 调用失败，已静默切换到本地推荐:", e);
-         showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
-      } else {
-         alert(e.message); 
-      }
+      // ★★★ 显性报错：先弹窗告诉用户错误，再降级 ★★★
+      let errorMsg = e.message;
+      if (errorMsg.includes("401")) errorMsg = "API Key 无效或过期";
+      else if (errorMsg.includes("429")) errorMsg = "请求过多(429)，AI 繁忙";
+      else if (errorMsg.includes("404")) errorMsg = "模型不存在(404)";
+      else if (errorMsg.includes("400")) errorMsg = "请求参数错误(400)";
+
+      alert(`AI 调用失败: ${errorMsg}\n\n系统将为您切换到【本地推荐】模式。`);
+      
+      console.warn("AI Failed:", e);
+      showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
     } 
     finally { 
-      aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; 
+      aiBtn.innerHTML = '✨ 呼叫 AI'; 
+      aiBtn.style.opacity = '1'; 
       aiBtn.removeAttribute('disabled'); 
+      // 强制重绘
       aiBtn.style.display = 'none';
       aiBtn.offsetHeight; 
       aiBtn.style.display = '';
