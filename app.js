@@ -1,4 +1,4 @@
-// v115 app.js - 修复 <think> 解析报错 + 保持用户配置 + 完整功能
+// v116 app.js - 添加常备品检查功能 + 修复 <think> 解析 + 保持用户配置
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -729,7 +729,7 @@ function renderHome(pack){
   return container; 
 }
 
-// ★★★ 补回：购物清单 (renderShopping) ★★★
+// ★★★ 修复：购物清单 + 常备品检查 (renderShopping) ★★★
 function renderShopping(pack){
   const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
   const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
@@ -748,7 +748,61 @@ function renderShopping(pack){
   if(missing.length===0){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="4" class="small">库存已满足，不需要购买。</td>'; tb.appendChild(tr); }
   else { for(const m of missing){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${m.name}</td><td>${m.qty}</td><td>${m.unit}</td><td class="right"><a class="btn" href="javascript:void(0)">标记已购 → 入库</a></td>`; els('.btn',tr)[0].onclick=()=>{ const invv=S.load(S.keys.inventory,[]); addInventoryQty(invv,m.name,m.qty,m.unit,'raw'); tr.remove(); }; tb.appendChild(tr); } }
   d.appendChild(tbl);
-  const tools=document.createElement('div'); tools.className='controls'; const copy=document.createElement('a'); copy.className='btn'; copy.textContent='复制清单'; copy.onclick=()=>{ const lines=missing.map(m=>`${m.name} ${m.qty}${m.unit}`); navigator.clipboard.writeText(lines.join('\\n')).then(()=>alert('已复制到剪贴板')); }; tools.appendChild(copy); d.appendChild(tools);
+
+  // --- [修改开始] 常备品检查面板 ---
+  const staplesPanel = document.createElement('div');
+  staplesPanel.className = 'card';
+  staplesPanel.style.marginTop = '24px';
+  staplesPanel.style.borderTop = '4px solid var(--warning)';
+  staplesPanel.innerHTML = `
+    <h3 style="margin-top:0; color:var(--text-main)">🧂 家中常备品检查</h3>
+    <p class="meta">点选下方缺少的佐料，它们会被一并复制。</p>
+    <div class="ing-compact-container" id="stapleGrid" style="margin-top:12px"></div>
+  `;
+  const grid = staplesPanel.querySelector('#stapleGrid');
+  const staples = Array.from(SEASONINGS).sort();
+  staples.forEach(name => {
+    const span = document.createElement('span');
+    span.className = 'ing-tag-pill';
+    span.style.cursor = 'pointer';
+    span.style.userSelect = 'none';
+    span.style.transition = 'all 0.2s';
+    span.textContent = name;
+    span.onclick = () => {
+      span.classList.toggle('active');
+      if (span.classList.contains('active')) {
+        span.style.background = 'var(--warning)';
+        span.style.color = '#fff';
+        span.style.borderColor = 'var(--warning)';
+        span.style.transform = 'scale(1.05)';
+      } else {
+        span.style.background = '';
+        span.style.color = '';
+        span.style.borderColor = '';
+        span.style.transform = '';
+      }
+    };
+    grid.appendChild(span);
+  });
+  d.appendChild(staplesPanel);
+  // --- [修改结束] ---
+
+  const tools=document.createElement('div'); tools.className='controls'; 
+  const copy=document.createElement('a'); copy.className='btn'; copy.textContent='复制清单 (含选中常备品)'; 
+  
+  copy.onclick=()=>{ 
+    const lines=missing.map(m=>`${m.name} ${m.qty}${m.unit}`);
+    const activeStaples = Array.from(staplesPanel.querySelectorAll('.ing-tag-pill.active')).map(el => el.textContent);
+    
+    if(activeStaples.length > 0) {
+      lines.push('--- 常备品 ---');
+      lines.push(...activeStaples);
+    }
+    
+    if(lines.length === 0) return alert('清单是空的');
+    navigator.clipboard.writeText(lines.join('\n')).then(()=>alert('已复制到剪贴板')); 
+  }; 
+  tools.appendChild(copy); d.appendChild(tools);
   return d;
 }
 
