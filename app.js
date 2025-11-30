@@ -1,4 +1,4 @@
-// v116 app.js - 添加常备品检查功能 + 修复 <think> 解析 + 保持用户配置
+// v117 app.js - 优化常备品UI (分类+去重) + 修复 <think> 解析 + 保持用户配置
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -132,7 +132,7 @@ function checkAlias(name) {
   return null;
 }
 
-// --- 佐料过滤 ---
+// --- 佐料过滤 (保持这个集合用于逻辑判断) ---
 const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
@@ -287,23 +287,19 @@ function getAiConfig() {
 
 // ★★★ 强力 JSON 提取与清洗 ★★★
 function extractJson(text) {
-  // 1. 移除 <think> 标签及其内容 (不管是否有闭合标签，都尝试移除)
   let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '')
-                    .replace(/<think>[\s\S]*/gi, '') // 移除未闭合的 think 块
+                    .replace(/<think>[\s\S]*/gi, '')
                     .replace(/```json/gi, '')
                     .replace(/```/g, '')
                     .trim();
 
-  // 2. 寻找最外层的 JSON 对象
   const firstOpenBrace = cleaned.indexOf('{');
   const lastCloseBrace = cleaned.lastIndexOf('}');
   
   if (firstOpenBrace !== -1 && lastCloseBrace !== -1 && lastCloseBrace > firstOpenBrace) {
     return cleaned.substring(firstOpenBrace, lastCloseBrace + 1);
   }
-
-  // 如果没找到有效的 JSON 结构，抛出错误，不要返回原始文本
-  throw new Error("AI 未返回有效的 JSON 数据 (可能包含思考过程但无结果)");
+  throw new Error("AI 未返回有效的 JSON 数据");
 }
 
 function compressImage(file) {
@@ -749,40 +745,74 @@ function renderShopping(pack){
   else { for(const m of missing){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${m.name}</td><td>${m.qty}</td><td>${m.unit}</td><td class="right"><a class="btn" href="javascript:void(0)">标记已购 → 入库</a></td>`; els('.btn',tr)[0].onclick=()=>{ const invv=S.load(S.keys.inventory,[]); addInventoryQty(invv,m.name,m.qty,m.unit,'raw'); tr.remove(); }; tb.appendChild(tr); } }
   d.appendChild(tbl);
 
-  // --- [修改开始] 常备品检查面板 ---
+  // --- [修改] 分类且美化的常备品面板 ---
   const staplesPanel = document.createElement('div');
   staplesPanel.className = 'card';
   staplesPanel.style.marginTop = '24px';
-  staplesPanel.style.borderTop = '4px solid var(--warning)';
+  // 去除原来的硬边框，改用更有质感的头部设计
   staplesPanel.innerHTML = `
-    <h3 style="margin-top:0; color:var(--text-main)">🧂 家中常备品检查</h3>
-    <p class="meta">点选下方缺少的佐料，它们会被一并复制。</p>
-    <div class="ing-compact-container" id="stapleGrid" style="margin-top:12px"></div>
+    <h3 style="margin-top:0; color:var(--text-main); display:flex; align-items:center;">
+      <span style="margin-right:8px;">🧂</span> 家中常备品检查
+    </h3>
+    <p class="meta" style="margin-bottom:16px;">点击标记家中缺少的佐料，它们将自动加入“复制清单”。</p>
+    <div id="stapleContainer"></div>
   `;
-  const grid = staplesPanel.querySelector('#stapleGrid');
-  const staples = Array.from(SEASONINGS).sort();
-  staples.forEach(name => {
-    const span = document.createElement('span');
-    span.className = 'ing-tag-pill';
-    span.style.cursor = 'pointer';
-    span.style.userSelect = 'none';
-    span.style.transition = 'all 0.2s';
-    span.textContent = name;
-    span.onclick = () => {
-      span.classList.toggle('active');
-      if (span.classList.contains('active')) {
-        span.style.background = 'var(--warning)';
-        span.style.color = '#fff';
-        span.style.borderColor = 'var(--warning)';
-        span.style.transform = 'scale(1.05)';
-      } else {
-        span.style.background = '';
-        span.style.color = '';
-        span.style.borderColor = '';
-        span.style.transform = '';
-      }
-    };
-    grid.appendChild(span);
+  
+  // 重新定义 UI 展示用的精简分类列表 (区别于逻辑用的 SEASONINGS 集合)
+  const categories = [
+    { name: "生鲜佐料", items: ["葱", "姜", "蒜", "香菜", "小米辣"] },
+    { name: "基础调味", items: ["盐", "糖", "醋", "生抽", "老抽", "料酒", "蚝油", "香油"] },
+    { name: "干货/粉类", items: ["淀粉", "味精", "花椒", "干辣椒", "胡椒粉", "豆瓣酱"] },
+    { name: "食用油", items: ["菜油", "猪油"] }
+  ];
+
+  const container = staplesPanel.querySelector('#stapleContainer');
+
+  categories.forEach(cat => {
+    const groupDiv = document.createElement('div');
+    groupDiv.style.marginBottom = '16px';
+    
+    const title = document.createElement('div');
+    title.textContent = cat.name;
+    title.style.fontSize = '12px';
+    title.style.fontWeight = '600';
+    title.style.color = 'var(--text-secondary)';
+    title.style.marginBottom = '8px';
+    groupDiv.appendChild(title);
+
+    const pillContainer = document.createElement('div');
+    pillContainer.className = 'ing-compact-container';
+    
+    cat.items.forEach(name => {
+      const span = document.createElement('span');
+      span.className = 'ing-tag-pill staple-item'; // 增加 staple-item 类方便查找
+      span.style.cursor = 'pointer';
+      span.style.userSelect = 'none';
+      span.style.transition = 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)';
+      span.style.border = '1px solid transparent';
+      span.textContent = name;
+
+      span.onclick = () => {
+        span.classList.toggle('active');
+        if (span.classList.contains('active')) {
+          span.style.background = 'var(--warning)';
+          span.style.color = '#fff';
+          span.style.borderColor = 'var(--warning)';
+          span.style.transform = 'translateY(-1px)';
+          span.style.boxShadow = '0 2px 5px rgba(255, 149, 0, 0.3)';
+        } else {
+          span.style.background = '';
+          span.style.color = '';
+          span.style.borderColor = 'transparent';
+          span.style.transform = '';
+          span.style.boxShadow = '';
+        }
+      };
+      pillContainer.appendChild(span);
+    });
+    
+    groupDiv.appendChild(pillContainer);
+    container.appendChild(groupDiv);
   });
   d.appendChild(staplesPanel);
   // --- [修改结束] ---
@@ -792,7 +822,8 @@ function renderShopping(pack){
   
   copy.onclick=()=>{ 
     const lines=missing.map(m=>`${m.name} ${m.qty}${m.unit}`);
-    const activeStaples = Array.from(staplesPanel.querySelectorAll('.ing-tag-pill.active')).map(el => el.textContent);
+    // 修改选择器，查找所有选中的 .staple-item
+    const activeStaples = Array.from(staplesPanel.querySelectorAll('.staple-item.active')).map(el => el.textContent);
     
     if(activeStaples.length > 0) {
       lines.push('--- 常备品 ---');
