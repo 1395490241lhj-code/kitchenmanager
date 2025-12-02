@@ -1,4 +1,4 @@
-// v121 app.js - 修复数量输入负数问题 + 增加常备品(鸡蛋/泡椒) + 优化分类
+// v122 app.js - 优化AI提示词(拒绝黑暗料理) + 包含所有v121修复
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -137,7 +137,7 @@ const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥", "大葱",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "米酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
   "油", "猪油", "菜油", "香油", "芝麻油", "豆粉", "淀粉", "水豆粉", "豆瓣", "豆瓣酱", "甜面酱", "豆豉", "泡椒", "酸菜", "酸豆角", "清汤", "水",
-  "八角", "桂皮", "香叶", "五香粉", "孜然", "茴香", "鸡蛋" // 增加鸡蛋
+  "八角", "桂皮", "香叶", "五香粉", "孜然", "茴香", "鸡蛋" 
 ]);
 function isSeasoning(name) {
   if (!name) return true;
@@ -377,7 +377,27 @@ async function callAiSearchRecipe(query, invNames) {
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
-  const prompt = `你是一名资深家庭主厨。冰箱有：【${invNames}】。菜谱库有【${recipeNames}】。请规划今日推荐：1. **Local**: 选3道适合库存的菜。2. **Creative**: 推荐1道适合库存的家常菜(不要瞎编)。**重要规则：在 ingredients 字段中，请绝对不要包含葱、姜、蒜、花椒、盐、糖、油、酱油等佐料，只列出核心食材（如肉、青菜、豆腐）。** 返回 JSON：{ "local": [ {"name": "准确菜名", "reason": "简短理由"} ], "creative": { "name": "推荐菜名", "reason": "理由", "ingredients": "核心食材1,核心食材2" } }`;
+  
+  // v122: 优化 Prompt，强制要求"经典家常菜"，拒绝黑暗料理
+  const prompt = `你是一位拥有30年经验的资深中式家庭大厨，擅长用最普通的食材做最地道的家常菜。请根据冰箱库存：【${invNames}】规划今日菜单。
+
+请严格按照以下 JSON 格式返回（不要废话）：
+{
+  "local": [ 
+    {"name": "从菜谱库【${recipeNames}】中挑选3道最匹配库存的菜名", "reason": "简短推荐理由"} 
+  ],
+  "creative": { 
+    "name": "推荐一道不在菜谱库中，但非常经典、大众熟知的家常菜", 
+    "reason": "推荐理由（强调口味搭配）", 
+    "ingredients": "核心食材1,核心食材2" 
+  }
+}
+
+**Creative 推荐严格约束**：
+1. **拒绝黑暗料理**：绝对禁止奇怪的食材混搭（如：西瓜炒肉、巧克力炖鱼等）。
+2. **必须经典**：推荐的必须是大众耳熟能详的传统菜肴（如：回锅肉、番茄炒蛋、红烧茄子）。
+3. **逻辑通顺**：如果库存只有青菜，就推荐"清炒时蔬"或"蒜蓉青菜"，不要强行推荐需要肉的大菜。
+4. **Ingredients 规则**：ingredients 字段中**严禁**包含葱、姜、蒜、花椒、盐、糖、油、酱油、醋、味精、豆瓣酱等佐料。只列出肉、菜、蛋、豆制品等核心主材。`;
   
   try {
     const jsonStr = await callAiService(prompt);
