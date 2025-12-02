@@ -1,4 +1,4 @@
-// v120 app.js - 增加鸡蛋/泡椒 + 优化分类名称 + 修复 <think> 解析
+// v121 app.js - 修复数量输入负数问题 + 增加常备品(鸡蛋/泡椒) + 优化分类
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -839,7 +839,7 @@ function renderShopping(pack){
   return d;
 }
 
-// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input (使用 class 配合 CSS) ★★★
+// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input (使用 class 配合 CSS) + 防止负数 ★★★
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
   const header = document.createElement('div'); header.className = 'section-title'; header.innerHTML = '<span>库存管理</span>'; wrap.appendChild(header);
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
@@ -859,8 +859,10 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   `; 
   wrap.appendChild(searchDiv);
   
+  // [修改] 给输入框增加 min="0" 属性
   const formContainer = document.createElement('div'); formContainer.className = 'add-form-container'; 
-  formContainer.innerHTML = `<div style="display:flex; gap:8px; margin-bottom:8px;"><div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div><input id="addQty" type="number" step="1" placeholder="数量" style="width:70px;"><select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select></div><div style="display:flex; gap:8px;"><input id="addDate" type="date" value="${todayISO()}" style="flex:1;"><button id="addBtn" class="btn ok" style="flex:1;">入库</button></div>`; wrap.appendChild(formContainer);
+  formContainer.innerHTML = `<div style="display:flex; gap:8px; margin-bottom:8px;"><div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div><input id="addQty" type="number" min="0" step="1" placeholder="数量" style="width:70px;"><select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select></div><div style="display:flex; gap:8px;"><input id="addDate" type="date" value="${todayISO()}" style="flex:1;"><button id="addBtn" class="btn ok" style="flex:1;">入库</button></div>`; wrap.appendChild(formContainer);
+  
   searchDiv.querySelector('#toggleAddBtn').onclick = () => { 
     formContainer.classList.toggle('open'); 
     const btn = searchDiv.querySelector('#toggleAddBtn');
@@ -871,7 +873,25 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
     }
   };
   formContainer.querySelector('#addName').addEventListener('input', (e)=>{ const val = e.target.value.trim(); const match = catalog.find(c => c.name === val); if(match && match.unit){ formContainer.querySelector('#addUnit').value = match.unit; } }); 
-  formContainer.querySelector('#addBtn').onclick=()=>{ const name=formContainer.querySelector('#addName').value.trim(); if(!name) return alert('请输入食材名称'); const qty=+formContainer.querySelector('#addQty').value||0; const unit=formContainer.querySelector('#addUnit').value; const date=formContainer.querySelector('#addDate').value||todayISO(); upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:guessShelfDays(name, unit)}); formContainer.querySelector('#addName').value = ''; formContainer.querySelector('#addQty').value = ''; renderTable(); };
+  
+  // [修改] 强制数量非负逻辑
+  formContainer.querySelector('#addBtn').onclick=()=>{ 
+    const name=formContainer.querySelector('#addName').value.trim(); 
+    if(!name) return alert('请输入食材名称'); 
+    
+    // 获取数值，如果是负数则强制归0
+    let qty = +formContainer.querySelector('#addQty').value || 0; 
+    if (qty < 0) qty = 0;
+
+    const unit=formContainer.querySelector('#addUnit').value; 
+    const date=formContainer.querySelector('#addDate').value||todayISO(); 
+    
+    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:guessShelfDays(name, unit)}); 
+    formContainer.querySelector('#addName').value = ''; 
+    formContainer.querySelector('#addQty').value = ''; 
+    renderTable(); 
+  };
+  
   const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th style="width:35%">食材</th><th style="width:20%">数量</th><th style="width:25%">保质</th><th class="right">操作</th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
   const scanStatus = searchDiv.querySelector('#scanStatus');
   searchDiv.querySelector('#camInput').onchange = async (e) => {
@@ -891,8 +911,20 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
     if(filteredInv.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="small" style="text-align:center;padding:20px;">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</td></tr>`; return; } 
     for(const e of filteredInv){ 
       const tr=document.createElement('tr'); 
-      tr.innerHTML=`<td><span style="font-weight:600;color:var(--text-main)">${e.name}</span></td><td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td><td>${badgeFor(e)}</td><td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
-      const qtyInput = tr.querySelector('input'); qtyInput.onchange = () => { e.qty = +qtyInput.value||0; saveInventory(inv); };
+      // [修改] 给列表输入框增加 min="0" 属性
+      tr.innerHTML=`<td><span style="font-weight:600;color:var(--text-main)">${e.name}</span></td><td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td><td>${badgeFor(e)}</td><td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
+      
+      const qtyInput = tr.querySelector('input'); 
+      // [修改] 强制列表输入框非负
+      qtyInput.onchange = () => { 
+        let newQty = +qtyInput.value || 0;
+        if(newQty < 0) newQty = 0;
+        e.qty = newQty; 
+        saveInventory(inv); 
+        // 如果用户输入了负数，重置输入框显示为0
+        if(+qtyInput.value < 0) qtyInput.value = 0;
+      };
+      
       els('.btn',tr)[0].onclick=()=>{ const i=inv.indexOf(e); if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); }}; tb.appendChild(tr); 
     } 
   } 
