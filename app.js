@@ -1,4 +1,4 @@
-// v125 app.js - 修复生成做法报错(强制JSON) + 增加自动重试 + 延长超时
+// v126 app.js - 紧急修复 loadBasePack 拼写错误 + 包含所有 v125 功能
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -748,7 +748,7 @@ function renderHome(pack){
   const recDiv = document.createElement('div'); recDiv.style.marginTop = '32px'; 
   
   // ★★★ 核心修复：将 <a> 换成 <button> ★★★
-  recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
+  recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
   
   const recGrid = recDiv.querySelector('#rec-content'); 
   container.appendChild(recDiv); 
