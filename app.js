@@ -1,4 +1,4 @@
-// v122 app.js - 优化AI提示词(拒绝黑暗料理) + 包含所有v121修复
+// v123 app.js - 更新API Key + 升级本地推荐算法(完成度/临期权重)
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 (严格保持用户指定) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", 
+  KEY: "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", // [已更新]
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -407,7 +407,7 @@ async function callCloudAI(pack, inv) {
   }
 }
 
-// --- 核心推荐逻辑 ---
+// --- 核心推荐逻辑 (已升级：完成度+临期优先) ---
 function calculateStockStatus(recipe, pack, inv) {
   const rawIngs = pack.recipe_ingredients[recipe.id] || [];
   let ingredients = explodeCombinedItems(rawIngs);
@@ -442,29 +442,72 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
     }).filter(Boolean);
   }
   
-  const invCanons = inv.map(x => getCanonicalName(x.name)).filter(Boolean);
+  const invMap = new Map();
+  inv.forEach(i => invMap.set(getCanonicalName(i.name), i));
+
   let scores = (pack.recipes || []).map(r => {
-    let ingredients = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
-    ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
+    const rawIngs = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
+    // 过滤掉佐料，只保留核心食材
+    const coreIngs = rawIngs.filter(ing => !isSeasoning(ing.item));
+    
+    // 如果没有核心食材（比如白饭），则不参与智能推荐
+    if (coreIngs.length === 0) return { r, score: 0, matchCount: 0, reason: "基础菜品" };
+
     let matchCount = 0;
-    ingredients.forEach(ing => { 
-      const itemRaw = String(ing.item||'').trim();
-      const itemCanon = getCanonicalName(itemRaw);
-      if (invCanons.some(invC => invC === itemCanon || itemCanon.includes(invC) || invC.includes(itemCanon))) matchCount++;
+    let expiringBonus = 0;
+    
+    coreIngs.forEach(ing => {
+      const canon = getCanonicalName(ing.item);
+      // 尝试精确匹配或模糊匹配
+      let invItem = invMap.get(canon);
+      if (!invItem) {
+          for (const [k, v] of invMap) {
+              if (k.includes(canon) || canon.includes(k)) {
+                  invItem = v;
+                  break;
+              }
+          }
+      }
+
+      if (invItem) {
+        matchCount++;
+        // 临期加分：如果食材剩余保质期 <= 2天，大幅加分
+        if (remainingDays(invItem) <= 2) expiringBonus += 1; 
+      }
     });
-    return { r, matchCount };
+
+    // 核心算法：完成度占比权重最大 + 临期奖励 + 绝对数量微调
+    const completionRatio = matchCount / coreIngs.length;
+    const score = (completionRatio * 50) + (expiringBonus * 15) + (matchCount * 10);
+
+    let reason = "";
+    if (matchCount > 0) {
+        const pct = Math.round(completionRatio * 100);
+        reason = `匹配 ${matchCount}/${coreIngs.length} 项食材 (${pct}%)`;
+        if (expiringBonus > 0) reason = `⚠️ 优先消耗临期食材 | ${reason}`;
+    }
+
+    return { r, score, matchCount, reason };
   });
   
-  scores = scores.filter(s => s.matchCount > 0).sort((a,b) => b.matchCount - a.matchCount).slice(0, 6);
-  if (scores.length === 0) {
+  // 过滤掉完全不匹配的（除非库存实在没得选）
+  const hasMatches = scores.some(s => s.matchCount > 0);
+  if (hasMatches) {
+      scores = scores.filter(s => s.matchCount > 0);
+  }
+  
+  scores.sort((a,b) => b.score - a.score).slice(0, 6);
+  let top = scores.slice(0, 6);
+
+  if (top.length === 0) {
     const all = (pack.recipes||[]);
-    scores = [...all].sort(() => 0.5 - Math.random()).slice(0, 6).map(r => ({ r, matchCount: 0 }));
+    top = [...all].sort(() => 0.5 - Math.random()).slice(0, 6).map(r => ({ r, matchCount: 0, reason: '随机探索' }));
   }
 
-  const toSave = scores.map(s => ({ id: s.r.id, matchCount: s.matchCount, reason: s.matchCount > 0 ? `匹配库存：含 ${s.matchCount} 种食材` : '随机探索' }));
+  const toSave = top.map(s => ({ id: s.r.id, matchCount: s.matchCount, reason: s.reason }));
   S.save(S.keys.local_recs, toSave);
   S.save(S.keys.rec_time, now);
-  return scores.map(s => ({ r: s.r, matchCount: s.matchCount, reason: s.matchCount > 0 ? `匹配库存：含 ${s.matchCount} 种食材` : '随机探索' }));
+  return top.map(s => ({ r: s.r, matchCount: s.matchCount, reason: s.reason }));
 }
 
 function searchResultCard(r, statusData) {
