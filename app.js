@@ -1,4 +1,4 @@
-// v124 app.js - 修复AI离谱推荐(禁止佐料替主材) + 包含所有v123功能
+// v125 app.js - 修复生成做法报错(强制JSON) + 增加自动重试 + 延长超时
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -16,7 +16,7 @@ const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
 const todayISO = () => new Date().toISOString().slice(0,10);
 
-// --- AI 配置 (严格保持用户指定) ---
+// --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
   KEY: "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", 
@@ -39,7 +39,7 @@ const S = {
   }
 };
 
-// --- 食材归一化字典 ---
+// --- 食材归一化字典 (保持不变) ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -362,10 +362,26 @@ async function recognizeReceipt(file) {
   return JSON.parse(jsonStr);
 }
 
+// [修改] 强制要求返回 JSON 格式
 async function callAiForMethod(recipeName, ingredients) {
   const ingStr = ingredients.map(i => i.item).join('、');
-  const prompt = `你是一位精通川菜和中式家常菜的资深大厨。请为菜品【${recipeName}】编写一份做法。已知用料：${ingStr}。要求：1. 拒绝黑暗料理，不合理则修正。2. 正宗或家常做法。3. 格式简洁。`;
-  return await callAiService(prompt);
+  const prompt = `你是一位精通川菜和中式家常菜的资深大厨。请为菜品【${recipeName}】编写一份做法。已知用料：${ingStr}。
+  
+**严格要求**：
+1. 拒绝黑暗料理，不合理则修正。
+2. 正宗或家常做法，步骤清晰。
+3. 请务必返回如下 **JSON 格式**（不要 markdown）：
+{ "method": "1. 第一步...\\n2. 第二步..." }`;
+
+  const jsonStr = await callAiService(prompt);
+  try {
+      // 尝试解析 JSON 并返回 method 字段
+      const res = JSON.parse(jsonStr);
+      return res.method || jsonStr;
+  } catch(e) {
+      // 如果解析失败，说明 AI 可能还是返回了纯文本，直接返回原文
+      return jsonStr; 
+  }
 }
 
 async function callAiSearchRecipe(query, invNames) {
@@ -627,15 +643,48 @@ function renderRecipeDetail(id, pack) {
   const genBtn = div.querySelector('#genMethodBtn');
   if(genBtn) {
     genBtn.onclick = async () => {
+      // [新增] 增加重试逻辑
+      genBtn.setAttribute('disabled', 'true');
       genBtn.innerHTML = '<span class="spinner"></span> 生成中...';
-      try {
-        const text = await callAiForMethod(r.name, items);
-        const currentOverlay = loadOverlay();
-        currentOverlay.recipes = currentOverlay.recipes || {};
-        currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text };
-        saveOverlay(currentOverlay);
-        div.querySelector('#methodArea').innerHTML = `<div class="method-text">${text}</div><div class="small ok" style="margin-top:10px">已保存到补丁</div>`;
-      } catch(e) { alert('生成失败：' + e.message); genBtn.innerHTML = '✨ AI 生成'; }
+      
+      const maxRetries = 1; // 允许自动重试1次
+      let attempt = 0;
+      let success = false;
+      
+      // 超时保护
+      const safetyTimer = setTimeout(() => {
+         if(!success) {
+             genBtn.innerHTML = '✨ 生成超时，请重试';
+             genBtn.removeAttribute('disabled');
+             alert("AI 生成超时，请检查网络后重试。");
+         }
+      }, 30000); // 30秒超时
+
+      while(attempt <= maxRetries && !success) {
+          try {
+            attempt++;
+            const text = await callAiForMethod(r.name, items);
+            clearTimeout(safetyTimer);
+            success = true;
+            
+            const currentOverlay = loadOverlay();
+            currentOverlay.recipes = currentOverlay.recipes || {};
+            currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text };
+            saveOverlay(currentOverlay);
+            div.querySelector('#methodArea').innerHTML = `<div class="method-text">${text}</div><div class="small ok" style="margin-top:10px">已保存到补丁</div>`;
+          } catch(e) {
+            console.warn(`Attempt ${attempt} failed:`, e);
+            if (attempt > maxRetries) {
+                clearTimeout(safetyTimer);
+                alert('生成失败：' + e.message); 
+                genBtn.innerHTML = '✨ AI 生成';
+                genBtn.removeAttribute('disabled');
+            } else {
+                genBtn.innerHTML = `<span class="spinner"></span> 正在重试 (${attempt}/${maxRetries})...`;
+                await new Promise(r => setTimeout(r, 1000)); // 等1秒重试
+            }
+          }
+      }
     };
   }
   return div;
@@ -725,65 +774,76 @@ function renderHome(pack){
   
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
   
-  // ★★★ 标准 Click 事件处理 (无 Touchend 冲突) ★★★
+  // ★★★ 标准 Click 事件处理 + 自动重试 ★★★
   aiBtn.onclick = async () => {
     if (aiBtn.getAttribute('disabled')) return;
     
     aiBtn.setAttribute('disabled', 'true');
-    // 视觉延迟反馈
     await new Promise(r => setTimeout(r, 50));
-    
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
     
+    const maxRetries = 1;
+    let attempt = 0;
+    let success = false;
+
+    // 超时保护
     const safetyTimer = setTimeout(() => {
-       aiBtn.innerHTML = '✨ 呼叫 AI'; 
-       aiBtn.style.opacity = '1';
-       aiBtn.removeAttribute('disabled'); 
-       alert("AI 响应超时，已自动切换到本地推荐。");
-       showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
-    }, 15000);
+       if(!success) {
+           aiBtn.innerHTML = '✨ 呼叫 AI'; 
+           aiBtn.style.opacity = '1';
+           aiBtn.removeAttribute('disabled'); 
+           alert("AI 响应超时，已自动切换到本地推荐。");
+           showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
+       }
+    }, 30000); // 30秒
 
-    try { 
-      const aiResult = await callCloudAI(pack, inv); 
-      clearTimeout(safetyTimer);
-      S.save(S.keys.ai_recs, aiResult);
-      const newCards = processAiData(aiResult, pack);
-      if(newCards.length > 0) { 
-          showRecommendationCards(recGrid, newCards, pack); 
-          if (!recDiv.querySelector('#clearAiBtn')) {
-               const clearBtn = document.createElement('button'); 
-               clearBtn.type = 'button';
-               clearBtn.className = 'btn bad small'; 
-               clearBtn.id = 'clearAiBtn';
-               clearBtn.style.marginLeft='10px'; 
-               clearBtn.textContent = '清除推荐';
-               clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
-               recDiv.querySelector('.section-title').appendChild(clearBtn);
+    while(attempt <= maxRetries && !success) {
+        try { 
+          attempt++;
+          const aiResult = await callCloudAI(pack, inv); 
+          clearTimeout(safetyTimer);
+          success = true;
+          
+          S.save(S.keys.ai_recs, aiResult);
+          const newCards = processAiData(aiResult, pack);
+          if(newCards.length > 0) { 
+              showRecommendationCards(recGrid, newCards, pack); 
+              if (!recDiv.querySelector('#clearAiBtn')) {
+                   const clearBtn = document.createElement('button'); 
+                   clearBtn.type = 'button';
+                   clearBtn.className = 'btn bad small'; 
+                   clearBtn.id = 'clearAiBtn';
+                   clearBtn.style.marginLeft='10px'; 
+                   clearBtn.textContent = '清除推荐';
+                   clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+                   recDiv.querySelector('.section-title').appendChild(clearBtn);
+              }
+          } 
+        } catch(e) { 
+          console.warn(`AI Recs Attempt ${attempt} failed:`, e);
+          if (attempt > maxRetries) {
+              clearTimeout(safetyTimer);
+              let errorMsg = e.message;
+              if (errorMsg.includes("401")) errorMsg = "API Key 无效或过期";
+              else if (errorMsg.includes("429")) errorMsg = "请求过多(429)，AI 繁忙";
+              else if (errorMsg.includes("404")) errorMsg = "模型不存在(404)";
+              
+              alert(`AI 调用失败: ${errorMsg}\n\n切换到【本地推荐】。`);
+              showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
+          } else {
+              aiBtn.innerHTML = `<span class="spinner"></span> 正在重试...`;
+              await new Promise(r => setTimeout(r, 1000));
           }
-      } 
-    } catch(e) { 
-      clearTimeout(safetyTimer);
-      // ★★★ 显性报错：先弹窗告诉用户错误，再降级 ★★★
-      let errorMsg = e.message;
-      if (errorMsg.includes("401")) errorMsg = "API Key 无效或过期";
-      else if (errorMsg.includes("429")) errorMsg = "请求过多(429)，AI 繁忙";
-      else if (errorMsg.includes("404")) errorMsg = "模型不存在(404)";
-      else if (errorMsg.includes("400")) errorMsg = "请求参数错误(400)";
-
-      alert(`AI 调用失败: ${errorMsg}\n\n系统将为您切换到【本地推荐】模式。`);
-      
-      console.warn("AI Failed:", e);
-      showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
-    } 
-    finally { 
-      aiBtn.innerHTML = '✨ 呼叫 AI'; 
-      aiBtn.style.opacity = '1'; 
-      aiBtn.removeAttribute('disabled'); 
-      // 强制重绘
-      aiBtn.style.display = 'none';
-      aiBtn.offsetHeight; 
-      aiBtn.style.display = '';
-    } 
+        } 
+    }
+    
+    // 恢复按钮
+    if (success || attempt > maxRetries) {
+        aiBtn.innerHTML = '✨ 呼叫 AI'; 
+        aiBtn.style.opacity = '1'; 
+        aiBtn.removeAttribute('disabled'); 
+        aiBtn.style.display = 'none'; aiBtn.offsetHeight; aiBtn.style.display = '';
+    }
   };
   
   return container; 
@@ -1224,7 +1284,7 @@ function renderRecipeEditor(id, base){
 async function onRoute(){ 
   try {
     app.innerHTML=''; 
-    const base = await loadBasePack(); 
+    const base = await loadBaseBasePack(); 
     const overlay = loadOverlay(); 
     const pack = applyOverlay(base, overlay); 
     let hash = location.hash.replace('#',''); 
