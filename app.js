@@ -1,4 +1,4 @@
-// v123 app.js - 更新API Key + 升级本地推荐算法(完成度/临期权重)
+// v124 app.js - 修复AI离谱推荐(禁止佐料替主材) + 包含所有v123功能
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 (严格保持用户指定) ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", // [已更新]
+  KEY: "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", 
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -378,26 +378,26 @@ async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
   
-  // v122: 优化 Prompt，强制要求"经典家常菜"，拒绝黑暗料理
-  const prompt = `你是一位拥有30年经验的资深中式家庭大厨，擅长用最普通的食材做最地道的家常菜。请根据冰箱库存：【${invNames}】规划今日菜单。
+  // v124: 进一步优化 Prompt，严防离谱替代
+  const prompt = `你是一位严谨的、拥有30年经验的中式家庭大厨。请根据冰箱库存：【${invNames}】规划今日菜单。
 
-请严格按照以下 JSON 格式返回（不要废话）：
+请严格按照以下 JSON 格式返回：
 {
   "local": [ 
-    {"name": "从菜谱库【${recipeNames}】中挑选3道最匹配库存的菜名", "reason": "简短推荐理由"} 
+    {"name": "从菜谱库【${recipeNames}】中挑选3道最匹配库存的菜名", "reason": "基于库存匹配度的推荐理由"} 
   ],
   "creative": { 
     "name": "推荐一道不在菜谱库中，但非常经典、大众熟知的家常菜", 
-    "reason": "推荐理由（强调口味搭配）", 
+    "reason": "简短介绍这道菜的口味特点", 
     "ingredients": "核心食材1,核心食材2" 
   }
 }
 
-**Creative 推荐严格约束**：
-1. **拒绝黑暗料理**：绝对禁止奇怪的食材混搭（如：西瓜炒肉、巧克力炖鱼等）。
-2. **必须经典**：推荐的必须是大众耳熟能详的传统菜肴（如：回锅肉、番茄炒蛋、红烧茄子）。
-3. **逻辑通顺**：如果库存只有青菜，就推荐"清炒时蔬"或"蒜蓉青菜"，不要强行推荐需要肉的大菜。
-4. **Ingredients 规则**：ingredients 字段中**严禁**包含葱、姜、蒜、花椒、盐、糖、油、酱油、醋、味精、豆瓣酱等佐料。只列出肉、菜、蛋、豆制品等核心主材。`;
+**严格约束（必读）**：
+1. **拒绝离谱替代**：绝不允许用葱姜蒜、九层塔、香菜等佐料去替代叶菜、肉类等主材（例如：不能说“用九层塔替代空心菜”）。
+2. **拒绝黑暗料理**：禁止奇怪的食材混搭。推荐必须是大众耳熟能详的传统家常菜（如：番茄炒蛋、青椒肉丝）。
+3. **实事求是**：如果库存食材不足以做某道大菜，就推荐简单的快手菜，不要强行编造。
+4. **Ingredients 字段**：只列出肉、菜、蛋、豆制品等核心主材，**严禁**包含葱姜蒜、盐糖油酱醋等佐料。`;
   
   try {
     const jsonStr = await callAiService(prompt);
