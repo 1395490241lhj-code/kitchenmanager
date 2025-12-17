@@ -1,4 +1,4 @@
-// v127 app.js - 修复 loadBasePack 拼写错误 + 包含所有 v126 功能
+// v128 app.js - 增加食材冷冻功能(超长保质期) + 点击状态标签切换冷冻 + 包含所有修复
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", 
+  KEY: "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", 
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -39,7 +39,7 @@ const S = {
   }
 };
 
-// --- 食材归一化字典 (保持不变) ---
+// --- 食材归一化字典 ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -263,7 +263,18 @@ function loadInventory(catalog){ const inv=S.load(S.keys.inventory,[]); for(cons
 function saveInventory(inv){ S.save(S.keys.inventory, inv); }
 function daysBetween(a,b){ return Math.floor((new Date(b)-new Date(a))/86400000); }
 function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); return (+e.shelf||7)-age; }
-function badgeFor(e){ const r=remainingDays(e); if(r<=1) return `<span class="kchip bad">即将过期 ${r}天</span>`; if(r<=3) return `<span class="kchip warn">优先消耗 ${r}天</span>`; return `<span class="kchip ok">新鲜 ${r}天</span>`; }
+
+// [修改] 更新 badgeFor 函数，支持冷冻状态显示
+function badgeFor(e){ 
+  if(e.isFrozen) return `<span class="kchip" style="background:#3498db;color:white;cursor:pointer" title="点击切换为冷藏">❄️ 冷冻</span>`;
+  const r=remainingDays(e); 
+  let html = '';
+  if(r<=1) html = `<span class="kchip bad" style="cursor:pointer" title="点击切换为冷冻">即将过期 ${r}天</span>`; 
+  else if(r<=3) html = `<span class="kchip warn" style="cursor:pointer" title="点击切换为冷冻">优先消耗 ${r}天</span>`; 
+  else html = `<span class="kchip ok" style="cursor:pointer" title="点击切换为冷冻">新鲜 ${r}天</span>`; 
+  return html;
+}
+
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
 function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g')}); } saveInventory(inv); }
 
@@ -962,7 +973,7 @@ function renderShopping(pack){
   return d;
 }
 
-// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input (使用 class 配合 CSS) + 防止负数 ★★★
+// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 ★★★
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
   const header = document.createElement('div'); header.className = 'section-title'; header.innerHTML = '<span>库存管理</span>'; wrap.appendChild(header);
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
@@ -982,9 +993,25 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   `; 
   wrap.appendChild(searchDiv);
   
-  // [修改] 给输入框增加 min="0" 属性
+  // [修改] 增加冷冻选项 Checkbox
   const formContainer = document.createElement('div'); formContainer.className = 'add-form-container'; 
-  formContainer.innerHTML = `<div style="display:flex; gap:8px; margin-bottom:8px;"><div style="flex:1; min-width:120px;"><input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;"><datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist></div><input id="addQty" type="number" min="0" step="1" placeholder="数量" style="width:70px;"><select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select></div><div style="display:flex; gap:8px;"><input id="addDate" type="date" value="${todayISO()}" style="flex:1;"><button id="addBtn" class="btn ok" style="flex:1;">入库</button></div>`; wrap.appendChild(formContainer);
+  formContainer.innerHTML = `
+    <div style="display:flex; gap:8px; margin-bottom:8px;">
+      <div style="flex:1; min-width:120px;">
+        <input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;">
+        <datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist>
+      </div>
+      <input id="addQty" type="number" min="0" step="1" placeholder="数量" style="width:70px;">
+      <select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input id="addDate" type="date" value="${todayISO()}" style="width:120px;">
+      <label style="display:flex;align-items:center;font-size:14px;cursor:pointer;user-select:none;color:var(--text-main);margin:0 4px;">
+        <input type="checkbox" id="addFrozen" style="width:16px;height:16px;margin-right:4px;accent-color:var(--accent);">冷冻
+      </label>
+      <button id="addBtn" class="btn ok" style="flex:1;">入库</button>
+    </div>`; 
+  wrap.appendChild(formContainer);
   
   searchDiv.querySelector('#toggleAddBtn').onclick = () => { 
     formContainer.classList.toggle('open'); 
@@ -997,7 +1024,7 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   };
   formContainer.querySelector('#addName').addEventListener('input', (e)=>{ const val = e.target.value.trim(); const match = catalog.find(c => c.name === val); if(match && match.unit){ formContainer.querySelector('#addUnit').value = match.unit; } }); 
   
-  // [修改] 强制数量非负逻辑
+  // [修改] 强制数量非负 + 冷冻逻辑
   formContainer.querySelector('#addBtn').onclick=()=>{ 
     const name=formContainer.querySelector('#addName').value.trim(); 
     if(!name) return alert('请输入食材名称'); 
@@ -1008,10 +1035,16 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
 
     const unit=formContainer.querySelector('#addUnit').value; 
     const date=formContainer.querySelector('#addDate').value||todayISO(); 
+    const isFrozen = formContainer.querySelector('#addFrozen').checked; // 获取冷冻状态
+
+    // 如果冷冻，保质期设为180天，否则自动推算
+    const shelfDays = isFrozen ? 180 : guessShelfDays(name, unit);
     
-    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:guessShelfDays(name, unit)}); 
+    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:shelfDays, isFrozen: isFrozen}); 
+    
     formContainer.querySelector('#addName').value = ''; 
     formContainer.querySelector('#addQty').value = ''; 
+    formContainer.querySelector('#addFrozen').checked = false; // 重置
     renderTable(); 
   };
   
@@ -1034,8 +1067,8 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
     if(filteredInv.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="small" style="text-align:center;padding:20px;">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</td></tr>`; return; } 
     for(const e of filteredInv){ 
       const tr=document.createElement('tr'); 
-      // [修改] 给列表输入框增加 min="0" 属性
-      tr.innerHTML=`<td><span style="font-weight:600;color:var(--text-main)">${e.name}</span></td><td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td><td>${badgeFor(e)}</td><td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
+      // [修改] 给列表输入框增加 min="0" 属性，增加点击切换冷冻功能
+      tr.innerHTML=`<td><span style="font-weight:600;color:var(--text-main)">${e.name}</span></td><td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td><td class="status-cell">${badgeFor(e)}</td><td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
       
       const qtyInput = tr.querySelector('input'); 
       // [修改] 强制列表输入框非负
@@ -1047,6 +1080,18 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
         // 如果用户输入了负数，重置输入框显示为0
         if(+qtyInput.value < 0) qtyInput.value = 0;
       };
+
+      // [新增] 点击状态标签切换冷冻/冷藏
+      const statusCell = tr.querySelector('.status-cell');
+      if(statusCell) {
+        statusCell.onclick = () => {
+          e.isFrozen = !e.isFrozen; // 切换状态
+          // 重新计算保质期：冷冻=180天，冷藏=按规则计算
+          e.shelf = e.isFrozen ? 180 : guessShelfDays(e.name, e.unit);
+          saveInventory(inv);
+          renderTable(); // 刷新显示
+        };
+      }
       
       els('.btn',tr)[0].onclick=()=>{ const i=inv.indexOf(e); if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); }}; tb.appendChild(tr); 
     } 
@@ -1284,7 +1329,6 @@ function renderRecipeEditor(id, base){
 async function onRoute(){ 
   try {
     app.innerHTML=''; 
-    // [修复] 这里之前写成了 loadBaseBasePack()
     const base = await loadBasePack(); 
     const overlay = loadOverlay(); 
     const pack = applyOverlay(base, overlay); 
