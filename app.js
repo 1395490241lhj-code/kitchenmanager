@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", 
+  KEY: "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", 
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
