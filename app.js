@@ -1,4 +1,4 @@
-// v128 app.js - 增加食材冷冻功能(超长保质期) + 点击状态标签切换冷冻 + 包含所有修复
+// v130 app.js - 更新API Key + 包含之前所有功能(库存编辑/冷冻管理/列表购买日期)
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -973,7 +973,61 @@ function renderShopping(pack){
   return d;
 }
 
-// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 ★★★
+// [新增] 弹出编辑库存详情的 Modal
+function showEditInventoryModal(item, onSave) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);";
+  
+  const dialog = document.createElement('div');
+  dialog.className = 'card';
+  dialog.style.cssText = "width:90%;max-width:320px;background:var(--bg-card);padding:24px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.2);animation:fadeIn 0.2s ease-out;";
+  
+  // 增加简单的出现动画
+  const style = document.createElement('style');
+  style.innerHTML = `@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }`;
+  document.head.appendChild(style);
+
+  dialog.innerHTML = `
+    <h3 style="margin-top:0;color:var(--text-main);font-size:18px;">📝 编辑库存: ${item.name}</h3>
+    <div style="margin-bottom:16px;">
+      <label class="small" style="display:block;margin-bottom:4px;color:var(--text-secondary)">购买日期 (补录用)</label>
+      <input type="date" id="editDate" value="${item.buyDate || todayISO()}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);background:var(--bg-main);color:var(--text-main);font-size:16px;">
+    </div>
+    <div style="margin-bottom:16px;">
+      <label class="small" style="display:block;margin-bottom:4px;color:var(--text-secondary)">保质期 (天)</label>
+      <input type="number" id="editShelf" value="${item.shelf || 7}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);background:var(--bg-main);color:var(--text-main);font-size:16px;">
+    </div>
+    <div style="margin-bottom:24px;display:flex;align-items:center;padding:10px;background:var(--bg-main);border-radius:8px;">
+      <input type="checkbox" id="editFrozen" ${item.isFrozen ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer;">
+      <label for="editFrozen" style="margin-left:10px;flex:1;cursor:pointer;font-weight:500;">❄️ 冷冻保存 (延长保质)</label>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <button class="btn" id="cancelBtn" style="background:transparent;border:1px solid var(--separator);color:var(--text-main);">取消</button>
+      <button class="btn ok" id="saveBtn" style="flex:1;">保存修改</button>
+    </div>
+  `;
+  
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  
+  const close = () => {
+    overlay.style.opacity = '0';
+    setTimeout(() => document.body.removeChild(overlay), 200);
+  };
+  
+  overlay.querySelector('#cancelBtn').onclick = close;
+  overlay.querySelector('#saveBtn').onclick = () => {
+    item.buyDate = overlay.querySelector('#editDate').value;
+    item.shelf = Number(overlay.querySelector('#editShelf').value) || 7;
+    item.isFrozen = overlay.querySelector('#editFrozen').checked;
+    onSave();
+    close();
+  };
+  
+  overlay.onclick = (e) => { if(e.target === overlay) close(); };
+}
+
+// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 + [新增]详情编辑 ★★★
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
   const header = document.createElement('div'); header.className = 'section-title'; header.innerHTML = '<span>库存管理</span>'; wrap.appendChild(header);
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
@@ -1067,9 +1121,24 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
     if(filteredInv.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="small" style="text-align:center;padding:20px;">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</td></tr>`; return; } 
     for(const e of filteredInv){ 
       const tr=document.createElement('tr'); 
-      // [修改] 给列表输入框增加 min="0" 属性，增加点击切换冷冻功能
-      tr.innerHTML=`<td><span style="font-weight:600;color:var(--text-main)">${e.name}</span></td><td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td><td class="status-cell">${badgeFor(e)}</td><td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
+      // [修改] 增加点击名字编辑功能 + 显示购买日期
+      tr.innerHTML=`
+        <td class="name-cell" style="cursor:pointer;position:relative;">
+          <span style="font-weight:600;color:var(--text-main)">${e.name}</span>
+          <br><small style="color:var(--text-secondary);font-size:10px;">${e.buyDate||'未知'}</small>
+        </td>
+        <td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td>
+        <td class="status-cell">${badgeFor(e)}</td>
+        <td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
       
+      // 绑定编辑弹窗事件
+      tr.querySelector('.name-cell').onclick = () => {
+        showEditInventoryModal(e, () => {
+          saveInventory(inv);
+          renderTable();
+        });
+      };
+
       const qtyInput = tr.querySelector('input'); 
       // [修改] 强制列表输入框非负
       qtyInput.onchange = () => { 
