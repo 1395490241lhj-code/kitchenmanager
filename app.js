@@ -1,4 +1,4 @@
-// v130 app.js - 更新API Key + 包含之前所有功能(库存编辑/冷冻管理/列表购买日期)
+// v131 app.js - 修复AI创意菜菜单错乱(结构化食材+模糊匹配) + 包含v130所有功能
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", 
+  KEY: "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", 
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -405,7 +405,7 @@ async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
   
-  // v124: 进一步优化 Prompt，严防离谱替代
+  // v131: 优化 Prompt - 强制 creative.ingredients 为数组
   const prompt = `你是一位严谨的、拥有30年经验的中式家庭大厨。请根据冰箱库存：【${invNames}】规划今日菜单。
 
 请严格按照以下 JSON 格式返回：
@@ -416,15 +416,14 @@ async function callCloudAI(pack, inv) {
   "creative": { 
     "name": "推荐一道不在菜谱库中，但非常经典、大众熟知的家常菜", 
     "reason": "简短介绍这道菜的口味特点", 
-    "ingredients": "核心食材1,核心食材2" 
+    "ingredients": ["核心食材1", "核心食材2"] 
   }
 }
 
 **严格约束（必读）**：
-1. **拒绝离谱替代**：绝不允许用葱姜蒜、九层塔、香菜等佐料去替代叶菜、肉类等主材（例如：不能说“用九层塔替代空心菜”）。
+1. **拒绝离谱替代**：绝不允许用葱姜蒜、九层塔、香菜等佐料去替代叶菜、肉类等主材。
 2. **拒绝黑暗料理**：禁止奇怪的食材混搭。推荐必须是大众耳熟能详的传统家常菜（如：番茄炒蛋、青椒肉丝）。
-3. **实事求是**：如果库存食材不足以做某道大菜，就推荐简单的快手菜，不要强行编造。
-4. **Ingredients 字段**：只列出肉、菜、蛋、豆制品等核心主材，**严禁**包含葱姜蒜、盐糖油酱醋等佐料。`;
+3. **ingredients 必须是数组**：只列出肉、菜、蛋、豆制品等核心主材，**严禁**包含葱姜蒜、盐糖油酱醋等佐料。`;
   
   try {
     const jsonStr = await callAiService(prompt);
@@ -569,16 +568,31 @@ function showRecommendationCards(container, list, pack) {
 
 function processAiData(aiResult, pack) {
   const cards = [];
+  
+  // 处理 Local 推荐 (v131: 增加模糊匹配逻辑)
   if(aiResult.local && Array.isArray(aiResult.local)){ 
     aiResult.local.forEach(l => { 
-       const found = (pack.recipes||[]).find(r => r.name === l.name); 
+       let found = (pack.recipes||[]).find(r => r.name === l.name); 
+       // 尝试模糊匹配 (如果 AI 返回 "回锅肉" 但只有 "四川回锅肉")
+       if (!found) {
+           found = (pack.recipes||[]).find(r => r.name.includes(l.name) || l.name.includes(r.name));
+       }
        if(found) cards.push({ r: found, reason: l.reason, isAi: true }); 
     }); 
   }
+  
+  // 处理 Creative 推荐 (v131: 兼容数组或字符串)
   if(aiResult.creative){ 
+    let ingList = [];
+    if(Array.isArray(aiResult.creative.ingredients)) {
+        ingList = aiResult.creative.ingredients.map(s => ({item: s}));
+    } else if (typeof aiResult.creative.ingredients === 'string') {
+        ingList = [{item: aiResult.creative.ingredients}];
+    }
+
     cards.push({ 
        r: { id: 'creative-ai-temp', name: aiResult.creative.name, tags: ['AI创意菜'] }, 
-       list: [{item: aiResult.creative.ingredients}], 
+       list: ingList, 
        reason: aiResult.creative.reason, 
        isAi: true 
     }); 
@@ -640,7 +654,12 @@ function renderRecipeDetail(id, pack) {
   let items = [];
   if (r.isCreative) { 
     const aiData = S.load(S.keys.ai_recs, null); 
-    items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; 
+    // v131: 兼容数组或字符串
+    if(Array.isArray(aiData.creative.ingredients)){
+        items = aiData.creative.ingredients.map(s => ({item: s}));
+    } else {
+        items = explodeCombinedItems([{item: aiData.creative.ingredients}]); 
+    }
   } else { 
     const ingList = pack.recipe_ingredients[id] || []; 
     items = explodeCombinedItems(ingList); 
