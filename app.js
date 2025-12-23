@@ -1,4 +1,4 @@
-// v131 app.js - 修复AI创意菜菜单错乱(结构化食材+模糊匹配) + 包含v130所有功能
+// v134 app.js - 综合修复：AI菜单错乱 + 移动端布局 + 样式类名对齐
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -39,7 +39,7 @@ const S = {
   }
 };
 
-// --- 食材归一化字典 ---
+// --- 食材归一化字典 (保持不变) ---
 const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
@@ -602,10 +602,19 @@ function processAiData(aiResult, pack) {
 
 function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
+  // [修改] 移除内联样式，使用 CSS 类
   let topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ AI 推荐</div>` : '';
   
-  // 核心修复：使用 button 替代 a 标签
-  card.innerHTML=`${topHtml}<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${!r.id.startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;border:none;">编辑</button>` : ''}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="ing-compact-container"></div>${extraInfo && extraInfo.reason ? `<div class="ai-reason" style="margin-top:8px;padding:8px;font-size:12px;">${extraInfo.reason}</div>` : ''}<div class="controls"></div>`;
+  // [修改] 移除 h3 和 div 的内联 style，完全依赖 CSS
+  card.innerHTML=`${topHtml}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+      <h3 class="r-title">${r.name}</h3>
+      ${!r.id.startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;border:none;">编辑</button>` : ''}
+    </div>
+    <p class="meta">${(r.tags||[]).join(' / ')}</p>
+    <div class="ing-compact-container"></div>
+    ${extraInfo && extraInfo.reason ? `<div class="ai-reason">${extraInfo.reason}</div>` : ''}
+    <div class="controls" style="margin-top:16px;"></div>`;
   
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
   const editBtn = card.querySelector('.btn-edit');
@@ -654,12 +663,7 @@ function renderRecipeDetail(id, pack) {
   let items = [];
   if (r.isCreative) { 
     const aiData = S.load(S.keys.ai_recs, null); 
-    // v131: 兼容数组或字符串
-    if(Array.isArray(aiData.creative.ingredients)){
-        items = aiData.creative.ingredients.map(s => ({item: s}));
-    } else {
-        items = explodeCombinedItems([{item: aiData.creative.ingredients}]); 
-    }
+    items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; 
   } else { 
     const ingList = pack.recipe_ingredients[id] || []; 
     items = explodeCombinedItems(ingList); 
@@ -777,8 +781,8 @@ function renderHome(pack){
   container.appendChild(renderInventory(pack));
   const recDiv = document.createElement('div'); recDiv.style.marginTop = '32px'; 
   
-  // ★★★ 核心修复：将 <a> 换成 <button> ★★★
-  recDiv.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin:0 4px 12px;"><h2 class="section-title" style="margin:0;font-size:18px;">今日推荐</h2><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
+  // [修改] 移除内联 style="font-size:18px", 使用 CSS .section-title
+  recDiv.innerHTML = `<div class="section-title"><span>今日推荐</span><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
   
   const recGrid = recDiv.querySelector('#rec-content'); 
   container.appendChild(recDiv); 
@@ -1046,7 +1050,7 @@ function showEditInventoryModal(item, onSave) {
   overlay.onclick = (e) => { if(e.target === overlay) close(); };
 }
 
-// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 + [新增]详情编辑 ★★★
+// ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 + [新增]详情编辑 + [修复]按钮重叠 ★★★
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
   const header = document.createElement('div'); header.className = 'section-title'; header.innerHTML = '<span>库存管理</span>'; wrap.appendChild(header);
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
@@ -1066,23 +1070,25 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   `; 
   wrap.appendChild(searchDiv);
   
-  // [修改] 增加冷冻选项 Checkbox
+  // [修改] 增加冷冻选项 Checkbox + [布局修复] 使用 flex-wrap 允许换行
   const formContainer = document.createElement('div'); formContainer.className = 'add-form-container'; 
   formContainer.innerHTML = `
-    <div style="display:flex; gap:8px; margin-bottom:8px;">
-      <div style="flex:1; min-width:120px;">
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:140px;">
         <input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;">
         <datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist>
       </div>
-      <input id="addQty" type="number" min="0" step="1" placeholder="数量" style="width:70px;">
-      <select id="addUnit" style="width:70px;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
+      <div style="display:flex; gap:8px; flex:1; min-width:140px;">
+        <input id="addQty" type="number" min="0" step="1" placeholder="数量" style="width:70px;flex:1;">
+        <select id="addUnit" style="width:70px;flex:1;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
+      </div>
     </div>
-    <div style="display:flex; gap:8px; align-items:center;">
-      <input id="addDate" type="date" value="${todayISO()}" style="width:120px;">
-      <label style="display:flex;align-items:center;font-size:14px;cursor:pointer;user-select:none;color:var(--text-main);margin:0 4px;">
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <input id="addDate" type="date" value="${todayISO()}" style="flex:1; min-width:130px;">
+      <label style="display:flex;align-items:center;font-size:14px;cursor:pointer;user-select:none;color:var(--text-main);margin:0 4px; white-space:nowrap;">
         <input type="checkbox" id="addFrozen" style="width:16px;height:16px;margin-right:4px;accent-color:var(--accent);">冷冻
       </label>
-      <button id="addBtn" class="btn ok" style="flex:1;">入库</button>
+      <button id="addBtn" class="btn ok" style="flex:1; min-width:80px;">入库</button>
     </div>`; 
   wrap.appendChild(formContainer);
   
@@ -1189,9 +1195,10 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
 
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
+  // [修改] 增加 flex-wrap:wrap 到 controls
   wrap.innerHTML = `
-    <div class="controls" style="margin-bottom:16px;gap:10px;">
-      <input id="search" placeholder="搜菜谱..." style="flex:1;padding:12px;border-radius:12px;border:1px solid var(--separator);">
+    <div class="controls" style="margin-bottom:16px;gap:10px;flex-wrap:wrap;">
+      <input id="search" placeholder="搜菜谱..." style="flex:1;min-width:150px;padding:12px;border-radius:12px;border:1px solid var(--separator);">
       <a class="btn ok icon-only" id="addBtn" title="新建菜谱">
          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       </a>
