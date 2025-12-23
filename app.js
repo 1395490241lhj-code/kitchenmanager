@@ -1,4 +1,4 @@
-// v134 app.js - 综合修复：AI菜单错乱 + 移动端布局 + 样式类名对齐
+// v136 app.js - 更新API Key + 包含所有之前功能(库存编辑/冷冻管理/列表购买日期/UI修复)
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", 
+  KEY: "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", // [已更新]
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -569,7 +569,7 @@ function showRecommendationCards(container, list, pack) {
 function processAiData(aiResult, pack) {
   const cards = [];
   
-  // 处理 Local 推荐 (v134: 增加模糊匹配逻辑)
+  // 处理 Local 推荐 (v131: 增加模糊匹配逻辑)
   if(aiResult.local && Array.isArray(aiResult.local)){ 
     aiResult.local.forEach(l => { 
        let found = (pack.recipes||[]).find(r => r.name === l.name); 
@@ -581,17 +581,13 @@ function processAiData(aiResult, pack) {
     }); 
   }
   
-  // 处理 Creative 推荐 (v134: 超强容错)
+  // 处理 Creative 推荐 (v131: 兼容数组或字符串)
   if(aiResult.creative){ 
     let ingList = [];
     if(Array.isArray(aiResult.creative.ingredients)) {
-        // AI 乖乖返回了数组
         ingList = aiResult.creative.ingredients.map(s => ({item: s}));
     } else if (typeof aiResult.creative.ingredients === 'string') {
-        // AI 返回了字符串，手动切割
-        const rawStr = aiResult.creative.ingredients;
-        const parts = rawStr.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
-        ingList = parts.map(s => ({item: s}));
+        ingList = [{item: aiResult.creative.ingredients}];
     }
 
     cards.push({ 
@@ -667,15 +663,7 @@ function renderRecipeDetail(id, pack) {
   let items = [];
   if (r.isCreative) { 
     const aiData = S.load(S.keys.ai_recs, null); 
-    // v134: 增强解析，兼容数组或字符串
-    if(Array.isArray(aiData.creative.ingredients)){
-        items = aiData.creative.ingredients.map(s => ({item: s}));
-    } else {
-        // 如果是字符串，尝试按逗号或顿号分割
-        const raw = aiData.creative.ingredients || '';
-        const parts = raw.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
-        items = parts.map(s => ({item: s}));
-    }
+    items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; 
   } else { 
     const ingList = pack.recipe_ingredients[id] || []; 
     items = explodeCombinedItems(ingList); 
