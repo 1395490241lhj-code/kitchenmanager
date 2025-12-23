@@ -569,7 +569,7 @@ function showRecommendationCards(container, list, pack) {
 function processAiData(aiResult, pack) {
   const cards = [];
   
-  // 处理 Local 推荐 (v131: 增加模糊匹配逻辑)
+  // 处理 Local 推荐 (v134: 增加模糊匹配逻辑)
   if(aiResult.local && Array.isArray(aiResult.local)){ 
     aiResult.local.forEach(l => { 
        let found = (pack.recipes||[]).find(r => r.name === l.name); 
@@ -581,13 +581,17 @@ function processAiData(aiResult, pack) {
     }); 
   }
   
-  // 处理 Creative 推荐 (v131: 兼容数组或字符串)
+  // 处理 Creative 推荐 (v134: 超强容错)
   if(aiResult.creative){ 
     let ingList = [];
     if(Array.isArray(aiResult.creative.ingredients)) {
+        // AI 乖乖返回了数组
         ingList = aiResult.creative.ingredients.map(s => ({item: s}));
     } else if (typeof aiResult.creative.ingredients === 'string') {
-        ingList = [{item: aiResult.creative.ingredients}];
+        // AI 返回了字符串，手动切割
+        const rawStr = aiResult.creative.ingredients;
+        const parts = rawStr.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+        ingList = parts.map(s => ({item: s}));
     }
 
     cards.push({ 
@@ -663,7 +667,15 @@ function renderRecipeDetail(id, pack) {
   let items = [];
   if (r.isCreative) { 
     const aiData = S.load(S.keys.ai_recs, null); 
-    items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; 
+    // v134: 增强解析，兼容数组或字符串
+    if(Array.isArray(aiData.creative.ingredients)){
+        items = aiData.creative.ingredients.map(s => ({item: s}));
+    } else {
+        // 如果是字符串，尝试按逗号或顿号分割
+        const raw = aiData.creative.ingredients || '';
+        const parts = raw.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+        items = parts.map(s => ({item: s}));
+    }
   } else { 
     const ingList = pack.recipe_ingredients[id] || []; 
     items = explodeCombinedItems(ingList); 
