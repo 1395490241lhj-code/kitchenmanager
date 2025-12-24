@@ -1,4 +1,4 @@
-// v136 app.js - 更新API Key + 包含所有之前功能(库存编辑/冷冻管理/列表购买日期/UI修复)
+// v137 app.js - 修复购物清单漏菜问题 + 重构UI为Grid布局 + 包含所有 v136 功能
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", // [已更新]
+  KEY: "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", 
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -264,7 +264,7 @@ function saveInventory(inv){ S.save(S.keys.inventory, inv); }
 function daysBetween(a,b){ return Math.floor((new Date(b)-new Date(a))/86400000); }
 function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); return (+e.shelf||7)-age; }
 
-// [修改] 更新 badgeFor 函数，支持冷冻状态显示
+// 更新 badgeFor 函数，支持冷冻状态显示
 function badgeFor(e){ 
   if(e.isFrozen) return `<span class="kchip" style="background:#3498db;color:white;cursor:pointer" title="点击切换为冷藏">❄️ 冷冻</span>`;
   const r=remainingDays(e); 
@@ -883,11 +883,22 @@ function renderHome(pack){
   return container; 
 }
 
-// ★★★ 修复：购物清单 + 常备品检查 (renderShopping) ★★★
+// ★★★ 修复：购物清单 + 常备品检查 (renderShopping) + [新]支持无数量食材 ★★★
 function renderShopping(pack){
   const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
   const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
-  for(const p of plan){ for(const it of explodeCombinedItems(map[p.id]||[])){ if(typeof it.qty==='number') addNeed(it.item, it.qty*(p.servings||1), it.unit); }}
+  
+  for(const p of plan){ 
+    for(const it of explodeCombinedItems(map[p.id]||[])){ 
+       // [修复] 即使qty不是数字(null/undefined)，也默认按1处理，防止漏买
+       let qty = 1;
+       if(typeof it.qty === 'number' && isFinite(it.qty)) {
+         qty = it.qty;
+       }
+       addNeed(it.item, qty*(p.servings||1), it.unit); 
+    }
+  }
+  
   const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=(inv.filter(x=>x.name===n&&x.unit===u).reduce((s,x)=>s+(+x.qty||0),0)); const m=Math.max(0, Math.round((req-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m}); }
   const d=document.createElement('div'); const h=document.createElement('h2'); h.className='section-title'; h.textContent='购物清单'; d.appendChild(h);
   const pd=document.createElement('div'); pd.className='card'; pd.innerHTML='<h3>今日计划</h3>'; const pl=document.createElement('div'); pd.appendChild(pl);
@@ -1070,25 +1081,25 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
   `; 
   wrap.appendChild(searchDiv);
   
-  // [修改] 增加冷冻选项 Checkbox + [布局修复] 使用 flex-wrap 允许换行
+  // [修改] 彻底使用 Grid 布局修复对齐问题
   const formContainer = document.createElement('div'); formContainer.className = 'add-form-container'; 
   formContainer.innerHTML = `
-    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-      <div style="flex:1; min-width:140px;">
-        <input id="addName" list="catalogList" placeholder="食材名称" style="width:100%;">
+    <div class="form-grid">
+      <div class="full-width">
+        <input id="addName" list="catalogList" placeholder="食材名称 (必填)" style="width:100%;">
         <datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist>
       </div>
-      <div style="display:flex; gap:8px; flex:1; min-width:140px;">
-        <input id="addQty" type="number" min="0" step="1" placeholder="数量" style="width:70px;flex:1;">
-        <select id="addUnit" style="width:70px;flex:1;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
+      <div class="qty-group">
+        <input id="addQty" type="number" min="0" step="1" placeholder="数量" style="width:60%;">
+        <select id="addUnit" style="width:40%;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
       </div>
-    </div>
-    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-      <input id="addDate" type="date" value="${todayISO()}" style="flex:1; min-width:130px;">
-      <label style="display:flex;align-items:center;font-size:14px;cursor:pointer;user-select:none;color:var(--text-main);margin:0 4px; white-space:nowrap;">
-        <input type="checkbox" id="addFrozen" style="width:16px;height:16px;margin-right:4px;accent-color:var(--accent);">冷冻
-      </label>
-      <button id="addBtn" class="btn ok" style="flex:1; min-width:80px;">入库</button>
+      <input id="addDate" type="date" value="${todayISO()}" style="width:100%;">
+      <div class="full-width" style="margin-top:4px;">
+         <label style="display:flex;align-items:center;font-size:14px;cursor:pointer;margin-right:auto;">
+           <input type="checkbox" id="addFrozen" style="width:18px;height:18px;margin-right:6px;accent-color:var(--accent);">冷冻
+         </label>
+         <button id="addBtn" class="btn ok" style="min-width:100px;">入库</button>
+      </div>
     </div>`; 
   wrap.appendChild(formContainer);
   
