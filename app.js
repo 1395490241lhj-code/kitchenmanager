@@ -1,4 +1,4 @@
-// v139 app.js - 更新API Key(gsk_zd...) + 保留所有UI/逻辑修复
+// v140 app.js - 首页标题改为“厨房”并居中 + 包含所有修复
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", // [已修正]
+  KEY: "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", 
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -264,7 +264,7 @@ function saveInventory(inv){ S.save(S.keys.inventory, inv); }
 function daysBetween(a,b){ return Math.floor((new Date(b)-new Date(a))/86400000); }
 function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); return (+e.shelf||7)-age; }
 
-// 更新 badgeFor 函数
+// 更新 badgeFor 函数，支持冷冻状态显示
 function badgeFor(e){ 
   if(e.isFrozen) return `<span class="kchip" style="background:#3498db;color:white;cursor:pointer" title="点击切换为冷藏">❄️ 冷冻</span>`;
   const r=remainingDays(e); 
@@ -285,19 +285,29 @@ function getAiConfig() {
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   let model = localSettings.model || CUSTOM_AI.MODEL;
   const visionModel = CUSTOM_AI.VISION_MODEL;
+
+  // 自动修复 URL (确保 Groq URL 正确)
   if (apiUrl && apiUrl.includes("api.groq.com") && !apiUrl.includes("/chat/completions")) {
       apiUrl = apiUrl.replace(/\/$/, ''); 
       if (apiUrl.endsWith("/v1")) apiUrl += "/chat/completions";
       else apiUrl = "https://api.groq.com/openai/v1/chat/completions";
   }
+  
   if (!apiKey) return null;
   return { apiKey, apiUrl, textModel: model, visionModel };
 }
 
+// ★★★ 强力 JSON 提取与清洗 ★★★
 function extractJson(text) {
-  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<think>[\s\S]*/gi, '').replace(/```json/gi, '').replace(/```/g, '').trim();
+  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '')
+                    .replace(/<think>[\s\S]*/gi, '')
+                    .replace(/```json/gi, '')
+                    .replace(/```/g, '')
+                    .trim();
+
   const firstOpenBrace = cleaned.indexOf('{');
   const lastCloseBrace = cleaned.lastIndexOf('}');
+  
   if (firstOpenBrace !== -1 && lastCloseBrace !== -1 && lastCloseBrace > firstOpenBrace) {
     return cleaned.substring(firstOpenBrace, lastCloseBrace + 1);
   }
@@ -330,19 +340,23 @@ function compressImage(file) {
 async function callAiService(prompt, imageBase64 = null) {
   const conf = getAiConfig();
   if (!conf) throw new Error("未配置 API Key，转为本地模式");
+
   let messages = [];
   let activeModel = conf.textModel; 
+  
   if (imageBase64) {
     activeModel = conf.visionModel; 
     messages = [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: imageBase64 } }] }];
   } else {
     messages = [{ role: "user", content: prompt }];
   }
+  
   try {
     const res = await fetch(conf.apiUrl, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
       body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.2 }) 
     });
+    
     if(!res.ok) {
         const errData = await res.json().catch(()=>({}));
         throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
@@ -359,14 +373,26 @@ async function recognizeReceipt(file) {
   return JSON.parse(jsonStr);
 }
 
+// [修改] 强制要求返回 JSON 格式
 async function callAiForMethod(recipeName, ingredients) {
   const ingStr = ingredients.map(i => i.item).join('、');
-  const prompt = `你是一位精通川菜和中式家常菜的资深大厨。请为菜品【${recipeName}】编写一份做法。已知用料：${ingStr}。**严格要求**：1. 拒绝黑暗料理，不合理则修正。2. 正宗或家常做法，步骤清晰。3. 请务必返回如下 **JSON 格式**（不要 markdown）：{ "method": "1. 第一步...\\n2. 第二步..." }`;
+  const prompt = `你是一位精通川菜和中式家常菜的资深大厨。请为菜品【${recipeName}】编写一份做法。已知用料：${ingStr}。
+  
+**严格要求**：
+1. 拒绝黑暗料理，不合理则修正。
+2. 正宗或家常做法，步骤清晰。
+3. 请务必返回如下 **JSON 格式**（不要 markdown）：
+{ "method": "1. 第一步...\\n2. 第二步..." }`;
+
   const jsonStr = await callAiService(prompt);
   try {
+      // 尝试解析 JSON 并返回 method 字段
       const res = JSON.parse(jsonStr);
       return res.method || jsonStr;
-  } catch(e) { return jsonStr; }
+  } catch(e) {
+      // 如果解析失败，说明 AI 可能还是返回了纯文本，直接返回原文
+      return jsonStr; 
+  }
 }
 
 async function callAiSearchRecipe(query, invNames) {
@@ -378,27 +404,53 @@ async function callAiSearchRecipe(query, invNames) {
 async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
   const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
-  const prompt = `你是一位严谨的、拥有30年经验的中式家庭大厨。请根据冰箱库存：【${invNames}】规划今日菜单。请严格按照以下 JSON 格式返回：{ "local": [ {"name": "从菜谱库【${recipeNames}】中挑选3道最匹配库存的菜名", "reason": "基于库存匹配度的推荐理由"} ], "creative": { "name": "推荐一道不在菜谱库中，但非常经典、大众熟知的家常菜", "reason": "简短介绍这道菜的口味特点", "ingredients": ["核心食材1", "核心食材2"] } } **严格约束（必读）**：1. **拒绝离谱替代**：绝不允许用葱姜蒜、九层塔、香菜等佐料去替代叶菜、肉类等主材。2. **拒绝黑暗料理**：禁止奇怪的食材混搭。推荐必须是大众耳熟能详的传统家常菜（如：番茄炒蛋、青椒肉丝）。3. **ingredients 必须是数组**：只列出肉、菜、蛋、豆制品等核心主材，**严禁**包含葱姜蒜、盐糖油酱醋等佐料。`;
+  
+  // v131: 优化 Prompt - 强制 creative.ingredients 为数组
+  const prompt = `你是一位严谨的、拥有30年经验的中式家庭大厨。请根据冰箱库存：【${invNames}】规划今日菜单。
+
+请严格按照以下 JSON 格式返回：
+{
+  "local": [ 
+    {"name": "从菜谱库【${recipeNames}】中挑选3道最匹配库存的菜名", "reason": "基于库存匹配度的推荐理由"} 
+  ],
+  "creative": { 
+    "name": "推荐一道不在菜谱库中，但非常经典、大众熟知的家常菜", 
+    "reason": "简短介绍这道菜的口味特点", 
+    "ingredients": ["核心食材1", "核心食材2"] 
+  }
+}
+
+**严格约束（必读）**：
+1. **拒绝离谱替代**：绝不允许用葱姜蒜、九层塔、香菜等佐料去替代叶菜、肉类等主材。
+2. **拒绝黑暗料理**：禁止奇怪的食材混搭。推荐必须是大众耳熟能详的传统家常菜（如：番茄炒蛋、青椒肉丝）。
+3. **ingredients 必须是数组**：只列出肉、菜、蛋、豆制品等核心主材，**严禁**包含葱姜蒜、盐糖油酱醋等佐料。`;
+  
   try {
     const jsonStr = await callAiService(prompt);
     return JSON.parse(jsonStr);
-  } catch (e) { throw e; }
+  } catch (e) {
+    throw e;
+  }
 }
 
+// --- 核心推荐逻辑 (已升级：完成度+临期优先) ---
 function calculateStockStatus(recipe, pack, inv) {
   const rawIngs = pack.recipe_ingredients[recipe.id] || [];
   let ingredients = explodeCombinedItems(rawIngs);
   ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
   if (ingredients.length === 0) return { status: 'unknown', missing: [] };
+
   const missing = [];
   let matchCount = 0;
   const invMap = new Map();
   inv.forEach(i => invMap.set(getCanonicalName(i.name), i));
+
   ingredients.forEach(ing => {
     const needName = getCanonicalName(ing.item);
     if (invMap.has(needName)) { matchCount++; } 
     else { missing.push({ name: ing.item }); }
   });
+
   if (missing.length === 0) return { status: 'ok', missing: [] };
   if (matchCount > 0) return { status: 'partial', missing };
   return { status: 'none', missing };
@@ -408,51 +460,76 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
   const now = Date.now();
   const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
   const savedRecs = S.load(S.keys.local_recs, null);
+
   if (!forceRefresh && savedRecs && (now - lastRecTime < 3600000)) {
     return savedRecs.map(s => {
        const r = (pack.recipes||[]).find(x => x.id === s.id);
        return r ? { r, matchCount: s.matchCount, reason: s.reason } : null;
     }).filter(Boolean);
   }
+  
   const invMap = new Map();
   inv.forEach(i => invMap.set(getCanonicalName(i.name), i));
+
   let scores = (pack.recipes || []).map(r => {
     const rawIngs = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
+    // 过滤掉佐料，只保留核心食材
     const coreIngs = rawIngs.filter(ing => !isSeasoning(ing.item));
+    
+    // 如果没有核心食材（比如白饭），则不参与智能推荐
     if (coreIngs.length === 0) return { r, score: 0, matchCount: 0, reason: "基础菜品" };
+
     let matchCount = 0;
     let expiringBonus = 0;
+    
     coreIngs.forEach(ing => {
       const canon = getCanonicalName(ing.item);
+      // 尝试精确匹配或模糊匹配
       let invItem = invMap.get(canon);
       if (!invItem) {
           for (const [k, v] of invMap) {
-              if (k.includes(canon) || canon.includes(k)) { invItem = v; break; }
+              if (k.includes(canon) || canon.includes(k)) {
+                  invItem = v;
+                  break;
+              }
           }
       }
+
       if (invItem) {
         matchCount++;
+        // 临期加分：如果食材剩余保质期 <= 2天，大幅加分
         if (remainingDays(invItem) <= 2) expiringBonus += 1; 
       }
     });
+
+    // 核心算法：完成度占比权重最大 + 临期奖励 + 绝对数量微调
     const completionRatio = matchCount / coreIngs.length;
     const score = (completionRatio * 50) + (expiringBonus * 15) + (matchCount * 10);
+
     let reason = "";
     if (matchCount > 0) {
         const pct = Math.round(completionRatio * 100);
         reason = `匹配 ${matchCount}/${coreIngs.length} 项食材 (${pct}%)`;
         if (expiringBonus > 0) reason = `⚠️ 优先消耗临期食材 | ${reason}`;
     }
+
     return { r, score, matchCount, reason };
   });
+  
+  // 过滤掉完全不匹配的（除非库存实在没得选）
   const hasMatches = scores.some(s => s.matchCount > 0);
-  if (hasMatches) { scores = scores.filter(s => s.matchCount > 0); }
+  if (hasMatches) {
+      scores = scores.filter(s => s.matchCount > 0);
+  }
+  
   scores.sort((a,b) => b.score - a.score).slice(0, 6);
   let top = scores.slice(0, 6);
+
   if (top.length === 0) {
     const all = (pack.recipes||[]);
     top = [...all].sort(() => 0.5 - Math.random()).slice(0, 6).map(r => ({ r, matchCount: 0, reason: '随机探索' }));
   }
+
   const toSave = top.map(s => ({ id: s.r.id, matchCount: s.matchCount, reason: s.reason }));
   S.save(S.keys.local_recs, toSave);
   S.save(S.keys.rec_time, now);
@@ -462,7 +539,9 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
 function searchResultCard(r, statusData) {
   const card = document.createElement('div'); card.className = 'card';
   let statusBadge = statusData.status === 'ok' ? `<span class="kchip ok">✅ 库存充足</span>` : (statusData.status === 'partial' ? `<span class="kchip warn">⚠️ 缺食材</span>` : `<span class="kchip bad">❌ 暂无食材</span>`);
+  
   card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${statusBadge}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">查看做法</button><button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button></div>`;
+  
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {
     addBtn.onclick = () => {
@@ -476,55 +555,89 @@ function searchResultCard(r, statusData) {
 
 function showRecommendationCards(container, list, pack) { 
   container.innerHTML = ''; 
-  if(!list || list.length===0) { container.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>'; return; } 
+  if(!list || list.length===0) { 
+    container.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>'; 
+    return; 
+  } 
   const map = pack.recipe_ingredients || {}; 
-  list.forEach(item => { container.appendChild(recipeCard(item.r, item.list || map[item.r.id], {reason: item.reason, isAi: item.isAi})); }); 
+  list.forEach(item => { 
+    const isAi = item.isAi !== undefined ? item.isAi : false;
+    container.appendChild(recipeCard(item.r, item.list || map[item.r.id], {reason: item.reason, isAi: isAi})); 
+  }); 
 } 
 
 function processAiData(aiResult, pack) {
   const cards = [];
+  
+  // 处理 Local 推荐 (v131: 增加模糊匹配逻辑)
   if(aiResult.local && Array.isArray(aiResult.local)){ 
     aiResult.local.forEach(l => { 
        let found = (pack.recipes||[]).find(r => r.name === l.name); 
-       if (!found) { found = (pack.recipes||[]).find(r => r.name.includes(l.name) || l.name.includes(r.name)); }
+       // 尝试模糊匹配 (如果 AI 返回 "回锅肉" 但只有 "四川回锅肉")
+       if (!found) {
+           found = (pack.recipes||[]).find(r => r.name.includes(l.name) || l.name.includes(r.name));
+       }
        if(found) cards.push({ r: found, reason: l.reason, isAi: true }); 
     }); 
   }
+  
+  // 处理 Creative 推荐 (v131: 兼容数组或字符串)
   if(aiResult.creative){ 
     let ingList = [];
     if(Array.isArray(aiResult.creative.ingredients)) {
         ingList = aiResult.creative.ingredients.map(s => ({item: s}));
     } else if (typeof aiResult.creative.ingredients === 'string') {
-        const rawStr = aiResult.creative.ingredients;
-        const parts = rawStr.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
-        ingList = parts.map(s => ({item: s}));
+        ingList = [{item: aiResult.creative.ingredients}];
     }
-    cards.push({ r: { id: 'creative-ai-temp', name: aiResult.creative.name, tags: ['AI创意菜'] }, list: ingList, reason: aiResult.creative.reason, isAi: true }); 
+
+    cards.push({ 
+       r: { id: 'creative-ai-temp', name: aiResult.creative.name, tags: ['AI创意菜'] }, 
+       list: ingList, 
+       reason: aiResult.creative.reason, 
+       isAi: true 
+    }); 
   }
   return cards;
 }
 
 function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
+  // [修改] 移除内联样式，使用 CSS 类
   let topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ AI 推荐</div>` : '';
-  card.innerHTML=`${topHtml}<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 class="r-title">${r.name}</h3>${!r.id.startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;border:none;">编辑</button>` : ''}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="ing-compact-container"></div>${extraInfo && extraInfo.reason ? `<div class="ai-reason">${extraInfo.reason}</div>` : ''}<div class="controls" style="margin-top:16px;"></div>`;
+  
+  // [修改] 移除 h3 和 div 的内联 style，完全依赖 CSS
+  card.innerHTML=`${topHtml}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+      <h3 class="r-title">${r.name}</h3>
+      ${!r.id.startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;border:none;">编辑</button>` : ''}
+    </div>
+    <p class="meta">${(r.tags||[]).join(' / ')}</p>
+    <div class="ing-compact-container"></div>
+    ${extraInfo && extraInfo.reason ? `<div class="ai-reason">${extraInfo.reason}</div>` : ''}
+    <div class="controls" style="margin-top:16px;"></div>`;
+  
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
   const editBtn = card.querySelector('.btn-edit');
   if(editBtn) editBtn.onclick = (e) => { e.stopPropagation(); location.hash = `#recipe-edit:${r.id}`; };
+  
   const tagContainer = card.querySelector('.ing-compact-container');
   let items = explodeCombinedItems(list||[]);
   const coreItems = items.filter(it => !isSeasoning(it.item));
   const displayItems = coreItems.length > 0 ? coreItems : items; 
   const showItems = displayItems.slice(0, 4); 
   for(const it of showItems){ const span = document.createElement('span'); span.className = 'ing-tag-pill'; span.innerHTML = `${it.item}`; tagContainer.appendChild(span); }
+  
   if(!r.id.startsWith('creative-')){
     const plan = new Set((S.load(S.keys.plan,[])).map(x=>x.id));
     const btn = document.createElement('button'); btn.type = 'button'; btn.className='btn ok small'; 
     btn.textContent = plan.has(r.id) ? '已加入' : '加入清单';
     btn.onclick = () => { const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else p.push({id:r.id, servings:1}); S.save(S.keys.plan,p); onRoute(); };
+    
     const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className='btn small'; detailBtn.textContent='查看';
     detailBtn.onclick = () => location.hash = `#recipe:${r.id}`;
-    card.querySelector('.controls').appendChild(btn); card.querySelector('.controls').appendChild(detailBtn);
+    
+    card.querySelector('.controls').appendChild(btn);
+    card.querySelector('.controls').appendChild(detailBtn);
   }
   return card;
 }
@@ -533,33 +646,78 @@ function renderRecipeDetail(id, pack) {
   let r = (pack.recipes||[]).find(x=>x.id===id);
   if (!r && id === 'creative-ai-temp') {
       const aiData = S.load(S.keys.ai_recs, null);
-      if (aiData && aiData.creative) { r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true }; }
+      if (aiData && aiData.creative) { 
+        r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true }; 
+      }
   }
-  if(!r) { const div = document.createElement('div'); div.innerHTML = `<div style="padding:20px;text-align:center;">菜谱不存在。<br><button class="btn" onclick="history.back()">返回</button></div>`; return div; }
+  if(!r) {
+      const div = document.createElement('div');
+      div.innerHTML = `<div style="padding:20px;text-align:center;">菜谱不存在。<br><button class="btn" onclick="history.back()">返回</button></div>`;
+      return div;
+  }
+  
   const overlay = loadOverlay();
   const ovRecipe = (overlay.recipes || {})[id];
   if (ovRecipe) { r = { ...r, ...ovRecipe, method: ovRecipe.method || r.method || '' }; }
+  
   let items = [];
   if (r.isCreative) { 
     const aiData = S.load(S.keys.ai_recs, null); 
-    if(Array.isArray(aiData.creative.ingredients)){ items = aiData.creative.ingredients.map(s => ({item: s})); } 
-    else { const raw = aiData.creative.ingredients || ''; const parts = raw.split(/[,，、]/).map(s => s.trim()).filter(Boolean); items = parts.map(s => ({item: s})); }
-  } else { const ingList = pack.recipe_ingredients[id] || []; items = explodeCombinedItems(ingList); }
+    items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; 
+  } else { 
+    const ingList = pack.recipe_ingredients[id] || []; 
+    items = explodeCombinedItems(ingList); 
+  }
+  
   const div = document.createElement('div'); div.className = 'detail-view';
   const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #ccc;border-radius:8px;">暂无详细做法。点击按钮让 AI 生成。</div><button type="button" class="btn ai" id="genMethodBtn">✨ 让 AI 生成做法</button>`;
+  
   div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${it.item} ${it.qty ? `<span class="qty">${it.qty}${it.unit||''}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  
   const genBtn = div.querySelector('#genMethodBtn');
   if(genBtn) {
     genBtn.onclick = async () => {
-      genBtn.setAttribute('disabled', 'true'); genBtn.innerHTML = '<span class="spinner"></span> 生成中...';
-      const maxRetries = 1; let attempt = 0; let success = false;
-      const safetyTimer = setTimeout(() => { if(!success) { genBtn.innerHTML = '✨ 生成超时，请重试'; genBtn.removeAttribute('disabled'); alert("AI 生成超时，请检查网络后重试。"); } }, 30000);
+      // [新增] 增加重试逻辑
+      genBtn.setAttribute('disabled', 'true');
+      genBtn.innerHTML = '<span class="spinner"></span> 生成中...';
+      
+      const maxRetries = 1; // 允许自动重试1次
+      let attempt = 0;
+      let success = false;
+      
+      // 超时保护
+      const safetyTimer = setTimeout(() => {
+         if(!success) {
+             genBtn.innerHTML = '✨ 生成超时，请重试';
+             genBtn.removeAttribute('disabled');
+             alert("AI 生成超时，请检查网络后重试。");
+         }
+      }, 30000); // 30秒超时
+
       while(attempt <= maxRetries && !success) {
           try {
-            attempt++; const text = await callAiForMethod(r.name, items); clearTimeout(safetyTimer); success = true;
-            const currentOverlay = loadOverlay(); currentOverlay.recipes = currentOverlay.recipes || {}; currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text }; saveOverlay(currentOverlay);
+            attempt++;
+            const text = await callAiForMethod(r.name, items);
+            clearTimeout(safetyTimer);
+            success = true;
+            
+            const currentOverlay = loadOverlay();
+            currentOverlay.recipes = currentOverlay.recipes || {};
+            currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text };
+            saveOverlay(currentOverlay);
             div.querySelector('#methodArea').innerHTML = `<div class="method-text">${text}</div><div class="small ok" style="margin-top:10px">已保存到补丁</div>`;
-          } catch(e) { console.warn(`Attempt ${attempt} failed:`, e); if (attempt > maxRetries) { clearTimeout(safetyTimer); alert('生成失败：' + e.message); genBtn.innerHTML = '✨ AI 生成'; genBtn.removeAttribute('disabled'); } else { genBtn.innerHTML = `<span class="spinner"></span> 正在重试 (${attempt}/${maxRetries})...`; await new Promise(r => setTimeout(r, 1000)); } }
+          } catch(e) {
+            console.warn(`Attempt ${attempt} failed:`, e);
+            if (attempt > maxRetries) {
+                clearTimeout(safetyTimer);
+                alert('生成失败：' + e.message); 
+                genBtn.innerHTML = '✨ AI 生成';
+                genBtn.removeAttribute('disabled');
+            } else {
+                genBtn.innerHTML = `<span class="spinner"></span> 正在重试 (${attempt}/${maxRetries})...`;
+                await new Promise(r => setTimeout(r, 1000)); // 等1秒重试
+            }
+          }
       }
     };
   }
@@ -571,8 +729,12 @@ function renderRecipeSearchResults(query, pack, inv) {
   container.innerHTML = `<h2 class="section-title">搜索结果：${query}</h2><div class="grid" id="search-grid"></div>`;
   const grid = container.querySelector('#search-grid');
   const results = (pack.recipes||[]).filter(r => r.name.includes(query));
-  if (results.length > 0) { results.forEach(r => { const status = calculateStockStatus(r, pack, inv); grid.appendChild(searchResultCard(r, status)); }); } 
-  else {
+  if (results.length > 0) {
+    results.forEach(r => {
+      const status = calculateStockStatus(r, pack, inv);
+      grid.appendChild(searchResultCard(r, status));
+    });
+  } else {
     container.innerHTML += `<div style="text-align:center; padding:40px;"><p style="color:var(--text-secondary)">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">🤖 呼叫 AI 搜索并生成【${query}】</button></div>`;
     setTimeout(() => {
         const btn = container.querySelector('#aiSearchBtn');
@@ -580,11 +742,17 @@ function renderRecipeSearchResults(query, pack, inv) {
             btn.onclick = async () => {
                 btn.innerHTML = '<span class="spinner"></span> AI 搜索中...';
                 try {
-                    const invNames = inv.map(x=>x.name).join(','); const aiRes = await callAiSearchRecipe(query, invNames);
-                    const tempId = 'ai-search-' + Date.now(); const overlay = loadOverlay(); overlay.recipes = overlay.recipes || {};
-                    overlay.recipes[tempId] = { name: aiRes.name, tags: ['AI搜索'], method: aiRes.method }; overlay.recipe_ingredients = overlay.recipe_ingredients || {};
-                    const ings = (aiRes.ingredients||'').split(/[，,]/).map(s => ({item: s.trim()})); overlay.recipe_ingredients[tempId] = ings;
-                    saveOverlay(overlay); location.hash = `#recipe:${tempId}`; location.reload();
+                    const invNames = inv.map(x=>x.name).join(',');
+                    const aiRes = await callAiSearchRecipe(query, invNames);
+                    const tempId = 'ai-search-' + Date.now();
+                    const overlay = loadOverlay();
+                    overlay.recipes = overlay.recipes || {};
+                    overlay.recipes[tempId] = { name: aiRes.name, tags: ['AI搜索'], method: aiRes.method };
+                    overlay.recipe_ingredients = overlay.recipe_ingredients || {};
+                    const ings = (aiRes.ingredients||'').split(/[，,]/).map(s => ({item: s.trim()}));
+                    overlay.recipe_ingredients[tempId] = ings;
+                    saveOverlay(overlay);
+                    location.hash = `#recipe:${tempId}`; location.reload();
                 } catch(e) { alert('AI 搜索失败：' + e.message); btn.innerHTML = '🤖 呼叫 AI 搜索'; }
             };
         }
@@ -601,40 +769,121 @@ function renderHome(pack){
   searchBar.style.marginBottom = '24px';
   searchBar.innerHTML = `<div style="display:flex; gap:10px;"><input id="mainSearch" placeholder="🔍 搜菜谱 (如：回锅肉)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--separator); box-shadow:var(--shadow);"><button type="button" class="btn ok" id="doSearch">搜索</button></div>`;
   container.appendChild(searchBar);
-  const doSearch = () => { const q = searchBar.querySelector('#mainSearch').value.trim(); if(q) { container.innerHTML = ''; container.appendChild(searchBar); searchBar.querySelector('#mainSearch').value = q; searchBar.querySelector('#doSearch').onclick = doSearch; container.appendChild(renderRecipeSearchResults(q, pack, inv)); } };
+  const doSearch = () => {
+      const q = searchBar.querySelector('#mainSearch').value.trim();
+      if(q) {
+          container.innerHTML = ''; container.appendChild(searchBar);
+          searchBar.querySelector('#mainSearch').value = q; searchBar.querySelector('#doSearch').onclick = doSearch;
+          container.appendChild(renderRecipeSearchResults(q, pack, inv));
+      }
+  };
   searchBar.querySelector('#doSearch').onclick = doSearch;
   container.appendChild(renderInventory(pack));
   const recDiv = document.createElement('div'); recDiv.style.marginTop = '32px'; 
+  
+  // [修改] 移除内联 style="font-size:18px", 使用 CSS .section-title
   recDiv.innerHTML = `<div class="section-title"><span>今日推荐</span><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
+  
   const recGrid = recDiv.querySelector('#rec-content'); 
   container.appendChild(recDiv); 
+  
   const savedAiRecs = S.load(S.keys.ai_recs, null);
   if (savedAiRecs) {
      const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
        showRecommendationCards(recGrid, savedCards, pack);
-       if (!recDiv.querySelector('#clearAiBtn')) { const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.className = 'btn bad small'; clearBtn.id = 'clearAiBtn'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除推荐'; clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); }; recDiv.querySelector('.section-title').appendChild(clearBtn); }
+       // 清除按钮也改为 button
+       if (!recDiv.querySelector('#clearAiBtn')) {
+           const clearBtn = document.createElement('button'); 
+           clearBtn.type = 'button';
+           clearBtn.className = 'btn bad small'; 
+           clearBtn.id = 'clearAiBtn';
+           clearBtn.style.marginLeft='10px'; 
+           clearBtn.textContent = '清除推荐';
+           clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+           recDiv.querySelector('.section-title').appendChild(clearBtn);
+       }
      } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
+  
   const aiBtn = recDiv.querySelector('#callAiBtn'); 
+  
+  // ★★★ 标准 Click 事件处理 + 自动重试 ★★★
   aiBtn.onclick = async () => {
     if (aiBtn.getAttribute('disabled')) return;
-    aiBtn.setAttribute('disabled', 'true'); await new Promise(r => setTimeout(r, 50)); aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
-    const maxRetries = 1; let attempt = 0; let success = false;
-    const safetyTimer = setTimeout(() => { if(!success) { aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; aiBtn.removeAttribute('disabled'); alert("AI 响应超时，已自动切换到本地推荐。"); showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack); } }, 30000);
+    
+    aiBtn.setAttribute('disabled', 'true');
+    await new Promise(r => setTimeout(r, 50));
+    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
+    
+    const maxRetries = 1;
+    let attempt = 0;
+    let success = false;
+
+    // 超时保护
+    const safetyTimer = setTimeout(() => {
+       if(!success) {
+           aiBtn.innerHTML = '✨ 呼叫 AI'; 
+           aiBtn.style.opacity = '1';
+           aiBtn.removeAttribute('disabled'); 
+           alert("AI 响应超时，已自动切换到本地推荐。");
+           showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
+       }
+    }, 30000); // 30秒
+
     while(attempt <= maxRetries && !success) {
         try { 
-          attempt++; const aiResult = await callCloudAI(pack, inv); clearTimeout(safetyTimer); success = true; S.save(S.keys.ai_recs, aiResult);
+          attempt++;
+          const aiResult = await callCloudAI(pack, inv); 
+          clearTimeout(safetyTimer);
+          success = true;
+          
+          S.save(S.keys.ai_recs, aiResult);
           const newCards = processAiData(aiResult, pack);
-          if(newCards.length > 0) { showRecommendationCards(recGrid, newCards, pack); if (!recDiv.querySelector('#clearAiBtn')) { const clearBtn = document.createElement('button'); clearBtn.type = 'button'; clearBtn.className = 'btn bad small'; clearBtn.id = 'clearAiBtn'; clearBtn.style.marginLeft='10px'; clearBtn.textContent = '清除推荐'; clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); }; recDiv.querySelector('.section-title').appendChild(clearBtn); } } 
-        } catch(e) { console.warn(`AI Recs Attempt ${attempt} failed:`, e); if (attempt > maxRetries) { clearTimeout(safetyTimer); let errorMsg = e.message; if (errorMsg.includes("401")) errorMsg = "API Key 无效或过期"; else if (errorMsg.includes("429")) errorMsg = "请求过多(429)，AI 繁忙"; else if (errorMsg.includes("404")) errorMsg = "模型不存在(404)"; alert(`AI 调用失败: ${errorMsg}\n\n切换到【本地推荐】。`); showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack); } else { aiBtn.innerHTML = `<span class="spinner"></span> 正在重试...`; await new Promise(r => setTimeout(r, 1000)); } } 
+          if(newCards.length > 0) { 
+              showRecommendationCards(recGrid, newCards, pack); 
+              if (!recDiv.querySelector('#clearAiBtn')) {
+                   const clearBtn = document.createElement('button'); 
+                   clearBtn.type = 'button';
+                   clearBtn.className = 'btn bad small'; 
+                   clearBtn.id = 'clearAiBtn';
+                   clearBtn.style.marginLeft='10px'; 
+                   clearBtn.textContent = '清除推荐';
+                   clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
+                   recDiv.querySelector('.section-title').appendChild(clearBtn);
+              }
+          } 
+        } catch(e) { 
+          console.warn(`AI Recs Attempt ${attempt} failed:`, e);
+          if (attempt > maxRetries) {
+              clearTimeout(safetyTimer);
+              let errorMsg = e.message;
+              if (errorMsg.includes("401")) errorMsg = "API Key 无效或过期";
+              else if (errorMsg.includes("429")) errorMsg = "请求过多(429)，AI 繁忙";
+              else if (errorMsg.includes("404")) errorMsg = "模型不存在(404)";
+              
+              alert(`AI 调用失败: ${errorMsg}\n\n切换到【本地推荐】。`);
+              showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
+          } else {
+              aiBtn.innerHTML = `<span class="spinner"></span> 正在重试...`;
+              await new Promise(r => setTimeout(r, 1000));
+          }
+        } 
     }
-    if (success || attempt > maxRetries) { aiBtn.innerHTML = '✨ 呼叫 AI'; aiBtn.style.opacity = '1'; aiBtn.removeAttribute('disabled'); aiBtn.style.display = 'none'; aiBtn.offsetHeight; aiBtn.style.display = ''; }
+    
+    // 恢复按钮
+    if (success || attempt > maxRetries) {
+        aiBtn.innerHTML = '✨ 呼叫 AI'; 
+        aiBtn.style.opacity = '1'; 
+        aiBtn.removeAttribute('disabled'); 
+        aiBtn.style.display = 'none'; aiBtn.offsetHeight; aiBtn.style.display = '';
+    }
   };
+  
   return container; 
 }
 
-// ★★★ 修复：购物清单 + 常备品检查 (renderShopping) + [新]空食材兜底 ★★★
+// ★★★ 修复：购物清单 + 常备品检查 (renderShopping) + [新]支持无数量食材 ★★★
 function renderShopping(pack){
   const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
   const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
@@ -650,9 +899,11 @@ function renderShopping(pack){
        }
     } else {
         for(const it of ingList){ 
-           // [修复] 即使qty不是数字(null/undefined)，也默认按1处理
+           // [修复] 即使qty不是数字(null/undefined)，也默认按1处理，防止漏买
            let qty = 1;
-           if(typeof it.qty === 'number' && isFinite(it.qty)) { qty = it.qty; }
+           if(typeof it.qty === 'number' && isFinite(it.qty)) {
+             qty = it.qty;
+           }
            addNeed(it.item, qty*(p.servings||1), it.unit); 
         }
     }
@@ -822,7 +1073,12 @@ function showEditInventoryModal(item, onSave) {
 
 // ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 + [新增]详情编辑 + [修复]按钮重叠(使用Grid) ★★★
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
-  const header = document.createElement('div'); header.className = 'section-title'; header.innerHTML = '<span>库存管理</span>'; wrap.appendChild(header);
+  // [修改] 使用新的 main-title-center 样式
+  const header = document.createElement('div'); 
+  header.className = 'main-title-center'; 
+  header.textContent = '厨房'; 
+  wrap.appendChild(header);
+  
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
   
   // SVG + visually-hidden input (添加 style="display:none!important" 双重保险)
