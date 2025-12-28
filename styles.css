@@ -1,64 +1,35 @@
 /* v139 styles.css - 微调标题边距 + 包含之前所有修复 */
-:root {
-  /* 核心色板 */
-  --primary: #10b981;       
-  --primary-dark: #059669;
-  --accent: #f59e0b;        
-  --danger: #ef4444;        
-  --text-main: #1f2937;     
-  --text-secondary: #6b7280;
-  
-  --bg-card: #ffffff;
-  --bg-input: #f3f4f6;
-  --separator: #e5e7eb;
-  
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
-  --shadow-float: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  
-  --radius-s: 8px;
-  --radius-m: 12px;
-  --radius-l: 20px;
-}
-
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  
-  background-color: #f8fafc;
-  background-image: 
-    radial-gradient(at 10% 10%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),    
-    radial-gradient(at 90% 0%, rgba(139, 92, 246, 0.08) 0px, transparent 50%),    
-    radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.05) 0px, transparent 50%),  
-    radial-gradient(at 0% 100%, rgba(56, 189, 248, 0.08) 0px, transparent 50%);   
-  background-attachment: fixed;
-  background-size: 100% 100%;
-  
+/* [新增] 首页主标题居中样式 */
+.main-title-center {
+  text-align: center;
+  font-size: 28px; /* 加大字号 */
+  font-weight: 900; /* 最粗字重 */
   color: var(--text-main);
-  margin: 0;
-  padding: 0 0 100px 0; 
-  line-height: 1.6;
-  font-size: 16px;
-  min-height: 100vh;
+  margin: 40px 0 24px 0; /* 增加顶部留白 */
+  letter-spacing: 0.1em; /* 增加字间距，更显大气 */
+  position: relative;
+  text-shadow: 0 4px 10px rgba(0,0,0,0.05); /* 柔和阴影 */
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
-#app {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 20px;
-  min-height: 100vh;
+/* 可以加一个小装饰点缀 */
+.main-title-center::after {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 4px;
+  background: var(--primary); /* 使用主色调 */
+  margin: 8px auto 0; /* 居中 */
+  border-radius: 2px;
+  opacity: 0.6;
 }
 
-h2, h3, h4 { margin: 0 0 16px 0; font-weight: 700; color: var(--text-main); line-height: 1.3; }
-
-/* [微调] 顶部标题布局：增加左边距 */
+/* 保持其他 section-title 样式用于内页 */
 .section-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  /* 左边距从 20px 增加到 24px，视觉上更舒适 */
-  margin: 32px 24px 20px 24px; 
+  margin: 32px 24px 20px 24px;
   font-size: 22px;
   font-weight: 800;
   color: #111827;
