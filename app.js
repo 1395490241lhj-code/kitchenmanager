@@ -1,4 +1,4 @@
-// v141 app.js - 终极修复：API Key更新 + UI结构同步 + 标题居中
+// v146 app.js - 更新API Key(gsk_WgC...) + 标题居中修正
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -19,7 +19,7 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 // --- AI 配置 ---
 const CUSTOM_AI = {
   URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", // [已更新 Key]
+  KEY: "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", // [已更新 Key]
   MODEL: "qwen/qwen3-32b", 
   VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
 };
@@ -883,7 +883,7 @@ function renderHome(pack){
   return container; 
 }
 
-// ★★★ 修复：购物清单 + 常备品检查 (renderShopping) + [新]空食材兜底 ★★★
+// ★★★ 修复：购物清单 + 常备品检查 (renderShopping) + [新]支持无数量食材 ★★★
 function renderShopping(pack){
   const inv=loadInventory(buildCatalog(pack)); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
   const need={}; const addNeed=(n,q,u)=>{ const k=n+'|'+(u||'g'); need[k]=(need[k]||0)+(+q||0); };
@@ -899,9 +899,11 @@ function renderShopping(pack){
        }
     } else {
         for(const it of ingList){ 
-           // [修复] 即使qty不是数字(null/undefined)，也默认按1处理
+           // [修复] 即使qty不是数字(null/undefined)，也默认按1处理，防止漏买
            let qty = 1;
-           if(typeof it.qty === 'number' && isFinite(it.qty)) { qty = it.qty; }
+           if(typeof it.qty === 'number' && isFinite(it.qty)) {
+             qty = it.qty;
+           }
            addNeed(it.item, qty*(p.servings||1), it.unit); 
         }
     }
@@ -1071,10 +1073,10 @@ function showEditInventoryModal(item, onSave) {
 
 // ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 + [新增]详情编辑 + [修复]按钮重叠(使用Grid) ★★★
 function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
-  // [修改] 使用新的 main-title-center 样式
+  // [修改] 使用新的 main-title-center 样式, 且明确使用 span
   const header = document.createElement('div'); 
   header.className = 'main-title-center'; 
-  header.textContent = '厨房'; 
+  header.innerHTML = '<span>厨房</span>'; 
   wrap.appendChild(header);
   
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
