@@ -761,99 +761,195 @@ function renderRecipeSearchResults(query, pack, inv) {
   return container;
 }
 
-function renderHome(pack){ 
-  const container = document.createElement('div'); 
-  const catalog = buildCatalog(pack); 
-  const inv = loadInventory(catalog); 
-  const searchBar = document.createElement('div');
-  searchBar.style.marginBottom = '24px';
-  searchBar.innerHTML = `<div style="display:flex; gap:10px;"><input id="mainSearch" placeholder="🔍 搜菜谱 (如：回锅肉)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--separator); box-shadow:var(--shadow);"><button type="button" class="btn ok" id="doSearch">搜索</button></div>`;
-  container.appendChild(searchBar);
-  const doSearch = () => {
-      const q = searchBar.querySelector('#mainSearch').value.trim();
-      if(q) {
-          container.innerHTML = ''; container.appendChild(searchBar);
-          searchBar.querySelector('#mainSearch').value = q; searchBar.querySelector('#doSearch').onclick = doSearch;
-          container.appendChild(renderRecipeSearchResults(q, pack, inv));
-      }
-  };
-  searchBar.querySelector('#doSearch').onclick = doSearch;
-  container.appendChild(renderInventory(pack));
-  const recDiv = document.createElement('div'); recDiv.style.marginTop = '32px'; 
-  
-  // [修改] 移除内联 style="font-size:18px", 使用 CSS .section-title
-  recDiv.innerHTML = `<div class="section-title"><span>今日推荐</span><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">✨ 呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`; 
-  
-  const recGrid = recDiv.querySelector('#rec-content'); 
-  container.appendChild(recDiv); 
-  
+function formatRemainingText(days) {
+  if (days < 0) return `已过期 ${Math.abs(days)} 天`;
+  if (days === 0) return '今天到期';
+  return `还剩 ${days} 天`;
+}
+
+function formatInventoryAmount(item) {
+  const qty = Number(item.qty);
+  if (!isFinite(qty) || qty <= 0) return '未填数量';
+  return `${qty}${item.unit || ''}`;
+}
+
+function getExpiringItems(inv) {
+  return [...(inv || [])]
+    .filter(item => remainingDays(item) <= 3)
+    .sort((a, b) => remainingDays(a) - remainingDays(b))
+    .slice(0, 4);
+}
+
+function getHomeRecipeGroups(pack, inv) {
+  const rows = (pack.recipes || []).map(r => {
+    const list = explodeCombinedItems((pack.recipe_ingredients || {})[r.id] || []);
+    const core = list.filter(ing => !isSeasoning(ing.item));
+    if (core.length === 0) return null;
+    const status = calculateStockStatus(r, pack, inv);
+    const missing = status.missing || [];
+    const matched = Math.max(0, core.length - missing.length);
+    return { r, list, status: status.status, missing, matched, total: core.length };
+  }).filter(Boolean);
+
+  const ready = rows
+    .filter(row => row.status === 'ok')
+    .sort((a, b) => b.total - a.total || a.r.name.localeCompare(b.r.name, 'zh-Hans-CN'))
+    .slice(0, 4)
+    .map(row => ({ r: row.r, list: row.list, reason: `已有 ${row.total}/${row.total} 项核心食材` }));
+
+  const almost = rows
+    .filter(row => row.status === 'partial' && row.missing.length <= 2)
+    .sort((a, b) => a.missing.length - b.missing.length || b.matched - a.matched || a.r.name.localeCompare(b.r.name, 'zh-Hans-CN'))
+    .slice(0, 4)
+    .map(row => ({ r: row.r, list: row.list, reason: `还缺：${row.missing.map(x => x.name).join('、')}` }));
+
+  return { ready, almost };
+}
+
+function renderHomeStats(expiring, ready, almost) {
+  const div = document.createElement('div');
+  const plan = S.load(S.keys.plan, []);
+  div.className = 'card home-stats';
+  div.innerHTML = `
+    <div class="home-stat"><strong>${expiring.length}</strong><span>快用掉</span></div>
+    <div class="home-stat"><strong>${ready.length}</strong><span>现在能做</span></div>
+    <div class="home-stat"><strong>${plan.length}</strong><span>今天计划</span></div>
+  `;
+  return div;
+}
+
+function renderExpiringSection(items, onSearchIngredient) {
+  const section = document.createElement('section');
+  section.className = 'home-section';
+  section.innerHTML = `<div class="section-title home-section-title"><span>快用掉</span></div>`;
+
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'card home-empty';
+    empty.textContent = '目前没有 3 天内到期的库存。';
+    section.appendChild(empty);
+    return section;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'quick-list';
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'quick-item';
+
+    const info = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'quick-item-title';
+    title.textContent = item.name;
+    const meta = document.createElement('div');
+    meta.className = 'small';
+    meta.textContent = `${formatInventoryAmount(item)} · ${formatRemainingText(remainingDays(item))}${item.isFrozen ? ' · 冷冻' : ''}`;
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn small';
+    btn.textContent = '搜菜谱';
+    btn.onclick = () => onSearchIngredient(item.name);
+
+    row.appendChild(info);
+    row.appendChild(btn);
+    list.appendChild(row);
+  });
+  section.appendChild(list);
+  return section;
+}
+
+function renderHomeRecipeShelf(title, items, pack, emptyText) {
+  const section = document.createElement('section');
+  section.className = 'home-section';
+  section.innerHTML = `<div class="section-title home-section-title"><span>${title}</span></div>`;
+
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'card home-empty';
+    empty.textContent = emptyText;
+    section.appendChild(empty);
+    return section;
+  }
+
+  const scroller = document.createElement('div');
+  scroller.className = 'horizontal-scroll';
+  showRecommendationCards(scroller, items, pack);
+  section.appendChild(scroller);
+  return section;
+}
+
+function renderMoreRecommendations(pack, inv) {
+  const recDiv = document.createElement('div');
+  recDiv.className = 'home-section';
+  recDiv.innerHTML = `<div class="section-title home-section-title"><span>更多推荐</span><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`;
+
+  const recGrid = recDiv.querySelector('#rec-content');
   const savedAiRecs = S.load(S.keys.ai_recs, null);
   if (savedAiRecs) {
      const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
        showRecommendationCards(recGrid, savedCards, pack);
-       // 清除按钮也改为 button
        if (!recDiv.querySelector('#clearAiBtn')) {
-           const clearBtn = document.createElement('button'); 
+           const clearBtn = document.createElement('button');
            clearBtn.type = 'button';
-           clearBtn.className = 'btn bad small'; 
+           clearBtn.className = 'btn bad small';
            clearBtn.id = 'clearAiBtn';
-           clearBtn.style.marginLeft='10px'; 
+           clearBtn.style.marginLeft='10px';
            clearBtn.textContent = '清除推荐';
            clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
            recDiv.querySelector('.section-title').appendChild(clearBtn);
        }
      } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
   } else { showRecommendationCards(recGrid, getLocalRecommendations(pack, inv), pack); }
-  
-  const aiBtn = recDiv.querySelector('#callAiBtn'); 
-  
-  // ★★★ 标准 Click 事件处理 + 自动重试 ★★★
+
+  const aiBtn = recDiv.querySelector('#callAiBtn');
   aiBtn.onclick = async () => {
     if (aiBtn.getAttribute('disabled')) return;
-    
+
     aiBtn.setAttribute('disabled', 'true');
     await new Promise(r => setTimeout(r, 50));
-    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7'; 
-    
+    aiBtn.innerHTML = '<span class="spinner"></span> 思考中...'; aiBtn.style.opacity = '0.7';
+
     const maxRetries = 1;
     let attempt = 0;
     let success = false;
 
-    // 超时保护
     const safetyTimer = setTimeout(() => {
        if(!success) {
-           aiBtn.innerHTML = '✨ 呼叫 AI'; 
+           aiBtn.innerHTML = '呼叫 AI';
            aiBtn.style.opacity = '1';
-           aiBtn.removeAttribute('disabled'); 
+           aiBtn.removeAttribute('disabled');
            alert("AI 响应超时，已自动切换到本地推荐。");
            showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
        }
-    }, 30000); // 30秒
+    }, 30000);
 
     while(attempt <= maxRetries && !success) {
-        try { 
+        try {
           attempt++;
-          const aiResult = await callCloudAI(pack, inv); 
+          const aiResult = await callCloudAI(pack, inv);
           clearTimeout(safetyTimer);
           success = true;
-          
+
           S.save(S.keys.ai_recs, aiResult);
           const newCards = processAiData(aiResult, pack);
-          if(newCards.length > 0) { 
-              showRecommendationCards(recGrid, newCards, pack); 
+          if(newCards.length > 0) {
+              showRecommendationCards(recGrid, newCards, pack);
               if (!recDiv.querySelector('#clearAiBtn')) {
-                   const clearBtn = document.createElement('button'); 
+                   const clearBtn = document.createElement('button');
                    clearBtn.type = 'button';
-                   clearBtn.className = 'btn bad small'; 
+                   clearBtn.className = 'btn bad small';
                    clearBtn.id = 'clearAiBtn';
-                   clearBtn.style.marginLeft='10px'; 
+                   clearBtn.style.marginLeft='10px';
                    clearBtn.textContent = '清除推荐';
                    clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); onRoute(); };
                    recDiv.querySelector('.section-title').appendChild(clearBtn);
               }
-          } 
-        } catch(e) { 
+          }
+        } catch(e) {
           console.warn(`AI Recs Attempt ${attempt} failed:`, e);
           if (attempt > maxRetries) {
               clearTimeout(safetyTimer);
@@ -861,25 +957,65 @@ function renderHome(pack){
               if (errorMsg.includes("401")) errorMsg = "API Key 无效或过期";
               else if (errorMsg.includes("429")) errorMsg = "请求过多(429)，AI 繁忙";
               else if (errorMsg.includes("404")) errorMsg = "模型不存在(404)";
-              
+
               alert(`AI 调用失败: ${errorMsg}\n\n切换到【本地推荐】。`);
               showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
           } else {
               aiBtn.innerHTML = `<span class="spinner"></span> 正在重试...`;
               await new Promise(r => setTimeout(r, 1000));
           }
-        } 
+        }
     }
-    
-    // 恢复按钮
+
     if (success || attempt > maxRetries) {
-        aiBtn.innerHTML = '✨ 呼叫 AI'; 
-        aiBtn.style.opacity = '1'; 
-        aiBtn.removeAttribute('disabled'); 
+        aiBtn.innerHTML = '呼叫 AI';
+        aiBtn.style.opacity = '1';
+        aiBtn.removeAttribute('disabled');
         aiBtn.style.display = 'none'; aiBtn.offsetHeight; aiBtn.style.display = '';
     }
   };
-  
+
+  return recDiv;
+}
+
+function renderHome(pack){ 
+  const container = document.createElement('div'); 
+  const catalog = buildCatalog(pack); 
+  const inv = loadInventory(catalog); 
+  const expiring = getExpiringItems(inv);
+  const groups = getHomeRecipeGroups(pack, inv);
+
+  const searchBar = document.createElement('div');
+  searchBar.style.marginBottom = '24px';
+  searchBar.innerHTML = `<div style="display:flex; gap:10px;"><input id="mainSearch" placeholder="🔍 搜菜谱 (如：回锅肉)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--separator); box-shadow:var(--shadow);"><button type="button" class="btn ok" id="doSearch">搜索</button></div>`;
+
+  const showSearch = (query) => {
+      const q = String(query || '').trim();
+      if(q) {
+          container.innerHTML = ''; container.appendChild(searchBar);
+          searchBar.querySelector('#mainSearch').value = q; searchBar.querySelector('#doSearch').onclick = doSearch;
+          container.appendChild(renderRecipeSearchResults(q, pack, inv));
+      }
+  };
+  const doSearch = () => showSearch(searchBar.querySelector('#mainSearch').value);
+
+  const title = document.createElement('div');
+  title.className = 'main-title-center';
+  title.innerHTML = '<span>厨房</span>';
+  container.appendChild(title);
+  container.appendChild(searchBar);
+  searchBar.querySelector('#doSearch').onclick = doSearch;
+  container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost));
+  container.appendChild(renderExpiringSection(expiring, showSearch));
+  container.appendChild(renderHomeRecipeShelf('现在能做', groups.ready, pack, '还没有完全匹配库存的菜。先补一点库存，推荐会更准。'));
+  container.appendChild(renderHomeRecipeShelf('差一点就能做', groups.almost, pack, '暂时没有只差一两样食材的菜。'));
+  container.appendChild(renderMoreRecommendations(pack, inv));
+
+  const invTitle = document.createElement('div');
+  invTitle.className = 'section-title home-section-title';
+  invTitle.innerHTML = '<span>我的库存</span>';
+  container.appendChild(invTitle);
+  container.appendChild(renderInventory(pack, { showTitle: false }));
   return container; 
 }
 
@@ -1072,18 +1208,22 @@ function showEditInventoryModal(item, onSave) {
 }
 
 // ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 + [新增]详情编辑 + [修复]按钮重叠(使用Grid) ★★★
-function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
+function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
   // [修改] 使用新的 main-title-center 样式, 且明确使用 span
   const header = document.createElement('div'); 
   header.className = 'main-title-center'; 
   header.innerHTML = '<span>厨房</span>'; 
-  wrap.appendChild(header);
+  if (options.showTitle !== false) wrap.appendChild(header);
   
   const searchDiv = document.createElement('div'); searchDiv.className = 'controls'; searchDiv.style.marginBottom = '8px'; 
   
   // SVG + visually-hidden input (添加 style="display:none!important" 双重保险)
   searchDiv.innerHTML = `
     <div style="display:flex; gap:8px; width:100%; justify-content:flex-end;">
+      <button type="button" class="btn small" id="exportInventoryBtn" title="导出库存" style="gap:6px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        <span>导出库存</span>
+      </button>
       <label class="btn ai icon-only" style="cursor:pointer;">
         <input type="file" id="camInput" accept="image/*" capture="environment" class="visually-hidden" style="display:none!important">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
@@ -1095,6 +1235,24 @@ function renderInventory(pack){ const catalog=buildCatalog(pack); const inv=load
     <div id="scanStatus" class="small" style="color:var(--accent); display:none; margin-top:4px;"></div>
   `; 
   wrap.appendChild(searchDiv);
+
+  searchDiv.querySelector('#exportInventoryBtn').onclick = () => {
+    const payload = {
+      type: 'kitchen-inventory',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      inventory: inv.map(item => ({...item}))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kitchen-inventory-${todayISO()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
   
   // [修改] 彻底使用 Grid 布局修复对齐问题
   const formContainer = document.createElement('div'); formContainer.className = 'add-form-container'; 
