@@ -82,6 +82,14 @@ const INGREDIENT_ALIASES = {
   "土豆": ["马铃薯", "洋芋", "土豆片", "土豆丝"],
   "红苕": ["红薯", "地瓜", "甘薯", "红心红苕"],
   "莴笋": ["青笋", "莴苣", "莴笋头", "莴笋尖", "凤尾"],
+  "番茄": ["西红柿", "洋柿子"],
+  "豆腐": ["老豆腐", "嫩豆腐", "北豆腐", "南豆腐", "盒装豆腐"],
+  "青椒": ["菜椒", "甜椒", "尖椒", "螺丝椒", "灯笼椒"],
+  "洋葱": ["圆葱", "葱头"],
+  "胡萝卜": ["红萝卜"],
+  "香菜": ["芫荽"],
+  "鸡蛋": ["蛋", "鸡子"],
+  "牛奶": ["奶", "鲜奶"],
   "蚕豆": ["胡豆", "鲜蚕豆", "扁豆", "蚕豆（扁豆）"],
   "豌豆": ["青豆", "鲜豌豆", "豌豆尖", "豆尖", "鲜豌豆仁"],
   "香菇": ["冬菇", "花菇", "干香菇", "水发香菇", "冬菇（香菇）"],
@@ -130,6 +138,33 @@ function checkAlias(name) {
     if (aliases.includes(name)) return canonical;
   }
   return null;
+}
+function escapeOptionAttr(value) {
+  return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function buildIngredientOptions(catalog) {
+  const seen = new Set();
+  const byValue = new Map();
+  const options = [];
+  const add = (value, label = '') => {
+    const v = String(value || '').trim();
+    if(!v) return;
+    if(seen.has(v)){
+      const existing = byValue.get(v);
+      if(existing && label && !existing.label) existing.label = label;
+      return;
+    }
+    seen.add(v);
+    const option = { value: v, label };
+    options.push(option);
+    byValue.set(v, option);
+  };
+  (catalog || []).forEach(c => add(c.name));
+  for (const [canonical, aliases] of Object.entries(INGREDIENT_ALIASES)) {
+    add(canonical);
+    (aliases || []).forEach(alias => add(alias, canonical));
+  }
+  return options.sort((a, b) => a.value.localeCompare(b.value, 'zh-Hans-CN'));
 }
 
 // --- 佐料/常备品过滤 ---
@@ -1240,6 +1275,7 @@ function showEditInventoryModal(item, onSave) {
 
 // ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 + [新增]详情编辑 + [修复]按钮重叠(使用Grid) ★★★
 function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div'); 
+  const ingredientOptions = buildIngredientOptions(catalog);
   // [修改] 使用新的 main-title-center 样式, 且明确使用 span
   const header = document.createElement('div'); 
   header.className = 'main-title-center'; 
@@ -1291,7 +1327,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     <div class="form-grid">
       <div class="full-width">
         <input id="addName" list="catalogList" placeholder="食材名称 (必填)" style="width:100%;">
-        <datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist>
+        <datalist id="catalogList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
       </div>
       <div class="full-width add-state-row">
         <span class="add-state-label">状态</span>
@@ -1326,7 +1362,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
   };
   formContainer.querySelector('#addName').addEventListener('input', (e)=>{
     const val = e.target.value.trim();
-    if(val){ formContainer.querySelector('#addUnit').value = guessKitchenUnit(val); }
+    if(val){ formContainer.querySelector('#addUnit').value = guessKitchenUnit(getCanonicalName(val)); }
   }); 
   let selectedStockStatus = 'ok';
   els('.add-state-option', formContainer).forEach(btn => {
@@ -1338,8 +1374,9 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
   
   // [修改] 强制数量非负 + 冷冻逻辑
   formContainer.querySelector('#addBtn').onclick=()=>{ 
-    const name=formContainer.querySelector('#addName').value.trim(); 
-    if(!name) return alert('请输入食材名称'); 
+    const rawName=formContainer.querySelector('#addName').value.trim(); 
+    if(!rawName) return alert('请输入食材名称'); 
+    const name=getCanonicalName(rawName);
     
     // 获取数值，如果是负数则强制归0
     let qty = +formContainer.querySelector('#addQty').value || 1; 
