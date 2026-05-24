@@ -259,7 +259,27 @@ function buildCatalog(pack){
   return Array.from(set).sort().map(n=>({name:n, unit:units[n]||'g', shelf:guessShelfDays(n, units[n]||'g')}));
 }
 
-function loadInventory(catalog){ const inv=S.load(S.keys.inventory,[]); for(const i of inv){ if(!i.unit){i.unit=(catalog.find(c=>c.name===i.name)?.unit)||'g'} if(!i.shelf){i.shelf=(catalog.find(c=>c.name===i.name)?.shelf)||7} } return inv; }
+const INVENTORY_STATES = [
+  { value: 'ok', label: '有', className: 'ok' },
+  { value: 'low', label: '快没了', className: 'low' },
+  { value: 'unknown', label: '不确定', className: 'unknown' }
+];
+function inventoryStateInfo(value) {
+  return INVENTORY_STATES.find(s => s.value === value) || INVENTORY_STATES[0];
+}
+function nextInventoryState(value) {
+  const index = INVENTORY_STATES.findIndex(s => s.value === value);
+  return INVENTORY_STATES[(index + 1) % INVENTORY_STATES.length].value;
+}
+function loadInventory(catalog){
+  const inv=S.load(S.keys.inventory,[]);
+  for(const i of inv){
+    if(!i.unit){i.unit=(catalog.find(c=>c.name===i.name)?.unit)||'g'}
+    if(!i.shelf){i.shelf=(catalog.find(c=>c.name===i.name)?.shelf)||7}
+    if(!i.stockStatus){i.stockStatus='ok'}
+  }
+  return inv;
+}
 function saveInventory(inv){ S.save(S.keys.inventory, inv); }
 function daysBetween(a,b){ return Math.floor((new Date(b)-new Date(a))/86400000); }
 function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); return (+e.shelf||7)-age; }
@@ -276,7 +296,7 @@ function badgeFor(e){
 }
 
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
-function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g')}); } saveInventory(inv); }
+function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); e.stockStatus='ok'; } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g'), stockStatus:'ok'}); } saveInventory(inv); }
 
 // --- AI 逻辑 ---
 function getAiConfig() {
@@ -1303,7 +1323,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     // 如果冷冻，保质期设为180天，否则自动推算
     const shelfDays = isFrozen ? 180 : guessShelfDays(name, unit);
     
-    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:shelfDays, isFrozen: isFrozen}); 
+    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:shelfDays, isFrozen: isFrozen, stockStatus:'ok'}); 
     
     formContainer.querySelector('#addName').value = ''; 
     formContainer.querySelector('#addQty').value = ''; 
@@ -1319,7 +1339,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     try {
       const items = await recognizeReceipt(file);
       scanStatus.innerHTML = `✅ 成功！入库 ${items.length} 项`;
-      for(const it of items) { if(!it.name) continue; let unit = it.unit || 'g'; const name = getCanonicalName(it.name); const match = catalog.find(c => c.name === name); if(match && match.unit) unit = match.unit; upsertInventory(inv, { name: name, qty: Number(it.qty) || 1, unit: unit, buyDate: todayISO(), kind: 'raw', shelf: guessShelfDays(name, unit) }); }
+      for(const it of items) { if(!it.name) continue; let unit = it.unit || 'g'; const name = getCanonicalName(it.name); const match = catalog.find(c => c.name === name); if(match && match.unit) unit = match.unit; upsertInventory(inv, { name: name, qty: Number(it.qty) || 1, unit: unit, buyDate: todayISO(), kind: 'raw', shelf: guessShelfDays(name, unit), stockStatus:'ok' }); }
       setTimeout(() => { scanStatus.style.display = 'none'; renderTable(); }, 1500);
     } catch(err) { scanStatus.innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`; }
   };
@@ -1330,13 +1350,14 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     if(filteredInv.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="small" style="text-align:center;padding:20px;">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</td></tr>`; return; } 
     for(const e of filteredInv){ 
       const tr=document.createElement('tr'); 
+      const stockInfo = inventoryStateInfo(e.stockStatus);
       // [修改] 增加点击名字编辑功能 + 显示购买日期
       tr.innerHTML=`
         <td class="name-cell" style="cursor:pointer;position:relative;">
           <span style="font-weight:600;color:var(--text-main)">${e.name}</span>
           <br><small style="color:var(--text-secondary);font-size:10px;">${e.buyDate||'未知'}</small>
         </td>
-        <td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div></td>
+        <td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div><button type="button" class="inventory-status-chip ${stockInfo.className}" title="点击切换库存状态">${stockInfo.label}</button></td>
         <td class="status-cell">${badgeFor(e)}</td>
         <td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
       
@@ -1349,6 +1370,13 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
       };
 
       const qtyInput = tr.querySelector('input'); 
+      const stockBtn = tr.querySelector('.inventory-status-chip');
+      stockBtn.onclick = () => {
+        e.stockStatus = nextInventoryState(e.stockStatus);
+        saveInventory(inv);
+        renderTable();
+      };
+
       // [修改] 强制列表输入框非负
       qtyInput.onchange = () => { 
         let newQty = +qtyInput.value || 0;
