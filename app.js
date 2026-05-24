@@ -245,6 +245,17 @@ function explodeCombinedItems(list){
   return out;
 }
 function guessShelfDays(name, unit){ const veg=['菜','叶','苔','苗','芹','香菜','葱','椒','瓜','番茄','西红柿','豆角','笋','蘑','菇','花菜','西兰花','菜花','茄子','豆腐','生菜','莴','空心菜','韭','蒜苗','青椒','黄瓜']; if(veg.some(w=>name.includes(w)))return 5; if(unit==='ml')return 30; if(unit==='pcs')return 14; return 7; }
+function guessKitchenUnit(name) {
+  const n = getCanonicalName(name || '');
+  const includesAny = words => words.some(w => n.includes(w));
+  if (includesAny(['鸡蛋', '鸭蛋', '番茄', '西红柿', '土豆', '洋葱', '青椒', '茄子', '苹果', '梨'])) return '个';
+  if (includesAny(['豆腐', '酸奶', '盒装', '奶油', '蘑菇', '菌菇'])) return '盒';
+  if (includesAny(['米', '大米', '面粉', '挂面', '面条', '粉丝', '速冻', '饺子', '馄饨'])) return '袋';
+  if (includesAny(['酱油', '生抽', '老抽', '醋', '料酒', '油', '牛奶', '饮料'])) return '瓶';
+  if (includesAny(['葱', '香菜', '芹菜', '韭菜', '蒜苗', '菠菜', '青菜'])) return '把';
+  if (includesAny(['猪肉', '牛肉', '羊肉', '鸡肉', '鸭肉', '排骨', '鱼', '虾', '肉'])) return '份';
+  return '份';
+}
 
 function buildCatalog(pack){
   const units = {}, set = new Set();
@@ -1292,7 +1303,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
       </div>
       <div class="qty-group">
         <input id="addQty" type="number" min="0" step="1" placeholder="数量（可选）" style="width:60%;">
-        <select id="addUnit" style="width:40%;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
+        <select id="addUnit" style="width:40%;"><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="瓶">瓶</option><option value="把">把</option><option value="份" selected>份</option><option value="g">g</option><option value="ml">ml</option></select>
       </div>
       <input id="addDate" type="date" value="${todayISO()}" style="width:100%;">
       <div class="full-width" style="margin-top:4px;">
@@ -1313,7 +1324,10 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
       btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
     }
   };
-  formContainer.querySelector('#addName').addEventListener('input', (e)=>{ const val = e.target.value.trim(); const match = catalog.find(c => c.name === val); if(match && match.unit){ formContainer.querySelector('#addUnit').value = match.unit; } }); 
+  formContainer.querySelector('#addName').addEventListener('input', (e)=>{
+    const val = e.target.value.trim();
+    if(val){ formContainer.querySelector('#addUnit').value = guessKitchenUnit(val); }
+  }); 
   let selectedStockStatus = 'ok';
   els('.add-state-option', formContainer).forEach(btn => {
     btn.onclick = () => {
@@ -1328,7 +1342,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     if(!name) return alert('请输入食材名称'); 
     
     // 获取数值，如果是负数则强制归0
-    let qty = +formContainer.querySelector('#addQty').value || 0; 
+    let qty = +formContainer.querySelector('#addQty').value || 1; 
     if (qty < 0) qty = 0;
 
     const unit=formContainer.querySelector('#addUnit').value; 
@@ -1356,7 +1370,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     try {
       const items = await recognizeReceipt(file);
       scanStatus.innerHTML = `✅ 成功！入库 ${items.length} 项`;
-      for(const it of items) { if(!it.name) continue; let unit = it.unit || 'g'; const name = getCanonicalName(it.name); const match = catalog.find(c => c.name === name); if(match && match.unit) unit = match.unit; upsertInventory(inv, { name: name, qty: Number(it.qty) || 1, unit: unit, buyDate: todayISO(), kind: 'raw', shelf: guessShelfDays(name, unit), stockStatus:'ok' }); }
+      for(const it of items) { if(!it.name) continue; const name = getCanonicalName(it.name); const unit = it.unit || guessKitchenUnit(name); upsertInventory(inv, { name: name, qty: Number(it.qty) || 1, unit: unit, buyDate: todayISO(), kind: 'raw', shelf: guessShelfDays(name, unit), stockStatus:'ok' }); }
       setTimeout(() => { scanStatus.style.display = 'none'; renderTable(); }, 1500);
     } catch(err) { scanStatus.innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`; }
   };
