@@ -1282,8 +1282,16 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
         <input id="addName" list="catalogList" placeholder="食材名称 (必填)" style="width:100%;">
         <datalist id="catalogList">${catalog.map(c=>`<option value="${c.name}">`).join('')}</datalist>
       </div>
+      <div class="full-width add-state-row">
+        <span class="add-state-label">状态</span>
+        <div class="add-state-options" id="addStockStatus">
+          <button type="button" class="add-state-option active" data-status="ok">有</button>
+          <button type="button" class="add-state-option" data-status="low">快没了</button>
+          <button type="button" class="add-state-option" data-status="unknown">不确定</button>
+        </div>
+      </div>
       <div class="qty-group">
-        <input id="addQty" type="number" min="0" step="1" placeholder="数量" style="width:60%;">
+        <input id="addQty" type="number" min="0" step="1" placeholder="数量（可选）" style="width:60%;">
         <select id="addUnit" style="width:40%;"><option value="g">g</option><option value="ml">ml</option><option value="pcs">pcs</option></select>
       </div>
       <input id="addDate" type="date" value="${todayISO()}" style="width:100%;">
@@ -1306,6 +1314,13 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     }
   };
   formContainer.querySelector('#addName').addEventListener('input', (e)=>{ const val = e.target.value.trim(); const match = catalog.find(c => c.name === val); if(match && match.unit){ formContainer.querySelector('#addUnit').value = match.unit; } }); 
+  let selectedStockStatus = 'ok';
+  els('.add-state-option', formContainer).forEach(btn => {
+    btn.onclick = () => {
+      selectedStockStatus = btn.dataset.status || 'ok';
+      els('.add-state-option', formContainer).forEach(x => x.classList.toggle('active', x === btn));
+    };
+  });
   
   // [修改] 强制数量非负 + 冷冻逻辑
   formContainer.querySelector('#addBtn').onclick=()=>{ 
@@ -1323,11 +1338,13 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     // 如果冷冻，保质期设为180天，否则自动推算
     const shelfDays = isFrozen ? 180 : guessShelfDays(name, unit);
     
-    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:shelfDays, isFrozen: isFrozen, stockStatus:'ok'}); 
+    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:shelfDays, isFrozen: isFrozen, stockStatus:selectedStockStatus}); 
     
     formContainer.querySelector('#addName').value = ''; 
     formContainer.querySelector('#addQty').value = ''; 
     formContainer.querySelector('#addFrozen').checked = false; // 重置
+    selectedStockStatus = 'ok';
+    els('.add-state-option', formContainer).forEach(x => x.classList.toggle('active', x.dataset.status === 'ok'));
     renderTable(); 
   };
   

@@ -256,6 +256,36 @@ input:focus, select:focus, textarea:focus {
 .form-grid .qty-group {
   display: flex; gap: 8px;
 }
+.add-state-row { justify-content: space-between; }
+.add-state-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.add-state-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+.add-state-option {
+  border: 1px solid var(--separator);
+  border-radius: 999px;
+  background: #f9fafb;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 8px 10px;
+}
+.add-state-option.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.18);
+}
 
 /* === 布局工具 === */
 .controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
