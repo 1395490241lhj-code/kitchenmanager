@@ -35,7 +35,8 @@ const S = {
     settings:'km_v23_settings',
     ai_recs: 'km_v48_ai_recs',
     local_recs: 'km_v49_local_recs',
-    rec_time: 'km_v49_rec_time'
+    rec_time: 'km_v49_rec_time',
+    favorite_recipes: 'km_v80_favorite_recipes'
   }
 };
 
@@ -631,6 +632,29 @@ function showRecommendationCards(container, list, pack) {
     container.appendChild(recipeCard(item.r, item.list || map[item.r.id], {reason: item.reason, isAi: isAi})); 
   }); 
 } 
+function loadFavoriteRecipeIds() {
+  return S.load(S.keys.favorite_recipes, []);
+}
+function saveFavoriteRecipeIds(ids) {
+  S.save(S.keys.favorite_recipes, Array.from(new Set(ids)));
+}
+function isFavoriteRecipe(id) {
+  return loadFavoriteRecipeIds().includes(id);
+}
+function toggleFavoriteRecipe(id) {
+  const ids = loadFavoriteRecipeIds();
+  const index = ids.indexOf(id);
+  if(index >= 0) ids.splice(index, 1);
+  else ids.push(id);
+  saveFavoriteRecipeIds(ids);
+}
+function getFavoriteRecipeCards(pack) {
+  const ids = loadFavoriteRecipeIds();
+  return ids.map(id => {
+    const r = (pack.recipes || []).find(x => x.id === id);
+    return r ? { r, list: (pack.recipe_ingredients || {})[id], reason: '常做菜' } : null;
+  }).filter(Boolean);
+}
 
 function processAiData(aiResult, pack) {
   const cards = [];
@@ -695,6 +719,10 @@ function recipeCard(r, list, extraInfo=null){
   
   if(!r.id.startsWith('creative-')){
     const plan = new Set((S.load(S.keys.plan,[])).map(x=>x.id));
+    const favoriteBtn = document.createElement('button'); favoriteBtn.type = 'button'; favoriteBtn.className = `btn small favorite-btn${isFavoriteRecipe(r.id) ? ' active' : ''}`;
+    favoriteBtn.textContent = isFavoriteRecipe(r.id) ? '常做' : '设为常做';
+    favoriteBtn.onclick = () => { toggleFavoriteRecipe(r.id); onRoute(); };
+
     const btn = document.createElement('button'); btn.type = 'button'; btn.className='btn ok small'; 
     btn.textContent = plan.has(r.id) ? '已加入' : '加入清单';
     btn.onclick = () => { const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else p.push({id:r.id, servings:1}); S.save(S.keys.plan,p); onRoute(); };
@@ -702,6 +730,7 @@ function recipeCard(r, list, extraInfo=null){
     const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className='btn small'; detailBtn.textContent='查看';
     detailBtn.onclick = () => location.hash = `#recipe:${r.id}`;
     
+    card.querySelector('.controls').appendChild(favoriteBtn);
     card.querySelector('.controls').appendChild(btn);
     card.querySelector('.controls').appendChild(detailBtn);
   }
@@ -1073,6 +1102,10 @@ function renderHome(pack){
   searchBar.querySelector('#doSearch').onclick = doSearch;
   container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost));
   container.appendChild(renderExpiringSection(expiring, showSearch));
+  const favoriteCards = getFavoriteRecipeCards(pack);
+  if (favoriteCards.length > 0) {
+    container.appendChild(renderHomeRecipeShelf('常做菜', favoriteCards, pack, ''));
+  }
   container.appendChild(renderHomeRecipeShelf('现在能做', groups.ready, pack, '还没有完全匹配库存的菜。先补一点库存，推荐会更准。'));
   container.appendChild(renderHomeRecipeShelf('差一点就能做', groups.almost, pack, '暂时没有只差一两样食材的菜。'));
   container.appendChild(renderMoreRecommendations(pack, inv));

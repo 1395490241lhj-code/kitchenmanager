@@ -181,6 +181,8 @@ p.meta { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; lin
   background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
   color: white; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3); border: 1px solid rgba(255,255,255,0.2);
 }
+.btn.favorite-btn { background: #fef3c7; color: #92400e; }
+.btn.favorite-btn.active { background: var(--accent); color: white; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25); }
 .btn.small { padding: 6px 12px; font-size: 13px; border-radius: var(--radius-s); }
 .btn.icon-only { padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; width: 44px; height: 44px; }
 
