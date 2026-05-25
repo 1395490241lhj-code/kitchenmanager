@@ -211,6 +211,92 @@ input:focus, select:focus, textarea:focus {
 .table td:last-child { border-top-right-radius: var(--radius-m); border-bottom-right-radius: var(--radius-m); padding-right: 16px; }
 .table .right { text-align: right; }
 
+/* === Shopping page === */
+.shopping-page {
+  width: 100%;
+}
+.shopping-plan-card h3,
+.shopping-missing-card h3,
+.staples-card h3 {
+  margin-bottom: 12px;
+}
+.shopping-plan-list {
+  display: grid;
+  gap: 0;
+}
+.shopping-plan-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 150px 76px;
+  align-items: center;
+  gap: 14px;
+  min-height: 58px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(229, 231, 235, 0.72);
+}
+.shopping-plan-row:first-child {
+  border-top: 0;
+}
+.shopping-plan-name {
+  min-width: 0;
+  color: var(--text-main);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shopping-servings {
+  display: grid;
+  grid-template-columns: auto 68px;
+  align-items: center;
+  justify-content: end;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+.shopping-servings input {
+  width: 68px;
+  text-align: center;
+  padding: 10px 8px;
+}
+.shopping-plan-row .btn {
+  width: 76px;
+}
+.shopping-missing-card {
+  margin-top: 14px;
+  overflow: hidden;
+}
+.shopping-table {
+  margin-top: 0;
+  border-spacing: 0;
+}
+.shopping-table th {
+  padding: 2px 14px 10px;
+}
+.shopping-table td {
+  background: transparent;
+  border-top: 1px solid rgba(229, 231, 235, 0.72);
+  box-shadow: none;
+  padding: 15px 14px;
+}
+.shopping-table tbody tr:first-child td {
+  border-top: 0;
+}
+.shopping-table td:first-child,
+.shopping-table td:last-child {
+  border-radius: 0;
+}
+.shopping-table .btn {
+  min-height: 36px;
+}
+.staples-card {
+  margin-top: 18px;
+}
+.shopping-tools {
+  justify-content: flex-start;
+  margin-top: 14px;
+}
+
 /* === 标签 === */
 .kchip {
   display: inline-block; padding: 5px 10px; border-radius: 8px; font-size: 12px;
@@ -396,6 +482,31 @@ nav a.active svg { stroke: var(--primary); transform: translateY(-3px); filter: 
     gap: 18px;
   }
 
+  .shopping-page {
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+
+  .shopping-plan-card,
+  .shopping-missing-card,
+  .staples-card {
+    padding: 22px 24px;
+  }
+
+  .shopping-plan-row {
+    grid-template-columns: minmax(220px, 1fr) 160px 82px;
+  }
+
+  .shopping-plan-row .btn {
+    width: 82px;
+  }
+
+  .shopping-table th,
+  .shopping-table td {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
   .card {
     margin-bottom: 0;
   }
@@ -479,6 +590,39 @@ nav a.active svg { stroke: var(--primary); transform: translateY(-3px); filter: 
   .controls { flex-direction: column; align-items: stretch; }
   .card > .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .controls input#search { width: 100%; }
+
+  .shopping-plan-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+    min-height: 0;
+    padding: 12px 0;
+  }
+  .shopping-plan-name {
+    white-space: normal;
+  }
+  .shopping-servings {
+    grid-template-columns: auto 64px;
+    justify-content: start;
+    grid-column: 1;
+  }
+  .shopping-servings input {
+    width: 64px;
+  }
+  .shopping-plan-row .btn {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: auto;
+    align-self: center;
+  }
+  .shopping-missing-card {
+    overflow-x: auto;
+  }
+  .shopping-table {
+    min-width: 560px;
+  }
+  .shopping-tools .btn {
+    width: 100%;
+  }
   
   .btn { padding: 10px 14px; font-size: 14px; }
   .table th, .table td { padding: 12px 10px; }

@@ -1145,24 +1145,24 @@ function renderShopping(pack){
   }
   
   const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=(inv.filter(x=>x.name===n&&x.unit===u).reduce((s,x)=>s+(+x.qty||0),0)); const m=Math.max(0, Math.round((req-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m}); }
-  const d=document.createElement('div'); const h=document.createElement('h2'); h.className='section-title'; h.textContent='购物清单'; d.appendChild(h);
-  const pd=document.createElement('div'); pd.className='card'; pd.innerHTML='<h3>今日计划</h3>'; const pl=document.createElement('div'); pd.appendChild(pl);
+  const d=document.createElement('div'); d.className='shopping-page'; const h=document.createElement('h2'); h.className='section-title'; h.textContent='购物清单'; d.appendChild(h);
+  const pd=document.createElement('div'); pd.className='card shopping-plan-card'; pd.innerHTML='<h3>今日计划</h3>'; const pl=document.createElement('div'); pl.className='shopping-plan-list'; pd.appendChild(pl);
   function drawPlan(){ pl.innerHTML=''; if(plan.length===0){ const p=document.createElement('p'); p.className='small'; p.textContent='暂未添加菜谱。去“菜谱/推荐”点“加入购物计划”。'; pl.appendChild(p); return; }
-    for(const p of plan){ const r=(pack.recipes||[]).find(x=>x.id===p.id); if(!r) continue; const row=document.createElement('div'); row.className='controls';
-      row.innerHTML=`<span>${r.name}</span><span class="small">份数</span><input type="number" min="1" max="8" step="1" value="${p.servings||1}" style="width:80px"><a class="btn" href="javascript:void(0)">移除</a>`;
+    for(const p of plan){ const r=(pack.recipes||[]).find(x=>x.id===p.id); if(!r) continue; const row=document.createElement('div'); row.className='shopping-plan-row';
+      row.innerHTML=`<span class="shopping-plan-name">${r.name}</span><label class="shopping-servings"><span>份数</span><input type="number" min="1" max="8" step="1" value="${p.servings||1}"></label><a class="btn small" href="javascript:void(0)">移除</a>`;
       const input=els('input',row)[0]; input.onchange=()=>{ const plans=S.load(S.keys.plan,[]); const it=plans.find(x=>x.id===p.id); if(it){ it.servings=+input.value||1; S.save(S.keys.plan,plans); onRoute(); } };
       els('.btn',row)[0].onclick=()=>{ const plans=S.load(S.keys.plan,[]); const i=plans.findIndex(x=>x.id===p.id); if(i>=0){ plans.splice(i,1); S.save(S.keys.plan,plans); onRoute(); } };
       pl.appendChild(row);
     }} drawPlan(); d.appendChild(pd);
-  const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th>食材</th><th>缺少数量</th><th>单位</th><th class="right">操作</th></tr></thead><tbody></tbody>`; const tb=tbl.querySelector('tbody');
+  const needCard=document.createElement('div'); needCard.className='card shopping-missing-card'; needCard.innerHTML='<h3>需要购买</h3>';
+  const tbl=document.createElement('table'); tbl.className='table shopping-table'; tbl.innerHTML=`<thead><tr><th>食材</th><th>缺少数量</th><th>单位</th><th class="right">操作</th></tr></thead><tbody></tbody>`; const tb=tbl.querySelector('tbody');
   if(missing.length===0){ const tr=document.createElement('tr'); tr.innerHTML='<td colspan="4" class="small">库存已满足，不需要购买。</td>'; tb.appendChild(tr); }
   else { for(const m of missing){ const tr=document.createElement('tr'); tr.innerHTML=`<td>${m.name}</td><td>${m.qty}</td><td>${m.unit}</td><td class="right"><a class="btn" href="javascript:void(0)">标记已购 → 入库</a></td>`; els('.btn',tr)[0].onclick=()=>{ const invv=S.load(S.keys.inventory,[]); addInventoryQty(invv,m.name,m.qty,m.unit,'raw'); tr.remove(); }; tb.appendChild(tr); } }
-  d.appendChild(tbl);
+  needCard.appendChild(tbl); d.appendChild(needCard);
 
   // --- [修改] 分类且美化的常备品面板 ---
   const staplesPanel = document.createElement('div');
-  staplesPanel.className = 'card';
-  staplesPanel.style.marginTop = '24px';
+  staplesPanel.className = 'card staples-card';
   // 去除原来的硬边框，改用更有质感的头部设计
   staplesPanel.innerHTML = `
     <h3 style="margin-top:0; color:var(--text-main); display:flex; align-items:center;">
@@ -1232,7 +1232,7 @@ function renderShopping(pack){
   d.appendChild(staplesPanel);
   // --- [修改结束] ---
 
-  const tools=document.createElement('div'); tools.className='controls'; 
+  const tools=document.createElement('div'); tools.className='controls shopping-tools';
   const copy=document.createElement('a'); copy.className='btn'; copy.textContent='复制清单 (含选中常备品)'; 
   
   copy.onclick=()=>{ 
