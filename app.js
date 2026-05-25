@@ -259,6 +259,46 @@ function addShoppingItem(name, qty = '', unit = '', source = '手动') {
   else items.push({ id: genId(), name: cleanName, qty: qty || '', unit: unit || '', source, done: false });
   saveShoppingItems(items);
 }
+function downloadJsonFile(payload, filename) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+function buildKitchenBackup() {
+  return {
+    type: 'kitchen-backup',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: {
+      inventory: S.load(S.keys.inventory, []),
+      plan: S.load(S.keys.plan, []),
+      overlay: loadOverlay(),
+      settings: S.load(S.keys.settings, {}),
+      favorite_recipes: S.load(S.keys.favorite_recipes, []),
+      shopping_items: loadShoppingItems()
+    }
+  };
+}
+function restoreKitchenBackup(payload) {
+  if(payload && payload.type === 'kitchen-inventory' && Array.isArray(payload.inventory)) {
+    S.save(S.keys.inventory, payload.inventory);
+    return;
+  }
+  if(!payload || payload.type !== 'kitchen-backup' || !payload.data) throw new Error('不是有效的厨房备份文件');
+  const data = payload.data;
+  if(Array.isArray(data.inventory)) S.save(S.keys.inventory, data.inventory);
+  if(Array.isArray(data.plan)) S.save(S.keys.plan, data.plan);
+  if(data.overlay) saveOverlay(data.overlay);
+  if(data.settings) S.save(S.keys.settings, data.settings);
+  if(Array.isArray(data.favorite_recipes)) S.save(S.keys.favorite_recipes, data.favorite_recipes);
+  if(Array.isArray(data.shopping_items)) saveShoppingItems(data.shopping_items);
+}
 
 function applyOverlay(base, overlay){
   const recipes = [];
@@ -1715,6 +1755,14 @@ function renderSettings(){
       <div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div>
       <div class="right"><a class="btn ok" id="saveSet">保存</a></div>
     </div>
+    <h2 class="section-title">厨房备份</h2>
+    <div class="card backup-card">
+      <p class="meta">导出会包含库存、今日计划、购物项、常做菜、菜谱补丁和 AI 设置。</p>
+      <div class="backup-actions">
+        <button type="button" class="btn ok" id="exportKitchenBackup">导出整个厨房</button>
+        <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入整个厨房</label>
+      </div>
+    </div>
   `;
   
   const presets = { 
@@ -1740,6 +1788,24 @@ function renderSettings(){
     S.save(S.keys.settings, newS); 
     alert('已保存，刷新后生效。'); 
     location.reload();
+  };
+  div.querySelector('#exportKitchenBackup').onclick = () => {
+    downloadJsonFile(buildKitchenBackup(), `kitchen-backup-${todayISO()}.json`);
+  };
+  div.querySelector('#importKitchenBackup').onchange = e => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        restoreKitchenBackup(JSON.parse(reader.result));
+        alert('厨房备份已导入，页面将刷新。');
+        location.reload();
+      } catch(err) {
+        alert('导入失败：' + err.message);
+      }
+    };
+    reader.readAsText(file);
   };
   return div;
 }

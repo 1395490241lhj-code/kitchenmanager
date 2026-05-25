@@ -506,6 +506,12 @@ input:focus, select:focus, textarea:focus {
   justify-content: flex-end;
   gap: 8px;
 }
+.backup-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .card > .controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
@@ -789,6 +795,10 @@ nav a.active svg { stroke: var(--primary); transform: translateY(-2px); filter: 
   .recipe-actions .btn,
   .recipe-actions label.btn {
     flex: 1;
+  }
+  .backup-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
   
   .btn { padding: 10px 14px; font-size: 14px; }
