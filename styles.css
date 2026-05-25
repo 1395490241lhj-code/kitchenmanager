@@ -1,4 +1,4 @@
-/* v150 styles.css - pantry and muted premium palette */
+/* v151 styles.css - pantry stock display */
 :root {
   --primary: #52616d;
   --primary-dark: #36434c;
@@ -380,7 +380,14 @@ h2, h3, h4 { margin: 0 0 16px 0; font-weight: 700; color: var(--text-main); line
   margin-bottom: 4px;
   font-size: 17px;
 }
-.dry-goods-list {
+.pantry-shelf-title {
+  margin: 12px 2px 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+}
+.dry-goods-list,
+.daily-goods-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 10px;
@@ -414,6 +421,16 @@ h2, h3, h4 { margin: 0 0 16px 0; font-weight: 700; color: var(--text-main); line
   overflow: hidden;
   color: var(--text-secondary);
   font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dry-good-main em {
+  overflow: hidden;
+  color: var(--text-main);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1164,7 +1181,8 @@ nav a.active svg {
   .home-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .dry-goods-list {
+  .dry-goods-list,
+  .daily-goods-list {
     grid-template-columns: 1fr;
   }
   .dry-good-row {

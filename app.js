@@ -1,4 +1,4 @@
-// v149 app.js - 常备干货柜
+// v150 app.js - 储备柜显示存货
 import { CUSTOM_AI } from './src/config.js?v=89';
 import { el, els } from './src/dom.js?v=89';
 import { S, todayISO } from './src/storage.js?v=97';
@@ -162,7 +162,11 @@ const DRY_GOODS = [
   { name: '香菇', unit: '包', prep: '提前泡发' },
   { name: '竹荪', unit: '包', prep: '提前泡发' }
 ];
-const DRY_STATUS_FLOW = ['ok', 'low', 'empty', 'unknown'];
+const DRY_STATUS_FLOW = ['empty', 'ok', 'low', 'unknown'];
+const DAILY_STOCKS = [
+  { name: '鸡蛋', unit: '个', note: '按个数管理' },
+  { name: '牛奶', unit: '瓶', note: '按瓶/盒和状态管理' }
+];
 function getDryGoodConfig(name) {
   const canonical = getCanonicalName(name || '');
   return DRY_GOODS.find(item => item.name === canonical) || null;
@@ -182,6 +186,24 @@ function dryStatusInfo(value) {
   if (value === 'unknown') return { label: '需检查', className: 'unknown' };
   if (value === 'empty') return { label: '没有', className: 'empty' };
   return { label: '有', className: 'ok' };
+}
+function findStockItem(inv, name, kind = '') {
+  return (inv || []).find(entry => isIngredientMatch(name, entry.name) && (!kind || (entry.kind || 'raw') === kind));
+}
+function formatStockLine(item, unit = '份') {
+  if(!item || item.stockStatus === 'empty' || (+item.qty || 0) <= 0) return '库存：没有';
+  const amount = formatInventoryAmount({...item, unit: item.unit || unit});
+  const state = inventoryStateInfo(item.stockStatus).label;
+  return `库存：${amount} · ${state}`;
+}
+function ensureStockItem(inv, config, kind = 'raw', status = 'empty') {
+  let item = findStockItem(inv, config.name, kind);
+  if(!item) {
+    item = { name: config.name, qty: status === 'empty' ? 0 : 1, unit: config.unit, buyDate: todayISO(), kind, shelf: kind === 'dry' ? 365 : guessShelfDays(config.name, config.unit), stockStatus: status };
+    if(kind === 'dry') item.dryPrep = config.prep || getDryPrepText(config.name);
+    inv.push(item);
+  }
+  return item;
 }
 
 // --- 佐料/常备品过滤 ---
@@ -1347,15 +1369,18 @@ function renderDryGoodsCabinet(inv) {
       <div class="dry-goods-head">
         <div>
           <h3>不用精确记克数</h3>
-          <p class="meta">只管它是有、快没了、没有，做菜前会提醒泡发。</p>
+          <p class="meta">干货看存货和泡发提醒；牛奶按瓶/盒和状态管，不记毫升。</p>
         </div>
       </div>
+      <div class="pantry-shelf-title">干货</div>
       <div class="dry-goods-list"></div>
+      <div class="pantry-shelf-title">蛋奶</div>
+      <div class="daily-goods-list"></div>
     </div>
   `;
   const list = section.querySelector('.dry-goods-list');
   DRY_GOODS.forEach(config => {
-    const item = (inv || []).find(entry => isIngredientMatch(config.name, entry.name) && (entry.kind || 'raw') === 'dry');
+    const item = findStockItem(inv, config.name, 'dry');
     const status = item ? (item.stockStatus || 'ok') : 'empty';
     const info = dryStatusInfo(status);
     const row = document.createElement('div');
@@ -1364,16 +1389,13 @@ function renderDryGoodsCabinet(inv) {
       <div class="dry-good-main">
         <strong>${escapeHtml(config.name)}</strong>
         <span>${escapeHtml(config.prep)}</span>
+        <em>${escapeHtml(formatStockLine(item, config.unit))}</em>
       </div>
       <button type="button" class="inventory-status-chip ${info.className}">${escapeHtml(info.label)}</button>
       <button type="button" class="btn small dry-good-buy">${status === 'ok' ? '补一包' : '加入清单'}</button>
     `;
     row.querySelector('.inventory-status-chip').onclick = () => {
-      let target = item;
-      if(!target) {
-        target = { name: config.name, qty: 1, unit: config.unit, buyDate: todayISO(), kind: 'dry', shelf: 365, stockStatus: 'empty', dryPrep: config.prep };
-        inv.push(target);
-      }
+      let target = item || ensureStockItem(inv, config, 'dry', 'empty');
       target.stockStatus = nextDryStatus(target.stockStatus);
       target.qty = target.stockStatus === 'empty' ? 0 : Math.max(1, +target.qty || 1);
       target.unit = target.unit || config.unit;
@@ -1389,6 +1411,39 @@ function renderDryGoodsCabinet(inv) {
       onRoute();
     };
     list.appendChild(row);
+  });
+
+  const dailyList = section.querySelector('.daily-goods-list');
+  DAILY_STOCKS.forEach(config => {
+    const item = findStockItem(inv, config.name, 'raw');
+    const status = item ? (item.stockStatus || 'ok') : 'empty';
+    const info = dryStatusInfo(status);
+    const row = document.createElement('div');
+    row.className = `dry-good-row daily-good-row is-${info.className}`;
+    row.innerHTML = `
+      <div class="dry-good-main">
+        <strong>${escapeHtml(config.name)}</strong>
+        <span>${escapeHtml(config.note)}</span>
+        <em>${escapeHtml(formatStockLine(item, config.unit))}</em>
+      </div>
+      <button type="button" class="inventory-status-chip ${info.className}">${escapeHtml(info.label)}</button>
+      <button type="button" class="btn small dry-good-buy">${config.name === '牛奶' ? '补一瓶' : '补一点'}</button>
+    `;
+    row.querySelector('.inventory-status-chip').onclick = () => {
+      let target = item || ensureStockItem(inv, config, 'raw', 'empty');
+      target.stockStatus = nextDryStatus(target.stockStatus);
+      target.qty = target.stockStatus === 'empty' ? 0 : Math.max(1, +target.qty || 1);
+      target.unit = target.unit || config.unit;
+      target.kind = 'raw';
+      target.shelf = guessShelfDays(target.name, target.unit);
+      saveInventory(inv);
+      onRoute();
+    };
+    row.querySelector('.dry-good-buy').onclick = () => {
+      addShoppingItem(config.name, '', config.unit, '日常补给');
+      onRoute();
+    };
+    dailyList.appendChild(row);
   });
   return section;
 }
