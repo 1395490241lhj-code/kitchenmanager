@@ -1,4 +1,8 @@
 // v146 app.js - 更新API Key(gsk_WgC...) + 标题居中修正
+import { CUSTOM_AI } from './src/config.js?v=89';
+import { el, els } from './src/dom.js?v=89';
+import { S, todayISO } from './src/storage.js?v=89';
+
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
   const app = document.querySelector('body');
@@ -11,35 +15,7 @@ window.onerror = function(msg, url, line, col, error) {
   }
 };
 
-const el = (sel, root=document) => root.querySelector(sel);
-const els = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 const app = el('#app');
-const todayISO = () => new Date().toISOString().slice(0,10);
-
-// --- AI 配置 ---
-const CUSTOM_AI = {
-  URL: "https://api.groq.com/openai/v1/chat/completions",
-  KEY: "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", // [已更新 Key]
-  MODEL: "qwen/qwen3-32b", 
-  VISION_MODEL: "meta-llama/llama-4-scout-17b-16e-instruct" 
-};
-
-// --- Storage ---
-const S = {
-  save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} },
-  load(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d } catch(e){ return d; } },
-  keys: { 
-    inventory:'km_v19_inventory', 
-    plan:'km_v19_plan', 
-    overlay:'km_v19_overlay', 
-    settings:'km_v23_settings',
-    ai_recs: 'km_v48_ai_recs',
-    local_recs: 'km_v49_local_recs',
-    rec_time: 'km_v49_rec_time',
-    favorite_recipes: 'km_v80_favorite_recipes',
-    shopping_items: 'km_v87_shopping_items'
-  }
-};
 
 // --- 食材归一化字典 (保持不变) ---
 const INGREDIENT_ALIASES = {
