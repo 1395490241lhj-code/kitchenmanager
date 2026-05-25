@@ -526,7 +526,7 @@ p.meta { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; lin
   position: relative;
   z-index: 1;
 }
-.card:active { transform: scale(0.99); }
+.card:active { transform: none; }
 
 /* === 按钮样式 === */
 .btn {
@@ -541,6 +541,12 @@ p.meta { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; lin
   user-select: none; line-height: 1.2; white-space: nowrap; flex-shrink: 0; 
 }
 .btn:active { transform: scale(0.96); filter: brightness(0.95); }
+.btn.is-confirmed {
+  background: #e9f8ee;
+  color: #1f7a3a;
+  border-color: rgba(52, 199, 89, 0.18);
+  box-shadow: 0 6px 14px rgba(52, 199, 89, 0.12), inset 0 1px 0 rgba(255,255,255,0.86);
+}
 .btn.ok { background: linear-gradient(180deg, #0a84ff 0%, #007aff 100%); color: white; border-color: rgba(255,255,255,0.42); box-shadow: 0 8px 18px rgba(0, 122, 255, 0.24), inset 0 1px 0 rgba(255,255,255,0.34); }
 .btn.bad { background: #fee2e2; color: var(--danger); }
 .btn.bad:active { background: var(--danger); color: white; }

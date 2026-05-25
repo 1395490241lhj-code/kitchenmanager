@@ -202,6 +202,18 @@ function countStockStatus(qty) {
   if(amount <= 3) return 'low';
   return 'ok';
 }
+function brieflyConfirmButton(button, text = '已加入') {
+  if(!button) return;
+  const originalText = button.textContent;
+  button.textContent = text;
+  button.classList.add('is-confirmed');
+  button.disabled = true;
+  window.setTimeout(() => {
+    button.disabled = false;
+    button.classList.remove('is-confirmed');
+    button.textContent = originalText;
+  }, 900);
+}
 function ensureStockItem(inv, config, kind = 'raw', status = 'empty') {
   let item = findStockItem(inv, config.name, kind);
   if(!item) {
@@ -1389,6 +1401,24 @@ function renderDryGoodsCabinet(inv) {
       </div>
     </div>
   `;
+  const setRowStatusClass = (row, className) => {
+    row.classList.remove('is-ok', 'is-low', 'is-empty', 'is-unknown');
+    row.classList.add(`is-${className}`);
+  };
+  const updateStatusRow = (row, item, config, type = 'dry') => {
+    const status = item ? (item.stockStatus || 'ok') : 'empty';
+    const info = dryStatusInfo(status);
+    setRowStatusClass(row, info.className);
+    const stockLine = row.querySelector('.dry-good-main em');
+    if(stockLine) stockLine.textContent = formatStockLine(item, config.unit);
+    const statusButton = row.querySelector('.inventory-status-chip');
+    if(statusButton) {
+      statusButton.className = `inventory-status-chip ${info.className}`;
+      statusButton.textContent = info.label;
+    }
+    const buyButton = row.querySelector('.dry-good-buy');
+    if(buyButton && type === 'dry') buyButton.textContent = status === 'ok' ? '补一包' : '加入清单';
+  };
   const list = section.querySelector('.dry-goods-list');
   DRY_GOODS.forEach(config => {
     const item = findStockItem(inv, config.name, 'dry');
@@ -1415,11 +1445,12 @@ function renderDryGoodsCabinet(inv) {
       target.dryPrep = config.prep;
       target.isFrozen = false;
       saveInventory(inv);
-      onRoute();
+      updateStatusRow(row, target, config, 'dry');
     };
-    row.querySelector('.dry-good-buy').onclick = () => {
+    const buyButton = row.querySelector('.dry-good-buy');
+    buyButton.onclick = () => {
       addShoppingItem(config.name, '', config.unit, '常备干货');
-      onRoute();
+      brieflyConfirmButton(buyButton);
     };
     list.appendChild(row);
   });
@@ -1444,6 +1475,17 @@ function renderDryGoodsCabinet(inv) {
     </div>
     <button type="button" class="btn small dry-good-buy">${eggQty <= 3 ? '补一打' : '加入清单'}</button>
   `;
+  const updateEggRow = (item) => {
+    const qty = Math.max(0, Math.round(+item?.qty || 0));
+    const info = dryStatusInfo(countStockStatus(qty));
+    setRowStatusClass(eggRow, info.className);
+    const stockLine = eggRow.querySelector('.dry-good-main em');
+    if(stockLine) stockLine.textContent = qty > 0 ? `库存：${qty} 个` : '库存：没有';
+    const countLabel = eggRow.querySelector('.egg-count-control span');
+    if(countLabel) countLabel.textContent = qty;
+    const buyButton = eggRow.querySelector('.dry-good-buy');
+    if(buyButton) buyButton.textContent = qty <= 3 ? '补一打' : '加入清单';
+  };
   eggRow.querySelectorAll('[data-egg-step]').forEach(btn => {
     btn.onclick = () => {
       const step = Number(btn.dataset.eggStep || 0);
@@ -1455,12 +1497,15 @@ function renderDryGoodsCabinet(inv) {
       target.shelf = guessShelfDays(target.name, target.unit);
       target.stockStatus = countStockStatus(nextQty);
       saveInventory(inv);
-      onRoute();
+      updateEggRow(target);
     };
   });
-  eggRow.querySelector('.dry-good-buy').onclick = () => {
-    addShoppingItem(EGG_STOCK.name, eggQty <= 3 ? 12 : '', EGG_STOCK.unit, '日常补给');
-    onRoute();
+  const eggBuyButton = eggRow.querySelector('.dry-good-buy');
+  eggBuyButton.onclick = () => {
+    const currentEgg = findStockItem(inv, EGG_STOCK.name, 'raw');
+    const currentQty = Math.max(0, Math.round(+currentEgg?.qty || 0));
+    addShoppingItem(EGG_STOCK.name, currentQty <= 3 ? 12 : '', EGG_STOCK.unit, '日常补给');
+    brieflyConfirmButton(eggBuyButton);
   };
   dailyList.appendChild(eggRow);
 
@@ -1487,11 +1532,12 @@ function renderDryGoodsCabinet(inv) {
       target.kind = 'raw';
       target.shelf = guessShelfDays(target.name, target.unit);
       saveInventory(inv);
-      onRoute();
+      updateStatusRow(row, target, config, 'daily');
     };
-    row.querySelector('.dry-good-buy').onclick = () => {
+    const buyButton = row.querySelector('.dry-good-buy');
+    buyButton.onclick = () => {
       addShoppingItem(config.name, '', config.unit, '日常补给');
-      onRoute();
+      brieflyConfirmButton(buyButton);
     };
     dailyList.appendChild(row);
   });
@@ -2478,7 +2524,6 @@ function renderRecipeEditor(id, base){
 
 async function onRoute(){ 
   try {
-    app.innerHTML=''; 
     const base = await loadBasePack(); 
     const overlay = loadOverlay(); 
     const pack = applyOverlay(base, overlay); 
@@ -2489,12 +2534,14 @@ async function onRoute(){
     else if(hash==='settings') el('#nav-set').classList.add('active'); 
     else if(!hash || hash==='inventory') el('#nav-home').classList.add('active'); 
     
-    if(hash.startsWith('recipe-edit:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeEditor(id, base)); } 
-    else if(hash.startsWith('recipe:')){ const id = hash.split(':')[1]; app.appendChild(renderRecipeDetail(id, pack)); } 
-    else if(hash==='shopping'){ app.appendChild(renderShopping(pack)); } 
-    else if(hash==='recipes'){ app.appendChild(renderRecipes(pack)); } 
-    else if(hash==='settings'){ app.appendChild(renderSettings()); } 
-    else { app.appendChild(renderHome(pack)); } 
+    let view;
+    if(hash.startsWith('recipe-edit:')){ const id = hash.split(':')[1]; view = renderRecipeEditor(id, base); }
+    else if(hash.startsWith('recipe:')){ const id = hash.split(':')[1]; view = renderRecipeDetail(id, pack); }
+    else if(hash==='shopping'){ view = renderShopping(pack); }
+    else if(hash==='recipes'){ view = renderRecipes(pack); }
+    else if(hash==='settings'){ view = renderSettings(); }
+    else { view = renderHome(pack); }
+    app.replaceChildren(view);
   } catch(e) {
     console.error('Routing Error:', e);
     app.innerHTML = `<div style="padding:20px;text-align:center;color:red;">页面加载出错：${e.message}<br><button class="btn" onclick="location.reload()">重试</button></div>`;
