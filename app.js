@@ -523,6 +523,16 @@ function calculateStockStatus(recipe, pack, inv) {
   return { status: 'none', missing };
 }
 
+function hasRecipeMethod(recipe) {
+  return !!String(recipe && recipe.method || '').trim();
+}
+
+function recipeMethodBadge(recipe) {
+  return hasRecipeMethod(recipe)
+    ? '<span class="kchip method-ok">有做法</span>'
+    : '<span class="kchip method-missing">缺做法</span>';
+}
+
 function getLocalRecommendations(pack, inv, forceRefresh = false) {
   const now = Date.now();
   const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
@@ -532,13 +542,16 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
     return savedRecs.map(s => {
        const r = (pack.recipes||[]).find(x => x.id === s.id);
        return r ? { r, matchCount: s.matchCount, reason: s.reason } : null;
-    }).filter(Boolean);
+    }).filter(item => item && hasRecipeMethod(item.r));
   }
   
   const invMap = new Map();
   inv.forEach(i => invMap.set(getCanonicalName(i.name), i));
 
-  let scores = (pack.recipes || []).map(r => {
+  const methodReadyRecipes = (pack.recipes || []).filter(hasRecipeMethod);
+  const recommendationRecipes = methodReadyRecipes.length ? methodReadyRecipes : (pack.recipes || []);
+
+  let scores = recommendationRecipes.map(r => {
     const rawIngs = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
     // 过滤掉佐料，只保留核心食材
     const coreIngs = rawIngs.filter(ing => !isSeasoning(ing.item));
@@ -593,7 +606,7 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
   let top = scores.slice(0, 6);
 
   if (top.length === 0) {
-    const all = (pack.recipes||[]);
+    const all = methodReadyRecipes.length ? methodReadyRecipes : (pack.recipes||[]);
     top = [...all].sort(() => 0.5 - Math.random()).slice(0, 6).map(r => ({ r, matchCount: 0, reason: '随机探索' }));
   }
 
@@ -607,7 +620,7 @@ function searchResultCard(r, statusData) {
   const card = document.createElement('div'); card.className = 'card';
   let statusBadge = statusData.status === 'ok' ? `<span class="kchip ok">✅ 库存充足</span>` : (statusData.status === 'partial' ? `<span class="kchip warn">⚠️ 缺食材</span>` : `<span class="kchip bad">❌ 暂无食材</span>`);
   
-  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3>${statusBadge}</div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">查看做法</button><button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button></div>`;
+  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3><div class="recipe-badge-stack">${recipeMethodBadge(r)}${statusBadge}</div></div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button><button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button></div>`;
   
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {
@@ -699,7 +712,10 @@ function recipeCard(r, list, extraInfo=null){
   card.innerHTML=`${topHtml}
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
       <h3 class="r-title">${r.name}</h3>
-      ${!r.id.startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;margin-left:8px;border:none;">编辑</button>` : ''}
+      <div class="recipe-badge-stack">
+        ${recipeMethodBadge(r)}
+        ${!String(r.id).startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;border:none;">编辑</button>` : ''}
+      </div>
     </div>
     <p class="meta">${(r.tags||[]).join(' / ')}</p>
     <div class="ing-compact-container"></div>
@@ -717,7 +733,7 @@ function recipeCard(r, list, extraInfo=null){
   const showItems = displayItems.slice(0, 4); 
   for(const it of showItems){ const span = document.createElement('span'); span.className = 'ing-tag-pill'; span.innerHTML = `${it.item}`; tagContainer.appendChild(span); }
   
-  if(!r.id.startsWith('creative-')){
+  if(!String(r.id).startsWith('creative-')){
     const plan = new Set((S.load(S.keys.plan,[])).map(x=>x.id));
     const favoriteBtn = document.createElement('button'); favoriteBtn.type = 'button'; favoriteBtn.className = `btn small favorite-btn${isFavoriteRecipe(r.id) ? ' active' : ''}`;
     favoriteBtn.textContent = isFavoriteRecipe(r.id) ? '常做' : '设为常做';
@@ -727,7 +743,7 @@ function recipeCard(r, list, extraInfo=null){
     btn.textContent = plan.has(r.id) ? '已加入' : '加入清单';
     btn.onclick = () => { const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else p.push({id:r.id, servings:1}); S.save(S.keys.plan,p); onRoute(); };
     
-    const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className='btn small'; detailBtn.textContent='查看';
+    const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className='btn small'; detailBtn.textContent=hasRecipeMethod(r) ? '查看' : '补做法';
     detailBtn.onclick = () => location.hash = `#recipe:${r.id}`;
     
     card.querySelector('.controls').appendChild(favoriteBtn);
@@ -876,7 +892,7 @@ function getExpiringItems(inv) {
 }
 
 function getHomeRecipeGroups(pack, inv) {
-  const rows = (pack.recipes || []).map(r => {
+  const rows = (pack.recipes || []).filter(hasRecipeMethod).map(r => {
     const list = explodeCombinedItems((pack.recipe_ingredients || {})[r.id] || []);
     const core = list.filter(ing => !isSeasoning(ing.item));
     if (core.length === 0) return null;
@@ -1508,31 +1524,48 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
 
 function renderRecipes(pack){ 
   const wrap = document.createElement('div'); 
-  // [修改] 增加 flex-wrap:wrap 到 controls
+  const methodReadyCount = (pack.recipes || []).filter(hasRecipeMethod).length;
+  const missingMethodCount = Math.max(0, (pack.recipes || []).length - methodReadyCount);
   wrap.innerHTML = `
-    <div class="controls" style="margin-bottom:16px;gap:10px;flex-wrap:wrap;">
+    <div class="recipe-toolbar">
       <input id="search" placeholder="搜菜谱..." style="flex:1;min-width:150px;padding:12px;border-radius:12px;border:1px solid var(--separator);">
-      <a class="btn ok icon-only" id="addBtn" title="新建菜谱">
-         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      </a>
-      <a class="btn" id="exportBtn">导出</a>
-      <label class="btn"><input type="file" id="importFile" hidden>导入</label>
+      <label class="recipe-filter-toggle"><input type="checkbox" id="methodOnly" checked>只看有做法</label>
+      <span class="recipe-count" id="recipeCount"></span>
+      <div class="recipe-actions">
+        <a class="btn ok icon-only" id="addBtn" title="新建菜谱">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </a>
+        <a class="btn" id="exportBtn">导出</a>
+        <label class="btn"><input type="file" id="importFile" hidden>导入</label>
+      </div>
     </div>
     <div class="grid" id="grid"></div>
   `; 
   const grid = wrap.querySelector('#grid'); 
   const map = pack.recipe_ingredients||{}; 
+  const recipeCount = wrap.querySelector('#recipeCount');
   
   function draw(filter=''){ 
     grid.innerHTML = ''; 
     const f = filter.trim(); 
-    (pack.recipes||[]).filter(r => !f || r.name.includes(f)).forEach(r=>{ 
+    const methodOnly = wrap.querySelector('#methodOnly').checked;
+    const rows = (pack.recipes||[]).filter(r => (!f || r.name.includes(f)) && (!methodOnly || hasRecipeMethod(r)));
+    recipeCount.textContent = `显示 ${rows.length} 道 · 有做法 ${methodReadyCount} · 缺做法 ${missingMethodCount}`;
+    if(rows.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'card small';
+      empty.textContent = methodOnly ? '没有符合条件的菜。可以关闭“只看有做法”查看缺做法菜谱。' : '没有符合条件的菜。';
+      grid.appendChild(empty);
+      return;
+    }
+    rows.forEach(r=>{
       grid.appendChild(recipeCard(r, map[r.id])); 
     }); 
   } 
   draw(); 
   
   wrap.querySelector('#search').oninput = e => draw(e.target.value); 
+  wrap.querySelector('#methodOnly').onchange = () => draw(wrap.querySelector('#search').value);
   
   // 绑定新建、导出、导入逻辑
   wrap.querySelector('#addBtn').onclick = () => { 

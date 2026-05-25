@@ -305,6 +305,16 @@ input:focus, select:focus, textarea:focus {
 .kchip.ok { background: #d1fae5; color: #047857; } 
 .kchip.warn { background: #fef3c7; color: #b45309; } 
 .kchip.bad { background: #fee2e2; color: #b91c1c; } 
+.kchip.method-ok { background: #e0f2fe; color: #0369a1; }
+.kchip.method-missing { background: #f3f4f6; color: #6b7280; }
+.recipe-badge-stack {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: 10px;
+}
 .inventory-status-chip {
   display: inline-flex;
   align-items: center;
@@ -378,6 +388,42 @@ input:focus, select:focus, textarea:focus {
 
 /* === 布局工具 === */
 .controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.recipe-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.recipe-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-m);
+  background: rgba(255,255,255,0.72);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.recipe-filter-toggle input {
+  width: auto;
+  accent-color: var(--primary);
+}
+.recipe-count {
+  color: var(--text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.recipe-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .card > .controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
@@ -622,6 +668,23 @@ nav a.active svg { stroke: var(--primary); transform: translateY(-3px); filter: 
   }
   .shopping-tools .btn {
     width: 100%;
+  }
+  .recipe-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .recipe-filter-toggle {
+    justify-content: center;
+  }
+  .recipe-count {
+    text-align: center;
+  }
+  .recipe-actions {
+    justify-content: stretch;
+  }
+  .recipe-actions .btn,
+  .recipe-actions label.btn {
+    flex: 1;
   }
   
   .btn { padding: 10px 14px; font-size: 14px; }
