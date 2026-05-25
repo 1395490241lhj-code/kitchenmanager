@@ -22,6 +22,7 @@ export const S = {
     local_recs: 'km_v49_local_recs',
     rec_time: 'km_v49_rec_time',
     favorite_recipes: 'km_v80_favorite_recipes',
+    recipe_usage: 'km_v95_recipe_usage',
     shopping_items: 'km_v87_shopping_items'
   }
 };

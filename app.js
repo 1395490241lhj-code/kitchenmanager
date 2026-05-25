@@ -1,7 +1,7 @@
-// v146 app.js - 更新API Key(gsk_WgC...) + 标题居中修正
+// v147 app.js - 首页厨房雷达
 import { CUSTOM_AI } from './src/config.js?v=89';
 import { el, els } from './src/dom.js?v=89';
-import { S, todayISO } from './src/storage.js?v=89';
+import { S, todayISO } from './src/storage.js?v=95';
 
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
@@ -257,6 +257,7 @@ function buildKitchenBackup() {
       overlay: loadOverlay(),
       settings: S.load(S.keys.settings, {}),
       favorite_recipes: S.load(S.keys.favorite_recipes, []),
+      recipe_usage: S.load(S.keys.recipe_usage, {}),
       shopping_items: loadShoppingItems()
     }
   };
@@ -273,6 +274,7 @@ function restoreKitchenBackup(payload) {
   if(data.overlay) saveOverlay(data.overlay);
   if(data.settings) S.save(S.keys.settings, data.settings);
   if(Array.isArray(data.favorite_recipes)) S.save(S.keys.favorite_recipes, data.favorite_recipes);
+  if(data.recipe_usage && typeof data.recipe_usage === 'object') S.save(S.keys.recipe_usage, data.recipe_usage);
   if(Array.isArray(data.shopping_items)) saveShoppingItems(data.shopping_items);
 }
 
@@ -700,7 +702,7 @@ function searchResultCard(r, statusData) {
   if (addBtn) {
     addBtn.onclick = () => {
       const plan = S.load(S.keys.plan, []);
-      if (!plan.find(x => x.id === r.id)) { plan.push({ id: r.id, servings: 1 }); S.save(S.keys.plan, plan); alert(`已加入清单。`); } 
+      if (!plan.find(x => x.id === r.id)) { plan.push({ id: r.id, servings: 1 }); S.save(S.keys.plan, plan); markRecipePlanned(r.id); alert(`已加入清单。`); }
       else { alert('已在清单中。'); }
     };
   }
@@ -735,12 +737,48 @@ function toggleFavoriteRecipe(id) {
   else ids.push(id);
   saveFavoriteRecipeIds(ids);
 }
+function loadRecipeUsage() {
+  return S.load(S.keys.recipe_usage, {});
+}
+function markRecipePlanned(id) {
+  if(!id || String(id).startsWith('creative-')) return;
+  const usage = loadRecipeUsage();
+  usage[id] = todayISO();
+  S.save(S.keys.recipe_usage, usage);
+}
+function addRecipeToPlan(id) {
+  const plan = S.load(S.keys.plan, []);
+  if(plan.find(x => x.id === id)) return false;
+  plan.push({ id, servings: 1 });
+  S.save(S.keys.plan, plan);
+  markRecipePlanned(id);
+  return true;
+}
+function recipeUsageText(lastDate) {
+  if(!lastDate) return '还没安排过';
+  const days = Math.max(0, daysBetween(lastDate, todayISO()));
+  if(days === 0) return '今天已安排';
+  if(days === 1) return '昨天安排过';
+  return `${days} 天没安排`;
+}
 function getFavoriteRecipeCards(pack) {
   const ids = loadFavoriteRecipeIds();
   return ids.map(id => {
     const r = (pack.recipes || []).find(x => x.id === id);
     return r ? { r, list: (pack.recipe_ingredients || {})[id], reason: '常做菜' } : null;
   }).filter(Boolean);
+}
+function getForgottenFavoriteCards(pack) {
+  const usage = loadRecipeUsage();
+  return getFavoriteRecipeCards(pack)
+    .map(item => ({ ...item, lastDate: usage[item.r.id] || '' }))
+    .sort((a, b) => {
+      if(!a.lastDate && b.lastDate) return -1;
+      if(a.lastDate && !b.lastDate) return 1;
+      return String(a.lastDate || '').localeCompare(String(b.lastDate || ''));
+    })
+    .slice(0, 3)
+    .map(item => ({ ...item, reason: recipeUsageText(item.lastDate) }));
 }
 
 function processAiData(aiResult, pack) {
@@ -815,7 +853,7 @@ function recipeCard(r, list, extraInfo=null){
 
     const btn = document.createElement('button'); btn.type = 'button'; btn.className='btn ok small'; 
     btn.textContent = plan.has(r.id) ? '已加入' : '加入清单';
-    btn.onclick = () => { const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else p.push({id:r.id, servings:1}); S.save(S.keys.plan,p); onRoute(); };
+    btn.onclick = () => { const p=S.load(S.keys.plan,[]); const i=p.findIndex(x=>x.id===r.id); if(i>=0) p.splice(i,1); else { p.push({id:r.id, servings:1}); markRecipePlanned(r.id); } S.save(S.keys.plan,p); onRoute(); };
     
     const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className='btn small'; detailBtn.textContent=hasRecipeMethod(r) ? '查看' : '补做法';
     detailBtn.onclick = () => location.hash = `#recipe:${r.id}`;
@@ -985,6 +1023,8 @@ function getExpiringItems(inv) {
 }
 
 function getHomeRecipeGroups(pack, inv) {
+  const invMap = new Map();
+  (inv || []).forEach(item => invMap.set(getCanonicalName(item.name), item));
   const rows = (pack.recipes || []).filter(hasRecipeMethod).map(r => {
     const list = explodeCombinedItems((pack.recipe_ingredients || {})[r.id] || []);
     const core = list.filter(ing => !isSeasoning(ing.item));
@@ -992,14 +1032,22 @@ function getHomeRecipeGroups(pack, inv) {
     const status = calculateStockStatus(r, pack, inv);
     const missing = status.missing || [];
     const matched = Math.max(0, core.length - missing.length);
-    return { r, list, status: status.status, missing, matched, total: core.length };
+    const expiringMatches = core
+      .map(ing => invMap.get(getCanonicalName(ing.item)))
+      .filter(item => item && remainingDays(item) <= 3);
+    return { r, list, status: status.status, missing, matched, total: core.length, expiringMatches };
   }).filter(Boolean);
 
   const ready = rows
     .filter(row => row.status === 'ok')
-    .sort((a, b) => b.total - a.total || a.r.name.localeCompare(b.r.name, 'zh-Hans-CN'))
+    .sort((a, b) => b.expiringMatches.length - a.expiringMatches.length || b.total - a.total || a.r.name.localeCompare(b.r.name, 'zh-Hans-CN'))
     .slice(0, 4)
-    .map(row => ({ r: row.r, list: row.list, reason: `已有 ${row.total}/${row.total} 项核心食材` }));
+    .map(row => {
+      const reason = row.expiringMatches.length
+        ? `能顺手用掉：${row.expiringMatches.slice(0, 2).map(item => item.name).join('、')}`
+        : `已有 ${row.total}/${row.total} 项核心食材`;
+      return { r: row.r, list: row.list, reason };
+    });
 
   const almost = rows
     .filter(row => row.status === 'partial' && row.missing.length <= 2)
@@ -1014,14 +1062,17 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
   const div = document.createElement('div');
   const plan = S.load(S.keys.plan, []);
   const activeShopping = shoppingItems.filter(item => !item.done);
-  let title = '今天可以轻松安排';
-  let body = '库存状态还不错，可以从常做菜或现在能做里挑一道。';
+  let title = '今天先看厨房状态';
+  let body = '不用先想吃什么，下面会按库存、快到期和常做菜自动给你排优先级。';
   if (expiring.length) {
     title = `优先用掉 ${expiring[0].name}`;
-    body = expiring.slice(0, 3).map(item => `${item.name}${formatRemainingText(remainingDays(item))}`).join('、');
+    body = expiring.slice(0, 3).map(item => `${item.name} ${formatRemainingText(remainingDays(item))}`).join('、');
   } else if (ready.length) {
     title = `现在能做 ${ready[0].r.name}`;
     body = ready[0].reason || '这道菜和当前库存匹配度最高。';
+  } else if (almost.length) {
+    title = `${almost[0].r.name} 只差一点`;
+    body = almost[0].reason || '补一两样食材就能做。';
   } else if (activeShopping.length) {
     title = `先补 ${activeShopping[0].name}`;
     body = `购物清单还有 ${activeShopping.length} 项未完成。`;
@@ -1035,8 +1086,8 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
         <p>${escapeHtml(body)}</p>
       </div>
       <div class="home-briefing-actions">
-        <a class="btn ok" href="#shopping">购物清单</a>
-        <a class="btn" href="#recipes">菜谱库</a>
+        <a class="btn ok" href="#shopping">去补清单</a>
+        <a class="btn" href="#recipes">看菜谱库</a>
       </div>
     </div>
     <div class="home-stats">
@@ -1089,6 +1140,106 @@ function renderExpiringSection(items, onSearchIngredient) {
     list.appendChild(row);
   });
   section.appendChild(list);
+  return section;
+}
+
+function createRadarCard(title, subtitle, items, emptyText, renderItem, accentClass = '') {
+  const card = document.createElement('div');
+  card.className = `home-radar-card ${accentClass}`.trim();
+  card.innerHTML = `
+    <div class="home-radar-label">${escapeHtml(title)}</div>
+    <div class="home-radar-subtitle">${escapeHtml(subtitle)}</div>
+  `;
+  const list = document.createElement('div');
+  list.className = 'home-radar-list';
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'home-radar-empty';
+    empty.textContent = emptyText;
+    list.appendChild(empty);
+  } else {
+    items.slice(0, 3).forEach(item => list.appendChild(renderItem(item)));
+  }
+  card.appendChild(list);
+  return card;
+}
+
+function createRadarIngredientItem(item, onSearchIngredient) {
+  const row = document.createElement('div');
+  row.className = 'home-radar-item';
+  row.innerHTML = `
+    <div class="home-radar-copy">
+      <div class="home-radar-name">${escapeHtml(item.name)}</div>
+      <div class="home-radar-meta">${escapeHtml(`${formatInventoryAmount(item)} · ${formatRemainingText(remainingDays(item))}${item.isFrozen ? ' · 冷冻' : ''}`)}</div>
+    </div>
+    <button type="button" class="btn small">找做法</button>
+  `;
+  row.querySelector('button').onclick = () => onSearchIngredient(item.name);
+  return row;
+}
+
+function createRadarRecipeItem(item, buttonText = '安排') {
+  const row = document.createElement('div');
+  row.className = 'home-radar-item';
+  row.innerHTML = `
+    <button type="button" class="home-radar-copy home-radar-link">
+      <span class="home-radar-name">${escapeHtml(item.r.name)}</span>
+      <span class="home-radar-meta">${escapeHtml(item.reason || '适合今天看看')}</span>
+    </button>
+    <button type="button" class="btn small">${escapeHtml(buttonText)}</button>
+  `;
+  row.querySelector('.home-radar-link').onclick = () => { location.hash = `#recipe:${item.r.id}`; };
+  row.querySelector('.btn').onclick = () => {
+    addRecipeToPlan(item.r.id);
+    onRoute();
+  };
+  return row;
+}
+
+function renderHomeRadar(expiring, ready, almost, forgotten, onSearchIngredient) {
+  const section = document.createElement('section');
+  section.className = 'home-radar-section';
+  section.innerHTML = `
+    <div class="home-radar-head">
+      <div>
+        <div class="home-radar-title">厨房雷达</div>
+        <p>先处理容易被忘的，再看今天不用动脑就能做什么。</p>
+      </div>
+    </div>
+  `;
+  const grid = document.createElement('div');
+  grid.className = 'home-radar-grid';
+  grid.appendChild(createRadarCard(
+    '今天优先用掉',
+    '按保质期自动排',
+    expiring,
+    '暂时没有紧急食材',
+    item => createRadarIngredientItem(item, onSearchIngredient),
+    'is-priority'
+  ));
+  grid.appendChild(createRadarCard(
+    '现在能直接做',
+    '不用先补货',
+    ready,
+    '先补一点库存会更准',
+    item => createRadarRecipeItem(item, '安排')
+  ));
+  grid.appendChild(createRadarCard(
+    '只差一两样',
+    '适合顺手加入清单',
+    almost,
+    '暂无接近完成的菜',
+    item => createRadarRecipeItem(item, '加入')
+  ));
+  grid.appendChild(createRadarCard(
+    '最近没安排',
+    '防止常做菜被遗忘',
+    forgotten,
+    '先把喜欢的菜设为常做',
+    item => createRadarRecipeItem(item, '安排'),
+    'is-soft'
+  ));
+  section.appendChild(grid);
   return section;
 }
 
@@ -1211,10 +1362,11 @@ function renderHome(pack){
   const expiring = getExpiringItems(inv);
   const groups = getHomeRecipeGroups(pack, inv);
   const shoppingItems = loadShoppingItems();
+  const forgottenFavorites = getForgottenFavoriteCards(pack);
 
   const searchBar = document.createElement('div');
   searchBar.className = 'home-search';
-  searchBar.innerHTML = `<input id="mainSearch" placeholder="搜菜谱，比如回锅肉"><button type="button" class="btn ok" id="doSearch">搜索</button>`;
+  searchBar.innerHTML = `<input id="mainSearch" placeholder="搜菜谱或食材，比如鸡蛋、回锅肉"><button type="button" class="btn ok" id="doSearch">搜索</button>`;
 
   const showSearch = (query) => {
       const q = String(query || '').trim();
@@ -1233,11 +1385,7 @@ function renderHome(pack){
   container.appendChild(searchBar);
   searchBar.querySelector('#doSearch').onclick = doSearch;
   container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems));
-  container.appendChild(renderExpiringSection(expiring, showSearch));
-  const favoriteCards = getFavoriteRecipeCards(pack);
-  if (favoriteCards.length > 0) {
-    container.appendChild(renderHomeRecipeShelf('常做菜', favoriteCards, pack, ''));
-  }
+  container.appendChild(renderHomeRadar(expiring, groups.ready, groups.almost, forgottenFavorites, showSearch));
   container.appendChild(renderHomeRecipeShelf('现在能做', groups.ready, pack, '还没有完全匹配库存的菜。先补一点库存，推荐会更准。'));
   container.appendChild(renderHomeRecipeShelf('差一点就能做', groups.almost, pack, '暂时没有只差一两样食材的菜。'));
   container.appendChild(renderMoreRecommendations(pack, inv));
@@ -1880,7 +2028,7 @@ function renderSettings(){
     </div>
     <h2 class="section-title">厨房备份</h2>
     <div class="card backup-card">
-      <p class="meta">导出会包含库存、今日计划、购物项、常做菜、菜谱补丁和 AI 设置。</p>
+      <p class="meta">导出会包含库存、今日计划、购物项、常做菜、安排记录、菜谱补丁和 AI 设置。</p>
       <div class="backup-actions">
         <button type="button" class="btn ok" id="exportKitchenBackup">导出整个厨房</button>
         <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入整个厨房</label>
