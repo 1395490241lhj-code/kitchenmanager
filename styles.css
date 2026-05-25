@@ -211,8 +211,16 @@ input:focus, select:focus, textarea:focus {
 }
 .shopping-plan-card h3,
 .shopping-missing-card h3,
+.shopping-manual-card h3,
+.shopping-items-card h3,
 .staples-card h3 {
   margin-bottom: 12px;
+}
+.shopping-add-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 82px 110px auto;
+  gap: 10px;
+  align-items: center;
 }
 .shopping-plan-list {
   display: grid;
@@ -282,6 +290,55 @@ input:focus, select:focus, textarea:focus {
 }
 .shopping-table .btn {
   min-height: 36px;
+}
+.shopping-items-card {
+  margin-top: 14px;
+}
+.shopping-item-list {
+  display: grid;
+  gap: 8px;
+}
+.shopping-item-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 90px 90px auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(229, 231, 235, 0.72);
+}
+.shopping-item-row:first-child {
+  border-top: 0;
+}
+.shopping-item-row.done {
+  opacity: 0.56;
+}
+.shopping-item-row.done .shopping-check span {
+  text-decoration: line-through;
+}
+.shopping-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-weight: 700;
+}
+.shopping-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+.shopping-check span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shopping-item-amount,
+.shopping-source {
+  color: var(--text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
 }
 .staples-card {
   margin-top: 18px;
@@ -359,6 +416,11 @@ input:focus, select:focus, textarea:focus {
   background: #f4f6f8; font-size: 13px; color: var(--text-main); border: 1px solid var(--separator); transition: all 0.2s;
 }
 .ing-tag-pill.active { font-weight: 600; }
+.staple-item.active {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
 .ing-tag-pill .qty {
   margin-left: 8px; padding-left: 8px; border-left: 1px solid #d1d5db; color: var(--text-secondary); font-size: 13px; font-weight: 500;
 }
@@ -555,6 +617,8 @@ nav a.active svg { stroke: var(--primary); transform: translateY(-2px); filter: 
 
   .shopping-plan-card,
   .shopping-missing-card,
+  .shopping-manual-card,
+  .shopping-items-card,
   .staples-card {
     padding: 22px 24px;
   }
@@ -688,6 +752,26 @@ nav a.active svg { stroke: var(--primary); transform: translateY(-2px); filter: 
   }
   .shopping-tools .btn {
     width: 100%;
+  }
+  .shopping-add-row {
+    grid-template-columns: 1fr 76px;
+  }
+  .shopping-add-row select,
+  .shopping-add-row .btn {
+    grid-column: span 1;
+  }
+  .shopping-item-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+  }
+  .shopping-item-amount,
+  .shopping-source {
+    grid-column: 1;
+    padding-left: 28px;
+  }
+  .shopping-item-row .btn {
+    grid-column: 2;
+    grid-row: 1 / span 3;
   }
   .recipe-toolbar {
     grid-template-columns: 1fr;
