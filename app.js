@@ -1364,18 +1364,23 @@ function renderDryGoodsCabinet(inv) {
   const section = document.createElement('section');
   section.className = 'dry-goods-section';
   section.innerHTML = `
-    <div class="section-title home-section-title"><span>常备干货柜</span></div>
+    <div class="section-title home-section-title"><span>常备货架</span></div>
     <div class="dry-goods-card card">
       <div class="dry-goods-head">
         <div>
-          <h3>不用精确记克数</h3>
-          <p class="meta">干货看存货和泡发提醒；牛奶按瓶/盒和状态管，不记毫升。</p>
+          <h3>少记数量，多看状态</h3>
+          <p class="meta">先看蛋奶，再看干货；牛奶按瓶/盒和状态管，干货看存货和泡发提醒。</p>
         </div>
       </div>
-      <div class="pantry-shelf-title">干货</div>
-      <div class="dry-goods-list"></div>
-      <div class="pantry-shelf-title">蛋奶</div>
-      <div class="daily-goods-list"></div>
+      <div class="pantry-shelf-group daily-shelf">
+        <div class="pantry-shelf-title">蛋奶</div>
+        <div class="daily-goods-list"></div>
+      </div>
+      <div class="pantry-shelf-divider"></div>
+      <div class="pantry-shelf-group dry-shelf">
+        <div class="pantry-shelf-title">干货</div>
+        <div class="dry-goods-list"></div>
+      </div>
     </div>
   `;
   const list = section.querySelector('.dry-goods-list');
