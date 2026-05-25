@@ -163,8 +163,8 @@ const DRY_GOODS = [
   { name: '竹荪', unit: '包', prep: '提前泡发' }
 ];
 const DRY_STATUS_FLOW = ['empty', 'ok', 'low', 'unknown'];
+const EGG_STOCK = { name: '鸡蛋', unit: '个', note: '按个数管理，用掉一个就减 1' };
 const DAILY_STOCKS = [
-  { name: '鸡蛋', unit: '个', note: '按个数管理' },
   { name: '牛奶', unit: '瓶', note: '按瓶/盒和状态管理' }
 ];
 function getDryGoodConfig(name) {
@@ -195,6 +195,12 @@ function formatStockLine(item, unit = '份') {
   const amount = formatInventoryAmount({...item, unit: item.unit || unit});
   const state = inventoryStateInfo(item.stockStatus).label;
   return `库存：${amount} · ${state}`;
+}
+function countStockStatus(qty) {
+  const amount = Math.max(0, Math.round(+qty || 0));
+  if(amount <= 0) return 'empty';
+  if(amount <= 3) return 'low';
+  return 'ok';
 }
 function ensureStockItem(inv, config, kind = 'raw', status = 'empty') {
   let item = findStockItem(inv, config.name, kind);
@@ -1419,6 +1425,45 @@ function renderDryGoodsCabinet(inv) {
   });
 
   const dailyList = section.querySelector('.daily-goods-list');
+  const eggItem = findStockItem(inv, EGG_STOCK.name, 'raw');
+  const eggQty = Math.max(0, Math.round(+eggItem?.qty || 0));
+  const eggStatus = countStockStatus(eggQty);
+  const eggInfo = dryStatusInfo(eggStatus);
+  const eggRow = document.createElement('div');
+  eggRow.className = `dry-good-row daily-good-row egg-good-row is-${eggInfo.className}`;
+  eggRow.innerHTML = `
+    <div class="dry-good-main">
+      <strong>${escapeHtml(EGG_STOCK.name)}</strong>
+      <span>${escapeHtml(EGG_STOCK.note)}</span>
+      <em>${eggQty > 0 ? `库存：${eggQty} 个` : '库存：没有'}</em>
+    </div>
+    <div class="egg-count-control" aria-label="鸡蛋个数">
+      <button type="button" class="egg-step" data-egg-step="-1" aria-label="减少鸡蛋">-</button>
+      <span>${eggQty}</span>
+      <button type="button" class="egg-step" data-egg-step="1" aria-label="增加鸡蛋">+</button>
+    </div>
+    <button type="button" class="btn small dry-good-buy">${eggQty <= 3 ? '补一打' : '加入清单'}</button>
+  `;
+  eggRow.querySelectorAll('[data-egg-step]').forEach(btn => {
+    btn.onclick = () => {
+      const step = Number(btn.dataset.eggStep || 0);
+      const target = ensureStockItem(inv, EGG_STOCK, 'raw', 'empty');
+      const nextQty = Math.max(0, Math.round(+target.qty || 0) + step);
+      target.qty = nextQty;
+      target.unit = EGG_STOCK.unit;
+      target.kind = 'raw';
+      target.shelf = guessShelfDays(target.name, target.unit);
+      target.stockStatus = countStockStatus(nextQty);
+      saveInventory(inv);
+      onRoute();
+    };
+  });
+  eggRow.querySelector('.dry-good-buy').onclick = () => {
+    addShoppingItem(EGG_STOCK.name, eggQty <= 3 ? 12 : '', EGG_STOCK.unit, '日常补给');
+    onRoute();
+  };
+  dailyList.appendChild(eggRow);
+
   DAILY_STOCKS.forEach(config => {
     const item = findStockItem(inv, config.name, 'raw');
     const status = item ? (item.stockStatus || 'ok') : 'empty';
