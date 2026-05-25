@@ -326,6 +326,32 @@ input:focus, select:focus, textarea:focus {
 .inventory-status-chip.ok { background: #d1fae5; color: #047857; }
 .inventory-status-chip.low { background: #fef3c7; color: #b45309; }
 .inventory-status-chip.unknown { background: #edf1f5; color: #4b5563; }
+.kitchen-status-cell {
+  min-width: 150px;
+}
+.kitchen-status-cell .inventory-status-chip {
+  margin-top: 0;
+}
+.inventory-amount-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.inventory-amount-control input {
+  width: 46px;
+  padding: 4px 6px;
+  text-align: center;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-s);
+  font-size: 13px;
+}
+.inventory-amount-control small {
+  color: var(--text-secondary);
+}
 
 .ing-compact-container { display: flex; flex-wrap: wrap; gap: 8px; }
 .ing-tag-pill {

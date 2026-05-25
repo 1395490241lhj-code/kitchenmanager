@@ -307,7 +307,7 @@ function buildCatalog(pack){
 }
 
 const INVENTORY_STATES = [
-  { value: 'ok', label: '有', className: 'ok' },
+  { value: 'ok', label: '够用', className: 'ok' },
   { value: 'low', label: '快没了', className: 'low' },
   { value: 'unknown', label: '不确定', className: 'unknown' }
 ];
@@ -1381,7 +1381,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
       <div class="full-width add-state-row">
         <span class="add-state-label">状态</span>
         <div class="add-state-options" id="addStockStatus">
-          <button type="button" class="add-state-option active" data-status="ok">有</button>
+          <button type="button" class="add-state-option active" data-status="ok">够用</button>
           <button type="button" class="add-state-option" data-status="low">快没了</button>
           <button type="button" class="add-state-option" data-status="unknown">不确定</button>
         </div>
@@ -1448,7 +1448,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     renderTable(); 
   };
   
-  const tbl=document.createElement('table'); tbl.className='table'; tbl.innerHTML=`<thead><tr><th style="width:35%">食材</th><th style="width:20%">数量</th><th style="width:25%">保质</th><th class="right">操作</th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
+  const tbl=document.createElement('table'); tbl.className='table inventory-table'; tbl.innerHTML=`<thead><tr><th style="width:35%">食材</th><th style="width:25%">厨房状态</th><th style="width:25%">保质</th><th class="right">操作</th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
   const scanStatus = searchDiv.querySelector('#scanStatus');
   searchDiv.querySelector('#camInput').onchange = async (e) => {
     const file = e.target.files[0]; if(!file) return;
@@ -1474,7 +1474,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
           <span style="font-weight:600;color:var(--text-main)">${e.name}</span>
           <br><small style="color:var(--text-secondary);font-size:10px;">${e.buyDate||'未知'}</small>
         </td>
-        <td><div style="display:flex;align-items:center;gap:4px;"><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}" style="width:40px;padding:2px;text-align:center;border:1px solid var(--separator);border-radius:4px;"><small>${e.unit}</small></div><button type="button" class="inventory-status-chip ${stockInfo.className}" title="点击切换库存状态">${stockInfo.label}</button></td>
+        <td class="kitchen-status-cell"><button type="button" class="inventory-status-chip ${stockInfo.className}" title="点击切换厨房状态">${stockInfo.label}</button><div class="inventory-amount-control"><span>存量</span><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}"><small>${e.unit}</small></div></td>
         <td class="status-cell">${badgeFor(e)}</td>
         <td class="right"><button class="btn bad small" style="padding:4px 8px;" type="button">删</button></td>`; 
       
