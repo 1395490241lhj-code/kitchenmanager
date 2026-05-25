@@ -959,14 +959,41 @@ function getHomeRecipeGroups(pack, inv) {
   return { ready, almost };
 }
 
-function renderHomeStats(expiring, ready, almost) {
+function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
   const div = document.createElement('div');
   const plan = S.load(S.keys.plan, []);
-  div.className = 'card home-stats';
+  const activeShopping = shoppingItems.filter(item => !item.done);
+  let title = '今天可以轻松安排';
+  let body = '库存状态还不错，可以从常做菜或现在能做里挑一道。';
+  if (expiring.length) {
+    title = `优先用掉 ${expiring[0].name}`;
+    body = expiring.slice(0, 3).map(item => `${item.name}${formatRemainingText(remainingDays(item))}`).join('、');
+  } else if (ready.length) {
+    title = `现在能做 ${ready[0].r.name}`;
+    body = ready[0].reason || '这道菜和当前库存匹配度最高。';
+  } else if (activeShopping.length) {
+    title = `先补 ${activeShopping[0].name}`;
+    body = `购物清单还有 ${activeShopping.length} 项未完成。`;
+  }
+  div.className = 'card home-briefing';
   div.innerHTML = `
-    <div class="home-stat"><strong>${expiring.length}</strong><span>快用掉</span></div>
-    <div class="home-stat"><strong>${ready.length}</strong><span>现在能做</span></div>
-    <div class="home-stat"><strong>${plan.length}</strong><span>今天计划</span></div>
+    <div class="home-briefing-head">
+      <div>
+        <div class="home-eyebrow">今日厨房</div>
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(body)}</p>
+      </div>
+      <div class="home-briefing-actions">
+        <a class="btn ok" href="#shopping">购物清单</a>
+        <a class="btn" href="#recipes">菜谱库</a>
+      </div>
+    </div>
+    <div class="home-stats">
+      <div class="home-stat"><strong>${expiring.length}</strong><span>快用掉</span></div>
+      <div class="home-stat"><strong>${ready.length}</strong><span>现在能做</span></div>
+      <div class="home-stat"><strong>${activeShopping.length}</strong><span>待购买</span></div>
+      <div class="home-stat"><strong>${plan.length}</strong><span>今天计划</span></div>
+    </div>
   `;
   return div;
 }
@@ -1137,10 +1164,11 @@ function renderHome(pack){
   const inv = loadInventory(catalog); 
   const expiring = getExpiringItems(inv);
   const groups = getHomeRecipeGroups(pack, inv);
+  const shoppingItems = loadShoppingItems();
 
   const searchBar = document.createElement('div');
-  searchBar.style.marginBottom = '24px';
-  searchBar.innerHTML = `<div style="display:flex; gap:10px;"><input id="mainSearch" placeholder="🔍 搜菜谱 (如：回锅肉)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--separator); box-shadow:var(--shadow);"><button type="button" class="btn ok" id="doSearch">搜索</button></div>`;
+  searchBar.className = 'home-search';
+  searchBar.innerHTML = `<input id="mainSearch" placeholder="搜菜谱，比如回锅肉"><button type="button" class="btn ok" id="doSearch">搜索</button>`;
 
   const showSearch = (query) => {
       const q = String(query || '').trim();
@@ -1158,7 +1186,7 @@ function renderHome(pack){
   container.appendChild(title);
   container.appendChild(searchBar);
   searchBar.querySelector('#doSearch').onclick = doSearch;
-  container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost));
+  container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems));
   container.appendChild(renderExpiringSection(expiring, showSearch));
   const favoriteCards = getFavoriteRecipeCards(pack);
   if (favoriteCards.length > 0) {

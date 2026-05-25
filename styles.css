@@ -98,11 +98,54 @@ h2, h3, h4 { margin: 0 0 16px 0; font-weight: 700; color: var(--text-main); line
 }
 .home-section { margin-top: 8px; }
 .home-section-title { margin-top: 22px; margin-bottom: 10px; }
+.home-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.home-search input {
+  min-width: 0;
+}
+.home-briefing {
+  padding: 20px;
+  border-color: rgba(15, 118, 110, 0.18);
+  box-shadow: var(--shadow-card);
+}
+.home-briefing-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+.home-eyebrow {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.home-briefing h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+.home-briefing p {
+  color: var(--text-secondary);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+.home-briefing-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .home-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
-  padding: 12px;
 }
 .home-stat {
   background: #f7faf9;
@@ -717,6 +760,21 @@ nav a.active svg { stroke: var(--primary); transform: translateY(-2px); filter: 
   .section-title { font-size: 20px; margin: 24px 8px 16px 8px; }
   .card { padding: 16px; border-radius: var(--radius-l); }
   .r-title { font-size: 18px; }
+  .home-search {
+    grid-template-columns: 1fr;
+  }
+  .home-briefing-head {
+    grid-template-columns: 1fr;
+  }
+  .home-briefing-actions {
+    justify-content: stretch;
+  }
+  .home-briefing-actions .btn {
+    flex: 1;
+  }
+  .home-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   
   /* [核心] 移动端强制单列布局 */
   .form-grid { display: flex; flex-direction: column; gap: 12px; }
