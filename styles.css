@@ -43,6 +43,7 @@ body {
   font-size: 16px;
   min-height: 100vh;
 }
+.topbar h1 { display: none; }
 
 #app {
   max-width: 680px;
@@ -344,6 +345,106 @@ nav a {
 nav a svg { width: 28px; height: 28px; stroke-width: 2px; transition: transform 0.2s; }
 nav a.active { color: var(--primary); font-weight: 700; }
 nav a.active svg { stroke: var(--primary); transform: translateY(-3px); filter: drop-shadow(0 4px 8px rgba(16, 185, 129, 0.25)); }
+
+/* === 桌面端自适应布局 === */
+@media (min-width: 900px) {
+  body {
+    padding: 0 32px 48px 112px;
+  }
+
+  #app {
+    max-width: 1180px;
+    padding: 28px 28px 48px 28px;
+  }
+
+  .main-title-center {
+    text-align: left !important;
+    margin: 20px 0 28px 0;
+  }
+
+  .main-title-center span {
+    font-size: 30px;
+  }
+
+  .section-title {
+    margin: 32px 0 14px 0;
+  }
+
+  .home-section-title {
+    margin-top: 26px;
+  }
+
+  .quick-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .horizontal-scroll {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .horizontal-scroll > div {
+    min-width: 0;
+    scroll-snap-align: unset;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 18px;
+  }
+
+  .card {
+    margin-bottom: 0;
+  }
+
+  .add-form-container.open {
+    max-height: 640px;
+  }
+
+  nav {
+    top: 24px;
+    bottom: auto;
+    left: 24px;
+    width: 72px;
+    height: auto;
+    min-height: 320px;
+    border: 1px solid rgba(229,231,235,0.9);
+    border-radius: 20px;
+    box-shadow: var(--shadow-card);
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 14px 10px;
+  }
+
+  nav a {
+    width: 52px;
+    min-height: 54px;
+    justify-content: center;
+    border-radius: 14px;
+  }
+
+  nav a.active {
+    background: #ecfdf5;
+  }
+}
+
+@media (min-width: 1200px) {
+  #app {
+    max-width: 1280px;
+  }
+
+  .horizontal-scroll {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+}
 
 /* === 库存添加面板 === */
 .add-form-container {
