@@ -1,4 +1,4 @@
-// v148 app.js - 菜谱食材联想匹配
+// v149 app.js - 常备干货柜
 import { CUSTOM_AI } from './src/config.js?v=89';
 import { el, els } from './src/dom.js?v=89';
 import { S, todayISO } from './src/storage.js?v=97';
@@ -76,6 +76,9 @@ const INGREDIENT_ALIASES = {
   "口蘑": ["干口蘑", "水发口蘑"],
   "木耳": ["黑木耳", "云耳", "水发木耳"],
   "黄花菜": ["兰花", "干黄花菜", "兰花（干黄花菜）", "金针菜"],
+  "海带": ["干海带", "水发海带", "海带丝", "海带结"],
+  "紫菜": ["干紫菜", "免洗紫菜"],
+  "花生": ["花生米", "生花生", "熟花生", "去皮花生"],
   "竹荪": ["水发竹荪", "干竹荪"],
   "面粉": ["中筋面粉", "白面", "面粉（面点）"],
   "花椒": ["红花椒", "青花椒", "花椒粒", "花椒面"],
@@ -148,6 +151,37 @@ function buildIngredientOptions(catalog) {
     (aliases || []).forEach(alias => add(alias, canonical));
   }
   return options.sort((a, b) => a.value.localeCompare(b.value, 'zh-Hans-CN'));
+}
+
+const DRY_GOODS = [
+  { name: '木耳', unit: '包', prep: '提前泡发' },
+  { name: '黄花菜', unit: '包', prep: '提前泡发' },
+  { name: '海带', unit: '包', prep: '泡发/冲洗' },
+  { name: '紫菜', unit: '包', prep: '直接用' },
+  { name: '花生', unit: '袋', prep: '可炖煮' },
+  { name: '香菇', unit: '包', prep: '提前泡发' },
+  { name: '竹荪', unit: '包', prep: '提前泡发' }
+];
+const DRY_STATUS_FLOW = ['ok', 'low', 'empty', 'unknown'];
+function getDryGoodConfig(name) {
+  const canonical = getCanonicalName(name || '');
+  return DRY_GOODS.find(item => item.name === canonical) || null;
+}
+function isDryGoodName(name) {
+  return !!getDryGoodConfig(name);
+}
+function getDryPrepText(name) {
+  return getDryGoodConfig(name)?.prep || '按需处理';
+}
+function nextDryStatus(value) {
+  const index = DRY_STATUS_FLOW.indexOf(value || 'empty');
+  return DRY_STATUS_FLOW[(index + 1) % DRY_STATUS_FLOW.length];
+}
+function dryStatusInfo(value) {
+  if (value === 'low') return { label: '快没了', className: 'low' };
+  if (value === 'unknown') return { label: '需检查', className: 'unknown' };
+  if (value === 'empty') return { label: '没有', className: 'empty' };
+  return { label: '有', className: 'ok' };
 }
 
 // --- 佐料/常备品过滤 ---
@@ -326,7 +360,7 @@ function explodeCombinedItems(list){
   }
   return out;
 }
-function guessShelfDays(name, unit){ const veg=['菜','叶','苔','苗','芹','香菜','葱','椒','瓜','番茄','西红柿','豆角','笋','蘑','菇','花菜','西兰花','菜花','茄子','豆腐','生菜','莴','空心菜','韭','蒜苗','青椒','黄瓜']; if(veg.some(w=>name.includes(w)))return 5; if(unit==='ml')return 30; if(unit==='pcs')return 14; return 7; }
+function guessShelfDays(name, unit){ if(isDryGoodName(name)) return 365; const veg=['菜','叶','苔','苗','芹','香菜','葱','椒','瓜','番茄','西红柿','豆角','笋','蘑','菇','花菜','西兰花','菜花','茄子','豆腐','生菜','莴','空心菜','韭','蒜苗','青椒','黄瓜']; if(veg.some(w=>name.includes(w)))return 5; if(unit==='ml')return 30; if(unit==='pcs')return 14; return 7; }
 function guessKitchenUnit(name) {
   const n = getCanonicalName(name || '');
   const includesAny = words => words.some(w => n.includes(w));
@@ -334,6 +368,7 @@ function guessKitchenUnit(name) {
   if (includesAny(['豆腐', '酸奶', '盒装', '奶油', '蘑菇', '菌菇'])) return '盒';
   if (includesAny(['米', '大米', '面粉', '挂面', '面条', '粉丝', '速冻', '饺子', '馄饨'])) return '袋';
   if (includesAny(['酱油', '生抽', '老抽', '醋', '料酒', '油', '牛奶', '饮料'])) return '瓶';
+  if (isDryGoodName(n)) return getDryGoodConfig(n)?.unit || '包';
   if (includesAny(['葱', '香菜', '芹菜', '韭菜', '蒜苗', '菠菜', '青菜'])) return '把';
   if (includesAny(['猪肉', '牛肉', '羊肉', '鸡肉', '鸭肉', '排骨', '鱼', '虾', '肉'])) return '份';
   return '份';
@@ -393,11 +428,14 @@ function isIngredientMatch(recipeName, stockName) {
   }
   return false;
 }
+function isInventoryAvailable(item) {
+  return item && item.stockStatus !== 'empty' && (+item.qty || 0) > 0;
+}
 function findInventoryMatch(inv, recipeName) {
-  return (inv || []).find(item => isIngredientMatch(recipeName, item.name));
+  return (inv || []).find(item => isInventoryAvailable(item) && isIngredientMatch(recipeName, item.name));
 }
 function getMatchingInventoryItems(inv, recipeName) {
-  return (inv || []).filter(item => isIngredientMatch(recipeName, item.name));
+  return (inv || []).filter(item => isInventoryAvailable(item) && isIngredientMatch(recipeName, item.name));
 }
 function getStockCoverageForNeed(inv, recipeName, qty, unit) {
   const matchedItems = getMatchingInventoryItems(inv, recipeName);
@@ -414,6 +452,7 @@ function getStockCoverageForNeed(inv, recipeName, qty, unit) {
 const INVENTORY_STATES = [
   { value: 'ok', label: '够用', className: 'ok' },
   { value: 'low', label: '快没了', className: 'low' },
+  { value: 'empty', label: '没有', className: 'empty' },
   { value: 'unknown', label: '不确定', className: 'unknown' }
 ];
 function inventoryStateInfo(value) {
@@ -429,6 +468,13 @@ function loadInventory(catalog){
     if(!i.unit){i.unit=(catalog.find(c=>c.name===i.name)?.unit)||'g'}
     if(!i.shelf){i.shelf=(catalog.find(c=>c.name===i.name)?.shelf)||7}
     if(!i.stockStatus){i.stockStatus='ok'}
+    if(isDryGoodName(i.name)){
+      i.kind = 'dry';
+      i.unit = i.unit || getDryGoodConfig(i.name)?.unit || '包';
+      i.shelf = i.shelf && i.shelf > 180 ? i.shelf : 365;
+      i.dryPrep = i.dryPrep || getDryPrepText(i.name);
+      i.isFrozen = false;
+    }
   }
   return inv;
 }
@@ -438,7 +484,8 @@ function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO
 
 // 更新 badgeFor 函数，支持冷冻状态显示
 function badgeFor(e){ 
-  if(e.isFrozen) return `<span class="kchip" style="background:#3498db;color:white;cursor:pointer" title="点击切换为冷藏">❄️ 冷冻</span>`;
+  if((e.kind || 'raw') === 'dry') return `<span class="kchip dry" title="${escapeOptionAttr(getDryPrepText(e.name))}">干货 · ${escapeHtml(getDryPrepText(e.name))}</span>`;
+  if(e.isFrozen) return `<span class="kchip" style="background:#5f6b78;color:white;cursor:pointer" title="点击切换为冷藏">❄️ 冷冻</span>`;
   const r=remainingDays(e); 
   let html = '';
   if(r<=1) html = `<span class="kchip bad" style="cursor:pointer" title="点击切换为冷冻">即将过期 ${r}天</span>`; 
@@ -448,7 +495,22 @@ function badgeFor(e){
 }
 
 function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
-function addInventoryQty(inv, name, qty, unit, kind='raw'){ const e=inv.find(x=>x.name===name && (x.kind||'raw')===kind); if(e){ e.qty=(+e.qty||0)+qty; e.unit=unit||e.unit; e.buyDate=e.buyDate||todayISO(); e.stockStatus='ok'; } else { inv.push({name, qty, unit:unit||'g', buyDate:todayISO(), kind, shelf:guessShelfDays(name, unit||'g'), stockStatus:'ok'}); } saveInventory(inv); }
+function addInventoryQty(inv, name, qty, unit, kind='raw'){
+  const canonical = getCanonicalName(name);
+  const itemKind = kind === 'dry' || isDryGoodName(canonical) ? 'dry' : kind;
+  const itemUnit = unit || (itemKind === 'dry' ? getDryGoodConfig(canonical)?.unit : '') || 'g';
+  const e=inv.find(x=>x.name===canonical && (x.kind||'raw')===itemKind);
+  if(e){
+    e.qty=(+e.qty||0)+qty;
+    e.unit=itemUnit||e.unit;
+    e.buyDate=e.buyDate||todayISO();
+    e.stockStatus='ok';
+    if(itemKind === 'dry') { e.shelf = 365; e.dryPrep = getDryPrepText(canonical); e.isFrozen = false; }
+  } else {
+    inv.push({name: canonical, qty, unit:itemUnit, buyDate:todayISO(), kind:itemKind, shelf:guessShelfDays(canonical, itemUnit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(canonical), isFrozen:false} : {})});
+  }
+  saveInventory(inv);
+}
 
 // --- AI 逻辑 ---
 function getAiConfig() {
@@ -1276,6 +1338,61 @@ function renderHomeRadar(expiring, ready, almost, forgotten, onSearchIngredient)
   return section;
 }
 
+function renderDryGoodsCabinet(inv) {
+  const section = document.createElement('section');
+  section.className = 'dry-goods-section';
+  section.innerHTML = `
+    <div class="section-title home-section-title"><span>常备干货柜</span></div>
+    <div class="dry-goods-card card">
+      <div class="dry-goods-head">
+        <div>
+          <h3>不用精确记克数</h3>
+          <p class="meta">只管它是有、快没了、没有，做菜前会提醒泡发。</p>
+        </div>
+      </div>
+      <div class="dry-goods-list"></div>
+    </div>
+  `;
+  const list = section.querySelector('.dry-goods-list');
+  DRY_GOODS.forEach(config => {
+    const item = (inv || []).find(entry => isIngredientMatch(config.name, entry.name) && (entry.kind || 'raw') === 'dry');
+    const status = item ? (item.stockStatus || 'ok') : 'empty';
+    const info = dryStatusInfo(status);
+    const row = document.createElement('div');
+    row.className = `dry-good-row is-${info.className}`;
+    row.innerHTML = `
+      <div class="dry-good-main">
+        <strong>${escapeHtml(config.name)}</strong>
+        <span>${escapeHtml(config.prep)}</span>
+      </div>
+      <button type="button" class="inventory-status-chip ${info.className}">${escapeHtml(info.label)}</button>
+      <button type="button" class="btn small dry-good-buy">${status === 'ok' ? '补一包' : '加入清单'}</button>
+    `;
+    row.querySelector('.inventory-status-chip').onclick = () => {
+      let target = item;
+      if(!target) {
+        target = { name: config.name, qty: 1, unit: config.unit, buyDate: todayISO(), kind: 'dry', shelf: 365, stockStatus: 'empty', dryPrep: config.prep };
+        inv.push(target);
+      }
+      target.stockStatus = nextDryStatus(target.stockStatus);
+      target.qty = target.stockStatus === 'empty' ? 0 : Math.max(1, +target.qty || 1);
+      target.unit = target.unit || config.unit;
+      target.kind = 'dry';
+      target.shelf = 365;
+      target.dryPrep = config.prep;
+      target.isFrozen = false;
+      saveInventory(inv);
+      onRoute();
+    };
+    row.querySelector('.dry-good-buy').onclick = () => {
+      addShoppingItem(config.name, '', config.unit, '常备干货');
+      onRoute();
+    };
+    list.appendChild(row);
+  });
+  return section;
+}
+
 function renderHomeRecipeShelf(title, items, pack, emptyText) {
   const section = document.createElement('section');
   section.className = 'home-section';
@@ -1419,6 +1536,7 @@ function renderHome(pack){
   searchBar.querySelector('#doSearch').onclick = doSearch;
   container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems));
   container.appendChild(renderHomeRadar(expiring, groups.ready, groups.almost, forgottenFavorites, showSearch));
+  container.appendChild(renderDryGoodsCabinet(inv));
   container.appendChild(renderHomeRecipeShelf('现在能做', groups.ready, pack, '还没有完全匹配库存的菜。先补一点库存，推荐会更准。'));
   container.appendChild(renderHomeRecipeShelf('差一点就能做', groups.almost, pack, '暂时没有只差一两样食材的菜。'));
   container.appendChild(renderMoreRecommendations(pack, inv));
@@ -1792,6 +1910,13 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
         <datalist id="catalogList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
       </div>
       <div class="full-width add-state-row">
+        <span class="add-state-label">类型</span>
+        <div class="add-state-options" id="addItemKind">
+          <button type="button" class="add-state-option active" data-kind="raw">普通食材</button>
+          <button type="button" class="add-state-option" data-kind="dry">常备干货</button>
+        </div>
+      </div>
+      <div class="full-width add-state-row">
         <span class="add-state-label">状态</span>
         <div class="add-state-options" id="addStockStatus">
           <button type="button" class="add-state-option active" data-status="ok">够用</button>
@@ -1822,15 +1947,28 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
       btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
     }
   };
+  let selectedKind = 'raw';
+  const setAddKind = (kind) => {
+    selectedKind = kind === 'dry' ? 'dry' : 'raw';
+    els('#addItemKind .add-state-option', formContainer).forEach(x => x.classList.toggle('active', x.dataset.kind === selectedKind));
+    formContainer.querySelector('#addFrozen').closest('label').style.display = selectedKind === 'dry' ? 'none' : 'flex';
+  };
+  els('#addItemKind .add-state-option', formContainer).forEach(btn => {
+    btn.onclick = () => setAddKind(btn.dataset.kind);
+  });
   formContainer.querySelector('#addName').addEventListener('input', (e)=>{
     const val = e.target.value.trim();
-    if(val){ formContainer.querySelector('#addUnit').value = guessKitchenUnit(getCanonicalName(val)); }
+    if(val){
+      const canonical = getCanonicalName(val);
+      formContainer.querySelector('#addUnit').value = guessKitchenUnit(canonical);
+      if(isDryGoodName(canonical)) setAddKind('dry');
+    }
   }); 
   let selectedStockStatus = 'ok';
-  els('.add-state-option', formContainer).forEach(btn => {
+  els('#addStockStatus .add-state-option', formContainer).forEach(btn => {
     btn.onclick = () => {
       selectedStockStatus = btn.dataset.status || 'ok';
-      els('.add-state-option', formContainer).forEach(x => x.classList.toggle('active', x === btn));
+      els('#addStockStatus .add-state-option', formContainer).forEach(x => x.classList.toggle('active', x === btn));
     };
   });
   
@@ -1846,18 +1984,20 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
 
     const unit=formContainer.querySelector('#addUnit').value; 
     const date=formContainer.querySelector('#addDate').value||todayISO(); 
-    const isFrozen = formContainer.querySelector('#addFrozen').checked; // 获取冷冻状态
+    const itemKind = selectedKind === 'dry' || isDryGoodName(name) ? 'dry' : 'raw';
+    const isFrozen = itemKind === 'dry' ? false : formContainer.querySelector('#addFrozen').checked; // 获取冷冻状态
 
     // 如果冷冻，保质期设为180天，否则自动推算
-    const shelfDays = isFrozen ? 180 : guessShelfDays(name, unit);
+    const shelfDays = itemKind === 'dry' ? 365 : (isFrozen ? 180 : guessShelfDays(name, unit));
     
-    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:'raw', shelf:shelfDays, isFrozen: isFrozen, stockStatus:selectedStockStatus}); 
+    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:itemKind, shelf:shelfDays, isFrozen: isFrozen, stockStatus:selectedStockStatus, ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(name)} : {})});
     
     formContainer.querySelector('#addName').value = ''; 
     formContainer.querySelector('#addQty').value = ''; 
     formContainer.querySelector('#addFrozen').checked = false; // 重置
+    setAddKind('raw');
     selectedStockStatus = 'ok';
-    els('.add-state-option', formContainer).forEach(x => x.classList.toggle('active', x.dataset.status === 'ok'));
+    els('#addStockStatus .add-state-option', formContainer).forEach(x => x.classList.toggle('active', x.dataset.status === 'ok'));
     renderTable(); 
   };
   
@@ -1877,7 +2017,8 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
       showReceiptConfirmationModal(items, confirmed => {
         for(const it of confirmed) {
           const unit = it.unit || guessKitchenUnit(it.name);
-          upsertInventory(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: 'raw', shelf: guessShelfDays(it.name, unit), stockStatus:'ok' });
+          const itemKind = isDryGoodName(it.name) ? 'dry' : 'raw';
+          upsertInventory(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: itemKind, shelf: itemKind === 'dry' ? 365 : guessShelfDays(it.name, unit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(it.name), isFrozen:false} : {}) });
         }
         scanStatus.innerHTML = `✅ 已确认入库 ${confirmed.length} 项`;
         setTimeout(() => { scanStatus.style.display = 'none'; renderTable(); }, 1200);
@@ -1936,6 +2077,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
       const statusCell = tr.querySelector('.status-cell');
       if(statusCell) {
         statusCell.onclick = () => {
+          if((e.kind || 'raw') === 'dry') return;
           e.isFrozen = !e.isFrozen; // 切换状态
           // 重新计算保质期：冷冻=180天，冷藏=按规则计算
           e.shelf = e.isFrozen ? 180 : guessShelfDays(e.name, e.unit);
