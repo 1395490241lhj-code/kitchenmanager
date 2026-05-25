@@ -1,7 +1,7 @@
-// v147 app.js - 首页厨房雷达
+// v148 app.js - 菜谱食材联想匹配
 import { CUSTOM_AI } from './src/config.js?v=89';
 import { el, els } from './src/dom.js?v=89';
-import { S, todayISO } from './src/storage.js?v=95';
+import { S, todayISO } from './src/storage.js?v=97';
 
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
@@ -51,10 +51,10 @@ const INGREDIENT_ALIASES = {
   "春笋": ["鲜春笋"],
   "玉兰片": ["兰片", "水发兰片", "水发玉兰片"], 
   "青菜": ["小白菜", "上海青", "瓢儿白", "油菜", "青菜头", "菜心", "青菜心", "小白菜秧"],
-  "白菜": ["大白菜", "黄芽白", "绍菜", "莲花白", "卷心菜", "黄秧白"],
+  "白菜": ["大白菜", "黄芽白", "绍菜", "莲花白", "莲白", "卷心菜", "包菜", "黄秧白"],
   "菠菜": ["菠菜叶", "菠菜心"],
   "芹菜": ["西芹", "旱芹", "药芹", "芹黄"],
-  "蒜苗": ["青蒜"], 
+  "蒜苗": ["青蒜", "青蒜苗", "大蒜苗", "绿蒜苗"],
   "蒜苔": ["蒜薹"],
   "韭菜": ["韭黄", "韭菜头", "白头韭菜"],
   "土豆": ["马铃薯", "洋芋", "土豆片", "土豆丝"],
@@ -62,7 +62,7 @@ const INGREDIENT_ALIASES = {
   "莴笋": ["青笋", "莴苣", "莴笋头", "莴笋尖", "凤尾"],
   "番茄": ["西红柿", "洋柿子"],
   "豆腐": ["老豆腐", "嫩豆腐", "北豆腐", "南豆腐", "盒装豆腐"],
-  "青椒": ["菜椒", "甜椒", "尖椒", "螺丝椒", "灯笼椒"],
+  "青椒": ["菜椒", "甜椒", "尖椒", "螺丝椒", "灯笼椒", "青辣椒", "二荆条"],
   "洋葱": ["圆葱", "葱头"],
   "胡萝卜": ["红萝卜"],
   "香菜": ["芫荽"],
@@ -70,6 +70,8 @@ const INGREDIENT_ALIASES = {
   "牛奶": ["奶", "鲜奶"],
   "蚕豆": ["胡豆", "鲜蚕豆", "扁豆", "蚕豆（扁豆）"],
   "豌豆": ["青豆", "鲜豌豆", "豌豆尖", "豆尖", "鲜豌豆仁"],
+  "豆芽": ["黄豆芽", "绿豆芽", "豆芽菜", "银芽"],
+  "蘑菇": ["菌菇", "鲜蘑菇", "蘑菇片"],
   "香菇": ["冬菇", "花菇", "干香菇", "水发香菇", "冬菇（香菇）"],
   "口蘑": ["干口蘑", "水发口蘑"],
   "木耳": ["黑木耳", "云耳", "水发木耳"],
@@ -360,6 +362,55 @@ function buildCatalog(pack){
   return Array.from(set).sort().map(n=>({name:n, unit:units[n]||'g', shelf:guessShelfDays(n, units[n]||'g')}));
 }
 
+const RECIPE_GENERIC_MATCHES = {
+  "猪肉": ["五花肉", "瘦肉"],
+  "鸡肉": ["鸡腿", "鸡翅", "鸡脯肉"],
+  "鲜鱼": ["鲫鱼", "鲤鱼", "草鱼", "鲢鱼"],
+  "虾": ["虾仁"],
+  "蘑菇": ["香菇", "口蘑"]
+};
+function getIngredientMatchNames(name) {
+  const canonical = getCanonicalName(name || '');
+  const names = new Set([canonical]);
+  const aliases = INGREDIENT_ALIASES[canonical] || [];
+  aliases.forEach(alias => names.add(getCanonicalName(alias)));
+  (RECIPE_GENERIC_MATCHES[canonical] || []).forEach(item => names.add(getCanonicalName(item)));
+  return Array.from(names).filter(Boolean);
+}
+function isIngredientMatch(recipeName, stockName) {
+  const recipeCanonical = getCanonicalName(recipeName || '');
+  const stockCanonical = getCanonicalName(stockName || '');
+  if (!recipeCanonical || !stockCanonical) return false;
+  if (recipeCanonical === stockCanonical) return true;
+  const recipeNames = getIngredientMatchNames(recipeCanonical);
+  const stockNames = getIngredientMatchNames(stockCanonical);
+  if (recipeNames.some(name => stockNames.includes(name))) return true;
+  const recipeSpecifics = (RECIPE_GENERIC_MATCHES[recipeCanonical] || []).map(item => getCanonicalName(item));
+  const stockSpecifics = (RECIPE_GENERIC_MATCHES[stockCanonical] || []).map(item => getCanonicalName(item));
+  if (recipeSpecifics.includes(stockCanonical) || stockSpecifics.includes(recipeCanonical)) return true;
+  if (recipeCanonical.length >= 2 && stockCanonical.length >= 2) {
+    return recipeCanonical.includes(stockCanonical) || stockCanonical.includes(recipeCanonical);
+  }
+  return false;
+}
+function findInventoryMatch(inv, recipeName) {
+  return (inv || []).find(item => isIngredientMatch(recipeName, item.name));
+}
+function getMatchingInventoryItems(inv, recipeName) {
+  return (inv || []).filter(item => isIngredientMatch(recipeName, item.name));
+}
+function getStockCoverageForNeed(inv, recipeName, qty, unit) {
+  const matchedItems = getMatchingInventoryItems(inv, recipeName);
+  if (!matchedItems.length) return 0;
+  const sameUnitStock = matchedItems
+    .filter(item => (item.unit || '') === (unit || ''))
+    .reduce((sum, item) => sum + (+item.qty || 0), 0);
+  if (sameUnitStock > 0) return sameUnitStock;
+  if (matchedItems.some(item => (item.stockStatus || 'ok') === 'ok' && (+item.qty || 0) > 0)) return +qty || 1;
+  if (matchedItems.some(item => (+item.qty || 0) > 0)) return +qty || 1;
+  return 0;
+}
+
 const INVENTORY_STATES = [
   { value: 'ok', label: '够用', className: 'ok' },
   { value: 'low', label: '快没了', className: 'low' },
@@ -585,12 +636,9 @@ function calculateStockStatus(recipe, pack, inv) {
 
   const missing = [];
   let matchCount = 0;
-  const invMap = new Map();
-  inv.forEach(i => invMap.set(getCanonicalName(i.name), i));
 
   ingredients.forEach(ing => {
-    const needName = getCanonicalName(ing.item);
-    if (invMap.has(needName)) { matchCount++; } 
+    if (findInventoryMatch(inv, ing.item)) { matchCount++; }
     else { missing.push({ name: ing.item }); }
   });
 
@@ -621,9 +669,6 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
     }).filter(item => item && hasRecipeMethod(item.r));
   }
   
-  const invMap = new Map();
-  inv.forEach(i => invMap.set(getCanonicalName(i.name), i));
-
   const methodReadyRecipes = (pack.recipes || []).filter(hasRecipeMethod);
   const recommendationRecipes = methodReadyRecipes.length ? methodReadyRecipes : (pack.recipes || []);
 
@@ -639,17 +684,7 @@ function getLocalRecommendations(pack, inv, forceRefresh = false) {
     let expiringBonus = 0;
     
     coreIngs.forEach(ing => {
-      const canon = getCanonicalName(ing.item);
-      // 尝试精确匹配或模糊匹配
-      let invItem = invMap.get(canon);
-      if (!invItem) {
-          for (const [k, v] of invMap) {
-              if (k.includes(canon) || canon.includes(k)) {
-                  invItem = v;
-                  break;
-              }
-          }
-      }
+      const invItem = findInventoryMatch(inv, ing.item);
 
       if (invItem) {
         matchCount++;
@@ -1023,8 +1058,6 @@ function getExpiringItems(inv) {
 }
 
 function getHomeRecipeGroups(pack, inv) {
-  const invMap = new Map();
-  (inv || []).forEach(item => invMap.set(getCanonicalName(item.name), item));
   const rows = (pack.recipes || []).filter(hasRecipeMethod).map(r => {
     const list = explodeCombinedItems((pack.recipe_ingredients || {})[r.id] || []);
     const core = list.filter(ing => !isSeasoning(ing.item));
@@ -1033,7 +1066,7 @@ function getHomeRecipeGroups(pack, inv) {
     const missing = status.missing || [];
     const matched = Math.max(0, core.length - missing.length);
     const expiringMatches = core
-      .map(ing => invMap.get(getCanonicalName(ing.item)))
+      .map(ing => findInventoryMatch(inv, ing.item))
       .filter(item => item && remainingDays(item) <= 3);
     return { r, list, status: status.status, missing, matched, total: core.length, expiringMatches };
   }).filter(Boolean);
@@ -1406,7 +1439,8 @@ function renderShopping(pack){
   const shoppingItems = loadShoppingItems();
   const need={};
   const addNeed=(n,q,u,source='菜谱')=>{
-    const k=n+'|'+(u||'g');
+    const canonicalName = getCanonicalName(n || '');
+    const k=canonicalName+'|'+(u||'g');
     if(!need[k]) need[k]={qty:0, sources:[]};
     need[k].qty += (+q||0);
     if(source && !need[k].sources.includes(source)) need[k].sources.push(source);
@@ -1433,7 +1467,7 @@ function renderShopping(pack){
     }
   }
   
-  const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=(inv.filter(x=>x.name===n&&x.unit===u).reduce((s,x)=>s+(+x.qty||0),0)); const m=Math.max(0, Math.round((req.qty-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m, source:req.sources.join('、')}); }
+  const missing=[]; for(const [k,req] of Object.entries(need)){ const [n,u]=k.split('|'); const stock=getStockCoverageForNeed(inv,n,req.qty,u); const m=Math.max(0, Math.round((req.qty-stock)*100)/100); if(m>0) missing.push({name:n, unit:u, qty:m, source:req.sources.join('、')}); }
   const d=document.createElement('div'); d.className='shopping-page'; const h=document.createElement('h2'); h.className='section-title'; h.textContent='购物清单'; d.appendChild(h);
   const manualCard=document.createElement('div'); manualCard.className='card shopping-manual-card';
   manualCard.innerHTML=`
@@ -2085,6 +2119,7 @@ function renderRecipeEditor(id, base){
   const overlay = loadOverlay();
   const baseIng = base.recipe_ingredients || {};
   const overIng = overlay.recipe_ingredients || {};
+  const ingredientOptions = buildIngredientOptions(buildCatalog(base));
   // merged recipe
   const rBase = (base.recipes||[]).find(x => x.id===id);
   const rOv = (overlay.recipes||{})[id] || {};
@@ -2109,6 +2144,7 @@ function renderRecipeEditor(id, base){
       <thead><tr><th>用料</th><th>数量</th><th>单位</th><th class="right"><a class="btn small" id="addRow">新增</a></th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
+    <datalist id="recipeIngredientList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
     
     <h3 style="margin-top:20px">做法 (Method)</h3>
     <textarea id="rMethod" rows="8" placeholder="请输入烹饪步骤..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);">${r.method || ''}</textarea>
@@ -2125,12 +2161,18 @@ function renderRecipeEditor(id, base){
 
   function addRow(item='', qty='', unit='g'){
     const tr = document.createElement('tr');
+    const unitChoices = Array.from(new Set([unit || 'g', '份', '个', '盒', '袋', '瓶', '把', 'g', 'ml', 'pcs']));
+    const unitHtml = unitChoices.map(u => `<option value="${escapeOptionAttr(u)}"${unit===u?' selected':''}>${escapeHtml(u)}</option>`).join('');
     tr.innerHTML = `
-      <td><input placeholder="食材名" value="${item}"></td>
+      <td><input list="recipeIngredientList" placeholder="食材名" value="${escapeOptionAttr(item)}"></td>
       <td><input type="number" step="1" placeholder="" value="${qty}"></td>
-      <td><select><option value="g"${unit==='g'?' selected':''}>g</option><option value="ml"${unit==='ml'?' selected':''}>ml</option><option value="pcs"${unit==='pcs'?' selected':''}>pcs</option></select></td>
+      <td><select>${unitHtml}</select></td>
       <td class="right"><a class="btn bad small">删</a></td>`;
     els('.btn', tr)[0].onclick = ()=> tr.remove();
+    els('input', tr)[0].addEventListener('input', e => {
+      const val = e.target.value.trim();
+      if(val) els('select', tr)[0].value = guessKitchenUnit(getCanonicalName(val));
+    });
     tbody.appendChild(tr);
   }
   items.forEach(it => addRow(it.item || '', (typeof it.qty==='number' && isFinite(it.qty))? it.qty : '', it.unit || 'g'));
@@ -2150,7 +2192,7 @@ function renderRecipeEditor(id, base){
     els('tbody#rows tr', wrap).forEach(tr => {
       const [i1,i2] = els('input', tr);
       const sel = els('select', tr)[0];
-      const item = i1.value.trim();
+      const item = getCanonicalName(i1.value.trim());
       if(!item) return;
       const qty = i2.value === '' ? null : Number(i2.value);
       const unit = sel.value || null;
