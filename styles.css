@@ -586,10 +586,67 @@ input:focus, select:focus, textarea:focus {
   content: ''; position: absolute; top: -6px; left: 16px; width: 10px; height: 10px;
   background: #f0fdf4; border-left: 1px dashed #86efac; border-top: 1px dashed #86efac; transform: rotate(45deg);
 }
+.method-text {
+  white-space: pre-line;
+  line-height: 1.75;
+}
+.ai-empty-note,
+.ai-draft-card {
+  border: 1px dashed #b7c7c4;
+  border-radius: var(--radius-m);
+  background: #f7faf9;
+  color: var(--text-secondary);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.ai-draft-card {
+  border-style: solid;
+  color: var(--text-main);
+}
+.ai-draft-title {
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.ai-draft-actions {
+  margin-top: 14px;
+  justify-content: flex-start;
+}
 .ai-badge {
   display: inline-flex; align-items: center; font-size: 12px; font-weight: 800; color: #fff;
   background: linear-gradient(135deg, #8b5cf6, #d946ef); padding: 4px 10px; border-radius: 6px;
   margin-bottom: 10px; box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3); letter-spacing: 0.05em; text-transform: uppercase;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(16, 24, 40, 0.46);
+}
+.receipt-confirm-card {
+  width: min(680px, 100%);
+  max-height: min(760px, 92vh);
+  overflow: auto;
+}
+.receipt-confirm-list {
+  display: grid;
+  gap: 8px;
+}
+.receipt-confirm-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 90px 96px auto;
+  gap: 8px;
+  align-items: center;
+}
+.receipt-confirm-actions {
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 
 /* === 底部导航 === */
@@ -853,6 +910,16 @@ nav a.active svg { stroke: var(--primary); transform: translateY(-2px); filter: 
   .recipe-actions .btn,
   .recipe-actions label.btn {
     flex: 1;
+  }
+  .receipt-confirm-row {
+    grid-template-columns: 1fr 74px;
+  }
+  .receipt-confirm-row select,
+  .receipt-confirm-row .btn {
+    grid-column: span 1;
+  }
+  .receipt-confirm-actions {
+    align-items: stretch;
   }
   .backup-actions {
     flex-direction: column;

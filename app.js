@@ -334,6 +334,16 @@ function guessKitchenUnit(name) {
   if (includesAny(['猪肉', '牛肉', '羊肉', '鸡肉', '鸭肉', '排骨', '鱼', '虾', '肉'])) return '份';
   return '份';
 }
+function normalizeKitchenAmount(name, qty, unit) {
+  const n = getCanonicalName(name || '');
+  let q = Number(qty) || 1;
+  let u = String(unit || '').trim();
+  if (['pcs', 'piece', 'pieces'].includes(u)) u = '个';
+  if (['kg', '千克', '公斤'].includes(u)) { q *= 1000; u = 'g'; }
+  if (['l', 'L', '升'].includes(u)) { q *= 1000; u = 'ml'; }
+  if (!u) u = guessKitchenUnit(n);
+  return { name: n, qty: Math.round(q * 100) / 100, unit: u };
+}
 
 function buildCatalog(pack){
   const units = {}, set = new Set();
@@ -416,7 +426,12 @@ function extractJson(text) {
 
   const firstOpenBrace = cleaned.indexOf('{');
   const lastCloseBrace = cleaned.lastIndexOf('}');
+  const firstOpenBracket = cleaned.indexOf('[');
+  const lastCloseBracket = cleaned.lastIndexOf(']');
   
+  if (firstOpenBracket !== -1 && lastCloseBracket !== -1 && (firstOpenBrace === -1 || firstOpenBracket < firstOpenBrace)) {
+    return cleaned.substring(firstOpenBracket, lastCloseBracket + 1);
+  }
   if (firstOpenBrace !== -1 && lastCloseBrace !== -1 && lastCloseBrace > firstOpenBrace) {
     return cleaned.substring(firstOpenBrace, lastCloseBrace + 1);
   }
@@ -473,6 +488,23 @@ async function callAiService(prompt, imageBase64 = null) {
     const data = await res.json();
     return extractJson(data.choices?.[0]?.message?.content || ""); 
   } catch(e) { throw e; }
+}
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))
+  ]);
+}
+
+function formatAiErrorMessage(error) {
+  const msg = String(error?.message || error || '');
+  if (msg.includes('未配置')) return 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
+  if (msg.includes('401')) return 'AI 暂不可用：API Key 可能已过期。本地功能仍可正常使用。';
+  if (msg.includes('429')) return 'AI 暂不可用：请求太频繁或额度不足。本地功能仍可正常使用。';
+  if (msg.includes('404')) return 'AI 暂不可用：模型名称可能不正确。本地功能仍可正常使用。';
+  if (msg.includes('超时')) return 'AI 暂不可用：响应超时。本地功能仍可正常使用。';
+  return `AI 暂不可用：${msg || '未知错误'}。本地功能仍可正常使用。`;
 }
 
 async function recognizeReceipt(file) {
@@ -823,48 +855,61 @@ function renderRecipeDetail(id, pack) {
   }
   
   const div = document.createElement('div'); div.className = 'detail-view';
-  const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : `<div class="small" style="margin-bottom:10px;padding:10px;border:1px dashed #ccc;border-radius:8px;">暂无详细做法。点击按钮让 AI 生成。</div><button type="button" class="btn ai" id="genMethodBtn">✨ 让 AI 生成做法</button>`;
+  const missingMethodContent = `<div class="ai-empty-note">暂无详细做法。可以让 AI 先生成草稿，确认后再保存。</div><button type="button" class="btn ai" id="genMethodBtn">✨ AI 生成草稿</button>`;
+  const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : missingMethodContent;
   
   div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${it.item} ${it.qty ? `<span class="qty">${it.qty}${it.unit||''}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
   
-  const genBtn = div.querySelector('#genMethodBtn');
-  if(genBtn) {
-    genBtn.onclick = async () => {
-      // [新增] 增加重试逻辑
+  const methodArea = div.querySelector('#methodArea');
+  const showMissingMethod = () => {
+    methodArea.innerHTML = missingMethodContent;
+    bindGenerateMethodButton();
+  };
+  const showMethodDraft = (text) => {
+    methodArea.innerHTML = `
+      <div class="ai-draft-card">
+        <div class="ai-draft-title">AI 生成草稿</div>
+        <div class="method-text">${escapeHtml(text)}</div>
+        <div class="controls ai-draft-actions">
+          <button type="button" class="btn ok" id="saveAiMethodBtn">保存到菜谱</button>
+          <button type="button" class="btn" id="regenerateAiMethodBtn">重新生成</button>
+          <button type="button" class="btn bad" id="cancelAiMethodBtn">取消</button>
+        </div>
+      </div>
+    `;
+    methodArea.querySelector('#saveAiMethodBtn').onclick = () => {
+      const currentOverlay = loadOverlay();
+      currentOverlay.recipes = currentOverlay.recipes || {};
+      currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text };
+      saveOverlay(currentOverlay);
+      r.method = text;
+      methodArea.innerHTML = `<div class="method-text">${escapeHtml(text)}</div><div class="small ok" style="margin-top:10px">已保存到菜谱</div>`;
+    };
+    methodArea.querySelector('#regenerateAiMethodBtn').onclick = e => generateMethodDraft(e.currentTarget);
+    methodArea.querySelector('#cancelAiMethodBtn').onclick = () => showMissingMethod();
+  };
+  const generateMethodDraft = async (triggerBtn = null) => {
+      const genBtn = triggerBtn || methodArea.querySelector('#genMethodBtn');
+      if(!genBtn) return;
+      const resetLabel = genBtn.id === 'regenerateAiMethodBtn' ? '重新生成' : '✨ AI 生成草稿';
       genBtn.setAttribute('disabled', 'true');
       genBtn.innerHTML = '<span class="spinner"></span> 生成中...';
       
       const maxRetries = 1; // 允许自动重试1次
       let attempt = 0;
       let success = false;
-      
-      // 超时保护
-      const safetyTimer = setTimeout(() => {
-         if(!success) {
-             genBtn.innerHTML = '✨ 生成超时，请重试';
-             genBtn.removeAttribute('disabled');
-             alert("AI 生成超时，请检查网络后重试。");
-         }
-      }, 30000); // 30秒超时
 
       while(attempt <= maxRetries && !success) {
           try {
             attempt++;
-            const text = await callAiForMethod(r.name, items);
-            clearTimeout(safetyTimer);
+            const text = await withTimeout(callAiForMethod(r.name, items), 30000, 'AI 生成超时');
             success = true;
-            
-            const currentOverlay = loadOverlay();
-            currentOverlay.recipes = currentOverlay.recipes || {};
-            currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id]||{}), method: text };
-            saveOverlay(currentOverlay);
-            div.querySelector('#methodArea').innerHTML = `<div class="method-text">${text}</div><div class="small ok" style="margin-top:10px">已保存到补丁</div>`;
+            showMethodDraft(text);
           } catch(e) {
             console.warn(`Attempt ${attempt} failed:`, e);
             if (attempt > maxRetries) {
-                clearTimeout(safetyTimer);
-                alert('生成失败：' + e.message); 
-                genBtn.innerHTML = '✨ AI 生成';
+                alert(formatAiErrorMessage(e));
+                genBtn.innerHTML = resetLabel;
                 genBtn.removeAttribute('disabled');
             } else {
                 genBtn.innerHTML = `<span class="spinner"></span> 正在重试 (${attempt}/${maxRetries})...`;
@@ -872,7 +917,13 @@ function renderRecipeDetail(id, pack) {
             }
           }
       }
-    };
+  };
+  function bindGenerateMethodButton() {
+    const genBtn = methodArea.querySelector('#genMethodBtn');
+    if(genBtn) genBtn.onclick = generateMethodDraft;
+  }
+  if(!r.method) {
+    bindGenerateMethodButton();
   }
   return div;
 }
@@ -906,7 +957,7 @@ function renderRecipeSearchResults(query, pack, inv) {
                     overlay.recipe_ingredients[tempId] = ings;
                     saveOverlay(overlay);
                     location.hash = `#recipe:${tempId}`; location.reload();
-                } catch(e) { alert('AI 搜索失败：' + e.message); btn.innerHTML = '🤖 呼叫 AI 搜索'; }
+                } catch(e) { alert(formatAiErrorMessage(e)); btn.innerHTML = '🤖 呼叫 AI 搜索'; }
             };
         }
     }, 0);
@@ -1102,7 +1153,7 @@ function renderMoreRecommendations(pack, inv) {
            aiBtn.innerHTML = '呼叫 AI';
            aiBtn.style.opacity = '1';
            aiBtn.removeAttribute('disabled');
-           alert("AI 响应超时，已自动切换到本地推荐。");
+           alert(formatAiErrorMessage(new Error('AI 响应超时')));
            showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
        }
     }, 30000);
@@ -1133,12 +1184,7 @@ function renderMoreRecommendations(pack, inv) {
           console.warn(`AI Recs Attempt ${attempt} failed:`, e);
           if (attempt > maxRetries) {
               clearTimeout(safetyTimer);
-              let errorMsg = e.message;
-              if (errorMsg.includes("401")) errorMsg = "API Key 无效或过期";
-              else if (errorMsg.includes("429")) errorMsg = "请求过多(429)，AI 繁忙";
-              else if (errorMsg.includes("404")) errorMsg = "模型不存在(404)";
-
-              alert(`AI 调用失败: ${errorMsg}\n\n切换到【本地推荐】。`);
+              alert(formatAiErrorMessage(e) + '\n\n已切换到本地推荐。');
               showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
           } else {
               aiBtn.innerHTML = `<span class="spinner"></span> 正在重试...`;
@@ -1395,6 +1441,64 @@ function renderShopping(pack){
   return d;
 }
 
+function showReceiptConfirmationModal(items, onConfirm, onCancel) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  const unitOptions = ['个', '盒', '袋', '瓶', '把', '份', 'g', 'ml'];
+  const rows = items.map((item, index) => {
+    const normalized = normalizeKitchenAmount(item.name, item.qty, item.unit);
+    const name = normalized.name;
+    const unit = normalized.unit;
+    const qty = normalized.qty;
+    return `
+      <div class="receipt-confirm-row" data-index="${index}">
+        <input class="receipt-name" value="${escapeOptionAttr(name)}" placeholder="食材名">
+        <input class="receipt-qty" type="number" min="0" step="0.1" value="${qty}">
+        <select class="receipt-unit">
+          ${unitOptions.map(u => `<option value="${u}"${u === unit ? ' selected' : ''}>${u}</option>`).join('')}
+        </select>
+        <button type="button" class="btn bad small receipt-remove">删</button>
+      </div>
+    `;
+  }).join('');
+
+  overlay.innerHTML = `
+    <div class="card receipt-confirm-card">
+      <h3>确认识别结果</h3>
+      <p class="meta">AI 识别只作为草稿，确认后才会入库。</p>
+      <div class="receipt-confirm-list">${rows}</div>
+      <div class="controls receipt-confirm-actions">
+        <button type="button" class="btn" id="cancelReceiptConfirm">取消</button>
+        <button type="button" class="btn ok" id="saveReceiptConfirm">确认入库</button>
+      </div>
+    </div>
+  `;
+
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('.receipt-remove').forEach(btn => {
+    btn.onclick = () => btn.closest('.receipt-confirm-row').remove();
+  });
+  overlay.querySelector('#cancelReceiptConfirm').onclick = () => {
+    close();
+    if(onCancel) onCancel();
+  };
+  overlay.querySelector('#saveReceiptConfirm').onclick = () => {
+    const confirmed = Array.from(overlay.querySelectorAll('.receipt-confirm-row')).map(row => {
+      const normalized = normalizeKitchenAmount(row.querySelector('.receipt-name').value.trim(), row.querySelector('.receipt-qty').value, row.querySelector('.receipt-unit').value);
+      return normalized.name ? normalized : null;
+    }).filter(Boolean);
+    close();
+    onConfirm(confirmed);
+  };
+  overlay.onclick = e => {
+    if(e.target === overlay) {
+      close();
+      if(onCancel) onCancel();
+    }
+  };
+  document.body.appendChild(overlay);
+}
+
 // [新增] 弹出编辑库存详情的 Modal
 function showEditInventoryModal(item, onSave) {
   const overlay = document.createElement('div');
@@ -1581,11 +1685,26 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     const file = e.target.files[0]; if(!file) return;
     scanStatus.style.display = 'block'; scanStatus.innerHTML = '<span class="spinner"></span> 识别中...';
     try {
-      const items = await recognizeReceipt(file);
-      scanStatus.innerHTML = `✅ 成功！入库 ${items.length} 项`;
-      for(const it of items) { if(!it.name) continue; const name = getCanonicalName(it.name); const unit = it.unit || guessKitchenUnit(name); upsertInventory(inv, { name: name, qty: Number(it.qty) || 1, unit: unit, buyDate: todayISO(), kind: 'raw', shelf: guessShelfDays(name, unit), stockStatus:'ok' }); }
-      setTimeout(() => { scanStatus.style.display = 'none'; renderTable(); }, 1500);
-    } catch(err) { scanStatus.innerHTML = `<span style="color:var(--danger)">❌ ${err.message}</span>`; }
+      const rawItems = await withTimeout(recognizeReceipt(file), 30000, 'AI 识别超时');
+      const items = (Array.isArray(rawItems) ? rawItems : []).filter(it => it && it.name).map(it => normalizeKitchenAmount(it.name, it.qty, it.unit));
+      if(items.length === 0) {
+        scanStatus.innerHTML = '<span style="color:var(--danger)">没有识别到可入库食材</span>';
+        return;
+      }
+      scanStatus.innerHTML = `识别到 ${items.length} 项，请确认后入库`;
+      showReceiptConfirmationModal(items, confirmed => {
+        for(const it of confirmed) {
+          const unit = it.unit || guessKitchenUnit(it.name);
+          upsertInventory(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: 'raw', shelf: guessShelfDays(it.name, unit), stockStatus:'ok' });
+        }
+        scanStatus.innerHTML = `✅ 已确认入库 ${confirmed.length} 项`;
+        setTimeout(() => { scanStatus.style.display = 'none'; renderTable(); }, 1200);
+      }, () => {
+        scanStatus.innerHTML = '已取消入库';
+        setTimeout(() => { scanStatus.style.display = 'none'; }, 1200);
+      });
+    } catch(err) { scanStatus.innerHTML = `<span style="color:var(--danger)">❌ ${formatAiErrorMessage(err)}</span>`; }
+    finally { e.target.value = ''; }
   };
   function renderTable(){ 
     const tb=tbl.querySelector('tbody'); tb.innerHTML=''; 
