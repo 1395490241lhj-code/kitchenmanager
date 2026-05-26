@@ -749,6 +749,26 @@ function calculateStockStatus(recipe, pack, inv) {
   return { status: 'none', missing };
 }
 
+function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
+  const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
+  return (sourceItems || [])
+    .map(item => ({...item, item: getCanonicalName(item.item || item.name || '')}))
+    .filter(item => item.item && !isSeasoning(item.item));
+}
+
+function getMissingRecipeIngredients(recipe, pack, inv, fallbackItems = null) {
+  return getRecipeCoreIngredients(recipe, pack, fallbackItems)
+    .filter(item => !findInventoryMatch(inv, item.item));
+}
+
+function addMissingRecipeIngredientsToShopping(recipe, pack, inv, fallbackItems = null) {
+  const missing = getMissingRecipeIngredients(recipe, pack, inv, fallbackItems);
+  missing.forEach(item => {
+    addShoppingItem(item.item, item.qty || '', item.unit || guessKitchenUnit(item.item), recipe.name || '菜谱');
+  });
+  return missing.length;
+}
+
 function hasRecipeMethod(recipe) {
   return !!String(recipe && recipe.method || '').trim();
 }
@@ -891,6 +911,13 @@ function addRecipeToPlan(id) {
   markRecipePlanned(id);
   return true;
 }
+function markRecipeCooked(id) {
+  markRecipePlanned(id);
+  const plan = S.load(S.keys.plan, []);
+  const nextPlan = plan.filter(item => item.id !== id);
+  if(nextPlan.length !== plan.length) S.save(S.keys.plan, nextPlan);
+  return { removedFromPlan: nextPlan.length !== plan.length };
+}
 function recipeUsageText(lastDate) {
   if(!lastDate) return '还没安排过';
   const days = Math.max(0, daysBetween(lastDate, todayISO()));
@@ -1029,11 +1056,51 @@ function renderRecipeDetail(id, pack) {
     items = explodeCombinedItems(ingList); 
   }
   
+  const catalog = buildCatalog(pack);
+  const inv = loadInventory(catalog);
+  const missingIngredients = getMissingRecipeIngredients(r, pack, inv, items);
+  const plan = S.load(S.keys.plan, []);
+  const isPlanned = plan.some(item => item.id === id);
+  const missingSummary = missingIngredients.length
+    ? `还缺 ${missingIngredients.slice(0, 3).map(item => item.item).join('、')}${missingIngredients.length > 3 ? '等' : ''}`
+    : '库存看起来已经够做这道菜';
   const div = document.createElement('div'); div.className = 'detail-view';
   const missingMethodContent = `<div class="ai-empty-note">暂无详细做法。可以让 AI 先生成草稿，确认后再保存。</div><button type="button" class="btn ai" id="genMethodBtn">✨ AI 生成草稿</button>`;
   const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : missingMethodContent;
   
-  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${r.name}</h2><div class="tags meta" style="margin-bottom:24px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).join(' / ')}</div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${it.item} ${it.qty ? `<span class="qty">${it.qty}${it.unit||''}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${escapeHtml(r.name)}</h2><div class="tags meta" style="margin-bottom:18px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已经在今日计划里' : '先加入今日计划')}</strong><p>${escapeHtml(missingSummary)}。做完后只记录使用，不会自动扣库存。</p></div><div class="recipe-action-buttons"><button type="button" class="btn ok" id="detailAddPlan">${isPlanned ? '已加入今日计划' : '加入今日计划'}</button><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${escapeHtml(it.item)} ${it.qty ? `<span class="qty">${escapeHtml(it.qty)}${escapeHtml(it.unit||'')}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  const actionFeedback = div.querySelector('#recipeActionFeedback');
+  const showActionFeedback = (text) => {
+    actionFeedback.hidden = false;
+    actionFeedback.textContent = text;
+    window.setTimeout(() => { actionFeedback.hidden = true; }, 1800);
+  };
+  const detailAddPlan = div.querySelector('#detailAddPlan');
+  if(isPlanned) detailAddPlan.disabled = true;
+  detailAddPlan.onclick = () => {
+    const added = addRecipeToPlan(id);
+    if(added) {
+      detailAddPlan.textContent = '已加入今日计划';
+      detailAddPlan.disabled = true;
+      showActionFeedback('已加入今日计划，购物清单会按计划自动计算。');
+    } else {
+      showActionFeedback('这道菜已经在今日计划里。');
+    }
+  };
+  const detailAddMissing = div.querySelector('#detailAddMissing');
+  if(!missingIngredients.length) detailAddMissing.disabled = true;
+  detailAddMissing.onclick = () => {
+    const count = addMissingRecipeIngredientsToShopping(r, pack, inv, items);
+    if(count > 0) {
+      brieflyConfirmButton(detailAddMissing, '已加入清单');
+      showActionFeedback(`已把 ${count} 项缺少食材加入购物清单。`);
+    }
+  };
+  div.querySelector('#detailMarkCooked').onclick = (e) => {
+    const result = markRecipeCooked(id);
+    brieflyConfirmButton(e.currentTarget, '已记录');
+    showActionFeedback(result.removedFromPlan ? '已记录做完，并从今日计划移除；库存没有自动扣减。' : '已记录做完；库存没有自动扣减。');
+  };
   
   const methodArea = div.querySelector('#methodArea');
   const showMissingMethod = () => {
@@ -1159,6 +1226,10 @@ function getExpiringItems(inv) {
     .slice(0, 4);
 }
 
+function hasUsableInventory(inv) {
+  return (inv || []).some(isInventoryAvailable);
+}
+
 function getHomeRecipeGroups(pack, inv) {
   const rows = (pack.recipes || []).filter(hasRecipeMethod).map(r => {
     const list = explodeCombinedItems((pack.recipe_ingredients || {})[r.id] || []);
@@ -1233,6 +1304,82 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
     </div>
   `;
   return div;
+}
+
+function renderHomeActionBoard(expiring, ready, almost, pack, inv, onSearchIngredient) {
+  const board = document.createElement('section');
+  board.className = 'home-action-board';
+  const expiringItem = expiring[0];
+  const readyItem = ready[0];
+  const almostItem = almost[0];
+  board.innerHTML = `
+    <div class="home-action-card is-expiring">
+      <span>1</span>
+      <h3>快到期食材优先处理</h3>
+      <p>${escapeHtml(expiringItem ? `${expiringItem.name} ${formatRemainingText(remainingDays(expiringItem))}` : '暂时没有 3 天内到期的食材。')}</p>
+      <button type="button" class="btn small"${expiringItem ? '' : ' disabled'}>${expiringItem ? '找做法' : '不用处理'}</button>
+    </div>
+    <div class="home-action-card is-ready">
+      <span>2</span>
+      <h3>当前库存能做什么</h3>
+      <p>${escapeHtml(readyItem ? `${readyItem.r.name} · ${readyItem.reason || '食材已齐'}` : '还没有完全匹配库存的菜。')}</p>
+      <button type="button" class="btn ok small"${readyItem ? '' : ' disabled'}>${readyItem ? '加入今日计划' : '先补库存'}</button>
+    </div>
+    <div class="home-action-card is-almost">
+      <span>3</span>
+      <h3>差一点就能做什么</h3>
+      <p>${escapeHtml(almostItem ? `${almostItem.r.name} · ${almostItem.reason || '只差一两样'}` : '暂时没有只差一两样的菜。')}</p>
+      <button type="button" class="btn small"${almostItem ? '' : ' disabled'}>${almostItem ? '补缺少食材' : '暂无'}</button>
+    </div>
+  `;
+  const buttons = board.querySelectorAll('button');
+  if(expiringItem) buttons[0].onclick = () => onSearchIngredient(expiringItem.name);
+  if(readyItem) buttons[1].onclick = () => {
+    addRecipeToPlan(readyItem.r.id);
+    brieflyConfirmButton(buttons[1], '已加入');
+  };
+  if(almostItem) buttons[2].onclick = () => {
+    const count = addMissingRecipeIngredientsToShopping(almostItem.r, pack, inv, almostItem.list);
+    brieflyConfirmButton(buttons[2], count ? '已加入清单' : '已齐');
+  };
+  return board;
+}
+
+function renderEmptyInventoryGuide() {
+  const guide = document.createElement('section');
+  guide.className = 'card home-onboarding';
+  guide.innerHTML = `
+    <div class="home-eyebrow">第一次使用</div>
+    <h2>先放一点库存进厨房</h2>
+    <p>现在还没有可用库存，所以不会硬推空推荐。先录入几样真实食材，菜谱推荐和购物清单才会准。</p>
+    <div class="onboarding-actions">
+      <button type="button" class="btn ok" data-start="manual">手动添加食材</button>
+      <button type="button" class="btn ai" data-start="receipt">拍小票识别</button>
+      <button type="button" class="btn" data-start="backup">导入备份</button>
+    </div>
+  `;
+  return guide;
+}
+
+function bindEmptyInventoryGuide(guide, container) {
+  const scrollToInventory = () => {
+    const target = container.querySelector('#homeInventoryPanel');
+    if(target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  guide.querySelector('[data-start="manual"]').onclick = () => {
+    scrollToInventory();
+    const form = container.querySelector('.add-form-container');
+    const toggle = container.querySelector('#toggleAddBtn');
+    if(form && toggle && !form.classList.contains('open')) toggle.click();
+  };
+  guide.querySelector('[data-start="receipt"]').onclick = () => {
+    scrollToInventory();
+    const input = container.querySelector('#camInput');
+    if(input) input.click();
+  };
+  guide.querySelector('[data-start="backup"]').onclick = () => {
+    location.hash = '#settings';
+  };
 }
 
 function renderExpiringSection(items, onSearchIngredient) {
@@ -1685,7 +1832,20 @@ function renderHome(pack){
   container.appendChild(title);
   container.appendChild(searchBar);
   searchBar.querySelector('#doSearch').onclick = doSearch;
+  if(!hasUsableInventory(inv)) {
+    const guide = renderEmptyInventoryGuide();
+    container.appendChild(guide);
+    const invTitle = document.createElement('div');
+    invTitle.className = 'section-title home-section-title';
+    invTitle.id = 'homeInventoryPanel';
+    invTitle.innerHTML = '<span>先录入库存</span>';
+    container.appendChild(invTitle);
+    container.appendChild(renderInventory(pack, { showTitle: false }));
+    bindEmptyInventoryGuide(guide, container);
+    return container;
+  }
   container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems));
+  container.appendChild(renderHomeActionBoard(expiring, groups.ready, groups.almost, pack, inv, showSearch));
   container.appendChild(renderHomeRadar(expiring, groups.ready, groups.almost, forgottenFavorites, showSearch));
   container.appendChild(renderDryGoodsCabinet(inv));
   container.appendChild(renderHomeRecipeShelf('现在能做', groups.ready, pack, '还没有完全匹配库存的菜。先补一点库存，推荐会更准。'));

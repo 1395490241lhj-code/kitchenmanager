@@ -201,6 +201,67 @@ h2, h3, h4 { margin: 0 0 16px 0; font-weight: 700; color: var(--text-main); line
   color: var(--text-secondary);
   white-space: nowrap;
 }
+.home-action-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 18px;
+}
+.home-action-card {
+  min-height: 170px;
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.76), rgba(247,251,255,0.56));
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-l);
+  box-shadow: 0 14px 34px rgba(0,122,255,0.055), inset 0 1px 0 rgba(255,255,255,0.82);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-action-card > span {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  color: white;
+  font-size: 13px;
+  font-weight: 850;
+}
+.home-action-card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.home-action-card p {
+  flex: 1;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.home-action-card.is-expiring > span { background: var(--warning); }
+.home-action-card.is-ready > span { background: var(--accent); }
+.home-action-card.is-almost > span { background: var(--primary); }
+.home-onboarding {
+  padding: 24px;
+  margin-bottom: 18px;
+}
+.home-onboarding h2 {
+  margin: 0;
+  font-size: 25px;
+}
+.home-onboarding p {
+  max-width: 620px;
+  color: var(--text-secondary);
+  margin: 8px 0 18px;
+}
+.onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
 .quick-list { display: grid; gap: 10px; }
 .quick-item {
   display: flex;
@@ -542,6 +603,12 @@ p.meta { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; lin
   user-select: none; line-height: 1.2; white-space: nowrap; flex-shrink: 0; 
 }
 .btn:active { transform: scale(0.96); filter: brightness(0.95); }
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+  filter: none;
+}
 .btn.is-confirmed {
   background: #e9f8ee;
   color: #1f7a3a;
@@ -931,6 +998,52 @@ input:focus, select:focus, textarea:focus {
   white-space: pre-line;
   line-height: 1.75;
 }
+.recipe-action-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin: 0 0 22px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.82), rgba(240,248,255,0.58));
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.8);
+}
+.recipe-action-copy span {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 850;
+}
+.recipe-action-copy strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-main);
+  font-size: 18px;
+  line-height: 1.25;
+}
+.recipe-action-copy p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.recipe-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.recipe-action-feedback {
+  grid-column: 1 / -1;
+  padding: 9px 12px;
+  color: #1f7a3a;
+  background: #e9f8ee;
+  border: 1px solid rgba(52,199,89,0.18);
+  border-radius: var(--radius-m);
+  font-size: 13px;
+  font-weight: 700;
+}
 .ai-empty-note,
 .ai-draft-card {
   border: 1px dashed #b7c7c4;
@@ -1132,6 +1245,7 @@ nav a.active svg {
   }
 
   .home-stat,
+  .home-action-card,
   .quick-item,
   .home-radar-item,
   .home-radar-empty,
@@ -1142,10 +1256,21 @@ nav a.active svg {
   }
 
   .home-radar-card,
+  .recipe-action-panel,
   .card {
     background: linear-gradient(180deg, rgba(32,35,44,0.76), rgba(23,26,34,0.66));
     border-color: rgba(255,255,255,0.12);
     box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.1);
+  }
+
+  .home-onboarding {
+    background: linear-gradient(135deg, rgba(36,40,50,0.86), rgba(14,34,58,0.64));
+  }
+
+  .recipe-action-feedback {
+    color: #75e692;
+    background: rgba(48,209,88,0.16);
+    border-color: rgba(48,209,88,0.24);
   }
 
   .home-radar-card.is-priority {
@@ -1487,6 +1612,17 @@ nav a.active svg {
   }
   .home-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .home-action-board,
+  .recipe-action-panel {
+    grid-template-columns: 1fr;
+  }
+  .recipe-action-buttons {
+    justify-content: stretch;
+  }
+  .recipe-action-buttons .btn,
+  .onboarding-actions .btn {
+    flex: 1;
   }
   .dry-goods-list,
   .daily-goods-list {
