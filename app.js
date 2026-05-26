@@ -2505,6 +2505,7 @@ function renderRecipes(pack){
   const methodReadyCount = (pack.recipes || []).filter(hasRecipeMethod).length;
   const missingMethodCount = Math.max(0, (pack.recipes || []).length - methodReadyCount);
   wrap.innerHTML = `
+    <h2 class="section-title">菜谱</h2>
     <div class="recipe-toolbar">
       <input id="search" placeholder="搜菜谱..." style="flex:1;min-width:150px;padding:12px;border-radius:12px;border:1px solid var(--separator);">
       <label class="recipe-filter-toggle"><input type="checkbox" id="methodOnly" checked>只看有做法</label>
@@ -2593,7 +2594,8 @@ function renderSettings(){
   
   const div = document.createElement('div');
   div.innerHTML = `
-    <h2 class="section-title">AI 设置</h2>
+    <h2 class="section-title">设置</h2>
+    <div class="section-title home-section-title"><span>AI 设置</span></div>
     <div class="card">
       <div class="setting-group">
         <label>快速预设</label>
@@ -2610,7 +2612,7 @@ function renderSettings(){
       <div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div>
       <div class="right"><a class="btn ok" id="saveSet">保存</a></div>
     </div>
-    <h2 class="section-title">厨房备份</h2>
+    <div class="section-title home-section-title"><span>厨房备份</span></div>
     <div class="card backup-card">
       <p class="meta">导出会包含库存、今日计划、购物项、常做菜、安排记录、菜谱补丁和 AI 设置。</p>
       <div class="backup-actions">
@@ -2779,6 +2781,15 @@ function renderRecipeEditor(id, base){
   return wrap;
 }
 
+/*
+Hash 路由说明：
+- #inventory：厨房首页，保留旧 hash，避免破坏已有链接。
+- #shopping：购物清单。
+- #recipes：菜谱列表。
+- #settings：设置。
+- #recipe:id：菜谱详情。
+- #recipe-edit:id：菜谱编辑。
+*/
 async function onRoute(){ 
   try {
     const base = await loadBasePack(); 
@@ -2786,7 +2797,7 @@ async function onRoute(){
     const pack = applyOverlay(base, overlay); 
     let hash = location.hash.replace('#',''); 
     els('nav a').forEach(a=>a.classList.remove('active')); 
-    if(hash==='recipes') el('#nav-recipe').classList.add('active'); 
+    if(hash==='recipes' || hash.startsWith('recipe:') || hash.startsWith('recipe-edit:')) el('#nav-recipe').classList.add('active');
     else if(hash==='shopping') el('#nav-shop').classList.add('active'); 
     else if(hash==='settings') el('#nav-set').classList.add('active'); 
     else if(!hash || hash==='inventory') el('#nav-home').classList.add('active'); 
