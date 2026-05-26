@@ -4,7 +4,11 @@ export const S = {
   save(k, v) {
     try {
       localStorage.setItem(k, JSON.stringify(v));
-    } catch (e) {}
+      return true;
+    } catch (e) {
+      console.error('localStorage 保存失败', e);
+      return false;
+    }
   },
   load(k, d) {
     try {
@@ -14,6 +18,7 @@ export const S = {
     }
   },
   keys: {
+    schema_version: 'km_schema_version',
     inventory: 'km_v19_inventory',
     plan: 'km_v19_plan',
     overlay: 'km_v19_overlay',

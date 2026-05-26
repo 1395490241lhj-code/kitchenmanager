@@ -1,7 +1,79 @@
-// v150 app.js - 储备柜显示存货
+﻿// v151 app.js - 服务逻辑模块化
 import { CUSTOM_AI } from './src/config.js?v=89';
 import { el, els } from './src/dom.js?v=89';
-import { S, todayISO } from './src/storage.js?v=97';
+import { S, todayISO } from './src/storage.js?v=98';
+import {
+  DRY_GOODS,
+  EGG_STOCK,
+  DAILY_STOCKS,
+  buildIngredientOptions,
+  countStockStatus,
+  dryStatusInfo,
+  explodeCombinedItems,
+  getCanonicalName,
+  getDryPrepText,
+  getDryGoodConfig,
+  guessKitchenUnit,
+  guessShelfDays,
+  isDryGoodName,
+  isSeasoning,
+  nextDryStatus,
+  normalizeKitchenAmount,
+  buildCatalog
+} from './src/ingredients.js?v=1';
+import {
+  addInventoryQty,
+  ensureStockItem,
+  findInventoryMatch,
+  findStockItem,
+  getStockCoverageForNeed,
+  inventoryStateInfo,
+  isInventoryAvailable,
+  loadInventory,
+  nextInventoryState,
+  remainingDays,
+  saveInventory,
+  upsertInventory
+} from './src/inventory.js?v=1';
+import {
+  addShoppingItem,
+  genId,
+  loadShoppingItems,
+  saveShoppingItems
+} from './src/shopping.js?v=1';
+import {
+  applyOverlay,
+  buildKitchenBackup,
+  downloadJsonFile,
+  loadOverlay,
+  restoreKitchenBackup,
+  saveOverlay
+} from './src/backup.js?v=1';
+import {
+  callAiForMethod,
+  callAiSearchRecipe,
+  callCloudAI,
+  formatAiErrorMessage,
+  recognizeReceipt,
+  withTimeout
+} from './src/ai.js?v=1';
+import {
+  addMissingRecipeIngredientsToShopping,
+  addRecipeToPlan,
+  calculateStockStatus,
+  getLocalRecommendations,
+  getMissingRecipeIngredients,
+  hasRecipeMethod,
+  isFavoriteRecipe,
+  markRecipePlanned,
+  markRecipeCooked,
+  processAiData,
+  toggleFavoriteRecipe
+} from './src/recommendations.js?v=1';
+import {
+  DATA_SCHEMA_VERSION,
+  runLocalStorageMigrations
+} from './src/migrations.js?v=1';
 
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
@@ -16,191 +88,19 @@ window.onerror = function(msg, url, line, col, error) {
 };
 
 const app = el('#app');
-
-// --- 食材归一化字典 (保持不变) ---
-const INGREDIENT_ALIASES = {
-  "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
-  "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
-  "瘦肉": ["猪瘦肉", "精瘦肉", "里脊", "里脊肉", "猪里脊", "猪里脊肉", "里脊块", "猪里脊块", "里脊切块", "猪里脊切块", "冷冻里脊", "冷冻猪里脊", "里脊丝", "里脊片", "瘦肉丝", "瘦肉片"],
-  "猪肉": ["肉", "猪肉片", "猪肉丝", "肉丝", "肉片", "肉末", "猪腿肉", "二刀肉", "肥瘦肉", "肥瘦猪肉"], 
-  "排骨": ["猪排", "猪排骨", "小排", "大排", "纤排"],
-  "猪蹄": ["猪脚", "猪手", "蹄花"],
-  "猪肚": ["肚头", "猪肚头"],
-  "猪腰": ["猪腰子", "腰花", "腰片"],
-  "猪肝": ["沙肝", "肝片"],
-  "牛肉": ["黄牛肉", "嫩牛肉", "牛肉片", "牛肉丝", "牛柳", "肥牛"],
-  "牛腩": ["牛肋条"],
-  "羊肉": ["羊肉片", "羊肉卷"],
-  "鸡肉": ["仔鸡", "公鸡", "嫩鸡", "土鸡", "三黄鸡", "鸡块", "鸡丁", "鸡丝", "鸡条", "生鸡肉"],
-  "鸡脯肉": ["鸡脯", "鸡胸", "鸡胸肉", "鸡柳", "生鸡脯", "熟鸡脯"],
-  "鸡腿": ["大鸡腿", "小鸡腿", "琵琶腿", "鸡腿肉", "熟鸡腿"],
-  "鸡翅": ["鸡翅膀", "鸡中翅", "翅尖"],
-  "鸭肉": ["鸭", "鸭子", "仔鸭", "公鸭", "母鸭", "鸭脯", "鸭肉丝", "鸭肉片"],
-  "鸭掌": ["鸭脚"],
-  "鲜鱼": ["鱼肉", "鱼头", "鱼片", "鲜鱼中段", "鱼"], 
-  "鲫鱼": ["土鲫鱼", "活鲫鱼"],
-  "鲤鱼": ["江鲤", "活鲤鱼", "岩鲤"],
-  "草鱼": ["鲩鱼"],
-  "鲢鱼": ["白鲢", "花鲢"],
-  "虾": ["鲜虾", "基围虾", "对虾", "明虾"],
-  "虾仁": ["鲜虾仁", "冻虾仁"],
-  "鱿鱼": ["鲜鱿鱼", "水发鱿鱼", "干鱿鱼", "鱿鱼须", "鱿鱼圈"],
-  "海参": ["水发海参", "刺参", "开乌参"],
-  "田鸡": ["田鸡腿", "青蛙"],
-  "冬笋": ["鲜冬笋", "冬笋尖", "冬笋片"],
-  "春笋": ["鲜春笋"],
-  "玉兰片": ["兰片", "水发兰片", "水发玉兰片"], 
-  "青菜": ["小白菜", "上海青", "瓢儿白", "油菜", "青菜头", "菜心", "青菜心", "小白菜秧"],
-  "白菜": ["大白菜", "黄芽白", "绍菜", "莲花白", "莲白", "卷心菜", "包菜", "黄秧白"],
-  "菠菜": ["菠菜叶", "菠菜心"],
-  "芹菜": ["西芹", "旱芹", "药芹", "芹黄"],
-  "蒜苗": ["青蒜", "青蒜苗", "大蒜苗", "绿蒜苗"],
-  "蒜苔": ["蒜薹"],
-  "韭菜": ["韭黄", "韭菜头", "白头韭菜"],
-  "土豆": ["马铃薯", "洋芋", "土豆片", "土豆丝"],
-  "红苕": ["红薯", "地瓜", "甘薯", "红心红苕"],
-  "莴笋": ["青笋", "莴苣", "莴笋头", "莴笋尖", "凤尾"],
-  "番茄": ["西红柿", "洋柿子"],
-  "豆腐": ["老豆腐", "嫩豆腐", "北豆腐", "南豆腐", "盒装豆腐"],
-  "青椒": ["菜椒", "甜椒", "尖椒", "螺丝椒", "灯笼椒", "青辣椒", "二荆条"],
-  "洋葱": ["圆葱", "葱头"],
-  "胡萝卜": ["红萝卜"],
-  "香菜": ["芫荽"],
-  "鸡蛋": ["蛋", "鸡子"],
-  "牛奶": ["奶", "鲜奶"],
-  "蚕豆": ["胡豆", "鲜蚕豆", "扁豆", "蚕豆（扁豆）"],
-  "豌豆": ["青豆", "鲜豌豆", "豌豆尖", "豆尖", "鲜豌豆仁"],
-  "豆芽": ["黄豆芽", "绿豆芽", "豆芽菜", "银芽"],
-  "蘑菇": ["菌菇", "鲜蘑菇", "蘑菇片"],
-  "香菇": ["冬菇", "花菇", "干香菇", "水发香菇", "冬菇（香菇）"],
-  "口蘑": ["干口蘑", "水发口蘑"],
-  "木耳": ["黑木耳", "云耳", "水发木耳"],
-  "黄花菜": ["兰花", "干黄花菜", "兰花（干黄花菜）", "金针菜"],
-  "海带": ["干海带", "水发海带", "海带丝", "海带结"],
-  "紫菜": ["干紫菜", "免洗紫菜"],
-  "花生": ["花生米", "生花生", "熟花生", "去皮花生"],
-  "竹荪": ["水发竹荪", "干竹荪"],
-  "面粉": ["中筋面粉", "白面", "面粉（面点）"],
-  "花椒": ["红花椒", "青花椒", "花椒粒", "花椒面"],
-  "干辣椒": ["干海椒", "干红辣椒", "辣椒节", "辣椒面"],
-  "泡辣椒": ["泡海椒", "鱼辣椒", "泡椒", "泡红辣椒", "泡鱼辣椒"],
-  "豆瓣": ["豆瓣酱", "郫县豆瓣", "细豆瓣"],
-  "豆粉": ["淀粉", "生粉", "水豆粉", "湿淀粉", "干豆粉"],
-  "醪糟": ["醪糟汁", "醪糟浮子", "酒酿"],
-  "姜": ["老姜", "生姜", "姜片", "姜米", "姜丝"],
-  "子姜": ["嫩姜", "紫姜", "仔姜"],
-  "蒜": ["大蒜", "蒜瓣", "独蒜", "蒜头", "蒜米", "蒜片"],
-  "葱": ["大葱", "小葱", "香葱", "葱白", "葱花", "葱段", "葱节"]
-};
-
-function getCanonicalName(name) {
-  if(!name) return "";
-  let n = String(name).trim();
-  if (checkAlias(n)) return checkAlias(n);
-  const noParens = n.replace(/（.*?）|\(.*?\)/g, '').trim();
-  if (noParens !== n && checkAlias(noParens)) return checkAlias(noParens);
-  const prefixes = ["熟", "生", "鲜", "干", "水发", "净", "嫩"];
-  let cleanPrefix = n;
-  for (const p of prefixes) {
-    if (cleanPrefix.startsWith(p)) cleanPrefix = cleanPrefix.substring(p.length).trim();
-  }
-  if (checkAlias(cleanPrefix)) return checkAlias(cleanPrefix);
-  const suffixes = ["肉", "片", "丝", "末", "丁", "块", "条", "泥", "茸", "尖", "头", "仁", "皮", "腿"];
-  let cleanSuffix = cleanPrefix;
-  for (const s of suffixes) {
-     if (cleanSuffix.endsWith(s)) {
-       const tryName = cleanSuffix.slice(0, -s.length);
-       if (checkAlias(tryName)) return checkAlias(tryName);
-     }
-  }
-  return n;
+let migrationError = null;
+try {
+  runLocalStorageMigrations();
+} catch (error) {
+  migrationError = error;
+  console.error('Data Migration Error:', error);
 }
-function checkAlias(name) {
-  if (INGREDIENT_ALIASES[name]) return name;
-  for (const [canonical, aliases] of Object.entries(INGREDIENT_ALIASES)) {
-    if (aliases.includes(name)) return canonical;
-  }
-  return null;
-}
+
 function escapeOptionAttr(value) {
   return String(value || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 function escapeHtml(value) {
   return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-function buildIngredientOptions(catalog) {
-  const seen = new Set();
-  const byValue = new Map();
-  const options = [];
-  const add = (value, label = '') => {
-    const v = String(value || '').trim();
-    if(!v) return;
-    if(seen.has(v)){
-      const existing = byValue.get(v);
-      if(existing && label && !existing.label) existing.label = label;
-      return;
-    }
-    seen.add(v);
-    const option = { value: v, label };
-    options.push(option);
-    byValue.set(v, option);
-  };
-  (catalog || []).forEach(c => add(c.name));
-  for (const [canonical, aliases] of Object.entries(INGREDIENT_ALIASES)) {
-    add(canonical);
-    (aliases || []).forEach(alias => add(alias, canonical));
-  }
-  return options.sort((a, b) => a.value.localeCompare(b.value, 'zh-Hans-CN'));
-}
-
-const DRY_GOODS = [
-  { name: '木耳', unit: '包', prep: '提前泡发' },
-  { name: '黄花菜', unit: '包', prep: '提前泡发' },
-  { name: '海带', unit: '包', prep: '泡发/冲洗' },
-  { name: '紫菜', unit: '包', prep: '直接用' },
-  { name: '花生', unit: '袋', prep: '可炖煮' },
-  { name: '香菇', unit: '包', prep: '提前泡发' },
-  { name: '竹荪', unit: '包', prep: '提前泡发' }
-];
-const DRY_STATUS_FLOW = ['empty', 'ok', 'low', 'unknown'];
-const EGG_STOCK = { name: '鸡蛋', unit: '个', note: '按个数管理，用掉一个就减 1' };
-const DAILY_STOCKS = [
-  { name: '牛奶', unit: '瓶', note: '按瓶/盒和状态管理' }
-];
-function getDryGoodConfig(name) {
-  const canonical = getCanonicalName(name || '');
-  return DRY_GOODS.find(item => item.name === canonical) || null;
-}
-function isDryGoodName(name) {
-  return !!getDryGoodConfig(name);
-}
-function getDryPrepText(name) {
-  return getDryGoodConfig(name)?.prep || '按需处理';
-}
-function nextDryStatus(value) {
-  const index = DRY_STATUS_FLOW.indexOf(value || 'empty');
-  return DRY_STATUS_FLOW[(index + 1) % DRY_STATUS_FLOW.length];
-}
-function dryStatusInfo(value) {
-  if (value === 'low') return { label: '快没了', className: 'low' };
-  if (value === 'unknown') return { label: '需检查', className: 'unknown' };
-  if (value === 'empty') return { label: '没有', className: 'empty' };
-  return { label: '有', className: 'ok' };
-}
-function findStockItem(inv, name, kind = '') {
-  return (inv || []).find(entry => isIngredientMatch(name, entry.name) && (!kind || (entry.kind || 'raw') === kind));
-}
-function formatStockLine(item, unit = '份') {
-  if(!item || item.stockStatus === 'empty' || (+item.qty || 0) <= 0) return '库存：没有';
-  const amount = formatInventoryAmount({...item, unit: item.unit || unit});
-  const state = inventoryStateInfo(item.stockStatus).label;
-  return `库存：${amount} · ${state}`;
-}
-function countStockStatus(qty) {
-  const amount = Math.max(0, Math.round(+qty || 0));
-  if(amount <= 0) return 'empty';
-  if(amount <= 3) return 'low';
-  return 'ok';
 }
 function brieflyConfirmButton(button, text = '已加入') {
   if(!button) return;
@@ -214,31 +114,6 @@ function brieflyConfirmButton(button, text = '已加入') {
     button.textContent = originalText;
   }, 900);
 }
-function ensureStockItem(inv, config, kind = 'raw', status = 'empty') {
-  let item = findStockItem(inv, config.name, kind);
-  if(!item) {
-    item = { name: config.name, qty: status === 'empty' ? 0 : 1, unit: config.unit, buyDate: todayISO(), kind, shelf: kind === 'dry' ? 365 : guessShelfDays(config.name, config.unit), stockStatus: status };
-    if(kind === 'dry') item.dryPrep = config.prep || getDryPrepText(config.name);
-    inv.push(item);
-  }
-  return item;
-}
-
-// --- 佐料/常备品过滤 ---
-const SEASONINGS = new Set([
-  "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥", "大葱",
-  "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "米酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
-  "油", "猪油", "菜油", "香油", "芝麻油", "豆粉", "淀粉", "水豆粉", "豆瓣", "豆瓣酱", "甜面酱", "豆豉", "泡椒", "酸菜", "酸豆角", "清汤", "水",
-  "八角", "桂皮", "香叶", "五香粉", "孜然", "茴香", "鸡蛋" 
-]);
-function isSeasoning(name) {
-  if (!name) return true;
-  const n = String(name).trim();
-  if (SEASONINGS.has(n)) return true;
-  if (n.length <= 3 && (n.includes("盐") || n.includes("糖") || n.includes("醋") || n.includes("酱") || n.includes("油"))) return true;
-  return false;
-}
-
 // -------- Data Loading --------
 async function loadBasePack(){
   const url = new URL('./data/sichuan-recipes.json', location).href + '?v=23';
@@ -285,243 +160,7 @@ async function loadBasePack(){
   return pack;
 }
 
-function emptyOverlay(){ return {version:1, recipes:{}, recipe_ingredients:{}, deletes:{}}; }
-function loadOverlay(){ return S.load(S.keys.overlay, emptyOverlay()); }
-function saveOverlay(o){ S.save(S.keys.overlay, o); }
-function genId(){ return 'u-' + Math.random().toString(36).slice(2,8) + '-' + Date.now().toString(36).slice(-4); }
-function loadShoppingItems() {
-  return S.load(S.keys.shopping_items, []).filter(item => item && item.name).map(item => ({
-    id: item.id || genId(),
-    name: String(item.name || '').trim(),
-    qty: item.qty || '',
-    unit: item.unit || '',
-    source: item.source || '手动',
-    done: !!item.done
-  }));
-}
-function saveShoppingItems(items) {
-  S.save(S.keys.shopping_items, items.filter(item => item && item.name));
-}
-function addShoppingItem(name, qty = '', unit = '', source = '手动') {
-  const cleanName = getCanonicalName(name || '');
-  if(!cleanName) return;
-  const items = loadShoppingItems();
-  const existing = items.find(item => item.name === cleanName && item.unit === unit && item.source === source && !item.done);
-  if(existing) existing.qty = existing.qty || qty || 1;
-  else items.push({ id: genId(), name: cleanName, qty: qty || '', unit: unit || '', source, done: false });
-  saveShoppingItems(items);
-}
-function downloadJsonFile(payload, filename) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-function buildKitchenBackup() {
-  return {
-    type: 'kitchen-backup',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    data: {
-      inventory: S.load(S.keys.inventory, []),
-      plan: S.load(S.keys.plan, []),
-      overlay: loadOverlay(),
-      settings: S.load(S.keys.settings, {}),
-      favorite_recipes: S.load(S.keys.favorite_recipes, []),
-      recipe_usage: S.load(S.keys.recipe_usage, {}),
-      shopping_items: loadShoppingItems()
-    }
-  };
-}
-function restoreKitchenBackup(payload) {
-  if(payload && payload.type === 'kitchen-inventory' && Array.isArray(payload.inventory)) {
-    S.save(S.keys.inventory, payload.inventory);
-    return;
-  }
-  if(!payload || payload.type !== 'kitchen-backup' || !payload.data) throw new Error('不是有效的厨房备份文件');
-  const data = payload.data;
-  if(Array.isArray(data.inventory)) S.save(S.keys.inventory, data.inventory);
-  if(Array.isArray(data.plan)) S.save(S.keys.plan, data.plan);
-  if(data.overlay) saveOverlay(data.overlay);
-  if(data.settings) S.save(S.keys.settings, data.settings);
-  if(Array.isArray(data.favorite_recipes)) S.save(S.keys.favorite_recipes, data.favorite_recipes);
-  if(data.recipe_usage && typeof data.recipe_usage === 'object') S.save(S.keys.recipe_usage, data.recipe_usage);
-  if(Array.isArray(data.shopping_items)) saveShoppingItems(data.shopping_items);
-}
-
-function applyOverlay(base, overlay){
-  const recipes = [];
-  const ingMap = JSON.parse(JSON.stringify(base.recipe_ingredients || {}));
-  const baseMap = new Map((base.recipes||[]).map(r => [r.id, {...r}]));
-  const del = overlay.deletes || {};
-  for(const [id, flag] of Object.entries(del)){ if(flag){ baseMap.delete(id); delete ingMap[id]; } }
-  const ro = overlay.recipes || {};
-  for(const [id, ov] of Object.entries(ro)){
-    if(!baseMap.has(id)) {
-      baseMap.set(id, {id, name: ov.name||'未命名', tags: ov.tags||[], method: ov.method||''});
-    } else {
-      const old = baseMap.get(id);
-      const finalMethod = ov.method || old.staticMethod || old.method || '';
-      baseMap.set(id, {...old, ...ov, method: finalMethod});
-    }
-  }
-  const io = overlay.recipe_ingredients || {};
-  for(const [id, list] of Object.entries(io)){ ingMap[id] = list.slice(); }
-  for(const r of baseMap.values()) {
-    if(!r.method && r.staticMethod) r.method = r.staticMethod;
-    recipes.push(r);
-  }
-  for(const [id, ov] of Object.entries(ro)){
-    if(/^u-/.test(id) && !recipes.find(x=>x.id===id)){
-      recipes.push({id, name: ov.name||'自定义', tags: ov.tags||['自定义'], method: ov.method||''});
-      if(!ingMap[id]) ingMap[id] = (io[id] || []);
-    }
-  }
-  recipes.sort((a,b)=> a.name.localeCompare(b.name, 'zh-Hans-CN'));
-  return {recipes, recipe_ingredients:ingMap};
-}
-
 // 辅助函数
-const SEP_RE = /[，,、/;；|]+/;
-function explodeCombinedItems(list){
-  const out = [];
-  for(const it of (list||[])){
-    const name = String(it.item||'').trim();
-    if(!name) continue;
-    const hasQty = typeof it.qty === 'number' && isFinite(it.qty);
-    if(SEP_RE.test(name) && !hasQty){
-      for(const n of name.split(SEP_RE).map(s=>s.trim()).filter(Boolean)){ out.push({ item:n, qty:null, unit:null }); }
-    }else{ out.push(it); }
-  }
-  return out;
-}
-function guessShelfDays(name, unit){ if(isDryGoodName(name)) return 365; const veg=['菜','叶','苔','苗','芹','香菜','葱','椒','瓜','番茄','西红柿','豆角','笋','蘑','菇','花菜','西兰花','菜花','茄子','豆腐','生菜','莴','空心菜','韭','蒜苗','青椒','黄瓜']; if(veg.some(w=>name.includes(w)))return 5; if(unit==='ml')return 30; if(unit==='pcs')return 14; return 7; }
-function guessKitchenUnit(name) {
-  const n = getCanonicalName(name || '');
-  const includesAny = words => words.some(w => n.includes(w));
-  if (includesAny(['鸡蛋', '鸭蛋', '番茄', '西红柿', '土豆', '洋葱', '青椒', '茄子', '苹果', '梨'])) return '个';
-  if (includesAny(['豆腐', '酸奶', '盒装', '奶油', '蘑菇', '菌菇'])) return '盒';
-  if (includesAny(['米', '大米', '面粉', '挂面', '面条', '粉丝', '速冻', '饺子', '馄饨'])) return '袋';
-  if (includesAny(['酱油', '生抽', '老抽', '醋', '料酒', '油', '牛奶', '饮料'])) return '瓶';
-  if (isDryGoodName(n)) return getDryGoodConfig(n)?.unit || '包';
-  if (includesAny(['葱', '香菜', '芹菜', '韭菜', '蒜苗', '菠菜', '青菜'])) return '把';
-  if (includesAny(['猪肉', '牛肉', '羊肉', '鸡肉', '鸭肉', '排骨', '鱼', '虾', '肉'])) return '份';
-  return '份';
-}
-function normalizeKitchenAmount(name, qty, unit) {
-  const n = getCanonicalName(name || '');
-  let q = Number(qty) || 1;
-  let u = String(unit || '').trim();
-  if (['pcs', 'piece', 'pieces'].includes(u)) u = '个';
-  if (['kg', '千克', '公斤'].includes(u)) { q *= 1000; u = 'g'; }
-  if (['l', 'L', '升'].includes(u)) { q *= 1000; u = 'ml'; }
-  if (!u) u = guessKitchenUnit(n);
-  return { name: n, qty: Math.round(q * 100) / 100, unit: u };
-}
-
-function buildCatalog(pack){
-  const units = {}, set = new Set();
-  for(const list of Object.values(pack.recipe_ingredients||{})){
-    for(const it of explodeCombinedItems(list)){ 
-      const n=(it.item||'').trim(); 
-      if(!n) continue; 
-      units[n]=units[n]||it.unit||'g';
-      set.add(n);
-    }
-  }
-  return Array.from(set).sort().map(n=>({name:n, unit:units[n]||'g', shelf:guessShelfDays(n, units[n]||'g')}));
-}
-
-const RECIPE_GENERIC_MATCHES = {
-  "猪肉": ["五花肉", "瘦肉"],
-  "鸡肉": ["鸡腿", "鸡翅", "鸡脯肉"],
-  "鲜鱼": ["鲫鱼", "鲤鱼", "草鱼", "鲢鱼"],
-  "虾": ["虾仁"],
-  "蘑菇": ["香菇", "口蘑"]
-};
-function getIngredientMatchNames(name) {
-  const canonical = getCanonicalName(name || '');
-  const names = new Set([canonical]);
-  const aliases = INGREDIENT_ALIASES[canonical] || [];
-  aliases.forEach(alias => names.add(getCanonicalName(alias)));
-  (RECIPE_GENERIC_MATCHES[canonical] || []).forEach(item => names.add(getCanonicalName(item)));
-  return Array.from(names).filter(Boolean);
-}
-function isIngredientMatch(recipeName, stockName) {
-  const recipeCanonical = getCanonicalName(recipeName || '');
-  const stockCanonical = getCanonicalName(stockName || '');
-  if (!recipeCanonical || !stockCanonical) return false;
-  if (recipeCanonical === stockCanonical) return true;
-  const recipeNames = getIngredientMatchNames(recipeCanonical);
-  const stockNames = getIngredientMatchNames(stockCanonical);
-  if (recipeNames.some(name => stockNames.includes(name))) return true;
-  const recipeSpecifics = (RECIPE_GENERIC_MATCHES[recipeCanonical] || []).map(item => getCanonicalName(item));
-  const stockSpecifics = (RECIPE_GENERIC_MATCHES[stockCanonical] || []).map(item => getCanonicalName(item));
-  if (recipeSpecifics.includes(stockCanonical) || stockSpecifics.includes(recipeCanonical)) return true;
-  if (recipeCanonical.length >= 2 && stockCanonical.length >= 2) {
-    return recipeCanonical.includes(stockCanonical) || stockCanonical.includes(recipeCanonical);
-  }
-  return false;
-}
-function isInventoryAvailable(item) {
-  return item && item.stockStatus !== 'empty' && (+item.qty || 0) > 0;
-}
-function findInventoryMatch(inv, recipeName) {
-  return (inv || []).find(item => isInventoryAvailable(item) && isIngredientMatch(recipeName, item.name));
-}
-function getMatchingInventoryItems(inv, recipeName) {
-  return (inv || []).filter(item => isInventoryAvailable(item) && isIngredientMatch(recipeName, item.name));
-}
-function getStockCoverageForNeed(inv, recipeName, qty, unit) {
-  const matchedItems = getMatchingInventoryItems(inv, recipeName);
-  if (!matchedItems.length) return 0;
-  const sameUnitStock = matchedItems
-    .filter(item => (item.unit || '') === (unit || ''))
-    .reduce((sum, item) => sum + (+item.qty || 0), 0);
-  if (sameUnitStock > 0) return sameUnitStock;
-  if (matchedItems.some(item => (item.stockStatus || 'ok') === 'ok' && (+item.qty || 0) > 0)) return +qty || 1;
-  if (matchedItems.some(item => (+item.qty || 0) > 0)) return +qty || 1;
-  return 0;
-}
-
-const INVENTORY_STATES = [
-  { value: 'ok', label: '够用', className: 'ok' },
-  { value: 'low', label: '快没了', className: 'low' },
-  { value: 'empty', label: '没有', className: 'empty' },
-  { value: 'unknown', label: '不确定', className: 'unknown' }
-];
-function inventoryStateInfo(value) {
-  return INVENTORY_STATES.find(s => s.value === value) || INVENTORY_STATES[0];
-}
-function nextInventoryState(value) {
-  const index = INVENTORY_STATES.findIndex(s => s.value === value);
-  return INVENTORY_STATES[(index + 1) % INVENTORY_STATES.length].value;
-}
-function loadInventory(catalog){
-  const inv=S.load(S.keys.inventory,[]);
-  for(const i of inv){
-    if(!i.unit){i.unit=(catalog.find(c=>c.name===i.name)?.unit)||'g'}
-    if(!i.shelf){i.shelf=(catalog.find(c=>c.name===i.name)?.shelf)||7}
-    if(!i.stockStatus){i.stockStatus='ok'}
-    if(isDryGoodName(i.name)){
-      i.kind = 'dry';
-      i.unit = i.unit || getDryGoodConfig(i.name)?.unit || '包';
-      i.shelf = i.shelf && i.shelf > 180 ? i.shelf : 365;
-      i.dryPrep = i.dryPrep || getDryPrepText(i.name);
-      i.isFrozen = false;
-    }
-  }
-  return inv;
-}
-function saveInventory(inv){ S.save(S.keys.inventory, inv); }
-function daysBetween(a,b){ return Math.floor((new Date(b)-new Date(a))/86400000); }
-function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); return (+e.shelf||7)-age; }
-
 // 更新 badgeFor 函数，支持冷冻状态显示
 function badgeFor(e){ 
   if((e.kind || 'raw') === 'dry') return `<span class="kchip dry" title="${escapeOptionAttr(getDryPrepText(e.name))}">干货 · ${escapeHtml(getDryPrepText(e.name))}</span>`;
@@ -534,319 +173,10 @@ function badgeFor(e){
   return html;
 }
 
-function upsertInventory(inv, e){ const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw')); if(i>=0) inv[i]={...inv[i],...e}; else inv.push(e); saveInventory(inv); }
-function addInventoryQty(inv, name, qty, unit, kind='raw'){
-  const canonical = getCanonicalName(name);
-  const itemKind = kind === 'dry' || isDryGoodName(canonical) ? 'dry' : kind;
-  const itemUnit = unit || (itemKind === 'dry' ? getDryGoodConfig(canonical)?.unit : '') || 'g';
-  const e=inv.find(x=>x.name===canonical && (x.kind||'raw')===itemKind);
-  if(e){
-    e.qty=(+e.qty||0)+qty;
-    e.unit=itemUnit||e.unit;
-    e.buyDate=e.buyDate||todayISO();
-    e.stockStatus='ok';
-    if(itemKind === 'dry') { e.shelf = 365; e.dryPrep = getDryPrepText(canonical); e.isFrozen = false; }
-  } else {
-    inv.push({name: canonical, qty, unit:itemUnit, buyDate:todayISO(), kind:itemKind, shelf:guessShelfDays(canonical, itemUnit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(canonical), isFrozen:false} : {})});
-  }
-  saveInventory(inv);
-}
-
-// --- AI 逻辑 ---
-function getAiConfig() {
-  const localSettings = S.load(S.keys.settings, {});
-  let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
-  let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
-  let model = localSettings.model || CUSTOM_AI.MODEL;
-  const visionModel = CUSTOM_AI.VISION_MODEL;
-
-  // 自动修复 URL (确保 Groq URL 正确)
-  if (apiUrl && apiUrl.includes("api.groq.com") && !apiUrl.includes("/chat/completions")) {
-      apiUrl = apiUrl.replace(/\/$/, ''); 
-      if (apiUrl.endsWith("/v1")) apiUrl += "/chat/completions";
-      else apiUrl = "https://api.groq.com/openai/v1/chat/completions";
-  }
-  
-  if (!apiKey) return null;
-  return { apiKey, apiUrl, textModel: model, visionModel };
-}
-
-// ★★★ 强力 JSON 提取与清洗 ★★★
-function extractJson(text) {
-  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '')
-                    .replace(/<think>[\s\S]*/gi, '')
-                    .replace(/```json/gi, '')
-                    .replace(/```/g, '')
-                    .trim();
-
-  const firstOpenBrace = cleaned.indexOf('{');
-  const lastCloseBrace = cleaned.lastIndexOf('}');
-  const firstOpenBracket = cleaned.indexOf('[');
-  const lastCloseBracket = cleaned.lastIndexOf(']');
-  
-  if (firstOpenBracket !== -1 && lastCloseBracket !== -1 && (firstOpenBrace === -1 || firstOpenBracket < firstOpenBrace)) {
-    return cleaned.substring(firstOpenBracket, lastCloseBracket + 1);
-  }
-  if (firstOpenBrace !== -1 && lastCloseBrace !== -1 && lastCloseBrace > firstOpenBrace) {
-    return cleaned.substring(firstOpenBrace, lastCloseBrace + 1);
-  }
-  throw new Error("AI 未返回有效的 JSON 数据");
-}
-
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (e) => {
-      const img = new Image();
-      img.src = e.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        let w = img.width, h = img.height;
-        const MAX = 1024; 
-        if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX; } } 
-        else { if (h > MAX) { w *= MAX / h; h = MAX; } }
-        canvas.width = w; canvas.height = h;
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
-      };
-    };
-    reader.onerror = reject;
-  });
-}
-
-async function callAiService(prompt, imageBase64 = null) {
-  const conf = getAiConfig();
-  if (!conf) throw new Error("未配置 API Key，转为本地模式");
-
-  let messages = [];
-  let activeModel = conf.textModel; 
-  
-  if (imageBase64) {
-    activeModel = conf.visionModel; 
-    messages = [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: imageBase64 } }] }];
-  } else {
-    messages = [{ role: "user", content: prompt }];
-  }
-  
-  try {
-    const res = await fetch(conf.apiUrl, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
-      body: JSON.stringify({ model: activeModel, messages: messages, temperature: 0.2 }) 
-    });
-    
-    if(!res.ok) {
-        const errData = await res.json().catch(()=>({}));
-        throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
-    }
-    const data = await res.json();
-    return extractJson(data.choices?.[0]?.message?.content || ""); 
-  } catch(e) { throw e; }
-}
-
-function withTimeout(promise, ms, message) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms))
-  ]);
-}
-
-function formatAiErrorMessage(error) {
-  const msg = String(error?.message || error || '');
-  if (msg.includes('未配置')) return 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
-  if (msg.includes('401')) return 'AI 暂不可用：API Key 可能已过期。本地功能仍可正常使用。';
-  if (msg.includes('429')) return 'AI 暂不可用：请求太频繁或额度不足。本地功能仍可正常使用。';
-  if (msg.includes('404')) return 'AI 暂不可用：模型名称可能不正确。本地功能仍可正常使用。';
-  if (msg.includes('超时')) return 'AI 暂不可用：响应超时。本地功能仍可正常使用。';
-  return `AI 暂不可用：${msg || '未知错误'}。本地功能仍可正常使用。`;
-}
-
-async function recognizeReceipt(file) {
-  const base64 = await compressImage(file);
-  const prompt = `你是一个中文食材管理助手。请分析图片收据。1. 提取【食品/食材】。2. **重要：请自动忽略所有佐料（如葱、姜、蒜、盐、糖、酱油、醋、味精、花椒、辣椒等），只保留核心肉类、蔬菜、蛋奶等。**3. 提取【名称】、【数量】(默认1)、【单位】。4. 尽可能将英文名或别名转换为通用中文名。返回 JSON 数组: [{"name": "五花肉", "qty": 0.5, "unit": "kg"}]`;
-  const jsonStr = await callAiService(prompt, base64);
-  return JSON.parse(jsonStr);
-}
-
-// [修改] 强制要求返回 JSON 格式
-async function callAiForMethod(recipeName, ingredients) {
-  const ingStr = ingredients.map(i => i.item).join('、');
-  const prompt = `你是一位精通川菜和中式家常菜的资深大厨。请为菜品【${recipeName}】编写一份做法。已知用料：${ingStr}。
-  
-**严格要求**：
-1. 拒绝黑暗料理，不合理则修正。
-2. 正宗或家常做法，步骤清晰。
-3. 请务必返回如下 **JSON 格式**（不要 markdown）：
-{ "method": "1. 第一步...\\n2. 第二步..." }`;
-
-  const jsonStr = await callAiService(prompt);
-  try {
-      // 尝试解析 JSON 并返回 method 字段
-      const res = JSON.parse(jsonStr);
-      return res.method || jsonStr;
-  } catch(e) {
-      // 如果解析失败，说明 AI 可能还是返回了纯文本，直接返回原文
-      return jsonStr; 
-  }
-}
-
-async function callAiSearchRecipe(query, invNames) {
-  const prompt = `我冰箱里有：【${invNames}】。我想找菜谱：【${query}】。请提供一道符合搜索的菜谱。要求：1. "ingredients" 字段中，**请剔除所有姜、葱、蒜、花椒、辣椒、油、盐、酱、醋等佐料**，只列出肉、菜等核心食材。2. "method" 字段包含详细做法。返回 JSON：{ "name": "标准菜名", "ingredients": "核心食材1,核心食材2", "method": "1. 步骤... 2. 步骤..." }`;
-  const jsonStr = await callAiService(prompt);
-  return JSON.parse(jsonStr);
-}
-
-async function callCloudAI(pack, inv) {
-  const invNames = inv.map(x => x.name).join('、');
-  const recipeNames = (pack.recipes||[]).map(r=>r.name).join(',');
-  
-  // v131: 优化 Prompt - 强制 creative.ingredients 为数组
-  const prompt = `你是一位严谨的、拥有30年经验的中式家庭大厨。请根据冰箱库存：【${invNames}】规划今日菜单。
-
-请严格按照以下 JSON 格式返回：
-{
-  "local": [ 
-    {"name": "从菜谱库【${recipeNames}】中挑选3道最匹配库存的菜名", "reason": "基于库存匹配度的推荐理由"} 
-  ],
-  "creative": { 
-    "name": "推荐一道不在菜谱库中，但非常经典、大众熟知的家常菜", 
-    "reason": "简短介绍这道菜的口味特点", 
-    "ingredients": ["核心食材1", "核心食材2"] 
-  }
-}
-
-**严格约束（必读）**：
-1. **拒绝离谱替代**：绝不允许用葱姜蒜、九层塔、香菜等佐料去替代叶菜、肉类等主材。
-2. **拒绝黑暗料理**：禁止奇怪的食材混搭。推荐必须是大众耳熟能详的传统家常菜（如：番茄炒蛋、青椒肉丝）。
-3. **ingredients 必须是数组**：只列出肉、菜、蛋、豆制品等核心主材，**严禁**包含葱姜蒜、盐糖油酱醋等佐料。`;
-  
-  try {
-    const jsonStr = await callAiService(prompt);
-    return JSON.parse(jsonStr);
-  } catch (e) {
-    throw e;
-  }
-}
-
-// --- 核心推荐逻辑 (已升级：完成度+临期优先) ---
-function calculateStockStatus(recipe, pack, inv) {
-  const rawIngs = pack.recipe_ingredients[recipe.id] || [];
-  let ingredients = explodeCombinedItems(rawIngs);
-  ingredients = ingredients.filter(ing => !isSeasoning(ing.item));
-  if (ingredients.length === 0) return { status: 'unknown', missing: [] };
-
-  const missing = [];
-  let matchCount = 0;
-
-  ingredients.forEach(ing => {
-    if (findInventoryMatch(inv, ing.item)) { matchCount++; }
-    else { missing.push({ name: ing.item }); }
-  });
-
-  if (missing.length === 0) return { status: 'ok', missing: [] };
-  if (matchCount > 0) return { status: 'partial', missing };
-  return { status: 'none', missing };
-}
-
-function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
-  const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
-  return (sourceItems || [])
-    .map(item => ({...item, item: getCanonicalName(item.item || item.name || '')}))
-    .filter(item => item.item && !isSeasoning(item.item));
-}
-
-function getMissingRecipeIngredients(recipe, pack, inv, fallbackItems = null) {
-  return getRecipeCoreIngredients(recipe, pack, fallbackItems)
-    .filter(item => !findInventoryMatch(inv, item.item));
-}
-
-function addMissingRecipeIngredientsToShopping(recipe, pack, inv, fallbackItems = null) {
-  const missing = getMissingRecipeIngredients(recipe, pack, inv, fallbackItems);
-  missing.forEach(item => {
-    addShoppingItem(item.item, item.qty || '', item.unit || guessKitchenUnit(item.item), recipe.name || '菜谱');
-  });
-  return missing.length;
-}
-
-function hasRecipeMethod(recipe) {
-  return !!String(recipe && recipe.method || '').trim();
-}
-
 function recipeMethodBadge(recipe) {
   return hasRecipeMethod(recipe)
     ? '<span class="kchip method-ok">有做法</span>'
     : '<span class="kchip method-missing">缺做法</span>';
-}
-
-function getLocalRecommendations(pack, inv, forceRefresh = false) {
-  const now = Date.now();
-  const lastRecTime = parseInt(S.load(S.keys.rec_time, 0));
-  const savedRecs = S.load(S.keys.local_recs, null);
-
-  if (!forceRefresh && savedRecs && (now - lastRecTime < 3600000)) {
-    return savedRecs.map(s => {
-       const r = (pack.recipes||[]).find(x => x.id === s.id);
-       return r ? { r, matchCount: s.matchCount, reason: s.reason } : null;
-    }).filter(item => item && hasRecipeMethod(item.r));
-  }
-  
-  const methodReadyRecipes = (pack.recipes || []).filter(hasRecipeMethod);
-  const recommendationRecipes = methodReadyRecipes.length ? methodReadyRecipes : (pack.recipes || []);
-
-  let scores = recommendationRecipes.map(r => {
-    const rawIngs = explodeCombinedItems(pack.recipe_ingredients[r.id] || []);
-    // 过滤掉佐料，只保留核心食材
-    const coreIngs = rawIngs.filter(ing => !isSeasoning(ing.item));
-    
-    // 如果没有核心食材（比如白饭），则不参与智能推荐
-    if (coreIngs.length === 0) return { r, score: 0, matchCount: 0, reason: "基础菜品" };
-
-    let matchCount = 0;
-    let expiringBonus = 0;
-    
-    coreIngs.forEach(ing => {
-      const invItem = findInventoryMatch(inv, ing.item);
-
-      if (invItem) {
-        matchCount++;
-        // 临期加分：如果食材剩余保质期 <= 2天，大幅加分
-        if (remainingDays(invItem) <= 2) expiringBonus += 1; 
-      }
-    });
-
-    // 核心算法：完成度占比权重最大 + 临期奖励 + 绝对数量微调
-    const completionRatio = matchCount / coreIngs.length;
-    const score = (completionRatio * 50) + (expiringBonus * 15) + (matchCount * 10);
-
-    let reason = "";
-    if (matchCount > 0) {
-        const pct = Math.round(completionRatio * 100);
-        reason = `匹配 ${matchCount}/${coreIngs.length} 项食材 (${pct}%)`;
-        if (expiringBonus > 0) reason = `⚠️ 优先消耗临期食材 | ${reason}`;
-    }
-
-    return { r, score, matchCount, reason };
-  });
-  
-  // 过滤掉完全不匹配的（除非库存实在没得选）
-  const hasMatches = scores.some(s => s.matchCount > 0);
-  if (hasMatches) {
-      scores = scores.filter(s => s.matchCount > 0);
-  }
-  
-  scores.sort((a,b) => b.score - a.score).slice(0, 6);
-  let top = scores.slice(0, 6);
-
-  if (top.length === 0) {
-    const all = methodReadyRecipes.length ? methodReadyRecipes : (pack.recipes||[]);
-    top = [...all].sort(() => 0.5 - Math.random()).slice(0, 6).map(r => ({ r, matchCount: 0, reason: '随机探索' }));
-  }
-
-  const toSave = top.map(s => ({ id: s.r.id, matchCount: s.matchCount, reason: s.reason }));
-  S.save(S.keys.local_recs, toSave);
-  S.save(S.keys.rec_time, now);
-  return top.map(s => ({ r: s.r, matchCount: s.matchCount, reason: s.reason }));
 }
 
 function searchResultCard(r, statusData) {
@@ -878,107 +208,6 @@ function showRecommendationCards(container, list, pack) {
     container.appendChild(recipeCard(item.r, item.list || map[item.r.id], {reason: item.reason, isAi: isAi})); 
   }); 
 } 
-function loadFavoriteRecipeIds() {
-  return S.load(S.keys.favorite_recipes, []);
-}
-function saveFavoriteRecipeIds(ids) {
-  S.save(S.keys.favorite_recipes, Array.from(new Set(ids)));
-}
-function isFavoriteRecipe(id) {
-  return loadFavoriteRecipeIds().includes(id);
-}
-function toggleFavoriteRecipe(id) {
-  const ids = loadFavoriteRecipeIds();
-  const index = ids.indexOf(id);
-  if(index >= 0) ids.splice(index, 1);
-  else ids.push(id);
-  saveFavoriteRecipeIds(ids);
-}
-function loadRecipeUsage() {
-  return S.load(S.keys.recipe_usage, {});
-}
-function markRecipePlanned(id) {
-  if(!id || String(id).startsWith('creative-')) return;
-  const usage = loadRecipeUsage();
-  usage[id] = todayISO();
-  S.save(S.keys.recipe_usage, usage);
-}
-function addRecipeToPlan(id) {
-  const plan = S.load(S.keys.plan, []);
-  if(plan.find(x => x.id === id)) return false;
-  plan.push({ id, servings: 1 });
-  S.save(S.keys.plan, plan);
-  markRecipePlanned(id);
-  return true;
-}
-function markRecipeCooked(id) {
-  markRecipePlanned(id);
-  const plan = S.load(S.keys.plan, []);
-  const nextPlan = plan.filter(item => item.id !== id);
-  if(nextPlan.length !== plan.length) S.save(S.keys.plan, nextPlan);
-  return { removedFromPlan: nextPlan.length !== plan.length };
-}
-function recipeUsageText(lastDate) {
-  if(!lastDate) return '还没安排过';
-  const days = Math.max(0, daysBetween(lastDate, todayISO()));
-  if(days === 0) return '今天已安排';
-  if(days === 1) return '昨天安排过';
-  return `${days} 天没安排`;
-}
-function getFavoriteRecipeCards(pack) {
-  const ids = loadFavoriteRecipeIds();
-  return ids.map(id => {
-    const r = (pack.recipes || []).find(x => x.id === id);
-    return r ? { r, list: (pack.recipe_ingredients || {})[id], reason: '常做菜' } : null;
-  }).filter(Boolean);
-}
-function getForgottenFavoriteCards(pack) {
-  const usage = loadRecipeUsage();
-  return getFavoriteRecipeCards(pack)
-    .map(item => ({ ...item, lastDate: usage[item.r.id] || '' }))
-    .sort((a, b) => {
-      if(!a.lastDate && b.lastDate) return -1;
-      if(a.lastDate && !b.lastDate) return 1;
-      return String(a.lastDate || '').localeCompare(String(b.lastDate || ''));
-    })
-    .slice(0, 3)
-    .map(item => ({ ...item, reason: recipeUsageText(item.lastDate) }));
-}
-
-function processAiData(aiResult, pack) {
-  const cards = [];
-  
-  // 处理 Local 推荐 (v131: 增加模糊匹配逻辑)
-  if(aiResult.local && Array.isArray(aiResult.local)){ 
-    aiResult.local.forEach(l => { 
-       let found = (pack.recipes||[]).find(r => r.name === l.name); 
-       // 尝试模糊匹配 (如果 AI 返回 "回锅肉" 但只有 "四川回锅肉")
-       if (!found) {
-           found = (pack.recipes||[]).find(r => r.name.includes(l.name) || l.name.includes(r.name));
-       }
-       if(found) cards.push({ r: found, reason: l.reason, isAi: true }); 
-    }); 
-  }
-  
-  // 处理 Creative 推荐 (v131: 兼容数组或字符串)
-  if(aiResult.creative){ 
-    let ingList = [];
-    if(Array.isArray(aiResult.creative.ingredients)) {
-        ingList = aiResult.creative.ingredients.map(s => ({item: s}));
-    } else if (typeof aiResult.creative.ingredients === 'string') {
-        ingList = [{item: aiResult.creative.ingredients}];
-    }
-
-    cards.push({ 
-       r: { id: 'creative-ai-temp', name: aiResult.creative.name, tags: ['AI创意菜'] }, 
-       list: ingList, 
-       reason: aiResult.creative.reason, 
-       isAi: true 
-    }); 
-  }
-  return cards;
-}
-
 function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
   // [修改] 移除内联样式，使用 CSS 类
@@ -2614,7 +1843,7 @@ function renderSettings(){
     </div>
     <div class="section-title home-section-title"><span>厨房备份</span></div>
     <div class="card backup-card">
-      <p class="meta">导出会包含库存、今日计划、购物项、常做菜、安排记录、菜谱补丁和 AI 设置。</p>
+      <p class="meta">导出会包含库存、今日计划、购物项、常做菜、安排记录、菜谱补丁和 AI 设置。当前数据结构版本：v${DATA_SCHEMA_VERSION}。</p>
       <div class="backup-actions">
         <button type="button" class="btn ok" id="exportKitchenBackup">导出整个厨房</button>
         <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入整个厨房</label>
@@ -2792,6 +2021,16 @@ Hash 路由说明：
 */
 async function onRoute(){ 
   try {
+    if (migrationError) {
+      app.innerHTML = `
+        <div class="card" style="max-width:720px;margin:40px auto;">
+          <h2>数据升级没有完成</h2>
+          <p class="meta">原来的厨房数据没有被清空。请先不要继续录入，建议导出浏览器数据备份后再刷新重试。</p>
+          <p style="color:var(--danger)">${escapeHtml(migrationError.message || migrationError)}</p>
+          <button type="button" class="btn ok" onclick="location.reload()">刷新重试</button>
+        </div>`;
+      return;
+    }
     const base = await loadBasePack(); 
     const overlay = loadOverlay(); 
     const pack = applyOverlay(base, overlay); 
