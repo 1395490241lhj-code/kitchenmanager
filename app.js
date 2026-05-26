@@ -26,6 +26,7 @@ import {
   ensureStockItem,
   findInventoryMatch,
   findStockItem,
+  formatStockLine,
   getStockCoverageForNeed,
   inventoryStateInfo,
   isInventoryAvailable,
