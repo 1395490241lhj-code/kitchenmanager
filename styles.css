@@ -1185,6 +1185,26 @@ input:focus, select:focus, textarea:focus {
   font-size: 13px;
   font-weight: 700;
 }
+.inline-status {
+  display: block;
+  margin: 10px 0 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--separator);
+  background: rgba(255,255,255,0.56);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+.inline-status.ok {
+  color: #1f7a3a;
+  background: #e9f8ee;
+  border-color: rgba(52,199,89,0.18);
+}
+.inline-status.bad {
+  color: var(--danger);
+  background: rgba(255,59,48,0.08);
+  border-color: rgba(255,59,48,0.18);
+}
 .ai-empty-note,
 .ai-draft-card {
   border: 1px dashed #b7c7c4;

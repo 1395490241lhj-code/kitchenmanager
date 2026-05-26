@@ -206,17 +206,21 @@ export function processAiData(aiResult, pack) {
   }
 
   if (aiResult.creative) {
-    let ingList = [];
-    if (Array.isArray(aiResult.creative.ingredients)) {
-      ingList = aiResult.creative.ingredients.map(s => ({ item: s }));
-    } else if (typeof aiResult.creative.ingredients === 'string') {
-      ingList = [{ item: aiResult.creative.ingredients }];
-    }
+    const rawIngredients = typeof aiResult.creative.ingredients === 'string'
+      ? aiResult.creative.ingredients.split(/[，,、/;；|]+/).map(item => item.trim()).filter(Boolean)
+      : aiResult.creative.ingredients;
+    const ingList = Array.isArray(rawIngredients)
+      ? rawIngredients.map(item => ({
+        item: String(item?.item || item?.name || item || '').trim(),
+        qty: item?.qty || '',
+        unit: item?.unit || ''
+      })).filter(item => item.item)
+      : [];
 
     cards.push({
-      r: { id: 'creative-ai-temp', name: aiResult.creative.name, tags: ['AI创意菜'] },
+      r: { id: 'creative-ai-temp', name: aiResult.creative.name, tags: ['AI草稿'], isAiDraft: true },
       list: ingList,
-      reason: aiResult.creative.reason,
+      reason: aiResult.creative.reason || 'AI 草稿，确认后再使用',
       isAi: true
     });
   }

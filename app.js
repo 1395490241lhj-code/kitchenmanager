@@ -56,7 +56,7 @@ import {
   formatAiErrorMessage,
   recognizeReceipt,
   withTimeout
-} from './src/ai.js?v=1';
+} from './src/ai.js?v=2';
 import {
   addMissingRecipeIngredientsToShopping,
   addRecipeToPlan,
@@ -69,7 +69,7 @@ import {
   markRecipeCooked,
   processAiData,
   toggleFavoriteRecipe
-} from './src/recommendations.js?v=1';
+} from './src/recommendations.js?v=2';
 import {
   DATA_SCHEMA_VERSION,
   runLocalStorageMigrations
@@ -113,6 +113,12 @@ function brieflyConfirmButton(button, text = '已加入') {
     button.classList.remove('is-confirmed');
     button.textContent = originalText;
   }, 900);
+}
+function setInlineStatus(node, message, type = 'info') {
+  if (!node) return;
+  node.hidden = false;
+  node.textContent = message;
+  node.className = `small inline-status ${type}`;
 }
 // -------- Data Loading --------
 async function loadBasePack(){
@@ -263,7 +269,7 @@ function renderRecipeDetail(id, pack) {
   if (!r && id === 'creative-ai-temp') {
       const aiData = S.load(S.keys.ai_recs, null);
       if (aiData && aiData.creative) { 
-        r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI创意菜'], method: '', isCreative: true }; 
+        r = { id: 'creative-ai-temp', name: aiData.creative.name, tags: ['AI草稿'], method: '', isCreative: true, isAiDraft: true };
       }
   }
   if(!r) {
@@ -279,7 +285,9 @@ function renderRecipeDetail(id, pack) {
   let items = [];
   if (r.isCreative) { 
     const aiData = S.load(S.keys.ai_recs, null); 
-    items = [{item: aiData.creative.ingredients || '请参考AI描述'}]; 
+    items = Array.isArray(aiData?.creative?.ingredients)
+      ? aiData.creative.ingredients.map(item => ({ item: item.item || item.name || String(item), qty: item.qty || '', unit: item.unit || '' })).filter(item => item.item)
+      : [{item: '请参考 AI 草稿'}];
   } else { 
     const ingList = pack.recipe_ingredients[id] || []; 
     items = explodeCombinedItems(ingList); 
@@ -379,7 +387,8 @@ function renderRecipeDetail(id, pack) {
           } catch(e) {
             console.warn(`Attempt ${attempt} failed:`, e);
             if (attempt > maxRetries) {
-                alert(formatAiErrorMessage(e));
+                methodArea.innerHTML = `${missingMethodContent}<div class="ai-empty-note">${escapeHtml(formatAiErrorMessage(e))} 你仍然可以点“编辑 / 录入”手动补做法。</div>`;
+                bindGenerateMethodButton();
                 genBtn.innerHTML = resetLabel;
                 genBtn.removeAttribute('disabled');
             } else {
@@ -399,6 +408,40 @@ function renderRecipeDetail(id, pack) {
   return div;
 }
 
+function renderAiRecipeDraftCard(draft) {
+  const card = document.createElement('div');
+  card.className = 'card ai-draft-card';
+  card.innerHTML = `
+    <div class="ai-draft-title">AI 菜谱草稿</div>
+    <h3>${escapeHtml(draft.name)}</h3>
+    <p class="meta">这还不是正式菜谱。请确认后保存，或保存后继续编辑。</p>
+    <div class="ing-compact-container">${draft.ingredients.map(item => `<span class="ing-tag-pill">${escapeHtml(item.item)}</span>`).join('')}</div>
+    <div class="method-text">${escapeHtml(draft.method)}</div>
+    <div class="controls ai-draft-actions">
+      <button type="button" class="btn ok" id="saveAiRecipeDraft">保存草稿</button>
+      <button type="button" class="btn" id="editAiRecipeDraft">保存并编辑</button>
+      <button type="button" class="btn bad" id="cancelAiRecipeDraft">取消</button>
+    </div>
+  `;
+
+  const saveDraft = (goEdit = false) => {
+    const tempId = 'ai-search-' + Date.now();
+    const overlay = loadOverlay();
+    overlay.recipes = overlay.recipes || {};
+    overlay.recipe_ingredients = overlay.recipe_ingredients || {};
+    overlay.recipes[tempId] = { name: draft.name, tags: ['AI草稿', 'AI搜索'], method: draft.method, isAiDraft: true };
+    overlay.recipe_ingredients[tempId] = draft.ingredients.map(item => ({ item: item.item, qty: item.qty || null, unit: item.unit || null }));
+    saveOverlay(overlay);
+    location.hash = goEdit ? `#recipe-edit:${tempId}` : `#recipe:${tempId}`;
+    location.reload();
+  };
+
+  card.querySelector('#saveAiRecipeDraft').onclick = () => saveDraft(false);
+  card.querySelector('#editAiRecipeDraft').onclick = () => saveDraft(true);
+  card.querySelector('#cancelAiRecipeDraft').onclick = () => card.remove();
+  return card;
+}
+
 function renderRecipeSearchResults(query, pack, inv) {
   const container = document.createElement('div');
   container.innerHTML = `<h2 class="section-title">搜索结果：${query}</h2><div class="grid" id="search-grid"></div>`;
@@ -410,25 +453,27 @@ function renderRecipeSearchResults(query, pack, inv) {
       grid.appendChild(searchResultCard(r, status));
     });
   } else {
-    container.innerHTML += `<div style="text-align:center; padding:40px;"><p style="color:var(--text-secondary)">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">🤖 呼叫 AI 搜索并生成【${query}】</button></div>`;
+    container.innerHTML += `<div style="text-align:center; padding:40px;"><p style="color:var(--text-secondary)">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">🤖 生成 AI 草稿【${query}】</button><div id="aiSearchStatus" class="small inline-status" hidden></div></div><div id="aiDraftResult"></div>`;
     setTimeout(() => {
         const btn = container.querySelector('#aiSearchBtn');
+        const status = container.querySelector('#aiSearchStatus');
+        const draftHost = container.querySelector('#aiDraftResult');
         if(btn) {
             btn.onclick = async () => {
+                btn.disabled = true;
                 btn.innerHTML = '<span class="spinner"></span> AI 搜索中...';
                 try {
                     const invNames = inv.map(x=>x.name).join(',');
                     const aiRes = await callAiSearchRecipe(query, invNames);
-                    const tempId = 'ai-search-' + Date.now();
-                    const overlay = loadOverlay();
-                    overlay.recipes = overlay.recipes || {};
-                    overlay.recipes[tempId] = { name: aiRes.name, tags: ['AI搜索'], method: aiRes.method };
-                    overlay.recipe_ingredients = overlay.recipe_ingredients || {};
-                    const ings = (aiRes.ingredients||'').split(/[，,]/).map(s => ({item: s.trim()}));
-                    overlay.recipe_ingredients[tempId] = ings;
-                    saveOverlay(overlay);
-                    location.hash = `#recipe:${tempId}`; location.reload();
-                } catch(e) { alert(formatAiErrorMessage(e)); btn.innerHTML = '🤖 呼叫 AI 搜索'; }
+                    draftHost.innerHTML = '';
+                    draftHost.appendChild(renderAiRecipeDraftCard(aiRes));
+                    setInlineStatus(status, '已生成草稿，请确认后再保存。', 'ok');
+                } catch(e) {
+                    setInlineStatus(status, formatAiErrorMessage(e), 'bad');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `🤖 生成 AI 草稿【${query}】`;
+                }
             };
         }
     }, 0);
@@ -1038,13 +1083,15 @@ function renderHomeRecipeShelf(title, items, pack, emptyText) {
 function renderMoreRecommendations(pack, inv) {
   const recDiv = document.createElement('div');
   recDiv.className = 'home-section';
-  recDiv.innerHTML = `<div class="section-title home-section-title"><span>更多推荐</span><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">呼叫 AI</button></div><div id="rec-content" class="horizontal-scroll"></div>`;
+  recDiv.innerHTML = `<div class="section-title home-section-title"><span>更多推荐</span><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">生成 AI 草稿</button></div><div id="aiRecStatus" class="small inline-status" hidden></div><div id="rec-content" class="horizontal-scroll"></div>`;
 
   const recGrid = recDiv.querySelector('#rec-content');
+  const aiStatus = recDiv.querySelector('#aiRecStatus');
   const savedAiRecs = S.load(S.keys.ai_recs, null);
   if (savedAiRecs) {
      const savedCards = processAiData(savedAiRecs, pack);
      if (savedCards.length > 0) {
+       setInlineStatus(aiStatus, '当前显示的是 AI 草稿推荐，请确认后再使用。', 'info');
        showRecommendationCards(recGrid, savedCards, pack);
        if (!recDiv.querySelector('#clearAiBtn')) {
            const clearBtn = document.createElement('button');
@@ -1073,10 +1120,10 @@ function renderMoreRecommendations(pack, inv) {
 
     const safetyTimer = setTimeout(() => {
        if(!success) {
-           aiBtn.innerHTML = '呼叫 AI';
+           aiBtn.innerHTML = '生成 AI 草稿';
            aiBtn.style.opacity = '1';
            aiBtn.removeAttribute('disabled');
-           alert(formatAiErrorMessage(new Error('AI 响应超时')));
+           setInlineStatus(aiStatus, formatAiErrorMessage(new Error('AI 响应超时')) + ' 已切换到本地推荐。', 'bad');
            showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
        }
     }, 30000);
@@ -1091,6 +1138,7 @@ function renderMoreRecommendations(pack, inv) {
           S.save(S.keys.ai_recs, aiResult);
           const newCards = processAiData(aiResult, pack);
           if(newCards.length > 0) {
+              setInlineStatus(aiStatus, 'AI 已生成草稿推荐，请确认后再安排。', 'ok');
               showRecommendationCards(recGrid, newCards, pack);
               if (!recDiv.querySelector('#clearAiBtn')) {
                    const clearBtn = document.createElement('button');
@@ -1106,9 +1154,9 @@ function renderMoreRecommendations(pack, inv) {
         } catch(e) {
           console.warn(`AI Recs Attempt ${attempt} failed:`, e);
           if (attempt > maxRetries) {
-              clearTimeout(safetyTimer);
-              alert(formatAiErrorMessage(e) + '\n\n已切换到本地推荐。');
-              showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
+               clearTimeout(safetyTimer);
+               setInlineStatus(aiStatus, formatAiErrorMessage(e) + ' 已切换到本地推荐。', 'bad');
+               showRecommendationCards(recGrid, getLocalRecommendations(pack, inv, true), pack);
           } else {
               aiBtn.innerHTML = `<span class="spinner"></span> 正在重试...`;
               await new Promise(r => setTimeout(r, 1000));
@@ -1117,7 +1165,7 @@ function renderMoreRecommendations(pack, inv) {
     }
 
     if (success || attempt > maxRetries) {
-        aiBtn.innerHTML = '呼叫 AI';
+        aiBtn.innerHTML = '生成 AI 草稿';
         aiBtn.style.opacity = '1';
         aiBtn.removeAttribute('disabled');
         aiBtn.style.display = 'none'; aiBtn.offsetHeight; aiBtn.style.display = '';
