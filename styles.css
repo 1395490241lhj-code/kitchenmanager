@@ -1,4 +1,4 @@
-/* v154 styles.css - pork matching and dark mode */
+/* v155 styles.css - dashboard home */
 :root {
   color-scheme: light;
   --primary: #007aff;
@@ -201,6 +201,14 @@ h2, h3, h4 { margin: 0 0 16px 0; font-weight: 700; color: var(--text-main); line
   color: var(--text-secondary);
   white-space: nowrap;
 }
+.home-shopping-note {
+  position: relative;
+  z-index: 1;
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
 .home-action-board {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -261,6 +269,139 @@ h2, h3, h4 { margin: 0 0 16px 0; font-weight: 700; color: var(--text-main); line
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+.home-empty-state {
+  display: grid;
+  gap: 4px;
+  padding: 15px;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.58);
+  border: 1px dashed rgba(60,60,67,0.16);
+  border-radius: var(--radius-l);
+}
+.home-empty-state strong {
+  color: var(--text-main);
+  font-size: 15px;
+}
+.home-empty-state span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.home-empty-state.compact {
+  min-height: 96px;
+  align-content: center;
+}
+.home-cook-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.home-cook-card {
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(247,251,255,0.54));
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-l);
+  box-shadow: 0 14px 34px rgba(0,122,255,0.055), inset 0 1px 0 rgba(255,255,255,0.78);
+}
+.home-cook-card-head {
+  margin-bottom: 12px;
+}
+.home-cook-card-head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.home-cook-card-head p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.home-cook-list {
+  display: grid;
+  gap: 8px;
+}
+.home-cook-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(255,255,255,0.72);
+  border-radius: var(--radius-m);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+}
+.home-cook-link {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.home-cook-link span {
+  overflow: hidden;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-cook-link small {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-secondary-details {
+  margin-top: 14px;
+  padding: 0;
+}
+.home-secondary-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding: 12px 16px;
+  list-style: none;
+  cursor: pointer;
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-l);
+  box-shadow: 0 10px 26px rgba(16,24,40,0.045), inset 0 1px 0 rgba(255,255,255,0.72);
+  color: var(--text-main);
+  font-weight: 850;
+}
+.home-secondary-details > summary::-webkit-details-marker {
+  display: none;
+}
+.home-secondary-details > summary::after {
+  content: '+';
+  color: var(--primary);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+}
+.home-secondary-details[open] > summary::after {
+  content: '-';
+}
+.home-secondary-details > summary small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+.home-secondary-details > :not(summary) {
+  margin-top: 12px;
 }
 .quick-list { display: grid; gap: 10px; }
 .quick-item {
@@ -1147,6 +1288,10 @@ nav a.active svg {
   .card,
   .quick-item,
   .home-stat,
+  .home-cook-card,
+  .home-cook-item,
+  .home-empty-state,
+  .home-secondary-details > summary,
   .home-radar-card,
   .home-radar-item,
   .dry-good-row,
@@ -1172,6 +1317,10 @@ nav a.active svg {
   .card,
   .quick-item,
   .home-stat,
+  .home-cook-card,
+  .home-cook-item,
+  .home-empty-state,
+  .home-secondary-details > summary,
   .home-radar-card,
   .home-radar-item,
   .dry-good-row,
@@ -1246,6 +1395,9 @@ nav a.active svg {
 
   .home-stat,
   .home-action-card,
+  .home-cook-card,
+  .home-cook-item,
+  .home-empty-state,
   .quick-item,
   .home-radar-item,
   .home-radar-empty,
@@ -1265,6 +1417,12 @@ nav a.active svg {
 
   .home-onboarding {
     background: linear-gradient(135deg, rgba(36,40,50,0.86), rgba(14,34,58,0.64));
+  }
+
+  .home-secondary-details > summary {
+    background: rgba(32,35,44,0.72);
+    border-color: rgba(255,255,255,0.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 28px rgba(0,0,0,0.18);
   }
 
   .recipe-action-feedback {
@@ -1614,8 +1772,15 @@ nav a.active svg {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .home-action-board,
+  .home-cook-grid,
   .recipe-action-panel {
     grid-template-columns: 1fr;
+  }
+  .home-secondary-details > summary {
+    align-items: flex-start;
+  }
+  .home-secondary-details > summary small {
+    max-width: 150px;
   }
   .recipe-action-buttons {
     justify-content: stretch;

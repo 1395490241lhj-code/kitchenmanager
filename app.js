@@ -1284,15 +1284,18 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
     body = `购物清单还有 ${activeShopping.length} 项未完成。`;
   }
   div.className = 'card home-briefing';
+  const shoppingNote = activeShopping.length
+    ? `购物清单还有 ${activeShopping.length} 项未完成`
+    : '购物清单目前是空的';
   div.innerHTML = `
     <div class="home-briefing-head">
       <div>
-        <div class="home-eyebrow">今日厨房</div>
+        <div class="home-eyebrow">今日建议</div>
         <h2>${escapeHtml(title)}</h2>
         <p>${escapeHtml(body)}</p>
       </div>
       <div class="home-briefing-actions">
-        <a class="btn ok" href="#shopping">去补清单</a>
+        <a class="btn ${activeShopping.length ? 'ok' : ''}" href="#shopping">${activeShopping.length ? '去补清单' : '看购物清单'}</a>
         <a class="btn" href="#recipes">看菜谱库</a>
       </div>
     </div>
@@ -1302,6 +1305,7 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
       <div class="home-stat"><strong>${activeShopping.length}</strong><span>待购买</span></div>
       <div class="home-stat"><strong>${plan.length}</strong><span>今天计划</span></div>
     </div>
+    <div class="home-shopping-note">${escapeHtml(shoppingNote)}</div>
   `;
   return div;
 }
@@ -1385,12 +1389,12 @@ function bindEmptyInventoryGuide(guide, container) {
 function renderExpiringSection(items, onSearchIngredient) {
   const section = document.createElement('section');
   section.className = 'home-section';
-  section.innerHTML = `<div class="section-title home-section-title"><span>快用掉</span></div>`;
+  section.innerHTML = `<div class="section-title home-section-title"><span>快到期 / 优先使用</span></div>`;
 
   if (!items.length) {
     const empty = document.createElement('div');
-    empty.className = 'card home-empty';
-    empty.textContent = '目前没有 3 天内到期的库存。';
+    empty.className = 'card home-empty-state';
+    empty.innerHTML = '<strong>暂时没有快到期食材</strong><span>很好，今天可以优先看“现在能做”的菜。</span>';
     section.appendChild(empty);
     return section;
   }
@@ -1423,6 +1427,97 @@ function renderExpiringSection(items, onSearchIngredient) {
   });
   section.appendChild(list);
   return section;
+}
+
+function renderCookChoiceItem(item, mode, pack, inv) {
+  const row = document.createElement('div');
+  row.className = 'home-cook-item';
+  const isAlmost = mode === 'almost';
+  row.innerHTML = `
+    <button type="button" class="home-cook-link">
+      <span>${escapeHtml(item.r.name)}</span>
+      <small>${escapeHtml(item.reason || (isAlmost ? '补一点就能做' : '库存已匹配'))}</small>
+    </button>
+    <button type="button" class="btn ${isAlmost ? '' : 'ok'} small">${isAlmost ? '补清单' : '加入计划'}</button>
+  `;
+  row.querySelector('.home-cook-link').onclick = () => { location.hash = `#recipe:${item.r.id}`; };
+  row.querySelector('.btn').onclick = () => {
+    if(isAlmost) {
+      const count = addMissingRecipeIngredientsToShopping(item.r, pack, inv, item.list);
+      brieflyConfirmButton(row.querySelector('.btn'), count ? '已加入' : '已齐');
+    } else {
+      addRecipeToPlan(item.r.id);
+      brieflyConfirmButton(row.querySelector('.btn'), '已加入');
+    }
+  };
+  return row;
+}
+
+function renderCookChoiceCard(title, subtitle, items, emptyTitle, emptyText, mode, pack, inv) {
+  const card = document.createElement('div');
+  card.className = `home-cook-card is-${mode}`;
+  card.innerHTML = `
+    <div class="home-cook-card-head">
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(subtitle)}</p>
+    </div>
+  `;
+  const list = document.createElement('div');
+  list.className = 'home-cook-list';
+  if(!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'home-empty-state compact';
+    empty.innerHTML = `<strong>${escapeHtml(emptyTitle)}</strong><span>${escapeHtml(emptyText)}</span>`;
+    list.appendChild(empty);
+  } else {
+    items.slice(0, 4).forEach(item => list.appendChild(renderCookChoiceItem(item, mode, pack, inv)));
+  }
+  card.appendChild(list);
+  return card;
+}
+
+function renderCookChoicesSection(ready, almost, pack, inv) {
+  const section = document.createElement('section');
+  section.className = 'home-section home-cook-section';
+  section.innerHTML = `<div class="section-title home-section-title"><span>现在能做 & 差一点能做</span></div>`;
+  const grid = document.createElement('div');
+  grid.className = 'home-cook-grid';
+  grid.appendChild(renderCookChoiceCard(
+    '现在能做',
+    '不用再买菜，适合直接加入今日计划。',
+    ready,
+    '还没有可直接做的菜',
+    '先补一点库存，或用搜索找具体食材。',
+    'ready',
+    pack,
+    inv
+  ));
+  grid.appendChild(renderCookChoiceCard(
+    '差一点能做',
+    '只差一两样，适合顺手补进购物清单。',
+    almost,
+    '暂时没有接近完成的菜',
+    '库存再多一点后，这里会自动出现更合适的选择。',
+    'almost',
+    pack,
+    inv
+  ));
+  section.appendChild(grid);
+  return section;
+}
+
+function renderHomeDetails(title, subtitle, nodes, open = false) {
+  const details = document.createElement('details');
+  details.className = 'home-secondary-details';
+  if(open) details.open = true;
+  details.innerHTML = `
+    <summary>
+      <span>${escapeHtml(title)}</span>
+      <small>${escapeHtml(subtitle)}</small>
+    </summary>
+  `;
+  nodes.forEach(node => details.appendChild(node));
+  return details;
 }
 
 function createRadarCard(title, subtitle, items, emptyText, renderItem, accentClass = '') {
@@ -1810,7 +1905,6 @@ function renderHome(pack){
   const expiring = getExpiringItems(inv);
   const groups = getHomeRecipeGroups(pack, inv);
   const shoppingItems = loadShoppingItems();
-  const forgottenFavorites = getForgottenFavoriteCards(pack);
 
   const searchBar = document.createElement('div');
   searchBar.className = 'home-search';
@@ -1830,7 +1924,6 @@ function renderHome(pack){
   title.className = 'main-title-center';
   title.innerHTML = '<span>厨房</span>';
   container.appendChild(title);
-  container.appendChild(searchBar);
   searchBar.querySelector('#doSearch').onclick = doSearch;
   if(!hasUsableInventory(inv)) {
     const guide = renderEmptyInventoryGuide();
@@ -1845,18 +1938,22 @@ function renderHome(pack){
     return container;
   }
   container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems));
-  container.appendChild(renderHomeActionBoard(expiring, groups.ready, groups.almost, pack, inv, showSearch));
-  container.appendChild(renderHomeRadar(expiring, groups.ready, groups.almost, forgottenFavorites, showSearch));
-  container.appendChild(renderDryGoodsCabinet(inv));
-  container.appendChild(renderHomeRecipeShelf('现在能做', groups.ready, pack, '还没有完全匹配库存的菜。先补一点库存，推荐会更准。'));
-  container.appendChild(renderHomeRecipeShelf('差一点就能做', groups.almost, pack, '暂时没有只差一两样食材的菜。'));
-  container.appendChild(renderMoreRecommendations(pack, inv));
+  container.appendChild(renderExpiringSection(expiring, showSearch));
+  container.appendChild(renderCookChoicesSection(groups.ready, groups.almost, pack, inv));
+
+  const pantryNodes = [
+    renderDryGoodsCabinet(inv)
+  ];
 
   const invTitle = document.createElement('div');
   invTitle.className = 'section-title home-section-title';
-  invTitle.innerHTML = '<span>我的库存</span>';
-  container.appendChild(invTitle);
-  container.appendChild(renderInventory(pack, { showTitle: false }));
+  invTitle.innerHTML = '<span>完整库存</span>';
+  pantryNodes.push(invTitle);
+  pantryNodes.push(renderInventory(pack, { showTitle: false }));
+
+  container.appendChild(renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar]));
+  container.appendChild(renderHomeDetails('常备货架与完整库存', '入库、拍小票、管理库存都在这里', pantryNodes));
+  container.appendChild(renderHomeDetails('更多推荐和 AI', '想换换口味时再打开', [renderMoreRecommendations(pack, inv)]));
   return container; 
 }
 
