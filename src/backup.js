@@ -80,8 +80,9 @@ export function applyOverlay(base, overlay) {
 
   const ro = overlay.recipes || {};
   for (const [id, ov] of Object.entries(ro)) {
+    if (del[id]) continue;
     if (!baseMap.has(id)) {
-      baseMap.set(id, { id, name: ov.name || '未命名', tags: ov.tags || [], method: ov.method || '' });
+      baseMap.set(id, { id, name: '未命名', tags: [], method: '', ...ov });
     } else {
       const old = baseMap.get(id);
       const finalMethod = ov.method || old.staticMethod || old.method || '';
@@ -91,6 +92,7 @@ export function applyOverlay(base, overlay) {
 
   const io = overlay.recipe_ingredients || {};
   for (const [id, list] of Object.entries(io)) {
+    if (del[id]) continue;
     ingMap[id] = list.slice();
   }
 
@@ -100,8 +102,9 @@ export function applyOverlay(base, overlay) {
   }
 
   for (const [id, ov] of Object.entries(ro)) {
-    if (/^u-/.test(id) && !recipes.find(x => x.id === id)) {
-      recipes.push({ id, name: ov.name || '自定义', tags: ov.tags || ['自定义'], method: ov.method || '' });
+    if (del[id]) continue;
+    if (/^(u-|ai-search-)/.test(id) && !recipes.find(x => x.id === id)) {
+      recipes.push({ id, name: '自定义', tags: ['自定义'], method: '', ...ov });
       if (!ingMap[id]) ingMap[id] = (io[id] || []);
     }
   }

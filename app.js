@@ -49,7 +49,7 @@ import {
   loadOverlay,
   restoreKitchenBackup,
   saveOverlay
-} from './src/backup.js?v=1';
+} from './src/backup.js?v=2';
 import {
   callAiForMethod,
   callAiSearchRecipe,
@@ -186,6 +186,61 @@ function recipeMethodBadge(recipe) {
     : '<span class="kchip method-missing">缺做法</span>';
 }
 
+function getRecipeStatusInfo(recipe, id, baseRecipe = null, overlayRecipe = null) {
+  const tags = recipe?.tags || [];
+  if (recipe?.isAiDraft || tags.includes('AI草稿')) return { label: 'AI 草稿', className: 'draft' };
+  if (!baseRecipe) return { label: '自定义菜谱', className: 'custom' };
+  if (overlayRecipe && Object.keys(overlayRecipe).length) return { label: '系统菜谱修改版', className: 'modified' };
+  return { label: '系统菜谱', className: 'system' };
+}
+
+function normalizeDifficulty(value) {
+  return ['简单', '中等', '复杂'].includes(value) ? value : '';
+}
+
+function setSelectValueWithOption(select, value) {
+  const v = String(value || '').trim();
+  if (!v || !select) return;
+  if (!Array.from(select.options).some(option => option.value === v)) {
+    select.appendChild(new Option(v, v));
+  }
+  select.value = v;
+}
+
+function mergeOverlayPreservingCurrent(currentOverlay, incomingOverlay) {
+  const current = currentOverlay || {};
+  const incoming = incomingOverlay || {};
+  const next = {
+    ...current,
+    recipes: { ...(current.recipes || {}) },
+    recipe_ingredients: { ...(current.recipe_ingredients || {}) },
+    deletes: { ...(current.deletes || {}) }
+  };
+  const conflicts = [];
+  const imported = [];
+  const incomingIds = new Set([
+    ...Object.keys(incoming.recipes || {}),
+    ...Object.keys(incoming.recipe_ingredients || {}),
+    ...Object.keys(incoming.deletes || {})
+  ]);
+  const hasCurrentPatch = id => Object.prototype.hasOwnProperty.call(current.recipes || {}, id)
+    || Object.prototype.hasOwnProperty.call(current.recipe_ingredients || {}, id)
+    || Object.prototype.hasOwnProperty.call(current.deletes || {}, id);
+
+  incomingIds.forEach(id => {
+    if (hasCurrentPatch(id)) {
+      conflicts.push(id);
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(incoming.recipes || {}, id)) next.recipes[id] = incoming.recipes[id];
+    if (Object.prototype.hasOwnProperty.call(incoming.recipe_ingredients || {}, id)) next.recipe_ingredients[id] = incoming.recipe_ingredients[id];
+    if (Object.prototype.hasOwnProperty.call(incoming.deletes || {}, id)) next.deletes[id] = incoming.deletes[id];
+    imported.push(id);
+  });
+
+  return { overlay: next, conflicts, imported };
+}
+
 function searchResultCard(r, statusData) {
   const card = document.createElement('div'); card.className = 'card';
   let statusBadge = statusData.status === 'ok' ? `<span class="kchip ok">✅ 库存充足</span>` : (statusData.status === 'partial' ? `<span class="kchip warn">⚠️ 缺食材</span>` : `<span class="kchip bad">❌ 暂无食材</span>`);
@@ -282,6 +337,14 @@ function renderRecipeDetail(id, pack) {
   const overlay = loadOverlay();
   const ovRecipe = (overlay.recipes || {})[id];
   if (ovRecipe) { r = { ...r, ...ovRecipe, method: ovRecipe.method || r.method || '' }; }
+  const detailBaseHint = /^(u-|ai-search-)/.test(id) ? null : {};
+  const detailStatus = getRecipeStatusInfo(r, id, detailBaseHint, ovRecipe);
+  const detailMeta = [
+    detailStatus.label,
+    r.prepTime ? `预计耗时：${r.prepTime}` : '',
+    r.difficulty ? `难度：${r.difficulty}` : '',
+    r.servings ? `份量：${r.servings}` : ''
+  ].filter(Boolean);
   
   let items = [];
   if (r.isCreative) { 
@@ -304,9 +367,9 @@ function renderRecipeDetail(id, pack) {
     : '库存看起来已经够做这道菜';
   const div = document.createElement('div'); div.className = 'detail-view';
   const missingMethodContent = `<div class="ai-empty-note">暂无详细做法。可以让 AI 先生成草稿，确认后再保存。</div><button type="button" class="btn ai" id="genMethodBtn">✨ AI 生成草稿</button>`;
-  const methodContent = r.method ? `<div class="method-text">${r.method}</div>` : missingMethodContent;
+  const methodContent = r.method ? `<div class="method-text">${escapeHtml(r.method)}</div>` : missingMethodContent;
   
-  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${escapeHtml(r.name)}</h2><div class="tags meta" style="margin-bottom:18px;border-bottom:1px solid var(--separator);padding-bottom:10px;">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已经在今日计划里' : '先加入今日计划')}</strong><p>${escapeHtml(missingSummary)}。做完后只记录使用，不会自动扣库存。</p></div><div class="recipe-action-buttons"><button type="button" class="btn ok" id="detailAddPlan">${isPlanned ? '已加入今日计划' : '加入今日计划'}</button><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${escapeHtml(it.item)} ${it.qty ? `<span class="qty">${escapeHtml(it.qty)}${escapeHtml(it.unit||'')}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  div.innerHTML = `<div style="margin-bottom:20px;display:flex;justify-content:space-between;"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 style="color:var(--text-main);font-size:24px;">${escapeHtml(r.name)}</h2><div class="tags meta" style="margin-bottom:10px;">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已经在今日计划里' : '先加入今日计划')}</strong><p>${escapeHtml(missingSummary)}。做完后只记录使用，不会自动扣库存。</p></div><div class="recipe-action-buttons"><button type="button" class="btn ok" id="detailAddPlan">${isPlanned ? '已加入今日计划' : '加入今日计划'}</button><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${escapeHtml(it.item)} ${it.qty ? `<span class="qty">${escapeHtml(it.qty)}${escapeHtml(it.unit||'')}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
   const actionFeedback = div.querySelector('#recipeActionFeedback');
   const showActionFeedback = (text) => {
     actionFeedback.hidden = false;
@@ -1852,11 +1915,12 @@ function renderRecipes(pack){
       try{ 
         const inc = JSON.parse(reader.result); 
         const cur = loadOverlay(); 
-        const m = {...cur, recipes:{...cur.recipes,...(inc.recipes||{})}, recipe_ingredients:{...cur.recipe_ingredients,...(inc.recipe_ingredients||{})}, deletes:{...cur.deletes,...(inc.deletes||{})} }; 
-        saveOverlay(m); 
-        alert('导入成功'); 
+        const result = mergeOverlayPreservingCurrent(cur, inc);
+        saveOverlay(result.overlay);
+        const conflictText = result.conflicts.length ? `，${result.conflicts.length} 个冲突已保留当前版本` : '';
+        alert(`导入成功：新增 ${result.imported.length} 项${conflictText}。`);
         location.reload(); 
-      }catch(err){ alert('导入失败'); } 
+      }catch(err){ alert('导入失败：' + (err.message || err)); }
     }; 
     reader.readAsText(file); 
   }; 
@@ -1950,93 +2014,149 @@ function renderRecipeEditor(id, base){
   const baseIng = base.recipe_ingredients || {};
   const overIng = overlay.recipe_ingredients || {};
   const ingredientOptions = buildIngredientOptions(buildCatalog(base));
-  // merged recipe
   const rBase = (base.recipes||[]).find(x => x.id===id);
   const rOv = (overlay.recipes||{})[id] || {};
   const r = {...(rBase||{id}), ...rOv};
   const items = (overIng[id] ?? baseIng[id] ?? []).map(x => ({...x}));
-  const isNew = /^u-/.test(id) && !rBase;
+  const isCustomRecipe = !rBase;
+  const statusInfo = getRecipeStatusInfo(r, id, rBase, rOv);
+  const isAiDraft = statusInfo.className === 'draft';
 
-  const wrap = document.createElement('div'); wrap.className = 'card'; wrap.style.padding = '20px';
+  const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card'; wrap.style.padding = '20px';
   wrap.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h2 style="margin:0">编辑菜谱</h2>
       <a class="btn" onclick="history.back()">返回</a>
     </div>
-    <div class="controls" style="flex-direction:column;align-items:stretch;gap:12px;">
-      <div><label class="small">菜名</label><input id="rName" value="${r.name||''}" style="width:100%;"></div>
-      <div><label class="small">标签 (逗号分隔)</label><input id="rTags" value="${(r.tags||[]).join(',')}" style="width:100%;"></div>
-      <div class="small badge">${isNew?'[自定义菜谱]':'[基于系统数据]'}</div>
+    <div class="recipe-editor-status">
+      <span class="recipe-status-pill ${statusInfo.className}">${escapeHtml(statusInfo.label)}</span>
+      ${isAiDraft ? '<span class="meta">保存时可转为普通自定义菜谱。</span>' : ''}
+    </div>
+    <div id="editorStatus" class="inline-status" hidden></div>
+    <div class="editor-field-grid">
+      <div class="full"><label class="small">菜名</label><input id="rName" value="${escapeOptionAttr(r.name||'')}" style="width:100%;"></div>
+      <div class="full"><label class="small">标签 (逗号分隔)</label><input id="rTags" value="${escapeOptionAttr((r.tags||[]).join(','))}" style="width:100%;"></div>
+      <div><label class="small">预计耗时</label><input id="rPrepTime" value="${escapeOptionAttr(r.prepTime || '')}" placeholder="例如 30分钟"></div>
+      <div><label class="small">难度</label><select id="rDifficulty"><option value="">未填写</option><option value="简单">简单</option><option value="中等">中等</option><option value="复杂">复杂</option></select></div>
+      <div><label class="small">份量</label><input id="rServings" value="${escapeOptionAttr(r.servings || '')}" placeholder="例如 2人份"></div>
     </div>
     
     <h3 style="margin-top:20px">用料表</h3>
-    <table class="table">
+    <table class="table recipe-editor-table">
       <thead><tr><th>用料</th><th>数量</th><th>单位</th><th class="right"><a class="btn small" id="addRow">新增</a></th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
     <datalist id="recipeIngredientList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
     
     <h3 style="margin-top:20px">做法 (Method)</h3>
-    <textarea id="rMethod" rows="8" placeholder="请输入烹饪步骤..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);">${r.method || ''}</textarea>
+    <textarea id="rMethod" rows="8" placeholder="请输入烹饪步骤..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);">${escapeHtml(r.method || '')}</textarea>
 
-    <div class="controls" style="margin-top:30px;border-top:1px solid var(--separator);padding-top:20px;justify-content:space-between;">
+    <div class="controls editor-actions" style="margin-top:30px;border-top:1px solid var(--separator);padding-top:20px;justify-content:space-between;">
        <div>
          <a class="btn bad" id="hideBtn">${(overlay.deletes||{})[id]?'取消隐藏':'删除/隐藏'}</a>
-         ${!isNew ? '<a class="btn" id="resetBtn">重置</a>' : ''}
+         ${!isCustomRecipe ? '<a class="btn" id="resetBtn">重置</a>' : ''}
        </div>
-       <a class="btn ok" id="saveBtn">保存</a>
+       <a class="btn ok" id="saveBtn">${isAiDraft ? '保存为自定义菜谱' : '保存'}</a>
     </div>
   `;
   const tbody = wrap.querySelector('#rows');
+  const editorStatus = wrap.querySelector('#editorStatus');
+  setSelectValueWithOption(wrap.querySelector('#rDifficulty'), normalizeDifficulty(r.difficulty));
 
-  function addRow(item='', qty='', unit='g'){
+  function showEditorStatus(message, type = 'bad') {
+    setInlineStatus(editorStatus, message, type);
+  }
+
+  function addRow(item='', qty='', unit=''){
+    const canonical = getCanonicalName(item || '');
+    const defaultUnit = unit || (canonical ? guessKitchenUnit(canonical) : '份');
     const tr = document.createElement('tr');
-    const unitChoices = Array.from(new Set([unit || 'g', '份', '个', '盒', '袋', '瓶', '把', 'g', 'ml', 'pcs']));
-    const unitHtml = unitChoices.map(u => `<option value="${escapeOptionAttr(u)}"${unit===u?' selected':''}>${escapeHtml(u)}</option>`).join('');
+    const unitChoices = Array.from(new Set([defaultUnit, '份', '个', '盒', '袋', '包', '瓶', '把', '根', '块', '条', 'g', 'ml', 'pcs'].filter(Boolean)));
+    const unitHtml = unitChoices.map(u => `<option value="${escapeOptionAttr(u)}"${defaultUnit===u?' selected':''}>${escapeHtml(u)}</option>`).join('');
     tr.innerHTML = `
       <td><input list="recipeIngredientList" placeholder="食材名" value="${escapeOptionAttr(item)}"></td>
-      <td><input type="number" step="1" placeholder="" value="${qty}"></td>
+      <td><input type="number" min="0" step="0.1" placeholder="可选" value="${qty}"></td>
       <td><select>${unitHtml}</select></td>
       <td class="right"><a class="btn bad small">删</a></td>`;
     els('.btn', tr)[0].onclick = ()=> tr.remove();
     els('input', tr)[0].addEventListener('input', e => {
       const val = e.target.value.trim();
-      if(val) els('select', tr)[0].value = guessKitchenUnit(getCanonicalName(val));
+      if(val) setSelectValueWithOption(els('select', tr)[0], guessKitchenUnit(getCanonicalName(val)));
     });
     tbody.appendChild(tr);
   }
-  items.forEach(it => addRow(it.item || '', (typeof it.qty==='number' && isFinite(it.qty))? it.qty : '', it.unit || 'g'));
+  if(items.length) items.forEach(it => addRow(it.item || '', (typeof it.qty==='number' && isFinite(it.qty))? it.qty : '', it.unit || ''));
+  else addRow();
   wrap.querySelector('#addRow').onclick = ()=> addRow();
+
+  function collectIngredients() {
+    const arr = [];
+    const rows = els('tbody#rows tr', wrap);
+    if(!rows.length) throw new Error('至少需要保留一行食材。');
+    rows.forEach((tr, index) => {
+      const [i1,i2] = els('input', tr);
+      const sel = els('select', tr)[0];
+      const rawItem = i1.value.trim();
+      if(!rawItem) throw new Error(`第 ${index + 1} 行食材名不能为空。`);
+      const item = getCanonicalName(rawItem);
+      const qtyText = i2.value.trim();
+      let qty = null;
+      if(qtyText !== '') {
+        qty = Number(qtyText);
+        if(!Number.isFinite(qty)) throw new Error(`第 ${index + 1} 行数量不是有效数字。`);
+        if(qty < 0) throw new Error(`第 ${index + 1} 行数量不能为负数。`);
+      }
+      const unit = sel.value || guessKitchenUnit(item) || '份';
+      setSelectValueWithOption(sel, unit);
+      arr.push({ item, ...(qty===null?{}:{qty}), unit });
+    });
+    return arr;
+  }
 
   wrap.querySelector('#saveBtn').onclick = ()=>{
     const name = wrap.querySelector('#rName').value.trim();
-    if(!name) return alert('菜名不能为空');
-    const tags = wrap.querySelector('#rTags').value.split(/[，,]/).map(s=>s.trim()).filter(Boolean);
-    const method = wrap.querySelector('#rMethod').value;
-    
+    if(!name) { showEditorStatus('菜名不能为空。'); return; }
+
+    let arr;
+    try {
+      arr = collectIngredients();
+    } catch(error) {
+      showEditorStatus(error.message || String(error));
+      return;
+    }
+
+    const mergedPack = applyOverlay(base, overlay);
+    const duplicate = (mergedPack.recipes || []).find(recipe => recipe.id !== id && String(recipe.name || '').trim() === name);
+    if(duplicate && !confirm(`已经有一道菜也叫「${name}」。仍然保存吗？`)) return;
+
+    let tags = wrap.querySelector('#rTags').value.split(/[，,]/).map(s=>s.trim()).filter(Boolean);
+    if(isAiDraft) {
+      if(!confirm('这道菜现在是 AI 草稿。保存后会转为普通自定义菜谱，继续吗？')) return;
+      tags = tags.filter(tag => !['AI草稿', 'AI搜索'].includes(tag));
+      if(!tags.includes('自定义')) tags.push('自定义');
+    }
+
+    const method = wrap.querySelector('#rMethod').value.trim();
+    const prepTime = wrap.querySelector('#rPrepTime').value.trim();
+    const difficulty = normalizeDifficulty(wrap.querySelector('#rDifficulty').value);
+    const servings = wrap.querySelector('#rServings').value.trim();
+    const nextRecipe = { name, tags, method };
+    if(prepTime) nextRecipe.prepTime = prepTime;
+    if(difficulty) nextRecipe.difficulty = difficulty;
+    if(servings) nextRecipe.servings = servings;
+
     overlay.recipes = overlay.recipes || {};
-    overlay.recipes[id] = { name, tags, method };
-    
+    overlay.recipes[id] = nextRecipe;
     overlay.recipe_ingredients = overlay.recipe_ingredients || {};
-    const arr = [];
-    els('tbody#rows tr', wrap).forEach(tr => {
-      const [i1,i2] = els('input', tr);
-      const sel = els('select', tr)[0];
-      const item = getCanonicalName(i1.value.trim());
-      if(!item) return;
-      const qty = i2.value === '' ? null : Number(i2.value);
-      const unit = sel.value || null;
-      arr.push({ item, ...(qty===null?{}:{qty}), ...(unit?{unit}:{}) });
-    });
     overlay.recipe_ingredients[id] = arr;
     if(overlay.deletes) delete overlay.deletes[id];
     saveOverlay(overlay);
-    alert('已保存');
-    history.back();
+    showEditorStatus('已保存。', 'ok');
+    window.setTimeout(() => history.back(), 450);
   };
 
   wrap.querySelector('#hideBtn').onclick = ()=>{
-    if(!confirm('确定隐藏？')) return;
+    if(!confirm(isCustomRecipe ? '确定删除这道自定义菜谱？' : '确定隐藏这道系统菜谱？')) return;
     overlay.deletes = overlay.deletes || {};
     if(overlay.deletes[id]) delete overlay.deletes[id];
     else overlay.deletes[id] = true;
@@ -2051,7 +2171,6 @@ function renderRecipeEditor(id, base){
     if(overlay.recipe_ingredients) delete overlay.recipe_ingredients[id];
     if(overlay.deletes) delete overlay.deletes[id];
     saveOverlay(overlay);
-    // refresh
     const newView = renderRecipeEditor(id, base);
     app.innerHTML = ''; app.appendChild(newView);
   };

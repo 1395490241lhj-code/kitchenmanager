@@ -1092,6 +1092,55 @@ input:focus, select:focus, textarea:focus {
   font-size: 13px;
   white-space: nowrap;
 }
+.recipe-meta-strip,
+.recipe-editor-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--separator);
+}
+.recipe-meta-strip span,
+.recipe-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.66);
+  border: 1px solid var(--separator);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+.recipe-status-pill.custom { color: #1f7a3a; background: #e9f8ee; border-color: rgba(52,199,89,0.18); }
+.recipe-status-pill.modified { color: #8a5a00; background: rgba(255,204,0,0.16); border-color: rgba(255,204,0,0.22); }
+.recipe-status-pill.draft { color: #5d4a9c; background: rgba(175,151,255,0.16); border-color: rgba(175,151,255,0.22); }
+.recipe-status-pill.system { color: var(--text-secondary); }
+.editor-field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.editor-field-grid .full {
+  grid-column: 1 / -1;
+}
+.editor-field-grid label {
+  display: block;
+  margin-bottom: 5px;
+}
+.recipe-editor-table input,
+.recipe-editor-table select {
+  min-width: 90px;
+}
+@media (max-width: 700px) {
+  .editor-field-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .recipe-actions {
   display: flex;
   align-items: center;
