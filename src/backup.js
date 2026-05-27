@@ -32,6 +32,10 @@ export function downloadJsonFile(payload, filename) {
 }
 
 export function buildKitchenBackup() {
+  const originalSettings = S.load(S.keys.settings, {});
+  const settings = { ...originalSettings };
+  delete settings.apiKey;
+
   return {
     type: 'kitchen-backup',
     version: 1,
@@ -43,7 +47,7 @@ export function buildKitchenBackup() {
       inventory: S.load(S.keys.inventory, []),
       plan: S.load(S.keys.plan, []),
       overlay: loadOverlay(),
-      settings: S.load(S.keys.settings, {}),
+      settings: settings,
       favorite_recipes: S.load(S.keys.favorite_recipes, []),
       recipe_usage: S.load(S.keys.recipe_usage, {}),
       shopping_items: loadShoppingItems()
@@ -58,7 +62,14 @@ export function restoreKitchenBackup(payload) {
   if (Array.isArray(data.inventory) && !S.save(S.keys.inventory, data.inventory)) throw new Error('库存写入失败，浏览器存储空间可能不足');
   if (Array.isArray(data.plan) && !S.save(S.keys.plan, data.plan)) throw new Error('今日计划写入失败，浏览器存储空间可能不足');
   if (data.overlay) saveOverlay(data.overlay);
-  if (data.settings && !S.save(S.keys.settings, data.settings)) throw new Error('设置写入失败，浏览器存储空间可能不足');
+  if (data.settings) {
+    const currentSettings = S.load(S.keys.settings, {});
+    const newSettings = { ...data.settings };
+    if (!newSettings.apiKey && currentSettings.apiKey) {
+      newSettings.apiKey = currentSettings.apiKey;
+    }
+    if (!S.save(S.keys.settings, newSettings)) throw new Error('设置写入失败，浏览器存储空间可能不足');
+  }
   if (Array.isArray(data.favorite_recipes) && !S.save(S.keys.favorite_recipes, data.favorite_recipes)) throw new Error('常做菜写入失败，浏览器存储空间可能不足');
   if (data.recipe_usage && typeof data.recipe_usage === 'object' && !S.save(S.keys.recipe_usage, data.recipe_usage)) throw new Error('菜谱记录写入失败，浏览器存储空间可能不足');
   if (Array.isArray(data.shopping_items) && !saveShoppingItems(data.shopping_items)) throw new Error('购物清单写入失败，浏览器存储空间可能不足');

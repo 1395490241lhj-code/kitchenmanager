@@ -6,7 +6,7 @@ import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../b
 export function renderSettings() {
   const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
   const displayUrl = s.apiUrl || CUSTOM_AI.URL;
-  const displayKey = s.apiKey || CUSTOM_AI.KEY;
+  const displayKey = s.apiKey || '';
   const displayModel = s.model || CUSTOM_AI.MODEL;
 
   const div = document.createElement('div');
@@ -27,6 +27,7 @@ export function renderSettings() {
       <div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}"></div>
       <div class="setting-group"><label>模型名称</label><input id="sModel" value="${displayModel}"></div>
       <div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div>
+      <p class="meta">API Key 只保存在本地浏览器；导出备份默认不包含 Key。</p>
       <div class="right"><a class="btn ok" id="saveSet">保存</a></div>
     </div>
     <div class="section-title home-section-title"><span>厨房备份</span></div>
