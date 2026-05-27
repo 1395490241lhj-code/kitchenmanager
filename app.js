@@ -10,6 +10,7 @@ import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=1';
 import { renderHome } from './src/views/home-view.js?v=1';
 import { renderRecipes } from './src/views/recipes-view.js?v=1';
 import { renderSettings } from './src/views/settings-view.js?v=1';
+import { applyCompletionOverlay } from './src/recipe-completion.js?v=1';
 
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
@@ -90,8 +91,9 @@ async function onRoute() {
       return;
     }
     const base = await loadBasePack();
+    const baseWithCompletion = await applyCompletionOverlay(base);
     const overlay = loadOverlay();
-    const pack = applyOverlay(base, overlay);
+    const pack = applyOverlay(baseWithCompletion, overlay);
     const hash = location.hash.replace('#', '');
 
     els('nav a').forEach(a => a.classList.remove('active'));
