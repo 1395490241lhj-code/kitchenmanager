@@ -19,7 +19,15 @@ import {
   setSelectValueWithOption
 } from '../components/status.js?v=1';
 
+/**
+ * @param {string} id
+ * @param {Object} base - The base recipe pack **including** any completion-overlay data
+ *   (i.e. the result of applyCompletionOverlay). The user's localStorage overlay is
+ *   loaded and applied on top of this inside the function.
+ * @param {Object} options
+ */
 export function renderRecipeEditor(id, base, { replaceView = null } = {}){
+
   const overlay = loadOverlay();
   const baseIng = base.recipe_ingredients || {};
   const overIng = overlay.recipe_ingredients || {};

@@ -105,7 +105,9 @@ async function onRoute() {
     let view;
     if (hash.startsWith('recipe-edit:')) {
       const id = hash.split(':')[1];
-      view = renderRecipeEditor(id, base, { replaceView: nextView => app.replaceChildren(nextView) });
+      // Use baseWithCompletion so the editor shows the same method/ingredients as the detail page.
+      // User localStorage overlay is still applied inside renderRecipeEditor on top of this.
+      view = renderRecipeEditor(id, baseWithCompletion, { replaceView: nextView => app.replaceChildren(nextView) });
     } else if (hash.startsWith('recipe:')) {
       const id = hash.split(':')[1];
       view = renderRecipeDetail(id, pack);
