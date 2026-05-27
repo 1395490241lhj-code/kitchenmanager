@@ -390,6 +390,27 @@ function renderMoreRecommendations(pack, inv, { onRoute = () => {} } = {}) {
   return recDiv;
 }
 
+function hasLowOrEmptyStockInCabinet(inv) {
+  for (const config of DRY_GOODS) {
+    const item = findStockItem(inv, config.name, 'dry');
+    const status = item ? (item.stockStatus || 'ok') : 'empty';
+    if (status === 'low' || status === 'empty') return true;
+  }
+
+  const eggItem = findStockItem(inv, EGG_STOCK.name, 'raw');
+  const eggQty = Math.max(0, Math.round(+eggItem?.qty || 0));
+  const eggStatus = countStockStatus(eggQty);
+  if (eggStatus === 'low' || eggStatus === 'empty') return true;
+
+  for (const config of DAILY_STOCKS) {
+    const item = findStockItem(inv, config.name, 'raw');
+    const status = item ? (item.stockStatus || 'ok') : 'empty';
+    if (status === 'low' || status === 'empty') return true;
+  }
+
+  return false;
+}
+
 export function renderHome(pack, { onRoute = () => {} } = {}) {
   const container = document.createElement('div');
   const catalog = buildCatalog(pack);
@@ -428,17 +449,23 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   }
 
   container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems));
-  container.appendChild(renderExpiringSection(expiring, showSearch));
+  if (expiring.length > 0) {
+    container.appendChild(renderExpiringSection(expiring, showSearch));
+  }
   container.appendChild(renderCookChoicesSection(groups.ready, groups.almost, pack, inv));
 
-  const pantryNodes = [renderDryGoodsCabinet(inv)];
-  const invTitle = document.createElement('div'); invTitle.className = 'section-title home-section-title';
-  invTitle.innerHTML = '<span>完整库存</span>';
-  pantryNodes.push(invTitle);
-  pantryNodes.push(renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute }));
+  const searchOpen = (groups.ready.length === 0 && groups.almost.length === 0);
+  container.appendChild(renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar], searchOpen));
 
-  container.appendChild(renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar]));
-  container.appendChild(renderHomeDetails('常备货架与完整库存', '入库、拍小票、管理库存都在这里', pantryNodes));
-  container.appendChild(renderHomeDetails('更多推荐和 AI', '想换换口味时再打开', [renderMoreRecommendations(pack, inv, { onRoute })]));
+  const cabinetOpen = hasLowOrEmptyStockInCabinet(inv);
+  container.appendChild(renderHomeDetails('常备货架', '日常补给与常备干货存量', [renderDryGoodsCabinet(inv)], cabinetOpen));
+
+  const fullInventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
+  container.appendChild(renderHomeDetails('完整库存', '手动录入、拍小票及完整库存明细', [fullInventoryNode], false));
+
+  const localRecs = getLocalRecommendations(pack, inv);
+  const hasRealLocalRecs = localRecs.some(item => item && item.matchCount > 0);
+  const recsOpen = !hasRealLocalRecs;
+  container.appendChild(renderHomeDetails('更多推荐和 AI', '想换换口味时再打开', [renderMoreRecommendations(pack, inv, { onRoute })], recsOpen));
   return container;
 }
