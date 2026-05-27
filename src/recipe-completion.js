@@ -7,9 +7,18 @@
  * Merge priority (highest wins):
  *   user localStorage overlay  >  completion overlay  >  base sichuan-recipes.json
  *
- * The completion overlay adds:
- *   - method / refined ingredients for 8 existing recipes
- *   - 58 new everyday Sichuan recipes (as proper recipe objects)
+ * The completion overlay supports four merge actions, applied in order:
+ *
+ *   1. patchById   — overlay.recipes[id] patches an existing recipe by exact id.
+ *                    Only fills method if the base recipe has none.
+ *   2. patchIngById — overlay.recipe_ingredients[id] refines ingredient lists
+ *                    that are absent or coarse in the base pack.
+ *   3. patchByName — overlay.newRecipes entries whose name already exists in base
+ *                    (but with a different id) are treated as name-based patches:
+ *                    the existing recipe gets the completion method/ingredients
+ *                    back-filled under its own id (no duplicate is created).
+ *   4. addNew      — overlay.newRecipes entries whose id AND name are both absent
+ *                    from the base pack are appended as brand-new recipes.
  *
  * This module never touches localStorage and never modifies the original JSON files.
  *
@@ -42,42 +51,91 @@ export async function applyCompletionOverlay(basePack) {
     Object.entries(basePack.recipe_ingredients || {}).map(([id, v]) => [id, v.slice()])
   );
 
-  const existingIds   = new Set(recipes.map(r => r.id));
-  const existingNames = new Set(recipes.map(r => r.name));
+  // Build lookup structures — use trimmed name for matching
+  const existingIds    = new Set(recipes.map(r => r.id));
+  const nameToIdx      = new Map(recipes.map((r, i) => [String(r.name || '').trim(), i]));
 
-  // ── 1. Patch existing recipes (method + ingredients) ─────────────────────
+  // Counters for diagnostics
+  let patchById       = 0;
+  let patchIngById    = 0;
+  let patchByName     = 0;
+  let addedNewRecipes = 0;
+  let skippedDuplicate = 0;
+
+  // ── 1. Patch existing recipes by id (method only) ─────────────────────────
   const recipePatches = overlay.recipes || {};
   for (const [id, patch] of Object.entries(recipePatches)) {
     const idx = recipes.findIndex(r => r.id === id);
     if (idx === -1) continue;
     // Only fill in method if the base recipe has none
-    if (patch.method && !recipes[idx].method) {
+    if (patch.method && !recipes[idx].method && !recipes[idx].staticMethod) {
       recipes[idx] = { ...recipes[idx], method: patch.method };
+      patchById++;
     }
   }
 
+  // ── 2. Patch existing ingredient lists by id ───────────────────────────────
   const ingPatches = overlay.recipe_ingredients || {};
   for (const [id, list] of Object.entries(ingPatches)) {
-    // Only overwrite if the existing entry is absent or coarse
     const existing = ingMap[id] || [];
     if (isCoarseOrEmpty(existing)) {
       ingMap[id] = list.slice();
+      patchIngById++;
     }
   }
 
-  // ── 2. Add new recipes (skip if name already exists) ─────────────────────
+  // ── 3 & 4. Process newRecipes ──────────────────────────────────────────────
   const newRecipes     = overlay.newRecipes || [];
   const newIngredients = overlay.newRecipeIngredients || {};
 
   for (const recipe of newRecipes) {
-    if (existingIds.has(recipe.id) || existingNames.has(recipe.name)) continue;
+    const trimmedName = String(recipe.name || '').trim();
+
+    if (existingIds.has(recipe.id)) {
+      // The completion overlay id collides with a base id — already patched
+      // above via recipePatches; nothing more to do.
+      skippedDuplicate++;
+      continue;
+    }
+
+    if (nameToIdx.has(trimmedName)) {
+      // ── 3. PATCH BY NAME ─────────────────────────────────────────────────
+      // A recipe with this name already exists in base but has a different id.
+      // Back-fill missing method and/or ingredients under the existing recipe's id.
+      const idx        = nameToIdx.get(trimmedName);
+      const existingId = recipes[idx].id;
+
+      // Back-fill method if the existing recipe has none
+      if (recipe.method && !recipes[idx].method && !recipes[idx].staticMethod) {
+        recipes[idx] = { ...recipes[idx], method: recipe.method };
+        patchByName++;
+      }
+
+      // Back-fill ingredients if absent or coarse under the existing id
+      const existingIng = ingMap[existingId] || [];
+      if (isCoarseOrEmpty(existingIng) && newIngredients[recipe.id]) {
+        ingMap[existingId] = newIngredients[recipe.id].slice();
+        patchByName++;
+      }
+
+      // Never create a duplicate entry
+      continue;
+    }
+
+    // ── 4. ADD NEW RECIPE ───────────────────────────────────────────────────
     recipes.push({ ...recipe });
     if (newIngredients[recipe.id]) {
       ingMap[recipe.id] = newIngredients[recipe.id].slice();
     }
     existingIds.add(recipe.id);
-    existingNames.add(recipe.name);
+    nameToIdx.set(trimmedName, recipes.length - 1);
+    addedNewRecipes++;
   }
+
+  console.debug(
+    `[recipe-completion] patchById=${patchById} patchIngById=${patchIngById}` +
+    ` patchByName=${patchByName} addedNew=${addedNewRecipes} skipped=${skippedDuplicate}`
+  );
 
   recipes.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
 
@@ -99,3 +157,4 @@ function isCoarseOrEmpty(ings) {
   }
   return false; // ≥ 2 separate ingredient entries → fine
 }
+
