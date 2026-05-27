@@ -34,7 +34,7 @@ function formatInventoryAmount(item) {
 
 function getExpiringItems(inv) {
   return [...(inv || [])]
-    .filter(item => remainingDays(item) <= 3)
+    .filter(item => isInventoryAvailable(item) && remainingDays(item) <= 3)
     .sort((a, b) => remainingDays(a) - remainingDays(b))
     .slice(0, 4);
 }
