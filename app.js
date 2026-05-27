@@ -1,4 +1,4 @@
-﻿// v151 app.js - 服务逻辑模块化
+// v151 app.js - 服务逻辑模块化
 import { CUSTOM_AI } from './src/config.js?v=89';
 import { el, els } from './src/dom.js?v=89';
 import { S, todayISO } from './src/storage.js?v=98';
@@ -1215,7 +1215,7 @@ function renderHome(pack){
     invTitle.id = 'homeInventoryPanel';
     invTitle.innerHTML = '<span>先录入库存</span>';
     container.appendChild(invTitle);
-    container.appendChild(renderInventory(pack, { showTitle: false }));
+    container.appendChild(renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute }));
     bindEmptyInventoryGuide(guide, container);
     return container;
   }
@@ -1231,7 +1231,7 @@ function renderHome(pack){
   invTitle.className = 'section-title home-section-title';
   invTitle.innerHTML = '<span>完整库存</span>';
   pantryNodes.push(invTitle);
-  pantryNodes.push(renderInventory(pack, { showTitle: false }));
+  pantryNodes.push(renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute }));
 
   container.appendChild(renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar]));
   container.appendChild(renderHomeDetails('常备货架与完整库存', '入库、拍小票、管理库存都在这里', pantryNodes));

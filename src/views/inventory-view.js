@@ -45,6 +45,7 @@ function badgeFor(e){
 
 // ★★★ 修复：使用 SVG 图标 + 强制隐藏 Input + 冷冻功能 + 防止负数 + [新增]详情编辑 + [修复]按钮重叠(使用Grid) ★★★
 export function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div');
+  const onInventoryChanged = typeof options.onInventoryChanged === 'function' ? options.onInventoryChanged : () => {};
   const ingredientOptions = buildIngredientOptions(catalog);
   // [修改] 使用新的 main-title-center 样式, 且明确使用 span
   const header = document.createElement('div');
@@ -192,6 +193,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     selectedStockStatus = 'ok';
     els('#addStockStatus .add-state-option', formContainer).forEach(x => x.classList.toggle('active', x.dataset.status === 'ok'));
     renderTable();
+    onInventoryChanged();
   };
 
   const tbl=document.createElement('table'); tbl.className='table inventory-table'; tbl.innerHTML=`<thead><tr><th style="width:35%">食材</th><th style="width:25%">厨房状态</th><th style="width:25%">保质</th><th class="right">操作</th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
@@ -214,7 +216,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           upsertInventory(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: itemKind, shelf: itemKind === 'dry' ? 365 : guessShelfDays(it.name, unit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(it.name), isFrozen:false} : {}) });
         }
         scanStatus.innerHTML = `✅ 已确认入库 ${confirmed.length} 项`;
-        setTimeout(() => { scanStatus.style.display = 'none'; renderTable(); }, 1200);
+        setTimeout(() => { scanStatus.style.display = 'none'; renderTable(); onInventoryChanged(); }, 1200);
       }, () => {
         scanStatus.innerHTML = '已取消入库';
         setTimeout(() => { scanStatus.style.display = 'none'; }, 1200);
@@ -245,6 +247,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         showEditInventoryModal(e, () => {
           saveInventory(inv);
           renderTable();
+          onInventoryChanged();
         });
       };
 
@@ -254,6 +257,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         e.stockStatus = nextInventoryState(e.stockStatus);
         saveInventory(inv);
         renderTable();
+        onInventoryChanged();
       };
 
       // [修改] 强制列表输入框非负
@@ -264,6 +268,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         saveInventory(inv);
         // 如果用户输入了负数，重置输入框显示为0
         if(+qtyInput.value < 0) qtyInput.value = 0;
+        onInventoryChanged();
       };
 
       // [新增] 点击状态标签切换冷冻/冷藏
@@ -276,10 +281,11 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           e.shelf = e.isFrozen ? 180 : guessShelfDays(e.name, e.unit);
           saveInventory(inv);
           renderTable(); // 刷新显示
+          onInventoryChanged();
         };
       }
 
-      els('.btn',tr)[0].onclick=()=>{ const i=inv.indexOf(e); if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); }}; tb.appendChild(tr);
+      els('.btn',tr)[0].onclick=()=>{ const i=inv.indexOf(e); if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); onInventoryChanged(); }}; tb.appendChild(tr);
     }
   }
   renderTable(); return wrap;
