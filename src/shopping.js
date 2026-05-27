@@ -50,14 +50,40 @@ function classifyShoppingSource(item) {
 }
 
 export function loadShoppingItems() {
-  return S.load(S.keys.shopping_items, []).filter(item => item && item.name).map(item => ({
-    id: item.id || genId(),
-    name: getCanonicalName(String(item.name || '').trim()),
-    qty: item.qty ?? '',
-    unit: item.unit || '',
-    source: cleanSource(item.source),
-    done: !!item.done
-  })).filter(item => item.name);
+  const rawItems = S.load(S.keys.shopping_items, []);
+  let needsSave = false;
+
+  const normalized = rawItems.filter(item => item && item.name).map(item => {
+    const id = item.id || genId();
+    const name = getCanonicalName(String(item.name || '').trim());
+    const qty = item.qty ?? '';
+    const unit = item.unit || '';
+    const source = cleanSource(item.source);
+    const done = !!item.done;
+
+    if (
+      id !== item.id ||
+      name !== item.name ||
+      qty !== item.qty ||
+      unit !== item.unit ||
+      source !== item.source ||
+      done !== item.done
+    ) {
+      needsSave = true;
+    }
+
+    return { id, name, qty, unit, source, done };
+  }).filter(item => item.name);
+
+  if (normalized.length !== rawItems.length) {
+    needsSave = true;
+  }
+
+  if (needsSave) {
+    saveShoppingItems(normalized);
+  }
+
+  return normalized;
 }
 
 export function saveShoppingItems(items) {
