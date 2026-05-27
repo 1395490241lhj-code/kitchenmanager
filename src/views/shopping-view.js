@@ -261,12 +261,17 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const renderItemRow = (item) => {
     const row = document.createElement('div');
     row.className = `shopping-item-row${item.done ? ' done' : ''}`;
+    const stockInHtml = item.done
+      ? item.stockedIn
+        ? '<span class="btn small stocked-in-badge" aria-label="已入库">✓ 已入库</span>'
+        : '<button type="button" class="btn ok small stock-in-btn">入库</button>'
+      : '';
     row.innerHTML = `
       <label class="shopping-check"><input type="checkbox" ${item.done ? 'checked' : ''}><span>${escapeHtml(item.name)}</span></label>
       <span class="shopping-item-amount">${escapeHtml(item.amountText || '按需')}</span>
       <span class="shopping-source">${escapeHtml(item.source || '手动')}</span>
       <div class="shopping-row-actions">
-        ${item.done ? '<button type="button" class="btn ok small stock-in-btn">入库</button>' : ''}
+        ${stockInHtml}
         <button type="button" class="btn small bad delete-shopping-btn">删</button>
       </div>
     `;
@@ -279,7 +284,12 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       stockBtn.onclick = () => {
         showShoppingInventoryModal(item, entry => {
           upsertInventory(inv, entry);
-          updateShoppingRowsByIds(item.ids, target => ({ ...target, done: true }));
+          updateShoppingRowsByIds(item.ids, target => ({
+            ...target,
+            done: true,
+            stockedIn: true,
+            stockedInAt: new Date().toISOString()
+          }));
           setInlineStatus(status, `${entry.name} 已入库。`, 'ok');
           onRoute();
         });

@@ -985,6 +985,21 @@ input:focus, select:focus, textarea:focus {
   justify-content: flex-end;
   gap: 6px;
 }
+.stocked-in-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: var(--radius-s);
+  background: #e9f8ee;
+  color: #1f7a3a;
+  border: 1px solid rgba(52, 199, 89, 0.22);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: default;
+  pointer-events: none;
+  user-select: none;
+}
 .staples-card {
   margin-top: 18px;
 }

@@ -97,13 +97,22 @@ export function loadShoppingItems() {
       needsSave = true;
     }
 
+    const normalizedStockedIn = !!item.stockedIn;
+    if (item.stockedIn !== normalizedStockedIn) {
+      needsSave = true;
+    }
+
+    const normalizedStockedInAt = item.stockedInAt || null;
+
     cleanedItems.push({
       id: normalizedId,
       name: canonicalName,
       qty: normalizedQty,
       unit: normalizedUnit,
       source: normalizedSource,
-      done: normalizedDone
+      done: normalizedDone,
+      stockedIn: normalizedStockedIn,
+      stockedInAt: normalizedStockedInAt
     });
   }
 
@@ -131,7 +140,9 @@ export function mergeShoppingItems(items) {
     if (!name) continue;
     const unit = raw.unit || '';
     const done = !!raw.done;
-    const key = `${name}|${unit}|${done ? 'done' : 'open'}`;
+    const stockedIn = !!raw.stockedIn;
+    // Include stockedIn in key so partially-stocked groups are never merged together
+    const key = `${name}|${unit}|${done ? 'done' : 'open'}|${stockedIn ? 'stocked' : 'unstocked'}`;
     const source = cleanSource(raw.source);
     const qty = parseQty(raw.qty);
 
@@ -145,6 +156,8 @@ export function mergeShoppingItems(items) {
         source,
         sources: source ? [source] : [],
         done,
+        stockedIn,
+        stockedInAt: raw.stockedInAt || null,
         rawItems: [raw],
         canSumQty: qty !== null
       });
