@@ -62,33 +62,28 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
 
 export function showEditInventoryModal(item, onSave) {
   const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+  overlay.className = 'modal-overlay';
 
   const dialog = document.createElement('div');
-  dialog.className = 'card';
-  dialog.style.cssText = 'width:90%;max-width:320px;background:var(--bg-card);padding:24px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.2);animation:fadeIn 0.2s ease-out;';
-
-  const style = document.createElement('style');
-  style.innerHTML = '@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }';
-  document.head.appendChild(style);
+  dialog.className = 'card modal-card';
 
   dialog.innerHTML = `
-    <h3 style="margin-top:0;color:var(--text-main);font-size:18px;">📝 编辑库存: ${item.name}</h3>
-    <div style="margin-bottom:16px;">
-      <label class="small" style="display:block;margin-bottom:4px;color:var(--text-secondary)">购买日期 (补录用)</label>
-      <input type="date" id="editDate" value="${item.buyDate || todayISO()}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);background:var(--bg-main);color:var(--text-main);font-size:16px;">
+    <h3 class="modal-title">📝 编辑库存: ${item.name}</h3>
+    <div class="modal-field-group">
+      <label class="small modal-field-label">购买日期 (补录用)</label>
+      <input type="date" id="editDate" value="${item.buyDate || todayISO()}" class="modal-field-input">
     </div>
-    <div style="margin-bottom:16px;">
-      <label class="small" style="display:block;margin-bottom:4px;color:var(--text-secondary)">保质期 (天)</label>
-      <input type="number" id="editShelf" value="${item.shelf || 7}" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);background:var(--bg-main);color:var(--text-main);font-size:16px;">
+    <div class="modal-field-group">
+      <label class="small modal-field-label">保质期 (天)</label>
+      <input type="number" id="editShelf" value="${item.shelf || 7}" class="modal-field-input">
     </div>
-    <div style="margin-bottom:24px;display:flex;align-items:center;padding:10px;background:var(--bg-main);border-radius:8px;">
-      <input type="checkbox" id="editFrozen" ${item.isFrozen ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer;">
-      <label for="editFrozen" style="margin-left:10px;flex:1;cursor:pointer;font-weight:500;">❄️ 冷冻保存 (延长保质)</label>
+    <div class="modal-frozen-row">
+      <input type="checkbox" id="editFrozen" ${item.isFrozen ? 'checked' : ''} class="modal-frozen-checkbox">
+      <label for="editFrozen" class="modal-frozen-label">❄️ 冷冻保存 (延长保质)</label>
     </div>
-    <div style="display:flex;gap:12px;justify-content:flex-end;">
-      <button class="btn" id="cancelBtn" style="background:transparent;border:1px solid var(--separator);color:var(--text-main);">取消</button>
-      <button class="btn ok" id="saveBtn" style="flex:1;">保存修改</button>
+    <div class="modal-actions">
+      <button class="btn modal-cancel-btn" id="cancelBtn">取消</button>
+      <button class="btn ok modal-save-btn" id="saveBtn">保存修改</button>
     </div>
   `;
 
@@ -96,7 +91,7 @@ export function showEditInventoryModal(item, onSave) {
   document.body.appendChild(overlay);
 
   const close = () => {
-    overlay.style.opacity = '0';
+    overlay.classList.add('closing');
     setTimeout(() => document.body.removeChild(overlay), 200);
   };
 

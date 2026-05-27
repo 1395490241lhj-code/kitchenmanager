@@ -23,7 +23,7 @@ export function renderSettings() {
           <option value="openai">OpenAI</option>
         </select>
       </div>
-      <hr style="border:0;border-top:1px solid var(--separator);margin:16px 0">
+      <hr class="settings-divider">
       <div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}"></div>
       <div class="setting-group"><label>模型名称</label><input id="sModel" value="${displayModel}"></div>
       <div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div>

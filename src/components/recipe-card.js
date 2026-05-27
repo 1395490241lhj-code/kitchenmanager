@@ -37,7 +37,7 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
     : (statusData.status === 'partial'
       ? `<span class="kchip warn">⚠️ 缺食材</span>`
       : `<span class="kchip bad">❌ 暂无食材</span>`);
-  card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;"><h3 style="margin:0;flex:1;cursor:pointer;text-decoration:underline" class="r-title">${r.name}</h3><div class="recipe-badge-stack">${recipeMethodBadge(r)}${statusBadge}</div></div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button><button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button></div>`;
+  card.innerHTML = `<div class="recipe-card-head"><h3 class="r-title r-title-link">${r.name}</h3><div class="recipe-badge-stack">${recipeMethodBadge(r)}${statusBadge}</div></div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button><button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button></div>`;
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {
     addBtn.onclick = () => {
@@ -56,17 +56,17 @@ export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {
   const explainText = extraInfo && Array.isArray(extraInfo.explain) && extraInfo.explain.length
     ? extraInfo.explain.join('；') : reasonText;
   card.innerHTML = `${topHtml}
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+    <div class="recipe-card-head">
       <h3 class="r-title">${r.name}</h3>
       <div class="recipe-badge-stack">
         ${recipeMethodBadge(r)}
-        ${!String(r.id).startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}" style="cursor:pointer;border:none;">编辑</button>` : ''}
+        ${!String(r.id).startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}">编辑</button>` : ''}
       </div>
     </div>
     <p class="meta">${(r.tags||[]).join(' / ')}</p>
     <div class="ing-compact-container"></div>
     ${reasonText ? `<div class="ai-reason" title="${escapeOptionAttr(explainText)}">${escapeHtml(reasonText)}</div>` : ''}
-    <div class="controls" style="margin-top:16px;"></div>`;
+    <div class="controls recipe-card-controls"></div>`;
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
   const editBtn = card.querySelector('.btn-edit');
   if (editBtn) editBtn.onclick = (e) => { e.stopPropagation(); location.hash = `#recipe-edit:${r.id}`; };
@@ -97,7 +97,7 @@ export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {
 export function showRecommendationCards(container, list, pack, { onRoute = () => {} } = {}) {
   container.innerHTML = '';
   if (!list || list.length === 0) {
-    container.innerHTML = '<div class="card small" style="min-width:100%;text-align:center;">暂无推荐。</div>';
+    container.innerHTML = '<div class="card small rec-empty-card">暂无推荐。</div>';
     return;
   }
   const map = pack.recipe_ingredients || {};
@@ -150,7 +150,7 @@ export function renderRecipeSearchResults(query, pack, inv, { onRoute = () => {}
       grid.appendChild(searchResultCard(r, status, { onRoute }));
     });
   } else {
-    container.innerHTML += `<div style="text-align:center; padding:40px;"><p style="color:var(--text-secondary)">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">🤖 生成 AI 草稿【${query}】</button><div id="aiSearchStatus" class="small inline-status" hidden></div></div><div id="aiDraftResult"></div>`;
+    container.innerHTML += `<div class="search-empty-state"><p class="text-secondary">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">🤖 生成 AI 草稿【${query}】</button><div id="aiSearchStatus" class="small inline-status" hidden></div></div><div id="aiDraftResult"></div>`;
     setTimeout(() => {
       const btn = container.querySelector('#aiSearchBtn');
       const status = container.querySelector('#aiSearchStatus');

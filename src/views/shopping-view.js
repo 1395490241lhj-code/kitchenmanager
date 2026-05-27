@@ -30,6 +30,7 @@ import {
   setInlineStatus,
   setSelectValueWithOption
 } from '../components/status.js?v=1';
+
 function buildPlanMissingItems(pack, inv, plan) {
   const map = pack.recipe_ingredients || {};
   const need = {};
@@ -179,7 +180,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   if(!plan.length) {
     const empty = document.createElement('p');
     empty.className = 'small';
-    empty.textContent = '暂未添加菜谱。去“菜谱/推荐”点“加入购物计划”。';
+    empty.textContent = '暂未添加菜谱。去"菜谱/推荐"点"加入购物计划"。';
     planList.appendChild(empty);
   } else {
     for(const item of plan) {
@@ -324,7 +325,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   };
 
   itemList.appendChild(renderGroups('未买', openItems, '还没有未买的购物项。'));
-  itemList.appendChild(renderGroups('已买 / 可入库', doneItems, '勾选“已买”后，可以在这里确认入库。'));
+  itemList.appendChild(renderGroups('已买 / 可入库', doneItems, '勾选"已买"后，可以在这里确认入库。'));
   itemCard.appendChild(itemList);
   itemCard.querySelector('#markAllDone').onclick = () => { markAllShoppingItemsDone(); onRoute(); };
   itemCard.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
@@ -340,10 +341,10 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const staplesPanel = document.createElement('div');
   staplesPanel.className = 'card staples-card';
   staplesPanel.innerHTML = `
-    <h3 style="margin-top:0; color:var(--text-main); display:flex; align-items:center;">
-      <span style="margin-right:8px;">🧂</span> 家中常备品检查
+    <h3 class="shopping-staple-heading">
+      <span>🧂</span> 家中常备品检查
     </h3>
-    <p class="meta" style="margin-bottom:16px;">点击缺少的常备品，它们会加入“我的购物项”。</p>
+    <p class="meta shopping-staple-meta">点击缺少的常备品，它们会加入"我的购物项"。</p>
     <div id="stapleContainer"></div>
   `;
   const categories = [
@@ -356,21 +357,16 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const stapleContainer = staplesPanel.querySelector('#stapleContainer');
   categories.forEach(category => {
     const groupDiv = document.createElement('div');
-    groupDiv.style.marginBottom = '16px';
+    groupDiv.className = 'shopping-staple-group';
     const title = document.createElement('div');
     title.textContent = category.name;
-    title.style.fontSize = '12px';
-    title.style.fontWeight = '600';
-    title.style.color = 'var(--text-secondary)';
-    title.style.marginBottom = '8px';
+    title.className = 'shopping-staple-title';
     groupDiv.appendChild(title);
     const pillContainer = document.createElement('div');
     pillContainer.className = 'ing-compact-container';
     category.items.forEach(name => {
       const span = document.createElement('span');
       span.className = 'ing-tag-pill staple-item';
-      span.style.cursor = 'pointer';
-      span.style.userSelect = 'none';
       span.textContent = name;
       const canonical = getCanonicalName(name);
       const alreadyAdded = loadShoppingItems().some(item => item.name === canonical && item.source === '常备品' && !item.done);

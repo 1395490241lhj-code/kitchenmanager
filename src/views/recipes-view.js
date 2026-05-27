@@ -39,7 +39,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   wrap.innerHTML = `
     <h2 class="section-title">菜谱</h2>
     <div class="recipe-toolbar">
-      <input id="search" placeholder="搜菜谱..." style="flex:1;min-width:150px;padding:12px;border-radius:12px;border:1px solid var(--separator);">
+      <input id="search" placeholder="搜菜谱..." class="recipe-search-input">
       <label class="recipe-filter-toggle"><input type="checkbox" id="methodOnly" checked>只看有做法</label>
       <span class="recipe-count" id="recipeCount"></span>
       <div class="recipe-actions">

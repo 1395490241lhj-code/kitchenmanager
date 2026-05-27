@@ -325,7 +325,7 @@ function renderDryGoodsCabinet(inv) {
 
 function renderMoreRecommendations(pack, inv, { onRoute = () => {} } = {}) {
   const recDiv = document.createElement('div'); recDiv.className = 'home-section';
-  recDiv.innerHTML = `<div class="section-title home-section-title"><span>更多推荐</span><button type="button" class="btn ai small" id="callAiBtn" style="padding:6px 12px;">生成 AI 草稿</button></div><div id="aiRecStatus" class="small inline-status" hidden></div><div id="rec-content" class="horizontal-scroll"></div>`;
+  recDiv.innerHTML = `<div class="section-title home-section-title"><span>更多推荐</span><button type="button" class="btn ai small ai-rec-btn" id="callAiBtn">生成 AI 草稿</button></div><div id="aiRecStatus" class="small inline-status" hidden></div><div id="rec-content" class="horizontal-scroll"></div>`;
   const recGrid = recDiv.querySelector('#rec-content'); const aiStatus = recDiv.querySelector('#aiRecStatus');
   const savedAiRecs = S.load(S.keys.ai_recs, null);
   if (savedAiRecs) {

@@ -18,6 +18,7 @@ import {
   setInlineStatus,
   setSelectValueWithOption
 } from '../components/status.js?v=1';
+
 export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const overlay = loadOverlay();
   const baseIng = base.recipe_ingredients || {};
@@ -28,9 +29,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const rOv = hasOverlayRecipe ? (overlay.recipes||{})[id] || {} : {};
   if(!rBase && !hasOverlayRecipe && !/^(u-|ai-search-)/.test(id || '')) {
     const missing = document.createElement('div');
-    missing.className = 'card';
-    missing.style.padding = '24px';
-    missing.style.textAlign = 'center';
+    missing.className = 'card editor-not-found';
     missing.innerHTML = `<h2>菜谱不存在</h2><p class="meta">这个编辑链接没有对应的菜谱，可能是旧链接或已删除的草稿。</p><a class="btn" href="#recipes">返回菜谱</a>`;
     return missing;
   }
@@ -40,10 +39,10 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const statusInfo = getRecipeStatusInfo(r, id, rBase, rOv);
   const isAiDraft = statusInfo.className === 'draft';
 
-  const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card'; wrap.style.padding = '20px';
+  const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card';
   wrap.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <h2 style="margin:0">编辑菜谱</h2>
+    <div class="editor-header">
+      <h2 class="editor-title">编辑菜谱</h2>
       <a class="btn" onclick="history.back()">返回</a>
     </div>
     <div class="recipe-editor-status">
@@ -52,24 +51,24 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     </div>
     <div id="editorStatus" class="inline-status" hidden></div>
     <div class="editor-field-grid">
-      <div class="full"><label class="small">菜名</label><input id="rName" value="${escapeOptionAttr(r.name||'')}" style="width:100%;"></div>
-      <div class="full"><label class="small">标签 (逗号分隔)</label><input id="rTags" value="${escapeOptionAttr((r.tags||[]).join(','))}" style="width:100%;"></div>
+      <div class="full"><label class="small">菜名</label><input id="rName" value="${escapeOptionAttr(r.name||'')}" class="full-width-input"></div>
+      <div class="full"><label class="small">标签 (逗号分隔)</label><input id="rTags" value="${escapeOptionAttr((r.tags||[]).join(','))}" class="full-width-input"></div>
       <div><label class="small">预计耗时</label><input id="rPrepTime" value="${escapeOptionAttr(r.prepTime || '')}" placeholder="例如 30分钟"></div>
       <div><label class="small">难度</label><select id="rDifficulty"><option value="">未填写</option><option value="简单">简单</option><option value="中等">中等</option><option value="复杂">复杂</option></select></div>
       <div><label class="small">份量</label><input id="rServings" value="${escapeOptionAttr(r.servings || '')}" placeholder="例如 2人份"></div>
     </div>
 
-    <h3 style="margin-top:20px">用料表</h3>
+    <h3 class="editor-section-title">用料表</h3>
     <table class="table recipe-editor-table">
       <thead><tr><th>用料</th><th>数量</th><th>单位</th><th class="right"><a class="btn small" id="addRow">新增</a></th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
     <datalist id="recipeIngredientList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
 
-    <h3 style="margin-top:20px">做法 (Method)</h3>
-    <textarea id="rMethod" rows="8" placeholder="请输入烹饪步骤..." style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--separator);">${escapeHtml(r.method || '')}</textarea>
+    <h3 class="editor-section-title">做法 (Method)</h3>
+    <textarea id="rMethod" rows="8" placeholder="请输入烹饪步骤..." class="editor-textarea">${escapeHtml(r.method || '')}</textarea>
 
-    <div class="controls editor-actions" style="margin-top:30px;border-top:1px solid var(--separator);padding-top:20px;justify-content:space-between;">
+    <div class="controls editor-actions">
        <div>
          <a class="btn bad" id="hideBtn">${(overlay.deletes||{})[id]?'取消隐藏':'删除/隐藏'}</a>
          ${!isCustomRecipe ? '<a class="btn" id="resetBtn">重置</a>' : ''}

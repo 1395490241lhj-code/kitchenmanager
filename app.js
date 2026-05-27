@@ -17,8 +17,8 @@ window.onerror = function(msg, url, line, col, error) {
   if (body && !document.getElementById('global-err-console')) {
     const errDiv = document.createElement('div');
     errDiv.id = 'global-err-console';
-    errDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:white;color:red;z-index:99999;padding:20px;overflow:auto;font-family:monospace;font-size:14px;border-bottom:2px solid red;';
-    errDiv.innerHTML = `<h3>⚠️ 发生错误</h3><p>${msg}</p><p>Line: ${line}</p><button onclick="this.parentElement.remove()" style="padding:5px 10px;border:1px solid #333;margin-top:10px;">关闭</button>`;
+    errDiv.className = 'global-error-console';
+    errDiv.innerHTML = `<h3>⚠️ 发生错误</h3><p>${msg}</p><p>Line: ${line}</p><button class="btn global-error-close" onclick="this.parentElement.remove()">关闭</button>`;
     body.appendChild(errDiv);
   }
 };
@@ -81,10 +81,10 @@ async function onRoute() {
   try {
     if (migrationError) {
       app.innerHTML = `
-        <div class="card" style="max-width:720px;margin:40px auto;">
+        <div class="card migration-error-card">
           <h2>数据升级没有完成</h2>
           <p class="meta">原来的厨房数据没有被清空。请先不要继续录入，建议导出浏览器数据备份后再刷新重试。</p>
-          <p style="color:var(--danger)">${escapeHtml(migrationError.message || migrationError)}</p>
+          <p class="text-danger">${escapeHtml(migrationError.message || migrationError)}</p>
           <button type="button" class="btn ok" onclick="location.reload()">刷新重试</button>
         </div>`;
       return;
@@ -119,7 +119,7 @@ async function onRoute() {
     app.replaceChildren(view);
   } catch (e) {
     console.error('Routing Error:', e);
-    app.innerHTML = `<div style="padding:20px;text-align:center;color:red;">页面加载出错：${e.message}<br><button class="btn" onclick="location.reload()">重试</button></div>`;
+    app.innerHTML = `<div class="route-error-panel">页面加载出错：${e.message}<br><button class="btn" onclick="location.reload()">重试</button></div>`;
   }
 }
 
