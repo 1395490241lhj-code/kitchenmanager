@@ -2,7 +2,8 @@ import { S, todayISO } from '../storage.js?v=98';
 import {
   DRY_GOODS, EGG_STOCK, DAILY_STOCKS,
   countStockStatus, dryStatusInfo,
-  guessShelfDays, nextDryStatus, buildCatalog
+  guessShelfDays, nextDryStatus, buildCatalog,
+  getCanonicalName
 } from '../ingredients.js?v=1';
 import {
   ensureStockItem, findStockItem, formatStockLine,
@@ -66,25 +67,54 @@ function getHomeRecipeGroups(pack, inv) {
   return { ready, almost };
 }
 
-function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
+function renderHomeStats(expiring, ready, almost, shoppingItems = [], hasInv = true) {
   const div = document.createElement('div');
   const plan = S.load(S.keys.plan, []);
   const activeShopping = shoppingItems.filter(item => !item.done);
   let title = '今天先看厨房状态';
   let body = '不用先想吃什么，下面会按库存、快到期和常做菜自动给你排优先级。';
-  if (expiring.length) {
+  let actionsHtml = '';
+
+  if (!hasInv) {
+    title = '先录入一些库存';
+    body = '录入后即可获得精准的今日推荐 and 快到期提醒。';
+    actionsHtml = `
+      <button type="button" class="btn ok" id="btnManualAdd">立即入库</button>
+      <button type="button" class="btn" id="btnReceiptAdd">拍小票</button>
+      <button type="button" class="btn" id="btnImportBackup">导入备份</button>
+    `;
+  } else if (expiring.length > 0) {
     title = `优先用掉 ${expiring[0].name}`;
     body = expiring.slice(0, 3).map(item => `${item.name} ${formatRemainingText(remainingDays(item))}`).join('、');
-  } else if (ready.length) {
+    actionsHtml = `
+      <button type="button" class="btn ok" id="btnFindRecipe">找做法</button>
+      <button type="button" class="btn" id="btnAddToPlan">加入今日计划</button>
+      <button type="button" class="btn" id="btnViewInventory">看库存</button>
+    `;
+  } else if (ready.length > 0) {
     title = `现在能做 ${ready[0].r.name}`;
     body = ready[0].reason || '这道菜和当前库存匹配度最高。';
-  } else if (almost.length) {
-    title = `${almost[0].r.name} 只差一点`;
-    body = almost[0].reason || '补一两样食材就能做。';
-  } else if (activeShopping.length) {
+    actionsHtml = `
+      <button type="button" class="btn ok" id="btnAddToPlan">加入今日计划</button>
+      <button type="button" class="btn" id="btnViewRecipe">看做法</button>
+      <button type="button" class="btn" id="btnViewShopping">看购物清单</button>
+    `;
+  } else if (activeShopping.length > 0) {
     title = `先补 ${activeShopping[0].name}`;
     body = `购物清单还有 ${activeShopping.length} 项未完成。`;
+    actionsHtml = `
+      <button type="button" class="btn ok" id="btnGoShopping">去补清单</button>
+      <button type="button" class="btn" id="btnCopyShopping">复制清单</button>
+    `;
+  } else {
+    title = '今天先看厨房状态';
+    body = '不用先想吃什么，可以搜索具体食材，或者生成 AI 推荐。';
+    actionsHtml = `
+      <button type="button" class="btn ok" id="btnFocusSearch">搜索食材</button>
+      <button type="button" class="btn" id="btnCallAiRec">生成 AI 草稿</button>
+    `;
   }
+
   div.className = 'card home-briefing';
   const shoppingNote = activeShopping.length ? `购物清单还有 ${activeShopping.length} 项未完成` : '购物清单目前是空的';
   div.innerHTML = `
@@ -95,8 +125,7 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
         <p>${escapeHtml(body)}</p>
       </div>
       <div class="home-briefing-actions">
-        <a class="btn ${activeShopping.length ? 'ok' : ''}" href="#shopping">${activeShopping.length ? '去补清单' : '看购物清单'}</a>
-        <a class="btn" href="#recipes">看菜谱库</a>
+        ${actionsHtml}
       </div>
     </div>
     <div class="home-stats">
@@ -108,41 +137,6 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = []) {
     <div class="home-shopping-note">${escapeHtml(shoppingNote)}</div>
   `;
   return div;
-}
-
-function renderEmptyInventoryGuide() {
-  const guide = document.createElement('section');
-  guide.className = 'card home-onboarding';
-  guide.innerHTML = `
-    <div class="home-eyebrow">第一次使用</div>
-    <h2>先放一点库存进厨房</h2>
-    <p>现在还没有可用库存，所以不会硬推空推荐。先录入几样真实食材，菜谱推荐和购物清单才会准。</p>
-    <div class="onboarding-actions">
-      <button type="button" class="btn ok" data-start="manual">手动添加食材</button>
-      <button type="button" class="btn ai" data-start="receipt">拍小票识别</button>
-      <button type="button" class="btn" data-start="backup">导入备份</button>
-    </div>
-  `;
-  return guide;
-}
-
-function bindEmptyInventoryGuide(guide, container) {
-  const scrollToInventory = () => {
-    const target = container.querySelector('#homeInventoryPanel');
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  guide.querySelector('[data-start="manual"]').onclick = () => {
-    scrollToInventory();
-    const form = container.querySelector('.add-form-container');
-    const toggle = container.querySelector('#toggleAddBtn');
-    if (form && toggle && !form.classList.contains('open')) toggle.click();
-  };
-  guide.querySelector('[data-start="receipt"]').onclick = () => {
-    scrollToInventory();
-    const input = container.querySelector('#camInput');
-    if (input) input.click();
-  };
-  guide.querySelector('[data-start="backup"]').onclick = () => { location.hash = '#settings'; };
 }
 
 function renderExpiringSection(items, onSearchIngredient) {
@@ -418,6 +412,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   const expiring = getExpiringItems(inv);
   const groups = getHomeRecipeGroups(pack, inv);
   const shoppingItems = loadShoppingItems();
+  const activeShopping = shoppingItems.filter(item => !item.done);
 
   const searchBar = document.createElement('div'); searchBar.className = 'home-search';
   searchBar.innerHTML = `<input id="mainSearch" placeholder="搜菜谱或食材，比如鸡蛋、回锅肉"><button type="button" class="btn ok" id="doSearch">搜索</button>`;
@@ -437,35 +432,170 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   container.appendChild(title);
   searchBar.querySelector('#doSearch').onclick = doSearch;
 
+  // Render full inventory node
+  const fullInventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
+  const fullInvDetails = renderHomeDetails('完整库存', '手动录入、拍小票及完整库存明细', [fullInventoryNode], !hasUsableInventory(inv));
+  fullInvDetails.id = 'homeInventoryDetails';
+
   if (!hasUsableInventory(inv)) {
-    const guide = renderEmptyInventoryGuide();
-    container.appendChild(guide);
+    const briefingCard = renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems, false);
+    container.appendChild(briefingCard);
+
     const invTitle = document.createElement('div'); invTitle.className = 'section-title home-section-title';
     invTitle.id = 'homeInventoryPanel'; invTitle.innerHTML = '<span>先录入库存</span>';
     container.appendChild(invTitle);
-    container.appendChild(renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute }));
-    bindEmptyInventoryGuide(guide, container);
+    container.appendChild(fullInvDetails);
+
+    // Bind onboarding actions on briefingCard
+    const btnManualAdd = briefingCard.querySelector('#btnManualAdd');
+    if (btnManualAdd) {
+      btnManualAdd.onclick = () => {
+        fullInvDetails.open = true;
+        const form = fullInvDetails.querySelector('.add-form-container');
+        const toggle = fullInvDetails.querySelector('#toggleAddBtn');
+        if (form && toggle && !form.classList.contains('open')) toggle.click();
+        fullInvDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+    }
+
+    const btnReceiptAdd = briefingCard.querySelector('#btnReceiptAdd');
+    if (btnReceiptAdd) {
+      btnReceiptAdd.onclick = () => {
+        fullInvDetails.open = true;
+        const input = fullInvDetails.querySelector('#camInput');
+        if (input) input.click();
+        fullInvDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+    }
+
+    const btnImportBackup = briefingCard.querySelector('#btnImportBackup');
+    if (btnImportBackup) {
+      btnImportBackup.onclick = () => { location.hash = '#settings'; };
+    }
+
     return container;
   }
 
-  container.appendChild(renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems));
+  const briefingCard = renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems, true);
+  container.appendChild(briefingCard);
+
   if (expiring.length > 0) {
     container.appendChild(renderExpiringSection(expiring, showSearch));
   }
   container.appendChild(renderCookChoicesSection(groups.ready, groups.almost, pack, inv));
 
   const searchOpen = (groups.ready.length === 0 && groups.almost.length === 0);
-  container.appendChild(renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar], searchOpen));
+  const searchDetails = renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar], searchOpen);
+  container.appendChild(searchDetails);
 
   const cabinetOpen = hasLowOrEmptyStockInCabinet(inv);
-  container.appendChild(renderHomeDetails('常备货架', '日常补给与常备干货存量', [renderDryGoodsCabinet(inv)], cabinetOpen));
+  const cabinetDetails = renderHomeDetails('常备货架', '日常补给与常备干货存量', [renderDryGoodsCabinet(inv)], cabinetOpen);
+  container.appendChild(cabinetDetails);
 
-  const fullInventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
-  container.appendChild(renderHomeDetails('完整库存', '手动录入、拍小票及完整库存明细', [fullInventoryNode], false));
+  container.appendChild(fullInvDetails);
 
   const localRecs = getLocalRecommendations(pack, inv);
   const hasRealLocalRecs = localRecs.some(item => item && item.matchCount > 0);
   const recsOpen = !hasRealLocalRecs;
-  container.appendChild(renderHomeDetails('更多推荐和 AI', '想换换口味时再打开', [renderMoreRecommendations(pack, inv, { onRoute })], recsOpen));
+  const moreRecsNode = renderMoreRecommendations(pack, inv, { onRoute });
+  const moreRecsDetails = renderHomeDetails('更多推荐和 AI', '想换换口味时再打开', [moreRecsNode], recsOpen);
+  container.appendChild(moreRecsDetails);
+
+  // Bind actions for briefingCard
+  const btnFindRecipe = briefingCard.querySelector('#btnFindRecipe');
+  if (btnFindRecipe) {
+    btnFindRecipe.onclick = () => {
+      if (expiring.length > 0) {
+        searchDetails.open = true;
+        showSearch(expiring[0].name);
+      }
+    };
+  }
+
+  const btnAddToPlan = briefingCard.querySelector('#btnAddToPlan');
+  if (btnAddToPlan) {
+    btnAddToPlan.onclick = () => {
+      let recipeId = null;
+      if (groups.ready.length > 0) {
+        recipeId = groups.ready[0].r.id;
+      } else {
+        const matchRecipe = (pack.recipes || []).find(r => {
+          const list = (pack.recipe_ingredients || {})[r.id] || [];
+          return list.some(ing => getCanonicalName(ing.item) === getCanonicalName(expiring[0]?.name));
+        });
+        recipeId = matchRecipe?.id || (groups.almost.length ? groups.almost[0].r.id : null);
+      }
+
+      if (recipeId) {
+        addRecipeToPlan(recipeId);
+        brieflyConfirmButton(btnAddToPlan);
+        onRoute();
+      } else {
+        brieflyConfirmButton(btnAddToPlan, '暂无匹配菜谱');
+      }
+    };
+  }
+
+  const btnViewInventory = briefingCard.querySelector('#btnViewInventory');
+  if (btnViewInventory) {
+    btnViewInventory.onclick = () => {
+      fullInvDetails.open = true;
+      fullInvDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+  }
+
+  const btnViewRecipe = briefingCard.querySelector('#btnViewRecipe');
+  if (btnViewRecipe) {
+    btnViewRecipe.onclick = () => {
+      if (groups.ready.length > 0) {
+        location.hash = `#recipe:${groups.ready[0].r.id}`;
+      }
+    };
+  }
+
+  const btnViewShopping = briefingCard.querySelector('#btnViewShopping');
+  if (btnViewShopping) {
+    btnViewShopping.onclick = () => { location.hash = '#shopping'; };
+  }
+
+  const btnGoShopping = briefingCard.querySelector('#btnGoShopping');
+  if (btnGoShopping) {
+    btnGoShopping.onclick = () => { location.hash = '#shopping'; };
+  }
+
+  const btnCopyShopping = briefingCard.querySelector('#btnCopyShopping');
+  if (btnCopyShopping) {
+    btnCopyShopping.onclick = () => {
+      const textToCopy = activeShopping.map(item => `${item.name} ${item.qty || ''}${item.unit || ''}`).join('\n');
+      navigator.clipboard.writeText(textToCopy)
+        .then(() => brieflyConfirmButton(btnCopyShopping, '已复制'))
+        .catch(() => brieflyConfirmButton(btnCopyShopping, '复制失败'));
+    };
+  }
+
+  const btnFocusSearch = briefingCard.querySelector('#btnFocusSearch');
+  if (btnFocusSearch) {
+    btnFocusSearch.onclick = () => {
+      searchDetails.open = true;
+      const s = searchDetails.querySelector('#mainSearch');
+      if (s) {
+        s.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        s.focus();
+      }
+    };
+  }
+
+  const btnCallAiRec = briefingCard.querySelector('#btnCallAiRec');
+  if (btnCallAiRec) {
+    btnCallAiRec.onclick = () => {
+      moreRecsDetails.open = true;
+      const aiBtn = moreRecsDetails.querySelector('#callAiBtn');
+      if (aiBtn) {
+        aiBtn.click();
+        moreRecsDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+  }
+
   return container;
 }
