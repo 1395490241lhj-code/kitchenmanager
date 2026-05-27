@@ -24,7 +24,6 @@ import {
 import {
   addInventoryQty,
   ensureStockItem,
-  findInventoryMatch,
   findStockItem,
   formatStockLine,
   getStockCoverageForNeed,
@@ -69,8 +68,9 @@ import {
   markRecipePlanned,
   markRecipeCooked,
   processAiData,
+  rankRecipesForRecommendation,
   toggleFavoriteRecipe
-} from './src/recommendations.js?v=2';
+} from './src/recommendations.js?v=3';
 import {
   DATA_SCHEMA_VERSION,
   runLocalStorageMigrations
@@ -267,13 +267,17 @@ function showRecommendationCards(container, list, pack) {
   const map = pack.recipe_ingredients || {}; 
   list.forEach(item => { 
     const isAi = item.isAi !== undefined ? item.isAi : false;
-    container.appendChild(recipeCard(item.r, item.list || map[item.r.id], {reason: item.reason, isAi: isAi})); 
+    container.appendChild(recipeCard(item.r, item.list || map[item.r.id], {reason: item.reason, explain: item.explain, score: item.score, isAi: isAi}));
   }); 
 } 
 function recipeCard(r, list, extraInfo=null){
   const card=document.createElement('div'); card.className='card';
   // [修改] 移除内联样式，使用 CSS 类
   let topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ AI 推荐</div>` : '';
+  const reasonText = extraInfo && extraInfo.reason ? String(extraInfo.reason) : '';
+  const explainText = extraInfo && Array.isArray(extraInfo.explain) && extraInfo.explain.length
+    ? extraInfo.explain.join('；')
+    : reasonText;
   
   // [修改] 移除 h3 和 div 的内联 style，完全依赖 CSS
   card.innerHTML=`${topHtml}
@@ -286,7 +290,7 @@ function recipeCard(r, list, extraInfo=null){
     </div>
     <p class="meta">${(r.tags||[]).join(' / ')}</p>
     <div class="ing-compact-container"></div>
-    ${extraInfo && extraInfo.reason ? `<div class="ai-reason">${extraInfo.reason}</div>` : ''}
+    ${reasonText ? `<div class="ai-reason" title="${escapeOptionAttr(explainText)}">${escapeHtml(reasonText)}</div>` : ''}
     <div class="controls" style="margin-top:16px;"></div>`;
   
   card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
@@ -568,36 +572,33 @@ function hasUsableInventory(inv) {
   return (inv || []).some(isInventoryAvailable);
 }
 
+function getRecommendationUiContext() {
+  return {
+    favoriteIds: S.load(S.keys.favorite_recipes, []),
+    recipeUsage: S.load(S.keys.recipe_usage, {}),
+    plan: S.load(S.keys.plan, []),
+    today: todayISO()
+  };
+}
+
+function formatMissingShort(missing, limit = 2) {
+  const names = (missing || []).map(item => item.name || item.item).filter(Boolean);
+  return `${names.slice(0, limit).join('、')}${names.length > limit ? '等' : ''}`;
+}
+
 function getHomeRecipeGroups(pack, inv) {
-  const rows = (pack.recipes || []).filter(hasRecipeMethod).map(r => {
-    const list = explodeCombinedItems((pack.recipe_ingredients || {})[r.id] || []);
-    const core = list.filter(ing => !isSeasoning(ing.item));
-    if (core.length === 0) return null;
-    const status = calculateStockStatus(r, pack, inv);
-    const missing = status.missing || [];
-    const matched = Math.max(0, core.length - missing.length);
-    const expiringMatches = core
-      .map(ing => findInventoryMatch(inv, ing.item))
-      .filter(item => item && remainingDays(item) <= 3);
-    return { r, list, status: status.status, missing, matched, total: core.length, expiringMatches };
-  }).filter(Boolean);
+  const ranked = rankRecipesForRecommendation(pack, inv, getRecommendationUiContext())
+    .filter(item => hasRecipeMethod(item.r));
 
-  const ready = rows
-    .filter(row => row.status === 'ok')
-    .sort((a, b) => b.expiringMatches.length - a.expiringMatches.length || b.total - a.total || a.r.name.localeCompare(b.r.name, 'zh-Hans-CN'))
+  const ready = ranked
+    .filter(row => row.status === 'ok' && row.matchCount > 0)
     .slice(0, 4)
-    .map(row => {
-      const reason = row.expiringMatches.length
-        ? `能顺手用掉：${row.expiringMatches.slice(0, 2).map(item => item.name).join('、')}`
-        : `已有 ${row.total}/${row.total} 项核心食材`;
-      return { r: row.r, list: row.list, reason };
-    });
+    .map(row => ({ ...row, reason: row.reason || `已有 ${row.totalCore}/${row.totalCore} 项核心食材` }));
 
-  const almost = rows
-    .filter(row => row.status === 'partial' && row.missing.length <= 2)
-    .sort((a, b) => a.missing.length - b.missing.length || b.matched - a.matched || a.r.name.localeCompare(b.r.name, 'zh-Hans-CN'))
+  const almost = ranked
+    .filter(row => row.status === 'partial' && row.matchCount > 0 && row.missing.length <= 2)
     .slice(0, 4)
-    .map(row => ({ r: row.r, list: row.list, reason: `还缺：${row.missing.map(x => x.name).join('、')}` }));
+    .map(row => ({ ...row, reason: row.missing.length ? `还缺：${formatMissingShort(row.missing)}` : row.reason }));
 
   return { ready, almost };
 }
