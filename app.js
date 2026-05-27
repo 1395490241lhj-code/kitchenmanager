@@ -37,10 +37,16 @@ import {
 } from './src/inventory.js?v=1';
 import {
   addShoppingItem,
+  buildCopyableShoppingList,
+  clearDoneShoppingItems,
+  convertShoppingItemToInventory,
   genId,
+  groupShoppingItemsBySource,
   loadShoppingItems,
+  markAllShoppingItemsDone,
+  mergeShoppingItems,
   saveShoppingItems
-} from './src/shopping.js?v=1';
+} from './src/shopping.js?v=2';
 import {
   applyOverlay,
   buildKitchenBackup,
@@ -1299,8 +1305,8 @@ function renderHome(pack){
   return container; 
 }
 
-// ★★★ 修复：购物清单 + 常备品检查 (renderShopping) + [新]支持无数量食材 ★★★
-function renderShopping(pack){
+// 旧版购物清单渲染保留为兜底参考，实际页面使用下方新版 renderShopping。
+function renderShoppingLegacy(pack){
   const catalog = buildCatalog(pack);
   const inv=loadInventory(catalog); const plan=S.load(S.keys.plan,[]); const map=pack.recipe_ingredients||{};
   const ingredientOptions = buildIngredientOptions(catalog);
@@ -1489,6 +1495,358 @@ function renderShopping(pack){
   }; 
   tools.appendChild(copy); d.appendChild(tools);
   return d;
+}
+
+function buildPlanMissingItems(pack, inv, plan) {
+  const map = pack.recipe_ingredients || {};
+  const need = {};
+  const addNeed = (name, qty, unit, source = '菜谱') => {
+    const canonicalName = getCanonicalName(name || '');
+    if(!canonicalName) return;
+    const key = canonicalName + '|' + (unit || guessKitchenUnit(canonicalName) || '份');
+    if(!need[key]) need[key] = { name: canonicalName, unit: unit || guessKitchenUnit(canonicalName) || '份', qty: 0, sources: [] };
+    need[key].qty += (+qty || 0);
+    if(source && !need[key].sources.includes(source)) need[key].sources.push(source);
+  };
+
+  for(const p of plan){
+    const recipe = (pack.recipes || []).find(r => r.id === p.id);
+    const ingList = explodeCombinedItems(map[p.id] || []);
+    if(!ingList.length) {
+      if(recipe) addNeed(recipe.name + ' 原料', p.servings || 1, '份', recipe.name);
+      continue;
+    }
+    for(const it of ingList) {
+      const qty = typeof it.qty === 'number' && isFinite(it.qty) ? it.qty : 1;
+      addNeed(it.item, qty * (p.servings || 1), it.unit, recipe ? recipe.name : '菜谱');
+    }
+  }
+
+  return Object.values(need).map(req => {
+    const stock = getStockCoverageForNeed(inv, req.name, req.qty, req.unit);
+    const missingQty = Math.max(0, Math.round((req.qty - stock) * 100) / 100);
+    return missingQty > 0 ? { name: req.name, unit: req.unit, qty: missingQty, source: req.sources.join('、') } : null;
+  }).filter(Boolean);
+}
+
+function updateShoppingRowsByIds(ids, updater) {
+  const idSet = new Set(ids || []);
+  const items = loadShoppingItems().map(item => idSet.has(item.id) ? updater({ ...item }) : item);
+  saveShoppingItems(items);
+}
+
+function deleteShoppingRowsByIds(ids) {
+  const idSet = new Set(ids || []);
+  saveShoppingItems(loadShoppingItems().filter(item => !idSet.has(item.id)));
+}
+
+function showShoppingInventoryModal(item, onConfirm) {
+  const normalized = normalizeKitchenAmount(item.name, item.qty, item.unit);
+  const defaultKind = item.kind || (isDryGoodName(normalized.name) ? 'dry' : 'raw');
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="card shopping-inventory-modal">
+      <h3>确认入库</h3>
+      <p class="meta">买完后再入库。这里可以先修正名称、数量、单位和类型。</p>
+      <div class="shopping-convert-grid">
+        <label><span>食材名</span><input id="stockInName" value="${escapeOptionAttr(normalized.name)}"></label>
+        <label><span>数量</span><input id="stockInQty" type="number" min="0" step="0.1" value="${escapeOptionAttr(normalized.qty)}"></label>
+        <label><span>单位</span><select id="stockInUnit"><option value="">无单位</option><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="包">包</option><option value="瓶">瓶</option><option value="把">把</option><option value="份">份</option><option value="g">g</option><option value="ml">ml</option></select></label>
+        <label><span>购买日期</span><input id="stockInDate" type="date" value="${todayISO()}"></label>
+        <label><span>类型</span><select id="stockInKind"><option value="raw">普通食材</option><option value="dry">常备干货</option></select></label>
+      </div>
+      <div id="stockInStatus" class="inline-status" hidden></div>
+      <div class="controls receipt-confirm-actions">
+        <button type="button" class="btn" id="cancelStockIn">取消</button>
+        <button type="button" class="btn ok" id="saveStockIn">确认入库</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  setSelectValueWithOption(overlay.querySelector('#stockInUnit'), normalized.unit || guessKitchenUnit(normalized.name) || '份');
+  overlay.querySelector('#stockInKind').value = defaultKind;
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#cancelStockIn').onclick = close;
+  overlay.onclick = event => { if(event.target === overlay) close(); };
+  overlay.querySelector('#saveStockIn').onclick = () => {
+    const name = overlay.querySelector('#stockInName').value.trim();
+    const qty = overlay.querySelector('#stockInQty').value;
+    const unit = overlay.querySelector('#stockInUnit').value || guessKitchenUnit(name) || '份';
+    const kind = overlay.querySelector('#stockInKind').value;
+    if(!name) {
+      setInlineStatus(overlay.querySelector('#stockInStatus'), '食材名不能为空。', 'bad');
+      return;
+    }
+    if(Number(qty) < 0) {
+      setInlineStatus(overlay.querySelector('#stockInStatus'), '数量不能为负数。', 'bad');
+      return;
+    }
+    const entry = convertShoppingItemToInventory(item, {
+      name,
+      qty,
+      unit,
+      kind,
+      buyDate: overlay.querySelector('#stockInDate').value || todayISO()
+    });
+    onConfirm(entry);
+    close();
+  };
+}
+
+function renderShopping(pack){
+  const catalog = buildCatalog(pack);
+  const inv = loadInventory(catalog);
+  const plan = S.load(S.keys.plan, []);
+  const ingredientOptions = buildIngredientOptions(catalog);
+  const shoppingItems = loadShoppingItems();
+  const missing = buildPlanMissingItems(pack, inv, plan);
+  const mergedItems = mergeShoppingItems(shoppingItems);
+  const openItems = mergedItems.filter(item => !item.done);
+  const doneItems = mergedItems.filter(item => item.done);
+
+  const page = document.createElement('div');
+  page.className = 'shopping-page';
+  page.innerHTML = `
+    <h2 class="section-title">购物清单</h2>
+    <div id="shoppingStatus" class="inline-status" hidden></div>
+  `;
+  const status = page.querySelector('#shoppingStatus');
+
+  const manualCard = document.createElement('div');
+  manualCard.className = 'card shopping-manual-card';
+  manualCard.innerHTML = `
+    <h3>手动添加</h3>
+    <div class="shopping-add-row">
+      <input id="shoppingAddName" list="shoppingCatalogList" placeholder="想买什么">
+      <datalist id="shoppingCatalogList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
+      <input id="shoppingAddQty" type="number" min="0" step="1" placeholder="数量">
+      <select id="shoppingAddUnit"><option value="">无单位</option><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="包">包</option><option value="瓶">瓶</option><option value="把">把</option><option value="份">份</option><option value="g">g</option><option value="ml">ml</option></select>
+      <button type="button" class="btn ok" id="shoppingAddBtn">加入</button>
+    </div>
+  `;
+  manualCard.querySelector('#shoppingAddName').addEventListener('input', event => {
+    const val = event.target.value.trim();
+    if(val) setSelectValueWithOption(manualCard.querySelector('#shoppingAddUnit'), guessKitchenUnit(getCanonicalName(val)) || '');
+  });
+  manualCard.querySelector('#shoppingAddBtn').onclick = () => {
+    const name = manualCard.querySelector('#shoppingAddName').value.trim();
+    if(!name) { setInlineStatus(status, '请输入要买的东西。', 'bad'); return; }
+    addShoppingItem(name, manualCard.querySelector('#shoppingAddQty').value || '', manualCard.querySelector('#shoppingAddUnit').value || '', '手动');
+    onRoute();
+  };
+  page.appendChild(manualCard);
+
+  const planCard = document.createElement('div');
+  planCard.className = 'card shopping-plan-card';
+  planCard.innerHTML = '<h3>今日计划</h3>';
+  const planList = document.createElement('div');
+  planList.className = 'shopping-plan-list';
+  if(!plan.length) {
+    const empty = document.createElement('p');
+    empty.className = 'small';
+    empty.textContent = '暂未添加菜谱。去“菜谱/推荐”点“加入购物计划”。';
+    planList.appendChild(empty);
+  } else {
+    for(const item of plan) {
+      const recipe = (pack.recipes || []).find(r => r.id === item.id);
+      if(!recipe) continue;
+      const row = document.createElement('div');
+      row.className = 'shopping-plan-row';
+      row.innerHTML = `<span class="shopping-plan-name">${escapeHtml(recipe.name)}</span><label class="shopping-servings"><span>份数</span><input type="number" min="1" max="8" step="1" value="${item.servings||1}"></label><a class="btn small" href="javascript:void(0)">移除</a>`;
+      row.querySelector('input').onchange = event => {
+        const plans = S.load(S.keys.plan, []);
+        const target = plans.find(x => x.id === item.id);
+        if(target) {
+          target.servings = +event.target.value || 1;
+          S.save(S.keys.plan, plans);
+          onRoute();
+        }
+      };
+      row.querySelector('.btn').onclick = () => {
+        const plans = S.load(S.keys.plan, []);
+        const index = plans.findIndex(x => x.id === item.id);
+        if(index >= 0) {
+          plans.splice(index, 1);
+          S.save(S.keys.plan, plans);
+          onRoute();
+        }
+      };
+      planList.appendChild(row);
+    }
+  }
+  planCard.appendChild(planList);
+  page.appendChild(planCard);
+
+  const missingCard = document.createElement('div');
+  missingCard.className = 'card shopping-missing-card';
+  missingCard.innerHTML = '<h3>菜谱缺货</h3>';
+  const missingTable = document.createElement('table');
+  missingTable.className = 'table shopping-table';
+  missingTable.innerHTML = `<thead><tr><th>食材</th><th>缺少数量</th><th>来源</th><th class="right">操作</th></tr></thead><tbody></tbody>`;
+  const missingBody = missingTable.querySelector('tbody');
+  if(!missing.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="4" class="small">库存已满足，不需要购买。</td>';
+    missingBody.appendChild(tr);
+  } else {
+    missing.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${escapeHtml(item.name)}</td><td>${escapeHtml([item.qty, item.unit].filter(Boolean).join(' '))}</td><td class="small">${escapeHtml(item.source || '菜谱')}</td><td class="right"><button type="button" class="btn small">已买入库</button></td>`;
+      tr.querySelector('button').onclick = () => {
+        showShoppingInventoryModal(item, entry => {
+          upsertInventory(inv, entry);
+          setInlineStatus(status, `${entry.name} 已入库。`, 'ok');
+          onRoute();
+        });
+      };
+      missingBody.appendChild(tr);
+    });
+  }
+  missingCard.appendChild(missingTable);
+  page.appendChild(missingCard);
+
+  const itemCard = document.createElement('div');
+  itemCard.className = 'card shopping-items-card';
+  itemCard.innerHTML = `
+    <div class="shopping-card-head">
+      <div>
+        <h3>我的购物项</h3>
+        <p class="meta">同名同单位会自动合并，来源会保留下来。</p>
+      </div>
+      <div class="shopping-bulk-actions">
+        <button type="button" class="btn small" id="copyOpenShopping">复制未买清单</button>
+        <button type="button" class="btn small" id="markAllDone">全部标记已买</button>
+        <button type="button" class="btn bad small" id="clearDone">清除已买</button>
+      </div>
+    </div>
+  `;
+  const itemList = document.createElement('div');
+  itemList.className = 'shopping-item-list grouped';
+
+  const renderItemRow = (item) => {
+    const row = document.createElement('div');
+    row.className = `shopping-item-row${item.done ? ' done' : ''}`;
+    row.innerHTML = `
+      <label class="shopping-check"><input type="checkbox" ${item.done ? 'checked' : ''}><span>${escapeHtml(item.name)}</span></label>
+      <span class="shopping-item-amount">${escapeHtml(item.amountText || '按需')}</span>
+      <span class="shopping-source">${escapeHtml(item.source || '手动')}</span>
+      <div class="shopping-row-actions">
+        ${item.done ? '<button type="button" class="btn ok small stock-in-btn">入库</button>' : ''}
+        <button type="button" class="btn small bad delete-shopping-btn">删</button>
+      </div>
+    `;
+    row.querySelector('input').onchange = event => {
+      updateShoppingRowsByIds(item.ids, target => ({ ...target, done: event.target.checked }));
+      onRoute();
+    };
+    const stockBtn = row.querySelector('.stock-in-btn');
+    if(stockBtn) {
+      stockBtn.onclick = () => {
+        showShoppingInventoryModal(item, entry => {
+          upsertInventory(inv, entry);
+          updateShoppingRowsByIds(item.ids, target => ({ ...target, done: true }));
+          setInlineStatus(status, `${entry.name} 已入库。`, 'ok');
+          onRoute();
+        });
+      };
+    }
+    row.querySelector('.delete-shopping-btn').onclick = () => {
+      deleteShoppingRowsByIds(item.ids);
+      onRoute();
+    };
+    return row;
+  };
+
+  const renderGroups = (title, items, emptyText) => {
+    const section = document.createElement('div');
+    section.className = 'shopping-source-section';
+    section.innerHTML = `<div class="shopping-source-title">${escapeHtml(title)}<span>${items.length}</span></div>`;
+    if(!items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'small';
+      empty.textContent = emptyText;
+      section.appendChild(empty);
+      return section;
+    }
+    groupShoppingItemsBySource(items).forEach(group => {
+      const groupDiv = document.createElement('div');
+      groupDiv.className = 'shopping-source-group';
+      groupDiv.innerHTML = `<div class="shopping-source-label">${escapeHtml(group.label)}</div>`;
+      group.items.forEach(item => groupDiv.appendChild(renderItemRow(item)));
+      section.appendChild(groupDiv);
+    });
+    return section;
+  };
+
+  itemList.appendChild(renderGroups('未买', openItems, '还没有未买的购物项。'));
+  itemList.appendChild(renderGroups('已买 / 可入库', doneItems, '勾选“已买”后，可以在这里确认入库。'));
+  itemCard.appendChild(itemList);
+  itemCard.querySelector('#markAllDone').onclick = () => { markAllShoppingItemsDone(); onRoute(); };
+  itemCard.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
+  itemCard.querySelector('#copyOpenShopping').onclick = () => {
+    const text = buildCopyableShoppingList(missing, loadShoppingItems());
+    if(!text.trim()) { setInlineStatus(status, '清单是空的。', 'info'); return; }
+    navigator.clipboard.writeText(text)
+      .then(() => setInlineStatus(status, '已复制未买清单。', 'ok'))
+      .catch(() => setInlineStatus(status, text, 'info'));
+  };
+  page.appendChild(itemCard);
+
+  const staplesPanel = document.createElement('div');
+  staplesPanel.className = 'card staples-card';
+  staplesPanel.innerHTML = `
+    <h3 style="margin-top:0; color:var(--text-main); display:flex; align-items:center;">
+      <span style="margin-right:8px;">🧂</span> 家中常备品检查
+    </h3>
+    <p class="meta" style="margin-bottom:16px;">点击缺少的常备品，它们会加入“我的购物项”。</p>
+    <div id="stapleContainer"></div>
+  `;
+  const categories = [
+    { name: '生鲜/蛋', items: ['葱', '姜', '蒜', '大葱', '香菜', '小米辣', '鸡蛋'] },
+    { name: '基础调味', items: ['盐', '糖', '醋', '生抽', '老抽', '料酒', '米酒', '蚝油', '香油', '味精', '鸡精'] },
+    { name: '酱料/腌菜', items: ['豆瓣酱', '甜面酱', '豆豉', '酸菜', '酸豆角', '泡椒'] },
+    { name: '香料/干粉', items: ['淀粉', '花椒', '干辣椒', '胡椒粉', '八角', '桂皮', '香叶', '五香粉', '孜然', '茴香'] },
+    { name: '食用油', items: ['菜油', '猪油'] }
+  ];
+  const stapleContainer = staplesPanel.querySelector('#stapleContainer');
+  categories.forEach(category => {
+    const groupDiv = document.createElement('div');
+    groupDiv.style.marginBottom = '16px';
+    const title = document.createElement('div');
+    title.textContent = category.name;
+    title.style.fontSize = '12px';
+    title.style.fontWeight = '600';
+    title.style.color = 'var(--text-secondary)';
+    title.style.marginBottom = '8px';
+    groupDiv.appendChild(title);
+    const pillContainer = document.createElement('div');
+    pillContainer.className = 'ing-compact-container';
+    category.items.forEach(name => {
+      const span = document.createElement('span');
+      span.className = 'ing-tag-pill staple-item';
+      span.style.cursor = 'pointer';
+      span.style.userSelect = 'none';
+      span.textContent = name;
+      const canonical = getCanonicalName(name);
+      const alreadyAdded = loadShoppingItems().some(item => item.name === canonical && item.source === '常备品' && !item.done);
+      if(alreadyAdded) span.classList.add('active');
+      span.onclick = () => {
+        const items = loadShoppingItems();
+        const existing = items.find(item => item.name === canonical && item.source === '常备品' && !item.done);
+        if(existing) saveShoppingItems(items.filter(item => item.id !== existing.id));
+        else addShoppingItem(canonical, '', '', '常备品');
+        onRoute();
+      };
+      pillContainer.appendChild(span);
+    });
+    groupDiv.appendChild(pillContainer);
+    stapleContainer.appendChild(groupDiv);
+  });
+  page.appendChild(staplesPanel);
+
+  return page;
 }
 
 function showReceiptConfirmationModal(items, onConfirm, onCancel) {
