@@ -6,7 +6,8 @@ import {
   getCanonicalName,
   guessKitchenUnit,
   isDryGoodName,
-  normalizeKitchenAmount
+  normalizeKitchenAmount,
+  isSeasoning
 } from '../ingredients.js?v=1';
 import {
   getStockCoverageForNeed,
@@ -31,7 +32,7 @@ import {
   setSelectValueWithOption
 } from '../components/status.js?v=1';
 
-function buildPlanMissingItems(pack, inv, plan) {
+function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false) {
   const map = pack.recipe_ingredients || {};
   const need = {};
   const addNeed = (name, qty, unit, source = '菜谱') => {
@@ -51,6 +52,7 @@ function buildPlanMissingItems(pack, inv, plan) {
       continue;
     }
     for(const it of ingList) {
+      if(!includeSeasonings && isSeasoning(it.item)) continue;
       const qty = typeof it.qty === 'number' && isFinite(it.qty) ? it.qty : 1;
       addNeed(it.item, qty * (p.servings || 1), it.unit, recipe ? recipe.name : '菜谱');
     }
@@ -135,7 +137,8 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const plan = S.load(S.keys.plan, []);
   const ingredientOptions = buildIngredientOptions(catalog);
   const shoppingItems = loadShoppingItems();
-  const missing = buildPlanMissingItems(pack, inv, plan);
+  const includeSeasonings = localStorage.getItem('km_include_seasoning') === 'true';
+  const missing = buildPlanMissingItems(pack, inv, plan, includeSeasonings);
   const mergedItems = mergeShoppingItems(shoppingItems);
   const openItems = mergedItems.filter(item => !item.done);
   const doneItems = mergedItems.filter(item => item.done);
@@ -215,7 +218,25 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
 
   const missingCard = document.createElement('div');
   missingCard.className = 'card shopping-missing-card';
-  missingCard.innerHTML = '<h3>菜谱缺货</h3>';
+  missingCard.innerHTML = `
+    <div class="shopping-card-head">
+      <div>
+        <h3>菜谱缺货</h3>
+      </div>
+      <div class="shopping-bulk-actions">
+        <label class="shopping-check" style="cursor: pointer; font-size: 14px; font-weight: normal; margin: 0;">
+          <input type="checkbox" id="toggleSeasonings" ${includeSeasonings ? 'checked' : ''}>
+          <span>包含调味料</span>
+        </label>
+      </div>
+    </div>
+  `;
+
+  const toggleCheckbox = missingCard.querySelector('#toggleSeasonings');
+  toggleCheckbox.onchange = (e) => {
+    localStorage.setItem('km_include_seasoning', e.target.checked ? 'true' : 'false');
+    onRoute();
+  };
   const missingTable = document.createElement('table');
   missingTable.className = 'table shopping-table';
   missingTable.innerHTML = `<thead><tr><th>食材</th><th>缺少数量</th><th>来源</th><th class="right">操作</th></tr></thead><tbody></tbody>`;
