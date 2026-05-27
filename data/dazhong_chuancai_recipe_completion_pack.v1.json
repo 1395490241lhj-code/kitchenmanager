@@ -1,0 +1,4037 @@
+{
+  "schema": "kitchenmanager.recipeCompletionByName.v1",
+  "createdAt": "2026-05-27T19:48:14.787426Z",
+  "purpose": "给 Antigravity/Codex 用于补全 kitchenmanager 中缺少食材和做法的菜谱。",
+  "matchMode": "byRecipeName",
+  "applyInstructions": [
+    "读取 data/sichuan-recipes.json 与本文件 entries。",
+    "对每个 entry，用 exact name 匹配 recipe.name；若不匹配，再用 aliases 与去括号后的名字匹配。",
+    "若当前菜谱缺 method，则写入 entry.method；若缺 recipe_ingredients，则写入 entry.ingredients。",
+    "建议不要覆盖用户 overlay 中已有自定义做法；只补空字段。",
+    "可生成一个 overlay JSON：{version:1, recipes:{id:{method}}, recipe_ingredients:{id:[...]}, deletes:{}}，让现有导入功能使用。",
+    "source.pdfPage/source.bookPage 仅用于人工复核，不需要写入应用数据。"
+  ],
+  "normalizationHints": {
+    "stripParenthesesForMatch": true,
+    "aliasesExample": "苤蓝烧牛肉 可能在 OCR 或旧数据中写作 茎蓝烧牛肉",
+    "ingredientShape": {
+      "item": "食材名",
+      "qty": null,
+      "unit": null
+    }
+  },
+  "entries": [
+    {
+      "name": "回锅肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          40,
+          41
+        ],
+        "bookPage": [
+          27,
+          28
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜苗",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜面酱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 带皮猪肉洗净，入开水锅加姜、花椒煮至七八成熟，捞出稍晾，切成连皮薄片；蒜苗切段，豆瓣剁细。\n2. 炒锅置中火，下油烧热，放入肉片煸炒至吐油、略卷。\n3. 下豆瓣、甜面酱、红酱油炒香上色，再下蒜苗炒断生，调味后起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "白油肉片",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          42,
+          43
+        ],
+        "bookPage": [
+          29,
+          30
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "竹笋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "木耳",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡红辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切片；竹笋、木耳整理成片；姜蒜切片，泡椒切马耳朵形。\n2. 肉片加盐、水豆粉、汤拌成薄浆，滑散成片。\n3. 锅内下猪油，放入笋片、木耳、姜蒜和泡椒炒香，掺汤烧开。\n4. 下肉片轻推至熟，调味收成白汁，起锅成菜。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "鱼香肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          44,
+          45
+        ],
+        "bookPage": [
+          31,
+          32
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "混合油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡红辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水发木耳",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱花",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豌豆尖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪瘦肉切二粗丝；泡椒去蒂切细；木耳切丝；姜蒜切米，葱切花。\n2. 肉丝码味上浆；用白糖、酱油、醋、水豆粉和汤兑成鱼香汁。\n3. 热锅下油，先炒肉丝至散籽发白，再下泡椒、姜蒜炒出香味和红色。\n4. 下木耳、豌豆尖略炒，烹入鱼香汁，收汁亮油后起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "炒盐煎肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          46
+        ],
+        "bookPage": [
+          33
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜苗",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红白酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 肥瘦相连猪肉切薄片；蒜苗切段，豆瓣剁细。\n2. 热锅下混合油，放肉片煎炒至吐油、边缘微卷。\n3. 下豆瓣炒出香味，续下甜酱、酱油炒匀。\n4. 加蒜苗炒至断生，起锅装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "宫保肉丁",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          47,
+          48
+        ],
+        "bookPage": [
+          34,
+          35
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花生米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切丁码味上浆；干辣椒切短节，姜葱切丁；花生米炸香备用。\n2. 用酱油、白糖、醋、味精、水豆粉兑成滋汁。\n3. 锅内下油，炒香干辣椒和花椒，再下肉丁炒散至变色。\n4. 烹入滋汁，快速翻匀，下花生米兜匀即成。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "炒酱肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          49
+        ],
+        "bookPage": [
+          36
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱白",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切二粗丝，葱白切细丝，肉丝码味上浆。\n2. 热锅下混合油，放肉丝炒散至变色。\n3. 下甜酱、酱油、红酱油炒匀，少量汤汁调成酱香汁。\n4. 肉丝收汁后装盘，配葱白丝食用。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "干煸肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          50
+        ],
+        "bookPage": [
+          37
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪瘦肉切粗丝；干辣椒切丝，葱姜蒜分别切丝。\n2. 锅内少油烧热，下肉丝反复煸炒至水气将干、肉丝酥香。\n3. 下干辣椒、姜蒜继续煸香，调入酱油和盐。\n4. 起锅前下葱丝、红油、香油，炒匀装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "鱼香碎滑肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          51,
+          52
+        ],
+        "bookPage": [
+          38,
+          39
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水发木耳",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "竹笋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱花",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切小片或碎片，码味上浆；木耳、竹笋切片；泡椒切末。\n2. 用酱油、醋、白糖、水豆粉和汤兑成鱼香汁。\n3. 热锅下油，滑散肉片，加入泡椒、姜蒜炒香上色。\n4. 下配料略炒，烹入鱼香汁收浓，撒葱花起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "酱爆肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          53
+        ],
+        "bookPage": [
+          40
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜苗",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜红酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 肥瘦相连猪肉煮至断生，切薄片；蒜苗切段。\n2. 锅中下油，先将肉片爆炒至出油。\n3. 下甜酱、酱油炒香，再下蒜苗炒匀。\n4. 肉片油润、酱香突出时起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "花椒肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          54
+        ],
+        "bookPage": [
+          41
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "绍酒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉煮熟后切大薄片，用盐、绍酒、葱姜、酱油码味。\n2. 肉片排入碗中，撒花椒、干辣椒，加入调味汁。\n3. 上笼蒸至软熟入味。\n4. 滗出原汁调味后浇回肉片，成菜麻香咸鲜。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "东坡肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          55,
+          56
+        ],
+        "bookPage": [
+          42,
+          43
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "冰糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "绍酒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 五花猪肉刮洗干净，焯水后切成大方块。\n2. 锅内炒糖色，下肉块上色，加入姜葱、花椒、绍酒、酱油和汤。\n3. 小火慢烧至肉皮酥软、肥而不腻。\n4. 收浓原汁，装盘后浇汁即成。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "樱桃肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          57,
+          58
+        ],
+        "bookPage": [
+          44,
+          45
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "嫩姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "三奈",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "冰糖汁",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "八角",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "草果",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 五花猪肉刮洗后切成小块。\n2. 锅内下油和冰糖汁炒成色，放肉块煸上色。\n3. 加姜、香料、酱油和汤，小火烧至酥软。\n4. 收汁至红亮，肉粒似樱桃大小，装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "香糟肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          59,
+          60
+        ],
+        "bookPage": [
+          46,
+          47
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "冰糖汁",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "香糟",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "三奈",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切成骨牌片，焯水去腥。\n2. 锅内炒香糟、糖色和调味料，加入肉片和汤。\n3. 小火烧至肉质软烂、糟香入味。\n4. 收浓汤汁，成菜色红亮、带糟香。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "红烧排蹄",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          61
+        ],
+        "bookPage": [
+          48
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪蹄",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪排骨",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪蹄和排骨整理洗净，斩成大块，焯水去血沫。\n2. 锅中下油和调味料炒香，下猪蹄、排骨翻炒上色。\n3. 加汤小火烧至软烂脱骨。\n4. 勾芡收汁，成菜色红、味浓。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "红枣煨肘",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          62
+        ],
+        "bookPage": [
+          49
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肘",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "冰糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红枣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肘刮洗干净，焯水后去血腥味。\n2. 用冰糖炒糖色，加汤和调味料放入猪肘慢煨。\n3. 中途加入红枣同煨，至肘肉酥软。\n4. 收浓汤汁，成菜甜咸适口。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "板栗烧肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          63
+        ],
+        "bookPage": [
+          50
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "板栗",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "冰糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉洗净切块；板栗去壳去衣备用。\n2. 肉块煸炒上色，加姜、酱油、冰糖和汤烧开。\n3. 下板栗同烧至肉酥栗糯。\n4. 收汁装盘，成菜甜咸香糯。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "红烧狮子头",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          64,
+          65
+        ],
+        "bookPage": [
+          51,
+          52
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鸡蛋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "胡椒面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鲜菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 肥瘦猪肉剁成茸，加入鸡蛋、豆粉、姜葱、盐等调成肉馅。\n2. 将肉馅挤成大丸子，下热油炸至定型上色。\n3. 锅中加汤、酱油、姜葱等，小火烧至丸子入味熟透。\n4. 加鲜菜垫底或同烧，勾薄芡后装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "家常热味肘子",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          66
+        ],
+        "bookPage": [
+          53
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肘",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "混合油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱花",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肘刮洗干净，煮熟或蒸熟后切块。\n2. 锅内下混合油，炒香豆瓣、姜米、葱花。\n3. 加汤和调味料，下肘块烧至入味。\n4. 用水豆粉收汁，成菜家常味浓。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "醋蒸猪头肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          67
+        ],
+        "bookPage": [
+          54
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪头肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱节",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪头肉整理洗净，煮熟后切片。\n2. 锅内用油炒香豆瓣和调味料，拌入猪头肉。\n3. 加醋、酱油、葱节拌匀，装碗上笼蒸透。\n4. 出笼后翻扣装盘，酸香肥糯。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "水煮烧白",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          68
+        ],
+        "bookPage": [
+          55
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆豉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉煮至断生切片；盐菜、泡椒等切碎。\n2. 锅内炒香泡椒、豆豉、干辣椒和盐菜，加入调味汤汁。\n3. 肉片排入碗中，覆上炒好的盐菜，上笼蒸透。\n4. 翻扣成菜，或略带汤汁上桌。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "豆瓣肘子",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          69
+        ],
+        "bookPage": [
+          56
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肘子",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 肘子刮洗干净，煮至八成熟后切块或整形。\n2. 锅内下猪油炒香豆瓣，掺汤烧开。\n3. 下肘子小火焖烧至软烂入味。\n4. 收汁勾芡，成菜色红味浓。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "姜汁蹄花",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          70
+        ],
+        "bookPage": [
+          57
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪蹄子",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱花",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪蹄刮洗干净，煮至软烂，剔成块或片。\n2. 姜米、醋、酱油、香油调成姜汁味汁。\n3. 将蹄花装盘，淋入姜汁，撒葱花即可。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "五香卤肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          71,
+          72
+        ],
+        "bookPage": [
+          58,
+          59
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "冰糖汁",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "八角",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "草果",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "肉桂",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "绍酒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉刮洗干净，焯水后切大块。\n2. 用冰糖汁、酱油、姜葱和五香料调成卤汤。\n3. 下肉块小火卤至软熟，浸泡入味。\n4. 取出切片，淋少许卤汁或原汤。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "蒜泥白肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          73
+        ],
+        "bookPage": [
+          60
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "口蘑酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "大蒜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 带皮猪肉煮熟后晾凉，切成薄片。\n2. 大蒜捣成蒜泥，与酱油、红油或辣椒油、香油等调成味汁。\n3. 肉片装盘，淋上蒜泥味汁即可。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "姜汁拐肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          74
+        ],
+        "bookPage": [
+          61
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪拐肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪拐肉整理洗净，煮熟后切成片或块。\n2. 姜剁茸，加入酱油、醋、香油、味精调成姜汁。\n3. 拐肉装盘，淋入姜汁拌食。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "连锅子",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          75
+        ],
+        "bookPage": [
+          62
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "胡椒面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉煮至断生后切片，原汤保留。\n2. 白菜切大块，葱姜处理好。\n3. 原汤烧开，下肉片、白菜和调味料同煮。\n4. 汤鲜肉香，连锅上桌食用。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "白菜丸子",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          76,
+          77
+        ],
+        "bookPage": [
+          63,
+          64
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鸡蛋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "胡椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉剁茸，加鸡蛋、豆粉、姜葱、盐等搅成肉馅。\n2. 白菜整理好；将肉馅挤成丸子。\n3. 锅中烧鲜汤，下丸子煮熟，再下白菜同煮。\n4. 调味后起锅，汤清味鲜。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "肉片汤",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          78
+        ],
+        "bookPage": [
+          65
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪瘦肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "青笋尖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "粉条",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "黄花",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱花",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪瘦肉切片，码味上浆；青笋尖、粉条等整理好。\n2. 锅中烧汤，加入配料煮开。\n3. 下肉片滑熟，调味后撒葱花即成。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "炖酥肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          79,
+          80
+        ],
+        "bookPage": [
+          66,
+          67
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鸡蛋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "胡椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切块或条，加鸡蛋、豆粉、盐和胡椒拌成糊。\n2. 入热油炸至金黄酥香，捞出。\n3. 将炸酥肉放碗中，加姜葱、花椒和汤，上笼蒸或炖至软熟。\n4. 起锅时汤鲜肉酥，可加蔬菜垫底。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "清汤丸子",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          81,
+          82
+        ],
+        "bookPage": [
+          68,
+          69
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鸡蛋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "胡椒面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "细米粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉剁成细茸，加盐、鸡蛋、水豆粉和少量汤搅打上劲。\n2. 挤成小丸子，下清汤中汆熟。\n3. 另锅清汤调味，下丸子煮开。\n4. 淋香油，撒胡椒或葱花即可。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "清蒸肘子",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          83
+        ],
+        "bookPage": [
+          70
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肘子",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干淀粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肘子刮洗干净，处理去毛，焯水后整理成块。\n2. 用姜、葱、盐、酱油等调味，装碗上笼。\n3. 蒸至肘肉软烂，取出装盘，原汁调味后浇上。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "夹沙肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          84,
+          85
+        ],
+        "bookPage": [
+          71,
+          72
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "糯米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干沙",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉煮至断生，切成连刀夹片。\n2. 将豆沙或甜馅夹入肉片中，排入碗内。\n3. 糯米蒸熟拌糖油，盖在肉上，上笼蒸透。\n4. 翻扣装盘，撒糖或淋甜汁。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "咸烧白",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          86
+        ],
+        "bookPage": [
+          73
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆豉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡辣椒",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 五花肉煮熟后抹酱油上色，炸或煎至皮起皱，切片。\n2. 盐菜洗净切碎，炒香后调味。\n3. 肉片皮朝下排碗，铺盐菜，上笼蒸至软糯。\n4. 翻扣装盘，成菜咸鲜肥糯。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "粉蒸肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          87,
+          88
+        ],
+        "bookPage": [
+          74,
+          75
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "米粉子",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红薯",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醪糟汁",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣乳水",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切厚片，加姜葱、花椒、甜酱、豆瓣、酱油等码味。\n2. 拌入米粉，使肉片均匀裹粉。\n3. 红薯或土豆垫底，肉片铺上。\n4. 上笼蒸至肉软粉糯，翻扣装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "荷叶蒸肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          89,
+          90
+        ],
+        "bookPage": [
+          76,
+          77
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "米粉子",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "五香面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鲜荷叶",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鲜黄豆",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醪糟",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆腐乳水",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红糖",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切片码味，拌米粉和五香调料。\n2. 荷叶焯软，剪成合适大小。\n3. 将肉片和配料包入荷叶中，上笼蒸至熟透。\n4. 荷香入肉，拆包食用。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "韭黄肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          91
+        ],
+        "bookPage": [
+          78
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "韭黄",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "冬菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "混合油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 韭黄择洗切段；猪瘦肉切丝，上浆码味。\n2. 热锅下油，先炒肉丝至散籽变色。\n3. 下韭黄快速翻炒，调味后即起锅。\n4. 要求火旺手快，保持韭黄鲜嫩。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "锅巴肉片",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          92,
+          93
+        ],
+        "bookPage": [
+          79,
+          80
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "混合油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "小白菜心",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "锅巴",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡红辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水发木耳",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切片码味上浆；锅巴掰成块；木耳、菜心整理好。\n2. 炒锅中用泡椒、姜葱等炒出味，加入汤和调料，放肉片滑熟。\n3. 另将锅巴炸至酥脆，盛入盘中。\n4. 将热汁肉片浇在锅巴上，趁响声上桌。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "榨菜肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          94
+        ],
+        "bookPage": [
+          81
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪瘦肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "榨菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "混合油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱白",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 榨菜切丝泡去咸味；猪瘦肉切丝码味上浆。\n2. 热锅下油，先炒肉丝至散。\n3. 下榨菜丝同炒，调入酱油和汤汁。\n4. 收汁后下葱白，起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "青椒肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          95
+        ],
+        "bookPage": [
+          82
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪瘦肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "青辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "混合油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 青椒去蒂去籽切丝；猪瘦肉切丝码味。\n2. 锅热后先煸青椒至断生，盛出或推边。\n3. 下肉丝炒散，再合入青椒。\n4. 调入盐、甜酱和少量汤汁，炒匀起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "甜椒肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          96,
+          97
+        ],
+        "bookPage": [
+          83,
+          84
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪瘦肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜苗",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "混合油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "仔姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 甜椒去蒂切丝，猪肉切丝码味；仔姜、蒜苗切丝。\n2. 先将甜椒炒至断生，盛出备用。\n3. 锅中下油炒散肉丝，加姜蒜苗炒香。\n4. 合入甜椒，烹入调味汁，收汁起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "肉焖鲜豌豆",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          98
+        ],
+        "bookPage": [
+          85
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鲜豌豆",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切小丁或片；鲜豌豆洗净。\n2. 锅内下油，炒香猪肉并煸出油香。\n3. 下鲜豌豆，加汤焖至软熟。\n4. 调味后勾薄芡起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "家常肉丝干豇",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          99
+        ],
+        "bookPage": [
+          86
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆角皮",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "混合油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜苗",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 干豇豆泡软切段；猪肉切丝。\n2. 锅内炒香豆瓣，下肉丝炒散。\n3. 加干豇豆和汤烧入味。\n4. 下蒜苗，勾薄芡收汁。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "南瓜炒肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          100
+        ],
+        "bookPage": [
+          87
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "嫩南瓜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 嫩南瓜和猪肉分别切细丝；肉丝上浆。\n2. 锅内下油，先炒肉丝至散。\n3. 下南瓜丝快速翻炒，调味并加少量汤。\n4. 炒至南瓜断生，起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "肉焖青豆",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          101
+        ],
+        "bookPage": [
+          88
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "青豆",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 青豆洗净，猪肉切小丁。\n2. 锅内下猪油，炒香肉丁。\n3. 加青豆和汤焖至青豆酥软。\n4. 调味收汁，勾薄芡出锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "肉末炒泡豇豆",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          102
+        ],
+        "bookPage": [
+          89
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "泡豇豆",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪肉末",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "青椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 泡豇豆切小颗，青椒切碎，猪肉剁末。\n2. 锅内下油炒散肉末。\n3. 下泡豇豆和青椒同炒，少量盐调味。\n4. 炒至干香下饭即可。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "红烧丸子",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          106,
+          107
+        ],
+        "bookPage": [
+          93,
+          94
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "小白菜心",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鸡蛋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "黄花",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "绍酒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉剁茸，加鸡蛋、水豆粉、姜葱、盐等调成馅。\n2. 挤成丸子，下油锅炸至金黄定型。\n3. 锅中加汤和调味料，下丸子烧入味。\n4. 加小白菜心或配菜同烧，收汁装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "豆筋烧肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          108
+        ],
+        "bookPage": [
+          95
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆筋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干豆筋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "五香料",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 豆筋泡软切段；猪肉切块焯水。\n2. 锅内下油炒肉块，加姜葱、酱油和香料。\n3. 加汤烧至肉软，下豆筋同烧入味。\n4. 收汁后成菜咸鲜软糯。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "蒜苔炒腊肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          109
+        ],
+        "bookPage": [
+          96
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "蒜苔",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "腊肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 蒜苔去尖切节；腊肉洗净煮熟后切粗丝或片。\n2. 热锅少油，下腊肉煸出香味。\n3. 下蒜苔大火翻炒，略加盐调味。\n4. 炒至蒜苔断生起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "明笋焖肉片",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          110
+        ],
+        "bookPage": [
+          97
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "水发明笋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 明笋切片焯水去异味；猪肉切片上浆。\n2. 锅内下油，先下肉片滑散。\n3. 加明笋、汤和调味料焖烧数分钟。\n4. 收汁起锅，要求笋脆肉嫩。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "洋葱炒肉丝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          111
+        ],
+        "bookPage": [
+          98
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "洋葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肉切丝码味上浆；洋葱切丝。\n2. 热锅下油，炒散肉丝。\n3. 加洋葱丝大火快炒至断生。\n4. 调味后收汁起锅，保持洋葱清香。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "黄瓜肉片",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          112
+        ],
+        "bookPage": [
+          99
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "木耳",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "黄瓜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡红辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 黄瓜切片，猪肉切片上浆；木耳泡发。\n2. 锅内下油滑散肉片，加入姜蒜和泡椒炒香。\n3. 下黄瓜、木耳快速翻炒。\n4. 调味收汁，黄瓜断生即起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "粉蒸排骨",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          115,
+          116
+        ],
+        "bookPage": [
+          102,
+          103
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪排骨",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "米粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆腐乳水",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醪糟汁",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "五香面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 排骨斩段，洗净后加酱油、姜葱、花椒、醪糟汁等码味。\n2. 拌入米粉，使排骨均匀裹粉。\n3. 装碗或蒸格，上笼蒸至排骨软熟。\n4. 出笼后翻扣或直接装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "鱼香排骨",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          117
+        ],
+        "bookPage": [
+          104
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪排骨",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱花",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 排骨斩寸段，焯水或炸至定型。\n2. 锅内炒香豆瓣、姜蒜，加入排骨翻炒。\n3. 掺汤烧入味，用酱油、醋、糖调成鱼香口。\n4. 勾芡收汁，撒葱花即成。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "糖醋排骨",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          118
+        ],
+        "bookPage": [
+          105
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪排骨",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜片",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡红辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱节",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 排骨斩段焯水，泡椒和葱姜整理好。\n2. 锅内下油煸香排骨，加姜葱、调味料和汤烧熟。\n3. 用糖、醋调成糖醋味，收汁勾芡。\n4. 汁亮味浓后装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "家常排骨",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          119
+        ],
+        "bookPage": [
+          106
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪排骨",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "萝卜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 排骨斩段焯水；萝卜切块。\n2. 锅内炒香豆瓣、姜葱和花椒，下排骨翻炒。\n3. 加汤烧至排骨将熟，再下萝卜同烧。\n4. 收汁勾芡，成菜家常味浓。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "苤蓝烧牛肉",
+      "aliases": [
+        "茎蓝烧牛肉"
+      ],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          120,
+          121
+        ],
+        "bookPage": [
+          107,
+          108
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "黄牛肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "三奈",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "苤蓝",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "八角",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "草果",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 牛肉洗净切块；苤蓝去皮切块。\n2. 牛肉加香料、豆瓣、酱油和汤烧至半软。\n3. 下苤蓝同烧至牛肉酥烂、苤蓝入味。\n4. 收汁装盘，汤汁红亮。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "干拌牛肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          122
+        ],
+        "bookPage": [
+          109
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "牛肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "炒花生米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 牛肉煮熟晾凉，切成薄片。\n2. 加酱油、辣椒油、花椒面、白糖、盐和味精拌匀。\n3. 撒葱花、熟花生碎，拌匀装盘。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "麻辣牛肉干",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          123
+        ],
+        "bookPage": [
+          110
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "牛肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干辣椒面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "绍酒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 牛肉切片或条，用盐、葱姜、料酒码味后风干或晾干。\n2. 下油锅炸至水气收干，捞出。\n3. 锅内加调味料炒匀，放牛肉回锅裹味。\n4. 撒辣椒面、花椒面和白糖，成菜麻辣干香。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "水煮牛肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          124,
+          125
+        ],
+        "bookPage": [
+          111,
+          112
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "牛肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "白菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "芹菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜苗",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 牛肉切片，加盐、酱油、水豆粉码味；蔬菜切段。\n2. 锅内炒香豆瓣、辣椒和花椒，掺汤烧开，先下蔬菜煮熟垫底。\n3. 下牛肉片滑熟，倒入碗中。\n4. 表面撒干辣椒、花椒面，淋热油激香。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "牛肉末炒芹菜花",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          126,
+          127
+        ],
+        "bookPage": [
+          113,
+          114
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "黄牛肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "郫县豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "蒜苗",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜米",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "芹菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 芹菜切粒或短段；牛肉剁末；豆瓣剁细。\n2. 锅内下油炒酥牛肉末，下豆瓣、姜米炒香。\n3. 加芹菜翻炒至断生，调入酱油、盐、味精。\n4. 起锅前撒花椒面。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "粉蒸牛肉",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          128,
+          129
+        ],
+        "bookPage": [
+          115,
+          116
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "牛肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "米粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红薯",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "醪糟汁",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红糖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "生菜油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 牛肉切片，加入豆瓣、姜葱、花椒、醪糟汁等码味。\n2. 拌入米粉，使牛肉均匀裹粉。\n3. 红薯垫底，铺上牛肉片，上笼蒸至熟软。\n4. 出笼后撒香菜或葱花，趁热食用。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "小烧十锦",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          130,
+          131
+        ],
+        "bookPage": [
+          117,
+          118
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪舌",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪肚",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "玉兰片",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菌子",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪心",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鲜菜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪舌、肚、心等分别汆煮整理，切成条或片；玉兰片、菌子、鲜菜切配。\n2. 锅内下油炒香调味料，下荤素料翻炒。\n3. 加汤小火烧至入味。\n4. 勾薄芡，成菜色泽丰富、味浓鲜香。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "白油猪肝",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          132,
+          133
+        ],
+        "bookPage": [
+          119,
+          120
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肝",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "木耳",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "红酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "小白菜心",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜蒜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡红辣椒",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪肝去筋膜切片，清水漂洗后码味上浆。\n2. 木耳、小白菜心整理好，姜蒜切片。\n3. 锅内下油滑散猪肝，再下配料和清汁快炒。\n4. 猪肝断生即起锅，要求嫩滑鲜香。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "豌豆肥肠汤",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          134
+        ],
+        "bookPage": [
+          121
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肥肠",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干豌豆",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜葱",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "胡椒",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 肥肠反复洗净焯水，切段。\n2. 干豌豆泡发，和肥肠一起入锅加姜葱、花椒炖煮。\n3. 炖至肥肠软糯、豌豆开花。\n4. 调盐、味精、胡椒，成汤乳白鲜香。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "清蒸杂烩",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          136,
+          137
+        ],
+        "bookPage": [
+          123,
+          124
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪肉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪肚",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "响皮",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱姜",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "干豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪心",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "猪舌",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "明笋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "鸡蛋",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "胡椒面",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 各类荤料分别初加工，切成条片；肉馅加蛋和豆粉制成小丸或肉块。\n2. 将配料分层排入碗内，加汤和调味料。\n3. 上笼蒸至各料软熟入味。\n4. 翻扣入汤碗，加入热汤调味。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    },
+    {
+      "name": "火爆腰花",
+      "aliases": [],
+      "source": {
+        "book": "大众川菜（刘建成、杨德喜、胡廉泉编）",
+        "pdfPage": [
+          138,
+          139
+        ],
+        "bookPage": [
+          125,
+          126
+        ]
+      },
+      "ingredients": [
+        {
+          "item": "猪腰",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "葱节",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "姜蒜片",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "泡辣椒",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "豌豆尖",
+          "qty": null,
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": null,
+          "unit": null
+        }
+      ],
+      "method": "1. 猪腰去臊筋，剞花刀后切块，用盐、水豆粉等码味。\n2. 姜蒜、泡椒、葱节和豌豆尖备好，兑好滋汁。\n3. 旺火热油，下腰花快速爆炒至卷花。\n4. 下配料并烹入滋汁，快速翻匀立即起锅。",
+      "notes": "",
+      "confidence": "medium-high",
+      "textPolicy": "根据用户提供扫描件整理，做法为摘要改写，非逐字转录。"
+    }
+  ]
+}
