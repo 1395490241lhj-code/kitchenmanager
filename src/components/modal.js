@@ -1,6 +1,6 @@
 import { todayISO } from '../storage.js?v=98';
 import { normalizeKitchenAmount } from '../ingredients.js?v=1';
-import { escapeOptionAttr } from './status.js?v=1';
+import { escapeOptionAttr, setInlineStatus } from './status.js?v=1';
 
 export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   const overlay = document.createElement('div');
@@ -81,6 +81,7 @@ export function showEditInventoryModal(item, onSave) {
       <input type="checkbox" id="editFrozen" ${item.isFrozen ? 'checked' : ''} class="modal-frozen-checkbox">
       <label for="editFrozen" class="modal-frozen-label">❄️ 冷冻保存 (延长保质)</label>
     </div>
+    <div id="editModalStatus" class="small inline-status" hidden></div>
     <div class="modal-actions">
       <button class="btn modal-cancel-btn" id="cancelBtn">取消</button>
       <button class="btn ok modal-save-btn" id="saveBtn">保存修改</button>
@@ -97,8 +98,22 @@ export function showEditInventoryModal(item, onSave) {
 
   overlay.querySelector('#cancelBtn').onclick = close;
   overlay.querySelector('#saveBtn').onclick = () => {
-    item.buyDate = overlay.querySelector('#editDate').value;
-    item.shelf = Number(overlay.querySelector('#editShelf').value) || 7;
+    const buyDateVal = overlay.querySelector('#editDate').value;
+    const shelfVal = overlay.querySelector('#editShelf').value.trim();
+    const shelfNum = Number(shelfVal);
+    const statusEl = overlay.querySelector('#editModalStatus');
+
+    if (!buyDateVal) {
+      setInlineStatus(statusEl, '购买日期不能为空。', 'bad');
+      return;
+    }
+    if (shelfVal === '' || isNaN(shelfNum) || shelfNum < 0) {
+      setInlineStatus(statusEl, '保质期必须是大于或等于 0 的数字。', 'bad');
+      return;
+    }
+
+    item.buyDate = buyDateVal;
+    item.shelf = shelfNum;
     item.isFrozen = overlay.querySelector('#editFrozen').checked;
     onSave();
     close();
