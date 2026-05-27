@@ -49,15 +49,74 @@ function classifyShoppingSource(item) {
   return '其他';
 }
 
+let isNormalizing = false;
+
 export function loadShoppingItems() {
-  return S.load(S.keys.shopping_items, []).filter(item => item && item.name).map(item => ({
-    id: item.id || genId(),
-    name: getCanonicalName(String(item.name || '').trim()),
-    qty: item.qty ?? '',
-    unit: item.unit || '',
-    source: cleanSource(item.source),
-    done: !!item.done
-  })).filter(item => item.name);
+  const rawItems = S.load(S.keys.shopping_items, []);
+  if (!Array.isArray(rawItems)) {
+    return [];
+  }
+
+  let needsSave = false;
+  const cleanedItems = [];
+
+  for (const item of rawItems) {
+    if (!item || !item.name) {
+      needsSave = true;
+      continue;
+    }
+
+    const canonicalName = getCanonicalName(String(item.name || '').trim());
+    if (!canonicalName) {
+      needsSave = true;
+      continue;
+    }
+
+    const normalizedId = item.id || genId();
+    if (!item.id) {
+      needsSave = true;
+    }
+
+    const normalizedQty = item.qty ?? '';
+    if (item.qty !== normalizedQty) {
+      needsSave = true;
+    }
+
+    const normalizedUnit = item.unit || '';
+    if (item.unit !== normalizedUnit) {
+      needsSave = true;
+    }
+
+    const normalizedSource = cleanSource(item.source);
+    if (item.source !== normalizedSource) {
+      needsSave = true;
+    }
+
+    const normalizedDone = !!item.done;
+    if (item.done !== normalizedDone) {
+      needsSave = true;
+    }
+
+    cleanedItems.push({
+      id: normalizedId,
+      name: canonicalName,
+      qty: normalizedQty,
+      unit: normalizedUnit,
+      source: normalizedSource,
+      done: normalizedDone
+    });
+  }
+
+  if (needsSave && !isNormalizing) {
+    isNormalizing = true;
+    try {
+      saveShoppingItems(cleanedItems);
+    } finally {
+      isNormalizing = false;
+    }
+  }
+
+  return cleanedItems;
 }
 
 export function saveShoppingItems(items) {
