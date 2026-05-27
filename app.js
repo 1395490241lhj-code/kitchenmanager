@@ -1349,7 +1349,7 @@ function renderShopping(pack){
   `;
   manualCard.querySelector('#shoppingAddName').addEventListener('input', e => {
     const val = e.target.value.trim();
-    if(val) manualCard.querySelector('#shoppingAddUnit').value = guessKitchenUnit(getCanonicalName(val));
+    if(val) setSelectValueWithOption(manualCard.querySelector('#shoppingAddUnit'), guessKitchenUnit(getCanonicalName(val)) || '');
   });
   manualCard.querySelector('#shoppingAddBtn').onclick = () => {
     const name = manualCard.querySelector('#shoppingAddName').value.trim();
@@ -1709,7 +1709,7 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     const val = e.target.value.trim();
     if(val){
       const canonical = getCanonicalName(val);
-      formContainer.querySelector('#addUnit').value = guessKitchenUnit(canonical);
+      setSelectValueWithOption(formContainer.querySelector('#addUnit'), guessKitchenUnit(canonical) || '份');
       if(isDryGoodName(canonical)) setAddKind('dry');
     }
   }); 
@@ -1727,11 +1727,14 @@ function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); 
     if(!rawName) return alert('请输入食材名称'); 
     const name=getCanonicalName(rawName);
     
-    // 获取数值，如果是负数则强制归0
-    let qty = +formContainer.querySelector('#addQty').value || 1; 
+    // 空数量按 1 处理；明确填写 0 时保留 0，方便记录“已用完但想保留条目”的食材。
+    const qtyText = formContainer.querySelector('#addQty').value.trim();
+    let qty = qtyText === '' ? 1 : Number(qtyText);
+    if(!Number.isFinite(qty)) qty = 1;
     if (qty < 0) qty = 0;
 
-    const unit=formContainer.querySelector('#addUnit').value; 
+    const unit=formContainer.querySelector('#addUnit').value || guessKitchenUnit(name) || '份';
+    setSelectValueWithOption(formContainer.querySelector('#addUnit'), unit);
     const date=formContainer.querySelector('#addDate').value||todayISO(); 
     const itemKind = selectedKind === 'dry' || isDryGoodName(name) ? 'dry' : 'raw';
     const isFrozen = itemKind === 'dry' ? false : formContainer.querySelector('#addFrozen').checked; // 获取冷冻状态
@@ -2015,7 +2018,16 @@ function renderRecipeEditor(id, base){
   const overIng = overlay.recipe_ingredients || {};
   const ingredientOptions = buildIngredientOptions(buildCatalog(base));
   const rBase = (base.recipes||[]).find(x => x.id===id);
-  const rOv = (overlay.recipes||{})[id] || {};
+  const hasOverlayRecipe = Object.prototype.hasOwnProperty.call(overlay.recipes || {}, id);
+  const rOv = hasOverlayRecipe ? (overlay.recipes||{})[id] || {} : {};
+  if(!rBase && !hasOverlayRecipe && !/^(u-|ai-search-)/.test(id || '')) {
+    const missing = document.createElement('div');
+    missing.className = 'card';
+    missing.style.padding = '24px';
+    missing.style.textAlign = 'center';
+    missing.innerHTML = `<h2>菜谱不存在</h2><p class="meta">这个编辑链接没有对应的菜谱，可能是旧链接或已删除的草稿。</p><a class="btn" href="#recipes">返回菜谱</a>`;
+    return missing;
+  }
   const r = {...(rBase||{id}), ...rOv};
   const items = (overIng[id] ?? baseIng[id] ?? []).map(x => ({...x}));
   const isCustomRecipe = !rBase;
@@ -2207,7 +2219,7 @@ async function onRoute(){
     if(hash==='recipes' || hash.startsWith('recipe:') || hash.startsWith('recipe-edit:')) el('#nav-recipe').classList.add('active');
     else if(hash==='shopping') el('#nav-shop').classList.add('active'); 
     else if(hash==='settings') el('#nav-set').classList.add('active'); 
-    else if(!hash || hash==='inventory') el('#nav-home').classList.add('active'); 
+    else el('#nav-home').classList.add('active');
     
     let view;
     if(hash.startsWith('recipe-edit:')){ const id = hash.split(':')[1]; view = renderRecipeEditor(id, base); }
