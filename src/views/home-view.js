@@ -215,7 +215,15 @@ function renderHomeDetails(title, subtitle, nodes, open = false) {
   nodes.forEach(node => details.appendChild(node)); return details;
 }
 
-function renderDryGoodsCabinet(inv) {
+function renderDryGoodsCabinet(inv, options = {}) {
+  const onInventoryChanged = typeof options.onInventoryChanged === 'function' ? options.onInventoryChanged : () => {};
+  let debounceTimer = null;
+  const notifyChange = () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      onInventoryChanged();
+    }, 800);
+  };
   const section = document.createElement('section'); section.className = 'dry-goods-section';
   section.innerHTML = `
     <div class="section-title home-section-title"><span>常备货架</span></div>
@@ -259,6 +267,7 @@ function renderDryGoodsCabinet(inv) {
       target.qty = target.stockStatus === 'empty' ? 0 : Math.max(1, +target.qty || 1);
       target.unit = target.unit || config.unit; target.kind = 'dry'; target.shelf = 365; target.dryPrep = config.prep; target.isFrozen = false;
       saveInventory(inv); updateStatusRow(row, target, config, 'dry');
+      notifyChange();
     };
     const buyButton = row.querySelector('.dry-good-buy');
     buyButton.onclick = () => { addShoppingItem(config.name, '', config.unit, '常备干货'); brieflyConfirmButton(buyButton); };
@@ -287,6 +296,7 @@ function renderDryGoodsCabinet(inv) {
       target.shelf = guessShelfDays(target.name, target.unit);
       target.stockStatus = countStockStatus(nextQty);
       saveInventory(inv); updateEggRow(target);
+      notifyChange();
     };
   });
   const eggBuyButton = eggRow.querySelector('.dry-good-buy');
@@ -309,6 +319,7 @@ function renderDryGoodsCabinet(inv) {
       target.qty = target.stockStatus === 'empty' ? 0 : Math.max(1, +target.qty || 1);
       target.unit = target.unit || config.unit; target.kind = 'raw'; target.shelf = guessShelfDays(target.name, target.unit);
       saveInventory(inv); updateStatusRow(row, target, config, 'daily');
+      notifyChange();
     };
     const buyButton = row.querySelector('.dry-good-buy');
     buyButton.onclick = () => { addShoppingItem(config.name, '', config.unit, '日常补给'); brieflyConfirmButton(buyButton); };
@@ -489,7 +500,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   container.appendChild(searchDetails);
 
   const cabinetOpen = hasLowOrEmptyStockInCabinet(inv);
-  const cabinetDetails = renderHomeDetails('常备货架', '日常补给与常备干货存量', [renderDryGoodsCabinet(inv)], cabinetOpen);
+  const cabinetDetails = renderHomeDetails('常备货架', '日常补给与常备干货存量', [renderDryGoodsCabinet(inv, { onInventoryChanged: onRoute })], cabinetOpen);
   container.appendChild(cabinetDetails);
 
   container.appendChild(fullInvDetails);
