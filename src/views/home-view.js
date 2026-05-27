@@ -425,23 +425,57 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   const shoppingItems = loadShoppingItems();
   const activeShopping = shoppingItems.filter(item => !item.done);
 
+  const searchResultsContainer = document.createElement('div');
+  searchResultsContainer.className = 'search-results-container';
+
   const searchBar = document.createElement('div'); searchBar.className = 'home-search';
-  searchBar.innerHTML = `<input id="mainSearch" placeholder="搜菜谱或食材，比如鸡蛋、回锅肉"><button type="button" class="btn ok" id="doSearch">搜索</button>`;
+  searchBar.innerHTML = `<input id="mainSearch" placeholder="搜菜谱或食材，比如鸡蛋、回锅肉">
+    <div class="home-search-buttons" style="display: flex; gap: 8px;">
+      <button type="button" class="btn ok" id="doSearch">搜索</button>
+      <button type="button" class="btn" id="clearSearch" style="display: none;">清空</button>
+    </div>`;
+
+  let searchDetails = null;
+
+  const clearSearch = () => {
+    searchBar.querySelector('#mainSearch').value = '';
+    searchResultsContainer.innerHTML = '';
+    const clearBtn = searchBar.querySelector('#clearSearch');
+    if (clearBtn) clearBtn.style.display = 'none';
+  };
 
   const showSearch = (query) => {
     const q = String(query || '').trim();
     if (q) {
-      container.innerHTML = ''; container.appendChild(searchBar);
       searchBar.querySelector('#mainSearch').value = q;
-      searchBar.querySelector('#doSearch').onclick = doSearch;
-      container.appendChild(renderRecipeSearchResults(q, pack, inv, { onRoute }));
+      searchResultsContainer.innerHTML = '';
+      const resultsNode = renderRecipeSearchResults(q, pack, inv, { onRoute });
+      searchResultsContainer.appendChild(resultsNode);
+      
+      const clearBtn = searchBar.querySelector('#clearSearch');
+      if (clearBtn) clearBtn.style.display = 'inline-block';
+      
+      if (searchDetails) {
+        searchDetails.open = true;
+        searchDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    } else {
+      clearSearch();
     }
   };
+
   const doSearch = () => showSearch(searchBar.querySelector('#mainSearch').value);
+
+  searchBar.querySelector('#mainSearch').onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      doSearch();
+    }
+  };
+  searchBar.querySelector('#doSearch').onclick = doSearch;
+  searchBar.querySelector('#clearSearch').onclick = clearSearch;
 
   const title = document.createElement('div'); title.className = 'main-title-center'; title.innerHTML = '<span>厨房</span>';
   container.appendChild(title);
-  searchBar.querySelector('#doSearch').onclick = doSearch;
 
   // Render full inventory node
   const fullInventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
@@ -496,7 +530,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   container.appendChild(renderCookChoicesSection(groups.ready, groups.almost, pack, inv));
 
   const searchOpen = (groups.ready.length === 0 && groups.almost.length === 0);
-  const searchDetails = renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar], searchOpen);
+  searchDetails = renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar, searchResultsContainer], searchOpen);
   container.appendChild(searchDetails);
 
   const cabinetOpen = hasLowOrEmptyStockInCabinet(inv);
