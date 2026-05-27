@@ -5,7 +5,7 @@ import {
   normalizeBackupForRestore,
   setStoredSchemaVersion
 } from './migrations.js?v=1';
-import { loadShoppingItems, saveShoppingItems } from './shopping.js?v=1';
+import { loadShoppingItems, saveShoppingItems } from './shopping.js?v=2';
 
 export function emptyOverlay() {
   return { version: 1, recipes: {}, recipe_ingredients: {}, deletes: {} };

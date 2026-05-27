@@ -10,7 +10,7 @@ import {
   findInventoryMatch,
   remainingDays
 } from './inventory.js?v=1';
-import { addShoppingItem } from './shopping.js?v=1';
+import { addShoppingItem } from './shopping.js?v=2';
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
