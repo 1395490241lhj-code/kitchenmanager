@@ -142,7 +142,7 @@ async function onRoute() {
       view = renderRecipeEditor(id, baseWithCompletion, { replaceView: nextView => app.replaceChildren(nextView) });
     } else if (hash.startsWith('recipe:')) {
       const id = hash.split(':')[1];
-      view = renderRecipeDetail(id, pack);
+      view = renderRecipeDetail(id, pack, { onRoute });
     } else if (hash === 'shopping') {
       view = renderShopping(pack, { onRoute });
     } else if (hash === 'recipes') {

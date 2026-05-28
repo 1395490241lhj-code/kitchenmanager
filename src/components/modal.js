@@ -1,7 +1,7 @@
 import { todayISO } from '../storage.js?v=98';
 import { normalizeKitchenAmount, isSeasoning } from '../ingredients.js?v=1';
 import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=1';
-import { findInventoryMatch, formatInventoryAmount } from '../inventory.js?v=1';
+import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch } from '../inventory.js?v=1';
 
 export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   const overlay = document.createElement('div');
@@ -143,9 +143,47 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
   const rows = (coreItems || [])
     .filter(it => it && it.item && !isSeasoning(it.item))
     .map(it => {
-      const match = findInventoryMatch(inv, it.item);
-      const stockText = match ? formatInventoryAmount(match) : null;
-      return { name: it.item, recipeQty: it.qty || '', unit: it.unit || '', match, stockText };
+      const analysis = getStockCoverageAnalysis(inv, it.item, it.qty, it.unit);
+      
+      let match = null;
+      let stockText = '';
+      let defaultVal = '0';
+      let unitMismatch = false;
+
+      if (analysis.confidence === 'exact') {
+        match = analysis.matchedItems[0];
+        const totalQty = analysis.matchedItems.reduce((sum, x) => sum + (+x.qty || 0), 0);
+        stockText = `${totalQty}${it.unit || ''}`;
+        defaultVal = it.qty !== '' ? String(it.qty) : '0';
+        unitMismatch = false;
+      } else if (analysis.confidence === 'unit-mismatch') {
+        match = analysis.matchedItems[0];
+        const totalQty = analysis.matchedItems.reduce((sum, x) => sum + (+x.qty || 0), 0);
+        stockText = `${totalQty}${match.unit || ''}`;
+        defaultVal = '0';
+        unitMismatch = true;
+      } else if (analysis.confidence === 'status-only') {
+        match = analysis.matchedItems[0];
+        stockText = '充足 (数量未填)';
+        defaultVal = '0';
+        unitMismatch = (match.unit || '') !== (it.unit || '');
+      } else {
+        match = null;
+        stockText = '无匹配库存';
+        defaultVal = '0';
+        unitMismatch = false;
+      }
+
+      return {
+        name: it.item,
+        recipeQty: it.qty || '',
+        unit: it.unit || '',
+        match,
+        stockText,
+        defaultVal,
+        unitMismatch,
+        matchedUnit: match ? (match.unit || '') : ''
+      };
     });
 
   const overlay = document.createElement('div');
@@ -156,7 +194,10 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
         <div class="deduct-row" data-index="${i}">
           <span class="deduct-name">${escapeHtml(row.name)}</span>
           <span class="deduct-recipe-qty">${row.recipeQty ? `用量 ${escapeHtml(String(row.recipeQty))}${escapeHtml(row.unit)}` : '用量不详'}</span>
-          <span class="deduct-stock-info ${row.match ? 'has-match' : 'no-match'}">${row.match ? `库存 ${escapeHtml(row.stockText)}` : '无匹配库存'}</span>
+          <span class="deduct-stock-info ${row.match ? 'has-match' : 'no-match'}">
+            ${row.match ? `库存 ${escapeHtml(row.stockText)}` : '无匹配库存'}
+            ${row.unitMismatch ? `<br><small class="text-danger" style="font-size: 11px; font-weight: 500;">库存单位不同，需手动确认</small>` : ''}
+          </span>
           <label class="deduct-qty-label">
             <span>扣减</span>
             <input
@@ -164,11 +205,12 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
               type="number"
               min="0"
               step="0.1"
-              value="${row.recipeQty !== '' && row.match ? escapeOptionAttr(String(row.recipeQty)) : '0'}"
+              value="${escapeOptionAttr(row.defaultVal)}"
               ${!row.match ? 'disabled title="无库存匹配，无法扣减"' : ''}
             >
             <span>${escapeHtml(row.unit) || ''}</span>
           </label>
+          ${row.unitMismatch ? `<span class="deduct-mismatch-warn text-warning" style="display: none; font-size: 11px; margin-top: 4px; grid-column: 1 / -1; text-align: right;">⚠️ 将从不同单位库存中扣减，可能不精确</span>` : ''}
         </div>
       `).join('')
     : '<p class="meta">本菜谱没有核心食材信息，无需扣减。</p>';
@@ -190,6 +232,24 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
   document.body.appendChild(overlay);
 
   const statusEl = overlay.querySelector('#deductModalStatus');
+
+  // 绑定单位不一致的警告事件
+  overlay.querySelectorAll('.deduct-row').forEach(rowEl => {
+    const input = rowEl.querySelector('.deduct-qty-input');
+    const warnText = rowEl.querySelector('.deduct-mismatch-warn');
+    if (input && warnText) {
+      const checkWarning = () => {
+        const val = parseFloat(input.value);
+        if (val > 0) {
+          warnText.style.display = 'block';
+        } else {
+          warnText.style.display = 'none';
+        }
+      };
+      input.addEventListener('input', checkWarning);
+      checkWarning();
+    }
+  });
 
   const close = () => {
     overlay.classList.add('closing');
@@ -214,19 +274,27 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
       const input = rowEl.querySelector('.deduct-qty-input');
       const qty = parseFloat(input.value);
       if (!isFinite(qty) || qty <= 0) return; // 0 或空 → 不扣
-      deductions.push({ name: row.name, qty, unit: row.unit });
+      deductions.push({
+        name: row.name,
+        qty,
+        unit: row.unit,
+        allowMismatch: row.unitMismatch ? true : false
+      });
     });
 
-    // 校验：不会扣成负数（deductInventoryForRecipe 自行 clamp，这里只做提示）
+    // 校验：不会扣成负数
     for (const d of deductions) {
-      const batches = (inv || []).filter(x => {
-        // 与 deductInventoryForRecipe 中的 isIngredientMatch 逻辑一致
-        return String(x.name || '').trim() !== '' &&
-          (x.name === d.name || x.name.includes(d.name) || d.name.includes(x.name));
-      });
-      const totalAvail = batches.reduce((s, b) => s + (+b.qty || 0), 0);
+      const matched = (inv || []).filter(x => isIngredientMatch(d.name, x.name) && (+x.qty || 0) > 0 && x.stockStatus !== 'empty');
+      const sameUnit = matched.filter(x => (x.unit || '') === (d.unit || ''));
+      const diffUnit = matched.filter(x => (x.unit || '') !== (d.unit || ''));
+
+      let totalAvail = sameUnit.reduce((s, b) => s + (+b.qty || 0), 0);
+      if (d.allowMismatch) {
+        totalAvail += diffUnit.reduce((s, b) => s + (+b.qty || 0), 0);
+      }
+
       if (d.qty > totalAvail + 0.001) {
-        setInlineStatus(statusEl, `${d.name} 的扣减量（${d.qty}）超过当前库存（${totalAvail}），将扣至 0。`, 'info');
+        setInlineStatus(statusEl, `${d.name} 的扣减量（${d.qty}）超过匹配的当前库存（${totalAvail}），将扣至 0。`, 'info');
       }
     }
 

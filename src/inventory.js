@@ -238,32 +238,89 @@ export function upsertInventory(inv, e) {
 /**
  * 按配方扣减库存（做完菜之后调用）。
  * @param {Array} inv - 库存数组（就地修改）
- * @param {Array<{name:string, qty:number, unit:string}>} deductions - 要扣减的食材列表
- * 匹配规则：同名（支持别名模糊匹配）且单位相同优先；单位不同时只按名称匹配累加扣减。
- * 优先扣最快过期的批次（remainingDays 最小）。
- * 扣到 0 时 stockStatus 自动设为 empty。
+ * @param {Array<{name:string, qty:number, unit:string, allowMismatch:boolean}>} deductions - 要扣减的食材列表
+ * @returns {{
+ *   deducted: Array<{name:string, qty:number, unit:string}>,
+ *   skipped: Array<{name:string, qty:number, unit:string, reason: 'unit-mismatch'|'no-stock'}>
+ * }}
  */
 export function deductInventoryForRecipe(inv, deductions) {
-  for (const { name, qty } of deductions) {
+  const result = {
+    deducted: [],
+    skipped: []
+  };
+
+  for (const deduction of (deductions || [])) {
+    const { name, qty, unit, allowMismatch } = deduction;
     if (!name || !(+qty > 0)) continue;
+
     let remaining = +qty;
-    // 找所有匹配该食材且数量 > 0 的批次，按到期天数升序（最快过期先扣）
-    const batches = (inv || [])
-      .filter(x => isIngredientMatch(name, x.name) && (+x.qty || 0) > 0)
-      .sort((a, b) => remainingDays(a) - remainingDays(b));
-    for (const batch of batches) {
+    
+    // 找所有匹配该食材且数量 > 0 且状态非 empty 的可用库存批次
+    const matched = (inv || [])
+      .filter(x => isIngredientMatch(name, x.name) && (+x.qty || 0) > 0 && x.stockStatus !== 'empty');
+
+    if (matched.length === 0) {
+      result.skipped.push({ name, qty, unit, reason: 'no-stock' });
+      continue;
+    }
+
+    // 区分同单位批次与不同单位批次
+    const sameUnit = matched.filter(x => (x.unit || '') === (unit || ''));
+    const diffUnit = matched.filter(x => (x.unit || '') !== (unit || ''));
+
+    // 按保质期快到期排序
+    sameUnit.sort((a, b) => remainingDays(a) - remainingDays(b));
+    diffUnit.sort((a, b) => remainingDays(a) - remainingDays(b));
+
+    let deductedAmt = 0;
+
+    // 优先扣同单位库存
+    for (const batch of sameUnit) {
       if (remaining <= 0) break;
       const available = +batch.qty || 0;
       const take = Math.min(available, remaining);
       batch.qty = Math.max(0, available - take);
       remaining -= take;
+      deductedAmt += take;
       if (batch.qty <= 0) {
         batch.qty = 0;
         batch.stockStatus = 'empty';
       }
     }
+
+    // 如果还有剩余未扣，且明确允许跨单位扣减，则扣减不同单位库存
+    if (remaining > 0 && allowMismatch) {
+      for (const batch of diffUnit) {
+        if (remaining <= 0) break;
+        const available = +batch.qty || 0;
+        const take = Math.min(available, remaining);
+        batch.qty = Math.max(0, available - take);
+        remaining -= take;
+        deductedAmt += take;
+        if (batch.qty <= 0) {
+          batch.qty = 0;
+          batch.stockStatus = 'empty';
+        }
+      }
+    }
+
+    // 记录结果
+    if (deductedAmt > 0) {
+      result.deducted.push({ name, qty: deductedAmt, unit });
+    }
+
+    if (remaining > 0) {
+      if (!allowMismatch && diffUnit.length > 0) {
+        result.skipped.push({ name, qty: remaining, unit, reason: 'unit-mismatch' });
+      } else {
+        result.skipped.push({ name, qty: remaining, unit, reason: 'no-stock' });
+      }
+    }
   }
+
   saveInventory(inv);
+  return result;
 }
 
 export function addInventoryQty(inv, name, qty, unit, kind='raw'){

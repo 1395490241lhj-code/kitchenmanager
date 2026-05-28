@@ -16,7 +16,7 @@ import { loadOverlay, saveOverlay } from '../backup.js?v=2';
 import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=1';
 import { showDeductStockModal } from '../components/modal.js?v=1';
 
-export function renderRecipeDetail(id, pack) {
+export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   let r = (pack.recipes || []).find(x => x.id === id);
   if (!r && id === 'creative-ai-temp') {
     const aiData = S.load(S.keys.ai_recs, null);
@@ -117,14 +117,31 @@ export function renderRecipeDetail(id, pack) {
       inv,
       // onConfirm: deduct then mark cooked
       (deductions) => {
-        if (deductions.length > 0) deductInventoryForRecipe(inv, deductions);
+        let deductMsg = '未扣减库存。';
+        if (deductions.length > 0) {
+          const deductRes = deductInventoryForRecipe(inv, deductions);
+          const deductedItems = deductRes.deducted || [];
+          const skippedItems = deductRes.skipped || [];
+          
+          let parts = [];
+          if (deductedItems.length > 0) {
+            parts.push(`已扣减 ${deductedItems.map(d => `${d.name}×${d.qty}${d.unit||''}`).join('、')}`);
+          }
+          const mismatchNames = skippedItems.filter(s => s.reason === 'unit-mismatch').map(s => s.name);
+          if (mismatchNames.length > 0) {
+            parts.push(`跳过了不同单位食材：${mismatchNames.join('、')}`);
+          }
+          if (parts.length > 0) {
+            deductMsg = parts.join('，') + '。';
+          }
+        }
         const result = markRecipeCooked(id);
         brieflyConfirmButton(cookedBtn, '已记录');
-        const deductMsg = deductions.length > 0
-          ? `已扣减 ${deductions.map(d => `${d.name}×${d.qty}`).join('、')} 的库存。`
-          : '未扣减库存。';
         showActionFeedback(`已记录做完${result.removedFromPlan ? '，并从今日计划移除' : ''}。${deductMsg}`);
         cookedBtn.disabled = false;
+        if (typeof onRoute === 'function') {
+          setTimeout(onRoute, 1000);
+        }
       },
       // onSkip: just mark cooked, no deduction
       () => {
@@ -132,6 +149,9 @@ export function renderRecipeDetail(id, pack) {
         brieflyConfirmButton(cookedBtn, '已记录');
         showActionFeedback(result.removedFromPlan ? '已记录做完，并从今日计划移除；库存没有扣减。' : '已记录做完；库存没有扣减。');
         cookedBtn.disabled = false;
+        if (typeof onRoute === 'function') {
+          setTimeout(onRoute, 1000);
+        }
       },
       // onCancel
       () => { cookedBtn.disabled = false; }
