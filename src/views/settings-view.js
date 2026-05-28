@@ -2,6 +2,7 @@ import { S, todayISO } from '../storage.js?v=98';
 import { CUSTOM_AI } from '../config.js?v=89';
 import { DATA_SCHEMA_VERSION } from '../migrations.js?v=1';
 import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=2';
+import { setInlineStatus } from '../components/status.js?v=1';
 
 export function renderSettings() {
   const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
@@ -12,6 +13,7 @@ export function renderSettings() {
   const div = document.createElement('div');
   div.innerHTML = `
     <h2 class="section-title">设置</h2>
+    <div id="settingsStatus" class="small inline-status" hidden></div>
     <div class="section-title home-section-title"><span>AI 设置</span></div>
     <div class="card">
       <div class="setting-group">
@@ -51,7 +53,10 @@ export function renderSettings() {
   };
   div.querySelector('#saveSet').onclick = () => {
     const newS = { apiUrl: div.querySelector('#sUrl').value.trim(), apiKey: div.querySelector('#sKey').value.trim(), model: div.querySelector('#sModel').value.trim() };
-    S.save(S.keys.settings, newS); alert('已保存，刷新后生效。'); location.reload();
+    S.save(S.keys.settings, newS);
+    const statusEl = div.querySelector('#settingsStatus');
+    setInlineStatus(statusEl, '已保存，刷新后生效。', 'ok');
+    setTimeout(() => location.reload(), 1200);
   };
   div.querySelector('#exportKitchenBackup').onclick = () => {
     downloadJsonFile(buildKitchenBackup(), `kitchen-backup-${todayISO()}.json`);
@@ -59,9 +64,16 @@ export function renderSettings() {
   div.querySelector('#importKitchenBackup').onchange = e => {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
+    const statusEl = div.querySelector('#settingsStatus');
     reader.onload = () => {
-      try { restoreKitchenBackup(JSON.parse(reader.result)); alert('厨房备份已导入，页面将刷新。'); location.reload(); }
-      catch (err) { alert('导入失败：' + err.message); }
+      try {
+        restoreKitchenBackup(JSON.parse(reader.result));
+        setInlineStatus(statusEl, '备份已导入，页面将刷新。', 'ok');
+        setTimeout(() => location.reload(), 1200);
+      }
+      catch (err) {
+        setInlineStatus(statusEl, '导入失败：' + err.message, 'bad');
+      }
     };
     reader.readAsText(file);
   };
