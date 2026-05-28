@@ -1,26 +1,26 @@
-import { S, todayISO } from '../storage.js?v=159';
+import { S, todayISO } from '../storage.js?v=160';
 import {
   DRY_GOODS, EGG_STOCK, DAILY_STOCKS,
   countStockStatus, dryStatusInfo,
   guessShelfDays, nextDryStatus, buildCatalog,
   getCanonicalName
-} from '../ingredients.js?v=159';
+} from '../ingredients.js?v=160';
 import {
   ensureStockItem, findStockItem, formatStockLine,
   isInventoryAvailable, loadInventory, remainingDays, saveInventory
-} from '../inventory.js?v=159';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=159';
+} from '../inventory.js?v=160';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=160';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   getLocalRecommendations, hasRecipeMethod,
   processAiData, rankRecipesForRecommendation,
   getCleanFridgeRecommendations
-} from '../recommendations.js?v=159';
-import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=159';
-import { renderInventory } from './inventory-view.js?v=159';
-import { showRecommendationCards, renderRecipeSearchResults } from '../components/recipe-card.js?v=159';
-import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=159';
-import { showCleanFridgeModal } from '../components/modal.js?v=159';
+} from '../recommendations.js?v=160';
+import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=160';
+import { renderInventory } from './inventory-view.js?v=160';
+import { showRecommendationCards, renderRecipeSearchResults } from '../components/recipe-card.js?v=160';
+import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=160';
+import { showCleanFridgeModal } from '../components/modal.js?v=160';
 
 
 function formatRemainingText(days) {

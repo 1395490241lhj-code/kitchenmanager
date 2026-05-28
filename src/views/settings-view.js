@@ -1,8 +1,8 @@
-import { S, todayISO } from '../storage.js?v=159';
-import { CUSTOM_AI } from '../config.js?v=159';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=159';
-import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=159';
-import { setInlineStatus } from '../components/status.js?v=159';
+import { S, todayISO } from '../storage.js?v=160';
+import { CUSTOM_AI } from '../config.js?v=160';
+import { DATA_SCHEMA_VERSION } from '../migrations.js?v=160';
+import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=160';
+import { setInlineStatus, escapeHtml } from '../components/status.js?v=160';
 
 export function renderSettings() {
   const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
@@ -26,6 +26,10 @@ export function renderSettings() {
         </select>
       </div>
       <p class="meta">精简库聚焦日常家常菜；完整库包含全部原始菜谱（含宴席、罕见菜）。无论哪种模式，你的自定义菜谱和修改都会保留。切换后页面会自动刷新。</p>
+    </div>
+    <div class="section-title home-section-title"><span>菜谱库精简报告</span></div>
+    <div class="card" id="curationReport">
+      <p class="meta">正在加载报告…</p>
     </div>
     <div class="section-title home-section-title"><span>AI 设置</span></div>
     <div class="card">
@@ -105,5 +109,65 @@ export function renderSettings() {
     };
     reader.readAsText(file);
   };
+
+  // 菜谱库精简报告（只读查看，不影响菜谱列表）
+  loadCurationReport(div.querySelector('#curationReport'), libMode);
+
   return div;
+}
+
+async function loadCurationReport(container, libMode) {
+  if (!container) return;
+  const fetchJson = async (file) => {
+    const res = await fetch(new URL(file, location).href, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  };
+
+  let removedData, needingData;
+  try {
+    [removedData, needingData] = await Promise.all([
+      fetchJson('./data/recipe-curation-removed.json'),
+      fetchJson('./data/recipes-needing-completion.json')
+    ]);
+  } catch (e) {
+    container.innerHTML = '<p class="meta">暂无精简报告。</p>';
+    return;
+  }
+
+  const removed = Array.isArray(removedData?.removed) ? removedData.removed : [];
+  const needing = Array.isArray(needingData?.items) ? needingData.items : [];
+  const modeLabel = libMode === 'full' ? '完整库' : '精简库';
+
+  const removedRow = (r) => `
+    <li class="curation-item">
+      <div class="curation-name">${escapeHtml(r.name || '未命名')}</div>
+      <div class="curation-meta small">${escapeHtml(r.reason || '')}</div>
+      ${r.duplicateOf ? `<div class="curation-tag small">重复于：${escapeHtml(r.duplicateOf)}</div>` : ''}
+    </li>`;
+
+  const needRow = (n) => {
+    const missing = Array.isArray(n.missing) && n.missing.length ? n.missing.join('、') : '';
+    const prio = { high: '高', medium: '中', low: '低' }[n.suggestedPriority] || '';
+    return `
+    <li class="curation-item">
+      <div class="curation-name">${escapeHtml(n.name || '未命名')}${prio ? `<span class="curation-prio curation-prio-${escapeHtml(n.suggestedPriority || '')}">${prio}优先</span>` : ''}</div>
+      <div class="curation-meta small">${escapeHtml(n.reason || '')}</div>
+      ${missing ? `<div class="curation-tag small">待补：${escapeHtml(missing)}</div>` : ''}
+    </li>`;
+  };
+
+  container.innerHTML = `
+    <p class="meta">当前菜谱库模式：<strong>${modeLabel}</strong></p>
+    <p class="meta">已移出主库：<strong>${removed.length}</strong> 道 · 待补全日常菜：<strong>${needing.length}</strong> 道</p>
+    <details class="curation-details">
+      <summary>已移出主库（${removed.length}）</summary>
+      ${removed.length ? `<ul class="curation-list">${removed.map(removedRow).join('')}</ul>` : '<p class="meta">无</p>'}
+    </details>
+    <details class="curation-details">
+      <summary>待补全日常菜（${needing.length}）</summary>
+      ${needing.length ? `<ul class="curation-list">${needing.map(needRow).join('')}</ul>` : '<p class="meta">无</p>'}
+    </details>
+    <p class="meta">仅供查看：列出哪些菜被移出主库、原因，以及哪些日常菜还需要补做法。<a href="./data/recipe-curation-summary.md" target="_blank" rel="noopener">查看完整报告</a></p>
+  `;
 }

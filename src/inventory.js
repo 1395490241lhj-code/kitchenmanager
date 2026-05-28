@@ -1,4 +1,4 @@
-import { S, todayISO } from './storage.js?v=159';
+import { S, todayISO } from './storage.js?v=160';
 import {
   INGREDIENT_ALIASES,
   getCanonicalName,
@@ -6,7 +6,7 @@ import {
   getDryPrepText,
   guessShelfDays,
   isDryGoodName
-} from './ingredients.js?v=159';
+} from './ingredients.js?v=160';
 
 export const RECIPE_GENERIC_MATCHES = {
   "猪肉": ["五花肉", "瘦肉"],

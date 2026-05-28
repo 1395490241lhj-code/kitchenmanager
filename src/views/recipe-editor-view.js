@@ -1,15 +1,15 @@
-import { els } from '../dom.js?v=159';
+import { els } from '../dom.js?v=160';
 import {
   buildCatalog,
   buildIngredientOptions,
   getCanonicalName,
   guessKitchenUnit
-} from '../ingredients.js?v=159';
+} from '../ingredients.js?v=160';
 import {
   applyOverlay,
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=159';
+} from '../backup.js?v=160';
 import {
   escapeHtml,
   escapeOptionAttr,
@@ -17,7 +17,7 @@ import {
   normalizeDifficulty,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=159';
+} from '../components/status.js?v=160';
 
 /**
  * @param {string} id
