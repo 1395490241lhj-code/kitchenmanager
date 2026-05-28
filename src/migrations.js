@@ -1,7 +1,8 @@
 import { S } from './storage.js?v=98';
 
 export const APP_VERSION = '151';
-export const DATA_SCHEMA_VERSION = 3;
+export const DATA_SCHEMA_VERSION = 4;
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration-internal helpers (inlined to avoid ESM circular/timing issues)
@@ -296,6 +297,29 @@ const DATA_MIGRATIONS = {
     }
 
     data.recipe_activity = newActivity;
+    return { data, changed };
+  },
+
+  4(data) {
+    let changed = false;
+    const rawPlan = Array.isArray(data.plan) ? data.plan : [];
+    const newPlan = [];
+    const today = migTodayISO();
+    for (const item of rawPlan) {
+      if (item && typeof item === 'object') {
+        const id = item.id;
+        const servings = Number(item.servings) || 1;
+        const date = item.date || today;
+        const newItem = { id, servings, date };
+        if (item.date !== date || item.servings !== servings) {
+          changed = true;
+        }
+        newPlan.push(newItem);
+      } else {
+        changed = true;
+      }
+    }
+    data.plan = newPlan;
     return { data, changed };
   }
 };

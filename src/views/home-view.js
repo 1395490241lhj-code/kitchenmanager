@@ -119,9 +119,22 @@ function getTodayDecisionGroups(pack, inv) {
   };
 }
 
-function renderHomeStats(expiring, ready, almost, shoppingItems = [], hasInv = true) {
+function renderHomeStats(expiring, ready, almost, shoppingItems = [], hasInv = true, pack = null) {
   const div = document.createElement('div');
   const plan = S.load(S.keys.plan, []);
+  const today = todayISO();
+  const baseDate = new Date(today);
+  const tomorrow = new Date(baseDate);
+  tomorrow.setDate(baseDate.getDate() + 1);
+  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+  const dayAfter = new Date(baseDate);
+  dayAfter.setDate(baseDate.getDate() + 2);
+  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
+
+  const todayPlans = plan.filter(item => (item.date || today) === today);
+  const tomorrowPlans = plan.filter(item => item.date === tomorrowISO);
+  const dayAfterPlans = plan.filter(item => item.date === dayAfterISO);
+
   const activeShopping = shoppingItems.filter(item => !item.done);
   let title = '今天先看厨房状态';
   let body = '不用先想吃什么，下面会按库存、快到期和常做菜自动给你排优先级。';
@@ -129,7 +142,7 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = [], hasInv = t
 
   if (!hasInv) {
     title = '先录入一些库存';
-    body = '录入后即可获得精准的今日推荐 and 快到期提醒。';
+    body = '录入后即可获得精准 of 今日推荐 and 快到期提醒。';
     actionsHtml = `
       <button type="button" class="btn ok" id="btnManualAdd">立即入库</button>
       <button type="button" class="btn" id="btnReceiptAdd">拍小票</button>
@@ -169,6 +182,30 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = [], hasInv = t
 
   div.className = 'card home-briefing';
   const shoppingNote = activeShopping.length ? `购物清单还有 ${activeShopping.length} 项未完成` : '购物清单目前是空的';
+
+  let planSummaryHtml = '';
+  if (pack) {
+    const getNames = (plansList) => {
+      const names = plansList
+        .map(item => {
+          const r = (pack.recipes || []).find(x => x.id === item.id);
+          return r ? r.name : null;
+        })
+        .filter(Boolean);
+      return names.length > 0 ? names.join('、') : '暂无计划';
+    };
+    planSummaryHtml = `
+      <div class="home-plan-summary" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--separator); font-size: 13px;">
+        <div style="font-weight: 700; color: var(--text-main); margin-bottom: 6px;">📅 3天计划：</div>
+        <div style="display: flex; flex-direction: column; gap: 4px; color: var(--text-secondary); line-height: 1.5;">
+          <div><strong>今天：</strong><span>${escapeHtml(getNames(todayPlans))}</span></div>
+          <div><strong>明天：</strong><span>${escapeHtml(getNames(tomorrowPlans))}</span></div>
+          <div><strong>后天：</strong><span>${escapeHtml(getNames(dayAfterPlans))}</span></div>
+        </div>
+      </div>
+    `;
+  }
+
   div.innerHTML = `
     <div class="home-briefing-head">
       <div>
@@ -184,8 +221,9 @@ function renderHomeStats(expiring, ready, almost, shoppingItems = [], hasInv = t
       <div class="home-stat"><strong>${expiring.length}</strong><span>快用掉</span></div>
       <div class="home-stat"><strong>${ready.length}</strong><span>现在能做</span></div>
       <div class="home-stat"><strong>${activeShopping.length}</strong><span>待购买</span></div>
-      <div class="home-stat"><strong>${plan.length}</strong><span>今天计划</span></div>
+      <div class="home-stat"><strong>${todayPlans.length}</strong><span>今天计划</span></div>
     </div>
+    ${planSummaryHtml}
     <div class="home-shopping-note">${escapeHtml(shoppingNote)}</div>
   `;
   return div;
@@ -555,7 +593,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   fullInvDetails.id = 'homeInventoryDetails';
 
   if (!hasUsableInventory(inv)) {
-    const briefingCard = renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems, false);
+    const briefingCard = renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems, false, pack);
     container.appendChild(briefingCard);
 
     const invTitle = document.createElement('div'); invTitle.className = 'section-title home-section-title';
@@ -593,7 +631,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     return container;
   }
 
-  const briefingCard = renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems, true);
+  const briefingCard = renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems, true, pack);
   container.appendChild(briefingCard);
 
   if (expiring.length > 0) {

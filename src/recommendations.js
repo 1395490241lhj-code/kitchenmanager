@@ -286,7 +286,8 @@ export function explainRecipeScore(scoreResult) {
   }
 
   if (scoreResult.isFavorite) explain.push('常做菜，轻微加分');
-  if (scoreResult.isPlanned) explain.push('已在今日计划，避免重复安排');
+  if (scoreResult.isPlannedToday) explain.push('今天已计划，避免重复安排');
+  else if (scoreResult.isPlannedFuture) explain.push('明/后天已计划，轻微降权');
   if (scoreResult.recentDays !== null && scoreResult.recentDays <= 5) {
     const recentText = scoreResult.recentDays === 0 ? '今天' : `最近 ${scoreResult.recentDays} 天内`;
     explain.push(`${recentText}做过，已轻微降权`);
@@ -331,7 +332,19 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
   const today = context.today || todayISO();
   const hasMethod = hasRecipeMethod(recipe);
   const isFavorite = favoriteIds.has(recipe.id);
-  const isPlanned = plannedIds.has(recipe.id);
+
+  const baseDate = new Date(today);
+  const tomorrow = new Date(baseDate);
+  tomorrow.setDate(baseDate.getDate() + 1);
+  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+  const dayAfter = new Date(baseDate);
+  dayAfter.setDate(baseDate.getDate() + 2);
+  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
+
+  const isPlannedToday = (context.plan || []).some(item => item && item.id === recipe.id && (item.date || today) === today);
+  const isPlannedFuture = (context.plan || []).some(item => item && item.id === recipe.id && (item.date === tomorrowISO || item.date === dayAfterISO));
+  const isPlanned = isPlannedToday || isPlannedFuture;
+
   const recentDays = daysSince(activity.cookedAt, today);
 
   let score = 0;
@@ -353,7 +366,7 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     }, 0));
     scoreParts.favoriteBonus = isFavorite ? 8 : 0;
     scoreParts.methodBonus = hasMethod ? 6 : -8;
-    scoreParts.plannedPenalty = isPlanned ? -30 : 0;
+    scoreParts.plannedPenalty = isPlannedToday ? -30 : (isPlannedFuture ? -10 : 0);
 
     if (recentDays === null) scoreParts.recentPenalty = 0;
     else if (recentDays <= 1) scoreParts.recentPenalty = -24;
@@ -386,6 +399,8 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     hasMethod,
     isFavorite,
     isPlanned,
+    isPlannedToday,
+    isPlannedFuture,
     recentDays,
     cookedCount: activity.cookedCount || 0,
     scoreParts
@@ -599,10 +614,12 @@ export function markRecipePlanned(id) {
   saveRecipeActivity(activity);
 }
 
-export function addRecipeToPlan(id) {
+export function addRecipeToPlan(id, date = null) {
   const plan = S.load(S.keys.plan, []);
-  if (plan.find(x => x.id === id)) return false;
-  plan.push({ id, servings: 1 });
+  const today = todayISO();
+  const targetDate = date || today;
+  if (plan.find(x => x.id === id && (x.date || today) === targetDate)) return false;
+  plan.push({ id, servings: 1, date: targetDate });
   S.save(S.keys.plan, plan);
   markRecipePlanned(id);
   return true;

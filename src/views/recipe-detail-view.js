@@ -1,4 +1,4 @@
-import { S } from '../storage.js?v=98';
+import { S, todayISO } from '../storage.js?v=98';
 import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=1';
 import { deductInventoryForRecipe, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=1';
 import {
@@ -56,7 +56,19 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   const inv = loadInventory(catalog);
   const missingIngredients = getMissingRecipeIngredients(r, pack, inv, items);
   const plan = S.load(S.keys.plan, []);
-  const isPlanned = plan.some(item => item.id === id);
+  const today = todayISO();
+  const baseDate = new Date(today);
+  const tomorrow = new Date(baseDate);
+  tomorrow.setDate(baseDate.getDate() + 1);
+  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+  const dayAfter = new Date(baseDate);
+  dayAfter.setDate(baseDate.getDate() + 2);
+  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
+
+  const isPlannedToday = plan.some(item => item.id === id && (item.date || today) === today);
+  const isPlannedTomorrow = plan.some(item => item.id === id && item.date === tomorrowISO);
+  const isPlannedDayAfter = plan.some(item => item.id === id && item.date === dayAfterISO);
+  const isPlanned = isPlannedToday || isPlannedTomorrow || isPlannedDayAfter;
 
   // Detect unit-mismatch among items that are NOT already flagged as missing.
   // These are items where findInventoryMatch found a hit (so they count as "matched"),
@@ -85,7 +97,7 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   const missingMethodContent = `<div class="ai-empty-note">暂无详细做法。可以让 AI 先生成草稿，确认后再保存。</div><button type="button" class="btn ai" id="genMethodBtn">✨ AI 生成草稿</button>`;
   const methodContent = r.method ? `<div class="method-text">${escapeHtml(r.method)}</div>` : missingMethodContent;
 
-  div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已经在今日计划里' : '先加入今日计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可选择扣减库存。</p></div><div class="recipe-action-buttons"><button type="button" class="btn ok" id="detailAddPlan">${isPlanned ? '已加入今日计划' : '加入今日计划'}</button><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${escapeHtml(it.item)} ${it.qty ? `<span class="qty">${escapeHtml(it.qty)}${escapeHtml(it.unit||'')}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已安排在菜单计划' : '先加入菜单计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可选择扣减库存。</p></div><div class="recipe-action-buttons"><div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; width: 100%;"><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planToday" ${isPlannedToday ? 'disabled' : ''}>${isPlannedToday ? '今天已计划' : '计划今天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planTomorrow" ${isPlannedTomorrow ? 'disabled' : ''}>${isPlannedTomorrow ? '明天已计划' : '计划明天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planDayAfter" ${isPlannedDayAfter ? 'disabled' : ''}>${isPlannedDayAfter ? '后天已计划' : '计划后天'}</button></div><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${escapeHtml(it.item)} ${it.qty ? `<span class="qty">${escapeHtml(it.qty)}${escapeHtml(it.unit||'')}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
 
   const actionFeedback = div.querySelector('#recipeActionFeedback');
   const showActionFeedback = (text) => {
@@ -93,13 +105,26 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
     window.setTimeout(() => { actionFeedback.hidden = true; }, 1800);
   };
 
-  const detailAddPlan = div.querySelector('#detailAddPlan');
-  if (isPlanned) detailAddPlan.disabled = true;
-  detailAddPlan.onclick = () => {
-    const added = addRecipeToPlan(id);
-    if (added) { detailAddPlan.textContent = '已加入今日计划'; detailAddPlan.disabled = true; showActionFeedback('已加入今日计划，购物清单会按计划自动计算。'); }
-    else { showActionFeedback('这道菜已经在今日计划里。'); }
+  const bindPlanBtn = (btnId, dateStr, successMsg, labelActive) => {
+    const btn = div.querySelector(btnId);
+    if (btn) {
+      btn.onclick = () => {
+        const added = addRecipeToPlan(id, dateStr);
+        if (added) {
+          btn.textContent = labelActive;
+          btn.disabled = true;
+          showActionFeedback(successMsg);
+          if (typeof onRoute === 'function') {
+            setTimeout(onRoute, 1000);
+          }
+        }
+      };
+    }
   };
+
+  bindPlanBtn('#planToday', today, '已加入今天的计划。', '今天已计划');
+  bindPlanBtn('#planTomorrow', tomorrowISO, '已加入明天的计划。', '明天已计划');
+  bindPlanBtn('#planDayAfter', dayAfterISO, '已加入后天的计划。', '后天已计划');
 
   const detailAddMissing = div.querySelector('#detailAddMissing');
   if (!missingIngredients.length) detailAddMissing.disabled = true;

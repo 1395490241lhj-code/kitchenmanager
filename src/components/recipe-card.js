@@ -1,4 +1,4 @@
-import { S } from '../storage.js?v=98';
+import { S, todayISO } from '../storage.js?v=98';
 import {
   explodeCombinedItems,
   isSeasoning
@@ -54,7 +54,8 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
   if (addBtn) {
     addBtn.onclick = () => {
       const plan = S.load(S.keys.plan, []);
-      if (!plan.find(x => x.id === r.id)) { plan.push({ id: r.id, servings: 1 }); S.save(S.keys.plan, plan); markRecipePlanned(r.id); alert('已加入清单。'); }
+      const today = todayISO();
+      if (!plan.find(x => x.id === r.id && (x.date || today) === today)) { plan.push({ id: r.id, servings: 1, date: today }); S.save(S.keys.plan, plan); markRecipePlanned(r.id); alert('已加入清单。'); }
       else { alert('已在清单中。'); }
     };
   }
@@ -95,7 +96,19 @@ export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {
     favoriteBtn.onclick = () => { toggleFavoriteRecipe(r.id); onRoute(); };
     const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn ok small';
     btn.textContent = plan.has(r.id) ? '已加入' : '加入清单';
-    btn.onclick = () => { const p = S.load(S.keys.plan, []); const i = p.findIndex(x => x.id === r.id); if (i >= 0) p.splice(i, 1); else { p.push({ id: r.id, servings: 1 }); markRecipePlanned(r.id); } S.save(S.keys.plan, p); onRoute(); };
+    btn.onclick = () => {
+      const p = S.load(S.keys.plan, []);
+      const i = p.findIndex(x => x.id === r.id);
+      if (i >= 0) {
+        const nextP = p.filter(x => x.id !== r.id);
+        S.save(S.keys.plan, nextP);
+      } else {
+        p.push({ id: r.id, servings: 1, date: todayISO() });
+        markRecipePlanned(r.id);
+        S.save(S.keys.plan, p);
+      }
+      onRoute();
+    };
     const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className = 'btn small';
     detailBtn.textContent = hasRecipeMethod(r) ? '查看' : '补做法';
     detailBtn.onclick = () => location.hash = `#recipe:${r.id}`;

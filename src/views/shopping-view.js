@@ -33,7 +33,8 @@ import {
   setSelectValueWithOption
 } from '../components/status.js?v=1';
 
-function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false) {
+let currentPlanRange = 'today';
+function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false, dateRange = 'today') {
   const map = pack.recipe_ingredients || {};
   const need = {};
   const addNeed = (name, qty, unit, source = '菜谱') => {
@@ -45,7 +46,26 @@ function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false) {
     if(source && !need[key].sources.includes(source)) need[key].sources.push(source);
   };
 
-  for(const p of plan){
+  const today = todayISO();
+  const baseDate = new Date(today);
+  const tomorrow = new Date(baseDate);
+  tomorrow.setDate(baseDate.getDate() + 1);
+  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+  const dayAfter = new Date(baseDate);
+  dayAfter.setDate(baseDate.getDate() + 2);
+  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
+
+  const filteredPlan = (plan || []).filter(p => {
+    const d = p.date || today;
+    if (dateRange === 'today') {
+      return d === today;
+    } else if (dateRange === '3days') {
+      return d === today || d === tomorrowISO || d === dayAfterISO;
+    }
+    return true;
+  });
+
+  for(const p of filteredPlan){
     const recipe = (pack.recipes || []).find(r => r.id === p.id);
     const ingList = explodeCombinedItems(map[p.id] || []);
     if(!ingList.length) {
@@ -181,7 +201,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     }
   }
   const includeSeasonings = settings.includeSeasoningsInShopping === true;
-  const missing = buildPlanMissingItems(pack, inv, plan, includeSeasonings);
+  const missing = buildPlanMissingItems(pack, inv, plan, includeSeasonings, currentPlanRange);
   const mergedItems = mergeShoppingItems(shoppingItems);
   const openItems = mergedItems.filter(item => !item.done);
   const doneItems = mergedItems.filter(item => item.done);
@@ -220,24 +240,69 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
 
   const planCard = document.createElement('div');
   planCard.className = 'card shopping-plan-card';
-  planCard.innerHTML = '<h3>今日计划</h3>';
+  planCard.innerHTML = `
+    <div class="shopping-card-head" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <h3 style="margin:0;">菜单计划</h3>
+      <select id="planRangeSelect" style="padding:4px 8px; border-radius:var(--radius-s); border:1px solid var(--separator); background:var(--bg-input); font-size:13px; color:var(--text-main); font-weight:700;">
+        <option value="today">只看今天</option>
+        <option value="3days">未来 3 天</option>
+      </select>
+    </div>
+  `;
+  const rangeSelect = planCard.querySelector('#planRangeSelect');
+  if (rangeSelect) {
+    rangeSelect.value = currentPlanRange;
+    rangeSelect.onchange = (e) => {
+      currentPlanRange = e.target.value;
+      onRoute();
+    };
+  }
+
+  const today = todayISO();
+  const baseDate = new Date(today);
+  const tomorrow = new Date(baseDate);
+  tomorrow.setDate(baseDate.getDate() + 1);
+  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+  const dayAfter = new Date(baseDate);
+  dayAfter.setDate(baseDate.getDate() + 2);
+  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
+
+  const getDayLabel = (dateStr) => {
+    const d = dateStr || today;
+    if (d === today) return '今天';
+    if (d === tomorrowISO) return '明天';
+    if (d === dayAfterISO) return '后天';
+    return d;
+  };
+
+  const filteredPlans = plan.filter(item => {
+    const d = item.date || today;
+    if (currentPlanRange === 'today') {
+      return d === today;
+    } else if (currentPlanRange === '3days') {
+      return d === today || d === tomorrowISO || d === dayAfterISO;
+    }
+    return true;
+  });
+
   const planList = document.createElement('div');
   planList.className = 'shopping-plan-list';
-  if(!plan.length) {
+  if(!filteredPlans.length) {
     const empty = document.createElement('p');
     empty.className = 'small';
-    empty.textContent = '暂未添加菜谱。去"菜谱/推荐"点"加入购物计划"。';
+    empty.textContent = '该时间段暂未添加菜谱。';
     planList.appendChild(empty);
   } else {
-    for(const item of plan) {
+    for(const item of filteredPlans) {
       const recipe = (pack.recipes || []).find(r => r.id === item.id);
       if(!recipe) continue;
       const row = document.createElement('div');
       row.className = 'shopping-plan-row';
-      row.innerHTML = `<span class="shopping-plan-name">${escapeHtml(recipe.name)}</span><label class="shopping-servings"><span>份数</span><input type="number" min="1" max="8" step="1" value="${item.servings||1}"></label><a class="btn small" href="javascript:void(0)">移除</a>`;
+      const label = getDayLabel(item.date);
+      row.innerHTML = `<span class="shopping-plan-name">${escapeHtml(recipe.name)} <small style="color:var(--text-secondary);">(${label})</small></span><label class="shopping-servings"><span>份数</span><input type="number" min="1" max="8" step="1" value="${item.servings||1}"></label><a class="btn small" href="javascript:void(0)">移除</a>`;
       row.querySelector('input').onchange = event => {
         const plans = S.load(S.keys.plan, []);
-        const target = plans.find(x => x.id === item.id);
+        const target = plans.find(x => x.id === item.id && (x.date || today) === (item.date || today));
         if(target) {
           target.servings = +event.target.value || 1;
           S.save(S.keys.plan, plans);
@@ -246,7 +311,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       };
       row.querySelector('.btn').onclick = () => {
         const plans = S.load(S.keys.plan, []);
-        const index = plans.findIndex(x => x.id === item.id);
+        const index = plans.findIndex(x => x.id === item.id && (x.date || today) === (item.date || today));
         if(index >= 0) {
           plans.splice(index, 1);
           S.save(S.keys.plan, plans);
