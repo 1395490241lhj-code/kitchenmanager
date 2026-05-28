@@ -1,26 +1,26 @@
 (function () {
   if (!('serviceWorker' in navigator)) return;
 
-  const VERSION = 'v17';
+  const VERSION = 'v18';
   const KEY = 'km-sw-' + VERSION;
 
   async function clearOldWorkersAndCaches() {
     const regs = await navigator.serviceWorker.getRegistrations();
     for (const reg of regs) {
       const url = (reg.active && reg.active.scriptURL) || (reg.waiting && reg.waiting.scriptURL) || (reg.installing && reg.installing.scriptURL) || '';
-      if (!/sw\.v17\.js/.test(url)) {
+      if (!/sw\.v18\.js/.test(url)) {
         try { await reg.unregister(); } catch (_) {}
       }
     }
     if (window.caches && caches.keys) {
       const keys = await caches.keys();
-      await Promise.all(keys.filter(key => key !== 'km-v17').map(key => caches.delete(key)));
+      await Promise.all(keys.filter(key => key !== 'km-v18').map(key => caches.delete(key)));
     }
   }
 
   async function registerFreshWorker() {
     await clearOldWorkersAndCaches();
-    const reg = await navigator.serviceWorker.register('./sw.v17.js?v=' + VERSION, { scope: './' });
+    const reg = await navigator.serviceWorker.register('./sw.v18.js?v=' + VERSION, { scope: './' });
     reg.update().catch(() => {});
 
     if (localStorage.getItem(KEY)) return;

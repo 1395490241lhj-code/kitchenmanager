@@ -18,6 +18,40 @@
   --glass-stroke: rgba(255, 255, 255, 0.92);
   --glass-edge: rgba(60, 60, 67, 0.11);
 
+  /* Design Tokens for Tags, Status Badges, and Cards */
+  --tag-bg: #f4f6f8;
+  --tag-text: var(--text-main);
+  --tag-border: var(--separator);
+  --tag-qty-border: #d1d5db;
+  --tag-qty-text: var(--text-secondary);
+
+  --status-ok-bg: #e9f8ee;
+  --status-ok-text: #1f7a3a;
+  --status-ok-border: rgba(52, 199, 89, 0.22);
+
+  --status-warn-bg: #fff2dc;
+  --status-warn-text: #a55e00;
+  --status-warn-border: rgba(255, 149, 0, 0.22);
+
+  --status-bad-bg: #fee2e2;
+  --status-bad-text: #b91c1c;
+  --status-bad-border: rgba(255, 59, 48, 0.22);
+
+  --status-info-bg: #e0f2fe;
+  --status-info-text: #0369a1;
+  --status-info-border: rgba(3, 105, 161, 0.22);
+
+  --status-draft-bg: rgba(175, 151, 255, 0.16);
+  --status-draft-text: #5d4a9c;
+  --status-draft-border: rgba(175, 151, 255, 0.22);
+
+  --ai-reason-bg: rgba(242, 241, 247, 0.72);
+  --ai-reason-text: #514870;
+  --ai-reason-border: #c9c3d9;
+
+  --surface-cell: rgba(255, 255, 255, 0.46);
+  --surface-cell-border: rgba(255, 255, 255, 0.58);
+
   /* Tiered glass blur levels */
   --glass-blur-hero:    saturate(1.9) blur(48px);
   --glass-blur-panel:   saturate(1.65) blur(28px);
@@ -820,10 +854,10 @@ input:focus, select:focus, textarea:focus {
   font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
 }
 .table td {
-  background: rgba(255,255,255,0.64); padding: 13px 10px; vertical-align: middle; border: 1px solid rgba(255,255,255,0.7); border-left: 0; border-right: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.68);
+  background: var(--surface-cell); padding: 13px 10px; vertical-align: middle; border: 1px solid var(--surface-cell-border); border-left: 0; border-right: 0; box-shadow: none;
 }
-.table td:first-child { border-top-left-radius: var(--radius-m); border-bottom-left-radius: var(--radius-m); padding-left: 16px; }
-.table td:last-child { border-top-right-radius: var(--radius-m); border-bottom-right-radius: var(--radius-m); padding-right: 16px; }
+.table td:first-child { border-top-left-radius: var(--radius-m); border-bottom-left-radius: var(--radius-m); padding-left: 16px; border-left: 1px solid var(--surface-cell-border); }
+.table td:last-child { border-top-right-radius: var(--radius-m); border-bottom-right-radius: var(--radius-m); padding-right: 16px; border-right: 1px solid var(--surface-cell-border); }
 .table .right { text-align: right; }
 
 /* === Shopping page === */
@@ -860,8 +894,8 @@ input:focus, select:focus, textarea:focus {
   min-height: 58px;
   padding: 10px 12px;
   border-radius: var(--radius-m);
-  background: rgba(255,255,255,0.48);
-  border: 1px solid rgba(255,255,255,0.62);
+  background: var(--surface-cell);
+  border: 1px solid var(--surface-cell-border);
 }
 .shopping-plan-name {
   min-width: 0;
@@ -901,8 +935,8 @@ input:focus, select:focus, textarea:focus {
   padding: 2px 14px 6px;
 }
 .shopping-table td {
-  background: rgba(255,255,255,0.48);
-  border: 1px solid rgba(255,255,255,0.62);
+  background: var(--surface-cell);
+  border: 1px solid var(--surface-cell-border);
   border-left: 0;
   border-right: 0;
   box-shadow: none;
@@ -911,12 +945,12 @@ input:focus, select:focus, textarea:focus {
 .shopping-table td:first-child {
   border-top-left-radius: var(--radius-m);
   border-bottom-left-radius: var(--radius-m);
-  border-left: 1px solid rgba(255,255,255,0.62);
+  border-left: 1px solid var(--surface-cell-border);
 }
 .shopping-table td:last-child {
   border-top-right-radius: var(--radius-m);
   border-bottom-right-radius: var(--radius-m);
-  border-right: 1px solid rgba(255,255,255,0.62);
+  border-right: 1px solid var(--surface-cell-border);
 }
 .shopping-table .btn {
   min-height: 36px;
@@ -968,8 +1002,8 @@ input:focus, select:focus, textarea:focus {
   gap: 8px;
   padding: 10px 12px;
   border-radius: var(--radius-m);
-  background: rgba(255,255,255,0.42);
-  border: 1px solid rgba(255,255,255,0.56);
+  background: var(--surface-cell);
+  border: 1px solid var(--surface-cell-border);
 }
 .shopping-source-label {
   color: var(--text-secondary);
@@ -985,8 +1019,8 @@ input:focus, select:focus, textarea:focus {
   min-height: 46px;
   padding: 10px 12px;
   border-radius: var(--radius-m);
-  background: rgba(255,255,255,0.46);
-  border: 1px solid rgba(255,255,255,0.58);
+  background: var(--surface-cell);
+  border: 1px solid var(--surface-cell-border);
 }
 .shopping-item-row.done {
   opacity: 0.56;
@@ -1066,14 +1100,14 @@ input:focus, select:focus, textarea:focus {
 /* === 标签 === */
 .kchip {
   display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 12px;
-  font-weight: 600; background: #edf1f5; color: var(--text-secondary); line-height: 1; white-space: nowrap;
+  font-weight: 600; background: var(--tag-bg); color: var(--tag-qty-text); border: 1px solid var(--tag-border); line-height: 1; white-space: nowrap;
 }
-.kchip.ok { background: #e9f8ee; color: #1f7a3a; }
-.kchip.warn { background: #fff2dc; color: #a55e00; }
-.kchip.bad { background: #fee2e2; color: #b91c1c; } 
-.kchip.dry { background: #edf8f1; color: #2e7d46; }
-.kchip.method-ok { background: #e0f2fe; color: #0369a1; }
-.kchip.method-missing { background: #f2f4f7; color: #667085; }
+.kchip.ok { background: var(--status-ok-bg); color: var(--status-ok-text); border-color: var(--status-ok-border); }
+.kchip.warn { background: var(--status-warn-bg); color: var(--status-warn-text); border-color: var(--status-warn-border); }
+.kchip.bad { background: var(--status-bad-bg); color: var(--status-bad-text); border-color: var(--status-bad-border); } 
+.kchip.dry { background: var(--status-ok-bg); color: var(--status-ok-text); border-color: var(--status-ok-border); }
+.kchip.method-ok { background: var(--status-info-bg); color: var(--status-info-text); border-color: var(--status-info-border); }
+.kchip.method-missing { background: var(--tag-bg); color: var(--tag-qty-text); border-color: var(--tag-border); }
 .recipe-badge-stack {
   display: flex;
   align-items: flex-start;
@@ -1088,7 +1122,7 @@ input:focus, select:focus, textarea:focus {
   justify-content: center;
   margin-top: 8px;
   padding: 4px 8px;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
@@ -1096,10 +1130,10 @@ input:focus, select:focus, textarea:focus {
   cursor: pointer;
   white-space: nowrap;
 }
-.inventory-status-chip.ok { background: #e9f8ee; color: #1f7a3a; }
-.inventory-status-chip.low { background: #fff2dc; color: #a55e00; }
-.inventory-status-chip.empty { background: #ffe9e7; color: #b42318; }
-.inventory-status-chip.unknown { background: #f2f2f7; color: #636366; }
+.inventory-status-chip.ok { background: var(--status-ok-bg); color: var(--status-ok-text); border-color: var(--status-ok-border); }
+.inventory-status-chip.low { background: var(--status-warn-bg); color: var(--status-warn-text); border-color: var(--status-warn-border); }
+.inventory-status-chip.empty { background: var(--status-bad-bg); color: var(--status-bad-text); border-color: var(--status-bad-border); }
+.inventory-status-chip.unknown { background: var(--tag-bg); color: var(--tag-qty-text); border-color: var(--tag-border); }
 .kitchen-status-cell {
   min-width: 150px;
 }
@@ -1130,7 +1164,7 @@ input:focus, select:focus, textarea:focus {
 .ing-compact-container { display: flex; flex-wrap: wrap; gap: 8px; }
 .ing-tag-pill {
   display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px;
-  background: #f4f6f8; font-size: 13px; color: var(--text-main); border: 1px solid var(--separator); transition: all 0.2s;
+  background: var(--tag-bg); font-size: 13px; color: var(--tag-text); border: 1px solid var(--tag-border); transition: all 0.2s;
 }
 .ing-tag-pill.active { font-weight: 600; }
 .staple-item.active {
@@ -1139,10 +1173,8 @@ input:focus, select:focus, textarea:focus {
   color: #805723;
 }
 .ing-tag-pill .qty {
-  margin-left: 8px; padding-left: 8px; border-left: 1px solid #d1d5db; color: var(--text-secondary); font-size: 13px; font-weight: 500;
+  margin-left: 8px; padding-left: 8px; border-left: 1px solid var(--tag-qty-border); color: var(--tag-qty-text); font-size: 13px; font-weight: 500;
 }
-
-/* === 网格表单布局 === */
 .form-grid {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -1202,7 +1234,7 @@ input:focus, select:focus, textarea:focus {
   padding: 0 12px;
   border: 1px solid var(--separator);
   border-radius: var(--radius-m);
-  background: #ffffff;
+  background: var(--bg-card);
   color: var(--text-main);
   font-size: 14px;
   font-weight: 700;
@@ -1234,16 +1266,16 @@ input:focus, select:focus, textarea:focus {
   min-height: 28px;
   padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.66);
-  border: 1px solid var(--separator);
+  background: var(--surface-cell);
+  border: 1px solid var(--surface-cell-border);
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 800;
 }
-.recipe-status-pill.custom { color: #1f7a3a; background: #e9f8ee; border-color: rgba(52,199,89,0.18); }
-.recipe-status-pill.modified { color: #8a5a00; background: rgba(255,204,0,0.16); border-color: rgba(255,204,0,0.22); }
-.recipe-status-pill.draft { color: #5d4a9c; background: rgba(175,151,255,0.16); border-color: rgba(175,151,255,0.22); }
-.recipe-status-pill.system { color: var(--text-secondary); }
+.recipe-status-pill.custom { color: var(--status-ok-text); background: var(--status-ok-bg); border-color: var(--status-ok-border); }
+.recipe-status-pill.modified { color: var(--status-warn-text); background: var(--status-warn-bg); border-color: var(--status-warn-border); }
+.recipe-status-pill.draft { color: var(--status-draft-text); background: var(--status-draft-bg); border-color: var(--status-draft-border); }
+.recipe-status-pill.system { color: var(--text-secondary); background: var(--tag-bg); border-color: var(--tag-border); }
 .editor-field-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1302,12 +1334,12 @@ input:focus, select:focus, textarea:focus {
 .r-title:active { color: var(--primary); }
 
 .ai-reason {
-  margin-top: 10px; padding: 10px; font-size: 13px; background-color: rgba(242,241,247,0.72);
-  color: #514870; border-radius: var(--radius-m); line-height: 1.6; border: 1px dashed #c9c3d9; position: relative;
+  margin-top: 10px; padding: 10px; font-size: 13px; background-color: var(--ai-reason-bg);
+  color: var(--ai-reason-text); border-radius: var(--radius-m); line-height: 1.6; border: 1px dashed var(--ai-reason-border); position: relative;
 }
 .ai-reason::before {
   content: ''; position: absolute; top: -6px; left: 16px; width: 10px; height: 10px;
-  background: #f2f1f7; border-left: 1px dashed #c9c3d9; border-top: 1px dashed #c9c3d9; transform: rotate(45deg);
+  background: var(--ai-reason-bg); border-left: 1px dashed var(--ai-reason-border); border-top: 1px dashed var(--ai-reason-border); transform: rotate(45deg);
 }
 .method-text {
   white-space: pre-line;
@@ -1361,27 +1393,27 @@ input:focus, select:focus, textarea:focus {
 }
 [hidden] { display: none !important; }
 .inline-status[hidden] { display: none !important; }
-.inline-status:empty { display: none; }
+.inline-status:empty { display: none !important; }
 
 .inline-status {
   display: block;
   margin: 10px 0 12px;
   padding: 9px 12px;
   border-radius: var(--radius-m);
-  border: 1px solid var(--separator);
-  background: rgba(255,255,255,0.56);
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-cell);
   color: var(--text-secondary);
   font-weight: 700;
 }
 .inline-status.ok {
-  color: #1f7a3a;
-  background: #e9f8ee;
-  border-color: rgba(52,199,89,0.18);
+  color: var(--status-ok-text);
+  background: var(--status-ok-bg);
+  border-color: var(--status-ok-border);
 }
 .inline-status.bad {
-  color: var(--danger);
-  background: rgba(255,59,48,0.08);
-  border-color: rgba(255,59,48,0.18);
+  color: var(--status-bad-text);
+  background: var(--status-bad-bg);
+  border-color: var(--status-bad-border);
 }
 .ai-empty-note,
 .ai-draft-card {
@@ -1565,6 +1597,40 @@ nav a.active svg {
     --glass-cell-fill:    rgba(36, 39, 48, 0.72);
     --glass-control-fill: rgba(42, 46, 56, 0.78);
     --glass-nav-fill:     rgba(22, 25, 32, 0.80);
+
+    /* Dark Mode Design Tokens */
+    --tag-bg: rgba(255, 255, 255, 0.10);
+    --tag-text: #f5f5f7;
+    --tag-border: rgba(255, 255, 255, 0.16);
+    --tag-qty-border: rgba(255, 255, 255, 0.18);
+    --tag-qty-text: rgba(255, 255, 255, 0.54);
+
+    --status-ok-bg: rgba(48, 209, 88, 0.16);
+    --status-ok-text: #75e692;
+    --status-ok-border: rgba(48, 209, 88, 0.24);
+
+    --status-warn-bg: rgba(255, 179, 64, 0.18);
+    --status-warn-text: #ffd18a;
+    --status-warn-border: rgba(255, 179, 64, 0.24);
+
+    --status-bad-bg: rgba(255, 105, 97, 0.18);
+    --status-bad-text: #ff9a94;
+    --status-bad-border: rgba(255, 105, 97, 0.24);
+
+    --status-info-bg: rgba(10, 132, 255, 0.18);
+    --status-info-text: #8cc8ff;
+    --status-info-border: rgba(10, 132, 255, 0.24);
+
+    --status-draft-bg: rgba(175, 151, 255, 0.18);
+    --status-draft-text: #b39ddb;
+    --status-draft-border: rgba(175, 151, 255, 0.26);
+
+    --ai-reason-bg: rgba(125, 122, 255, 0.10);
+    --ai-reason-text: #dcd9ff;
+    --ai-reason-border: rgba(125, 122, 255, 0.24);
+
+    --surface-cell: rgba(255, 255, 255, 0.06);
+    --surface-cell-border: rgba(255, 255, 255, 0.12);
   }
 
   body {
@@ -1739,55 +1805,7 @@ nav a.active svg {
     box-shadow: 0 0 0 4px rgba(10,132,255,0.20);
   }
 
-  .shopping-table td,
-  .shopping-item-row,
-  .shopping-plan-row {
-    border-color: rgba(255,255,255,0.10);
-  }
 
-  .shopping-source-group {
-    background: rgba(255,255,255,0.07);
-    border-color: rgba(255,255,255,0.10);
-  }
-
-  .kchip {
-    background: rgba(255,255,255,0.10);
-    color: var(--text-secondary);
-  }
-
-  .kchip.ok,
-  .inventory-status-chip.ok {
-    background: rgba(48,209,88,0.16);
-    color: #75e692;
-  }
-
-  .kchip.warn,
-  .inventory-status-chip.low {
-    background: rgba(255,179,64,0.18);
-    color: #ffd18a;
-  }
-
-  .kchip.bad,
-  .inventory-status-chip.empty {
-    background: rgba(255,105,97,0.18);
-    color: #ff9a94;
-  }
-
-  .kchip.dry {
-    background: rgba(48,209,88,0.14);
-    color: #81e99a;
-  }
-
-  .inventory-status-chip.unknown,
-  .kchip.method-missing {
-    background: rgba(255,255,255,0.10);
-    color: #c7c7cc;
-  }
-
-  .kchip.method-ok {
-    background: rgba(10,132,255,0.18);
-    color: #8cc8ff;
-  }
 
   nav {
     background: var(--glass-nav-fill);
