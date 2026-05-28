@@ -1,16 +1,16 @@
 // v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
-import { el, els } from './src/dom.js?v=89';
-import { applyOverlay, loadOverlay } from './src/backup.js?v=2';
-import { runLocalStorageMigrations } from './src/migrations.js?v=2';
-import { escapeHtml } from './src/components/status.js?v=1';
-import { renderShopping } from './src/views/shopping-view.js?v=1';
-import { renderInventory } from './src/views/inventory-view.js?v=1';
-import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=1';
-import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=1';
-import { renderHome } from './src/views/home-view.js?v=1';
-import { renderRecipes } from './src/views/recipes-view.js?v=1';
-import { renderSettings } from './src/views/settings-view.js?v=1';
-import { applyCompletionOverlay } from './src/recipe-completion.js?v=1';
+import { el, els } from './src/dom.js?v=158';
+import { applyOverlay, loadOverlay } from './src/backup.js?v=158';
+import { runLocalStorageMigrations } from './src/migrations.js?v=158';
+import { escapeHtml } from './src/components/status.js?v=158';
+import { renderShopping } from './src/views/shopping-view.js?v=158';
+import { renderInventory } from './src/views/inventory-view.js?v=158';
+import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=158';
+import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=158';
+import { renderHome } from './src/views/home-view.js?v=158';
+import { renderRecipes } from './src/views/recipes-view.js?v=158';
+import { renderSettings } from './src/views/settings-view.js?v=158';
+import { applyCompletionOverlay } from './src/recipe-completion.js?v=158';
 
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
@@ -19,7 +19,8 @@ window.onerror = function(msg, url, line, col, error) {
     const errDiv = document.createElement('div');
     errDiv.id = 'global-err-console';
     errDiv.className = 'global-error-console';
-    errDiv.innerHTML = `<h3>⚠️ 发生错误</h3><p>${msg}</p><p>Line: ${line}</p><button class="btn global-error-close" onclick="this.parentElement.remove()">关闭</button>`;
+    // 转义动态内容，避免把报错信息当作 HTML 注入到页面里。
+    errDiv.innerHTML = `<h3>⚠️ 发生错误</h3><p>${escapeHtml(msg)}</p><p>Line: ${escapeHtml(line)}</p><button class="btn global-error-close" onclick="this.parentElement.remove()">关闭</button>`;
     body.appendChild(errDiv);
   }
 };

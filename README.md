@@ -133,7 +133,13 @@
 2.  **内置重置页**：
     *   在浏览器中直接打开 `http://YOUR-DOMAIN/sw-reset.html` （本地为 `http://localhost:8000/sw-reset.html`），该页面会自动注销当前的 Service Worker 并清理所有相关的浏览器缓存，随后自动重新加载。
 3.  **静态资源版本号（Cache Busting）**：
-    *   项目在 `index.html` 中引入 `styles.css` 和 `app.js` 时附带了版本号查询参数（例如 `?v=156`）。当代码更新时，我们通过递增该版本号，强制客户端浏览器跳过本地强缓存，拉取最新的静态资源文件。
+    *   项目在 `index.html`、`404.html`、`sw.v18.js` 以及 `src/` 下的 ES module import 中，都用版本号查询参数（例如 `?v=158`）来强制浏览器跳过本地强缓存、拉取最新文件。
+    *   这些版本号分散在几十处，手动逐个修改极易遗漏。**发布新版本时，请勿手动逐个修改**，直接运行内置脚本一次性统一：
+        ```bash
+        node scripts/stamp-version.js 159   # 指定新版本号
+        node scripts/stamp-version.js       # 不带参数 = 在当前最大值上自动 +1
+        ```
+    *   脚本只替换 `?v=<数字>` 形式的查询参数，不会改动文件名里的版本（如 `sw.v18.js`），也不会动运行时读取的数据包版本，安全可重复执行。
 
 ---
 

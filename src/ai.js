@@ -1,5 +1,5 @@
-import { CUSTOM_AI } from './config.js?v=89';
-import { S } from './storage.js?v=98';
+import { CUSTOM_AI } from './config.js?v=158';
+import { S } from './storage.js?v=158';
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});

@@ -1,8 +1,8 @@
-import { S, todayISO } from '../storage.js?v=98';
-import { CUSTOM_AI } from '../config.js?v=89';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=2';
-import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=2';
-import { setInlineStatus } from '../components/status.js?v=1';
+import { S, todayISO } from '../storage.js?v=158';
+import { CUSTOM_AI } from '../config.js?v=158';
+import { DATA_SCHEMA_VERSION } from '../migrations.js?v=158';
+import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=158';
+import { setInlineStatus } from '../components/status.js?v=158';
 
 export function renderSettings() {
   const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
