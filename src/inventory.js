@@ -178,7 +178,7 @@ export function loadInventory(catalog){
 
 export function saveInventory(inv){ S.save(S.keys.inventory, inv); }
 export function daysBetween(a,b){ return Math.floor((new Date(b)-new Date(a))/86400000); }
-export function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); return (+e.shelf||7)-age; }
+export function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); const shelf = (e.shelf === undefined || e.shelf === null || e.shelf === '') ? 7 : +e.shelf; return shelf-age; }
 
 /**
  * 合并入库核心函数。

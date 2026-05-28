@@ -13,12 +13,15 @@ import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=2';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   getLocalRecommendations, hasRecipeMethod,
-  processAiData, rankRecipesForRecommendation
+  processAiData, rankRecipesForRecommendation,
+  getCleanFridgeRecommendations
 } from '../recommendations.js?v=3';
 import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=2';
 import { renderInventory } from './inventory-view.js?v=1';
 import { showRecommendationCards, renderRecipeSearchResults } from '../components/recipe-card.js?v=1';
 import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=1';
+import { showCleanFridgeModal } from '../components/modal.js?v=1';
+
 
 function formatRemainingText(days) {
   if (days < 0) return `已过期 ${Math.abs(days)} 天`;
@@ -633,6 +636,35 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
 
   const briefingCard = renderHomeStats(expiring, groups.ready, groups.almost, shoppingItems, true, pack);
   container.appendChild(briefingCard);
+
+  const cleanFridgeCard = document.createElement('div');
+  cleanFridgeCard.className = 'card home-clean-fridge-entry';
+  cleanFridgeCard.innerHTML = `
+    <div class="home-clean-fridge-entry-content">
+      <h3>❄️ 帮我清冰箱</h3>
+      <p>智能筛选快到期、低存量食材，一键搭配做法</p>
+    </div>
+    <button type="button" class="btn ok" id="btnCleanFridge" style="background: linear-gradient(180deg, #ff9500 0%, #ff7b00 100%); border-color: rgba(255,255,255,0.42); box-shadow: 0 8px 18px rgba(255, 149, 0, 0.24); color: white;">开始清冰箱</button>
+  `;
+  cleanFridgeCard.querySelector('#btnCleanFridge').onclick = () => {
+    const recs = getCleanFridgeRecommendations(pack, inv, getRecommendationUiContext());
+    showCleanFridgeModal(recs, {
+      onAddPlan: (id, btn) => {
+        addRecipeToPlan(id);
+        brieflyConfirmButton(btn, '已加入');
+        onRoute();
+      },
+      onAddShopping: (id, btn) => {
+        const recItem = recs.find(item => item.r.id === id);
+        if (recItem) {
+          const count = addMissingRecipeIngredientsToShopping(recItem.r, pack, inv, recItem.list);
+          brieflyConfirmButton(btn, count ? '已入清单' : '已齐');
+          onRoute();
+        }
+      }
+    });
+  };
+  container.appendChild(cleanFridgeCard);
 
   if (expiring.length > 0) {
     container.appendChild(renderExpiringSection(expiring, showSearch));

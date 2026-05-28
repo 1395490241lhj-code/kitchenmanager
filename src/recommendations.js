@@ -8,7 +8,8 @@ import {
 import {
   daysBetween,
   getStockCoverageAnalysis,
-  remainingDays
+  remainingDays,
+  isIngredientMatch
 } from './inventory.js?v=1';
 import { addShoppingItem } from './shopping.js?v=2';
 
@@ -383,6 +384,7 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
   const result = {
     r: recipe,
     score: Math.round(score * 10) / 10,
+    matches: analysis.matches,
     matchCount: analysis.matchCount,
     totalCore: analysis.totalCore,
     missing: analysis.missing,
@@ -724,4 +726,124 @@ export function processAiData(aiResult, pack) {
     });
   }
   return cards;
+}
+
+export function getCleanFridgeRecommendations(pack, inv, context = {}) {
+  const today = context.today || todayISO();
+  const safeContext = { ...context, today };
+  
+  // 1. Find priority items
+  const priorityItems = (inv || []).filter(item => {
+    if ((item.kind || 'raw') !== 'dry') {
+      const days = remainingDays(item);
+      if (days <= 3) return true;
+    }
+    if (item.stockStatus === 'low' && (+item.qty || 0) > 0) return true;
+    if (item.opened || item.isOpened) return true;
+    return false;
+  });
+
+  if (priorityItems.length === 0) return [];
+
+  // 2. Score recipes containing at least one priority item
+  const scored = (pack.recipes || []).map(recipe => {
+    const core = getRecipeCoreIngredients(recipe, pack);
+    const matchedPriorities = [];
+
+    for (const ing of core) {
+      const matchedItem = priorityItems.find(pItem => isIngredientMatch(ing.item, pItem.name));
+      if (matchedItem) {
+        matchedPriorities.push({ ing, pItem: matchedItem });
+      }
+    }
+
+    if (matchedPriorities.length === 0) return null;
+
+    const baseResult = scoreRecipe(recipe, pack, inv, safeContext);
+    if (baseResult.score < -900) return null;
+
+    let cleanFridgeBonus = 0;
+    const reasons = [];
+
+    for (const { ing, pItem } of matchedPriorities) {
+      let urgencyScore = 0;
+      let reasonText = '';
+      const isDry = (pItem.kind || 'raw') === 'dry';
+      const days = isDry ? 999 : remainingDays(pItem);
+
+      if (!isDry && days <= 0) {
+        urgencyScore = 50;
+        reasonText = `${pItem.name}已过期或今日到期`;
+      } else if (!isDry && days === 1) {
+        urgencyScore = 40;
+        reasonText = `${pItem.name} 1 天内到期`;
+      } else if (!isDry && days <= 3) {
+        urgencyScore = 30;
+        reasonText = `${pItem.name} ${days} 天后到期`;
+      } else if (pItem.opened || pItem.isOpened) {
+        urgencyScore = 20;
+        reasonText = `${pItem.name}已开封`;
+      } else if (pItem.stockStatus === 'low') {
+        urgencyScore = 15;
+        reasonText = `${pItem.name}快没了`;
+      }
+
+      cleanFridgeBonus += urgencyScore;
+      if (reasonText) {
+        reasons.push({ name: pItem.name, days, reason: reasonText });
+      }
+    }
+
+    if (reasons.length === 0) return null;
+
+    reasons.sort((a, b) => {
+      const getPriority = r => {
+        if (r.reason.includes('已过期') || r.reason.includes('今日到期') || r.days <= 0) return 3;
+        if (r.days <= 3) return 2;
+        return 1;
+      };
+      return getPriority(b) - getPriority(a);
+    });
+
+    const primary = reasons[0];
+    let expPart = '';
+    if (primary.days <= 0) {
+      expPart = `${primary.name}今天到期`;
+    } else if (primary.days === 2) {
+      expPart = `${primary.name} 2 天后到期`;
+    } else if (primary.days === 3) {
+      expPart = `${primary.name} 3 天后到期`;
+    } else {
+      expPart = `${primary.name}快到期`;
+    }
+
+    let reasonText = '';
+    const missingList = baseResult.missing;
+    if (missingList.length === 1) {
+      reasonText = `${expPart}，只缺${missingList[0].name}`;
+    } else if (primary.days <= 0) {
+      reasonText = `${expPart}，建议优先使用`;
+    } else {
+      const matchedIngs = [
+        ...baseResult.matches.map(m => m.inventoryItem || m.recipeItem),
+        ...baseResult.uncertain.map(u => u.name || u.item)
+      ];
+      const otherMatches = matchedIngs.filter(name => getCanonicalName(name) !== getCanonicalName(primary.name));
+      if (otherMatches.length > 0) {
+        const partner = otherMatches[0];
+        reasonText = `${expPart}，搭配${partner}可做${recipe.name}`;
+      } else {
+        reasonText = `${expPart}，建议优先使用`;
+      }
+    }
+
+    return {
+      ...baseResult,
+      score: Math.round((baseResult.score + cleanFridgeBonus) * 10) / 10,
+      reason: reasonText,
+      isCleanFridge: true
+    };
+  }).filter(Boolean);
+
+  return scored.sort((a, b) => b.score - a.score);
 }

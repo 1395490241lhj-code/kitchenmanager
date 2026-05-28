@@ -2868,3 +2868,72 @@ nav a.active svg {
   color: var(--status-ok-text, #1f7a3a);
   margin-left: 4px;
 }
+
+/* --- Clean Fridge mode styles --- */
+.home-clean-fridge-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(135deg, var(--bg-card), var(--status-warn-bg)) !important;
+  border: 1px solid var(--status-warn-border) !important;
+  margin-top: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.home-clean-fridge-entry:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.home-clean-fridge-entry-content {
+  flex: 1;
+}
+.home-clean-fridge-entry-content h3 {
+  margin: 0 0 4px 0;
+  font-size: 17px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.home-clean-fridge-entry-content p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.clean-fridge-item {
+  transition: background-color 0.2s;
+}
+.clean-fridge-item:hover {
+  background-color: var(--tag-bg);
+}
+.clean-fridge-item-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.clean-fridge-item-reason {
+  font-size: 12px;
+  color: var(--status-warn-text, #a55e00);
+  font-weight: 500;
+}
+.clean-fridge-modal-card {
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-float);
+  border: 1px solid var(--glass-edge);
+}
+.clean-fridge-empty {
+  text-align: center;
+  padding: 32px 24px;
+}
+.clean-fridge-empty strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: var(--text-main);
+}
+.clean-fridge-empty span {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+

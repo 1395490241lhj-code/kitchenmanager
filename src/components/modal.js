@@ -425,3 +425,71 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
   overlay.onclick = e => { if (e.target === overlay) close(); };
 }
 
+export function showCleanFridgeModal(recs, options = {}) {
+  const { onAddPlan, onAddShopping } = options;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  
+  let contentHtml = '';
+  if (!recs || recs.length === 0) {
+    contentHtml = `
+      <div class="clean-fridge-empty" style="text-align: center; padding: 24px; color: var(--text-secondary);">
+        <strong style="display: block; font-size: 16px; margin-bottom: 8px; color: var(--text-main);">当前没有特别需要优先消耗的食材</strong>
+        <span>您的食材都还很新鲜，或者存量充足！</span>
+      </div>
+    `;
+  } else {
+    const rows = recs.map((item, index) => {
+      const isAlmost = item.missing && item.missing.length > 0 && item.missing.length <= 2;
+      return `
+        <div class="clean-fridge-item" data-index="${index}" style="display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--separator); gap: 12px;">
+          <div class="clean-fridge-item-main" style="display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0;">
+            <span class="clean-fridge-item-name" style="font-weight: 600; color: var(--text-main); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.r.name)}</span>
+            <span class="clean-fridge-item-reason" style="font-size: 12px; color: var(--status-warn-text, #a55e00); font-weight: 500;">${escapeHtml(item.reason)}</span>
+          </div>
+          <div class="clean-fridge-item-actions" style="display: flex; gap: 8px; flex-shrink: 0;">
+            <a class="btn small clean-fridge-view-btn" href="#recipe:${item.r.id}" style="text-decoration: none;">详情</a>
+            <button type="button" class="btn ${isAlmost ? '' : 'ok'} small clean-fridge-action-btn" data-id="${item.r.id}" data-mode="${isAlmost ? 'almost' : 'ready'}">
+              ${isAlmost ? '补清单' : '加入计划'}
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+    contentHtml = `<div class="clean-fridge-list" style="display: flex; flex-direction: column; max-height: 400px; overflow-y: auto;">${rows}</div>`;
+  }
+
+  overlay.innerHTML = `
+    <div class="card clean-fridge-modal-card" style="width: min(540px, 95vw); max-height: min(600px, 90vh); overflow-y: auto;">
+      <h3 class="modal-title">❄️ 帮我清冰箱</h3>
+      <p class="meta" style="margin-bottom: 16px;">系统已为您智能筛选出快到期、低存量或已开封的食材搭配做法：</p>
+      <div class="clean-fridge-modal-body">${contentHtml}</div>
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button type="button" class="btn ok" id="closeCleanFridgeBtn">知道了</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#closeCleanFridgeBtn').onclick = close;
+  overlay.onclick = e => { if (e.target === overlay) close(); };
+
+  overlay.querySelectorAll('.clean-fridge-view-btn').forEach(btn => {
+    btn.onclick = () => close();
+  });
+
+  overlay.querySelectorAll('.clean-fridge-action-btn').forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      const mode = btn.dataset.mode;
+      if (mode === 'almost') {
+        if (onAddShopping) onAddShopping(id, btn);
+      } else {
+        if (onAddPlan) onAddPlan(id, btn);
+      }
+    };
+  });
+}
+
