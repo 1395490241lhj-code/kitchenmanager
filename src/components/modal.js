@@ -196,7 +196,7 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
           <span class="deduct-recipe-qty">${row.recipeQty ? `用量 ${escapeHtml(String(row.recipeQty))}${escapeHtml(row.unit)}` : '用量不详'}</span>
           <span class="deduct-stock-info ${row.match ? 'has-match' : 'no-match'}">
             ${row.match ? `库存 ${escapeHtml(row.stockText)}` : '无匹配库存'}
-            ${row.unitMismatch ? `<br><small class="text-danger" style="font-size: 11px; font-weight: 500;">库存单位不同，需手动确认</small>` : ''}
+            ${row.unitMismatch ? `<br><small class="deduct-unit-warning">⚠️ 库存单位（${escapeHtml(row.matchedUnit)}）与菜谱单位（${escapeHtml(row.unit)}）不同</small>` : ''}
           </span>
           <label class="deduct-qty-label">
             <span>扣减</span>
@@ -210,7 +210,7 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
             >
             <span>${escapeHtml(row.unit) || ''}</span>
           </label>
-          ${row.unitMismatch ? `<span class="deduct-mismatch-warn text-warning" style="display: none; font-size: 11px; margin-top: 4px; grid-column: 1 / -1; text-align: right;">⚠️ 将从不同单位库存中扣减，可能不精确</span>` : ''}
+          ${row.unitMismatch ? `<label class="deduct-mismatch-warn is-hidden" id="deduct-mismatch-confirm-${i}"><input type="checkbox" class="deduct-mismatch-checkbox"> 我确认要从不同单位库存中扣减（可能不精确）</label>` : ''}
         </div>
       `).join('')
     : '<p class="meta">本菜谱没有核心食材信息，无需扣减。</p>';
@@ -233,22 +233,24 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
 
   const statusEl = overlay.querySelector('#deductModalStatus');
 
-  // 绑定单位不一致的警告事件
-  overlay.querySelectorAll('.deduct-row').forEach(rowEl => {
+  // 绑定单位不一致时，输入数量后显示确认复选框
+  overlay.querySelectorAll('.deduct-row').forEach((rowEl, i) => {
+    const row = rows[i];
+    if (!row || !row.unitMismatch) return;
     const input = rowEl.querySelector('.deduct-qty-input');
-    const warnText = rowEl.querySelector('.deduct-mismatch-warn');
-    if (input && warnText) {
-      const checkWarning = () => {
-        const val = parseFloat(input.value);
-        if (val > 0) {
-          warnText.style.display = 'block';
-        } else {
-          warnText.style.display = 'none';
-        }
-      };
-      input.addEventListener('input', checkWarning);
-      checkWarning();
-    }
+    const confirmLabel = overlay.querySelector(`#deduct-mismatch-confirm-${i}`);
+    if (!input || !confirmLabel) return;
+    const toggleConfirm = () => {
+      const val = parseFloat(input.value);
+      if (val > 0) {
+        confirmLabel.classList.remove('is-hidden');
+      } else {
+        confirmLabel.classList.add('is-hidden');
+        confirmLabel.querySelector('.deduct-mismatch-checkbox').checked = false;
+      }
+    };
+    input.addEventListener('input', toggleConfirm);
+    toggleConfirm();
   });
 
   const close = () => {
@@ -266,14 +268,38 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
     onSkip();
   };
 
+  // 二次确认状态：当第一次检测到超量时置 true，再次点击时才放行
+  let overLimitConfirmed = false;
+
+  // 任何输入变化都重置二次确认状态
+  overlay.querySelectorAll('.deduct-qty-input').forEach(input => {
+    input.addEventListener('input', () => {
+      overLimitConfirmed = false;
+      setInlineStatus(statusEl, '', '');
+    });
+  });
+
   overlay.querySelector('#deductConfirmBtn').onclick = () => {
     const deductions = [];
+    let needsMismatchConfirm = false;
+
     overlay.querySelectorAll('.deduct-row').forEach((rowEl, i) => {
       const row = rows[i];
       if (!row || !row.match) return; // 无库存匹配，跳过
       const input = rowEl.querySelector('.deduct-qty-input');
       const qty = parseFloat(input.value);
       if (!isFinite(qty) || qty <= 0) return; // 0 或空 → 不扣
+
+      // 跨单位：必须勾选确认复选框才允许
+      if (row.unitMismatch) {
+        const confirmLabel = overlay.querySelector(`#deduct-mismatch-confirm-${i}`);
+        const checkbox = confirmLabel ? confirmLabel.querySelector('.deduct-mismatch-checkbox') : null;
+        if (!checkbox || !checkbox.checked) {
+          needsMismatchConfirm = true;
+          return; // 此行跳过，继续检查其他行
+        }
+      }
+
       deductions.push({
         name: row.name,
         qty,
@@ -282,7 +308,15 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
       });
     });
 
-    // 校验：不会扣成负数
+    // 如果有跨单位行填了数量但没勾选确认，阻止关闭并提示（优先于超量检查）
+    if (needsMismatchConfirm) {
+      setInlineStatus(statusEl, '请先勾选"我确认要从不同单位库存中扣减"后再继续。', 'bad');
+      overLimitConfirmed = false;
+      return;
+    }
+
+    // 检测超量：收集所有超量食材名
+    const overLimitNames = [];
     for (const d of deductions) {
       const matched = (inv || []).filter(x => isIngredientMatch(d.name, x.name) && (+x.qty || 0) > 0 && x.stockStatus !== 'empty');
       const sameUnit = matched.filter(x => (x.unit || '') === (d.unit || ''));
@@ -294,13 +328,27 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
       }
 
       if (d.qty > totalAvail + 0.001) {
-        setInlineStatus(statusEl, `${d.name} 的扣减量（${d.qty}）超过匹配的当前库存（${totalAvail}），将扣至 0。`, 'info');
+        overLimitNames.push(`${d.name}（输入 ${d.qty}${d.unit}，库存 ${totalAvail}${d.unit}）`);
       }
     }
 
+    // 第一次检测到超量：仅展示警告，不关闭
+    if (overLimitNames.length > 0 && !overLimitConfirmed) {
+      const nameList = overLimitNames.join('；');
+      setInlineStatus(
+        statusEl,
+        `以下食材扣减量超过当前库存，将扣至 0：${nameList}。请再次点击"确认扣减并完成"继续，或修改数量。`,
+        'bad'
+      );
+      overLimitConfirmed = true; // 下次点击放行
+      return;
+    }
+
+    // 正常（或已二次确认）→ 执行扣减
     close();
     onConfirm(deductions);
   };
 
   overlay.onclick = e => { if (e.target === overlay) close(); };
 }
+

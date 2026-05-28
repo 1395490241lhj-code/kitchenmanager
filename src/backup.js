@@ -4,7 +4,7 @@ import {
   DATA_SCHEMA_VERSION,
   normalizeBackupForRestore,
   setStoredSchemaVersion
-} from './migrations.js?v=2';
+} from './migrations.js?v=3';
 import { loadShoppingItems, saveShoppingItems } from './shopping.js?v=2';
 
 export function emptyOverlay() {
@@ -50,6 +50,7 @@ export function buildKitchenBackup() {
       settings: settings,
       favorite_recipes: S.load(S.keys.favorite_recipes, []),
       recipe_usage: S.load(S.keys.recipe_usage, {}),
+      recipe_activity: S.load(S.keys.recipe_activity, {}),
       shopping_items: loadShoppingItems()
     }
   };
@@ -72,6 +73,7 @@ export function restoreKitchenBackup(payload) {
   }
   if (Array.isArray(data.favorite_recipes) && !S.save(S.keys.favorite_recipes, data.favorite_recipes)) throw new Error('常做菜写入失败，浏览器存储空间可能不足');
   if (data.recipe_usage && typeof data.recipe_usage === 'object' && !S.save(S.keys.recipe_usage, data.recipe_usage)) throw new Error('菜谱记录写入失败，浏览器存储空间可能不足');
+  if (data.recipe_activity && typeof data.recipe_activity === 'object' && !S.save(S.keys.recipe_activity, data.recipe_activity)) throw new Error('菜谱活动记录写入失败，浏览器存储空间可能不足');
   if (Array.isArray(data.shopping_items) && !saveShoppingItems(data.shopping_items)) throw new Error('购物清单写入失败，浏览器存储空间可能不足');
   setStoredSchemaVersion(DATA_SCHEMA_VERSION);
   if (typeof window !== 'undefined' && window.invalidatePackCache) {

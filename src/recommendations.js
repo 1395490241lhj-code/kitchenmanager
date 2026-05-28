@@ -227,7 +227,13 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
 
 export function calculateStockStatus(recipe, pack, inv) {
   const analysis = analyzeRecipeInventory(recipe, pack, inv);
-  return { status: analysis.status, missing: analysis.missing };
+  return {
+    status: analysis.status,
+    missing: analysis.missing,
+    uncertain: analysis.uncertain,
+    needsConfirm: analysis.needsConfirm,
+    coverageConfidence: analysis.coverageConfidence
+  };
 }
 
 export function getMissingRecipeIngredients(recipe, pack, inv, fallbackItems = null) {
@@ -283,7 +289,10 @@ export function explainRecipeScore(scoreResult) {
   if (scoreResult.isPlanned) explain.push('已在今日计划，避免重复安排');
   if (scoreResult.recentDays !== null && scoreResult.recentDays <= 5) {
     const recentText = scoreResult.recentDays === 0 ? '今天' : `最近 ${scoreResult.recentDays} 天内`;
-    explain.push(`${recentText}做过/安排过，已轻微降权`);
+    explain.push(`${recentText}做过，已轻微降权`);
+  }
+  if (scoreResult.cookedCount > 0) {
+    explain.push(`做过 ${scoreResult.cookedCount} 次，轻微加分`);
   }
   if (scoreResult.hasMethod) explain.push('有完整做法');
   else explain.push('缺少做法，已降权');
@@ -317,12 +326,13 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
   const analysis = analyzeRecipeInventory(recipe, pack, inv);
   const favoriteIds = normalizeRecommendationSet(context.favoriteIds);
   const plannedIds = getPlanIds(context);
-  const usage = getUsageMap(context);
+  const activityMap = context.recipeActivity || context.recipe_activity || loadRecipeActivity();
+  const activity = activityMap[recipe.id] || { plannedAt: null, cookedAt: null, cookedCount: 0 };
   const today = context.today || todayISO();
   const hasMethod = hasRecipeMethod(recipe);
   const isFavorite = favoriteIds.has(recipe.id);
   const isPlanned = plannedIds.has(recipe.id);
-  const recentDays = daysSince(usage[recipe.id], today);
+  const recentDays = daysSince(activity.cookedAt, today);
 
   let score = 0;
   const scoreParts = {};
@@ -352,6 +362,8 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     else if (recentDays <= 10) scoreParts.recentPenalty = -4;
     else scoreParts.recentPenalty = 0;
 
+    scoreParts.cookedCountBonus = Math.min(6, (activity.cookedCount || 0) * 1.5);
+
     score = Object.values(scoreParts).reduce((sum, value) => sum + value, 0);
   }
 
@@ -375,6 +387,7 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     isFavorite,
     isPlanned,
     recentDays,
+    cookedCount: activity.cookedCount || 0,
     scoreParts
   };
   result.explain = explainRecipeScore(result);
@@ -416,10 +429,15 @@ export function buildRecommendationSignature(pack, inv, context) {
 
   const safeFavorites = (context.favoriteIds || []).slice().sort();
 
-  const usageData = context.recipeUsage || context.recipeActivity || context.recipe_usage || context.recipe_activity || context.usage || {};
-  const safeUsage = Object.entries(usageData)
+  const activityData = context.recipeActivity || context.recipe_activity || loadRecipeActivity();
+  const safeActivity = Object.entries(activityData)
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([id, val]) => `${id}:${val}`);
+    .map(([id, val]) => {
+      if (val && typeof val === 'object') {
+        return `${id}:${val.plannedAt || ''}_${val.cookedAt || ''}_${val.cookedCount || 0}`;
+      }
+      return `${id}:${val}`;
+    });
 
   const recipesCount = (pack.recipes || []).length;
   
@@ -431,7 +449,7 @@ export function buildRecommendationSignature(pack, inv, context) {
     inv: safeInv,
     plan: safePlan,
     fav: safeFavorites,
-    usage: safeUsage,
+    activity: safeActivity,
     recCount: recipesCount,
     ingSum: ingSummary
   });
@@ -440,7 +458,7 @@ export function buildRecommendationSignature(pack, inv, context) {
 function getRecommendationContext() {
   return {
     favoriteIds: loadFavoriteRecipeIds(),
-    recipeUsage: loadRecipeUsage(),
+    recipeActivity: loadRecipeActivity(),
     plan: S.load(S.keys.plan, []),
     today: todayISO()
   };
@@ -455,10 +473,15 @@ function restoreSavedRecommendation(saved, pack) {
     matchCount: Number(saved.matchCount) || 0,
     totalCore: Number(saved.totalCore) || 0,
     missing: Array.isArray(saved.missing) ? saved.missing : [],
+    uncertain: Array.isArray(saved.uncertain) ? saved.uncertain : [],
+    needsConfirm: Array.isArray(saved.needsConfirm) ? saved.needsConfirm : [],
+    coverageConfidence: saved.coverageConfidence || '',
     expiringMatches: Array.isArray(saved.expiringMatches) ? saved.expiringMatches : [],
     reason: saved.reason || '',
     explain: Array.isArray(saved.explain) ? saved.explain : [],
-    list: (pack.recipe_ingredients || {})[r.id] || []
+    list: (pack.recipe_ingredients || {})[r.id] || [],
+    coverage: Number(saved.coverage) || 0,
+    status: saved.status || ''
   };
 }
 
@@ -509,9 +532,14 @@ export function getLocalRecommendations(pack, inv, forceRefresh = false) {
     matchCount: item.matchCount,
     totalCore: item.totalCore,
     missing: item.missing,
+    uncertain: item.uncertain || [],
+    needsConfirm: item.needsConfirm || [],
+    coverageConfidence: item.coverageConfidence || '',
     expiringMatches: item.expiringMatches,
     reason: item.reason,
-    explain: item.explain
+    explain: item.explain,
+    coverage: item.coverage || 0,
+    status: item.status || ''
   }));
   S.save(S.keys.local_recs, toSave);
   S.save(S.keys.rec_time, now);
@@ -543,11 +571,32 @@ export function loadRecipeUsage() {
   return S.load(S.keys.recipe_usage, {});
 }
 
+export function loadRecipeActivity() {
+  return S.load(S.keys.recipe_activity, {});
+}
+
+export function saveRecipeActivity(activity) {
+  S.save(S.keys.recipe_activity, activity);
+}
+
+export function getRecipeActivity(id) {
+  const activity = loadRecipeActivity();
+  const act = activity[id] || {};
+  return {
+    plannedAt: act.plannedAt || null,
+    cookedAt: act.cookedAt || null,
+    cookedCount: act.cookedCount || 0
+  };
+}
+
 export function markRecipePlanned(id) {
   if (!id || String(id).startsWith('creative-')) return;
-  const usage = loadRecipeUsage();
-  usage[id] = todayISO();
-  S.save(S.keys.recipe_usage, usage);
+  const activity = loadRecipeActivity();
+  if (!activity[id]) {
+    activity[id] = { plannedAt: null, cookedAt: null, cookedCount: 0 };
+  }
+  activity[id].plannedAt = todayISO();
+  saveRecipeActivity(activity);
 }
 
 export function addRecipeToPlan(id) {
@@ -560,19 +609,48 @@ export function addRecipeToPlan(id) {
 }
 
 export function markRecipeCooked(id) {
-  markRecipePlanned(id);
+  if (!id || String(id).startsWith('creative-')) return { removedFromPlan: false };
+  const activity = loadRecipeActivity();
+  if (!activity[id]) {
+    activity[id] = { plannedAt: null, cookedAt: null, cookedCount: 0 };
+  }
+  activity[id].cookedAt = todayISO();
+  activity[id].cookedCount = (activity[id].cookedCount || 0) + 1;
+  saveRecipeActivity(activity);
+
   const plan = S.load(S.keys.plan, []);
   const nextPlan = plan.filter(item => item.id !== id);
   if (nextPlan.length !== plan.length) S.save(S.keys.plan, nextPlan);
   return { removedFromPlan: nextPlan.length !== plan.length };
 }
 
-export function recipeUsageText(lastDate) {
-  if (!lastDate) return '还没安排过';
-  const days = Math.max(0, daysBetween(lastDate, todayISO()));
-  if (days === 0) return '今天已安排';
-  if (days === 1) return '昨天安排过';
-  return `${days} 天没安排`;
+export function recipeUsageText(activityOrDate) {
+  if (!activityOrDate) return '没计划/没做过';
+  let plannedAt = null;
+  let cookedAt = null;
+  let cookedCount = 0;
+  if (typeof activityOrDate === 'string') {
+    plannedAt = activityOrDate;
+  } else if (activityOrDate && typeof activityOrDate === 'object') {
+    plannedAt = activityOrDate.plannedAt || null;
+    cookedAt = activityOrDate.cookedAt || null;
+    cookedCount = activityOrDate.cookedCount || 0;
+  }
+
+  const today = todayISO();
+  if (plannedAt === today) {
+    return '今天已计划';
+  }
+  if (cookedAt) {
+    const cookedDays = daysSince(cookedAt, today);
+    if (cookedDays !== null && cookedDays <= 5) {
+      return '最近做过';
+    }
+  }
+  if (cookedCount > 0) {
+    return `做过 ${cookedCount} 次`;
+  }
+  return '没计划/没做过';
 }
 
 export function getFavoriteRecipeCards(pack) {
@@ -584,16 +662,18 @@ export function getFavoriteRecipeCards(pack) {
 }
 
 export function getForgottenFavoriteCards(pack) {
-  const usage = loadRecipeUsage();
+  const activity = loadRecipeActivity();
   return getFavoriteRecipeCards(pack)
-    .map(item => ({ ...item, lastDate: usage[item.r.id] || '' }))
+    .map(item => ({ ...item, activity: activity[item.r.id] || null }))
     .sort((a, b) => {
-      if (!a.lastDate && b.lastDate) return -1;
-      if (a.lastDate && !b.lastDate) return 1;
-      return String(a.lastDate || '').localeCompare(String(b.lastDate || ''));
+      const aCooked = a.activity ? a.activity.cookedAt || '' : '';
+      const bCooked = b.activity ? b.activity.cookedAt || '' : '';
+      if (!aCooked && bCooked) return -1;
+      if (aCooked && !bCooked) return 1;
+      return String(aCooked || '').localeCompare(String(bCooked || ''));
     })
     .slice(0, 3)
-    .map(item => ({ ...item, reason: recipeUsageText(item.lastDate) }));
+    .map(item => ({ ...item, reason: recipeUsageText(item.activity) }));
 }
 
 export function processAiData(aiResult, pack) {

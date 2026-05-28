@@ -1,7 +1,7 @@
 import { S } from './storage.js?v=98';
 
 export const APP_VERSION = '151';
-export const DATA_SCHEMA_VERSION = 2;
+export const DATA_SCHEMA_VERSION = 3;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Migration-internal helpers (inlined to avoid ESM circular/timing issues)
@@ -179,6 +179,7 @@ function readCurrentKitchenData() {
     rec_time: S.load(S.keys.rec_time, 0),
     favorite_recipes: S.load(S.keys.favorite_recipes, []),
     recipe_usage: S.load(S.keys.recipe_usage, {}),
+    recipe_activity: S.load(S.keys.recipe_activity, {}),
     shopping_items: S.load(S.keys.shopping_items, [])
   };
 }
@@ -194,6 +195,7 @@ function writeCurrentKitchenData(data) {
     [S.keys.rec_time, data.rec_time],
     [S.keys.favorite_recipes, data.favorite_recipes],
     [S.keys.recipe_usage, data.recipe_usage],
+    [S.keys.recipe_activity, data.recipe_activity],
     [S.keys.shopping_items, data.shopping_items]
   ];
 
@@ -268,6 +270,32 @@ const DATA_MIGRATIONS = {
     if (Object.keys(rawUsage).length !== Object.keys(newUsage).length) changed = true;
     data.recipe_usage = newUsage;
 
+    return { data, changed };
+  },
+
+  3(data, context) {
+    let changed = false;
+    const rawActivity = (data.recipe_activity && typeof data.recipe_activity === 'object') ? data.recipe_activity : {};
+    const newActivity = { ...rawActivity };
+
+    const rawUsage = (data.recipe_usage && typeof data.recipe_usage === 'object') ? data.recipe_usage : {};
+    for (const [id, val] of Object.entries(rawUsage)) {
+      if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        if (!newActivity[id]) {
+          newActivity[id] = {
+            plannedAt: val,
+            cookedAt: null,
+            cookedCount: 0
+          };
+          changed = true;
+        } else if (newActivity[id].plannedAt === undefined) {
+          newActivity[id].plannedAt = val;
+          changed = true;
+        }
+      }
+    }
+
+    data.recipe_activity = newActivity;
     return { data, changed };
   }
 };

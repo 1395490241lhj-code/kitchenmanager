@@ -32,11 +32,23 @@ export function recipeMethodBadge(recipe) {
 
 export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
   const card = document.createElement('div'); card.className = 'card';
-  const statusBadge = statusData.status === 'ok'
-    ? `<span class="kchip ok">✅ 库存充足</span>`
-    : (statusData.status === 'partial'
-      ? `<span class="kchip warn">⚠️ 缺食材</span>`
-      : `<span class="kchip bad">❌ 暂无食材</span>`);
+  let badgeHtml = '';
+  if (statusData.status === 'ok') {
+    badgeHtml = `<span class="kchip ok">✅ 库存充足</span>`;
+  } else if (statusData.status === 'partial') {
+    if (statusData.missing && statusData.missing.length > 0) {
+      badgeHtml = `<span class="kchip warn">⚠️ 缺食材</span>`;
+    } else if (statusData.coverageConfidence === 'unit-mismatch') {
+      badgeHtml = `<span class="kchip warn">⚠️ 单位需确认</span>`;
+    } else if (statusData.coverageConfidence === 'status-only') {
+      badgeHtml = `<span class="kchip warn">⚠️ 状态需确认</span>`;
+    } else {
+      badgeHtml = `<span class="kchip warn">⚠️ 需确认</span>`;
+    }
+  } else {
+    badgeHtml = `<span class="kchip bad">❌ 暂无食材</span>`;
+  }
+  const statusBadge = badgeHtml;
   card.innerHTML = `<div class="recipe-card-head"><h3 class="r-title r-title-link">${r.name}</h3><div class="recipe-badge-stack">${recipeMethodBadge(r)}${statusBadge}</div></div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button><button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button></div>`;
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {

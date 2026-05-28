@@ -47,6 +47,7 @@ function getRecommendationUiContext() {
   return {
     favoriteIds: S.load(S.keys.favorite_recipes, []),
     recipeUsage: S.load(S.keys.recipe_usage, {}),
+    recipeActivity: S.load(S.keys.recipe_activity, {}),
     plan: S.load(S.keys.plan, []),
     today: todayISO()
   };
@@ -57,14 +58,65 @@ function formatMissingShort(missing, limit = 2) {
   return `${names.slice(0, limit).join('、')}${names.length > limit ? '等' : ''}`;
 }
 
-function getHomeRecipeGroups(pack, inv) {
+function getTodayDecisionGroups(pack, inv) {
   const ranked = rankRecipesForRecommendation(pack, inv, getRecommendationUiContext())
     .filter(item => hasRecipeMethod(item.r));
-  const ready = ranked.filter(row => row.status === 'ok' && row.matchCount > 0).slice(0, 4)
-    .map(row => ({ ...row, reason: row.reason || `已有 ${row.totalCore}/${row.totalCore} 项核心食材` }));
-  const almost = ranked.filter(row => row.status === 'partial' && (row.matchCount > 0 || (row.uncertain && row.uncertain.length > 0)) && row.missing.length <= 2).slice(0, 4)
-    .map(row => ({ ...row, reason: row.missing.length ? `还缺：${formatMissingShort(row.missing)}` : row.reason }));
-  return { ready, almost };
+  
+  const priorityList = [];
+  const readyList = [];
+  const confirmList = [];
+  const almostList = [];
+
+  for (const row of ranked) {
+    if (row.expiringMatches && row.expiringMatches.length > 0) {
+      const first = row.expiringMatches[0];
+      let timeText = '';
+      if (first.days < 0) {
+        timeText = `已过期 ${Math.abs(first.days)} 天`;
+      } else if (first.days === 0) {
+        timeText = '今天到期';
+      } else {
+        timeText = `还剩 ${first.days} 天到期`;
+      }
+      row.reason = `${first.name}${timeText}，建议优先用`;
+      priorityList.push(row);
+    } else if (row.coverageConfidence === 'exact') {
+      row.reason = '食材已齐';
+      readyList.push(row);
+    } else if (row.coverageConfidence === 'unit-mismatch' || row.coverageConfidence === 'status-only') {
+      const firstConfirm = row.needsConfirm && row.needsConfirm[0];
+      if (firstConfirm) {
+        if (firstConfirm.reason === 'unit-mismatch') {
+          row.reason = `${firstConfirm.name}库存单位不同，数量需确认`;
+        } else {
+          row.reason = `${firstConfirm.name}库存状态需确认`;
+        }
+      } else {
+        const firstUncertain = row.uncertain && row.uncertain[0];
+        if (firstUncertain) {
+          if (firstUncertain.reason === 'unit-mismatch') {
+            row.reason = `${firstUncertain.name}库存单位不同，数量需确认`;
+          } else {
+            row.reason = `${firstUncertain.name}库存状态需确认`;
+          }
+        } else {
+          row.reason = '库存单位或状态需确认';
+        }
+      }
+      confirmList.push(row);
+    } else if (row.missing && row.missing.length > 0 && row.missing.length <= 2) {
+      const missingNames = row.missing.map(m => m.name || m.item).filter(Boolean);
+      row.reason = `只缺 ${missingNames.join('、')}`;
+      almostList.push(row);
+    }
+  }
+
+  return {
+    priority: priorityList.slice(0, 3),
+    ready: readyList.slice(0, 3),
+    confirm: confirmList.slice(0, 3),
+    almost: almostList.slice(0, 3)
+  };
 }
 
 function renderHomeStats(expiring, ready, almost, shoppingItems = [], hasInv = true) {
@@ -185,27 +237,47 @@ function renderCookChoiceItem(item, mode, pack, inv) {
   return row;
 }
 
-function renderCookChoiceCard(title, subtitle, items, emptyTitle, emptyText, mode, pack, inv) {
+function renderCookChoiceCard(title, subtitle, items, mode, pack, inv) {
   const card = document.createElement('div'); card.className = `home-cook-card is-${mode}`;
   card.innerHTML = `<div class="home-cook-card-head"><h3>${escapeHtml(title)}</h3><p>${escapeHtml(subtitle)}</p></div>`;
   const list = document.createElement('div'); list.className = 'home-cook-list';
-  if (!items.length) {
-    const empty = document.createElement('div'); empty.className = 'home-empty-state compact';
-    empty.innerHTML = `<strong>${escapeHtml(emptyTitle)}</strong><span>${escapeHtml(emptyText)}</span>`;
-    list.appendChild(empty);
-  } else {
-    items.slice(0, 4).forEach(item => list.appendChild(renderCookChoiceItem(item, mode, pack, inv)));
-  }
+  items.forEach(item => list.appendChild(renderCookChoiceItem(item, mode, pack, inv)));
   card.appendChild(list); return card;
 }
 
-function renderCookChoicesSection(ready, almost, pack, inv) {
+function renderCookChoicesSection(groups, pack, inv) {
   const section = document.createElement('section'); section.className = 'home-section home-cook-section';
-  section.innerHTML = `<div class="section-title home-section-title"><span>现在能做 &amp; 差一点能做</span></div>`;
+  section.innerHTML = `<div class="section-title home-section-title"><span>今日厨房状态</span></div>`;
   const grid = document.createElement('div'); grid.className = 'home-cook-grid';
-  grid.appendChild(renderCookChoiceCard('现在能做', '不用再买菜，适合直接加入今日计划。', ready, '还没有可直接做的菜', '先补一点库存，或用搜索找具体食材。', 'ready', pack, inv));
-  grid.appendChild(renderCookChoiceCard('差一点能做', '只差一两样，适合顺手补进购物清单。', almost, '暂时没有接近完成的菜', '库存再多一点后，这里会自动出现更合适的选择。', 'almost', pack, inv));
-  section.appendChild(grid); return section;
+  
+  let hasAny = false;
+  if (groups.priority && groups.priority.length > 0) {
+    grid.appendChild(renderCookChoiceCard('优先做', '快到期食材，建议优先烹饪', groups.priority, 'priority', pack, inv));
+    hasAny = true;
+  }
+  if (groups.ready && groups.ready.length > 0) {
+    grid.appendChild(renderCookChoiceCard('现在能做', '核心食材已齐，可直接烹饪', groups.ready, 'ready', pack, inv));
+    hasAny = true;
+  }
+  if (groups.confirm && groups.confirm.length > 0) {
+    grid.appendChild(renderCookChoiceCard('需要确认', '单位或状态不同，数量需确认', groups.confirm, 'confirm', pack, inv));
+    hasAny = true;
+  }
+  if (groups.almost && groups.almost.length > 0) {
+    grid.appendChild(renderCookChoiceCard('差一点能做', '缺 1-2 个核心食材，适合补货', groups.almost, 'almost', pack, inv));
+    hasAny = true;
+  }
+  
+  if (!hasAny) {
+    const emptyCard = document.createElement('div');
+    emptyCard.className = 'card home-empty-state';
+    emptyCard.innerHTML = '<strong>暂无推荐菜谱</strong><span>录入更多库存或丰富菜谱库后，厨房决策推荐会自动显示在这里。</span>';
+    section.appendChild(emptyCard);
+  } else {
+    section.appendChild(grid);
+  }
+  
+  return section;
 }
 
 function renderHomeDetails(title, subtitle, nodes, open = false) {
@@ -421,7 +493,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   const catalog = buildCatalog(pack);
   const inv = loadInventory(catalog);
   const expiring = getExpiringItems(inv);
-  const groups = getHomeRecipeGroups(pack, inv);
+  const groups = getTodayDecisionGroups(pack, inv);
   const shoppingItems = loadShoppingItems();
   const activeShopping = shoppingItems.filter(item => !item.done);
 
@@ -527,9 +599,9 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   if (expiring.length > 0) {
     container.appendChild(renderExpiringSection(expiring, showSearch));
   }
-  container.appendChild(renderCookChoicesSection(groups.ready, groups.almost, pack, inv));
+  container.appendChild(renderCookChoicesSection(groups, pack, inv));
 
-  const searchOpen = (groups.ready.length === 0 && groups.almost.length === 0);
+  const searchOpen = (groups.priority.length === 0 && groups.ready.length === 0 && groups.almost.length === 0);
   searchDetails = renderHomeDetails('搜索菜谱 / 食材', '找具体菜名或某个食材', [searchBar, searchResultsContainer], searchOpen);
   container.appendChild(searchDetails);
 
@@ -541,7 +613,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
 
   const localRecs = getLocalRecommendations(pack, inv);
   const hasRealLocalRecs = localRecs.some(item => item && (item.matchCount > 0 || (item.uncertain && item.uncertain.length > 0)));
-  const recsOpen = !hasRealLocalRecs;
+  const recsOpen = false;
   const moreRecsNode = renderMoreRecommendations(pack, inv, { onRoute });
   const moreRecsDetails = renderHomeDetails('更多推荐和 AI', '想换换口味时再打开', [moreRecsNode], recsOpen);
   container.appendChild(moreRecsDetails);
@@ -561,14 +633,15 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   if (btnAddToPlan) {
     btnAddToPlan.onclick = () => {
       let recipeId = null;
-      if (groups.ready.length > 0) {
-        recipeId = groups.ready[0].r.id;
+      const firstGroup = groups.priority.length > 0 ? groups.priority : (groups.ready.length > 0 ? groups.ready : (groups.confirm.length > 0 ? groups.confirm : groups.almost));
+      if (firstGroup.length > 0) {
+        recipeId = firstGroup[0].r.id;
       } else {
         const matchRecipe = (pack.recipes || []).find(r => {
           const list = (pack.recipe_ingredients || {})[r.id] || [];
           return list.some(ing => getCanonicalName(ing.item) === getCanonicalName(expiring[0]?.name));
         });
-        recipeId = matchRecipe?.id || (groups.almost.length ? groups.almost[0].r.id : null);
+        recipeId = matchRecipe?.id;
       }
 
       if (recipeId) {
@@ -592,8 +665,9 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   const btnViewRecipe = briefingCard.querySelector('#btnViewRecipe');
   if (btnViewRecipe) {
     btnViewRecipe.onclick = () => {
-      if (groups.ready.length > 0) {
-        location.hash = `#recipe:${groups.ready[0].r.id}`;
+      const firstGroup = groups.priority.length > 0 ? groups.priority : (groups.ready.length > 0 ? groups.ready : groups.confirm);
+      if (firstGroup.length > 0) {
+        location.hash = `#recipe:${firstGroup[0].r.id}`;
       }
     };
   }

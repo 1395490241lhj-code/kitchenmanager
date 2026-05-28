@@ -2472,6 +2472,32 @@ nav a.active svg {
   opacity: 0.4;
   cursor: not-allowed;
 }
+.deduct-mismatch-warn {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--status-warn-bg, rgba(255, 196, 0, 0.1));
+  border: 1px solid var(--status-warn-border, rgba(255, 196, 0, 0.3));
+  font-size: 12px;
+  color: var(--status-warn-text, #92400e);
+  cursor: pointer;
+  user-select: none;
+  margin-top: 4px;
+}
+.deduct-mismatch-warn input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+.deduct-unit-warning {
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--status-warn-text, #92400e);
+}
 .deduct-stock-actions {
   flex-wrap: wrap;
   gap: 8px;
@@ -2483,6 +2509,7 @@ nav a.active svg {
     grid-template-rows: auto auto;
   }
   .deduct-name { grid-column: 1 / 3; }
+  .deduct-mismatch-warn { grid-column: 1 / 3; }
   .deduct-stock-actions { justify-content: stretch; }
   .deduct-stock-actions .btn { flex: 1; }
 }
@@ -2764,5 +2791,38 @@ nav a.active svg {
     background: var(--glass-nav-fill);
     border-color: rgba(255,255,255,0.12);
     box-shadow: var(--shadow-nav), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+}
+
+/* Today's Kitchen Status / Cook Decision groups styling */
+.home-cook-card.is-priority {
+  border-left: 4px solid var(--warning) !important;
+  background: linear-gradient(180deg, rgba(255, 149, 0, 0.08), rgba(255, 255, 255, 0.68)) !important;
+}
+.home-cook-card.is-ready {
+  border-left: 4px solid var(--accent) !important;
+  background: linear-gradient(180deg, rgba(52, 199, 89, 0.08), rgba(255, 255, 255, 0.68)) !important;
+}
+.home-cook-card.is-confirm {
+  border-left: 4px solid #af52de !important;
+  background: linear-gradient(180deg, rgba(175, 82, 222, 0.08), rgba(255, 255, 255, 0.68)) !important;
+}
+.home-cook-card.is-almost {
+  border-left: 4px solid var(--primary) !important;
+  background: linear-gradient(180deg, rgba(0, 122, 255, 0.08), rgba(255, 255, 255, 0.68)) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .home-cook-card.is-priority {
+    background: linear-gradient(180deg, rgba(255, 149, 0, 0.15), rgba(30, 30, 30, 0.68)) !important;
+  }
+  .home-cook-card.is-ready {
+    background: linear-gradient(180deg, rgba(52, 199, 89, 0.15), rgba(30, 30, 30, 0.68)) !important;
+  }
+  .home-cook-card.is-confirm {
+    background: linear-gradient(180deg, rgba(175, 82, 222, 0.15), rgba(30, 30, 30, 0.68)) !important;
+  }
+  .home-cook-card.is-almost {
+    background: linear-gradient(180deg, rgba(0, 122, 255, 0.15), rgba(30, 30, 30, 0.68)) !important;
   }
 }
