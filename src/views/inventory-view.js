@@ -13,6 +13,7 @@ import {
 import {
   inventoryStateInfo,
   loadInventory,
+  mergeInventoryEntry,
   nextInventoryState,
   remainingDays,
   saveInventory,
@@ -178,7 +179,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
 
     const shelfDays = itemKind === 'dry' ? 365 : (isFrozen ? 180 : guessShelfDays(name, unit));
 
-    upsertInventory(inv,{name, qty, unit, buyDate:date, kind:itemKind, shelf:shelfDays, isFrozen: isFrozen, stockStatus:selectedStockStatus, ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(name)} : {})});
+    mergeInventoryEntry(inv, {name, qty, unit, buyDate:date, kind:itemKind, shelf:shelfDays, isFrozen: isFrozen, stockStatus:selectedStockStatus, ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(name)} : {})}, { mode: 'add' });
 
     formContainer.querySelector('#addName').value = '';
     formContainer.querySelector('#addQty').value = '';
@@ -197,7 +198,12 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     scanStatus.classList.add('visible'); scanStatus.innerHTML = '<span class="spinner"></span> 识别中...';
     try {
       const rawItems = await withTimeout(recognizeReceipt(file), 30000, 'AI 识别超时');
-      const items = (Array.isArray(rawItems) ? rawItems : []).filter(it => it && it.name).map(it => normalizeKitchenAmount(it.name, it.qty, it.unit));
+      const items = (Array.isArray(rawItems) ? rawItems : []).filter(it => it && it.name).map(it => ({
+        name: it.name,
+        qty: it.qty,
+        unit: it.unit,
+        originalName: it.originalName || it.name
+      }));
       if(items.length === 0) {
         scanStatus.innerHTML = '<span class="text-danger">没有识别到可入库食材</span>';
         return;
@@ -207,7 +213,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         for(const it of confirmed) {
           const unit = it.unit || guessKitchenUnit(it.name);
           const itemKind = isDryGoodName(it.name) ? 'dry' : 'raw';
-          upsertInventory(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: itemKind, shelf: itemKind === 'dry' ? 365 : guessShelfDays(it.name, unit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(it.name), isFrozen:false} : {}) });
+          mergeInventoryEntry(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: itemKind, shelf: itemKind === 'dry' ? 365 : guessShelfDays(it.name, unit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(it.name), isFrozen:false} : {}) }, { mode: 'add' });
         }
         scanStatus.innerHTML = `✅ 已确认入库 ${confirmed.length} 项`;
         setTimeout(() => { scanStatus.classList.remove('visible'); renderTable(); onInventoryChanged(); }, 1200);

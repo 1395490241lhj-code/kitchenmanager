@@ -270,6 +270,45 @@ export function rankRecipesForRecommendation(pack, inv, context = {}) {
   );
 }
 
+export function buildRecommendationSignature(pack, inv, context) {
+  const safeInv = (inv || []).map(item => ({
+    name: item.name || '',
+    qty: item.qty ?? '',
+    unit: item.unit || '',
+    stockStatus: item.stockStatus || '',
+    buyDate: item.buyDate || '',
+    shelf: item.shelf ?? '',
+    kind: item.kind || ''
+  })).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN') || (a.buyDate || '').localeCompare(b.buyDate || '') || (a.kind || '').localeCompare(b.kind || ''));
+
+  const safePlan = (context.plan || []).map(p => ({
+    id: p.id || '',
+    servings: p.servings ?? 1
+  })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+  const safeFavorites = (context.favoriteIds || []).slice().sort();
+
+  const usageData = context.recipeUsage || context.recipeActivity || context.recipe_usage || context.recipe_activity || context.usage || {};
+  const safeUsage = Object.entries(usageData)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([id, val]) => `${id}:${val}`);
+
+  const recipesCount = (pack.recipes || []).length;
+  
+  const ingSummary = Object.entries(pack.recipe_ingredients || {})
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([id, list]) => `${id}:${(list || []).length}`);
+
+  return JSON.stringify({
+    inv: safeInv,
+    plan: safePlan,
+    fav: safeFavorites,
+    usage: safeUsage,
+    recCount: recipesCount,
+    ingSum: ingSummary
+  });
+}
+
 function getRecommendationContext() {
   return {
     favoriteIds: loadFavoriteRecipeIds(),
@@ -299,15 +338,25 @@ export function getLocalRecommendations(pack, inv, forceRefresh = false) {
   const now = Date.now();
   const lastRecTime = parseInt(S.load(S.keys.rec_time, 0), 10);
   const savedRecs = S.load(S.keys.local_recs, null);
+  const savedSignature = S.load(S.keys.rec_signature, null);
 
-  if (!forceRefresh && savedRecs && (now - lastRecTime < 3600000)) {
+  const context = getRecommendationContext();
+  const currentSignature = buildRecommendationSignature(pack, inv, context);
+
+  const cacheValid = !forceRefresh && 
+                     savedRecs && 
+                     (now - lastRecTime < 3600000) && 
+                     savedSignature && 
+                     (savedSignature === currentSignature);
+
+  if (cacheValid) {
     return savedRecs
       .map(saved => restoreSavedRecommendation(saved, pack))
       .filter(item => item && hasRecipeMethod(item.r));
   }
 
   const methodReadyRecipes = (pack.recipes || []).filter(hasRecipeMethod);
-  let ranked = rankRecipesForRecommendation(pack, inv, getRecommendationContext());
+  let ranked = rankRecipesForRecommendation(pack, inv, context);
   if (methodReadyRecipes.length) ranked = ranked.filter(item => hasRecipeMethod(item.r));
   let top = ranked.slice(0, 6);
 
@@ -338,6 +387,7 @@ export function getLocalRecommendations(pack, inv, forceRefresh = false) {
   }));
   S.save(S.keys.local_recs, toSave);
   S.save(S.keys.rec_time, now);
+  S.save(S.keys.rec_signature, currentSignature);
   return top;
 }
 

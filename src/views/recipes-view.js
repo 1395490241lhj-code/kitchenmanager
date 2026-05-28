@@ -77,7 +77,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
     const id = genId(); const overlay = loadOverlay();
     overlay.recipes = overlay.recipes || {}; overlay.recipes[id] = { name: '新菜谱', tags: ['自定义'] };
     overlay.recipe_ingredients = overlay.recipe_ingredients || {}; overlay.recipe_ingredients[id] = [{ item: '', qty: null, unit: 'g' }];
-    saveOverlay(overlay); location.hash = `#recipe-edit:${id}`;
+    saveOverlay(overlay); window.invalidatePackCache?.(); location.hash = `#recipe-edit:${id}`;
   };
   wrap.querySelector('#exportBtn').onclick = () => {
     const blob = new Blob([JSON.stringify(loadOverlay(), null, 2)], { type: 'application/json' });
@@ -90,7 +90,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
       try {
         const inc = JSON.parse(reader.result); const cur = loadOverlay();
         const result = mergeOverlayPreservingCurrent(cur, inc);
-        saveOverlay(result.overlay);
+        saveOverlay(result.overlay); window.invalidatePackCache?.();
         const conflictText = result.conflicts.length ? `，${result.conflicts.length} 个冲突已保留当前版本` : '';
         alert(`导入成功：新增 ${result.imported.length} 项${conflictText}。`); location.reload();
       } catch (err) { alert('导入失败：' + (err.message || err)); }

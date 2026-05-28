@@ -176,6 +176,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     overlay.recipe_ingredients[id] = arr;
     if(overlay.deletes) delete overlay.deletes[id];
     saveOverlay(overlay);
+    window.invalidatePackCache?.();
     showEditorStatus('已保存。', 'ok');
     window.setTimeout(() => history.back(), 450);
   };
@@ -186,6 +187,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     if(overlay.deletes[id]) delete overlay.deletes[id];
     else overlay.deletes[id] = true;
     saveOverlay(overlay);
+    window.invalidatePackCache?.();
     history.back();
   };
 
@@ -196,6 +198,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     if(overlay.recipe_ingredients) delete overlay.recipe_ingredients[id];
     if(overlay.deletes) delete overlay.deletes[id];
     saveOverlay(overlay);
+    window.invalidatePackCache?.();
     const newView = renderRecipeEditor(id, base, { replaceView });
     if(replaceView) replaceView(newView);
   };

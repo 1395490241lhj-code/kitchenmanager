@@ -10,9 +10,10 @@ import {
   isSeasoning
 } from '../ingredients.js?v=1';
 import {
+  getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
-  upsertInventory
+  mergeInventoryEntry
 } from '../inventory.js?v=1';
 import {
   addShoppingItem,
@@ -59,9 +60,36 @@ function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false) {
   }
 
   return Object.values(need).map(req => {
-    const stock = getStockCoverageForNeed(inv, req.name, req.qty, req.unit);
-    const missingQty = Math.max(0, Math.round((req.qty - stock) * 100) / 100);
-    return missingQty > 0 ? { name: req.name, unit: req.unit, qty: missingQty, source: req.sources.join('、') } : null;
+    const analysis = getStockCoverageAnalysis(inv, req.name, req.qty, req.unit);
+
+    if (analysis.confidence === 'exact') {
+      const missingQty = Math.max(0, Math.round((req.qty - analysis.coveredQty) * 100) / 100);
+      return missingQty > 0
+        ? { name: req.name, unit: req.unit, qty: missingQty, source: req.sources.join('、'), needsConfirm: false }
+        : null;
+    }
+
+    if (analysis.confidence === 'unit-mismatch') {
+      const stockDesc = analysis.matchedItems.map(i => `${i.qty}${i.unit}`).join('/');
+      return {
+        name: req.name, unit: req.unit, qty: req.qty,
+        source: req.sources.join('、'),
+        needsConfirm: true,
+        confirmReason: `库存有 ${stockDesc}，单位不同，数量需确认`
+      };
+    }
+
+    if (analysis.confidence === 'status-only') {
+      return {
+        name: req.name, unit: req.unit, qty: req.qty,
+        source: req.sources.join('、'),
+        needsConfirm: true,
+        confirmReason: '库存需确认'
+      };
+    }
+
+    // confidence === 'none' → 真正缺货
+    return { name: req.name, unit: req.unit, qty: req.qty, source: req.sources.join('、'), needsConfirm: false };
   }).filter(Boolean);
 }
 
@@ -141,7 +169,18 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const plan = S.load(S.keys.plan, []);
   const ingredientOptions = buildIngredientOptions(catalog);
   const shoppingItems = loadShoppingItems();
-  const includeSeasonings = localStorage.getItem('km_include_seasoning') === 'true';
+  const settings = S.load(S.keys.settings, {});
+  if (settings.includeSeasoningsInShopping === undefined) {
+    const oldVal = localStorage.getItem('km_include_seasoning');
+    if (oldVal === 'true') {
+      settings.includeSeasoningsInShopping = true;
+      S.save(S.keys.settings, settings);
+    }
+    if (oldVal !== null) {
+      localStorage.removeItem('km_include_seasoning');
+    }
+  }
+  const includeSeasonings = settings.includeSeasoningsInShopping === true;
   const missing = buildPlanMissingItems(pack, inv, plan, includeSeasonings);
   const mergedItems = mergeShoppingItems(shoppingItems);
   const openItems = mergedItems.filter(item => !item.done);
@@ -238,7 +277,9 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
 
   const toggleCheckbox = missingCard.querySelector('#toggleSeasonings');
   toggleCheckbox.onchange = (e) => {
-    localStorage.setItem('km_include_seasoning', e.target.checked ? 'true' : 'false');
+    const s = S.load(S.keys.settings, {});
+    s.includeSeasoningsInShopping = e.target.checked;
+    S.save(S.keys.settings, s);
     onRoute();
   };
   const missingTable = document.createElement('table');
@@ -252,10 +293,13 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   } else {
     missing.forEach(item => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${escapeHtml(item.name)}</td><td>${escapeHtml([item.qty, item.unit].filter(Boolean).join(' '))}</td><td class="small">${escapeHtml(item.source || '菜谱')}</td><td class="right"><button type="button" class="btn small">已买入库</button></td>`;
+      const qtyCell = item.needsConfirm
+        ? `<span class="confirm-badge">${escapeHtml(item.confirmReason || '需确认')}</span>`
+        : escapeHtml([item.qty, item.unit].filter(Boolean).join(' '));
+      tr.innerHTML = `<td>${escapeHtml(item.name)}</td><td>${qtyCell}</td><td class="small">${escapeHtml(item.source || '菜谱')}</td><td class="right"><button type="button" class="btn small">已买入库</button></td>`;
       tr.querySelector('button').onclick = () => {
         showShoppingInventoryModal(item, entry => {
-          upsertInventory(inv, entry);
+          mergeInventoryEntry(inv, entry, { mode: 'add' });
           setInlineStatus(status, `${entry.name} 已入库。`, 'ok');
           onRoute();
         });
@@ -310,7 +354,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     if(stockBtn) {
       stockBtn.onclick = () => {
         showShoppingInventoryModal(item, entry => {
-          upsertInventory(inv, entry);
+          mergeInventoryEntry(inv, entry, { mode: 'add' });
           updateShoppingRowsByIds(item.ids, target => ({
             ...target,
             done: true,
@@ -362,7 +406,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     }
     const item = itemsList[index];
     showShoppingInventoryModal(item, entry => {
-      upsertInventory(inv, entry);
+      mergeInventoryEntry(inv, entry, { mode: 'add' });
       updateShoppingRowsByIds(item.ids, target => ({
         ...target,
         done: true,

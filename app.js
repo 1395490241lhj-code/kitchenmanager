@@ -1,7 +1,7 @@
 // v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
 import { el, els } from './src/dom.js?v=89';
 import { applyOverlay, loadOverlay } from './src/backup.js?v=2';
-import { runLocalStorageMigrations } from './src/migrations.js?v=1';
+import { runLocalStorageMigrations } from './src/migrations.js?v=2';
 import { escapeHtml } from './src/components/status.js?v=1';
 import { renderShopping } from './src/views/shopping-view.js?v=1';
 import { renderInventory } from './src/views/inventory-view.js?v=1';
@@ -33,8 +33,42 @@ try {
   console.error('Data Migration Error:', error);
 }
 
-async function loadBasePack() {
-  const url = new URL('./data/sichuan-recipes.json', location).href + '?v=23';
+let cachedBasePack = null;
+let cachedBaseWithCompletion = null;
+let cachedEffectivePack = null;
+let cachedQueryVersion = null;
+
+export function invalidatePackCache() {
+  cachedBasePack = null;
+  cachedBaseWithCompletion = null;
+  cachedEffectivePack = null;
+}
+window.invalidatePackCache = invalidatePackCache;
+
+export async function getCurrentPack({ force = false } = {}) {
+  const searchParams = new URLSearchParams(location.search);
+  const currentVersion = searchParams.get('v') || '23';
+
+  if (force || cachedQueryVersion !== currentVersion) {
+    invalidatePackCache();
+    cachedQueryVersion = currentVersion;
+  }
+
+  if (!cachedBasePack) {
+    cachedBasePack = await loadBasePack(currentVersion);
+  }
+  if (!cachedBaseWithCompletion) {
+    cachedBaseWithCompletion = await applyCompletionOverlay(cachedBasePack);
+  }
+  if (!cachedEffectivePack) {
+    const overlay = loadOverlay();
+    cachedEffectivePack = applyOverlay(cachedBaseWithCompletion, overlay);
+  }
+  return cachedEffectivePack;
+}
+
+async function loadBasePack(v = '23') {
+  const url = new URL('./data/sichuan-recipes.json', location).href + '?v=' + v;
   let pack = { recipes: [], recipe_ingredients: {} };
   try {
     const res = await fetch(url, { cache: 'no-store' });
@@ -90,10 +124,8 @@ async function onRoute() {
         </div>`;
       return;
     }
-    const base = await loadBasePack();
-    const baseWithCompletion = await applyCompletionOverlay(base);
-    const overlay = loadOverlay();
-    const pack = applyOverlay(baseWithCompletion, overlay);
+    const pack = await getCurrentPack();
+    const baseWithCompletion = cachedBaseWithCompletion;
     const hash = location.hash.replace('#', '');
 
     els('nav a').forEach(a => a.classList.remove('active'));

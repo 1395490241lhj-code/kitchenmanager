@@ -68,6 +68,7 @@
         *   `km_v48_ai_recs`：AI 推荐缓存
         *   `km_v97_local_recs`：本地推荐缓存
         *   `km_v97_rec_time`：推荐时间戳缓存
+        *   `km_v97_rec_signature`：推荐缓存签名
         *   `km_v80_favorite_recipes`：收藏菜谱列表
         *   `km_v95_recipe_usage`：菜谱烹饪次数统计
         *   `km_v87_shopping_items`：购物清单列表

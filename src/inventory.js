@@ -61,15 +61,65 @@ export function getMatchingInventoryItems(inv, recipeName) {
   return (inv || []).filter(item => isInventoryAvailable(item) && isIngredientMatch(recipeName, item.name));
 }
 
-export function getStockCoverageForNeed(inv, recipeName, qty, unit) {
+/**
+ * 分析库存对某食材需求的覆盖情况，返回置信度。
+ *
+ * @param {Array}  inv        - 当前库存数组
+ * @param {string} recipeName - 菜谱中食材名称
+ * @param {number} qty        - 菜谱中需要的数量
+ * @param {string} unit       - 菜谱中需要的单位
+ * @returns {{
+ *   coveredQty: number,
+ *   confidence: 'exact'|'unit-mismatch'|'status-only'|'none',
+ *   matchedItems: Array
+ * }}
+ *
+ * confidence 含义：
+ *   exact        — 同名/别名匹配且单位一致，可精确比较数量
+ *   unit-mismatch — 同名匹配但单位不同，无法直接比较
+ *   status-only  — 找到同名但无可比数量（qty=0 而 stockStatus=ok），只能说"可能有"
+ *   none         — 无匹配
+ */
+export function getStockCoverageAnalysis(inv, recipeName, qty, unit) {
   const matchedItems = getMatchingInventoryItems(inv, recipeName);
-  if (!matchedItems.length) return 0;
-  const sameUnitStock = matchedItems
-    .filter(item => (item.unit || '') === (unit || ''))
-    .reduce((sum, item) => sum + (+item.qty || 0), 0);
-  if (sameUnitStock > 0) return sameUnitStock;
-  if (matchedItems.some(item => (item.stockStatus || 'ok') === 'ok' && (+item.qty || 0) > 0)) return +qty || 1;
-  if (matchedItems.some(item => (+item.qty || 0) > 0)) return +qty || 1;
+  if (!matchedItems.length) {
+    return { coveredQty: 0, confidence: 'none', matchedItems: [] };
+  }
+
+  // 1. 同名且单位相同 → exact
+  const sameUnitItems = matchedItems.filter(item => (item.unit || '') === (unit || ''));
+  const sameUnitTotal = sameUnitItems.reduce((sum, item) => sum + (+item.qty || 0), 0);
+  if (sameUnitTotal > 0) {
+    return { coveredQty: sameUnitTotal, confidence: 'exact', matchedItems: sameUnitItems };
+  }
+
+  // 2. 同名但单位不同，且有实际数量 → unit-mismatch
+  const differentUnitWithQty = matchedItems.filter(
+    item => (item.unit || '') !== (unit || '') && (+item.qty || 0) > 0
+  );
+  if (differentUnitWithQty.length > 0) {
+    return { coveredQty: 0, confidence: 'unit-mismatch', matchedItems: differentUnitWithQty };
+  }
+
+  // 3. 找到同名但 qty 为 0，stockStatus=ok → status-only（可能有货但数量未填）
+  const statusOkItems = matchedItems.filter(item => (item.stockStatus || 'ok') === 'ok');
+  if (statusOkItems.length > 0) {
+    return { coveredQty: 0, confidence: 'status-only', matchedItems: statusOkItems };
+  }
+
+  return { coveredQty: 0, confidence: 'none', matchedItems: [] };
+}
+
+/**
+ * 向后兼容包装：内部委托给 getStockCoverageAnalysis。
+ * 旧行为：unit-mismatch / status-only 均视为"够用"（返回 qty），不影响现有调用方。
+ * 新调用方应直接使用 getStockCoverageAnalysis 以获取置信度信息。
+ */
+export function getStockCoverageForNeed(inv, recipeName, qty, unit) {
+  const analysis = getStockCoverageAnalysis(inv, recipeName, qty, unit);
+  if (analysis.confidence === 'exact') return analysis.coveredQty;
+  // unit-mismatch / status-only：保持旧行为，视为"刚好够用"
+  if (analysis.confidence !== 'none') return +qty || 1;
   return 0;
 }
 
@@ -130,10 +180,89 @@ export function saveInventory(inv){ S.save(S.keys.inventory, inv); }
 export function daysBetween(a,b){ return Math.floor((new Date(b)-new Date(a))/86400000); }
 export function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); return (+e.shelf||7)-age; }
 
-export function upsertInventory(inv, e){
-  const i=inv.findIndex(x=>x.name===e.name && (x.kind||'raw')===(e.kind||'raw'));
-  if(i>=0) inv[i]={...inv[i],...e};
-  else inv.push(e);
+/**
+ * 合并入库核心函数。
+ * @param {Array} inv       - 当前库存数组（会被就地修改）
+ * @param {Object} entry    - 要入库的条目 { name, qty, unit, kind, ... }
+ * @param {Object} [options]
+ * @param {'add'|'replace'|'newBatch'} [options.mode='add']
+ *   add      - 同名同单位同类型累加数量（单位不同时退化为 newBatch）
+ *   replace  - 同名同类型直接覆盖（保持旧 upsertInventory 行为）
+ *   newBatch - 不论是否重名，始终新增一条
+ * @param {boolean} [options.save=true] - 是否立即持久化
+ */
+export function mergeInventoryEntry(inv, entry, { mode = 'add', save = true } = {}) {
+  if (mode === 'newBatch') {
+    inv.push({ ...entry });
+  } else if (mode === 'replace') {
+    // 与旧 upsertInventory 等价：按名称+类型查找，存在则覆盖，否则新增
+    const idx = inv.findIndex(
+      x => x.name === entry.name && (x.kind || 'raw') === (entry.kind || 'raw')
+    );
+    if (idx >= 0) inv[idx] = { ...inv[idx], ...entry };
+    else inv.push({ ...entry });
+  } else {
+    // mode === 'add'（默认）
+    const entryKind = entry.kind || 'raw';
+    const entryUnit = entry.unit || '';
+    // 先尝试完整匹配：名称 + 单位 + 类型
+    const exact = inv.find(
+      x => x.name === entry.name
+        && (x.kind || 'raw') === entryKind
+        && (x.unit || '') === entryUnit
+    );
+    if (exact) {
+      // 单位相同 → 累加
+      exact.qty = (+exact.qty || 0) + (+entry.qty || 0);
+      // 更新其余字段（保留旧的 buyDate 以免刷新保质期）
+      if (entry.stockStatus) exact.stockStatus = entry.stockStatus;
+      if (entry.isFrozen !== undefined) exact.isFrozen = entry.isFrozen;
+      if (entryKind === 'dry') {
+        exact.shelf = 365;
+        exact.dryPrep = getDryPrepText(entry.name);
+        exact.isFrozen = false;
+      }
+    } else {
+      // 名称相同但单位不同（或尚未存在）→ 新增批次
+      inv.push({ ...entry });
+    }
+  }
+  if (save) saveInventory(inv);
+}
+
+/** 向后兼容：保持旧调用方（编辑弹窗等）的覆盖行为 */
+export function upsertInventory(inv, e) {
+  mergeInventoryEntry(inv, e, { mode: 'replace' });
+}
+
+/**
+ * 按配方扣减库存（做完菜之后调用）。
+ * @param {Array} inv - 库存数组（就地修改）
+ * @param {Array<{name:string, qty:number, unit:string}>} deductions - 要扣减的食材列表
+ * 匹配规则：同名（支持别名模糊匹配）且单位相同优先；单位不同时只按名称匹配累加扣减。
+ * 优先扣最快过期的批次（remainingDays 最小）。
+ * 扣到 0 时 stockStatus 自动设为 empty。
+ */
+export function deductInventoryForRecipe(inv, deductions) {
+  for (const { name, qty } of deductions) {
+    if (!name || !(+qty > 0)) continue;
+    let remaining = +qty;
+    // 找所有匹配该食材且数量 > 0 的批次，按到期天数升序（最快过期先扣）
+    const batches = (inv || [])
+      .filter(x => isIngredientMatch(name, x.name) && (+x.qty || 0) > 0)
+      .sort((a, b) => remainingDays(a) - remainingDays(b));
+    for (const batch of batches) {
+      if (remaining <= 0) break;
+      const available = +batch.qty || 0;
+      const take = Math.min(available, remaining);
+      batch.qty = Math.max(0, available - take);
+      remaining -= take;
+      if (batch.qty <= 0) {
+        batch.qty = 0;
+        batch.stockStatus = 'empty';
+      }
+    }
+  }
   saveInventory(inv);
 }
 

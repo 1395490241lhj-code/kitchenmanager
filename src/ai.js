@@ -72,11 +72,34 @@ export function normalizeAiIngredients(value) {
 export function validateReceiptItems(input) {
   const parsed = safeParseJson(input, '小票识别结果');
   const list = Array.isArray(parsed) ? parsed : parsed.items;
-  const items = normalizeAiIngredients(list).map(item => ({
-    name: item.item,
-    qty: item.qty || 1,
-    unit: item.unit || ''
-  }));
+  if (!list || !Array.isArray(list)) throw new Error('小票识别结果里没有可入库的食材。');
+
+  const items = list.map(item => {
+    let nameStr = '';
+    let originalNameStr = '';
+    let qty = 1;
+    let unitStr = '';
+
+    if (typeof item === 'string') {
+      nameStr = item.trim();
+      originalNameStr = nameStr;
+    } else if (item && typeof item === 'object') {
+      nameStr = String(item.name || item.item || '').trim();
+      originalNameStr = String(item.originalName || '').trim() || nameStr;
+      qty = item.qty ?? item.amount ?? 1;
+      unitStr = String(item.unit || '').trim();
+    }
+
+    if (!nameStr) return null;
+
+    return {
+      name: nameStr,
+      originalName: originalNameStr,
+      qty: qty || 1,
+      unit: unitStr
+    };
+  }).filter(Boolean);
+
   if (!items.length) throw new Error('小票识别结果里没有可入库的食材。');
   return items;
 }
@@ -220,16 +243,44 @@ export async function recognizeReceipt(file) {
   const base64 = await compressImage(file);
   const prompt = `你是一个中文食材管理助手。请分析图片收据，只提取真实食品/食材。
 
-请严格返回 JSON，不要 markdown，不要解释：
+请严格返回 JSON 格式，不要包含 Markdown 标记（如 \`\`\`json），也不要任何解释或说明。
+返回结构如下：
 [
-  {"name": "五花肉", "qty": 0.5, "unit": "kg"}
+  {
+    "originalName": "King Oyster Mushroom",
+    "name": "杏鲍菇",
+    "qty": 1,
+    "unit": "盒"
+  }
 ]
 
-字段要求：
-- name 必须是字符串，尽量转换为常见中文食材名。
-- qty 可以是数字；不确定时填 1。
-- unit 必须是字符串；不确定时填空字符串。
-- 忽略葱姜蒜、盐、糖、酱油、醋、味精、花椒、辣椒等佐料。`;
+字段及要求：
+- originalName: 小票上的原始名称（包含英文或数字等商品名）。
+- name: 必须是常见的中厨房常见中文食材名称。不要做生硬的字面直译。
+  - 如果是英文商品名，请先按照常见华人超市/家庭厨房的惯用中文名称进行翻译和归一。
+  - 必须参考以下常见英文名与中文食材名的映射范例：
+    - "king oyster mushroom" -> "杏鲍菇"（绝对不能直译成"王菇"）
+    - "enoki mushroom" -> "金针菇"
+    - "shiitake mushroom" -> "香菇"
+    - "oyster mushroom" -> "平菇"
+    - "button mushroom" / "white mushroom" -> "口蘑"
+    - "bok choy" -> "青菜"
+    - "baby bok choy" -> "小白菜"
+    - "napa cabbage" / "chinese cabbage" -> "白菜"
+    - "scallion" / "green onion" -> "葱"
+    - "cilantro" / "coriander" -> "香菜"
+    - "eggplant" -> "茄子"
+    - "potato" -> "土豆"
+    - "tomato" -> "番茄"
+    - "tofu" -> "豆腐"
+    - "pork belly" -> "五花肉"
+    - "ground pork" / "minced pork" -> "肉末"
+    - "chicken breast" -> "鸡脯肉"
+    - "chicken thigh" -> "鸡腿"
+    - "shrimp" / "prawns" -> "虾"
+- qty: 食材数量，可以是数字。不确定时填 1。
+- unit: 单位，必须是字符串。不确定时填空字符串。
+- 忽略非食品、购物袋、折扣、税费、会员信息。并且忽略葱姜蒜、盐、糖、酱油、醋、味精、花椒、辣椒等佐料。`;
   const raw = await callAiService(prompt, base64);
   return validateReceiptItems(raw);
 }

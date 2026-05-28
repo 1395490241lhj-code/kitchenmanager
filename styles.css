@@ -829,6 +829,11 @@ input:focus, select:focus, textarea:focus {
 /* === Shopping page === */
 .shopping-page {
   width: 100%;
+  display: grid;
+  gap: 16px;
+}
+.shopping-page .card {
+  margin: 0;
 }
 .shopping-plan-card h3,
 .shopping-missing-card h3,
@@ -845,7 +850,7 @@ input:focus, select:focus, textarea:focus {
 }
 .shopping-plan-list {
   display: grid;
-  gap: 0;
+  gap: 8px;
 }
 .shopping-plan-row {
   display: grid;
@@ -853,11 +858,10 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   gap: 14px;
   min-height: 58px;
-  padding: 10px 0;
-  border-top: 1px solid rgba(229, 231, 235, 0.72);
-}
-.shopping-plan-row:first-child {
-  border-top: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: rgba(255,255,255,0.48);
+  border: 1px solid rgba(255,255,255,0.62);
 }
 .shopping-plan-name {
   min-width: 0;
@@ -886,34 +890,38 @@ input:focus, select:focus, textarea:focus {
   width: 76px;
 }
 .shopping-missing-card {
-  margin-top: 14px;
   overflow: hidden;
 }
 .shopping-table {
-  margin-top: 0;
-  border-spacing: 0;
+  margin-top: -10px;
+  border-collapse: separate;
+  border-spacing: 0 8px;
 }
 .shopping-table th {
-  padding: 2px 14px 10px;
+  padding: 2px 14px 6px;
 }
 .shopping-table td {
-  background: transparent;
-  border-top: 1px solid rgba(229, 231, 235, 0.72);
+  background: rgba(255,255,255,0.48);
+  border: 1px solid rgba(255,255,255,0.62);
+  border-left: 0;
+  border-right: 0;
   box-shadow: none;
-  padding: 15px 14px;
+  padding: 12px 14px;
 }
-.shopping-table tbody tr:first-child td {
-  border-top: 0;
+.shopping-table td:first-child {
+  border-top-left-radius: var(--radius-m);
+  border-bottom-left-radius: var(--radius-m);
+  border-left: 1px solid rgba(255,255,255,0.62);
 }
-.shopping-table td:first-child,
 .shopping-table td:last-child {
-  border-radius: 0;
+  border-top-right-radius: var(--radius-m);
+  border-bottom-right-radius: var(--radius-m);
+  border-right: 1px solid rgba(255,255,255,0.62);
 }
 .shopping-table .btn {
   min-height: 36px;
 }
 .shopping-items-card {
-  margin-top: 14px;
 }
 .shopping-card-head {
   display: flex;
@@ -957,7 +965,7 @@ input:focus, select:focus, textarea:focus {
 }
 .shopping-source-group {
   display: grid;
-  gap: 0;
+  gap: 8px;
   padding: 10px 12px;
   border-radius: var(--radius-m);
   background: rgba(255,255,255,0.42);
@@ -975,11 +983,10 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   gap: 10px;
   min-height: 46px;
-  padding: 8px 0;
-  border-top: 1px solid rgba(229, 231, 235, 0.72);
-}
-.shopping-item-row:first-child {
-  border-top: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: rgba(255,255,255,0.46);
+  border: 1px solid rgba(255,255,255,0.58);
 }
 .shopping-item-row.done {
   opacity: 0.56;
@@ -1032,7 +1039,11 @@ input:focus, select:focus, textarea:focus {
   user-select: none;
 }
 .staples-card {
-  margin-top: 18px;
+}
+@media (max-width: 899px) {
+  .shopping-page {
+    padding-bottom: 80px;
+  }
 }
 .shopping-tools {
   justify-content: flex-start;
@@ -1348,6 +1359,10 @@ input:focus, select:focus, textarea:focus {
   font-size: 13px;
   font-weight: 700;
 }
+[hidden] { display: none !important; }
+.inline-status[hidden] { display: none !important; }
+.inline-status:empty { display: none; }
+
 .inline-status {
   display: block;
   margin: 10px 0 12px;
@@ -1882,7 +1897,8 @@ nav a.active svg {
     padding-right: 18px;
   }
 
-  .card {
+  .grid > .card,
+  .horizontal-scroll > .card {
     margin-bottom: 0;
   }
 
@@ -2151,6 +2167,20 @@ nav a.active svg {
   margin: 0;
 }
 
+/* --- unit-mismatch / status-only badge in shopping table --- */
+.confirm-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 /* --- inventory toolbar --- */
 .inventory-toolbar {
   margin-bottom: 8px;
@@ -2353,6 +2383,88 @@ nav a.active svg {
 }
 .modal-save-btn {
   flex: 1;
+}
+
+/* --- Deduct Stock Modal (标记做完 → 扣减库存) --- */
+.deduct-stock-card {
+  width: min(640px, 100%);
+  max-height: min(80vh, 700px);
+  overflow-y: auto;
+}
+.deduct-stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0;
+}
+.deduct-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 1.2fr) 1fr 1fr minmax(120px, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--bg-main);
+  border-radius: 10px;
+  border: 1px solid var(--separator);
+}
+.deduct-name {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: 15px;
+}
+.deduct-recipe-qty {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.deduct-stock-info {
+  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+.deduct-stock-info.has-match {
+  color: var(--ok);
+  background: rgba(var(--ok-rgb, 52, 199, 89), 0.12);
+}
+.deduct-stock-info.no-match {
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  font-style: italic;
+}
+.deduct-qty-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.deduct-qty-input {
+  width: 64px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--separator);
+  background: var(--bg-card);
+  color: var(--text-main);
+  font-size: 14px;
+  text-align: right;
+}
+.deduct-qty-input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.deduct-stock-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+@media (max-width: 520px) {
+  .deduct-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+  }
+  .deduct-name { grid-column: 1 / 3; }
+  .deduct-stock-actions { justify-content: stretch; }
+  .deduct-stock-actions .btn { flex: 1; }
 }
 
 /* --- recipe card --- */

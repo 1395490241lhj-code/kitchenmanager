@@ -130,6 +130,7 @@ export function renderAiRecipeDraftCard(draft) {
     overlay.recipes[tempId] = { name: draft.name, tags: ['AI草稿', 'AI搜索'], method: draft.method, isAiDraft: true };
     overlay.recipe_ingredients[tempId] = draft.ingredients.map(item => ({ item: item.item, qty: item.qty || null, unit: item.unit || null }));
     saveOverlay(overlay);
+    window.invalidatePackCache?.();
     location.hash = goEdit ? `#recipe-edit:${tempId}` : `#recipe:${tempId}`;
     location.reload();
   };

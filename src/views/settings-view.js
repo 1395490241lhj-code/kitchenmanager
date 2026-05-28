@@ -1,6 +1,6 @@
 import { S, todayISO } from '../storage.js?v=98';
 import { CUSTOM_AI } from '../config.js?v=89';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=1';
+import { DATA_SCHEMA_VERSION } from '../migrations.js?v=2';
 import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=2';
 import { setInlineStatus } from '../components/status.js?v=1';
 
@@ -52,7 +52,13 @@ export function renderSettings() {
     if (presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; }
   };
   div.querySelector('#saveSet').onclick = () => {
-    const newS = { apiUrl: div.querySelector('#sUrl').value.trim(), apiKey: div.querySelector('#sKey').value.trim(), model: div.querySelector('#sModel').value.trim() };
+    const currentSettings = S.load(S.keys.settings, {});
+    const newS = {
+      ...currentSettings,
+      apiUrl: div.querySelector('#sUrl').value.trim(),
+      apiKey: div.querySelector('#sKey').value.trim(),
+      model: div.querySelector('#sModel').value.trim()
+    };
     S.save(S.keys.settings, newS);
     const statusEl = div.querySelector('#settingsStatus');
     setInlineStatus(statusEl, '已保存，刷新后生效。', 'ok');

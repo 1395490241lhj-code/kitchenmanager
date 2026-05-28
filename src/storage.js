@@ -26,6 +26,7 @@ export const S = {
     ai_recs: 'km_v48_ai_recs',
     local_recs: 'km_v97_local_recs',
     rec_time: 'km_v97_rec_time',
+    rec_signature: 'km_v97_rec_signature',
     favorite_recipes: 'km_v80_favorite_recipes',
     recipe_usage: 'km_v95_recipe_usage',
     shopping_items: 'km_v87_shopping_items'

@@ -91,8 +91,97 @@ export const SEASONINGS = new Set([
   "姜", "葱", "蒜", "大蒜", "生姜", "老姜", "葱白", "葱花", "姜米", "蒜泥", "大葱",
   "盐", "糖", "醋", "酱油", "生抽", "老抽", "味精", "鸡精", "料酒", "米酒", "花椒", "干辣椒", "辣椒面", "胡椒", "胡椒面",
   "油", "猪油", "菜油", "香油", "芝麻油", "豆粉", "淀粉", "水豆粉", "豆瓣", "豆瓣酱", "甜面酱", "豆豉", "泡椒", "酸菜", "酸豆角", "清汤", "水",
-  "八角", "桂皮", "香叶", "五香粉", "孜然", "茴香", "鸡蛋"
+  "八角", "桂皮", "香叶", "五香粉", "孜然", "茴香"
 ]);
+
+export const ENGLISH_INGREDIENT_ALIASES = {
+  "king oyster mushroom": "杏鲍菇",
+  "king oyster mushrooms": "杏鲍菇",
+  "eryngii mushroom": "杏鲍菇",
+  "oyster mushroom": "平菇",
+  "enoki mushroom": "金针菇",
+  "shiitake mushroom": "香菇",
+  "dried shiitake mushroom": "香菇",
+  "button mushroom": "口蘑",
+  "white mushroom": "口蘑",
+  "cremini mushroom": "蘑菇",
+  "bok choy": "青菜",
+  "baby bok choy": "小白菜",
+  "napa cabbage": "白菜",
+  "chinese cabbage": "白菜",
+  "cabbage": "白菜",
+  "scallion": "葱",
+  "green onion": "葱",
+  "cilantro": "香菜",
+  "coriander": "香菜",
+  "eggplant": "茄子",
+  "potato": "土豆",
+  "tomato": "番茄",
+  "carrot": "胡萝卜",
+  "onion": "洋葱",
+  "garlic": "蒜",
+  "ginger": "姜",
+  "tofu": "豆腐",
+  "firm tofu": "老豆腐",
+  "soft tofu": "嫩豆腐",
+  "pork belly": "五花肉",
+  "ground pork": "肉末",
+  "minced pork": "肉末",
+  "pork ribs": "排骨",
+  "chicken breast": "鸡脯肉",
+  "chicken thigh": "鸡腿",
+  "chicken wing": "鸡翅",
+  "beef brisket": "牛腩",
+  "beef shank": "牛肉",
+  "shrimp": "虾",
+  "prawns": "虾",
+  "fish fillet": "鱼片"
+};
+
+export function normalizeReceiptIngredientName(name) {
+  if (!name) return "";
+  let n = String(name).toLowerCase().trim();
+  n = n.replace(/（.*?）|\(.*?\)/g, ' ').trim();
+  n = n.replace(/-/g, ' ');
+  n = n.replace(/\s+/g, ' ').trim();
+
+  const stopWords = ["organic", "fresh", "raw", "wild", "premium", "choice", "natural"];
+  let words = n.split(' ');
+  words = words.filter(w => !stopWords.includes(w));
+  n = words.join(' ');
+
+  if (ENGLISH_INGREDIENT_ALIASES[n]) {
+    return getCanonicalName(ENGLISH_INGREDIENT_ALIASES[n]);
+  }
+
+  let singular = n;
+  if (n.endsWith('s')) {
+    if (n.endsWith('es')) {
+      singular = n.slice(0, -2);
+      if (ENGLISH_INGREDIENT_ALIASES[singular]) {
+        return getCanonicalName(ENGLISH_INGREDIENT_ALIASES[singular]);
+      }
+    }
+    singular = n.slice(0, -1);
+    if (ENGLISH_INGREDIENT_ALIASES[singular]) {
+      return getCanonicalName(ENGLISH_INGREDIENT_ALIASES[singular]);
+    }
+  }
+
+  for (const [eng, cn] of Object.entries(ENGLISH_INGREDIENT_ALIASES)) {
+    if (n === eng || n.includes(eng)) {
+      return getCanonicalName(cn);
+    }
+    if (eng.endsWith('s')) {
+      const singEng = eng.slice(0, -1);
+      if (n.includes(singEng)) {
+        return getCanonicalName(cn);
+      }
+    }
+  }
+
+  return getCanonicalName(name);
+}
 export const SEP_RE = /[，,、/;；|]+/;
 
 export function checkAlias(name) {
@@ -226,8 +315,10 @@ export function guessKitchenUnit(name) {
   return '份';
 }
 
-export function normalizeKitchenAmount(name, qty, unit) {
-  const n = getCanonicalName(name || '');
+export function normalizeKitchenAmount(name, qty, unit, options = {}) {
+  const n = options.source === 'receipt'
+    ? normalizeReceiptIngredientName(name)
+    : getCanonicalName(name || '');
   let q = Number(qty) || 1;
   let u = String(unit || '').trim();
   if (['pcs', 'piece', 'pieces'].includes(u)) u = '个';

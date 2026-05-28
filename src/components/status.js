@@ -21,6 +21,11 @@ export function brieflyConfirmButton(button, text = '已加入') {
 
 export function setInlineStatus(node, message, type = 'info') {
   if (!node) return;
+  if (!message) {
+    node.hidden = true;
+    node.textContent = '';
+    return;
+  }
   node.hidden = false;
   node.textContent = message;
   node.className = `small inline-status ${type}`;
