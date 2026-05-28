@@ -82,6 +82,53 @@ const NEEDS_COMPLETION = {
   },
 };
 
+// 强制保留的家庭常用补充菜谱：日常高频，必须存在于 curated。
+// 这些菜不一定来自《大众川菜》，做法为现代家庭厨房版本（简洁、可执行）。
+// 若 base/overlay 中已有同名菜则只补 method/ingredients，不重复新增。
+const I = (item) => ({ item, qty: null, unit: null });
+const FORCED = [
+  {
+    id: 'fam-mapo-tofu', name: '麻婆豆腐', tags: ['家常菜', '豆腐', '川菜', '麻辣'],
+    method: '1. 嫩豆腐切块，入淡盐水焯约 1 分钟，捞出沥干。\n2. 热油下肉末炒散出油，加豆瓣酱、姜蒜末炒出红油。\n3. 加适量清水或高汤烧开，下豆腐轻推烧 2-3 分钟入味。\n4. 分两次淋水淀粉勾芡至浓稠。\n5. 起锅装盘，撒花椒粉和葱花即可。',
+    ingredients: ['嫩豆腐', '牛肉末', '郫县豆瓣酱', '花椒', '蒜', '姜', '葱', '水淀粉', '食用油'].map(I),
+  },
+  {
+    id: 'fam-tomato-egg', name: '番茄炒蛋', tags: ['家常菜', '鸡蛋', '快炒'],
+    method: '1. 鸡蛋打散加少许盐，热油炒成蛋块盛出。\n2. 番茄切块下锅炒出汁，加少量糖和盐。\n3. 倒回鸡蛋翻炒均匀，撒葱花起锅。',
+    ingredients: ['番茄', '鸡蛋', '葱', '盐', '糖', '食用油'].map(I),
+  },
+  {
+    id: 'fam-potato-shreds', name: '土豆丝', tags: ['家常菜', '素菜', '快炒'],
+    method: '1. 土豆切细丝，清水反复冲洗去除淀粉后沥干。\n2. 热油爆香蒜末和干辣椒（或青椒丝）。\n3. 下土豆丝大火快炒至断生。\n4. 加盐和醋翻炒均匀即可起锅。',
+    ingredients: ['土豆', '青椒', '干辣椒', '蒜', '醋', '盐', '食用油'].map(I),
+  },
+  {
+    id: 'fam-homestyle-tofu', name: '家常豆腐', tags: ['家常菜', '豆腐', '川菜'],
+    method: '1. 豆腐切三角片，煎至两面微黄盛出。\n2. 底油炒香肉片，加豆瓣酱、姜蒜末炒出红油。\n3. 下青椒、木耳略炒，放回豆腐加少量水烧入味。\n4. 调酱油收汁即可。',
+    ingredients: ['豆腐', '青椒', '木耳', '猪肉片', '郫县豆瓣酱', '姜', '蒜', '酱油', '食用油'].map(I),
+  },
+  {
+    id: 'fam-yuxiang-eggplant', name: '鱼香茄子', tags: ['家常菜', '素菜', '鱼香', '川菜'],
+    method: '1. 茄子切条，煎或炸至软身盛出。\n2. 用醋、糖、酱油、水淀粉调成鱼香汁。\n3. 炒香肉末，加泡椒、姜蒜末炒出红油。\n4. 放回茄子，倒入鱼香汁翻炒收汁，撒葱花。',
+    ingredients: ['茄子', '肉末', '泡椒', '蒜', '姜', '葱', '醋', '糖', '酱油', '水淀粉', '食用油'].map(I),
+  },
+  {
+    id: 'fam-potato-beef', name: '土豆烧牛肉', tags: ['家常菜', '牛肉', '红烧'],
+    method: '1. 牛肉（牛腩）切块焯水去血沫，捞出沥干。\n2. 热油炒香姜葱、八角和豆瓣酱，下牛肉翻炒上色。\n3. 加足量热水没过牛肉，炖 40-60 分钟至软。\n4. 放入土豆块继续烧约 20 分钟至软糯入味，收汁调盐。',
+    ingredients: ['牛肉', '土豆', '姜', '葱', '八角', '郫县豆瓣酱', '酱油', '盐', '食用油'].map(I),
+  },
+  {
+    id: 'fam-pepper-century-egg', name: '青椒皮蛋', tags: ['家常菜', '凉菜', '开胃'],
+    method: '1. 青椒煎或烧至表皮起皱，去皮切碎。\n2. 皮蛋去壳切块摆盘。\n3. 蒜捣泥，加酱油、醋、香油和少许盐调成味汁。\n4. 浇在青椒皮蛋上拌匀即可。',
+    ingredients: ['皮蛋', '青椒', '蒜', '酱油', '醋', '香油', '盐'].map(I),
+  },
+  {
+    id: 'fam-dry-fried-beans', name: '干煸豆角', tags: ['家常菜', '素菜', '川菜', '麻辣'],
+    method: '1. 豆角择段，热油煸（或过油）至表皮起皱发蔫盛出。\n2. 底油炒香肉末、干辣椒、花椒和姜蒜末。\n3. 加芽菜碎炒香，放回豆角翻炒。\n4. 调盐炒至干香入味起锅。',
+    ingredients: ['豆角', '肉末', '干辣椒', '花椒', '蒜', '姜', '芽菜', '盐', '食用油'].map(I),
+  },
+];
+
 // 重复菜：移出更差的一条，注明 duplicateOf（更日常 / 更完整 / 名字更常见的保留版）。
 const DUPLICATES = {
   '罐烧肉（东坡肉）': '东坡肉',
@@ -183,6 +230,30 @@ for (const r of recipes) {
   removed.push({ id: r.id, name, reason: '无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出', duplicateOf: '', hadMethod: false, hadIngredients: hasGoodIng });
 }
 
+// ── 2b. 强制补入家庭常用菜 ──────────────────────────────────────────────────
+// 规则：必须进 curated；不得出现在 removed / needing；同名只补全不重复新增。
+let forcedAdded = 0;     // 全新补入
+let forcedCompleted = 0; // curated 已存在同名，仅补 method/ingredients
+const forcedNames = new Set(FORCED.map(f => f.name));
+
+// 先从 removed / needing 中清掉这 8 道（若误入）
+for (let i = removed.length - 1; i >= 0; i--) if (forcedNames.has(removed[i].name)) removed.splice(i, 1);
+for (let i = needing.length - 1; i >= 0; i--) if (forcedNames.has(needing[i].name)) needing.splice(i, 1);
+
+for (const f of FORCED) {
+  const existing = keptRecipes.find(r => String(r.name).trim() === f.name);
+  if (existing) {
+    if (!existing.method && f.method) existing.method = f.method;
+    const cur = keptIng[existing.id] || [];
+    if (cur.length < 2) keptIng[existing.id] = f.ingredients.slice();
+    forcedCompleted++;
+  } else {
+    keptRecipes.push({ id: f.id, name: f.name, tags: f.tags, method: f.method });
+    keptIng[f.id] = f.ingredients.slice();
+    forcedAdded++;
+  }
+}
+
 keptRecipes.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
 removed.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
 const prioRank = { high: 0, medium: 1, low: 2 };
@@ -218,8 +289,9 @@ const md = `# 菜谱库日常化精简 · 报告
 | ├ 其中原始 base | ${base.recipes.length} |
 | └ 其中 overlay 新增/补全后净增 | ${recipes.length - base.recipes.length} |
 | **curated 保留** | **${keptRecipes.length}** |
-| ├ 有做法直接保留 | ${keptRecipes.length - needing.length} |
-| └ 无做法但日常、值得补全（仍保留） | ${needing.length} |
+| ├ 从有效集保留（有做法直接保留） | ${keptRecipes.length - needing.length - forcedAdded} |
+| ├ 无做法但日常、值得补全（仍保留） | ${needing.length} |
+| └ 家庭常用强制补入（新增） | ${forcedAdded} |
 | **移出** | **${removed.length}** |
 | **待补全（needing-completion）** | **${needing.length}** |
 | 从 overlay 补全 method 的菜 | ${methodCompleted} |
@@ -239,6 +311,17 @@ ${Object.entries(byCategory).map(([k, v]) => `- ${k}：${v}`).join('\n')}
 ## 重复菜处理
 
 ${removed.filter(r => r.duplicateOf).map(r => `- 移出「${r.name}」→ 保留「${r.duplicateOf}」`).join('\n')}
+
+## 强制保留的家庭常用菜
+
+以下 8 道为日常家庭厨房高频菜，**必须存在于 curated**，不进待补全、不移出。
+它们不依赖《大众川菜》PDF 是否收录——原始 base / overlay 未收录的，作为
+“家庭常用补充菜谱”新增（现代家庭做法，做法简洁、食材拆分清楚）：
+
+${FORCED.map((f, i) => `${i + 1}. ${f.name}（id: \`${f.id}\`，tags: ${f.tags.join('/')}）`).join('\n')}
+
+- 强制全新补入：${forcedAdded}
+- 已存在仅补全 method/ingredients：${forcedCompleted}
 
 ## 关于《大众川菜》PDF 的使用
 
@@ -263,3 +346,4 @@ ${removed.filter(r => r.duplicateOf).map(r => `- 移出「${r.name}」→ 保留
 fs.writeFileSync(path.join(DATA, 'recipe-curation-summary.md'), md);
 
 console.log(`effective=${recipes.length} kept=${keptRecipes.length} removed=${removed.length} needing=${needing.length} dup=${dupCount} methodFromOverlay=${methodCompleted} ingFromOverlay=${ingCompleted}`);
+console.log(`forcedAdded=${forcedAdded} forcedCompleted=${forcedCompleted} finalCurated=${keptRecipes.length}`);

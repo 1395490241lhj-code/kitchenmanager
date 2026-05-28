@@ -192,6 +192,16 @@
       "method": "1. 猪肉切块或条，加鸡蛋、豆粉、盐和胡椒拌成糊。\n2. 入热油炸至金黄酥香，捞出。\n3. 将炸酥肉放碗中，加姜葱、花椒和汤，上笼蒸或炖至软熟。\n4. 起锅时汤鲜肉酥，可加蔬菜垫底。"
     },
     {
+      "id": "fam-tomato-egg",
+      "name": "番茄炒蛋",
+      "tags": [
+        "家常菜",
+        "鸡蛋",
+        "快炒"
+      ],
+      "method": "1. 鸡蛋打散加少许盐，热油炒成蛋块盛出。\n2. 番茄切块下锅炒出汁，加少量糖和盐。\n3. 倒回鸡蛋翻炒均匀，撒葱花起锅。"
+    },
+    {
       "id": "ex--44bbc8ea",
       "name": "番茄炒虾仁",
       "tags": [
@@ -248,6 +258,17 @@
         "川菜",
         "蔬菜类"
       ]
+    },
+    {
+      "id": "fam-dry-fried-beans",
+      "name": "干煸豆角",
+      "tags": [
+        "家常菜",
+        "素菜",
+        "川菜",
+        "麻辣"
+      ],
+      "method": "1. 豆角择段，热油煸（或过油）至表皮起皱发蔫盛出。\n2. 底油炒香肉末、干辣椒、花椒和姜蒜末。\n3. 加芽菜碎炒香，放回豆角翻炒。\n4. 调盐炒至干香入味起锅。"
     },
     {
       "id": "comp-2ca8867a",
@@ -425,6 +446,16 @@
       "method": "1. 猪肉煮至断生，切成连刀夹片。\n2. 将豆沙或甜馅夹入肉片中，排入碗内。\n3. 糯米蒸熟拌糖油，盖在肉上，上笼蒸透。\n4. 翻扣装盘，撒糖或淋甜汁。"
     },
     {
+      "id": "fam-homestyle-tofu",
+      "name": "家常豆腐",
+      "tags": [
+        "家常菜",
+        "豆腐",
+        "川菜"
+      ],
+      "method": "1. 豆腐切三角片，煎至两面微黄盛出。\n2. 底油炒香肉片，加豆瓣酱、姜蒜末炒出红油。\n3. 下青椒、木耳略炒，放回豆腐加少量水烧入味。\n4. 调酱油收汁即可。"
+    },
+    {
       "id": "ex--e39f0328",
       "name": "家常鸡丝",
       "tags": [
@@ -552,6 +583,17 @@
       "method": "1. 牛肉切片或条，用盐、葱姜、料酒码味后风干或晾干。\n2. 下油锅炸至水气收干，捞出。\n3. 锅内加调味料炒匀，放牛肉回锅裹味。\n4. 撒辣椒面、花椒面和白糖，成菜麻辣干香。"
     },
     {
+      "id": "fam-mapo-tofu",
+      "name": "麻婆豆腐",
+      "tags": [
+        "家常菜",
+        "豆腐",
+        "川菜",
+        "麻辣"
+      ],
+      "method": "1. 嫩豆腐切块，入淡盐水焯约 1 分钟，捞出沥干。\n2. 热油下肉末炒散出油，加豆瓣酱、姜蒜末炒出红油。\n3. 加适量清水或高汤烧开，下豆腐轻推烧 2-3 分钟入味。\n4. 分两次淋水淀粉勾芡至浓稠。\n5. 起锅装盘，撒花椒粉和葱花即可。"
+    },
+    {
       "id": "comp-28362569",
       "name": "明笋焖肉片",
       "tags": [
@@ -615,6 +657,16 @@
         "麻辣"
       ],
       "method": "1. 牛肉洗净切块；苤蓝去皮切块。\n2. 牛肉加香料、豆瓣、酱油和汤烧至半软。\n3. 下苤蓝同烧至牛肉酥烂、苤蓝入味。\n4. 收汁装盘，汤汁红亮。"
+    },
+    {
+      "id": "fam-pepper-century-egg",
+      "name": "青椒皮蛋",
+      "tags": [
+        "家常菜",
+        "凉菜",
+        "开胃"
+      ],
+      "method": "1. 青椒煎或烧至表皮起皱，去皮切碎。\n2. 皮蛋去壳切块摆盘。\n3. 蒜捣泥，加酱油、醋、香油和少许盐调成味汁。\n4. 浇在青椒皮蛋上拌匀即可。"
     },
     {
       "id": "comp-46639ab4",
@@ -812,6 +864,26 @@
       "method": "1. 甜椒去蒂切丝，猪肉切丝码味；仔姜、蒜苗切丝。\n2. 先将甜椒炒至断生，盛出备用。\n3. 锅中下油炒散肉丝，加姜蒜苗炒香。\n4. 合入甜椒，烹入调味汁，收汁起锅。"
     },
     {
+      "id": "fam-potato-beef",
+      "name": "土豆烧牛肉",
+      "tags": [
+        "家常菜",
+        "牛肉",
+        "红烧"
+      ],
+      "method": "1. 牛肉（牛腩）切块焯水去血沫，捞出沥干。\n2. 热油炒香姜葱、八角和豆瓣酱，下牛肉翻炒上色。\n3. 加足量热水没过牛肉，炖 40-60 分钟至软。\n4. 放入土豆块继续烧约 20 分钟至软糯入味，收汁调盐。"
+    },
+    {
+      "id": "fam-potato-shreds",
+      "name": "土豆丝",
+      "tags": [
+        "家常菜",
+        "素菜",
+        "快炒"
+      ],
+      "method": "1. 土豆切细丝，清水反复冲洗去除淀粉后沥干。\n2. 热油爆香蒜末和干辣椒（或青椒丝）。\n3. 下土豆丝大火快炒至断生。\n4. 加盐和醋翻炒均匀即可起锅。"
+    },
+    {
       "id": "comp-053fc891",
       "name": "豌豆肥肠汤",
       "tags": [
@@ -896,6 +968,17 @@
         "川菜",
         "蔬菜类"
       ]
+    },
+    {
+      "id": "fam-yuxiang-eggplant",
+      "name": "鱼香茄子",
+      "tags": [
+        "家常菜",
+        "素菜",
+        "鱼香",
+        "川菜"
+      ],
+      "method": "1. 茄子切条，煎或炸至软身盛出。\n2. 用醋、糖、酱油、水淀粉调成鱼香汁。\n3. 炒香肉末，加泡椒、姜蒜末炒出红油。\n4. 放回茄子，倒入鱼香汁翻炒收汁，撒葱花。"
     },
     {
       "id": "comp-496f82b3",
@@ -1424,6 +1507,38 @@
         "unit": null
       }
     ],
+    "fam-tomato-egg": [
+      {
+        "item": "番茄",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "鸡蛋",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "葱",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "盐",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "糖",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "食用油",
+        "qty": null,
+        "unit": null
+      }
+    ],
     "ex--44bbc8ea": [
       {
         "item": "虾仁，番茄"
@@ -1620,6 +1735,53 @@
     "ex--d98506e7": [
       {
         "item": "冬笋"
+      }
+    ],
+    "fam-dry-fried-beans": [
+      {
+        "item": "豆角",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "肉末",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "干辣椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "蒜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "姜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "芽菜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "盐",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "食用油",
+        "qty": null,
+        "unit": null
       }
     ],
     "comp-2ca8867a": [
@@ -2248,6 +2410,53 @@
         "unit": null
       }
     ],
+    "fam-homestyle-tofu": [
+      {
+        "item": "豆腐",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "青椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "木耳",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "猪肉片",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "郫县豆瓣酱",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "姜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "蒜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "酱油",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "食用油",
+        "qty": null,
+        "unit": null
+      }
+    ],
     "ex--e39f0328": [
       {
         "item": "鸡肉，芹菜，蒜苗"
@@ -2606,6 +2815,53 @@
         "unit": null
       }
     ],
+    "fam-mapo-tofu": [
+      {
+        "item": "嫩豆腐",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "牛肉末",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "郫县豆瓣酱",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "蒜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "姜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "葱",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "水淀粉",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "食用油",
+        "qty": null,
+        "unit": null
+      }
+    ],
     "comp-28362569": [
       {
         "item": "水发明笋",
@@ -2810,6 +3066,43 @@
       },
       {
         "item": "酱油",
+        "qty": null,
+        "unit": null
+      }
+    ],
+    "fam-pepper-century-egg": [
+      {
+        "item": "皮蛋",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "青椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "蒜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "酱油",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "醋",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "香油",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "盐",
         "qty": null,
         "unit": null
       }
@@ -3452,6 +3745,90 @@
         "unit": null
       }
     ],
+    "fam-potato-beef": [
+      {
+        "item": "牛肉",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "土豆",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "姜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "葱",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "八角",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "郫县豆瓣酱",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "酱油",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "盐",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "食用油",
+        "qty": null,
+        "unit": null
+      }
+    ],
+    "fam-potato-shreds": [
+      {
+        "item": "土豆",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "青椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "干辣椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "蒜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "醋",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "盐",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "食用油",
+        "qty": null,
+        "unit": null
+      }
+    ],
     "comp-053fc891": [
       {
         "item": "猪肥肠",
@@ -3754,6 +4131,63 @@
     "ex--73715b26": [
       {
         "item": "茄子"
+      }
+    ],
+    "fam-yuxiang-eggplant": [
+      {
+        "item": "茄子",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "肉末",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "泡椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "蒜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "姜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "葱",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "醋",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "糖",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "酱油",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "水淀粉",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "item": "食用油",
+        "qty": null,
+        "unit": null
       }
     ],
     "comp-496f82b3": [
