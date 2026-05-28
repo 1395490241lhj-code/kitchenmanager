@@ -430,9 +430,9 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
 
   const searchBar = document.createElement('div'); searchBar.className = 'home-search';
   searchBar.innerHTML = `<input id="mainSearch" placeholder="搜菜谱或食材，比如鸡蛋、回锅肉">
-    <div class="home-search-buttons" style="display: flex; gap: 8px;">
+    <div class="home-search-buttons">
       <button type="button" class="btn ok" id="doSearch">搜索</button>
-      <button type="button" class="btn" id="clearSearch" style="display: none;">清空</button>
+      <button type="button" class="btn is-hidden" id="clearSearch">清空</button>
     </div>`;
 
   let searchDetails = null;
@@ -441,7 +441,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     searchBar.querySelector('#mainSearch').value = '';
     searchResultsContainer.innerHTML = '';
     const clearBtn = searchBar.querySelector('#clearSearch');
-    if (clearBtn) clearBtn.style.display = 'none';
+    if (clearBtn) clearBtn.classList.add('is-hidden');
   };
 
   const showSearch = (query) => {
@@ -453,7 +453,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
       searchResultsContainer.appendChild(resultsNode);
       
       const clearBtn = searchBar.querySelector('#clearSearch');
-      if (clearBtn) clearBtn.style.display = 'inline-block';
+      if (clearBtn) clearBtn.classList.remove('is-hidden');
       
       if (searchDetails) {
         searchDetails.open = true;

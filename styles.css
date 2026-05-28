@@ -2135,6 +2135,21 @@ nav a.active svg {
 
 /* --- hidden helper (JS toggle) --- */
 .hidden { display: none !important; }
+.is-hidden { display: none !important; }
+
+/* --- search area helpers --- */
+.home-search-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- shopping view helpers --- */
+.shopping-seasoning-toggle {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: normal;
+  margin: 0;
+}
 
 /* --- inventory toolbar --- */
 .inventory-toolbar {

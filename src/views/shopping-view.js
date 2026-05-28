@@ -224,7 +224,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
         <h3>菜谱缺货</h3>
       </div>
       <div class="shopping-bulk-actions">
-        <label class="shopping-check" style="cursor: pointer; font-size: 14px; font-weight: normal; margin: 0;">
+        <label class="shopping-check shopping-seasoning-toggle">
           <input type="checkbox" id="toggleSeasonings" ${includeSeasonings ? 'checked' : ''}>
           <span>包含调味料</span>
         </label>
