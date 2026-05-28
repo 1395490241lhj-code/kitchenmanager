@@ -76,7 +76,7 @@ function deleteShoppingRowsByIds(ids) {
   saveShoppingItems(loadShoppingItems().filter(item => !idSet.has(item.id)));
 }
 
-function showShoppingInventoryModal(item, onConfirm) {
+function showShoppingInventoryModal(item, onConfirm, onCancel) {
   const normalized = normalizeKitchenAmount(item.name, item.qty, item.unit);
   const defaultKind = item.kind || (isDryGoodName(normalized.name) ? 'dry' : 'raw');
   const overlay = document.createElement('div');
@@ -104,8 +104,12 @@ function showShoppingInventoryModal(item, onConfirm) {
   overlay.querySelector('#stockInKind').value = defaultKind;
 
   const close = () => overlay.remove();
-  overlay.querySelector('#cancelStockIn').onclick = close;
-  overlay.onclick = event => { if(event.target === overlay) close(); };
+  const cancel = () => {
+    close();
+    if (typeof onCancel === 'function') onCancel();
+  };
+  overlay.querySelector('#cancelStockIn').onclick = cancel;
+  overlay.onclick = event => { if(event.target === overlay) cancel(); };
   overlay.querySelector('#saveStockIn').onclick = () => {
     const name = overlay.querySelector('#stockInName').value.trim();
     const qty = overlay.querySelector('#stockInQty').value;
@@ -273,6 +277,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       <div class="shopping-bulk-actions">
         <button type="button" class="btn small" id="copyOpenShopping">复制未买清单</button>
         <button type="button" class="btn small" id="markAllDone">全部标记已买</button>
+        <button type="button" class="btn ok small is-hidden" id="batchStockIn">逐项确认入库</button>
         <button type="button" class="btn bad small" id="clearDone">清除已买</button>
       </div>
     </div>
@@ -348,6 +353,39 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   itemList.appendChild(renderGroups('未买', openItems, '还没有未买的购物项。'));
   itemList.appendChild(renderGroups('已买 / 可入库', doneItems, '勾选"已买"后，可以在这里确认入库。'));
   itemCard.appendChild(itemList);
+
+  const startBatchStockIn = (itemsList, index) => {
+    if (index >= itemsList.length) {
+      setInlineStatus(status, '已买项目逐项确认入库完成。', 'ok');
+      onRoute();
+      return;
+    }
+    const item = itemsList[index];
+    showShoppingInventoryModal(item, entry => {
+      upsertInventory(inv, entry);
+      updateShoppingRowsByIds(item.ids, target => ({
+        ...target,
+        done: true,
+        stockedIn: true,
+        stockedInAt: new Date().toISOString()
+      }));
+      startBatchStockIn(itemsList, index + 1);
+    }, () => {
+      startBatchStockIn(itemsList, index + 1);
+    });
+  };
+
+  const unstockedDoneItems = doneItems.filter(item => !item.stockedIn);
+  const batchBtn = itemCard.querySelector('#batchStockIn');
+  if (unstockedDoneItems.length > 0) {
+    batchBtn.classList.remove('is-hidden');
+    batchBtn.onclick = () => {
+      startBatchStockIn(unstockedDoneItems, 0);
+    };
+  } else {
+    batchBtn.classList.add('is-hidden');
+  }
+
   itemCard.querySelector('#markAllDone').onclick = () => { markAllShoppingItemsDone(); onRoute(); };
   itemCard.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
   itemCard.querySelector('#copyOpenShopping').onclick = () => {
