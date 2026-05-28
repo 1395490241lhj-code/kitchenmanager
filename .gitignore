@@ -19,3 +19,6 @@ npm-debug.log*
 
 # Logs
 *.log
+
+# Local reference material (copyrighted scanned book; kept locally, not committed)
+data/reference/

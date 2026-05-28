@@ -1,0 +1,354 @@
+{
+  "items": [
+    {
+      "id": "ex--497d6220",
+      "name": "干烧鲫鱼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "经典家常干烧鱼，鲫鱼常见，需补做法",
+      "suggestedPriority": "high"
+    },
+    {
+      "id": "ex--e723c0c0",
+      "name": "煳辣鸡丁（宫保鸡丁）",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "经典宫保鸡丁，最高频家常川菜，需补现代摘要步骤",
+      "suggestedPriority": "high"
+    },
+    {
+      "id": "ex--b540e64d",
+      "name": "辣子鸡丁",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "川菜高频家常，干辣椒鸡丁，需补做法",
+      "suggestedPriority": "high"
+    },
+    {
+      "id": "ex--c04a4822",
+      "name": "水煮肉片",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "川菜代表作，最高频家常麻辣菜，base 无做法，需补现代摘要步骤",
+      "suggestedPriority": "high"
+    },
+    {
+      "id": "ex--5b35a2c1",
+      "name": "棒棒鸡丝",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "凉拌鸡丝，夏季家常，食材常见",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--173deebd",
+      "name": "冰糖银耳",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "银耳羹，常见甜汤",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--24b2a22b",
+      "name": "椿芽烘蛋",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "香椿煎蛋，季节性家常蛋菜",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--c6115523",
+      "name": "葱末肝片",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "爆炒猪肝家常做法，需补步骤",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--8aec747f",
+      "name": "豆腐鲫鱼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "豆腐烧鱼，家常炖鱼",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--44bbc8ea",
+      "name": "番茄炒虾仁",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "番茄虾仁家常快炒，食材常见",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--d98506e7",
+      "name": "干煸冬笋",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "干煸经典素菜，冬笋季节常见",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--66aec1b8",
+      "name": "怪味鸡",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "川味凉菜经典，调味可标准化",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--0f045718",
+      "name": "花椒鸡丁",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "麻香鸡丁，家常可做",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--e39f0328",
+      "name": "家常鸡丝",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "家常快手鸡丝，食材常见",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--c6960e2c",
+      "name": "辣子鱼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "家常麻辣烧鱼",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--77fcc44c",
+      "name": "萝卜连锅",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "连锅汤，萝卜炖肉家常汤菜",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--56a6ad20",
+      "name": "魔芋烧鸭",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "川菜经典家常炖菜，魔芋+鸭块",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--a276fea5",
+      "name": "泡菜鱼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "酸菜鱼家族，家常酸辣鱼",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--20e47827",
+      "name": "清蒸鲢鱼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "清蒸鱼家常做法",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--c410dfe1",
+      "name": "碎米豆腐",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "家常豆腐碎肉，下饭菜",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--14f19062",
+      "name": "糖醋脆皮鱼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "糖醋鱼，宴客也家常",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--4d22a38d",
+      "name": "小滑肉",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "滑肉汤，川南家常蒸/煮肉",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--73715b26",
+      "name": "鱼香茄饼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "鱼香茄子家族，茄子家常",
+      "suggestedPriority": "medium"
+    },
+    {
+      "id": "ex--8ba1874a",
+      "name": "陈皮肉",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "陈皮牛/猪肉干香，偏小吃",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--20105a67",
+      "name": "陈皮兔",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "川味陈皮兔丁，兔肉非全国常见",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--baed7d9b",
+      "name": "葱酥鱼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "葱酥小鱼，下酒家常",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--0b0bd95b",
+      "name": "大南瓜蒸肉",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "南瓜粉蒸肉，与粉蒸肉相近",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--17b58243",
+      "name": "豆芽拌鸡丝",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "凉拌鸡丝配豆芽，家常凉菜",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--efa871b1",
+      "name": "干煸鳝鱼",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "干煸鳝鱼，鳝鱼非全国常备",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--1df98a3f",
+      "name": "黄焖大鲢鱼头",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "鱼头焖烧，分量偏大",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--206c805b",
+      "name": "姜爆鸭丝",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "姜爆鸭丝快炒，鸭肉略不日常",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--177d2fcb",
+      "name": "糯米圆子",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "糯米肉圆，偏年节",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--f505b80e",
+      "name": "清汤白菜",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "清汤白菜，做法偏功夫汤",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--09509a85",
+      "name": "生爆虾仁",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "油爆虾仁快炒",
+      "suggestedPriority": "low"
+    },
+    {
+      "id": "ex--656a7835",
+      "name": "自拌鸡丝",
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "reason": "自制凉拌鸡丝，与棒棒鸡相近",
+      "suggestedPriority": "low"
+    }
+  ]
+}
