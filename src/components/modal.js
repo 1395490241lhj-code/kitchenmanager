@@ -25,7 +25,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
           </select>
           <button type="button" class="btn bad small receipt-remove">删</button>
         </div>
-        ${showOrig ? `<div class="receipt-original-name" style="font-size: 11px; color: var(--text-muted); margin-top: -2px; margin-bottom: 6px; padding-left: 8px;">原文：${escapeHtml(originalName)}</div>` : ''}
+        ${showOrig ? `<div class="receipt-original-name">原文：${escapeHtml(originalName)}</div>` : ''}
       </div>
     `;
   }).join('');
