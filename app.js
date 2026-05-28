@@ -1,4 +1,4 @@
-// v152 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
+// v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
 import { el, els } from './src/dom.js?v=89';
 import { applyOverlay, loadOverlay } from './src/backup.js?v=2';
 import { runLocalStorageMigrations } from './src/migrations.js?v=1';
