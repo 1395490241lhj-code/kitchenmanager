@@ -2,11 +2,12 @@ import { todayISO } from '../storage.js?v=98';
 import { normalizeKitchenAmount, isSeasoning } from '../ingredients.js?v=1';
 import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=1';
 import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch } from '../inventory.js?v=1';
+import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=2';
 
 export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
-  const unitOptions = ['个', '盒', '袋', '瓶', '把', '份', 'g', 'ml'];
+  const unitOptions = ['个', '盒', '袋', '包', '瓶', '把', '份', 'g', 'ml'];
   const rows = items.map((item, index) => {
     const normalized = normalizeKitchenAmount(item.name, item.qty, item.unit, { source: 'receipt' });
     const name = normalized.name;
@@ -16,7 +17,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
     const showOrig = originalName && originalName !== name;
 
     return `
-      <div class="receipt-confirm-item" data-index="${index}">
+      <div class="receipt-confirm-item" data-index="${index}" data-original-name="${escapeOptionAttr(originalName)}">
         <div class="receipt-confirm-row">
           <input class="receipt-name" value="${escapeOptionAttr(name)}" placeholder="食材名">
           <input class="receipt-qty" type="number" min="0" step="0.1" value="${qty}">
@@ -26,6 +27,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
           <button type="button" class="btn bad small receipt-remove">删</button>
         </div>
         ${showOrig ? `<div class="receipt-original-name">原文：${escapeHtml(originalName)}</div>` : ''}
+        <div class="receipt-match-container"></div>
       </div>
     `;
   }).join('');
@@ -42,19 +44,83 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
     </div>
   `;
 
+  const shoppingItems = loadShoppingItems();
+
+  const refreshMatches = () => {
+    const currentRows = Array.from(overlay.querySelectorAll('.receipt-confirm-item')).map(itemEl => {
+      return {
+        name: itemEl.querySelector('.receipt-name').value.trim(),
+        qty: itemEl.querySelector('.receipt-qty').value,
+        unit: itemEl.querySelector('.receipt-unit').value,
+        el: itemEl
+      };
+    });
+
+    const matches = matchReceiptItemsToShoppingItems(currentRows, shoppingItems);
+
+    matches.forEach((res, i) => {
+      const itemEl = currentRows[i].el;
+      const matchContainer = itemEl.querySelector('.receipt-match-container');
+      if (!matchContainer) return;
+
+      const match = res.match;
+      if (!match) {
+        matchContainer.innerHTML = `<span class="receipt-match-status none">作为新库存项</span>`;
+      } else if (match.type === 'exact') {
+        const qtyText = match.shoppingItem.qty ? `${match.shoppingItem.qty}${match.shoppingItem.unit}` : '无数量';
+        matchContainer.innerHTML = `
+          <label class="receipt-match-label">
+            <input type="checkbox" class="receipt-match-checkbox" checked data-shopping-id="${match.shoppingItem.id}">
+            <span>匹配到购物项：${escapeHtml(match.shoppingItem.name)} ${escapeHtml(qtyText)}${res.match.confidence === 'high' ? ' <span class="match-high-conf">(数量相近)</span>' : ''}</span>
+          </label>
+        `;
+      } else if (match.type === 'needsConfirm') {
+        const qtyText = match.shoppingItem.qty ? `${match.shoppingItem.qty}${match.shoppingItem.unit}` : '无数量';
+        matchContainer.innerHTML = `
+          <label class="receipt-match-label warning">
+            <input type="checkbox" class="receipt-match-checkbox" data-shopping-id="${match.shoppingItem.id}">
+            <span>⚠️ 单位不同（需确认）：${escapeHtml(match.shoppingItem.name)} ${escapeHtml(qtyText)}</span>
+          </label>
+        `;
+      }
+    });
+  };
+
   const close = () => overlay.remove();
   overlay.querySelectorAll('.receipt-remove').forEach(btn => {
-    btn.onclick = () => btn.closest('.receipt-confirm-item').remove();
+    btn.onclick = () => {
+      btn.closest('.receipt-confirm-item').remove();
+      refreshMatches();
+    };
   });
   overlay.querySelector('#cancelReceiptConfirm').onclick = () => {
     close();
     if(onCancel) onCancel();
   };
   overlay.querySelector('#saveReceiptConfirm').onclick = () => {
-    const confirmed = Array.from(overlay.querySelectorAll('.receipt-confirm-row')).map(row => {
-      const normalized = normalizeKitchenAmount(row.querySelector('.receipt-name').value.trim(), row.querySelector('.receipt-qty').value, row.querySelector('.receipt-unit').value, { source: 'receipt' });
-      return normalized.name ? normalized : null;
+    const confirmed = Array.from(overlay.querySelectorAll('.receipt-confirm-item')).map(itemEl => {
+      const nameEl = itemEl.querySelector('.receipt-name');
+      const qtyEl = itemEl.querySelector('.receipt-qty');
+      const unitEl = itemEl.querySelector('.receipt-unit');
+      if (!nameEl) return null;
+
+      const name = nameEl.value.trim();
+      const qty = qtyEl.value;
+      const unit = unitEl.value;
+
+      const normalized = normalizeKitchenAmount(name, qty, unit, { source: 'receipt' });
+      if (!normalized.name) return null;
+
+      const originalName = itemEl.dataset.originalName || normalized.name;
+      normalized.originalName = originalName;
+
+      const matchCheckbox = itemEl.querySelector('.receipt-match-checkbox');
+      if (matchCheckbox && matchCheckbox.checked) {
+        normalized.matchedShoppingItemId = matchCheckbox.dataset.shoppingId;
+      }
+      return normalized;
     }).filter(Boolean);
+
     close();
     onConfirm(confirmed);
   };
@@ -64,6 +130,13 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
       if(onCancel) onCancel();
     }
   };
+
+  const listContainer = overlay.querySelector('.receipt-confirm-list');
+  listContainer.addEventListener('input', refreshMatches);
+  listContainer.addEventListener('change', refreshMatches);
+
+  refreshMatches();
+
   document.body.appendChild(overlay);
 }
 

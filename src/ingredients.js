@@ -321,7 +321,14 @@ export function normalizeKitchenAmount(name, qty, unit, options = {}) {
     : getCanonicalName(name || '');
   let q = Number(qty) || 1;
   let u = String(unit || '').trim();
-  if (['pcs', 'piece', 'pieces'].includes(u)) u = '个';
+  const lowerUnit = u.toLowerCase();
+  if (['pcs', 'piece', 'pieces'].includes(lowerUnit)) u = '个';
+  else if (['box', 'boxes'].includes(lowerUnit)) u = '盒';
+  else if (['bag', 'bags'].includes(lowerUnit)) u = '袋';
+  else if (['pack', 'packs', 'package', 'packages', 'pkt'].includes(lowerUnit)) u = '包';
+  else if (['bottle', 'bottles'].includes(lowerUnit)) u = '瓶';
+  else if (['bunch', 'bunches'].includes(lowerUnit)) u = '把';
+
   if (['kg', '千克', '公斤'].includes(u)) { q *= 1000; u = 'g'; }
   if (['l', 'L', '升'].includes(u)) { q *= 1000; u = 'ml'; }
   if (!u) u = guessKitchenUnit(n);

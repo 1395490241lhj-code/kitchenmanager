@@ -32,7 +32,7 @@ import {
   escapeHtml,
   escapeOptionAttr,
   setSelectValueWithOption
-} from '../components/status.js?v=1';
+} from '../components/status.js?v=1';import { markShoppingItemsStockedIn } from '../shopping.js?v=2';
 
 function badgeFor(e){
   if((e.kind || 'raw') === 'dry') return `<span class="kchip dry" title="${escapeOptionAttr(getDryPrepText(e.name))}">干货 · ${escapeHtml(getDryPrepText(e.name))}</span>`;
@@ -210,6 +210,10 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       }
       scanStatus.innerHTML = `识别到 ${items.length} 项，请确认后入库`;
       showReceiptConfirmationModal(items, confirmed => {
+        const matchedIds = confirmed.map(it => it.matchedShoppingItemId).filter(Boolean);
+        if (matchedIds.length > 0) {
+          markShoppingItemsStockedIn(matchedIds);
+        }
         for(const it of confirmed) {
           const unit = it.unit || guessKitchenUnit(it.name);
           const itemKind = isDryGoodName(it.name) ? 'dry' : 'raw';

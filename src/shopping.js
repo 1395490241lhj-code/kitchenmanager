@@ -4,7 +4,9 @@ import {
   getDryPrepText,
   guessKitchenUnit,
   guessShelfDays,
-  isDryGoodName
+  isDryGoodName,
+  normalizeReceiptIngredientName,
+  normalizeKitchenAmount
 } from './ingredients.js?v=1';
 
 export function genId(){
@@ -277,5 +279,93 @@ export function addShoppingItem(name, qty = '', unit = '', source = '手动') {
   } else {
     items.push({ id: genId(), name: cleanName, qty: qty || '', unit: cleanUnit, source: cleanItemSource, done: false });
   }
+  saveShoppingItems(items);
+}
+
+function isQtyClose(q1, q2) {
+  const num1 = parseFloat(q1);
+  const num2 = parseFloat(q2);
+  if (!isFinite(num1) || !isFinite(num2)) return false;
+  if (num1 <= 0 || num2 <= 0) return false;
+  if (num1 === num2) return true;
+  const diff = Math.abs(num1 - num2);
+  const max = Math.max(num1, num2);
+  return (diff / max <= 0.2) || (diff <= 0.2);
+}
+
+export function matchReceiptItemsToShoppingItems(receiptItems, shoppingItems) {
+  const openShoppingItems = (shoppingItems || []).filter(item => !item.done);
+  const matchedShoppingIds = new Set();
+  
+  const results = receiptItems.map(item => {
+    return {
+      receiptItem: item,
+      match: null
+    };
+  });
+
+  // Pass 1: Exact unit match
+  for (const res of results) {
+    const rItem = res.receiptItem;
+    const normReceipt = normalizeKitchenAmount(rItem.name, rItem.qty, rItem.unit, { source: 'receipt' });
+    
+    const matchItem = openShoppingItems.find(sItem => {
+      if (matchedShoppingIds.has(sItem.id)) return false;
+      const normShop = normalizeKitchenAmount(sItem.name, sItem.qty, sItem.unit);
+      return normReceipt.name === normShop.name && normReceipt.unit === normShop.unit;
+    });
+
+    if (matchItem) {
+      matchedShoppingIds.add(matchItem.id);
+      const normShop = normalizeKitchenAmount(matchItem.name, matchItem.qty, matchItem.unit);
+      const qtyClose = isQtyClose(normReceipt.qty, normShop.qty);
+      res.match = {
+        shoppingItem: matchItem,
+        type: 'exact',
+        confidence: qtyClose ? 'high' : 'low'
+      };
+    }
+  }
+
+  // Pass 2: Unit mismatch match
+  for (const res of results) {
+    if (res.match) continue;
+    
+    const rItem = res.receiptItem;
+    const normReceipt = normalizeKitchenAmount(rItem.name, rItem.qty, rItem.unit, { source: 'receipt' });
+
+    const matchItem = openShoppingItems.find(sItem => {
+      if (matchedShoppingIds.has(sItem.id)) return false;
+      const normShop = normalizeKitchenAmount(sItem.name, sItem.qty, sItem.unit);
+      return normReceipt.name === normShop.name;
+    });
+
+    if (matchItem) {
+      matchedShoppingIds.add(matchItem.id);
+      res.match = {
+        shoppingItem: matchItem,
+        type: 'needsConfirm',
+        confidence: 'low'
+      };
+    }
+  }
+
+  return results;
+}
+
+export function markShoppingItemsStockedIn(ids) {
+  if (!ids || ids.length === 0) return;
+  const idSet = new Set(ids);
+  const items = loadShoppingItems().map(item => {
+    if (idSet.has(item.id)) {
+      return {
+        ...item,
+        done: true,
+        stockedIn: true,
+        stockedInAt: new Date().toISOString()
+      };
+    }
+    return item;
+  });
   saveShoppingItems(items);
 }

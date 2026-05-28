@@ -2826,3 +2826,45 @@ nav a.active svg {
     background: linear-gradient(180deg, rgba(0, 122, 255, 0.15), rgba(30, 30, 30, 0.68)) !important;
   }
 }
+
+/* --- Receipt match statuses --- */
+.receipt-match-container {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--separator);
+}
+.receipt-match-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+  font-weight: 500;
+  margin: 0;
+}
+.receipt-match-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+}
+.receipt-match-label.warning {
+  color: var(--status-warn-text, #a55e00);
+}
+.receipt-match-status.none {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding-left: 4px;
+}
+.match-high-conf {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--status-ok-text, #1f7a3a);
+  margin-left: 4px;
+}
