@@ -7,7 +7,7 @@ import {
 } from './ingredients.js?v=1';
 import {
   daysBetween,
-  findInventoryMatch,
+  getStockCoverageAnalysis,
   remainingDays
 } from './inventory.js?v=1';
 import { addShoppingItem } from './shopping.js?v=2';
@@ -67,18 +67,65 @@ function explainMissingNames(missing, limit = 3) {
   return `${head}${names.length > limit ? '等' : ''}`;
 }
 
-export function analyzeRecipeInventory(recipe, pack, inv) {
-  const list = explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
+export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) {
+  const list = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
   const core = getRecipeCoreIngredients(recipe, pack, list);
   const matches = [];
   const missing = [];
   const expiringMatches = [];
+  const uncertain = [];
+  const needsConfirm = [];
 
   for (const ing of core) {
-    const match = findInventoryMatch(inv, ing.item);
-    if (match) {
+    const analysis = getStockCoverageAnalysis(inv, ing.item, ing.qty, ing.unit);
+    if (analysis.confidence === 'exact') {
+      const requiredQty = ing.qty !== '' && ing.qty !== null && ing.qty !== undefined ? +ing.qty : '';
+      if (requiredQty !== '' && analysis.coveredQty >= requiredQty) {
+        const match = analysis.matchedItems[0];
+        const days = remainingDays(match);
+        matches.push({ recipeItem: ing.item, inventoryItem: match.name, days, item: ing });
+        if (days <= 3) {
+          expiringMatches.push({
+            name: match.name,
+            recipeItem: ing.item,
+            days,
+            label: formatDaysText(days)
+          });
+        }
+      } else if (requiredQty === '') {
+        const match = analysis.matchedItems[0];
+        const days = remainingDays(match);
+        matches.push({ recipeItem: ing.item, inventoryItem: match.name, days, item: ing });
+        if (days <= 3) {
+          expiringMatches.push({
+            name: match.name,
+            recipeItem: ing.item,
+            days,
+            label: formatDaysText(days)
+          });
+        }
+      } else {
+        const match = analysis.matchedItems[0];
+        const days = remainingDays(match);
+        if (days <= 3) {
+          expiringMatches.push({
+            name: match.name,
+            recipeItem: ing.item,
+            days,
+            label: formatDaysText(days)
+          });
+        }
+        missing.push({
+          item: ing.item,
+          name: ing.item,
+          qty: ing.qty ?? '',
+          unit: ing.unit || guessKitchenUnit(ing.item) || '',
+          missingQty: Math.max(0, requiredQty - analysis.coveredQty)
+        });
+      }
+    } else if (analysis.confidence === 'unit-mismatch') {
+      const match = analysis.matchedItems[0];
       const days = remainingDays(match);
-      matches.push({ recipeItem: ing.item, inventoryItem: match.name, days, item: ing });
       if (days <= 3) {
         expiringMatches.push({
           name: match.name,
@@ -87,7 +134,41 @@ export function analyzeRecipeInventory(recipe, pack, inv) {
           label: formatDaysText(days)
         });
       }
+      uncertain.push({
+        item: ing.item,
+        name: ing.item,
+        qty: ing.qty ?? '',
+        unit: ing.unit || guessKitchenUnit(ing.item) || '',
+        reason: 'unit-mismatch'
+      });
+      needsConfirm.push({
+        name: ing.item,
+        reason: 'unit-mismatch'
+      });
+    } else if (analysis.confidence === 'status-only') {
+      const match = analysis.matchedItems[0];
+      const days = remainingDays(match);
+      if (days <= 3) {
+        expiringMatches.push({
+          name: match.name,
+          recipeItem: ing.item,
+          days,
+          label: formatDaysText(days)
+        });
+      }
+      uncertain.push({
+        item: ing.item,
+        name: ing.item,
+        qty: ing.qty ?? '',
+        unit: ing.unit || guessKitchenUnit(ing.item) || '',
+        reason: 'status-only'
+      });
+      needsConfirm.push({
+        name: ing.item,
+        reason: 'status-only'
+      });
     } else {
+      // none
       missing.push({
         item: ing.item,
         name: ing.item,
@@ -99,34 +180,58 @@ export function analyzeRecipeInventory(recipe, pack, inv) {
 
   const matchCount = matches.length;
   const totalCore = core.length;
+  const coverage = totalCore ? matchCount / totalCore : 0;
+
+  let coverageConfidence = 'none';
+  if (totalCore === 0) {
+    coverageConfidence = 'unknown';
+  } else if (missing.length > 0) {
+    if (matchCount > 0 || uncertain.length > 0) {
+      coverageConfidence = 'low';
+    } else {
+      coverageConfidence = 'none';
+    }
+  } else if (uncertain.length > 0) {
+    const hasMismatch = uncertain.some(x => x.reason === 'unit-mismatch');
+    coverageConfidence = hasMismatch ? 'unit-mismatch' : 'status-only';
+  } else {
+    coverageConfidence = 'exact';
+  }
+
+  let status = 'none';
+  if (totalCore === 0) {
+    status = 'unknown';
+  } else if (missing.length === 0 && uncertain.length === 0) {
+    status = 'ok';
+  } else if (matchCount > 0 || uncertain.length > 0) {
+    status = 'partial';
+  } else {
+    status = 'none';
+  }
+
   return {
     list,
     core,
     matches,
     missing,
+    uncertain,
+    needsConfirm,
+    coverageConfidence,
     expiringMatches: uniqueExpiringMatches(expiringMatches),
     matchCount,
     totalCore,
-    coverage: totalCore ? matchCount / totalCore : 0,
-    status: totalCore === 0 ? 'unknown' : (missing.length === 0 ? 'ok' : (matchCount > 0 ? 'partial' : 'none'))
+    coverage,
+    status
   };
 }
 
 export function calculateStockStatus(recipe, pack, inv) {
   const analysis = analyzeRecipeInventory(recipe, pack, inv);
-  if (analysis.totalCore === 0) return { status: 'unknown', missing: [] };
-  if (analysis.missing.length === 0) return { status: 'ok', missing: [] };
-  if (analysis.matchCount > 0) return { status: 'partial', missing: analysis.missing };
-  return { status: 'none', missing: analysis.missing };
+  return { status: analysis.status, missing: analysis.missing };
 }
 
 export function getMissingRecipeIngredients(recipe, pack, inv, fallbackItems = null) {
-  if (fallbackItems) {
-    return getRecipeCoreIngredients(recipe, pack, fallbackItems)
-      .filter(item => !findInventoryMatch(inv, item.item))
-      .map(item => ({ ...item, name: item.item, unit: item.unit || guessKitchenUnit(item.item) || '' }));
-  }
-  return analyzeRecipeInventory(recipe, pack, inv).missing;
+  return analyzeRecipeInventory(recipe, pack, inv, fallbackItems).missing;
 }
 
 export function addMissingRecipeIngredientsToShopping(recipe, pack, inv, fallbackItems = null) {
@@ -154,10 +259,24 @@ export function explainRecipeScore(scoreResult) {
     explain.push(`${first.name}${first.label}，建议优先使用`);
   }
 
+  if (scoreResult.needsConfirm && scoreResult.needsConfirm.length) {
+    scoreResult.needsConfirm.forEach(item => {
+      if (item.reason === 'unit-mismatch') {
+        explain.push(`${item.name}库存单位不同，数量需确认`);
+      } else if (item.reason === 'status-only') {
+        explain.push(`${item.name}库存状态需确认`);
+      }
+    });
+  }
+
   if (scoreResult.missing.length) {
     explain.push(`还缺：${explainMissingNames(scoreResult.missing)}`);
   } else {
-    explain.push('食材看起来已经齐了');
+    if (scoreResult.needsConfirm && scoreResult.needsConfirm.length > 0) {
+      explain.push('部分食材单位或状态待确认');
+    } else {
+      explain.push('食材看起来已经齐了');
+    }
   }
 
   if (scoreResult.isFavorite) explain.push('常做菜，轻微加分');
@@ -175,10 +294,15 @@ export function explainRecipeScore(scoreResult) {
 function pickRecipeReason(result) {
   if (result.expiringMatches.length) {
     const first = result.expiringMatches[0];
-    if (result.missing.length > 0 && result.missing.length <= 2 && result.matchCount > 0) {
-      return `${first.name}${first.label}，只缺 ${explainMissingNames(result.missing, 2)}`;
-    }
     return `${first.name}${first.label}，优先用`;
+  }
+  if (result.needsConfirm && result.needsConfirm.length > 0) {
+    const first = result.needsConfirm[0];
+    if (first.reason === 'unit-mismatch') {
+      return `${first.name}数量需确认`;
+    } else if (first.reason === 'status-only') {
+      return `${first.name}状态需确认`;
+    }
   }
   if (result.missing.length > 0 && result.missing.length <= 2 && result.matchCount > 0) {
     return `只缺 ${explainMissingNames(result.missing, 2)}`;
@@ -210,7 +334,8 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     scoreParts.coverage = analysis.coverage * 100;
     scoreParts.missingPenalty = analysis.missing.length * -18;
     scoreParts.matchDensity = analysis.matchCount * 3;
-    scoreParts.almostBonus = analysis.matchCount > 0 && analysis.missing.length > 0 && analysis.missing.length <= 2 ? 8 : 0;
+    scoreParts.uncertainBonus = (analysis.uncertain || []).length * 4;
+    scoreParts.almostBonus = (analysis.matchCount > 0 || (analysis.uncertain && analysis.uncertain.length > 0)) && analysis.missing.length > 0 && analysis.missing.length <= 2 ? 8 : 0;
     scoreParts.expiringBonus = Math.min(54, analysis.expiringMatches.reduce((sum, item) => {
       if (item.days <= 0) return sum + 24;
       if (item.days === 1) return sum + 18;
@@ -236,6 +361,9 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     matchCount: analysis.matchCount,
     totalCore: analysis.totalCore,
     missing: analysis.missing,
+    uncertain: analysis.uncertain,
+    needsConfirm: analysis.needsConfirm,
+    coverageConfidence: analysis.coverageConfidence,
     expiringMatches: analysis.expiringMatches,
     reason: '',
     explain: [],
@@ -259,7 +387,7 @@ export function rankRecipesForRecommendation(pack, inv, context = {}) {
     .map(recipe => scoreRecipe(recipe, pack, inv, context))
     .filter(result => result.totalCore > 0);
 
-  const effectiveMatches = scored.filter(result => result.matchCount > 0);
+  const effectiveMatches = scored.filter(result => result.matchCount > 0 || (result.uncertain && result.uncertain.length > 0));
   const pool = effectiveMatches.length && !context.includeNoMatch ? effectiveMatches : scored;
 
   return pool.sort((a, b) =>

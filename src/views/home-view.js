@@ -62,7 +62,7 @@ function getHomeRecipeGroups(pack, inv) {
     .filter(item => hasRecipeMethod(item.r));
   const ready = ranked.filter(row => row.status === 'ok' && row.matchCount > 0).slice(0, 4)
     .map(row => ({ ...row, reason: row.reason || `已有 ${row.totalCore}/${row.totalCore} 项核心食材` }));
-  const almost = ranked.filter(row => row.status === 'partial' && row.matchCount > 0 && row.missing.length <= 2).slice(0, 4)
+  const almost = ranked.filter(row => row.status === 'partial' && (row.matchCount > 0 || (row.uncertain && row.uncertain.length > 0)) && row.missing.length <= 2).slice(0, 4)
     .map(row => ({ ...row, reason: row.missing.length ? `还缺：${formatMissingShort(row.missing)}` : row.reason }));
   return { ready, almost };
 }
@@ -540,7 +540,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   container.appendChild(fullInvDetails);
 
   const localRecs = getLocalRecommendations(pack, inv);
-  const hasRealLocalRecs = localRecs.some(item => item && item.matchCount > 0);
+  const hasRealLocalRecs = localRecs.some(item => item && (item.matchCount > 0 || (item.uncertain && item.uncertain.length > 0)));
   const recsOpen = !hasRealLocalRecs;
   const moreRecsNode = renderMoreRecommendations(pack, inv, { onRoute });
   const moreRecsDetails = renderHomeDetails('更多推荐和 AI', '想换换口味时再打开', [moreRecsNode], recsOpen);

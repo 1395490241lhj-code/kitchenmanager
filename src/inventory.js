@@ -58,7 +58,7 @@ export function findInventoryMatch(inv, recipeName) {
 }
 
 export function getMatchingInventoryItems(inv, recipeName) {
-  return (inv || []).filter(item => isInventoryAvailable(item) && isIngredientMatch(recipeName, item.name));
+  return (inv || []).filter(item => item && item.stockStatus !== 'empty' && isIngredientMatch(recipeName, item.name));
 }
 
 /**
