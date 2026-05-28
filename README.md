@@ -59,12 +59,18 @@
 
 1.  **数据本地存储**
     *   项目所有的库存数据、自定义修改的菜谱、今日计划等，全部保存在您浏览器的 `localStorage` 中。
-    *   核心存储键：
-        *   `km_v19_overlay`：用户自定义菜谱补丁。
-        *   `km_v23_settings`：用户设置（包括 AI API 配置）。
-        *   `km_v15_inventory`：库存数据。
-        *   `km_v15_shopping_list`：购物清单。
-        *   `km_v15_meal_plan`：今日计划。
+    *   核心存储键（与代码 `src/storage.js` 保持完全一致）：
+        *   `km_schema_version`：Schema 版本号
+        *   `km_v19_inventory`：库存数据
+        *   `km_v19_plan`：今日计划（膳食规划）
+        *   `km_v19_overlay`：用户自定义菜谱补丁（Overlay）
+        *   `km_v23_settings`：设置参数（包括 API 地址、模型，不含 API Key）
+        *   `km_v48_ai_recs`：AI 推荐缓存
+        *   `km_v97_local_recs`：本地推荐缓存
+        *   `km_v97_rec_time`：推荐时间戳缓存
+        *   `km_v80_favorite_recipes`：收藏菜谱列表
+        *   `km_v95_recipe_usage`：菜谱烹饪次数统计
+        *   `km_v87_shopping_items`：购物清单列表
 2.  **不修改原始数据**
     *   所有的用户修改都以 Overlay（补丁）的形式应用，**不会直接修改或重写**仓库里的 `data/sichuan-recipes.json` 等原始文件，因此您可以随时在“设置”中安全重置，回到系统初始状态。
 3.  **补全包机制**
