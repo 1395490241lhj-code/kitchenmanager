@@ -1,6 +1,8 @@
 {
-  "name": "Kitchen Assistant",
-  "short_name": "Kitchen",
+  "name": "Kitchen Manager / 厨房管理",
+  "short_name": "厨房",
+  "lang": "zh-CN",
+  "description": "本地优先的家庭厨房库存、菜谱和购物清单管理工具。",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#0b1020",

@@ -2,26 +2,34 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0b132b" />
-    <title>Kitchen Assistant · 厨房 v19</title>
-    <link rel="stylesheet" href="./styles.css">
+    <meta name="color-scheme" content="light dark" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0ea5e9" />
+
+    <title>Kitchen Manager / 厨房管理</title>
+    <link rel="icon" href="./icons/pwa-192.png">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-180.png">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="stylesheet" href="./styles.css?v=157">
     <link rel="stylesheet" href="./ingredients-list-patch.v15.css?v=15">
   </head>
   <body>
     <header class="topbar">
-      <h1>厨房 · v19</h1>
+      <h1>厨房</h1>
       <nav>
-        <a href="#recipes">菜谱</a>
-        <a href="#recommend">推荐</a>
-        <a href="#inventory">库存</a>
-        <a href="#shopping">购物清单</a>
-        <a href="#editor">编辑</a>
+        <a href="#inventory" id="nav-home">厨房</a>
+        <a href="#shopping" id="nav-shop">清单</a>
+        <a href="#recipes" id="nav-recipe">菜谱</a>
+        <a href="#settings" id="nav-set">设置</a>
       </nav>
     </header>
     <main id="app" class="container"></main>
-    <script type="module" src="./app.js"></script>
+
+    <script src="./data/hoc-recipes.js?v=72"></script>
+    <script src="./data/recipe-methods.js?v=57"></script>
+    <script type="module" src="./app.js?v=157"></script>
+
     <script src="./ingredients-list-patch.v15.js?v=15"></script>
-    <script src="./sw-register.v16.js"></script>
+    <script src="./sw-register.v18.js?v=18"></script>
   </body>
 </html>
