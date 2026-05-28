@@ -1,8 +1,8 @@
-import { S, todayISO } from '../storage.js?v=158';
-import { CUSTOM_AI } from '../config.js?v=158';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=158';
-import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=158';
-import { setInlineStatus } from '../components/status.js?v=158';
+import { S, todayISO } from '../storage.js?v=159';
+import { CUSTOM_AI } from '../config.js?v=159';
+import { DATA_SCHEMA_VERSION } from '../migrations.js?v=159';
+import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=159';
+import { setInlineStatus } from '../components/status.js?v=159';
 
 export function renderSettings() {
   const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
@@ -10,10 +10,23 @@ export function renderSettings() {
   const displayKey = s.apiKey || '';
   const displayModel = s.model || CUSTOM_AI.MODEL;
 
+  const libMode = s.recipeLibraryMode === 'full' ? 'full' : 'curated';
+
   const div = document.createElement('div');
   div.innerHTML = `
     <h2 class="section-title">设置</h2>
     <div id="settingsStatus" class="small inline-status" hidden></div>
+    <div class="section-title home-section-title"><span>菜谱库</span></div>
+    <div class="card">
+      <div class="setting-group">
+        <label>菜谱库范围</label>
+        <select id="sLibMode">
+          <option value="curated" ${libMode === 'curated' ? 'selected' : ''}>精简日常菜谱库（推荐）</option>
+          <option value="full" ${libMode === 'full' ? 'selected' : ''}>完整原始菜谱库</option>
+        </select>
+      </div>
+      <p class="meta">精简库聚焦日常家常菜；完整库包含全部原始菜谱（含宴席、罕见菜）。无论哪种模式，你的自定义菜谱和修改都会保留。切换后页面会自动刷新。</p>
+    </div>
     <div class="section-title home-section-title"><span>AI 设置</span></div>
     <div class="card">
       <div class="setting-group">
@@ -50,6 +63,15 @@ export function renderSettings() {
   div.querySelector('#sPreset').onchange = (e) => {
     const val = e.target.value;
     if (presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; }
+  };
+  div.querySelector('#sLibMode').onchange = (e) => {
+    const mode = e.target.value === 'full' ? 'full' : 'curated';
+    const currentSettings = S.load(S.keys.settings, {});
+    S.save(S.keys.settings, { ...currentSettings, recipeLibraryMode: mode });
+    if (typeof window.invalidatePackCache === 'function') window.invalidatePackCache();
+    const statusEl = div.querySelector('#settingsStatus');
+    setInlineStatus(statusEl, `已切换为${mode === 'full' ? '完整原始' : '精简日常'}菜谱库，正在刷新…`, 'ok');
+    setTimeout(() => location.reload(), 800);
   };
   div.querySelector('#saveSet').onclick = () => {
     const currentSettings = S.load(S.keys.settings, {});

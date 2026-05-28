@@ -55,6 +55,23 @@
 
 ---
 
+## 🍱 菜谱库模式（精简 / 完整）
+
+应用支持两套菜谱库，可在「设置 → 菜谱库」中随时切换，切换后页面会自动刷新：
+
+| 模式 | 读取文件 | 说明 |
+| --- | --- | --- |
+| **精简日常菜谱库**（默认） | `data/sichuan-recipes.curated.json` | 聚焦日常家常菜，移除了宴席化/罕见食材/老式工艺菜，并强制收录麻婆豆腐、番茄炒蛋等家庭高频菜 |
+| **完整原始菜谱库** | `data/sichuan-recipes.json` | 完整保留原始《大众川菜》全部菜谱 |
+
+- 切换由设置项 `recipeLibraryMode` 控制（`"curated"` / `"full"`），保存在 `localStorage` 的设置中。
+- 无论哪种模式，**用户自定义菜谱与修改（localStorage overlay）始终最高优先级**，`recipe-completion-overlay` 补全也照常套用。
+- 若精简库文件加载失败，会**自动回退到完整库**并在控制台 `console.warn`，不会白屏。
+- 精简库的生成、移出与待补全清单见 `data/recipe-curation-summary.md`，由 `scripts/curate-recipes.js` 复现。
+- `data/reference/dazhong-chuancai.pdf` 仅为本地参考资料，**不是运行时依赖**，不需要随部署上传。
+
+---
+
 ## 🔒 数据与隐私说明
 
 1.  **数据本地存储**

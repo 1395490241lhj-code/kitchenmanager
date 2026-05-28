@@ -1,16 +1,17 @@
 // v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
-import { el, els } from './src/dom.js?v=158';
-import { applyOverlay, loadOverlay } from './src/backup.js?v=158';
-import { runLocalStorageMigrations } from './src/migrations.js?v=158';
-import { escapeHtml } from './src/components/status.js?v=158';
-import { renderShopping } from './src/views/shopping-view.js?v=158';
-import { renderInventory } from './src/views/inventory-view.js?v=158';
-import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=158';
-import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=158';
-import { renderHome } from './src/views/home-view.js?v=158';
-import { renderRecipes } from './src/views/recipes-view.js?v=158';
-import { renderSettings } from './src/views/settings-view.js?v=158';
-import { applyCompletionOverlay } from './src/recipe-completion.js?v=158';
+import { el, els } from './src/dom.js?v=159';
+import { S } from './src/storage.js?v=159';
+import { applyOverlay, loadOverlay } from './src/backup.js?v=159';
+import { runLocalStorageMigrations } from './src/migrations.js?v=159';
+import { escapeHtml } from './src/components/status.js?v=159';
+import { renderShopping } from './src/views/shopping-view.js?v=159';
+import { renderInventory } from './src/views/inventory-view.js?v=159';
+import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=159';
+import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=159';
+import { renderHome } from './src/views/home-view.js?v=159';
+import { renderRecipes } from './src/views/recipes-view.js?v=159';
+import { renderSettings } from './src/views/settings-view.js?v=159';
+import { applyCompletionOverlay } from './src/recipe-completion.js?v=159';
 
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
@@ -68,17 +69,42 @@ export async function getCurrentPack({ force = false } = {}) {
   return cachedEffectivePack;
 }
 
+// 菜谱库模式：'curated' = 精简日常库（默认），'full' = 完整原始库。
+export function getLibraryMode() {
+  const s = S.load(S.keys.settings, {});
+  return s.recipeLibraryMode === 'full' ? 'full' : 'curated';
+}
+
+const LIBRARY_FILES = {
+  curated: './data/sichuan-recipes.curated.json',
+  full: './data/sichuan-recipes.json'
+};
+
+async function fetchPackFile(file, v) {
+  const url = new URL(file, location).href + '?v=' + v;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const pack = await res.json();
+  if (!Array.isArray(pack.recipes)) pack.recipes = [];
+  if (!pack.recipe_ingredients) pack.recipe_ingredients = {};
+  return pack;
+}
+
 async function loadBasePack(v = '23') {
-  const url = new URL('./data/sichuan-recipes.json', location).href + '?v=' + v;
+  const mode = getLibraryMode();
   let pack = { recipes: [], recipe_ingredients: {} };
   try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (res.ok) {
-      pack = await res.json();
-      if (!Array.isArray(pack.recipes)) pack.recipes = [];
-      if (!pack.recipe_ingredients) pack.recipe_ingredients = {};
+    pack = await fetchPackFile(LIBRARY_FILES[mode], v);
+  } catch (e) {
+    if (mode === 'curated') {
+      // 精简库加载失败时自动回退到完整库，避免白屏。
+      console.warn('[library] 精简菜谱库加载失败，回退到完整库：', e.message);
+      try { pack = await fetchPackFile(LIBRARY_FILES.full, v); }
+      catch (e2) { console.error('Base pack error', e2); }
+    } else {
+      console.error('Base pack error', e);
     }
-  } catch (e) { console.error('Base pack error', e); }
+  }
 
   const staticMethods = window.RECIPE_METHODS || {};
   const existingNames = new Set(pack.recipes.map(r => r.name));
