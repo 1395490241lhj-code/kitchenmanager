@@ -89,6 +89,7 @@
         *   `km_v80_favorite_recipes`：收藏菜谱列表
         *   `km_v95_recipe_usage`：菜谱烹饪次数统计
         *   `km_v87_shopping_items`：购物清单列表
+        *   `km_v1_staples`：常备品双态状态（充足 / 不足）与库存时间
 2.  **不修改原始数据**
     *   所有的用户修改都以 Overlay（补丁）的形式应用，**不会直接修改或重写**仓库里的 `data/sichuan-recipes.json` 等原始文件，因此您可以随时在“设置”中安全重置，回到系统初始状态。
 3.  **补全包机制**

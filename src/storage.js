@@ -30,6 +30,7 @@ export const S = {
     favorite_recipes: 'km_v80_favorite_recipes',
     recipe_usage: 'km_v95_recipe_usage',
     recipe_activity: 'km_v2_recipe_activity',
-    shopping_items: 'km_v87_shopping_items'
+    shopping_items: 'km_v87_shopping_items',
+    staples: 'km_v1_staples'
   }
 };

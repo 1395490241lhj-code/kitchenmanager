@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=161';
+import { S, todayISO } from '../storage.js?v=162';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -8,13 +8,13 @@ import {
   isDryGoodName,
   normalizeKitchenAmount,
   isSeasoning
-} from '../ingredients.js?v=161';
+} from '../ingredients.js?v=162';
 import {
   getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=161';
+} from '../inventory.js?v=162';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -25,13 +25,21 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=161';
+} from '../shopping.js?v=162';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=161';
+} from '../components/status.js?v=162';
+import {
+  STAPLE_CATALOG,
+  STAPLE_STATUS,
+  getStapleState,
+  restoreStapleByPurchase,
+  restoreStaplesByPurchase,
+  toggleStaple
+} from '../staples.js?v=162';
 
 let currentPlanRange = 'today';
 function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false, dateRange = 'today') {
@@ -181,6 +189,58 @@ function showShoppingInventoryModal(item, onConfirm, onCancel) {
     onConfirm(entry);
     close();
   };
+}
+
+function formatStapleTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const today = todayISO();
+  const dISO = d.toISOString().slice(0, 10);
+  if (dISO === today) return '今天补';
+  const diff = Math.round((new Date(today) - new Date(dISO)) / 86400000);
+  if (diff === 1) return '昨天补';
+  if (diff > 1 && diff <= 30) return `${diff} 天前补`;
+  return `补于 ${dISO.slice(5)}`;
+}
+
+// 【常备货架】双态常备品卡片：一键切换 充足 / 不足；切为不足自动进购物清单。
+function renderStaplesShelf({ onRoute = () => {} } = {}) {
+  const panel = document.createElement('div');
+  panel.className = 'card staples-card';
+  panel.innerHTML = `
+    <h3 class="shopping-staple-heading"><span>🧂</span> 常备货架</h3>
+    <p class="meta shopping-staple-meta">点一下切换「充足 / 不足」。标记为<strong>不足</strong>会自动加入下方购物清单；买好后在清单里勾选「已买」，会自动恢复为<strong>充足</strong>并更新库存时间。</p>
+    <div id="stapleShelf"></div>
+  `;
+  const shelf = panel.querySelector('#stapleShelf');
+  STAPLE_CATALOG.forEach(group => {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'shopping-staple-group';
+    groupDiv.innerHTML = `<div class="shopping-staple-title">${escapeHtml(group.group)}</div>`;
+    const grid = document.createElement('div');
+    grid.className = 'staple-tile-grid';
+    group.items.forEach(name => {
+      const state = getStapleState(name);
+      const low = state.status === STAPLE_STATUS.INSUFFICIENT;
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = `staple-tile ${low ? 'is-low' : 'is-ok'}`;
+      tile.setAttribute('aria-pressed', low ? 'true' : 'false');
+      const stateText = low ? '不足 · 已加清单' : '充足';
+      const timeText = (!low && state.updatedAt) ? formatStapleTime(state.updatedAt) : '';
+      tile.innerHTML = `
+        <span class="staple-tile-name">${escapeHtml(name)}</span>
+        <span class="staple-tile-state">${escapeHtml(stateText)}</span>
+        ${timeText ? `<span class="staple-tile-time">${escapeHtml(timeText)}</span>` : ''}
+      `;
+      tile.onclick = () => { toggleStaple(name); onRoute(); };
+      grid.appendChild(tile);
+    });
+    groupDiv.appendChild(grid);
+    shelf.appendChild(groupDiv);
+  });
+  return panel;
 }
 
 export function renderShopping(pack, { onRoute = () => {} } = {}){
@@ -375,6 +435,9 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   missingCard.appendChild(missingTable);
   page.appendChild(missingCard);
 
+  // 【常备货架】区域（双态常备品）——位于「我的购物项」上方，构成采购闭环。
+  page.appendChild(renderStaplesShelf({ onRoute }));
+
   const itemCard = document.createElement('div');
   itemCard.className = 'card shopping-items-card';
   itemCard.innerHTML = `
@@ -413,6 +476,8 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     `;
     row.querySelector('input').onchange = event => {
       updateShoppingRowsByIds(item.ids, target => ({ ...target, done: event.target.checked }));
+      // 闭环：勾选「已买」时，若是常备品则恢复为充足并更新库存时间。
+      if (event.target.checked) restoreStapleByPurchase(item.name);
       onRoute();
     };
     const stockBtn = row.querySelector('.stock-in-btn');
@@ -426,6 +491,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
             stockedIn: true,
             stockedInAt: new Date().toISOString()
           }));
+          restoreStapleByPurchase(item.name); // 闭环：常备品入库后恢复充足
           setInlineStatus(status, `${entry.name} 已入库。`, 'ok');
           onRoute();
         });
@@ -478,6 +544,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
         stockedIn: true,
         stockedInAt: new Date().toISOString()
       }));
+      restoreStapleByPurchase(item.name); // 闭环：常备品入库后恢复充足
       startBatchStockIn(itemsList, index + 1);
     }, () => {
       startBatchStockIn(itemsList, index + 1);
@@ -495,7 +562,13 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     batchBtn.classList.add('is-hidden');
   }
 
-  itemCard.querySelector('#markAllDone').onclick = () => { markAllShoppingItemsDone(); onRoute(); };
+  itemCard.querySelector('#markAllDone').onclick = () => {
+    // 闭环：标记全部已买时，把其中的常备品都恢复为充足。
+    const openNames = loadShoppingItems().filter(it => !it.done).map(it => it.name);
+    markAllShoppingItemsDone();
+    restoreStaplesByPurchase(openNames);
+    onRoute();
+  };
   itemCard.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
   itemCard.querySelector('#copyOpenShopping').onclick = () => {
     const text = buildCopyableShoppingList(missing, loadShoppingItems());
@@ -505,53 +578,6 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       .catch(() => setInlineStatus(status, text, 'info'));
   };
   page.appendChild(itemCard);
-
-  const staplesPanel = document.createElement('div');
-  staplesPanel.className = 'card staples-card';
-  staplesPanel.innerHTML = `
-    <h3 class="shopping-staple-heading">
-      <span>🧂</span> 家中常备品检查
-    </h3>
-    <p class="meta shopping-staple-meta">点击缺少的常备品，它们会加入"我的购物项"。</p>
-    <div id="stapleContainer"></div>
-  `;
-  const categories = [
-    { name: '生鲜/蛋', items: ['葱', '姜', '蒜', '大葱', '香菜', '小米辣', '鸡蛋'] },
-    { name: '基础调味', items: ['盐', '糖', '醋', '生抽', '老抽', '料酒', '米酒', '蚝油', '香油', '味精', '鸡精'] },
-    { name: '酱料/腌菜', items: ['豆瓣酱', '甜面酱', '豆豉', '酸菜', '酸豆角', '泡椒'] },
-    { name: '香料/干粉', items: ['淀粉', '花椒', '干辣椒', '胡椒粉', '八角', '桂皮', '香叶', '五香粉', '孜然', '茴香'] },
-    { name: '食用油', items: ['菜油', '猪油'] }
-  ];
-  const stapleContainer = staplesPanel.querySelector('#stapleContainer');
-  categories.forEach(category => {
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'shopping-staple-group';
-    const title = document.createElement('div');
-    title.textContent = category.name;
-    title.className = 'shopping-staple-title';
-    groupDiv.appendChild(title);
-    const pillContainer = document.createElement('div');
-    pillContainer.className = 'ing-compact-container';
-    category.items.forEach(name => {
-      const span = document.createElement('span');
-      span.className = 'ing-tag-pill staple-item';
-      span.textContent = name;
-      const canonical = getCanonicalName(name);
-      const alreadyAdded = loadShoppingItems().some(item => item.name === canonical && item.source === '常备品' && !item.done);
-      if(alreadyAdded) span.classList.add('active');
-      span.onclick = () => {
-        const items = loadShoppingItems();
-        const existing = items.find(item => item.name === canonical && item.source === '常备品' && !item.done);
-        if(existing) saveShoppingItems(items.filter(item => item.id !== existing.id));
-        else addShoppingItem(canonical, '', '', '常备品');
-        onRoute();
-      };
-      pillContainer.appendChild(span);
-    });
-    groupDiv.appendChild(pillContainer);
-    stapleContainer.appendChild(groupDiv);
-  });
-  page.appendChild(staplesPanel);
 
   return page;
 }

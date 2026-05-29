@@ -3223,3 +3223,39 @@ nav a.active svg {
   .home-suggest-card { flex-basis: 84%; }
   .home-hero-greeting { font-size: 16px; }
 }
+
+/* ── 常备货架：双态常备品平铺卡片（采购与库存管理） ── */
+.staple-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+.staple-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--separator);
+  background: var(--bg-card);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.staple-tile:active { transform: scale(0.96); }
+.staple-tile-name { font-size: 14px; font-weight: 700; color: var(--text-main); }
+.staple-tile-state { font-size: 11px; font-weight: 600; }
+.staple-tile-time { font-size: 10px; color: var(--text-secondary); opacity: 0.85; }
+.staple-tile.is-ok {
+  background: var(--status-ok-bg);
+  border-color: var(--status-ok-border);
+}
+.staple-tile.is-ok .staple-tile-state { color: var(--status-ok-text); }
+.staple-tile.is-low {
+  background: var(--status-warn-bg);
+  border-color: var(--status-warn-border);
+}
+.staple-tile.is-low .staple-tile-name,
+.staple-tile.is-low .staple-tile-state { color: var(--status-warn-text); }

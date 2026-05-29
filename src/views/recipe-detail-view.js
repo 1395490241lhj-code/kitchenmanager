@@ -1,20 +1,20 @@
-import { S, todayISO } from '../storage.js?v=161';
-import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=161';
-import { deductInventoryForRecipe, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=161';
+import { S, todayISO } from '../storage.js?v=162';
+import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=162';
+import { deductInventoryForRecipe, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=162';
 import {
   addMissingRecipeIngredientsToShopping,
   addRecipeToPlan,
   getMissingRecipeIngredients,
   markRecipeCooked
-} from '../recommendations.js?v=161';
+} from '../recommendations.js?v=162';
 import {
   callAiForMethod,
   formatAiErrorMessage,
   withTimeout
-} from '../ai.js?v=161';
-import { loadOverlay, saveOverlay } from '../backup.js?v=161';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=161';
-import { showDeductStockModal } from '../components/modal.js?v=161';
+} from '../ai.js?v=162';
+import { loadOverlay, saveOverlay } from '../backup.js?v=162';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=162';
+import { showDeductStockModal } from '../components/modal.js?v=162';
 
 export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   let r = (pack.recipes || []).find(x => x.id === id);
