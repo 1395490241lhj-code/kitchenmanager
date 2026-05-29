@@ -7,12 +7,12 @@
 import {
   DRY_GOODS, EGG_STOCK, DAILY_STOCKS,
   countStockStatus, dryStatusInfo, guessShelfDays, nextDryStatus
-} from '../ingredients.js?v=166';
+} from '../ingredients.js?v=167';
 import {
   ensureStockItem, findStockItem, formatStockLine, saveInventory
-} from '../inventory.js?v=166';
-import { addShoppingItem } from '../shopping.js?v=166';
-import { escapeHtml, brieflyConfirmButton } from './status.js?v=166';
+} from '../inventory.js?v=167';
+import { addShoppingItem } from '../shopping.js?v=167';
+import { escapeHtml, brieflyConfirmButton } from './status.js?v=167';
 
 export function renderDryGoodsCabinet(inv, options = {}) {
   const onInventoryChanged = typeof options.onInventoryChanged === 'function' ? options.onInventoryChanged : () => {};

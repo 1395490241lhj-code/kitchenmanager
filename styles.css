@@ -3055,10 +3055,21 @@ nav a.active svg {
 }
 .home-suggest-scroll::-webkit-scrollbar { display: none; }
 
+/* 横向滚动里的每张卡片都固定宽度、不收缩，避免文字被挤成单字换行 */
+.home-suggest-scroll > * {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+.home-suggest-scroll > .card {          /* AI 推荐卡片（recipeCard 渲染） */
+  width: 260px;
+  max-width: 82vw;
+}
+
 .home-suggest-card {
   scroll-snap-align: start;
-  flex: 0 0 78%;
-  max-width: 240px;
+  flex: 0 0 auto;
+  width: 260px;
+  max-width: 82vw;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -3220,7 +3231,8 @@ nav a.active svg {
 .home-activity-empty { font-size: 13px; color: var(--text-secondary); }
 
 @media (max-width: 380px) {
-  .home-suggest-card { flex-basis: 84%; }
+  .home-suggest-card,
+  .home-suggest-scroll > .card { width: 84vw; }
   .home-hero-greeting { font-size: 16px; }
 }
 

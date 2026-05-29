@@ -1,18 +1,18 @@
-import { S, todayISO } from '../storage.js?v=166';
-import { buildCatalog } from '../ingredients.js?v=166';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=166';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=166';
+import { S, todayISO } from '../storage.js?v=167';
+import { buildCatalog } from '../ingredients.js?v=167';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=167';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=167';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=166';
-import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=166';
-import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=166';
-import { showRecommendationCards } from '../components/recipe-card.js?v=166';
-import { showCleanFridgeModal } from '../components/modal.js?v=166';
-import { renderMenuPlan } from '../components/menu-plan.js?v=166';
-import { requestInventoryIntent } from './shopping-view.js?v=166';
+} from '../recommendations.js?v=167';
+import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=167';
+import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=167';
+import { showRecommendationCards } from '../components/recipe-card.js?v=167';
+import { showCleanFridgeModal } from '../components/modal.js?v=167';
+import { renderMenuPlan } from '../components/menu-plan.js?v=167';
+import { requestInventoryIntent } from './shopping-view.js?v=167';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -190,9 +190,9 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {} }
     note.hidden = !usingMock;
   };
 
-  // AI 推荐：复用原有 AI 推荐卡片渲染与草稿逻辑
+  // AI 推荐：复用原有 AI 推荐卡片渲染与草稿逻辑；最多展示 4 张，避免拥挤。
   const showAi = (aiCards) => {
-    showRecommendationCards(scroll, aiCards, pack, { onRoute });
+    showRecommendationCards(scroll, (aiCards || []).slice(0, 4), pack, { onRoute });
     note.hidden = false;
     note.innerHTML = 'AI 草稿推荐，请确认后再安排。<button type="button" class="home-note-clear" id="heroAiClear">用本地推荐</button>';
     const clearBtn = note.querySelector('#heroAiClear');
