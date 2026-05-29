@@ -1,18 +1,18 @@
-import { S, todayISO } from '../storage.js?v=168';
-import { buildCatalog, getCanonicalName } from '../ingredients.js?v=168';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=168';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=168';
+import { S, todayISO } from '../storage.js?v=169';
+import { buildCatalog, getCanonicalName } from '../ingredients.js?v=169';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=169';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=169';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=168';
-import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=168';
-import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=168';
-import { showRecommendationCards } from '../components/recipe-card.js?v=168';
-import { showCleanFridgeModal } from '../components/modal.js?v=168';
-import { renderMenuPlan } from '../components/menu-plan.js?v=168';
-import { requestInventoryIntent } from './shopping-view.js?v=168';
+} from '../recommendations.js?v=169';
+import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=169';
+import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=169';
+import { showRecommendationCards } from '../components/recipe-card.js?v=169';
+import { showCleanFridgeModal } from '../components/modal.js?v=169';
+import { renderMenuPlan } from '../components/menu-plan.js?v=169';
+import { requestInventoryIntent } from './shopping-view.js?v=169';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -379,9 +379,9 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     return container;
   }
 
-  // 核心三大块
-  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute }));
+  // 自上而下视觉层级：① 紧急指标 ② 今日灵感 ③ 菜单计划 ④ 极速操作（含微型「清冰箱」）
   container.appendChild(renderUrgentMetrics(inv, activeShopping.length));
+  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute }));
   container.appendChild(renderMenuPlan(pack, { onRoute }));
   container.appendChild(renderActionHub(pack, inv, {
     onQuickInput: () => { requestInventoryIntent('add'); location.hash = '#shopping'; },

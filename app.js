@@ -1,17 +1,17 @@
 // v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
-import { el, els } from './src/dom.js?v=168';
-import { S } from './src/storage.js?v=168';
-import { applyOverlay, loadOverlay } from './src/backup.js?v=168';
-import { runLocalStorageMigrations } from './src/migrations.js?v=168';
-import { escapeHtml } from './src/components/status.js?v=168';
-import { renderShopping } from './src/views/shopping-view.js?v=168';
-import { renderInventory } from './src/views/inventory-view.js?v=168';
-import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=168';
-import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=168';
-import { renderHome } from './src/views/home-view.js?v=168';
-import { renderRecipes } from './src/views/recipes-view.js?v=168';
-import { renderSettings } from './src/views/settings-view.js?v=168';
-import { applyCompletionOverlay } from './src/recipe-completion.js?v=168';
+import { el, els } from './src/dom.js?v=169';
+import { S } from './src/storage.js?v=169';
+import { applyOverlay, loadOverlay } from './src/backup.js?v=169';
+import { runLocalStorageMigrations } from './src/migrations.js?v=169';
+import { escapeHtml } from './src/components/status.js?v=169';
+import { renderShopping } from './src/views/shopping-view.js?v=169';
+import { renderInventory } from './src/views/inventory-view.js?v=169';
+import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=169';
+import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=169';
+import { renderHome } from './src/views/home-view.js?v=169';
+import { renderRecipes } from './src/views/recipes-view.js?v=169';
+import { renderSettings } from './src/views/settings-view.js?v=169';
+import { applyCompletionOverlay } from './src/recipe-completion.js?v=169';
 
 // 1. 全局错误捕获
 window.onerror = function(msg, url, line, col, error) {
