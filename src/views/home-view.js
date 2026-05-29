@@ -1,15 +1,17 @@
-import { S, todayISO } from '../storage.js?v=163';
-import { buildCatalog } from '../ingredients.js?v=163';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=163';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=163';
+import { S, todayISO } from '../storage.js?v=164';
+import { buildCatalog } from '../ingredients.js?v=164';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=164';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=164';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
-  getCleanFridgeRecommendations
-} from '../recommendations.js?v=163';
-import { escapeHtml, brieflyConfirmButton } from '../components/status.js?v=163';
-import { showCleanFridgeModal } from '../components/modal.js?v=163';
-import { requestInventoryIntent } from './shopping-view.js?v=163';
+  getCleanFridgeRecommendations, processAiData
+} from '../recommendations.js?v=164';
+import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=164';
+import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=164';
+import { showRecommendationCards } from '../components/recipe-card.js?v=164';
+import { showCleanFridgeModal } from '../components/modal.js?v=164';
+import { requestInventoryIntent } from './shopping-view.js?v=164';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -155,26 +157,80 @@ function renderSuggestCard(card, pack, inv) {
   return el;
 }
 
-function renderInspirationPanel(pack, inv, expiringCount) {
+function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {} } = {}) {
   const section = document.createElement('section');
   section.className = 'home-hero';
-
-  let cards = getInspirationCards(pack, inv);
-  const usingMock = cards.length === 0;
-  if (usingMock) cards = mockAiRecommendations.cards;
 
   const greeting = mockAiRecommendations.greeting || buildGreeting(expiringCount);
   section.innerHTML = `
     <div class="home-hero-glow" aria-hidden="true"></div>
     <div class="home-hero-head">
       <span class="home-hero-eyebrow">🧠 今日灵感</span>
+      <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
       <h2 class="home-hero-greeting">${escapeHtml(greeting)}</h2>
     </div>
+    <div id="heroAiStatus" class="small inline-status" hidden></div>
     <div class="home-suggest-scroll"></div>
-    ${usingMock ? '<p class="home-hero-note">示例推荐 · 录入更多库存后会自动匹配你的食材</p>' : ''}
+    <p class="home-hero-note" id="heroNote"></p>
   `;
   const scroll = section.querySelector('.home-suggest-scroll');
-  cards.forEach(card => scroll.appendChild(renderSuggestCard(card, pack, inv)));
+  const note = section.querySelector('#heroNote');
+  const aiStatus = section.querySelector('#heroAiStatus');
+  const aiBtn = section.querySelector('#heroAiBtn');
+
+  // 默认：本地/示例推荐
+  const showLocal = () => {
+    let cards = getInspirationCards(pack, inv);
+    const usingMock = cards.length === 0;
+    if (usingMock) cards = mockAiRecommendations.cards;
+    scroll.innerHTML = '';
+    cards.forEach(card => scroll.appendChild(renderSuggestCard(card, pack, inv)));
+    note.textContent = usingMock ? '示例推荐 · 录入更多库存后会自动匹配你的食材' : '';
+    note.hidden = !usingMock;
+  };
+
+  // AI 推荐：复用原有 AI 推荐卡片渲染与草稿逻辑
+  const showAi = (aiCards) => {
+    showRecommendationCards(scroll, aiCards, pack, { onRoute });
+    note.hidden = false;
+    note.innerHTML = 'AI 草稿推荐，请确认后再安排。<button type="button" class="home-note-clear" id="heroAiClear">用本地推荐</button>';
+    const clearBtn = note.querySelector('#heroAiClear');
+    if (clearBtn) clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); showLocal(); setInlineStatus(aiStatus, '', 'info'); };
+  };
+
+  // 初次渲染：若已有保存的 AI 推荐则展示，否则本地推荐
+  const savedAiRecs = S.load(S.keys.ai_recs, null);
+  const savedCards = savedAiRecs ? processAiData(savedAiRecs, pack) : [];
+  if (savedCards.length > 0) showAi(savedCards); else showLocal();
+
+  aiBtn.onclick = async () => {
+    if (aiBtn.getAttribute('disabled')) return;
+    aiBtn.setAttribute('disabled', 'true');
+    const original = aiBtn.textContent;
+    aiBtn.innerHTML = '<span class="spinner"></span> 思考中…';
+    const safety = setTimeout(() => {
+      aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled');
+      setInlineStatus(aiStatus, formatAiErrorMessage(new Error('AI 响应超时')), 'bad');
+    }, 30000);
+    try {
+      const aiResult = await callCloudAI(pack, inv);
+      clearTimeout(safety);
+      const cards = processAiData(aiResult, pack);
+      if (cards.length > 0) {
+        S.save(S.keys.ai_recs, aiResult);
+        showAi(cards);
+        setInlineStatus(aiStatus, 'AI 已生成草稿推荐。', 'ok');
+      } else {
+        setInlineStatus(aiStatus, 'AI 没有返回可用菜谱，已保留本地推荐。', 'info');
+      }
+    } catch (e) {
+      clearTimeout(safety);
+      setInlineStatus(aiStatus, formatAiErrorMessage(e), 'bad');
+    } finally {
+      aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled');
+    }
+  };
+
   return section;
 }
 
@@ -317,7 +373,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   }
 
   // 核心三大块
-  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount));
+  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute }));
   container.appendChild(renderUrgentMetrics(inv, activeShopping.length));
   container.appendChild(renderActionHub(pack, inv, {
     onQuickInput: () => { requestInventoryIntent('add'); location.hash = '#shopping'; },
