@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=164';
+import { S, todayISO } from '../storage.js?v=165';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -8,13 +8,13 @@ import {
   isDryGoodName,
   normalizeKitchenAmount,
   isSeasoning
-} from '../ingredients.js?v=164';
+} from '../ingredients.js?v=165';
 import {
   getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=164';
+} from '../inventory.js?v=165';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -25,13 +25,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=164';
+} from '../shopping.js?v=165';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=164';
+} from '../components/status.js?v=165';
 import {
   STAPLE_CATALOG,
   STAPLE_STATUS,
@@ -39,13 +39,22 @@ import {
   restoreStapleByPurchase,
   restoreStaplesByPurchase,
   toggleStaple
-} from '../staples.js?v=164';
-import { renderInventory } from './inventory-view.js?v=164';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=164';
+} from '../staples.js?v=165';
+import { renderInventory } from './inventory-view.js?v=165';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;
 export function requestInventoryIntent(kind) { pendingInventoryIntent = kind; }
+
+// 折叠块封装：summary 作为标题，nodes 作为内容；open 控制默认展开/收起。
+function makeDetails(title, subtitle, nodes, open = false) {
+  const details = document.createElement('details');
+  details.className = 'home-secondary-details';
+  if (open) details.open = true;
+  details.innerHTML = `<summary><span>${escapeHtml(title)}</span><small>${escapeHtml(subtitle)}</small></summary>`;
+  nodes.forEach(node => details.appendChild(node));
+  return details;
+}
 
 let currentPlanRange = 'today';
 function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false, dateRange = 'today') {
@@ -211,13 +220,17 @@ function formatStapleTime(iso) {
 }
 
 // 【常备货架】双态常备品卡片：一键切换 充足 / 不足；切为不足自动进购物清单。
-function renderStaplesShelf({ onRoute = () => {} } = {}) {
-  const panel = document.createElement('div');
-  panel.className = 'card staples-card';
+// 折叠组件，open 控制默认展开/收起（默认收起）。
+function renderStaplesShelf({ onRoute = () => {}, open = false } = {}) {
+  const panel = document.createElement('details');
+  panel.className = 'home-secondary-details staples-details';
+  if (open) panel.open = true;
   panel.innerHTML = `
-    <h3 class="shopping-staple-heading"><span>🧂</span> 常备货架</h3>
-    <p class="meta shopping-staple-meta">点一下切换「充足 / 不足」。标记为<strong>不足</strong>会自动加入下方购物清单；买好后在清单里勾选「已买」，会自动恢复为<strong>充足</strong>并更新库存时间。</p>
-    <div id="stapleShelf"></div>
+    <summary><span>🧂 常备货架</span><small>点一下切换「充足 / 不足」，不足自动进清单</small></summary>
+    <div class="card staples-card">
+      <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入下方购物清单；买好后在清单里勾选「已买」，会自动恢复为<strong>充足</strong>并更新库存时间。</p>
+      <div id="stapleShelf"></div>
+    </div>
   `;
   const shelf = panel.querySelector('#stapleShelf');
   STAPLE_CATALOG.forEach(group => {
@@ -449,7 +462,6 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   itemCard.innerHTML = `
     <div class="shopping-card-head">
       <div>
-        <h3>我的购物项</h3>
         <p class="meta">同名同单位会自动合并，来源会保留下来。</p>
       </div>
       <div class="shopping-bulk-actions">
@@ -583,26 +595,10 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       .then(() => setInlineStatus(status, '已复制未买清单。', 'ok'))
       .catch(() => setInlineStatus(status, text, 'info'));
   };
-  page.appendChild(itemCard);
+  // 【我的购物项 / 购物清单】默认展开（open = true）。
+  page.appendChild(makeDetails('🛒 我的购物项', '勾选「已买」即可；常备品会自动恢复充足', [itemCard], true));
 
-  // ── 库存管理（从首页迁入）：常备货架（蛋奶/干货）+ 完整库存 ──
-  const makeDetails = (title, subtitle, nodes, open = false) => {
-    const details = document.createElement('details');
-    details.className = 'home-secondary-details';
-    if (open) details.open = true;
-    details.innerHTML = `<summary><span>${escapeHtml(title)}</span><small>${escapeHtml(subtitle)}</small></summary>`;
-    nodes.forEach(node => details.appendChild(node));
-    return details;
-  };
-
-  const cabinetDetails = makeDetails(
-    '常备货架（蛋奶 / 干货）',
-    '按数量/状态管理鸡蛋、牛奶、泡发干货',
-    [renderDryGoodsCabinet(inv, { onInventoryChanged: onRoute })],
-    false
-  );
-  page.appendChild(cabinetDetails);
-
+  // ── 库存管理（从首页迁入）：完整库存 ──
   const inventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
   const invDetails = makeDetails(
     '完整库存',
