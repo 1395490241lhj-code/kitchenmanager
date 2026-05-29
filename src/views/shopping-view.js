@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=165';
+import { S, todayISO } from '../storage.js?v=166';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -8,13 +8,13 @@ import {
   isDryGoodName,
   normalizeKitchenAmount,
   isSeasoning
-} from '../ingredients.js?v=165';
+} from '../ingredients.js?v=166';
 import {
   getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=165';
+} from '../inventory.js?v=166';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -25,13 +25,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=165';
+} from '../shopping.js?v=166';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=165';
+} from '../components/status.js?v=166';
 import {
   STAPLE_CATALOG,
   STAPLE_STATUS,
@@ -39,8 +39,10 @@ import {
   restoreStapleByPurchase,
   restoreStaplesByPurchase,
   toggleStaple
-} from '../staples.js?v=165';
-import { renderInventory } from './inventory-view.js?v=165';
+} from '../staples.js?v=166';
+import { renderInventory } from './inventory-view.js?v=166';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=166';
+import { getPlanRange } from '../components/menu-plan.js?v=166';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;
@@ -56,7 +58,6 @@ function makeDetails(title, subtitle, nodes, open = false) {
   return details;
 }
 
-let currentPlanRange = 'today';
 function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false, dateRange = 'today') {
   const map = pack.recipe_ingredients || {};
   const need = {};
@@ -219,16 +220,16 @@ function formatStapleTime(iso) {
   return `补于 ${dISO.slice(5)}`;
 }
 
-// 【常备货架】双态常备品卡片：一键切换 充足 / 不足；切为不足自动进购物清单。
+// 【常备货架】统一管理：双态常备品（调料/米面）+ 蛋奶/干货柜（按数量·状态）。
 // 折叠组件，open 控制默认展开/收起（默认收起）。
-function renderStaplesShelf({ onRoute = () => {}, open = false } = {}) {
+function renderStaplesShelf(inv, { onRoute = () => {}, open = false } = {}) {
   const panel = document.createElement('details');
   panel.className = 'home-secondary-details staples-details';
   if (open) panel.open = true;
   panel.innerHTML = `
-    <summary><span>🧂 常备货架</span><small>点一下切换「充足 / 不足」，不足自动进清单</small></summary>
+    <summary><span>🧂 常备货架</span><small>调料一键切换充足/不足；蛋奶·干货按数量/状态管理</small></summary>
     <div class="card staples-card">
-      <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入下方购物清单；买好后在清单里勾选「已买」，会自动恢复为<strong>充足</strong>并更新库存时间。</p>
+      <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入购物清单；买好后在清单里勾选「已买」，会自动恢复为<strong>充足</strong>并更新库存时间。</p>
       <div id="stapleShelf"></div>
     </div>
   `;
@@ -259,6 +260,14 @@ function renderStaplesShelf({ onRoute = () => {}, open = false } = {}) {
     groupDiv.appendChild(grid);
     shelf.appendChild(groupDiv);
   });
+
+  // 合并蛋奶 / 干货柜（鸡蛋按数量、牛奶与泡发干货按状态），统一在常备货架内管理。
+  const card = panel.querySelector('.staples-card');
+  const divider = document.createElement('div');
+  divider.className = 'pantry-shelf-divider';
+  card.appendChild(divider);
+  card.appendChild(renderDryGoodsCabinet(inv, { onInventoryChanged: onRoute, showTitle: false }));
+
   return panel;
 }
 
@@ -280,7 +289,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     }
   }
   const includeSeasonings = settings.includeSeasoningsInShopping === true;
-  const missing = buildPlanMissingItems(pack, inv, plan, includeSeasonings, currentPlanRange);
+  const missing = buildPlanMissingItems(pack, inv, plan, includeSeasonings, getPlanRange());
   const mergedItems = mergeShoppingItems(shoppingItems);
   const openItems = mergedItems.filter(item => !item.done);
   const doneItems = mergedItems.filter(item => item.done);
@@ -315,93 +324,6 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     addShoppingItem(name, manualCard.querySelector('#shoppingAddQty').value || '', manualCard.querySelector('#shoppingAddUnit').value || '', '手动');
     onRoute();
   };
-  page.appendChild(manualCard);
-
-  const planCard = document.createElement('div');
-  planCard.className = 'card shopping-plan-card';
-  planCard.innerHTML = `
-    <div class="shopping-card-head" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <h3 style="margin:0;">菜单计划</h3>
-      <select id="planRangeSelect" style="padding:4px 8px; border-radius:var(--radius-s); border:1px solid var(--separator); background:var(--bg-input); font-size:13px; color:var(--text-main); font-weight:700;">
-        <option value="today">只看今天</option>
-        <option value="3days">未来 3 天</option>
-      </select>
-    </div>
-  `;
-  const rangeSelect = planCard.querySelector('#planRangeSelect');
-  if (rangeSelect) {
-    rangeSelect.value = currentPlanRange;
-    rangeSelect.onchange = (e) => {
-      currentPlanRange = e.target.value;
-      onRoute();
-    };
-  }
-
-  const today = todayISO();
-  const baseDate = new Date(today);
-  const tomorrow = new Date(baseDate);
-  tomorrow.setDate(baseDate.getDate() + 1);
-  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
-  const dayAfter = new Date(baseDate);
-  dayAfter.setDate(baseDate.getDate() + 2);
-  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
-
-  const getDayLabel = (dateStr) => {
-    const d = dateStr || today;
-    if (d === today) return '今天';
-    if (d === tomorrowISO) return '明天';
-    if (d === dayAfterISO) return '后天';
-    return d;
-  };
-
-  const filteredPlans = plan.filter(item => {
-    const d = item.date || today;
-    if (currentPlanRange === 'today') {
-      return d === today;
-    } else if (currentPlanRange === '3days') {
-      return d === today || d === tomorrowISO || d === dayAfterISO;
-    }
-    return true;
-  });
-
-  const planList = document.createElement('div');
-  planList.className = 'shopping-plan-list';
-  if(!filteredPlans.length) {
-    const empty = document.createElement('p');
-    empty.className = 'small';
-    empty.textContent = '该时间段暂未添加菜谱。';
-    planList.appendChild(empty);
-  } else {
-    for(const item of filteredPlans) {
-      const recipe = (pack.recipes || []).find(r => r.id === item.id);
-      if(!recipe) continue;
-      const row = document.createElement('div');
-      row.className = 'shopping-plan-row';
-      const label = getDayLabel(item.date);
-      row.innerHTML = `<span class="shopping-plan-name">${escapeHtml(recipe.name)} <small style="color:var(--text-secondary);">(${label})</small></span><label class="shopping-servings"><span>份数</span><input type="number" min="1" max="8" step="1" value="${item.servings||1}"></label><a class="btn small" href="javascript:void(0)">移除</a>`;
-      row.querySelector('input').onchange = event => {
-        const plans = S.load(S.keys.plan, []);
-        const target = plans.find(x => x.id === item.id && (x.date || today) === (item.date || today));
-        if(target) {
-          target.servings = +event.target.value || 1;
-          S.save(S.keys.plan, plans);
-          onRoute();
-        }
-      };
-      row.querySelector('.btn').onclick = () => {
-        const plans = S.load(S.keys.plan, []);
-        const index = plans.findIndex(x => x.id === item.id && (x.date || today) === (item.date || today));
-        if(index >= 0) {
-          plans.splice(index, 1);
-          S.save(S.keys.plan, plans);
-          onRoute();
-        }
-      };
-      planList.appendChild(row);
-    }
-  }
-  planCard.appendChild(planList);
-  page.appendChild(planCard);
 
   const missingCard = document.createElement('div');
   missingCard.className = 'card shopping-missing-card';
@@ -452,10 +374,6 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     });
   }
   missingCard.appendChild(missingTable);
-  page.appendChild(missingCard);
-
-  // 【常备货架】区域（双态常备品）——位于「我的购物项」上方，构成采购闭环。
-  page.appendChild(renderStaplesShelf({ onRoute }));
 
   const itemCard = document.createElement('div');
   itemCard.className = 'card shopping-items-card';
@@ -595,10 +513,10 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       .then(() => setInlineStatus(status, '已复制未买清单。', 'ok'))
       .catch(() => setInlineStatus(status, text, 'info'));
   };
-  // 【我的购物项 / 购物清单】默认展开（open = true）。
-  page.appendChild(makeDetails('🛒 我的购物项', '勾选「已买」即可；常备品会自动恢复充足', [itemCard], true));
+  // 合并后的【常备货架】：双态常备品 + 蛋奶/干货柜，统一管理，默认收起。
+  const staplesShelf = renderStaplesShelf(inv, { onRoute, open: false });
 
-  // ── 库存管理（从首页迁入）：完整库存 ──
+  // 【完整库存】默认收起（跨页意图跳转时才展开）。
   const inventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
   const invDetails = makeDetails(
     '完整库存',
@@ -607,6 +525,12 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     pendingInventoryIntent != null
   );
   invDetails.id = 'shoppingInventoryDetails';
+
+  // ── 页面顺序：① 我的购物项 ② 菜谱缺货 ③ 手动添加 ④ 常备货架 ⑤ 完整库存 ──
+  page.appendChild(makeDetails('🛒 我的购物项', '勾选「已买」即可；常备品会自动恢复充足', [itemCard], true));
+  page.appendChild(missingCard);
+  page.appendChild(manualCard);
+  page.appendChild(staplesShelf);
   page.appendChild(invDetails);
 
   // 消费跨页意图：首页跳转过来时自动展开库存并触发对应动作。

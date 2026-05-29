@@ -7,15 +7,16 @@
 import {
   DRY_GOODS, EGG_STOCK, DAILY_STOCKS,
   countStockStatus, dryStatusInfo, guessShelfDays, nextDryStatus
-} from '../ingredients.js?v=165';
+} from '../ingredients.js?v=166';
 import {
   ensureStockItem, findStockItem, formatStockLine, saveInventory
-} from '../inventory.js?v=165';
-import { addShoppingItem } from '../shopping.js?v=165';
-import { escapeHtml, brieflyConfirmButton } from './status.js?v=165';
+} from '../inventory.js?v=166';
+import { addShoppingItem } from '../shopping.js?v=166';
+import { escapeHtml, brieflyConfirmButton } from './status.js?v=166';
 
 export function renderDryGoodsCabinet(inv, options = {}) {
   const onInventoryChanged = typeof options.onInventoryChanged === 'function' ? options.onInventoryChanged : () => {};
+  const showTitle = options.showTitle !== false; // 默认显示标题；嵌入「常备货架」时传 false 省略
   let debounceTimer = null;
   const notifyChange = () => {
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -25,7 +26,7 @@ export function renderDryGoodsCabinet(inv, options = {}) {
   };
   const section = document.createElement('section'); section.className = 'dry-goods-section';
   section.innerHTML = `
-    <div class="section-title home-section-title"><span>常备货架</span></div>
+    ${showTitle ? '<div class="section-title home-section-title"><span>常备货架</span></div>' : ''}
     <div class="dry-goods-card card">
       <div class="dry-goods-head">
         <div>

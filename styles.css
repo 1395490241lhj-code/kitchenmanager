@@ -3306,3 +3306,29 @@ nav a.active svg {
   border-radius: 999px;
   cursor: pointer;
 }
+
+/* ── 菜单计划：标题严格单行，不换行 ── */
+.menu-plan-card { margin-top: 14px; }
+.menu-plan-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.menu-plan-title {
+  margin: 0;
+  white-space: nowrap;   /* 修复「菜单计划」四字异常换行 */
+  flex: 0 0 auto;
+}
+.menu-plan-range {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--separator);
+  background: var(--bg-input);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}

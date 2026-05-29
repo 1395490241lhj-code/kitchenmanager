@@ -1,17 +1,18 @@
-import { S, todayISO } from '../storage.js?v=165';
-import { buildCatalog } from '../ingredients.js?v=165';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=165';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=165';
+import { S, todayISO } from '../storage.js?v=166';
+import { buildCatalog } from '../ingredients.js?v=166';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=166';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=166';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=165';
-import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=165';
-import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=165';
-import { showRecommendationCards } from '../components/recipe-card.js?v=165';
-import { showCleanFridgeModal } from '../components/modal.js?v=165';
-import { requestInventoryIntent } from './shopping-view.js?v=165';
+} from '../recommendations.js?v=166';
+import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=166';
+import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=166';
+import { showRecommendationCards } from '../components/recipe-card.js?v=166';
+import { showCleanFridgeModal } from '../components/modal.js?v=166';
+import { renderMenuPlan } from '../components/menu-plan.js?v=166';
+import { requestInventoryIntent } from './shopping-view.js?v=166';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -375,6 +376,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   // 核心三大块
   container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute }));
   container.appendChild(renderUrgentMetrics(inv, activeShopping.length));
+  container.appendChild(renderMenuPlan(pack, { onRoute }));
   container.appendChild(renderActionHub(pack, inv, {
     onQuickInput: () => { requestInventoryIntent('add'); location.hash = '#shopping'; },
     onRoute
