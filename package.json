@@ -1,0 +1,13 @@
+{
+  "name": "kitchenmanager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kitchen Manager / 厨房管理 —— 本地优先的家庭厨房库存、菜谱与购物清单工具（全栈一体化：Express 静态托管 + 小红书抓取代理）。",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "express": "^4.19.2"
+  }
+}

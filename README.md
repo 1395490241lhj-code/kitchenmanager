@@ -115,19 +115,19 @@
 
 ### 本地运行方式
 
-本项目是**纯静态的 HTML / JavaScript / CSS** 结构，不需要安装 Node.js，也没有任何 `npm install` 或 `npm run dev` 编译步骤。
+前端是**纯静态的 HTML / JavaScript / CSS**，无构建步骤。另提供一个**轻量 Node 全栈服务器**（`server.js`），用于静态托管 + 小红书链接抓取代理。
 
-推荐使用任何本地静态服务器运行项目：
+1.  **全栈模式（推荐，支持「AI 一键导入菜谱」的链接抓取）**
+    ```bash
+    npm install
+    npm start          # 默认 http://localhost:3000
+    ```
+    *   `server.js` 用 Express 托管整个前端，并提供 `GET /api/xhs-extract?url=...` 代理：服务端跟随 302 短链、伪造移动端 UA、解析 `window.__INITIAL_STATE__` 提取菜谱文案，绕过浏览器跨域限制，实现链接导入闭环。
 
-1.  **Python 静态服务器（最推荐，系统通常自带）**
-    *   在项目根目录下打开命令行/终端，运行以下命令：
-        ```bash
-        python -m http.server 8000
-        ```
-    *   在浏览器中访问：`http://localhost:8000`
-
-2.  **VS Code Live Server 插件**
-    *   如果您使用 VS Code，可以直接右键 `index.html` 并选择 `Open with Live Server` 运行。
+2.  **纯静态模式（只浏览，不需要链接抓取）**
+    *   `python -m http.server 8000`，访问 `http://localhost:8000`；
+    *   或 VS Code 右键 `index.html` → `Open with Live Server`。
+    *   此模式下 `/api/xhs-extract` 不存在，「AI 一键导入」的**链接**会提示改用文字/截图（截图→视觉解析仍可用）。
 
 > [!NOTE]
 > 虽然直接双击双击打开 `index.html` 也可以浏览基础页面，但由于浏览器的安全限制（CORS、Origin限制），直接用 `file://` 协议运行时，**AI 接口调用、PWA 缓存、某些图片选取**可能会受限。强烈建议使用上述本地静态服务器运行。

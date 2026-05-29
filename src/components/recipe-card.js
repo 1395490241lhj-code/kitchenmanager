@@ -1,28 +1,28 @@
-import { S, todayISO } from '../storage.js?v=174';
+import { S, todayISO } from '../storage.js?v=175';
 import {
   explodeCombinedItems,
   isSeasoning
-} from '../ingredients.js?v=174';
+} from '../ingredients.js?v=175';
 import {
   hasRecipeMethod,
   isFavoriteRecipe,
   markRecipePlanned,
   toggleFavoriteRecipe,
   calculateStockStatus
-} from '../recommendations.js?v=174';
+} from '../recommendations.js?v=175';
 import {
   callAiSearchRecipe,
   formatAiErrorMessage
-} from '../ai.js?v=174';
+} from '../ai.js?v=175';
 import {
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=174';
+} from '../backup.js?v=175';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus
-} from './status.js?v=174';
+} from './status.js?v=175';
 
 export function recipeMethodBadge(recipe) {
   return hasRecipeMethod(recipe)

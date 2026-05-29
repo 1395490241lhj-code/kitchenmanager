@@ -1,11 +1,11 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=174';
-import { genId } from '../shopping.js?v=174';
-import { hasRecipeMethod } from '../recommendations.js?v=174';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=174';
-import { buildCatalog } from '../ingredients.js?v=174';
-import { loadInventory } from '../inventory.js?v=174';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=174';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=174';
+import { loadOverlay, saveOverlay } from '../backup.js?v=175';
+import { genId } from '../shopping.js?v=175';
+import { hasRecipeMethod } from '../recommendations.js?v=175';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=175';
+import { buildCatalog } from '../ingredients.js?v=175';
+import { loadInventory } from '../inventory.js?v=175';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=175';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=175';
 
 // 把 AI 解析出的菜谱草稿写入 overlay，并跳转到编辑器（沿用「新建菜谱」数据流）。
 function saveImportedDraft(draft) {
