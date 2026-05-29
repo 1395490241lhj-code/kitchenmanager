@@ -1,5 +1,5 @@
-import { els } from '../dom.js?v=170';
-import { todayISO } from '../storage.js?v=170';
+import { els } from '../dom.js?v=171';
+import { todayISO } from '../storage.js?v=171';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -9,7 +9,7 @@ import {
   guessShelfDays,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=170';
+} from '../ingredients.js?v=171';
 import {
   inventoryStateInfo,
   loadInventory,
@@ -18,21 +18,21 @@ import {
   remainingDays,
   saveInventory,
   upsertInventory
-} from '../inventory.js?v=170';
+} from '../inventory.js?v=171';
 import {
   formatAiErrorMessage,
   recognizeReceipt,
   withTimeout
-} from '../ai.js?v=170';
+} from '../ai.js?v=171';
 import {
   showEditInventoryModal,
   showReceiptConfirmationModal
-} from '../components/modal.js?v=170';
+} from '../components/modal.js?v=171';
 import {
   escapeHtml,
   escapeOptionAttr,
   setSelectValueWithOption
-} from '../components/status.js?v=170';import { markShoppingItemsStockedIn } from '../shopping.js?v=170';
+} from '../components/status.js?v=171';import { markShoppingItemsStockedIn } from '../shopping.js?v=171';
 
 function badgeFor(e){
   if((e.kind || 'raw') === 'dry') return `<span class="kchip dry" title="${escapeOptionAttr(getDryPrepText(e.name))}">干货 · ${escapeHtml(getDryPrepText(e.name))}</span>`;
@@ -203,7 +203,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     onInventoryChanged();
   };
 
-  const tbl=document.createElement('table'); tbl.className='table inventory-table'; tbl.innerHTML=`<thead><tr><th class="col-name">食材</th><th class="col-status">厨房状态</th><th class="col-shelf">保质</th><th class="right">操作</th></tr></thead><tbody></tbody>`; wrap.appendChild(tbl);
+  const grid=document.createElement('div'); grid.className='inventory-grid'; wrap.appendChild(grid);
   const scanStatus = searchDiv.querySelector('#scanStatus');
   searchDiv.querySelector('#camInput').onchange = async (e) => {
     const file = e.target.files[0]; if(!file) return;
@@ -241,7 +241,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     finally { e.target.value = ''; }
   };
   function renderTable(){
-    const tb=tbl.querySelector('tbody'); tb.innerHTML='';
+    grid.innerHTML='';
     const filteredInv = inv;
     // 按紧急程度降序：过期 → 临期 → 新鲜/冷冻 → 常备干货；同档按剩余天数升序。
     filteredInv.sort((a, b) => {
@@ -249,38 +249,39 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       if (la.rank !== lb.rank) return la.rank - lb.rank;
       return remainingDays(a) - remainingDays(b);
     });
-    if(filteredInv.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="small inventory-empty-row">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</td></tr>`; return; }
+    if(filteredInv.length === 0) {
+      grid.innerHTML = `<div class="small inventory-empty-row">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</div>`;
+      return;
+    }
     for(const e of filteredInv){
-      const tr=document.createElement('tr');
+      const card=document.createElement('div');
       const stockInfo = inventoryStateInfo(e.stockStatus);
       const life = lifeStatus(e);
-      tr.className = `inventory-row life-${life.key}`;
+      card.className = `inventory-card inventory-row life-${life.key}`;
       const lifeBar = `<div class="inv-life-bar" title="剩余保质期 ${life.pct}%"><span style="width:${life.pct}%"></span></div>`;
-      tr.innerHTML=`
-        <td class="inventory-name-cell">
+      card.innerHTML=`
+        <div class="inv-card-head">
           <span class="inventory-item-name">${e.name}</span>
-          <br><small class="inventory-item-date">${e.buyDate||'未知'}</small>
-          ${lifeBar}
-        </td>
-        <td class="kitchen-status-cell"><button type="button" class="inventory-status-chip ${stockInfo.className}" title="点击切换厨房状态">${stockInfo.label}</button><div class="inventory-amount-control"><span>存量</span><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}"><small>${e.unit}</small></div></td>
-        <td class="status-cell">${badgeFor(e)}</td>
-        <td class="right"><button class="btn bad small inventory-delete-btn" type="button">删</button></td>`;
+          <button class="btn bad small inventory-delete-btn" type="button" aria-label="删除">删</button>
+        </div>
+        <div class="status-cell">${badgeFor(e)}</div>
+        ${lifeBar}
+        <div class="inv-card-foot">
+          <button type="button" class="inventory-status-chip ${stockInfo.className}" title="点击切换厨房状态">${stockInfo.label}</button>
+          <div class="inventory-amount-control"><span>存量</span><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}"><small>${e.unit}</small></div>
+        </div>
+        <small class="inventory-item-date">${e.buyDate||'未知'}</small>`;
 
-      tr.querySelector('.inventory-name-cell').onclick = () => {
-        showEditInventoryModal(e, () => {
-          saveInventory(inv);
-          renderTable();
-          onInventoryChanged();
-        });
+      // 点击菜名打开编辑（其余可交互区域阻止冒泡）
+      card.querySelector('.inventory-item-name').onclick = () => {
+        showEditInventoryModal(e, () => { saveInventory(inv); renderTable(); onInventoryChanged(); });
       };
 
-      const qtyInput = tr.querySelector('input');
-      const stockBtn = tr.querySelector('.inventory-status-chip');
+      const qtyInput = card.querySelector('.qty-input');
+      const stockBtn = card.querySelector('.inventory-status-chip');
       stockBtn.onclick = () => {
         e.stockStatus = nextInventoryState(e.stockStatus);
-        saveInventory(inv);
-        renderTable();
-        onInventoryChanged();
+        saveInventory(inv); renderTable(); onInventoryChanged();
       };
 
       qtyInput.onchange = () => {
@@ -292,19 +293,21 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         onInventoryChanged();
       };
 
-      const statusCell = tr.querySelector('.status-cell');
+      const statusCell = card.querySelector('.status-cell');
       if(statusCell) {
         statusCell.onclick = () => {
           if((e.kind || 'raw') === 'dry') return;
           e.isFrozen = !e.isFrozen;
           e.shelf = e.isFrozen ? 180 : guessShelfDays(e.name, e.unit);
-          saveInventory(inv);
-          renderTable();
-          onInventoryChanged();
+          saveInventory(inv); renderTable(); onInventoryChanged();
         };
       }
 
-      els('.btn',tr)[0].onclick=()=>{ const i=inv.indexOf(e); if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); onInventoryChanged(); }}; tb.appendChild(tr);
+      card.querySelector('.inventory-delete-btn').onclick = () => {
+        const i = inv.indexOf(e);
+        if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); onInventoryChanged(); }
+      };
+      grid.appendChild(card);
     }
   }
   renderTable(); return wrap;

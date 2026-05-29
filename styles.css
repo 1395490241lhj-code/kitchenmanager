@@ -3389,3 +3389,76 @@ nav a.active svg {
 .life-expired .inv-life-bar > span { background: var(--danger); }
 .life-frozen .inv-life-bar > span { background: var(--primary); }
 .life-pantry .inv-life-bar { display: none; }
+
+/* ── 导航 Tab 文本不换行（修复「库存管理」换行） ── */
+nav a span { white-space: nowrap; }
+
+/* ── 完整库存：3 列网格卡片（移动端 1 列） ── */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+@media (min-width: 560px) {
+  .inventory-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.inventory-grid .inventory-empty-row {
+  grid-column: 1 / -1;
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.inventory-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--separator);
+  border-left: 3px solid var(--separator);
+  background: var(--bg-card);
+}
+.inv-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+.inventory-card .inventory-item-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  line-height: 1.25;
+  word-break: break-all;
+}
+.inventory-card .inventory-delete-btn { flex: 0 0 auto; padding: 2px 8px; }
+.inventory-card .status-cell { margin: 0; }
+.inventory-card .inv-life-bar { max-width: none; margin-top: 2px; }
+.inv-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.inventory-card .inventory-amount-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.inventory-card .inventory-amount-control .qty-input { width: 48px; }
+.inventory-card .inventory-item-date {
+  color: var(--text-secondary);
+  opacity: 0.8;
+  font-size: 11px;
+}
+
+/* 卡片底色 / 左侧状态条（按保质期状态） */
+.inventory-card.life-expired { background: rgba(255, 59, 48, 0.16); border-left-color: var(--danger); }
+.inventory-card.life-near    { background: rgba(255, 149, 0, 0.15); border-left-color: var(--warning); }
+.inventory-card.life-fresh   { background: rgba(52, 199, 89, 0.10); border-left-color: var(--accent); }
+.inventory-card.life-frozen  { background: rgba(0, 122, 255, 0.10); border-left-color: var(--primary); }
+.inventory-card.life-pantry  { background: rgba(120, 120, 128, 0.08); border-left-color: var(--separator); }

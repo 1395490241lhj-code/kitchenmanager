@@ -1,18 +1,18 @@
-import { S, todayISO } from '../storage.js?v=170';
-import { buildCatalog, getCanonicalName } from '../ingredients.js?v=170';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=170';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=170';
+import { S, todayISO } from '../storage.js?v=171';
+import { buildCatalog, getCanonicalName } from '../ingredients.js?v=171';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=171';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=171';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=170';
-import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=170';
-import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=170';
-import { showRecommendationCards } from '../components/recipe-card.js?v=170';
-import { showCleanFridgeModal } from '../components/modal.js?v=170';
-import { renderMenuPlan } from '../components/menu-plan.js?v=170';
-import { requestInventoryIntent } from './shopping-view.js?v=170';
+} from '../recommendations.js?v=171';
+import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=171';
+import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=171';
+import { showRecommendationCards } from '../components/recipe-card.js?v=171';
+import { showCleanFridgeModal } from '../components/modal.js?v=171';
+import { renderMenuPlan } from '../components/menu-plan.js?v=171';
+import { requestInventoryIntent } from './shopping-view.js?v=171';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
