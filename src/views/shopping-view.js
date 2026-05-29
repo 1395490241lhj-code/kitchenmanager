@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=167';
+import { S, todayISO } from '../storage.js?v=168';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -8,13 +8,13 @@ import {
   isDryGoodName,
   normalizeKitchenAmount,
   isSeasoning
-} from '../ingredients.js?v=167';
+} from '../ingredients.js?v=168';
 import {
   getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=167';
+} from '../inventory.js?v=168';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -25,13 +25,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=167';
+} from '../shopping.js?v=168';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=167';
+} from '../components/status.js?v=168';
 import {
   STAPLE_CATALOG,
   STAPLE_STATUS,
@@ -39,14 +39,18 @@ import {
   restoreStapleByPurchase,
   restoreStaplesByPurchase,
   toggleStaple
-} from '../staples.js?v=167';
-import { renderInventory } from './inventory-view.js?v=167';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=167';
-import { getPlanRange } from '../components/menu-plan.js?v=167';
+} from '../staples.js?v=168';
+import { renderInventory } from './inventory-view.js?v=168';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=168';
+import { getPlanRange } from '../components/menu-plan.js?v=168';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;
 export function requestInventoryIntent(kind) { pendingInventoryIntent = kind; }
+
+// 记忆折叠块展开状态，避免编辑库存触发重渲染后被重置收起。
+let staplesShelfOpen = false;
+let invDetailsOpen = false;
 
 // 折叠块封装：summary 作为标题，nodes 作为内容；open 控制默认展开/收起。
 function makeDetails(title, subtitle, nodes, open = false) {
@@ -220,16 +224,18 @@ function formatStapleTime(iso) {
   return `补于 ${dISO.slice(5)}`;
 }
 
-// 【常备货架】统一管理：双态常备品（调料/米面）+ 蛋奶/干货柜（按数量·状态）。
-// 折叠组件，open 控制默认展开/收起（默认收起）。
-function renderStaplesShelf(inv, { onRoute = () => {}, open = false } = {}) {
+// 【常备货架】统一管理：调料/米面（双态常备品）+ 蛋奶/干货（同样的双态瓦片）。
+// 折叠组件，open 状态由模块变量 staplesShelfOpen 记忆，避免重渲染后被重置收起。
+function renderStaplesShelf(inv, { onRoute = () => {} } = {}) {
   const panel = document.createElement('details');
   panel.className = 'home-secondary-details staples-details';
-  if (open) panel.open = true;
+  if (staplesShelfOpen) panel.open = true;
+  // 记忆展开/收起状态：编辑库存触发 onRoute 重渲染时保持原样。
+  panel.addEventListener('toggle', () => { staplesShelfOpen = panel.open; });
   panel.innerHTML = `
-    <summary><span>🧂 常备货架</span><small>调料一键切换充足/不足；蛋奶·干货按数量/状态管理</small></summary>
+    <summary><span>🧂 常备货架</span><small>点一下切换「充足 / 不足」，不足自动进购物清单</small></summary>
     <div class="card staples-card">
-      <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入购物清单；买好后在清单里勾选「已买」，会自动恢复为<strong>充足</strong>并更新库存时间。</p>
+      <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入购物清单；买好后在清单里勾选「已买」，常备调料会自动恢复为<strong>充足</strong>。</p>
       <div id="stapleShelf"></div>
     </div>
   `;
@@ -261,12 +267,8 @@ function renderStaplesShelf(inv, { onRoute = () => {}, open = false } = {}) {
     shelf.appendChild(groupDiv);
   });
 
-  // 合并蛋奶 / 干货柜（鸡蛋按数量、牛奶与泡发干货按状态），统一在常备货架内管理。
-  const card = panel.querySelector('.staples-card');
-  const divider = document.createElement('div');
-  divider.className = 'pantry-shelf-divider';
-  card.appendChild(divider);
-  card.appendChild(renderDryGoodsCabinet(inv, { onInventoryChanged: onRoute, showTitle: false }));
+  // 蛋奶 / 干货：同样的双态瓦片，直接并入同一组网格，视觉与调料一致。
+  shelf.appendChild(renderDryGoodsCabinet(inv, { onRoute }));
 
   return panel;
 }
@@ -513,18 +515,19 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       .then(() => setInlineStatus(status, '已复制未买清单。', 'ok'))
       .catch(() => setInlineStatus(status, text, 'info'));
   };
-  // 合并后的【常备货架】：双态常备品 + 蛋奶/干货柜，统一管理，默认收起。
-  const staplesShelf = renderStaplesShelf(inv, { onRoute, open: false });
+  // 合并后的【常备货架】：调料/米面 + 蛋奶/干货，统一双态瓦片，默认收起、展开状态记忆。
+  const staplesShelf = renderStaplesShelf(inv, { onRoute });
 
-  // 【完整库存】默认收起（跨页意图跳转时才展开）。
+  // 【完整库存】默认收起（跨页意图跳转或上次展开过时才展开），展开状态记忆。
   const inventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
   const invDetails = makeDetails(
     '完整库存',
     '手动录入、拍小票及完整库存明细',
     [inventoryNode],
-    pendingInventoryIntent != null
+    invDetailsOpen || pendingInventoryIntent != null
   );
   invDetails.id = 'shoppingInventoryDetails';
+  invDetails.addEventListener('toggle', () => { invDetailsOpen = invDetails.open; });
 
   // ── 页面顺序：① 我的购物项 ② 菜谱缺货 ③ 手动添加 ④ 常备货架 ⑤ 完整库存 ──
   page.appendChild(makeDetails('🛒 我的购物项', '勾选「已买」即可；常备品会自动恢复充足', [itemCard], true));

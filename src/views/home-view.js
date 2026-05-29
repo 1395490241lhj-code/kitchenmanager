@@ -1,18 +1,18 @@
-import { S, todayISO } from '../storage.js?v=167';
-import { buildCatalog } from '../ingredients.js?v=167';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=167';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=167';
+import { S, todayISO } from '../storage.js?v=168';
+import { buildCatalog, getCanonicalName } from '../ingredients.js?v=168';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=168';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=168';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=167';
-import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=167';
-import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=167';
-import { showRecommendationCards } from '../components/recipe-card.js?v=167';
-import { showCleanFridgeModal } from '../components/modal.js?v=167';
-import { renderMenuPlan } from '../components/menu-plan.js?v=167';
-import { requestInventoryIntent } from './shopping-view.js?v=167';
+} from '../recommendations.js?v=168';
+import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=168';
+import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=168';
+import { showRecommendationCards } from '../components/recipe-card.js?v=168';
+import { showCleanFridgeModal } from '../components/modal.js?v=168';
+import { renderMenuPlan } from '../components/menu-plan.js?v=168';
+import { requestInventoryIntent } from './shopping-view.js?v=168';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -45,9 +45,15 @@ function buildGreeting(expiringCount) {
   return `${emoji} ${part}！根据你现在的库存，今晚推荐这几道：`;
 }
 
+// 到期提醒不统计鸡蛋、牛奶（它们按常备品状态管理，不看保质期）。
+const EXPIRY_EXCLUDE_NAMES = new Set(['鸡蛋', '牛奶']);
+function isExpiryTracked(item) {
+  return isInventoryAvailable(item) && !EXPIRY_EXCLUDE_NAMES.has(getCanonicalName(item.name || ''));
+}
+
 function getExpiringItems(inv) {
   return [...(inv || [])]
-    .filter(item => isInventoryAvailable(item) && remainingDays(item) <= 3)
+    .filter(item => isExpiryTracked(item) && remainingDays(item) <= 3)
     .sort((a, b) => remainingDays(a) - remainingDays(b))
     .slice(0, 4);
 }
@@ -237,7 +243,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {} }
 
 // ── Section 2: 紧急指标 / 雷达（2 列） ─────────────────────────────────────
 function renderUrgentMetrics(inv, activeShoppingCount) {
-  const expiring48 = (inv || []).filter(it => isInventoryAvailable(it) && remainingDays(it) <= 2);
+  const expiring48 = (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 2);
   const hasExpired = expiring48.some(it => remainingDays(it) < 0);
   const radarTone = expiring48.length > 0 ? (hasExpired ? 'is-bad' : 'is-warn') : 'is-ok';
 
@@ -361,7 +367,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   const container = document.createElement('div');
   const catalog = buildCatalog(pack);
   const inv = loadInventory(catalog);
-  const expiringSoonCount = (inv || []).filter(it => isInventoryAvailable(it) && remainingDays(it) <= 3).length;
+  const expiringSoonCount = (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3).length;
   const activeShopping = loadShoppingItems().filter(item => !item.done);
 
   const title = document.createElement('div'); title.className = 'main-title-center'; title.innerHTML = '<span>厨房</span>';

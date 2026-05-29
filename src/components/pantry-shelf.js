@@ -1,129 +1,90 @@
 /*
  * src/components/pantry-shelf.js
  *
- * 「常备货架」(蛋奶 / 泡发干货) 组件——按数量 / 状态管理鸡蛋、牛奶、木耳等。
- * 从首页迁出，现挂在「清单（采购与库存管理）」页。逻辑保持不变。
+ * 蛋奶 / 干货「常备品瓦片」——与基础调味料一致的极简状态色块（充足 / 不足）。
+ * 嵌入「常备货架」折叠块内；返回一个 DocumentFragment（若干 .shopping-staple-group）。
+ *
+ * 双态：充足 = 有货；不足 = 缺货（点一下切换）。
+ *   - 切为「不足」→ 自动加入购物清单（与调味料常备品行为一致）。
+ *   - 切回「充足」→ 移除该项仍未购买的清单项。
+ * 状态存在 inventory（stockStatus / qty），保留保质期等语义。
  */
-import {
-  DRY_GOODS, EGG_STOCK, DAILY_STOCKS,
-  countStockStatus, dryStatusInfo, guessShelfDays, nextDryStatus
-} from '../ingredients.js?v=167';
-import {
-  ensureStockItem, findStockItem, formatStockLine, saveInventory
-} from '../inventory.js?v=167';
-import { addShoppingItem } from '../shopping.js?v=167';
-import { escapeHtml, brieflyConfirmButton } from './status.js?v=167';
+import { DRY_GOODS, EGG_STOCK, DAILY_STOCKS, guessShelfDays } from '../ingredients.js?v=168';
+import { ensureStockItem, findStockItem, saveInventory } from '../inventory.js?v=168';
+import { addShoppingItem, loadShoppingItems, saveShoppingItems } from '../shopping.js?v=168';
+import { escapeHtml } from './status.js?v=168';
 
+const PANTRY_GROUPS = [
+  {
+    group: '蛋奶',
+    items: [
+      { name: EGG_STOCK.name, kind: 'raw', unit: EGG_STOCK.unit, source: '日常补给' },
+      ...DAILY_STOCKS.map(c => ({ name: c.name, kind: 'raw', unit: c.unit, source: '日常补给' }))
+    ]
+  },
+  {
+    group: '干货',
+    items: DRY_GOODS.map(c => ({ name: c.name, kind: 'dry', unit: c.unit, source: '常备干货', prep: c.prep }))
+  }
+];
+
+// 缺省（无记录）视为「充足」，只有明确清空才算「不足」，避免初始一片缺货。
+function isPantryLow(item) {
+  return !!item && (item.stockStatus === 'empty' || (+item.qty || 0) <= 0);
+}
+
+function removeOpenShoppingItem(name) {
+  const items = loadShoppingItems();
+  const kept = items.filter(it => !(it.name === name && !it.done));
+  if (kept.length !== items.length) saveShoppingItems(kept);
+}
+
+function togglePantryItem(inv, cfg, currentlyLow) {
+  const target = findStockItem(inv, cfg.name, cfg.kind) || ensureStockItem(inv, cfg, cfg.kind, 'ok');
+  target.unit = target.unit || cfg.unit;
+  target.kind = cfg.kind;
+  if (currentlyLow) {
+    // → 充足
+    target.stockStatus = 'ok';
+    target.qty = Math.max(1, +target.qty || 1);
+    target.shelf = cfg.kind === 'dry' ? 365 : guessShelfDays(target.name, target.unit);
+    if (cfg.kind === 'dry') { target.dryPrep = cfg.prep; target.isFrozen = false; }
+    removeOpenShoppingItem(cfg.name);
+  } else {
+    // → 不足
+    target.stockStatus = 'empty';
+    target.qty = 0;
+    addShoppingItem(cfg.name, '', cfg.unit, cfg.source);
+  }
+  saveInventory(inv);
+}
+
+// 返回 DocumentFragment：蛋奶 / 干货两组，瓦片样式与基础调味料完全一致。
 export function renderDryGoodsCabinet(inv, options = {}) {
-  const onInventoryChanged = typeof options.onInventoryChanged === 'function' ? options.onInventoryChanged : () => {};
-  const showTitle = options.showTitle !== false; // 默认显示标题；嵌入「常备货架」时传 false 省略
-  let debounceTimer = null;
-  const notifyChange = () => {
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      onInventoryChanged();
-    }, 800);
-  };
-  const section = document.createElement('section'); section.className = 'dry-goods-section';
-  section.innerHTML = `
-    ${showTitle ? '<div class="section-title home-section-title"><span>常备货架</span></div>' : ''}
-    <div class="dry-goods-card card">
-      <div class="dry-goods-head">
-        <div>
-          <h3>少记数量，多看状态</h3>
-          <p class="meta">先看蛋奶，再看干货；牛奶按瓶/盒和状态管，干货看存货和泡发提醒。</p>
-        </div>
-      </div>
-      <div class="pantry-shelf-group daily-shelf">
-        <div class="pantry-shelf-title">蛋奶</div>
-        <div class="daily-goods-list"></div>
-      </div>
-      <div class="pantry-shelf-divider"></div>
-      <div class="pantry-shelf-group dry-shelf">
-        <div class="pantry-shelf-title">干货</div>
-        <div class="dry-goods-list"></div>
-      </div>
-    </div>
-  `;
-  const setRowStatusClass = (row, className) => { row.classList.remove('is-ok', 'is-low', 'is-empty', 'is-unknown'); row.classList.add(`is-${className}`); };
-  const updateStatusRow = (row, item, config, type = 'dry') => {
-    const status = item ? (item.stockStatus || 'ok') : 'empty'; const info = dryStatusInfo(status);
-    setRowStatusClass(row, info.className);
-    const stockLine = row.querySelector('.dry-good-main em'); if (stockLine) stockLine.textContent = formatStockLine(item, config.unit);
-    const statusButton = row.querySelector('.inventory-status-chip');
-    if (statusButton) { statusButton.className = `inventory-status-chip ${info.className}`; statusButton.textContent = info.label; }
-    const buyButton = row.querySelector('.dry-good-buy');
-    if (buyButton && type === 'dry') buyButton.textContent = status === 'ok' ? '补一包' : '加入清单';
-  };
-  const list = section.querySelector('.dry-goods-list');
-  DRY_GOODS.forEach(config => {
-    const item = findStockItem(inv, config.name, 'dry');
-    const status = item ? (item.stockStatus || 'ok') : 'empty'; const info = dryStatusInfo(status);
-    const row = document.createElement('div'); row.className = `dry-good-row is-${info.className}`;
-    row.innerHTML = `<div class="dry-good-main"><strong>${escapeHtml(config.name)}</strong><span>${escapeHtml(config.prep)}</span><em>${escapeHtml(formatStockLine(item, config.unit))}</em></div><button type="button" class="inventory-status-chip ${info.className}">${escapeHtml(info.label)}</button><button type="button" class="btn small dry-good-buy">${status === 'ok' ? '补一包' : '加入清单'}</button>`;
-    row.querySelector('.inventory-status-chip').onclick = () => {
-      let target = item || ensureStockItem(inv, config, 'dry', 'empty');
-      target.stockStatus = nextDryStatus(target.stockStatus);
-      target.qty = target.stockStatus === 'empty' ? 0 : Math.max(1, +target.qty || 1);
-      target.unit = target.unit || config.unit; target.kind = 'dry'; target.shelf = 365; target.dryPrep = config.prep; target.isFrozen = false;
-      saveInventory(inv); updateStatusRow(row, target, config, 'dry');
-      notifyChange();
-    };
-    const buyButton = row.querySelector('.dry-good-buy');
-    buyButton.onclick = () => { addShoppingItem(config.name, '', config.unit, '常备干货'); brieflyConfirmButton(buyButton); };
-    list.appendChild(row);
+  const onRoute = typeof options.onRoute === 'function' ? options.onRoute : () => {};
+  const frag = document.createDocumentFragment();
+  PANTRY_GROUPS.forEach(group => {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'shopping-staple-group';
+    groupDiv.innerHTML = `<div class="shopping-staple-title">${escapeHtml(group.group)}</div>`;
+    const grid = document.createElement('div');
+    grid.className = 'staple-tile-grid';
+    group.items.forEach(cfg => {
+      const item = findStockItem(inv, cfg.name, cfg.kind);
+      const low = isPantryLow(item);
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = `staple-tile ${low ? 'is-low' : 'is-ok'}`;
+      tile.setAttribute('aria-pressed', low ? 'true' : 'false');
+      tile.innerHTML = `
+        <span class="staple-tile-name">${escapeHtml(cfg.name)}</span>
+        <span class="staple-tile-state">${low ? '不足 · 已加清单' : '充足'}</span>
+      `;
+      tile.onclick = () => { togglePantryItem(inv, cfg, low); onRoute(); };
+      grid.appendChild(tile);
+    });
+    groupDiv.appendChild(grid);
+    frag.appendChild(groupDiv);
   });
-
-  const dailyList = section.querySelector('.daily-goods-list');
-  const eggItem = findStockItem(inv, EGG_STOCK.name, 'raw');
-  const eggQty = Math.max(0, Math.round(+eggItem?.qty || 0));
-  const eggStatus = countStockStatus(eggQty); const eggInfo = dryStatusInfo(eggStatus);
-  const eggRow = document.createElement('div'); eggRow.className = `dry-good-row daily-good-row egg-good-row is-${eggInfo.className}`;
-  eggRow.innerHTML = `<div class="dry-good-main"><strong>${escapeHtml(EGG_STOCK.name)}</strong><span>${escapeHtml(EGG_STOCK.note)}</span><em>${eggQty > 0 ? `库存：${eggQty} 个` : '库存：没有'}</em></div><div class="egg-count-control" aria-label="鸡蛋个数"><button type="button" class="egg-step" data-egg-step="-1" aria-label="减少鸡蛋">-</button><span>${eggQty}</span><button type="button" class="egg-step" data-egg-step="1" aria-label="增加鸡蛋">+</button></div><button type="button" class="btn small dry-good-buy">${eggQty <= 3 ? '补一打' : '加入清单'}</button>`;
-  const updateEggRow = (item) => {
-    const qty = Math.max(0, Math.round(+item?.qty || 0)); const info = dryStatusInfo(countStockStatus(qty));
-    setRowStatusClass(eggRow, info.className);
-    const stockLine = eggRow.querySelector('.dry-good-main em'); if (stockLine) stockLine.textContent = qty > 0 ? `库存：${qty} 个` : '库存：没有';
-    const countLabel = eggRow.querySelector('.egg-count-control span'); if (countLabel) countLabel.textContent = qty;
-    const buyButton = eggRow.querySelector('.dry-good-buy'); if (buyButton) buyButton.textContent = qty <= 3 ? '补一打' : '加入清单';
-  };
-  eggRow.querySelectorAll('[data-egg-step]').forEach(btn => {
-    btn.onclick = () => {
-      const step = Number(btn.dataset.eggStep || 0);
-      const target = ensureStockItem(inv, EGG_STOCK, 'raw', 'empty');
-      const nextQty = Math.max(0, Math.round(+target.qty || 0) + step);
-      target.qty = nextQty; target.unit = EGG_STOCK.unit; target.kind = 'raw';
-      target.shelf = guessShelfDays(target.name, target.unit);
-      target.stockStatus = countStockStatus(nextQty);
-      saveInventory(inv); updateEggRow(target);
-      notifyChange();
-    };
-  });
-  const eggBuyButton = eggRow.querySelector('.dry-good-buy');
-  eggBuyButton.onclick = () => {
-    const currentEgg = findStockItem(inv, EGG_STOCK.name, 'raw');
-    const currentQty = Math.max(0, Math.round(+currentEgg?.qty || 0));
-    addShoppingItem(EGG_STOCK.name, currentQty <= 3 ? 12 : '', EGG_STOCK.unit, '日常补给');
-    brieflyConfirmButton(eggBuyButton);
-  };
-  dailyList.appendChild(eggRow);
-
-  DAILY_STOCKS.forEach(config => {
-    const item = findStockItem(inv, config.name, 'raw');
-    const status = item ? (item.stockStatus || 'ok') : 'empty'; const info = dryStatusInfo(status);
-    const row = document.createElement('div'); row.className = `dry-good-row daily-good-row is-${info.className}`;
-    row.innerHTML = `<div class="dry-good-main"><strong>${escapeHtml(config.name)}</strong><span>${escapeHtml(config.note)}</span><em>${escapeHtml(formatStockLine(item, config.unit))}</em></div><button type="button" class="inventory-status-chip ${info.className}">${escapeHtml(info.label)}</button><button type="button" class="btn small dry-good-buy">${config.name === '牛奶' ? '补一瓶' : '补一点'}</button>`;
-    row.querySelector('.inventory-status-chip').onclick = () => {
-      let target = item || ensureStockItem(inv, config, 'raw', 'empty');
-      target.stockStatus = nextDryStatus(target.stockStatus);
-      target.qty = target.stockStatus === 'empty' ? 0 : Math.max(1, +target.qty || 1);
-      target.unit = target.unit || config.unit; target.kind = 'raw'; target.shelf = guessShelfDays(target.name, target.unit);
-      saveInventory(inv); updateStatusRow(row, target, config, 'daily');
-      notifyChange();
-    };
-    const buyButton = row.querySelector('.dry-good-buy');
-    buyButton.onclick = () => { addShoppingItem(config.name, '', config.unit, '日常补给'); brieflyConfirmButton(buyButton); };
-    dailyList.appendChild(row);
-  });
-  return section;
+  return frag;
 }
