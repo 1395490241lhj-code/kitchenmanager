@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=160';
+import { S, todayISO } from '../storage.js?v=161';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -8,13 +8,13 @@ import {
   isDryGoodName,
   normalizeKitchenAmount,
   isSeasoning
-} from '../ingredients.js?v=160';
+} from '../ingredients.js?v=161';
 import {
   getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=160';
+} from '../inventory.js?v=161';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -25,13 +25,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=160';
+} from '../shopping.js?v=161';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=160';
+} from '../components/status.js?v=161';
 
 let currentPlanRange = 'today';
 function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false, dateRange = 'today') {
