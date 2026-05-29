@@ -92,6 +92,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(ROOT, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`🍳 Kitchen Manager 全栈服务已启动： http://localhost:${PORT}`);
+// 绑定 0.0.0.0：Render 等云平台要求监听所有网卡，并通过 process.env.PORT 注入端口。
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🍳 Kitchen Manager 全栈服务已启动，端口 ${PORT}`);
 });
