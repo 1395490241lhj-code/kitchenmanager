@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=169';
+import { S, todayISO } from '../storage.js?v=170';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -8,13 +8,13 @@ import {
   isDryGoodName,
   normalizeKitchenAmount,
   isSeasoning
-} from '../ingredients.js?v=169';
+} from '../ingredients.js?v=170';
 import {
   getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=169';
+} from '../inventory.js?v=170';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -25,13 +25,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=169';
+} from '../shopping.js?v=170';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=169';
+} from '../components/status.js?v=170';
 import {
   STAPLE_CATALOG,
   STAPLE_STATUS,
@@ -39,10 +39,10 @@ import {
   restoreStapleByPurchase,
   restoreStaplesByPurchase,
   toggleStaple
-} from '../staples.js?v=169';
-import { renderInventory } from './inventory-view.js?v=169';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=169';
-import { getPlanRange } from '../components/menu-plan.js?v=169';
+} from '../staples.js?v=170';
+import { renderInventory } from './inventory-view.js?v=170';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=170';
+import { getPlanRange } from '../components/menu-plan.js?v=170';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;
@@ -299,15 +299,15 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const page = document.createElement('div');
   page.className = 'shopping-page';
   page.innerHTML = `
-    <h2 class="section-title">购物清单</h2>
+    <h2 class="section-title">库存管理</h2>
     <div id="shoppingStatus" class="inline-status" hidden></div>
   `;
   const status = page.querySelector('#shoppingStatus');
 
+  // 「添加项」内联快捷输入：默认隐藏，由「我的购物项」右上角的 ＋ 按钮唤出。
   const manualCard = document.createElement('div');
-  manualCard.className = 'card shopping-manual-card';
+  manualCard.className = 'shopping-manual-inline is-hidden';
   manualCard.innerHTML = `
-    <h3>手动添加</h3>
     <div class="shopping-add-row">
       <input id="shoppingAddName" list="shoppingCatalogList" placeholder="想买什么">
       <datalist id="shoppingCatalogList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
@@ -385,6 +385,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
         <p class="meta">同名同单位会自动合并，来源会保留下来。</p>
       </div>
       <div class="shopping-bulk-actions">
+        <button type="button" class="btn ok small" id="miniAddItem">＋ 添加项</button>
         <button type="button" class="btn small" id="copyOpenShopping">复制未买清单</button>
         <button type="button" class="btn small" id="markAllDone">全部标记已买</button>
         <button type="button" class="btn ok small is-hidden" id="batchStockIn">逐项确认入库</button>
@@ -392,6 +393,13 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       </div>
     </div>
   `;
+  // 内联「添加项」快捷输入，嵌入在购物项区块顶部，默认隐藏。
+  itemCard.appendChild(manualCard);
+  itemCard.querySelector('#miniAddItem').onclick = () => {
+    manualCard.classList.toggle('is-hidden');
+    if (!manualCard.classList.contains('is-hidden')) manualCard.querySelector('#shoppingAddName').focus();
+  };
+
   const itemList = document.createElement('div');
   itemList.className = 'shopping-item-list grouped';
 
@@ -529,10 +537,9 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   invDetails.id = 'shoppingInventoryDetails';
   invDetails.addEventListener('toggle', () => { invDetailsOpen = invDetails.open; });
 
-  // ── 页面顺序：① 我的购物项 ② 菜谱缺货 ③ 手动添加 ④ 常备货架 ⑤ 完整库存 ──
+  // ── 页面顺序：① 我的购物项（含内联添加项）② 菜谱缺货 ③ 常备货架 ④ 完整库存 ──
   page.appendChild(makeDetails('🛒 我的购物项', '勾选「已买」即可；常备品会自动恢复充足', [itemCard], true));
   page.appendChild(missingCard);
-  page.appendChild(manualCard);
   page.appendChild(staplesShelf);
   page.appendChild(invDetails);
 

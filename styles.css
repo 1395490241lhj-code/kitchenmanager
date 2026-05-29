@@ -3344,3 +3344,48 @@ nav a.active svg {
   font-weight: 700;
   color: var(--text-main);
 }
+
+/* ── 库存管理：内联「添加项」快捷输入 ── */
+.shopping-manual-inline {
+  margin: 0 0 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--separator);
+}
+.shopping-manual-inline .shopping-add-row { margin: 0; }
+
+/* ── 完整库存：按保质期状态着色的卡片行 + 倒计时进度条 ── */
+.inventory-table tbody tr.inventory-row > td { transition: background 0.2s ease; }
+.inventory-row.life-expired > td { background: rgba(255, 59, 48, 0.16); }
+.inventory-row.life-near > td    { background: rgba(255, 149, 0, 0.15); }
+.inventory-row.life-fresh > td   { background: rgba(52, 199, 89, 0.10); }
+.inventory-row.life-frozen > td  { background: rgba(0, 122, 255, 0.10); }
+.inventory-row.life-pantry > td  { background: rgba(120, 120, 128, 0.08); }
+/* 左侧状态色条（贴在首列） */
+.inventory-row > td.inventory-name-cell { border-left: 3px solid transparent; }
+.inventory-row.life-expired > td.inventory-name-cell { border-left-color: var(--danger); }
+.inventory-row.life-near   > td.inventory-name-cell { border-left-color: var(--warning); }
+.inventory-row.life-fresh  > td.inventory-name-cell { border-left-color: var(--accent); }
+.inventory-row.life-frozen > td.inventory-name-cell { border-left-color: var(--primary); }
+.inventory-row.life-pantry > td.inventory-name-cell { border-left-color: var(--separator); }
+
+.inv-life-bar {
+  margin-top: 6px;
+  height: 5px;
+  width: 100%;
+  max-width: 140px;
+  border-radius: 3px;
+  background: rgba(120, 120, 128, 0.22);
+  overflow: hidden;
+}
+.inv-life-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.life-near   .inv-life-bar > span { background: var(--warning); }
+.life-expired .inv-life-bar > span { background: var(--danger); }
+.life-frozen .inv-life-bar > span { background: var(--primary); }
+.life-pantry .inv-life-bar { display: none; }

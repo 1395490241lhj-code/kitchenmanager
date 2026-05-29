@@ -1,5 +1,5 @@
-import { els } from '../dom.js?v=169';
-import { todayISO } from '../storage.js?v=169';
+import { els } from '../dom.js?v=170';
+import { todayISO } from '../storage.js?v=170';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -9,7 +9,7 @@ import {
   guessShelfDays,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=169';
+} from '../ingredients.js?v=170';
 import {
   inventoryStateInfo,
   loadInventory,
@@ -18,21 +18,21 @@ import {
   remainingDays,
   saveInventory,
   upsertInventory
-} from '../inventory.js?v=169';
+} from '../inventory.js?v=170';
 import {
   formatAiErrorMessage,
   recognizeReceipt,
   withTimeout
-} from '../ai.js?v=169';
+} from '../ai.js?v=170';
 import {
   showEditInventoryModal,
   showReceiptConfirmationModal
-} from '../components/modal.js?v=169';
+} from '../components/modal.js?v=170';
 import {
   escapeHtml,
   escapeOptionAttr,
   setSelectValueWithOption
-} from '../components/status.js?v=169';import { markShoppingItemsStockedIn } from '../shopping.js?v=169';
+} from '../components/status.js?v=170';import { markShoppingItemsStockedIn } from '../shopping.js?v=170';
 
 function badgeFor(e){
   if((e.kind || 'raw') === 'dry') return `<span class="kchip dry" title="${escapeOptionAttr(getDryPrepText(e.name))}">干货 · ${escapeHtml(getDryPrepText(e.name))}</span>`;
@@ -43,6 +43,18 @@ function badgeFor(e){
   else if(r<=3) html = `<span class="kchip warn kchip-clickable" title="点击切换为冷冻">优先消耗 ${r}天</span>`;
   else html = `<span class="kchip ok kchip-clickable" title="点击切换为冷冻">新鲜 ${r}天</span>`;
   return html;
+}
+
+// 保质期状态 + 剩余百分比（用于卡片底色与倒计时进度条）。
+function lifeStatus(e){
+  if((e.kind || 'raw') === 'dry') return { key: 'pantry', pct: 100, rank: 4 };
+  const shelf = (e.shelf === undefined || e.shelf === null || e.shelf === '') ? 7 : +e.shelf;
+  const r = remainingDays(e);
+  const pct = shelf > 0 ? Math.max(0, Math.min(100, Math.round((r / shelf) * 100))) : 0;
+  if (r <= 0) return { key: 'expired', pct: 0, rank: 0 };   // 过期：最紧急
+  if (r <= 3) return { key: 'near', pct, rank: 1 };          // 临期
+  if (e.isFrozen) return { key: 'frozen', pct, rank: 3 };
+  return { key: 'fresh', pct, rank: 2 };                     // 新鲜
 }
 
 export function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div');
@@ -231,15 +243,24 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   function renderTable(){
     const tb=tbl.querySelector('tbody'); tb.innerHTML='';
     const filteredInv = inv;
-    filteredInv.sort((a,b)=>remainingDays(a)-remainingDays(b));
+    // 按紧急程度降序：过期 → 临期 → 新鲜/冷冻 → 常备干货；同档按剩余天数升序。
+    filteredInv.sort((a, b) => {
+      const la = lifeStatus(a), lb = lifeStatus(b);
+      if (la.rank !== lb.rank) return la.rank - lb.rank;
+      return remainingDays(a) - remainingDays(b);
+    });
     if(filteredInv.length === 0) { tb.innerHTML = `<tr><td colspan="4" class="small inventory-empty-row">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</td></tr>`; return; }
     for(const e of filteredInv){
       const tr=document.createElement('tr');
       const stockInfo = inventoryStateInfo(e.stockStatus);
+      const life = lifeStatus(e);
+      tr.className = `inventory-row life-${life.key}`;
+      const lifeBar = `<div class="inv-life-bar" title="剩余保质期 ${life.pct}%"><span style="width:${life.pct}%"></span></div>`;
       tr.innerHTML=`
         <td class="inventory-name-cell">
           <span class="inventory-item-name">${e.name}</span>
           <br><small class="inventory-item-date">${e.buyDate||'未知'}</small>
+          ${lifeBar}
         </td>
         <td class="kitchen-status-cell"><button type="button" class="inventory-status-chip ${stockInfo.className}" title="点击切换厨房状态">${stockInfo.label}</button><div class="inventory-amount-control"><span>存量</span><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}"><small>${e.unit}</small></div></td>
         <td class="status-cell">${badgeFor(e)}</td>
