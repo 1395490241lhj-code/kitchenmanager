@@ -1,5 +1,5 @@
-import { CUSTOM_AI } from './config.js?v=175';
-import { S } from './storage.js?v=175';
+import { CUSTOM_AI } from './config.js?v=176';
+import { S } from './storage.js?v=176';
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
@@ -357,24 +357,8 @@ export async function callCloudAI(pack, inv) {
   return validateRecommendationResult(raw);
 }
 
-// 智能录入解析服务：将「链接 / 视频 / 截图」解析为可编辑菜谱草稿。
-// 解析模型：openai/gpt-oss-120b（多数 OpenAI 兼容网关如 Groq 提供）。
-export const RECIPE_IMPORT_MODEL = 'openai/gpt-oss-120b';
-
-const IMPORT_SYSTEM_PROMPT = `你是一位资深中餐大厨兼菜谱结构化助手。用户会给你一段来自小红书/网页的菜谱文案，或一张配料表/视频截图。
-请把其中的菜谱信息做语义清洗后，严格只返回一个 JSON 对象（不要 markdown 代码块、不要任何解释文字），字段如下：
-{
-  "name": "标准菜名",
-  "tags": ["家常菜", "口味/菜系等标签"],
-  "ingredients": [ {"item": "核心食材", "qty": "数量(可空)", "unit": "单位(可空)"} ],
-  "method": "1. 第一步...\\n2. 第二步..."
-}
-要求：
-- name 必填，为简洁标准菜名。
-- ingredients 必填，至少一项，拆出核心主料与必要调味料。
-- method 必填，整理成清晰、可执行的家常步骤，用「数字. 」分行。
-- tags 给 1-4 个，体现菜系/口味/类别。
-- 只输出 JSON 本身。`;
+// 智能录入解析服务：抓取与大模型调用都在后端（server.js）完成。
+// 前端只负责把「链接文案 / 截图」传给后端代理，不再读取本地 API Key。
 
 // 抓取小红书/网页菜谱文案：交给同源后端 /api/xhs-extract（server.js）完成
 // 302 跟随、移动端 UA 伪造与 __INITIAL_STATE__ 解析，绕过浏览器跨域限制。
@@ -418,39 +402,26 @@ function validateImportedRecipe(input) {
   return { name, tags, ingredients, method, isAiDraft: true, draftSource: 'ai-import' };
 }
 
-// 调用 openai/gpt-oss-120b 做结构化解析（文本 / 截图）。
+// 通过后端 /api/ai-parse 调用 openai/gpt-oss-120b（密钥与 Base URL 由 Render 环境变量提供）。
+// 前端不再校验本地 API Key，未配置也能正常点击、走后端代理。
 async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
-  const conf = getAiConfig();
-  if (!conf) throw new Error('未配置 API Key');
-
-  const instruction = text
-    ? `请把下面这段菜谱文案整理成规定的 JSON：\n\n${text}`
-    : '请根据这张配料表/菜谱截图，整理成规定的 JSON。';
-  const userContent = imageBase64
-    ? [{ type: 'text', text: instruction }, { type: 'image_url', image_url: { url: imageBase64 } }]
-    : instruction;
-
-  const res = await fetch(conf.apiUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
-    body: JSON.stringify({
-      model: RECIPE_IMPORT_MODEL,
-      messages: [
-        { role: 'system', content: IMPORT_SYSTEM_PROMPT },
-        { role: 'user', content: userContent }
-      ],
-      temperature: 0.2,
-      response_format: { type: 'json_object' }
-    })
-  });
-
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
+  let res;
+  try {
+    res = await fetch('/api/ai-parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, imageBase64 })
+    });
+  } catch (e) {
+    throw new Error('AI 服务暂不可用（后端未启动？），请稍后重试。');
   }
-  const data = await res.json();
-  const raw = data.choices?.[0]?.message?.content || '';
-  return validateImportedRecipe(raw);
+  let data = null;
+  try { data = await res.json(); } catch (_) { /* 非 JSON 响应 */ }
+  if (!res.ok) {
+    throw new Error((data && data.error) || `AI 解析失败 (${res.status})。`);
+  }
+  // 后端返回模型原文 content，由前端统一校验对齐编辑器字段。
+  return validateImportedRecipe((data && data.content) || '');
 }
 
 /**
