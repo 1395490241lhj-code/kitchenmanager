@@ -3299,14 +3299,19 @@ nav a.active svg {
 .recipe-finder-section { margin-bottom: 14px; }
 .recipe-top-search { margin-bottom: 10px; }
 
-/* ── 首页灵感面板：AI 换一批按钮 ── */
-.home-ai-btn {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 1;
+/* ── 首页灵感面板：AI 换一批按钮（与标题同处一个 flex 流，避免绝对定位下坠遮挡） ── */
+.home-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
-.home-hero-greeting { padding-right: 8px; }
+.home-ai-btn {
+  position: static;       /* 不再绝对定位，随正常文档流排布 */
+  flex: 0 0 auto;         /* 不被压缩，文本不足时换行的是欢迎语 */
+  white-space: nowrap;
+}
+.home-hero-greeting { padding-right: 0; }
 .home-note-clear {
   margin-left: 8px;
   padding: 1px 8px;

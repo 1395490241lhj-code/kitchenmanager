@@ -1,18 +1,18 @@
-import { S, todayISO } from '../storage.js?v=172';
-import { buildCatalog, getCanonicalName } from '../ingredients.js?v=172';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=172';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=172';
+import { S, todayISO } from '../storage.js?v=173';
+import { buildCatalog, getCanonicalName } from '../ingredients.js?v=173';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=173';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=173';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=172';
-import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=172';
-import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=172';
-import { showRecommendationCards } from '../components/recipe-card.js?v=172';
-import { showCleanFridgeModal } from '../components/modal.js?v=172';
-import { renderMenuPlan } from '../components/menu-plan.js?v=172';
-import { requestInventoryIntent } from './shopping-view.js?v=172';
+} from '../recommendations.js?v=173';
+import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=173';
+import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=173';
+import { showRecommendationCards } from '../components/recipe-card.js?v=173';
+import { showCleanFridgeModal } from '../components/modal.js?v=173';
+import { renderMenuPlan } from '../components/menu-plan.js?v=173';
+import { requestInventoryIntent } from './shopping-view.js?v=173';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -172,8 +172,10 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {} }
   section.innerHTML = `
     <div class="home-hero-glow" aria-hidden="true"></div>
     <div class="home-hero-head">
-      <span class="home-hero-eyebrow">🧠 今日灵感</span>
-      <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
+      <div class="home-hero-top">
+        <span class="home-hero-eyebrow">🧠 今日灵感</span>
+        <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
+      </div>
       <h2 class="home-hero-greeting">${escapeHtml(greeting)}</h2>
     </div>
     <div id="heroAiStatus" class="small inline-status" hidden></div>
