@@ -1,9 +1,77 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=171';
-import { genId } from '../shopping.js?v=171';
-import { hasRecipeMethod } from '../recommendations.js?v=171';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=171';
-import { buildCatalog } from '../ingredients.js?v=171';
-import { loadInventory } from '../inventory.js?v=171';
+import { loadOverlay, saveOverlay } from '../backup.js?v=172';
+import { genId } from '../shopping.js?v=172';
+import { hasRecipeMethod } from '../recommendations.js?v=172';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=172';
+import { buildCatalog } from '../ingredients.js?v=172';
+import { loadInventory } from '../inventory.js?v=172';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=172';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=172';
+
+// 把 AI 解析出的菜谱草稿写入 overlay，并跳转到编辑器（沿用「新建菜谱」数据流）。
+function saveImportedDraft(draft) {
+  const id = genId();
+  const overlay = loadOverlay();
+  overlay.recipes = overlay.recipes || {};
+  overlay.recipe_ingredients = overlay.recipe_ingredients || {};
+  overlay.recipes[id] = { name: draft.name || 'AI 导入菜谱草稿', tags: ['AI草稿', 'AI导入'], method: draft.method || '', isAiDraft: true };
+  overlay.recipe_ingredients[id] = (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty || null, unit: i.unit || null }));
+  saveOverlay(overlay);
+  window.invalidatePackCache?.();
+  location.hash = `#recipe-edit:${id}`;
+}
+
+// AI 一键导入：移动端优先弹窗（链接 / 视频截图 → 120B 解析）。
+function openImportModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="card ai-import-modal">
+      <h3 class="ai-import-title">✨ AI 一键导入菜谱</h3>
+      <p class="meta">粘贴菜谱链接，或上传短视频 / 配料表截图，AI 自动解析为可编辑草稿。</p>
+      <label class="ai-import-field">
+        <span>🔗 粘贴链接</span>
+        <input id="aiImportUrl" type="url" inputmode="url" placeholder="小红书 / 网页菜谱链接">
+      </label>
+      <label class="ai-import-field ai-import-file">
+        <span>🎬 上传视频 / 截图</span>
+        <input id="aiImportFile" type="file" accept="image/*,video/*" hidden>
+        <span class="ai-import-filename" id="aiImportFileName">点此选择文件</span>
+      </label>
+      <div id="aiImportStatus" class="inline-status" hidden></div>
+      <button type="button" class="btn ai-import-go" id="aiImportGo">✨ 120B AI 智能解析</button>
+      <button type="button" class="btn ai-import-cancel" id="aiImportCancel">取消</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  overlay.querySelector('#aiImportCancel').onclick = close;
+
+  const fileInput = overlay.querySelector('#aiImportFile');
+  const fileName = overlay.querySelector('#aiImportFileName');
+  overlay.querySelector('.ai-import-file').onclick = (e) => { if (e.target !== fileInput) fileInput.click(); };
+  fileInput.onchange = () => { fileName.textContent = fileInput.files[0] ? fileInput.files[0].name : '点此选择文件'; };
+
+  const status = overlay.querySelector('#aiImportStatus');
+  const goBtn = overlay.querySelector('#aiImportGo');
+  goBtn.onclick = async () => {
+    if (goBtn.getAttribute('disabled')) return;
+    const url = overlay.querySelector('#aiImportUrl').value.trim();
+    const file = fileInput.files[0] || null;
+    if (!url && !file) { setInlineStatus(status, '请粘贴链接或选择一个视频/截图。', 'bad'); return; }
+    goBtn.setAttribute('disabled', 'true');
+    goBtn.innerHTML = '<span class="spinner"></span> 120B 解析中…';
+    try {
+      const draft = await importRecipeFromSource({ url, file });
+      setInlineStatus(status, '解析完成，正在打开编辑器…', 'ok');
+      setTimeout(() => { close(); saveImportedDraft(draft); }, 500);
+    } catch (err) {
+      setInlineStatus(status, formatAiErrorMessage(err), 'bad');
+      goBtn.removeAttribute('disabled');
+      goBtn.innerHTML = '✨ 120B AI 智能解析';
+    }
+  };
+}
 
 function mergeOverlayPreservingCurrent(currentOverlay, incomingOverlay) {
   const current = currentOverlay || {};
@@ -87,9 +155,17 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   finderInput.onkeydown = (e) => { if (e.key === 'Enter') runFinder(); };
   searchBar.querySelector('#recipeFinderGo').onclick = runFinder;
   finderClear.onclick = clearFinder;
+  // ✨ AI 一键导入菜谱（置于搜索框下方，突出「智能」感）。
+  const aiImportBtn = document.createElement('button');
+  aiImportBtn.type = 'button';
+  aiImportBtn.className = 'btn ai-import-btn';
+  aiImportBtn.innerHTML = '✨ AI 一键导入菜谱';
+  aiImportBtn.onclick = openImportModal;
+
   const searchSection = document.createElement('section');
   searchSection.className = 'recipe-finder-section';
   searchSection.appendChild(searchBar);
+  searchSection.appendChild(aiImportBtn);
   searchSection.appendChild(searchResultsContainer);
   wrap.insertBefore(searchSection, wrap.querySelector('.recipe-toolbar'));
 

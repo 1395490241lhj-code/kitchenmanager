@@ -1,5 +1,5 @@
-import { CUSTOM_AI } from './config.js?v=171';
-import { S } from './storage.js?v=171';
+import { CUSTOM_AI } from './config.js?v=172';
+import { S } from './storage.js?v=172';
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
@@ -355,4 +355,49 @@ export async function callCloudAI(pack, inv) {
 
   const raw = await callAiService(prompt);
   return validateRecommendationResult(raw);
+}
+
+// 智能录入解析服务：将「链接 / 视频 / 截图」解析为可编辑菜谱草稿。
+// 目标后端模型：openai/gpt-oss-120b（120B 智能解析）。
+export const RECIPE_IMPORT_MODEL = 'openai/gpt-oss-120b';
+
+function mockImportedRecipe({ url = '', fileName = '' } = {}) {
+  const src = url ? '链接' : (fileName ? '上传文件' : '');
+  return {
+    name: 'AI 导入菜谱草稿',
+    ingredients: [
+      { item: '主料', qty: '', unit: '' },
+      { item: '配菜', qty: '', unit: '' },
+      { item: '调味料', qty: '', unit: '' }
+    ],
+    method: `1. （示例草稿）这是由${src || '来源'}经 AI 解析生成的占位内容。\n2. 接入 openai/gpt-oss-120b 后，这里会自动填充识别到的真实做法步骤。\n3. 请在编辑器中核对并完善后保存。`,
+    isAiDraft: true,
+    draftSource: 'ai-import'
+  };
+}
+
+/**
+ * 解析外部菜谱来源（小红书/网页链接、短视频或配料表截图）。
+ * @param {{ url?: string, file?: File }} input
+ * @returns {Promise<{name, ingredients:[{item,qty,unit}], method, isAiDraft, draftSource}>}
+ *
+ * 当前为 Mock 数据流转；真实接入位置已在下方 TODO 标注，前端无需再改。
+ */
+export async function importRecipeFromSource({ url = '', file = null } = {}) {
+  const cleanUrl = String(url || '').trim();
+  if (!cleanUrl && !file) throw new Error('请粘贴链接或上传视频/截图。');
+
+  // ── TODO(API)：接入 openai/gpt-oss-120b 后端解析服务 ───────────────────────
+  //   const conf = getAiConfig();
+  //   if (conf) {
+  //     const imageBase64 = file && /^image\//.test(file.type) ? await compressImage(file) : null;
+  //     const prompt = `请把以下菜谱来源解析为 JSON：${cleanUrl}` /* + 视频/截图说明 */;
+  //     const raw = await callAiService(prompt, imageBase64); // 注意：将模型切到 RECIPE_IMPORT_MODEL
+  //     return validateRecipeResult(raw);
+  //   }
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // 目前：异步占位，保持前端数据流完整。
+  await new Promise(resolve => setTimeout(resolve, 900));
+  return mockImportedRecipe({ url: cleanUrl, fileName: file && file.name });
 }

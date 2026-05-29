@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=171';
+import { S, todayISO } from '../storage.js?v=172';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -8,13 +8,13 @@ import {
   isDryGoodName,
   normalizeKitchenAmount,
   isSeasoning
-} from '../ingredients.js?v=171';
+} from '../ingredients.js?v=172';
 import {
   getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=171';
+} from '../inventory.js?v=172';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -25,13 +25,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=171';
+} from '../shopping.js?v=172';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=171';
+} from '../components/status.js?v=172';
 import {
   STAPLE_CATALOG,
   STAPLE_STATUS,
@@ -39,10 +39,10 @@ import {
   restoreStapleByPurchase,
   restoreStaplesByPurchase,
   toggleStaple
-} from '../staples.js?v=171';
-import { renderInventory } from './inventory-view.js?v=171';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=171';
-import { getPlanRange } from '../components/menu-plan.js?v=171';
+} from '../staples.js?v=172';
+import { renderInventory } from './inventory-view.js?v=172';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=172';
+import { getPlanRange } from '../components/menu-plan.js?v=172';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;

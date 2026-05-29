@@ -3462,3 +3462,81 @@ nav a span { white-space: nowrap; }
 .inventory-card.life-fresh   { background: rgba(52, 199, 89, 0.10); border-left-color: var(--accent); }
 .inventory-card.life-frozen  { background: rgba(0, 122, 255, 0.10); border-left-color: var(--primary); }
 .inventory-card.life-pantry  { background: rgba(120, 120, 128, 0.08); border-left-color: var(--separator); }
+
+/* ── 菜谱页：AI 一键导入入口按钮 ── */
+.ai-import-btn {
+  display: block;
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #7c5cff 0%, #007aff 55%, #34c759 130%);
+  box-shadow: 0 8px 20px rgba(0, 122, 255, 0.26), inset 0 1px 0 rgba(255,255,255,0.35);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+.ai-import-btn:active { transform: scale(0.985); }
+
+/* ── AI 导入弹窗 ── */
+.ai-import-modal {
+  width: min(440px, 94vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 16px;
+}
+.ai-import-title { margin: 0; font-size: 18px; font-weight: 800; }
+.ai-import-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.ai-import-field input[type="url"] {
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--separator);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 500;
+}
+.ai-import-file { cursor: pointer; }
+.ai-import-filename {
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--separator);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 14px;
+}
+.ai-import-go {
+  margin-top: 2px;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #7c5cff 0%, #007aff 60%, #34c759 130%);
+  box-shadow: 0 10px 24px rgba(0, 122, 255, 0.3), inset 0 1px 0 rgba(255,255,255,0.35);
+  cursor: pointer;
+}
+.ai-import-go[disabled] { opacity: 0.7; }
+.ai-import-cancel { width: 100%; }
+
+@media (max-width: 480px) {
+  .ai-import-modal {
+    width: 100%;
+    border-radius: 20px 20px 0 0;
+    align-self: flex-end;
+    margin-bottom: 0;
+  }
+}
