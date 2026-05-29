@@ -1,17 +1,17 @@
-import { S, todayISO } from './storage.js?v=173';
+import { S, todayISO } from './storage.js?v=174';
 import {
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
   isSeasoning
-} from './ingredients.js?v=173';
+} from './ingredients.js?v=174';
 import {
   daysBetween,
   getStockCoverageAnalysis,
   remainingDays,
   isIngredientMatch
-} from './inventory.js?v=173';
-import { addShoppingItem } from './shopping.js?v=173';
+} from './inventory.js?v=174';
+import { addShoppingItem } from './shopping.js?v=174';
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);

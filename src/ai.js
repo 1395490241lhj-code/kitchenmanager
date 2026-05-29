@@ -1,5 +1,5 @@
-import { CUSTOM_AI } from './config.js?v=173';
-import { S } from './storage.js?v=173';
+import { CUSTOM_AI } from './config.js?v=174';
+import { S } from './storage.js?v=174';
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
@@ -358,46 +358,157 @@ export async function callCloudAI(pack, inv) {
 }
 
 // 智能录入解析服务：将「链接 / 视频 / 截图」解析为可编辑菜谱草稿。
-// 目标后端模型：openai/gpt-oss-120b（120B 智能解析）。
+// 解析模型：openai/gpt-oss-120b（多数 OpenAI 兼容网关如 Groq 提供）。
 export const RECIPE_IMPORT_MODEL = 'openai/gpt-oss-120b';
 
-function mockImportedRecipe({ url = '', fileName = '' } = {}) {
-  const src = url ? '链接' : (fileName ? '上传文件' : '');
-  return {
-    name: 'AI 导入菜谱草稿',
-    ingredients: [
-      { item: '主料', qty: '', unit: '' },
-      { item: '配菜', qty: '', unit: '' },
-      { item: '调味料', qty: '', unit: '' }
-    ],
-    method: `1. （示例草稿）这是由${src || '来源'}经 AI 解析生成的占位内容。\n2. 接入 openai/gpt-oss-120b 后，这里会自动填充识别到的真实做法步骤。\n3. 请在编辑器中核对并完善后保存。`,
-    isAiDraft: true,
-    draftSource: 'ai-import'
-  };
+// 伪造移动端 UA（注意：浏览器会忽略 fetch 的 User-Agent 头，此处仅在可设置环境生效）。
+const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1';
+
+const IMPORT_SYSTEM_PROMPT = `你是一位资深中餐大厨兼菜谱结构化助手。用户会给你一段来自小红书/网页的菜谱文案，或一张配料表/视频截图。
+请把其中的菜谱信息做语义清洗后，严格只返回一个 JSON 对象（不要 markdown 代码块、不要任何解释文字），字段如下：
+{
+  "name": "标准菜名",
+  "tags": ["家常菜", "口味/菜系等标签"],
+  "ingredients": [ {"item": "核心食材", "qty": "数量(可空)", "unit": "单位(可空)"} ],
+  "method": "1. 第一步...\\n2. 第二步..."
+}
+要求：
+- name 必填，为简洁标准菜名。
+- ingredients 必填，至少一项，拆出核心主料与必要调味料。
+- method 必填，整理成清晰、可执行的家常步骤，用「数字. 」分行。
+- tags 给 1-4 个，体现菜系/口味/类别。
+- 只输出 JSON 本身。`;
+
+// 从小红书网页源码尽力提取文案（标题/正文/desc）。
+function extractXhsText(html) {
+  const parts = [];
+  const push = (v) => { const s = String(v || '').trim(); if (s) parts.push(s); };
+
+  const og = html.match(/<meta[^>]+(?:property|name)=["']og:title["'][^>]*content=["']([^"']+)["']/i);
+  if (og) push(og[1]);
+  const desc = html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']+)["']/i);
+  if (desc) push(desc[1]);
+
+  const state = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\})\s*<\/script>/);
+  const blob = state ? state[1] : html;
+  // 捕获 desc / title / content 文本字段
+  const fields = blob.match(/"(?:desc|title|content|noteText)":"((?:[^"\\]|\\.)*)"/g) || [];
+  fields.forEach(f => {
+    const v = f.replace(/^"[^"]+":"/, '').replace(/"$/, '');
+    push(v);
+  });
+
+  // 还原转义并去重
+  const seen = new Set();
+  const text = parts
+    .map(s => s.replace(/\\u[0-9a-fA-F]{4}/g, m => String.fromCharCode(parseInt(m.slice(2), 16))).replace(/\\n/g, '\n').replace(/\\"/g, '"').trim())
+    .filter(s => s && !seen.has(s) && seen.add(s))
+    .join('\n');
+  return text;
+}
+
+// 抓取小红书/网页菜谱文案：跟随 302、伪造移动端 UA；被拦截时给出友好提示。
+async function fetchRecipeText(url) {
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'GET',
+      redirect: 'follow', // 跟随 302，把 xhslink.com 短链解析为真实长链
+      headers: { 'User-Agent': MOBILE_UA, 'Accept': 'text/html,application/xhtml+xml' }
+    });
+  } catch (e) {
+    // 浏览器跨域 / 网络拦截
+    throw new Error('链接抓取受限，请改用文字或截图导入。');
+  }
+  if (!res.ok) throw new Error('链接抓取受限，请改用文字或截图导入。');
+
+  const html = await res.text();
+  if (/验证码|滑块验证|滑动验证|captcha|verify|安全验证/i.test(html) && !/window\.__INITIAL_STATE__/.test(html)) {
+    throw new Error('链接被验证码拦截，请改用文字或截图导入。');
+  }
+  const text = extractXhsText(html);
+  if (!text || text.length < 6) {
+    throw new Error('没能从链接里提取到菜谱文案，请改用文字或截图导入。');
+  }
+  return text;
+}
+
+// 解析 120B 返回，校验并对齐编辑器字段（name / tags / ingredients / method）。
+function validateImportedRecipe(input) {
+  const data = safeParseJson(input, 'AI 菜谱结果');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('AI 菜谱结果不是对象。');
+
+  const name = String(data.name || '').trim();
+  let method = String(data.method || '').trim();
+  if (!method && Array.isArray(data.steps)) {
+    method = data.steps.map((s, i) => `${i + 1}. ${String(s || '').trim()}`).filter(s => s.length > 3).join('\n');
+  }
+  const ingredients = normalizeAiIngredients(data.ingredients);
+  const tags = Array.isArray(data.tags) ? data.tags.map(t => String(t || '').trim()).filter(Boolean).slice(0, 4) : [];
+
+  if (!name) throw new Error('AI 菜谱缺少菜名。');
+  if (!ingredients.length) throw new Error('AI 菜谱缺少食材。');
+  if (!method) throw new Error('AI 菜谱缺少做法。');
+
+  return { name, tags, ingredients, method, isAiDraft: true, draftSource: 'ai-import' };
+}
+
+// 调用 openai/gpt-oss-120b 做结构化解析（文本 / 截图）。
+async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
+  const conf = getAiConfig();
+  if (!conf) throw new Error('未配置 API Key');
+
+  const instruction = text
+    ? `请把下面这段菜谱文案整理成规定的 JSON：\n\n${text}`
+    : '请根据这张配料表/菜谱截图，整理成规定的 JSON。';
+  const userContent = imageBase64
+    ? [{ type: 'text', text: instruction }, { type: 'image_url', image_url: { url: imageBase64 } }]
+    : instruction;
+
+  const res = await fetch(conf.apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${conf.apiKey}` },
+    body: JSON.stringify({
+      model: RECIPE_IMPORT_MODEL,
+      messages: [
+        { role: 'system', content: IMPORT_SYSTEM_PROMPT },
+        { role: 'user', content: userContent }
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' }
+    })
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(`API 错误 (${res.status}): ${errData.error?.message || '未知错误'}`);
+  }
+  const data = await res.json();
+  const raw = data.choices?.[0]?.message?.content || '';
+  return validateImportedRecipe(raw);
 }
 
 /**
- * 解析外部菜谱来源（小红书/网页链接、短视频或配料表截图）。
+ * 解析外部菜谱来源（小红书/网页链接、配料表截图）→ 可编辑菜谱草稿。
  * @param {{ url?: string, file?: File }} input
- * @returns {Promise<{name, ingredients:[{item,qty,unit}], method, isAiDraft, draftSource}>}
- *
- * 当前为 Mock 数据流转；真实接入位置已在下方 TODO 标注，前端无需再改。
+ * @returns {Promise<{name, tags, ingredients:[{item,qty,unit}], method, isAiDraft, draftSource}>}
  */
 export async function importRecipeFromSource({ url = '', file = null } = {}) {
   const cleanUrl = String(url || '').trim();
   if (!cleanUrl && !file) throw new Error('请粘贴链接或上传视频/截图。');
 
-  // ── TODO(API)：接入 openai/gpt-oss-120b 后端解析服务 ───────────────────────
-  //   const conf = getAiConfig();
-  //   if (conf) {
-  //     const imageBase64 = file && /^image\//.test(file.type) ? await compressImage(file) : null;
-  //     const prompt = `请把以下菜谱来源解析为 JSON：${cleanUrl}` /* + 视频/截图说明 */;
-  //     const raw = await callAiService(prompt, imageBase64); // 注意：将模型切到 RECIPE_IMPORT_MODEL
-  //     return validateRecipeResult(raw);
-  //   }
-  // ──────────────────────────────────────────────────────────────────────────
+  // 截图 → 走视觉解析；视频暂不支持逐帧，引导用户改用截图。
+  let imageBase64 = null;
+  if (file) {
+    if (/^image\//.test(file.type)) imageBase64 = await compressImage(file);
+    else if (!cleanUrl) throw new Error('暂不支持直接解析视频，请改用配料表截图或文字导入。');
+  }
 
-  // 目前：异步占位，保持前端数据流完整。
-  await new Promise(resolve => setTimeout(resolve, 900));
-  return mockImportedRecipe({ url: cleanUrl, fileName: file && file.name });
+  // 链接 → 抓取文案（可能被跨域/验证码拦截，给出友好提示）。
+  let sourceText = '';
+  if (cleanUrl) sourceText = await fetchRecipeText(cleanUrl);
+
+  if (!sourceText && !imageBase64) throw new Error('没有可解析的内容，请改用文字或截图导入。');
+
+  return parseRecipeWith120B({ text: sourceText, imageBase64 });
 }

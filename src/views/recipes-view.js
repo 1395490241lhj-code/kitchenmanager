@@ -1,11 +1,11 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=173';
-import { genId } from '../shopping.js?v=173';
-import { hasRecipeMethod } from '../recommendations.js?v=173';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=173';
-import { buildCatalog } from '../ingredients.js?v=173';
-import { loadInventory } from '../inventory.js?v=173';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=173';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=173';
+import { loadOverlay, saveOverlay } from '../backup.js?v=174';
+import { genId } from '../shopping.js?v=174';
+import { hasRecipeMethod } from '../recommendations.js?v=174';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=174';
+import { buildCatalog } from '../ingredients.js?v=174';
+import { loadInventory } from '../inventory.js?v=174';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=174';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=174';
 
 // 把 AI 解析出的菜谱草稿写入 overlay，并跳转到编辑器（沿用「新建菜谱」数据流）。
 function saveImportedDraft(draft) {
@@ -13,7 +13,8 @@ function saveImportedDraft(draft) {
   const overlay = loadOverlay();
   overlay.recipes = overlay.recipes || {};
   overlay.recipe_ingredients = overlay.recipe_ingredients || {};
-  overlay.recipes[id] = { name: draft.name || 'AI 导入菜谱草稿', tags: ['AI草稿', 'AI导入'], method: draft.method || '', isAiDraft: true };
+  const tags = Array.from(new Set(['AI草稿', 'AI导入', ...(Array.isArray(draft.tags) ? draft.tags : [])]));
+  overlay.recipes[id] = { name: draft.name || 'AI 导入菜谱草稿', tags, method: draft.method || '', isAiDraft: true };
   overlay.recipe_ingredients[id] = (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty || null, unit: i.unit || null }));
   saveOverlay(overlay);
   window.invalidatePackCache?.();
@@ -66,7 +67,10 @@ function openImportModal() {
       setInlineStatus(status, '解析完成，正在打开编辑器…', 'ok');
       setTimeout(() => { close(); saveImportedDraft(draft); }, 500);
     } catch (err) {
-      setInlineStatus(status, formatAiErrorMessage(err), 'bad');
+      // 抓取/输入类的友好提示直接展示；其余（API/解析错误）走统一文案。
+      const msg = String(err && err.message || '');
+      const friendly = /链接|截图|视频|粘贴/.test(msg) ? msg : formatAiErrorMessage(err);
+      setInlineStatus(status, friendly, 'bad');
       goBtn.removeAttribute('disabled');
       goBtn.innerHTML = '✨ 120B AI 智能解析';
     }
