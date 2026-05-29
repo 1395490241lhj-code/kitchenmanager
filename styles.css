@@ -3259,3 +3259,30 @@ nav a.active svg {
 }
 .staple-tile.is-low .staple-tile-name,
 .staple-tile.is-low .staple-tile-state { color: var(--status-warn-text); }
+
+/* ── 首页极速操作组：微型「清冰箱」入口 ── */
+.home-hub-extra {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.home-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-cell);
+  border: 1px solid var(--surface-cell-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.1s ease, color 0.15s ease;
+}
+.home-mini-btn:active { transform: scale(0.96); }
+.home-mini-btn:hover { color: var(--text-main); }
+
+/* ── 菜谱页置顶搜索（从首页迁入） ── */
+.recipe-finder-section { margin-bottom: 14px; }
+.recipe-top-search { margin-bottom: 10px; }

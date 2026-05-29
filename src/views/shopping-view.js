@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=162';
+import { S, todayISO } from '../storage.js?v=163';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -8,13 +8,13 @@ import {
   isDryGoodName,
   normalizeKitchenAmount,
   isSeasoning
-} from '../ingredients.js?v=162';
+} from '../ingredients.js?v=163';
 import {
   getStockCoverageAnalysis,
   getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=162';
+} from '../inventory.js?v=163';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -25,13 +25,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=162';
+} from '../shopping.js?v=163';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=162';
+} from '../components/status.js?v=163';
 import {
   STAPLE_CATALOG,
   STAPLE_STATUS,
@@ -39,7 +39,13 @@ import {
   restoreStapleByPurchase,
   restoreStaplesByPurchase,
   toggleStaple
-} from '../staples.js?v=162';
+} from '../staples.js?v=163';
+import { renderInventory } from './inventory-view.js?v=163';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=163';
+
+// 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
+let pendingInventoryIntent = null;
+export function requestInventoryIntent(kind) { pendingInventoryIntent = kind; }
 
 let currentPlanRange = 'today';
 function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false, dateRange = 'today') {
@@ -578,6 +584,52 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       .catch(() => setInlineStatus(status, text, 'info'));
   };
   page.appendChild(itemCard);
+
+  // ── 库存管理（从首页迁入）：常备货架（蛋奶/干货）+ 完整库存 ──
+  const makeDetails = (title, subtitle, nodes, open = false) => {
+    const details = document.createElement('details');
+    details.className = 'home-secondary-details';
+    if (open) details.open = true;
+    details.innerHTML = `<summary><span>${escapeHtml(title)}</span><small>${escapeHtml(subtitle)}</small></summary>`;
+    nodes.forEach(node => details.appendChild(node));
+    return details;
+  };
+
+  const cabinetDetails = makeDetails(
+    '常备货架（蛋奶 / 干货）',
+    '按数量/状态管理鸡蛋、牛奶、泡发干货',
+    [renderDryGoodsCabinet(inv, { onInventoryChanged: onRoute })],
+    false
+  );
+  page.appendChild(cabinetDetails);
+
+  const inventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
+  const invDetails = makeDetails(
+    '完整库存',
+    '手动录入、拍小票及完整库存明细',
+    [inventoryNode],
+    pendingInventoryIntent != null
+  );
+  invDetails.id = 'shoppingInventoryDetails';
+  page.appendChild(invDetails);
+
+  // 消费跨页意图：首页跳转过来时自动展开库存并触发对应动作。
+  if (pendingInventoryIntent) {
+    const intent = pendingInventoryIntent;
+    pendingInventoryIntent = null;
+    setTimeout(() => {
+      invDetails.open = true;
+      if (intent === 'add') {
+        const form = invDetails.querySelector('.add-form-container');
+        const toggle = invDetails.querySelector('#toggleAddBtn');
+        if (form && toggle && !form.classList.contains('open')) toggle.click();
+      } else if (intent === 'receipt') {
+        const cam = invDetails.querySelector('#camInput');
+        if (cam) cam.click();
+      }
+      invDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  }
 
   return page;
 }

@@ -1,7 +1,9 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=162';
-import { genId } from '../shopping.js?v=162';
-import { hasRecipeMethod } from '../recommendations.js?v=162';
-import { recipeCard } from '../components/recipe-card.js?v=162';
+import { loadOverlay, saveOverlay } from '../backup.js?v=163';
+import { genId } from '../shopping.js?v=163';
+import { hasRecipeMethod } from '../recommendations.js?v=163';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=163';
+import { buildCatalog } from '../ingredients.js?v=163';
+import { loadInventory } from '../inventory.js?v=163';
 
 function mergeOverlayPreservingCurrent(currentOverlay, incomingOverlay) {
   const current = currentOverlay || {};
@@ -55,6 +57,41 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   const grid = wrap.querySelector('#grid');
   const map = pack.recipe_ingredients || {};
   const recipeCount = wrap.querySelector('#recipeCount');
+
+  // 从首页迁入的「搜索菜谱 / 食材」组件（置顶）。逻辑（renderRecipeSearchResults）保持不变。
+  const inv = loadInventory(buildCatalog(pack));
+  const searchResultsContainer = document.createElement('div');
+  searchResultsContainer.className = 'search-results-container';
+  const searchBar = document.createElement('div');
+  searchBar.className = 'home-search recipe-top-search';
+  searchBar.innerHTML = `
+    <input id="recipeFinder" placeholder="找具体菜名或某个食材，比如鸡蛋、回锅肉">
+    <div class="home-search-buttons">
+      <button type="button" class="btn ok" id="recipeFinderGo">搜索</button>
+      <button type="button" class="btn is-hidden" id="recipeFinderClear">清空</button>
+    </div>`;
+  const finderInput = searchBar.querySelector('#recipeFinder');
+  const finderClear = searchBar.querySelector('#recipeFinderClear');
+  const clearFinder = () => {
+    finderInput.value = '';
+    searchResultsContainer.innerHTML = '';
+    finderClear.classList.add('is-hidden');
+  };
+  const runFinder = () => {
+    const q = finderInput.value.trim();
+    if (!q) { clearFinder(); return; }
+    searchResultsContainer.innerHTML = '';
+    searchResultsContainer.appendChild(renderRecipeSearchResults(q, pack, inv, { onRoute }));
+    finderClear.classList.remove('is-hidden');
+  };
+  finderInput.onkeydown = (e) => { if (e.key === 'Enter') runFinder(); };
+  searchBar.querySelector('#recipeFinderGo').onclick = runFinder;
+  finderClear.onclick = clearFinder;
+  const searchSection = document.createElement('section');
+  searchSection.className = 'recipe-finder-section';
+  searchSection.appendChild(searchBar);
+  searchSection.appendChild(searchResultsContainer);
+  wrap.insertBefore(searchSection, wrap.querySelector('.recipe-toolbar'));
 
   function draw(filter = '') {
     grid.innerHTML = '';
