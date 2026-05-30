@@ -164,16 +164,18 @@ function renderSuggestCard(card, pack, inv) {
   return el;
 }
 
-function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {} } = {}) {
+function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, extraNode = null } = {}) {
   const section = document.createElement('section');
-  section.className = 'home-hero';
+  section.className = `home-hero${extraNode ? ' is-combo' : ''}`;
 
   const greeting = mockAiRecommendations.greeting || buildGreeting(expiringCount);
+  // 合并模式时统一用「📅 今日饮食与灵感」眉标
+  const eyebrow = extraNode ? '📅 今日饮食与灵感' : '🧠 今日灵感';
   section.innerHTML = `
     <div class="home-hero-glow" aria-hidden="true"></div>
     <div class="home-hero-head">
       <div class="home-hero-top">
-        <span class="home-hero-eyebrow">🧠 今日灵感</span>
+        <span class="home-hero-eyebrow">${eyebrow}</span>
         <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
       </div>
       <h2 class="home-hero-greeting">${escapeHtml(greeting)}</h2>
@@ -198,7 +200,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {} }
     note.hidden = !usingMock;
   };
 
-  // AI 推荐：复用原有 AI 推荐卡片渲染与草稿逻辑；最多展示 4 张，避免拥挤。
+  // AI 推荐：最多展示 4 张
   const showAi = (aiCards) => {
     showRecommendationCards(scroll, (aiCards || []).slice(0, 4), pack, { onRoute });
     note.hidden = false;
@@ -240,6 +242,23 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {} }
     }
   };
 
+  // 合并模式：灵感卡片下方无缝衔接菜单计划，共享同一渐变胶囊和圆角衬底。
+  if (extraNode) {
+    const divider = document.createElement('div');
+    divider.className = 'home-combo-divider';
+    divider.setAttribute('aria-hidden', 'true');
+    section.appendChild(divider);
+    // 计划区标题
+    const planLabel = document.createElement('div');
+    planLabel.className = 'home-combo-plan-label';
+    planLabel.textContent = '📋 菜单计划';
+    section.appendChild(planLabel);
+    const planSlot = document.createElement('div');
+    planSlot.className = 'home-combo-plan';
+    planSlot.appendChild(extraNode);
+    section.appendChild(planSlot);
+  }
+
   return section;
 }
 
@@ -251,16 +270,23 @@ function renderUrgentMetrics(inv, activeShoppingCount) {
 
   const section = document.createElement('section');
   section.className = 'home-metrics';
+  // 视觉顺序：标签置顶（首要锚点）→ 大数字（结果）。Icon 移至标签旁辅助定位。
   section.innerHTML = `
     <button type="button" class="home-metric ${radarTone}" id="metricExpiring">
-      <span class="home-metric-icon">🚨</span>
+      <span class="home-metric-header">
+        <span class="home-metric-icon">🚨</span>
+        <span class="home-metric-label">48小时内到期</span>
+      </span>
       <span class="home-metric-num">${expiring48.length}</span>
-      <span class="home-metric-label">样食材 48 小时内到期</span>
+      <span class="home-metric-sub">种食材</span>
     </button>
     <button type="button" class="home-metric is-info" id="metricShopping">
-      <span class="home-metric-icon">🛒</span>
+      <span class="home-metric-header">
+        <span class="home-metric-icon">🛒</span>
+        <span class="home-metric-label">购物清单待买</span>
+      </span>
       <span class="home-metric-num">${activeShoppingCount}</span>
-      <span class="home-metric-label">项待买 · 购物清单</span>
+      <span class="home-metric-sub">项未完成</span>
     </button>
   `;
   // 库存与采购已迁至「清单」页：临期雷达跳转到该页的库存区。
@@ -381,10 +407,10 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     return container;
   }
 
-  // 自上而下视觉层级：① 紧急指标 ② 今日灵感 ③ 菜单计划 ④ 极速操作（含微型「清冰箱」）
+  // 自上而下视觉层级：① 紧急指标 ②「📅 今日饮食与灵感」合并卡（今日灵感 + 菜单计划） ③ 极速操作
   container.appendChild(renderUrgentMetrics(inv, activeShopping.length));
-  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute }));
-  container.appendChild(renderMenuPlan(pack, { onRoute }));
+  const menuPlanNode = renderMenuPlan(pack, { onRoute });
+  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute, extraNode: menuPlanNode }));
   container.appendChild(renderActionHub(pack, inv, {
     onQuickInput: () => { requestInventoryIntent('add'); location.hash = '#shopping'; },
     onRoute
