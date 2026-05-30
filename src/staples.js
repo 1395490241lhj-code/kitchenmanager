@@ -15,9 +15,9 @@
  *     为 SUFFICIENT 并更新库存时间（updatedAt）。
  */
 
-import { S } from './storage.js?v=176';
-import { getCanonicalName } from './ingredients.js?v=176';
-import { addShoppingItem, loadShoppingItems, saveShoppingItems } from './shopping.js?v=176';
+import { S } from './storage.js?v=177';
+import { getCanonicalName } from './ingredients.js?v=177';
+import { addShoppingItem, loadShoppingItems, saveShoppingItems } from './shopping.js?v=177';
 
 export const STAPLE_STATUS = { SUFFICIENT: 'SUFFICIENT', INSUFFICIENT: 'INSUFFICIENT' };
 const STAPLE_SOURCE = '常备品';

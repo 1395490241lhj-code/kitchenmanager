@@ -1,5 +1,5 @@
-import { CUSTOM_AI } from './config.js?v=176';
-import { S } from './storage.js?v=176';
+import { CUSTOM_AI } from './config.js?v=177';
+import { S } from './storage.js?v=177';
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
@@ -388,9 +388,23 @@ function validateImportedRecipe(input) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('AI 菜谱结果不是对象。');
 
   const name = String(data.name || '').trim();
-  let method = String(data.method || '').trim();
-  if (!method && Array.isArray(data.steps)) {
-    method = data.steps.map((s, i) => `${i + 1}. ${String(s || '').trim()}`).filter(s => s.length > 3).join('\n');
+  // method 兼容三种形态：纯文本字符串 / 步骤数组（method[] 或 steps[]）。
+  // 数组步骤会自动剥离模型可能仍然附带的「1.」「步骤一：」等数字/序号前缀，
+  // 再统一加序号拼成多行文本，保证前端列表样式干净换行。
+  const stripStepPrefix = (s) => String(s || '')
+    .replace(/^[\s\-•·]*(?:第[一二三四五六七八九十百零\d]+步[:：]?|步骤[一二三四五六七八九十百零\d]+[:：]?|[一二三四五六七八九十]+[、.．。)）][\s]*|\d+\s*[.、．。)）:：][\s]*)/u, '')
+    .trim();
+  const arraySteps = Array.isArray(data.method) ? data.method
+    : (Array.isArray(data.steps) ? data.steps : null);
+  let method = '';
+  if (arraySteps) {
+    method = arraySteps
+      .map(stripStepPrefix)
+      .filter(s => s && s.length > 1)
+      .map((s, i) => `${i + 1}. ${s}`)
+      .join('\n');
+  } else {
+    method = String(data.method || '').trim();
   }
   const ingredients = normalizeAiIngredients(data.ingredients);
   const tags = Array.isArray(data.tags) ? data.tags.map(t => String(t || '').trim()).filter(Boolean).slice(0, 4) : [];

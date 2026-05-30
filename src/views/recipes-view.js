@@ -1,11 +1,11 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=176';
-import { genId } from '../shopping.js?v=176';
-import { hasRecipeMethod } from '../recommendations.js?v=176';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=176';
-import { buildCatalog } from '../ingredients.js?v=176';
-import { loadInventory } from '../inventory.js?v=176';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=176';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=176';
+import { loadOverlay, saveOverlay } from '../backup.js?v=177';
+import { genId } from '../shopping.js?v=177';
+import { hasRecipeMethod } from '../recommendations.js?v=177';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=177';
+import { buildCatalog } from '../ingredients.js?v=177';
+import { loadInventory } from '../inventory.js?v=177';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=177';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=177';
 
 // 把 AI 解析出的菜谱草稿写入 overlay，并跳转到编辑器（沿用「新建菜谱」数据流）。
 function saveImportedDraft(draft) {
@@ -57,9 +57,13 @@ function openImportModal() {
   const goBtn = overlay.querySelector('#aiImportGo');
   goBtn.onclick = async () => {
     if (goBtn.getAttribute('disabled')) return;
-    const url = overlay.querySelector('#aiImportUrl').value.trim();
+    // 智能模糊提取：允许用户粘贴整段小红书分享语，自动捕获里面的合法 URL。
+    const raw = overlay.querySelector('#aiImportUrl').value.trim();
+    const match = raw.match(/https?:\/\/[^\s]+/g);
+    const url = match ? match[0].replace(/[，。、,.;；]+$/, '') : '';
     const file = fileInput.files[0] || null;
-    if (!url && !file) { setInlineStatus(status, '请粘贴链接或选择一个视频/截图。', 'bad'); return; }
+    if (!raw && !file) { setInlineStatus(status, '请粘贴链接或选择一个视频/截图。', 'bad'); return; }
+    if (raw && !url) { setInlineStatus(status, '没找到有效链接，请检查粘贴内容或改用截图导入。', 'bad'); return; }
     goBtn.setAttribute('disabled', 'true');
     goBtn.innerHTML = '<span class="spinner"></span> 120B 解析中…';
     try {
