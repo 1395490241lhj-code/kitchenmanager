@@ -1,20 +1,20 @@
-import { S, todayISO } from '../storage.js?v=177';
-import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=177';
-import { deductInventoryForRecipe, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=177';
+import { S, todayISO } from '../storage.js?v=178';
+import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=178';
+import { deductInventoryForRecipe, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=178';
 import {
   addMissingRecipeIngredientsToShopping,
   addRecipeToPlan,
   getMissingRecipeIngredients,
   markRecipeCooked
-} from '../recommendations.js?v=177';
+} from '../recommendations.js?v=178';
 import {
   callAiForMethod,
   formatAiErrorMessage,
   withTimeout
-} from '../ai.js?v=177';
-import { loadOverlay, saveOverlay } from '../backup.js?v=177';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=177';
-import { showDeductStockModal } from '../components/modal.js?v=177';
+} from '../ai.js?v=178';
+import { loadOverlay, saveOverlay } from '../backup.js?v=178';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=178';
+import { showDeductStockModal } from '../components/modal.js?v=178';
 
 export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   let r = (pack.recipes || []).find(x => x.id === id);
@@ -97,7 +97,10 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   const missingMethodContent = `<div class="ai-empty-note">暂无详细做法。可以让 AI 先生成草稿，确认后再保存。</div><button type="button" class="btn ai" id="genMethodBtn">✨ AI 生成草稿</button>`;
   const methodContent = r.method ? `<div class="method-text">${escapeHtml(r.method)}</div>` : missingMethodContent;
 
-  div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已安排在菜单计划' : '先加入菜单计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可选择扣减库存。</p></div><div class="recipe-action-buttons"><div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; width: 100%;"><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planToday" ${isPlannedToday ? 'disabled' : ''}>${isPlannedToday ? '今天已计划' : '计划今天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planTomorrow" ${isPlannedTomorrow ? 'disabled' : ''}>${isPlannedTomorrow ? '明天已计划' : '计划明天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planDayAfter" ${isPlannedDayAfter ? 'disabled' : ''}>${isPlannedDayAfter ? '后天已计划' : '计划后天'}</button></div><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${escapeHtml(it.item)} ${it.qty ? `<span class="qty">${escapeHtml(it.qty)}${escapeHtml(it.unit||'')}</span>` : ''}</div>`).join('')}</div></div><div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  const seasoningItems = Array.isArray(r.seasonings) ? r.seasonings.filter(s => s && s.item) : [];
+  const seasoningBlock = seasoningItems.length ? `<div class="block"><h4>调料表 Seasonings <span class="meta seasoning-note">仅做菜谱参考，不参与库存扣减</span></h4><div class="ing-compact-container">${seasoningItems.map(it => `<div class="ing-tag-pill seasoning-pill">${escapeHtml(it.item)} ${it.qty ? `<span class="qty">${escapeHtml(it.qty)}${escapeHtml(it.unit||'')}</span>` : ''}</div>`).join('')}</div></div>` : '';
+
+  div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已安排在菜单计划' : '先加入菜单计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可选择扣减库存。</p></div><div class="recipe-action-buttons"><div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; width: 100%;"><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planToday" ${isPlannedToday ? 'disabled' : ''}>${isPlannedToday ? '今天已计划' : '计划今天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planTomorrow" ${isPlannedTomorrow ? 'disabled' : ''}>${isPlannedTomorrow ? '明天已计划' : '计划明天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planDayAfter" ${isPlannedDayAfter ? 'disabled' : ''}>${isPlannedDayAfter ? '后天已计划' : '计划后天'}</button></div><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div><div class="block"><h4>用料 Ingredients</h4><div class="ing-compact-container">${items.map(it => `<div class="ing-tag-pill">${escapeHtml(it.item)} ${it.qty ? `<span class="qty">${escapeHtml(it.qty)}${escapeHtml(it.unit||'')}</span>` : ''}</div>`).join('')}</div></div>${seasoningBlock}<div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
 
   const actionFeedback = div.querySelector('#recipeActionFeedback');
   const showActionFeedback = (text) => {

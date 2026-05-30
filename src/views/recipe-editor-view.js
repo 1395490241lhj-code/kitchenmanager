@@ -1,15 +1,15 @@
-import { els } from '../dom.js?v=177';
+import { els } from '../dom.js?v=178';
 import {
   buildCatalog,
   buildIngredientOptions,
   getCanonicalName,
   guessKitchenUnit
-} from '../ingredients.js?v=177';
+} from '../ingredients.js?v=178';
 import {
   applyOverlay,
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=177';
+} from '../backup.js?v=178';
 import {
   escapeHtml,
   escapeOptionAttr,
@@ -17,7 +17,7 @@ import {
   normalizeDifficulty,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=177';
+} from '../components/status.js?v=178';
 
 /**
  * @param {string} id
@@ -73,6 +73,12 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     </table>
     <datalist id="recipeIngredientList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
 
+    <h3 class="editor-section-title">调料表 <span class="meta seasoning-note">仅作为菜谱参考，不参与库存扣减</span></h3>
+    <table class="table recipe-editor-table">
+      <thead><tr><th>调料</th><th>数量</th><th>单位</th><th class="right"><a class="btn small" id="addSeasoningRow">新增</a></th></tr></thead>
+      <tbody id="seasoningRows"></tbody>
+    </table>
+
     <h3 class="editor-section-title">做法 (Method)</h3>
     <textarea id="rMethod" rows="8" placeholder="请输入烹饪步骤..." class="editor-textarea">${escapeHtml(r.method || '')}</textarea>
 
@@ -110,9 +116,42 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     });
     tbody.appendChild(tr);
   }
-  if(items.length) items.forEach(it => addRow(it.item || '', (typeof it.qty==='number' && isFinite(it.qty))? it.qty : '', it.unit || ''));
+  if(items.length) items.forEach(it => addRow(it.item || '', (typeof it.qty==='number' && isFinite(it.qty))? it.qty : (it.qty || ''), it.unit || ''));
   else addRow();
   wrap.querySelector('#addRow').onclick = ()=> addRow();
+
+  // ── 调料表（独立列表，不参与库存扣减） ──
+  const seasoningTbody = wrap.querySelector('#seasoningRows');
+  function addSeasoningRow(item = '', qty = '', unit = '') {
+    const tr = document.createElement('tr');
+    const unitChoices = ['适量', '勺', '茶匙', '克', '毫升', '杯', '把', '少许'];
+    const defaultUnit = unit || '适量';
+    const unitHtml = unitChoices.map(u => `<option value="${escapeOptionAttr(u)}"${defaultUnit === u ? ' selected' : ''}>${escapeHtml(u)}</option>`).join('');
+    tr.innerHTML = `
+      <td><input placeholder="调料名（盐 / 生抽 / 水 …）" value="${escapeOptionAttr(item)}"></td>
+      <td><input type="number" min="0" step="0.1" placeholder="可选" value="${qty}"></td>
+      <td><select>${unitHtml}</select></td>
+      <td class="right"><a class="btn bad small">删</a></td>`;
+    els('.btn', tr)[0].onclick = () => tr.remove();
+    seasoningTbody.appendChild(tr);
+  }
+  const initialSeasonings = Array.isArray(r.seasonings) ? r.seasonings : [];
+  initialSeasonings.forEach(s => addSeasoningRow(s.item || '', s.qty || '', s.unit || ''));
+  wrap.querySelector('#addSeasoningRow').onclick = () => addSeasoningRow();
+
+  function collectSeasonings() {
+    const arr = [];
+    els('tbody#seasoningRows tr', wrap).forEach(tr => {
+      const [i1, i2] = els('input', tr);
+      const sel = els('select', tr)[0];
+      const item = String(i1.value || '').trim();
+      if (!item) return; // 空行跳过
+      const qtyText = String(i2.value || '').trim();
+      const unit = sel.value || '适量';
+      arr.push({ item, qty: qtyText || '1', unit });
+    });
+    return arr;
+  }
 
   function collectIngredients() {
     const arr = [];
@@ -165,7 +204,8 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     const prepTime = wrap.querySelector('#rPrepTime').value.trim();
     const difficulty = normalizeDifficulty(wrap.querySelector('#rDifficulty').value);
     const servings = wrap.querySelector('#rServings').value.trim();
-    const nextRecipe = { name, tags, method };
+    const seasonings = collectSeasonings();
+    const nextRecipe = { name, tags, method, seasonings };
     if(prepTime) nextRecipe.prepTime = prepTime;
     if(difficulty) nextRecipe.difficulty = difficulty;
     if(servings) nextRecipe.servings = servings;

@@ -1,11 +1,11 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=177';
-import { genId } from '../shopping.js?v=177';
-import { hasRecipeMethod } from '../recommendations.js?v=177';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=177';
-import { buildCatalog } from '../ingredients.js?v=177';
-import { loadInventory } from '../inventory.js?v=177';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=177';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=177';
+import { loadOverlay, saveOverlay } from '../backup.js?v=178';
+import { genId } from '../shopping.js?v=178';
+import { hasRecipeMethod } from '../recommendations.js?v=178';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=178';
+import { buildCatalog } from '../ingredients.js?v=178';
+import { loadInventory } from '../inventory.js?v=178';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=178';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=178';
 
 // 把 AI 解析出的菜谱草稿写入 overlay，并跳转到编辑器（沿用「新建菜谱」数据流）。
 function saveImportedDraft(draft) {
@@ -14,7 +14,11 @@ function saveImportedDraft(draft) {
   overlay.recipes = overlay.recipes || {};
   overlay.recipe_ingredients = overlay.recipe_ingredients || {};
   const tags = Array.from(new Set(['AI草稿', 'AI导入', ...(Array.isArray(draft.tags) ? draft.tags : [])]));
-  overlay.recipes[id] = { name: draft.name || 'AI 导入菜谱草稿', tags, method: draft.method || '', isAiDraft: true };
+  // 调料表单独挂在 recipe 对象上，前端编辑器/详情页会单独渲染；不进入 recipe_ingredients 故不参与库存扣减。
+  const seasonings = (Array.isArray(draft.seasonings) ? draft.seasonings : [])
+    .map(i => ({ item: i.item || '', qty: i.qty || '', unit: i.unit || '' }))
+    .filter(i => i.item);
+  overlay.recipes[id] = { name: draft.name || 'AI 导入菜谱草稿', tags, method: draft.method || '', seasonings, isAiDraft: true };
   overlay.recipe_ingredients[id] = (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty || null, unit: i.unit || null }));
   saveOverlay(overlay);
   window.invalidatePackCache?.();

@@ -3545,3 +3545,11 @@ nav a span { white-space: nowrap; }
     margin-bottom: 0;
   }
 }
+
+/* ── 调料表（与用料表区分）：浅紫色边、注释字号 ── */
+.seasoning-note { font-size: 11px; color: var(--text-secondary); font-weight: 500; margin-left: 6px; }
+.ing-tag-pill.seasoning-pill {
+  background: var(--status-draft-bg);
+  border-color: var(--status-draft-border);
+  color: var(--status-draft-text);
+}

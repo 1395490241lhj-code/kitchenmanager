@@ -40,45 +40,41 @@ function resolveChatUrl(base) {
 const IMPORT_SYSTEM_PROMPT = `你是一位资深中餐大厨兼菜谱结构化助手。用户会给你一段来自小红书/网页的菜谱文案，或一张配料表/视频截图。
 请把其中的菜谱信息做语义清洗后，严格只返回一个 JSON 对象（不要 markdown 代码块、不要任何解释文字）。
 
-⚠️ 三条最高优先级铁律（违反任意一条即视为输出失败，必须严格执行）：
-1. 【严禁空数量】ingredients 数组里每个对象的 qty 必须是有效数字字符串（如 "1"、"2"、"0.5"），不允许 "" / null / undefined / 缺省字段 / "适量" / "少许" / "半" / "一" 等任何非数字内容。
-2. 【常备品彻底过滤】ingredients 数组里严禁出现：水、食用油（及任何基础烹饪油：植物油/菜籽油/大豆油/玉米油/葵花籽油/调和油/色拉油）、盐、味精、鸡精。这些只能出现在 method 步骤文字里，不允许出现在食材列表中。
+⚠️ 四条最高优先级铁律（违反任意一条即视为输出失败，必须严格执行）：
+1. 【严禁空数量】ingredients 与 seasonings 数组里每个对象的 qty 必须是有效数字字符串（如 "1"、"2"、"0.5"），不允许 "" / null / undefined / 缺省字段 / "适量" / "少许" / "半" / "一" 等任何非数字内容。
+2. 【食材 / 调料 双列表】必须输出两个独立数组：
+   · ingredients = 核心食材（肉、禽、蛋、海鲜、蔬菜、豆制品、主食、特色配料等，参与库存扣减）。
+   · seasonings  = 常备调料与背景介质（如 水、生抽、老抽、醋、糖、盐、味精、鸡精、食用油 / 植物油 / 菜籽油 / 大豆油 / 玉米油 / 葵花籽油 / 调和油 / 色拉油、料酒、淀粉、香油、花椒、干辣椒、八角、桂皮、葱姜蒜等）。不参与库存扣减，但仍要出现在 method 步骤文字里。
+   · ingredients 数组里严禁出现 seasonings 类目；反之亦然。
 3. 【method 格式干净】method 必须是字符串数组，每个元素的文本【严禁包含任何序号前缀】（如 "1. " / "1、" / "第一步：" / "步骤2：" / "一、" / "(1) "）；直接以动词或主语开头。
+4. 【method 文字保留调料】即便 seasonings 列出了水/油/盐，method 步骤文字里仍要写出对应动作（"锅中倒油烧热"、"加水大火焖煮"、"调入盐"），保持烹饪指导连贯。
 
 JSON 字段如下：
 {
   "name": "标准菜名",
   "tags": ["家常菜", "口味/菜系等标签"],
-  "ingredients": [ {"item": "青椒", "qty": "2", "unit": "个"}, {"item": "生抽", "qty": "2", "unit": "勺"} ],
+  "ingredients": [ {"item": "土豆", "qty": "2", "unit": "个"}, {"item": "牛肉", "qty": "1", "unit": "份"} ],
+  "seasonings":  [ {"item": "生抽", "qty": "2", "unit": "勺"}, {"item": "盐", "qty": "1", "unit": "适量"}, {"item": "水", "qty": "1", "unit": "杯"} ],
   "method": ["步骤一文本", "步骤二文本", "步骤三文本"]
 }
 
-【用量双轨制】——每个食材的 qty / unit 必须按其类别选用单位，这是最重要的规则：
-1. 主材料（肉、禽、蛋、海鲜、蔬菜、豆制品、主食等）：
+【用量与单位规则】
+1. ingredients（核心食材）：
    - 严禁输出精确克数（如 150g、230g、半斤）。
    - 必须换算为离散、直观的家常单位：个 / 根 / 把 / 棵 / 块 / 袋 / 盒 / 片 / 只 / 条 / 份。
    - 无法判断数量时，统一用 qty "1"、unit "份"。
-   - 示例：{"item":"五花肉","qty":"1","unit":"块"}、{"item":"青椒","qty":"2","unit":"个"}、{"item":"虾","qty":"1","unit":"份"}。
-2. 需要单独采购的特殊调味料（生抽、老抽、蚝油、料酒、醋、糖、淀粉、豆瓣酱、花椒、干辣椒等）：
-   - 允许并推荐使用精准的烹饪计量：勺 / 茶匙 / 克 / 毫升，或模糊量「适量」「少许」。
-   - 示例：{"item":"生抽","qty":"2","unit":"勺"}、{"item":"糖","qty":"5","unit":"克"}。
+   - 示例：{"item":"五花肉","qty":"1","unit":"块"}、{"item":"青椒","qty":"2","unit":"个"}。
+2. seasonings（常备调料/介质）：
+   - 允许使用精准的烹饪计量：勺 / 茶匙 / 克 / 毫升，或常用单位「适量」「少许」「杯」「把」。
+   - 示例：{"item":"生抽","qty":"2","unit":"勺"}、{"item":"糖","qty":"5","unit":"克"}、{"item":"盐","qty":"1","unit":"适量"}、{"item":"水","qty":"1","unit":"杯"}。
 
-【🚫 厨房常备品过滤——不要进 ingredients】这是和「双轨制」并列的必须遵守规则：
-- 以下「家庭基础常备品」绝对不能出现在 ingredients 数组里，因为它们无需作为库存追踪：
-  · 水（清水、热水、凉水、开水、纯净水均一律不列入）。
-  · 基础烹饪油：食用油、植物油、菜籽油、大豆油、玉米油、葵花籽油、调和油、色拉油等。
-  · 基础调味粉：盐、味精、鸡精。
-- 唯一例外：当上述常备品本身就是【主料】或【点睛核心料】（例如「花生油拌面」里的花生油、「盐焗鸡」里的粗盐），才允许保留在 ingredients。
-- 即便被剔除出 ingredients，它们仍必须出现在 method 的步骤文字里以保持烹饪指导连贯（如「锅中倒油烧热」、「加水大火焖煮」、「调入盐」）。
-- 实施口径：先生成完整食材表，再按上述规则过滤一遍，确认最终 ingredients 不包含 水/油类/盐/味精/鸡精 这五类基础常备品。
-
-【qty 必须是纯数字字符串】——这是必须遵守的铁律，任何例外都视为输出错误：
+【qty 必须是纯数字字符串】——ingredients 与 seasonings 两个数组里每一项都必须遵守：
 - qty 只能是数字组成的字符串，如 "1"、"2"、"3"、"0.5"、"5"；可以含小数点，不得包含任何汉字、字母或符号。
 - 严禁出现："" / null / undefined / 缺省字段 / "适量" / "少许" / "若干" / "些许" / "半" / "一" / "两"。
 - 文案/视频里没明确数量时，按当前菜品的【三人份家常用量】智能估算并强行填合理数字：
-  · 主料：土豆 "2"/"3"、青椒 "2"、五花肉 "1"、鸡蛋 "2"、葱 "1"、虾 "1"；
-  · 调料：生抽 "2"、老抽 "1"、醋 "1"、料酒 "1"、糖 "5"、干辣椒粉 "1"、花椒 "1"、葱花 "1"。
-- 当 unit 取「适量」「少许」「杯」「把」或其它无量纲单位时，qty 仍必须填 "1"，例如 {"item":"豆瓣酱","qty":"1","unit":"勺"}。
+  · ingredients：土豆 "2"/"3"、青椒 "2"、五花肉 "1"、鸡蛋 "2"、虾 "1"；
+  · seasonings：生抽 "2"、老抽 "1"、醋 "1"、料酒 "1"、糖 "5"、干辣椒粉 "1"、花椒 "1"、葱花 "1"、食用油 "1"、盐 "1"、水 "1"。
+- 当 unit 取「适量」「少许」「杯」「把」或其它无量纲单位时，qty 仍必须填 "1"，例如 {"item":"盐","qty":"1","unit":"适量"}。
 - 这条规则优先于所有其它要求——宁愿估算偏差，也绝不能让 qty 为空或非数字。
 
 【method 数组化】——method 必须是字符串数组，不再是单一字符串：
@@ -90,7 +86,7 @@ JSON 字段如下：
 
 其它要求：
 - name 必填，为简洁标准菜名。
-- ingredients 必填，至少一项；item / qty / unit 三个字段一律为非空字符串。
+- ingredients 必填，至少一项；seasonings 可以为空数组但建议至少列出主要调料；两个数组里每条 item / qty / unit 都必须是非空字符串。
 - tags 给 1-4 个，体现菜系/口味/类别。
 - 只输出 JSON 本身。`;
 
@@ -179,32 +175,48 @@ function stripStepPrefix(s) {
     .trim();
 }
 
+// 强制 qty / unit 兜底；qty 必须是数字字符串，否则统一 "1"；空 unit → "份"（食材）或 "适量"（调料）。
+function normalizeQtyUnitItem(ing, defaultUnit) {
+  if (!ing || typeof ing !== 'object') return null;
+  const item = String(ing.item || '').trim();
+  if (!item) return null;
+  let qty = String(ing.qty == null ? '' : ing.qty).trim();
+  if (!qty || qty === 'null' || qty === 'undefined' || /[一-龥]/.test(qty) || !/^\d+(?:\.\d+)?$/.test(qty)) qty = '1';
+  let unit = String(ing.unit == null ? '' : ing.unit).trim();
+  if (!unit) unit = defaultUnit;
+  return { item, qty, unit };
+}
+
 function sanitizeRecipe(recipe) {
   if (!recipe || typeof recipe !== 'object') return recipe;
 
-  // 1) ingredients：过滤常备品 + 强制 qty/unit 非空
-  if (Array.isArray(recipe.ingredients)) {
-    recipe.ingredients = recipe.ingredients.map(ing => {
-      if (!ing || typeof ing !== 'object') return null;
-      const item = String(ing.item || '').trim();
-      if (!item) return null;
-
-      // (a) 常备品黑名单：item 命中即剔除（用 includes 容忍模型加修饰词，如「热水」「食用油」）
-      if (PANTRY_BLACKLIST.some(b => item.includes(b))) return null;
-
-      // (b) qty 强制为有效数字字符串；空 / null / 非数字 / 中文都兜底为 "1"
-      let qty = String(ing.qty == null ? '' : ing.qty).trim();
-      if (!qty || qty === 'null' || qty === 'undefined' || !/^\d+(?:\.\d+)?$/.test(qty)) qty = '1';
-
-      // (c) unit 规范：为空给「份」
-      let unit = String(ing.unit == null ? '' : ing.unit).trim();
-      if (!unit) unit = '份';
-
-      return { item, qty, unit };
-    }).filter(Boolean);
+  // 收集 seasonings（先建好，方便把 ingredients 里漏网的常备调料挪过来）。
+  const seasonings = [];
+  if (Array.isArray(recipe.seasonings)) {
+    for (const s of recipe.seasonings) {
+      const cleaned = normalizeQtyUnitItem(s, '适量');
+      if (cleaned) seasonings.push(cleaned);
+    }
   }
 
-  // 2) method：统一成纯文本字符串数组，剥掉可能残留的序号前缀
+  // 1) ingredients：常备品兜底 —— 模型漏放了水/油/盐/味精/鸡精 → 转移到 seasonings，不直接丢弃。
+  if (Array.isArray(recipe.ingredients)) {
+    const cleanIngredients = [];
+    for (const ing of recipe.ingredients) {
+      const cleaned = normalizeQtyUnitItem(ing, '份');
+      if (!cleaned) continue;
+      if (PANTRY_BLACKLIST.some(b => cleaned.item.includes(b))) {
+        // 漏放的常备品改投 seasonings，unit 若为「份」改为「适量」更贴切。
+        seasonings.push({ ...cleaned, unit: cleaned.unit === '份' ? '适量' : cleaned.unit });
+      } else {
+        cleanIngredients.push(cleaned);
+      }
+    }
+    recipe.ingredients = cleanIngredients;
+  }
+  recipe.seasonings = seasonings;
+
+  // 2) method：统一为字符串数组，剥掉可能残留的序号前缀
   let steps = null;
   if (Array.isArray(recipe.method)) steps = recipe.method;
   else if (Array.isArray(recipe.steps)) steps = recipe.steps;
@@ -215,7 +227,7 @@ function sanitizeRecipe(recipe) {
       .filter(s => s && s.length > 1);
   }
 
-  // 3) tags 收敛为字符串数组
+  // 3) tags 收敛 + name 去空白
   if (Array.isArray(recipe.tags)) {
     recipe.tags = recipe.tags.map(t => String(t || '').trim()).filter(Boolean).slice(0, 4);
   }

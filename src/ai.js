@@ -1,5 +1,5 @@
-import { CUSTOM_AI } from './config.js?v=177';
-import { S } from './storage.js?v=177';
+import { CUSTOM_AI } from './config.js?v=178';
+import { S } from './storage.js?v=178';
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
@@ -407,13 +407,14 @@ function validateImportedRecipe(input) {
     method = String(data.method || '').trim();
   }
   const ingredients = normalizeAiIngredients(data.ingredients);
+  const seasonings = normalizeAiIngredients(data.seasonings);
   const tags = Array.isArray(data.tags) ? data.tags.map(t => String(t || '').trim()).filter(Boolean).slice(0, 4) : [];
 
   if (!name) throw new Error('AI 菜谱缺少菜名。');
   if (!ingredients.length) throw new Error('AI 菜谱缺少食材。');
   if (!method) throw new Error('AI 菜谱缺少做法。');
 
-  return { name, tags, ingredients, method, isAiDraft: true, draftSource: 'ai-import' };
+  return { name, tags, ingredients, seasonings, method, isAiDraft: true, draftSource: 'ai-import' };
 }
 
 // 通过后端 /api/ai-parse 调用 openai/gpt-oss-120b（密钥与 Base URL 由 Render 环境变量提供）。
