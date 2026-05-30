@@ -38,7 +38,14 @@ function resolveChatUrl(base) {
 }
 
 const IMPORT_SYSTEM_PROMPT = `你是一位资深中餐大厨兼菜谱结构化助手。用户会给你一段来自小红书/网页的菜谱文案，或一张配料表/视频截图。
-请把其中的菜谱信息做语义清洗后，严格只返回一个 JSON 对象（不要 markdown 代码块、不要任何解释文字），字段如下：
+请把其中的菜谱信息做语义清洗后，严格只返回一个 JSON 对象（不要 markdown 代码块、不要任何解释文字）。
+
+⚠️ 三条最高优先级铁律（违反任意一条即视为输出失败，必须严格执行）：
+1. 【严禁空数量】ingredients 数组里每个对象的 qty 必须是有效数字字符串（如 "1"、"2"、"0.5"），不允许 "" / null / undefined / 缺省字段 / "适量" / "少许" / "半" / "一" 等任何非数字内容。
+2. 【常备品彻底过滤】ingredients 数组里严禁出现：水、食用油（及任何基础烹饪油：植物油/菜籽油/大豆油/玉米油/葵花籽油/调和油/色拉油）、盐、味精、鸡精。这些只能出现在 method 步骤文字里，不允许出现在食材列表中。
+3. 【method 格式干净】method 必须是字符串数组，每个元素的文本【严禁包含任何序号前缀】（如 "1. " / "1、" / "第一步：" / "步骤2：" / "一、" / "(1) "）；直接以动词或主语开头。
+
+JSON 字段如下：
 {
   "name": "标准菜名",
   "tags": ["家常菜", "口味/菜系等标签"],
@@ -115,7 +122,10 @@ function extractXhsText(html) {
 
 // 代理路由：抓取并返回菜谱文案。
 app.get('/api/xhs-extract', async (req, res) => {
-  const url = String(req.query.url || '').trim();
+  // 模糊提取：允许用户传整段小红书分享语，服务端再用同一条正则兜底捕获 URL。
+  const raw = String(req.query.url || '').trim();
+  const m = raw.match(/https?:\/\/[^\s]+/g);
+  const url = m ? m[0].replace(/[，。、,.;；]+$/, '') : raw;
   if (!url) return res.status(400).json({ error: '缺少 url 参数。' });
   if (!/^https?:\/\//i.test(url)) return res.status(400).json({ error: '仅支持 http/https 链接。' });
 
@@ -152,6 +162,68 @@ app.get('/api/xhs-extract', async (req, res) => {
   }
 });
 
+// ── 终极降级兜底：把模型的 JSON 在服务端再清洗一遍，确保「常备品过滤 / qty 非空 / method 无序号前缀」三条铁律生效。──
+const PANTRY_BLACKLIST = ['水', '油', '食用油', '盐', '味精', '鸡精', '植物油', '菜籽油', '大豆油', '玉米油', '葵花籽油', '调和油', '色拉油'];
+
+function safeParseModelJson(raw) {
+  if (raw && typeof raw === 'object') return raw;
+  const s = String(raw || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(s.slice(a, b + 1)); } catch (_) { return null; }
+}
+
+function stripStepPrefix(s) {
+  return String(s || '')
+    .replace(/^[\s\-•·]*(?:第[一二三四五六七八九十百零\d]+步[:：]?|步骤[一二三四五六七八九十百零\d]+[:：]?|[一二三四五六七八九十]+[、.．。)）][\s]*|\d+\s*[.、．。)）:：][\s]*|\(\d+\)\s*)/u, '')
+    .trim();
+}
+
+function sanitizeRecipe(recipe) {
+  if (!recipe || typeof recipe !== 'object') return recipe;
+
+  // 1) ingredients：过滤常备品 + 强制 qty/unit 非空
+  if (Array.isArray(recipe.ingredients)) {
+    recipe.ingredients = recipe.ingredients.map(ing => {
+      if (!ing || typeof ing !== 'object') return null;
+      const item = String(ing.item || '').trim();
+      if (!item) return null;
+
+      // (a) 常备品黑名单：item 命中即剔除（用 includes 容忍模型加修饰词，如「热水」「食用油」）
+      if (PANTRY_BLACKLIST.some(b => item.includes(b))) return null;
+
+      // (b) qty 强制为有效数字字符串；空 / null / 非数字 / 中文都兜底为 "1"
+      let qty = String(ing.qty == null ? '' : ing.qty).trim();
+      if (!qty || qty === 'null' || qty === 'undefined' || !/^\d+(?:\.\d+)?$/.test(qty)) qty = '1';
+
+      // (c) unit 规范：为空给「份」
+      let unit = String(ing.unit == null ? '' : ing.unit).trim();
+      if (!unit) unit = '份';
+
+      return { item, qty, unit };
+    }).filter(Boolean);
+  }
+
+  // 2) method：统一成纯文本字符串数组，剥掉可能残留的序号前缀
+  let steps = null;
+  if (Array.isArray(recipe.method)) steps = recipe.method;
+  else if (Array.isArray(recipe.steps)) steps = recipe.steps;
+  else if (typeof recipe.method === 'string') steps = recipe.method.split(/\n+/);
+  if (Array.isArray(steps)) {
+    recipe.method = steps
+      .map(stripStepPrefix)
+      .filter(s => s && s.length > 1);
+  }
+
+  // 3) tags 收敛为字符串数组
+  if (Array.isArray(recipe.tags)) {
+    recipe.tags = recipe.tags.map(t => String(t || '').trim()).filter(Boolean).slice(0, 4);
+  }
+  if (recipe.name != null) recipe.name = String(recipe.name).trim();
+
+  return recipe;
+}
+
 // AI 解析路由：后端统一呼叫 openai/gpt-oss-120b，密钥来自 Render 环境变量。
 app.post('/api/ai-parse', async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
@@ -187,6 +259,15 @@ app.post('/api/ai-parse', async (req, res) => {
       ? (resp.data.choices[0].message.content || '')
       : '';
     if (!content) return res.status(502).json({ error: 'AI 没有返回内容，请稍后重试。' });
+
+    // ── 终极降级兜底：在后端先清洗一遍 AI 的 JSON，再回给前端。──
+    //   保险栈：① 系统提示已硬约束；② 这里 JS 兜底过滤常备品 + qty 必填 + method 剥序号。
+    const parsed = safeParseModelJson(content);
+    if (parsed) {
+      const cleaned = sanitizeRecipe(parsed);
+      // 同时回传清洗后的对象 + 原 content（前端 validateImportedRecipe 兼容字符串/对象/数组）。
+      return res.json({ content: JSON.stringify(cleaned), recipe: cleaned });
+    }
     return res.json({ content });
   } catch (err) {
     const status = err.response && err.response.status;
