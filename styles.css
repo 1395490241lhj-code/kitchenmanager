@@ -2590,6 +2590,70 @@ nav a.active svg {
   justify-content: space-between;
 }
 
+/* ── 菜谱编辑器：行级删除按钮（大热区 + 淡出动画） ── */
+
+/* 行自身的过渡样式（正常态 → 删除过渡态） */
+.editor-ing-row {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    max-height 0.20s ease;
+  max-height: 120px;        /* 高于实际行高即可，用于收缩动画 */
+  overflow: hidden;
+  opacity: 1;
+  transform: translateX(0);
+}
+.editor-ing-row--removing {
+  opacity: 0;
+  transform: translateX(8px);
+  max-height: 0 !important;
+  pointer-events: none;
+}
+
+/* 垃圾桶按钮：40×40 点击热区，图标默认灰色，悬停/点击变红 */
+.editor-del-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: color 0.15s ease, background 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.editor-del-btn:hover,
+.editor-del-btn:focus-visible {
+  color: var(--danger);
+  background: var(--status-bad-bg);
+  opacity: 1;
+}
+.editor-del-btn:active {
+  color: #fff;
+  background: var(--danger);
+  opacity: 1;
+  transform: scale(0.92);
+}
+
+@media (prefers-color-scheme: dark) {
+  .editor-del-btn:hover,
+  .editor-del-btn:focus-visible {
+    background: rgba(255, 105, 97, 0.16);
+    color: var(--danger);
+  }
+  .editor-del-btn:active {
+    background: var(--danger);
+    color: #fff;
+  }
+}
+
+
 /* --- recipes view search --- */
 .recipe-search-input {
   flex: 1;

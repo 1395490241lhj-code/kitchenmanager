@@ -98,18 +98,34 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     setInlineStatus(editorStatus, message, type);
   }
 
+  // 一键淡出并移除行（无需二次确认）
+  function animateRemoveRow(tr) {
+    tr.classList.add('editor-ing-row--removing');
+    // height 收缩等动画结束后再移除 DOM
+    tr.addEventListener('transitionend', () => tr.remove(), { once: true });
+    // 兼容保险：200ms 后强制移除（防止 transition 不触发）
+    setTimeout(() => tr.remove(), 260);
+  }
+
   function addRow(item='', qty='', unit=''){
     const canonical = getCanonicalName(item || '');
     const defaultUnit = unit || (canonical ? guessKitchenUnit(canonical) : '份');
     const tr = document.createElement('tr');
+    tr.className = 'editor-ing-row';
     const unitChoices = Array.from(new Set([defaultUnit, '份', '个', '盒', '袋', '包', '瓶', '把', '根', '块', '条', 'g', 'ml', 'pcs'].filter(Boolean)));
     const unitHtml = unitChoices.map(u => `<option value="${escapeOptionAttr(u)}"${defaultUnit===u?' selected':''}>${escapeHtml(u)}</option>`).join('');
     tr.innerHTML = `
       <td><input list="recipeIngredientList" placeholder="食材名" value="${escapeOptionAttr(item)}"></td>
       <td><input type="number" min="0" step="0.1" placeholder="可选" value="${qty}"></td>
       <td><select>${unitHtml}</select></td>
-      <td class="right"><a class="btn bad small">删</a></td>`;
-    els('.btn', tr)[0].onclick = ()=> tr.remove();
+      <td class="right">
+        <button type="button" class="editor-del-btn" aria-label="删除此行" title="删除">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+          </svg>
+        </button>
+      </td>`;
+    tr.querySelector('.editor-del-btn').onclick = () => animateRemoveRow(tr);
     els('input', tr)[0].addEventListener('input', e => {
       const val = e.target.value.trim();
       if(val) setSelectValueWithOption(els('select', tr)[0], guessKitchenUnit(getCanonicalName(val)));
@@ -124,6 +140,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const seasoningTbody = wrap.querySelector('#seasoningRows');
   function addSeasoningRow(item = '', qty = '', unit = '') {
     const tr = document.createElement('tr');
+    tr.className = 'editor-ing-row';
     const unitChoices = ['适量', '勺', '茶匙', '克', '毫升', '杯', '把', '少许'];
     const defaultUnit = unit || '适量';
     const unitHtml = unitChoices.map(u => `<option value="${escapeOptionAttr(u)}"${defaultUnit === u ? ' selected' : ''}>${escapeHtml(u)}</option>`).join('');
@@ -131,8 +148,14 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
       <td><input placeholder="调料名（盐 / 生抽 / 水 …）" value="${escapeOptionAttr(item)}"></td>
       <td><input type="number" min="0" step="0.1" placeholder="可选" value="${qty}"></td>
       <td><select>${unitHtml}</select></td>
-      <td class="right"><a class="btn bad small">删</a></td>`;
-    els('.btn', tr)[0].onclick = () => tr.remove();
+      <td class="right">
+        <button type="button" class="editor-del-btn" aria-label="删除此行" title="删除">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+          </svg>
+        </button>
+      </td>`;
+    tr.querySelector('.editor-del-btn').onclick = () => animateRemoveRow(tr);
     seasoningTbody.appendChild(tr);
   }
   const initialSeasonings = Array.isArray(r.seasonings) ? r.seasonings : [];
@@ -191,7 +214,10 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
 
     const mergedPack = applyOverlay(base, overlay);
     const duplicate = (mergedPack.recipes || []).find(recipe => recipe.id !== id && String(recipe.name || '').trim() === name);
-    if(duplicate && !confirm(`已经有一道菜也叫「${name}」。仍然保存吗？`)) return;
+    if (duplicate) {
+      showEditorStatus(`已有一道菜名为「${name}」，请修改菜名后再保存。`);
+      return;
+    }
 
     let tags = wrap.querySelector('#rTags').value.split(/[，,]/).map(s=>s.trim()).filter(Boolean);
     if(isAiDraft) {
