@@ -9,10 +9,10 @@
  *   - 切回「充足」→ 移除该项仍未购买的清单项。
  * 状态存在 inventory（stockStatus / qty），保留保质期等语义。
  */
-import { DRY_GOODS, EGG_STOCK, DAILY_STOCKS, guessShelfDays } from '../ingredients.js?v=179';
-import { ensureStockItem, findStockItem, saveInventory } from '../inventory.js?v=179';
-import { addShoppingItem, loadShoppingItems, saveShoppingItems } from '../shopping.js?v=179';
-import { escapeHtml } from './status.js?v=179';
+import { DRY_GOODS, EGG_STOCK, DAILY_STOCKS, guessShelfDays } from '../ingredients.js?v=180';
+import { ensureStockItem, findStockItem, saveInventory } from '../inventory.js?v=180';
+import { addShoppingItem, loadShoppingItems, saveShoppingItems } from '../shopping.js?v=180';
+import { escapeHtml } from './status.js?v=180';
 
 const PANTRY_GROUPS = [
   {

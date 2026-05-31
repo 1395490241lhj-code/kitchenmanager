@@ -1,11 +1,11 @@
-import { S } from './storage.js?v=179';
+import { S } from './storage.js?v=180';
 import {
   APP_VERSION,
   DATA_SCHEMA_VERSION,
   normalizeBackupForRestore,
   setStoredSchemaVersion
-} from './migrations.js?v=179';
-import { loadShoppingItems, saveShoppingItems } from './shopping.js?v=179';
+} from './migrations.js?v=180';
+import { loadShoppingItems, saveShoppingItems } from './shopping.js?v=180';
 
 export function emptyOverlay() {
   return { version: 1, recipes: {}, recipe_ingredients: {}, deletes: {} };

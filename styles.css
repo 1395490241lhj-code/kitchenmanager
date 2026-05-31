@@ -4203,3 +4203,111 @@ nav a span { white-space: nowrap; }
     transform: translateY(0) scale(1);
   }
 }
+
+/* ── 首页「📦 批量入库」统一弹窗：Tab 切换 / 拍小票区 / 文本批量区 ── */
+.batch-input-modal {
+  width: min(440px, 94vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px;
+}
+.batch-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.batch-modal-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
+.batch-close {
+  width: 32px; height: 32px;
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+}
+.batch-close:hover { background: var(--bg-input); color: var(--text-main); }
+
+/* 双 Tab 切换：胶囊背景 + 主题色高亮当前 Tab */
+.batch-tab-switcher {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-input);
+  border-radius: 14px;
+}
+.batch-tab {
+  padding: 9px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.batch-tab.is-active {
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Tab 内容面板 */
+.batch-tab-panel { display: flex; flex-direction: column; gap: 10px; }
+.batch-tab-panel.is-hidden { display: none; }
+
+/* 📸 拍小票：点击式相机投放区 */
+.receipt-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 14px;
+  text-align: center;
+  border: 2px dashed var(--separator);
+  border-radius: 14px;
+  background: var(--bg-input);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.receipt-drop-zone:hover { background: var(--primary-soft); border-color: var(--primary); }
+.receipt-camera-icon { font-size: 32px; }
+.receipt-drop-zone strong { font-size: 15px; color: var(--text-main); }
+.receipt-drop-zone small { color: var(--text-secondary); font-size: 12px; }
+
+/* ✍️ 文本批量记 */
+.batch-text-area {
+  width: 100%;
+  min-height: 130px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--separator);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.55;
+  resize: vertical;
+}
+.batch-tab-panel code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--bg-input);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* 底部操作行：取消 / 确认 */
+.batch-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.batch-modal-actions .btn { flex: 1 1 0; }

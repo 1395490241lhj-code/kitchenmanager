@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=179';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=179';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=179';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=179';
+import { S, todayISO } from '../storage.js?v=180';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=180';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=180';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=180';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=179';
-import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=179';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=179';
-import { showRecommendationCards } from '../components/recipe-card.js?v=179';
-import { showCleanFridgeModal } from '../components/modal.js?v=179';
-import { renderMenuPlan } from '../components/menu-plan.js?v=179';
+} from '../recommendations.js?v=180';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=180';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=180';
+import { showRecommendationCards } from '../components/recipe-card.js?v=180';
+import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=180';
+import { renderMenuPlan } from '../components/menu-plan.js?v=180';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -738,7 +738,7 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
 }
 
 // ── 空库存引导（库存录入已在「清单」页，引导跳转过去） ──────────────────────
-function renderOnboarding() {
+function renderOnboarding(pack, { onRoute = () => {} } = {}) {
   const section = document.createElement('section');
   section.className = 'home-hero is-onboarding';
   section.innerHTML = `
@@ -753,11 +753,171 @@ function renderOnboarding() {
       <button type="button" class="home-act-btn" id="obBackup"><span class="home-act-emoji">💾</span><span>导入备份</span></button>
     </div>
   `;
-  // 引导页仍保留跳转（用户首次使用时需要进库存页录入）
+  // 引导页：手动入库仍跳转到库存页的完整表单；拍小票直接在首页弹出统一批量入库弹窗。
   section.querySelector('#obManual').onclick = () => { location.hash = '#shopping'; };
-  section.querySelector('#obReceipt').onclick = () => { location.hash = '#shopping'; };
+  section.querySelector('#obReceipt').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
   section.querySelector('#obBackup').onclick = () => { location.hash = '#settings'; };
   return section;
+}
+
+// ── 批量入库统一写入：所有模式（小票 / 文本）共用同一条数据落地路径 ──────────
+function writeItemsToInventory(items, pack) {
+  if (!Array.isArray(items) || !items.length) return 0;
+  const catalog = buildCatalog(pack);
+  const inv = loadInventory(catalog);
+  const today = todayISO();
+  let count = 0;
+  for (const it of items) {
+    const name = getCanonicalName(it.name || it.item || '');
+    if (!name) continue;
+    const qty = Number(it.qty);
+    const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    const unit = (it.unit && String(it.unit).trim()) || guessKitchenUnit(name) || '份';
+    const kind = isDryGoodName(name) ? 'dry' : 'raw';
+    const shelf = kind === 'dry' ? 365 : guessShelfDays(name, unit);
+    const entry = { name, qty: safeQty, unit, buyDate: today, kind, shelf, stockStatus: 'ok' };
+    if (kind === 'dry') { entry.dryPrep = getDryPrepText(name); entry.isFrozen = false; }
+    mergeInventoryEntry(inv, entry, { mode: 'add' });
+    count++;
+  }
+  return count;
+}
+
+// 文本批量录入解析器：每行「名称 数量 单位」，单位可省略；兼容「西红柿 3个」「鸡蛋 6」等写法。
+function parseTextBatchInput(text) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const out = [];
+  for (const line of lines) {
+    let m = line.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s*(\S+)?$/);                      // 「西红柿 3 个」/ 「鸡蛋 6」
+    if (!m) m = line.match(/^([^\d\s]+?)(\d+(?:\.\d+)?)\s*(\S+)?$/);                // 「西红柿3个」（无空格）
+    if (m) {
+      out.push({ name: m[1].trim(), qty: Number(m[2]) || 1, unit: (m[3] || '').trim() });
+    } else {
+      out.push({ name: line, qty: 1, unit: '' });
+    }
+  }
+  return out;
+}
+
+/**
+ * 📦 批量入库统一弹窗：双 Tab 切换（📸 拍小票识别 / ✍️ 文本批量记），最终都走同一条写库逻辑。
+ */
+function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="card batch-input-modal">
+      <div class="batch-modal-head">
+        <h3>📦 批量入库</h3>
+        <button type="button" class="batch-close" id="batchCloseBtn" aria-label="关闭">×</button>
+      </div>
+      <div class="batch-tab-switcher" role="tablist">
+        <button type="button" class="batch-tab" data-tab="receipt" role="tab">📸 拍小票识别</button>
+        <button type="button" class="batch-tab" data-tab="text" role="tab">✍️ 文本批量记</button>
+      </div>
+
+      <div class="batch-tab-panel" id="batch-panel-receipt" role="tabpanel">
+        <label class="receipt-drop-zone" for="batchReceiptFile">
+          <input type="file" id="batchReceiptFile" accept="image/*" capture="environment" class="visually-hidden">
+          <span class="receipt-camera-icon" aria-hidden="true">📷</span>
+          <strong>点此拍摄 / 选择小票</strong>
+          <small>AI 自动识别食材并预览确认</small>
+        </label>
+        <div id="batchReceiptStatus" class="small inline-status" hidden></div>
+      </div>
+
+      <div class="batch-tab-panel is-hidden" id="batch-panel-text" role="tabpanel">
+        <p class="meta">每行一项，格式 <code>食材名 数量 单位</code>，单位可省略。</p>
+        <textarea id="batchTextInput" rows="6" class="batch-text-area" placeholder="西红柿 3 个&#10;牛肉 1 斤&#10;鸡蛋 6&#10;土豆 2"></textarea>
+        <div id="batchTextStatus" class="small inline-status" hidden></div>
+      </div>
+
+      <div class="batch-modal-actions">
+        <button type="button" class="btn" id="batchCancel">取消</button>
+        <button type="button" class="btn ok" id="batchConfirm">确认入库</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  let currentTab = (initialTab === 'text' ? 'text' : 'receipt');
+  const setTab = (name) => {
+    currentTab = name;
+    overlay.querySelectorAll('.batch-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
+    overlay.querySelectorAll('.batch-tab-panel').forEach(p => p.classList.toggle('is-hidden', p.id !== `batch-panel-${name}`));
+    // 拍小票模式：主按钮文案改为「打开相机」式提示；文本模式：恢复「确认入库」。
+    const confirmBtn = overlay.querySelector('#batchConfirm');
+    confirmBtn.textContent = name === 'receipt' ? '选取小票图片' : '确认入库';
+  };
+  setTab(currentTab);
+  overlay.querySelectorAll('.batch-tab').forEach(t => { t.onclick = () => setTab(t.dataset.tab); });
+
+  const close = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  overlay.querySelector('#batchCloseBtn').onclick = close;
+  overlay.querySelector('#batchCancel').onclick = close;
+
+  // ── 模式 A：拍小票识别 ──
+  const receiptFileInput = overlay.querySelector('#batchReceiptFile');
+  const receiptStatus = overlay.querySelector('#batchReceiptStatus');
+  receiptFileInput.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    receiptStatus.hidden = false;
+    receiptStatus.className = 'small inline-status info';
+    receiptStatus.innerHTML = '<span class="spinner"></span> AI 识别中…';
+    try {
+      const items = await withTimeout(recognizeReceipt(file), 30000, 'AI 识别超时');
+      if (!items || !items.length) {
+        receiptStatus.className = 'small inline-status bad';
+        receiptStatus.textContent = '没有识别到可入库食材';
+        return;
+      }
+      // 借用既有的确认弹窗渲染可编辑预览列表，确认后再写库 → 统一走 writeItemsToInventory。
+      close();
+      showReceiptConfirmationModal(
+        items.map(it => ({ name: it.name, qty: it.qty, unit: it.unit, originalName: it.originalName || it.name })),
+        (confirmed) => {
+          const n = writeItemsToInventory(confirmed, pack);
+          if (n > 0) onRoute();
+        },
+        () => { /* 用户取消：不写库 */ }
+      );
+    } catch (err) {
+      receiptStatus.className = 'small inline-status bad';
+      receiptStatus.textContent = '❌ ' + formatAiErrorMessage(err);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  // ── 模式 B：文本批量记 ──
+  overlay.querySelector('#batchConfirm').onclick = () => {
+    if (currentTab === 'receipt') {
+      receiptFileInput.click(); // 在拍小票 Tab 下，主按钮直接打开相机/相册选择
+      return;
+    }
+    const text = overlay.querySelector('#batchTextInput').value;
+    const parsed = parseTextBatchInput(text);
+    const statusEl = overlay.querySelector('#batchTextStatus');
+    if (!parsed.length) {
+      statusEl.hidden = false;
+      statusEl.className = 'small inline-status bad';
+      statusEl.textContent = '没有解析出任何条目，请检查格式。';
+      return;
+    }
+    const n = writeItemsToInventory(parsed, pack);
+    if (n > 0) {
+      statusEl.hidden = false;
+      statusEl.className = 'small inline-status ok';
+      statusEl.textContent = `✓ 已入库 ${n} 项`;
+      setTimeout(() => { close(); onRoute(); }, 600);
+    } else {
+      statusEl.hidden = false;
+      statusEl.className = 'small inline-status bad';
+      statusEl.textContent = '入库失败：所有条目都无法识别为食材。';
+    }
+  };
 }
 
 export function renderHome(pack, { onRoute = () => {} } = {}) {
@@ -772,7 +932,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
 
   // 空库存 → 引导到「清单」页录入
   if (!hasUsableInventory(inv)) {
-    container.appendChild(renderOnboarding());
+    container.appendChild(renderOnboarding(pack, { onRoute }));
     return container;
   }
 
@@ -781,7 +941,8 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   const menuPlanNode = renderMenuPlan(pack, { onRoute });
   container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute, extraNode: menuPlanNode }));
   container.appendChild(renderActionHub(pack, inv, {
-    onQuickInput: () => { location.hash = '#shopping'; },
+    // 「📦 批量入库」打开统一弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再跳走。
+    onQuickInput: () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' }),
     onRoute
   }));
 
