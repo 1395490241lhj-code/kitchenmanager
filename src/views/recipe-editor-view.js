@@ -1,15 +1,16 @@
-import { els } from '../dom.js?v=178';
+import { els } from '../dom.js?v=179';
+import { genId } from '../shopping.js?v=179';
 import {
   buildCatalog,
   buildIngredientOptions,
   getCanonicalName,
   guessKitchenUnit
-} from '../ingredients.js?v=178';
+} from '../ingredients.js?v=179';
 import {
   applyOverlay,
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=178';
+} from '../backup.js?v=179';
 import {
   escapeHtml,
   escapeOptionAttr,
@@ -17,7 +18,7 @@ import {
   normalizeDifficulty,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=178';
+} from '../components/status.js?v=179';
 
 /**
  * @param {string} id
@@ -26,7 +27,27 @@ import {
  *   loaded and applied on top of this inside the function.
  * @param {Object} options
  */
+// sessionStorage 的 key 需与 recipes-view.js 中的定义一致
+// 不 import，直接共用相同字符串常量就行（两个文件同源）
+const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
+
 export function renderRecipeEditor(id, base, { replaceView = null } = {}){
+  // 检测是否为 AI 导入草稿占位（sessionStorage 暂存模式）
+  const isAiImportDraft = id === 'ai-import-draft';
+  let aiPendingDraft = null;
+  if (isAiImportDraft) {
+    try {
+      const raw = sessionStorage.getItem(AI_DRAFT_SESSION_KEY);
+      aiPendingDraft = raw ? JSON.parse(raw) : null;
+    } catch (e) { /* 忘决，降级为空稿 */ }
+    if (!aiPendingDraft) {
+      // sessionStorage 已清除（用户剛才退出过），跳回菜谱页
+      const missing = document.createElement('div');
+      missing.className = 'card editor-not-found';
+      missing.innerHTML = `<h2>草稿已失效</h2><p class="meta">AI 导入草稿已被清除（可能是号刊刷新页面或已取消）。</p><a class="btn" href="#recipes">返回菜谱</a>`;
+      return missing;
+    }
+  }
 
   const overlay = loadOverlay();
   const baseIng = base.recipe_ingredients || {};
@@ -35,17 +56,24 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const rBase = (base.recipes||[]).find(x => x.id===id);
   const hasOverlayRecipe = Object.prototype.hasOwnProperty.call(overlay.recipes || {}, id);
   const rOv = hasOverlayRecipe ? (overlay.recipes||{})[id] || {} : {};
-  if(!rBase && !hasOverlayRecipe && !/^(u-|ai-search-)/.test(id || '')) {
+
+  // 允许进入编辑器的 id 白名单：自定义菜谱、AI 搜索草稿、AI 导入占位 id
+  if(!rBase && !hasOverlayRecipe && !/^(u-|ai-search-|ai-import-draft)/.test(id || '')) {
     const missing = document.createElement('div');
     missing.className = 'card editor-not-found';
     missing.innerHTML = `<h2>菜谱不存在</h2><p class="meta">这个编辑链接没有对应的菜谱，可能是旧链接或已删除的草稿。</p><a class="btn" href="#recipes">返回菜谱</a>`;
     return missing;
   }
-  const r = {...(rBase||{id}), ...rOv};
-  const items = (overIng[id] ?? baseIng[id] ?? []).map(x => ({...x}));
-  const isCustomRecipe = !rBase;
-  const statusInfo = getRecipeStatusInfo(r, id, rBase, rOv);
-  const isAiDraft = statusInfo.className === 'draft';
+  // AI 导入草稿：从 sessionStorage 预填，不读 overlay
+  const r = isAiImportDraft
+    ? { id: 'ai-import-draft', name: aiPendingDraft.name, tags: aiPendingDraft.tags, method: aiPendingDraft.method, seasonings: aiPendingDraft.seasonings, isAiDraft: true }
+    : {...(rBase||{id}), ...rOv};
+  const items = isAiImportDraft
+    ? (aiPendingDraft.ingredients || []).map(x => ({...x}))
+    : (overIng[id] ?? baseIng[id] ?? []).map(x => ({...x}));
+  const isCustomRecipe = isAiImportDraft ? true : !rBase;
+  const statusInfo = getRecipeStatusInfo(r, id, isAiImportDraft ? null : rBase, isAiImportDraft ? { isAiDraft: true } : rOv);
+  const isAiDraft = isAiImportDraft || statusInfo.className === 'draft';
 
   const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card';
   wrap.innerHTML = `
@@ -158,7 +186,10 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     tr.querySelector('.editor-del-btn').onclick = () => animateRemoveRow(tr);
     seasoningTbody.appendChild(tr);
   }
-  const initialSeasonings = Array.isArray(r.seasonings) ? r.seasonings : [];
+  // 导入草稿的调料行
+  const initialSeasonings = isAiImportDraft
+    ? (aiPendingDraft.seasonings || [])
+    : (Array.isArray(r.seasonings) ? r.seasonings : []);
   initialSeasonings.forEach(s => addSeasoningRow(s.item || '', s.qty || '', s.unit || ''));
   wrap.querySelector('#addSeasoningRow').onclick = () => addSeasoningRow();
 
@@ -221,7 +252,8 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
 
     let tags = wrap.querySelector('#rTags').value.split(/[，,]/).map(s=>s.trim()).filter(Boolean);
     if(isAiDraft) {
-      if(!confirm('这道菜现在是 AI 草稿。保存后会转为普通自定义菜谱，继续吗？')) return;
+      // AI 导入草稿展示为 AI 草稿标签，保存后自动封放为自定义
+      if(isAiImportDraft && !confirm('这道菜是 AI 草稿。保存后会转为普通自定义菜谱，继续吗？')) return;
       tags = tags.filter(tag => !['AI草稿', 'AI搜索'].includes(tag));
       if(!tags.includes('自定义')) tags.push('自定义');
     }
@@ -236,18 +268,29 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     if(difficulty) nextRecipe.difficulty = difficulty;
     if(servings) nextRecipe.servings = servings;
 
+    // AI 导入草稿：首次将草稿写入 overlay，清除 sessionStorage
+    const realId = isAiImportDraft ? genId() : id;
     overlay.recipes = overlay.recipes || {};
-    overlay.recipes[id] = nextRecipe;
+    overlay.recipes[realId] = nextRecipe;
     overlay.recipe_ingredients = overlay.recipe_ingredients || {};
-    overlay.recipe_ingredients[id] = arr;
-    if(overlay.deletes) delete overlay.deletes[id];
+    overlay.recipe_ingredients[realId] = arr;
+    if(overlay.deletes) delete overlay.deletes[realId];
     saveOverlay(overlay);
+    if (isAiImportDraft) {
+      try { sessionStorage.removeItem(AI_DRAFT_SESSION_KEY); } catch(_) {}
+    }
     window.invalidatePackCache?.();
     showEditorStatus('已保存。', 'ok');
     window.setTimeout(() => history.back(), 450);
   };
 
   wrap.querySelector('#hideBtn').onclick = ()=>{
+    // AI 导入草稿：直接清除 sessionStorage 即可，无需操作 overlay
+    if (isAiImportDraft) {
+      try { sessionStorage.removeItem(AI_DRAFT_SESSION_KEY); } catch(_) {}
+      history.back();
+      return;
+    }
     if(!confirm(isCustomRecipe ? '确定删除这道自定义菜谱？' : '确定隐藏这道系统菜谱？')) return;
     overlay.deletes = overlay.deletes || {};
     if(overlay.deletes[id]) delete overlay.deletes[id];

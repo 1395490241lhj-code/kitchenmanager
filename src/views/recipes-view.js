@@ -1,28 +1,47 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=178';
-import { genId } from '../shopping.js?v=178';
-import { hasRecipeMethod } from '../recommendations.js?v=178';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=178';
-import { buildCatalog } from '../ingredients.js?v=178';
-import { loadInventory } from '../inventory.js?v=178';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=178';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=178';
+import { loadOverlay, saveOverlay } from '../backup.js?v=179';
+import { genId } from '../shopping.js?v=179';
+import { hasRecipeMethod } from '../recommendations.js?v=179';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=179';
+import { buildCatalog } from '../ingredients.js?v=179';
+import { loadInventory } from '../inventory.js?v=179';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=179';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=179';
 
-// 把 AI 解析出的菜谱草稿写入 overlay，并跳转到编辑器（沿用「新建菜谱」数据流）。
-function saveImportedDraft(draft) {
-  const id = genId();
-  const overlay = loadOverlay();
-  overlay.recipes = overlay.recipes || {};
-  overlay.recipe_ingredients = overlay.recipe_ingredients || {};
+// 【内存暂存】AI 解析出的草稿只存入 sessionStorage，不写 overlay/localStorage。
+// 仅当用户在编辑器里点击「保存」时才真正落地。用户取消/关闭则草稿被销毁，不留脏数据。
+const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
+
+function openEditorWithAiDraft(draft) {
   const tags = Array.from(new Set(['AI草稿', 'AI导入', ...(Array.isArray(draft.tags) ? draft.tags : [])]));
-  // 调料表单独挂在 recipe 对象上，前端编辑器/详情页会单独渲染；不进入 recipe_ingredients 故不参与库存扣减。
   const seasonings = (Array.isArray(draft.seasonings) ? draft.seasonings : [])
     .map(i => ({ item: i.item || '', qty: i.qty || '', unit: i.unit || '' }))
     .filter(i => i.item);
-  overlay.recipes[id] = { name: draft.name || 'AI 导入菜谱草稿', tags, method: draft.method || '', seasonings, isAiDraft: true };
-  overlay.recipe_ingredients[id] = (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty || null, unit: i.unit || null }));
-  saveOverlay(overlay);
-  window.invalidatePackCache?.();
-  location.hash = `#recipe-edit:${id}`;
+  const pending = {
+    name: draft.name || 'AI 导入菜谱草稿',
+    tags,
+    method: draft.method || '',
+    seasonings,
+    ingredients: (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty ?? null, unit: i.unit ?? null })),
+    isAiDraft: true,
+  };
+  try {
+    sessionStorage.setItem(AI_DRAFT_SESSION_KEY, JSON.stringify(pending));
+  } catch (e) {
+    console.warn('[AI导入] sessionStorage 写入失败，回退为直接写 overlay', e);
+    // 降级：直接写 overlay（旧行为）
+    const id = genId();
+    const ov = loadOverlay();
+    ov.recipes = ov.recipes || {};
+    ov.recipe_ingredients = ov.recipe_ingredients || {};
+    ov.recipes[id] = { name: pending.name, tags: pending.tags, method: pending.method, seasonings: pending.seasonings, isAiDraft: true };
+    ov.recipe_ingredients[id] = pending.ingredients;
+    saveOverlay(ov);
+    window.invalidatePackCache?.();
+    location.hash = `#recipe-edit:${id}`;
+    return;
+  }
+  // 用固定占位 id 跳转，编辑器读 sessionStorage 预填，不污染 overlay
+  location.hash = '#recipe-edit:ai-import-draft';
 }
 
 // AI 一键导入：移动端优先弹窗（链接 / 视频截图 → 120B 解析）。
@@ -73,7 +92,7 @@ function openImportModal() {
     try {
       const draft = await importRecipeFromSource({ url, file });
       setInlineStatus(status, '解析完成，正在打开编辑器…', 'ok');
-      setTimeout(() => { close(); saveImportedDraft(draft); }, 500);
+      setTimeout(() => { close(); openEditorWithAiDraft(draft); }, 500);
     } catch (err) {
       // 抓取/输入类的友好提示直接展示；其余（API/解析错误）走统一文案。
       const msg = String(err && err.message || '');
@@ -118,18 +137,19 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   const wrap = document.createElement('div');
   const methodReadyCount = (pack.recipes || []).filter(hasRecipeMethod).length;
   const missingMethodCount = Math.max(0, (pack.recipes || []).length - methodReadyCount);
+  // 头部精简：单一搜索框 + 双枪并列操作（AI 一键导入 / 手动新建）+ 紧凑过滤行。
+  // 导出/导入菜谱备份已迁至「设置 → 数据管理」。
   wrap.innerHTML = `
     <h2 class="section-title">菜谱</h2>
-    <div class="recipe-toolbar">
-      <input id="search" placeholder="搜菜谱..." class="recipe-search-input">
-      <label class="recipe-filter-toggle"><input type="checkbox" id="methodOnly" checked>只看有做法</label>
-      <span class="recipe-count" id="recipeCount"></span>
-      <div class="recipe-actions">
-        <a class="btn ok icon-only" id="addBtn" title="新建菜谱">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        </a>
-        <a class="btn" id="exportBtn">导出</a>
-        <label class="btn"><input type="file" id="importFile" hidden>导入</label>
+    <div class="recipe-header">
+      <input id="search" placeholder="搜索菜谱、食材（如：鸡蛋、回锅肉）..." class="recipe-search-input recipe-search-main">
+      <div class="recipe-primary-actions">
+        <button type="button" class="btn primary-action-btn ai-import-btn" id="aiImportBtn">✨ AI 一键导入</button>
+        <button type="button" class="btn primary-action-btn manual-add-btn" id="addBtn">➕ 手动新建菜谱</button>
+      </div>
+      <div class="recipe-filter-row">
+        <label class="recipe-filter-toggle"><input type="checkbox" id="methodOnly" checked>只看有做法</label>
+        <span class="recipe-count" id="recipeCount"></span>
       </div>
     </div>
     <div class="grid" id="grid"></div>
@@ -137,55 +157,27 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   const grid = wrap.querySelector('#grid');
   const map = pack.recipe_ingredients || {};
   const recipeCount = wrap.querySelector('#recipeCount');
-
-  // 从首页迁入的「搜索菜谱 / 食材」组件（置顶）。逻辑（renderRecipeSearchResults）保持不变。
   const inv = loadInventory(buildCatalog(pack));
-  const searchResultsContainer = document.createElement('div');
-  searchResultsContainer.className = 'search-results-container';
-  const searchBar = document.createElement('div');
-  searchBar.className = 'home-search recipe-top-search';
-  searchBar.innerHTML = `
-    <input id="recipeFinder" placeholder="找具体菜名或某个食材，比如鸡蛋、回锅肉">
-    <div class="home-search-buttons">
-      <button type="button" class="btn ok" id="recipeFinderGo">搜索</button>
-      <button type="button" class="btn is-hidden" id="recipeFinderClear">清空</button>
-    </div>`;
-  const finderInput = searchBar.querySelector('#recipeFinder');
-  const finderClear = searchBar.querySelector('#recipeFinderClear');
-  const clearFinder = () => {
-    finderInput.value = '';
-    searchResultsContainer.innerHTML = '';
-    finderClear.classList.add('is-hidden');
-  };
-  const runFinder = () => {
-    const q = finderInput.value.trim();
-    if (!q) { clearFinder(); return; }
-    searchResultsContainer.innerHTML = '';
-    searchResultsContainer.appendChild(renderRecipeSearchResults(q, pack, inv, { onRoute }));
-    finderClear.classList.remove('is-hidden');
-  };
-  finderInput.onkeydown = (e) => { if (e.key === 'Enter') runFinder(); };
-  searchBar.querySelector('#recipeFinderGo').onclick = runFinder;
-  finderClear.onclick = clearFinder;
-  // ✨ AI 一键导入菜谱（置于搜索框下方，突出「智能」感）。
-  const aiImportBtn = document.createElement('button');
-  aiImportBtn.type = 'button';
-  aiImportBtn.className = 'btn ai-import-btn';
-  aiImportBtn.innerHTML = '✨ AI 一键导入菜谱';
-  aiImportBtn.onclick = openImportModal;
-
-  const searchSection = document.createElement('section');
-  searchSection.className = 'recipe-finder-section';
-  searchSection.appendChild(searchBar);
-  searchSection.appendChild(aiImportBtn);
-  searchSection.appendChild(searchResultsContainer);
-  wrap.insertBefore(searchSection, wrap.querySelector('.recipe-toolbar'));
 
   function draw(filter = '') {
     grid.innerHTML = '';
     const f = filter.trim();
     const methodOnly = wrap.querySelector('#methodOnly').checked;
-    const rows = (pack.recipes || []).filter(r => (!f || r.name.includes(f)) && (!methodOnly || hasRecipeMethod(r)));
+    // 兼顾「按菜名」与「按食材」搜索：菜名/标签命中 → 直接展示;否则用富搜索结果（按食材匹配）。
+    if (f) {
+      const nameRows = (pack.recipes || []).filter(r =>
+        (r.name && r.name.includes(f)) || (Array.isArray(r.tags) && r.tags.some(t => String(t).includes(f)))
+      ).filter(r => !methodOnly || hasRecipeMethod(r));
+      if (nameRows.length) {
+        recipeCount.textContent = `菜名命中 ${nameRows.length} 道 · 共 ${methodReadyCount} 道有做法`;
+        nameRows.forEach(r => grid.appendChild(recipeCard(r, map[r.id], null, { onRoute })));
+      } else {
+        recipeCount.textContent = `按食材匹配：${f}`;
+        grid.appendChild(renderRecipeSearchResults(f, pack, inv, { onRoute }));
+      }
+      return;
+    }
+    const rows = (pack.recipes || []).filter(r => !methodOnly || hasRecipeMethod(r));
     recipeCount.textContent = `显示 ${rows.length} 道 · 有做法 ${methodReadyCount} · 缺做法 ${missingMethodCount}`;
     if (rows.length === 0) {
       const empty = document.createElement('div'); empty.className = 'card small';
@@ -198,29 +190,12 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
 
   wrap.querySelector('#search').oninput = e => draw(e.target.value);
   wrap.querySelector('#methodOnly').onchange = () => draw(wrap.querySelector('#search').value);
+  wrap.querySelector('#aiImportBtn').onclick = openImportModal;
   wrap.querySelector('#addBtn').onclick = () => {
     const id = genId(); const overlay = loadOverlay();
     overlay.recipes = overlay.recipes || {}; overlay.recipes[id] = { name: '新菜谱', tags: ['自定义'] };
     overlay.recipe_ingredients = overlay.recipe_ingredients || {}; overlay.recipe_ingredients[id] = [{ item: '', qty: null, unit: 'g' }];
     saveOverlay(overlay); window.invalidatePackCache?.(); location.hash = `#recipe-edit:${id}`;
-  };
-  wrap.querySelector('#exportBtn').onclick = () => {
-    const blob = new Blob([JSON.stringify(loadOverlay(), null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kitchen-overlay.json'; a.click();
-  };
-  wrap.querySelector('#importFile').onchange = (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const inc = JSON.parse(reader.result); const cur = loadOverlay();
-        const result = mergeOverlayPreservingCurrent(cur, inc);
-        saveOverlay(result.overlay); window.invalidatePackCache?.();
-        const conflictText = result.conflicts.length ? `，${result.conflicts.length} 个冲突已保留当前版本` : '';
-        alert(`导入成功：新增 ${result.imported.length} 项${conflictText}。`); location.reload();
-      } catch (err) { alert('导入失败：' + (err.message || err)); }
-    };
-    reader.readAsText(file);
   };
   return wrap;
 }

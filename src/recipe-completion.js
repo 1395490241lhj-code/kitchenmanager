@@ -33,7 +33,7 @@ export async function applyCompletionOverlay(basePack) {
   // Fetch and cache the overlay JSON
   if (!_cached) {
     try {
-      const url = new URL('./data/recipe-completion-overlay.json', location).href + '?v=178';
+      const url = new URL('./data/recipe-completion-overlay.json', location).href + '?v=179';
       const res = await fetch(url, { cache: 'force-cache' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       _cached = await res.json();

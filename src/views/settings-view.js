@@ -1,8 +1,38 @@
-import { S, todayISO } from '../storage.js?v=178';
-import { CUSTOM_AI } from '../config.js?v=178';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=178';
-import { buildKitchenBackup, downloadJsonFile, restoreKitchenBackup } from '../backup.js?v=178';
-import { setInlineStatus, escapeHtml } from '../components/status.js?v=178';
+import { S, todayISO } from '../storage.js?v=179';
+import { CUSTOM_AI } from '../config.js?v=179';
+import { DATA_SCHEMA_VERSION } from '../migrations.js?v=179';
+import { buildKitchenBackup, downloadJsonFile, loadOverlay, restoreKitchenBackup, saveOverlay } from '../backup.js?v=179';
+import { setInlineStatus, escapeHtml } from '../components/status.js?v=179';
+
+// 与 recipes-view.js 中迁出来的同名工具一致：合并外部 overlay 时保留当前用户已有的菜谱补丁，避免覆盖。
+function mergeRecipeOverlay(currentOverlay, incomingOverlay) {
+  const current = currentOverlay || {};
+  const incoming = incomingOverlay || {};
+  const next = {
+    ...current,
+    recipes: { ...(current.recipes || {}) },
+    recipe_ingredients: { ...(current.recipe_ingredients || {}) },
+    deletes: { ...(current.deletes || {}) }
+  };
+  const conflicts = []; const imported = [];
+  const incomingIds = new Set([
+    ...Object.keys(incoming.recipes || {}),
+    ...Object.keys(incoming.recipe_ingredients || {}),
+    ...Object.keys(incoming.deletes || {})
+  ]);
+  const hasCurrentPatch = id =>
+    Object.prototype.hasOwnProperty.call(current.recipes || {}, id)
+    || Object.prototype.hasOwnProperty.call(current.recipe_ingredients || {}, id)
+    || Object.prototype.hasOwnProperty.call(current.deletes || {}, id);
+  incomingIds.forEach(id => {
+    if (hasCurrentPatch(id)) { conflicts.push(id); return; }
+    if (Object.prototype.hasOwnProperty.call(incoming.recipes || {}, id)) next.recipes[id] = incoming.recipes[id];
+    if (Object.prototype.hasOwnProperty.call(incoming.recipe_ingredients || {}, id)) next.recipe_ingredients[id] = incoming.recipe_ingredients[id];
+    if (Object.prototype.hasOwnProperty.call(incoming.deletes || {}, id)) next.deletes[id] = incoming.deletes[id];
+    imported.push(id);
+  });
+  return { overlay: next, conflicts, imported };
+}
 
 export function renderSettings() {
   const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
@@ -49,9 +79,15 @@ export function renderSettings() {
       <p class="meta">API Key 只保存在本地浏览器；导出备份默认不包含 Key。</p>
       <div class="right"><a class="btn ok" id="saveSet">保存</a></div>
     </div>
-    <div class="section-title home-section-title"><span>厨房备份</span></div>
+    <div class="section-title home-section-title"><span>💾 数据管理</span></div>
     <div class="card backup-card">
-      <p class="meta">导出会包含库存、今日计划、购物项、常做菜、安排记录、菜谱补丁和 AI 设置。当前数据结构版本：v${DATA_SCHEMA_VERSION}。</p>
+      <p class="meta"><strong>菜谱补丁</strong>：仅导出/导入你对菜谱的自定义修改（新增、编辑、删除），适合在多台设备同步菜谱内容。</p>
+      <div class="backup-actions">
+        <button type="button" class="btn ok" id="exportRecipeOverlay">导出菜谱备份</button>
+        <label class="btn"><input type="file" id="importRecipeOverlay" accept="application/json,.json" hidden>恢复/导入菜谱</label>
+      </div>
+      <hr class="settings-divider">
+      <p class="meta"><strong>整个厨房</strong>：包含库存、今日计划、购物项、常做菜、安排记录、菜谱补丁和 AI 设置。当前数据结构版本：v${DATA_SCHEMA_VERSION}。</p>
       <div class="backup-actions">
         <button type="button" class="btn ok" id="exportKitchenBackup">导出整个厨房</button>
         <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入整个厨房</label>
@@ -89,6 +125,29 @@ export function renderSettings() {
     const statusEl = div.querySelector('#settingsStatus');
     setInlineStatus(statusEl, '已保存，刷新后生效。', 'ok');
     setTimeout(() => location.reload(), 1200);
+  };
+  // 菜谱补丁 — 从原菜谱页迁来的「导出 / 导入」低频功能。
+  div.querySelector('#exportRecipeOverlay').onclick = () => {
+    downloadJsonFile(loadOverlay(), `kitchen-overlay-${todayISO()}.json`);
+  };
+  div.querySelector('#importRecipeOverlay').onchange = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    const statusEl = div.querySelector('#settingsStatus');
+    reader.onload = () => {
+      try {
+        const inc = JSON.parse(reader.result);
+        const result = mergeRecipeOverlay(loadOverlay(), inc);
+        saveOverlay(result.overlay);
+        window.invalidatePackCache?.();
+        const conflictText = result.conflicts.length ? `，${result.conflicts.length} 个冲突已保留当前版本` : '';
+        setInlineStatus(statusEl, `导入成功：新增 ${result.imported.length} 项${conflictText}。页面将刷新。`, 'ok');
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        setInlineStatus(statusEl, '菜谱导入失败：' + (err.message || err), 'bad');
+      }
+    };
+    reader.readAsText(file);
   };
   div.querySelector('#exportKitchenBackup').onclick = () => {
     downloadJsonFile(buildKitchenBackup(), `kitchen-backup-${todayISO()}.json`);

@@ -2534,6 +2534,65 @@ nav a.active svg {
 .recipe-card-controls {
   margin-top: 16px;
 }
+
+/* ── 菜谱卡片：快速删除（垃圾桶 + 内联气泡确认） ── */
+.recipe-card-del-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.recipe-card-del-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.40;
+  transition: color 0.15s ease, background 0.12s ease, opacity 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.recipe-card-del-btn:hover,
+.recipe-card-del-btn:focus-visible {
+  color: var(--danger);
+  background: var(--status-bad-bg);
+  opacity: 1;
+}
+.recipe-card-del-btn:active {
+  color: #fff;
+  background: var(--danger);
+  opacity: 1;
+  transform: scale(0.90);
+}
+/* 内联确认气泡 */
+.recipe-card-del-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 10px;
+  background: var(--status-bad-bg);
+  border: 1px solid var(--status-bad-border);
+  font-size: 12px;
+  color: var(--status-bad-text);
+  white-space: nowrap;
+  animation: del-confirm-in 0.14s ease;
+}
+@keyframes del-confirm-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.recipe-card-del-confirm[hidden] { display: none; }
+.recipe-card-del-yes { padding: 1px 8px !important; font-size: 11px !important; }
+.recipe-card-del-no  { padding: 1px 8px !important; font-size: 11px !important; }
+
 .rec-empty-card {
   min-width: 100%;
   text-align: center;
@@ -3703,3 +3762,57 @@ nav a span { white-space: nowrap; }
     border-color: rgba(255, 255, 255, 0.12);
   }
 }
+
+/* ── 菜谱页头部精简：单搜索框 + 双枪并列 + 紧凑过滤行 ── */
+.recipe-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.recipe-search-main {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--separator);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-size: 15px;
+}
+.recipe-primary-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+.primary-action-btn {
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 14px;
+  padding: 0 12px;
+  letter-spacing: 0.01em;
+}
+/* 复用既有 .ai-import-btn 的渐变；仅把宽度/高度对齐到 grid 单元 */
+.primary-action-btn.ai-import-btn { margin-top: 0; }
+/* 手动新建：与 AI 按钮等高，柔和的主题色边框，视觉对等 */
+.primary-action-btn.manual-add-btn {
+  color: var(--text-main);
+  background: var(--bg-card);
+  border: 1px solid var(--separator);
+  box-shadow: var(--shadow-sm);
+}
+.primary-action-btn.manual-add-btn:active { transform: scale(0.98); }
+
+.recipe-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 0;
+}
+.recipe-filter-row .recipe-count { margin-left: auto; font-size: 12px; color: var(--text-secondary); }

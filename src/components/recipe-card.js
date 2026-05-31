@@ -1,28 +1,103 @@
-import { S, todayISO } from '../storage.js?v=178';
+import { S, todayISO } from '../storage.js?v=179';
 import {
   explodeCombinedItems,
   isSeasoning
-} from '../ingredients.js?v=178';
+} from '../ingredients.js?v=179';
 import {
   hasRecipeMethod,
   isFavoriteRecipe,
   markRecipePlanned,
   toggleFavoriteRecipe,
   calculateStockStatus
-} from '../recommendations.js?v=178';
+} from '../recommendations.js?v=179';
 import {
   callAiSearchRecipe,
   formatAiErrorMessage
-} from '../ai.js?v=178';
+} from '../ai.js?v=179';
 import {
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=178';
+} from '../backup.js?v=179';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus
-} from './status.js?v=178';
+} from './status.js?v=179';
+
+const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+
+/**
+ * 卡片快速删除入口：配备内联气泡确认（无需弹窗）。
+ * @param {string} recipeId
+ * @param {HTMLElement} cardEl - 菜谱卡片 DOM。确认删除后会动画淡出并移除该元素。
+ */
+function attachQuickDelete(recipeId, cardEl) {
+  // 对 creative-ai-temp 或占位 id 不加删除按鈕
+  if (!recipeId || String(recipeId).startsWith('creative-')) return;
+
+  const btnWrap = document.createElement('div');
+  btnWrap.className = 'recipe-card-del-wrap';
+  btnWrap.innerHTML = `
+    <button type="button" class="recipe-card-del-btn" aria-label="删除此菜谱" title="删除">${TRASH_SVG}</button>
+    <div class="recipe-card-del-confirm" hidden>
+      <span>确认删除？</span>
+      <button type="button" class="recipe-card-del-yes btn bad small">删</button>
+      <button type="button" class="recipe-card-del-no btn small">取消</button>
+    </div>
+  `;
+
+  const trashBtn = btnWrap.querySelector('.recipe-card-del-btn');
+  const confirmRow = btnWrap.querySelector('.recipe-card-del-confirm');
+  const yesBtn = btnWrap.querySelector('.recipe-card-del-yes');
+  const noBtn = btnWrap.querySelector('.recipe-card-del-no');
+  let autoHideTimer = null;
+
+  const hideConfirm = () => {
+    confirmRow.hidden = true;
+    trashBtn.hidden = false;
+    clearTimeout(autoHideTimer);
+  };
+
+  trashBtn.onclick = (e) => {
+    e.stopPropagation();
+    trashBtn.hidden = true;
+    confirmRow.hidden = false;
+    // 3s 无操作自动收起确认气泡
+    autoHideTimer = setTimeout(hideConfirm, 3000);
+  };
+  noBtn.onclick = (e) => { e.stopPropagation(); hideConfirm(); };
+  yesBtn.onclick = (e) => {
+    e.stopPropagation();
+    clearTimeout(autoHideTimer);
+    // 写入 overlay deletes
+    try {
+      const { loadOverlay: lo, saveOverlay: so } = { loadOverlay: () => (JSON.parse(localStorage.getItem('kitchen-overlay') || '{}')), saveOverlay: () => {} };
+      // 使用导入的模块函数（已 import 在文件顶部）
+      const ov = loadOverlay();
+      ov.deletes = ov.deletes || {};
+      ov.deletes[recipeId] = true;
+      // 删除 overlay 中的自定义菜谱条目
+      if (ov.recipes) delete ov.recipes[recipeId];
+      if (ov.recipe_ingredients) delete ov.recipe_ingredients[recipeId];
+      saveOverlay(ov);
+      window.invalidatePackCache?.();
+    } catch (_) {}
+    // 动画移除卡片
+    cardEl.style.transition = 'opacity 0.18s ease, transform 0.18s ease, max-height 0.20s ease';
+    cardEl.style.overflow = 'hidden';
+    cardEl.style.maxHeight = cardEl.offsetHeight + 'px';
+    requestAnimationFrame(() => {
+      cardEl.style.opacity = '0';
+      cardEl.style.transform = 'translateX(10px)';
+      cardEl.style.maxHeight = '0';
+      cardEl.style.marginBottom = '0';
+    });
+    cardEl.addEventListener('transitionend', () => cardEl.remove(), { once: true });
+    setTimeout(() => cardEl.remove(), 300);
+  };
+
+  return btnWrap;
+}
 
 export function recipeMethodBadge(recipe) {
   return hasRecipeMethod(recipe)
@@ -48,8 +123,19 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
   } else {
     badgeHtml = `<span class="kchip bad">❌ 暂无食材</span>`;
   }
-  const statusBadge = badgeHtml;
-  card.innerHTML = `<div class="recipe-card-head"><h3 class="r-title r-title-link">${r.name}</h3><div class="recipe-badge-stack">${recipeMethodBadge(r)}${statusBadge}</div></div><p class="meta">${(r.tags||[]).join(' / ')}</p><div class="controls"><button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button><button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button></div>`;
+  card.innerHTML = `
+    <div class="recipe-card-head">
+      <h3 class="r-title r-title-link">${r.name}</h3>
+      <div class="recipe-badge-stack">
+        ${recipeMethodBadge(r)}${badgeHtml}
+      </div>
+    </div>
+    <p class="meta">${(r.tags||[]).join(' / ')}</p>
+    <div class="controls">
+      <button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button>
+      <button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button>
+    </div>`;
+  card.querySelector('.r-title-link').onclick = () => location.hash = `#recipe:${r.id}`;
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {
     addBtn.onclick = () => {
@@ -58,6 +144,12 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
       if (!plan.find(x => x.id === r.id && (x.date || today) === today)) { plan.push({ id: r.id, servings: 1, date: today }); S.save(S.keys.plan, plan); markRecipePlanned(r.id); alert('已加入清单。'); }
       else { alert('已在清单中。'); }
     };
+  }
+  // 快速删除入口
+  const delWrap = attachQuickDelete(r.id, card);
+  if (delWrap) {
+    const head = card.querySelector('.recipe-card-head');
+    head.appendChild(delWrap);
   }
   return card;
 }
@@ -115,6 +207,11 @@ export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {
     card.querySelector('.controls').appendChild(favoriteBtn);
     card.querySelector('.controls').appendChild(btn);
     card.querySelector('.controls').appendChild(detailBtn);
+    // 快速删除入口（右上角垃圾桶 + 内联确认）
+    const delWrap = attachQuickDelete(r.id, card);
+    if (delWrap) {
+      card.querySelector('.recipe-badge-stack').appendChild(delWrap);
+    }
   }
   return card;
 }
