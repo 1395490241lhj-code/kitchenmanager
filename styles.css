@@ -3991,7 +3991,7 @@ nav a span { white-space: nowrap; }
   opacity: 0;
 }
 
-/* 2. 卡片本体：液态玻璃、限制高度防止溢出屏幕 */
+/* 2. 卡片本体：顶级晶透液态玻璃、限制高度防止溢出屏幕 */
 .km-modal-content {
   position: relative;
   width: 100%;
@@ -4000,13 +4000,21 @@ nav a span { white-space: nowrap; }
   overflow-y: auto; /* 内容过多时在卡片内部滚动 */
   margin: 0 !important; /* 清除任何可能导致偏移的外边距 */
   
-  /* 核心液态玻璃质感 */
-  background: rgba(255, 255, 255, 0.85) !important;
-  backdrop-filter: blur(24px) !important;
-  -webkit-backdrop-filter: blur(24px) !important; /* Safari 必须属性 */
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  /* --- 玻璃质感核心参数（极其关键） --- */
+  /* 1. 降低背景透明度到 55%，让底层视觉透射过来 */
+  background: rgba(255, 255, 255, 0.55) !important;
+  
+  /* 2. 模糊度配合 150% 的饱和度提升，消灭灰暗感，让透射的色彩更剔透 */
+  backdrop-filter: blur(20px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(150%) !important; 
+  
+  /* 3. 模拟玻璃边缘的高光反光（纯白，80%不透明度） */
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  
+  /* 4. 柔和的深层空间投影，将玻璃从背景层剥离出来 */
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15) !important;
+  
   border-radius: 24px !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   
   /* 优雅平滑缩放/位移动效属性 */
   transform: scale(0.9) translateY(15px);
@@ -4016,11 +4024,12 @@ nav a span { white-space: nowrap; }
   transform: scale(1) translateY(0);
 }
 
-/* 3. 暗黑模式适配 */
+/* 3. 暗黑模式下的深色琥珀玻璃适配 */
 @media (prefers-color-scheme: dark) {
   .km-modal-content {
-    background: rgba(30, 30, 35, 0.85) !important;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(30, 30, 40, 0.45) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4) !important;
   }
 }
 

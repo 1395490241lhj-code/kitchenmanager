@@ -1,8 +1,8 @@
-import { todayISO } from '../storage.js?v=183';
-import { normalizeKitchenAmount, isSeasoning } from '../ingredients.js?v=183';
-import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=183';
-import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch } from '../inventory.js?v=183';
-import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=183';
+import { todayISO } from '../storage.js?v=184';
+import { normalizeKitchenAmount, isSeasoning } from '../ingredients.js?v=184';
+import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=184';
+import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch } from '../inventory.js?v=184';
+import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=184';
 
 export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   const overlay = document.createElement('div');
