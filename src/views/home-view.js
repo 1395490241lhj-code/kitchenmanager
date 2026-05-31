@@ -230,7 +230,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   // 面板内部：问候语行（含「换一批」按钮） + 状态行 + 滚动卡片 + 注释
   inspiWrap.innerHTML = `
     <div class="home-inspi-panel-head">
-      <p class="home-hero-greeting">💡 结合当前厨房库存，为你定制的今日烹饪灵感：</p>
+      <p class="home-hero-greeting">🔮 结合当前厨房库存，为你定制的今日烹饪灵感：</p>
       <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
     </div>
     <div class="home-suggest-scroll"></div>
@@ -251,7 +251,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     if (text) text.textContent = inspiExpanded
       ? '收起灵感推荐'
       : `查看今日 AI 智能灵感推荐${count ? ` (${count})` : ''}`;
-    if (arrow) arrow.textContent = inspiExpanded ? '⌃' : '›';
+    if (arrow) arrow.textContent = '›';
     toggleBtn.setAttribute('aria-expanded', String(inspiExpanded));
   };
 

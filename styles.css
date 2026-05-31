@@ -3840,34 +3840,44 @@ nav a span { white-space: nowrap; }
 .home-inspi-toggle-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   margin-top: 14px;
-  padding: 10px 14px;
-  border: 1px solid var(--separator);
-  border-radius: 14px;
-  background: var(--tag-bg);
-  color: var(--text-secondary);
+  padding: 11px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #9333ea 100%);
+  color: #ffffff;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.25), 0 4px 10px rgba(147, 51, 234, 0.15);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.2s ease;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
 .home-inspi-toggle-btn:hover,
 .home-inspi-toggle-btn:focus-visible {
-  background: rgba(var(--accent-rgb, 99,102,241), 0.08);
-  border-color: var(--accent);
-  color: var(--text-main);
+  filter: brightness(1.08);
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.35), 0 6px 14px rgba(147, 51, 234, 0.25);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.3);
 }
-.home-inspi-toggle-btn:active { transform: scale(0.98); }
-.home-inspi-toggle-icon { font-size: 14px; flex-shrink: 0; }
+.home-inspi-toggle-btn:active { transform: scale(0.95); }
+.home-inspi-toggle-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.home-inspi-toggle-btn:hover .home-inspi-toggle-icon {
+  transform: scale(1.2) rotate(15deg);
+}
 .home-inspi-toggle-text { flex: 1; }
 .home-inspi-toggle-arrow {
   flex-shrink: 0;
   font-size: 16px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.85);
   transition: transform 0.2s ease;
 }
 .home-inspi-toggle-btn[aria-expanded="true"] .home-inspi-toggle-arrow {
@@ -3876,20 +3886,41 @@ nav a span { white-space: nowrap; }
 
 /* ── 折叠/展开的内容容器 ── */
 .home-inspi-bottom {
+  position: relative;
   overflow: hidden;
-  max-height: 600px;               /* 足够高 */
+  max-height: 800px;               /* 足够高 */
   opacity: 1;
-  margin-top: 10px;
+  margin-top: 12px;
+  padding: 14px 14px 14px 20px;
+  border-radius: 12px;
+  background: rgba(238, 242, 255, 0.4); /* bg-indigo-50/40 equivalent */
+  border: 1px solid rgba(99, 102, 241, 0.08);
   transition:
-    max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+    max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
     opacity 0.24s ease,
     margin-top 0.24s ease;
+}
+.home-inspi-bottom::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to bottom, #8b5cf6, #d946ef); /* from-violet-500 to-fuchsia-500 */
+  border-radius: 4px 0 0 4px;
 }
 .home-inspi-bottom.is-collapsed {
   max-height: 0 !important;
   opacity: 0;
   margin-top: 0;
   pointer-events: none;
+}
+@media (prefers-color-scheme: dark) {
+  .home-inspi-bottom {
+    background: rgba(30, 27, 75, 0.2); /* bg-indigo-950/20 equivalent */
+    border-color: rgba(99, 102, 241, 0.15);
+  }
 }
 
 /* ── 面板内头部（问候语 + 换一批按钮并排）── */
