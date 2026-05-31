@@ -3823,9 +3823,6 @@ nav a span { white-space: nowrap; }
 .home-hero-glow-wrap {
   position: relative;
 }
-.home-inspi-bottom {
-  margin-top: 4px;
-}
 /* hero glow 包裹器里保留原有定位 */
 .home-hero-glow-wrap .home-hero-glow {
   position: absolute;
@@ -3838,6 +3835,100 @@ nav a span { white-space: nowrap; }
   position: relative;
   z-index: 1;
 }
+
+/* ── AI 灵感折叠区：展开触发按钮 ── */
+.home-inspi-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--separator);
+  border-radius: 14px;
+  background: var(--tag-bg);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.home-inspi-toggle-btn:hover,
+.home-inspi-toggle-btn:focus-visible {
+  background: rgba(var(--accent-rgb, 99,102,241), 0.08);
+  border-color: var(--accent);
+  color: var(--text-main);
+}
+.home-inspi-toggle-btn:active { transform: scale(0.98); }
+.home-inspi-toggle-icon { font-size: 14px; flex-shrink: 0; }
+.home-inspi-toggle-text { flex: 1; }
+.home-inspi-toggle-arrow {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+.home-inspi-toggle-btn[aria-expanded="true"] .home-inspi-toggle-arrow {
+  transform: rotate(-90deg);
+}
+
+/* ── 折叠/展开的内容容器 ── */
+.home-inspi-bottom {
+  overflow: hidden;
+  max-height: 600px;               /* 足够高 */
+  opacity: 1;
+  margin-top: 10px;
+  transition:
+    max-height 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.24s ease,
+    margin-top 0.24s ease;
+}
+.home-inspi-bottom.is-collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+  margin-top: 0;
+  pointer-events: none;
+}
+
+/* ── 面板内头部（问候语 + 换一批按钮并排）── */
+.home-inspi-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.home-inspi-panel-head .home-hero-greeting {
+  /* 变小号，不再 h2 霸屏 */
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+  flex: 1;
+}
+
+/* ── 菜单计划范围下拉：紧凑药丸样式 ── */
+.menu-plan-range-compact {
+  /* 覆盖原有宽度，收缩为内容自适应 */
+  width: auto !important;
+  max-width: 108px;
+  padding: 4px 22px 4px 10px !important;
+  font-size: 12px !important;
+  border-radius: 20px !important;
+  appearance: auto;
+  background: var(--tag-bg);
+  border: 1px solid var(--separator);
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.menu-plan-range-compact:hover { border-color: var(--accent); background: var(--bg-input); }
+.menu-plan-range-compact:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+
 
 /* ──────────────────────────────────────────────────────────────────────────
    首页原地弹窗（Home Modal Overlay）

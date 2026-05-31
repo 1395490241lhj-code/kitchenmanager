@@ -17,7 +17,7 @@ export function renderMenuPlan(pack, { onRoute = () => {} } = {}) {
   planCard.innerHTML = `
     <div class="shopping-card-head menu-plan-head">
       <h3 class="menu-plan-title">📅 菜单计划</h3>
-      <select id="planRangeSelect" class="menu-plan-range">
+      <select id="planRangeSelect" class="menu-plan-range menu-plan-range-compact">
         <option value="today">只看今天</option>
         <option value="3days">未来 3 天</option>
       </select>

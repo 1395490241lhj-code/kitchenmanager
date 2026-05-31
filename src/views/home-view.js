@@ -182,10 +182,9 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   const section = document.createElement('section');
   section.className = `home-hero${extraNode ? ' is-combo' : ''}`;
 
-  const greeting = mockAiRecommendations.greeting || buildGreeting(expiringCount);
   const eyebrow = extraNode ? '📅 今日饮食与灵感' : '🧠 今日灵感';
 
-  // 眉标行（固定在顶部）
+  // 眉标行（仅眉标文字，不再放「换一批」按钮——已移入折叠面板内部）
   const headEl = document.createElement('div');
   headEl.className = 'home-hero-glow-wrap';
   headEl.innerHTML = `
@@ -193,7 +192,6 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     <div class="home-hero-head">
       <div class="home-hero-top">
         <span class="home-hero-eyebrow">${eyebrow}</span>
-        <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
       </div>
     </div>
     <div id="heroAiStatus" class="small inline-status" hidden></div>
@@ -201,34 +199,40 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   section.appendChild(headEl);
 
   if (extraNode) {
-    // ── 菜单计划区（置顶）──
+    // ── 菜单计划区（置顶） ──
+    // ⚠️ 不再添加 home-combo-plan-label：menu-plan.js 已自带「📅 菜单计划」h3 标题
     const topDivider = document.createElement('div');
     topDivider.className = 'home-combo-divider';
     topDivider.setAttribute('aria-hidden', 'true');
     section.appendChild(topDivider);
 
-    const planLabel = document.createElement('div');
-    planLabel.className = 'home-combo-plan-label';
-    planLabel.textContent = '📋 菜单计划';
-    section.appendChild(planLabel);
-
     const planSlot = document.createElement('div');
     planSlot.className = 'home-combo-plan';
     planSlot.appendChild(extraNode);
     section.appendChild(planSlot);
-
-    // ── 灵感区分隔 ──
-    const midDivider = document.createElement('div');
-    midDivider.className = 'home-combo-divider';
-    midDivider.setAttribute('aria-hidden', 'true');
-    section.appendChild(midDivider);
   }
 
-  // ── 问候语 + 推荐卡片（移至底部）──
+  // ── AI 灵感折叠区 ──────────────────────────────────────────────────────────
+  // 1. 展开触发按钮（默认可见）
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.className = 'home-inspi-toggle-btn';
+  toggleBtn.id = 'heroInspiToggle';
+  // 卡片数量稍后更新
+  toggleBtn.innerHTML = `<span class="home-inspi-toggle-icon">✨</span><span class="home-inspi-toggle-text">查看今日 AI 智能灵感推荐</span><span class="home-inspi-toggle-arrow">›</span>`;
+  section.appendChild(toggleBtn);
+
+  // 2. 折叠内容容器（默认隐藏）
   const inspiWrap = document.createElement('div');
-  inspiWrap.className = 'home-inspi-bottom';
+  inspiWrap.className = 'home-inspi-bottom is-collapsed';
+  inspiWrap.setAttribute('aria-hidden', 'true');
+
+  // 面板内部：问候语行（含「换一批」按钮） + 状态行 + 滚动卡片 + 注释
   inspiWrap.innerHTML = `
-    <h2 class="home-hero-greeting">${escapeHtml(greeting)}</h2>
+    <div class="home-inspi-panel-head">
+      <p class="home-hero-greeting">💡 结合当前厨房库存，为你定制的今日烹饪灵感：</p>
+      <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
+    </div>
     <div class="home-suggest-scroll"></div>
     <p class="home-hero-note" id="heroNote"></p>
   `;
@@ -237,7 +241,32 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   const scroll = inspiWrap.querySelector('.home-suggest-scroll');
   const note = inspiWrap.querySelector('#heroNote');
   const aiStatus = section.querySelector('#heroAiStatus');
-  const aiBtn = section.querySelector('#heroAiBtn');
+  const aiBtn = inspiWrap.querySelector('#heroAiBtn');
+
+  // 折叠状态切换
+  let inspiExpanded = false;
+  const updateToggleLabel = (count) => {
+    const text = toggleBtn.querySelector('.home-inspi-toggle-text');
+    const arrow = toggleBtn.querySelector('.home-inspi-toggle-arrow');
+    if (text) text.textContent = inspiExpanded
+      ? '收起灵感推荐'
+      : `查看今日 AI 智能灵感推荐${count ? ` (${count})` : ''}`;
+    if (arrow) arrow.textContent = inspiExpanded ? '⌃' : '›';
+    toggleBtn.setAttribute('aria-expanded', String(inspiExpanded));
+  };
+
+  toggleBtn.onclick = () => {
+    inspiExpanded = !inspiExpanded;
+    if (inspiExpanded) {
+      inspiWrap.classList.remove('is-collapsed');
+      inspiWrap.removeAttribute('aria-hidden');
+    } else {
+      inspiWrap.classList.add('is-collapsed');
+      inspiWrap.setAttribute('aria-hidden', 'true');
+    }
+    updateToggleLabel(scroll.querySelectorAll('.home-suggest-card, .card').length);
+  };
+  updateToggleLabel(0);
 
   // 默认：本地/示例推荐
   const showLocal = () => {
@@ -248,6 +277,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     cards.forEach(card => scroll.appendChild(renderSuggestCard(card, pack, inv)));
     note.textContent = usingMock ? '示例推荐 · 录入更多库存后会自动匹配你的食材' : '';
     note.hidden = !usingMock;
+    updateToggleLabel(cards.length);
   };
 
   // AI 推荐：最多展示 4 张
@@ -257,6 +287,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     note.innerHTML = 'AI 草稿推荐，请确认后再安排。<button type="button" class="home-note-clear" id="heroAiClear">用本地推荐</button>';
     const clearBtn = note.querySelector('#heroAiClear');
     if (clearBtn) clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); showLocal(); setInlineStatus(aiStatus, '', 'info'); };
+    updateToggleLabel((aiCards || []).slice(0, 4).length);
   };
 
   // 初次渲染：若已有保存的 AI 推荐则展示，否则本地推荐
@@ -281,6 +312,8 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
         S.save(S.keys.ai_recs, aiResult);
         showAi(cards);
         setInlineStatus(aiStatus, 'AI 已生成草稿推荐。', 'ok');
+        // 自动展开（刷新后）
+        if (!inspiExpanded) toggleBtn.click();
       } else {
         setInlineStatus(aiStatus, 'AI 没有返回可用菜谱，已保留本地推荐。', 'info');
       }
