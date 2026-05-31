@@ -1,8 +1,8 @@
-import { S, todayISO } from '../storage.js?v=184';
-import { CUSTOM_AI } from '../config.js?v=184';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=184';
-import { buildKitchenBackup, downloadJsonFile, loadOverlay, restoreKitchenBackup, saveOverlay } from '../backup.js?v=184';
-import { setInlineStatus, escapeHtml } from '../components/status.js?v=184';
+import { S, todayISO } from '../storage.js?v=185';
+import { CUSTOM_AI } from '../config.js?v=185';
+import { DATA_SCHEMA_VERSION } from '../migrations.js?v=185';
+import { buildKitchenBackup, downloadJsonFile, loadOverlay, restoreKitchenBackup, saveOverlay } from '../backup.js?v=185';
+import { setInlineStatus, escapeHtml } from '../components/status.js?v=185';
 
 // 与 recipes-view.js 中迁出来的同名工具一致：合并外部 overlay 时保留当前用户已有的菜谱补丁，避免覆盖。
 function mergeRecipeOverlay(currentOverlay, incomingOverlay) {

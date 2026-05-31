@@ -3991,7 +3991,7 @@ nav a span { white-space: nowrap; }
   opacity: 0;
 }
 
-/* 2. 卡片本体：顶级晶透液态玻璃、限制高度防止溢出屏幕 */
+/* 2. 卡片本体：终极 Apple 级剔透液态玻璃、限制高度防止溢出屏幕 */
 .km-modal-content {
   position: relative;
   width: 100%;
@@ -3999,37 +3999,37 @@ nav a span { white-space: nowrap; }
   max-height: 85vh; /* 极其关键：防止内容过多时弹窗撑爆屏幕上下边缘 */
   overflow-y: auto; /* 内容过多时在卡片内部滚动 */
   margin: 0 !important; /* 清除任何可能导致偏移的外边距 */
-  
-  /* --- 玻璃质感核心参数（极其关键） --- */
-  /* 1. 降低背景透明度到 55%，让底层视觉透射过来 */
-  background: rgba(255, 255, 255, 0.55) !important;
-  
-  /* 2. 模糊度配合 150% 的饱和度提升，消灭灰暗感，让透射的色彩更剔透 */
-  backdrop-filter: blur(20px) saturate(150%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(150%) !important; 
-  
-  /* 3. 模拟玻璃边缘的高光反光（纯白，80%不透明度） */
-  border: 1px solid rgba(255, 255, 255, 0.8) !important;
-  
-  /* 4. 柔和的深层空间投影，将玻璃从背景层剥离出来 */
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15) !important;
-  
   border-radius: 24px !important;
   
-  /* 优雅平滑缩放/位移动效属性 */
-  transform: scale(0.9) translateY(15px);
+  /* 核心 1：强制开启 GPU 硬件加速，防止玻璃滤镜失效变成死灰 */
+  transform: scale(0.9) translate3d(0, 15px, 0);
+  -webkit-transform: scale(0.9) translate3d(0, 15px, 0);
   transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* 核心 2：纯净的半透明白底 + 200% 高饱和度提亮透射色彩 */
+  background: rgba(255, 255, 255, 0.6) !important;
+  backdrop-filter: blur(25px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
+  
+  /* 核心 3：双层高光边缘（外高光 + 顶部内发光）营造厚度感 */
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow: 
+    0 24px 48px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
 }
 .km-modal-overlay.open .km-modal-content {
-  transform: scale(1) translateY(0);
+  transform: scale(1) translate3d(0, 0, 0);
+  -webkit-transform: scale(1) translate3d(0, 0, 0);
 }
 
-/* 3. 暗黑模式下的深色琥珀玻璃适配 */
+/* 3. 极客暗黑模式琥珀玻璃 */
 @media (prefers-color-scheme: dark) {
   .km-modal-content {
-    background: rgba(30, 30, 40, 0.45) !important;
+    background: rgba(40, 40, 45, 0.55) !important;
     border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4) !important;
+    box-shadow: 
+      0 24px 48px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
   }
 }
 
@@ -4042,7 +4042,7 @@ nav a span { white-space: nowrap; }
   border-bottom: 1px solid var(--separator);
   position: sticky;
   top: 0;
-  background: var(--bg-card);
+  background: transparent; /* 透明以露出底层玻璃质感 */
   z-index: 2;
   border-radius: 24px 24px 0 0;
 }
