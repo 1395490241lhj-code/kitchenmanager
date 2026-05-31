@@ -1,6 +1,6 @@
 import { S, todayISO } from '../storage.js?v=179';
-import { buildCatalog, getCanonicalName } from '../ingredients.js?v=179';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=179';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=179';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=179';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=179';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
@@ -8,11 +8,10 @@ import {
   getCleanFridgeRecommendations, processAiData
 } from '../recommendations.js?v=179';
 import { callCloudAI, formatAiErrorMessage } from '../ai.js?v=179';
-import { escapeHtml, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=179';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=179';
 import { showRecommendationCards } from '../components/recipe-card.js?v=179';
 import { showCleanFridgeModal } from '../components/modal.js?v=179';
 import { renderMenuPlan } from '../components/menu-plan.js?v=179';
-import { requestInventoryIntent } from './shopping-view.js?v=179';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -164,28 +163,79 @@ function renderSuggestCard(card, pack, inv) {
   return el;
 }
 
+/*
+ * renderInspirationPanel — 合并卡结构（is-combo 模式）
+ *
+ * ⚠️ 布局已翻转：菜单计划置顶，AI 灵感卡片居底。
+ *
+ *  ┌─ .home-hero.is-combo ──────────────────────┐
+ *  │  [眉标 + AI 换一批按钮]                     │ ← home-hero-head（仅眉标行）
+ *  │  ─── 分隔线 ─────────────────────────────  │
+ *  │  📋 菜单计划 (extraNode)                    │ ← 置顶
+ *  │  ─── 分隔线 ─────────────────────────────  │
+ *  │  🧠 今日灵感 问候语                          │ ← 移至底部
+ *  │  [横向滑动推荐卡片流]                        │
+ *  │  [注释文字]                                  │
+ *  └───────────────────────────────────────────┘
+ */
 function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, extraNode = null } = {}) {
   const section = document.createElement('section');
   section.className = `home-hero${extraNode ? ' is-combo' : ''}`;
 
   const greeting = mockAiRecommendations.greeting || buildGreeting(expiringCount);
-  // 合并模式时统一用「📅 今日饮食与灵感」眉标
   const eyebrow = extraNode ? '📅 今日饮食与灵感' : '🧠 今日灵感';
-  section.innerHTML = `
+
+  // 眉标行（固定在顶部）
+  const headEl = document.createElement('div');
+  headEl.className = 'home-hero-glow-wrap';
+  headEl.innerHTML = `
     <div class="home-hero-glow" aria-hidden="true"></div>
     <div class="home-hero-head">
       <div class="home-hero-top">
         <span class="home-hero-eyebrow">${eyebrow}</span>
         <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
       </div>
-      <h2 class="home-hero-greeting">${escapeHtml(greeting)}</h2>
     </div>
     <div id="heroAiStatus" class="small inline-status" hidden></div>
+  `;
+  section.appendChild(headEl);
+
+  if (extraNode) {
+    // ── 菜单计划区（置顶）──
+    const topDivider = document.createElement('div');
+    topDivider.className = 'home-combo-divider';
+    topDivider.setAttribute('aria-hidden', 'true');
+    section.appendChild(topDivider);
+
+    const planLabel = document.createElement('div');
+    planLabel.className = 'home-combo-plan-label';
+    planLabel.textContent = '📋 菜单计划';
+    section.appendChild(planLabel);
+
+    const planSlot = document.createElement('div');
+    planSlot.className = 'home-combo-plan';
+    planSlot.appendChild(extraNode);
+    section.appendChild(planSlot);
+
+    // ── 灵感区分隔 ──
+    const midDivider = document.createElement('div');
+    midDivider.className = 'home-combo-divider';
+    midDivider.setAttribute('aria-hidden', 'true');
+    section.appendChild(midDivider);
+  }
+
+  // ── 问候语 + 推荐卡片（移至底部）──
+  const inspiWrap = document.createElement('div');
+  inspiWrap.className = 'home-inspi-bottom';
+  inspiWrap.innerHTML = `
+    <h2 class="home-hero-greeting">${escapeHtml(greeting)}</h2>
     <div class="home-suggest-scroll"></div>
     <p class="home-hero-note" id="heroNote"></p>
   `;
-  const scroll = section.querySelector('.home-suggest-scroll');
-  const note = section.querySelector('#heroNote');
+  section.appendChild(inspiWrap);
+
+  const scroll = inspiWrap.querySelector('.home-suggest-scroll');
+  const note = inspiWrap.querySelector('#heroNote');
   const aiStatus = section.querySelector('#heroAiStatus');
   const aiBtn = section.querySelector('#heroAiBtn');
 
@@ -242,24 +292,311 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     }
   };
 
-  // 合并模式：灵感卡片下方无缝衔接菜单计划，共享同一渐变胶囊和圆角衬底。
-  if (extraNode) {
-    const divider = document.createElement('div');
-    divider.className = 'home-combo-divider';
-    divider.setAttribute('aria-hidden', 'true');
-    section.appendChild(divider);
-    // 计划区标题
-    const planLabel = document.createElement('div');
-    planLabel.className = 'home-combo-plan-label';
-    planLabel.textContent = '📋 菜单计划';
-    section.appendChild(planLabel);
-    const planSlot = document.createElement('div');
-    planSlot.className = 'home-combo-plan';
-    planSlot.appendChild(extraNode);
-    section.appendChild(planSlot);
+  return section;
+}
+
+// ── 原地弹窗工具函数 ─────────────────────────────────────────────────────────
+/**
+ * 创建一个半透明遮罩 + 居中/底部弹出的 Modal 层。
+ * @param {HTMLElement} contentEl - 弹窗内容节点
+ * @param {string} [title] - 弹窗标题（显示在 X 按钮左侧）
+ * @returns {{ overlay, close }}
+ */
+function createHomeModal(contentEl, title = '') {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay home-modal-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'card home-modal-panel';
+
+  // 标题行 + X 关闭按钮
+  const header = document.createElement('div');
+  header.className = 'home-modal-header';
+  header.innerHTML = `
+    <span class="home-modal-title">${escapeHtml(title)}</span>
+    <button type="button" class="home-modal-close" aria-label="关闭">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  `;
+  panel.appendChild(header);
+  panel.appendChild(contentEl);
+  overlay.appendChild(panel);
+
+  const close = () => {
+    overlay.classList.add('closing');
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+    setTimeout(() => overlay.remove(), 250);
+  };
+
+  header.querySelector('.home-modal-close').onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  document.body.appendChild(overlay);
+  // 触发入场动画
+  requestAnimationFrame(() => overlay.classList.add('open'));
+
+  return { overlay, close };
+}
+
+// ── 弹窗内容构建 ─────────────────────────────────────────────────────────────
+
+/** 「48 小时内到期」弹窗 */
+function buildExpiryModal(inv) {
+  const expiring = (inv || [])
+    .filter(it => isExpiryTracked(it) && remainingDays(it) <= 2)
+    .sort((a, b) => remainingDays(a) - remainingDays(b));
+
+  const wrap = document.createElement('div');
+  wrap.className = 'home-modal-body';
+
+  if (!expiring.length) {
+    wrap.innerHTML = '<p class="home-modal-empty">✅ 48 小时内没有即将到期的食材。</p>';
+    return wrap;
   }
 
-  return section;
+  const list = document.createElement('ul');
+  list.className = 'home-expiry-list';
+  expiring.forEach(it => {
+    const d = remainingDays(it);
+    const li = document.createElement('li');
+    li.className = `home-expiry-item${d <= 0 ? ' is-expired' : d <= 1 ? ' is-urgent' : ''}`;
+    const dayText = d < 0 ? `已过期 ${Math.abs(d)} 天` : d === 0 ? '今天到期' : `还剩 ${d} 天`;
+    li.innerHTML = `
+      <span class="home-expiry-name">${escapeHtml(it.name)}</span>
+      <span class="home-expiry-days">${dayText}</span>
+    `;
+    list.appendChild(li);
+  });
+  wrap.appendChild(list);
+
+  const hint = document.createElement('p');
+  hint.className = 'home-modal-hint';
+  hint.textContent = '建议优先安排到菜单计划中，避免浪费。';
+  wrap.appendChild(hint);
+
+  return wrap;
+}
+
+/** 「购物清单待买」弹窗 */
+function buildShoppingModal(onClose) {
+  const wrap = document.createElement('div');
+  wrap.className = 'home-modal-body';
+
+  const items = loadShoppingItems().filter(i => !i.done);
+
+  // 快速添加行
+  const addRow = document.createElement('div');
+  addRow.className = 'home-modal-add-row';
+  addRow.innerHTML = `
+    <input class="home-modal-input" id="shoppingModalInput" placeholder="快速记录，回车加入…">
+    <button type="button" class="btn ok small" id="shoppingModalAdd">加入</button>
+  `;
+  wrap.appendChild(addRow);
+
+  const listEl = document.createElement('ul');
+  listEl.className = 'home-shopping-list';
+  wrap.appendChild(listEl);
+
+  const renderList = () => {
+    const current = loadShoppingItems().filter(i => !i.done);
+    listEl.innerHTML = '';
+    if (!current.length) {
+      listEl.innerHTML = '<li class="home-modal-empty">购物清单为空 🎉</li>';
+      return;
+    }
+    current.slice(0, 12).forEach(it => {
+      const li = document.createElement('li');
+      li.className = 'home-shopping-item';
+      const qty = it.qty ? ` · ${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}` : '';
+      li.innerHTML = `<span>${escapeHtml(it.name)}${qty}</span><small>${escapeHtml(it.source || '')}</small>`;
+      listEl.appendChild(li);
+    });
+    if (current.length > 12) {
+      const more = document.createElement('li');
+      more.className = 'home-modal-empty';
+      more.textContent = `还有 ${current.length - 12} 项，前往购物清单查看全部`;
+      listEl.appendChild(more);
+    }
+  };
+  renderList();
+
+  const input = addRow.querySelector('#shoppingModalInput');
+  const addBtn = addRow.querySelector('#shoppingModalAdd');
+  const doAdd = () => {
+    const name = input.value.trim();
+    if (!name) return;
+    addShoppingItem(name, '', '', '速记');
+    input.value = '';
+    input.focus();
+    renderList();
+    // 更新首页 metric 数字
+    const numEl = document.querySelector('#metricShopping .home-metric-num');
+    if (numEl) numEl.textContent = String(loadShoppingItems().filter(i => !i.done).length);
+  };
+  input.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
+  addBtn.onclick = doAdd;
+
+  // 跳转按钮
+  const footer = document.createElement('div');
+  footer.className = 'home-modal-footer';
+  footer.innerHTML = `<button type="button" class="btn small home-modal-goto" id="gotoShoppingBtn">前往购物清单 →</button>`;
+  footer.querySelector('#gotoShoppingBtn').onclick = () => { onClose(); location.hash = '#shopping'; };
+  wrap.appendChild(footer);
+
+  return wrap;
+}
+
+/** 「批量入库」弹窗 —— 内嵌一个轻量添加表单 */
+function buildBatchStockModal(pack, inv, onClose) {
+  const catalog = buildCatalog(pack);
+  const ingredientOptions = buildIngredientOptions(catalog);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'home-modal-body';
+
+  wrap.innerHTML = `
+    <p class="home-modal-hint" style="margin-top:0">填写食材信息后点击「入库」，可连续添加多条。</p>
+    <div id="batchStockStatus" class="inline-status" hidden></div>
+    <div class="home-stock-form">
+      <input id="stockName" list="stockCatalog" placeholder="食材名（必填）" class="home-stock-input" autocomplete="off">
+      <datalist id="stockCatalog">${ingredientOptions.map(o => `<option value="${escapeOptionAttr(o.value)}">`).join('')}</datalist>
+      <div class="home-stock-row">
+        <input id="stockQty" type="number" min="0" step="0.1" placeholder="数量" class="home-stock-qty">
+        <select id="stockUnit" class="home-stock-unit">
+          ${['份','个','g','ml','盒','袋','包','瓶','把','根','块','条'].map(u => `<option>${u}</option>`).join('')}
+        </select>
+        <input id="stockDate" type="date" class="home-stock-date" value="${todayISO()}">
+      </div>
+      <button type="button" class="btn ok" id="stockAddBtn" style="width:100%;margin-top:8px">📦 入库</button>
+    </div>
+    <ul class="home-stock-log" id="stockLog"></ul>
+    <div class="home-modal-footer">
+      <button type="button" class="btn small home-modal-goto" id="gotoInventoryBtn">前往完整库存 →</button>
+    </div>
+  `;
+
+  const nameInput = wrap.querySelector('#stockName');
+  const qtyInput = wrap.querySelector('#stockQty');
+  const unitSel = wrap.querySelector('#stockUnit');
+  const dateInput = wrap.querySelector('#stockDate');
+  const status = wrap.querySelector('#batchStockStatus');
+  const log = wrap.querySelector('#stockLog');
+
+  // 自动推断单位
+  nameInput.addEventListener('input', () => {
+    const name = nameInput.value.trim();
+    if (name) {
+      const guessed = guessKitchenUnit(getCanonicalName(name)) || '份';
+      const opts = Array.from(unitSel.options);
+      const found = opts.find(o => o.value === guessed);
+      if (!found) {
+        const newOpt = document.createElement('option');
+        newOpt.value = guessed;
+        newOpt.textContent = guessed;
+        unitSel.insertBefore(newOpt, unitSel.firstChild);
+      }
+      unitSel.value = guessed;
+    }
+  });
+
+  wrap.querySelector('#stockAddBtn').onclick = () => {
+    const name = nameInput.value.trim();
+    if (!name) { setInlineStatus(status, '食材名不能为空。', 'bad'); return; }
+    const qty = parseFloat(qtyInput.value) || null;
+    const unit = unitSel.value || '份';
+    const buyDate = dateInput.value || todayISO();
+    const shelf = guessShelfDays(getCanonicalName(name));
+    const isDry = isDryGoodName(getCanonicalName(name));
+    const entry = {
+      name: getCanonicalName(name) || name,
+      qty,
+      unit,
+      buyDate,
+      kind: isDry ? 'dry' : 'raw',
+      ...(shelf ? { shelf } : {})
+    };
+    try {
+      const currentInv = loadInventory(buildCatalog(pack));
+      mergeInventoryEntry(currentInv, entry, { mode: 'replace' }); // auto-saves
+      // 记录到 log
+      const li = document.createElement('li');
+      li.className = 'home-stock-log-item';
+      li.innerHTML = `<span>✅ ${escapeHtml(entry.name)}</span><small>${qty ? `${qty}${unit}` : ''}</small>`;
+      log.insertBefore(li, log.firstChild);
+      setInlineStatus(status, '已入库。', 'ok');
+      nameInput.value = '';
+      qtyInput.value = '';
+      nameInput.focus();
+      window.invalidatePackCache?.();
+    } catch (e) {
+      setInlineStatus(status, e.message || '入库失败', 'bad');
+    }
+  };
+
+  wrap.querySelector('#gotoInventoryBtn').onclick = () => {
+    const { requestInventoryIntent } = window.__homeViewInventoryIntent__ || {};
+    if (typeof requestInventoryIntent === 'function') requestInventoryIntent('inventory');
+    onClose();
+    location.hash = '#shopping';
+  };
+
+  return wrap;
+}
+
+/** 「随手记」弹窗 */
+function buildMemoModal(onClose) {
+  const wrap = document.createElement('div');
+  wrap.className = 'home-modal-body';
+  wrap.innerHTML = `
+    <p class="home-modal-hint" style="margin-top:0">输入名字后回车，快速加入购物清单。</p>
+    <div class="home-modal-add-row">
+      <input class="home-modal-input" id="memoModalInput" placeholder="要买什么？">
+      <button type="button" class="btn ok small" id="memoModalAdd">加入</button>
+    </div>
+    <ul class="home-memo-log" id="memoLog"></ul>
+    <div class="home-modal-footer">
+      <button type="button" class="btn small home-modal-goto" id="gotoShoppingFromMemo">前往购物清单 →</button>
+    </div>
+  `;
+
+  const input = wrap.querySelector('#memoModalInput');
+  const log = wrap.querySelector('#memoLog');
+
+  const refreshLog = () => {
+    const recent = loadShoppingItems().filter(i => !i.done).slice(-5).reverse();
+    log.innerHTML = '';
+    if (!recent.length) {
+      log.innerHTML = '<li class="home-modal-empty">还没有待买项</li>';
+      return;
+    }
+    recent.forEach(it => {
+      const li = document.createElement('li');
+      li.className = 'home-shopping-item';
+      li.innerHTML = `<span>📝 ${escapeHtml(it.name)}</span><small>${escapeHtml(it.source || '')}</small>`;
+      log.appendChild(li);
+    });
+  };
+  refreshLog();
+
+  const doAdd = () => {
+    const name = input.value.trim();
+    if (!name) return;
+    addShoppingItem(name, '', '', '速记');
+    input.value = '';
+    input.focus();
+    refreshLog();
+    // 更新首页 metric 数字
+    const numEl = document.querySelector('#metricShopping .home-metric-num');
+    if (numEl) numEl.textContent = String(loadShoppingItems().filter(i => !i.done).length);
+  };
+
+  input.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
+  wrap.querySelector('#memoModalAdd').onclick = doAdd;
+  wrap.querySelector('#gotoShoppingFromMemo').onclick = () => { onClose(); location.hash = '#shopping'; };
+
+  return wrap;
 }
 
 // ── Section 2: 紧急指标 / 雷达（2 列） ─────────────────────────────────────
@@ -289,9 +626,17 @@ function renderUrgentMetrics(inv, activeShoppingCount) {
       <span class="home-metric-sub">项未完成</span>
     </button>
   `;
-  // 库存与采购已迁至「清单」页：临期雷达跳转到该页的库存区。
-  section.querySelector('#metricExpiring').onclick = () => { requestInventoryIntent('inventory'); location.hash = '#shopping'; };
-  section.querySelector('#metricShopping').onclick = () => { location.hash = '#shopping'; };
+
+  // ── 原地弹窗（不再硬跳转到 #shopping 页面）──
+  section.querySelector('#metricExpiring').onclick = () => {
+    const { overlay, close } = createHomeModal(buildExpiryModal(inv), '🚨 48 小时内到期食材');
+    setTimeout(() => overlay.querySelector('#memoModalInput, input')?.focus?.(), 80);
+  };
+  section.querySelector('#metricShopping').onclick = () => {
+    const { overlay, close } = createHomeModal(buildShoppingModal(() => close()), '🛒 购物清单待买');
+    setTimeout(() => overlay.querySelector('#shoppingModalInput')?.focus?.(), 80);
+  };
+
   return section;
 }
 
@@ -303,10 +648,6 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
     <div class="home-actions-grid">
       <button type="button" class="home-act-btn" id="actQuickInput"><span class="home-act-emoji">📦</span><span>批量入库</span></button>
       <button type="button" class="home-act-btn" id="actQuickMemo"><span class="home-act-emoji">📝</span><span>随手记</span></button>
-    </div>
-    <div class="home-memo is-hidden" id="memoRow">
-      <input id="memoInput" placeholder="输入要买的东西，回车加入清单">
-      <button type="button" class="btn ok small" id="memoAdd">加入</button>
     </div>
     <div class="home-hub-extra">
       <button type="button" class="home-mini-btn" id="actCleanFridge" title="帮我清冰箱">🔁 帮我清冰箱</button>
@@ -328,26 +669,20 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
     }).join('');
   };
 
-  section.querySelector('#actQuickInput').onclick = () => onQuickInput();
+  // ── 批量入库 → 原地弹窗 ──
+  section.querySelector('#actQuickInput').onclick = () => {
+    const { overlay, close } = createHomeModal(buildBatchStockModal(pack, inv, () => close()), '📦 批量入库');
+    setTimeout(() => overlay.querySelector('#stockName')?.focus?.(), 80);
+  };
 
-  const memoRow = section.querySelector('#memoRow');
-  const memoInput = section.querySelector('#memoInput');
+  // ── 随手记 → 原地弹窗 ──
   section.querySelector('#actQuickMemo').onclick = () => {
-    memoRow.classList.toggle('is-hidden');
-    if (!memoRow.classList.contains('is-hidden')) memoInput.focus();
+    const { overlay, close } = createHomeModal(buildMemoModal(() => close()), '📝 随手记');
+    setTimeout(() => {
+      overlay.querySelector('#memoModalInput')?.focus?.();
+      renderActivity(); // 关闭后刷新动态列
+    }, 80);
   };
-  const commitMemo = () => {
-    const name = memoInput.value.trim();
-    if (!name) return;
-    addShoppingItem(name, '', '', '速记');
-    memoInput.value = '';
-    memoInput.focus();
-    renderActivity();
-    const numEl = document.querySelector('#metricShopping .home-metric-num');
-    if (numEl) numEl.textContent = String(loadShoppingItems().filter(i => !i.done).length);
-  };
-  memoInput.onkeydown = (e) => { if (e.key === 'Enter') commitMemo(); };
-  section.querySelector('#memoAdd').onclick = commitMemo;
 
   // 微型「清冰箱」按钮：保留原有弹窗推荐逻辑，仅缩小为快捷入口。
   section.querySelector('#actCleanFridge').onclick = () => {
@@ -385,8 +720,9 @@ function renderOnboarding() {
       <button type="button" class="home-act-btn" id="obBackup"><span class="home-act-emoji">💾</span><span>导入备份</span></button>
     </div>
   `;
-  section.querySelector('#obManual').onclick = () => { requestInventoryIntent('add'); location.hash = '#shopping'; };
-  section.querySelector('#obReceipt').onclick = () => { requestInventoryIntent('receipt'); location.hash = '#shopping'; };
+  // 引导页仍保留跳转（用户首次使用时需要进库存页录入）
+  section.querySelector('#obManual').onclick = () => { location.hash = '#shopping'; };
+  section.querySelector('#obReceipt').onclick = () => { location.hash = '#shopping'; };
   section.querySelector('#obBackup').onclick = () => { location.hash = '#settings'; };
   return section;
 }
@@ -407,12 +743,12 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     return container;
   }
 
-  // 自上而下视觉层级：① 紧急指标 ②「📅 今日饮食与灵感」合并卡（今日灵感 + 菜单计划） ③ 极速操作
+  // 自上而下视觉层级：① 紧急指标 ②「📅 今日饮食与灵感」合并卡（菜单计划置顶 + AI 灵感居底） ③ 极速操作
   container.appendChild(renderUrgentMetrics(inv, activeShopping.length));
   const menuPlanNode = renderMenuPlan(pack, { onRoute });
   container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute, extraNode: menuPlanNode }));
   container.appendChild(renderActionHub(pack, inv, {
-    onQuickInput: () => { requestInventoryIntent('add'); location.hash = '#shopping'; },
+    onQuickInput: () => { location.hash = '#shopping'; },
     onRoute
   }));
 
