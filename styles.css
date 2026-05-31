@@ -3961,45 +3961,57 @@ nav a span { white-space: nowrap; }
 .menu-plan-range-compact:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
 
 
+
 /* ──────────────────────────────────────────────────────────────────────────
    首页原地弹窗（Home Modal Overlay）
-   - 复用 .modal-overlay 半透明遮罩 + backdrop blur
-   - .home-modal-panel 居中居下 Bottom Sheet 风格
+   - 复用 .km-modal-overlay 半透明遮罩 + backdrop blur
+   - .km-modal-content 居中居下 Bottom Sheet 风格
    ────────────────────────────────────────────────────────────────────────── */
-.home-modal-overlay {
-  /* 叠加 modal-overlay 的基础样式；入场默认透明 */
-  opacity: 0;
-  align-items: flex-end;       /* 从底部升起 */
+.km-modal-overlay {
+  /* 高级毛玻璃：bg-black/50 + backdrop-blur-sm 入场默认隐藏 */
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end; /* 从底部升起 */
   padding: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
   transition: opacity 0.22s ease;
 }
-.home-modal-overlay.open {
+.km-modal-overlay.open {
   opacity: 1;
 }
-.home-modal-overlay.closing {
+.km-modal-overlay.closing {
   opacity: 0;
 }
 
-.home-modal-panel {
+.km-modal-content {
+  /* 高质感圆角 + 顶部光晕阴影；底部抽屉式入场。 */
   width: 100%;
   max-width: 540px;
   max-height: 82vh;
   overflow-y: auto;
-  border-radius: 22px 22px 0 0;
+  border-radius: 24px 24px 0 0;
   padding: 0 0 env(safe-area-inset-bottom, 16px);
   margin: 0 auto;
   background: var(--bg-card);
-  box-shadow: 0 -6px 32px rgba(0, 0, 0, 0.18);
-  /* 底部抽屉入场动画 */
+  box-shadow:
+    0 -10px 48px rgba(0, 0, 0, 0.22),
+    0 -2px 8px rgba(0, 0, 0, 0.08);
   transform: translateY(100%);
   transition: transform 0.26s cubic-bezier(0.34, 1.04, 0.64, 1);
+  position: relative;
 }
-.home-modal-overlay.open .home-modal-panel {
+.km-modal-overlay.open .km-modal-content {
   transform: translateY(0);
 }
 
 /* 弹窗标题行 */
-.home-modal-header {
+.km-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4009,15 +4021,18 @@ nav a span { white-space: nowrap; }
   top: 0;
   background: var(--bg-card);
   z-index: 2;
-  border-radius: 22px 22px 0 0;
+  border-radius: 24px 24px 0 0;
 }
-.home-modal-title {
+.km-modal-title {
   font-size: 16px;
   font-weight: 700;
   color: var(--text-main);
   letter-spacing: 0.01em;
 }
-.home-modal-close {
+.km-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4029,47 +4044,36 @@ nav a span { white-space: nowrap; }
   color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
-  flex-shrink: 0;
+  z-index: 10;
 }
-.home-modal-close:hover { background: var(--status-bad-bg); color: var(--danger); }
-.home-modal-close:active { transform: scale(0.88); }
+.km-modal-close:hover { background: var(--status-bad-bg); color: var(--danger); }
+.km-modal-close:active { transform: scale(0.88); }
 
 /* 弹窗主体内容 */
-.home-modal-body {
+.km-modal-body {
   padding: 16px 20px 8px;
 }
-.home-modal-empty {
+.km-modal-empty {
   text-align: center;
   color: var(--text-secondary);
   font-size: 14px;
   padding: 20px 0;
   list-style: none;
 }
-.home-modal-hint {
+.km-modal-hint {
   font-size: 13px;
   color: var(--text-secondary);
   margin: 0 0 12px;
   line-height: 1.5;
 }
-.home-modal-footer {
-  padding: 12px 20px 16px;
-  border-top: 1px solid var(--separator);
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-.home-modal-goto {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
 
 /* 快速添加行（购物 / 随手记）*/
-.home-modal-add-row {
+.km-modal-add-row {
   display: flex;
   gap: 8px;
   margin-bottom: 14px;
 }
-.home-modal-input {
+.km-modal-input {
   flex: 1;
   padding: 10px 12px;
   border-radius: 12px;
@@ -4078,10 +4082,10 @@ nav a span { white-space: nowrap; }
   color: var(--text-main);
   font-size: 15px;
 }
-.home-modal-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.km-modal-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 
 /* 到期食材列表 */
-.home-expiry-list {
+.km-expiry-list {
   list-style: none;
   padding: 0;
   margin: 0 0 8px;
@@ -4089,7 +4093,7 @@ nav a span { white-space: nowrap; }
   flex-direction: column;
   gap: 8px;
 }
-.home-expiry-item {
+.km-expiry-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4098,15 +4102,15 @@ nav a span { white-space: nowrap; }
   background: var(--tag-bg);
   border: 1px solid var(--separator);
 }
-.home-expiry-item.is-urgent { background: var(--status-warn-bg); border-color: var(--status-warn-border); }
-.home-expiry-item.is-expired { background: var(--status-bad-bg); border-color: var(--status-bad-border); }
-.home-expiry-name { font-size: 14px; font-weight: 600; color: var(--text-main); }
-.home-expiry-days { font-size: 12px; color: var(--text-secondary); }
-.home-expiry-item.is-urgent .home-expiry-days { color: var(--status-warn-text); font-weight: 600; }
-.home-expiry-item.is-expired .home-expiry-days { color: var(--status-bad-text); font-weight: 700; }
+.km-expiry-item.is-urgent { background: var(--status-warn-bg); border-color: var(--status-warn-border); }
+.km-expiry-item.is-expired { background: var(--status-bad-bg); border-color: var(--status-bad-border); }
+.km-expiry-name { font-size: 14px; font-weight: 600; color: var(--text-main); }
+.km-expiry-days { font-size: 12px; color: var(--text-secondary); }
+.km-expiry-item.is-urgent .km-expiry-days { color: var(--status-warn-text); font-weight: 600; }
+.km-expiry-item.is-expired .km-expiry-days { color: var(--status-bad-text); font-weight: 700; }
 
 /* 购物清单简单列表 */
-.home-shopping-list {
+.km-shopping-list {
   list-style: none;
   padding: 0;
   margin: 0 0 4px;
@@ -4114,7 +4118,7 @@ nav a span { white-space: nowrap; }
   flex-direction: column;
   gap: 6px;
 }
-.home-shopping-item {
+.km-shopping-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4124,62 +4128,10 @@ nav a span { white-space: nowrap; }
   font-size: 14px;
   border: 1px solid var(--separator);
 }
-.home-shopping-item small { font-size: 11px; color: var(--text-secondary); }
-
-/* 批量入库表单 */
-.home-stock-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.home-stock-input {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--separator);
-  background: var(--bg-input);
-  color: var(--text-main);
-  font-size: 15px;
-}
-.home-stock-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-.home-stock-row {
-  display: grid;
-  grid-template-columns: 1fr 84px 130px;
-  gap: 8px;
-}
-.home-stock-qty, .home-stock-unit, .home-stock-date {
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--separator);
-  background: var(--bg-input);
-  color: var(--text-main);
-  font-size: 14px;
-}
-.home-stock-log {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 120px;
-  overflow-y: auto;
-}
-.home-stock-log-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: var(--status-ok-bg);
-  border: 1px solid var(--status-ok-border);
-  font-size: 13px;
-  color: var(--status-ok-text);
-}
+.km-shopping-item small { font-size: 11px; color: var(--text-secondary); }
 
 /* 随手记 log */
-.home-memo-log {
+.km-memo-log {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -4190,47 +4142,26 @@ nav a span { white-space: nowrap; }
 
 /* ── 响应：平板及以上居中底部抽屉 ── */
 @media (min-width: 600px) {
-  .home-modal-overlay {
+  .km-modal-overlay {
     align-items: center;
     padding: 16px;
   }
-  .home-modal-panel {
+  .km-modal-content {
     border-radius: 22px;
     transform: translateY(24px) scale(0.96);
     max-height: 80vh;
   }
-  .home-modal-overlay.open .home-modal-panel {
+  .km-modal-overlay.open .km-modal-content {
     transform: translateY(0) scale(1);
   }
 }
 
-/* ── 首页「📦 批量入库」统一弹窗：Tab 切换 / 拍小票区 / 文本批量区 ── */
-.batch-input-modal {
-  width: min(440px, 94vw);
-  max-height: 92vh;
+/* ── 首页「📦 批量入库」内容样式 ── */
+.batch-input-body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 18px 16px;
 }
-.batch-modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.batch-modal-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
-.batch-close {
-  width: 32px; height: 32px;
-  border: none;
-  background: transparent;
-  font-size: 22px;
-  line-height: 1;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 8px;
-}
-.batch-close:hover { background: var(--bg-input); color: var(--text-main); }
 
 /* 双 Tab 切换：胶囊背景 + 主题色高亮当前 Tab */
 .batch-tab-switcher {
@@ -4304,10 +4235,17 @@ nav a span { white-space: nowrap; }
   font-size: 12px;
 }
 
-/* 底部操作行：取消 / 确认 */
-.batch-modal-actions {
+/* 统一底部操作行 */
+.km-modal-actions {
   display: flex;
   gap: 10px;
-  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--separator);
 }
-.batch-modal-actions .btn { flex: 1 1 0; }
+.km-modal-actions .btn {
+  flex: 1 1 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+}

@@ -336,18 +336,19 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
  * @returns {{ overlay, close }}
  */
 function createHomeModal(contentEl, title = '') {
+  // 统一模态外壳骨架（背景毛玻璃 + 圆角面板 + 右上角 X + 入场动画）。
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay home-modal-overlay';
+  overlay.className = 'km-modal-overlay';
 
   const panel = document.createElement('div');
-  panel.className = 'card home-modal-panel';
+  panel.className = 'km-modal-content';
 
   // 标题行 + X 关闭按钮
   const header = document.createElement('div');
-  header.className = 'home-modal-header';
+  header.className = 'km-modal-header';
   header.innerHTML = `
-    <span class="home-modal-title">${escapeHtml(title)}</span>
-    <button type="button" class="home-modal-close" aria-label="关闭">
+    <span class="km-modal-title">${escapeHtml(title)}</span>
+    <button type="button" class="km-modal-close" aria-label="关闭">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
@@ -363,7 +364,7 @@ function createHomeModal(contentEl, title = '') {
     setTimeout(() => overlay.remove(), 250);
   };
 
-  header.querySelector('.home-modal-close').onclick = close;
+  header.querySelector('.km-modal-close').onclick = close;
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
 
   document.body.appendChild(overlay);
@@ -382,30 +383,30 @@ function buildExpiryModal(inv) {
     .sort((a, b) => remainingDays(a) - remainingDays(b));
 
   const wrap = document.createElement('div');
-  wrap.className = 'home-modal-body';
+  wrap.className = 'km-modal-body';
 
   if (!expiring.length) {
-    wrap.innerHTML = '<p class="home-modal-empty">✅ 48 小时内没有即将到期的食材。</p>';
+    wrap.innerHTML = '<p class="km-modal-empty">✅ 48 小时内没有即将到期的食材。</p>';
     return wrap;
   }
 
   const list = document.createElement('ul');
-  list.className = 'home-expiry-list';
+  list.className = 'km-expiry-list';
   expiring.forEach(it => {
     const d = remainingDays(it);
     const li = document.createElement('li');
-    li.className = `home-expiry-item${d <= 0 ? ' is-expired' : d <= 1 ? ' is-urgent' : ''}`;
+    li.className = `km-expiry-item${d <= 0 ? ' is-expired' : d <= 1 ? ' is-urgent' : ''}`;
     const dayText = d < 0 ? `已过期 ${Math.abs(d)} 天` : d === 0 ? '今天到期' : `还剩 ${d} 天`;
     li.innerHTML = `
-      <span class="home-expiry-name">${escapeHtml(it.name)}</span>
-      <span class="home-expiry-days">${dayText}</span>
+      <span class="km-expiry-name">${escapeHtml(it.name)}</span>
+      <span class="km-expiry-days">${dayText}</span>
     `;
     list.appendChild(li);
   });
   wrap.appendChild(list);
 
   const hint = document.createElement('p');
-  hint.className = 'home-modal-hint';
+  hint.className = 'km-modal-hint';
   hint.textContent = '建议优先安排到菜单计划中，避免浪费。';
   wrap.appendChild(hint);
 
@@ -415,40 +416,40 @@ function buildExpiryModal(inv) {
 /** 「购物清单待买」弹窗 */
 function buildShoppingModal(onClose) {
   const wrap = document.createElement('div');
-  wrap.className = 'home-modal-body';
+  wrap.className = 'km-modal-body';
 
   const items = loadShoppingItems().filter(i => !i.done);
 
   // 快速添加行
   const addRow = document.createElement('div');
-  addRow.className = 'home-modal-add-row';
+  addRow.className = 'km-modal-add-row';
   addRow.innerHTML = `
-    <input class="home-modal-input" id="shoppingModalInput" placeholder="快速记录，回车加入…">
+    <input class="km-modal-input" id="shoppingModalInput" placeholder="快速记录，回车加入…">
     <button type="button" class="btn ok small" id="shoppingModalAdd">加入</button>
   `;
   wrap.appendChild(addRow);
 
   const listEl = document.createElement('ul');
-  listEl.className = 'home-shopping-list';
+  listEl.className = 'km-shopping-list';
   wrap.appendChild(listEl);
 
   const renderList = () => {
     const current = loadShoppingItems().filter(i => !i.done);
     listEl.innerHTML = '';
     if (!current.length) {
-      listEl.innerHTML = '<li class="home-modal-empty">购物清单为空 🎉</li>';
+      listEl.innerHTML = '<li class="km-modal-empty">购物清单为空 🎉</li>';
       return;
     }
     current.slice(0, 12).forEach(it => {
       const li = document.createElement('li');
-      li.className = 'home-shopping-item';
+      li.className = 'km-shopping-item';
       const qty = it.qty ? ` · ${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}` : '';
       li.innerHTML = `<span>${escapeHtml(it.name)}${qty}</span><small>${escapeHtml(it.source || '')}</small>`;
       listEl.appendChild(li);
     });
     if (current.length > 12) {
       const more = document.createElement('li');
-      more.className = 'home-modal-empty';
+      more.className = 'km-modal-empty';
       more.textContent = `还有 ${current.length - 12} 项，前往购物清单查看全部`;
       listEl.appendChild(more);
     }
@@ -471,10 +472,10 @@ function buildShoppingModal(onClose) {
   input.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
   addBtn.onclick = doAdd;
 
-  // 跳转按钮
+  // 跳转按钮组
   const footer = document.createElement('div');
-  footer.className = 'home-modal-footer';
-  footer.innerHTML = `<button type="button" class="btn small home-modal-goto" id="gotoShoppingBtn">前往购物清单 →</button>`;
+  footer.className = 'km-modal-actions';
+  footer.innerHTML = `<button type="button" class="btn ok" id="gotoShoppingBtn">前往购物清单 →</button>`;
   footer.querySelector('#gotoShoppingBtn').onclick = () => { onClose(); location.hash = '#shopping'; };
   wrap.appendChild(footer);
 
@@ -488,16 +489,16 @@ function buildShoppingModal(onClose) {
 /** 「随手记」弹窗 */
 function buildMemoModal(onClose) {
   const wrap = document.createElement('div');
-  wrap.className = 'home-modal-body';
+  wrap.className = 'km-modal-body';
   wrap.innerHTML = `
-    <p class="home-modal-hint" style="margin-top:0">输入名字后回车，快速加入购物清单。</p>
-    <div class="home-modal-add-row">
-      <input class="home-modal-input" id="memoModalInput" placeholder="要买什么？">
+    <p class="km-modal-hint" style="margin-top:0">输入名字后回车，快速加入购物清单。</p>
+    <div class="km-modal-add-row">
+      <input class="km-modal-input" id="memoModalInput" placeholder="要买什么？">
       <button type="button" class="btn ok small" id="memoModalAdd">加入</button>
     </div>
-    <ul class="home-memo-log" id="memoLog"></ul>
-    <div class="home-modal-footer">
-      <button type="button" class="btn small home-modal-goto" id="gotoShoppingFromMemo">前往购物清单 →</button>
+    <ul class="km-memo-log" id="memoLog"></ul>
+    <div class="km-modal-actions">
+      <button type="button" class="btn ok" id="gotoShoppingFromMemo">前往购物清单 →</button>
     </div>
   `;
 
@@ -508,12 +509,12 @@ function buildMemoModal(onClose) {
     const recent = loadShoppingItems().filter(i => !i.done).slice(-5).reverse();
     log.innerHTML = '';
     if (!recent.length) {
-      log.innerHTML = '<li class="home-modal-empty">还没有待买项</li>';
+      log.innerHTML = '<li class="km-modal-empty">还没有待买项</li>';
       return;
     }
     recent.forEach(it => {
       const li = document.createElement('li');
-      li.className = 'home-shopping-item';
+      li.className = 'km-shopping-item';
       li.innerHTML = `<span>📝 ${escapeHtml(it.name)}</span><small>${escapeHtml(it.source || '')}</small>`;
       log.appendChild(li);
     });
@@ -712,42 +713,38 @@ function parseTextBatchInput(text) {
  * 📦 批量入库统一弹窗：双 Tab 切换（📸 拍小票识别 / ✍️ 文本批量记），最终都走同一条写库逻辑。
  */
 function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' } = {}) {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="card batch-input-modal">
-      <div class="batch-modal-head">
-        <h3>📦 批量入库</h3>
-        <button type="button" class="batch-close" id="batchCloseBtn" aria-label="关闭">×</button>
-      </div>
-      <div class="batch-tab-switcher" role="tablist">
-        <button type="button" class="batch-tab" data-tab="receipt" role="tab">📸 拍小票识别</button>
-        <button type="button" class="batch-tab" data-tab="text" role="tab">✍️ 文本批量记</button>
-      </div>
+  // 内容只承载业务（双 Tab 切换 + 拍小票区 + 文本区 + 底部操作行），
+  // 外壳（毛玻璃遮罩、圆角面板、右上角 X 关闭、入场动画）统一由 createHomeModal 提供。
+  const body = document.createElement('div');
+  body.className = 'km-modal-body batch-input-body';
+  body.innerHTML = `
+    <div class="batch-tab-switcher" role="tablist">
+      <button type="button" class="batch-tab" data-tab="receipt" role="tab">📸 拍小票识别</button>
+      <button type="button" class="batch-tab" data-tab="text" role="tab">✍️ 文本批量记</button>
+    </div>
 
-      <div class="batch-tab-panel" id="batch-panel-receipt" role="tabpanel">
-        <label class="receipt-drop-zone" for="batchReceiptFile">
-          <input type="file" id="batchReceiptFile" accept="image/*" capture="environment" class="visually-hidden">
-          <span class="receipt-camera-icon" aria-hidden="true">📷</span>
-          <strong>点此拍摄 / 选择小票</strong>
-          <small>AI 自动识别食材并预览确认</small>
-        </label>
-        <div id="batchReceiptStatus" class="small inline-status" hidden></div>
-      </div>
+    <div class="batch-tab-panel" id="batch-panel-receipt" role="tabpanel">
+      <label class="receipt-drop-zone" for="batchReceiptFile">
+        <input type="file" id="batchReceiptFile" accept="image/*" capture="environment" class="visually-hidden">
+        <span class="receipt-camera-icon" aria-hidden="true">📷</span>
+        <strong>点此拍摄 / 选择小票</strong>
+        <small>AI 自动识别食材并预览确认</small>
+      </label>
+      <div id="batchReceiptStatus" class="small inline-status" hidden></div>
+    </div>
 
-      <div class="batch-tab-panel is-hidden" id="batch-panel-text" role="tabpanel">
-        <p class="meta">每行一项，格式 <code>食材名 数量 单位</code>，单位可省略。</p>
-        <textarea id="batchTextInput" rows="6" class="batch-text-area" placeholder="西红柿 3 个&#10;牛肉 1 斤&#10;鸡蛋 6&#10;土豆 2"></textarea>
-        <div id="batchTextStatus" class="small inline-status" hidden></div>
-      </div>
+    <div class="batch-tab-panel is-hidden" id="batch-panel-text" role="tabpanel">
+      <p class="meta">每行一项，格式 <code>食材名 数量 单位</code>，单位可省略。</p>
+      <textarea id="batchTextInput" rows="6" class="batch-text-area" placeholder="西红柿 3 个&#10;牛肉 1 斤&#10;鸡蛋 6&#10;土豆 2"></textarea>
+      <div id="batchTextStatus" class="small inline-status" hidden></div>
+    </div>
 
-      <div class="batch-modal-actions">
-        <button type="button" class="btn" id="batchCancel">取消</button>
-        <button type="button" class="btn ok" id="batchConfirm">确认入库</button>
-      </div>
+    <div class="km-modal-actions">
+      <button type="button" class="btn" id="batchCancel">取消</button>
+      <button type="button" class="btn ok" id="batchConfirm">确认入库</button>
     </div>
   `;
-  document.body.appendChild(overlay);
+  const { overlay, close } = createHomeModal(body, '📦 批量入库');
 
   let currentTab = (initialTab === 'text' ? 'text' : 'receipt');
   const setTab = (name) => {
@@ -761,9 +758,6 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   setTab(currentTab);
   overlay.querySelectorAll('.batch-tab').forEach(t => { t.onclick = () => setTab(t.dataset.tab); });
 
-  const close = () => overlay.remove();
-  overlay.onclick = (e) => { if (e.target === overlay) close(); };
-  overlay.querySelector('#batchCloseBtn').onclick = close;
   overlay.querySelector('#batchCancel').onclick = close;
 
   // ── 模式 A：拍小票识别 ──
