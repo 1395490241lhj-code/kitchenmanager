@@ -1,11 +1,11 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=180';
-import { genId } from '../shopping.js?v=180';
-import { hasRecipeMethod } from '../recommendations.js?v=180';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=180';
-import { buildCatalog } from '../ingredients.js?v=180';
-import { loadInventory } from '../inventory.js?v=180';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=180';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=180';
+import { loadOverlay, saveOverlay } from '../backup.js?v=181';
+import { genId } from '../shopping.js?v=181';
+import { hasRecipeMethod } from '../recommendations.js?v=181';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=181';
+import { buildCatalog } from '../ingredients.js?v=181';
+import { loadInventory } from '../inventory.js?v=181';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=181';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=181';
 
 // 【内存暂存】AI 解析出的草稿只存入 sessionStorage，不写 overlay/localStorage。
 // 仅当用户在编辑器里点击「保存」时才真正落地。用户取消/关闭则草稿被销毁，不留脏数据。

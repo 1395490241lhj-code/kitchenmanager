@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=180';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=180';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=180';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=180';
+import { S, todayISO } from '../storage.js?v=181';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=181';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=181';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=181';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=180';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=180';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=180';
-import { showRecommendationCards } from '../components/recipe-card.js?v=180';
-import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=180';
-import { renderMenuPlan } from '../components/menu-plan.js?v=180';
+} from '../recommendations.js?v=181';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=181';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=181';
+import { showRecommendationCards } from '../components/recipe-card.js?v=181';
+import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=181';
+import { renderMenuPlan } from '../components/menu-plan.js?v=181';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -481,102 +481,9 @@ function buildShoppingModal(onClose) {
   return wrap;
 }
 
-/** 「批量入库」弹窗 —— 内嵌一个轻量添加表单 */
-function buildBatchStockModal(pack, inv, onClose) {
-  const catalog = buildCatalog(pack);
-  const ingredientOptions = buildIngredientOptions(catalog);
-
-  const wrap = document.createElement('div');
-  wrap.className = 'home-modal-body';
-
-  wrap.innerHTML = `
-    <p class="home-modal-hint" style="margin-top:0">填写食材信息后点击「入库」，可连续添加多条。</p>
-    <div id="batchStockStatus" class="inline-status" hidden></div>
-    <div class="home-stock-form">
-      <input id="stockName" list="stockCatalog" placeholder="食材名（必填）" class="home-stock-input" autocomplete="off">
-      <datalist id="stockCatalog">${ingredientOptions.map(o => `<option value="${escapeOptionAttr(o.value)}">`).join('')}</datalist>
-      <div class="home-stock-row">
-        <input id="stockQty" type="number" min="0" step="0.1" placeholder="数量" class="home-stock-qty">
-        <select id="stockUnit" class="home-stock-unit">
-          ${['份','个','g','ml','盒','袋','包','瓶','把','根','块','条'].map(u => `<option>${u}</option>`).join('')}
-        </select>
-        <input id="stockDate" type="date" class="home-stock-date" value="${todayISO()}">
-      </div>
-      <button type="button" class="btn ok" id="stockAddBtn" style="width:100%;margin-top:8px">📦 入库</button>
-    </div>
-    <ul class="home-stock-log" id="stockLog"></ul>
-    <div class="home-modal-footer">
-      <button type="button" class="btn small home-modal-goto" id="gotoInventoryBtn">前往完整库存 →</button>
-    </div>
-  `;
-
-  const nameInput = wrap.querySelector('#stockName');
-  const qtyInput = wrap.querySelector('#stockQty');
-  const unitSel = wrap.querySelector('#stockUnit');
-  const dateInput = wrap.querySelector('#stockDate');
-  const status = wrap.querySelector('#batchStockStatus');
-  const log = wrap.querySelector('#stockLog');
-
-  // 自动推断单位
-  nameInput.addEventListener('input', () => {
-    const name = nameInput.value.trim();
-    if (name) {
-      const guessed = guessKitchenUnit(getCanonicalName(name)) || '份';
-      const opts = Array.from(unitSel.options);
-      const found = opts.find(o => o.value === guessed);
-      if (!found) {
-        const newOpt = document.createElement('option');
-        newOpt.value = guessed;
-        newOpt.textContent = guessed;
-        unitSel.insertBefore(newOpt, unitSel.firstChild);
-      }
-      unitSel.value = guessed;
-    }
-  });
-
-  wrap.querySelector('#stockAddBtn').onclick = () => {
-    const name = nameInput.value.trim();
-    if (!name) { setInlineStatus(status, '食材名不能为空。', 'bad'); return; }
-    const qty = parseFloat(qtyInput.value) || null;
-    const unit = unitSel.value || '份';
-    const buyDate = dateInput.value || todayISO();
-    const shelf = guessShelfDays(getCanonicalName(name));
-    const isDry = isDryGoodName(getCanonicalName(name));
-    const entry = {
-      name: getCanonicalName(name) || name,
-      qty,
-      unit,
-      buyDate,
-      kind: isDry ? 'dry' : 'raw',
-      ...(shelf ? { shelf } : {})
-    };
-    try {
-      const currentInv = loadInventory(buildCatalog(pack));
-      mergeInventoryEntry(currentInv, entry, { mode: 'replace' }); // auto-saves
-      // 记录到 log
-      const li = document.createElement('li');
-      li.className = 'home-stock-log-item';
-      li.innerHTML = `<span>✅ ${escapeHtml(entry.name)}</span><small>${qty ? `${qty}${unit}` : ''}</small>`;
-      log.insertBefore(li, log.firstChild);
-      setInlineStatus(status, '已入库。', 'ok');
-      nameInput.value = '';
-      qtyInput.value = '';
-      nameInput.focus();
-      window.invalidatePackCache?.();
-    } catch (e) {
-      setInlineStatus(status, e.message || '入库失败', 'bad');
-    }
-  };
-
-  wrap.querySelector('#gotoInventoryBtn').onclick = () => {
-    const { requestInventoryIntent } = window.__homeViewInventoryIntent__ || {};
-    if (typeof requestInventoryIntent === 'function') requestInventoryIntent('inventory');
-    onClose();
-    location.hash = '#shopping';
-  };
-
-  return wrap;
-}
+/* 旧版「批量入库」单件添加弹窗 buildBatchStockModal 已彻底删除。
+   现在所有 📦 批量入库点击都进入 openBatchInputModal（双 Tab：📸 拍小票识别 + ✍️ 文本批量记），
+   入口在 renderActionHub 内点击 #actQuickInput 时触发；切勿在此处复活旧表单。 */
 
 /** 「随手记」弹窗 */
 function buildMemoModal(onClose) {
@@ -702,10 +609,12 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
     }).join('');
   };
 
-  // ── 批量入库 → 原地弹窗 ──
+  // ── 批量入库 → 全新【双 Tab 弹窗】（📸 拍小票识别 / ✍️ 文本批量记） ──
+  //   直接在此处调用 openBatchInputModal 是为了消灭历史 bug：
+  //   早期版本曾在这里硬编码绑定到旧的「单件添加表单」(buildBatchStockModal)，
+  //   会覆盖外部 onQuickInput 回调，导致点击 📦 时仍弹出旧表单。
   section.querySelector('#actQuickInput').onclick = () => {
-    const { overlay, close } = createHomeModal(buildBatchStockModal(pack, inv, () => close()), '📦 批量入库');
-    setTimeout(() => overlay.querySelector('#stockName')?.focus?.(), 80);
+    openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
   };
 
   // ── 随手记 → 原地弹窗 ──
