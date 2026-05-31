@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=181';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=181';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=181';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=181';
+import { S, todayISO } from '../storage.js?v=182';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=182';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=182';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=182';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=181';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=181';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=181';
-import { showRecommendationCards } from '../components/recipe-card.js?v=181';
-import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=181';
-import { renderMenuPlan } from '../components/menu-plan.js?v=181';
+} from '../recommendations.js?v=182';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=182';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=182';
+import { showRecommendationCards } from '../components/recipe-card.js?v=182';
+import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=182';
+import { renderMenuPlan } from '../components/menu-plan.js?v=182';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
