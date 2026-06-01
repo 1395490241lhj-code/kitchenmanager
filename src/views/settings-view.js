@@ -1,8 +1,18 @@
-import { S, todayISO } from '../storage.js?v=196';
-import { CUSTOM_AI } from '../config.js?v=196';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=196';
-import { buildKitchenBackup, downloadJsonFile, loadOverlay, restoreKitchenBackup, saveOverlay } from '../backup.js?v=196';
-import { setInlineStatus, escapeHtml } from '../components/status.js?v=196';
+import { S, todayISO } from '../storage.js?v=197';
+import { CUSTOM_AI } from '../config.js?v=197';
+import { DATA_SCHEMA_VERSION } from '../migrations.js?v=197';
+import { buildKitchenBackup, downloadJsonFile, loadOverlay, restoreKitchenBackup, saveOverlay } from '../backup.js?v=197';
+import { setInlineStatus, escapeHtml } from '../components/status.js?v=197';
+import { getSavedTheme, saveTheme } from '../theme.js?v=197';
+
+// 渐进式展现：「高级与数据设置」面板的展开状态，记忆在模块作用域（同次会话内保持）。
+let advancedOpen = false;
+
+const THEME_OPTIONS = [
+  { key: 'system', label: '跟随系统' },
+  { key: 'light', label: '浅色' },
+  { key: 'dark', label: '深色' }
+];
 
 // 与 recipes-view.js 中迁出来的同名工具一致：合并外部 overlay 时保留当前用户已有的菜谱补丁，避免覆盖。
 function mergeRecipeOverlay(currentOverlay, incomingOverlay) {
@@ -42,58 +52,136 @@ export function renderSettings() {
 
   const libMode = s.recipeLibraryMode === 'full' ? 'full' : 'curated';
 
+  const theme = getSavedTheme();
+  const themeSeg = THEME_OPTIONS.map(o =>
+    `<button type="button" class="settings-seg-btn${o.key === theme ? ' is-active' : ''}" data-theme="${o.key}">${o.label}</button>`
+  ).join('');
+
   const div = document.createElement('div');
+  div.className = 'settings-page';
   div.innerHTML = `
     <h2 class="section-title">设置</h2>
     <div id="settingsStatus" class="small inline-status" hidden></div>
-    <div class="section-title home-section-title"><span>菜谱库</span></div>
-    <div class="card">
-      <div class="setting-group">
-        <label>菜谱库范围</label>
-        <select id="sLibMode">
-          <option value="curated" ${libMode === 'curated' ? 'selected' : ''}>精简日常菜谱库（推荐）</option>
-          <option value="full" ${libMode === 'full' ? 'selected' : ''}>完整原始菜谱库</option>
+
+    <!-- 区块 A：通用与外观（高频核心偏好，默认展开） -->
+    <div class="settings-group-label">通用与外观</div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="settings-row-main">
+          <span class="settings-row-title">外观主题</span>
+          <span class="settings-row-sub">浅色 / 深色 / 跟随系统</span>
+        </div>
+        <div class="settings-seg" id="themeSeg" role="tablist" aria-label="外观主题">${themeSeg}</div>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-main">
+          <span class="settings-row-title">菜谱库范围</span>
+          <span class="settings-row-sub">精简日常更聚焦；完整库含全部原始菜谱</span>
+        </div>
+        <select id="sLibMode" class="settings-input settings-select">
+          <option value="curated" ${libMode === 'curated' ? 'selected' : ''}>精简日常（推荐）</option>
+          <option value="full" ${libMode === 'full' ? 'selected' : ''}>完整原始库</option>
         </select>
       </div>
-      <p class="meta">精简库聚焦日常家常菜；完整库包含全部原始菜谱（含宴席、罕见菜）。无论哪种模式，你的自定义菜谱和修改都会保留。切换后页面会自动刷新。</p>
     </div>
-    <div class="section-title home-section-title"><span>菜谱库精简报告</span></div>
-    <div class="card" id="curationReport">
-      <p class="meta">正在加载报告…</p>
-    </div>
-    <div class="section-title home-section-title"><span>AI 设置</span></div>
-    <div class="card">
-      <div class="setting-group">
-        <label>快速预设</label>
-        <select id="sPreset">
-          <option value="">请选择...</option>
-          <option value="silicon">SiliconFlow (硅基流动 - 推荐)</option>
-          <option value="groq">Groq</option>
-          <option value="openai">OpenAI</option>
-        </select>
+
+    <!-- 渐进式展现：低频 / 极客配置统一收进可折叠面板 -->
+    <button type="button" class="settings-advanced-toggle" id="advToggle" aria-expanded="false" aria-controls="advPanel">
+      <span id="advToggleLabel">展开高级与数据设置</span>
+      <span class="settings-adv-chevron" aria-hidden="true">⌄</span>
+    </button>
+
+    <div class="settings-advanced-panel" id="advPanel" hidden>
+      <!-- 区块 B：AI 模型配置 -->
+      <div class="settings-group-label">🤖 AI 模型配置</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-row-main">
+            <span class="settings-row-title">快速预设</span>
+            <span class="settings-row-sub">一键填入常见服务商端点</span>
+          </div>
+          <select id="sPreset" class="settings-input settings-select">
+            <option value="">自定义…</option>
+            <option value="silicon">SiliconFlow（硅基流动）</option>
+            <option value="groq">Groq</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+        <div class="settings-row is-stacked">
+          <div class="settings-row-main"><span class="settings-row-title">API 地址</span><span class="settings-row-sub">兼容 OpenAI 协议的端点（含本地 Ollama）</span></div>
+          <input id="sUrl" class="settings-input" value="${escapeHtml(displayUrl)}" placeholder="https://…/v1/chat/completions">
+        </div>
+        <div class="settings-row is-stacked">
+          <div class="settings-row-main"><span class="settings-row-title">模型名称</span><span class="settings-row-sub">如 gpt-4o、llama3、qwen2.5 等 Tag</span></div>
+          <input id="sModel" class="settings-input" value="${escapeHtml(displayModel)}" placeholder="模型 / Tag 名称">
+        </div>
+        <div class="settings-row is-stacked">
+          <div class="settings-row-main"><span class="settings-row-title">API Key</span><span class="settings-row-sub">仅保存在本地浏览器，备份默认不含 Key</span></div>
+          <input id="sKey" class="settings-input" type="password" value="${escapeHtml(displayKey)}" placeholder="sk-…（本地 Ollama 可留空）">
+        </div>
+        <div class="settings-row is-action">
+          <a class="btn ok" id="saveSet">保存 AI 设置</a>
+        </div>
       </div>
-      <hr class="settings-divider">
-      <div class="setting-group"><label>API 地址</label><input id="sUrl" value="${displayUrl}"></div>
-      <div class="setting-group"><label>模型名称</label><input id="sModel" value="${displayModel}"></div>
-      <div class="setting-group"><label>API Key</label><input id="sKey" type="password" value="${displayKey}"></div>
-      <p class="meta">API Key 只保存在本地浏览器；导出备份默认不包含 Key。</p>
-      <div class="right"><a class="btn ok" id="saveSet">保存</a></div>
-    </div>
-    <div class="section-title home-section-title"><span>💾 数据管理</span></div>
-    <div class="card backup-card">
-      <p class="meta"><strong>菜谱补丁</strong>：仅导出/导入你对菜谱的自定义修改（新增、编辑、删除），适合在多台设备同步菜谱内容。</p>
-      <div class="backup-actions">
-        <button type="button" class="btn ok" id="exportRecipeOverlay">导出菜谱备份</button>
-        <label class="btn"><input type="file" id="importRecipeOverlay" accept="application/json,.json" hidden>恢复/导入菜谱</label>
+
+      <!-- 区块 C：数据管理 -->
+      <div class="settings-group-label">💾 数据管理</div>
+      <div class="settings-group">
+        <div class="settings-row is-stacked">
+          <div class="settings-row-main"><span class="settings-row-title">菜谱补丁</span><span class="settings-row-sub">仅含你对菜谱的新增 / 编辑 / 删除，便于多设备同步</span></div>
+          <div class="settings-backup-actions">
+            <button type="button" class="btn ok" id="exportRecipeOverlay">导出菜谱备份</button>
+            <label class="btn"><input type="file" id="importRecipeOverlay" accept="application/json,.json" hidden>恢复 / 导入菜谱</label>
+          </div>
+        </div>
+        <div class="settings-row is-stacked">
+          <div class="settings-row-main"><span class="settings-row-title">整个厨房</span><span class="settings-row-sub">库存、计划、购物项、常做菜、菜谱补丁等（结构版本 v${DATA_SCHEMA_VERSION}）</span></div>
+          <div class="settings-backup-actions">
+            <button type="button" class="btn ok" id="exportKitchenBackup">导出整个厨房</button>
+            <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入整个厨房</label>
+          </div>
+        </div>
+        <div class="settings-row is-stacked">
+          <div class="settings-row-main"><span class="settings-row-title">清除缓存</span><span class="settings-row-sub">清理离线缓存并刷新，不会删除你的厨房数据</span></div>
+          <div class="settings-backup-actions">
+            <button type="button" class="btn" id="clearCacheBtn">清除缓存并刷新</button>
+          </div>
+        </div>
       </div>
-      <hr class="settings-divider">
-      <p class="meta"><strong>整个厨房</strong>：包含库存、今日计划、购物项、常做菜、安排记录、菜谱补丁和 AI 设置。当前数据结构版本：v${DATA_SCHEMA_VERSION}。</p>
-      <div class="backup-actions">
-        <button type="button" class="btn ok" id="exportKitchenBackup">导出整个厨房</button>
-        <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入整个厨房</label>
+
+      <!-- 区块 D：菜谱库精简报告（只读，低频查看） -->
+      <div class="settings-group-label">🗂️ 菜谱库精简报告</div>
+      <div class="settings-group" id="curationReport">
+        <p class="settings-group-note">正在加载报告…</p>
       </div>
     </div>
   `;
+
+  // ── 外观主题分段控件：点选即时生效，无需刷新 ──
+  const themeSegEl = div.querySelector('#themeSeg');
+  themeSegEl.querySelectorAll('.settings-seg-btn').forEach(btn => {
+    btn.onclick = () => {
+      saveTheme(btn.dataset.theme);
+      themeSegEl.querySelectorAll('.settings-seg-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+    };
+  });
+
+  // ── 渐进式展现：展开 / 收起「高级与数据设置」 ──
+  const advToggle = div.querySelector('#advToggle');
+  const advPanel = div.querySelector('#advPanel');
+  const advLabel = div.querySelector('#advToggleLabel');
+  let curationLoaded = false;
+  const setAdvanced = (open) => {
+    advancedOpen = open;
+    advPanel.hidden = !open;
+    advToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    advLabel.textContent = open ? '收起高级与数据设置' : '展开高级与数据设置';
+    if (open && !curationLoaded) {
+      curationLoaded = true;
+      loadCurationReport(div.querySelector('#curationReport'), libMode);
+    }
+  };
+  advToggle.onclick = () => setAdvanced(!advancedOpen);
 
   const presets = {
     silicon: { url: 'https://api.siliconflow.cn/v1/chat/completions', model: 'Qwen/Qwen2.5-7B-Instruct' },
@@ -169,8 +257,28 @@ export function renderSettings() {
     reader.readAsText(file);
   };
 
-  // 菜谱库精简报告（只读查看，不影响菜谱列表）
-  loadCurationReport(div.querySelector('#curationReport'), libMode);
+  // 清除缓存：清理 Service Worker 离线缓存并刷新，绝不触碰 localStorage 里的厨房数据。
+  div.querySelector('#clearCacheBtn').onclick = async () => {
+    const statusEl = div.querySelector('#settingsStatus');
+    setInlineStatus(statusEl, '正在清理离线缓存…', 'info');
+    try {
+      if (window.caches && caches.keys) {
+        const names = await caches.keys();
+        await Promise.all(names.map(n => caches.delete(n)));
+      }
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+      setInlineStatus(statusEl, '缓存已清除，正在刷新…', 'ok');
+      setTimeout(() => location.reload(true), 700);
+    } catch (err) {
+      setInlineStatus(statusEl, '清除缓存失败：' + (err.message || err), 'bad');
+    }
+  };
+
+  // 恢复上次的「高级设置」展开状态（同次会话内记忆）。菜谱库精简报告随面板首次展开懒加载。
+  setAdvanced(advancedOpen);
 
   return div;
 }
