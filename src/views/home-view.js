@@ -358,10 +358,15 @@ function createHomeModal(contentEl, title = '') {
   panel.appendChild(contentEl);
   overlay.appendChild(panel);
 
+  let isClosing = false;
   const close = () => {
+    if (isClosing) return;
+    isClosing = true;
+    panel.style.transition = 'transform 0.2s ease-in, opacity 0.2s ease-in';
+    panel.style.opacity = '0';
+    panel.style.transform = 'translate3d(0, 0, 0) scale(0.95)';
     overlay.classList.add('closing');
-    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
-    setTimeout(() => overlay.remove(), 250);
+    setTimeout(() => overlay.remove(), 220);
   };
 
   header.querySelector('.km-modal-close').onclick = close;

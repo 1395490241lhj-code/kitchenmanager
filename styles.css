@@ -3976,13 +3976,13 @@ nav a span { white-space: nowrap; }
 
 /* 卡片本体：从 90% 缩放伴随透明度平滑放大，带有高级的阻尼感 */
 @keyframes iOSModalPopIn {
-  from {
+  0% {
     opacity: 0;
-    transform: translateZ(0) scale(0.9);
+    transform: translate3d(0, 0, 0) scale(0.92);
   }
-  to {
+  100% {
     opacity: 1;
-    transform: translateZ(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
@@ -4027,8 +4027,8 @@ nav a span { white-space: nowrap; }
   background: rgba(242, 242, 247, 0.75) !important;
 
   /* 核心：超强雾化 + 180% 饱和度提亮消灭灰暗感 */
-  backdrop-filter: blur(25px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
 
   /* 发丝级微弱边框，拒绝粗糙实线 */
   border: 0.5px solid rgba(255, 255, 255, 0.4) !important;
@@ -4038,17 +4038,21 @@ nav a span { white-space: nowrap; }
 
   /* 强制开启硬件加速 */
   opacity: 0;
-  transform: translateZ(0) scale(0.9);
+  transform: translate3d(0, 0, 0) scale(0.92);
   transform-origin: center center;
   will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
 }
 .km-modal-overlay.open .km-modal-content {
   animation: iOSModalPopIn 0.34s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 .km-modal-overlay.closing .km-modal-content {
   opacity: 0;
-  transform: translateZ(0) scale(0.96);
-  transition: opacity 0.14s ease-out, transform 0.14s ease-out;
+  transform: translate3d(0, 0, 0) scale(0.95);
+  transition: transform 0.2s ease-in, opacity 0.2s ease-in;
   animation: none;
 }
 
@@ -4071,7 +4075,7 @@ nav a span { white-space: nowrap; }
   .km-modal-overlay.open { opacity: 1; }
   .km-modal-content {
     opacity: 1;
-    transform: translateZ(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
