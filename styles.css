@@ -3546,15 +3546,24 @@ nav a.active svg {
 /* ── 导航 Tab 文本不换行（修复「库存管理」换行） ── */
 nav a span { white-space: nowrap; }
 
-/* ── 完整库存：3 列网格卡片（移动端 1 列） ── */
+/* ── 完整库存：高密度响应式网格（移动端 2 列起步） ── */
 .inventory-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 4px;
 }
-@media (min-width: 560px) {
-  .inventory-grid { grid-template-columns: repeat(3, 1fr); }
+@media (min-width: 640px) {
+  .inventory-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 768px) {
+  .inventory-grid { gap: 12px; }
+}
+@media (min-width: 1024px) {
+  .inventory-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1280px) {
+  .inventory-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 .inventory-grid .inventory-empty-row {
   grid-column: 1 / -1;
@@ -3566,9 +3575,10 @@ nav a span { white-space: nowrap; }
 .inventory-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
-  border-radius: 14px;
+  gap: 5px;
+  min-width: 0;
+  padding: 9px;
+  border-radius: 12px;
   border: 1px solid var(--separator);
   border-left: 3px solid var(--separator);
   background: var(--bg-card);
@@ -3577,36 +3587,92 @@ nav a span { white-space: nowrap; }
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
 }
 .inventory-card .inventory-item-name {
-  font-size: 15px;
+  min-width: 0;
+  max-width: 100%;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-main);
   cursor: pointer;
-  line-height: 1.25;
-  word-break: break-all;
+  line-height: 1.2;
 }
-.inventory-card .inventory-delete-btn { flex: 0 0 auto; padding: 2px 8px; }
-.inventory-card .status-cell { margin: 0; }
-.inventory-card .inv-life-bar { max-width: none; margin-top: 2px; }
+.inventory-card .inventory-delete-btn {
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 1px 6px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.inventory-card .status-cell {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+}
+.inventory-card .kchip {
+  max-width: 100%;
+  padding: 3px 6px;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inventory-card .inv-life-bar {
+  max-width: none;
+  height: 4px;
+  margin-top: 1px;
+}
 .inv-card-foot {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+.inventory-card .inventory-status-chip {
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 0;
+  padding: 3px 6px;
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .inventory-card .inventory-amount-control {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+  margin-top: 0;
+  font-size: 10px;
 }
-.inventory-card .inventory-amount-control .qty-input { width: 48px; }
+.inventory-card .inventory-amount-control span,
+.inventory-card .inventory-amount-control small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inventory-card .inventory-amount-control .qty-input {
+  width: 42px;
+  min-height: 24px;
+  padding: 2px 4px;
+  font-size: 12px;
+  border-radius: 8px;
+}
 .inventory-card .inventory-item-date {
-  color: var(--text-secondary);
-  opacity: 0.8;
-  font-size: 11px;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(120, 120, 128, 0.82);
+  font-size: 10px;
+  line-height: 1.1;
 }
 
 /* 卡片底色 / 左侧状态条（按保质期状态） */
