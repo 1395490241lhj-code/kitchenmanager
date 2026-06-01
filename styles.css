@@ -3975,11 +3975,11 @@ nav a span { white-space: nowrap; }
   display: flex !important;
   align-items: center !important; /* 强制垂直居中 */
   justify-content: center !important; /* 强制水平居中 */
-  background-color: rgba(0, 0, 0, 0.4) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   padding: 16px; /* 确保在小屏手机上卡片不会贴到屏幕边缘 */
-  
+
   /* 优雅淡入淡出动画属性 */
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -3991,45 +3991,41 @@ nav a span { white-space: nowrap; }
   opacity: 0;
 }
 
-/* 2. 卡片本体：终极 Apple 级剔透液态玻璃、限制高度防止溢出屏幕 */
+/* Apple iOS 原生系统级弹窗材质 (Light Material) */
 .km-modal-content {
   position: relative;
   width: 100%;
-  max-width: 400px; /* 保持精巧的卡片宽度 */
-  max-height: 85vh; /* 极其关键：防止内容过多时弹窗撑爆屏幕上下边缘 */
-  overflow-y: auto; /* 内容过多时在卡片内部滚动 */
-  margin: 0 !important; /* 清除任何可能导致偏移的外边距 */
-  border-radius: 24px !important;
-  
-  /* 核心 1：强制开启 GPU 硬件加速，防止玻璃滤镜失效变成死灰 */
-  transform: scale(0.9) translate3d(0, 15px, 0);
-  -webkit-transform: scale(0.9) translate3d(0, 15px, 0);
-  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  max-width: 320px; /* iOS 弹窗通常比普通网页弹窗更窄更聚拢 */
+  max-height: 85vh;
+  overflow-y: auto;
+  margin: 0 !important;
 
-  /* 核心 2：纯净的半透明白底 + 200% 高饱和度提亮透射色彩 */
-  background: rgba(255, 255, 255, 0.6) !important;
-  backdrop-filter: blur(25px) saturate(200%) !important;
-  -webkit-backdrop-filter: blur(25px) saturate(200%) !important;
-  
-  /* 核心 3：双层高光边缘（外高光 + 顶部内发光）营造厚度感 */
-  border: 1px solid rgba(255, 255, 255, 0.7) !important;
-  box-shadow: 
-    0 24px 48px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
-}
-.km-modal-overlay.open .km-modal-content {
-  transform: scale(1) translate3d(0, 0, 0);
-  -webkit-transform: scale(1) translate3d(0, 0, 0);
+  /* 连续平滑圆角 */
+  border-radius: 20px !important;
+
+  /* 核心：iOS 标准淡灰白底色 (75% 不透明) */
+  background: rgba(242, 242, 247, 0.75) !important;
+
+  /* 核心：超强雾化 + 180% 饱和度提亮消灭灰暗感 */
+  backdrop-filter: blur(25px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(25px) saturate(180%) !important;
+
+  /* 发丝级微弱边框，拒绝粗糙实线 */
+  border: 0.5px solid rgba(255, 255, 255, 0.4) !important;
+
+  /* iOS 级别的柔和克制扩散投影 */
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15) !important;
+
+  /* 强制开启硬件加速 */
+  transform: translateZ(0);
 }
 
-/* 3. 极客暗黑模式琥珀玻璃 */
+/* Apple iOS 极黑深色材质 (Dark Material) */
 @media (prefers-color-scheme: dark) {
   .km-modal-content {
-    background: rgba(40, 40, 45, 0.55) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    box-shadow: 
-      0 24px 48px rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    background: rgba(30, 30, 30, 0.75) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3) !important;
   }
 }
 
@@ -4038,13 +4034,13 @@ nav a span { white-space: nowrap; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--separator);
+  padding: 18px 56px 14px 20px;
+  border-bottom: 0.5px solid rgba(60, 60, 67, 0.12);
   position: sticky;
   top: 0;
   background: transparent; /* 透明以露出底层玻璃质感 */
   z-index: 2;
-  border-radius: 24px 24px 0 0;
+  border-radius: 20px 20px 0 0;
 }
 .km-modal-title {
   font-size: 16px;
@@ -4054,8 +4050,8 @@ nav a span { white-space: nowrap; }
 }
 .km-modal-close {
   position: absolute;
-  top: 12px;
-  right: 16px;
+  top: 10px;
+  right: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -4063,14 +4059,22 @@ nav a span { white-space: nowrap; }
   height: 36px;
   border: none;
   border-radius: 50%;
-  background: var(--tag-bg);
-  color: var(--text-secondary);
+  background: rgba(120, 120, 128, 0.16);
+  color: rgba(60, 60, 67, 0.6);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
   z-index: 10;
 }
 .km-modal-close:hover { background: var(--status-bad-bg); color: var(--danger); }
 .km-modal-close:active { transform: scale(0.88); }
+
+@media (prefers-color-scheme: dark) {
+  .km-modal-header { border-bottom-color: rgba(255, 255, 255, 0.08); }
+  .km-modal-close {
+    background: rgba(120, 120, 128, 0.24);
+    color: rgba(235, 235, 245, 0.6);
+  }
+}
 
 /* 弹窗主体内容 */
 .km-modal-body {
