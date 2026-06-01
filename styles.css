@@ -3426,12 +3426,6 @@ nav a.active svg {
 .staple-tile.is-low .staple-tile-name,
 .staple-tile.is-low .staple-tile-state { color: var(--status-warn-text); }
 
-/* ── 首页极速操作组：微型「清冰箱」入口 ── */
-.home-hub-extra {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 10px;
-}
 .home-mini-btn {
   display: inline-flex;
   align-items: center;
@@ -4319,4 +4313,16 @@ nav a span { white-space: nowrap; }
   border-radius: 12px;
   padding: 10px 14px;
   font-weight: 700;
+}
+.km-modal-actions .km-modal-ai-btn {
+  flex: 1.35 1 0;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.38);
+  background: linear-gradient(90deg, #7c3aed 0%, #4f46e5 100%);
+  box-shadow:
+    0 12px 26px rgba(79, 70, 229, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+.km-modal-actions .km-modal-ai-btn:hover {
+  filter: brightness(1.05);
 }

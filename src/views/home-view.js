@@ -71,6 +71,21 @@ function getRecommendationUiContext() {
   };
 }
 
+function openCleanFridgeHelper(pack, inv, onRoute = () => {}) {
+  const recs = getCleanFridgeRecommendations(pack, inv, getRecommendationUiContext());
+  showCleanFridgeModal(recs, {
+    onAddPlan: (id, btn) => { addRecipeToPlan(id); brieflyConfirmButton(btn, '已加入'); onRoute(); },
+    onAddShopping: (id, btn) => {
+      const recItem = recs.find(item => item.r.id === id);
+      if (recItem) {
+        const count = addMissingRecipeIngredientsToShopping(recItem.r, pack, inv, recItem.list);
+        brieflyConfirmButton(btn, count ? '已入清单' : '已齐');
+        onRoute();
+      }
+    }
+  });
+}
+
 function getTodayDecisionGroups(pack, inv) {
   const ranked = rankRecipesForRecommendation(pack, inv, getRecommendationUiContext())
     .filter(item => hasRecipeMethod(item.r));
@@ -382,16 +397,28 @@ function createHomeModal(contentEl, title = '') {
 // ── 弹窗内容构建 ─────────────────────────────────────────────────────────────
 
 /** 「48 小时内到期」弹窗 */
-function buildExpiryModal(inv) {
+function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () => {} } = {}) {
   const expiring = (inv || [])
     .filter(it => isExpiryTracked(it) && remainingDays(it) <= 2)
     .sort((a, b) => remainingDays(a) - remainingDays(b));
 
   const wrap = document.createElement('div');
   wrap.className = 'km-modal-body';
+  const appendActions = () => {
+    const footer = document.createElement('div');
+    footer.className = 'km-modal-actions';
+    footer.innerHTML = expiring.length >= 2
+      ? '<button type="button" class="btn" id="expiryCloseBtn">关闭</button><button type="button" class="btn km-modal-ai-btn" id="expiryCleanFridgeBtn">✨ 帮我清冰箱</button>'
+      : '<button type="button" class="btn" id="expiryCloseBtn">关闭</button>';
+    footer.querySelector('#expiryCloseBtn').onclick = onClose;
+    const cleanBtn = footer.querySelector('#expiryCleanFridgeBtn');
+    if (cleanBtn) cleanBtn.onclick = onCleanFridge;
+    wrap.appendChild(footer);
+  };
 
   if (!expiring.length) {
     wrap.innerHTML = '<p class="km-modal-empty">✅ 48 小时内没有即将到期的食材。</p>';
+    appendActions();
     return wrap;
   }
 
@@ -414,6 +441,7 @@ function buildExpiryModal(inv) {
   hint.className = 'km-modal-hint';
   hint.textContent = '建议优先安排到菜单计划中，避免浪费。';
   wrap.appendChild(hint);
+  appendActions();
 
   return wrap;
 }
@@ -546,7 +574,7 @@ function buildMemoModal(onClose) {
 }
 
 // ── Section 2: 紧急指标 / 雷达（2 列） ─────────────────────────────────────
-function renderUrgentMetrics(inv, activeShoppingCount) {
+function renderUrgentMetrics(pack, inv, activeShoppingCount, { onRoute = () => {} } = {}) {
   const expiring48 = (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 2);
   const hasExpired = expiring48.some(it => remainingDays(it) < 0);
   const radarTone = expiring48.length > 0 ? (hasExpired ? 'is-bad' : 'is-warn') : 'is-ok';
@@ -575,7 +603,16 @@ function renderUrgentMetrics(inv, activeShoppingCount) {
 
   // ── 原地弹窗（不再硬跳转到 #shopping 页面）──
   section.querySelector('#metricExpiring').onclick = () => {
-    const { overlay, close } = createHomeModal(buildExpiryModal(inv), '🚨 48 小时内到期食材');
+    let closeModal = () => {};
+    const modalBody = buildExpiryModal(inv, pack, {
+      onClose: () => closeModal(),
+      onCleanFridge: () => {
+        closeModal();
+        openCleanFridgeHelper(pack, inv, onRoute);
+      }
+    });
+    const { overlay, close } = createHomeModal(modalBody, '🚨 48 小时内到期食材');
+    closeModal = close;
     setTimeout(() => overlay.querySelector('#memoModalInput, input')?.focus?.(), 80);
   };
   section.querySelector('#metricShopping').onclick = () => {
@@ -594,9 +631,6 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
     <div class="home-actions-grid">
       <button type="button" class="home-act-btn" id="actQuickInput"><span class="home-act-emoji">📦</span><span>批量入库</span></button>
       <button type="button" class="home-act-btn" id="actQuickMemo"><span class="home-act-emoji">📝</span><span>随手记</span></button>
-    </div>
-    <div class="home-hub-extra">
-      <button type="button" class="home-mini-btn" id="actCleanFridge" title="帮我清冰箱">🔁 帮我清冰箱</button>
     </div>
     <div class="home-activity" id="homeActivity"></div>
   `;
@@ -630,22 +664,6 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
       overlay.querySelector('#memoModalInput')?.focus?.();
       renderActivity(); // 关闭后刷新动态列
     }, 80);
-  };
-
-  // 微型「清冰箱」按钮：保留原有弹窗推荐逻辑，仅缩小为快捷入口。
-  section.querySelector('#actCleanFridge').onclick = () => {
-    const recs = getCleanFridgeRecommendations(pack, inv, getRecommendationUiContext());
-    showCleanFridgeModal(recs, {
-      onAddPlan: (id, btn) => { addRecipeToPlan(id); brieflyConfirmButton(btn, '已加入'); onRoute(); },
-      onAddShopping: (id, btn) => {
-        const recItem = recs.find(item => item.r.id === id);
-        if (recItem) {
-          const count = addMissingRecipeIngredientsToShopping(recItem.r, pack, inv, recItem.list);
-          brieflyConfirmButton(btn, count ? '已入清单' : '已齐');
-          onRoute();
-        }
-      }
-    });
   };
 
   renderActivity();
@@ -845,7 +863,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   }
 
   // 自上而下视觉层级：① 紧急指标 ②「📅 今日饮食与灵感」合并卡（菜单计划置顶 + AI 灵感居底） ③ 极速操作
-  container.appendChild(renderUrgentMetrics(inv, activeShopping.length));
+  container.appendChild(renderUrgentMetrics(pack, inv, activeShopping.length, { onRoute }));
   const menuPlanNode = renderMenuPlan(pack, { onRoute });
   container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute, extraNode: menuPlanNode }));
   container.appendChild(renderActionHub(pack, inv, {
