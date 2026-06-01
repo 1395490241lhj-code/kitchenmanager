@@ -11,7 +11,7 @@ import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=185';
 import { showRecommendationCards } from '../components/recipe-card.js?v=185';
 import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=185';
-import { renderMenuPlan } from '../components/menu-plan.js?v=185';
+import { renderMenuPlan, renderPlanRangeSelect } from '../components/menu-plan.js?v=188';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -184,22 +184,20 @@ function renderSuggestCard(card, pack, inv) {
  * ⚠️ 布局已翻转：菜单计划置顶，AI 灵感卡片居底。
  *
  *  ┌─ .home-hero.is-combo ──────────────────────┐
- *  │  [眉标 + AI 换一批按钮]                     │ ← home-hero-head（仅眉标行）
- *  │  ─── 分隔线 ─────────────────────────────  │
- *  │  📋 菜单计划 (extraNode)                    │ ← 置顶
- *  │  ─── 分隔线 ─────────────────────────────  │
+ *  │  [标题 + 计划范围筛选]                      │ ← home-hero-head
+ *  │  菜单计划 (extraNode)                       │ ← 置顶
  *  │  🧠 今日灵感 问候语                          │ ← 移至底部
  *  │  [横向滑动推荐卡片流]                        │
  *  │  [注释文字]                                  │
  *  └───────────────────────────────────────────┘
  */
-function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, extraNode = null } = {}) {
+function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, extraNode = null, headerAction = null } = {}) {
   const section = document.createElement('section');
   section.className = `home-hero${extraNode ? ' is-combo' : ''}`;
 
   const eyebrow = extraNode ? '📅 今日饮食与灵感' : '🧠 今日灵感';
 
-  // 眉标行（仅眉标文字，不再放「换一批」按钮——已移入折叠面板内部）
+  // 标题行：计划范围筛选器由外层注入，避免卡片内部再出现一层标题。
   const headEl = document.createElement('div');
   headEl.className = 'home-hero-glow-wrap';
   headEl.innerHTML = `
@@ -212,15 +210,16 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     <div id="heroAiStatus" class="small inline-status" hidden></div>
   `;
   section.appendChild(headEl);
+  if (headerAction) {
+    const topEl = headEl.querySelector('.home-hero-top');
+    const actionWrap = document.createElement('div');
+    actionWrap.className = 'home-hero-head-action';
+    actionWrap.appendChild(headerAction);
+    topEl.appendChild(actionWrap);
+  }
 
   if (extraNode) {
     // ── 菜单计划区（置顶） ──
-    // ⚠️ 不再添加 home-combo-plan-label：menu-plan.js 已自带「📅 菜单计划」h3 标题
-    const topDivider = document.createElement('div');
-    topDivider.className = 'home-combo-divider';
-    topDivider.setAttribute('aria-hidden', 'true');
-    section.appendChild(topDivider);
-
     const planSlot = document.createElement('div');
     planSlot.className = 'home-combo-plan';
     planSlot.appendChild(extraNode);
@@ -864,8 +863,13 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
 
   // 自上而下视觉层级：① 紧急指标 ②「📅 今日饮食与灵感」合并卡（菜单计划置顶 + AI 灵感居底） ③ 极速操作
   container.appendChild(renderUrgentMetrics(pack, inv, activeShopping.length, { onRoute }));
-  const menuPlanNode = renderMenuPlan(pack, { onRoute });
-  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, { onRoute, extraNode: menuPlanNode }));
+  const menuPlanNode = renderMenuPlan(pack, { onRoute, hideHeader: true });
+  const menuRangeSelect = renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' });
+  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, {
+    onRoute,
+    extraNode: menuPlanNode,
+    headerAction: menuRangeSelect
+  }));
   container.appendChild(renderActionHub(pack, inv, {
     // 「📦 批量入库」打开统一弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再跳走。
     onQuickInput: () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' }),

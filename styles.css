@@ -886,6 +886,37 @@ input:focus, select:focus, textarea:focus {
   display: grid;
   gap: 8px;
 }
+.menu-plan-empty {
+  display: flex;
+  min-height: 104px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 18px 14px;
+  border: 1px dashed rgba(120, 120, 128, 0.28);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.34);
+  color: rgba(110, 110, 115, 0.74);
+  text-align: center;
+}
+.menu-plan-empty-icon {
+  font-size: 24px;
+  line-height: 1;
+  opacity: 0.62;
+  filter: saturate(0.82);
+}
+.menu-plan-empty-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(110, 110, 115, 0.82);
+}
+.menu-plan-empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(110, 110, 115, 0.62);
+}
 .shopping-plan-row {
   display: grid;
   grid-template-columns: minmax(160px, 1fr) 150px 76px;
@@ -3130,6 +3161,11 @@ nav a.active svg {
   border: 1px solid var(--glass-edge);
   box-shadow: var(--shadow-hero);
 }
+.home-hero.is-combo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 .home-hero-glow {
   position: absolute;
   top: -60px;
@@ -3142,13 +3178,14 @@ nav a.active svg {
   pointer-events: none;
 }
 .home-hero-head { position: relative; margin-bottom: 14px; }
+.home-hero.is-combo .home-hero-head { margin-bottom: 0; }
 .home-hero-eyebrow {
   display: inline-block;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--primary);
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 .home-hero-greeting {
   margin: 0;
@@ -3450,9 +3487,15 @@ nav a.active svg {
 /* ── 首页灵感面板：AI 换一批按钮（与标题同处一个 flex 流，避免绝对定位下坠遮挡） ── */
 .home-hero-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+.home-hero-head-action {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
 }
 .home-ai-btn {
   position: static;       /* 不再绝对定位，随正常文档流排布 */
@@ -3808,6 +3851,13 @@ nav a span { white-space: nowrap; }
   font-size: 12px;
   padding: 3px 8px;
 }
+.home-hero.is-combo .shopping-plan-list {
+  gap: 8px;
+}
+.home-hero.is-combo .menu-plan-empty {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(120, 120, 128, 0.24);
+}
 
 /* 菜单计划内的行在合并模式下直接采用面包背景菜单圆角 */
 .home-hero.is-combo .shopping-plan-row {
@@ -3817,6 +3867,13 @@ nav a span { white-space: nowrap; }
   -webkit-backdrop-filter: saturate(1.2) blur(8px);
 }
 @media (prefers-color-scheme: dark) {
+  .menu-plan-empty {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(235, 235, 245, 0.62);
+  }
+  .menu-plan-empty-title { color: rgba(235, 235, 245, 0.76); }
+  .menu-plan-empty p { color: rgba(235, 235, 245, 0.54); }
   .home-hero.is-combo .shopping-plan-row {
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.12);
@@ -3902,7 +3959,7 @@ nav a span { white-space: nowrap; }
   align-items: center;
   gap: 8px;
   width: 100%;
-  margin-top: 14px;
+  margin-top: 0;
   padding: 11px 16px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 16px;

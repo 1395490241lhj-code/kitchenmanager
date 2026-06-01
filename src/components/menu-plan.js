@@ -11,21 +11,32 @@ import { escapeHtml } from './status.js?v=185';
 let currentPlanRange = 'today';
 export function getPlanRange() { return currentPlanRange; }
 
-export function renderMenuPlan(pack, { onRoute = () => {} } = {}) {
+export function renderPlanRangeSelect({ onRoute = () => {}, id = 'planRangeSelect' } = {}) {
+  const select = document.createElement('select');
+  select.id = id;
+  select.className = 'menu-plan-range menu-plan-range-compact';
+  select.innerHTML = `
+    <option value="today">只看今天</option>
+    <option value="3days">未来 3 天</option>
+  `;
+  select.value = currentPlanRange;
+  select.onchange = (e) => {
+    currentPlanRange = e.target.value;
+    onRoute();
+  };
+  return select;
+}
+
+export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false } = {}) {
   const planCard = document.createElement('div');
   planCard.className = 'card shopping-plan-card menu-plan-card';
-  planCard.innerHTML = `
-    <div class="shopping-card-head menu-plan-head">
-      <h3 class="menu-plan-title">📅 菜单计划</h3>
-      <select id="planRangeSelect" class="menu-plan-range menu-plan-range-compact">
-        <option value="today">只看今天</option>
-        <option value="3days">未来 3 天</option>
-      </select>
-    </div>
-  `;
-  const rangeSelect = planCard.querySelector('#planRangeSelect');
-  rangeSelect.value = currentPlanRange;
-  rangeSelect.onchange = (e) => { currentPlanRange = e.target.value; onRoute(); };
+  if (!hideHeader) {
+    const head = document.createElement('div');
+    head.className = 'shopping-card-head menu-plan-head';
+    head.innerHTML = '<h3 class="menu-plan-title">📅 菜单计划</h3>';
+    head.appendChild(renderPlanRangeSelect({ onRoute }));
+    planCard.appendChild(head);
+  }
 
   const today = todayISO();
   const baseDate = new Date(today);
@@ -53,9 +64,13 @@ export function renderMenuPlan(pack, { onRoute = () => {} } = {}) {
   const planList = document.createElement('div');
   planList.className = 'shopping-plan-list';
   if (!filteredPlans.length) {
-    const empty = document.createElement('p');
-    empty.className = 'small';
-    empty.textContent = '该时间段暂未添加菜谱。';
+    const empty = document.createElement('div');
+    empty.className = 'menu-plan-empty';
+    empty.innerHTML = `
+      <div class="menu-plan-empty-icon" aria-hidden="true">🍽️</div>
+      <div class="menu-plan-empty-title">该时间段暂未添加菜谱</div>
+      <p>可以从推荐菜谱里加入今日计划。</p>
+    `;
     planList.appendChild(empty);
   } else {
     for (const item of filteredPlans) {
