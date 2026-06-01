@@ -3988,27 +3988,25 @@ nav a span { white-space: nowrap; }
 
 .km-modal-overlay {
   position: fixed;
-  inset: 0; /* 完美兼容各端，相当于 top:0; bottom:0; left:0; right:0 */
+  inset: 0;
   z-index: 9999;
   display: flex !important;
-  align-items: center !important; /* 强制垂直居中 */
-  justify-content: center !important; /* 强制水平居中 */
-  background-color: rgba(0, 0, 0, 0.5) !important;
+  align-items: center !important;
+  justify-content: center !important;
+  /* 核心：将原本死黑的 0.4 透明度降到极浅的 0.15 */
+  background-color: rgba(0, 0, 0, 0.15) !important;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  padding: 16px; /* 确保在小屏手机上卡片不会贴到屏幕边缘 */
-
-  /* 优雅淡入淡出动画属性 */
-  opacity: 0;
-  transition: opacity 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+  padding: 16px;
+  animation: iOSOverlayFadeIn 0.3s ease-out forwards;
 }
 .km-modal-overlay.open {
   opacity: 1;
-  animation: iOSOverlayFadeIn 0.24s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 .km-modal-overlay.closing {
   opacity: 0;
-  transition-duration: 0.16s;
+  animation: none;
+  transition: opacity 0.18s ease-in;
 }
 
 /* 纯正液态半透明玻璃 (Liquid Glass) */
@@ -4028,9 +4026,10 @@ nav a span { white-space: nowrap; }
   /* 核心 1：像水一样的清透渐变底色，而不是死板的单色 */
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.45) 0%,
-    rgba(255, 255, 255, 0.15) 100%
+    rgba(255, 255, 255, 0.76) 0%,
+    rgba(255, 255, 255, 0.42) 100%
   ) !important;
+  color: #111827;
 
   /* 核心 2：极低的模糊度（仅产生水波扭曲感），拒绝沉闷的重度毛玻璃 */
   backdrop-filter: blur(8px) saturate(120%) !important;
@@ -4062,9 +4061,10 @@ nav a span { white-space: nowrap; }
   .km-modal-content {
     background: linear-gradient(
       135deg,
-      rgba(40, 40, 50, 0.4) 0%,
-      rgba(20, 20, 25, 0.1) 100%
+      rgba(58, 58, 68, 0.62) 0%,
+      rgba(26, 26, 32, 0.36) 100%
     ) !important;
+    color: rgba(255, 255, 255, 0.94);
     border-top: 1.5px solid rgba(255, 255, 255, 0.25) !important;
     border-left: 1.5px solid rgba(255, 255, 255, 0.15) !important;
     border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
