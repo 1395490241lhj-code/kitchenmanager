@@ -1,17 +1,13 @@
-import { S, todayISO } from '../storage.js?v=185';
+import { todayISO } from '../storage.js?v=185';
 import {
   buildCatalog,
   buildIngredientOptions,
-  explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
   isDryGoodName,
-  normalizeKitchenAmount,
-  isSeasoning
+  normalizeKitchenAmount
 } from '../ingredients.js?v=185';
 import {
-  getStockCoverageAnalysis,
-  getStockCoverageForNeed,
   loadInventory,
   mergeInventoryEntry
 } from '../inventory.js?v=185';
@@ -42,7 +38,6 @@ import {
 } from '../staples.js?v=185';
 import { renderInventory } from './inventory-view.js?v=185';
 import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=185';
-import { getPlanRange } from '../components/menu-plan.js?v=189';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;
@@ -60,85 +55,6 @@ function makeDetails(title, subtitle, nodes, open = false) {
   details.innerHTML = `<summary><span>${escapeHtml(title)}</span><small>${escapeHtml(subtitle)}</small></summary>`;
   nodes.forEach(node => details.appendChild(node));
   return details;
-}
-
-function buildPlanMissingItems(pack, inv, plan, includeSeasonings = false, dateRange = 'today') {
-  const map = pack.recipe_ingredients || {};
-  const need = {};
-  const addNeed = (name, qty, unit, source = '菜谱') => {
-    const canonicalName = getCanonicalName(name || '');
-    if(!canonicalName) return;
-    const key = canonicalName + '|' + (unit || guessKitchenUnit(canonicalName) || '份');
-    if(!need[key]) need[key] = { name: canonicalName, unit: unit || guessKitchenUnit(canonicalName) || '份', qty: 0, sources: [] };
-    need[key].qty += (+qty || 0);
-    if(source && !need[key].sources.includes(source)) need[key].sources.push(source);
-  };
-
-  const today = todayISO();
-  const baseDate = new Date(today);
-  const tomorrow = new Date(baseDate);
-  tomorrow.setDate(baseDate.getDate() + 1);
-  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
-  const dayAfter = new Date(baseDate);
-  dayAfter.setDate(baseDate.getDate() + 2);
-  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
-
-  const filteredPlan = (plan || []).filter(p => {
-    const d = p.date || today;
-    if (dateRange === 'today') {
-      return d === today;
-    } else if (dateRange === '3days') {
-      return d === today || d === tomorrowISO || d === dayAfterISO;
-    }
-    return true;
-  });
-
-  for(const p of filteredPlan){
-    const recipe = (pack.recipes || []).find(r => r.id === p.id);
-    const ingList = explodeCombinedItems(map[p.id] || []);
-    if(!ingList.length) {
-      if(recipe) addNeed(recipe.name + ' 原料', p.servings || 1, '份', recipe.name);
-      continue;
-    }
-    for(const it of ingList) {
-      if(!includeSeasonings && isSeasoning(it.item)) continue;
-      const qty = typeof it.qty === 'number' && isFinite(it.qty) ? it.qty : 1;
-      addNeed(it.item, qty * (p.servings || 1), it.unit, recipe ? recipe.name : '菜谱');
-    }
-  }
-
-  return Object.values(need).map(req => {
-    const analysis = getStockCoverageAnalysis(inv, req.name, req.qty, req.unit);
-
-    if (analysis.confidence === 'exact') {
-      const missingQty = Math.max(0, Math.round((req.qty - analysis.coveredQty) * 100) / 100);
-      return missingQty > 0
-        ? { name: req.name, unit: req.unit, qty: missingQty, source: req.sources.join('、'), needsConfirm: false }
-        : null;
-    }
-
-    if (analysis.confidence === 'unit-mismatch') {
-      const stockDesc = analysis.matchedItems.map(i => `${i.qty}${i.unit}`).join('/');
-      return {
-        name: req.name, unit: req.unit, qty: req.qty,
-        source: req.sources.join('、'),
-        needsConfirm: true,
-        confirmReason: `库存有 ${stockDesc}，单位不同，数量需确认`
-      };
-    }
-
-    if (analysis.confidence === 'status-only') {
-      return {
-        name: req.name, unit: req.unit, qty: req.qty,
-        source: req.sources.join('、'),
-        needsConfirm: true,
-        confirmReason: '库存需确认'
-      };
-    }
-
-    // confidence === 'none' → 真正缺货
-    return { name: req.name, unit: req.unit, qty: req.qty, source: req.sources.join('、'), needsConfirm: false };
-  }).filter(Boolean);
 }
 
 function updateShoppingRowsByIds(ids, updater) {
@@ -276,22 +192,8 @@ function renderStaplesShelf(inv, { onRoute = () => {} } = {}) {
 export function renderShopping(pack, { onRoute = () => {} } = {}){
   const catalog = buildCatalog(pack);
   const inv = loadInventory(catalog);
-  const plan = S.load(S.keys.plan, []);
   const ingredientOptions = buildIngredientOptions(catalog);
   const shoppingItems = loadShoppingItems();
-  const settings = S.load(S.keys.settings, {});
-  if (settings.includeSeasoningsInShopping === undefined) {
-    const oldVal = localStorage.getItem('km_include_seasoning');
-    if (oldVal === 'true') {
-      settings.includeSeasoningsInShopping = true;
-      S.save(S.keys.settings, settings);
-    }
-    if (oldVal !== null) {
-      localStorage.removeItem('km_include_seasoning');
-    }
-  }
-  const includeSeasonings = settings.includeSeasoningsInShopping === true;
-  const missing = buildPlanMissingItems(pack, inv, plan, includeSeasonings, getPlanRange());
   const mergedItems = mergeShoppingItems(shoppingItems);
   const openItems = mergedItems.filter(item => !item.done);
   const doneItems = mergedItems.filter(item => item.done);
@@ -326,56 +228,6 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     addShoppingItem(name, manualCard.querySelector('#shoppingAddQty').value || '', manualCard.querySelector('#shoppingAddUnit').value || '', '手动');
     onRoute();
   };
-
-  const missingCard = document.createElement('div');
-  missingCard.className = 'card shopping-missing-card';
-  missingCard.innerHTML = `
-    <div class="shopping-card-head">
-      <div>
-        <h3>菜谱缺货</h3>
-      </div>
-      <div class="shopping-bulk-actions">
-        <label class="shopping-check shopping-seasoning-toggle">
-          <input type="checkbox" id="toggleSeasonings" ${includeSeasonings ? 'checked' : ''}>
-          <span>包含调味料</span>
-        </label>
-      </div>
-    </div>
-  `;
-
-  const toggleCheckbox = missingCard.querySelector('#toggleSeasonings');
-  toggleCheckbox.onchange = (e) => {
-    const s = S.load(S.keys.settings, {});
-    s.includeSeasoningsInShopping = e.target.checked;
-    S.save(S.keys.settings, s);
-    onRoute();
-  };
-  const missingTable = document.createElement('table');
-  missingTable.className = 'table shopping-table';
-  missingTable.innerHTML = `<thead><tr><th>食材</th><th>缺少数量</th><th>来源</th><th class="right">操作</th></tr></thead><tbody></tbody>`;
-  const missingBody = missingTable.querySelector('tbody');
-  if(!missing.length) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="4" class="small">库存已满足，不需要购买。</td>';
-    missingBody.appendChild(tr);
-  } else {
-    missing.forEach(item => {
-      const tr = document.createElement('tr');
-      const qtyCell = item.needsConfirm
-        ? `<span class="confirm-badge">${escapeHtml(item.confirmReason || '需确认')}</span>`
-        : escapeHtml([item.qty, item.unit].filter(Boolean).join(' '));
-      tr.innerHTML = `<td>${escapeHtml(item.name)}</td><td>${qtyCell}</td><td class="small">${escapeHtml(item.source || '菜谱')}</td><td class="right"><button type="button" class="btn small">已买入库</button></td>`;
-      tr.querySelector('button').onclick = () => {
-        showShoppingInventoryModal(item, entry => {
-          mergeInventoryEntry(inv, entry, { mode: 'add' });
-          setInlineStatus(status, `${entry.name} 已入库。`, 'ok');
-          onRoute();
-        });
-      };
-      missingBody.appendChild(tr);
-    });
-  }
-  missingCard.appendChild(missingTable);
 
   const itemCard = document.createElement('div');
   itemCard.className = 'card shopping-items-card';
@@ -517,7 +369,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   };
   itemCard.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
   itemCard.querySelector('#copyOpenShopping').onclick = () => {
-    const text = buildCopyableShoppingList(missing, loadShoppingItems());
+    const text = buildCopyableShoppingList([], loadShoppingItems());
     if(!text.trim()) { setInlineStatus(status, '清单是空的。', 'info'); return; }
     navigator.clipboard.writeText(text)
       .then(() => setInlineStatus(status, '已复制未买清单。', 'ok'))
@@ -537,9 +389,8 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   invDetails.id = 'shoppingInventoryDetails';
   invDetails.addEventListener('toggle', () => { invDetailsOpen = invDetails.open; });
 
-  // ── 页面顺序：① 我的购物项（含内联添加项）② 菜谱缺货 ③ 常备货架 ④ 完整库存 ──
+  // ── 页面顺序：① 我的购物项（含内联添加项）② 常备货架 ③ 完整库存 ──
   page.appendChild(makeDetails('🛒 我的购物项', '勾选「已买」即可；常备品会自动恢复充足', [itemCard], true));
-  page.appendChild(missingCard);
   page.appendChild(staplesShelf);
   page.appendChild(invDetails);
 

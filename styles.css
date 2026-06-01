@@ -870,7 +870,6 @@ input:focus, select:focus, textarea:focus {
   margin: 0;
 }
 .shopping-plan-card h3,
-.shopping-missing-card h3,
 .shopping-manual-card h3,
 .shopping-items-card h3,
 .staples-card h3 {
@@ -990,38 +989,6 @@ input:focus, select:focus, textarea:focus {
 }
 .shopping-plan-row .btn {
   width: 76px;
-}
-.shopping-missing-card {
-  overflow: hidden;
-}
-.shopping-table {
-  margin-top: -10px;
-  border-collapse: separate;
-  border-spacing: 0 8px;
-}
-.shopping-table th {
-  padding: 2px 14px 6px;
-}
-.shopping-table td {
-  background: var(--surface-cell);
-  border: 1px solid var(--surface-cell-border);
-  border-left: 0;
-  border-right: 0;
-  box-shadow: none;
-  padding: 12px 14px;
-}
-.shopping-table td:first-child {
-  border-top-left-radius: var(--radius-m);
-  border-bottom-left-radius: var(--radius-m);
-  border-left: 1px solid var(--surface-cell-border);
-}
-.shopping-table td:last-child {
-  border-top-right-radius: var(--radius-m);
-  border-bottom-right-radius: var(--radius-m);
-  border-right: 1px solid var(--surface-cell-border);
-}
-.shopping-table .btn {
-  min-height: 36px;
 }
 .shopping-items-card {
 }
@@ -1957,7 +1924,6 @@ nav a.active svg {
   }
 
   .shopping-plan-card,
-  .shopping-missing-card,
   .shopping-manual-card,
   .shopping-items-card,
   .staples-card {
@@ -1970,12 +1936,6 @@ nav a.active svg {
 
   .shopping-plan-row .btn {
     width: 82px;
-  }
-
-  .shopping-table th,
-  .shopping-table td {
-    padding-left: 18px;
-    padding-right: 18px;
   }
 
   .grid > .card,
@@ -2135,12 +2095,6 @@ nav a.active svg {
     width: auto;
     align-self: center;
   }
-  .shopping-missing-card {
-    overflow-x: auto;
-  }
-  .shopping-table {
-    min-width: 560px;
-  }
   .shopping-tools .btn {
     width: 100%;
   }
@@ -2238,28 +2192,6 @@ nav a.active svg {
 .home-search-buttons {
   display: flex;
   gap: 8px;
-}
-
-/* --- shopping view helpers --- */
-.shopping-seasoning-toggle {
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: normal;
-  margin: 0;
-}
-
-/* --- unit-mismatch / status-only badge in shopping table --- */
-.confirm-badge {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: #92400e;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-  border-radius: 4px;
-  padding: 1px 7px;
-  white-space: nowrap;
-  vertical-align: middle;
 }
 
 /* --- inventory toolbar --- */
