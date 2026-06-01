@@ -4011,40 +4011,41 @@ nav a span { white-space: nowrap; }
   transition-duration: 0.16s;
 }
 
-/* Apple iOS 原生系统级弹窗材质 (Light Material) */
+/* 纯正液态半透明玻璃 (Liquid Glass) */
 .km-modal-content {
   position: relative;
   width: 100%;
-  max-width: 320px; /* iOS 弹窗通常比普通网页弹窗更窄更聚拢 */
+  max-width: 400px;
   max-height: 85vh;
   overflow-y: auto;
   margin: 0 !important;
+  border-radius: 24px !important;
 
-  /* 连续平滑圆角 */
-  border-radius: 20px !important;
+  /* 强制 GPU 加速，防止移动端掉帧 */
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
 
-  /* 核心：iOS 标准淡灰白底色 (75% 不透明) */
-  background: rgba(242, 242, 247, 0.75) !important;
+  /* 核心 1：像水一样的清透渐变底色，而不是死板的单色 */
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.15) 100%
+  ) !important;
 
-  /* 核心：超强雾化 + 180% 饱和度提亮消灭灰暗感 */
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  /* 核心 2：极低的模糊度（仅产生水波扭曲感），拒绝沉闷的重度毛玻璃 */
+  backdrop-filter: blur(8px) saturate(120%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(120%) !important;
 
-  /* 发丝级微弱边框，拒绝粗糙实线 */
-  border: 0.5px solid rgba(255, 255, 255, 0.4) !important;
+  /* 核心 3：非对称的高光边缘，模拟水滴受光面的表面张力反光 */
+  border-top: 1.5px solid rgba(255, 255, 255, 0.8) !important;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.6) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
 
-  /* iOS 级别的柔和克制扩散投影 */
-  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15) !important;
-
-  /* 强制开启硬件加速 */
-  opacity: 0;
-  transform: translate3d(0, 0, 0) scale(0.92);
-  transform-origin: center center;
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  perspective: 1000px;
-  -webkit-perspective: 1000px;
+  /* 核心 4：内发光 + 柔和的水体投影，营造立体液态体积感 */
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.1),
+    inset 0 0 24px rgba(255, 255, 255, 0.5) !important;
 }
 .km-modal-overlay.open .km-modal-content {
   animation: iOSModalPopIn 0.34s cubic-bezier(0.32, 0.72, 0, 1) both;
@@ -4056,12 +4057,21 @@ nav a span { white-space: nowrap; }
   animation: none;
 }
 
-/* Apple iOS 极黑深色材质 (Dark Material) */
+/* 暗黑模式下的深色墨水液态质感 */
 @media (prefers-color-scheme: dark) {
   .km-modal-content {
-    background: rgba(30, 30, 30, 0.75) !important;
-    border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
-    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3) !important;
+    background: linear-gradient(
+      135deg,
+      rgba(40, 40, 50, 0.4) 0%,
+      rgba(20, 20, 25, 0.1) 100%
+    ) !important;
+    border-top: 1.5px solid rgba(255, 255, 255, 0.25) !important;
+    border-left: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    box-shadow:
+      0 16px 32px rgba(0, 0, 0, 0.4),
+      inset 0 0 24px rgba(255, 255, 255, 0.05) !important;
   }
 }
 
@@ -4090,7 +4100,7 @@ nav a span { white-space: nowrap; }
   top: 0;
   background: transparent; /* 透明以露出底层玻璃质感 */
   z-index: 2;
-  border-radius: 20px 20px 0 0;
+  border-radius: 24px 24px 0 0;
 }
 .km-modal-title {
   font-size: 16px;
