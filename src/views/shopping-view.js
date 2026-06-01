@@ -1,4 +1,4 @@
-import { todayISO } from '../storage.js?v=185';
+import { todayISO } from '../storage.js?v=196';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -6,11 +6,11 @@ import {
   guessKitchenUnit,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=185';
+} from '../ingredients.js?v=196';
 import {
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=185';
+} from '../inventory.js?v=196';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -21,13 +21,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=185';
+} from '../shopping.js?v=196';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=185';
+} from '../components/status.js?v=196';
 import {
   STAPLE_CATALOG,
   STAPLE_STATUS,
@@ -35,27 +35,22 @@ import {
   restoreStapleByPurchase,
   restoreStaplesByPurchase,
   toggleStaple
-} from '../staples.js?v=185';
-import { renderInventory } from './inventory-view.js?v=185';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=185';
+} from '../staples.js?v=196';
+import { renderInventory } from './inventory-view.js?v=196';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=196';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;
 export function requestInventoryIntent(kind) { pendingInventoryIntent = kind; }
 
-// 记忆折叠块展开状态，避免编辑库存触发重渲染后被重置收起。
-let staplesShelfOpen = false;
-let invDetailsOpen = false;
-
-// 折叠块封装：summary 作为标题，nodes 作为内容；open 控制默认展开/收起。
-function makeDetails(title, subtitle, nodes, open = false) {
-  const details = document.createElement('details');
-  details.className = 'home-secondary-details';
-  if (open) details.open = true;
-  details.innerHTML = `<summary><span>${escapeHtml(title)}</span><small>${escapeHtml(subtitle)}</small></summary>`;
-  nodes.forEach(node => details.appendChild(node));
-  return details;
-}
+// 库存管理页改用 iOS 风格「分段控件」：记忆当前选中的分段，避免编辑库存触发重渲染后跳回。
+// 取值：'shopping' = 购物项｜'staples' = 常备货架｜'inventory' = 完整库存。
+let activeInventoryTab = 'shopping';
+const INVENTORY_TABS = [
+  { key: 'shopping', label: '🛒 购物项' },
+  { key: 'staples', label: '🧂 常备货架' },
+  { key: 'inventory', label: '📦 完整库存' }
+];
 
 function updateShoppingRowsByIds(ids, updater) {
   const idSet = new Set(ids || []);
@@ -141,15 +136,11 @@ function formatStapleTime(iso) {
 }
 
 // 【常备货架】统一管理：调料/米面（双态常备品）+ 蛋奶/干货（同样的双态瓦片）。
-// 折叠组件，open 状态由模块变量 staplesShelfOpen 记忆，避免重渲染后被重置收起。
+// 不再使用折叠 <details>，直接返回平铺内容卡片，由分段控件控制显隐。
 function renderStaplesShelf(inv, { onRoute = () => {} } = {}) {
-  const panel = document.createElement('details');
-  panel.className = 'home-secondary-details staples-details';
-  if (staplesShelfOpen) panel.open = true;
-  // 记忆展开/收起状态：编辑库存触发 onRoute 重渲染时保持原样。
-  panel.addEventListener('toggle', () => { staplesShelfOpen = panel.open; });
+  const panel = document.createElement('div');
+  panel.className = 'staples-shelf-content';
   panel.innerHTML = `
-    <summary><span>🧂 常备货架</span><small>点一下切换「充足 / 不足」，不足自动进购物清单</small></summary>
     <div class="card staples-card">
       <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入购物清单；买好后在清单里勾选「已买」，常备调料会自动恢复为<strong>充足</strong>。</p>
       <div id="stapleShelf"></div>
@@ -375,41 +366,75 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       .then(() => setInlineStatus(status, '已复制未买清单。', 'ok'))
       .catch(() => setInlineStatus(status, text, 'info'));
   };
-  // 合并后的【常备货架】：调料/米面 + 蛋奶/干货，统一双态瓦片，默认收起、展开状态记忆。
+  // 【常备货架】内容：调料/米面 + 蛋奶/干货，统一双态瓦片（平铺，无折叠）。
   const staplesShelf = renderStaplesShelf(inv, { onRoute });
 
-  // 【完整库存】默认收起（跨页意图跳转或上次展开过时才展开），展开状态记忆。
+  // 【完整库存】内容：保留已优化的高密度双列网格，仅去掉折叠外壳，直接平铺。
   const inventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
-  const invDetails = makeDetails(
-    '完整库存',
-    '手动录入、拍小票及完整库存明细',
-    [inventoryNode],
-    invDetailsOpen || pendingInventoryIntent != null
-  );
-  invDetails.id = 'shoppingInventoryDetails';
-  invDetails.addEventListener('toggle', () => { invDetailsOpen = invDetails.open; });
 
-  // ── 页面顺序：① 我的购物项（含内联添加项）② 常备货架 ③ 完整库存 ──
-  page.appendChild(makeDetails('🛒 我的购物项', '勾选「已买」即可；常备品会自动恢复充足', [itemCard], true));
-  page.appendChild(staplesShelf);
-  page.appendChild(invDetails);
+  // ── iOS 风格「分段控件」：顶部吸顶三选项，下方平铺渲染对应内容，无折叠动画 ──
+  const segmented = document.createElement('div');
+  segmented.className = 'inv-segmented';
+  segmented.setAttribute('role', 'tablist');
+  segmented.setAttribute('aria-label', '库存管理分段');
+  INVENTORY_TABS.forEach(tab => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'inv-seg-btn';
+    btn.dataset.tab = tab.key;
+    btn.textContent = tab.label;
+    btn.setAttribute('role', 'tab');
+    segmented.appendChild(btn);
+  });
 
-  // 消费跨页意图：首页跳转过来时自动展开库存并触发对应动作。
+  // 三个内容面板，包进同一容器，靠分段控件切换显隐（display 切换，无重渲染、无动画）。
+  const panelWrap = document.createElement('div');
+  panelWrap.className = 'inv-panel-wrap';
+  const panelNodes = {};
+  const panelSource = { shopping: itemCard, staples: staplesShelf, inventory: inventoryNode };
+  INVENTORY_TABS.forEach(tab => {
+    const p = document.createElement('div');
+    p.className = 'inv-panel';
+    p.dataset.panel = tab.key;
+    p.appendChild(panelSource[tab.key]);
+    panelWrap.appendChild(p);
+    panelNodes[tab.key] = p;
+  });
+
+  const setTab = (key) => {
+    if (!panelNodes[key]) key = 'shopping';
+    activeInventoryTab = key;
+    segmented.querySelectorAll('.inv-seg-btn').forEach(b => {
+      const on = b.dataset.tab === key;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    Object.entries(panelNodes).forEach(([k, p]) => p.classList.toggle('is-hidden', k !== key));
+  };
+  segmented.querySelectorAll('.inv-seg-btn').forEach(b => { b.onclick = () => setTab(b.dataset.tab); });
+
+  page.appendChild(segmented);
+  page.appendChild(panelWrap);
+
+  // 消费跨页意图：首页「批量入库 / 拍小票」跳转过来时，自动切到「完整库存」分段并触发动作。
   if (pendingInventoryIntent) {
     const intent = pendingInventoryIntent;
     pendingInventoryIntent = null;
+    activeInventoryTab = 'inventory';
+    setTab('inventory');
     setTimeout(() => {
-      invDetails.open = true;
       if (intent === 'add') {
-        const form = invDetails.querySelector('.add-form-container');
-        const toggle = invDetails.querySelector('#toggleAddBtn');
+        const form = panelNodes.inventory.querySelector('.add-form-container');
+        const toggle = panelNodes.inventory.querySelector('#toggleAddBtn');
         if (form && toggle && !form.classList.contains('open')) toggle.click();
       } else if (intent === 'receipt') {
-        const cam = invDetails.querySelector('#camInput');
+        const cam = panelNodes.inventory.querySelector('#camInput');
         if (cam) cam.click();
       }
-      invDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      panelNodes.inventory.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
+  } else {
+    setTab(activeInventoryTab);
   }
 
   return page;

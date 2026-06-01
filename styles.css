@@ -869,6 +869,62 @@ input:focus, select:focus, textarea:focus {
 .shopping-page .card {
   margin: 0;
 }
+
+/* ── 库存管理「分段控件」(iOS Segmented Control) ──────────────────────────
+   顶部吸顶三选项（购物项 / 常备货架 / 完整库存），液态玻璃轨道 + 高亮选中段。
+   取代了原本的三层折叠面板（Accordion），下方内容直接平铺渲染，无展开动画。 */
+.inv-segmented {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  max-width: 28rem;                      /* max-w-md */
+  margin: 0 auto 4px;                    /* mx-auto；下方 panel-wrap 另有间距 */
+  padding: 4px;                          /* p-1 */
+  border-radius: 14px;                   /* rounded-xl */
+  background: rgba(243, 244, 246, 0.8);  /* bg-gray-100/80 */
+  backdrop-filter: blur(12px);           /* backdrop-blur-md */
+  -webkit-backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.inv-seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 9px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  border-radius: 10px;                   /* rounded-lg */
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+.inv-seg-btn:active { transform: scale(0.97); }
+.inv-seg-btn.is-active {
+  background: var(--bg-card);            /* 浅色=纯白，暗色=近黑（变量自动切换） */
+  color: var(--text-main);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);          /* shadow-sm */
+}
+
+/* 内容区：去掉折叠外壳后直接平铺；左右留出呼吸感 padding。 */
+.inv-panel-wrap {
+  padding: 0 4px;
+}
+.inv-panel { display: block; }
+.inv-panel.is-hidden { display: none; }
+.inv-panel > .card { margin: 0; }
+
+@media (prefers-color-scheme: dark) {
+  .inv-segmented {
+    background: rgba(31, 41, 55, 0.8);   /* dark:bg-gray-800/80 */
+  }
+}
+
 .shopping-plan-card h3,
 .shopping-manual-card h3,
 .shopping-items-card h3,
