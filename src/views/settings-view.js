@@ -1,9 +1,9 @@
-import { S, todayISO } from '../storage.js?v=197';
-import { CUSTOM_AI } from '../config.js?v=197';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=197';
-import { buildKitchenBackup, downloadJsonFile, loadOverlay, restoreKitchenBackup, saveOverlay } from '../backup.js?v=197';
-import { setInlineStatus, escapeHtml } from '../components/status.js?v=197';
-import { getSavedTheme, saveTheme } from '../theme.js?v=197';
+import { S, todayISO } from '../storage.js?v=198';
+import { CUSTOM_AI } from '../config.js?v=198';
+import { DATA_SCHEMA_VERSION } from '../migrations.js?v=198';
+import { buildKitchenBackup, downloadJsonFile, loadOverlay, restoreKitchenBackup, saveOverlay } from '../backup.js?v=198';
+import { setInlineStatus, escapeHtml } from '../components/status.js?v=198';
+import { getSavedTheme, saveTheme } from '../theme.js?v=198';
 
 // 渐进式展现：「高级与数据设置」面板的展开状态，记忆在模块作用域（同次会话内保持）。
 let advancedOpen = false;

@@ -5,11 +5,11 @@
  * 管理今日 / 未来 3 天的计划菜谱（份数调整、移除）。
  * currentPlanRange 由本模块持有，并通过 getPlanRange() 暴露给购物页的「菜谱缺货」计算复用。
  */
-import { S, todayISO } from '../storage.js?v=197';
-import { explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=197';
-import { analyzeRecipeInventory } from '../recommendations.js?v=197';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=197';
-import { escapeHtml } from './status.js?v=197';
+import { S, todayISO } from '../storage.js?v=198';
+import { explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=198';
+import { analyzeRecipeInventory } from '../recommendations.js?v=198';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=198';
+import { escapeHtml } from './status.js?v=198';
 
 let currentPlanRange = 'today';
 export function getPlanRange() { return currentPlanRange; }

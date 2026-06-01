@@ -1669,10 +1669,10 @@ nav a.active svg {
     --warning: #ffb340;
     --danger: #ff6961;
     --text-main: #f5f5f7;
-    --text-secondary: #a1a1aa;
-    --bg-card: #181a20;
-    --bg-input: #20232b;
-    --separator: rgba(255,255,255,0.12);
+    --text-secondary: #c7c7cc;
+    --bg-card: #1c1c1e;
+    --bg-input: #2c2c2e;
+    --separator: rgba(255,255,255,0.16);
     --glass-fill: rgba(28, 31, 38, 0.64);
     --glass-fill-strong: rgba(38, 41, 50, 0.78);
     --glass-stroke: rgba(255, 255, 255, 0.16);
@@ -4663,10 +4663,10 @@ html[data-theme="dark"] {
   --warning: #ffb340;
   --danger: #ff6961;
   --text-main: #f5f5f7;
-  --text-secondary: #a1a1aa;
-  --bg-card: #181a20;
-  --bg-input: #20232b;
-  --separator: rgba(255,255,255,0.12);
+  --text-secondary: #c7c7cc;
+  --bg-card: #1c1c1e;
+  --bg-input: #2c2c2e;
+  --separator: rgba(255,255,255,0.16);
   --glass-fill: rgba(28, 31, 38, 0.64);
   --glass-fill-strong: rgba(38, 41, 50, 0.78);
   --glass-stroke: rgba(255, 255, 255, 0.16);
@@ -4875,3 +4875,103 @@ html[data-theme="dark"] .settings-input,
   gap: 10px;
 }
 .settings-backup-actions .btn { flex: 1 1 140px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   深色模式 · 组件级层级与材质（Apple HIG 对齐）
+   - data-theme 始终存在（system 已被 JS 解析为具体值），所以这些 html[data-theme]
+     规则对「系统深色」与「手动深色」都生效，特异性 (0,2,x) 高于旧 @media :root 规则。
+   - 原则：拒绝死黑，悬浮表面用「抬升深灰」(#1C1C1E / #2C2C2E / #3A3A3C)；
+     文字亮白 (#F2F2F7)；玻璃高透 + 高光边框体现质感。
+   - 同时为 html[data-theme="light"] 补齐「亮色护栏」，避免在深色系统上手动选浅色时，
+     旧 @media (prefers-color-scheme: dark) 规则把组件染暗。
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 卡片：抬升的深灰玻璃，去掉浅色模式残留的白色高光内阴影 ── */
+html[data-theme="dark"] .card {
+  background: linear-gradient(180deg, rgba(44, 44, 48, 0.78), rgba(30, 30, 34, 0.66));
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+html[data-theme="light"] .card {
+  background: var(--glass-panel-fill);
+  border-color: var(--glass-edge);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.035),
+    0 12px 32px rgba(16,24,40,0.045),
+    inset 0 1px 0 rgba(255,255,255,0.78),
+    inset 0 -1px 0 rgba(255,255,255,0.24);
+}
+
+/* ── 液态玻璃弹窗：高透深色材质 + 高光边框 + 亮白文字 ── */
+html[data-theme="dark"] .km-modal-content {
+  background: linear-gradient(135deg, rgba(44, 44, 50, 0.70) 0%, rgba(30, 30, 35, 0.62) 100%) !important;
+  color: #F2F2F7 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.55),
+    inset 0 0 24px rgba(255, 255, 255, 0.06) !important;
+}
+html[data-theme="dark"] .km-modal-content,
+html[data-theme="dark"] .km-modal-content h1,
+html[data-theme="dark"] .km-modal-content h2,
+html[data-theme="dark"] .km-modal-content h3,
+html[data-theme="dark"] .km-modal-content .km-modal-title,
+html[data-theme="dark"] .km-modal-content .home-modal-title { color: #F2F2F7; }
+html[data-theme="dark"] .km-modal-header { border-bottom-color: rgba(255, 255, 255, 0.12); }
+html[data-theme="dark"] .km-modal-close,
+html[data-theme="dark"] .home-modal-close { color: #F2F2F7; background: rgba(255, 255, 255, 0.10); }
+html[data-theme="dark"] .km-modal-close:hover,
+html[data-theme="dark"] .home-modal-close:hover { background: rgba(255, 255, 255, 0.18); }
+
+/* 浅色护栏：在深色系统手动选浅色时，恢复明亮的玻璃材质 */
+html[data-theme="light"] .km-modal-content {
+  background: linear-gradient(135deg, rgba(255,255,255,0.76) 0%, rgba(255,255,255,0.42) 100%) !important;
+  color: #111827 !important;
+  border-top: 1.5px solid rgba(255,255,255,0.8) !important;
+  border-left: 1.5px solid rgba(255,255,255,0.6) !important;
+  border-right: 1px solid rgba(255,255,255,0.2) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.2) !important;
+  box-shadow: 0 16px 32px rgba(0,0,0,0.1), inset 0 0 24px rgba(255,255,255,0.5) !important;
+}
+
+/* ── 分段控件：轨道为抬升深灰，激活段更亮（物理抬升），杜绝比轨道更黑 ── */
+html[data-theme="dark"] .inv-segmented {
+  background: rgba(44, 44, 48, 0.82);
+}
+html[data-theme="dark"] .inv-seg-btn { color: rgba(235, 235, 245, 0.62); }
+html[data-theme="dark"] .inv-seg-btn.is-active {
+  background: #48484a;              /* 抬升的中灰，明显高于轨道 */
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+html[data-theme="light"] .inv-segmented { background: rgba(243, 244, 246, 0.8); }
+
+/* ── 设置页分段控件激活段：深色下用主题蓝即可，保证亮字 ── */
+html[data-theme="dark"] .settings-seg { background: rgba(255, 255, 255, 0.08); }
+html[data-theme="dark"] .settings-group { background: rgba(255, 255, 255, 0.05); }
+html[data-theme="light"] .settings-group { background: var(--bg-input); }
+
+/* ── 空状态文案：深色下晶莹透亮，绝对清晰 ── */
+html[data-theme="dark"] .menu-plan-empty {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(235, 235, 245, 0.7);
+}
+html[data-theme="dark"] .menu-plan-empty-title { color: rgba(245, 245, 247, 0.95); }
+html[data-theme="dark"] .menu-plan-empty p { color: rgba(235, 235, 245, 0.74); }
+html[data-theme="light"] .menu-plan-empty {
+  background: rgba(255, 255, 255, 0.34);
+  border-color: rgba(120, 120, 128, 0.28);
+  color: rgba(110, 110, 115, 0.74);
+}
+html[data-theme="light"] .menu-plan-empty-title { color: rgba(110, 110, 115, 0.82); }
+html[data-theme="light"] .menu-plan-empty p { color: rgba(110, 110, 115, 0.62); }
+
+/* ── 通用：深色下次要文字统一走更亮的 --text-secondary（变量已提亮）；
+   这里再兜底把 .meta / .small 明确指向变量，确保到处都清晰可读。 ── */
+html[data-theme="dark"] p.meta,
+html[data-theme="dark"] .small,
+html[data-theme="dark"] p.small,
+html[data-theme="dark"] span.small,
+html[data-theme="dark"] div.small { color: var(--text-secondary); }
