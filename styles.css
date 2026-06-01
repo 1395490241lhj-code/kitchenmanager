@@ -3968,6 +3968,24 @@ nav a span { white-space: nowrap; }
    - .km-modal-content 居中居下 Bottom Sheet 风格
    ────────────────────────────────────────────────────────────────────────── */
 /* 1. 遮罩层：绝对锁定全屏，强制 Flex 居中 */
+/* 遮罩层：柔和背景渐黑 */
+@keyframes iOSOverlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 卡片本体：从 90% 缩放伴随透明度平滑放大，带有高级的阻尼感 */
+@keyframes iOSModalPopIn {
+  from {
+    opacity: 0;
+    transform: translateZ(0) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateZ(0) scale(1);
+  }
+}
+
 .km-modal-overlay {
   position: fixed;
   inset: 0; /* 完美兼容各端，相当于 top:0; bottom:0; left:0; right:0 */
@@ -3982,13 +4000,15 @@ nav a span { white-space: nowrap; }
 
   /* 优雅淡入淡出动画属性 */
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.18s cubic-bezier(0.32, 0.72, 0, 1);
 }
 .km-modal-overlay.open {
   opacity: 1;
+  animation: iOSOverlayFadeIn 0.24s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 .km-modal-overlay.closing {
   opacity: 0;
+  transition-duration: 0.16s;
 }
 
 /* Apple iOS 原生系统级弹窗材质 (Light Material) */
@@ -4017,7 +4037,19 @@ nav a span { white-space: nowrap; }
   box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15) !important;
 
   /* 强制开启硬件加速 */
-  transform: translateZ(0);
+  opacity: 0;
+  transform: translateZ(0) scale(0.9);
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+.km-modal-overlay.open .km-modal-content {
+  animation: iOSModalPopIn 0.34s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+.km-modal-overlay.closing .km-modal-content {
+  opacity: 0;
+  transform: translateZ(0) scale(0.96);
+  transition: opacity 0.14s ease-out, transform 0.14s ease-out;
+  animation: none;
 }
 
 /* Apple iOS 极黑深色材质 (Dark Material) */
@@ -4026,6 +4058,20 @@ nav a span { white-space: nowrap; }
     background: rgba(30, 30, 30, 0.75) !important;
     border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
     box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.3) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .km-modal-overlay,
+  .km-modal-overlay.open,
+  .km-modal-overlay.open .km-modal-content {
+    animation: none;
+    transition: none;
+  }
+  .km-modal-overlay.open { opacity: 1; }
+  .km-modal-content {
+    opacity: 1;
+    transform: translateZ(0) scale(1);
   }
 }
 

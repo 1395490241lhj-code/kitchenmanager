@@ -2,7 +2,7 @@ const CACHE_NAME = 'km-v18';
 const CORE = [
   './',
   './index.html',
-  './styles.css?v=186',
+  './styles.css?v=187',
   './app.js?v=185',
   './ingredients-list-patch.v15.css?v=185',
   './ingredients-list-patch.v15.js?v=185',
