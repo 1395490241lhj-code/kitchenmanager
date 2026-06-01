@@ -11,7 +11,7 @@ import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=185';
 import { showRecommendationCards } from '../components/recipe-card.js?v=185';
 import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=185';
-import { renderMenuPlan, renderPlanRangeSelect } from '../components/menu-plan.js?v=188';
+import { renderMenuPlan, renderPlanRangeSelect } from '../components/menu-plan.js?v=189';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -863,7 +863,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
 
   // 自上而下视觉层级：① 紧急指标 ②「📅 今日饮食与灵感」合并卡（菜单计划置顶 + AI 灵感居底） ③ 极速操作
   container.appendChild(renderUrgentMetrics(pack, inv, activeShopping.length, { onRoute }));
-  const menuPlanNode = renderMenuPlan(pack, { onRoute, hideHeader: true });
+  const menuPlanNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
   const menuRangeSelect = renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' });
   container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, {
     onRoute,

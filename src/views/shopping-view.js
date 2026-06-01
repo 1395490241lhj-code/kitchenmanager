@@ -42,7 +42,7 @@ import {
 } from '../staples.js?v=185';
 import { renderInventory } from './inventory-view.js?v=185';
 import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=185';
-import { getPlanRange } from '../components/menu-plan.js?v=188';
+import { getPlanRange } from '../components/menu-plan.js?v=189';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;

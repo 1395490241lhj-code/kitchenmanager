@@ -929,12 +929,49 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid var(--surface-cell-border);
 }
 .shopping-plan-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
   color: var(--text-main);
   font-weight: 700;
+  overflow: visible;
+}
+.shopping-plan-recipe-title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.shopping-plan-date-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.menu-shortage-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.72);
+  background: rgba(254, 243, 199, 0.86);
+  color: #b45309;
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.menu-shortage-pill:hover,
+.menu-shortage-pill:focus-visible {
+  background: rgba(253, 230, 138, 0.92);
+  border-color: rgba(245, 158, 11, 0.84);
+  outline: none;
+}
+.menu-shortage-pill:active {
+  transform: scale(0.95);
 }
 .shopping-servings {
   display: grid;
@@ -4448,4 +4485,121 @@ nav a span { white-space: nowrap; }
 }
 .km-modal-actions .km-modal-ai-btn:hover {
   filter: brightness(1.05);
+}
+
+/* 菜单计划：缺货弹窗与一键采购微交互 */
+.menu-shortage-modal {
+  max-width: 380px;
+}
+.menu-shortage-body {
+  padding-top: 12px;
+}
+.menu-shortage-subtitle {
+  margin: 0 0 12px;
+  color: rgba(110, 110, 115, 0.82);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.menu-shortage-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.50);
+}
+.menu-shortage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(209, 213, 219, 0.50);
+}
+.menu-shortage-row.is-last {
+  border-bottom: none;
+}
+.menu-shortage-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 700;
+}
+.menu-shortage-amount {
+  flex: 0 0 auto;
+  color: rgba(107, 114, 128, 0.92);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.menu-shortage-actions {
+  border-top: none;
+  padding-top: 12px;
+}
+.km-modal-actions .menu-shortage-add-btn {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.28);
+}
+.km-modal-actions .menu-shortage-add-btn:hover,
+.km-modal-actions .menu-shortage-add-btn:focus-visible {
+  background: #1d4ed8;
+  color: #ffffff;
+  outline: none;
+}
+.km-modal-actions .menu-shortage-add-btn:active {
+  background: #1e40af;
+  transform: scale(0.98);
+}
+.km-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  z-index: 10000;
+  transform: translate3d(-50%, 12px, 0) scale(0.98);
+  opacity: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  background: rgba(28, 28, 30, 0.78);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.km-toast.is-visible {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0) scale(1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .menu-shortage-pill {
+    background: rgba(120, 53, 15, 0.34);
+    border-color: rgba(146, 64, 14, 0.82);
+    color: #fbbf24;
+  }
+  .menu-shortage-list {
+    background: rgba(31, 41, 55, 0.50);
+    border-color: rgba(255, 255, 255, 0.10);
+  }
+  .menu-shortage-row {
+    border-bottom-color: rgba(255, 255, 255, 0.10);
+  }
+  .menu-shortage-subtitle,
+  .menu-shortage-amount {
+    color: rgba(235, 235, 245, 0.66);
+  }
 }
