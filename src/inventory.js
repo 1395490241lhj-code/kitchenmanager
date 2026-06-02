@@ -1,12 +1,14 @@
-import { S, todayISO } from './storage.js?v=199';
+import { S, todayISO } from './storage.js?v=200';
 import {
   INGREDIENT_ALIASES,
+  UNIT_TYPE,
   getCanonicalName,
   getDryGoodConfig,
   getDryPrepText,
+  getUnitType,
   guessShelfDays,
   isDryGoodName
-} from './ingredients.js?v=199';
+} from './ingredients.js?v=200';
 
 export const RECIPE_GENERIC_MATCHES = {
   "猪肉": ["五花肉", "瘦肉"],
@@ -338,4 +340,114 @@ export function addInventoryQty(inv, name, qty, unit, kind='raw'){
     inv.push({name: canonical, qty, unit:itemUnit, buyDate:todayISO(), kind:itemKind, shelf:guessShelfDays(canonical, itemUnit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(canonical), isFrozen:false} : {})});
   }
   saveInventory(inv);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 档位（GEAR / 油表）模型 + 做菜「预扣减」核心算法
+ *  - 档位刻度统一为 [100,75,50,25,0] → 充足 / 大半 / 一半 / 见底 / 断货。
+ *  - PIECE：按菜谱声明数量整数相减。
+ *  - GEAR：当前档位索引自动向后移动一位（充足→大半→一半→见底→断货）。
+ * ══════════════════════════════════════════════════════════════════════════ */
+export const GEAR_SCALE = [100, 75, 50, 25, 0];
+export const GEAR_LABELS = { 100: '充足', 75: '大半', 50: '一半', 25: '见底', 0: '断货' };
+
+// 把任意数值吸附到最近的档位，返回 { value, index, label }。
+export function gearInfo(value) {
+  const v = Number(value);
+  const snapped = GEAR_SCALE.reduce((best, g) =>
+    Math.abs(g - v) < Math.abs(best - v) ? g : best, GEAR_SCALE[0]);
+  const index = GEAR_SCALE.indexOf(snapped);
+  return { value: snapped, index, label: GEAR_LABELS[snapped] };
+}
+
+// 档位降一级（已到断货则保持断货）。
+export function nextGearDown(value) {
+  const { index } = gearInfo(value);
+  return GEAR_SCALE[Math.min(index + 1, GEAR_SCALE.length - 1)];
+}
+
+// 读出某库存项当前档位：优先 item.gear，否则从 stockStatus / qty 推导。
+export function getItemGear(item) {
+  if (!item) return 0;
+  if (typeof item.gear === 'number') return gearInfo(item.gear).value;
+  if (item.stockStatus === 'empty' || (+item.qty || 0) <= 0) return 0;
+  if (item.stockStatus === 'low') return 25;
+  return 100; // ok / unknown 视为充足
+}
+
+// 写回某库存项的档位，并同步 stockStatus / qty 以兼容旧逻辑。
+function setItemGear(item, gearValue) {
+  const g = gearInfo(gearValue).value;
+  item.gear = g;
+  item.unitType = UNIT_TYPE.GEAR;
+  if (g === 0) { item.stockStatus = 'empty'; item.qty = 0; }
+  else if (g <= 25) { item.stockStatus = 'low'; item.qty = (+item.qty > 0) ? item.qty : 1; }
+  else { item.stockStatus = 'ok'; item.qty = (+item.qty > 0) ? item.qty : 1; }
+}
+
+/**
+ * 计算做完一道菜后的「预扣减」结果（只计算、不写库）。
+ * 仅纳入当前库存里有匹配的食材（你冰箱里真实存在、这道菜会消耗的）。
+ * @param {Array} coreItems 菜谱核心食材（已 explode，形如 {item, qty, unit}）
+ * @param {Array} inv       当前库存
+ * @returns {Array} 每项：
+ *   { name, unitType, match,
+ *     unit, recipeQty, currentQty, predictedQty,   // PIECE
+ *     currentGear, predictedGear }                  // GEAR
+ */
+export function computeCookDeductions(coreItems, inv) {
+  const rows = [];
+  const seen = new Set();
+  for (const it of (coreItems || [])) {
+    if (!it || !it.item) continue;
+    const match = getMatchingInventoryItems(inv, it.item)[0] || null;
+    if (!match) continue; // 库存里没有 → 无可扣减
+    if (seen.has(match)) continue; // 同一库存项只出现一次
+    seen.add(match);
+
+    const name = getCanonicalName(it.item) || it.item;
+    const unitType = getUnitType(name, match.unit || it.unit);
+
+    if (unitType === UNIT_TYPE.PIECE) {
+      const currentQty = +match.qty || 0;
+      const useQty = Math.max(1, Math.round(+it.qty || 1));
+      rows.push({
+        name, unitType, match,
+        unit: match.unit || it.unit || '个',
+        recipeQty: useQty,
+        currentQty,
+        predictedQty: Math.max(0, currentQty - useQty)
+      });
+    } else {
+      const currentGear = getItemGear(match);
+      rows.push({
+        name, unitType, match,
+        unit: match.unit || it.unit || '',
+        currentGear,
+        predictedGear: nextGearDown(currentGear)
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * 把「主厨校准舱」最终确认的结果持久化写入库存。
+ * @param {Array} calibrations [{ match, unitType, finalQty(PIECE), finalGear(GEAR) }]
+ */
+export function applyCookCalibration(inv, calibrations) {
+  for (const c of (calibrations || [])) {
+    const item = c.match && inv.includes(c.match) ? c.match : findStockItem(inv, c.name);
+    if (!item) continue;
+    if (c.unitType === UNIT_TYPE.PIECE) {
+      const q = Math.max(0, Math.round(+c.finalQty || 0));
+      item.qty = q;
+      item.unitType = UNIT_TYPE.PIECE;
+      item.stockStatus = q <= 0 ? 'empty' : 'ok';
+    } else {
+      setItemGear(item, c.finalGear);
+    }
+  }
+  saveInventory(inv);
+  return inv;
 }

@@ -5202,3 +5202,87 @@ html[data-theme="light"] nav a { color: #8e8e93; }
 html[data-theme="light"] nav a svg { background: none; border: none; box-shadow: none; }
 html[data-theme="light"] nav a.active { color: var(--primary); }
 html[data-theme="light"] nav a.active svg { stroke: var(--primary); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   主厨校准舱（Calibration Modal）—— 复用 .km-modal-content 液态玻璃外壳
+   计件型：剩余数量 + 步进器；档位型：五档圆角药丸横排，高亮当前预估档位。
+   ══════════════════════════════════════════════════════════════════════════ */
+.calib-modal { max-width: 440px; }
+.calib-subtitle {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.calib-list { display: flex; flex-direction: column; gap: 10px; }
+
+/* 行容器 */
+.calib-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--separator);
+}
+.calib-row-gear { flex-direction: column; align-items: stretch; gap: 10px; }
+.calib-emoji { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.calib-name { font-size: 15px; font-weight: 700; color: var(--text-main); }
+
+/* 计件型：剩余 + 步进器 */
+.calib-piece-readout {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.calib-piece-readout .calib-qty { font-size: 16px; font-weight: 800; color: var(--text-main); }
+.calib-stepper { display: inline-flex; gap: 6px; flex-shrink: 0; }
+.calib-step {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--separator);
+  background: var(--bg-card);
+  color: var(--primary);
+  font-size: 20px; font-weight: 700; line-height: 1;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.calib-step:active { transform: scale(0.9); }
+
+/* 档位型：标题行 + 五档药丸 */
+.calib-gear-head { display: flex; align-items: center; gap: 10px; }
+.calib-gear-readout { margin-left: auto; font-size: 13px; color: var(--text-secondary); }
+.calib-gear-readout b { color: var(--primary); font-weight: 800; }
+.calib-gear-pills { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.calib-pill {
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1px solid var(--separator);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+.calib-pill:active { transform: scale(0.95); }
+.calib-pill.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 底部全宽确认 */
+.calib-actions { margin-top: 4px; }
+.calib-actions .btn,
+.calib-confirm { width: 100%; padding: 13px; font-size: 15px; font-weight: 700; border-radius: 14px; }
+
+/* 深色：药丸 / 步进器底色提亮，保证在玻璃上清晰 */
+html[data-theme="dark"] .calib-row { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.12); }
+html[data-theme="dark"] .calib-step,
+html[data-theme="dark"] .calib-pill { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); }
+html[data-theme="dark"] .calib-pill { color: rgba(235, 235, 245, 0.7); }
+html[data-theme="dark"] .calib-pill.is-active { background: var(--primary); color: #fff; }

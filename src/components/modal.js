@@ -1,8 +1,140 @@
-import { todayISO } from '../storage.js?v=199';
-import { normalizeKitchenAmount, isSeasoning } from '../ingredients.js?v=199';
-import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=199';
-import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch } from '../inventory.js?v=199';
-import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=199';
+import { todayISO } from '../storage.js?v=200';
+import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=200';
+import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=200';
+import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=200';
+import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=200';
+
+// 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
+const CALIB_EMOJI = [
+  [/(鸡蛋|鸭蛋|蛋)/, '🥚'], [/(青椒|辣椒|彩椒|柿子椒)/, '🫑'], [/(番茄|西红柿)/, '🍅'],
+  [/(土豆|马铃薯)/, '🥔'], [/(茄子)/, '🍆'], [/(洋葱)/, '🧅'], [/(蒜)/, '🧄'],
+  [/(胡萝卜|萝卜)/, '🥕'], [/(玉米)/, '🌽'], [/(黄瓜)/, '🥒'], [/(蘑菇|香菇|菌)/, '🍄'],
+  [/(白菜|青菜|菠菜|生菜|油菜|菜)/, '🥬'], [/(猪肉|五花|排骨|肉)/, '🥩'], [/(鸡|鸭|禽)/, '🍗'],
+  [/(鱼)/, '🐟'], [/(虾)/, '🦐'], [/(豆腐|豆)/, '🧈'], [/(米|饭|面)/, '🍚'],
+  [/(油)/, '🛢️'], [/(盐|糖|酱|醋|料酒|调味|粉|椒)/, '🧂'], [/(姜)/, '🫚'], [/(葱)/, '🌿']
+];
+function calibEmoji(name) {
+  const n = name || '';
+  for (const [re, emoji] of CALIB_EMOJI) if (re.test(n)) return emoji;
+  return '🥗';
+}
+
+/**
+ * ✨ 主厨校准舱：做完菜后弹出，展示「预扣减」结果并允许人工校准，确认后写库。
+ * @param {string}   recipeName    菜名
+ * @param {Array}    predictions   computeCookDeductions() 的返回
+ * @param {Function} onConfirm     (calibrations:[{match,name,unitType,finalQty,finalGear}]) => void
+ * @param {Function} [onCancel]    () => void
+ */
+export function showCalibrationModal(recipeName, predictions, onConfirm, onCancel) {
+  const overlay = document.createElement('div');
+  overlay.className = 'km-modal-overlay';
+
+  const panel = document.createElement('div');
+  panel.className = 'km-modal-content calib-modal';
+
+  // 每行的当前编辑值（PIECE: qty；GEAR: gear）。
+  const state = predictions.map(p => p.unitType === UNIT_TYPE.PIECE
+    ? { qty: p.predictedQty }
+    : { gear: p.predictedGear });
+
+  const rowsHtml = predictions.map((p, i) => {
+    const emoji = calibEmoji(p.name);
+    if (p.unitType === UNIT_TYPE.PIECE) {
+      return `
+        <div class="calib-row" data-index="${i}" data-type="PIECE">
+          <span class="calib-emoji" aria-hidden="true">${emoji}</span>
+          <span class="calib-name">${escapeHtml(p.name)}</span>
+          <span class="calib-piece-readout">剩余 <b class="calib-qty">${state[i].qty}</b> ${escapeHtml(p.unit || '个')}</span>
+          <div class="calib-stepper" role="group" aria-label="微调数量">
+            <button type="button" class="calib-step" data-step="-1" aria-label="减少">−</button>
+            <button type="button" class="calib-step" data-step="1" aria-label="增加">+</button>
+          </div>
+        </div>`;
+    }
+    const pills = GEAR_SCALE.map(g =>
+      `<button type="button" class="calib-pill${g === state[i].gear ? ' is-active' : ''}" data-gear="${g}">${GEAR_LABELS[g]}</button>`
+    ).join('');
+    return `
+      <div class="calib-row calib-row-gear" data-index="${i}" data-type="GEAR">
+        <div class="calib-gear-head">
+          <span class="calib-emoji" aria-hidden="true">${emoji}</span>
+          <span class="calib-name">${escapeHtml(p.name)}</span>
+          <span class="calib-gear-readout">预降至 <b>[${GEAR_LABELS[state[i].gear]}]</b></span>
+        </div>
+        <div class="calib-gear-pills" role="group" aria-label="校准档位">${pills}</div>
+      </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="km-modal-header calib-header">
+      <span class="km-modal-title">✨ 料理完成！冰箱库存已自动预扣：</span>
+      <button type="button" class="km-modal-close" aria-label="关闭">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="km-modal-body calib-body">
+      <p class="calib-subtitle">这道「${escapeHtml(recipeName)}」用到的食材已按用量预估扣减，确认或微调后写入冰箱。</p>
+      <div class="calib-list">${rowsHtml || '<p class="calib-subtitle">这道菜没有匹配到冰箱里的食材，无需扣减。</p>'}</div>
+    </div>
+    <div class="km-modal-actions calib-actions">
+      <button type="button" class="btn ok calib-confirm" id="calibConfirmBtn">检查无误，更新冰箱</button>
+    </div>
+  `;
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+
+  let closing = false;
+  const close = () => {
+    if (closing) return;
+    closing = true;
+    overlay.classList.add('closing');
+    setTimeout(() => overlay.remove(), 220);
+  };
+  const cancel = () => { close(); if (typeof onCancel === 'function') onCancel(); };
+
+  panel.querySelector('.km-modal-close').onclick = cancel;
+  overlay.onclick = e => { if (e.target === overlay) cancel(); };
+
+  // PIECE 步进器
+  panel.querySelectorAll('.calib-row[data-type="PIECE"]').forEach(rowEl => {
+    const i = +rowEl.dataset.index;
+    const qtyEl = rowEl.querySelector('.calib-qty');
+    rowEl.querySelectorAll('.calib-step').forEach(btn => {
+      btn.onclick = () => {
+        const delta = +btn.dataset.step;
+        state[i].qty = Math.max(0, (state[i].qty || 0) + delta);
+        qtyEl.textContent = state[i].qty;
+      };
+    });
+  });
+
+  // GEAR 档位药丸
+  panel.querySelectorAll('.calib-row[data-type="GEAR"]').forEach(rowEl => {
+    const i = +rowEl.dataset.index;
+    const readout = rowEl.querySelector('.calib-gear-readout b');
+    rowEl.querySelectorAll('.calib-pill').forEach(pill => {
+      pill.onclick = () => {
+        const g = +pill.dataset.gear;
+        state[i].gear = g;
+        rowEl.querySelectorAll('.calib-pill').forEach(p => p.classList.toggle('is-active', p === pill));
+        if (readout) readout.textContent = `[${GEAR_LABELS[gearInfo(g).value]}]`;
+      };
+    });
+  });
+
+  panel.querySelector('#calibConfirmBtn').onclick = () => {
+    const calibrations = predictions.map((p, i) => p.unitType === UNIT_TYPE.PIECE
+      ? { match: p.match, name: p.name, unitType: UNIT_TYPE.PIECE, finalQty: state[i].qty }
+      : { match: p.match, name: p.name, unitType: UNIT_TYPE.GEAR, finalGear: state[i].gear });
+    close();
+    if (typeof onConfirm === 'function') onConfirm(calibrations);
+  };
+}
 
 export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   const overlay = document.createElement('div');

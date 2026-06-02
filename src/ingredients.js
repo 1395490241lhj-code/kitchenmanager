@@ -347,3 +347,26 @@ export function buildCatalog(pack) {
   }
   return Array.from(set).sort().map(n=>({name:n, unit:units[n]||'g', shelf:guessShelfDays(n, units[n]||'g')}));
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * 计件 / 档位 双轨食材模型（油表模型）
+ *  - PIECE（计件）：离散可数（个、颗、根、片…），按整数加减。
+ *  - GEAR（档位）：散装蔬菜 / 调料 / 散装肉，按 [100,75,50,25,0] 档位降档。
+ * ──────────────────────────────────────────────────────────────────────── */
+export const UNIT_TYPE = { PIECE: 'PIECE', GEAR: 'GEAR' };
+
+// 离散可数单位 → 计件
+const PIECE_UNITS = new Set(['个', '颗', '只', '根', '片', '块', '枚', '瓣', '条', '棵', '头', '张', '支', '盒', '袋', '包', '瓶', '罐', '听']);
+
+/**
+ * 判定食材属于「计件(PIECE)」还是「档位(GEAR)」。
+ * 优先看单位；调味料一律按档位（油表模型）；无单位时用 guessKitchenUnit 猜测。
+ */
+export function getUnitType(name, unit) {
+  const canonical = getCanonicalName(name || '');
+  if (isSeasoning(canonical)) return UNIT_TYPE.GEAR;
+  const u = (unit || '').trim();
+  if (u) return PIECE_UNITS.has(u) ? UNIT_TYPE.PIECE : UNIT_TYPE.GEAR;
+  const guessed = guessKitchenUnit(canonical) || '';
+  return PIECE_UNITS.has(guessed) ? UNIT_TYPE.PIECE : UNIT_TYPE.GEAR;
+}

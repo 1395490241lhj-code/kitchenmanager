@@ -1,20 +1,20 @@
-import { S, todayISO } from '../storage.js?v=199';
-import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=199';
-import { deductInventoryForRecipe, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=199';
+import { S, todayISO } from '../storage.js?v=200';
+import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=200';
+import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=200';
 import {
   addMissingRecipeIngredientsToShopping,
   addRecipeToPlan,
   getMissingRecipeIngredients,
   markRecipeCooked
-} from '../recommendations.js?v=199';
+} from '../recommendations.js?v=200';
 import {
   callAiForMethod,
   formatAiErrorMessage,
   withTimeout
-} from '../ai.js?v=199';
-import { loadOverlay, saveOverlay } from '../backup.js?v=199';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=199';
-import { showDeductStockModal } from '../components/modal.js?v=199';
+} from '../ai.js?v=200';
+import { loadOverlay, saveOverlay } from '../backup.js?v=200';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=200';
+import { showCalibrationModal } from '../components/modal.js?v=200';
 
 export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   let r = (pack.recipes || []).find(x => x.id === id);
@@ -139,47 +139,35 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   div.querySelector('#detailMarkCooked').onclick = () => {
     const cookedBtn = div.querySelector('#detailMarkCooked');
     cookedBtn.disabled = true;
-    showDeductStockModal(
+
+    // 计算混合双轨预扣减（计件整数相减 / 档位降一级）。
+    const predictions = computeCookDeductions(items, inv);
+
+    // 没有任何匹配库存 → 直接记录做完，不弹校准舱。
+    if (!predictions.length) {
+      const result = markRecipeCooked(id);
+      brieflyConfirmButton(cookedBtn, '已记录');
+      showActionFeedback(result.removedFromPlan ? '已记录做完，并从今日计划移除。' : '已记录做完。');
+      cookedBtn.disabled = false;
+      if (typeof onRoute === 'function') setTimeout(onRoute, 1000);
+      return;
+    }
+
+    showCalibrationModal(
       r.name,
-      items,
-      inv,
-      // onConfirm: deduct then mark cooked
-      (deductions) => {
-        let deductMsg = '未扣减库存。';
-        if (deductions.length > 0) {
-          const deductRes = deductInventoryForRecipe(inv, deductions);
-          const deductedItems = deductRes.deducted || [];
-          const skippedItems = deductRes.skipped || [];
-          
-          let parts = [];
-          if (deductedItems.length > 0) {
-            parts.push(`已扣减 ${deductedItems.map(d => `${d.name}×${d.qty}${d.unit||''}`).join('、')}`);
-          }
-          const mismatchNames = skippedItems.filter(s => s.reason === 'unit-mismatch').map(s => s.name);
-          if (mismatchNames.length > 0) {
-            parts.push(`跳过了不同单位食材：${mismatchNames.join('、')}`);
-          }
-          if (parts.length > 0) {
-            deductMsg = parts.join('，') + '。';
-          }
-        }
+      predictions,
+      // onConfirm: 写入校准后的库存 + 记录做完
+      (calibrations) => {
+        applyCookCalibration(inv, calibrations);
+        const summary = calibrations.map(c => c.unitType === 'PIECE'
+          ? `${c.name}→${c.finalQty}`
+          : `${c.name}→${({100:'充足',75:'大半',50:'一半',25:'见底',0:'断货'})[c.finalGear] || ''}`
+        ).join('、');
         const result = markRecipeCooked(id);
-        brieflyConfirmButton(cookedBtn, '已记录');
-        showActionFeedback(`已记录做完${result.removedFromPlan ? '，并从今日计划移除' : ''}。${deductMsg}`);
+        brieflyConfirmButton(cookedBtn, '已更新');
+        showActionFeedback(`冰箱已更新：${summary}。${result.removedFromPlan ? '已从今日计划移除。' : ''}`);
         cookedBtn.disabled = false;
-        if (typeof onRoute === 'function') {
-          setTimeout(onRoute, 1000);
-        }
-      },
-      // onSkip: just mark cooked, no deduction
-      () => {
-        const result = markRecipeCooked(id);
-        brieflyConfirmButton(cookedBtn, '已记录');
-        showActionFeedback(result.removedFromPlan ? '已记录做完，并从今日计划移除；库存没有扣减。' : '已记录做完；库存没有扣减。');
-        cookedBtn.disabled = false;
-        if (typeof onRoute === 'function') {
-          setTimeout(onRoute, 1000);
-        }
+        if (typeof onRoute === 'function') setTimeout(onRoute, 1000);
       },
       // onCancel
       () => { cookedBtn.disabled = false; }
