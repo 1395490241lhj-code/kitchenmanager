@@ -1,18 +1,18 @@
-import { S, todayISO } from './storage.js?v=202';
+import { S, todayISO } from './storage.js?v=203';
 import {
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
   isSeasoning
-} from './ingredients.js?v=202';
+} from './ingredients.js?v=203';
 import {
   daysBetween,
   getStockCoverageAnalysis,
   remainingDays,
   isIngredientMatch
-} from './inventory.js?v=202';
-import { addShoppingItem } from './shopping.js?v=202';
-import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=202';
+} from './inventory.js?v=203';
+import { addShoppingItem } from './shopping.js?v=203';
+import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=203';
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
@@ -668,6 +668,16 @@ export function markRecipeCooked(id) {
   const nextPlan = plan.filter(item => item.id !== id);
   if (nextPlan.length !== plan.length) S.save(S.keys.plan, nextPlan);
   return { removedFromPlan: nextPlan.length !== plan.length };
+}
+
+// 记录「做完」成就但保留在计划里（首页菜单计划用：做好后行仍显示为已完成成就，不移除）。
+export function markRecipeCookedKeepPlan(id) {
+  if (!id || String(id).startsWith('creative-')) return;
+  const activity = loadRecipeActivity();
+  if (!activity[id]) activity[id] = { plannedAt: null, cookedAt: null, cookedCount: 0 };
+  activity[id].cookedAt = todayISO();
+  activity[id].cookedCount = (activity[id].cookedCount || 0) + 1;
+  saveRecipeActivity(activity);
 }
 
 export function recipeUsageText(activityOrDate) {

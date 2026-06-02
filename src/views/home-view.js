@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=202';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=202';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=202';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=202';
+import { S, todayISO } from '../storage.js?v=203';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=203';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=203';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=203';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=202';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=202';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=202';
-import { showRecommendationCards } from '../components/recipe-card.js?v=202';
-import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=202';
-import { renderMenuPlan, renderPlanRangeSelect } from '../components/menu-plan.js?v=202';
+} from '../recommendations.js?v=203';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=203';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=203';
+import { showRecommendationCards } from '../components/recipe-card.js?v=203';
+import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=203';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=203';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -864,11 +864,15 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   // 自上而下视觉层级：① 紧急指标 ②「📅 今日饮食与灵感」合并卡（菜单计划置顶 + AI 灵感居底） ③ 极速操作
   container.appendChild(renderUrgentMetrics(pack, inv, activeShopping.length, { onRoute }));
   const menuPlanNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
-  const menuRangeSelect = renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' });
+  // 头部动作区：「✓ 全部做完」批量按钮在「只看今天」下拉框左侧。
+  const menuHeadActions = document.createElement('div');
+  menuHeadActions.className = 'menu-plan-head-actions';
+  menuHeadActions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
+  menuHeadActions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
   container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, {
     onRoute,
     extraNode: menuPlanNode,
-    headerAction: menuRangeSelect
+    headerAction: menuHeadActions
   }));
   container.appendChild(renderActionHub(pack, inv, {
     // 「📦 批量入库」打开统一弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再跳走。

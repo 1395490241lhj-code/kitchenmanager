@@ -5480,3 +5480,101 @@ html[data-theme="dark"] .km-onboard-dot { background: rgba(255, 255, 255, 0.22);
   .km-onboard-card.is-anim .km-onboard-title,
   .km-onboard-card.is-anim .km-onboard-body { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   菜单计划：行内「做好了」+ 顶部「全部做完」+ 份数左移布局
+   ══════════════════════════════════════════════════════════════════════════ */
+.menu-plan-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* 顶部「✓ 全部做完」批量按钮（实心绿） */
+.menu-plan-cookall {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 10px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.menu-plan-cookall:hover { background: #15803d; }
+.menu-plan-cookall:active { transform: scale(0.95); }
+
+/* 行布局：左信息簇 + 右动作区（份数左移） */
+.shopping-plan-row.menu-plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;        /* 动作区始终钉在最右，左簇内部自行换行/省略 */
+}
+.menu-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.menu-row-servings { flex: 0 0 auto; }
+.menu-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* 行内「🍳 做好了」主动作（柔和绿） */
+.menu-cook-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.menu-cook-btn:hover { background: #dcfce7; }
+.menu-cook-btn:active { transform: scale(0.95); }
+.menu-cook-btn.is-done {
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+/* 「移除」缩为干净的灰色打叉，靠右；hover 才显淡红 */
+.menu-remove-btn {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  opacity: 0.55;
+  font-size: 14px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+}
+.menu-remove-btn:hover { color: #ff6961; opacity: 1; background: var(--status-bad-bg); }
+
+/* 已完成成就态：整行变淡 + 菜名删除线 */
+.shopping-plan-row.is-cooked { opacity: 0.5; }
+.shopping-plan-row.is-cooked .shopping-plan-recipe-title { text-decoration: line-through; }
+
+/* 深色：柔和绿按钮反相 */
+html[data-theme="dark"] .menu-cook-btn { background: rgba(5, 46, 22, 0.4); color: #86efac; }
+html[data-theme="dark"] .menu-cook-btn:hover { background: rgba(5, 46, 22, 0.6); }
+html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255, 0.08); color: rgba(235, 235, 245, 0.6); }
