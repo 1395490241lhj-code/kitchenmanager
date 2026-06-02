@@ -12,6 +12,7 @@
 import { DRY_GOODS, EGG_STOCK, DAILY_STOCKS, guessShelfDays } from '../ingredients.js?v=199';
 import { ensureStockItem, findStockItem, saveInventory } from '../inventory.js?v=199';
 import { addShoppingItem, loadShoppingItems, saveShoppingItems } from '../shopping.js?v=199';
+import { applyPantryCustomConfig } from '../staples.js?v=200';
 import { escapeHtml } from './status.js?v=199';
 
 const PANTRY_GROUPS = [
@@ -62,8 +63,11 @@ function togglePantryItem(inv, cfg, currentlyLow) {
 // 返回 DocumentFragment：蛋奶 / 干货两组，缺货项优先，微型胶囊样式与基础调味料一致。
 export function renderDryGoodsCabinet(inv, options = {}) {
   const onRoute = typeof options.onRoute === 'function' ? options.onRoute : () => {};
+  const isManagingPantry = !!options.isManagingPantry;
+  const onEditPantryItem = typeof options.onEditPantryItem === 'function' ? options.onEditPantryItem : () => {};
+  const onDeletePantryItem = typeof options.onDeletePantryItem === 'function' ? options.onDeletePantryItem : () => {};
   const frag = document.createDocumentFragment();
-  PANTRY_GROUPS.forEach(group => {
+  applyPantryCustomConfig(PANTRY_GROUPS, 'pantry').forEach(group => {
     const groupDiv = document.createElement('div');
     groupDiv.className = 'shopping-staple-group';
     groupDiv.innerHTML = `<div class="shopping-staple-title">${escapeHtml(group.group)}</div>`;
@@ -78,16 +82,35 @@ export function renderDryGoodsCabinet(inv, options = {}) {
     sortedItems.forEach(cfg => {
       const item = findStockItem(inv, cfg.name, cfg.kind);
       const low = isPantryLow(item);
-      const tile = document.createElement('button');
-      tile.type = 'button';
-      tile.className = `staple-tile ${low ? 'is-low' : 'is-ok'}`;
+      const tile = document.createElement(isManagingPantry ? 'div' : 'button');
+      if (!isManagingPantry) tile.type = 'button';
+      tile.className = `staple-tile ${low ? 'is-low' : 'is-ok'}${isManagingPantry ? ' is-managing' : ''}`;
       tile.setAttribute('aria-pressed', low ? 'true' : 'false');
       tile.setAttribute('aria-label', `${cfg.name}：${low ? '不足，点击标记为充足' : '充足，点击标记为不足'}`);
+      if (isManagingPantry) {
+        tile.setAttribute('role', 'button');
+        tile.tabIndex = 0;
+      }
       tile.innerHTML = `
         <span class="staple-tile-name">${escapeHtml(cfg.name)}</span>
         <span class="staple-status-dot" aria-hidden="true"></span>
+        ${isManagingPantry ? '<button type="button" class="staple-delete-btn" aria-label="移除">×</button>' : ''}
       `;
-      tile.onclick = () => { togglePantryItem(inv, cfg, low); onRoute(); };
+      if (isManagingPantry) {
+        tile.onclick = () => onEditPantryItem(cfg);
+        tile.onkeydown = event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onEditPantryItem(cfg);
+          }
+        };
+        tile.querySelector('.staple-delete-btn').onclick = event => {
+          event.stopPropagation();
+          onDeletePantryItem(cfg);
+        };
+      } else {
+        tile.onclick = () => { togglePantryItem(inv, cfg, low); onRoute(); };
+      }
       grid.appendChild(tile);
     });
     groupDiv.appendChild(grid);

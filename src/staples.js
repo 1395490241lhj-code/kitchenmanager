@@ -15,7 +15,7 @@
  *     为 SUFFICIENT 并更新库存时间（updatedAt）。
  */
 
-import { S } from './storage.js?v=199';
+import { S } from './storage.js?v=200';
 import { getCanonicalName } from './ingredients.js?v=199';
 import { addShoppingItem, loadShoppingItems, saveShoppingItems } from './shopping.js?v=199';
 
@@ -31,11 +31,166 @@ export const STAPLE_CATALOG = [
   { group: '生鲜常备', items: ['葱', '姜', '蒜', '大葱', '香菜', '小米辣'] }
 ];
 
+export const PANTRY_GROUP_OPTIONS = [
+  ...STAPLE_CATALOG.map(group => group.group),
+  '蛋奶',
+  '干货'
+];
+
 const STAPLE_NAMES = new Set();
 STAPLE_CATALOG.forEach(group => group.items.forEach(name => STAPLE_NAMES.add(getCanonicalName(name))));
 
+function normalizePantryConfig(raw) {
+  const config = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  return {
+    hidden: (config.hidden && typeof config.hidden === 'object' && !Array.isArray(config.hidden)) ? config.hidden : {},
+    overrides: (config.overrides && typeof config.overrides === 'object' && !Array.isArray(config.overrides)) ? config.overrides : {},
+    custom: Array.isArray(config.custom) ? config.custom.filter(item => item && item.id && item.name) : []
+  };
+}
+
+export function loadPantryConfig() {
+  return normalizePantryConfig(S.load(S.keys.pantry_config, {}));
+}
+
+export function savePantryConfig(config) {
+  return S.save(S.keys.pantry_config, normalizePantryConfig(config));
+}
+
+export function getPantryEntryId(type, group, name, kind = '') {
+  return [type || 'staple', group || '', kind || '', getCanonicalName(name || '')].join('|');
+}
+
+function normalizePantryGroup(group, type = 'staple') {
+  const name = String(group || '').trim();
+  if (name) return name;
+  return type === 'pantry' ? '干货' : STAPLE_CATALOG[0].group;
+}
+
+function groupPantryEntries(entries) {
+  const groups = new Map();
+  const order = [...PANTRY_GROUP_OPTIONS];
+  entries.forEach(entry => {
+    const group = normalizePantryGroup(entry.group, entry.type);
+    if (!groups.has(group)) {
+      groups.set(group, []);
+      if (!order.includes(group)) order.push(group);
+    }
+    groups.get(group).push({ ...entry, group });
+  });
+  return order
+    .map(group => ({ group, items: groups.get(group) || [] }))
+    .filter(group => group.items.length > 0);
+}
+
+export function applyPantryCustomConfig(baseGroups, type = 'staple', defaults = {}) {
+  const config = loadPantryConfig();
+  const entries = [];
+  (baseGroups || []).forEach(group => {
+    (group.items || []).forEach(item => {
+      const raw = typeof item === 'string' ? { name: item } : { ...item };
+      const id = getPantryEntryId(type, group.group, raw.name, raw.kind || defaults.kind || '');
+      if (config.hidden[id]) return;
+      const override = config.overrides[id] || {};
+      entries.push({
+        ...defaults,
+        ...raw,
+        id,
+        type,
+        group: override.group || group.group,
+        name: override.name || raw.name,
+        originalName: raw.name,
+        custom: false
+      });
+    });
+  });
+
+  config.custom
+    .filter(item => item.type === type)
+    .forEach(item => {
+      if (!config.hidden[item.id]) entries.push({ ...defaults, ...item, custom: true });
+    });
+
+  return groupPantryEntries(entries);
+}
+
+export function getManagedStapleGroups() {
+  return applyPantryCustomConfig(STAPLE_CATALOG, 'staple', {
+    kind: 'staple',
+    source: STAPLE_SOURCE,
+    unit: ''
+  });
+}
+
+export function addCustomPantryEntry({ name, group, type = 'staple', kind = 'staple', unit = '', source = STAPLE_SOURCE, prep = '' } = {}) {
+  const cleanName = String(name || '').trim();
+  if (!cleanName) return { ok: false, message: '名称不能为空。' };
+  const targetType = type === 'pantry' ? 'pantry' : 'staple';
+  const config = loadPantryConfig();
+  const entry = {
+    id: `custom|${targetType}|${Date.now().toString(36)}|${Math.random().toString(36).slice(2, 8)}`,
+    type: targetType,
+    group: normalizePantryGroup(group, targetType),
+    name: cleanName,
+    kind: kind || (targetType === 'pantry' ? 'dry' : 'staple'),
+    unit: unit || '',
+    source: source || STAPLE_SOURCE,
+    prep: prep || '',
+    custom: true,
+    createdAt: new Date().toISOString()
+  };
+  config.custom.push(entry);
+  savePantryConfig(config);
+  return { ok: true, entry };
+}
+
+export function updatePantryEntry(entry, updates = {}) {
+  if (!entry || !entry.id) return { ok: false, message: '没有找到要修改的常备项。' };
+  const cleanName = String(updates.name || '').trim();
+  if (!cleanName) return { ok: false, message: '名称不能为空。' };
+  const config = loadPantryConfig();
+  const group = normalizePantryGroup(updates.group || entry.group, entry.type);
+  if (entry.custom) {
+    const idx = config.custom.findIndex(item => item.id === entry.id);
+    if (idx < 0) return { ok: false, message: '这个自定义项已经不存在。' };
+    config.custom[idx] = {
+      ...config.custom[idx],
+      name: cleanName,
+      group,
+      updatedAt: new Date().toISOString()
+    };
+  } else {
+    config.overrides[entry.id] = {
+      ...(config.overrides[entry.id] || {}),
+      name: cleanName,
+      group,
+      updatedAt: new Date().toISOString()
+    };
+  }
+  savePantryConfig(config);
+  return { ok: true };
+}
+
+export function removePantryEntry(entry) {
+  if (!entry || !entry.id) return { ok: false, message: '没有找到要移除的常备项。' };
+  const config = loadPantryConfig();
+  if (entry.custom) {
+    config.custom = config.custom.filter(item => item.id !== entry.id);
+  } else {
+    config.hidden[entry.id] = true;
+  }
+  savePantryConfig(config);
+  if (entry.type === 'staple') removeOpenStapleShoppingItem(getCanonicalName(entry.name || entry.originalName || ''));
+  return { ok: true };
+}
+
+function isConfiguredStaple(canonical) {
+  return getManagedStapleGroups().some(group => group.items.some(item => getCanonicalName(item.name) === canonical));
+}
+
 export function isStaple(name) {
-  return STAPLE_NAMES.has(getCanonicalName(name || ''));
+  const canonical = getCanonicalName(name || '');
+  return STAPLE_NAMES.has(canonical) || isConfiguredStaple(canonical);
 }
 
 function loadStaples() {
@@ -94,7 +249,7 @@ export function toggleStaple(name) {
 export function restoreStapleByPurchase(name) {
   const c = getCanonicalName(name || '');
   if (!c) return false;
-  if (!STAPLE_NAMES.has(c) && !loadStaples()[c]) return false;
+  if (!STAPLE_NAMES.has(c) && !loadStaples()[c] && !isConfiguredStaple(c)) return false;
   writeStaple(c, STAPLE_STATUS.SUFFICIENT);
   return true;
 }
