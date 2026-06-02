@@ -1,7 +1,7 @@
 import { loadOverlay, saveOverlay } from '../backup.js?v=199';
 import { genId } from '../shopping.js?v=199';
 import { hasRecipeMethod } from '../recommendations.js?v=199';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=199';
+import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=200';
 import { buildCatalog } from '../ingredients.js?v=199';
 import { loadInventory } from '../inventory.js?v=199';
 import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=199';

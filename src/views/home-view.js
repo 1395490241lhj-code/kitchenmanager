@@ -9,7 +9,7 @@ import {
 } from '../recommendations.js?v=199';
 import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=199';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=199';
-import { showRecommendationCards } from '../components/recipe-card.js?v=199';
+import { showRecommendationCards } from '../components/recipe-card.js?v=200';
 import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=199';
 import { renderMenuPlan, renderPlanRangeSelect } from '../components/menu-plan.js?v=199';
 

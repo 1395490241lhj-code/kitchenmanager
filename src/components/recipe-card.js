@@ -125,8 +125,10 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
   }
   card.innerHTML = `
     <div class="recipe-card-head">
-      <h3 class="r-title r-title-link">${r.name}</h3>
-      <div class="recipe-badge-stack">
+      <div class="recipe-card-title-row">
+        <h3 class="r-title r-title-link">${escapeHtml(r.name)}</h3>
+      </div>
+      <div class="recipe-card-action-row recipe-badge-stack">
         ${recipeMethodBadge(r)}${badgeHtml}
       </div>
     </div>
@@ -148,8 +150,8 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
   // 快速删除入口
   const delWrap = attachQuickDelete(r.id, card);
   if (delWrap) {
-    const head = card.querySelector('.recipe-card-head');
-    head.appendChild(delWrap);
+    const actionRow = card.querySelector('.recipe-card-action-row');
+    actionRow.appendChild(delWrap);
   }
   return card;
 }
@@ -162,8 +164,10 @@ export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {
     ? extraInfo.explain.join('；') : reasonText;
   card.innerHTML = `${topHtml}
     <div class="recipe-card-head">
-      <h3 class="r-title">${r.name}</h3>
-      <div class="recipe-badge-stack">
+      <div class="recipe-card-title-row">
+        <h3 class="r-title">${escapeHtml(r.name)}</h3>
+      </div>
+      <div class="recipe-card-action-row recipe-badge-stack">
         ${recipeMethodBadge(r)}
         ${!String(r.id).startsWith('creative-') ? `<button type="button" class="kchip bad small btn-edit" data-id="${r.id}">编辑</button>` : ''}
       </div>
@@ -210,7 +214,7 @@ export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {
     // 快速删除入口（右上角垃圾桶 + 内联确认）
     const delWrap = attachQuickDelete(r.id, card);
     if (delWrap) {
-      card.querySelector('.recipe-badge-stack').appendChild(delWrap);
+      card.querySelector('.recipe-card-action-row').appendChild(delWrap);
     }
   }
   return card;
