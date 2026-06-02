@@ -1,8 +1,8 @@
-import { todayISO } from '../storage.js?v=201';
-import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=201';
-import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=201';
-import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=201';
-import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=201';
+import { todayISO } from '../storage.js?v=202';
+import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=202';
+import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=202';
+import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=202';
+import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=202';
 
 // 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
 const CALIB_EMOJI = [

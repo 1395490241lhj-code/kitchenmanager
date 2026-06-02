@@ -1,4 +1,4 @@
-import { S, todayISO } from './storage.js?v=201';
+import { S, todayISO } from './storage.js?v=202';
 import {
   getCanonicalName,
   getDryPrepText,
@@ -7,7 +7,7 @@ import {
   isDryGoodName,
   normalizeReceiptIngredientName,
   normalizeKitchenAmount
-} from './ingredients.js?v=201';
+} from './ingredients.js?v=202';
 
 export function genId(){
   return 'u-' + Math.random().toString(36).slice(2,8) + '-' + Date.now().toString(36).slice(-4);

@@ -1,16 +1,16 @@
-import { els } from '../dom.js?v=201';
-import { genId } from '../shopping.js?v=201';
+import { els } from '../dom.js?v=202';
+import { genId } from '../shopping.js?v=202';
 import {
   buildCatalog,
   buildIngredientOptions,
   getCanonicalName,
   guessKitchenUnit
-} from '../ingredients.js?v=201';
+} from '../ingredients.js?v=202';
 import {
   applyOverlay,
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=201';
+} from '../backup.js?v=202';
 import {
   escapeHtml,
   escapeOptionAttr,
@@ -18,7 +18,7 @@ import {
   normalizeDifficulty,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=201';
+} from '../components/status.js?v=202';
 
 /**
  * @param {string} id

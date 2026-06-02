@@ -1,4 +1,4 @@
-import { todayISO } from '../storage.js?v=201';
+import { todayISO } from '../storage.js?v=202';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -6,11 +6,11 @@ import {
   guessKitchenUnit,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=201';
+} from '../ingredients.js?v=202';
 import {
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=201';
+} from '../inventory.js?v=202';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -21,13 +21,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=201';
+} from '../shopping.js?v=202';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=201';
+} from '../components/status.js?v=202';
 import {
   PANTRY_GROUP_OPTIONS,
   STAPLE_STATUS,
@@ -39,9 +39,9 @@ import {
   restoreStaplesByPurchase,
   toggleStaple,
   updatePantryEntry
-} from '../staples.js?v=201';
-import { renderInventory } from './inventory-view.js?v=201';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=201';
+} from '../staples.js?v=202';
+import { renderInventory } from './inventory-view.js?v=202';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=202';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;

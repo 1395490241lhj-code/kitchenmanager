@@ -1,20 +1,20 @@
-import { S, todayISO } from '../storage.js?v=201';
-import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=201';
-import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=201';
+import { S, todayISO } from '../storage.js?v=202';
+import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=202';
+import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=202';
 import {
   addMissingRecipeIngredientsToShopping,
   addRecipeToPlan,
   getMissingRecipeIngredients,
   markRecipeCooked
-} from '../recommendations.js?v=201';
+} from '../recommendations.js?v=202';
 import {
   callAiForMethod,
   formatAiErrorMessage,
   withTimeout
-} from '../ai.js?v=201';
-import { loadOverlay, saveOverlay } from '../backup.js?v=201';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=201';
-import { showCalibrationModal } from '../components/modal.js?v=201';
+} from '../ai.js?v=202';
+import { loadOverlay, saveOverlay } from '../backup.js?v=202';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=202';
+import { showCalibrationModal } from '../components/modal.js?v=202';
 
 export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   let r = (pack.recipes || []).find(x => x.id === id);

@@ -1,18 +1,19 @@
 // v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
-import { el, els } from './src/dom.js?v=201';
-import { S } from './src/storage.js?v=201';
-import { applyOverlay, loadOverlay } from './src/backup.js?v=201';
-import { runLocalStorageMigrations } from './src/migrations.js?v=201';
-import { escapeHtml } from './src/components/status.js?v=201';
-import { renderShopping } from './src/views/shopping-view.js?v=201';
-import { renderInventory } from './src/views/inventory-view.js?v=201';
-import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=201';
-import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=201';
-import { renderHome } from './src/views/home-view.js?v=201';
-import { renderRecipes } from './src/views/recipes-view.js?v=201';
-import { renderSettings } from './src/views/settings-view.js?v=201';
-import { applyCompletionOverlay } from './src/recipe-completion.js?v=201';
-import { initTheme } from './src/theme.js?v=201';
+import { el, els } from './src/dom.js?v=202';
+import { S } from './src/storage.js?v=202';
+import { applyOverlay, loadOverlay } from './src/backup.js?v=202';
+import { runLocalStorageMigrations } from './src/migrations.js?v=202';
+import { escapeHtml } from './src/components/status.js?v=202';
+import { renderShopping } from './src/views/shopping-view.js?v=202';
+import { renderInventory } from './src/views/inventory-view.js?v=202';
+import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=202';
+import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=202';
+import { renderHome } from './src/views/home-view.js?v=202';
+import { renderRecipes } from './src/views/recipes-view.js?v=202';
+import { renderSettings } from './src/views/settings-view.js?v=202';
+import { applyCompletionOverlay } from './src/recipe-completion.js?v=202';
+import { initTheme } from './src/theme.js?v=202';
+import { maybeStartOnboarding } from './src/onboarding.js?v=202';
 
 // 尽早应用已保存的外观主题（浅色 / 深色 / 跟随系统），避免首屏闪烁。
 initTheme();
@@ -192,3 +193,6 @@ async function onRoute() {
 
 window.addEventListener('hashchange', onRoute);
 onRoute();
+
+// 首次进入时启动新手引导（内部已判断 km_onboarded_v1，并略延迟等首屏渲染）。
+maybeStartOnboarding();
