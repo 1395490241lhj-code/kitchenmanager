@@ -3476,38 +3476,78 @@ nav a:active { transform: scale(0.94); }
 /* ── 常备货架：双态常备品平铺卡片（采购与库存管理） ── */
 .staple-tile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
   margin: 6px 0 4px;
 }
 .staple-tile {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 9px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--separator);
-  background: var(--bg-card);
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(210, 210, 215, 0.62);
+  background: rgba(255, 255, 255, 0.48);
   cursor: pointer;
   text-align: left;
-  transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
 .staple-tile:active { transform: scale(0.96); }
-.staple-tile-name { font-size: 14px; font-weight: 700; color: var(--text-main); }
-.staple-tile-state { font-size: 11px; font-weight: 600; }
-.staple-tile-time { font-size: 10px; color: var(--text-secondary); opacity: 0.85; }
+.staple-tile-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staple-status-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.14);
+}
 .staple-tile.is-ok {
-  background: var(--status-ok-bg);
-  border-color: var(--status-ok-border);
+  opacity: 0.7;
 }
-.staple-tile.is-ok .staple-tile-state { color: var(--status-ok-text); }
 .staple-tile.is-low {
-  background: var(--status-warn-bg);
-  border-color: var(--status-warn-border);
+  opacity: 1;
+  background: rgba(255, 243, 205, 0.56);
+  border-color: rgba(255, 191, 0, 0.34);
 }
-.staple-tile.is-low .staple-tile-name,
-.staple-tile.is-low .staple-tile-state { color: var(--status-warn-text); }
+.staple-tile.is-low .staple-tile-name { color: var(--status-warn-text); }
+.staple-tile.is-low .staple-status-dot {
+  background: var(--warning);
+  box-shadow: 0 0 0 2px rgba(255, 149, 0, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  .staple-tile {
+    background: rgba(255, 255, 255, 0.055);
+    border-color: rgba(255, 255, 255, 0.10);
+  }
+  .staple-tile.is-low {
+    background: rgba(120, 53, 15, 0.24);
+    border-color: rgba(245, 158, 11, 0.28);
+  }
+}
+
+@media (min-width: 640px) {
+  .staple-tile-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 768px) {
+  .staple-tile-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (min-width: 1024px) {
+  .staple-tile-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
 
 .home-mini-btn {
   display: inline-flex;
@@ -4981,6 +5021,14 @@ html[data-theme="dark"] .menu-plan-empty {
 }
 html[data-theme="dark"] .menu-plan-empty-title { color: rgba(245, 245, 247, 0.95); }
 html[data-theme="dark"] .menu-plan-empty p { color: rgba(235, 235, 245, 0.74); }
+html[data-theme="dark"] .staple-tile {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.10);
+}
+html[data-theme="dark"] .staple-tile.is-low {
+  background: rgba(120, 53, 15, 0.24);
+  border-color: rgba(245, 158, 11, 0.28);
+}
 html[data-theme="light"] .menu-plan-empty {
   background: rgba(255, 255, 255, 0.34);
   border-color: rgba(120, 120, 128, 0.28);
@@ -4988,6 +5036,14 @@ html[data-theme="light"] .menu-plan-empty {
 }
 html[data-theme="light"] .menu-plan-empty-title { color: rgba(110, 110, 115, 0.82); }
 html[data-theme="light"] .menu-plan-empty p { color: rgba(110, 110, 115, 0.62); }
+html[data-theme="light"] .staple-tile {
+  background: rgba(255, 255, 255, 0.48);
+  border-color: rgba(210, 210, 215, 0.62);
+}
+html[data-theme="light"] .staple-tile.is-low {
+  background: rgba(255, 243, 205, 0.56);
+  border-color: rgba(255, 191, 0, 0.34);
+}
 
 /* ── 通用：深色下次要文字统一走更亮的 --text-secondary（变量已提亮）；
    这里再兜底把 .meta / .small 明确指向变量，确保到处都清晰可读。 ── */

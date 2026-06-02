@@ -59,7 +59,7 @@ function togglePantryItem(inv, cfg, currentlyLow) {
   saveInventory(inv);
 }
 
-// 返回 DocumentFragment：蛋奶 / 干货两组，瓦片样式与基础调味料完全一致。
+// 返回 DocumentFragment：蛋奶 / 干货两组，缺货项优先，微型胶囊样式与基础调味料一致。
 export function renderDryGoodsCabinet(inv, options = {}) {
   const onRoute = typeof options.onRoute === 'function' ? options.onRoute : () => {};
   const frag = document.createDocumentFragment();
@@ -69,16 +69,23 @@ export function renderDryGoodsCabinet(inv, options = {}) {
     groupDiv.innerHTML = `<div class="shopping-staple-title">${escapeHtml(group.group)}</div>`;
     const grid = document.createElement('div');
     grid.className = 'staple-tile-grid';
-    group.items.forEach(cfg => {
+    const sortedItems = [...group.items].sort((a, b) => {
+      const aLow = isPantryLow(findStockItem(inv, a.name, a.kind));
+      const bLow = isPantryLow(findStockItem(inv, b.name, b.kind));
+      if (aLow !== bLow) return aLow ? -1 : 1;
+      return a.name.localeCompare(b.name, 'zh-Hans-CN');
+    });
+    sortedItems.forEach(cfg => {
       const item = findStockItem(inv, cfg.name, cfg.kind);
       const low = isPantryLow(item);
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = `staple-tile ${low ? 'is-low' : 'is-ok'}`;
       tile.setAttribute('aria-pressed', low ? 'true' : 'false');
+      tile.setAttribute('aria-label', `${cfg.name}：${low ? '不足，点击标记为充足' : '充足，点击标记为不足'}`);
       tile.innerHTML = `
         <span class="staple-tile-name">${escapeHtml(cfg.name)}</span>
-        <span class="staple-tile-state">${low ? '不足 · 已加清单' : '充足'}</span>
+        <span class="staple-status-dot" aria-hidden="true"></span>
       `;
       tile.onclick = () => { togglePantryItem(inv, cfg, low); onRoute(); };
       grid.appendChild(tile);

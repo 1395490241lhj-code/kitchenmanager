@@ -37,7 +37,7 @@ import {
   toggleStaple
 } from '../staples.js?v=199';
 import { renderInventory } from './inventory-view.js?v=199';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=199';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=200';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;
@@ -122,19 +122,6 @@ function showShoppingInventoryModal(item, onConfirm, onCancel) {
   };
 }
 
-function formatStapleTime(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const today = todayISO();
-  const dISO = d.toISOString().slice(0, 10);
-  if (dISO === today) return '今天补';
-  const diff = Math.round((new Date(today) - new Date(dISO)) / 86400000);
-  if (diff === 1) return '昨天补';
-  if (diff > 1 && diff <= 30) return `${diff} 天前补`;
-  return `补于 ${dISO.slice(5)}`;
-}
-
 // 【常备货架】统一管理：调料/米面（双态常备品）+ 蛋奶/干货（同样的双态瓦片）。
 // 不再使用折叠 <details>，直接返回平铺内容卡片，由分段控件控制显隐。
 function renderStaplesShelf(inv, { onRoute = () => {} } = {}) {
@@ -153,19 +140,23 @@ function renderStaplesShelf(inv, { onRoute = () => {} } = {}) {
     groupDiv.innerHTML = `<div class="shopping-staple-title">${escapeHtml(group.group)}</div>`;
     const grid = document.createElement('div');
     grid.className = 'staple-tile-grid';
-    group.items.forEach(name => {
+    const sortedItems = [...group.items].sort((a, b) => {
+      const aLow = getStapleState(a).status === STAPLE_STATUS.INSUFFICIENT;
+      const bLow = getStapleState(b).status === STAPLE_STATUS.INSUFFICIENT;
+      if (aLow !== bLow) return aLow ? -1 : 1;
+      return a.localeCompare(b, 'zh-Hans-CN');
+    });
+    sortedItems.forEach(name => {
       const state = getStapleState(name);
       const low = state.status === STAPLE_STATUS.INSUFFICIENT;
       const tile = document.createElement('button');
       tile.type = 'button';
       tile.className = `staple-tile ${low ? 'is-low' : 'is-ok'}`;
       tile.setAttribute('aria-pressed', low ? 'true' : 'false');
-      const stateText = low ? '不足 · 已加清单' : '充足';
-      const timeText = (!low && state.updatedAt) ? formatStapleTime(state.updatedAt) : '';
+      tile.setAttribute('aria-label', `${name}：${low ? '不足，点击标记为充足' : '充足，点击标记为不足'}`);
       tile.innerHTML = `
         <span class="staple-tile-name">${escapeHtml(name)}</span>
-        <span class="staple-tile-state">${escapeHtml(stateText)}</span>
-        ${timeText ? `<span class="staple-tile-time">${escapeHtml(timeText)}</span>` : ''}
+        <span class="staple-status-dot" aria-hidden="true"></span>
       `;
       tile.onclick = () => { toggleStaple(name); onRoute(); };
       grid.appendChild(tile);
