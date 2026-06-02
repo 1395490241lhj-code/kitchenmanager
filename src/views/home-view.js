@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=198';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=198';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=198';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=198';
+import { S, todayISO } from '../storage.js?v=199';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=199';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=199';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=199';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=198';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=198';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=198';
-import { showRecommendationCards } from '../components/recipe-card.js?v=198';
-import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=198';
-import { renderMenuPlan, renderPlanRangeSelect } from '../components/menu-plan.js?v=198';
+} from '../recommendations.js?v=199';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=199';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=199';
+import { showRecommendationCards } from '../components/recipe-card.js?v=199';
+import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=199';
+import { renderMenuPlan, renderPlanRangeSelect } from '../components/menu-plan.js?v=199';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────

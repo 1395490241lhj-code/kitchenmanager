@@ -92,7 +92,7 @@ body {
   
   color: var(--text-main);
   margin: 0;
-  padding: 0 0 calc(86px + env(safe-area-inset-bottom, 0px)) 0;
+  padding: 0 0 calc(70px + env(safe-area-inset-bottom, 0px)) 0;
   line-height: 1.6;
   font-size: 16px;
   min-height: 100vh;
@@ -1535,55 +1535,58 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 10px; box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3); letter-spacing: 0.05em; text-transform: uppercase;
 }
 
-/* === 底部导航 (mobile floating capsule) === */
+/* === 底部导航：iOS 原生风格 Docked Tab Bar ===
+   超薄液态底座（半透明 + 强模糊 + 发丝顶边），各项目平铺在通透底座上，
+   彻底移除「灰色药丸 / 图标底色盒子」，仅靠图标与文字的颜色点亮当前位置。 */
 nav {
   position: fixed;
-  /* Floating capsule geometry */
-  left: 14px;
-  right: 14px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-  width: auto;
-  height: 66px;
-  border-radius: var(--radius-nav);
-  /* Glass-nav tier */
-  background: var(--glass-nav-fill);
-  border: 1px solid rgba(255,255,255,0.78);
-  box-shadow: var(--shadow-nav), inset 0 1px 0 rgba(255,255,255,0.90);
-  backdrop-filter: var(--glass-blur-nav);
-  -webkit-backdrop-filter: var(--glass-blur-nav);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  /* 亮色：bg-white/80 + backdrop-blur-xl + 发丝顶边 */
+  background: rgba(255, 255, 255, 0.8);
+  border-top: 0.5px solid rgba(0, 0, 0, 0.12);
+  box-shadow: none;
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
   display: flex;
   justify-content: space-around;
-  align-items: center;
+  align-items: stretch;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
   z-index: 200;
-  /* No padding-bottom — capsule floats above safe area */
 }
 nav a {
-  text-decoration: none; color: #8e8e93; font-size: 12px; font-weight: 600;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  text-decoration: none;
+  color: #8e8e93;                 /* 未激活：柔和系统灰 */
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  min-height: 50px;
-  border-radius: var(--radius-m);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); width: 70px;
-  padding: 0 4px;
+  gap: 3px;
+  flex: 1 1 0;
+  min-height: 48px;
+  padding: 4px 0;
+  background: none;
+  transition: color 0.2s ease;
 }
 nav a svg {
-  width: 32px;
-  height: 32px;
-  padding: 7px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  stroke: currentColor;           /* 图标颜色跟随文字，统一点亮 */
   stroke-width: 2px;
-  border-radius: var(--radius-m);
-  background: rgba(255,255,255,0.38);
-  border: 1px solid rgba(255,255,255,0.62);
-  box-shadow: 0 3px 10px rgba(16,24,40,0.04), inset 0 1px 0 rgba(255,255,255,0.72);
-  transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s, background 0.22s;
+  /* 彻底移除图标底色盒子 */
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  transition: stroke 0.2s ease, transform 0.2s ease;
 }
-nav a.active { color: var(--primary); font-weight: 750; }
-nav a.active svg {
-  stroke: var(--primary);
-  transform: translateY(-3px) scale(1.06);
-  background: rgba(230,242,255,0.86);
-  box-shadow: 0 8px 22px rgba(0,122,255,0.18), inset 0 1px 0 rgba(255,255,255,0.90);
-}
+nav a.active { color: var(--primary); font-weight: 600; }   /* 激活：高亮蓝 + 加粗 */
+nav a.active svg { stroke: var(--primary); }
 
 /* === Liquid glass fallback === */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -1893,31 +1896,16 @@ nav a.active svg {
 
 
 
+  /* 底栏深色：#121214/75 玻璃底座 + 极细白色顶边；图标无盒子，仅颜色点亮。 */
   nav {
-    background: var(--glass-nav-fill);
-    border-color: rgba(255,255,255,0.12);
-    box-shadow: var(--shadow-nav), inset 0 1px 0 rgba(255,255,255,0.08);
+    background: rgba(18, 18, 20, 0.75);
+    border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+    box-shadow: none;
   }
-
-  nav a {
-    color: #8e8e93;
-  }
-
-  nav a svg {
-    background: rgba(35,39,48,0.68);
-    border-color: rgba(255,255,255,0.10);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.07);
-  }
-
-  nav a.active {
-    color: #64b5ff;
-  }
-
-  nav a.active svg {
-    stroke: #64b5ff;
-    background: rgba(10,132,255,0.18);
-    box-shadow: 0 8px 22px rgba(10,132,255,0.22), inset 0 1px 0 rgba(255,255,255,0.12);
-  }
+  nav a { color: rgba(235, 235, 245, 0.6); }     /* 未激活：浅珍珠灰，深色下清晰可辨 */
+  nav a svg { background: none; border: none; box-shadow: none; }
+  nav a.active { color: var(--primary); }
+  nav a.active svg { stroke: var(--primary); }
 
   .add-form-container.open {
     border-color: rgba(10,132,255,0.48);
@@ -2031,8 +2019,11 @@ nav a.active svg {
     border-radius: var(--radius-m);
   }
 
+  /* 桌面侧栏同样仅靠颜色点亮，不再渲染灰色背景盒子。 */
   nav a.active {
-    background: rgba(255,255,255,0.34);
+    background: none;
+    color: var(--primary);
+    font-weight: 600;
   }
 }
 
@@ -2226,9 +2217,9 @@ nav a.active svg {
   .btn { padding: 10px 14px; font-size: 14px; }
   .table th, .table td { padding: 12px 10px; }
   
-  /* Mobile nav: already capsule via base styles, just shrink tap area */
-  nav a { font-size: 11px; }
-  nav a svg { width: 30px; height: 30px; padding: 6px; }
+  /* 窄屏：图标略缩，保持无盒子的 iOS 底栏比例 */
+  nav a { font-size: 10.5px; }
+  nav a svg { width: 25px; height: 25px; padding: 0; }
 }
 
 /* ============================================================
@@ -4975,3 +4966,24 @@ html[data-theme="dark"] .small,
 html[data-theme="dark"] p.small,
 html[data-theme="dark"] span.small,
 html[data-theme="dark"] div.small { color: var(--text-secondary); }
+
+/* ── 底部导航：让深色/浅色底栏样式由 data-theme 统一驱动（system 已解析为具体值），
+   使「手动深色」也能拿到 #121214/75 玻璃底座；并为「手动浅色」补亮色护栏。
+   只覆盖底座配色与图标盒子清除，不动桌面侧栏的阴影 / 整圈边框 / 定位。 ── */
+html[data-theme="dark"] nav {
+  background: rgba(18, 18, 20, 0.75);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] nav a { color: rgba(235, 235, 245, 0.6); }
+html[data-theme="dark"] nav a svg { background: none; border: none; box-shadow: none; }
+html[data-theme="dark"] nav a.active { color: var(--primary); }
+html[data-theme="dark"] nav a.active svg { stroke: var(--primary); }
+
+html[data-theme="light"] nav {
+  background: rgba(255, 255, 255, 0.8);
+  border-top: 0.5px solid rgba(0, 0, 0, 0.12);
+}
+html[data-theme="light"] nav a { color: #8e8e93; }
+html[data-theme="light"] nav a svg { background: none; border: none; box-shadow: none; }
+html[data-theme="light"] nav a.active { color: var(--primary); }
+html[data-theme="light"] nav a.active svg { stroke: var(--primary); }
