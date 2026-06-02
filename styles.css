@@ -92,7 +92,7 @@ body {
   
   color: var(--text-main);
   margin: 0;
-  padding: 0 0 calc(70px + env(safe-area-inset-bottom, 0px)) 0;
+  padding: 0;
   line-height: 1.6;
   font-size: 16px;
   min-height: 100vh;
@@ -115,7 +115,7 @@ body::before {
 #app {
   max-width: 680px;
   margin: 0 auto;
-  padding: 20px 16px;
+  padding: 20px 16px calc(112px + env(safe-area-inset-bottom, 0px));
   min-height: 100vh;
 }
 
@@ -1535,26 +1535,34 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 10px; box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3); letter-spacing: 0.05em; text-transform: uppercase;
 }
 
-/* === 底部导航：iOS 原生风格 Docked Tab Bar ===
-   超薄液态底座（半透明 + 强模糊 + 发丝顶边），各项目平铺在通透底座上，
-   彻底移除「灰色药丸 / 图标底色盒子」，仅靠图标与文字的颜色点亮当前位置。 */
+/* === 底部导航：Floating Liquid Glass Dock ===
+   悬浮液态玻璃 Dock，移动端和桌面端都保持底部胶囊比例。 */
 nav {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  /* 亮色：bg-white/80 + backdrop-blur-xl + 发丝顶边 */
-  background: rgba(255, 255, 255, 0.8);
-  border-top: 0.5px solid rgba(0, 0, 0, 0.12);
-  box-shadow: none;
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  left: 16px;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: auto;
+  max-width: 480px;
+  height: 64px;
+  margin: 0 auto;
+  border-radius: 24px !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.3) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+  backdrop-filter: blur(20px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
   display: flex;
   justify-content: space-around;
-  align-items: stretch;
-  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
-  z-index: 200;
+  align-items: center;
+  padding: 0 10px;
+  z-index: 999;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  overflow: hidden;
 }
 nav a {
   text-decoration: none;
@@ -1567,10 +1575,11 @@ nav a {
   justify-content: center;
   gap: 3px;
   flex: 1 1 0;
-  min-height: 48px;
+  min-height: 52px;
   padding: 4px 0;
   background: none;
-  transition: color 0.2s ease;
+  border-radius: 16px;
+  transition: color 0.2s ease, transform 0.16s ease, background 0.16s ease;
 }
 nav a svg {
   width: 26px;
@@ -1587,6 +1596,7 @@ nav a svg {
 }
 nav a.active { color: var(--primary); font-weight: 600; }   /* 激活：高亮蓝 + 加粗 */
 nav a.active svg { stroke: var(--primary); }
+nav a:active { transform: scale(0.94); }
 
 /* === Liquid glass fallback === */
 @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
@@ -1896,11 +1906,14 @@ nav a.active svg { stroke: var(--primary); }
 
 
 
-  /* 底栏深色：#121214/75 玻璃底座 + 极细白色顶边；图标无盒子，仅颜色点亮。 */
+  /* 底栏深色：黑曜石液态玻璃 Dock。 */
   nav {
-    background: rgba(18, 18, 20, 0.75);
-    border-top: 0.5px solid rgba(255, 255, 255, 0.08);
-    box-shadow: none;
+    background: linear-gradient(135deg, rgba(30, 30, 35, 0.5) 0%, rgba(15, 15, 20, 0.2) 100%) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+    border-top: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow:
+      0 12px 40px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
   }
   nav a { color: rgba(235, 235, 245, 0.6); }     /* 未激活：浅珍珠灰，深色下清晰可辨 */
   nav a svg { background: none; border: none; box-shadow: none; }
@@ -1915,12 +1928,12 @@ nav a.active svg { stroke: var(--primary); }
 /* === 桌面端自适应布局 === */
 @media (min-width: 900px) {
   body {
-    padding: 0 32px 48px 112px;
+    padding: 0 32px;
   }
 
   #app {
     max-width: 1180px;
-    padding: 28px 28px 48px 28px;
+    padding: 28px 28px calc(116px + env(safe-area-inset-bottom, 0px));
   }
 
   .main-title-center {
@@ -1992,34 +2005,29 @@ nav a.active svg { stroke: var(--primary); }
   }
 
   nav {
-    top: 24px;
-    bottom: auto;
-    left: 24px;
-    right: auto;
-    width: 72px;
-    height: auto;
-    min-height: 320px;
-    border-radius: var(--radius-l);
-    border: 1px solid var(--glass-edge);
-    box-shadow: var(--shadow-card);
-    flex-direction: column;
-    justify-content: flex-start;
-    gap: 8px;
-    padding: 14px 10px;
-    /* Desktop: glass-panel tier (less blur than mobile capsule) */
-    backdrop-filter: var(--glass-blur-panel);
-    -webkit-backdrop-filter: var(--glass-blur-panel);
-    background: var(--glass-panel-fill);
+    top: auto;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-width: 480px;
+    height: 64px;
+    min-height: 0;
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 0;
+    padding: 0 10px;
   }
 
   nav a {
-    width: 52px;
-    min-height: 54px;
+    width: auto;
+    min-height: 52px;
+    flex: 1 1 0;
     justify-content: center;
-    border-radius: var(--radius-m);
+    border-radius: 16px;
   }
 
-  /* 桌面侧栏同样仅靠颜色点亮，不再渲染灰色背景盒子。 */
+  /* 桌面 Dock 同样仅靠颜色点亮，不再渲染灰色背景盒子。 */
   nav a.active {
     background: none;
     color: var(--primary);
@@ -2060,7 +2068,7 @@ nav a.active svg { stroke: var(--primary); }
 /* === 移动端专属优化 === */
 @media (max-width: 480px) {
   body { font-size: 15px; }
-  #app { padding: 12px; }
+  #app { padding: 12px 12px calc(112px + env(safe-area-inset-bottom, 0px)); }
   
   .section-title { font-size: 20px; margin: 24px 8px 16px 8px; }
   .card { padding: 16px; border-radius: var(--radius-l); }
@@ -4968,11 +4976,15 @@ html[data-theme="dark"] span.small,
 html[data-theme="dark"] div.small { color: var(--text-secondary); }
 
 /* ── 底部导航：让深色/浅色底栏样式由 data-theme 统一驱动（system 已解析为具体值），
-   使「手动深色」也能拿到 #121214/75 玻璃底座；并为「手动浅色」补亮色护栏。
-   只覆盖底座配色与图标盒子清除，不动桌面侧栏的阴影 / 整圈边框 / 定位。 ── */
+   使「手动深色」也能拿到黑曜石液态底座；并为「手动浅色」补亮色护栏。
+   只覆盖 Dock 底座配色与图标盒子清除，不动定位和尺寸。 ── */
 html[data-theme="dark"] nav {
-  background: rgba(18, 18, 20, 0.75);
-  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(30, 30, 35, 0.5) 0%, rgba(15, 15, 20, 0.2) 100%) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
 }
 html[data-theme="dark"] nav a { color: rgba(235, 235, 245, 0.6); }
 html[data-theme="dark"] nav a svg { background: none; border: none; box-shadow: none; }
@@ -4980,8 +4992,12 @@ html[data-theme="dark"] nav a.active { color: var(--primary); }
 html[data-theme="dark"] nav a.active svg { stroke: var(--primary); }
 
 html[data-theme="light"] nav {
-  background: rgba(255, 255, 255, 0.8);
-  border-top: 0.5px solid rgba(0, 0, 0, 0.12);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.3) !important;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
 }
 html[data-theme="light"] nav a { color: #8e8e93; }
 html[data-theme="light"] nav a svg { background: none; border: none; box-shadow: none; }
