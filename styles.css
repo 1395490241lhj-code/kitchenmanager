@@ -5286,3 +5286,59 @@ html[data-theme="dark"] .calib-step,
 html[data-theme="dark"] .calib-pill { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); }
 html[data-theme="dark"] .calib-pill { color: rgba(235, 235, 245, 0.7); }
 html[data-theme="dark"] .calib-pill.is-active { background: var(--primary); color: #fff; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   「我的购物项」头部工具栏：左侧主操作 + 右侧批量工具组（视觉降噪）
+   颜色全部走 CSS 变量，自动适配浅 / 深色。
+   ══════════════════════════════════════════════════════════════════════════ */
+.shopping-card-head.shopping-toolbar {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;            /* mb-6 */
+  flex-wrap: wrap;
+}
+/* 左侧核心动作：保留 .btn.ok 主色调，醒目 */
+.shopping-add-primary { flex-shrink: 0; }
+
+/* 右侧批量工具按钮组 */
+.shopping-tool-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+/* 工具按钮：弱对比、内敛底色，不抢主视线 */
+.shopping-tool-btn {
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--separator);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+.shopping-tool-btn:hover { color: var(--text-main); border-color: var(--text-secondary); }
+.shopping-tool-btn:active { transform: scale(0.97); }
+.shopping-tool-btn.is-hidden { display: none; }
+
+/* 逐项确认入库：上下文出现，主色文字提示但仍走降噪底色 */
+.shopping-tool-ok { color: var(--primary); }
+.shopping-tool-ok:hover { color: var(--primary-dark); border-color: var(--primary); }
+
+/* 清除已买：默认内敛淡红文字，仅 hover / active 才显色 */
+.shopping-clear-btn { color: #d98c8c; }
+.shopping-clear-btn:hover,
+.shopping-clear-btn:active {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--status-bad-bg);
+}
+html[data-theme="dark"] .shopping-clear-btn { color: #e0a3a3; }
+html[data-theme="dark"] .shopping-clear-btn:hover,
+html[data-theme="dark"] .shopping-clear-btn:active { color: #ff8a80; }

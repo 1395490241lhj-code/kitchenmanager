@@ -1,4 +1,4 @@
-import { todayISO } from '../storage.js?v=200';
+import { todayISO } from '../storage.js?v=201';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -6,11 +6,11 @@ import {
   guessKitchenUnit,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=200';
+} from '../ingredients.js?v=201';
 import {
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=200';
+} from '../inventory.js?v=201';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -21,13 +21,13 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=200';
+} from '../shopping.js?v=201';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=200';
+} from '../components/status.js?v=201';
 import {
   PANTRY_GROUP_OPTIONS,
   STAPLE_STATUS,
@@ -39,9 +39,9 @@ import {
   restoreStaplesByPurchase,
   toggleStaple,
   updatePantryEntry
-} from '../staples.js?v=200';
-import { renderInventory } from './inventory-view.js?v=200';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=200';
+} from '../staples.js?v=201';
+import { renderInventory } from './inventory-view.js?v=201';
+import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=201';
 
 // 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
 let pendingInventoryIntent = null;
@@ -403,16 +403,13 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const itemCard = document.createElement('div');
   itemCard.className = 'card shopping-items-card';
   itemCard.innerHTML = `
-    <div class="shopping-card-head">
-      <div>
-        <p class="meta">同名同单位会自动合并，来源会保留下来。</p>
-      </div>
-      <div class="shopping-bulk-actions">
-        <button type="button" class="btn ok small" id="miniAddItem">＋ 添加项</button>
-        <button type="button" class="btn small" id="copyOpenShopping">复制未买清单</button>
-        <button type="button" class="btn small" id="markAllDone">全部标记已买</button>
-        <button type="button" class="btn ok small is-hidden" id="batchStockIn">逐项确认入库</button>
-        <button type="button" class="btn bad small" id="clearDone">清除已买</button>
+    <div class="shopping-card-head shopping-toolbar">
+      <button type="button" class="btn ok small shopping-add-primary" id="miniAddItem">＋ 添加项</button>
+      <div class="shopping-tool-group">
+        <button type="button" class="shopping-tool-btn" id="copyOpenShopping">复制未买清单</button>
+        <button type="button" class="shopping-tool-btn" id="markAllDone">全部标记已买</button>
+        <button type="button" class="shopping-tool-btn shopping-tool-ok is-hidden" id="batchStockIn">逐项确认入库</button>
+        <button type="button" class="shopping-tool-btn shopping-clear-btn" id="clearDone">清除已买</button>
       </div>
     </div>
   `;
