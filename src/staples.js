@@ -193,6 +193,32 @@ export function isStaple(name) {
   return STAPLE_NAMES.has(canonical) || isConfiguredStaple(canonical);
 }
 
+/**
+ * 常备拦截 —— 判定一个食材是否属于「常备货架（Pantry / Staples）」。
+ * 既支持传入字符串名称，也支持传入带 category / isPantry 标记的食材对象：
+ *   · isPantry === true                         → 常备
+ *   · category === '调味品' 或 category === '常备' → 常备
+ *   · 命中常备目录（STAPLE_CATALOG / 自定义常备） → 常备
+ */
+export function isPantryStaple(ingredient) {
+  if (ingredient && typeof ingredient === 'object') {
+    if (ingredient.isPantry === true) return true;
+    if (ingredient.category === '调味品' || ingredient.category === '常备') return true;
+    return isStaple(ingredient.name || ingredient.item || '');
+  }
+  return isStaple(ingredient || '');
+}
+
+/**
+ * 读取常备货架上某常备品的「货架状态」：
+ *   · 返回 true  → 状态为 0（断货 / INSUFFICIENT），厨房里确实没有了；
+ *   · 返回 false → 状态非 0（充足，货架上仍有），应从缺货明细中强制剔除。
+ * 仅当返回 true 时，该常备品才允许作为缺货项出现。
+ */
+export function isStapleOutOfStock(name) {
+  return getStapleState(name).status === STAPLE_STATUS.INSUFFICIENT;
+}
+
 function loadStaples() {
   const map = S.load(S.keys.staples, {});
   return (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};

@@ -12,6 +12,7 @@ import {
   isIngredientMatch
 } from './inventory.js?v=202';
 import { addShoppingItem } from './shopping.js?v=202';
+import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=202';
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
@@ -177,6 +178,32 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
         unit: ing.unit || guessKitchenUnit(ing.item) || ''
       });
     }
+  }
+
+  // ── 常备拦截机制 ───────────────────────────────────────────────────────
+  // 常备调味品（盐、生抽、香油 等）由「常备货架」按双态管理，不参与普通库存
+  // 缺货判定：
+  //   · 货架状态 ≠ 断货 → 默认充足，强制从缺货明细剔除（不报警、不进弹窗）。
+  //   · 货架状态 = 断货 → 才允许它作为缺货项出现，并补进缺货明细。
+  // 第一步：剔除「有货」的常备品（防御 isSeasoning 漏判，例如别名未归一的写法）。
+  for (let i = missing.length - 1; i >= 0; i--) {
+    const item = missing[i];
+    if (isPantryStaple(item.name || item.item) && !isStapleOutOfStock(item.name || item.item)) {
+      missing.splice(i, 1);
+    }
+  }
+  // 第二步：把菜谱里「断货」的常备品补进缺货明细（若主循环未覆盖）。
+  for (const ing of list) {
+    const name = getCanonicalName(ing.item || ing.name || '');
+    if (!name || !isPantryStaple(name) || !isStapleOutOfStock(name)) continue;
+    if (missing.some(m => (m.name || m.item) === name)) continue;
+    missing.push({
+      item: name,
+      name,
+      qty: ing.qty ?? '',
+      unit: ing.unit || guessKitchenUnit(name) || '',
+      source: 'staple'
+    });
   }
 
   const matchCount = matches.length;
