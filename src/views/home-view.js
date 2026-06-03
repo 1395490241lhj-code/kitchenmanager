@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=204';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=204';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=204';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=204';
+import { S, todayISO } from '../storage.js?v=205';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=205';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=205';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=205';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=204';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=204';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=204';
-import { showRecommendationCards } from '../components/recipe-card.js?v=204';
-import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=204';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=204';
+} from '../recommendations.js?v=205';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=205';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=205';
+import { showRecommendationCards } from '../components/recipe-card.js?v=205';
+import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=205';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=205';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -610,12 +610,12 @@ function renderUrgentMetrics(pack, inv, activeShoppingCount, { onRoute = () => {
         openCleanFridgeHelper(pack, inv, onRoute);
       }
     });
-    const { overlay, close } = createHomeModal(modalBody, '🚨 48 小时内到期食材');
+    const { overlay, close } = createHomeModal(modalBody, '🚨 临期食材明细');
     closeModal = close;
     setTimeout(() => overlay.querySelector('#memoModalInput, input')?.focus?.(), 80);
   };
   section.querySelector('#metricShopping').onclick = () => {
-    const { overlay, close } = createHomeModal(buildShoppingModal(() => close()), '🛒 购物清单待买');
+    const { overlay, close } = createHomeModal(buildShoppingModal(() => close()), '🛒 待买物品清单');
     setTimeout(() => overlay.querySelector('#shoppingModalInput')?.focus?.(), 80);
   };
 
@@ -658,7 +658,7 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
 
   // ── 随手记 → 原地弹窗 ──
   section.querySelector('#actQuickMemo').onclick = () => {
-    const { overlay, close } = createHomeModal(buildMemoModal(() => close()), '📝 随手记');
+    const { overlay, close } = createHomeModal(buildMemoModal(() => close()), '📝 添加待买物品');
     setTimeout(() => {
       overlay.querySelector('#memoModalInput')?.focus?.();
       renderActivity(); // 关闭后刷新动态列
@@ -766,7 +766,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       <button type="button" class="btn ok" id="batchConfirm">确认入库</button>
     </div>
   `;
-  const { overlay, close } = createHomeModal(body, '📦 批量入库');
+  const { overlay, close } = createHomeModal(body, '📦 采购物品入库登记');
 
   let currentTab = (initialTab === 'text' ? 'text' : 'receipt');
   const setTab = (name) => {

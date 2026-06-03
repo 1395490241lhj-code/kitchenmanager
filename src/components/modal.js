@@ -1,8 +1,8 @@
-import { todayISO } from '../storage.js?v=204';
-import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=204';
-import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=204';
-import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=204';
-import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=204';
+import { todayISO } from '../storage.js?v=205';
+import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=205';
+import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=205';
+import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=205';
+import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=205';
 
 // 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
 const CALIB_EMOJI = [
@@ -68,7 +68,7 @@ export function showCalibrationModal(recipeName, predictions, onConfirm, onCance
 
   panel.innerHTML = `
     <div class="km-modal-header calib-header">
-      <span class="km-modal-title">✨ 料理完成！冰箱库存已自动预扣：</span>
+      <span class="km-modal-title">✨ 烹饪消耗确认</span>
       <button type="button" class="km-modal-close" aria-label="关闭">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

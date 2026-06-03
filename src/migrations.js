@@ -1,4 +1,4 @@
-import { S } from './storage.js?v=204';
+import { S } from './storage.js?v=205';
 
 export const APP_VERSION = '151';
 export const DATA_SCHEMA_VERSION = 4;
