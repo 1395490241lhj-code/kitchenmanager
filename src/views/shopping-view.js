@@ -372,7 +372,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const page = document.createElement('div');
   page.className = 'shopping-page';
   page.innerHTML = `
-    <h2 class="section-title">库存管理</h2>
+    <h2 class="section-title">食材管理</h2>
     <div id="shoppingStatus" class="inline-status" hidden></div>
   `;
   const status = page.querySelector('#shoppingStatus');
