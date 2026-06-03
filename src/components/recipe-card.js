@@ -185,38 +185,40 @@ export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {
   const displayItems = coreItems.length > 0 ? coreItems : items;
   displayItems.slice(0, 4).forEach(it => { const span = document.createElement('span'); span.className = 'ing-tag-pill'; span.textContent = it.item; tagContainer.appendChild(span); });
   if (!String(r.id).startsWith('creative-')) {
-    // 复合判定：结合「今天的计划项 + 是否已做完」决定按钮状态，避免做完后锁死在「已加入」。
+    // 复合判定：结合「今天的计划项 + 是否已做完」决定按钮状态。
+    // 关键：只有「今天已加入且尚未做完」才锁为「已加入」；一旦今天已做完(isCooked)，
+    // 按钮彻底释放回默认的「加入清单」，让用户可重新排程（明后天）。
     const today = todayISO();
     const todayRow = (S.load(S.keys.plan, [])).find(x => x.id === r.id && (x.date || today) === today);
     const isCookedToday = !!(todayRow && todayRow.isCooked);
-    const isPlannedToday = !!todayRow && !isCookedToday; // 已加入今天且尚未做
+    const isPlannedToday = !!todayRow && !isCookedToday; // 已加入今天且尚未做 → 锁「已加入」
     const favoriteBtn = document.createElement('button'); favoriteBtn.type = 'button';
     favoriteBtn.className = `btn small favorite-btn${isFavoriteRecipe(r.id) ? ' active' : ''}`;
     favoriteBtn.textContent = isFavoriteRecipe(r.id) ? '常做' : '设为常做';
     favoriteBtn.onclick = () => { toggleFavoriteRecipe(r.id); onRoute(); };
     const btn = document.createElement('button'); btn.type = 'button';
-    btn.className = `btn ok small${isCookedToday ? ' is-cooked-today' : ''}`;
-    // 已做完 → 灰显「今日已做」；已加入未做 → 「已加入」；否则 → 「加入清单」
-    btn.textContent = isCookedToday ? '今日已做' : (isPlannedToday ? '已加入' : '加入清单');
-    if (isCookedToday) {
-      btn.disabled = true;
-      btn.title = '今天已经做过了，可进入菜谱详情为明 / 后天重新排程';
-    } else {
-      btn.onclick = () => {
-        const p = S.load(S.keys.plan, []);
-        // 仅针对「今天」的计划项做切换，避免误删明 / 后天的排程。
-        const i = p.findIndex(x => x.id === r.id && (x.date || today) === today);
-        if (i >= 0) {
-          p.splice(i, 1);
-          S.save(S.keys.plan, p);
-        } else {
-          p.push({ id: r.id, servings: 1, date: today });
-          markRecipePlanned(r.id);
-          S.save(S.keys.plan, p);
-        }
-        onRoute();
-      };
-    }
+    btn.className = 'btn ok small';
+    // 已加入未做 → 「已加入」；其余（含今日已做完）→ 默认「加入清单」，完全释放锁定。
+    btn.textContent = isPlannedToday ? '已加入' : '加入清单';
+    btn.onclick = () => {
+      const p = S.load(S.keys.plan, []);
+      const row = p.find(x => x.id === r.id && (x.date || today) === today);
+      if (row && !row.isCooked) {
+        // 已加入未做 → 再次点击取消今天的排程（仅针对今天，不动明后天）。
+        S.save(S.keys.plan, p.filter(x => x !== row));
+      } else if (row && row.isCooked) {
+        // 今天已做完 → 点击重新排入今日计划（清除已做标记，复用同一条，不产生重复）。
+        delete row.isCooked;
+        delete row.cookedAt;
+        S.save(S.keys.plan, p);
+      } else {
+        // 今天尚未排程 → 加入今日计划。
+        p.push({ id: r.id, servings: 1, date: today });
+        markRecipePlanned(r.id);
+        S.save(S.keys.plan, p);
+      }
+      onRoute();
+    };
     const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className = 'btn small';
     detailBtn.textContent = hasRecipeMethod(r) ? '查看' : '补做法';
     detailBtn.onclick = () => location.hash = `#recipe:${r.id}`;

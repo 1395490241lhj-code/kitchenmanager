@@ -471,7 +471,10 @@ export function computeCookDeductions(coreItems, inv) {
  */
 export function applyCookCalibration(inv, calibrations) {
   for (const c of (calibrations || [])) {
-    const item = c.match && inv.includes(c.match) ? c.match : findStockItem(inv, c.name);
+    // 🛑 幽灵防护：只对「冰箱里原本就存在」的食材执行扣减 / 降档。
+    //    找不到现有库存项（c.match 不在 inv，且按名也查不到）→ 直接跳过，
+    //    绝不为未曾拥有的食材凭空 push 一个数量 0 / 断货的新卡片。
+    const item = (c.match && inv.includes(c.match)) ? c.match : findStockItem(inv, c.name);
     if (!item) continue;
     if (c.unitType === UNIT_TYPE.PIECE) {
       const q = Math.max(0, Math.round(+c.finalQty || 0));
