@@ -1,20 +1,23 @@
 import { els } from '../dom.js?v=205';
 import { todayISO } from '../storage.js?v=205';
 import {
+  UNIT_TYPE,
   buildCatalog,
   buildIngredientOptions,
   getCanonicalName,
   getDryPrepText,
+  getUnitType,
   guessKitchenUnit,
   guessShelfDays,
   isDryGoodName,
   normalizeKitchenAmount
 } from '../ingredients.js?v=205';
 import {
-  inventoryStateInfo,
+  GEAR_LABELS,
+  gearInfo,
+  getItemGear,
   loadInventory,
   mergeInventoryEntry,
-  nextInventoryState,
   remainingDays,
   saveInventory,
   upsertInventory
@@ -34,15 +37,23 @@ import {
   setSelectValueWithOption
 } from '../components/status.js?v=205';import { markShoppingItemsStockedIn } from '../shopping.js?v=205';
 
-function badgeFor(e){
-  if((e.kind || 'raw') === 'dry') return `<span class="kchip dry" title="${escapeOptionAttr(getDryPrepText(e.name))}">干货 · ${escapeHtml(getDryPrepText(e.name))}</span>`;
-  if(e.isFrozen) return `<span class="kchip kchip-frozen" title="点击切换为冷藏">❄️ 冷冻</span>`;
-  const r=remainingDays(e);
-  let html = '';
-  if(r<=1) html = `<span class="kchip bad kchip-clickable" title="点击切换为冷冻">即将过期 ${r}天</span>`;
-  else if(r<=3) html = `<span class="kchip warn kchip-clickable" title="点击切换为冷冻">优先消耗 ${r}天</span>`;
-  else html = `<span class="kchip ok kchip-clickable" title="点击切换为冷冻">新鲜 ${r}天</span>`;
-  return html;
+// 是否真正有货：数量 > 0 且状态不是「没有」，档位型还需未降到「断货」。
+function hasRealStock(e){
+  if((+e.qty || 0) <= 0) return false;
+  if(e.stockStatus === 'empty') return false;
+  if(getUnitType(e.name, e.unit) === UNIT_TYPE.GEAR && getItemGear(e) <= 0) return false;
+  return true;
+}
+
+// 临期提示条：仅在「真正有货」且非干货时渲染，断货/没有的食材强制不渲染。
+function expiryChipHtml(e){
+  if((e.kind || 'raw') === 'dry') return '';
+  if(!hasRealStock(e)) return ''; // 【前置判断】数量为 0 / 断货 → 不渲染临期标签
+  if(e.isFrozen) return `<button type="button" class="inv-expiry-chip is-frozen" title="点击切换为冷藏">❄️ 冷冻</button>`;
+  const r = remainingDays(e);
+  if(r <= 1) return `<button type="button" class="inv-expiry-chip is-danger" title="点击切换为冷冻">即将过期 ${r}天</button>`;
+  if(r <= 3) return `<button type="button" class="inv-expiry-chip is-warn" title="点击切换为冷冻">优先消耗 ${r}天</button>`;
+  return ''; // 新鲜食材无需提示，保持卡片清爽
 }
 
 // 保质期状态 + 剩余百分比（用于卡片底色与倒计时进度条）。
@@ -255,47 +266,66 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     }
     for(const e of filteredInv){
       const card=document.createElement('div');
-      const stockInfo = inventoryStateInfo(e.stockStatus);
       const life = lifeStatus(e);
-      card.className = `inventory-card inventory-row life-${life.key}`;
-      const lifeBar = `<div class="inv-life-bar" title="剩余保质期 ${life.pct}%"><span style="width:${life.pct}%"></span></div>`;
-      card.innerHTML=`
-        <div class="inv-card-head">
-          <span class="inventory-item-name">${e.name}</span>
-          <button class="btn bad small inventory-delete-btn" type="button" aria-label="删除">删</button>
-        </div>
-        <div class="status-cell">${badgeFor(e)}</div>
-        ${lifeBar}
-        <div class="inv-card-foot">
-          <button type="button" class="inventory-status-chip ${stockInfo.className}" title="点击切换厨房状态">${stockInfo.label}</button>
-          <div class="inventory-amount-control"><span>存量</span><input class="qty-input" type="number" min="0" step="1" value="${+e.qty||0}"><small>${e.unit}</small></div>
-        </div>
-        <small class="inventory-item-date">${e.buyDate||'未知'}</small>`;
+      const unitType = e.unitType || getUnitType(e.name, e.unit);
+      card.className = `inventory-card inv-card-v2 inventory-row life-${life.key}`;
 
-      // 点击菜名打开编辑（其余可交互区域阻止冒泡）
+      // ── 双轨制状态徽标 ──────────────────────────────────────────────
+      // GEAR（散装蔬菜/调料）：纯液态状态药丸，按五档位自适应色彩，无输入框、无进度条。
+      // PIECE（计件物资）：菜名旁的优雅件数文本（如「1 盒」「2 个」），无输入框边框。
+      let trackHtml;
+      if(unitType === UNIT_TYPE.GEAR){
+        const gear = gearInfo(getItemGear(e)).value;
+        trackHtml = `<button type="button" class="inv-gear-pill gear-${gear}" title="点击降一档（充足→大半→一半→见底→断货）">${GEAR_LABELS[gear]}</button>`;
+      } else {
+        const qty = +e.qty || 0;
+        const muted = (qty <= 0 || e.stockStatus === 'empty') ? ' is-muted' : '';
+        const countText = qty > 0 ? `${qty} ${escapeHtml(e.unit || '')}`.trim() : '没有';
+        trackHtml = `<span class="inv-piece-count${muted}">${countText}</span>`;
+      }
+
+      const expiryHtml = expiryChipHtml(e);
+
+      // ── 紧凑两层横向流 ─────────────────────────────────────────────
+      // Top Row：左 [食材名][状态药丸/件数]，右 [✕]；Bottom Row：临期提示条（仅有货且临期）。
+      card.innerHTML=`
+        <div class="inv-row-top">
+          <div class="inv-top-left">
+            <span class="inventory-item-name">${escapeHtml(e.name)}</span>
+            ${trackHtml}
+          </div>
+          <span class="inv-del-x" role="button" tabindex="0" aria-label="删除" title="删除">✕</span>
+        </div>
+        ${expiryHtml ? `<div class="inv-row-bottom">${expiryHtml}</div>` : ''}`;
+
+      // 点击菜名打开编辑
       card.querySelector('.inventory-item-name').onclick = () => {
         showEditInventoryModal(e, () => { saveInventory(inv); renderTable(); onInventoryChanged(); });
       };
 
-      const qtyInput = card.querySelector('.qty-input');
-      const stockBtn = card.querySelector('.inventory-status-chip');
-      stockBtn.onclick = () => {
-        e.stockStatus = nextInventoryState(e.stockStatus);
-        saveInventory(inv); renderTable(); onInventoryChanged();
-      };
+      // GEAR 药丸：点击降一档（到断货后循环回充足）；PIECE 件数：点击打开编辑修改数量/单位。
+      if(unitType === UNIT_TYPE.GEAR){
+        card.querySelector('.inv-gear-pill').onclick = () => {
+          const order = [100, 75, 50, 25, 0];
+          const cur = gearInfo(getItemGear(e)).value;
+          const next = order[(order.indexOf(cur) + 1) % order.length];
+          e.gear = next;
+          e.unitType = UNIT_TYPE.GEAR;
+          if(next === 0){ e.stockStatus = 'empty'; e.qty = 0; }
+          else if(next <= 25){ e.stockStatus = 'low'; if(!(+e.qty > 0)) e.qty = 1; }
+          else { e.stockStatus = 'ok'; if(!(+e.qty > 0)) e.qty = 1; }
+          saveInventory(inv); renderTable(); onInventoryChanged();
+        };
+      } else {
+        card.querySelector('.inv-piece-count').onclick = () => {
+          showEditInventoryModal(e, () => { saveInventory(inv); renderTable(); onInventoryChanged(); });
+        };
+      }
 
-      qtyInput.onchange = () => {
-        let newQty = +qtyInput.value || 0;
-        if(newQty < 0) newQty = 0;
-        e.qty = newQty;
-        saveInventory(inv);
-        if(+qtyInput.value < 0) qtyInput.value = 0;
-        onInventoryChanged();
-      };
-
-      const statusCell = card.querySelector('.status-cell');
-      if(statusCell) {
-        statusCell.onclick = () => {
+      // 临期提示条：点击切换冷冻 / 冷藏（保留原有交互）。
+      const expiryChip = card.querySelector('.inv-expiry-chip');
+      if(expiryChip){
+        expiryChip.onclick = () => {
           if((e.kind || 'raw') === 'dry') return;
           e.isFrozen = !e.isFrozen;
           e.shelf = e.isFrozen ? 180 : guessShelfDays(e.name, e.unit);
@@ -303,10 +333,15 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         };
       }
 
-      card.querySelector('.inventory-delete-btn').onclick = () => {
+      // 删除：右上角轻量化小叉。
+      const delX = card.querySelector('.inv-del-x');
+      const doDelete = () => {
         const i = inv.indexOf(e);
         if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); onInventoryChanged(); }
       };
+      delX.onclick = doDelete;
+      delX.onkeydown = (ev) => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); doDelete(); } };
+
       grid.appendChild(card);
     }
   }

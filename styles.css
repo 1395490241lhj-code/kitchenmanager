@@ -3885,6 +3885,102 @@ nav a span { white-space: nowrap; }
 .inventory-card.life-frozen  { background: rgba(0, 122, 255, 0.10); border-left-color: var(--primary); }
 .inventory-card.life-pantry  { background: rgba(120, 120, 128, 0.08); border-left-color: var(--separator); }
 
+/* ════════════════════════════════════════════════════════════════════════
+ * 完整库存 · 极简双轨卡片（v2）
+ *  - 两层横向流：Top[名称 + 状态药丸/件数 ··· ✕]，Bottom[临期提示条]
+ *  - GEAR：液态质感状态药丸（五档自适应色彩）；PIECE：优雅件数文本
+ * ════════════════════════════════════════════════════════════════════════ */
+.inventory-card.inv-card-v2 {
+  position: relative;
+  gap: 6px;
+  padding: 11px 12px;        /* 压缩纵向 padding，让网格更透气（≈ p-3.5） */
+}
+.inv-card-v2 .inv-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+.inv-card-v2 .inv-top-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  /* 给右上角的 ✕ 留出空间，避免长名字压到删除键 */
+  padding-right: 14px;
+}
+.inv-card-v2 .inventory-item-name {
+  flex: 0 1 auto;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 计件型：菜名旁优雅的动宾件数文本，无输入框边框 */
+.inv-card-v2 .inv-piece-count {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.inv-card-v2 .inv-piece-count.is-muted { opacity: 0.6; }
+
+/* 档位型：液态质感状态药丸，五档自适应色彩 */
+.inv-card-v2 .inv-gear-pill {
+  flex: 0 0 auto;
+  max-width: 100%;
+  padding: 2px 9px;
+  border: none;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: saturate(160%);
+  transition: transform 0.12s ease, filter 0.15s ease;
+}
+.inv-card-v2 .inv-gear-pill:active { transform: scale(0.94); }
+.inv-card-v2 .inv-gear-pill.gear-100 { background: rgba(52, 199, 89, 0.16); color: #1f9d57; }   /* 充足 */
+.inv-card-v2 .inv-gear-pill.gear-75  { background: rgba(52, 199, 89, 0.12); color: #2aa563; }   /* 大半 */
+.inv-card-v2 .inv-gear-pill.gear-50  { background: rgba(255, 204, 0, 0.20);  color: #b07c00; }   /* 一半 */
+.inv-card-v2 .inv-gear-pill.gear-25  { background: rgba(255, 149, 0, 0.20);  color: #c2410c; }   /* 见底 */
+.inv-card-v2 .inv-gear-pill.gear-0   { background: rgba(120, 120, 128, 0.18); color: #8a8a8e; }  /* 断货 */
+
+/* 右上角轻量化删除小叉（text-gray-300 → hover text-red-400） */
+.inv-card-v2 .inv-del-x {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 11px;
+  line-height: 1;
+  color: rgba(120, 120, 128, 0.55);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+.inv-card-v2 .inv-del-x:hover,
+.inv-card-v2 .inv-del-x:focus-visible { color: var(--danger); outline: none; }
+
+/* 临期提示条（仅有货且临期时渲染） */
+.inv-card-v2 .inv-row-bottom { display: flex; }
+.inv-card-v2 .inv-expiry-chip {
+  padding: 1px 8px;
+  border: none;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.inv-card-v2 .inv-expiry-chip.is-danger { background: rgba(255, 59, 48, 0.16); color: var(--danger); }
+.inv-card-v2 .inv-expiry-chip.is-warn   { background: rgba(255, 149, 0, 0.18); color: #c2410c; }
+.inv-card-v2 .inv-expiry-chip.is-frozen { background: rgba(0, 122, 255, 0.14); color: var(--primary); }
+
 /* ── 菜谱页：AI 一键导入入口按钮 ── */
 .ai-import-btn {
   display: block;
