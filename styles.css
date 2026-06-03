@@ -1541,6 +1541,16 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 10px; box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3); letter-spacing: 0.05em; text-transform: uppercase;
 }
 
+/* 推荐卡按钮：今天已做完 → 灰显「今日已做」，非高亮、不可点 */
+.btn.ok.small.is-cooked-today {
+  background: rgba(120, 120, 128, 0.18);
+  color: var(--text-secondary);
+  border-color: transparent;
+  box-shadow: none;
+  cursor: default;
+  opacity: 0.85;
+}
+
 /* === 底部导航：Floating Liquid Glass Dock ===
    悬浮液态玻璃 Dock，移动端和桌面端都保持底部胶囊比例。 */
 nav {
