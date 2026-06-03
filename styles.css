@@ -2261,9 +2261,12 @@ nav a:active { transform: scale(0.94); }
 }
 .inventory-toolbar-actions {
   display: flex;
+  flex-direction: row;
+  align-items: center;
   gap: 8px;
   width: 100%;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  margin-bottom: 4px;
 }
 .inventory-export-btn {
   gap: 6px;
@@ -4003,17 +4006,145 @@ html[data-theme="dark"] .inv-card-v2 .inv-frozen-tag {
 .inv-card-v2 .inv-life-line > span.life-expired { background: var(--danger); }
 .inv-card-v2 .inv-life-line > span.life-frozen  { background: var(--primary); }
 
-/* ── 编辑模式：蓝色虚线外框 + 整卡可点 + ✏️ 修改图标 ── */
+/* ════════════════════════════════════════════════════════════════════════
+ * 编辑模式 · 行内就地编辑（In-place Inline Edit）微型表单卡片
+ * ════════════════════════════════════════════════════════════════════════ */
 .inv-card-v2.is-editing {
   border-style: dashed;
   border-color: #60a5fa;
   border-left-color: #60a5fa;
-  cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.15s ease;
 }
-.inv-card-v2.is-editing:hover { box-shadow: 0 4px 14px rgba(96, 165, 250, 0.22); }
-.inv-card-v2.is-editing:active { transform: scale(0.985); }
-.inv-card-v2 .inv-edit-icon { flex: 0 0 auto; font-size: 14px; line-height: 1; opacity: 0.9; }
+.inv-card-v2.inv-ie-card { padding: 12px; gap: 0; cursor: default; }
+
+/* 右上角浅灰删除小叉 */
+.inv-card-v2 .inv-del-x {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 11px;
+  line-height: 1;
+  color: rgba(120, 120, 128, 0.5);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+.inv-card-v2 .inv-del-x:hover,
+.inv-card-v2 .inv-del-x:focus-visible { color: var(--danger); outline: none; }
+
+/* Top Row：名称输入 + 冷冻切换 */
+.inv-ie-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-right: 14px;   /* 给右上角 ✕ 留位 */
+}
+.inv-ie-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--separator);
+  border-radius: 6px;
+}
+.inv-ie-name:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+html[data-theme="dark"] .inv-ie-name { background: rgba(0, 0, 0, 0.2); border-color: rgba(255, 255, 255, 0.14); }
+.inv-ie-freeze {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border: 1px solid var(--separator);
+  border-radius: 7px;
+  background: var(--bg-card);
+  cursor: pointer;
+  filter: grayscale(0.7);
+  opacity: 0.6;
+  transition: all 0.15s ease;
+}
+.inv-ie-freeze.is-on {
+  filter: none;
+  opacity: 1;
+  border-color: #3b82f6;
+  background: rgba(0, 122, 255, 0.12);
+  box-shadow: 0 0 6px rgba(0, 122, 255, 0.30);
+}
+
+/* Bottom Row：保质期 + 双轨存量微调 */
+.inv-ie-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.inv-ie-shelf {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.inv-ie-shelf-input {
+  width: 34px;
+  text-align: center;
+  padding: 2px 2px;
+  font-size: 12px;
+  color: var(--text-main);
+  background: rgba(120, 120, 128, 0.10);
+  border: 1px solid var(--separator);
+  border-radius: 6px;
+}
+.inv-ie-shelf-input:focus { outline: none; border-color: var(--accent); }
+
+/* PIECE 计件步进器 */
+.inv-ie-stepper { display: inline-flex; align-items: center; gap: 8px; }
+.inv-ie-step {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--separator);
+  background: var(--bg-card);
+  color: var(--primary);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.inv-ie-step:active { transform: scale(0.88); }
+.inv-ie-qty { min-width: 18px; text-align: center; font-size: 13px; font-weight: 700; color: var(--text-main); }
+html[data-theme="dark"] .inv-ie-step { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); }
+
+/* GEAR 五档微型圆圈油表 */
+.inv-ie-gears { display: inline-flex; align-items: center; gap: 5px; }
+.inv-ie-gear {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(120, 120, 128, 0.55);
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.inv-ie-gear:hover { transform: scale(1.25); }
+.inv-ie-gear.is-active { border-color: transparent; }
+.inv-ie-gear.gear-100.is-active { background: #1f9d57; }
+.inv-ie-gear.gear-75.is-active  { background: #2aa563; }
+.inv-ie-gear.gear-50.is-active  { background: #d29a00; }
+.inv-ie-gear.gear-25.is-active  { background: #e8731a; }
+.inv-ie-gear.gear-0.is-active   { background: #9a9aa0; }
 
 /* ── 顶部「编辑食材」全局切换按钮 ── */
 .inv-edit-toggle {
@@ -4040,59 +4171,6 @@ html[data-theme="dark"] .inv-card-v2 .inv-frozen-tag {
 html[data-theme="dark"] .inv-edit-toggle { background: rgba(255, 255, 255, 0.10); color: #ebebf5; }
 html[data-theme="dark"] .inv-edit-toggle:hover { background: rgba(255, 255, 255, 0.16); }
 html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); color: #fff; }
-
-/* ── 食材属性修正舱（液态玻璃弹窗）── */
-.ingredient-edit-modal { max-width: 380px; }
-.cabin-body { display: grid; gap: 14px; }
-.cabin-field span { color: var(--text-secondary); font-size: 12px; font-weight: 800; }
-.cabin-seg {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-.cabin-seg-btn {
-  padding: 9px 6px;
-  border-radius: 10px;
-  border: 1px solid var(--separator);
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
-}
-.cabin-seg-btn:active { transform: scale(0.97); }
-.cabin-seg-btn.is-active {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-  font-weight: 800;
-  box-shadow: var(--shadow-sm);
-}
-html[data-theme="dark"] .cabin-seg-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: rgba(235, 235, 245, 0.7); }
-html[data-theme="dark"] .cabin-seg-btn.is-active { background: var(--primary); color: #fff; }
-.cabin-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-}
-.cabin-qty-readout { font-size: 14px; color: var(--text-secondary); min-width: 56px; text-align: center; }
-.cabin-qty-readout .cabin-qty { font-size: 18px; font-weight: 800; color: var(--text-main); }
-.cabin-delete-link {
-  margin-top: 2px;
-  align-self: flex-start;
-  padding: 4px 0;
-  background: none;
-  border: none;
-  color: var(--danger);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.cabin-delete-link:hover { text-decoration: underline; }
-.cabin-actions { margin-top: 4px; }
-.cabin-actions .btn,
-.cabin-save { width: 100%; padding: 13px; font-size: 15px; font-weight: 700; border-radius: 14px; }
 
 /* ── 菜谱页：AI 一键导入入口按钮 ── */
 .ai-import-btn {

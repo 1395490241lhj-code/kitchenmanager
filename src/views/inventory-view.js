@@ -28,7 +28,6 @@ import {
   withTimeout
 } from '../ai.js?v=205';
 import {
-  showIngredientEditModal,
   showReceiptConfirmationModal
 } from '../components/modal.js?v=205';
 import {
@@ -46,6 +45,15 @@ function hasRealStock(e){
   if(e.stockStatus === 'empty') return false;
   if(getUnitType(e.name, e.unit) === UNIT_TYPE.GEAR && getItemGear(e) <= 0) return false;
   return true;
+}
+
+// 把档位值写回食材，并同步 stockStatus / qty（与做菜扣减逻辑保持一致）。
+function applyGearToItem(e, value){
+  e.gear = value;
+  e.unitType = UNIT_TYPE.GEAR;
+  if(value === 0){ e.stockStatus = 'empty'; e.qty = 0; }
+  else if(value <= 25){ e.stockStatus = 'low'; if(!(+e.qty > 0)) e.qty = 1; }
+  else { e.stockStatus = 'ok'; if(!(+e.qty > 0)) e.qty = 1; }
 }
 
 // 双轨制状态徽标：GEAR → 五档液态药丸；PIECE → 优雅件数文本。
@@ -130,7 +138,14 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   editBtn.onclick = () => {
     isEditingInventory = !isEditingInventory;
     syncEditBtn();
-    renderTable();
+    // 「✓ 完成」时把行内就地编辑的最新数组一次性持久化并通知外部刷新。
+    if (!isEditingInventory) {
+      saveInventory(inv);
+      renderTable();
+      onInventoryChanged();
+    } else {
+      renderTable();
+    }
   };
   syncEditBtn();
 
@@ -289,40 +304,98 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       const life = lifeStatus(e);
       const unitType = e.unitType || getUnitType(e.name, e.unit);
       const inStock = hasRealStock(e);
-      const frozenTag = e.isFrozen
-        ? `<span class="inv-frozen-tag" title="冷冻保存中">🧊 冷冻</span>`
-        : '';
 
-      // 打开「食材属性修正舱」弹窗（编辑模式整卡点击 / 只读模式点名称）。
-      const openEditCabin = () => {
-        showIngredientEditModal(e, {
-          unitType,
-          onSave: () => { saveInventory(inv); renderTable(); onInventoryChanged(); },
-          onDelete: () => {
-            const i = inv.indexOf(e);
-            if(i >= 0){ inv.splice(i,1); saveInventory(inv); renderTable(); onInventoryChanged(); }
-          }
-        });
+      // 删除当前食材（编辑模式行内小叉）：仅改本地数组并重渲染，持久化留到「✓ 完成」。
+      const deleteItem = () => {
+        const i = inv.indexOf(e);
+        if(i >= 0){ inv.splice(i,1); renderTable(); }
       };
 
       if(isEditingInventory){
-        // ── 编辑模式：蓝色虚线外框 + ✏️ 修改图标，点击整卡呼出修正舱 ──
-        card.className = `inventory-card inv-card-v2 is-editing inventory-row life-${life.key}`;
+        // ── 行内就地编辑：双行紧凑型微型表单卡片（无弹窗）──
+        card.className = `inventory-card inv-card-v2 inv-ie-card is-editing inventory-row life-${life.key}`;
+
+        // 存量微调控件：PIECE → 步进器；GEAR → 5 个微型档位圆圈。
+        const gearCur = gearInfo(getItemGear(e)).value;
+        const stockControl = unitType === UNIT_TYPE.PIECE
+          ? `<div class="inv-ie-stepper">
+               <button type="button" class="inv-ie-step" data-step="-1" aria-label="减少">−</button>
+               <span class="inv-ie-qty">${+e.qty || 0}</span>
+               <button type="button" class="inv-ie-step" data-step="1" aria-label="增加">+</button>
+             </div>`
+          : `<div class="inv-ie-gears" role="group" aria-label="油表档位">${
+               [100, 75, 50, 25, 0].map(g => `<button type="button" class="inv-ie-gear gear-${g}${g === gearCur ? ' is-active' : ''}" data-gear="${g}" title="${GEAR_LABELS[g]}" aria-label="${GEAR_LABELS[g]}"></button>`).join('')
+             }</div>`;
+
         card.innerHTML = `
-          <div class="inv-row-top">
-            <div class="inv-top-left">
-              <span class="inventory-item-name">${escapeHtml(e.name)}</span>
-              ${frozenTag}
-            </div>
-            <span class="inv-edit-icon" aria-hidden="true">✏️</span>
-          </div>`;
-        card.onclick = openEditCabin;
+          <div class="inv-ie-top">
+            <input type="text" class="inv-ie-name" value="${escapeOptionAttr(e.name)}" aria-label="食材名称">
+            <button type="button" class="inv-ie-freeze${e.isFrozen ? ' is-on' : ''}" title="冷冻切换" aria-label="冷冻切换" aria-pressed="${e.isFrozen ? 'true' : 'false'}">🧊</button>
+          </div>
+          <div class="inv-ie-bottom">
+            <label class="inv-ie-shelf">
+              <input type="number" min="0" step="1" class="inv-ie-shelf-input" value="${Number(e.shelf) || 0}" aria-label="保质期天数"> 天
+            </label>
+            <div class="inv-ie-stock">${stockControl}</div>
+          </div>
+          <span class="inv-del-x" role="button" tabindex="0" aria-label="删除" title="删除">✕</span>`;
+
+        // 名称：失焦 / 变更时写回本地 State（空值则回退原名）。
+        const nameInput = card.querySelector('.inv-ie-name');
+        const commitName = () => { const v = nameInput.value.trim(); if(v) e.name = v; else nameInput.value = e.name; };
+        nameInput.onchange = commitName;
+        nameInput.onblur = commitName;
+
+        // 保质期：写回 e.shelf（≥ 0）。
+        const shelfInput = card.querySelector('.inv-ie-shelf-input');
+        const commitShelf = () => { let n = Math.max(0, Math.round(+shelfInput.value || 0)); e.shelf = n; shelfInput.value = n; };
+        shelfInput.onchange = commitShelf;
+        shelfInput.onblur = commitShelf;
+
+        // 冷冻：原地取反，仅切换高亮，不重渲染。
+        const freezeBtn = card.querySelector('.inv-ie-freeze');
+        freezeBtn.onclick = () => {
+          e.isFrozen = !e.isFrozen;
+          freezeBtn.classList.toggle('is-on', e.isFrozen);
+          freezeBtn.setAttribute('aria-pressed', e.isFrozen ? 'true' : 'false');
+        };
+
+        // 存量微调：原地加减 / 切档，仅更新局部 DOM，不重渲染。
+        if(unitType === UNIT_TYPE.PIECE){
+          const qtyEl = card.querySelector('.inv-ie-qty');
+          card.querySelectorAll('.inv-ie-step').forEach(btn => {
+            btn.onclick = () => {
+              const next = Math.max(0, (+e.qty || 0) + (+btn.dataset.step));
+              e.qty = next;
+              e.unitType = UNIT_TYPE.PIECE;
+              e.stockStatus = next <= 0 ? 'empty' : 'ok';
+              qtyEl.textContent = next;
+            };
+          });
+        } else {
+          const circles = card.querySelectorAll('.inv-ie-gear');
+          circles.forEach(circle => {
+            circle.onclick = () => {
+              applyGearToItem(e, +circle.dataset.gear);
+              circles.forEach(c => c.classList.toggle('is-active', c === circle));
+            };
+          });
+        }
+
+        // 删除小叉。
+        const delX = card.querySelector('.inv-del-x');
+        delX.onclick = deleteItem;
+        delX.onkeydown = (ev) => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); deleteItem(); } };
+
         grid.appendChild(card);
         continue;
       }
 
       // ── 只读模式：双层卡片（核心信息轴 + 生命周期轴）──
       card.className = `inventory-card inv-card-v2 inventory-row life-${life.key}`;
+      const frozenTag = e.isFrozen
+        ? `<span class="inv-frozen-tag" title="冷冻保存中">🧊 冷冻</span>`
+        : '';
       const trackHtml = trackHtmlFor(e, unitType);
 
       // 生命周期轴：仅有货且非干货时显示「剩余 X 天」+ 底部 2px 自适应进度线。
@@ -347,24 +420,14 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         </div>
         ${lifeAxisHtml}`;
 
-      // 点击菜名 → 打开修正舱。
-      card.querySelector('.inventory-item-name').onclick = openEditCabin;
-
-      // GEAR 药丸：点击降一档（到断货后循环回充足）；PIECE 件数：点击打开修正舱。
+      // GEAR 药丸：只读模式仍支持「点击降一档」快捷消耗（非弹窗，立即持久化）。
       if(unitType === UNIT_TYPE.GEAR){
         card.querySelector('.inv-gear-pill').onclick = () => {
           const order = [100, 75, 50, 25, 0];
           const cur = gearInfo(getItemGear(e)).value;
-          const next = order[(order.indexOf(cur) + 1) % order.length];
-          e.gear = next;
-          e.unitType = UNIT_TYPE.GEAR;
-          if(next === 0){ e.stockStatus = 'empty'; e.qty = 0; }
-          else if(next <= 25){ e.stockStatus = 'low'; if(!(+e.qty > 0)) e.qty = 1; }
-          else { e.stockStatus = 'ok'; if(!(+e.qty > 0)) e.qty = 1; }
+          applyGearToItem(e, order[(order.indexOf(cur) + 1) % order.length]);
           saveInventory(inv); renderTable(); onInventoryChanged();
         };
-      } else {
-        card.querySelector('.inv-piece-count').onclick = openEditCabin;
       }
 
       grid.appendChild(card);
