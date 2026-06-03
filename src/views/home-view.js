@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=203';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=203';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=203';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=203';
+import { S, todayISO } from '../storage.js?v=204';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=204';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=204';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=204';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=203';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=203';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=203';
-import { showRecommendationCards } from '../components/recipe-card.js?v=203';
-import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=203';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=203';
+} from '../recommendations.js?v=204';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=204';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=204';
+import { showRecommendationCards } from '../components/recipe-card.js?v=204';
+import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=204';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=204';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   const section = document.createElement('section');
   section.className = `home-hero${extraNode ? ' is-combo' : ''}`;
 
-  const eyebrow = extraNode ? '📅 今日饮食与灵感' : '🧠 今日灵感';
+  const eyebrow = extraNode ? '📅 今日计划' : '🧠 今日灵感';
 
   // 标题行：计划范围筛选器由外层注入，避免卡片内部再出现一层标题。
   const headEl = document.createElement('div');
@@ -585,7 +585,7 @@ function renderUrgentMetrics(pack, inv, activeShoppingCount, { onRoute = () => {
     <button type="button" class="home-metric ${radarTone}" id="metricExpiring">
       <span class="home-metric-header">
         <span class="home-metric-icon">🚨</span>
-        <span class="home-metric-label">48小时内到期</span>
+        <span class="home-metric-label">48h 临期</span>
       </span>
       <span class="home-metric-num">${expiring48.length}</span>
       <span class="home-metric-sub">种食材</span>
@@ -593,7 +593,7 @@ function renderUrgentMetrics(pack, inv, activeShoppingCount, { onRoute = () => {
     <button type="button" class="home-metric is-info" id="metricShopping">
       <span class="home-metric-header">
         <span class="home-metric-icon">🛒</span>
-        <span class="home-metric-label">购物清单待买</span>
+        <span class="home-metric-label">待买清单</span>
       </span>
       <span class="home-metric-num">${activeShoppingCount}</span>
       <span class="home-metric-sub">项未完成</span>
@@ -628,8 +628,8 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
   section.className = 'home-actions-hub';
   section.innerHTML = `
     <div class="home-actions-grid">
-      <button type="button" class="home-act-btn" id="actQuickInput"><span class="home-act-emoji">📦</span><span>批量入库</span></button>
-      <button type="button" class="home-act-btn" id="actQuickMemo"><span class="home-act-emoji">📝</span><span>随手记</span></button>
+      <button type="button" class="home-act-btn" id="actQuickInput"><span class="home-act-emoji">📦</span><span>采购存入</span></button>
+      <button type="button" class="home-act-btn" id="actQuickMemo"><span class="home-act-emoji">📝</span><span>速加待买</span></button>
     </div>
     <div class="home-activity" id="homeActivity"></div>
   `;
@@ -861,7 +861,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     return container;
   }
 
-  // 自上而下视觉层级：① 紧急指标 ②「📅 今日饮食与灵感」合并卡（菜单计划置顶 + AI 灵感居底） ③ 极速操作
+  // 自上而下视觉层级：① 紧急指标 ②「📅 今日计划」合并卡（菜单计划置顶 + AI 灵感居底） ③ 极速操作
   container.appendChild(renderUrgentMetrics(pack, inv, activeShopping.length, { onRoute }));
   const menuPlanNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
   // 头部动作区：「✓ 全部做完」批量按钮在「只看今天」下拉框左侧。

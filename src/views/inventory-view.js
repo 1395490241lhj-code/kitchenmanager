@@ -1,5 +1,5 @@
-import { els } from '../dom.js?v=203';
-import { todayISO } from '../storage.js?v=203';
+import { els } from '../dom.js?v=204';
+import { todayISO } from '../storage.js?v=204';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -9,7 +9,7 @@ import {
   guessShelfDays,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=203';
+} from '../ingredients.js?v=204';
 import {
   inventoryStateInfo,
   loadInventory,
@@ -18,21 +18,21 @@ import {
   remainingDays,
   saveInventory,
   upsertInventory
-} from '../inventory.js?v=203';
+} from '../inventory.js?v=204';
 import {
   formatAiErrorMessage,
   recognizeReceipt,
   withTimeout
-} from '../ai.js?v=203';
+} from '../ai.js?v=204';
 import {
   showEditInventoryModal,
   showReceiptConfirmationModal
-} from '../components/modal.js?v=203';
+} from '../components/modal.js?v=204';
 import {
   escapeHtml,
   escapeOptionAttr,
   setSelectValueWithOption
-} from '../components/status.js?v=203';import { markShoppingItemsStockedIn } from '../shopping.js?v=203';
+} from '../components/status.js?v=204';import { markShoppingItemsStockedIn } from '../shopping.js?v=204';
 
 function badgeFor(e){
   if((e.kind || 'raw') === 'dry') return `<span class="kchip dry" title="${escapeOptionAttr(getDryPrepText(e.name))}">干货 · ${escapeHtml(getDryPrepText(e.name))}</span>`;

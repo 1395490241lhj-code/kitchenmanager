@@ -1,19 +1,19 @@
 // v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
-import { el, els } from './src/dom.js?v=203';
-import { S } from './src/storage.js?v=203';
-import { applyOverlay, loadOverlay } from './src/backup.js?v=203';
-import { runLocalStorageMigrations } from './src/migrations.js?v=203';
-import { escapeHtml } from './src/components/status.js?v=203';
-import { renderShopping } from './src/views/shopping-view.js?v=203';
-import { renderInventory } from './src/views/inventory-view.js?v=203';
-import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=203';
-import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=203';
-import { renderHome } from './src/views/home-view.js?v=203';
-import { renderRecipes } from './src/views/recipes-view.js?v=203';
-import { renderSettings } from './src/views/settings-view.js?v=203';
-import { applyCompletionOverlay } from './src/recipe-completion.js?v=203';
-import { initTheme } from './src/theme.js?v=203';
-import { maybeStartOnboarding } from './src/onboarding.js?v=203';
+import { el, els } from './src/dom.js?v=204';
+import { S } from './src/storage.js?v=204';
+import { applyOverlay, loadOverlay } from './src/backup.js?v=204';
+import { runLocalStorageMigrations } from './src/migrations.js?v=204';
+import { escapeHtml } from './src/components/status.js?v=204';
+import { renderShopping } from './src/views/shopping-view.js?v=204';
+import { renderInventory } from './src/views/inventory-view.js?v=204';
+import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=204';
+import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=204';
+import { renderHome } from './src/views/home-view.js?v=204';
+import { renderRecipes } from './src/views/recipes-view.js?v=204';
+import { renderSettings } from './src/views/settings-view.js?v=204';
+import { applyCompletionOverlay } from './src/recipe-completion.js?v=204';
+import { initTheme } from './src/theme.js?v=204';
+import { maybeStartOnboarding } from './src/onboarding.js?v=204';
 
 // 尽早应用已保存的外观主题（浅色 / 深色 / 跟随系统），避免首屏闪烁。
 initTheme();
