@@ -2263,10 +2263,15 @@ nav a:active { transform: scale(0.94); }
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;   /* 两极分流：左功能组 ←→ 右管理组 */
   width: 100%;
-  justify-content: flex-start;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+}
+.inventory-toolbar-left,
+.inventory-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .inventory-export-btn {
   gap: 6px;
@@ -4157,7 +4162,6 @@ html[data-theme="dark"] .inv-ie-step { background: rgba(255, 255, 255, 0.08); bo
 
 /* ── 顶部「编辑食材」全局切换按钮 ── */
 .inv-edit-toggle {
-  margin-right: 8px;
   display: inline-flex;
   align-items: center;
   gap: 4px;

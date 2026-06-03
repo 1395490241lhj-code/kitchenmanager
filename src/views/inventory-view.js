@@ -92,20 +92,26 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
 
   searchDiv.innerHTML = `
     <div class="inventory-toolbar-actions">
-      <button type="button" class="inv-edit-toggle" id="toggleEditBtn" title="进入/退出编辑模式">
-        <span class="inv-edit-toggle-label">✏️ 编辑食材</span>
-      </button>
-      <button type="button" class="btn small inventory-export-btn" id="exportInventoryBtn" title="导出库存">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-        <span>导出库存</span>
-      </button>
-      <label class="btn ai icon-only inventory-camera-label">
-        <input type="file" id="camInput" accept="image/*" class="visually-hidden">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-      </label>
-      <button type="button" class="btn ok icon-only" id="toggleAddBtn">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      </button>
+      <!-- 左侧动作组（功能抓取）：相机 + 新增 -->
+      <div class="inventory-toolbar-left">
+        <label class="btn ai icon-only inventory-camera-label">
+          <input type="file" id="camInput" accept="image/*" class="visually-hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </label>
+        <button type="button" class="btn ok icon-only" id="toggleAddBtn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+      </div>
+      <!-- 右侧动作组（系统管理）：编辑 + 导出 -->
+      <div class="inventory-toolbar-right">
+        <button type="button" class="inv-edit-toggle" id="toggleEditBtn" title="进入/退出编辑模式">
+          <span class="inv-edit-toggle-label">✏️ 编辑食材</span>
+        </button>
+        <button type="button" class="btn small inventory-export-btn" id="exportInventoryBtn" title="导出库存">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span>导出库存</span>
+        </button>
+      </div>
     </div>
     <div id="scanStatus" class="small inventory-scan-status"></div>
   `;
