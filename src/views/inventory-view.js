@@ -14,12 +14,14 @@ import {
 } from '../ingredients.js?v=205';
 import {
   GEAR_LABELS,
+  OUT_OF_STOCK_TTL_MS,
   gearInfo,
   getItemGear,
   loadInventory,
   mergeInventoryEntry,
   remainingDays,
   saveInventory,
+  syncOutOfStockTimestamp,
   upsertInventory
 } from '../inventory.js?v=205';
 import {
@@ -54,6 +56,7 @@ function applyGearToItem(e, value){
   if(value === 0){ e.stockStatus = 'empty'; e.qty = 0; }
   else if(value <= 25){ e.stockStatus = 'low'; if(!(+e.qty > 0)) e.qty = 1; }
   else { e.stockStatus = 'ok'; if(!(+e.qty > 0)) e.qty = 1; }
+  syncOutOfStockTimestamp(e); // 降到断货 → 打时间戳；提升复活 → 清空
 }
 
 // 双轨制状态徽标：GEAR → 五档液态药丸；PIECE → 优雅件数文本。
@@ -294,9 +297,27 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   };
   function renderTable(){
     grid.innerHTML='';
+
+    // ① 自蒸发（Auto-Evaporation）：断货时间戳存在且已超过 7 天 TTL 的食材，
+    //    直接从源数组物理剔除并持久化，让其在界面上无感自然消失。
+    const now = Date.now();
+    let evaporated = false;
+    for(let i = inv.length - 1; i >= 0; i--){
+      const it = inv[i];
+      if(it.outOfStockAt && (now - it.outOfStockAt) > OUT_OF_STOCK_TTL_MS){
+        inv.splice(i, 1);
+        evaporated = true;
+      }
+    }
+    if(evaporated) saveInventory(inv);
+
     const filteredInv = inv;
-    // 按紧急程度降序：过期 → 临期 → 新鲜/冷冻 → 常备干货；同档按剩余天数升序。
+    // ② 排序：最高优先级——未满 7 天的断货「幽灵卡片」(outOfStockAt 非空) 强行沉底；
+    //    其余按紧急程度：过期 → 临期 → 新鲜/冷冻 → 常备干货；同档按剩余天数升序。
     filteredInv.sort((a, b) => {
+      const aGhost = a.outOfStockAt ? 1 : 0;
+      const bGhost = b.outOfStockAt ? 1 : 0;
+      if (aGhost !== bGhost) return aGhost - bGhost; // 幽灵(1) 永远排在有货(0) 之后
       const la = lifeStatus(a), lb = lifeStatus(b);
       if (la.rank !== lb.rank) return la.rank - lb.rank;
       return remainingDays(a) - remainingDays(b);
@@ -347,14 +368,15 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           <span class="inv-del-x" role="button" tabindex="0" aria-label="删除" title="删除">✕</span>`;
 
         // 名称：失焦 / 变更时写回本地 State（空值则回退原名）。
+        // 人工修改名称视为「主动管理」→ 强制清空断货时间戳，重置自蒸发倒计时。
         const nameInput = card.querySelector('.inv-ie-name');
-        const commitName = () => { const v = nameInput.value.trim(); if(v) e.name = v; else nameInput.value = e.name; };
+        const commitName = () => { const v = nameInput.value.trim(); if(v) e.name = v; else nameInput.value = e.name; e.outOfStockAt = null; };
         nameInput.onchange = commitName;
         nameInput.onblur = commitName;
 
-        // 保质期：写回 e.shelf（≥ 0）。
+        // 保质期：写回 e.shelf（≥ 0）；人工修改同样强制清空断货时间戳。
         const shelfInput = card.querySelector('.inv-ie-shelf-input');
-        const commitShelf = () => { let n = Math.max(0, Math.round(+shelfInput.value || 0)); e.shelf = n; shelfInput.value = n; };
+        const commitShelf = () => { let n = Math.max(0, Math.round(+shelfInput.value || 0)); e.shelf = n; shelfInput.value = n; e.outOfStockAt = null; };
         shelfInput.onchange = commitShelf;
         shelfInput.onblur = commitShelf;
 
@@ -375,6 +397,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
               e.qty = next;
               e.unitType = UNIT_TYPE.PIECE;
               e.stockStatus = next <= 0 ? 'empty' : 'ok';
+              syncOutOfStockTimestamp(e); // 减到 0 → 打时间戳；加回 → 清空
               qtyEl.textContent = next;
             };
           });
@@ -398,7 +421,9 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       }
 
       // ── 只读模式：双层卡片（核心信息轴 + 生命周期轴）──
-      card.className = `inventory-card inv-card-v2 inventory-row life-${life.key}`;
+      // 未满 7 天的断货幽灵卡片：灰度去色 + 半透明，沉底且不抢视线。
+      const ghostClass = e.outOfStockAt ? ' is-ghost' : '';
+      card.className = `inventory-card inv-card-v2 inventory-row life-${life.key}${ghostClass}`;
       const frozenTag = e.isFrozen
         ? `<span class="inv-frozen-tag" title="冷冻保存中">🧊 冷冻</span>`
         : '';

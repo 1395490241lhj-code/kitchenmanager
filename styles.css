@@ -3912,6 +3912,13 @@ nav a span { white-space: nowrap; }
 .inventory-card.inv-card-v2.life-fresh,
 .inventory-card.inv-card-v2.life-frozen,
 .inventory-card.inv-card-v2.life-pantry { border-left-color: var(--separator); }
+
+/* 断货幽灵卡片（断货未满 7 天）：灰度去色 + 半透明，沉底不抢视线，但仍可交互 */
+.inventory-card.inv-card-v2.is-ghost {
+  opacity: 0.4;
+  filter: saturate(0.5);
+  pointer-events: auto;
+}
 .inv-card-v2 .inv-row-top {
   display: flex;
   align-items: center;

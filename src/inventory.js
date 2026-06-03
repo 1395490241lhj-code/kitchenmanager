@@ -55,6 +55,35 @@ export function isInventoryAvailable(item) {
   return item && item.stockStatus !== 'empty' && (+item.qty || 0) > 0;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+ * 断货物资智能生命周期（TTL 自蒸发）
+ *  - 任一会改变存量/档位的操作后调用 syncOutOfStockTimestamp：
+ *      · 断货（数量≤0 / 状态 empty / 档位 0）→ 若尚无时间戳则盖 outOfStockAt = Date.now()
+ *      · 复活（数量>0 / 档位提升）→ 强制 outOfStockAt = null
+ *  - 渲染前用 OUT_OF_STOCK_TTL_MS 过滤：断货超 7 天的食材物理蒸发。
+ * ══════════════════════════════════════════════════════════════════════════ */
+export const OUT_OF_STOCK_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7天（如需 10 天改为 10 * 24 * 60 * 60 * 1000）
+
+// 判定食材当前是否「断货 / 没有」：数量≤0、状态 empty，或档位降到 0。
+export function isOutOfStock(item) {
+  if (!item) return false;
+  if (item.stockStatus === 'empty') return true;
+  if ((+item.qty || 0) <= 0) return true;
+  if (typeof item.gear === 'number' && gearInfo(item.gear).value <= 0) return true;
+  return false;
+}
+
+// 断货 → 打/保留时间戳；复活 → 清空时间戳。返回 item 以便链式调用。
+export function syncOutOfStockTimestamp(item) {
+  if (!item) return item;
+  if (isOutOfStock(item)) {
+    if (!item.outOfStockAt) item.outOfStockAt = Date.now();
+  } else {
+    item.outOfStockAt = null;
+  }
+  return item;
+}
+
 export function findInventoryMatch(inv, recipeName) {
   return (inv || []).find(item => isInventoryAvailable(item) && isIngredientMatch(recipeName, item.name));
 }
@@ -224,9 +253,10 @@ export function mergeInventoryEntry(inv, entry, { mode = 'add', save = true } = 
         exact.dryPrep = getDryPrepText(entry.name);
         exact.isFrozen = false;
       }
+      syncOutOfStockTimestamp(exact); // 再入库 → 复活，清空断货时间戳
     } else {
       // 名称相同但单位不同（或尚未存在）→ 新增批次
-      inv.push({ ...entry });
+      inv.push(syncOutOfStockTimestamp({ ...entry }));
     }
   }
   if (save) saveInventory(inv);
@@ -289,6 +319,7 @@ export function deductInventoryForRecipe(inv, deductions) {
         batch.qty = 0;
         batch.stockStatus = 'empty';
       }
+      syncOutOfStockTimestamp(batch); // 做菜扣减后捕捉断货时间戳
     }
 
     // 如果还有剩余未扣，且明确允许跨单位扣减，则扣减不同单位库存
@@ -304,6 +335,7 @@ export function deductInventoryForRecipe(inv, deductions) {
           batch.qty = 0;
           batch.stockStatus = 'empty';
         }
+        syncOutOfStockTimestamp(batch); // 做菜扣减后捕捉断货时间戳
       }
     }
 
@@ -336,8 +368,9 @@ export function addInventoryQty(inv, name, qty, unit, kind='raw'){
     e.buyDate=e.buyDate||todayISO();
     e.stockStatus='ok';
     if(itemKind === 'dry') { e.shelf = 365; e.dryPrep = getDryPrepText(canonical); e.isFrozen = false; }
+    syncOutOfStockTimestamp(e); // 补货复活 → 清空断货时间戳
   } else {
-    inv.push({name: canonical, qty, unit:itemUnit, buyDate:todayISO(), kind:itemKind, shelf:guessShelfDays(canonical, itemUnit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(canonical), isFrozen:false} : {})});
+    inv.push({name: canonical, qty, unit:itemUnit, buyDate:todayISO(), kind:itemKind, shelf:guessShelfDays(canonical, itemUnit), stockStatus:'ok', outOfStockAt: null, ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(canonical), isFrozen:false} : {})});
   }
   saveInventory(inv);
 }
@@ -383,6 +416,7 @@ function setItemGear(item, gearValue) {
   if (g === 0) { item.stockStatus = 'empty'; item.qty = 0; }
   else if (g <= 25) { item.stockStatus = 'low'; item.qty = (+item.qty > 0) ? item.qty : 1; }
   else { item.stockStatus = 'ok'; item.qty = (+item.qty > 0) ? item.qty : 1; }
+  syncOutOfStockTimestamp(item); // 档位变更（含降到断货 / 提升复活）同步时间戳
 }
 
 /**
@@ -444,8 +478,9 @@ export function applyCookCalibration(inv, calibrations) {
       item.qty = q;
       item.unitType = UNIT_TYPE.PIECE;
       item.stockStatus = q <= 0 ? 'empty' : 'ok';
+      syncOutOfStockTimestamp(item); // 计件校准（含扣到 0）同步时间戳
     } else {
-      setItemGear(item, c.finalGear);
+      setItemGear(item, c.finalGear); // GEAR 路径内部已 sync
     }
   }
   saveInventory(inv);

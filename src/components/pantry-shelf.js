@@ -10,7 +10,7 @@
  * 状态存在 inventory（stockStatus / qty），保留保质期等语义。
  */
 import { DRY_GOODS, EGG_STOCK, DAILY_STOCKS, guessShelfDays } from '../ingredients.js?v=205';
-import { ensureStockItem, findStockItem, saveInventory } from '../inventory.js?v=205';
+import { ensureStockItem, findStockItem, saveInventory, syncOutOfStockTimestamp } from '../inventory.js?v=205';
 import { addShoppingItem, loadShoppingItems, saveShoppingItems } from '../shopping.js?v=205';
 import { applyPantryCustomConfig } from '../staples.js?v=205';
 import { escapeHtml } from './status.js?v=205';
@@ -57,6 +57,7 @@ function togglePantryItem(inv, cfg, currentlyLow) {
     target.qty = 0;
     addShoppingItem(cfg.name, '', cfg.unit, cfg.source);
   }
+  syncOutOfStockTimestamp(target); // 常备品充足/不足切换 → 同步断货时间戳
   saveInventory(inv);
 }
 
