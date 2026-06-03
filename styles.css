@@ -3908,13 +3908,36 @@ nav a span { white-space: nowrap; }
   gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
-  /* 给右上角的 ✕ 留出空间，避免长名字压到删除键 */
-  padding-right: 14px;
+}
+.inv-card-v2 .inv-top-right {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .inv-card-v2 .inventory-item-name {
   flex: 0 1 auto;
   font-size: 14px;
   font-weight: 700;
+}
+
+/* 冷冻微型标签：冰蓝底 + 微弱发光，紧贴菜名右侧 */
+.inv-card-v2 .inv-frozen-tag {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: rgba(0, 122, 255, 0.10);
+  color: #2f7bff;
+  box-shadow: 0 0 6px rgba(0, 122, 255, 0.28);
+}
+html[data-theme="dark"] .inv-card-v2 .inv-frozen-tag {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  box-shadow: 0 0 7px rgba(59, 130, 246, 0.40);
 }
 
 /* 计件型：菜名旁优雅的动宾件数文本，无输入框边框 */
@@ -3950,36 +3973,126 @@ nav a span { white-space: nowrap; }
 .inv-card-v2 .inv-gear-pill.gear-25  { background: rgba(255, 149, 0, 0.20);  color: #c2410c; }   /* 见底 */
 .inv-card-v2 .inv-gear-pill.gear-0   { background: rgba(120, 120, 128, 0.18); color: #8a8a8e; }  /* 断货 */
 
-/* 右上角轻量化删除小叉（text-gray-300 → hover text-red-400） */
-.inv-card-v2 .inv-del-x {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  font-size: 11px;
-  line-height: 1;
-  color: rgba(120, 120, 128, 0.55);
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.15s ease;
-}
-.inv-card-v2 .inv-del-x:hover,
-.inv-card-v2 .inv-del-x:focus-visible { color: var(--danger); outline: none; }
-
-/* 临期提示条（仅有货且临期时渲染） */
+/* 生命周期轴行容器（只读模式底层）*/
 .inv-card-v2 .inv-row-bottom { display: flex; }
-.inv-card-v2 .inv-expiry-chip {
-  padding: 1px 8px;
-  border: none;
-  border-radius: 999px;
-  font-size: 10px;
+
+/* 生命周期轴：精简「剩余 X 天」文本 + 底端 2px 自适应进度线 */
+.inv-card-v2 .inv-life-remain {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.inv-card-v2 .inv-life-remain.life-expired { color: var(--danger); }
+.inv-card-v2 .inv-life-remain.life-near    { color: #c2410c; }
+.inv-card-v2 .inv-life-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 0 0 12px 12px;
+  background: rgba(120, 120, 128, 0.16);
+  overflow: hidden;
+}
+.inv-card-v2 .inv-life-line > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.inv-card-v2 .inv-life-line > span.life-near    { background: var(--warning); }
+.inv-card-v2 .inv-life-line > span.life-expired { background: var(--danger); }
+.inv-card-v2 .inv-life-line > span.life-frozen  { background: var(--primary); }
+
+/* ── 编辑模式：蓝色虚线外框 + 整卡可点 + ✏️ 修改图标 ── */
+.inv-card-v2.is-editing {
+  border-style: dashed;
+  border-color: #60a5fa;
+  border-left-color: #60a5fa;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+.inv-card-v2.is-editing:hover { box-shadow: 0 4px 14px rgba(96, 165, 250, 0.22); }
+.inv-card-v2.is-editing:active { transform: scale(0.985); }
+.inv-card-v2 .inv-edit-icon { flex: 0 0 auto; font-size: 14px; line-height: 1; opacity: 0.9; }
+
+/* ── 顶部「编辑食材」全局切换按钮 ── */
+.inv-edit-toggle {
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.6;
-  white-space: nowrap;
+  color: var(--text-main);
+  background: rgba(120, 120, 128, 0.12);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.inv-edit-toggle:hover { background: rgba(120, 120, 128, 0.20); }
+.inv-edit-toggle:active { transform: scale(0.97); }
+.inv-edit-toggle.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+html[data-theme="dark"] .inv-edit-toggle { background: rgba(255, 255, 255, 0.10); color: #ebebf5; }
+html[data-theme="dark"] .inv-edit-toggle:hover { background: rgba(255, 255, 255, 0.16); }
+html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); color: #fff; }
+
+/* ── 食材属性修正舱（液态玻璃弹窗）── */
+.ingredient-edit-modal { max-width: 380px; }
+.cabin-body { display: grid; gap: 14px; }
+.cabin-field span { color: var(--text-secondary); font-size: 12px; font-weight: 800; }
+.cabin-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.cabin-seg-btn {
+  padding: 9px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--separator);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+.cabin-seg-btn:active { transform: scale(0.97); }
+.cabin-seg-btn.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+html[data-theme="dark"] .cabin-seg-btn { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); color: rgba(235, 235, 245, 0.7); }
+html[data-theme="dark"] .cabin-seg-btn.is-active { background: var(--primary); color: #fff; }
+.cabin-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.cabin-qty-readout { font-size: 14px; color: var(--text-secondary); min-width: 56px; text-align: center; }
+.cabin-qty-readout .cabin-qty { font-size: 18px; font-weight: 800; color: var(--text-main); }
+.cabin-delete-link {
+  margin-top: 2px;
+  align-self: flex-start;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
-.inv-card-v2 .inv-expiry-chip.is-danger { background: rgba(255, 59, 48, 0.16); color: var(--danger); }
-.inv-card-v2 .inv-expiry-chip.is-warn   { background: rgba(255, 149, 0, 0.18); color: #c2410c; }
-.inv-card-v2 .inv-expiry-chip.is-frozen { background: rgba(0, 122, 255, 0.14); color: var(--primary); }
+.cabin-delete-link:hover { text-decoration: underline; }
+.cabin-actions { margin-top: 4px; }
+.cabin-actions .btn,
+.cabin-save { width: 100%; padding: 13px; font-size: 15px; font-weight: 700; border-radius: 14px; }
 
 /* ── 菜谱页：AI 一键导入入口按钮 ── */
 .ai-import-btn {

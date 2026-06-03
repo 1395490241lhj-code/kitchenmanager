@@ -28,7 +28,7 @@ import {
   withTimeout
 } from '../ai.js?v=205';
 import {
-  showEditInventoryModal,
+  showIngredientEditModal,
   showReceiptConfirmationModal
 } from '../components/modal.js?v=205';
 import {
@@ -36,6 +36,9 @@ import {
   escapeOptionAttr,
   setSelectValueWithOption
 } from '../components/status.js?v=205';import { markShoppingItemsStockedIn } from '../shopping.js?v=205';
+
+// 全局「编辑食材」模式开关（模块级，跨重渲染保持，避免保存后跳回只读态）。
+let isEditingInventory = false;
 
 // 是否真正有货：数量 > 0 且状态不是「没有」，档位型还需未降到「断货」。
 function hasRealStock(e){
@@ -45,15 +48,16 @@ function hasRealStock(e){
   return true;
 }
 
-// 临期提示条：仅在「真正有货」且非干货时渲染，断货/没有的食材强制不渲染。
-function expiryChipHtml(e){
-  if((e.kind || 'raw') === 'dry') return '';
-  if(!hasRealStock(e)) return ''; // 【前置判断】数量为 0 / 断货 → 不渲染临期标签
-  if(e.isFrozen) return `<button type="button" class="inv-expiry-chip is-frozen" title="点击切换为冷藏">❄️ 冷冻</button>`;
-  const r = remainingDays(e);
-  if(r <= 1) return `<button type="button" class="inv-expiry-chip is-danger" title="点击切换为冷冻">即将过期 ${r}天</button>`;
-  if(r <= 3) return `<button type="button" class="inv-expiry-chip is-warn" title="点击切换为冷冻">优先消耗 ${r}天</button>`;
-  return ''; // 新鲜食材无需提示，保持卡片清爽
+// 双轨制状态徽标：GEAR → 五档液态药丸；PIECE → 优雅件数文本。
+function trackHtmlFor(e, unitType){
+  if(unitType === UNIT_TYPE.GEAR){
+    const gear = gearInfo(getItemGear(e)).value;
+    return `<button type="button" class="inv-gear-pill gear-${gear}" title="点击降一档（充足→大半→一半→见底→断货）">${GEAR_LABELS[gear]}</button>`;
+  }
+  const qty = +e.qty || 0;
+  const muted = (qty <= 0 || e.stockStatus === 'empty') ? ' is-muted' : '';
+  const countText = qty > 0 ? `${qty} ${escapeHtml(e.unit || '')}`.trim() : '没有';
+  return `<span class="inv-piece-count${muted}">${countText}</span>`;
 }
 
 // 保质期状态 + 剩余百分比（用于卡片底色与倒计时进度条）。
@@ -80,6 +84,9 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
 
   searchDiv.innerHTML = `
     <div class="inventory-toolbar-actions">
+      <button type="button" class="inv-edit-toggle" id="toggleEditBtn" title="进入/退出编辑模式">
+        <span class="inv-edit-toggle-label">✏️ 编辑食材</span>
+      </button>
       <button type="button" class="btn small inventory-export-btn" id="exportInventoryBtn" title="导出库存">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
         <span>导出库存</span>
@@ -113,6 +120,19 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
+
+  // 全局「编辑食材」切换：默认 ✏️ 编辑食材；激活后变 ✓ 完成，并让所有卡片进入编辑态。
+  const editBtn = searchDiv.querySelector('#toggleEditBtn');
+  const syncEditBtn = () => {
+    editBtn.classList.toggle('is-active', isEditingInventory);
+    editBtn.querySelector('.inv-edit-toggle-label').textContent = isEditingInventory ? '✓ 完成' : '✏️ 编辑食材';
+  };
+  editBtn.onclick = () => {
+    isEditingInventory = !isEditingInventory;
+    syncEditBtn();
+    renderTable();
+  };
+  syncEditBtn();
 
   const formContainer = document.createElement('div'); formContainer.className = 'add-form-container';
   formContainer.innerHTML = `
@@ -268,42 +288,69 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       const card=document.createElement('div');
       const life = lifeStatus(e);
       const unitType = e.unitType || getUnitType(e.name, e.unit);
-      card.className = `inventory-card inv-card-v2 inventory-row life-${life.key}`;
+      const inStock = hasRealStock(e);
+      const frozenTag = e.isFrozen
+        ? `<span class="inv-frozen-tag" title="冷冻保存中">🧊 冷冻</span>`
+        : '';
 
-      // ── 双轨制状态徽标 ──────────────────────────────────────────────
-      // GEAR（散装蔬菜/调料）：纯液态状态药丸，按五档位自适应色彩，无输入框、无进度条。
-      // PIECE（计件物资）：菜名旁的优雅件数文本（如「1 盒」「2 个」），无输入框边框。
-      let trackHtml;
-      if(unitType === UNIT_TYPE.GEAR){
-        const gear = gearInfo(getItemGear(e)).value;
-        trackHtml = `<button type="button" class="inv-gear-pill gear-${gear}" title="点击降一档（充足→大半→一半→见底→断货）">${GEAR_LABELS[gear]}</button>`;
-      } else {
-        const qty = +e.qty || 0;
-        const muted = (qty <= 0 || e.stockStatus === 'empty') ? ' is-muted' : '';
-        const countText = qty > 0 ? `${qty} ${escapeHtml(e.unit || '')}`.trim() : '没有';
-        trackHtml = `<span class="inv-piece-count${muted}">${countText}</span>`;
+      // 打开「食材属性修正舱」弹窗（编辑模式整卡点击 / 只读模式点名称）。
+      const openEditCabin = () => {
+        showIngredientEditModal(e, {
+          unitType,
+          onSave: () => { saveInventory(inv); renderTable(); onInventoryChanged(); },
+          onDelete: () => {
+            const i = inv.indexOf(e);
+            if(i >= 0){ inv.splice(i,1); saveInventory(inv); renderTable(); onInventoryChanged(); }
+          }
+        });
+      };
+
+      if(isEditingInventory){
+        // ── 编辑模式：蓝色虚线外框 + ✏️ 修改图标，点击整卡呼出修正舱 ──
+        card.className = `inventory-card inv-card-v2 is-editing inventory-row life-${life.key}`;
+        card.innerHTML = `
+          <div class="inv-row-top">
+            <div class="inv-top-left">
+              <span class="inventory-item-name">${escapeHtml(e.name)}</span>
+              ${frozenTag}
+            </div>
+            <span class="inv-edit-icon" aria-hidden="true">✏️</span>
+          </div>`;
+        card.onclick = openEditCabin;
+        grid.appendChild(card);
+        continue;
       }
 
-      const expiryHtml = expiryChipHtml(e);
+      // ── 只读模式：双层卡片（核心信息轴 + 生命周期轴）──
+      card.className = `inventory-card inv-card-v2 inventory-row life-${life.key}`;
+      const trackHtml = trackHtmlFor(e, unitType);
 
-      // ── 紧凑两层横向流 ─────────────────────────────────────────────
-      // Top Row：左 [食材名][状态药丸/件数]，右 [✕]；Bottom Row：临期提示条（仅有货且临期）。
-      card.innerHTML=`
+      // 生命周期轴：仅有货且非干货时显示「剩余 X 天」+ 底部 2px 自适应进度线。
+      let lifeAxisHtml = '';
+      if(inStock && (e.kind || 'raw') !== 'dry'){
+        const r = remainingDays(e);
+        const remainText = r > 0 ? `剩余 ${r} 天` : '已过期';
+        lifeAxisHtml = `
+          <div class="inv-row-bottom">
+            <span class="inv-life-remain life-${life.key}">${remainText}</span>
+          </div>
+          <div class="inv-life-line"><span class="life-${life.key}" style="width:${life.pct}%"></span></div>`;
+      }
+
+      card.innerHTML = `
         <div class="inv-row-top">
           <div class="inv-top-left">
             <span class="inventory-item-name">${escapeHtml(e.name)}</span>
-            ${trackHtml}
+            ${frozenTag}
           </div>
-          <span class="inv-del-x" role="button" tabindex="0" aria-label="删除" title="删除">✕</span>
+          <div class="inv-top-right">${trackHtml}</div>
         </div>
-        ${expiryHtml ? `<div class="inv-row-bottom">${expiryHtml}</div>` : ''}`;
+        ${lifeAxisHtml}`;
 
-      // 点击菜名打开编辑
-      card.querySelector('.inventory-item-name').onclick = () => {
-        showEditInventoryModal(e, () => { saveInventory(inv); renderTable(); onInventoryChanged(); });
-      };
+      // 点击菜名 → 打开修正舱。
+      card.querySelector('.inventory-item-name').onclick = openEditCabin;
 
-      // GEAR 药丸：点击降一档（到断货后循环回充足）；PIECE 件数：点击打开编辑修改数量/单位。
+      // GEAR 药丸：点击降一档（到断货后循环回充足）；PIECE 件数：点击打开修正舱。
       if(unitType === UNIT_TYPE.GEAR){
         card.querySelector('.inv-gear-pill').onclick = () => {
           const order = [100, 75, 50, 25, 0];
@@ -317,30 +364,8 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           saveInventory(inv); renderTable(); onInventoryChanged();
         };
       } else {
-        card.querySelector('.inv-piece-count').onclick = () => {
-          showEditInventoryModal(e, () => { saveInventory(inv); renderTable(); onInventoryChanged(); });
-        };
+        card.querySelector('.inv-piece-count').onclick = openEditCabin;
       }
-
-      // 临期提示条：点击切换冷冻 / 冷藏（保留原有交互）。
-      const expiryChip = card.querySelector('.inv-expiry-chip');
-      if(expiryChip){
-        expiryChip.onclick = () => {
-          if((e.kind || 'raw') === 'dry') return;
-          e.isFrozen = !e.isFrozen;
-          e.shelf = e.isFrozen ? 180 : guessShelfDays(e.name, e.unit);
-          saveInventory(inv); renderTable(); onInventoryChanged();
-        };
-      }
-
-      // 删除：右上角轻量化小叉。
-      const delX = card.querySelector('.inv-del-x');
-      const doDelete = () => {
-        const i = inv.indexOf(e);
-        if(i>=0){ inv.splice(i,1); saveInventory(inv); renderTable(); onInventoryChanged(); }
-      };
-      delX.onclick = doDelete;
-      delX.onkeydown = (ev) => { if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); doDelete(); } };
 
       grid.appendChild(card);
     }
