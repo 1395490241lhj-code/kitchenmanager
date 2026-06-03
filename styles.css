@@ -3895,9 +3895,18 @@ nav a span { white-space: nowrap; }
  * ════════════════════════════════════════════════════════════════════════ */
 .inventory-card.inv-card-v2 {
   position: relative;
+  overflow: hidden;          /* 锁定圆角：底部全宽进度条绝不溢出圆角，杜绝穿模 */
   gap: 6px;
-  padding: 11px 12px;        /* 压缩纵向 padding，让网格更透气（≈ p-3.5） */
+  padding: 11px 12px 14px;   /* 底部多留呼吸：避免文字贴住底部进度轨道 */
+  /* 去除左侧橙色粗边条，恢复四周统一 1px 描边，保证圆角对齐 */
+  border-left: 1px solid var(--separator);
 }
+/* 覆盖按保质期状态着色的左侧粗边条（只读 v2 卡片统一无色边） */
+.inventory-card.inv-card-v2.life-expired,
+.inventory-card.inv-card-v2.life-near,
+.inventory-card.inv-card-v2.life-fresh,
+.inventory-card.inv-card-v2.life-frozen,
+.inventory-card.inv-card-v2.life-pantry { border-left-color: var(--separator); }
 .inv-card-v2 .inv-row-top {
   display: flex;
   align-items: center;
@@ -3979,7 +3988,7 @@ html[data-theme="dark"] .inv-card-v2 .inv-frozen-tag {
 /* 生命周期轴行容器（只读模式底层）*/
 .inv-card-v2 .inv-row-bottom { display: flex; }
 
-/* 生命周期轴：精简「剩余 X 天」文本 + 底端 2px 自适应进度线 */
+/* 生命周期轴：精简「剩余 X 天」文本 */
 .inv-card-v2 .inv-life-remain {
   font-size: 11px;
   font-weight: 500;
@@ -3987,24 +3996,24 @@ html[data-theme="dark"] .inv-card-v2 .inv-frozen-tag {
 }
 .inv-card-v2 .inv-life-remain.life-expired { color: var(--danger); }
 .inv-card-v2 .inv-life-remain.life-near    { color: #c2410c; }
-.inv-card-v2 .inv-life-line {
+
+/* 临期寿命「全宽无缝流光轨道」：内嵌卡片最底端，靠父级 overflow:hidden 锁住圆角 */
+.inv-card-v2 .inv-progress-track {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 2px;
-  border-radius: 0 0 12px 12px;
-  background: rgba(120, 120, 128, 0.16);
-  overflow: hidden;
+  width: 100%;
+  height: 4px;                              /* h-1 */
+  background: rgba(120, 120, 128, 0.16);    /* gray-100 */
 }
-.inv-card-v2 .inv-life-line > span {
+html[data-theme="dark"] .inv-card-v2 .inv-progress-track { background: rgba(31, 41, 55, 0.4); } /* gray-800/40 */
+.inv-card-v2 .inv-progress-fill {
   display: block;
   height: 100%;
-  background: var(--accent);
+  background: linear-gradient(90deg, #fbbf24, #f97316);  /* amber-400 → orange-500 */
+  transition: width 0.3s ease;
 }
-.inv-card-v2 .inv-life-line > span.life-near    { background: var(--warning); }
-.inv-card-v2 .inv-life-line > span.life-expired { background: var(--danger); }
-.inv-card-v2 .inv-life-line > span.life-frozen  { background: var(--primary); }
 
 /* ════════════════════════════════════════════════════════════════════════
  * 编辑模式 · 行内就地编辑（In-place Inline Edit）微型表单卡片

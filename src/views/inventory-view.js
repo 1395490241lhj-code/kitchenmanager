@@ -398,16 +398,23 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         : '';
       const trackHtml = trackHtmlFor(e, unitType);
 
-      // 生命周期轴：仅有货且非干货时显示「剩余 X 天」+ 底部 2px 自适应进度线。
+      // 生命周期轴：非干货时贴一条「内嵌于卡片最底部的全宽流光轨道」。
+      // 进度比例 = 剩余寿命 / 总保质期；断货或数量为 0 → 0%，保持干净。
+      // 「剩余 X 天」文字仅在有货时显示，避免空货卡片出现误导性倒计时。
       let lifeAxisHtml = '';
-      if(inStock && (e.kind || 'raw') !== 'dry'){
+      if((e.kind || 'raw') !== 'dry'){
         const r = remainingDays(e);
-        const remainText = r > 0 ? `剩余 ${r} 天` : '已过期';
-        lifeAxisHtml = `
-          <div class="inv-row-bottom">
-            <span class="inv-life-remain life-${life.key}">${remainText}</span>
-          </div>
-          <div class="inv-life-line"><span class="life-${life.key}" style="width:${life.pct}%"></span></div>`;
+        const progressPercent = inStock ? life.pct : 0;
+        const remainHtml = inStock
+          ? `<div class="inv-row-bottom">
+            <span class="inv-life-remain life-${life.key}">${r > 0 ? `剩余 ${r} 天` : '已过期'}</span>
+          </div>`
+          : '';
+        lifeAxisHtml = `${remainHtml}
+          <!-- 临期寿命全宽轨道 -->
+          <div class="inv-progress-track">
+            <span class="inv-progress-fill" style="width: ${progressPercent}%;"></span>
+          </div>`;
       }
 
       card.innerHTML = `
