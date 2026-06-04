@@ -3721,26 +3721,40 @@ nav a:active { transform: scale(0.94); }
 html[data-theme="dark"] .km-inline-tray { background: rgba(40, 40, 46, 0.55); }
 html[data-theme="dark"] .km-inline-tray:not(.is-collapsed) { border-color: rgba(255, 255, 255, 0.12); }
 .km-tray-empty { padding: 14px; text-align: center; color: var(--text-secondary); font-size: 13px; }
-.km-tray-list { display: flex; flex-direction: column; }
-/* 极简操作行：极度压扁，纵向不占空间 */
-.km-tray-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* 微型灵魂加料舱：极其紧凑的 3~4 列高密度网格（slate-50 / zinc-900-50 底） */
+.km-tray-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  min-height: 30px;
-  padding: 3px 6px;
-  border-bottom: 1px solid rgba(120, 120, 128, 0.12);
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.14);
 }
-.km-tray-row:last-child { border-bottom: none; }
-.km-tray-name {
+@media (min-width: 520px) {
+  .km-tray-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+html[data-theme="dark"] .km-tray-grid { background: rgba(24, 24, 27, 0.5); }
+.km-tray-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
   min-width: 0;
+  padding: 6px 4px;
+  border-radius: 9px;
+  background: var(--bg-card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+html[data-theme="dark"] .km-tray-cell { background: rgba(255, 255, 255, 0.04); }
+.km-tray-name {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-main);
+  text-align: center;
 }
 .km-tray-ctrl { flex: 0 0 auto; }
 /* GEAR：5 个微型圆点 */
@@ -3762,16 +3776,17 @@ html[data-theme="dark"] .km-inline-tray:not(.is-collapsed) { border-color: rgba(
 .km-gear-dot.gear-50.is-active  { background: #d29a00; }
 .km-gear-dot.gear-25.is-active  { background: #e8731a; }
 .km-gear-dot.gear-0.is-active   { background: #9a9aa0; }
-/* PIECE：微型 [-] 步进器 */
-.km-piece-step { display: inline-flex; align-items: center; gap: 6px; }
-.km-piece-step .km-step-minus {
-  width: 22px;
-  height: 22px;
+/* PIECE：微型 [-] 数量 [+] 步进器 */
+.km-piece-step { display: inline-flex; align-items: center; gap: 5px; }
+.km-piece-step .km-step-minus,
+.km-piece-step .km-step-plus {
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: 1px solid var(--separator);
   background: var(--bg-card);
   color: var(--primary);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -3779,10 +3794,12 @@ html[data-theme="dark"] .km-inline-tray:not(.is-collapsed) { border-color: rgba(
   align-items: center;
   justify-content: center;
 }
-.km-piece-step .km-step-minus:active { transform: scale(0.88); }
+.km-piece-step .km-step-minus:active,
+.km-piece-step .km-step-plus:active { transform: scale(0.88); }
 .km-piece-step .km-piece-qty { min-width: 16px; text-align: center; font-size: 13px; font-weight: 700; color: var(--text-main); }
 .km-piece-step small { color: var(--text-secondary); font-size: 11px; }
-html[data-theme="dark"] .km-piece-step .km-step-minus { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); }
+html[data-theme="dark"] .km-piece-step .km-step-minus,
+html[data-theme="dark"] .km-piece-step .km-step-plus { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); }
 /* 底部 ✓ 记录完成 */
 .km-tray-footer { display: flex; justify-content: flex-end; padding: 8px 4px 2px; position: sticky; bottom: 0; }
 .km-tray-done { font-weight: 700; }

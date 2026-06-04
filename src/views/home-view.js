@@ -860,6 +860,14 @@ function applyGearImpromptu(e, value) {
  * 返回 { button, tray }，由调用方分别塞进头部动作组与头部下方。
  * 闭环：就地微调 inv → [✓ 记录完成] → 持久化冰箱 + 推虚拟 48h 卡 + 食材实体反疲劳计数 + 收起。
  */
+// 🧪 万能加料白名单：只放行适合下面 / 煮螺蛳粉 / 麻辣烫等场景的快熟百搭配料。
+const IMPROMPTU_ALLOWED_REGEX = /(菜|茼蒿|菠菜|韭菜|肠|午餐肉|培根|香肠|火腿|丸|棒|饺|千层肚|菇|豆腐|豆皮|腐竹|木耳|蛋|面条|粉|年糕|水饺)/;
+
+// 即兴面板前置过滤器：有货（isInventoryAvailable）且命中百搭白名单，才进面板。
+function isImpromptuCandidate(e) {
+  return isInventoryAvailable(e) && IMPROMPTU_ALLOWED_REGEX.test(String(e.name || ''));
+}
+
 function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
   let showImpromptuTray = false;
   const consumed = new Set(); // 本次会话被改动过的食材实体
@@ -874,18 +882,20 @@ function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
 
   const renderTrayBody = () => {
     tray.innerHTML = '';
-    const items = (inv || []).filter(isInventoryAvailable);
+    // 前置白名单过滤：只展示有货且属于百搭快熟配料的资产。
+    const items = (inv || []).filter(isImpromptuCandidate);
     if (!items.length) {
-      tray.innerHTML = '<div class="km-tray-empty">冰箱里暂无可消耗的食材。</div>';
+      tray.innerHTML = '<div class="km-tray-empty">冰箱里暂无适合即兴下厨的快熟配料。</div>';
       return;
     }
-    const list = document.createElement('div');
-    list.className = 'km-tray-list';
+    // 极其紧凑的 3~4 列高密度网格，界面极度压扁。
+    const grid = document.createElement('div');
+    grid.className = 'km-tray-grid';
     for (const e of items) {
       const unitType = e.unitType || getUnitType(e.name, e.unit);
-      const row = document.createElement('div');
-      row.className = 'km-tray-row';
-      row.innerHTML = `<span class="km-tray-name">${escapeHtml(e.name)}</span>`;
+      const cell = document.createElement('div');
+      cell.className = 'km-tray-cell';
+      cell.innerHTML = `<span class="km-tray-name">${escapeHtml(e.name)}</span>`;
       const ctrl = document.createElement('div');
       ctrl.className = 'km-tray-ctrl';
       if (unitType === UNIT_TYPE.GEAR) {
@@ -893,7 +903,7 @@ function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
         ctrl.innerHTML = `<div class="km-gear-dots" role="group" aria-label="档位">${
           [100, 75, 50, 25, 0].map(g => `<button type="button" class="km-gear-dot gear-${g}${g === cur ? ' is-active' : ''}" data-gear="${g}" title="${GEAR_LABELS[g]}" aria-label="${GEAR_LABELS[g]}"></button>`).join('')
         }</div>`;
-        row.appendChild(ctrl);
+        cell.appendChild(ctrl);
         const dots = ctrl.querySelectorAll('.km-gear-dot');
         dots.forEach(dot => {
           dot.onclick = () => {
@@ -904,11 +914,10 @@ function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
         });
       } else {
         const qty = +e.qty || 0;
-        ctrl.innerHTML = `<div class="km-piece-step"><button type="button" class="km-step-minus" aria-label="减少">−</button><span class="km-piece-qty">${qty}</span><small>${escapeHtml(e.unit || '')}</small></div>`;
-        row.appendChild(ctrl);
+        ctrl.innerHTML = `<div class="km-piece-step"><button type="button" class="km-step-minus" aria-label="减少">−</button><span class="km-piece-qty">${qty}</span><button type="button" class="km-step-plus" aria-label="增加">+</button></div>`;
+        cell.appendChild(ctrl);
         const qtyEl = ctrl.querySelector('.km-piece-qty');
-        ctrl.querySelector('.km-step-minus').onclick = () => {
-          const next = Math.max(0, (+e.qty || 0) - 1);
+        const setQty = (next) => {
           e.qty = next;
           e.unitType = UNIT_TYPE.PIECE;
           e.stockStatus = next <= 0 ? 'empty' : 'ok';
@@ -916,8 +925,10 @@ function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
           consumed.add(e);
           qtyEl.textContent = next;
         };
+        ctrl.querySelector('.km-step-minus').onclick = () => setQty(Math.max(0, (+e.qty || 0) - 1));
+        ctrl.querySelector('.km-step-plus').onclick = () => setQty((+e.qty || 0) + 1);
       }
-      list.appendChild(row);
+      grid.appendChild(cell);
     }
     const footer = document.createElement('div');
     footer.className = 'km-tray-footer';
@@ -927,7 +938,7 @@ function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
     doneBtn.textContent = '✓ 记录完成';
     doneBtn.onclick = commit;
     footer.appendChild(doneBtn);
-    tray.appendChild(list);
+    tray.appendChild(grid);
     tray.appendChild(footer);
   };
 
@@ -942,7 +953,7 @@ function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
     saveInventory(inv);
     // 3.2 生成虚拟排程卡片（触发 48h 自动下线逻辑）
     const plans = S.load(S.keys.plan, []);
-    plans.push({ id: 'adhoc_' + Date.now(), name: '即兴搭配 (面条、空心菜等)', isCooked: true, cookedAt: Date.now(), date: todayISO() });
+    plans.push({ id: 'adhoc_' + Date.now(), name: '[即兴配餐] (空心菜、火腿肠等)', isCooked: true, cookedAt: Date.now(), date: todayISO() });
     S.save(S.keys.plan, plans);
     // 3.4 关闭并刷新整页
     showImpromptuTray = false;
