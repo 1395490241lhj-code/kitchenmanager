@@ -327,7 +327,38 @@ export async function callAiSearchRecipe(query, invNames) {
 
 export async function callCloudAI(pack, inv) {
   const invNames = inv.map(x => x.name).join('、');
-  const recipeNames = (pack.recipes || []).map(r => r.name).join(',');
+
+  // ── 反疲劳机制：读取后台烹饪频次账本（recipe_activity）──
+  const activity = S.load(S.keys.recipe_activity, {});
+  const now = Date.now();
+  const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+  // lastCookedAt 为数值毫秒；兼容旧数据回退到 cookedAt(ISO 日期字符串)。
+  const lastCookedMs = (act) => {
+    if (!act) return 0;
+    if (typeof act.lastCookedAt === 'number') return act.lastCookedAt;
+    return act.cookedAt ? Date.parse(act.cookedAt) : 0;
+  };
+
+  const allRecipes = pack.recipes || [];
+  // 【硬过滤】72 小时内做过的菜，从喂给 AI 的候选池中直接剔除，杜绝短期高频重复。
+  const candidates = allRecipes.filter(r => {
+    const last = lastCookedMs(activity[r.id]);
+    return !(last && (now - last < THREE_DAYS_MS));
+  });
+  // 兜底：过滤后候选过少时回退全量，避免「无菜可推」。
+  const pool = candidates.length >= 5 ? candidates : allRecipes;
+  const recipeNames = pool.map(r => r.name).join(',');
+
+  // 【软降权】取累计烹饪次数(cookedCount)最高的前 5 道菜名，提示 AI 极力避开。
+  const topFrequent = allRecipes
+    .map(r => ({ name: r.name, count: (activity[r.id]?.cookedCount || 0) }))
+    .filter(x => x.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map(x => x.name);
+  const antiFatigueRule = topFrequent.length
+    ? `\n- 【重要反疲劳规则】：以下菜谱由于用户近期或频繁烹饪，本次推荐中请极力避开或大幅降低其出现概率，请多推荐其他冷门、未尝试或不常做的食材搭配：[${topFrequent.join('、')}]`
+    : '';
 
   const prompt = `你是一位严谨的中式家庭厨房助手。请根据冰箱库存：【${invNames}】规划今日菜单。
 
@@ -351,7 +382,7 @@ export async function callCloudAI(pack, inv) {
 - creative.name 必须是字符串。
 - creative.ingredients 必须是数组，只列核心主材。
 - creative 是 AI 草稿，不是最终菜谱。
-- 严禁用葱姜蒜、香菜、调料替代肉菜蛋豆等主材。`;
+- 严禁用葱姜蒜、香菜、调料替代肉菜蛋豆等主材。${antiFatigueRule}`;
 
   const raw = await callAiService(prompt);
   return validateRecommendationResult(raw);

@@ -658,10 +658,11 @@ export function markRecipeCooked(id) {
   if (!id || String(id).startsWith('creative-')) return { removedFromPlan: false };
   const activity = loadRecipeActivity();
   if (!activity[id]) {
-    activity[id] = { plannedAt: null, cookedAt: null, cookedCount: 0 };
+    activity[id] = { plannedAt: null, cookedAt: null, cookedCount: 0, lastCookedAt: null };
   }
   activity[id].cookedAt = todayISO();
   activity[id].cookedCount = (activity[id].cookedCount || 0) + 1;
+  activity[id].lastCookedAt = Date.now(); // 反疲劳：精确到毫秒的最后烹饪时间
   saveRecipeActivity(activity);
 
   const plan = S.load(S.keys.plan, []);
@@ -674,9 +675,10 @@ export function markRecipeCooked(id) {
 export function markRecipeCookedKeepPlan(id) {
   if (!id || String(id).startsWith('creative-')) return;
   const activity = loadRecipeActivity();
-  if (!activity[id]) activity[id] = { plannedAt: null, cookedAt: null, cookedCount: 0 };
+  if (!activity[id]) activity[id] = { plannedAt: null, cookedAt: null, cookedCount: 0, lastCookedAt: null };
   activity[id].cookedAt = todayISO();
   activity[id].cookedCount = (activity[id].cookedCount || 0) + 1;
+  activity[id].lastCookedAt = Date.now(); // 反疲劳：精确到毫秒的最后烹饪时间
   saveRecipeActivity(activity);
 }
 

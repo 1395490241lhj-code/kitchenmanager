@@ -178,7 +178,7 @@ function markPlansCooked(targets) {
     const row = plans.find(x => x.id === t.id && (x.date || today) === (t.date || today));
     if (row && !row.isCooked) {
       row.isCooked = true;
-      row.cookedAt = new Date().toISOString();
+      row.cookedAt = Date.now(); // 数值毫秒时间戳：供首页「48h 自隐藏」直接做差值
       changed = true;
     }
   }
@@ -258,10 +258,19 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
   };
 
   const plan = S.load(S.keys.plan, []);
+  // 已完成卡片 48 小时自解体：cookedAt 兼容数值毫秒与旧的 ISO 字符串。
+  const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+  const cookedAtMs = (t) => (typeof t === 'number' ? t : (t ? Date.parse(t) : 0));
   const filteredPlans = plan.filter(item => {
     const d = item.date || today;
-    if (currentPlanRange === 'today') return d === today;
-    if (currentPlanRange === '3days') return d === today || d === tomorrowISO || d === dayAfterISO;
+    const inRange = currentPlanRange === 'today'
+      ? d === today
+      : currentPlanRange === '3days'
+        ? (d === today || d === tomorrowISO || d === dayAfterISO)
+        : true;
+    if (!inRange) return false;
+    // isCooked 且距完成已超过 48 小时 → 首页直接隐藏，保持清爽。
+    if (item.isCooked && item.cookedAt && (Date.now() - cookedAtMs(item.cookedAt) > TWO_DAYS_MS)) return false;
     return true;
   });
 
