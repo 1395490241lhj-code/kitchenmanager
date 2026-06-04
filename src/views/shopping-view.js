@@ -386,6 +386,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       <datalist id="shoppingCatalogList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
       <input id="shoppingAddQty" type="number" min="0" step="1" placeholder="数量">
       <select id="shoppingAddUnit"><option value="">无单位</option><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="包">包</option><option value="瓶">瓶</option><option value="把">把</option><option value="份">份</option><option value="g">g</option><option value="ml">ml</option></select>
+      <input id="shoppingAddRemark" type="text" class="shopping-add-remark" placeholder="备注 (选填)...">
       <button type="button" class="btn ok" id="shoppingAddBtn">加入</button>
     </div>
   `;
@@ -396,7 +397,9 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   manualCard.querySelector('#shoppingAddBtn').onclick = () => {
     const name = manualCard.querySelector('#shoppingAddName').value.trim();
     if(!name) { setInlineStatus(status, '请输入要买的东西。', 'bad'); return; }
-    addShoppingItem(name, manualCard.querySelector('#shoppingAddQty').value || '', manualCard.querySelector('#shoppingAddUnit').value || '', '手动');
+    const remark = manualCard.querySelector('#shoppingAddRemark').value.trim();
+    addShoppingItem(name, manualCard.querySelector('#shoppingAddQty').value || '', manualCard.querySelector('#shoppingAddUnit').value || '', '手动', remark);
+    manualCard.querySelector('#shoppingAddRemark').value = ''; // 加入后清空备注（onRoute 重渲染亦会重置，此处双保险）
     onRoute();
   };
 
@@ -434,12 +437,25 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     row.innerHTML = `
       <label class="shopping-check"><input type="checkbox" ${item.done ? 'checked' : ''}><span>${escapeHtml(item.name)}</span></label>
       <span class="shopping-item-amount">${escapeHtml(item.amountText || '按需')}</span>
-      <span class="shopping-source">${escapeHtml(item.source || '手动')}</span>
+      <input type="text" class="shopping-remark-input" placeholder="点击添加备注..." value="${escapeOptionAttr(item.remark || '')}" aria-label="备注" title="${escapeOptionAttr(item.source || '')}">
       <div class="shopping-row-actions">
         ${stockInHtml}
         <button type="button" class="btn small bad delete-shopping-btn">删</button>
       </div>
     `;
+    // 行内备注：原地直接修改，失焦 / 变更即写回底层数据并持久化（不触发整页重渲染，保持焦点）。
+    const remarkInput = row.querySelector('.shopping-remark-input');
+    if (remarkInput) {
+      remarkInput.onclick = event => event.stopPropagation();
+      const commitRemark = () => {
+        const val = remarkInput.value.trim();
+        if (val === (item.remark || '')) return; // 无变化不写库
+        item.remark = val;
+        updateShoppingRowsByIds(item.ids, target => ({ ...target, remark: val }));
+      };
+      remarkInput.onchange = commitRemark;
+      remarkInput.onblur = commitRemark;
+    }
     row.querySelector('input').onchange = event => {
       updateShoppingRowsByIds(item.ids, target => ({ ...target, done: event.target.checked }));
       // 闭环：勾选「已买」时，若是常备品则恢复为充足并更新库存时间。

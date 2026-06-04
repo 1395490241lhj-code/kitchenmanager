@@ -106,6 +106,9 @@ export function loadShoppingItems() {
 
     const normalizedStockedInAt = item.stockedInAt || null;
 
+    // 备注（手动添加 / 行内就地编辑）：必须在归一化重建对象时保留，否则刷新即丢失。
+    const normalizedRemark = typeof item.remark === 'string' ? item.remark : '';
+
     cleanedItems.push({
       id: normalizedId,
       name: canonicalName,
@@ -114,7 +117,8 @@ export function loadShoppingItems() {
       source: normalizedSource,
       done: normalizedDone,
       stockedIn: normalizedStockedIn,
-      stockedInAt: normalizedStockedInAt
+      stockedInAt: normalizedStockedInAt,
+      remark: normalizedRemark
     });
   }
 
@@ -160,6 +164,7 @@ export function mergeShoppingItems(items) {
         done,
         stockedIn,
         stockedInAt: raw.stockedInAt || null,
+        remark: (typeof raw.remark === 'string' ? raw.remark : ''),
         rawItems: [raw],
         canSumQty: qty !== null
       });
@@ -170,6 +175,8 @@ export function mergeShoppingItems(items) {
     if (raw.id && !item.ids.includes(raw.id)) item.ids.push(raw.id);
     if (source && !item.sources.includes(source)) item.sources.push(source);
     item.source = item.sources.join('、');
+    // 合并行的备注：取第一个有备注的底层项展示。
+    if (!item.remark && typeof raw.remark === 'string' && raw.remark) item.remark = raw.remark;
     item.rawItems.push(raw);
 
     if (item.canSumQty && qty !== null) {
@@ -264,11 +271,12 @@ export function convertShoppingItemToInventory(item, options = {}) {
   };
 }
 
-export function addShoppingItem(name, qty = '', unit = '', source = '手动') {
+export function addShoppingItem(name, qty = '', unit = '', source = '手动', remark = '') {
   const cleanName = getCanonicalName(name || '');
   if(!cleanName) return;
   const cleanUnit = unit || '';
   const cleanItemSource = cleanSource(source);
+  const cleanRemark = String(remark || '').trim();
   const items = loadShoppingItems();
   const existing = items.find(item => item.name === cleanName && item.unit === cleanUnit && item.source === cleanItemSource && !item.done);
   if(existing) {
@@ -276,8 +284,9 @@ export function addShoppingItem(name, qty = '', unit = '', source = '手动') {
     const nextQty = parseQty(qty);
     if (oldQty !== null && nextQty !== null) existing.qty = formatQty(oldQty + nextQty);
     else existing.qty = existing.qty || qty || '';
+    if (cleanRemark) existing.remark = cleanRemark; // 新备注覆盖（仅在填写时）
   } else {
-    items.push({ id: genId(), name: cleanName, qty: qty || '', unit: cleanUnit, source: cleanItemSource, done: false });
+    items.push({ id: genId(), name: cleanName, qty: qty || '', unit: cleanUnit, source: cleanItemSource, done: false, remark: cleanRemark });
   }
   saveShoppingItems(items);
 }

@@ -933,9 +933,28 @@ input:focus, select:focus, textarea:focus {
 }
 .shopping-add-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 82px 110px auto;
+  grid-template-columns: minmax(140px, 1.1fr) 74px 96px minmax(120px, 1.3fr) auto;
   gap: 10px;
   align-items: center;
+}
+/* 快捷输入栏：轻量备注框（数量/单位 右侧、加入 左侧）。 */
+.shopping-add-remark {
+  min-width: 120px;
+  width: 100%;
+  background: var(--bg-input);
+  border: none;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-main);
+}
+.shopping-add-remark::placeholder { color: rgba(120, 120, 128, 0.7); }
+.shopping-add-remark:focus { outline: none; box-shadow: 0 0 0 1px var(--accent); }
+@media (max-width: 560px) {
+  /* 窄屏：名称占整行，其余（数量/单位/备注/加入）折到第二行更易点。 */
+  .shopping-add-row { grid-template-columns: 1fr 1fr; }
+  .shopping-add-row > #shoppingAddName,
+  .shopping-add-row > .shopping-add-remark { grid-column: 1 / -1; }
 }
 .shopping-plan-list {
   display: grid;
@@ -1143,6 +1162,28 @@ input:focus, select:focus, textarea:focus {
   font-size: 13px;
   white-space: nowrap;
 }
+/* 行内备注：无边框透明输入，右对齐小字；聚焦时浮起浅底 + 内边距，原地编辑无感。 */
+.shopping-remark-input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 2px 0;
+  border-radius: 6px;
+  transition: background 0.15s ease, padding 0.15s ease;
+}
+.shopping-remark-input::placeholder { color: rgba(120, 120, 128, 0.55); }
+.shopping-remark-input:focus {
+  outline: none;
+  text-align: left;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.6);
+  padding: 4px 8px;
+}
+html[data-theme="dark"] .shopping-remark-input:focus { background: rgba(0, 0, 0, 0.2); }
 .shopping-row-actions {
   display: flex;
   justify-content: flex-end;
