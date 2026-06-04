@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=205';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=205';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=205';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=205';
+import { S, todayISO } from '../storage.js?v=206';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=206';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=206';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=206';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=205';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=205';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=205';
-import { showRecommendationCards } from '../components/recipe-card.js?v=205';
-import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=205';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=205';
+} from '../recommendations.js?v=206';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=206';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=206';
+import { showRecommendationCards } from '../components/recipe-card.js?v=206';
+import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=206';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=206';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────

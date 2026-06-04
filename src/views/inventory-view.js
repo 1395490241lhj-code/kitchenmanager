@@ -1,5 +1,5 @@
-import { els } from '../dom.js?v=205';
-import { todayISO } from '../storage.js?v=205';
+import { els } from '../dom.js?v=206';
+import { todayISO } from '../storage.js?v=206';
 import {
   UNIT_TYPE,
   buildCatalog,
@@ -11,7 +11,7 @@ import {
   guessShelfDays,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=205';
+} from '../ingredients.js?v=206';
 import {
   GEAR_LABELS,
   OUT_OF_STOCK_TTL_MS,
@@ -23,20 +23,20 @@ import {
   saveInventory,
   syncOutOfStockTimestamp,
   upsertInventory
-} from '../inventory.js?v=205';
+} from '../inventory.js?v=206';
 import {
   formatAiErrorMessage,
   recognizeReceipt,
   withTimeout
-} from '../ai.js?v=205';
+} from '../ai.js?v=206';
 import {
   showReceiptConfirmationModal
-} from '../components/modal.js?v=205';
+} from '../components/modal.js?v=206';
 import {
   escapeHtml,
   escapeOptionAttr,
   setSelectValueWithOption
-} from '../components/status.js?v=205';import { markShoppingItemsStockedIn } from '../shopping.js?v=205';
+} from '../components/status.js?v=206';import { markShoppingItemsStockedIn } from '../shopping.js?v=206';
 
 // 全局「编辑食材」模式开关（模块级，跨重渲染保持，避免保存后跳回只读态）。
 let isEditingInventory = false;
