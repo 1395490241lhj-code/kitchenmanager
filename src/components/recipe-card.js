@@ -1,8 +1,8 @@
 import { S, todayISO } from '../storage.js?v=206';
 import {
-  explodeCombinedItems,
-  isSeasoning
+  explodeCombinedItems
 } from '../ingredients.js?v=206';
+import { splitIngredients } from '../utils/recipe-sanitizer.js?v=206';
 import {
   hasRecipeMethod,
   isFavoriteRecipe,
@@ -181,9 +181,16 @@ export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {
   if (editBtn) editBtn.onclick = (e) => { e.stopPropagation(); location.hash = `#recipe-edit:${r.id}`; };
   const tagContainer = card.querySelector('.ing-compact-container');
   const items = explodeCombinedItems(list || []);
-  const coreItems = items.filter(it => !isSeasoning(it.item));
-  const displayItems = coreItems.length > 0 ? coreItems : items;
+  // 食材 / 调料结构化分流：核心食材渲染为药丸，调料以轻量内敛的一行单列。
+  const { foods, seasonings } = splitIngredients(items);
+  const displayItems = foods.length > 0 ? foods : items;
   displayItems.slice(0, 4).forEach(it => { const span = document.createElement('span'); span.className = 'ing-tag-pill'; span.textContent = it.item; tagContainer.appendChild(span); });
+  if (seasonings.length) {
+    const seasoningLine = document.createElement('div');
+    seasoningLine.className = 'ing-seasoning-line';
+    seasoningLine.textContent = '🧂 ' + seasonings.slice(0, 6).map(s => s.item).join('、');
+    tagContainer.insertAdjacentElement('afterend', seasoningLine);
+  }
   if (!String(r.id).startsWith('creative-')) {
     // 复合判定：结合「今天的计划项 + 是否已做完」决定按钮状态。
     // 关键：只有「今天已加入且尚未做完」才锁为「已加入」；一旦今天已做完(isCooked)，

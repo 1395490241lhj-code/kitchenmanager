@@ -4416,6 +4416,20 @@ html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); 
   border-color: var(--status-draft-border);
   color: var(--status-draft-text);
 }
+/* 调料区块整体更内敛：标题与药丸轻量化 */
+.ingredient-seasoning-block h4 { opacity: 0.85; }
+/* 推荐卡内「调料清单」轻量单行（与核心食材药丸视觉分离） */
+.ing-seasoning-line {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ── 指标卡片：标签置顶加粗（首要锚点），数字作为结果 ── */
 /* 已在主块重构，下列覆写不再需要，保留展寃层写入备用 */

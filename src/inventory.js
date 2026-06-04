@@ -9,6 +9,7 @@ import {
   guessShelfDays,
   isDryGoodName
 } from './ingredients.js?v=206';
+import { isSeasoningName } from './utils/recipe-sanitizer.js?v=206';
 
 export const RECIPE_GENERIC_MATCHES = {
   "猪肉": ["五花肉", "瘦肉"],
@@ -434,8 +435,13 @@ export function computeCookDeductions(coreItems, inv) {
   const seen = new Set();
   for (const it of (coreItems || [])) {
     if (!it || !it.item) continue;
+    // 【规则1】调料彻底免扣：盐糖油酱醋 / 水高汤 / 姜葱蒜等常备调味与非追踪物资一律跳过，
+    //          绝不参与冰箱主库扣减与对账。
+    if (isSeasoningName(it.item)) continue;
+    // 【规则2】幽灵防御：冰箱里原本没有这项食材 → 直接跳过，
+    //          绝不为从未拥有的资产初始化数量 0 / 断货的新卡片。
     const match = getMatchingInventoryItems(inv, it.item)[0] || null;
-    if (!match) continue; // 库存里没有 → 无可扣减
+    if (!match) continue;
     if (seen.has(match)) continue; // 同一库存项只出现一次
     seen.add(match);
 
