@@ -288,7 +288,31 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
   } else {
     for (const item of filteredPlans) {
       const recipe = (pack.recipes || []).find(r => r.id === item.id);
-      if (!recipe) continue;
+      if (!recipe) {
+        // 🍳 即兴烹饪虚拟卡片（无对应菜谱）：渲染为极简「已完成」存根，
+        //    同样受上面的 48h 自隐藏过滤约束，到点自动下线。
+        if (item.name && (String(item.id).startsWith('adhoc_') || item.isCooked)) {
+          const adhocRow = document.createElement('div');
+          adhocRow.className = 'shopping-plan-row menu-plan-row is-cooked menu-plan-adhoc';
+          adhocRow.innerHTML = `
+            <div class="menu-row-left">
+              <span class="shopping-plan-name">
+                <span class="shopping-plan-recipe-title">🍳 ${escapeHtml(item.name)} <small class="shopping-plan-date-label">(${getDayLabel(item.date)})</small></span>
+              </span>
+            </div>
+            <div class="menu-row-actions">
+              <button type="button" class="menu-cook-btn is-done" disabled>已完成</button>
+              <button type="button" class="menu-remove-btn" aria-label="移除" title="移除">✕</button>
+            </div>`;
+          adhocRow.querySelector('.menu-remove-btn').onclick = () => {
+            const plans = S.load(S.keys.plan, []);
+            const idx = plans.findIndex(x => x.id === item.id);
+            if (idx >= 0) { plans.splice(idx, 1); S.save(S.keys.plan, plans); onRoute(); }
+          };
+          planList.appendChild(adhocRow);
+        }
+        continue;
+      }
       const row = document.createElement('div');
       const isCooked = !!item.isCooked;
       row.className = `shopping-plan-row menu-plan-row${isCooked ? ' is-cooked' : ''}`;

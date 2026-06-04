@@ -1,6 +1,6 @@
 import { S, todayISO } from '../storage.js?v=206';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=206';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays } from '../inventory.js?v=206';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=206';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=206';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=206';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
@@ -845,6 +845,124 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   };
 }
 
+// 把档位值写回食材并同步 stockStatus / qty / 断货时间戳（与库存编辑保持一致）。
+function applyGearImpromptu(e, value) {
+  e.gear = value;
+  e.unitType = UNIT_TYPE.GEAR;
+  if (value === 0) { e.stockStatus = 'empty'; e.qty = 0; }
+  else if (value <= 25) { e.stockStatus = 'low'; if (!(+e.qty > 0)) e.qty = 1; }
+  else { e.stockStatus = 'ok'; if (!(+e.qty > 0)) e.qty = 1; }
+  syncOutOfStockTimestamp(e);
+}
+
+/**
+ * 🍳 即兴烹饪：今日餐单标题行的快捷入口 + 就地展开的「冰箱物资微调盘点舱」。
+ * 返回 { button, tray }，由调用方分别塞进头部动作组与头部下方。
+ * 闭环：就地微调 inv → [✓ 记录完成] → 持久化冰箱 + 推虚拟 48h 卡 + 食材实体反疲劳计数 + 收起。
+ */
+function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
+  let showImpromptuTray = false;
+  const consumed = new Set(); // 本次会话被改动过的食材实体
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'home-mini-btn impromptu-btn';
+  button.textContent = '🍳 即兴烹饪';
+
+  const tray = document.createElement('div');
+  tray.className = 'km-inline-tray is-collapsed';
+
+  const renderTrayBody = () => {
+    tray.innerHTML = '';
+    const items = (inv || []).filter(isInventoryAvailable);
+    if (!items.length) {
+      tray.innerHTML = '<div class="km-tray-empty">冰箱里暂无可消耗的食材。</div>';
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'km-tray-list';
+    for (const e of items) {
+      const unitType = e.unitType || getUnitType(e.name, e.unit);
+      const row = document.createElement('div');
+      row.className = 'km-tray-row';
+      row.innerHTML = `<span class="km-tray-name">${escapeHtml(e.name)}</span>`;
+      const ctrl = document.createElement('div');
+      ctrl.className = 'km-tray-ctrl';
+      if (unitType === UNIT_TYPE.GEAR) {
+        const cur = gearInfo(getItemGear(e)).value;
+        ctrl.innerHTML = `<div class="km-gear-dots" role="group" aria-label="档位">${
+          [100, 75, 50, 25, 0].map(g => `<button type="button" class="km-gear-dot gear-${g}${g === cur ? ' is-active' : ''}" data-gear="${g}" title="${GEAR_LABELS[g]}" aria-label="${GEAR_LABELS[g]}"></button>`).join('')
+        }</div>`;
+        row.appendChild(ctrl);
+        const dots = ctrl.querySelectorAll('.km-gear-dot');
+        dots.forEach(dot => {
+          dot.onclick = () => {
+            applyGearImpromptu(e, +dot.dataset.gear);
+            consumed.add(e);
+            dots.forEach(d => d.classList.toggle('is-active', d === dot));
+          };
+        });
+      } else {
+        const qty = +e.qty || 0;
+        ctrl.innerHTML = `<div class="km-piece-step"><button type="button" class="km-step-minus" aria-label="减少">−</button><span class="km-piece-qty">${qty}</span><small>${escapeHtml(e.unit || '')}</small></div>`;
+        row.appendChild(ctrl);
+        const qtyEl = ctrl.querySelector('.km-piece-qty');
+        ctrl.querySelector('.km-step-minus').onclick = () => {
+          const next = Math.max(0, (+e.qty || 0) - 1);
+          e.qty = next;
+          e.unitType = UNIT_TYPE.PIECE;
+          e.stockStatus = next <= 0 ? 'empty' : 'ok';
+          syncOutOfStockTimestamp(e);
+          consumed.add(e);
+          qtyEl.textContent = next;
+        };
+      }
+      list.appendChild(row);
+    }
+    const footer = document.createElement('div');
+    footer.className = 'km-tray-footer';
+    const doneBtn = document.createElement('button');
+    doneBtn.type = 'button';
+    doneBtn.className = 'btn ok small km-tray-done';
+    doneBtn.textContent = '✓ 记录完成';
+    doneBtn.onclick = commit;
+    footer.appendChild(doneBtn);
+    tray.appendChild(list);
+    tray.appendChild(footer);
+  };
+
+  function commit() {
+    // 3.3 刷新「食材实体」反疲劳权重：被消耗食材 cookedCount++ / lastCookedAt
+    const now = Date.now();
+    consumed.forEach(e => {
+      e.cookedCount = (e.cookedCount || 0) + 1;
+      e.lastCookedAt = now;
+    });
+    // 3.1 更新冰箱主库持久化
+    saveInventory(inv);
+    // 3.2 生成虚拟排程卡片（触发 48h 自动下线逻辑）
+    const plans = S.load(S.keys.plan, []);
+    plans.push({ id: 'adhoc_' + Date.now(), name: '即兴搭配 (面条、空心菜等)', isCooked: true, cookedAt: Date.now(), date: todayISO() });
+    S.save(S.keys.plan, plans);
+    // 3.4 关闭并刷新整页
+    showImpromptuTray = false;
+    onRoute();
+  }
+
+  button.onclick = () => {
+    showImpromptuTray = !showImpromptuTray;
+    button.classList.toggle('is-active', showImpromptuTray);
+    if (showImpromptuTray) {
+      renderTrayBody();
+      tray.classList.remove('is-collapsed');
+    } else {
+      tray.classList.add('is-collapsed');
+    }
+  };
+
+  return { button, tray };
+}
+
 export function renderHome(pack, { onRoute = () => {} } = {}) {
   const container = document.createElement('div');
   const catalog = buildCatalog(pack);
@@ -864,16 +982,23 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   // 自上而下视觉层级：① 紧急指标 ②「📅 今日计划」合并卡（菜单计划置顶 + AI 灵感居底） ③ 极速操作
   container.appendChild(renderUrgentMetrics(pack, inv, activeShopping.length, { onRoute }));
   const menuPlanNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
-  // 头部动作区：「✓ 全部做完」批量按钮在「只看今天」下拉框左侧。
+  // 头部动作区：🍳 即兴烹饪 + 「✓ 全部做完」批量按钮 + 「只看今天」下拉框（靠左动作组）。
   const menuHeadActions = document.createElement('div');
   menuHeadActions.className = 'menu-plan-head-actions';
+  const impromptu = buildImpromptuCooking(inv, { onRoute });
+  menuHeadActions.appendChild(impromptu.button);
   menuHeadActions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
   menuHeadActions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
-  container.appendChild(renderInspirationPanel(pack, inv, expiringSoonCount, {
+  const inspirationPanel = renderInspirationPanel(pack, inv, expiringSoonCount, {
     onRoute,
     extraNode: menuPlanNode,
     headerAction: menuHeadActions
-  }));
+  });
+  // 即兴托盘：插入到「今日计划」头部正下方，点按钮就地顺滑展开。
+  const heroHead = inspirationPanel.querySelector('.home-hero-head');
+  if (heroHead) heroHead.insertAdjacentElement('afterend', impromptu.tray);
+  else inspirationPanel.prepend(impromptu.tray);
+  container.appendChild(inspirationPanel);
   container.appendChild(renderActionHub(pack, inv, {
     // 「📦 批量入库」打开统一弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再跳走。
     onQuickInput: () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' }),
