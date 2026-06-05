@@ -6066,3 +6066,102 @@ html[data-theme="dark"] .km-onboard-dot { background: rgba(255, 255, 255, 0.22);
 html[data-theme="dark"] .menu-cook-btn { background: rgba(5, 46, 22, 0.4); color: #86efac; }
 html[data-theme="dark"] .menu-cook-btn:hover { background: rgba(5, 46, 22, 0.6); }
 html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255, 0.08); color: rgba(235, 235, 245, 0.6); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * 「今日」决策页（today-view）—— Hero / 今晚推荐 / 快到期 / 今日计划 / 快捷操作
+ * 移动优先（390px 基准）、深浅色走 token，无 inline style。
+ * ══════════════════════════════════════════════════════════════════════════ */
+.today-view { display: flex; flex-direction: column; gap: 16px; }
+.today-section { display: flex; flex-direction: column; gap: 10px; }
+.today-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.today-section-title { margin: 0; font-size: 16px; font-weight: 800; color: var(--text-main); }
+
+/* ── Hero ── */
+.today-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 18px;
+  border-radius: var(--radius-l);
+  background: var(--glass-hero-fill);
+  backdrop-filter: var(--glass-blur-hero);
+  -webkit-backdrop-filter: var(--glass-blur-hero);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-hero);
+}
+.today-hero-glow {
+  position: absolute;
+  inset: -40% 30% auto -20%;
+  height: 220px;
+  background: radial-gradient(closest-side, rgba(0, 122, 255, 0.18), transparent 70%);
+  pointer-events: none;
+}
+.today-hero-title { position: relative; margin: 0; font-size: 24px; font-weight: 800; color: var(--text-main); }
+.today-hero-sub { position: relative; margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
+.today-hero-btn { position: relative; align-self: flex-start; margin-top: 6px; padding: 10px 18px; font-size: 15px; font-weight: 700; }
+
+/* ── 今晚推荐：复用 .home-suggest-card，改为全宽竖向堆叠 ── */
+.today-picks-grid { display: grid; gap: 10px; }
+.today-picks-grid .home-suggest-card,
+.today-picks-grid > .card { width: 100%; max-width: none; }
+@media (min-width: 560px) {
+  .today-picks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.today-picks-note { margin: 0; font-size: 12px; color: var(--text-secondary); }
+.today-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 14px;
+  border-radius: var(--radius-m);
+  background: var(--surface-cell);
+  border: 1px solid var(--surface-cell-border);
+  text-align: center;
+}
+.today-empty-text { margin: 0; font-size: 14px; color: var(--text-secondary); }
+.today-empty-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+/* ── 快到期：紧凑横向滚动条 ── */
+.today-exp-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.today-exp-list::-webkit-scrollbar { display: none; }
+.today-exp-chip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 88px;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--status-warn-bg);
+  border: 1px solid var(--status-warn-border);
+}
+.today-exp-name { font-size: 13px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.today-exp-day { font-size: 12px; font-weight: 600; color: var(--status-warn-text); }
+.today-exp-qty { font-size: 11px; color: var(--text-secondary); }
+.today-exp-chip.is-soon  { background: var(--status-warn-bg);  border-color: var(--status-warn-border); }
+.today-exp-chip.is-today { background: var(--status-bad-bg);   border-color: var(--status-bad-border); }
+.today-exp-chip.is-today .today-exp-day { color: var(--status-bad-text); }
+.today-exp-chip.is-expired { background: var(--status-bad-bg); border-color: var(--danger); }
+.today-exp-chip.is-expired .today-exp-name,
+.today-exp-chip.is-expired .today-exp-day { color: var(--status-bad-text); }
+
+/* ── 快捷操作：4 列网格（390px 下两行更稳）── */
+.today-quick-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (min-width: 440px) {
+  .today-quick-grid { grid-template-columns: repeat(4, 1fr); }
+}
