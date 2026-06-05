@@ -270,8 +270,10 @@ export function getMissingRecipeIngredients(recipe, pack, inv, fallbackItems = n
 
 export function addMissingRecipeIngredientsToShopping(recipe, pack, inv, fallbackItems = null) {
   const missing = getMissingRecipeIngredients(recipe, pack, inv, fallbackItems);
+  const remark = `菜谱缺货：${recipe.name || '菜谱'}`;
   missing.forEach(item => {
-    addShoppingItem(item.item || item.name, item.qty || '', item.unit || guessKitchenUnit(item.item || item.name), recipe.name || '菜谱');
+    // 显式写入「血统备注」，新代买项天生自带来源说明，且允许用户后续覆盖。
+    addShoppingItem(item.item || item.name, item.qty || '', item.unit || guessKitchenUnit(item.item || item.name), recipe.name || '菜谱', remark);
   });
   return missing.length;
 }

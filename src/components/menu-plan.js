@@ -135,9 +135,10 @@ function showShortageModal(recipe, missing) {
   header.querySelector('.km-modal-close').onclick = close;
   overlay.onclick = event => { if (event.target === overlay) close(); };
   body.querySelector('#addShortageToShopping').onclick = () => {
+    const remark = `菜谱缺货：${recipe.name}`;
     missing.forEach(item => {
       const name = item.item || item.name;
-      addShoppingItem(name, formatMissingQty(item), item.unit || guessKitchenUnit(name), `菜谱缺货：${recipe.name}`);
+      addShoppingItem(name, formatMissingQty(item), item.unit || guessKitchenUnit(name), remark, remark);
     });
     close();
     const metric = document.querySelector('#metricShopping .home-metric-num');

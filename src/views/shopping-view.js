@@ -68,6 +68,15 @@ function deleteShoppingRowsByIds(ids) {
   saveShoppingItems(loadShoppingItems().filter(item => !idSet.has(item.id)));
 }
 
+// 行内备注默认值：手写 remark 优先；回退系统自动生成的血统备注（菜谱缺货等来源），
+// 但跳过「手动 / 其他」这类无意义的通用来源，避免噪音。
+function remarkDefault(item) {
+  if (item && item.remark) return item.remark;
+  const src = String((item && item.source) || '').trim();
+  if (src && src !== '手动' && src !== '其他') return src;
+  return (item && item.reason) || '';
+}
+
 function showShoppingInventoryModal(item, onConfirm, onCancel) {
   const normalized = normalizeKitchenAmount(item.name, item.qty, item.unit);
   const defaultKind = item.kind || (isDryGoodName(normalized.name) ? 'dry' : 'raw');
@@ -437,19 +446,21 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     row.innerHTML = `
       <label class="shopping-check"><input type="checkbox" ${item.done ? 'checked' : ''}><span>${escapeHtml(item.name)}</span></label>
       <span class="shopping-item-amount">${escapeHtml(item.amountText || '按需')}</span>
-      <input type="text" class="shopping-remark-input" placeholder="点击添加备注..." value="${escapeOptionAttr(item.remark || '')}" aria-label="备注" title="${escapeOptionAttr(item.source || '')}">
+      <input type="text" class="shopping-remark-input" placeholder="点击添加备注..." value="${escapeOptionAttr(remarkDefault(item))}" aria-label="备注" title="${escapeOptionAttr(item.source || '')}">
       <div class="shopping-row-actions">
         ${stockInHtml}
         <button type="button" class="btn small bad delete-shopping-btn">删</button>
       </div>
     `;
     // 行内备注：原地直接修改，失焦 / 变更即写回底层数据并持久化（不触发整页重渲染，保持焦点）。
+    // 默认值多字段兼容：手写 remark 优先，回退系统自动生成的来源（菜谱缺货等血统备注）。
+    const remarkBaseline = remarkDefault(item);
     const remarkInput = row.querySelector('.shopping-remark-input');
     if (remarkInput) {
       remarkInput.onclick = event => event.stopPropagation();
       const commitRemark = () => {
         const val = remarkInput.value.trim();
-        if (val === (item.remark || '')) return; // 无变化不写库
+        if (val === remarkBaseline) return; // 与当前显示值一致（未改动）→ 不写库
         item.remark = val;
         updateShoppingRowsByIds(item.ids, target => ({ ...target, remark: val }));
       };
