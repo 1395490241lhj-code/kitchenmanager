@@ -188,14 +188,19 @@ Current keys:
 
 Important structures:
 
-- Inventory item:
-  - `id`, `name`, `qty`, `unit`, `buyDate`, `kind`, `shelf`, `stockStatus`, `isFrozen`
+- Inventory item (no `id` field; matched by `name` + `kind`):
+  - `name`, `qty`, `unit`, `buyDate`, `kind`, `shelf`, `stockStatus`, `isFrozen`
   - dry goods may include `dryPrep`
-  - gear-based items may include `gear`, `unitType`
-  - out-of-stock cleanup may use `outOfStockAt`
+  - gear-based items may include `gear`, `unitType` (`'GEAR'` | `'PIECE'`)
+  - out-of-stock cleanup uses `outOfStockAt` (ms epoch | null), which drives 7-day self-evaporation + ghost-sink
+  - ad-hoc cooking may add `cookedCount`, `lastCookedAt` (ingredient-level anti-fatigue)
+  - `loadInventory()` patches defaults but PRESERVES unknown fields, so inventory items are safe to extend.
 
 - Shopping item:
   - `id`, `name`, `qty`, `unit`, `source`, `done`, `stockedIn`, `stockedInAt`, `remark`
+  - FOOTGUN: `shopping.loadShoppingItems()` REBUILDS every row from a FIXED field set. Any new shopping
+    field MUST also be added to that rebuild block, or it is silently dropped on the next reload (this exact
+    bug ate `remark` once). This is asymmetric with inventory, which preserves unknown fields.
 
 - Plan item:
   - `id`, `servings`, `date`
@@ -217,9 +222,10 @@ Data rules:
 - Migrations must never clear data on failure.
 - Import/restore must be all-or-nothing where possible. If partial restore is unavoidable, show a clear warning.
 
-Known watch point:
+Known watch points:
 
 - When touching backup/restore, make sure custom pantry config (`km_v1_pantry_config`) is included alongside `km_v1_staples`.
+- When adding a field to shopping items, also add it to the rebuild block inside `loadShoppingItems()` (see the footgun above), otherwise it will not survive a reload.
 
 ## 6. Frontend Module Rules
 
@@ -255,6 +261,7 @@ Import/version rules:
 
 - The project uses `?v=<number>` cache busting on modules and static assets.
 - After changing JS/CSS that is imported by the browser, run `node scripts/stamp-version.js` or update relevant versions consistently.
+- For a release that must also invalidate the Service Worker cache, additionally bump `CACHE_NAME` in `sw.v18.js` (the `?v=` stamp alone does not rename the SW cache).
 - Do not hand-edit many version query params unless the task is tiny and the scope is obvious.
 
 ## 7. UI Design Rules
