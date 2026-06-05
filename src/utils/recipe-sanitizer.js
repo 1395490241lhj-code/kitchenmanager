@@ -8,7 +8,7 @@
  * 判定优先级：精准正则（油盐酱醋糖 / 水高汤 / 淀粉等常备调味与非追踪物资）
  *            → 兜底复用 ingredients.js 既有的 isSeasoning（含姜葱蒜等香辛料/常备物），更稳健。
  */
-import { isSeasoning } from '../ingredients.js?v=206';
+import { isSeasoning } from '../ingredients.js?v=208';
 
 // 精准判定常备调料与非追踪物资（盐糖油酱醋 / 水高汤 / 淀粉生粉 等）。
 export const SEASONING_REGEX = /^(盐|糖|白糖|冰糖|红糖|酱油|生抽|老抽|料酒|醋|香醋|陈醋|白醋|蚝油|鸡精|味精|胡椒粉|黑胡椒|十三香|五香粉|孜然|孜然粉|咖喱|辣椒面|淀粉|生粉|植物油|花生油|色拉油|菜籽油|橄榄油|香油|芝麻油|猪油|水|清水|高汤|开水)$/;

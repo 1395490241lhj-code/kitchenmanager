@@ -1,5 +1,5 @@
-import { els } from '../dom.js?v=206';
-import { todayISO } from '../storage.js?v=206';
+import { els } from '../dom.js?v=208';
+import { todayISO } from '../storage.js?v=208';
 import {
   UNIT_TYPE,
   buildCatalog,
@@ -11,7 +11,7 @@ import {
   guessShelfDays,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=206';
+} from '../ingredients.js?v=208';
 import {
   GEAR_LABELS,
   OUT_OF_STOCK_TTL_MS,
@@ -23,23 +23,27 @@ import {
   saveInventory,
   syncOutOfStockTimestamp,
   upsertInventory
-} from '../inventory.js?v=206';
+} from '../inventory.js?v=208';
 import {
   formatAiErrorMessage,
   recognizeReceipt,
   withTimeout
-} from '../ai.js?v=206';
+} from '../ai.js?v=208';
 import {
   showReceiptConfirmationModal
-} from '../components/modal.js?v=206';
+} from '../components/modal.js?v=208';
 import {
   escapeHtml,
   escapeOptionAttr,
   setSelectValueWithOption
-} from '../components/status.js?v=206';import { markShoppingItemsStockedIn } from '../shopping.js?v=206';
+} from '../components/status.js?v=208';import { markShoppingItemsStockedIn } from '../shopping.js?v=208';
+import { renderStaplesShelf } from '../components/staples-shelf.js?v=208';
 
 // 全局「编辑食材」模式开关（模块级，跨重渲染保持，避免保存后跳回只读态）。
 let isEditingInventory = false;
+
+// 常备货架折叠态（模块级，跨重渲染保持：标记常备品会触发整页重渲染）。
+let invStaplesOpen = false;
 
 // 是否真正有货：数量 > 0 且状态不是「没有」，档位型还需未降到「断货」。
 function hasRealStock(e){
@@ -471,5 +475,20 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       grid.appendChild(card);
     }
   }
-  renderTable(); return wrap;
+  renderTable();
+
+  // ── 常备货架（调料 / 蛋奶 / 干货）：从清单页迁入，折叠收纳，默认收起，避免抢占库存视线 ──
+  const staplesSection = document.createElement('details');
+  staplesSection.className = 'inv-staples-section';
+  staplesSection.open = invStaplesOpen;
+  const staplesSummary = document.createElement('summary');
+  staplesSummary.className = 'inv-staples-summary';
+  staplesSummary.innerHTML = '<span class="inv-staples-title">🧂 常备货架</span><span class="inv-staples-hint">调料 · 蛋奶 · 干货</span>';
+  staplesSection.appendChild(staplesSummary);
+  // 记住展开/收起状态，使标记常备品触发的整页重渲染后仍保持当前折叠态。
+  staplesSection.addEventListener('toggle', () => { invStaplesOpen = staplesSection.open; });
+  staplesSection.appendChild(renderStaplesShelf(inv, { onRoute: onInventoryChanged }));
+  wrap.appendChild(staplesSection);
+
+  return wrap;
 }

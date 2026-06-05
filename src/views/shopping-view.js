@@ -1,4 +1,4 @@
-import { todayISO } from '../storage.js?v=206';
+import { todayISO } from '../storage.js?v=208';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -6,11 +6,11 @@ import {
   guessKitchenUnit,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=206';
+} from '../ingredients.js?v=208';
 import {
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=206';
+} from '../inventory.js?v=208';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -21,38 +21,17 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=206';
+} from '../shopping.js?v=208';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=206';
-import {
-  PANTRY_GROUP_OPTIONS,
-  STAPLE_STATUS,
-  addCustomPantryEntry,
-  getManagedStapleGroups,
-  getStapleState,
-  removePantryEntry,
-  restoreStapleByPurchase,
-  restoreStaplesByPurchase,
-  toggleStaple,
-  updatePantryEntry
-} from '../staples.js?v=206';
-import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=206';
+} from '../components/status.js?v=208';
+import { restoreStapleByPurchase, restoreStaplesByPurchase } from '../staples.js?v=208';
 
 // 兼容旧入口：完整库存已迁到独立「库存」Tab，本页不再内嵌库存分段；保留空实现避免外部 import 报错。
 export function requestInventoryIntent() {}
-
-// 清单页「分段控件」：购物项 / 常备货架（完整库存已移出到独立「库存」Tab）。
-// 取值：'shopping' = 购物项｜'staples' = 常备货架。
-let activeInventoryTab = 'shopping';
-let isManagingPantry = false;
-const INVENTORY_TABS = [
-  { key: 'shopping', label: '🛒 购物项' },
-  { key: 'staples', label: '🧂 常备货架' }
-];
 
 function updateShoppingRowsByIds(ids, updater) {
   const idSet = new Set(ids || []);
@@ -131,239 +110,6 @@ function showShoppingInventoryModal(item, onConfirm, onCancel) {
     onConfirm(entry);
     close();
   };
-}
-
-const PANTRY_STOCK_GROUPS = new Set(['蛋奶', '干货']);
-
-function getPantryGroupOptions(entry = null) {
-  if (!entry) return PANTRY_GROUP_OPTIONS;
-  if (entry.type === 'pantry') return PANTRY_GROUP_OPTIONS.filter(group => PANTRY_STOCK_GROUPS.has(group));
-  return PANTRY_GROUP_OPTIONS.filter(group => !PANTRY_STOCK_GROUPS.has(group));
-}
-
-function closeLiquidModal(overlay, panel) {
-  panel.style.transition = 'transform 0.2s ease-in, opacity 0.2s ease-in';
-  panel.style.opacity = '0';
-  panel.style.transform = 'translate3d(0, 0, 0) scale(0.95)';
-  overlay.classList.add('closing');
-  window.setTimeout(() => overlay.remove(), 220);
-}
-
-function renderPantryGroupSelect(options, selected) {
-  const chosen = selected && !options.includes(selected) ? [...options, selected] : options;
-  return chosen.map(group => `<option value="${escapeOptionAttr(group)}">${escapeHtml(group)}</option>`).join('');
-}
-
-function showPantryEntryModal({ entry = null, onRoute = () => {} } = {}) {
-  const isEdit = !!entry;
-  const options = getPantryGroupOptions(entry);
-  const defaultGroup = entry?.group || options[0] || '基础调味';
-  const overlay = document.createElement('div');
-  overlay.className = 'km-modal-overlay';
-  const panel = document.createElement('div');
-  panel.className = 'km-modal-content pantry-manage-modal';
-  panel.innerHTML = `
-    <div class="km-modal-header">
-      <span class="km-modal-title">${isEdit ? `编辑「${escapeHtml(entry.name)}」` : '+ 自定义添加'}</span>
-      <button type="button" class="km-modal-close" aria-label="关闭">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-    <div class="km-modal-body pantry-manage-body">
-      <label class="pantry-manage-field">
-        <span>食材名称</span>
-        <input class="km-modal-input" id="pantryEntryName" value="${escapeOptionAttr(entry?.name || '')}" placeholder="例如：黑木耳">
-      </label>
-      <label class="pantry-manage-field">
-        <span>所属分类</span>
-        <select class="km-modal-input" id="pantryEntryGroup">${renderPantryGroupSelect(options, defaultGroup)}</select>
-      </label>
-      <div id="pantryManageStatus" class="small inline-status" hidden></div>
-      <div class="km-modal-actions pantry-manage-actions">
-        <button type="button" class="btn" id="cancelPantryManage">取消</button>
-        <button type="button" class="btn ok" id="savePantryManage">${isEdit ? '保存修改' : '添加到货架'}</button>
-      </div>
-    </div>
-  `;
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
-  requestAnimationFrame(() => overlay.classList.add('open'));
-
-  const nameInput = panel.querySelector('#pantryEntryName');
-  const groupSelect = panel.querySelector('#pantryEntryGroup');
-  const status = panel.querySelector('#pantryManageStatus');
-  groupSelect.value = defaultGroup;
-
-  const close = () => closeLiquidModal(overlay, panel);
-  panel.querySelector('.km-modal-close').onclick = close;
-  panel.querySelector('#cancelPantryManage').onclick = close;
-  overlay.onclick = event => { if (event.target === overlay) close(); };
-  nameInput.focus();
-
-  const save = () => {
-    const name = nameInput.value.trim();
-    const group = groupSelect.value;
-    if (!name) {
-      setInlineStatus(status, '请先输入常备食材名称。', 'bad');
-      return;
-    }
-
-    const result = isEdit
-      ? updatePantryEntry(entry, { name, group })
-      : addCustomPantryEntry({
-          name,
-          group,
-          type: PANTRY_STOCK_GROUPS.has(group) ? 'pantry' : 'staple',
-          kind: group === '干货' ? 'dry' : (group === '蛋奶' ? 'raw' : 'staple'),
-          unit: PANTRY_STOCK_GROUPS.has(group) ? (guessKitchenUnit(name) || '份') : '',
-          source: group === '干货' ? '常备干货' : (group === '蛋奶' ? '日常补给' : '常备品')
-        });
-    if (!result.ok) {
-      setInlineStatus(status, result.message || '保存失败，请稍后再试。', 'bad');
-      return;
-    }
-    isManagingPantry = true;
-    close();
-    onRoute();
-  };
-
-  panel.querySelector('#savePantryManage').onclick = save;
-  nameInput.onkeydown = event => {
-    if (event.key === 'Enter') save();
-  };
-}
-
-function showPantryDeleteConfirm(entry, { onRoute = () => {} } = {}) {
-  const overlay = document.createElement('div');
-  overlay.className = 'km-modal-overlay';
-  const panel = document.createElement('div');
-  panel.className = 'km-modal-content pantry-manage-modal';
-  panel.innerHTML = `
-    <div class="km-modal-header">
-      <span class="km-modal-title">移除常备项？</span>
-      <button type="button" class="km-modal-close" aria-label="关闭">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-    <div class="km-modal-body pantry-manage-body">
-      <p class="pantry-confirm-copy">「${escapeHtml(entry.name)}」会从常备货架里隐藏或删除，库存记录本身不会被清空。</p>
-      <div class="km-modal-actions pantry-manage-actions">
-        <button type="button" class="btn" id="cancelPantryDelete">取消</button>
-        <button type="button" class="btn bad" id="confirmPantryDelete">移除</button>
-      </div>
-    </div>
-  `;
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
-  requestAnimationFrame(() => overlay.classList.add('open'));
-
-  const close = () => closeLiquidModal(overlay, panel);
-  panel.querySelector('.km-modal-close').onclick = close;
-  panel.querySelector('#cancelPantryDelete').onclick = close;
-  overlay.onclick = event => { if (event.target === overlay) close(); };
-  panel.querySelector('#confirmPantryDelete').onclick = () => {
-    removePantryEntry(entry);
-    isManagingPantry = true;
-    close();
-    onRoute();
-  };
-}
-
-// 【常备货架】统一管理：调料/米面（双态常备品）+ 蛋奶/干货（同样的双态瓦片）。
-// 不再使用折叠 <details>，直接返回平铺内容卡片，由分段控件控制显隐。
-function renderStaplesShelf(inv, { onRoute = () => {} } = {}) {
-  const panel = document.createElement('div');
-  panel.className = 'staples-shelf-content';
-  panel.innerHTML = `
-    <div class="card staples-card">
-      <div class="staples-card-head">
-        <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入购物清单；买好后在清单里勾选「已买」，常备调料会自动恢复为<strong>充足</strong>。</p>
-        <button type="button" class="pantry-manage-btn" id="togglePantryManage">${isManagingPantry ? '✓ 完成' : '⚙️ 管理货架'}</button>
-      </div>
-      <div id="stapleShelf"></div>
-    </div>
-  `;
-  panel.querySelector('#togglePantryManage').onclick = () => {
-    isManagingPantry = !isManagingPantry;
-    activeInventoryTab = 'staples';
-    onRoute();
-  };
-  const shelf = panel.querySelector('#stapleShelf');
-  let addTileRendered = false;
-  const managedStapleGroups = getManagedStapleGroups();
-  if (isManagingPantry && managedStapleGroups.length === 0) managedStapleGroups.push({ group: '自定义', items: [] });
-  managedStapleGroups.forEach(group => {
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'shopping-staple-group';
-    groupDiv.innerHTML = `<div class="shopping-staple-title">${escapeHtml(group.group)}</div>`;
-    const grid = document.createElement('div');
-    grid.className = 'staple-tile-grid';
-    const sortedItems = [...group.items].sort((a, b) => {
-      const aLow = getStapleState(a.name).status === STAPLE_STATUS.INSUFFICIENT;
-      const bLow = getStapleState(b.name).status === STAPLE_STATUS.INSUFFICIENT;
-      if (aLow !== bLow) return aLow ? -1 : 1;
-      return a.name.localeCompare(b.name, 'zh-Hans-CN');
-    });
-    if (isManagingPantry && !addTileRendered) {
-      addTileRendered = true;
-      const addTile = document.createElement('button');
-      addTile.type = 'button';
-      addTile.className = 'staple-tile staple-add-tile';
-      addTile.innerHTML = '<span class="staple-tile-name">+ 自定义添加</span>';
-      addTile.onclick = () => showPantryEntryModal({ onRoute });
-      grid.appendChild(addTile);
-    }
-    sortedItems.forEach(entry => {
-      const state = getStapleState(entry.name);
-      const low = state.status === STAPLE_STATUS.INSUFFICIENT;
-      const tile = document.createElement(isManagingPantry ? 'div' : 'button');
-      if (!isManagingPantry) tile.type = 'button';
-      tile.className = `staple-tile ${low ? 'is-low' : 'is-ok'}${isManagingPantry ? ' is-managing' : ''}`;
-      tile.setAttribute('aria-pressed', low ? 'true' : 'false');
-      tile.setAttribute('aria-label', `${entry.name}：${low ? '不足，点击标记为充足' : '充足，点击标记为不足'}`);
-      if (isManagingPantry) {
-        tile.setAttribute('role', 'button');
-        tile.tabIndex = 0;
-      }
-      tile.innerHTML = `
-        <span class="staple-tile-name">${escapeHtml(entry.name)}</span>
-        <span class="staple-status-dot" aria-hidden="true"></span>
-        ${isManagingPantry ? '<button type="button" class="staple-delete-btn" aria-label="移除">×</button>' : ''}
-      `;
-      if (isManagingPantry) {
-        tile.onclick = () => showPantryEntryModal({ entry, onRoute });
-        tile.onkeydown = event => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            showPantryEntryModal({ entry, onRoute });
-          }
-        };
-        tile.querySelector('.staple-delete-btn').onclick = event => {
-          event.stopPropagation();
-          showPantryDeleteConfirm(entry, { onRoute });
-        };
-      } else {
-        tile.onclick = () => { toggleStaple(entry.name); onRoute(); };
-      }
-      grid.appendChild(tile);
-    });
-    groupDiv.appendChild(grid);
-    shelf.appendChild(groupDiv);
-  });
-
-  // 蛋奶 / 干货：同样的双态瓦片，直接并入同一组网格，视觉与调料一致。
-  shelf.appendChild(renderDryGoodsCabinet(inv, {
-    onRoute,
-    isManagingPantry,
-    onEditPantryItem: entry => showPantryEntryModal({ entry, onRoute }),
-    onDeletePantryItem: entry => showPantryDeleteConfirm(entry, { onRoute })
-  }));
-
-  return panel;
 }
 
 export function renderShopping(pack, { onRoute = () => {} } = {}){
@@ -567,54 +313,14 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       .then(() => setInlineStatus(status, '已复制未买清单。', 'ok'))
       .catch(() => setInlineStatus(status, text, 'info'));
   };
-  // 【常备货架】内容：调料/米面 + 蛋奶/干货，统一双态瓦片（平铺，无折叠）。
-  const staplesShelf = renderStaplesShelf(inv, { onRoute });
+  // 清单页只负责「购物项」；常备货架已迁到独立「库存」Tab，这里只挂购物项卡片。
+  page.appendChild(itemCard);
 
-  // ── iOS 风格「分段控件」：顶部吸顶两选项（购物项 / 常备货架），下方平铺渲染对应内容 ──
-  const segmented = document.createElement('div');
-  segmented.className = 'inv-segmented';
-  segmented.setAttribute('role', 'tablist');
-  segmented.setAttribute('aria-label', '清单分段');
-  INVENTORY_TABS.forEach(tab => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'inv-seg-btn';
-    btn.dataset.tab = tab.key;
-    btn.textContent = tab.label;
-    btn.setAttribute('role', 'tab');
-    segmented.appendChild(btn);
-  });
-
-  // 三个内容面板，包进同一容器，靠分段控件切换显隐（display 切换，无重渲染、无动画）。
-  const panelWrap = document.createElement('div');
-  panelWrap.className = 'inv-panel-wrap';
-  const panelNodes = {};
-  const panelSource = { shopping: itemCard, staples: staplesShelf };
-  INVENTORY_TABS.forEach(tab => {
-    const p = document.createElement('div');
-    p.className = 'inv-panel';
-    p.dataset.panel = tab.key;
-    p.appendChild(panelSource[tab.key]);
-    panelWrap.appendChild(p);
-    panelNodes[tab.key] = p;
-  });
-
-  const setTab = (key) => {
-    if (!panelNodes[key]) key = 'shopping';
-    activeInventoryTab = key;
-    segmented.querySelectorAll('.inv-seg-btn').forEach(b => {
-      const on = b.dataset.tab === key;
-      b.classList.toggle('is-active', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    Object.entries(panelNodes).forEach(([k, p]) => p.classList.toggle('is-hidden', k !== key));
-  };
-  segmented.querySelectorAll('.inv-seg-btn').forEach(b => { b.onclick = () => setTab(b.dataset.tab); });
-
-  page.appendChild(segmented);
-  page.appendChild(panelWrap);
-
-  setTab(activeInventoryTab);
+  // 轻量指引：常备货架（调料/蛋奶/干货）现在统一在「库存」页管理。
+  const shelfHint = document.createElement('p');
+  shelfHint.className = 'shopping-shelf-hint small';
+  shelfHint.innerHTML = '🧂 常备货架（调料 / 蛋奶 / 干货）已移到 <a href="#inventory">库存页</a> 统一管理。';
+  page.appendChild(shelfHint);
 
   return page;
 }
