@@ -1,7 +1,7 @@
 import { S, todayISO } from '../storage.js?v=206';
 import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=206';
 import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=206';
-import { addShoppingItem, loadShoppingItems, saveShoppingItems } from '../shopping.js?v=206';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=206';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
@@ -10,7 +10,7 @@ import {
 import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=206';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=206';
 import { showRecommendationCards } from '../components/recipe-card.js?v=206';
-import { showCleanFridgeModal, showReceiptConfirmationModal } from '../components/modal.js?v=206';
+import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal } from '../components/modal.js?v=206';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=206';
 
 /*
@@ -454,81 +454,6 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () =>
   return wrap;
 }
 
-/** 「购物清单」弹窗：查看待买项、添加（名称/数量/单位）、删除；不跳转页面。
- *  与顶部「待购买」状态卡、首页「购物清单」按钮复用同一实现。 */
-function buildShoppingModal({ onClose = () => {}, onChange = () => {} } = {}) {
-  const wrap = document.createElement('div');
-  wrap.className = 'km-modal-body';
-
-  // 添加行：名称 + 数量 + 单位 + 加入
-  const addRow = document.createElement('div');
-  addRow.className = 'km-shop-add';
-  addRow.innerHTML = `
-    <input class="km-modal-input km-shop-name" id="shoppingModalInput" placeholder="食材名">
-    <input class="km-modal-input km-shop-qty" id="shoppingModalQty" type="number" min="0" step="1" placeholder="数量">
-    <select class="km-modal-input km-shop-unit" id="shoppingModalUnit"><option value="">单位</option><option>个</option><option>盒</option><option>袋</option><option>包</option><option>瓶</option><option>把</option><option>份</option><option>g</option><option>ml</option></select>
-    <button type="button" class="btn ok small km-shop-addbtn" id="shoppingModalAdd">加入</button>
-  `;
-  wrap.appendChild(addRow);
-
-  const listEl = document.createElement('ul');
-  listEl.className = 'km-shopping-list';
-  wrap.appendChild(listEl);
-
-  const renderList = () => {
-    const current = loadShoppingItems().filter(i => !i.done);
-    listEl.innerHTML = '';
-    if (!current.length) {
-      listEl.innerHTML = '<li class="km-modal-empty">购物清单为空 🎉 在上方添加要买的东西</li>';
-      return;
-    }
-    current.forEach(it => {
-      const li = document.createElement('li');
-      li.className = 'km-shopping-item';
-      const qty = it.qty ? ` · ${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}` : '';
-      li.innerHTML = `<span class="km-shop-itemname">${escapeHtml(it.name)}${qty}</span><button type="button" class="km-shop-del" aria-label="删除 ${escapeOptionAttr(it.name)}">✕</button>`;
-      li.querySelector('.km-shop-del').onclick = () => {
-        saveShoppingItems(loadShoppingItems().filter(x => x.id !== it.id));
-        renderList();
-        onChange();
-      };
-      listEl.appendChild(li);
-    });
-  };
-  renderList();
-
-  const nameInput = addRow.querySelector('#shoppingModalInput');
-  const qtyInput = addRow.querySelector('#shoppingModalQty');
-  const unitSel = addRow.querySelector('#shoppingModalUnit');
-  const doAdd = () => {
-    const name = nameInput.value.trim();
-    if (!name) return;
-    addShoppingItem(name, qtyInput.value || '', unitSel.value || '', '手动');
-    nameInput.value = ''; qtyInput.value = ''; unitSel.value = '';
-    nameInput.focus();
-    renderList();
-    onChange();
-  };
-  nameInput.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
-  addRow.querySelector('#shoppingModalAdd').onclick = doAdd;
-
-  const footer = document.createElement('div');
-  footer.className = 'km-modal-actions';
-  footer.innerHTML = `<button type="button" class="btn ok" id="shoppingCloseBtn">关闭</button>`;
-  footer.querySelector('#shoppingCloseBtn').onclick = onClose;
-  wrap.appendChild(footer);
-
-  return wrap;
-}
-
-// 打开「购物清单」弹窗（待购买状态卡 / 购物清单按钮复用同一逻辑）。
-function openShoppingListModal({ onRoute = () => {}, onChange = () => {} } = {}) {
-  let closeFn = () => {};
-  const body = buildShoppingModal({ onClose: () => closeFn(), onChange });
-  const { close } = createHomeModal(body, '🛒 购物清单');
-  closeFn = close;
-}
-
 // 打开「到期食材」弹窗。
 function openExpiryListModal(inv, pack, { onRoute = () => {}, onChange = () => {} } = {}) {
   let closeFn = () => {};
@@ -641,10 +566,7 @@ function renderUrgentMetrics(pack, inv, activeShoppingCount, { onRoute = () => {
     closeModal = close;
     setTimeout(() => overlay.querySelector('#memoModalInput, input')?.focus?.(), 80);
   };
-  section.querySelector('#metricShopping').onclick = () => {
-    const { overlay, close } = createHomeModal(buildShoppingModal(() => close()), '🛒 待买物品清单');
-    setTimeout(() => overlay.querySelector('#shoppingModalInput')?.focus?.(), 80);
-  };
+  section.querySelector('#metricShopping').onclick = () => showQuickShoppingModal();
 
   return section;
 }
@@ -1036,7 +958,8 @@ function createStatusCards(inv, pack, { onRoute = () => {} } = {}) {
       </button>
     `;
     section.querySelector('#statExpiring').onclick = () => openExpiryListModal(inv, pack, { onRoute, onChange: render });
-    section.querySelector('#statShopping').onclick = () => openShoppingListModal({ onRoute, onChange: render });
+    // 待购买卡：只弹「待买速记」快速添加弹窗，不展示完整购物清单列表。
+    section.querySelector('#statShopping').onclick = () => showQuickShoppingModal({ onAdd: render });
   };
   render();
   return { el: section, refresh: render };
@@ -1174,20 +1097,17 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
   card.appendChild(planNode);
 
-  // 计划空状态 → 补一行可行动按钮（从推荐添加 / 去菜谱看看）。
+  // 计划空状态 → 只给一行轻提示（引导展开下方的「AI 智能推荐」），不再放独立按钮。
   if (planNode.querySelector('.menu-plan-empty')) {
-    const emptyActions = document.createElement('div');
-    emptyActions.className = 'today-plan-empty-actions';
-    emptyActions.innerHTML = `
-      <button type="button" class="btn ok small" id="planFromAi">✨ 从推荐添加</button>
-      <button type="button" class="btn small" id="planBrowse">📖 去菜谱看看</button>
-    `;
-    emptyActions.querySelector('#planFromAi').onclick = () => {
+    const emptyHint = document.createElement('button');
+    emptyHint.type = 'button';
+    emptyHint.className = 'today-plan-empty-hint';
+    emptyHint.textContent = '可以展开下方「AI 智能推荐」，把合适的菜加入今日计划。';
+    emptyHint.onclick = () => {
       const toggle = card.querySelector('#aiToggle');
       if (toggle && toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
     };
-    emptyActions.querySelector('#planBrowse').onclick = () => { location.hash = '#recipes'; };
-    card.appendChild(emptyActions);
+    card.appendChild(emptyHint);
   }
 
   // 分隔线
@@ -1201,20 +1121,20 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   return card;
 }
 
-// ③ 快捷操作区（两个轻量入口）：食材入库（直接打开采购物品入库登记弹窗）+ 购物清单（弹窗）。
+// ③ 快捷操作区（两个轻量入口）：食材入库（直接打开采购物品入库登记弹窗）+ 待买速记（速记弹窗）。
 function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () => {} } = {}) {
   const section = document.createElement('section');
   section.className = 'today-section today-quick';
   section.innerHTML = `
     <div class="today-quick-row">
       <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>食材入库</span></button>
-      <button type="button" class="today-quick-btn" id="qaShopping"><span class="tq-emoji">🛒</span><span>购物清单</span></button>
+      <button type="button" class="today-quick-btn" id="qaMemo"><span class="tq-emoji">📝</span><span>待买速记</span></button>
     </div>
   `;
   // 食材入库：直接打开现有「采购物品入库登记」弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再多一层选择。
   section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
-  // 购物清单：弹窗查看 / 添加 / 删除，不跳转页面；增删后刷新顶部待购买数字。
-  section.querySelector('#qaShopping').onclick = () => openShoppingListModal({ onRoute, onChange: refreshStatus });
+  // 待买速记：只弹快速添加待购买弹窗（不展示完整清单，不跳转）；添加后刷新顶部待购买数字。
+  section.querySelector('#qaMemo').onclick = () => showQuickShoppingModal({ onAdd: refreshStatus });
   return section;
 }
 

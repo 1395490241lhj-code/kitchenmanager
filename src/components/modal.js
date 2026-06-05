@@ -2,7 +2,7 @@ import { todayISO } from '../storage.js?v=206';
 import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=206';
 import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=206';
 import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=206';
-import { loadShoppingItems, matchReceiptItemsToShoppingItems } from '../shopping.js?v=206';
+import { loadShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem } from '../shopping.js?v=206';
 
 // 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
 const CALIB_EMOJI = [
@@ -623,5 +623,75 @@ export function showCleanFridgeModal(recs, options = {}) {
       }
     };
   });
+}
+
+/**
+ * 📝 待买速记：极轻量的「快速添加待购买食材」弹窗。
+ *  - 只负责速记添加（名称 / 数量 / 单位 → addShoppingItem），不展示当前购物清单列表。
+ *  - 添加后给轻提示并清空输入，方便连续记录；每次添加触发 onAdd（用于刷新外部计数）。
+ *  - 不改 hash、不跳转 #shopping；完整清单仍在「清单」Tab。
+ * @param {Object}   [opts]
+ * @param {Function} [opts.onAdd] 每次成功添加后的回调（例如刷新首页「待购买」数字）。
+ */
+export function showQuickShoppingModal({ onAdd = () => {} } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'km-modal-overlay';
+  const panel = document.createElement('div');
+  panel.className = 'km-modal-content quick-shop-modal';
+  panel.innerHTML = `
+    <div class="km-modal-header">
+      <span class="km-modal-title">📝 待买速记</span>
+      <button type="button" class="km-modal-close" aria-label="关闭">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="km-modal-body">
+      <div class="km-shop-add">
+        <input class="km-modal-input km-shop-name" id="qsName" placeholder="食材名">
+        <input class="km-modal-input km-shop-qty" id="qsQty" type="number" min="0" step="1" placeholder="数量">
+        <select class="km-modal-input km-shop-unit" id="qsUnit"><option value="">单位</option><option>个</option><option>盒</option><option>袋</option><option>包</option><option>瓶</option><option>把</option><option>份</option><option>g</option><option>ml</option></select>
+        <button type="button" class="btn ok small km-shop-addbtn" id="qsAdd">加入</button>
+      </div>
+      <p class="quick-shop-hint" id="qsHint" hidden></p>
+    </div>
+    <div class="km-modal-actions">
+      <button type="button" class="btn ok" id="qsClose">关闭</button>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+
+  let closing = false;
+  const close = () => {
+    if (closing) return;
+    closing = true;
+    overlay.classList.add('closing');
+    setTimeout(() => overlay.remove(), 220);
+  };
+  panel.querySelector('.km-modal-close').onclick = close;
+  panel.querySelector('#qsClose').onclick = close;
+  overlay.onclick = e => { if (e.target === overlay) close(); };
+
+  const nameInput = panel.querySelector('#qsName');
+  const qtyInput = panel.querySelector('#qsQty');
+  const unitSel = panel.querySelector('#qsUnit');
+  const hint = panel.querySelector('#qsHint');
+
+  const doAdd = () => {
+    const name = nameInput.value.trim();
+    if (!name) { nameInput.focus(); return; }
+    addShoppingItem(name, qtyInput.value || '', unitSel.value || '', '速记');
+    hint.hidden = false;
+    hint.textContent = `✓ 已加入待买：${name}`;
+    nameInput.value = ''; qtyInput.value = ''; unitSel.value = '';
+    nameInput.focus();
+    onAdd();
+  };
+  nameInput.onkeydown = e => { if (e.key === 'Enter') doAdd(); };
+  panel.querySelector('#qsAdd').onclick = doAdd;
+  setTimeout(() => nameInput.focus(), 80);
 }
 

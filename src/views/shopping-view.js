@@ -40,21 +40,18 @@ import {
   toggleStaple,
   updatePantryEntry
 } from '../staples.js?v=206';
-import { renderInventory } from './inventory-view.js?v=206';
 import { renderDryGoodsCabinet } from '../components/pantry-shelf.js?v=206';
 
-// 跨页意图：首页「批量入库 / 拍小票 / 临期雷达」跳到本页后要打开的库存区动作。
-let pendingInventoryIntent = null;
-export function requestInventoryIntent(kind) { pendingInventoryIntent = kind; }
+// 兼容旧入口：完整库存已迁到独立「库存」Tab，本页不再内嵌库存分段；保留空实现避免外部 import 报错。
+export function requestInventoryIntent() {}
 
-// 库存管理页改用 iOS 风格「分段控件」：记忆当前选中的分段，避免编辑库存触发重渲染后跳回。
-// 取值：'shopping' = 购物项｜'staples' = 常备货架｜'inventory' = 完整库存。
+// 清单页「分段控件」：购物项 / 常备货架（完整库存已移出到独立「库存」Tab）。
+// 取值：'shopping' = 购物项｜'staples' = 常备货架。
 let activeInventoryTab = 'shopping';
 let isManagingPantry = false;
 const INVENTORY_TABS = [
   { key: 'shopping', label: '🛒 购物项' },
-  { key: 'staples', label: '🧂 常备货架' },
-  { key: 'inventory', label: '📦 完整库存' }
+  { key: 'staples', label: '🧂 常备货架' }
 ];
 
 function updateShoppingRowsByIds(ids, updater) {
@@ -573,10 +570,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   // 【常备货架】内容：调料/米面 + 蛋奶/干货，统一双态瓦片（平铺，无折叠）。
   const staplesShelf = renderStaplesShelf(inv, { onRoute });
 
-  // 【完整库存】内容：保留已优化的高密度双列网格，仅去掉折叠外壳，直接平铺。
-  const inventoryNode = renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute });
-
-  // ── iOS 风格「分段控件」：顶部吸顶三选项，下方平铺渲染对应内容，无折叠动画 ──
+  // ── iOS 风格「分段控件」：顶部吸顶两选项（购物项 / 常备货架），下方平铺渲染对应内容 ──
   const segmented = document.createElement('div');
   segmented.className = 'inv-segmented';
   segmented.setAttribute('role', 'tablist');
@@ -595,7 +589,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const panelWrap = document.createElement('div');
   panelWrap.className = 'inv-panel-wrap';
   const panelNodes = {};
-  const panelSource = { shopping: itemCard, staples: staplesShelf, inventory: inventoryNode };
+  const panelSource = { shopping: itemCard, staples: staplesShelf };
   INVENTORY_TABS.forEach(tab => {
     const p = document.createElement('div');
     p.className = 'inv-panel';
@@ -620,26 +614,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   page.appendChild(segmented);
   page.appendChild(panelWrap);
 
-  // 消费跨页意图：首页「批量入库 / 拍小票」跳转过来时，自动切到「完整库存」分段并触发动作。
-  if (pendingInventoryIntent) {
-    const intent = pendingInventoryIntent;
-    pendingInventoryIntent = null;
-    activeInventoryTab = 'inventory';
-    setTab('inventory');
-    setTimeout(() => {
-      if (intent === 'add') {
-        const form = panelNodes.inventory.querySelector('.add-form-container');
-        const toggle = panelNodes.inventory.querySelector('#toggleAddBtn');
-        if (form && toggle && !form.classList.contains('open')) toggle.click();
-      } else if (intent === 'receipt') {
-        const cam = panelNodes.inventory.querySelector('#camInput');
-        if (cam) cam.click();
-      }
-      panelNodes.inventory.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 60);
-  } else {
-    setTab(activeInventoryTab);
-  }
+  setTab(activeInventoryTab);
 
   return page;
 }

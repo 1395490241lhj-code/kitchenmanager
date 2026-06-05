@@ -6158,9 +6158,6 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
   border-radius: 0;
 }
 .today-main-divider { height: 1px; background: var(--separator); opacity: 0.6; margin: 2px 0; }
-/* 卡内的 AI 折叠入口：去掉独立边框/底色，变成一行 */
-.today-main-card .today-ai-toggle { border: none; background: transparent; padding: 4px 0; }
-.today-main-card .today-ai-toggle:hover { background: transparent; }
 
 /* ── ③ 快捷操作：两个轻量按钮（食材入库 / 购物清单），不再用大方块 ── */
 .today-quick-row { display: flex; gap: 8px; }
@@ -6189,34 +6186,56 @@ html[data-theme="dark"] .today-quick-btn.is-primary { background: rgba(10, 132, 
 /* ── ② 今日计划空状态的可行动按钮行 ── */
 .today-plan-empty-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* ── ⑤ AI 智能推荐：默认收起的折叠入口 ── */
+/* ── ⑤ AI 智能推荐：默认收起的折叠入口（蓝色强调条）── */
 .today-ai-toggle {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 12px 14px;
+  padding: 11px 14px;
   border-radius: var(--radius-m);
-  background: var(--surface-cell);
-  border: 1px solid var(--surface-cell-border);
+  background: var(--primary-soft);
+  border: 1px solid rgba(0, 122, 255, 0.28);
   cursor: pointer;
   text-align: left;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.today-ai-toggle:hover { background: var(--glass-fill); }
+.today-ai-toggle:hover { background: rgba(0, 122, 255, 0.12); }
 .today-ai-toggle-icon { font-size: 18px; line-height: 1; flex: 0 0 auto; }
 .today-ai-toggle-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
-.today-ai-toggle-title { font-size: 14px; font-weight: 700; color: var(--text-main); }
-.today-ai-toggle-sub { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.today-ai-toggle-title { font-size: 14px; font-weight: 800; color: var(--primary-dark); }
+.today-ai-toggle-sub { font-size: 12px; color: var(--primary); opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .today-ai-toggle-arrow {
   flex: 0 0 auto;
   font-size: 20px;
   line-height: 1;
-  color: var(--text-secondary);
+  color: var(--primary);
   transform: rotate(0deg);
   transition: transform 0.2s ease;
 }
 .today-ai-toggle.is-open .today-ai-toggle-arrow { transform: rotate(90deg); }
+html[data-theme="dark"] .today-ai-toggle { background: rgba(10, 132, 255, 0.16); border-color: rgba(10, 132, 255, 0.34); }
+html[data-theme="dark"] .today-ai-toggle-title { color: #9ecbff; }
+html[data-theme="dark"] .today-ai-toggle-sub,
+html[data-theme="dark"] .today-ai-toggle-arrow { color: #7db8ff; }
+
+/* 计划空状态轻提示（可点，展开 AI 推荐） */
+.today-plan-empty-hint {
+  width: 100%;
+  text-align: left;
+  padding: 8px 2px 0;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.today-plan-empty-hint:hover { color: var(--primary); }
+
+/* 待买速记弹窗的轻提示 */
+.quick-shop-hint { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--status-ok-text); }
+html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
 
 /* 折叠体：默认收起，点击展开（max-height 过渡，避免一上来就铺满卡片）。 */
 .today-ai-body {
