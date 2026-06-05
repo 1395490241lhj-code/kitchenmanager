@@ -1096,19 +1096,7 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   // 上半部分：今日计划（复用 renderMenuPlan，保留进详情 / 做完 / 扣库存）
   const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
   card.appendChild(planNode);
-
-  // 计划空状态 → 只给一行轻提示（引导展开下方的「AI 智能推荐」），不再放独立按钮。
-  if (planNode.querySelector('.menu-plan-empty')) {
-    const emptyHint = document.createElement('button');
-    emptyHint.type = 'button';
-    emptyHint.className = 'today-plan-empty-hint';
-    emptyHint.textContent = '可以展开下方「AI 智能推荐」，把合适的菜加入今日计划。';
-    emptyHint.onclick = () => {
-      const toggle = card.querySelector('#aiToggle');
-      if (toggle && toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
-    };
-    card.appendChild(emptyHint);
-  }
+  // 计划空状态由 renderMenuPlan 自带「该时间段暂未添加菜谱」轻提示承载，此处不再额外加说明文案。
 
   // 分隔线
   const divider = document.createElement('div');

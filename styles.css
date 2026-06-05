@@ -6112,13 +6112,23 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
 /* ── ① 顶部双状态卡：复用 .home-metrics，去掉其默认底边距以贴合 today-view 的 flex gap ── */
 .today-view .home-metrics.today-status { margin-bottom: 0; }
 
-/* ── AI 推荐卡：复用 .home-suggest-card，改为全宽竖向堆叠 ── */
-.today-picks-grid { display: grid; gap: 10px; }
-.today-picks-grid .home-suggest-card,
-.today-picks-grid > .card { width: 100%; max-width: none; }
-@media (min-width: 560px) {
-  .today-picks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* ── AI 推荐卡：复用 .home-suggest-card，横向滑动（iOS scroll-snap，弱化滚动条）──
+ *    每张 ~264px（240–280 区间），max-width 80vw 让 390px 一屏露出下一张的一部分。
+ *    横向滚动只发生在本容器内，不会撑破整页宽度。 */
+.today-picks-grid {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 2px 6px;
+  margin: 0 -2px;
+  scrollbar-width: none;
 }
+.today-picks-grid::-webkit-scrollbar { display: none; }
+.today-picks-grid > * { flex: 0 0 auto; scroll-snap-align: start; }
+.today-picks-grid .home-suggest-card,
+.today-picks-grid > .card { width: 264px; max-width: 80vw; }
 .today-picks-note { margin: 0; font-size: 12px; color: var(--text-secondary); }
 .today-empty {
   display: flex;
@@ -6218,20 +6228,6 @@ html[data-theme="dark"] .today-ai-toggle { background: rgba(10, 132, 255, 0.16);
 html[data-theme="dark"] .today-ai-toggle-title { color: #9ecbff; }
 html[data-theme="dark"] .today-ai-toggle-sub,
 html[data-theme="dark"] .today-ai-toggle-arrow { color: #7db8ff; }
-
-/* 计划空状态轻提示（可点，展开 AI 推荐） */
-.today-plan-empty-hint {
-  width: 100%;
-  text-align: left;
-  padding: 8px 2px 0;
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-.today-plan-empty-hint:hover { color: var(--primary); }
 
 /* 待买速记弹窗的轻提示 */
 .quick-shop-hint { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--status-ok-text); }
