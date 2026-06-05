@@ -5013,6 +5013,33 @@ html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); 
 }
 .km-shopping-item small { font-size: 11px; color: var(--text-secondary); }
 
+/* 到期弹窗：名称+数量主信息 + 到期文字 + 「加入清单」按钮 */
+.km-expiry-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.km-expiry-qty { font-size: 11px; color: var(--text-secondary); }
+.km-expiry-item .km-expiry-days { flex: 0 0 auto; margin: 0 8px; white-space: nowrap; }
+.km-expiry-add { flex: 0 0 auto; padding: 5px 10px; }
+
+/* 购物弹窗：添加行（名称整行 + 数量/单位/加入第二行）+ 逐项删除小叉 */
+.km-shop-add { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.km-shop-add .km-shop-name { flex: 1 1 100%; }
+.km-shop-add .km-shop-qty { flex: 1 1 70px; min-width: 0; }
+.km-shop-add .km-shop-unit { flex: 1 1 70px; min-width: 0; appearance: auto; }
+.km-shop-add .km-shop-addbtn { flex: 0 0 auto; }
+.km-shop-itemname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.km-shop-del {
+  flex: 0 0 auto;
+  width: 26px; height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.km-shop-del:hover { color: var(--danger); background: rgba(255, 59, 48, 0.12); }
+
 /* 随手记 log */
 .km-memo-log {
   list-style: none;
@@ -6106,36 +6133,34 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
 .today-empty-text { margin: 0; font-size: 14px; color: var(--text-secondary); }
 .today-empty-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
-/* ── 快到期：紧凑横向滚动条 ── */
-.today-exp-list {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.today-exp-list::-webkit-scrollbar { display: none; }
-.today-exp-chip {
-  flex: 0 0 auto;
+/* ── ② 今日主卡：今日计划（上）+ AI 推荐（下）合并进同一大卡片 ── */
+.today-main-card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 88px;
-  padding: 8px 10px;
-  border-radius: var(--radius-s);
-  background: var(--status-warn-bg);
-  border: 1px solid var(--status-warn-border);
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-l);
+  background: var(--glass-panel-fill);
+  backdrop-filter: var(--glass-blur-panel);
+  -webkit-backdrop-filter: var(--glass-blur-panel);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-card);
 }
-.today-exp-name { font-size: 13px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
-.today-exp-day { font-size: 12px; font-weight: 600; color: var(--status-warn-text); }
-.today-exp-qty { font-size: 11px; color: var(--text-secondary); }
-.today-exp-chip.is-soon  { background: var(--status-warn-bg);  border-color: var(--status-warn-border); }
-.today-exp-chip.is-today { background: var(--status-bad-bg);   border-color: var(--status-bad-border); }
-.today-exp-chip.is-today .today-exp-day { color: var(--status-bad-text); }
-.today-exp-chip.is-expired { background: var(--status-bad-bg); border-color: var(--danger); }
-.today-exp-chip.is-expired .today-exp-name,
-.today-exp-chip.is-expired .today-exp-day { color: var(--status-bad-text); }
+.today-main-head { margin-bottom: 2px; }
+/* 把内部菜单计划卡片「拍扁」，融进大卡片，避免卡中卡的双层边框 */
+.today-main-card .menu-plan-card,
+.today-main-card .card.menu-plan-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+}
+.today-main-divider { height: 1px; background: var(--separator); opacity: 0.6; margin: 2px 0; }
+/* 卡内的 AI 折叠入口：去掉独立边框/底色，变成一行 */
+.today-main-card .today-ai-toggle { border: none; background: transparent; padding: 4px 0; }
+.today-main-card .today-ai-toggle:hover { background: transparent; }
 
 /* ── ③ 快捷操作：两个轻量按钮（食材入库 / 购物清单），不再用大方块 ── */
 .today-quick-row { display: flex; gap: 8px; }
@@ -6206,24 +6231,3 @@ html[data-theme="dark"] .today-quick-btn.is-primary { background: rgba(10, 132, 
 }
 .today-ai-body.is-collapsed { max-height: 0; opacity: 0; margin-top: 0; pointer-events: none; }
 .today-ai-head { display: flex; justify-content: flex-end; }
-
-/* ── ➕ 食材入库 action sheet（复用 .km-modal 外壳，内部两个大点选项）── */
-.stock-entry-sheet { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
-.stock-entry-opt {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 14px;
-  border-radius: var(--radius-m);
-  background: var(--surface-cell);
-  border: 1px solid var(--surface-cell-border);
-  cursor: pointer;
-  text-align: left;
-  transition: transform 0.12s ease, background 0.15s ease;
-}
-.stock-entry-opt:active { transform: scale(0.98); }
-.stock-entry-opt .se-emoji { font-size: 22px; line-height: 1; flex: 0 0 auto; }
-.stock-entry-opt .se-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.stock-entry-opt .se-col b { font-size: 15px; font-weight: 700; color: var(--text-main); }
-.stock-entry-opt .se-col small { font-size: 12px; color: var(--text-secondary); }

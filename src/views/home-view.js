@@ -1,7 +1,7 @@
 import { S, todayISO } from '../storage.js?v=206';
 import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=206';
 import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=206';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=206';
+import { addShoppingItem, loadShoppingItems, saveShoppingItems } from '../shopping.js?v=206';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
@@ -395,29 +395,22 @@ function createHomeModal(contentEl, title = '') {
 
 // ── 弹窗内容构建 ─────────────────────────────────────────────────────────────
 
-/** 「48 小时内到期」弹窗 */
-function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () => {} } = {}) {
+/** 「到期食材」弹窗：列出快到期 / 已过期食材（名称·数量单位·到期状态），支持逐项加入购物清单。 */
+function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () => {}, onChange = () => {} } = {}) {
   const expiring = (inv || [])
-    .filter(it => isExpiryTracked(it) && remainingDays(it) <= 2)
+    .filter(it => isExpiryTracked(it) && remainingDays(it) <= 3)
     .sort((a, b) => remainingDays(a) - remainingDays(b));
 
   const wrap = document.createElement('div');
   wrap.className = 'km-modal-body';
-  const appendActions = () => {
-    const footer = document.createElement('div');
-    footer.className = 'km-modal-actions';
-    footer.innerHTML = expiring.length >= 2
-      ? '<button type="button" class="btn" id="expiryCloseBtn">关闭</button><button type="button" class="btn km-modal-ai-btn" id="expiryCleanFridgeBtn">✨ 帮我清冰箱</button>'
-      : '<button type="button" class="btn" id="expiryCloseBtn">关闭</button>';
-    footer.querySelector('#expiryCloseBtn').onclick = onClose;
-    const cleanBtn = footer.querySelector('#expiryCleanFridgeBtn');
-    if (cleanBtn) cleanBtn.onclick = onCleanFridge;
-    wrap.appendChild(footer);
-  };
 
   if (!expiring.length) {
-    wrap.innerHTML = '<p class="km-modal-empty">✅ 48 小时内没有即将到期的食材。</p>';
-    appendActions();
+    wrap.innerHTML = '<p class="km-modal-empty">✅ 最近没有快到期的食材。</p>';
+    const footer = document.createElement('div');
+    footer.className = 'km-modal-actions';
+    footer.innerHTML = '<button type="button" class="btn ok" id="expiryCloseBtn">关闭</button>';
+    footer.querySelector('#expiryCloseBtn').onclick = onClose;
+    wrap.appendChild(footer);
     return wrap;
   }
 
@@ -426,38 +419,55 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () =>
   expiring.forEach(it => {
     const d = remainingDays(it);
     const li = document.createElement('li');
-    li.className = `km-expiry-item${d <= 0 ? ' is-expired' : d <= 1 ? ' is-urgent' : ''}`;
+    li.className = `km-expiry-item${d < 0 ? ' is-expired' : d <= 1 ? ' is-urgent' : ''}`;
     const dayText = d < 0 ? `已过期 ${Math.abs(d)} 天` : d === 0 ? '今天到期' : `还剩 ${d} 天`;
+    const qty = (+it.qty > 0) ? `${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}` : '';
     li.innerHTML = `
-      <span class="km-expiry-name">${escapeHtml(it.name)}</span>
+      <span class="km-expiry-main">
+        <span class="km-expiry-name">${escapeHtml(it.name)}</span>
+        ${qty ? `<span class="km-expiry-qty">${qty}</span>` : ''}
+      </span>
       <span class="km-expiry-days">${dayText}</span>
+      <button type="button" class="btn small km-expiry-add">加入清单</button>
     `;
+    li.querySelector('.km-expiry-add').onclick = (e) => {
+      addShoppingItem(it.name, (+it.qty > 0 ? it.qty : ''), it.unit || '', '临期补货');
+      const btn = e.currentTarget;
+      btn.textContent = '已加入';
+      btn.disabled = true;
+      onChange();
+    };
     list.appendChild(li);
   });
   wrap.appendChild(list);
 
-  const hint = document.createElement('p');
-  hint.className = 'km-modal-hint';
-  hint.textContent = '建议优先安排到菜单计划中，避免浪费。';
-  wrap.appendChild(hint);
-  appendActions();
+  const footer = document.createElement('div');
+  footer.className = 'km-modal-actions';
+  footer.innerHTML = expiring.length >= 2
+    ? '<button type="button" class="btn" id="expiryCloseBtn">关闭</button><button type="button" class="btn km-modal-ai-btn" id="expiryCleanFridgeBtn">✨ 帮我清冰箱</button>'
+    : '<button type="button" class="btn ok" id="expiryCloseBtn">关闭</button>';
+  footer.querySelector('#expiryCloseBtn').onclick = onClose;
+  const cleanBtn = footer.querySelector('#expiryCleanFridgeBtn');
+  if (cleanBtn) cleanBtn.onclick = onCleanFridge;
+  wrap.appendChild(footer);
 
   return wrap;
 }
 
-/** 「购物清单待买」弹窗 */
-function buildShoppingModal(onClose) {
+/** 「购物清单」弹窗：查看待买项、添加（名称/数量/单位）、删除；不跳转页面。
+ *  与顶部「待购买」状态卡、首页「购物清单」按钮复用同一实现。 */
+function buildShoppingModal({ onClose = () => {}, onChange = () => {} } = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'km-modal-body';
 
-  const items = loadShoppingItems().filter(i => !i.done);
-
-  // 快速添加行
+  // 添加行：名称 + 数量 + 单位 + 加入
   const addRow = document.createElement('div');
-  addRow.className = 'km-modal-add-row';
+  addRow.className = 'km-shop-add';
   addRow.innerHTML = `
-    <input class="km-modal-input" id="shoppingModalInput" placeholder="快速记录，回车加入…">
-    <button type="button" class="btn ok small" id="shoppingModalAdd">加入</button>
+    <input class="km-modal-input km-shop-name" id="shoppingModalInput" placeholder="食材名">
+    <input class="km-modal-input km-shop-qty" id="shoppingModalQty" type="number" min="0" step="1" placeholder="数量">
+    <select class="km-modal-input km-shop-unit" id="shoppingModalUnit"><option value="">单位</option><option>个</option><option>盒</option><option>袋</option><option>包</option><option>瓶</option><option>把</option><option>份</option><option>g</option><option>ml</option></select>
+    <button type="button" class="btn ok small km-shop-addbtn" id="shoppingModalAdd">加入</button>
   `;
   wrap.appendChild(addRow);
 
@@ -469,49 +479,66 @@ function buildShoppingModal(onClose) {
     const current = loadShoppingItems().filter(i => !i.done);
     listEl.innerHTML = '';
     if (!current.length) {
-      listEl.innerHTML = '<li class="km-modal-empty">购物清单为空 🎉</li>';
+      listEl.innerHTML = '<li class="km-modal-empty">购物清单为空 🎉 在上方添加要买的东西</li>';
       return;
     }
-    current.slice(0, 12).forEach(it => {
+    current.forEach(it => {
       const li = document.createElement('li');
       li.className = 'km-shopping-item';
       const qty = it.qty ? ` · ${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}` : '';
-      li.innerHTML = `<span>${escapeHtml(it.name)}${qty}</span><small>${escapeHtml(it.source || '')}</small>`;
+      li.innerHTML = `<span class="km-shop-itemname">${escapeHtml(it.name)}${qty}</span><button type="button" class="km-shop-del" aria-label="删除 ${escapeOptionAttr(it.name)}">✕</button>`;
+      li.querySelector('.km-shop-del').onclick = () => {
+        saveShoppingItems(loadShoppingItems().filter(x => x.id !== it.id));
+        renderList();
+        onChange();
+      };
       listEl.appendChild(li);
     });
-    if (current.length > 12) {
-      const more = document.createElement('li');
-      more.className = 'km-modal-empty';
-      more.textContent = `还有 ${current.length - 12} 项，前往购物清单查看全部`;
-      listEl.appendChild(more);
-    }
   };
   renderList();
 
-  const input = addRow.querySelector('#shoppingModalInput');
-  const addBtn = addRow.querySelector('#shoppingModalAdd');
+  const nameInput = addRow.querySelector('#shoppingModalInput');
+  const qtyInput = addRow.querySelector('#shoppingModalQty');
+  const unitSel = addRow.querySelector('#shoppingModalUnit');
   const doAdd = () => {
-    const name = input.value.trim();
+    const name = nameInput.value.trim();
     if (!name) return;
-    addShoppingItem(name, '', '', '速记');
-    input.value = '';
-    input.focus();
+    addShoppingItem(name, qtyInput.value || '', unitSel.value || '', '手动');
+    nameInput.value = ''; qtyInput.value = ''; unitSel.value = '';
+    nameInput.focus();
     renderList();
-    // 更新首页 metric 数字
-    const numEl = document.querySelector('#metricShopping .home-metric-num');
-    if (numEl) numEl.textContent = String(loadShoppingItems().filter(i => !i.done).length);
+    onChange();
   };
-  input.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
-  addBtn.onclick = doAdd;
+  nameInput.onkeydown = (e) => { if (e.key === 'Enter') doAdd(); };
+  addRow.querySelector('#shoppingModalAdd').onclick = doAdd;
 
-  // 跳转按钮组
   const footer = document.createElement('div');
   footer.className = 'km-modal-actions';
-  footer.innerHTML = `<button type="button" class="btn ok" id="gotoShoppingBtn">前往购物清单 →</button>`;
-  footer.querySelector('#gotoShoppingBtn').onclick = () => { onClose(); location.hash = '#shopping'; };
+  footer.innerHTML = `<button type="button" class="btn ok" id="shoppingCloseBtn">关闭</button>`;
+  footer.querySelector('#shoppingCloseBtn').onclick = onClose;
   wrap.appendChild(footer);
 
   return wrap;
+}
+
+// 打开「购物清单」弹窗（待购买状态卡 / 购物清单按钮复用同一逻辑）。
+function openShoppingListModal({ onRoute = () => {}, onChange = () => {} } = {}) {
+  let closeFn = () => {};
+  const body = buildShoppingModal({ onClose: () => closeFn(), onChange });
+  const { close } = createHomeModal(body, '🛒 购物清单');
+  closeFn = close;
+}
+
+// 打开「到期食材」弹窗。
+function openExpiryListModal(inv, pack, { onRoute = () => {}, onChange = () => {} } = {}) {
+  let closeFn = () => {};
+  const body = buildExpiryModal(inv, pack, {
+    onClose: () => closeFn(),
+    onCleanFridge: () => { closeFn(); openCleanFridgeHelper(pack, inv, onRoute); },
+    onChange
+  });
+  const { close } = createHomeModal(body, '⏳ 到期食材');
+  closeFn = close;
 }
 
 /* 旧版「批量入库」单件添加弹窗 buildBatchStockModal 已彻底删除。
@@ -981,45 +1008,45 @@ function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
 //  本段只负责信息层级与 UI 组装，不重写推荐算法。
 // ══════════════════════════════════════════════════════════════════════════
 
-// ① 顶部双状态卡：到期食材 / 待购买（复用 .home-metrics 紧凑两栏，点按跳转/滚动）。
-function renderTopStatusCards(inv) {
-  const expiringAll = (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3);
-  const expCount = expiringAll.length;
-  const expiredCount = expiringAll.filter(it => remainingDays(it) < 0).length;
-  const shopCount = loadShoppingItems().filter(i => !i.done).length;
-
-  const expTone = expCount === 0 ? 'is-ok' : (expiredCount > 0 ? 'is-bad' : 'is-warn');
-  const expSub = expCount === 0 ? '暂无到期' : (expiredCount > 0 ? `${expiredCount} 样已过期` : '样快到期');
-  const shopSub = shopCount === 0 ? '清单为空' : '项待买';
-
+// ① 顶部双状态卡：到期食材 / 待购买（复用 .home-metrics 紧凑两栏；点击只弹窗、不跳转）。
+//   返回 { el, refresh }：refresh 用于弹窗里增删后实时更新卡片数字。
+function createStatusCards(inv, pack, { onRoute = () => {} } = {}) {
   const section = document.createElement('section');
   section.className = 'home-metrics today-status';
-  section.innerHTML = `
-    <button type="button" class="home-metric ${expTone}" id="statExpiring">
-      <span class="home-metric-header"><span class="home-metric-icon">⏳</span><span class="home-metric-label">到期食材</span></span>
-      <span class="home-metric-num">${expCount}</span>
-      <span class="home-metric-sub">${escapeHtml(expSub)}</span>
-    </button>
-    <button type="button" class="home-metric is-info" id="statShopping">
-      <span class="home-metric-header"><span class="home-metric-icon">🛒</span><span class="home-metric-label">待购买</span></span>
-      <span class="home-metric-num">${shopCount}</span>
-      <span class="home-metric-sub">${escapeHtml(shopSub)}</span>
-    </button>
-  `;
-  section.querySelector('#statExpiring').onclick = () => {
-    const el = document.getElementById('todayExpiring');
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const render = () => {
+    const expiringAll = (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3);
+    const expCount = expiringAll.length;
+    const expiredCount = expiringAll.filter(it => remainingDays(it) < 0).length;
+    const shopCount = loadShoppingItems().filter(i => !i.done).length;
+    const expTone = expCount === 0 ? 'is-ok' : (expiredCount > 0 ? 'is-bad' : 'is-warn');
+    const expSub = expCount === 0 ? '暂无到期' : (expiredCount > 0 ? `${expiredCount} 样已过期` : '样快到期');
+    const shopSub = shopCount === 0 ? '清单为空' : '项待买';
+
+    section.innerHTML = `
+      <button type="button" class="home-metric ${expTone}" id="statExpiring">
+        <span class="home-metric-header"><span class="home-metric-icon">⏳</span><span class="home-metric-label">到期食材</span></span>
+        <span class="home-metric-num">${expCount}</span>
+        <span class="home-metric-sub">${escapeHtml(expSub)}</span>
+      </button>
+      <button type="button" class="home-metric is-info" id="statShopping">
+        <span class="home-metric-header"><span class="home-metric-icon">🛒</span><span class="home-metric-label">待购买</span></span>
+        <span class="home-metric-num">${shopCount}</span>
+        <span class="home-metric-sub">${escapeHtml(shopSub)}</span>
+      </button>
+    `;
+    section.querySelector('#statExpiring').onclick = () => openExpiryListModal(inv, pack, { onRoute, onChange: render });
+    section.querySelector('#statShopping').onclick = () => openShoppingListModal({ onRoute, onChange: render });
   };
-  section.querySelector('#statShopping').onclick = () => { location.hash = '#shopping'; };
-  return section;
+  render();
+  return { el: section, refresh: render };
 }
 
-// ⑤ AI 智能推荐：默认收起。复用 getInspirationCards / renderSuggestCard / callCloudAI，
-//   只把展示改成「紧凑折叠入口 + 摘要计数」，展开后逻辑与按钮不变。
-function renderAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
-  const section = document.createElement('section');
-  section.className = 'today-section today-ai';
-  section.id = 'todayAi';
+// AI 智能推荐（合并进今日主卡的下半部分）：默认收起。复用 getInspirationCards /
+//   renderSuggestCard / callCloudAI，只把展示改成「紧凑折叠入口 + 摘要计数」，展开后逻辑不变。
+function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
+  const wrap = document.createElement('div');
+  wrap.className = 'today-ai';
 
   const toggle = document.createElement('button');
   toggle.type = 'button';
@@ -1034,7 +1061,7 @@ function renderAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
     </span>
     <span class="today-ai-toggle-arrow" aria-hidden="true">›</span>
   `;
-  section.appendChild(toggle);
+  wrap.appendChild(toggle);
 
   const body = document.createElement('div');
   body.className = 'today-ai-body is-collapsed';
@@ -1046,7 +1073,7 @@ function renderAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
     <div class="today-picks-grid" id="todayPicksGrid"></div>
     <p class="today-picks-note" id="todayPicksNote" hidden></p>
   `;
-  section.appendChild(body);
+  wrap.appendChild(body);
 
   const grid = body.querySelector('#todayPicksGrid');
   const note = body.querySelector('#todayPicksNote');
@@ -1106,7 +1133,7 @@ function renderAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
     }
   };
 
-  return section;
+  return wrap;
 }
 
 // 无推荐时的可行动空状态。
@@ -1124,42 +1151,14 @@ function buildPicksEmptyState() {
   return box;
 }
 
-// ④ 快到期食材区：紧凑横向条，过期 / 今日到期明显区分。无快到期则不渲染。
-function renderExpiringStrip(inv, pack, { onRoute = () => {} } = {}) {
-  const expiring = getExpiringItems(inv);
-  if (!expiring.length) return null;
-  const section = document.createElement('section');
-  section.className = 'today-section today-expiring';
-  section.id = 'todayExpiring';
-  const chips = expiring.map(it => {
-    const d = remainingDays(it);
-    const tone = d < 0 ? 'is-expired' : d === 0 ? 'is-today' : d <= 1 ? 'is-soon' : 'is-warn';
-    const dayText = d < 0 ? `已过期 ${Math.abs(d)} 天` : d === 0 ? '今天到期' : `剩 ${d} 天`;
-    const qty = (+it.qty > 0) ? `${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}` : '';
-    return `<div class="today-exp-chip ${tone}">
-      <span class="today-exp-name">${escapeHtml(it.name)}</span>
-      <span class="today-exp-day">${dayText}</span>
-      ${qty ? `<span class="today-exp-qty">${qty}</span>` : ''}
-    </div>`;
-  }).join('');
-  section.innerHTML = `
-    <div class="today-section-head">
-      <h2 class="today-section-title">⏳ 快到期</h2>
-      <button type="button" class="home-mini-btn" id="cleanFridgeBtn">🧊 清冰箱助手</button>
-    </div>
-    <div class="today-exp-list">${chips}</div>
-  `;
-  section.querySelector('#cleanFridgeBtn').onclick = () => openCleanFridgeHelper(pack, inv, onRoute);
-  return section;
-}
+// ② 今日主卡：把「今日计划」（上，默认展开）与「AI 智能推荐」（下，默认收起）合并进同一大卡片。
+function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
+  const card = document.createElement('section');
+  card.className = 'today-main-card';
 
-// ② 今日计划区（默认展开，首页主内容）：复用 renderMenuPlan（保留进入详情 / 标记做完 / 扣库存），
-//   头部保留 🍳即兴烹饪 / ✓全部做完 / 计划范围筛选；今天无计划时补一行轻量可行动空状态按钮。
-function renderTodayPlanSection(pack, inv, { onRoute = () => {} } = {}) {
-  const section = document.createElement('section');
-  section.className = 'today-section today-plan';
+  // 头部：今日计划标题 + 动作组（🍳即兴 / ✓全部做完 / 范围筛选）
   const head = document.createElement('div');
-  head.className = 'today-section-head';
+  head.className = 'today-section-head today-main-head';
   head.innerHTML = '<h2 class="today-section-title">📅 今日计划</h2>';
   const actions = document.createElement('div');
   actions.className = 'menu-plan-head-actions';
@@ -1168,13 +1167,14 @@ function renderTodayPlanSection(pack, inv, { onRoute = () => {} } = {}) {
   actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
   actions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
   head.appendChild(actions);
-  section.appendChild(head);
-  section.appendChild(impromptu.tray); // 即兴托盘紧随头部，点按钮就地展开
+  card.appendChild(head);
+  card.appendChild(impromptu.tray); // 即兴托盘紧随头部，点按钮就地展开
 
+  // 上半部分：今日计划（复用 renderMenuPlan，保留进详情 / 做完 / 扣库存）
   const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
-  section.appendChild(planNode);
+  card.appendChild(planNode);
 
-  // 空状态（renderMenuPlan 已渲染「该时间段暂未添加菜谱」文案）→ 补一行可行动按钮。
+  // 计划空状态 → 补一行可行动按钮（从推荐添加 / 去菜谱看看）。
   if (planNode.querySelector('.menu-plan-empty')) {
     const emptyActions = document.createElement('div');
     emptyActions.className = 'today-plan-empty-actions';
@@ -1183,47 +1183,38 @@ function renderTodayPlanSection(pack, inv, { onRoute = () => {} } = {}) {
       <button type="button" class="btn small" id="planBrowse">📖 去菜谱看看</button>
     `;
     emptyActions.querySelector('#planFromAi').onclick = () => {
-      const toggle = document.getElementById('aiToggle');
+      const toggle = card.querySelector('#aiToggle');
       if (toggle && toggle.getAttribute('aria-expanded') !== 'true') toggle.click();
-      document.getElementById('todayAi')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     emptyActions.querySelector('#planBrowse').onclick = () => { location.hash = '#recipes'; };
-    section.appendChild(emptyActions);
+    card.appendChild(emptyActions);
   }
-  return section;
+
+  // 分隔线
+  const divider = document.createElement('div');
+  divider.className = 'today-main-divider';
+  card.appendChild(divider);
+
+  // 下半部分：AI 智能推荐（默认收起，折叠入口在同一大卡片内）
+  card.appendChild(buildAiRecommendations(pack, inv, { onRoute }));
+
+  return card;
 }
 
-// ➕ 食材入库 action sheet：手动添加食材 / 拍小票入库（复用 createHomeModal 玻璃外壳）。
-function openStockEntrySheet(pack, { onRoute = () => {} } = {}) {
-  const body = document.createElement('div');
-  body.className = 'km-modal-body stock-entry-sheet';
-  body.innerHTML = `
-    <button type="button" class="stock-entry-opt" id="seManual">
-      <span class="se-emoji">✍️</span>
-      <span class="se-col"><b>手动添加食材</b><small>逐个录入名称、数量</small></span>
-    </button>
-    <button type="button" class="stock-entry-opt" id="seReceipt">
-      <span class="se-emoji">🧾</span>
-      <span class="se-col"><b>拍小票入库</b><small>拍照 / 相册识别后一键入库</small></span>
-    </button>
-  `;
-  const { close } = createHomeModal(body, '➕ 食材入库');
-  body.querySelector('#seManual').onclick = () => { close(); location.hash = '#inventory'; };
-  body.querySelector('#seReceipt').onclick = () => { close(); openBatchInputModal(pack, { onRoute, initialTab: 'receipt' }); };
-}
-
-// ③ 快捷操作区（收敛为两个轻量入口）：食材入库（action sheet）+ 购物清单。
-function renderQuickActions(pack, inv, { onRoute = () => {} } = {}) {
+// ③ 快捷操作区（两个轻量入口）：食材入库（直接打开采购物品入库登记弹窗）+ 购物清单（弹窗）。
+function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () => {} } = {}) {
   const section = document.createElement('section');
   section.className = 'today-section today-quick';
   section.innerHTML = `
     <div class="today-quick-row">
-      <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">➕</span><span>食材入库</span></button>
+      <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>食材入库</span></button>
       <button type="button" class="today-quick-btn" id="qaShopping"><span class="tq-emoji">🛒</span><span>购物清单</span></button>
     </div>
   `;
-  section.querySelector('#qaStock').onclick = () => openStockEntrySheet(pack, { onRoute });
-  section.querySelector('#qaShopping').onclick = () => { location.hash = '#shopping'; };
+  // 食材入库：直接打开现有「采购物品入库登记」弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再多一层选择。
+  section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
+  // 购物清单：弹窗查看 / 添加 / 删除，不跳转页面；增删后刷新顶部待购买数字。
+  section.querySelector('#qaShopping').onclick = () => openShoppingListModal({ onRoute, onChange: refreshStatus });
   return section;
 }
 
@@ -1239,13 +1230,11 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     return container;
   }
 
-  // 信息层级（收敛后）：① 双状态卡 ② 今日计划(默认展开) ③ 快捷操作 ④ 快到期 ⑤ AI 推荐(默认收起)
-  container.appendChild(renderTopStatusCards(inv));
-  container.appendChild(renderTodayPlanSection(pack, inv, { onRoute }));
-  container.appendChild(renderQuickActions(pack, inv, { onRoute }));
-  const expiringSection = renderExpiringStrip(inv, pack, { onRoute });
-  if (expiringSection) container.appendChild(expiringSection);
-  container.appendChild(renderAiRecommendations(pack, inv, { onRoute }));
+  // 收敛后的层级：① 顶部双状态卡 ② 今日主卡（计划在上+AI在下，合并） ③ 两个轻量操作按钮。
+  const status = createStatusCards(inv, pack, { onRoute });
+  container.appendChild(status.el);
+  container.appendChild(renderMainCard(pack, inv, { onRoute }));
+  container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: status.refresh }));
 
   return container;
 }
