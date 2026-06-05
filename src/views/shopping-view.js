@@ -381,7 +381,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const page = document.createElement('div');
   page.className = 'shopping-page';
   page.innerHTML = `
-    <h2 class="section-title">食材管理</h2>
+    <h2 class="section-title">清单</h2>
     <div id="shoppingStatus" class="inline-status" hidden></div>
   `;
   const status = page.querySelector('#shoppingStatus');
@@ -580,7 +580,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const segmented = document.createElement('div');
   segmented.className = 'inv-segmented';
   segmented.setAttribute('role', 'tablist');
-  segmented.setAttribute('aria-label', '库存管理分段');
+  segmented.setAttribute('aria-label', '清单分段');
   INVENTORY_TABS.forEach(tab => {
     const btn = document.createElement('button');
     btn.type = 'button';

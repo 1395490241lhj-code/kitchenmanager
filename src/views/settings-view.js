@@ -60,7 +60,7 @@ export function renderSettings() {
   const div = document.createElement('div');
   div.className = 'settings-page';
   div.innerHTML = `
-    <h2 class="section-title">设置</h2>
+    <h2 class="section-title">我的</h2>
     <div id="settingsStatus" class="small inline-status" hidden></div>
 
     <!-- 区块 A：通用与外观（高频核心偏好，默认展开） -->

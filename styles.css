@@ -1589,7 +1589,7 @@ nav {
   right: 16px;
   bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   width: auto;
-  max-width: 480px;
+  max-width: 560px;
   height: 64px;
   margin: 0 auto;
   border-radius: 24px !important;
@@ -1604,7 +1604,7 @@ nav {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 8px;
   z-index: 999;
   transform: translate3d(0, 0, 0);
   -webkit-transform: translate3d(0, 0, 0);
@@ -1613,7 +1613,7 @@ nav {
 nav a {
   text-decoration: none;
   color: #8e8e93;                 /* 未激活：柔和系统灰 */
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   display: flex;
   flex-direction: column;
@@ -1621,6 +1621,7 @@ nav a {
   justify-content: center;
   gap: 3px;
   flex: 1 1 0;
+  min-width: 0;
   min-height: 52px;
   padding: 4px 0;
   background: none;
@@ -1628,8 +1629,8 @@ nav a {
   transition: color 0.2s ease, transform 0.16s ease, background 0.16s ease;
 }
 nav a svg {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   stroke: currentColor;           /* 图标颜色跟随文字，统一点亮 */
   stroke-width: 2px;
@@ -2056,13 +2057,13 @@ nav a:active { transform: scale(0.94); }
     left: 16px;
     right: 16px;
     width: auto;
-    max-width: 480px;
+    max-width: 560px;
     height: 64px;
     min-height: 0;
     flex-direction: row;
     justify-content: space-around;
     gap: 0;
-    padding: 0 10px;
+    padding: 0 8px;
   }
 
   nav a {
@@ -2272,8 +2273,13 @@ nav a:active { transform: scale(0.94); }
   .table th, .table td { padding: 12px 10px; }
   
   /* 窄屏：图标略缩，保持无盒子的 iOS 底栏比例 */
-  nav a { font-size: 10.5px; }
-  nav a svg { width: 25px; height: 25px; padding: 0; }
+  nav {
+    left: 12px;
+    right: 12px;
+    padding: 0 6px;
+  }
+  nav a { font-size: 10px; }
+  nav a svg { width: 23px; height: 23px; padding: 0; }
 }
 
 /* ============================================================
@@ -3911,7 +3917,12 @@ html[data-theme="dark"] .km-piece-step .km-step-plus { background: rgba(255, 255
 .life-pantry .inv-life-bar { display: none; }
 
 /* ── 导航 Tab 文本不换行（修复「库存管理」换行） ── */
-nav a span { white-space: nowrap; }
+nav a span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ── 完整库存：高密度响应式网格（移动端 2 列起步） ── */
 .inventory-grid {

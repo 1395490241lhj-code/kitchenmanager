@@ -4,13 +4,13 @@ import { S } from './src/storage.js?v=206';
 import { applyOverlay, loadOverlay } from './src/backup.js?v=206';
 import { runLocalStorageMigrations } from './src/migrations.js?v=206';
 import { escapeHtml } from './src/components/status.js?v=206';
-import { renderShopping } from './src/views/shopping-view.js?v=206';
+import { renderShopping } from './src/views/shopping-view.js?v=207';
 import { renderInventory } from './src/views/inventory-view.js?v=206';
 import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=206';
 import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=206';
 import { renderHome } from './src/views/home-view.js?v=206';
 import { renderRecipes } from './src/views/recipes-view.js?v=206';
-import { renderSettings } from './src/views/settings-view.js?v=206';
+import { renderSettings } from './src/views/settings-view.js?v=207';
 import { applyCompletionOverlay } from './src/recipe-completion.js?v=206';
 import { initTheme } from './src/theme.js?v=206';
 import { maybeStartOnboarding } from './src/onboarding.js?v=206';
@@ -135,14 +135,22 @@ async function loadBasePack(v = '23') {
   return pack;
 }
 
+function renderInventoryTab(pack, onRoute) {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = '<h2 class="section-title">库存</h2>';
+  wrap.appendChild(renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute }));
+  return wrap;
+}
+
 /*
-Hash 路由说明：
-- #inventory：厨房首页，保留旧 hash，避免破坏已有链接。
-- #shopping：购物清单。
-- #recipes：菜谱列表。
-- #settings：设置。
-- #recipe:id：菜谱详情。
-- #recipe-edit:id：菜谱编辑。
+Current route map:
+- #today: today dashboard, rendered by the existing home view.
+- #inventory: inventory tab. This preserves the old hash as a valid deep link.
+- #shopping: shopping list.
+- #recipes: recipe list.
+- #settings: "Me" tab, currently rendered by the settings view.
+- #recipe:id: recipe detail.
+- #recipe-edit:id: recipe editor.
 */
 async function onRoute() {
   try {
@@ -159,12 +167,17 @@ async function onRoute() {
     const pack = await getCurrentPack();
     const baseWithCompletion = cachedBaseWithCompletion;
     const hash = location.hash.replace('#', '');
+    if (!hash) {
+      location.replace('#today');
+      return;
+    }
 
     els('nav a').forEach(a => a.classList.remove('active'));
-    if (hash === 'recipes' || hash.startsWith('recipe:') || hash.startsWith('recipe-edit:')) el('#nav-recipe').classList.add('active');
-    else if (hash === 'shopping') el('#nav-shop').classList.add('active');
-    else if (hash === 'settings') el('#nav-set').classList.add('active');
-    else el('#nav-home').classList.add('active');
+    if (hash === 'recipes' || hash.startsWith('recipe:') || hash.startsWith('recipe-edit:')) el('#nav-recipe')?.classList.add('active');
+    else if (hash === 'shopping') el('#nav-shop')?.classList.add('active');
+    else if (hash === 'settings') el('#nav-me')?.classList.add('active');
+    else if (hash === 'inventory') el('#nav-inventory')?.classList.add('active');
+    else el('#nav-today')?.classList.add('active');
 
     let view;
     if (hash.startsWith('recipe-edit:')) {
@@ -175,6 +188,10 @@ async function onRoute() {
     } else if (hash.startsWith('recipe:')) {
       const id = hash.split(':')[1];
       view = renderRecipeDetail(id, pack, { onRoute });
+    } else if (hash === 'today') {
+      view = renderHome(pack, { onRoute });
+    } else if (hash === 'inventory') {
+      view = renderInventoryTab(pack, onRoute);
     } else if (hash === 'shopping') {
       view = renderShopping(pack, { onRoute });
     } else if (hash === 'recipes') {
