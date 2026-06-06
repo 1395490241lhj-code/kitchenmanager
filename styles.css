@@ -6304,3 +6304,37 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
 }
 .today-ai-body.is-collapsed { max-height: 0; opacity: 0; margin-top: 0; pointer-events: none; }
 .today-ai-head { display: flex; justify-content: flex-end; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ *  移动端（≤480px）首页竖向呼吸感微调：仅放松 spacing / padding / gap，
+ *  不改信息架构、不改功能、不影响桌面端。
+ * ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* ① 区块之间（顶部状态卡 ↔ 主内容 ↔ 快捷操作）整体间距再松一点 */
+  .today-view { gap: 20px; }
+  /* ⑦ 区块标题与内容之间拉开 */
+  .today-section { gap: 12px; }
+  .today-main-head { margin-bottom: 4px; }
+
+  /* ② 今日计划 + AI 大框内部上下留白增加 */
+  .today-main-card { padding: 18px; gap: 14px; }
+
+  /* ⑧ 状态卡：图标/文字/数字之间更松 */
+  .today-status .home-metric { padding: 20px 16px 18px; }
+  .today-status .home-metric-header { gap: 8px; margin-bottom: 9px; }
+
+  /* ③ 今日计划空状态：文字与图标 / 按钮之间留白增加，不要太压缩 */
+  .today-main-card .menu-plan-empty { gap: 8px; padding: 22px 16px; }
+  .today-empty { padding: 22px 16px; gap: 14px; }
+
+  /* ④ AI 智能推荐入口上下留白增加 + ⑧ 图标文字 gap */
+  .today-ai-toggle { padding: 15px 16px; gap: 14px; }
+  .today-ai-body { gap: 12px; margin-top: 12px; }
+
+  /* ⑤ 横向推荐卡片之间 gap 增加 */
+  .today-picks-grid { gap: 14px; }
+
+  /* ⑥ 底部两个操作按钮上下 padding 增加 + ⑧ 图标文字 gap */
+  .today-quick-row { gap: 12px; }
+  .today-quick-btn { min-height: 52px; padding: 15px 14px; gap: 10px; }
+}
