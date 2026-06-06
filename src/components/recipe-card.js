@@ -1,28 +1,28 @@
-import { S, todayISO } from '../storage.js?v=211';
+import { S, todayISO } from '../storage.js?v=217';
 import {
   explodeCombinedItems
-} from '../ingredients.js?v=211';
-import { splitIngredients } from '../utils/recipe-sanitizer.js?v=211';
+} from '../ingredients.js?v=217';
+import { splitIngredients } from '../utils/recipe-sanitizer.js?v=217';
 import {
   hasRecipeMethod,
   isFavoriteRecipe,
   markRecipePlanned,
   toggleFavoriteRecipe,
   calculateStockStatus
-} from '../recommendations.js?v=211';
+} from '../recommendations.js?v=217';
 import {
   callAiSearchRecipe,
   formatAiErrorMessage
-} from '../ai.js?v=211';
+} from '../ai.js?v=217';
 import {
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=211';
+} from '../backup.js?v=217';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus
-} from './status.js?v=211';
+} from './status.js?v=217';
 
 const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
 

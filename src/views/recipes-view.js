@@ -1,11 +1,12 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=211';
-import { genId } from '../shopping.js?v=211';
-import { hasRecipeMethod } from '../recommendations.js?v=211';
-import { recipeCard, renderRecipeSearchResults } from '../components/recipe-card.js?v=211';
-import { buildCatalog } from '../ingredients.js?v=211';
-import { loadInventory } from '../inventory.js?v=211';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=211';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=211';
+import { loadOverlay, saveOverlay } from '../backup.js?v=217';
+import { genId } from '../shopping.js?v=217';
+import { hasRecipeMethod, calculateStockStatus, loadFavoriteRecipeIds, loadRecipeActivity } from '../recommendations.js?v=217';
+import { recipeCard } from '../components/recipe-card.js?v=217';
+import { buildCatalog } from '../ingredients.js?v=217';
+import { loadInventory } from '../inventory.js?v=217';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=217';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=217';
+import { RECIPE_CATEGORIES, searchRecipes, matchesCategory } from '../recipe-search.js?v=217';
 
 // 【内存暂存】AI 解析出的草稿只存入 sessionStorage，不写 overlay/localStorage。
 // 仅当用户在编辑器里点击「保存」时才真正落地。用户取消/关闭则草稿被销毁，不留脏数据。
@@ -133,16 +134,24 @@ function mergeOverlayPreservingCurrent(currentOverlay, incomingOverlay) {
   return { overlay: next, conflicts, imported };
 }
 
+// 模块级：分类筛选 + 搜索词状态（跨重渲染保持）。
+// 收藏 / 加入清单等操作会触发 onRoute 整页重渲染，持久化这两项可避免筛选 / 搜索上下文丢失。
+let activeRecipeCategory = '全部';
+let activeRecipeQuery = '';
+
 export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   const wrap = document.createElement('div');
-  const methodReadyCount = (pack.recipes || []).filter(hasRecipeMethod).length;
-  const missingMethodCount = Math.max(0, (pack.recipes || []).length - methodReadyCount);
-  // 头部精简：单一搜索框 + 双枪并列操作（AI 一键导入 / 手动新建）+ 紧凑过滤行。
-  // 导出/导入菜谱备份已迁至「设置 → 数据管理」。
+  const allRecipes = pack.recipes || [];
+  const methodReadyCount = allRecipes.filter(hasRecipeMethod).length;
+  const missingMethodCount = Math.max(0, allRecipes.length - methodReadyCount);
+  // 头部精简：搜索框 + 分类 chips + 双枪并列操作（AI 一键导入 / 手动新建）+ 紧凑过滤行。
   wrap.innerHTML = `
     <h2 class="section-title">菜谱</h2>
     <div class="recipe-header">
-      <input id="search" placeholder="搜索菜谱、食材（如：鸡蛋、回锅肉）..." class="recipe-search-input recipe-search-main">
+      <input id="search" placeholder="搜菜名、食材、口味，比如 鸡、土豆、麻辣" class="recipe-search-input recipe-search-main">
+      <div class="recipe-cat-scroll">
+        <div class="recipe-cat-chips" id="recipeCatChips" role="tablist" aria-label="菜谱分类"></div>
+      </div>
       <div class="recipe-primary-actions">
         <button type="button" class="btn primary-action-btn ai-import-btn" id="aiImportBtn">✨ AI 一键导入</button>
         <button type="button" class="btn primary-action-btn manual-add-btn" id="addBtn">➕ 手动新建菜谱</button>
@@ -159,37 +168,99 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   const recipeCount = wrap.querySelector('#recipeCount');
   const inv = loadInventory(buildCatalog(pack));
 
-  function draw(filter = '') {
+  // ── 一次性预算分类用的 id 集合（库存能做 / 只差一点 / 收藏 / 最近做过）──
+  //    放在渲染时算一次，输入搜索时不重复计算库存，保证打字不卡。
+  const favoriteIds = new Set(loadFavoriteRecipeIds());
+  const activity = loadRecipeActivity();
+  const stockableIds = new Set();
+  const almostIds = new Set();
+  const recentIds = new Set();
+  for (const r of allRecipes) {
+    const st = calculateStockStatus(r, pack, inv);
+    if (st.status === 'ok') stockableIds.add(r.id);
+    else if (st.status === 'partial' && st.missing && st.missing.length >= 1 && st.missing.length <= 2) almostIds.add(r.id);
+    const act = activity[r.id];
+    if (act && (act.cookedAt || act.cookedCount > 0)) recentIds.add(r.id);
+  }
+  const searchContext = { favoriteIds, stockableIds, almostIds, recentIds };
+
+  // ── 分类 chips：默认常用项靠前，整体两行横向滑动 ──
+  const chipsBox = wrap.querySelector('#recipeCatChips');
+  const orderedCats = [...RECIPE_CATEGORIES].sort((a, b) => (a.defaultVisible === b.defaultVisible) ? 0 : (a.defaultVisible ? -1 : 1));
+  const renderChips = () => {
+    chipsBox.querySelectorAll('.recipe-cat-chip').forEach(c => {
+      c.classList.toggle('is-active', c.dataset.cat === activeRecipeCategory);
+      c.setAttribute('aria-selected', c.dataset.cat === activeRecipeCategory ? 'true' : 'false');
+    });
+  };
+  orderedCats.forEach(cat => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `recipe-cat-chip cat-kind-${cat.kind}`;
+    chip.dataset.cat = cat.key;
+    chip.textContent = cat.label;
+    chip.setAttribute('role', 'tab');
+    chip.onclick = () => { activeRecipeCategory = cat.key; renderChips(); draw(); };
+    chipsBox.appendChild(chip);
+  });
+
+  const searchInput = wrap.querySelector('#search');
+  searchInput.value = activeRecipeQuery; // 恢复上次搜索词（onRoute 重渲染后不丢上下文）
+
+  function draw() {
     grid.innerHTML = '';
-    const f = filter.trim();
+    const q = (searchInput.value || '').trim();
+    activeRecipeQuery = q; // 持久化，供下次重渲染恢复
     const methodOnly = wrap.querySelector('#methodOnly').checked;
-    // 兼顾「按菜名」与「按食材」搜索：菜名/标签命中 → 直接展示;否则用富搜索结果（按食材匹配）。
-    if (f) {
-      const nameRows = (pack.recipes || []).filter(r =>
-        (r.name && r.name.includes(f)) || (Array.isArray(r.tags) && r.tags.some(t => String(t).includes(f)))
-      ).filter(r => !methodOnly || hasRecipeMethod(r));
-      if (nameRows.length) {
-        recipeCount.textContent = `菜名命中 ${nameRows.length} 道 · 共 ${methodReadyCount} 道有做法`;
-        nameRows.forEach(r => grid.appendChild(recipeCard(r, map[r.id], null, { onRoute })));
-      } else {
-        recipeCount.textContent = `按食材匹配：${f}`;
-        grid.appendChild(renderRecipeSearchResults(f, pack, inv, { onRoute }));
+
+    // ① 先按「只看有做法 + 当前分类」过滤，分类与搜索可叠加。
+    const base = allRecipes.filter(r =>
+      (!methodOnly || hasRecipeMethod(r)) &&
+      matchesCategory(r, activeRecipeCategory, pack, searchContext)
+    );
+
+    // ② 有查询词 → 本地智能搜索（按相关性排序 + 匹配原因）；无查询词 → 保持默认顺序。
+    if (q) {
+      const results = searchRecipes(base, q, pack, { context: searchContext });
+      if (results.length === 0) {
+        recipeCount.textContent = `没找到相关菜谱`;
+        const empty = document.createElement('div');
+        empty.className = 'recipe-empty-state';
+        empty.innerHTML = `
+          <p class="recipe-empty-title">没找到相关菜谱</p>
+          <p class="recipe-empty-hint">可以换个食材名试试，例如 鸡肉、土豆、豆腐</p>`;
+        grid.appendChild(empty);
+        return;
       }
+      recipeCount.textContent = `找到 ${results.length} 道相关菜`;
+      results.forEach(({ recipe: r, reasons }) => {
+        const reason = (reasons && reasons.length) ? reasons.slice(0, 2).join(' · ') : '';
+        grid.appendChild(recipeCard(r, map[r.id], reason ? { reason } : null, { onRoute }));
+      });
       return;
     }
-    const rows = (pack.recipes || []).filter(r => !methodOnly || hasRecipeMethod(r));
-    recipeCount.textContent = `显示 ${rows.length} 道 · 有做法 ${methodReadyCount} · 缺做法 ${missingMethodCount}`;
-    if (rows.length === 0) {
+
+    // 无搜索词：分类过滤后的默认列表。
+    const catLabel = activeRecipeCategory === '全部' ? '' : `「${activeRecipeCategory}」`;
+    recipeCount.textContent = `${catLabel}显示 ${base.length} 道 · 有做法 ${methodReadyCount} · 缺做法 ${missingMethodCount}`;
+    if (base.length === 0) {
       const empty = document.createElement('div'); empty.className = 'card small';
-      empty.textContent = methodOnly ? '没有符合条件的菜。可以关闭"只看有做法"查看缺做法菜谱。' : '没有符合条件的菜。';
+      empty.textContent = methodOnly ? '没有符合条件的菜。可以关闭"只看有做法"，或切回「全部」分类。' : '没有符合条件的菜，试试切回「全部」分类。';
       grid.appendChild(empty); return;
     }
-    rows.forEach(r => { grid.appendChild(recipeCard(r, map[r.id], null, { onRoute })); });
+    base.forEach(r => { grid.appendChild(recipeCard(r, map[r.id], null, { onRoute })); });
   }
+
+  renderChips();
   draw();
 
-  wrap.querySelector('#search').oninput = e => draw(e.target.value);
-  wrap.querySelector('#methodOnly').onchange = () => draw(wrap.querySelector('#search').value);
+  // 搜索输入做轻量 debounce（160ms），避免逐字符重排卡顿。
+  let searchTimer = null;
+  searchInput.oninput = () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(draw, 160);
+  };
+  wrap.querySelector('#methodOnly').onchange = draw;
   wrap.querySelector('#aiImportBtn').onclick = openImportModal;
   wrap.querySelector('#addBtn').onclick = () => {
     const id = genId(); const overlay = loadOverlay();

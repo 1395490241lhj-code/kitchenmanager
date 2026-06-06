@@ -4593,6 +4593,62 @@ html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); 
 }
 .recipe-filter-row .recipe-count { margin-left: auto; font-size: 12px; color: var(--text-secondary); }
 
+/* ── 菜谱分类 chips：两行横向滑动（页面整体不横向滚动）────────────────────────── */
+.recipe-cat-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin: 0 -2px;            /* 轻微出血，贴合卡片边缘 */
+  padding: 2px;
+}
+.recipe-cat-scroll::-webkit-scrollbar { display: none; }
+.recipe-cat-chips {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;   /* 两行，横向溢出滚动 */
+  grid-auto-columns: max-content;
+  gap: 8px;
+  width: max-content;
+}
+.recipe-cat-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--separator);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.recipe-cat-chip:active { transform: scale(0.96); }
+.recipe-cat-chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  font-weight: 700;
+}
+html[data-theme="dark"] .recipe-cat-chip { background: var(--bg-input); }
+html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* 搜索无结果空状态 */
+.recipe-empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 28px 16px;
+  border-radius: var(--radius-m);
+  background: var(--surface-cell);
+  border: 1px solid var(--surface-cell-border);
+}
+.recipe-empty-title { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--text-main); }
+.recipe-empty-hint { margin: 0; font-size: 13px; color: var(--text-secondary); }
+
 /* ──────────────────────────────────────────────────────────────────────────
    首页灵感区布局包装（合并模式：今日灵感内容区移至底部）
    ────────────────────────────────────────────────────────────────────────── */
