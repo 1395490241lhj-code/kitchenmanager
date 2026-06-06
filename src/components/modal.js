@@ -1,8 +1,8 @@
-import { todayISO } from '../storage.js?v=208';
-import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=208';
-import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=208';
-import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=208';
-import { loadShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem } from '../shopping.js?v=208';
+import { todayISO } from '../storage.js?v=209';
+import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=209';
+import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=209';
+import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=209';
+import { loadShoppingItems, saveShoppingItems, mergeShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem } from '../shopping.js?v=209';
 
 // 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
 const CALIB_EMOJI = [
@@ -693,5 +693,121 @@ export function showQuickShoppingModal({ onAdd = () => {} } = {}) {
   nameInput.onkeydown = e => { if (e.key === 'Enter') doAdd(); };
   panel.querySelector('#qsAdd').onclick = doAdd;
   setTimeout(() => nameInput.focus(), 80);
+}
+
+/**
+ * 🛒 待购买食材：查看「当前购物清单里还需要买的食材」列表弹窗（与「待买速记」分工不同）。
+ *  - 只读展示 + 行内操作：列出未完成（!done）的购物项，每项可「标记完成」或「删除」。
+ *  - 底部「➕ 添加待买」切换到「待买速记」快速添加弹窗（不在此处堆叠完整输入表单）。
+ *  - 不改 hash、不跳转 #shopping；复用既有 shopping_items 数据结构，按 done 字段过滤。
+ * @param {Object}   [opts]
+ * @param {Function} [opts.onChange] 列表发生增删/完成后回调（用于刷新首页「待购买」数字）。
+ */
+export function showPendingShoppingModal({ onChange = () => {} } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'km-modal-overlay';
+  const panel = document.createElement('div');
+  panel.className = 'km-modal-content pending-shop-modal';
+  panel.innerHTML = `
+    <div class="km-modal-header">
+      <span class="km-modal-title">🛒 待购买食材</span>
+      <button type="button" class="km-modal-close" aria-label="关闭">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="km-modal-body pending-shop-body"></div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+
+  let closing = false;
+  const close = () => {
+    if (closing) return;
+    closing = true;
+    overlay.classList.add('closing');
+    setTimeout(() => overlay.remove(), 220);
+  };
+  panel.querySelector('.km-modal-close').onclick = close;
+  overlay.onclick = e => { if (e.target === overlay) close(); };
+
+  const body = panel.querySelector('.pending-shop-body');
+
+  // 行内增删/完成：直接基于 shopping_items 的 id 集合改写，复用既有数据结构（done 字段）。
+  const updateByIds = (ids, mutate) => {
+    const idSet = new Set(ids || []);
+    saveShoppingItems(loadShoppingItems().map(it => idSet.has(it.id) ? mutate({ ...it }) : it));
+  };
+  const deleteByIds = (ids) => {
+    const idSet = new Set(ids || []);
+    saveShoppingItems(loadShoppingItems().filter(it => !idSet.has(it.id)));
+  };
+
+  // 底部 / 空态「➕ 添加待买」：切到「待买速记」快速添加弹窗，加完即时刷新本列表与外部计数。
+  const openQuickAdd = () => {
+    showQuickShoppingModal({ onAdd: () => { renderList(); onChange(); } });
+  };
+
+  function renderList() {
+    // 只显示真正待买：未完成项（done=false）。已完成 / 已入库均不展示。
+    const openItems = mergeShoppingItems(loadShoppingItems().filter(it => !it.done));
+    body.innerHTML = '';
+
+    if (!openItems.length) {
+      const empty = document.createElement('div');
+      empty.className = 'km-pending-empty';
+      empty.innerHTML = `
+        <p class="km-pending-empty-text">当前没有待购买食材</p>
+        <button type="button" class="btn ok small km-pending-add" id="pendingAddEmpty">➕ 添加待买</button>
+      `;
+      empty.querySelector('#pendingAddEmpty').onclick = openQuickAdd;
+      body.appendChild(empty);
+      return;
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'km-pending-list';
+    openItems.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'km-pending-item';
+      const amount = item.amountText || '';
+      const source = (item.source && item.source !== '其他') ? item.source : '';
+      const metaParts = [];
+      if (amount) metaParts.push(amount);
+      if (source) metaParts.push(source);
+      li.innerHTML = `
+        <div class="km-pending-main">
+          <span class="km-pending-name">${escapeHtml(item.name)}</span>
+          ${metaParts.length ? `<span class="km-pending-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
+        </div>
+        <div class="km-pending-actions">
+          <button type="button" class="km-pending-btn km-pending-done" aria-label="标记完成" title="标记完成">✓</button>
+          <button type="button" class="km-pending-btn km-pending-del" aria-label="删除" title="删除">🗑</button>
+        </div>
+      `;
+      li.querySelector('.km-pending-done').onclick = () => {
+        updateByIds(item.ids, it => ({ ...it, done: true }));
+        renderList();
+        onChange();
+      };
+      li.querySelector('.km-pending-del').onclick = () => {
+        deleteByIds(item.ids);
+        renderList();
+        onChange();
+      };
+      list.appendChild(li);
+    });
+    body.appendChild(list);
+
+    const footer = document.createElement('div');
+    footer.className = 'km-modal-actions km-pending-footer';
+    footer.innerHTML = '<button type="button" class="btn ok small km-pending-add" id="pendingAddBtn">➕ 添加待买</button>';
+    footer.querySelector('#pendingAddBtn').onclick = openQuickAdd;
+    body.appendChild(footer);
+  }
+
+  renderList();
 }
 

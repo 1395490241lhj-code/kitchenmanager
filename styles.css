@@ -5085,6 +5085,53 @@ html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); 
 }
 .km-shop-del:hover { color: var(--danger); background: rgba(255, 59, 48, 0.12); }
 
+/* ── 待购买食材弹窗：紧凑列表（名称+数量/来源 + 完成/删除两个图标按钮） ── */
+.km-pending-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.km-pending-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--tag-bg);
+  border: 1px solid var(--separator);
+}
+.km-pending-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.km-pending-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.km-pending-meta { font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.km-pending-actions { flex: 0 0 auto; display: flex; gap: 8px; }
+.km-pending-btn {
+  flex: 0 0 auto;
+  width: 32px; height: 32px;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  background: var(--bg-card);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.km-pending-done { color: var(--primary); }
+.km-pending-done:hover { background: var(--status-ok-bg); border-color: var(--status-ok-border); color: var(--status-ok-text); }
+.km-pending-del:hover { background: rgba(255, 59, 48, 0.12); border-color: var(--status-bad-border); }
+.km-pending-footer { margin-top: 12px; justify-content: center; }
+.km-pending-empty { text-align: center; padding: 18px 8px 6px; }
+.km-pending-empty-text { margin: 0 0 12px; color: var(--text-secondary); font-size: 14px; }
+
 /* 随手记 log */
 .km-memo-log {
   list-style: none;

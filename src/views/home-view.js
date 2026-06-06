@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=208';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=208';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=208';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=208';
+import { S, todayISO } from '../storage.js?v=209';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=209';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=209';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=209';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=208';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=208';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=208';
-import { showRecommendationCards } from '../components/recipe-card.js?v=208';
-import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal } from '../components/modal.js?v=208';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=208';
+} from '../recommendations.js?v=209';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=209';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=209';
+import { showRecommendationCards } from '../components/recipe-card.js?v=209';
+import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showPendingShoppingModal } from '../components/modal.js?v=209';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=209';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -958,8 +958,8 @@ function createStatusCards(inv, pack, { onRoute = () => {} } = {}) {
       </button>
     `;
     section.querySelector('#statExpiring').onclick = () => openExpiryListModal(inv, pack, { onRoute, onChange: render });
-    // 待购买卡：只弹「待买速记」快速添加弹窗，不展示完整购物清单列表。
-    section.querySelector('#statShopping').onclick = () => showQuickShoppingModal({ onAdd: render });
+    // 待购买卡：弹出「待购买食材」列表弹窗（查看当前清单待买项，可标记完成/删除），不跳转、不改 hash。
+    section.querySelector('#statShopping').onclick = () => showPendingShoppingModal({ onChange: render });
   };
   render();
   return { el: section, refresh: render };

@@ -1,5 +1,5 @@
-import { els } from '../dom.js?v=208';
-import { todayISO } from '../storage.js?v=208';
+import { els } from '../dom.js?v=209';
+import { todayISO } from '../storage.js?v=209';
 import {
   UNIT_TYPE,
   buildCatalog,
@@ -11,7 +11,7 @@ import {
   guessShelfDays,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=208';
+} from '../ingredients.js?v=209';
 import {
   GEAR_LABELS,
   OUT_OF_STOCK_TTL_MS,
@@ -23,21 +23,21 @@ import {
   saveInventory,
   syncOutOfStockTimestamp,
   upsertInventory
-} from '../inventory.js?v=208';
+} from '../inventory.js?v=209';
 import {
   formatAiErrorMessage,
   recognizeReceipt,
   withTimeout
-} from '../ai.js?v=208';
+} from '../ai.js?v=209';
 import {
   showReceiptConfirmationModal
-} from '../components/modal.js?v=208';
+} from '../components/modal.js?v=209';
 import {
   escapeHtml,
   escapeOptionAttr,
   setSelectValueWithOption
-} from '../components/status.js?v=208';import { markShoppingItemsStockedIn } from '../shopping.js?v=208';
-import { renderStaplesShelf } from '../components/staples-shelf.js?v=208';
+} from '../components/status.js?v=209';import { markShoppingItemsStockedIn } from '../shopping.js?v=209';
+import { renderStaplesShelf } from '../components/staples-shelf.js?v=209';
 
 // 全局「编辑食材」模式开关（模块级，跨重渲染保持，避免保存后跳回只读态）。
 let isEditingInventory = false;
