@@ -1,5 +1,5 @@
-import { els } from '../dom.js?v=209';
-import { todayISO } from '../storage.js?v=209';
+import { els } from '../dom.js?v=210';
+import { todayISO } from '../storage.js?v=210';
 import {
   UNIT_TYPE,
   buildCatalog,
@@ -11,7 +11,7 @@ import {
   guessShelfDays,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=209';
+} from '../ingredients.js?v=210';
 import {
   GEAR_LABELS,
   OUT_OF_STOCK_TTL_MS,
@@ -23,27 +23,28 @@ import {
   saveInventory,
   syncOutOfStockTimestamp,
   upsertInventory
-} from '../inventory.js?v=209';
+} from '../inventory.js?v=210';
 import {
   formatAiErrorMessage,
   recognizeReceipt,
   withTimeout
-} from '../ai.js?v=209';
+} from '../ai.js?v=210';
 import {
   showReceiptConfirmationModal
-} from '../components/modal.js?v=209';
+} from '../components/modal.js?v=210';
 import {
   escapeHtml,
   escapeOptionAttr,
   setSelectValueWithOption
-} from '../components/status.js?v=209';import { markShoppingItemsStockedIn } from '../shopping.js?v=209';
-import { renderStaplesShelf } from '../components/staples-shelf.js?v=209';
+} from '../components/status.js?v=210';import { markShoppingItemsStockedIn } from '../shopping.js?v=210';
+import { renderStaplesShelf } from '../components/staples-shelf.js?v=210';
 
 // 全局「编辑食材」模式开关（模块级，跨重渲染保持，避免保存后跳回只读态）。
 let isEditingInventory = false;
 
-// 常备货架折叠态（模块级，跨重渲染保持：标记常备品会触发整页重渲染）。
-let invStaplesOpen = false;
+// 库存页内部分段：'normal' = 普通食材｜'staples' = 常备库存（常备货架）。
+// 模块级，跨重渲染保持：标记常备品 / 编辑库存会触发整页重渲染，需记住当前分段。
+let activeInventoryTab = 'normal';
 
 // 是否真正有货：数量 > 0 且状态不是「没有」，档位型还需未降到「断货」。
 function hasRealStock(e){
@@ -95,6 +96,11 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   header.innerHTML = '<span>厨房</span>';
   if (options.showTitle !== false) wrap.appendChild(header);
 
+  // 「普通食材」分段面板：承载工具栏 + 添加表单 + 库存网格（常备库存另起一个面板）。
+  const normalPanel = document.createElement('div');
+  normalPanel.className = 'inv-panel';
+  normalPanel.dataset.panel = 'normal';
+
   const searchDiv = document.createElement('div'); searchDiv.className = 'inventory-toolbar';
 
   searchDiv.innerHTML = `
@@ -122,7 +128,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     </div>
     <div id="scanStatus" class="small inventory-scan-status"></div>
   `;
-  wrap.appendChild(searchDiv);
+  normalPanel.appendChild(searchDiv);
 
   searchDiv.querySelector('#exportInventoryBtn').onclick = () => {
     const payload = {
@@ -196,7 +202,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         <button id="addBtn" class="btn ok inventory-add-btn">入库</button>
       </div>
     </div>`;
-  wrap.appendChild(formContainer);
+  normalPanel.appendChild(formContainer);
 
   searchDiv.querySelector('#toggleAddBtn').onclick = () => {
     formContainer.classList.toggle('open');
@@ -262,7 +268,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     onInventoryChanged();
   };
 
-  const grid=document.createElement('div'); grid.className='inventory-grid'; wrap.appendChild(grid);
+  const grid=document.createElement('div'); grid.className='inventory-grid'; normalPanel.appendChild(grid);
   const scanStatus = searchDiv.querySelector('#scanStatus');
   searchDiv.querySelector('#camInput').onchange = async (e) => {
     const file = e.target.files[0]; if(!file) return;
@@ -477,18 +483,53 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   }
   renderTable();
 
-  // ── 常备货架（调料 / 蛋奶 / 干货）：从清单页迁入，折叠收纳，默认收起，避免抢占库存视线 ──
-  const staplesSection = document.createElement('details');
-  staplesSection.className = 'inv-staples-section';
-  staplesSection.open = invStaplesOpen;
-  const staplesSummary = document.createElement('summary');
-  staplesSummary.className = 'inv-staples-summary';
-  staplesSummary.innerHTML = '<span class="inv-staples-title">🧂 常备货架</span><span class="inv-staples-hint">调料 · 蛋奶 · 干货</span>';
-  staplesSection.appendChild(staplesSummary);
-  // 记住展开/收起状态，使标记常备品触发的整页重渲染后仍保持当前折叠态。
-  staplesSection.addEventListener('toggle', () => { invStaplesOpen = staplesSection.open; });
-  staplesSection.appendChild(renderStaplesShelf(inv, { onRoute: onInventoryChanged }));
-  wrap.appendChild(staplesSection);
+  // ── 「常备库存」分段面板：复用常备货架组件（调料 / 蛋奶 / 干货），不再做成普通折叠卡片 ──
+  const staplesPanel = document.createElement('div');
+  staplesPanel.className = 'inv-panel';
+  staplesPanel.dataset.panel = 'staples';
+  staplesPanel.appendChild(renderStaplesShelf(inv, { onRoute: onInventoryChanged }));
+
+  // ── 顶部 iOS 分段控件：普通食材 / 常备库存（仅库存页内部状态切换，不改 hash、不跳转）──
+  const segmented = document.createElement('div');
+  segmented.className = 'inv-segmented';
+  segmented.setAttribute('role', 'tablist');
+  segmented.setAttribute('aria-label', '库存分段');
+  const TABS = [
+    { key: 'normal', label: '🥬 普通食材' },
+    { key: 'staples', label: '🧂 常备库存' }
+  ];
+  TABS.forEach(tab => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'inv-seg-btn';
+    btn.dataset.tab = tab.key;
+    btn.textContent = tab.label;
+    btn.setAttribute('role', 'tab');
+    segmented.appendChild(btn);
+  });
+
+  const panelWrap = document.createElement('div');
+  panelWrap.className = 'inv-panel-wrap';
+  panelWrap.appendChild(normalPanel);
+  panelWrap.appendChild(staplesPanel);
+
+  const setTab = (key) => {
+    activeInventoryTab = key === 'staples' ? 'staples' : 'normal';
+    segmented.querySelectorAll('.inv-seg-btn').forEach(b => {
+      const on = b.dataset.tab === activeInventoryTab;
+      b.classList.toggle('is-active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    normalPanel.classList.toggle('is-hidden', activeInventoryTab !== 'normal');
+    staplesPanel.classList.toggle('is-hidden', activeInventoryTab !== 'staples');
+  };
+  segmented.querySelectorAll('.inv-seg-btn').forEach(b => { b.onclick = () => setTab(b.dataset.tab); });
+
+  wrap.appendChild(segmented);
+  wrap.appendChild(panelWrap);
+
+  // 恢复上次所在分段（标记常备品 / 编辑库存触发整页重渲染后保持当前 Tab）。
+  setTab(activeInventoryTab);
 
   return wrap;
 }

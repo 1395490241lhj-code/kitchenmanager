@@ -3395,7 +3395,7 @@ nav a:active { transform: scale(0.94); }
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
-  padding: 16px 14px 14px;
+  padding: 18px 16px 16px;
   border-radius: 16px;
   border: 1px solid var(--glass-edge);
   background: var(--bg-card);
@@ -3410,8 +3410,8 @@ nav a:active { transform: scale(0.94); }
 .home-metric-header {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-bottom: 6px;
+  gap: 7px;
+  margin-bottom: 8px;
 }
 .home-metric-icon { font-size: 14px; line-height: 1; }
 .home-metric-label {
@@ -3436,8 +3436,8 @@ nav a:active { transform: scale(0.94); }
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
-  margin-top: 2px;
-  line-height: 1.2;
+  margin-top: 4px;
+  line-height: 1.25;
 }
 
 .home-metric.is-warn { background: var(--status-warn-bg); border-color: var(--status-warn-border); }
@@ -3534,43 +3534,9 @@ nav a:active { transform: scale(0.94); }
   gap: 6px;
   margin: 6px 0 4px;
 }
-/* 库存页「常备货架」折叠区：默认收起，避免抢占库存卡片视线 */
-.inv-staples-section {
-  margin-top: 14px;
-  border-radius: var(--radius-m);
-  border: 1px solid var(--separator);
-  background: var(--bg-card);
-  overflow: hidden;
-}
-.inv-staples-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 12px 14px;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-.inv-staples-summary::-webkit-details-marker { display: none; }
-.inv-staples-summary::after {
-  content: '⌄';
-  margin-left: auto;
-  font-size: 16px;
-  color: var(--text-secondary);
-  transition: transform 0.2s ease;
-}
-.inv-staples-section[open] .inv-staples-summary::after { transform: rotate(180deg); }
-.inv-staples-title { font-size: 15px; font-weight: 800; color: var(--text-main); }
-.inv-staples-hint { font-size: 12px; color: var(--text-secondary); }
-/* 折叠区内复用清单页的常备货架卡片，去掉外层重复留白 */
-.inv-staples-section .staples-shelf-content { padding: 0 12px 12px; }
-.inv-staples-section .staples-card {
-  margin: 0;
-  border: 0;
-  box-shadow: none;
-  background: transparent;
-  padding: 0;
-}
+/* 库存页「常备库存」分段面板：常备货架内容直接平铺为一张普通卡片（不再做折叠块） */
+.inv-panel[data-panel="staples"] { padding-top: 4px; }
+.inv-panel[data-panel="staples"] .staples-shelf-content { margin: 0; }
 /* 清单页底部轻量指引：常备货架已迁到库存页 */
 .shopping-shelf-hint {
   margin: 12px 2px 0;
@@ -5225,14 +5191,14 @@ html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); 
 .km-modal-actions {
   display: flex;
   gap: 10px;
-  margin-top: 8px;
-  padding-top: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
   border-top: 1px solid var(--separator);
 }
 .km-modal-actions .btn {
   flex: 1 1 0;
   border-radius: 12px;
-  padding: 10px 14px;
+  padding: 12px 14px;
   font-weight: 700;
 }
 .km-modal-actions .km-modal-ai-btn {
@@ -6190,7 +6156,7 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
  * 「今日」决策页（today-view）—— Hero / 今晚推荐 / 快到期 / 今日计划 / 快捷操作
  * 移动优先（390px 基准）、深浅色走 token，无 inline style。
  * ══════════════════════════════════════════════════════════════════════════ */
-.today-view { display: flex; flex-direction: column; gap: 16px; }
+.today-view { display: flex; flex-direction: column; gap: 18px; }
 .today-section { display: flex; flex-direction: column; gap: 10px; }
 .today-section-head {
   display: flex;
@@ -6239,8 +6205,8 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
 .today-main-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
+  gap: 12px;
+  padding: 16px;
   border-radius: var(--radius-l);
   background: var(--glass-panel-fill);
   backdrop-filter: var(--glass-blur-panel);
@@ -6262,15 +6228,15 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
 .today-main-divider { height: 1px; background: var(--separator); opacity: 0.6; margin: 2px 0; }
 
 /* ── ③ 快捷操作：两个轻量按钮（食材入库 / 购物清单），不再用大方块 ── */
-.today-quick-row { display: flex; gap: 8px; }
+.today-quick-row { display: flex; gap: 10px; }
 .today-quick-btn {
   flex: 1 1 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 10px 12px;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px 14px;
   font-size: 14px;
   font-weight: 700;
   color: var(--text-main);
@@ -6292,9 +6258,9 @@ html[data-theme="dark"] .today-quick-btn.is-primary { background: rgba(10, 132, 
 .today-ai-toggle {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 11px 14px;
+  padding: 13px 16px;
   border-radius: var(--radius-m);
   background: var(--primary-soft);
   border: 1px solid rgba(0, 122, 255, 0.28);
@@ -6304,7 +6270,7 @@ html[data-theme="dark"] .today-quick-btn.is-primary { background: rgba(10, 132, 
 }
 .today-ai-toggle:hover { background: rgba(0, 122, 255, 0.12); }
 .today-ai-toggle-icon { font-size: 18px; line-height: 1; flex: 0 0 auto; }
-.today-ai-toggle-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.today-ai-toggle-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
 .today-ai-toggle-title { font-size: 14px; font-weight: 800; color: var(--primary-dark); }
 .today-ai-toggle-sub { font-size: 12px; color: var(--primary); opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .today-ai-toggle-arrow {

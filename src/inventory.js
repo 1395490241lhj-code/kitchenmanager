@@ -1,4 +1,4 @@
-import { S, todayISO } from './storage.js?v=209';
+import { S, todayISO } from './storage.js?v=210';
 import {
   INGREDIENT_ALIASES,
   UNIT_TYPE,
@@ -8,8 +8,8 @@ import {
   getUnitType,
   guessShelfDays,
   isDryGoodName
-} from './ingredients.js?v=209';
-import { isSeasoningName } from './utils/recipe-sanitizer.js?v=209';
+} from './ingredients.js?v=210';
+import { isSeasoningName } from './utils/recipe-sanitizer.js?v=210';
 
 export const RECIPE_GENERIC_MATCHES = {
   "猪肉": ["五花肉", "瘦肉"],

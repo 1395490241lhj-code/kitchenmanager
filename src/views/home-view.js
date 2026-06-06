@@ -1,17 +1,17 @@
-import { S, todayISO } from '../storage.js?v=209';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=209';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=209';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=209';
+import { S, todayISO } from '../storage.js?v=210';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=210';
+import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=210';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=210';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
-} from '../recommendations.js?v=209';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=209';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=209';
-import { showRecommendationCards } from '../components/recipe-card.js?v=209';
-import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showPendingShoppingModal } from '../components/modal.js?v=209';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=209';
+} from '../recommendations.js?v=210';
+import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=210';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=210';
+import { showRecommendationCards } from '../components/recipe-card.js?v=210';
+import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showPendingShoppingModal } from '../components/modal.js?v=210';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=210';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
