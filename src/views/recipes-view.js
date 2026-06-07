@@ -1,12 +1,12 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=217';
-import { genId } from '../shopping.js?v=217';
-import { hasRecipeMethod, calculateStockStatus, loadFavoriteRecipeIds, loadRecipeActivity } from '../recommendations.js?v=217';
-import { recipeCard } from '../components/recipe-card.js?v=217';
-import { buildCatalog } from '../ingredients.js?v=217';
-import { loadInventory } from '../inventory.js?v=217';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=217';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=217';
-import { RECIPE_CATEGORIES, searchRecipes, matchesCategory } from '../recipe-search.js?v=217';
+import { loadOverlay, saveOverlay } from '../backup.js?v=219';
+import { genId } from '../shopping.js?v=219';
+import { hasRecipeMethod, calculateStockStatus, loadFavoriteRecipeIds, loadRecipeActivity } from '../recommendations.js?v=219';
+import { recipeCard } from '../components/recipe-card.js?v=219';
+import { buildCatalog } from '../ingredients.js?v=219';
+import { loadInventory } from '../inventory.js?v=219';
+import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=219';
+import { escapeHtml, setInlineStatus } from '../components/status.js?v=219';
+import { RECIPE_CATEGORIES, searchRecipes, matchesCategory } from '../recipe-search.js?v=219';
 
 // 【内存暂存】AI 解析出的草稿只存入 sessionStorage，不写 overlay/localStorage。
 // 仅当用户在编辑器里点击「保存」时才真正落地。用户取消/关闭则草稿被销毁，不留脏数据。

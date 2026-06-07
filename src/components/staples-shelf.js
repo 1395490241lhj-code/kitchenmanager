@@ -16,10 +16,10 @@ import {
   removePantryEntry,
   toggleStaple,
   updatePantryEntry
-} from '../staples.js?v=217';
-import { renderDryGoodsCabinet } from './pantry-shelf.js?v=217';
-import { guessKitchenUnit } from '../ingredients.js?v=217';
-import { escapeHtml, escapeOptionAttr, setInlineStatus } from './status.js?v=217';
+} from '../staples.js?v=219';
+import { renderDryGoodsCabinet } from './pantry-shelf.js?v=219';
+import { guessKitchenUnit } from '../ingredients.js?v=219';
+import { escapeHtml, escapeOptionAttr, setInlineStatus } from './status.js?v=219';
 
 // 「管理货架」模式（增删自定义常备项）：模块级，跨重渲染保持。
 let isManagingPantry = false;

@@ -3537,13 +3537,13 @@ nav a:active { transform: scale(0.94); }
 /* 库存页「常备库存」分段面板：常备货架内容直接平铺为一张普通卡片（不再做折叠块） */
 .inv-panel[data-panel="staples"] { padding-top: 4px; }
 .inv-panel[data-panel="staples"] .staples-shelf-content { margin: 0; }
-/* 清单页底部轻量指引：常备货架已迁到库存页 */
-.shopping-shelf-hint {
-  margin: 12px 2px 0;
+/* 清单页「最近完成」分组下的自动隐藏说明（紧凑、弱化） */
+.shopping-autohide-hint {
+  margin: -2px 2px 6px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  font-size: 11px;
+  opacity: 0.85;
 }
-.shopping-shelf-hint a { color: var(--primary); font-weight: 700; }
 
 .staples-card-head {
   display: flex;

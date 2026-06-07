@@ -1,4 +1,4 @@
-import { S, todayISO } from './storage.js?v=217';
+import { S, todayISO } from './storage.js?v=219';
 import {
   getCanonicalName,
   getDryPrepText,
@@ -7,10 +7,50 @@ import {
   isDryGoodName,
   normalizeReceiptIngredientName,
   normalizeKitchenAmount
-} from './ingredients.js?v=217';
+} from './ingredients.js?v=219';
 
 export function genId(){
   return 'u-' + Math.random().toString(36).slice(2,8) + '-' + Date.now().toString(36).slice(-4);
+}
+
+// 已完成（已买 / 已入库）购物项在默认清单里的可见时长：完成后 24 小时内仍展示在「最近完成」，
+// 超过后默认隐藏（仅隐藏，不删除数据，保证最安全）。
+export const COMPLETED_SHOPPING_VISIBLE_HOURS = 24;
+
+// 「完成」= 已买(done) 或 已入库(stockedIn)。
+export function isShoppingItemCompleted(item) {
+  return !!(item && (item.done || item.stockedIn));
+}
+
+// 完成时间：优先 completedAt，回退入库时间 stockedInAt（历史数据兜底）。
+export function getCompletedAt(item) {
+  return (item && (item.completedAt || item.stockedInAt)) || null;
+}
+
+// 是否应从默认清单隐藏：已完成 + 有完成时间 + 距今已超过可见时长。
+// 没有完成时间的（异常历史数据）一律保留，避免误隐藏。
+export function shouldHideCompletedShoppingItem(item, now = Date.now(), hours = COMPLETED_SHOPPING_VISIBLE_HOURS) {
+  if (!isShoppingItemCompleted(item)) return false;
+  const completedAt = getCompletedAt(item);
+  if (!completedAt) return false;
+  const ts = Date.parse(completedAt);
+  if (!Number.isFinite(ts)) return false;
+  const ms = (Number(hours) || COMPLETED_SHOPPING_VISIBLE_HOURS) * 60 * 60 * 1000;
+  return (now - ts) > ms;
+}
+
+// 默认清单可见项：未完成全部保留；已完成仅保留「最近 N 小时内」（可关闭）。
+export function getVisibleShoppingItems(items, options = {}) {
+  const {
+    includeRecentlyCompleted = true,
+    completedVisibleHours = COMPLETED_SHOPPING_VISIBLE_HOURS,
+    now = Date.now()
+  } = options;
+  return (items || []).filter(item => {
+    if (!isShoppingItemCompleted(item)) return true;
+    if (!includeRecentlyCompleted) return false;
+    return !shouldHideCompletedShoppingItem(item, now, completedVisibleHours);
+  });
 }
 
 function cleanSource(source) {
@@ -109,6 +149,21 @@ export function loadShoppingItems() {
     // 备注（手动添加 / 行内就地编辑）：必须在归一化重建对象时保留，否则刷新即丢失。
     const normalizedRemark = typeof item.remark === 'string' ? item.remark : '';
 
+    // 完成时间 completedAt：用于「已完成 24h 后自动隐藏」。
+    //   - 保留已有 completedAt（不重置，避免缓冲期被刷新）。
+    //   - 安全回填：历史 done/stockedIn 但缺 completedAt 的项，回填一个时间给它 24h 缓冲（绝不立即删）。
+    //     优先沿用 stockedInAt，否则记为当前时间。
+    //   - 未完成项强制清空 completedAt，保持状态一致。
+    let normalizedCompletedAt = (typeof item.completedAt === 'string' && item.completedAt) ? item.completedAt : null;
+    const isCompleted = normalizedDone || normalizedStockedIn;
+    if (isCompleted && !normalizedCompletedAt) {
+      normalizedCompletedAt = normalizedStockedInAt || new Date().toISOString();
+      needsSave = true;
+    } else if (!isCompleted && normalizedCompletedAt) {
+      normalizedCompletedAt = null;
+      needsSave = true;
+    }
+
     cleanedItems.push({
       id: normalizedId,
       name: canonicalName,
@@ -118,6 +173,7 @@ export function loadShoppingItems() {
       done: normalizedDone,
       stockedIn: normalizedStockedIn,
       stockedInAt: normalizedStockedInAt,
+      completedAt: normalizedCompletedAt,
       remark: normalizedRemark
     });
   }
@@ -164,6 +220,7 @@ export function mergeShoppingItems(items) {
         done,
         stockedIn,
         stockedInAt: raw.stockedInAt || null,
+        completedAt: getCompletedAt(raw),
         remark: (typeof raw.remark === 'string' ? raw.remark : ''),
         rawItems: [raw],
         canSumQty: qty !== null
@@ -177,6 +234,11 @@ export function mergeShoppingItems(items) {
     item.source = item.sources.join('、');
     // 合并行的备注：取第一个有备注的底层项展示。
     if (!item.remark && typeof raw.remark === 'string' && raw.remark) item.remark = raw.remark;
+    // 合并行的完成时间：取最新（最晚），让整组在最后一次完成满 24h 后才隐藏。
+    const rawCompletedAt = getCompletedAt(raw);
+    if (rawCompletedAt && (!item.completedAt || Date.parse(rawCompletedAt) > Date.parse(item.completedAt))) {
+      item.completedAt = rawCompletedAt;
+    }
     item.rawItems.push(raw);
 
     if (item.canSumQty && qty !== null) {
@@ -235,7 +297,13 @@ export function buildCopyableShoppingList(missing, items) {
 }
 
 export function markAllShoppingItemsDone() {
-  const items = loadShoppingItems().map(item => ({ ...item, done: true }));
+  const now = new Date().toISOString();
+  // 新变成已买的项写入 completedAt（启动 24h 隐藏倒计时）；已有 completedAt 的保留不动。
+  const items = loadShoppingItems().map(item => ({
+    ...item,
+    done: true,
+    completedAt: item.completedAt || now
+  }));
   saveShoppingItems(items);
   return items;
 }
@@ -244,6 +312,35 @@ export function clearDoneShoppingItems() {
   const items = loadShoppingItems().filter(item => !item.done);
   saveShoppingItems(items);
   return items;
+}
+
+// ── 按 id 修改单个购物项的完成状态（供视图 / 首页弹窗复用，统一维护 completedAt）──
+function updateShoppingItemById(id, updater) {
+  const items = loadShoppingItems().map(it => it.id === id ? updater({ ...it }) : it);
+  saveShoppingItems(items);
+}
+
+// 标记为已买 / 已完成：设 done=true 并写完成时间（已有则保留）。
+export function markShoppingItemCompleted(id) {
+  const now = new Date().toISOString();
+  updateShoppingItemById(id, it => ({ ...it, done: true, completedAt: it.completedAt || now }));
+}
+
+// 取消完成：回到待购买，清空完成 / 入库状态与时间。
+export function markShoppingItemActive(id) {
+  updateShoppingItemById(id, it => ({ ...it, done: false, stockedIn: false, completedAt: null }));
+}
+
+// 标记为已入库：done + stockedIn + 入库时间 + 完成时间。
+export function markShoppingItemStocked(id) {
+  const now = new Date().toISOString();
+  updateShoppingItemById(id, it => ({
+    ...it,
+    done: true,
+    stockedIn: true,
+    stockedInAt: it.stockedInAt || now,
+    completedAt: it.completedAt || now
+  }));
 }
 
 export function convertShoppingItemToInventory(item, options = {}) {
@@ -365,13 +462,15 @@ export function matchReceiptItemsToShoppingItems(receiptItems, shoppingItems) {
 export function markShoppingItemsStockedIn(ids) {
   if (!ids || ids.length === 0) return;
   const idSet = new Set(ids);
+  const now = new Date().toISOString();
   const items = loadShoppingItems().map(item => {
     if (idSet.has(item.id)) {
       return {
         ...item,
         done: true,
         stockedIn: true,
-        stockedInAt: new Date().toISOString()
+        stockedInAt: now,
+        completedAt: item.completedAt || now
       };
     }
     return item;

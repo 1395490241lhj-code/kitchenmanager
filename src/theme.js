@@ -9,7 +9,7 @@
  *  - html[data-theme="..."] 覆盖核心 CSS 变量（背景、文字、卡片、输入框、状态色等）。
  *  - 偏好保存在 settings.theme（localStorage），随「整个厨房」备份一起迁移。
  */
-import { S } from './storage.js?v=217';
+import { S } from './storage.js?v=219';
 
 const VALID = new Set(['light', 'dark']);
 

@@ -1,4 +1,4 @@
-import { todayISO } from '../storage.js?v=217';
+import { todayISO } from '../storage.js?v=219';
 import {
   buildCatalog,
   buildIngredientOptions,
@@ -6,29 +6,31 @@ import {
   guessKitchenUnit,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=217';
+} from '../ingredients.js?v=219';
 import {
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=217';
+} from '../inventory.js?v=219';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
   clearDoneShoppingItems,
   convertShoppingItemToInventory,
+  getVisibleShoppingItems,
   groupShoppingItemsBySource,
   loadShoppingItems,
   markAllShoppingItemsDone,
   mergeShoppingItems,
-  saveShoppingItems
-} from '../shopping.js?v=217';
+  saveShoppingItems,
+  COMPLETED_SHOPPING_VISIBLE_HOURS
+} from '../shopping.js?v=219';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption
-} from '../components/status.js?v=217';
-import { restoreStapleByPurchase, restoreStaplesByPurchase } from '../staples.js?v=217';
+} from '../components/status.js?v=219';
+import { restoreStapleByPurchase, restoreStaplesByPurchase } from '../staples.js?v=219';
 
 // 兼容旧入口：完整库存已迁到独立「库存」Tab，本页不再内嵌库存分段；保留空实现避免外部 import 报错。
 export function requestInventoryIntent() {}
@@ -118,8 +120,10 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const ingredientOptions = buildIngredientOptions(catalog);
   const shoppingItems = loadShoppingItems();
   const mergedItems = mergeShoppingItems(shoppingItems);
-  const openItems = mergedItems.filter(item => !item.done);
-  const doneItems = mergedItems.filter(item => item.done);
+  // 默认视图：未完成全部显示；已完成仅显示「最近 24 小时内」，更久的自动隐藏（数据不删）。
+  const visibleItems = getVisibleShoppingItems(mergedItems, { includeRecentlyCompleted: true });
+  const openItems = visibleItems.filter(item => !item.done);
+  const doneItems = visibleItems.filter(item => item.done);
 
   const page = document.createElement('div');
   page.className = 'shopping-page';
@@ -211,9 +215,14 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       remarkInput.onblur = commitRemark;
     }
     row.querySelector('input').onchange = event => {
-      updateShoppingRowsByIds(item.ids, target => ({ ...target, done: event.target.checked }));
+      const checked = event.target.checked;
+      const nowIso = new Date().toISOString();
+      // 勾选「已买」→ 记完成时间（启动 24h 隐藏倒计时）；取消 → 清空完成 / 入库状态，回到待购买。
+      updateShoppingRowsByIds(item.ids, target => checked
+        ? ({ ...target, done: true, completedAt: target.completedAt || nowIso })
+        : ({ ...target, done: false, stockedIn: false, completedAt: null }));
       // 闭环：勾选「已买」时，若是常备品则恢复为充足并更新库存时间。
-      if (event.target.checked) restoreStapleByPurchase(item.name);
+      if (checked) restoreStapleByPurchase(item.name);
       onRoute();
     };
     const stockBtn = row.querySelector('.stock-in-btn');
@@ -221,11 +230,13 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       stockBtn.onclick = () => {
         showShoppingInventoryModal(item, entry => {
           mergeInventoryEntry(inv, entry, { mode: 'add' });
+          const nowIso = new Date().toISOString();
           updateShoppingRowsByIds(item.ids, target => ({
             ...target,
             done: true,
             stockedIn: true,
-            stockedInAt: new Date().toISOString()
+            stockedInAt: nowIso,
+            completedAt: target.completedAt || nowIso
           }));
           restoreStapleByPurchase(item.name); // 闭环：常备品入库后恢复充足
           setInlineStatus(status, `${entry.name} 已入库。`, 'ok');
@@ -262,7 +273,18 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   };
 
   itemList.appendChild(renderGroups('未买', openItems, '还没有未买的购物项。'));
-  itemList.appendChild(renderGroups('已买 / 可入库', doneItems, '勾选"已买"后，可以在这里确认入库。'));
+  const doneSection = renderGroups('最近完成', doneItems, '勾选"已买"后，可以在这里确认入库。');
+  // 轻量说明：已完成项 24 小时后会自动从清单隐藏（数据仍保留）。
+  if (doneItems.length) {
+    const titleEl = doneSection.querySelector('.shopping-source-title');
+    if (titleEl) {
+      const hideHint = document.createElement('p');
+      hideHint.className = 'shopping-autohide-hint small';
+      hideHint.textContent = `完成 ${COMPLETED_SHOPPING_VISIBLE_HOURS} 小时后自动隐藏`;
+      titleEl.insertAdjacentElement('afterend', hideHint);
+    }
+  }
+  itemList.appendChild(doneSection);
   itemCard.appendChild(itemList);
 
   const startBatchStockIn = (itemsList, index) => {
@@ -274,11 +296,13 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     const item = itemsList[index];
     showShoppingInventoryModal(item, entry => {
       mergeInventoryEntry(inv, entry, { mode: 'add' });
+      const nowIso = new Date().toISOString();
       updateShoppingRowsByIds(item.ids, target => ({
         ...target,
         done: true,
         stockedIn: true,
-        stockedInAt: new Date().toISOString()
+        stockedInAt: nowIso,
+        completedAt: target.completedAt || nowIso
       }));
       restoreStapleByPurchase(item.name); // 闭环：常备品入库后恢复充足
       startBatchStockIn(itemsList, index + 1);
@@ -315,12 +339,6 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   };
   // 清单页只负责「购物项」；常备货架已迁到独立「库存」Tab，这里只挂购物项卡片。
   page.appendChild(itemCard);
-
-  // 轻量指引：常备货架（调料/蛋奶/干货）现在统一在「库存」页管理。
-  const shelfHint = document.createElement('p');
-  shelfHint.className = 'shopping-shelf-hint small';
-  shelfHint.innerHTML = '🧂 常备货架（调料 / 蛋奶 / 干货）已移到 <a href="#inventory">库存页</a> 统一管理。';
-  page.appendChild(shelfHint);
 
   return page;
 }
