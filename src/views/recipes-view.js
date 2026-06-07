@@ -161,7 +161,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
         <span class="recipe-count" id="recipeCount"></span>
       </div>
     </div>
-    <div class="grid" id="grid"></div>
+    <div class="grid recipe-grid" id="grid"></div>
   `;
   const grid = wrap.querySelector('#grid');
   const map = pack.recipe_ingredients || {};
@@ -175,8 +175,11 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   const stockableIds = new Set();
   const almostIds = new Set();
   const recentIds = new Set();
+  // 渲染时算一次完整库存状态并缓存，供紧凑卡片徽标复用（打字搜索不重复算库存）。
+  const statusById = new Map();
   for (const r of allRecipes) {
     const st = calculateStockStatus(r, pack, inv);
+    statusById.set(r.id, st);
     if (st.status === 'ok') stockableIds.add(r.id);
     else if (st.status === 'partial' && st.missing && st.missing.length >= 1 && st.missing.length <= 2) almostIds.add(r.id);
     const act = activity[r.id];
@@ -235,7 +238,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
       recipeCount.textContent = `找到 ${results.length} 道相关菜`;
       results.forEach(({ recipe: r, reasons }) => {
         const reason = (reasons && reasons.length) ? reasons.slice(0, 2).join(' · ') : '';
-        grid.appendChild(recipeCard(r, map[r.id], reason ? { reason } : null, { onRoute }));
+        grid.appendChild(recipeCard(r, map[r.id], reason ? { reason } : null, { onRoute, compact: true, statusData: statusById.get(r.id), pack, inv }));
       });
       return;
     }
@@ -248,7 +251,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
       empty.textContent = methodOnly ? '没有符合条件的菜。可以关闭"只看有做法"，或切回「全部」分类。' : '没有符合条件的菜，试试切回「全部」分类。';
       grid.appendChild(empty); return;
     }
-    base.forEach(r => { grid.appendChild(recipeCard(r, map[r.id], null, { onRoute })); });
+    base.forEach(r => { grid.appendChild(recipeCard(r, map[r.id], null, { onRoute, compact: true, statusData: statusById.get(r.id), pack, inv })); });
   }
 
   renderChips();

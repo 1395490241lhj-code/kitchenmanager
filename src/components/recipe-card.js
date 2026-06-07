@@ -23,6 +23,7 @@ import {
   escapeOptionAttr,
   setInlineStatus
 } from './status.js?v=219';
+import { showRecipeQuickModal } from './recipe-quick-modal.js?v=219';
 
 const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
 
@@ -156,7 +157,75 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
   return card;
 }
 
-export function recipeCard(r, list, extraInfo = null, { onRoute = () => {} } = {}) {
+/**
+ * 紧凑菜谱卡片状态徽标：能做 / 只差 N 样 / 缺 N 样。
+ */
+function compactStatusBadge(statusData) {
+  if (!statusData) return '';
+  if (statusData.status === 'ok') return `<span class="kchip ok rc-badge">能做</span>`;
+  if (statusData.status === 'partial') {
+    const n = (statusData.missing && statusData.missing.length) || 0;
+    if (n === 0) return `<span class="kchip warn rc-badge">需确认</span>`;
+    if (n <= 2) return `<span class="kchip warn rc-badge">只差${n}样</span>`;
+    return `<span class="kchip bad rc-badge">缺${n}样</span>`;
+  }
+  return `<span class="kchip bad rc-badge">缺食材</span>`;
+}
+
+/**
+ * 移动端高密度菜谱卡片：外部只显示菜名 / 1-2 标签 / 匹配状态 / 收藏快捷键 / 一行命中原因。
+ * 点击卡片主体打开「快速详情」弹窗（不跳转、不改 hash）；详细信息与主要操作都在弹窗里。
+ */
+function compactRecipeCard(r, extraInfo, { onRoute, statusData, pack, inv }) {
+  const card = document.createElement('div');
+  card.className = 'card recipe-card-compact';
+  card.setAttribute('role', 'button');
+  card.setAttribute('tabindex', '0');
+  const isCreative = String(r.id).startsWith('creative-');
+  const tags = (r.tags || []).slice(0, 2);
+  const reasonText = extraInfo && extraInfo.reason ? String(extraInfo.reason) : '';
+  card.innerHTML = `
+    <div class="rc-compact-main">
+      <h3 class="rc-compact-title">${escapeHtml(r.name)}</h3>
+      <div class="rc-compact-sub">
+        ${compactStatusBadge(statusData)}
+        ${tags.map(t => `<span class="rc-compact-tag">${escapeHtml(t)}</span>`).join('')}
+      </div>
+      ${reasonText ? `<div class="rc-compact-reason">${escapeHtml(reasonText)}</div>` : ''}
+    </div>
+    <div class="rc-compact-actions"></div>
+  `;
+  const actions = card.querySelector('.rc-compact-actions');
+  if (!isCreative) {
+    const favBtn = document.createElement('button');
+    favBtn.type = 'button';
+    const setFav = () => {
+      const active = isFavoriteRecipe(r.id);
+      favBtn.className = `rc-compact-fav${active ? ' active' : ''}`;
+      favBtn.textContent = active ? '★' : '☆';
+      const label = active ? '取消常做' : '设为常做';
+      favBtn.setAttribute('aria-label', label);
+      favBtn.title = label;
+    };
+    setFav();
+    favBtn.onclick = (e) => { e.stopPropagation(); toggleFavoriteRecipe(r.id); onRoute(); };
+    actions.appendChild(favBtn);
+    const delWrap = attachQuickDelete(r.id, card);
+    if (delWrap) actions.appendChild(delWrap);
+  }
+  const open = () => showRecipeQuickModal(r, pack, inv, { onRoute });
+  card.addEventListener('click', open);
+  card.addEventListener('keydown', (e) => {
+    // 仅当焦点在卡片本身（而非内部收藏/删除按钮）时才触发，避免按钮 Enter 冒泡误开弹窗。
+    if (e.target !== card) return;
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+  });
+  return card;
+}
+
+export function recipeCard(r, list, extraInfo = null, opts = {}) {
+  const { onRoute = () => {}, compact = false, statusData = null, pack = null, inv = null } = opts;
+  if (compact) return compactRecipeCard(r, extraInfo, { onRoute, statusData, pack, inv });
   const card = document.createElement('div'); card.className = 'card';
   const topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ AI 推荐</div>` : '';
   const reasonText = extraInfo && extraInfo.reason ? String(extraInfo.reason) : '';
