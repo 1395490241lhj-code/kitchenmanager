@@ -54,16 +54,16 @@
     "ex--2901826f": {
       "name": "白汁豆腐饼",
       "method": [
-        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
-        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
-        "加少量汤下豆腐轻烧，调味入味。",
-        "勾薄芡收汁，撒葱花起锅。"
+        "豆腐压成泥，加盐、淀粉（可加肉末）拌匀，做成小圆饼。",
+        "平底锅下油，将豆腐饼煎至两面金黄。",
+        "加少量奶白高汤/清汤，小火烧入味（白汁、不放辣）。",
+        "勾薄芡，淋在豆腐饼上，撒葱花。"
       ],
       "type": "豆腐菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--4b73d24b": {
@@ -935,16 +935,16 @@
     "ex--36f76a55": {
       "name": "椒盐虾饼",
       "method": [
-        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
-        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
-        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
-        "大火快速颠炒均匀，亮油起锅。"
+        "虾仁剁成虾茸，加盐、料酒、蛋清、淀粉搅上劲。",
+        "做成小饼（或挤成小圆）。",
+        "下温油炸（或煎）至两面金黄熟透。",
+        "撒椒盐，装盘趁热食用。"
       ],
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--5d2b35c0": {
@@ -1250,16 +1250,16 @@
     "ex--01308b6f": {
       "name": "酿冬菇",
       "method": [
-        "冬菇（香菇）切丝（片），加盐、料酒、水淀粉码味上浆。",
-        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
-        "下主料大火快炒至变色断生。",
-        "加盐、生抽等调味，翻炒均匀起锅。"
+        "香菇泡发去蒂，内侧拍少许干淀粉。",
+        "调好味的肉馅酿入香菇凹面，抹平。",
+        "上笼蒸熟（或先煎肉面再蒸）。",
+        "蒸出的汤汁勾薄芡，浇在香菇上，撒葱花。"
       ],
       "type": "炒菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--e6d8d133": {
@@ -1385,16 +1385,16 @@
     "ex--6f5f3be0": {
       "name": "芹黄鱼丝",
       "method": [
-        "鲜鱼治净，两面煎（或炸）至定型。",
-        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
-        "加料酒、酱油和适量汤，下鱼烧开转小火。",
-        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+        "鱼肉去骨切丝，加盐、料酒、蛋清、淀粉上浆；芹黄切段。",
+        "温油滑散鱼丝至变色，捞出。",
+        "锅留底油，下芹黄略炒，倒回鱼丝。",
+        "加盐调味，快速翻匀、淋油起锅（鱼丝嫩、芹黄脆）。"
       ],
       "type": "烧鱼",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--c6a2b71b": {
@@ -1415,16 +1415,16 @@
     "ex--6b17e20c": {
       "name": "清烩虾仁",
       "method": [
-        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
-        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
-        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
-        "大火快速颠炒均匀，亮油起锅。"
+        "虾仁治净，加盐、料酒、蛋清、淀粉上浆。",
+        "温油下虾仁滑散至变色，捞出沥油。",
+        "锅中加少量清汤（或水）烧开，调入盐、少许胡椒。",
+        "下虾仁略烩，勾薄芡，淋香油起锅（汤汁清亮、口味清淡）。"
       ],
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--09d24dd8": {
@@ -1520,16 +1520,16 @@
     "ex--8bd5bc3a": {
       "name": "软炸口蘑",
       "method": [
-        "口蘑洗净改刀。",
-        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
-        "下主料大火快炒至变色断生。",
-        "加盐、生抽等调味，翻炒均匀起锅。"
+        "口蘑洗净，焯水挤干，切片或块。",
+        "加盐、料酒略腌，拍干粉，挂一层蛋清糊。",
+        "下温油炸至外层酥脆、浅金黄，捞出沥油。",
+        "装盘，配椒盐或番茄酱蘸食。"
       ],
       "type": "炒菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--b12c0135": {
@@ -1550,17 +1550,16 @@
     "ex--d37d0851": {
       "name": "软炸虾糕",
       "method": [
-        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
-        "鸡蛋洗净改刀备用。",
-        "热锅下油，滑炒虾仁至变色卷起，盛出。",
-        "锅留底油，下配料炒香。",
-        "倒回虾仁，加盐调味，快速翻炒均匀起锅。"
+        "虾仁剁茸，加盐、料酒、蛋液、淀粉搅成稠糊。",
+        "倒入抹油的容器铺平，上笼蒸定型成糕，晾凉切块。",
+        "虾糕块拍干粉、挂薄糊，下温油炸至外酥金黄。",
+        "撒椒盐或配蘸料食用。"
       ],
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--f4d04e7c": {
@@ -2046,16 +2045,16 @@
     "ex--9f93d3f9": {
       "name": "炸豆芽饼",
       "method": [
-        "豆芽洗净改刀。",
-        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
-        "下主料大火快炒至变色断生。",
-        "加盐、生抽等调味，翻炒均匀起锅。"
+        "豆芽洗净（可切短），焯水挤干。",
+        "与面粉、鸡蛋、盐、葱花调成稠糊（豆芽为主）。",
+        "平底锅下油，舀入糊摊成小饼，中小火煎/炸至两面金黄。",
+        "出锅沥油，趁热食用。"
       ],
       "type": "炒菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--35411308": {
