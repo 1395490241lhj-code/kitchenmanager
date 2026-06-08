@@ -6520,6 +6520,11 @@ html[data-theme="dark"] .today-ai-toggle-arrow { color: #7db8ff; }
 /* 待买速记弹窗的轻提示 */
 .quick-shop-hint { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--status-ok-text); }
 html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
+.quick-shop-hint.is-bad { color: var(--danger); }
+
+/* 待买速记（批量文本版）：textarea 复用 .batch-text-area，加入清单按钮加权 */
+.quick-note-area { min-height: 150px; margin-bottom: 4px; }
+.quick-note-actions .btn.ok { flex: 1.4 1 0; }
 
 /* 折叠体：默认收起，点击展开（max-height 过渡，避免一上来就铺满卡片）。 */
 .today-ai-body {

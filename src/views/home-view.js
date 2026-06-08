@@ -10,7 +10,7 @@ import {
 import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=219';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=219';
 import { showRecommendationCards } from '../components/recipe-card.js?v=219';
-import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showPendingShoppingModal } from '../components/modal.js?v=219';
+import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
 
 /*
@@ -1121,8 +1121,8 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
   `;
   // 食材入库：直接打开现有「采购物品入库登记」弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再多一层选择。
   section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
-  // 待买速记：只弹快速添加待购买弹窗（不展示完整清单，不跳转）；添加后刷新顶部待购买数字。
-  section.querySelector('#qaMemo').onclick = () => showQuickShoppingModal({ onAdd: refreshStatus });
+  // 待买速记：弹「批量文本」速记弹窗（一行一项，不展示完整清单，不跳转）；添加后刷新顶部待购买数字。
+  section.querySelector('#qaMemo').onclick = () => showQuickShoppingNoteModal({ onAdd: refreshStatus });
   return section;
 }
 

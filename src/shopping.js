@@ -388,6 +388,90 @@ export function addShoppingItem(name, qty = '', unit = '', source = '手动', re
   saveShoppingItems(items);
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// 待买速记：文本批量解析（纯本地，无 AI / 无后端）。
+//   一行一个购物项；支持「名 数量单位」「名 数量 单位」「名*数量」「名 x 数量」「名×数量」，
+//   简单中文数字（一二两三四五…半），以及中英文逗号 / 顿号 / 分号在一行内拆多项。
+// ──────────────────────────────────────────────────────────────────────────
+const CN_NUM = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 半: 0.5 };
+
+function noteQtyToken(tok) {
+  if (tok == null) return null;
+  const t = String(tok).trim();
+  if (t === '') return null;
+  if (/^\d+(?:\.\d+)?$/.test(t)) { const n = Number(t); return Number.isFinite(n) ? n : null; }
+  if (CN_NUM[t] != null) return CN_NUM[t];
+  return null;
+}
+
+// 解析单个片段（已按分隔符拆好）。无法识别出有效名称时返回 null。
+function parseShoppingNoteSegment(seg) {
+  let s = String(seg || '').trim();
+  if (!s) return null;
+  s = s.replace(/^[-•·]\s*/, '').trim(); // 去掉可能粘贴进来的行首项目符号
+  if (!s) return null;
+
+  let name = s, qty = null, unit = '';
+
+  // ① 名 *|x|× 数量 [单位]：土豆*3 / 苹果 x 4 / 牛奶×2瓶
+  let m = s.match(/^(.+?)\s*[*xX×]\s*(\d+(?:\.\d+)?|[一二两三四五六七八九十半])\s*([^\d\s]*)$/);
+  if (m) {
+    name = m[1]; qty = noteQtyToken(m[2]); unit = (m[3] || '').trim();
+  } else {
+    // ② 名 数字 [单位]：鸡蛋 1盒 / 牛奶 2 瓶 / 鸡蛋 6 / 西红柿3个（无空格）
+    m = s.match(/^(.+?)\s*(\d+(?:\.\d+)?)\s*([^\d\s]*)$/);
+    if (m) {
+      name = m[1]; qty = Number(m[2]); unit = (m[3] || '').trim();
+    } else {
+      // ③ 名 <空格> 中文数字 [单位]：豆腐 一块 / 排骨 两份 / 葱 半
+      //    必须有空格分隔，避免把「十三香」「三鲜」等名字里的字误当数量。
+      m = s.match(/^(.+?)\s+([一二两三四五六七八九十半])\s*([^\d\s]*)$/);
+      if (m) { name = m[1]; qty = CN_NUM[m[2]]; unit = (m[3] || '').trim(); }
+    }
+  }
+
+  name = String(name).trim();
+  if (!name) return null;
+  if (qty == null || !Number.isFinite(qty) || qty <= 0) qty = 1;
+  return { name, qty, unit };
+}
+
+/**
+ * 解析「待买速记」批量文本。
+ * @param {string} text
+ * @returns {{ items: Array<{name:string, qty:number, unit:string}>, skipped:number }}
+ */
+export function parseShoppingNoteText(text) {
+  const items = [];
+  let skipped = 0;
+  const lines = String(text || '').split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue; // 空行忽略，不计入 skipped
+    const segments = line.split(/[，,、;；]+/).map(x => x.trim()).filter(Boolean);
+    for (const seg of segments) {
+      const parsed = parseShoppingNoteSegment(seg);
+      if (parsed) items.push(parsed);
+      else skipped++;
+    }
+  }
+  return { items, skipped };
+}
+
+/**
+ * 解析文本并批量写入购物清单（复用 addShoppingItem，自动合并同名同单位未完成项）。
+ * @param {string} text
+ * @param {string} [source='速记']
+ * @returns {{ added:number, skipped:number, items:Array }}
+ */
+export function addShoppingItemsFromText(text, source = '速记') {
+  const { items, skipped } = parseShoppingNoteText(text);
+  for (const it of items) {
+    addShoppingItem(it.name, it.qty, it.unit, source);
+  }
+  return { added: items.length, skipped, items };
+}
+
 function isQtyClose(q1, q2) {
   const num1 = parseFloat(q1);
   const num2 = parseFloat(q2);

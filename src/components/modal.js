@@ -2,7 +2,7 @@ import { todayISO } from '../storage.js?v=219';
 import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=219';
 import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=219';
 import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=219';
-import { loadShoppingItems, saveShoppingItems, mergeShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem } from '../shopping.js?v=219';
+import { loadShoppingItems, saveShoppingItems, mergeShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem, addShoppingItemsFromText } from '../shopping.js?v=219';
 
 // 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
 const CALIB_EMOJI = [
@@ -693,6 +693,76 @@ export function showQuickShoppingModal({ onAdd = () => {} } = {}) {
   nameInput.onkeydown = e => { if (e.key === 'Enter') doAdd(); };
   panel.querySelector('#qsAdd').onclick = doAdd;
   setTimeout(() => nameInput.focus(), 80);
+}
+
+/**
+ * 📝 待买速记（批量文本版）：一个 textarea 一次记多行待购买食材，本地解析后批量写入清单。
+ *  - 仅负责「快速批量添加」，不展示当前购物清单列表、不改 hash、不跳转 #shopping。
+ *  - 解析与写入复用 shopping.js 的 parseShoppingNoteText / addShoppingItemsFromText（含同名合并）。
+ *  - 与顶部「待购买」状态卡（showPendingShoppingModal，查看列表）分工不同，互不影响。
+ * @param {Object}   [opts]
+ * @param {Function} [opts.onAdd] 成功批量添加后回调（用于刷新首页「待购买」数字）。
+ */
+export function showQuickShoppingNoteModal({ onAdd = () => {} } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'km-modal-overlay';
+  const panel = document.createElement('div');
+  panel.className = 'km-modal-content quick-note-modal';
+  panel.innerHTML = `
+    <div class="km-modal-header">
+      <span class="km-modal-title">📝 待买速记</span>
+      <button type="button" class="km-modal-close" aria-label="关闭">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="km-modal-body">
+      <p class="km-modal-hint">一行一个，支持「鸡蛋 1盒」「土豆*3」「苹果 x 4」，没数量默认 1。</p>
+      <textarea id="qnInput" class="batch-text-area quick-note-area" rows="6" placeholder="鸡蛋 1盒&#10;牛奶 2瓶&#10;番茄 3个&#10;豆腐 1块&#10;葱&#10;香菜"></textarea>
+      <p class="quick-shop-hint" id="qnHint" hidden></p>
+    </div>
+    <div class="km-modal-actions quick-note-actions">
+      <button type="button" class="btn" id="qnClear">清空</button>
+      <button type="button" class="btn" id="qnClose">关闭</button>
+      <button type="button" class="btn ok" id="qnAdd">加入清单</button>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('open'));
+
+  let closing = false;
+  const close = () => {
+    if (closing) return;
+    closing = true;
+    overlay.classList.add('closing');
+    setTimeout(() => overlay.remove(), 220);
+  };
+  panel.querySelector('.km-modal-close').onclick = close;
+  panel.querySelector('#qnClose').onclick = close;
+  overlay.onclick = e => { if (e.target === overlay) close(); };
+
+  const input = panel.querySelector('#qnInput');
+  const hint = panel.querySelector('#qnHint');
+  const showHint = (text, ok = true) => {
+    hint.hidden = false;
+    hint.textContent = text;
+    hint.classList.toggle('is-bad', !ok);
+  };
+
+  panel.querySelector('#qnClear').onclick = () => { input.value = ''; hint.hidden = true; input.focus(); };
+
+  panel.querySelector('#qnAdd').onclick = () => {
+    const { added, skipped } = addShoppingItemsFromText(input.value, '速记');
+    if (added === 0) { showHint('没有识别到可加入的食材。', false); return; }
+    showHint(`✓ 已加入 ${added} 项待买${skipped ? `，跳过 ${skipped} 行` : ''}`, true);
+    input.value = '';
+    onAdd();
+    input.focus();
+  };
+
+  setTimeout(() => input.focus(), 80);
 }
 
 /**
