@@ -1310,16 +1310,16 @@
     "ex--514e3fd8": {
       "name": "酿萝卜",
       "method": [
-        "白萝卜洗净改刀。",
-        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
-        "下主料大火快炒至变色断生。",
-        "加盐、生抽等调味，翻炒均匀起锅。"
+        "白萝卜去皮切厚段，中心挖空成萝卜盅，焯水去生。",
+        "另备少量猪肉馅，加盐、姜葱末、料酒、少许淀粉拌匀，酿入萝卜中心。",
+        "装碗上笼蒸，或入锅加少量高汤烧至萝卜软糯、肉馅熟透。",
+        "滗出汤汁勾薄芡，浇回萝卜上，撒葱花起锅。"
       ],
       "type": "炒菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--b8c83177": {
