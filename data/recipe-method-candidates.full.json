@@ -281,17 +281,16 @@
     "ex--9bfdb649": {
       "name": "翡翠虾仁",
       "method": [
-        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
-        "豌豆洗净改刀备用。",
+        "虾仁用盐、料酒、淀粉抓匀上浆；豌豆焯水至翠绿。",
         "热锅下油，滑炒虾仁至变色卷起，盛出。",
-        "锅留底油，下配料炒香。",
-        "倒回虾仁，加盐调味，快速翻炒均匀起锅。"
+        "锅留底油，下豌豆略炒，倒回虾仁。",
+        "加盐调味，快速翻炒均匀、亮油起锅。"
       ],
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--f7a17857": {
@@ -387,17 +386,16 @@
     "ex--46a1c25e": {
       "name": "芙蓉虾仁",
       "method": [
-        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
-        "鸡蛋清洗净改刀备用。",
-        "热锅下油，滑炒虾仁至变色卷起，盛出。",
-        "锅留底油，下配料炒香。",
-        "倒回虾仁，加盐调味，快速翻炒均匀起锅。"
+        "虾仁加盐、料酒、淀粉上浆；蛋清加少许盐、水淀粉打散（不打发）。",
+        "温油下虾仁滑至变色，盛出。",
+        "锅留底油，倒入蛋清液中小火推炒成柔嫩“芙蓉”。",
+        "倒回虾仁轻拌，加盐调味，淋油起锅（成菜色白软嫩）。"
       ],
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--3edf0403": {
@@ -463,16 +461,16 @@
     "ex--91b33bcc": {
       "name": "干煵肉丝",
       "method": [
-        "瘦猪肉切丝（片），加盐、料酒、水淀粉码味上浆。",
-        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
-        "下主料大火快炒至变色断生。",
-        "加盐、生抽等调味，翻炒均匀起锅。"
+        "瘦猪肉切丝，加盐、料酒略码味；鲜笋切丝焯水沥干。",
+        "锅下油，中火把肉丝煸炒至吐油、微干香。",
+        "下笋丝、姜蒜（可加少许豆瓣/辣椒）同煸出香。",
+        "烹料酒、酱油，翻炒至干香入味起锅。"
       ],
       "type": "炒菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--6545606d": {
@@ -508,17 +506,17 @@
     "ex--39af818f": {
       "name": "罐烧肉（东坡肉）",
       "method": [
-        "五花猪肉洗净切块，肉类先焯水或煸炒定型。",
-        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
-        "下主料煸炒上色，烹入料酒、酱油。",
-        "加热水没过食材，烧开转小火炖至软糯入味。",
-        "调味后大火收汁，起锅装盘。"
+        "五花肉切大方块，焯水后沥干。",
+        "锅中炒糖色（或加冰糖），下肉块煸至上色。",
+        "加姜、葱、料酒、酱油和没过肉的热水，烧开。",
+        "转小火慢炖（或装罐/碗上笼蒸）至肥而不腻、酥软。",
+        "收浓汤汁，浇在肉上装盘。"
       ],
       "type": "烧菜/红烧",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--d0b8e59b": {
@@ -1585,14 +1583,14 @@
       "method": [
         "鲜笋处理干净，焯水或煮熟后晾凉。",
         "改刀装盘。",
-        "用蒜泥、生抽、醋、辣椒油、花椒面等调成味汁。",
-        "淋汁拌匀即可食用。"
+        "用蒜泥、生抽、醋、辣椒油、花椒面等调成味汁，淋在笋上。",
+        "浇一勺热油激香，拌匀即可食用。"
       ],
       "type": "凉菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--33a4fc8b": {
@@ -1703,16 +1701,16 @@
     "ex--a0a57b1c": {
       "name": "酸辣虾羹汤",
       "method": [
-        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
-        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
-        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
-        "大火快速颠炒均匀，亮油起锅。"
+        "虾仁治净，部分剁茸、部分切丁，加盐、料酒、蛋清、淀粉拌匀。",
+        "锅中加清汤或清水烧开，下虾丁/虾茸汆熟。",
+        "加盐、酱油、胡椒、醋调成酸辣味。",
+        "勾薄芡成羹，淋蛋液、香油，撒葱花起锅。"
       ],
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--68225ed3": {
@@ -1988,16 +1986,16 @@
     "ex--cb8016d0": {
       "name": "盐白菜冬笋",
       "method": [
-        "冬笋洗净改刀。",
-        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
-        "下主料大火快炒至变色断生。",
-        "加盐、生抽等调味，翻炒均匀起锅。"
+        "冬笋切片焯水；盐白菜洗去多余盐分切段。",
+        "热锅下油，爆香姜蒜。",
+        "下冬笋、盐白菜大火快炒。",
+        "盐白菜已带咸味，少放盐，炒香入味起锅。"
       ],
       "type": "炒菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--1a5a6b86": {
@@ -2153,17 +2151,16 @@
     "ex--01914cb3": {
       "name": "芝麻虾",
       "method": [
-        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
-        "芝麻洗净改刀备用。",
-        "热锅下油，滑炒虾仁至变色卷起，盛出。",
-        "锅留底油，下配料炒香。",
-        "倒回虾仁，加盐调味，快速翻炒均匀起锅。"
+        "虾仁治净，加盐、料酒码味，拍干淀粉。",
+        "裹一层蛋液、滚匀白芝麻。",
+        "下温油炸至金黄、芝麻香酥，捞出沥油。",
+        "装盘，可配椒盐或番茄酱蘸食。"
       ],
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--5309ef14": {

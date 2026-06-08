@@ -14,6 +14,8 @@
  * 用法：
  *   node scripts/apply-reviewed-methods.js --dry-run   # 预览将合并哪些（不写文件）
  *   node scripts/apply-reviewed-methods.js             # 实际写入 completion-overlay.json
+ *   # 指定候选来源（例如完整库草稿）：
+ *   node scripts/apply-reviewed-methods.js --candidates=data/recipe-method-candidates.full.json --dry-run
  */
 'use strict';
 
@@ -22,11 +24,21 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const DATA = path.join(ROOT, 'data');
-const DRY = process.argv.slice(2).includes('--dry-run');
+const args = process.argv.slice(2);
+const DRY = args.includes('--dry-run');
 
 function readJSON(p) { return JSON.parse(fs.readFileSync(p, 'utf8')); }
+function argVal(name) {
+  const a = args.find(x => x.startsWith('--' + name + '='));
+  return a ? a.split('=').slice(1).join('=') : null;
+}
+function resolveInput(val, def) {
+  if (!val) return path.join(DATA, def);
+  return path.isAbsolute(val) ? val : path.resolve(ROOT, val);
+}
 
-const CAND_PATH = path.join(DATA, 'recipe-method-candidates.json');
+// 候选来源可覆盖（--candidates=<path>），默认 curated 候选；overlay 目标固定为附加层。
+const CAND_PATH = resolveInput(argVal('candidates'), 'recipe-method-candidates.json');
 const OVERLAY_PATH = path.join(DATA, 'recipe-completion-overlay.json');
 
 const candFile = readJSON(CAND_PATH);
@@ -57,6 +69,7 @@ for (const [id, c] of Object.entries(candidates)) {
   appliedNames.push(`${c.name || id}`);
 }
 
+console.log(`[apply] 候选来源=${path.relative(ROOT, CAND_PATH).split(path.sep).join('/')}`);
 console.log(`[apply] 候选总数=${Object.keys(candidates).length}`);
 console.log(`[apply] 将合并(已审核)=${applied} 跳过(未审核)=${skippedUnreviewed} 跳过(已有做法)=${skippedExisting} 跳过(空做法)=${skippedEmpty}`);
 if (appliedNames.length) console.log('[apply] 合并菜谱：' + appliedNames.join('、'));
