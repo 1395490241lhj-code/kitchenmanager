@@ -1,4 +1,4 @@
-const CACHE_NAME = 'km-v21';
+const CACHE_NAME = 'km-v22';
 const CORE = [
   './',
   './index.html',
@@ -33,6 +33,13 @@ function isFreshAsset(request) {
     || request.destination === 'style'
     || request.destination === 'worker'
     || /\.(js|css)$/.test(url.pathname);
+}
+
+// 同源 data/*.json（菜谱库 + 补全 overlay）：走 networkFirst，保证在线总是最新，
+// 离线回退到上次缓存。避免 overlay 更新后被 cacheFirst 持续喂旧内容。
+function isDataJson(request) {
+  const url = new URL(request.url);
+  return /\/data\/.*\.json$/.test(url.pathname);
 }
 
 async function networkFirst(request, fallbackKey = request) {
@@ -70,7 +77,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  if (isFreshAsset(request)) {
+  if (isFreshAsset(request) || isDataJson(request)) {
     event.respondWith(networkFirst(request));
     return;
   }
