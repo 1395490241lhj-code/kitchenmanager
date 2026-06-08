@@ -32,6 +32,19 @@ const args = process.argv.slice(2);
 const libArg = (args.find(a => a.startsWith('--lib=')) || '--lib=curated').split('=')[1];
 const LIB_FILE = libArg === 'full' ? 'sichuan-recipes.json' : 'sichuan-recipes.curated.json';
 
+// 输出文件名可覆盖（--out / --md / --candidates），便于按库分别输出避免互相覆盖。
+function argVal(name) {
+  const a = args.find(x => x.startsWith('--' + name + '='));
+  return a ? a.split('=').slice(1).join('=') : null;
+}
+function resolveOut(val, def) {
+  if (!val) return path.join(DATA, def);
+  return path.isAbsolute(val) ? val : path.resolve(ROOT, val);
+}
+const OUT_JSON = resolveOut(argVal('out'), 'missing-methods-report.json');
+const OUT_MD = resolveOut(argVal('md'), 'missing-methods-report.md');
+const CAND_PATH = resolveOut(argVal('candidates'), 'recipe-method-candidates.json');
+
 function readJSON(p) { return JSON.parse(fs.readFileSync(p, 'utf8')); }
 function readJSONSafe(p, fallback) { try { return readJSON(p); } catch (_) { return fallback; } }
 
@@ -386,7 +399,6 @@ for (const r of recipes) {
 missing.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hans-CN'));
 
 // ── 生成候选（保留已 approved 的条目，重跑不覆盖人工审核） ──────────────────────
-const CAND_PATH = path.join(DATA, 'recipe-method-candidates.json');
 const prev = readJSONSafe(CAND_PATH, {});
 const prevCandidates = (prev && prev.candidates) || {};
 const candidates = {};
@@ -415,7 +427,7 @@ const report = {
   },
   items: missing
 };
-fs.writeFileSync(path.join(DATA, 'missing-methods-report.json'), JSON.stringify(report, null, 2) + '\n', 'utf8');
+fs.writeFileSync(OUT_JSON, JSON.stringify(report, null, 2) + '\n', 'utf8');
 
 // Markdown 报告
 const mdLines = [];
@@ -441,7 +453,7 @@ for (const type of Object.keys(byType)) {
   }
   mdLines.push('');
 }
-fs.writeFileSync(path.join(DATA, 'missing-methods-report.md'), mdLines.join('\n'), 'utf8');
+fs.writeFileSync(OUT_MD, mdLines.join('\n'), 'utf8');
 
 const candFile = {
   generatedAt,
@@ -453,8 +465,9 @@ const candFile = {
 };
 fs.writeFileSync(CAND_PATH, JSON.stringify(candFile, null, 2) + '\n', 'utf8');
 
+const rel = (p) => path.relative(ROOT, p).split(path.sep).join('/');
 console.log(`[audit] 库=${LIB_FILE} 总数=${report.totals.recipes} 缺做法=${report.totals.missingMethod} 候选=${candFile.count}（保留已批准 ${preservedApproved}）`);
 console.log('[audit] 已写出：');
-console.log('  - data/missing-methods-report.json');
-console.log('  - data/missing-methods-report.md');
-console.log('  - data/recipe-method-candidates.json');
+console.log('  - ' + rel(OUT_JSON));
+console.log('  - ' + rel(OUT_MD));
+console.log('  - ' + rel(CAND_PATH));

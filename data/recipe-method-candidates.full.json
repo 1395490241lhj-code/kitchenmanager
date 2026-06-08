@@ -1,0 +1,2215 @@
+{
+  "generatedAt": "2026-06-08T15:23:06.649Z",
+  "source": "generated-from-ingredients",
+  "reference": "大众川菜目录/川菜通用技法参考",
+  "note": "全部候选 needsReview:true / approved:false。审核请把要采用的条目改为 approved:true（或 needsReview:false），再运行 scripts/apply-reviewed-methods.js 合并。method 为分步数组，合并时自动编号拼成字符串。",
+  "count": 146,
+  "candidates": {
+    "ex--708e2f11": {
+      "name": "白酿海参",
+      "method": [
+        "海参洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--5f210377": {
+      "name": "白汁菠菜卷",
+      "method": [
+        "菠菜洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c5776d3a": {
+      "name": "白汁蛋饺",
+      "method": [
+        "猪肉洗净切碎备用。",
+        "鸡蛋打散，加入切碎配料和盐调匀成蛋液。",
+        "平底锅下油烧热，倒入蛋液铺匀摊开。",
+        "中小火加盖烘至底面金黄，翻面烘熟。",
+        "取出切块装盘。"
+      ],
+      "type": "烘蛋",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--2901826f": {
+      "name": "白汁豆腐饼",
+      "method": [
+        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
+        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
+        "加少量汤下豆腐轻烧，调味入味。",
+        "勾薄芡收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--4b73d24b": {
+      "name": "白汁五柳鱼",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--69ee3667": {
+      "name": "白汁鲜鱼",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--9f266e0d": {
+      "name": "包烧鸡",
+      "method": [
+        "鸡肉洗净切块，肉类先焯水或煸炒定型。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--011eaa5b": {
+      "name": "包烧鱼",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--97bf4d9d": {
+      "name": "玻璃鱿鱼",
+      "method": [
+        "鱿鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--4d9be6fe": {
+      "name": "菠饺鱼肚",
+      "method": [
+        "菠饺（菠菜面饺）治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c4198d69": {
+      "name": "叉烧宣腿",
+      "method": [
+        "宣威火腿洗净切块。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--cef89788": {
+      "name": "抄手鸭子",
+      "method": [
+        "鸭子切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--033f63cc": {
+      "name": "虫草鸭子",
+      "method": [
+        "鸭子切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b293c0ac": {
+      "name": "茨菰饼",
+      "method": [
+        "茨菰提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下茨菰大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、茨菰软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--69ade0df": {
+      "name": "汆双脆",
+      "method": [
+        "鸭肫切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--2f122552": {
+      "name": "蛋酥鸭子",
+      "method": [
+        "鸭子切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--1047a3ce": {
+      "name": "豆渣鸭脯",
+      "method": [
+        "鸭脯切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--ea77d5d2": {
+      "name": "豆渣鸭子",
+      "method": [
+        "鸭子切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--9bfdb649": {
+      "name": "翡翠虾仁",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "豌豆洗净改刀备用。",
+        "热锅下油，滑炒虾仁至变色卷起，盛出。",
+        "锅留底油，下配料炒香。",
+        "倒回虾仁，加盐调味，快速翻炒均匀起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--f7a17857": {
+      "name": "蜂窝豆腐",
+      "method": [
+        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
+        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
+        "加少量汤下豆腐轻烧，调味入味。",
+        "勾薄芡收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--852669de": {
+      "name": "凤尾鸽蛋",
+      "method": [
+        "鸽蛋洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--ed0628d4": {
+      "name": "凤尾鱼翅",
+      "method": [
+        "鱼翅治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--fc78bac6": {
+      "name": "凤眼鸽蛋",
+      "method": [
+        "鸽蛋洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d63a85ac": {
+      "name": "佛手海参",
+      "method": [
+        "海参洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--e8f73168": {
+      "name": "佛手蜇卷",
+      "method": [
+        "海蜇洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--46a1c25e": {
+      "name": "芙蓉虾仁",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "鸡蛋清洗净改刀备用。",
+        "热锅下油，滑炒虾仁至变色卷起，盛出。",
+        "锅留底油，下配料炒香。",
+        "倒回虾仁，加盐调味，快速翻炒均匀起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--3edf0403": {
+      "name": "芙蓉月光鸽蛋",
+      "method": [
+        "鸽蛋、蛋清洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--806b8604": {
+      "name": "肝油海参",
+      "method": [
+        "海参洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--7aab63de": {
+      "name": "干煸鱿鱼丝",
+      "method": [
+        "鱿鱼处理干净，改刀成条或段。",
+        "锅下少油，中火把鱿鱼煸炒至水分收干、表面微皱。",
+        "下姜蒜、干辣椒、花椒（荤料可加豆瓣）炒香。",
+        "调味后继续翻炒至干香入味，起锅。"
+      ],
+      "type": "干煸",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--e698be40": {
+      "name": "干煸鱿鱼笋丝",
+      "method": [
+        "鱿鱼处理干净，改刀成条或段。",
+        "锅下少油，中火把鱿鱼煸炒至水分收干、表面微皱。",
+        "下姜蒜、干辣椒、花椒（荤料可加豆瓣）炒香。",
+        "调味后继续翻炒至干香入味，起锅。"
+      ],
+      "type": "干煸",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--91b33bcc": {
+      "name": "干煵肉丝",
+      "method": [
+        "瘦猪肉切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--6545606d": {
+      "name": "干烧鱼翅",
+      "method": [
+        "鱼翅治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d5415621": {
+      "name": "格花豆腐皮",
+      "method": [
+        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
+        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
+        "加少量汤下豆腐轻烧，调味入味。",
+        "勾薄芡收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--39af818f": {
+      "name": "罐烧肉（东坡肉）",
+      "method": [
+        "五花猪肉洗净切块，肉类先焯水或煸炒定型。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d0b8e59b": {
+      "name": "桂花珧柱",
+      "method": [
+        "珧柱（干贝）洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b33a6158": {
+      "name": "锅烧全鸭",
+      "method": [
+        "全鸭洗净切块，肉类先焯水或煸炒定型。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--563d2d9d": {
+      "name": "锅贴豆腐",
+      "method": [
+        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
+        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
+        "加少量汤下豆腐轻烧，调味入味。",
+        "勾薄芡收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--7cece6e0": {
+      "name": "锅贴鱼片",
+      "method": [
+        "鱼片治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--995266ce": {
+      "name": "海味什锦",
+      "method": [
+        "海参、鱿鱼、鱼肚洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d2712e05": {
+      "name": "荷包鱿鱼",
+      "method": [
+        "鱿鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--4d95ebe3": {
+      "name": "红烧鸽子",
+      "method": [
+        "鸽子洗净切块。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--22341635": {
+      "name": "红烧甲鱼",
+      "method": [
+        "甲鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--32fd38b8": {
+      "name": "红烧鹿筋",
+      "method": [
+        "鹿筋洗净切块。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--0ce59d78": {
+      "name": "红烧舌掌",
+      "method": [
+        "鸭舌、鸭掌洗净切块，肉类先焯水或煸炒定型。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--027563d0": {
+      "name": "红烧熊掌",
+      "method": [
+        "熊掌洗净切块。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--0f97bc2e": {
+      "name": "红烧雪猪",
+      "method": [
+        "猪肉洗净切块，肉类先焯水或煸炒定型。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--571132b8": {
+      "name": "红烧鸭卷",
+      "method": [
+        "鸭肉洗净切块，肉类先焯水或煸炒定型。",
+        "起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--3e96b566": {
+      "name": "红烧鱼唇",
+      "method": [
+        "鱼唇治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--00640549": {
+      "name": "煳辣腰块（宫保腰块）",
+      "method": [
+        "鸡肉切丁，加盐、料酒、水淀粉码味上浆。",
+        "用酱油、醋、白糖、水淀粉兑成糖醋味汁。",
+        "热锅下油，炒香干辣椒节和花椒至煳辣出香。",
+        "下鸡丁炒散至变色，烹入味汁快速翻匀。",
+        "下油酥花生米和葱节，炒匀亮油起锅。"
+      ],
+      "type": "宫保/煳辣",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--1fd5feec": {
+      "name": "蝴蝶海参",
+      "method": [
+        "海参洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--04dfc7eb": {
+      "name": "蝴蝶竹荪",
+      "method": [
+        "竹荪洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--45e2d82e": {
+      "name": "火把玉兰片",
+      "method": [
+        "玉兰片（笋片）洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--3946f051": {
+      "name": "鸡蒙葵菜",
+      "method": [
+        "葵菜切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--90402dd0": {
+      "name": "鸡蒙兰花",
+      "method": [
+        "鸡肉切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--f5dc9b3f": {
+      "name": "鸡淖鱼翅",
+      "method": [
+        "鸡淖治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b6f1009a": {
+      "name": "鸡皮慈笋",
+      "method": [
+        "慈笋切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--2d5041cd": {
+      "name": "鸡皮冬笋",
+      "method": [
+        "冬笋切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d3361424": {
+      "name": "鸡皮鱼肚",
+      "method": [
+        "鸡皮治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b12ba6a4": {
+      "name": "家常海参",
+      "method": [
+        "海参洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--ce68cead": {
+      "name": "家常田鸡",
+      "method": [
+        "田鸡切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--e09a0fd3": {
+      "name": "椒盐豆腐糕",
+      "method": [
+        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
+        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
+        "加少量汤下豆腐轻烧，调味入味。",
+        "勾薄芡收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--36f76a55": {
+      "name": "椒盐虾饼",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
+        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
+        "大火快速颠炒均匀，亮油起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--5d2b35c0": {
+      "name": "椒盐鱼卷",
+      "method": [
+        "鱼卷治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--84d5489b": {
+      "name": "筋尾鸽蛋",
+      "method": [
+        "鸽蛋切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c2205664": {
+      "name": "韭汁豆蕊",
+      "method": [
+        "豆蕊、韭菜洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--e1383df7": {
+      "name": "菊花珧柱",
+      "method": [
+        "珧柱（干贝）洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--af862012": {
+      "name": "口袋豆腐",
+      "method": [
+        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
+        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
+        "加少量汤下豆腐轻烧，调味入味。",
+        "勾薄芡收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--299ea735": {
+      "name": "兰花熘鱼片",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c5d9eac5": {
+      "name": "兰花田鸡",
+      "method": [
+        "田鸡切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--7bfa8911": {
+      "name": "兰花吐司",
+      "method": [
+        "吐司、兰花（干黄花菜）洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--0701bcb2": {
+      "name": "冷汁盐水鸭",
+      "method": [
+        "鸭子切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--8fc90027": {
+      "name": "凉拌麂肉",
+      "method": [
+        "麂肉处理干净，焯水或煮熟后晾凉。",
+        "改刀装盘。",
+        "用蒜泥、生抽、醋、辣椒油、花椒面等调成味汁。",
+        "淋汁拌匀即可食用。"
+      ],
+      "type": "凉菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--a1208c21": {
+      "name": "凉粉鲫鱼",
+      "method": [
+        "鲫鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--74ab30a9": {
+      "name": "菱角豆腐",
+      "method": [
+        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
+        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
+        "加少量汤下豆腐轻烧，调味入味。",
+        "勾薄芡收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--513df904": {
+      "name": "熘鸭肝",
+      "method": [
+        "鸭肝切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--64115033": {
+      "name": "萝卜丝中段",
+      "method": [
+        "鲜鱼中段、白萝卜丝洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--49ddf534": {
+      "name": "麻辣肫松",
+      "method": [
+        "鸭肫切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b29eabba": {
+      "name": "玫瑰锅炸",
+      "method": [
+        "玫瑰花瓣提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下玫瑰花瓣大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、玫瑰花瓣软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--ac9a32ca": {
+      "name": "蜜味锅蒸",
+      "method": [
+        "糯米提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下糯米大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、糯米软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--104e4239": {
+      "name": "蜜汁苕蛋",
+      "method": [
+        "红薯（苕）提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下红薯（苕）大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、红薯（苕）软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c4da5f73": {
+      "name": "南边鸭子",
+      "method": [
+        "鸭子切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--5bc40918": {
+      "name": "南卤醉虾",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
+        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
+        "大火快速颠炒均匀，亮油起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--01308b6f": {
+      "name": "酿冬菇",
+      "method": [
+        "冬菇（香菇）切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--e6d8d133": {
+      "name": "酿鸽蛋",
+      "method": [
+        "鸽蛋切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--2a0b89d9": {
+      "name": "酿海参",
+      "method": [
+        "海参洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--e7dde848": {
+      "name": "酿两样",
+      "method": [
+        "冬菇切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--514e3fd8": {
+      "name": "酿萝卜",
+      "method": [
+        "白萝卜洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b8c83177": {
+      "name": "酿藕",
+      "method": [
+        "莲藕提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下莲藕大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、莲藕软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--96260fe7": {
+      "name": "酿鸭脯",
+      "method": [
+        "鸭脯切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--0277ce8e": {
+      "name": "糯米全鸭",
+      "method": [
+        "全鸭切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--4a64befe": {
+      "name": "棋盘鱼肚",
+      "method": [
+        "鱼肚治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--6f5f3be0": {
+      "name": "芹黄鱼丝",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c6a2b71b": {
+      "name": "清炖鹿冲",
+      "method": [
+        "鹿肉洗净改刀，肉类先焯水。",
+        "锅中加清汤或清水烧开，下主料。",
+        "小火煮至食材熟软。",
+        "加盐调味（清汤宜清淡），按需撒葱花起锅。"
+      ],
+      "type": "汤羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--6b17e20c": {
+      "name": "清烩虾仁",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
+        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
+        "大火快速颠炒均匀，亮油起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--09d24dd8": {
+      "name": "清汤三色卷",
+      "method": [
+        "菠菜、胡萝卜、豆苗（示意三色蔬）洗净改刀。",
+        "锅中加清汤或清水烧开，下主料。",
+        "小火煮至食材熟软。",
+        "加盐调味（清汤宜清淡），按需撒葱花起锅。"
+      ],
+      "type": "汤羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--0b844aaa": {
+      "name": "清汤五彩鱼",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--7e4e79b7": {
+      "name": "清汤鱼翅把",
+      "method": [
+        "鱼翅治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--5e8fcce8": {
+      "name": "清汤鱼肚卷",
+      "method": [
+        "鱼肚治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--76a886b1": {
+      "name": "清汤鱼卷",
+      "method": [
+        "鱼卷治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--edba36af": {
+      "name": "清蒸青鳝",
+      "method": [
+        "青鳝治净，两面打花刀，用盐、料酒抹匀略腌。",
+        "盘底垫姜葱，鱼身铺姜丝，上笼大火蒸约 8 分钟至熟。",
+        "倒掉蒸出的水，撒葱丝，淋蒸鱼豉油。",
+        "浇一勺热油激香即成。"
+      ],
+      "type": "清蒸鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--8bd5bc3a": {
+      "name": "软炸口蘑",
+      "method": [
+        "口蘑洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b12c0135": {
+      "name": "软炸虾包",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
+        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
+        "大火快速颠炒均匀，亮油起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d37d0851": {
+      "name": "软炸虾糕",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "鸡蛋洗净改刀备用。",
+        "热锅下油，滑炒虾仁至变色卷起，盛出。",
+        "锅留底油，下配料炒香。",
+        "倒回虾仁，加盐调味，快速翻炒均匀起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--f4d04e7c": {
+      "name": "软炸鸭腰",
+      "method": [
+        "鸭腰切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--57fd9bbb": {
+      "name": "烧拌鲜笋",
+      "method": [
+        "鲜笋处理干净，焯水或煮熟后晾凉。",
+        "改刀装盘。",
+        "用蒜泥、生抽、醋、辣椒油、花椒面等调成味汁。",
+        "淋汁拌匀即可食用。"
+      ],
+      "type": "凉菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--33a4fc8b": {
+      "name": "生片菊花锅",
+      "method": [
+        "牛肉片切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--f788bca6": {
+      "name": "双色豆腐淖",
+      "method": [
+        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
+        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
+        "加少量汤下豆腐轻烧，调味入味。",
+        "勾薄芡收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b1413caf": {
+      "name": "水晶球",
+      "method": [
+        "澄粉（小麦淀粉）提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下澄粉（小麦淀粉）大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、澄粉（小麦淀粉）软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--bc1b2c47": {
+      "name": "四吃芦笋",
+      "method": [
+        "芦笋洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--1182aa5e": {
+      "name": "松鼠鱼",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--cbd48606": {
+      "name": "酥扁豆泥",
+      "method": [
+        "蚕豆（扁豆）提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下蚕豆（扁豆）大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、蚕豆（扁豆）软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--948a7bbd": {
+      "name": "酥蚕豆泥",
+      "method": [
+        "蚕豆提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下蚕豆大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、蚕豆软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--a0a57b1c": {
+      "name": "酸辣虾羹汤",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
+        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
+        "大火快速颠炒均匀，亮油起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--68225ed3": {
+      "name": "糖粘羊尾",
+      "method": [
+        "羊尾提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下羊尾大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、羊尾软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--1f16e8bb": {
+      "name": "蹄燕鸽蛋",
+      "method": [
+        "鸽蛋切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--7d8a3eb3": {
+      "name": "网油枣卷",
+      "method": [
+        "红枣提前用清水泡发，去蒂撕成小朵。",
+        "锅中加足量清水，下红枣大火烧开转小火。",
+        "加入冰糖，慢炖至汤汁浓稠、红枣软糯出胶。",
+        "可加红枣、枸杞同炖，晾温后食用。"
+      ],
+      "type": "甜羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--17380d15": {
+      "name": "五彩吐司",
+      "method": [
+        "吐司切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c7a136f5": {
+      "name": "五柳鱼",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--4a64235d": {
+      "name": "五色卷",
+      "method": [
+        "多种蔬菜拼洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d5124139": {
+      "name": "五色虾球",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "热锅下油烧至五六成热，下虾仁滑散至变色卷起。",
+        "下葱姜蒜爆香，烹少许料酒，加盐调味。",
+        "大火快速颠炒均匀，亮油起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--462faa18": {
+      "name": "五色鱼圆",
+      "method": [
+        "鱼圆治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--74c249e1": {
+      "name": "鲜花海参丝",
+      "method": [
+        "海参洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--0b1089d0": {
+      "name": "香酥鸭子",
+      "method": [
+        "鸭子切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--e0fb2f18": {
+      "name": "蟹黄凤尾",
+      "method": [
+        "蟹黄洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--16899329": {
+      "name": "蟹黄银杏",
+      "method": [
+        "蟹黄、银杏洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--61b37fd2": {
+      "name": "杏圆吐司",
+      "method": [
+        "吐司、杏仁洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--638e863a": {
+      "name": "绣球珧柱",
+      "method": [
+        "珧柱（干贝）洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--caed9c66": {
+      "name": "绣球鱼翅",
+      "method": [
+        "鱼翅治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--6f0a2183": {
+      "name": "熏牛肉",
+      "method": [
+        "牛肉切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--4e43ec23": {
+      "name": "鸭腰莼菜",
+      "method": [
+        "鸭腰切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b3cb383f": {
+      "name": "烟熏鱼",
+      "method": [
+        "鲜鱼治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--cb8016d0": {
+      "name": "盐白菜冬笋",
+      "method": [
+        "冬笋洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--1a5a6b86": {
+      "name": "银杏鸭脯",
+      "method": [
+        "鸭脯切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c7db9907": {
+      "name": "鱿鱼腐皮",
+      "method": [
+        "鱿鱼治净，两面煎至微黄定型。",
+        "爆香姜蒜，加入适量热水或高汤烧开。",
+        "下豆腐同烧，小火煮至入味、汤色乳白。",
+        "调味收汁，撒葱花起锅。"
+      ],
+      "type": "豆腐鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c673b4db": {
+      "name": "鱼羊肚烩",
+      "method": [
+        "鱼肚治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--9f93d3f9": {
+      "name": "炸豆芽饼",
+      "method": [
+        "豆芽洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--35411308": {
+      "name": "炸荷花卷",
+      "method": [
+        "面粉（面点）洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--3ebbfc57": {
+      "name": "炸熘田鸡腿",
+      "method": [
+        "田鸡腿切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d53ec5fc": {
+      "name": "炸熘鱼圆",
+      "method": [
+        "鱼圆治净，两面煎（或炸）至定型。",
+        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
+        "加料酒、酱油和适量汤，下鱼烧开转小火。",
+        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+      ],
+      "type": "烧鱼",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--b29ada1a": {
+      "name": "炸玉兰",
+      "method": [
+        "玉兰片（笋片）洗净改刀。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--26700cf1": {
+      "name": "樟茶鸭子",
+      "method": [
+        "鸭子切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--345f11ae": {
+      "name": "蒸枣糕",
+      "method": [
+        "糯米提前浸泡，沥干（或磨浆和成糯米团）。",
+        "搓成大小均匀的圆子，可包入豆沙或白糖馅。",
+        "下沸水煮至圆子浮起、熟透软糯（或上笼蒸熟）。",
+        "捞出按口味裹糖、淋醪糟或撒桂花即可。"
+      ],
+      "type": "甜点/圆子",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--01914cb3": {
+      "name": "芝麻虾",
+      "method": [
+        "虾仁用盐、料酒、淀粉轻轻抓匀上浆。",
+        "芝麻洗净改刀备用。",
+        "热锅下油，滑炒虾仁至变色卷起，盛出。",
+        "锅留底油，下配料炒香。",
+        "倒回虾仁，加盐调味，快速翻炒均匀起锅。"
+      ],
+      "type": "虾仁快炒",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--5309ef14": {
+      "name": "竹荪双脆",
+      "method": [
+        "竹荪切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--bc364c56": {
+      "name": "子母烩",
+      "method": [
+        "鸡肉切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--37b4cf03": {
+      "name": "醉鸭肝",
+      "method": [
+        "鸭肝切丝（片），加盐、料酒、水淀粉码味上浆。",
+        "热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。",
+        "下主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀起锅。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    }
+  }
+}
