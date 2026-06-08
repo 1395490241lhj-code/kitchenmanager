@@ -78,8 +78,6 @@ const SEASONINGS = new Set([
   '姜', '葱', '蒜', '大蒜', '生姜', '老姜', '子姜', '蒜泥', '蒜末', '葱花', '葱白', '葱段', '姜米',
   '姜末', '花椒面', '糖色', '冰糖', '蚝油', '醪糟', '红油', '味极鲜'
 ]);
-const AROMATICS = ['豆瓣', '郫县豆瓣', '豆瓣酱', '花椒', '干辣椒', '辣椒', '泡椒', '剁椒', '姜', '葱', '蒜'];
-
 function isSeasoningName(n) {
   const s = String(n || '').trim();
   if (SEASONINGS.has(s)) return true;
@@ -107,84 +105,253 @@ function ingredientsCoarse(id) {
 }
 
 // ── 菜型识别 + 家庭版做法模板（短句、可执行、非书中原文） ──────────────────────
-function detectType(name, tags) {
-  const t = String(name || '') + ' ' + (Array.isArray(tags) ? tags.join(' ') : '');
+// 设计：识别尽量按「菜名关键词 + 标签 + 食材」综合判断；模板按菜型差异化，
+//       且不对非肉菜使用「肉类上浆」等泛化词（仅在确有肉类时才出现码味步骤）。
+const MEAT_RE = /(肉|鸡|鸭|鹅|牛|羊|猪|兔|排骨|五花|里脊|肥肠|鳝|蹄|肝|腰)/;
+function hasMeat(foods) { return foods.some(f => MEAT_RE.test(f)); }
+function foodsText(foods) { return foods.length ? foods.slice(0, 3).join('、') : '主料'; }
+function mainText(foods) { return foods.length ? foods[0] : '主料'; }
+function othersText(foods, excludeRe) {
+  const rest = foods.filter(f => !excludeRe.test(f));
+  return rest.length ? rest.slice(0, 3).join('、') : '配料';
+}
+
+// 是否「鱼类菜」：按菜名鱼字判断，但排除「鱼香」味型（鱼香茄饼等并无鱼）。
+function isFishDish(name) {
+  const n = String(name || '');
+  if (/鱼香/.test(n)) return false;
+  return /(鲫|鲢|鳝|草鱼|鲈鱼|带鱼|黑鱼|鱼头|鱼)/.test(n);
+}
+
+function detectType(name, tags, foods) {
+  const n = String(name || '');
+  const tg = Array.isArray(tags) ? tags.join(' ') : '';
+  const t = n + ' ' + tg;
+  const foodHas = (re) => foods.some(f => re.test(f));
+
+  // ① 甜品 / 甜羹（不用炒菜模板）
+  if (/甜食|甜品/.test(tg) || /银耳|雪耳|冰糖.*(银耳|雪耳|莲|百合)/.test(n)) {
+    if (/圆子|汤圆|糍|糕|团|羹.*(糯|米)|醪糟/.test(n)) return 'sweetball';
+    return 'sweetsoup';
+  }
+  if (/圆子|汤圆/.test(n) || (/糯米/.test(n) && !MEAT_RE.test(n))) return 'sweetball';
+  // ② 蛋（烘/摊蛋）
+  if (/烘蛋|摊蛋|蛋饺|蛋卷|蛋羹/.test(n)) return 'eggbake';
+  // ③ 虾仁快炒（优先于鱼类，避免「鱼虾类」误判）
+  if (/虾仁|虾球|虾/.test(n) || foodHas(/虾/)) return 'shrimp';
+  // ④ 宫保 / 煳辣（…丁）
+  if (/宫保|煳辣|糊辣/.test(n)) return 'kungpao';
+  // ⑤ 干煸
+  if (/干煸|干㸆/.test(n)) return 'dryfry';
+  // ⑥ 辣子 / 陈皮（炸后辣炒、干香）
+  if (/辣子|陈皮/.test(n)) return 'chilifry';
+  // ⑦ 鱼香味型（非鱼）：茄饼 / 茄子 / 肉丝等
+  if (/鱼香/.test(n)) return 'yuxiang';
+  // ⑧ 鱼类按做法细分
+  if (isFishDish(n)) {
+    if (/清蒸|蒸/.test(n)) return 'fishSteam';
+    if (/糖醋|脆皮/.test(n)) return 'fishSweetSour';
+    if (/泡菜/.test(n)) return 'fishPickle';
+    if (/豆腐/.test(n) || foodHas(/豆腐/)) return 'fishTofu';
+    return 'fishBraise'; // 干烧 / 黄焖 / 葱酥 等默认烧鱼
+  }
+  // ⑨ 豆腐菜（非鱼）
+  if (/豆腐/.test(n) || foodHas(/豆腐/)) return 'tofu';
+  // ⑩ 其它常见菜型
+  if (/干锅/.test(n)) return 'drypot';
+  if (/水煮/.test(n)) return 'boil';
   if (/凉拌|拌|白肉|口水|椒麻|怪味|蒜泥|夫妻肺片/.test(t)) return 'cold';
-  if (/汤|羹|煲|清炖|炖汤/.test(t)) return 'soup';
-  if (/粉蒸|清蒸|旱蒸|蒸/.test(t)) return 'steam';
-  if (/干锅/.test(t)) return 'drypot';
-  if (/水煮/.test(t)) return 'boil';
-  if (/红烧|家常烧|干烧|烧/.test(t)) return 'braise';
+  if (/粉蒸|清蒸|旱蒸|蒸/.test(n)) return 'steam';
+  if (/汤|羹|煲|清炖|炖汤/.test(n)) return 'soup';
+  if (/红烧|家常烧|干烧|黄焖|焖|魔芋烧|烧/.test(n)) return 'braise';
   return 'stirfry';
 }
 
-function foodsText(foods) { return foods.length ? foods.slice(0, 3).join('、') : '主料'; }
-function mainText(foods) { return foods.length ? foods[0] : '主料'; }
-function aromaticText(allNames) {
-  const found = AROMATICS.filter(a => allNames.some(n => n.includes(a)));
-  const has = (x) => found.some(f => f.includes(x));
-  const parts = [];
-  if (has('姜') || has('葱') || has('蒜')) parts.push('葱姜蒜');
-  if (has('豆瓣')) parts.push('豆瓣酱');
-  if (has('花椒')) parts.push('花椒');
-  if (has('辣椒') || has('泡椒') || has('剁椒')) parts.push('干辣椒');
-  return parts.length ? parts.join('、') : '葱姜蒜';
-}
-
 const TEMPLATES = {
-  stirfry: (f, a) => [
-    `${foodsText(f)}洗净改刀，肉类可加盐、料酒、淀粉上浆码味。`,
-    `起锅烧油，下${a}爆香。`,
-    `下${mainText(f)}等主料大火快炒至变色断生。`,
-    `加盐、生抽等调味，翻炒均匀。`,
-    `淋少许水淀粉收汁，起锅装盘。`
+  // 甜羹（银耳等）
+  sweetsoup: (f) => [
+    `${mainText(f)}提前用清水泡发，去蒂撕成小朵。`,
+    `锅中加足量清水，下${mainText(f)}大火烧开转小火。`,
+    `加入冰糖，慢炖至汤汁浓稠、${mainText(f)}软糯出胶。`,
+    `可加红枣、枸杞同炖，晾温后食用。`
   ],
-  braise: (f, a) => [
-    `${foodsText(f)}洗净切块，肉类先焯水去腥。`,
-    `起锅烧油，下${a}炒香（红烧可加豆瓣或糖色上色）。`,
+  // 甜点圆子（糯米圆子等）
+  sweetball: (f) => [
+    `糯米提前浸泡，沥干（或磨浆和成糯米团）。`,
+    `搓成大小均匀的圆子，可包入豆沙或白糖馅。`,
+    `下沸水煮至圆子浮起、熟透软糯（或上笼蒸熟）。`,
+    `捞出按口味裹糖、淋醪糟或撒桂花即可。`
+  ],
+  // 烘蛋
+  eggbake: (f) => [
+    `${othersText(f, /蛋/)}洗净切碎备用。`,
+    `鸡蛋打散，加入切碎配料和盐调匀成蛋液。`,
+    `平底锅下油烧热，倒入蛋液铺匀摊开。`,
+    `中小火加盖烘至底面金黄，翻面烘熟。`,
+    `取出切块装盘。`
+  ],
+  // 虾仁快炒（按是否有配料 / 番茄分支，避免无关括注）
+  shrimp: (f) => {
+    const others = f.filter(x => !/虾/.test(x));
+    const hasTomato = f.some(x => /番茄|西红柿/.test(x));
+    if (!others.length) {
+      return [
+        `虾仁用盐、料酒、淀粉轻轻抓匀上浆。`,
+        `热锅下油烧至五六成热，下虾仁滑散至变色卷起。`,
+        `下葱姜蒜爆香，烹少许料酒，加盐调味。`,
+        `大火快速颠炒均匀，亮油起锅。`
+      ];
+    }
+    return [
+      `虾仁用盐、料酒、淀粉轻轻抓匀上浆。`,
+      `${others.slice(0, 3).join('、')}洗净改刀备用。`,
+      `热锅下油，滑炒虾仁至变色卷起，盛出。`,
+      hasTomato ? `锅留底油，下番茄煸炒出红汁。` : `锅留底油，下配料炒香。`,
+      `倒回虾仁，加盐调味，快速翻炒均匀起锅。`
+    ];
+  },
+  // 宫保 / 煳辣
+  kungpao: (f) => [
+    `鸡肉切丁，加盐、料酒、水淀粉码味上浆。`,
+    `用酱油、醋、白糖、水淀粉兑成糖醋味汁。`,
+    `热锅下油，炒香干辣椒节和花椒至煳辣出香。`,
+    `下鸡丁炒散至变色，烹入味汁快速翻匀。`,
+    `下油酥花生米和葱节，炒匀亮油起锅。`
+  ],
+  // 干煸
+  dryfry: (f) => [
+    `${mainText(f)}处理干净，改刀成条或段。`,
+    `锅下少油，中火把${mainText(f)}煸炒至水分收干、表面微皱。`,
+    `下姜蒜、干辣椒、花椒（荤料可加豆瓣）炒香。`,
+    `调味后继续翻炒至干香入味，起锅。`
+  ],
+  // 辣子 / 陈皮（炸后辣炒）
+  chilifry: (f) => [
+    `${mainText(f)}治净改刀，加盐、料酒码味。`,
+    `下油锅炸（或煎）至外表酥香、定型，捞出。`,
+    `锅留底油，爆香大量干辣椒节和花椒（陈皮可同下）。`,
+    `倒入主料快速翻炒，调味至干香裹味起锅。`
+  ],
+  // 鱼香味型（非鱼）
+  yuxiang: (f) => [
+    `${mainText(f)}改刀（茄饼可夹入肉馅、挂糊炸至金黄）。`,
+    `用糖、醋、酱油、水淀粉兑成鱼香味汁。`,
+    `锅下油，爆香泡椒、姜蒜末出香出色。`,
+    `下主料略烧，烹入鱼香汁收汁亮油，撒葱花起锅。`
+  ],
+  // 清蒸鱼
+  fishSteam: (f) => [
+    `${mainText(f)}治净，两面打花刀，用盐、料酒抹匀略腌。`,
+    `盘底垫姜葱，鱼身铺姜丝，上笼大火蒸约 8 分钟至熟。`,
+    `倒掉蒸出的水，撒葱丝，淋蒸鱼豉油。`,
+    `浇一勺热油激香即成。`
+  ],
+  // 糖醋脆皮鱼
+  fishSweetSour: (f) => [
+    `${mainText(f)}治净改花刀，用盐、料酒腌入味，拍干淀粉。`,
+    `下热油炸至外壳金黄酥脆、定型，捞出装盘。`,
+    `另起锅用糖、醋、酱油兑汁，加水淀粉熬成糖醋芡。`,
+    `将糖醋汁浇淋在鱼身上即成。`
+  ],
+  // 泡菜鱼
+  fishPickle: (f) => [
+    `${mainText(f)}治净切块，用盐、料酒码味。`,
+    `锅下油，炒香泡菜、泡椒、姜蒜出香出色。`,
+    `加适量汤或清水烧开，调味。`,
+    `下鱼块煮至刚熟入味，连汤起锅。`
+  ],
+  // 豆腐鲫鱼等：煎鱼后加汤 / 豆腐煮
+  fishTofu: (f) => [
+    `${mainText(f)}治净，两面煎至微黄定型。`,
+    `爆香姜蒜，加入适量热水或高汤烧开。`,
+    `下豆腐同烧，小火煮至入味、汤色乳白。`,
+    `调味收汁，撒葱花起锅。`
+  ],
+  // 烧鱼（干烧 / 黄焖 / 葱酥默认）
+  fishBraise: (f) => [
+    `${mainText(f)}治净，两面煎（或炸）至定型。`,
+    `锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。`,
+    `加料酒、酱油和适量汤，下鱼烧开转小火。`,
+    `烧至入味、汤汁浓稠，大火收汁亮油起锅。`
+  ],
+  // 豆腐菜（非鱼）
+  tofu: (f) => [
+    `豆腐改刀成丁或块，入淡盐水焯一下沥干。`,
+    `锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。`,
+    `加少量汤下豆腐轻烧，调味入味。`,
+    `勾薄芡收汁，撒葱花起锅。`
+  ],
+  // 炒菜（按是否有肉决定首步措辞）
+  stirfry: (f) => [
+    hasMeat(f)
+      ? `${mainText(f)}切丝（片），加盐、料酒、水淀粉码味上浆。`
+      : `${foodsText(f)}洗净改刀。`,
+    `热锅下油，下葱姜蒜爆香（姜爆类多放姜丝）。`,
+    `下主料大火快炒至变色断生。`,
+    `加盐、生抽等调味，翻炒均匀起锅。`
+  ],
+  // 烧菜 / 红烧
+  braise: (f) => [
+    hasMeat(f)
+      ? `${foodsText(f)}洗净切块，肉类先焯水或煸炒定型。`
+      : `${foodsText(f)}洗净切块。`,
+    `起锅烧油，爆香姜蒜（可下豆瓣、干辣椒、花椒）。`,
     `下主料煸炒上色，烹入料酒、酱油。`,
-    `加热水没过食材，烧开后转小火炖至软糯入味。`,
+    `加热水没过食材，烧开转小火炖至软糯入味。`,
     `调味后大火收汁，起锅装盘。`
   ],
-  cold: (f, _a) => [
+  // 凉菜
+  cold: (f) => [
     `${foodsText(f)}处理干净，焯水或煮熟后晾凉。`,
     `改刀装盘。`,
     `用蒜泥、生抽、醋、辣椒油、花椒面等调成味汁。`,
     `淋汁拌匀即可食用。`
   ],
-  soup: (f, _a) => [
-    `${foodsText(f)}洗净改刀，肉类先焯水。`,
-    `锅中加清水或高汤烧开，下主料。`,
+  // 汤羹（咸）
+  soup: (f) => [
+    hasMeat(f)
+      ? `${foodsText(f)}洗净改刀，肉类先焯水。`
+      : `${foodsText(f)}洗净改刀。`,
+    `锅中加清汤或清水烧开，下主料。`,
     `小火煮至食材熟软。`,
-    `加盐等调味，按需勾薄芡，撒葱花起锅。`
+    `加盐调味（清汤宜清淡），按需撒葱花起锅。`
   ],
-  steam: (f, _a) => [
+  // 蒸菜（非鱼）
+  steam: (f) => [
     `${foodsText(f)}处理干净，加调料码味腌制。`,
     `摆入蒸碗（粉蒸可裹米粉、垫红薯或土豆）。`,
     `上笼大火蒸至熟透软糯。`,
     `取出翻扣装盘，按需撒葱花。`
   ],
-  drypot: (f, _a) => [
+  // 干锅
+  drypot: (f) => [
     `${foodsText(f)}处理改刀，主料先煸炒或焯水。`,
     `起锅烧油，爆香干辣椒、花椒和姜蒜。`,
     `下主料与配菜翻炒，加豆瓣等调味。`,
     `炒匀收汁，转干锅小火保温上桌。`
   ],
-  boil: (f, _a) => [
-    `${foodsText(f)}改刀，肉类上浆码味，配菜焯熟垫底。`,
+  // 水煮
+  boil: (f) => [
+    `${foodsText(f)}改刀，主料上浆码味，配菜焯熟垫底。`,
     `起锅烧油，下豆瓣、干辣椒和花椒炒出红油，掺汤烧开。`,
     `下主料煮至刚熟，连汤倒入碗中。`,
     `表面撒干辣椒、花椒面，淋热油激香即成。`
   ],
 };
 
-const TYPE_LABEL = { stirfry: '炒菜', braise: '烧菜/红烧', cold: '凉菜', soup: '汤羹', steam: '蒸菜', drypot: '干锅', boil: '水煮' };
+const TYPE_LABEL = {
+  sweetsoup: '甜羹', sweetball: '甜点/圆子', eggbake: '烘蛋', shrimp: '虾仁快炒',
+  kungpao: '宫保/煳辣', dryfry: '干煸', chilifry: '辣子/陈皮', yuxiang: '鱼香',
+  fishSteam: '清蒸鱼', fishSweetSour: '糖醋鱼', fishPickle: '泡菜鱼', fishTofu: '豆腐鱼', fishBraise: '烧鱼',
+  tofu: '豆腐菜', stirfry: '炒菜', braise: '烧菜/红烧', cold: '凉菜', soup: '汤羹',
+  steam: '蒸菜', drypot: '干锅', boil: '水煮'
+};
 
 function buildCandidate(r) {
   const allNames = ingredientNames(r.id);
   const foods = allNames.filter(n => !isSeasoningName(n));
-  const type = detectType(r.name, r.tags);
-  const steps = TEMPLATES[type](foods, aromaticText(allNames));
+  const type = detectType(r.name, r.tags, foods);
+  const steps = TEMPLATES[type](foods);
   return {
     name: r.name,
     method: steps,
@@ -203,6 +370,7 @@ const missing = [];
 for (const r of recipes) {
   if (hasMethod(r)) continue;
   const allNames = ingredientNames(r.id);
+  const foods = allNames.filter(n => !isSeasoningName(n));
   const miss = ['method'];
   if (ingredientsCoarse(r.id)) miss.push('ingredients');
   missing.push({
@@ -210,9 +378,9 @@ for (const r of recipes) {
     name: r.name,
     tags: r.tags || [],
     missing: miss,
-    type: TYPE_LABEL[detectType(r.name, r.tags)],
+    type: TYPE_LABEL[detectType(r.name, r.tags, foods)],
     ingredientPreview: allNames.slice(0, 8),
-    suggestedConfidence: allNames.filter(n => !isSeasoningName(n)).length ? 'medium' : 'low'
+    suggestedConfidence: foods.length ? 'medium' : 'low'
   });
 }
 missing.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hans-CN'));
