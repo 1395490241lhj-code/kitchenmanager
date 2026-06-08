@@ -1610,16 +1610,16 @@
     "ex--f788bca6": {
       "name": "双色豆腐淖",
       "method": [
-        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
-        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
-        "加少量汤下豆腐轻烧，调味入味。",
-        "勾薄芡收汁，撒葱花起锅。"
+        "嫩豆腐压成细泥（可过筛），加少许盐、水淀粉调匀。",
+        "鸡蛋分出蛋黄液备用。",
+        "锅下油，小火推炒豆腐泥至柔嫩成“淖”，盛出一半。",
+        "余下豆腐淖拌入蛋黄液推成黄色，与白色双色摆盘，淋香油。"
       ],
       "type": "豆腐菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--b1413caf": {
