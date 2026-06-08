@@ -16,8 +16,8 @@
       "type": "甜羹",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--20105a67": {
@@ -47,8 +47,8 @@
       "type": "烘蛋",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--baed7d9b": {
@@ -93,8 +93,8 @@
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--d98506e7": {
@@ -108,8 +108,8 @@
       "type": "干煸",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--efa871b1": {
@@ -154,8 +154,8 @@
       "type": "宫保/煳辣",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--1df98a3f": {
@@ -260,8 +260,8 @@
       "type": "汤羹",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--20e47827": {
@@ -275,8 +275,8 @@
       "type": "清蒸鱼",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--09509a85": {
@@ -290,8 +290,8 @@
       "type": "虾仁快炒",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--c410dfe1": {
@@ -320,8 +320,8 @@
       "type": "糖醋鱼",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--73715b26": {
