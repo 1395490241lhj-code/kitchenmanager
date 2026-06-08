@@ -6522,9 +6522,26 @@ html[data-theme="dark"] .today-ai-toggle-arrow { color: #7db8ff; }
 html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
 .quick-shop-hint.is-bad { color: var(--danger); }
 
-/* 待买速记（批量文本版）：textarea 复用 .batch-text-area，加入清单按钮加权 */
+/* 待买速记（批量文本版）：textarea 复用 .batch-text-area */
 .quick-note-area { min-height: 150px; margin-bottom: 4px; }
-.quick-note-actions .btn.ok { flex: 1.4 1 0; }
+
+/* 底部按钮区：用 grid 规整三列，左右内边距与 .km-modal-body（textarea）对齐，不贴边、gap 一致 */
+.km-modal-actions.quick-note-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;
+  gap: 12px;
+  padding: 14px 20px 16px;
+  margin-top: 4px;
+}
+.km-modal-actions.quick-note-actions .btn {
+  flex: none;            /* 取消 .km-modal-actions 的 flex 设定，交给 grid 等宽 */
+  width: 100%;
+  min-height: 44px;      /* 高度一致 + 触控友好 */
+  margin: 0;
+  display: inline-flex;
+  align-items: center;   /* 文字垂直居中 */
+  justify-content: center;
+}
 
 /* 折叠体：默认收起，点击展开（max-height 过渡，避免一上来就铺满卡片）。 */
 .today-ai-body {
