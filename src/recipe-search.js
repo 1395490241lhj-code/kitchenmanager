@@ -21,7 +21,7 @@ export const PROTEIN_GROUPS = {
   牛肉: ['牛', '牛肉', '牛腩', '牛柳', '肥牛', '牛筋', '牛腱'],
   鱼虾: ['鱼', '虾', '鱼片', '鱼块', '鲫鱼', '鲈鱼', '草鱼', '黄鱼', '带鱼', '黑鱼', '虾仁', '基围虾', '蟹', '墨鱼', '鳝'],
   蛋类: ['蛋', '鸡蛋', '鸭蛋', '皮蛋', '咸蛋', '鹌鹑蛋', '松花蛋'],
-  豆制品: ['豆腐', '豆干', '豆腐干', '豆皮', '腐竹', '千张', '豆花', '油豆腐', '冻豆腐', '豆筋'],
+  豆制品: ['豆腐', '豆干', '豆腐干', '香干', '白干', '卤干', '豆皮', '豆腐皮', '百叶', '油皮', '腐竹', '支竹', '千张', '素鸡', '豆花', '油豆腐', '冻豆腐', '内酯豆腐', '老豆腐', '嫩豆腐', '豆筋'],
 };
 
 // ── 口味 / 类型：标签 + 菜名上的弱扩展（搜「辣」命中麻辣/香辣/川味…）────────────
@@ -67,6 +67,117 @@ export function normalizeText(text) {
     .toLowerCase()
     .replace(/\s+/g, '')
     .replace(/[，。、！？；：·…“”‘’（）()【】\[\]{}<>《》!"#$%&'*+,\-./:;=?@^_`|~]/g, '');
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 细粒度归一化词典（canonical → 别名）。与 ingredients.js 的 INGREDIENT_ALIASES 互补：
+// 专供「搜索 / 分类」的同义归一，绝不改菜谱 JSON / 库存数据结构 / localStorage key。
+// 维护方式：每组键为 canonical 展示名，值数组为别名；要加同义词只需往数组里追加。
+// 注意：ingredients.js 已覆盖大量食材（西红柿→番茄、老豆腐→豆腐、干香菇→香菇…），
+//       这里只补它没有的酱料 / 调味 / 豆制品细分等。
+// ──────────────────────────────────────────────────────────────────────────
+export const SEARCH_SYNONYMS = {
+  // —— 酱料 / 酱油 / 醋 / 酒 ——
+  '豆瓣酱': ['豆瓣酱', '豆瓣', '郫县豆瓣', '郫县豆瓣酱', '红油豆瓣酱', '辣豆瓣酱', '细豆瓣'],
+  '黄豆酱': ['黄豆酱', '豆酱', '大豆酱', '黄酱'],
+  '甜面酱': ['甜面酱', '面酱', '甜酱'],
+  '生抽': ['生抽', '酱油', '鲜酱油', '味极鲜', '红酱油'],
+  '老抽': ['老抽', '红烧酱油'],
+  '料酒': ['料酒', '黄酒', '绍酒', '绍兴酒', '花雕', '花雕酒', '米酒'],
+  '醋': ['醋', '香醋', '陈醋', '米醋', '白醋', '保宁醋', '镇江香醋'],
+  '蚝油': ['蚝油', '耗油'],
+  '香油': ['香油', '芝麻油', '麻油', '芝麻香油', '小磨香油'],
+  // —— 辣味调料 / 花椒 ——
+  '花椒': ['花椒', '红花椒', '青花椒', '藤椒', '麻椒', '花椒粒', '花椒面', '花椒粉'],
+  '干辣椒': ['干辣椒', '干海椒', '干红辣椒', '辣椒节', '辣椒面', '辣椒粉', '糊辣椒'],
+  '辣椒': ['辣椒', '小米辣', '二荆条', '线椒', '朝天椒', '红椒'],
+  '泡椒': ['泡椒', '泡辣椒', '泡海椒', '野山椒', '鱼辣椒'],
+  '剁椒': ['剁椒', '剁辣椒'],
+  // —— 葱姜蒜（与库存口径一致，便于查询侧归一）——
+  '葱': ['葱', '小葱', '大葱', '香葱', '青葱', '葱白', '葱花', '葱段', '葱节', '葱米'],
+  '姜': ['姜', '生姜', '老姜', '子姜', '嫩姜', '仔姜', '姜片', '姜末', '姜丝', '姜米'],
+  '蒜': ['蒜', '大蒜', '蒜末', '蒜蓉', '蒜泥', '蒜瓣', '蒜片', '蒜米', '独蒜', '蒜头'],
+  // —— 豆制品细分（ingredients.js 已含豆腐组，这里补豆干 / 豆皮 / 腐竹 / 内酯豆腐）——
+  '豆干': ['豆干', '豆腐干', '香干', '白干', '五香豆干', '卤干'],
+  '豆皮': ['豆皮', '豆腐皮', '千张', '百叶', '油皮', '素鸡'],
+  '腐竹': ['腐竹', '支竹', '豆筋'],
+  '豆腐': ['豆腐', '内酯豆腐', '日本豆腐', '玉子豆腐', '老豆腐', '嫩豆腐', '北豆腐', '南豆腐', '石膏豆腐', '盒装豆腐', '冻豆腐'],
+};
+
+// 扁平别名 → canonical 反查表（按 normalizeText 归一后的 key）。
+const SEARCH_ALIAS_TO_CANON = new Map();
+for (const [canon, aliases] of Object.entries(SEARCH_SYNONYMS)) {
+  SEARCH_ALIAS_TO_CANON.set(normalizeText(canon), canon);
+  for (const a of aliases) SEARCH_ALIAS_TO_CANON.set(normalizeText(a), canon);
+}
+
+// 「明确搜调料」判定用：这些 canonical 视为调料（叠加 isSeasoning 的判断）。
+const SEASONING_CANON_SET = new Set(
+  ['豆瓣酱', '黄豆酱', '甜面酱', '生抽', '老抽', '料酒', '醋', '蚝油', '香油', '花椒', '干辣椒', '辣椒', '泡椒', '剁椒', '葱', '姜', '蒜'].map(normalizeText)
+);
+// 辣味调料：用于「辣」类口味查询的弱关联（豆瓣酱 / 干辣椒 / 花椒…）。
+const SPICY_SEASONING_CANON_SET = new Set(
+  ['豆瓣酱', '干辣椒', '辣椒', '泡椒', '剁椒', '花椒'].map(normalizeText)
+);
+const SPICY_FLAVOR_TERMS = ['辣', '麻辣', '香辣', '酸辣', '红油', '水煮', '麻婆'];
+
+/**
+ * 食材 / 调料归一化：先复用库存 getCanonicalName，再套搜索同义词典。
+ * 例：郫县豆瓣酱→豆瓣酱、西红柿→番茄、马铃薯→土豆、香干→豆干、内酯豆腐→豆腐。
+ * @returns {string} canonical 展示名（找不到则回退库存 canonical / 原名）。
+ */
+export function normalizeIngredientName(name) {
+  const raw = String(name == null ? '' : name).trim();
+  if (!raw) return '';
+  const canon0 = getCanonicalName(raw); // 复用库存归一（西红柿→番茄、老豆腐→豆腐…）
+  const k1 = normalizeText(canon0);
+  if (SEARCH_ALIAS_TO_CANON.has(k1)) return SEARCH_ALIAS_TO_CANON.get(k1);
+  const k0 = normalizeText(raw);
+  if (SEARCH_ALIAS_TO_CANON.has(k0)) return SEARCH_ALIAS_TO_CANON.get(k0);
+  return canon0 || raw;
+}
+
+/**
+ * 取一个食材名的「归类键」：蛋白大类优先（鸡腿→鸡肉），否则用 canonical（番茄 / 豆瓣酱）。
+ */
+export function getIngredientCanonicalGroup(name) {
+  const canon = normalizeIngredientName(name);
+  const pg = classifyProteinGroup(normalizeText(canon)) || classifyProteinGroup(normalizeText(name));
+  return pg || canon;
+}
+
+/**
+ * 判断两个食材 / 调料是否相关：同 canonical（强）或同蛋白大类（中）。
+ * 例：郫县豆瓣酱≈豆瓣酱(强)、香干≈豆干(强)、豆腐↔豆干(同豆制品大类，中)。
+ * 反例：黄豆酱 与 豆瓣酱 canonical 不同、也不同大类 → 不相关。
+ */
+export function areIngredientsRelated(a, b) {
+  if (!a || !b) return false;
+  const ca = normalizeText(normalizeIngredientName(a));
+  const cb = normalizeText(normalizeIngredientName(b));
+  if (ca && ca === cb) return true;
+  const ga = classifyProteinGroup(ca);
+  const gb = classifyProteinGroup(cb);
+  if (ga && gb && ga === gb) return true;
+  return false;
+}
+
+/**
+ * 把查询词扩展成一组归一后的可匹配 term（canonical + 同义别名 + 蛋白大类 + 口味）。
+ */
+export function getCanonicalSearchTerms(term) {
+  const q = normalizeText(term);
+  const out = new Set();
+  if (!q) return [];
+  out.add(q);
+  const canon = normalizeIngredientName(term);
+  const canonNorm = normalizeText(canon);
+  if (canonNorm) out.add(canonNorm);
+  if (SEARCH_SYNONYMS[canon]) SEARCH_SYNONYMS[canon].forEach(a => out.add(normalizeText(a)));
+  const pg = q.length <= 2 ? queryProteinGroup(q) : null;
+  if (pg) PROTEIN_GROUPS[pg].forEach(t => out.add(normalizeText(t)));
+  if (q.length <= 3) queryFlavorTerms(q).forEach(t => out.add(normalizeText(t)));
+  return Array.from(out);
 }
 
 // 把一道菜的可搜索字段拆出来：菜名 / 标签 / 核心食材 / 调料 / 做法（食材与调料分桶）。
@@ -142,15 +253,15 @@ function queryFlavorTerms(q) {
   return Array.from(out);
 }
 
-// 对外暴露：把查询词扩展成 { 主类 / 口味词 / 全部扩展词 }，便于调试与后续维护。
+// 对外暴露：把查询词扩展成 { 主类 / canonical / 口味词 / 全部扩展词 }，便于调试与后续维护。
 export function expandQuery(query) {
   const q = normalizeText(query);
   const proteinGroup = q && q.length <= 2 ? queryProteinGroup(q) : null;
   const flavorTerms = q && q.length <= 3 ? queryFlavorTerms(q) : [];
-  const terms = new Set(q ? [q] : []);
-  if (proteinGroup) PROTEIN_GROUPS[proteinGroup].forEach(t => terms.add(t));
-  flavorTerms.forEach(t => terms.add(t));
-  return { query: q, proteinGroup, flavorTerms, terms: Array.from(terms) };
+  const canonical = q ? normalizeIngredientName(query) : '';
+  // terms 直接复用 getCanonicalSearchTerms：canonical + 同义别名 + 蛋白大类 + 口味。
+  const terms = q ? getCanonicalSearchTerms(query) : [];
+  return { query: q, canonical, proteinGroup, flavorTerms, terms };
 }
 
 // 简单字符级模糊：查询几乎所有字符都出现在文本里才给一点点分（仅用于菜名兜底）。
@@ -169,12 +280,15 @@ const W = {
   nameExact: 1000,     // 菜名完全匹配
   nameIncludes: 240,   // 菜名包含
   fuzzyName: 60,       // 菜名字符模糊（× ratio）
-  ingredientDirect: 120, // 主食材精确（食材名包含查询词）
-  ingredientGroup: 90,   // 主食材同义词（同蛋白质大类）
+  ingredientCanon: 150,  // 主食材 canonical / 别名精确（郫县豆瓣酱≈豆瓣酱、西红柿≈番茄）
+  ingredientDirect: 120, // 主食材精确（食材名直接包含查询词）
+  ingredientGroup: 90,   // 主食材同蛋白大类（鸡→鸡腿 / 豆腐↔豆干）
   tag: 100,            // 标签匹配
   flavorText: 50,      // 口味词命中菜名/做法
   method: 40,          // 做法文本命中
-  seasoning: 8,        // 调料命中（很低，且仅在没有其它命中时计入）
+  flavorSeasoning: 28, // 辣味查询命中辣味调料（豆瓣酱/干辣椒…，低）
+  seasoningCanon: 70,  // 明确搜调料时 canonical 命中（中低）
+  seasoning: 10,       // 调料弱命中（很低，仅明确搜调料时计入）
   // 业务加成（仅在已有相关性得分时叠加，避免污染）
   boostStock: 25,      // 库存能做
   boostAlmost: 12,     // 只差一点
@@ -198,9 +312,23 @@ export function scoreRecipe(recipe, query, pack, context = {}) {
   const reasons = [];
   let score = 0;
 
+  // 查询归一化：得到 canonical（郫县豆瓣→豆瓣酱、西红柿→番茄、香干→豆干…）。
+  const qCanon = normalizeIngredientName(query);
+  const qCanonNorm = normalizeText(qCanon);
+  // 是否「明确在搜调料」（决定是否给调料命中正常权重，避免非调料查询被调料污染）。
+  const qIsSeasoning = isSeasoning(qCanon) || SEASONING_CANON_SET.has(qCanonNorm);
+  // 单字蛋白锚点（鱼/鸡/蛋/牛/猪/虾）：菜名「假朋友」防护用。
+  const isSingleProteinAnchor = q.length === 1 && !!qGroup;
+  const hasGroupIngredient = qGroup
+    ? fields.foods.some(f => classifyProteinGroup(normalizeText(normalizeIngredientName(f))) === qGroup)
+    : false;
+
   // ① 菜名
   if (fields.nameNorm && fields.nameNorm === q) score += W.nameExact;
-  else if (fields.nameNorm && fields.nameNorm.includes(q)) score += W.nameIncludes;
+  else if (fields.nameNorm && fields.nameNorm.includes(q)) {
+    // 假朋友防护：单字蛋白查询（鱼/鸡）命中菜名但食材里没有该类（鱼香肉丝 / 鸡蛋羹）→ 不给菜名强分。
+    if (!(isSingleProteinAnchor && !hasGroupIngredient)) score += W.nameIncludes;
+  }
   else { const fz = fuzzyRatio(fields.nameNorm, q); if (fz) score += Math.round(fz * W.fuzzyName); }
 
   // ② 标签（直接包含，或命中口味扩展词）
@@ -212,22 +340,33 @@ export function scoreRecipe(recipe, query, pack, context = {}) {
   }
   if (tagHit) { score += W.tag; reasons.push(`匹配标签：${tagHit}`); }
 
-  // ③ 核心食材：取最佳命中（精确包含 > 同类同义词）。鸡蛋 vs 鸡 跨组时抑制误命中。
+  // ③ 核心食材：canonical / 别名精确 > 直接包含 > 同蛋白大类。鸡 vs 鸡蛋 跨组抑制。
   let bestIngScore = 0;
   let bestIngName = '';
+  let bestIngKind = '';
   for (const f of fields.foods) {
     const fn = normalizeText(f);
-    const ingGroup = classifyProteinGroup(fn);
+    const fCanonNorm = normalizeText(normalizeIngredientName(f));
+    const ingGroup = classifyProteinGroup(fCanonNorm || fn);
     let s = 0;
-    if (fn.includes(q)) {
-      // 查询与食材分属不同蛋白质大类（如 查「鸡」遇到「鸡蛋」）→ 视为巧合包含，抑制。
+    let kind = '';
+    if (fCanonNorm && fCanonNorm === qCanonNorm) { s = W.ingredientCanon; kind = 'canon'; }
+    else if (fn.includes(q)) {
+      // 查询与食材分属不同蛋白质大类（查「鸡」遇到「鸡蛋」）→ 视为巧合包含，抑制。
       if (qGroup && ingGroup && qGroup !== ingGroup) s = 0;
-      else s = W.ingredientDirect;
+      else { s = W.ingredientDirect; kind = 'direct'; }
     }
-    if (s === 0 && qGroup && ingGroup && qGroup === ingGroup) s = W.ingredientGroup;
-    if (s > bestIngScore) { bestIngScore = s; bestIngName = f; }
+    if (s === 0 && qGroup && ingGroup && qGroup === ingGroup) { s = W.ingredientGroup; kind = 'group'; }
+    if (s > bestIngScore) { bestIngScore = s; bestIngName = f; bestIngKind = kind; }
   }
-  if (bestIngScore > 0) { score += bestIngScore; reasons.push(`匹配食材：${bestIngName}`); }
+  if (bestIngScore > 0) {
+    score += bestIngScore;
+    const recipeDiffers = normalizeText(bestIngName) !== qCanonNorm;
+    const queryDiffers = q !== qCanonNorm;
+    if (bestIngKind === 'canon' && recipeDiffers) reasons.push(`匹配别名：${bestIngName} ≈ ${qCanon}`);
+    else if (bestIngKind === 'canon' && queryDiffers) reasons.push(`匹配别名：${query} ≈ ${qCanon}`);
+    else reasons.push(`匹配食材：${bestIngName}`);
+  }
 
   // ④ 做法文本 / 口味词
   //   做法文本匹配仅对 ≥2 字查询生效：单字（鸡/蛋/肉…）在做法里太常见（如做法提到「加鸡蛋」），
@@ -236,13 +375,25 @@ export function scoreRecipe(recipe, query, pack, context = {}) {
   if (flavorTerms.length) {
     const flavorInText = flavorTerms.some(ft => fields.nameNorm.includes(ft) || fields.methodNorm.includes(ft));
     if (flavorInText) { score += W.flavorText; if (!tagHit) reasons.push('匹配口味'); }
+    // 「辣」类口味查询额外弱命中辣味调料（豆瓣酱 / 干辣椒 / 泡椒 / 花椒…）。
+    const isSpicyQuery = flavorTerms.some(ft => SPICY_FLAVOR_TERMS.includes(ft));
+    if (isSpicyQuery) {
+      const hasSpicySeasoning = fields.seasonings.some(s => SPICY_SEASONING_CANON_SET.has(normalizeText(normalizeIngredientName(s))));
+      if (hasSpicySeasoning) { score += W.flavorSeasoning; if (!reasons.some(r => r.includes('口味'))) reasons.push('匹配口味：辣'); }
+    }
   }
 
-  // ⑤ 调料（很低权重，且只在没有其它命中时计入，避免「油/盐/鸡精」刷屏）
-  if (score === 0) {
+  // ⑤ 调料：仅在「用户明确搜调料」时计入中低权重（canonical 精确 > 包含），
+  //    防止搜「鸡」时被「鸡精」、搜普通食材时被各种调料污染。
+  if (qIsSeasoning) {
+    let bestSeas = 0;
+    let bestSeasName = '';
     for (const s of fields.seasonings) {
-      if (normalizeText(s).includes(q)) { score += W.seasoning; break; }
+      const sCanonNorm = normalizeText(normalizeIngredientName(s));
+      if (sCanonNorm && sCanonNorm === qCanonNorm) { bestSeas = W.seasoningCanon; bestSeasName = s; break; }
+      if (!bestSeas && normalizeText(s).includes(q)) { bestSeas = W.seasoning; bestSeasName = s; }
     }
+    if (bestSeas > 0) { score += bestSeas; reasons.push(`匹配调料：${bestSeasName}`); }
   }
 
   // ⑥ 业务加成（只在已有相关性时叠加，不让加成压过搜索相关性）
