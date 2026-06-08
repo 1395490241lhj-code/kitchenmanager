@@ -84,16 +84,16 @@
     "ex--69ee3667": {
       "name": "白汁鲜鱼",
       "method": [
-        "鲜鱼治净，两面煎（或炸）至定型。",
-        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
-        "加料酒、酱油和适量汤，下鱼烧开转小火。",
-        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+        "鲜鱼治净，两面煎至微黄定型。",
+        "爆香姜葱，加足量热水或高汤大火烧开成奶白汤。",
+        "小火煮至入味，加盐、少许胡椒调味（不放豆瓣辣椒）。",
+        "收浓汤汁或勾薄芡，撒葱花起锅。"
       ],
       "type": "烧鱼",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--9f266e0d": {
@@ -431,31 +431,31 @@
     "ex--7aab63de": {
       "name": "干煸鱿鱼丝",
       "method": [
-        "鱿鱼处理干净，改刀成条或段。",
-        "锅下少油，中火把鱿鱼煸炒至水分收干、表面微皱。",
-        "下姜蒜、干辣椒、花椒（荤料可加豆瓣）炒香。",
-        "调味后继续翻炒至干香入味，起锅。"
+        "鱿鱼治净切丝，焯水或擦干水分。",
+        "锅下油，中火把鱿鱼丝煸炒至水汽收干、略卷干香。",
+        "下姜蒜、干辣椒、花椒（可加豆瓣）炒香。",
+        "调味翻炒至干香入味，起锅。"
       ],
       "type": "干煸",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--e698be40": {
       "name": "干煸鱿鱼笋丝",
       "method": [
-        "鱿鱼处理干净，改刀成条或段。",
-        "锅下少油，中火把鱿鱼煸炒至水分收干、表面微皱。",
-        "下姜蒜、干辣椒、花椒（荤料可加豆瓣）炒香。",
-        "调味后继续翻炒至干香入味，起锅。"
+        "鱿鱼治净切丝；鲜笋切丝焯水沥干。",
+        "锅下油，把鱿鱼丝煸炒至水干干香，下笋丝同煸。",
+        "下姜蒜、干辣椒、花椒（可加豆瓣）炒香。",
+        "调味翻炒至干香入味起锅。"
       ],
       "type": "干煸",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--91b33bcc": {
@@ -1115,16 +1115,16 @@
     "ex--74ab30a9": {
       "name": "菱角豆腐",
       "method": [
-        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
-        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
-        "加少量汤下豆腐轻烧，调味入味。",
+        "菱角去壳焯熟切块；豆腐切块焯水。",
+        "锅下油，爆香姜蒜（可下肉末）。",
+        "下豆腐、菱角加少量汤轻烧入味。",
         "勾薄芡收汁，撒葱花起锅。"
       ],
       "type": "豆腐菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--513df904": {
@@ -1505,16 +1505,16 @@
     "ex--edba36af": {
       "name": "清蒸青鳝",
       "method": [
-        "青鳝治净，两面打花刀，用盐、料酒抹匀略腌。",
-        "盘底垫姜葱，鱼身铺姜丝，上笼大火蒸约 8 分钟至熟。",
+        "青鳝治净去骨切段（或剞花刀），用盐、料酒抹匀略腌。",
+        "盘底垫姜葱，鳝段铺姜丝，上笼大火蒸约 8-10 分钟至熟。",
         "倒掉蒸出的水，撒葱丝，淋蒸鱼豉油。",
         "浇一勺热油激香即成。"
       ],
       "type": "清蒸鱼",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--8bd5bc3a": {
