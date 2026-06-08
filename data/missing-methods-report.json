@@ -1,0 +1,395 @@
+{
+  "generatedAt": "2026-06-08T14:19:02.890Z",
+  "library": "sichuan-recipes.curated.json",
+  "note": "候选做法由本地模板基于食材/标签算法生成，未引用任何书中原文；PDF 仅作人工参考。",
+  "totals": {
+    "recipes": 109,
+    "withMethod": 87,
+    "missingMethod": 22
+  },
+  "items": [
+    {
+      "id": "ex--173deebd",
+      "name": "冰糖银耳",
+      "tags": [
+        "川菜",
+        "甜食类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "银耳"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--20105a67",
+      "name": "陈皮兔",
+      "tags": [
+        "川菜",
+        "其它类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "兔肉",
+        "陈皮"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--24b2a22b",
+      "name": "椿芽烘蛋",
+      "tags": [
+        "川菜",
+        "其它类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "香椿芽",
+        "鸡蛋"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--baed7d9b",
+      "name": "葱酥鱼",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鲜鱼",
+        "葱"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--8aec747f",
+      "name": "豆腐鲫鱼",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鲫鱼",
+        "豆腐"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--44bbc8ea",
+      "name": "番茄炒虾仁",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "虾仁",
+        "番茄"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--d98506e7",
+      "name": "干煸冬笋",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "冬笋"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--efa871b1",
+      "name": "干煸鳝鱼",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鳝鱼"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--497d6220",
+      "name": "干烧鲫鱼",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "烧菜/红烧",
+      "ingredientPreview": [
+        "鲫鱼"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--e723c0c0",
+      "name": "煳辣鸡丁（宫保鸡丁）",
+      "tags": [
+        "川菜",
+        "鸡鸭类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鸡肉",
+        "花生米",
+        "葱"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--1df98a3f",
+      "name": "黄焖大鲢鱼头",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鲢鱼头"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--206c805b",
+      "name": "姜爆鸭丝",
+      "tags": [
+        "川菜",
+        "鸡鸭类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鸭肉"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--c6960e2c",
+      "name": "辣子鱼",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鲜鱼"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--56a6ad20",
+      "name": "魔芋烧鸭",
+      "tags": [
+        "川菜",
+        "鸡鸭类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "烧菜/红烧",
+      "ingredientPreview": [
+        "鸭肉",
+        "魔芋"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--177d2fcb",
+      "name": "糯米圆子",
+      "tags": [
+        "川菜",
+        "甜食类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "糯米"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--a276fea5",
+      "name": "泡菜鱼",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鲜鱼",
+        "泡菜"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--f505b80e",
+      "name": "清汤白菜",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "汤羹",
+      "ingredientPreview": [
+        "白菜"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--20e47827",
+      "name": "清蒸鲢鱼",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "蒸菜",
+      "ingredientPreview": [
+        "鲢鱼"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--09509a85",
+      "name": "生爆虾仁",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "虾仁"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--c410dfe1",
+      "name": "碎米豆腐",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "豆腐"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--14f19062",
+      "name": "糖醋脆皮鱼",
+      "tags": [
+        "川菜",
+        "鱼虾类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "鲜鱼"
+      ],
+      "suggestedConfidence": "medium"
+    },
+    {
+      "id": "ex--73715b26",
+      "name": "鱼香茄饼",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "missing": [
+        "method",
+        "ingredients"
+      ],
+      "type": "炒菜",
+      "ingredientPreview": [
+        "茄子"
+      ],
+      "suggestedConfidence": "medium"
+    }
+  ]
+}

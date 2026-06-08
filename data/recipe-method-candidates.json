@@ -1,0 +1,359 @@
+{
+  "generatedAt": "2026-06-08T14:19:02.890Z",
+  "source": "generated-from-ingredients",
+  "reference": "大众川菜目录/川菜通用技法参考",
+  "note": "全部候选 needsReview:true / approved:false。审核请把要采用的条目改为 approved:true（或 needsReview:false），再运行 scripts/apply-reviewed-methods.js 合并。method 为分步数组，合并时自动编号拼成字符串。",
+  "count": 22,
+  "candidates": {
+    "ex--173deebd": {
+      "name": "冰糖银耳",
+      "method": [
+        "银耳洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下银耳等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--20105a67": {
+      "name": "陈皮兔",
+      "method": [
+        "兔肉、陈皮洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下兔肉等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--24b2a22b": {
+      "name": "椿芽烘蛋",
+      "method": [
+        "香椿芽、鸡蛋洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下香椿芽等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--baed7d9b": {
+      "name": "葱酥鱼",
+      "method": [
+        "鲜鱼洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鲜鱼等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--8aec747f": {
+      "name": "豆腐鲫鱼",
+      "method": [
+        "鲫鱼、豆腐洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鲫鱼等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--44bbc8ea": {
+      "name": "番茄炒虾仁",
+      "method": [
+        "虾仁、番茄洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下虾仁等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--d98506e7": {
+      "name": "干煸冬笋",
+      "method": [
+        "冬笋洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下冬笋等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--efa871b1": {
+      "name": "干煸鳝鱼",
+      "method": [
+        "鳝鱼洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鳝鱼等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--497d6220": {
+      "name": "干烧鲫鱼",
+      "method": [
+        "鲫鱼洗净切块，肉类先焯水去腥。",
+        "起锅烧油，下葱姜蒜炒香（红烧可加豆瓣或糖色上色）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开后转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--e723c0c0": {
+      "name": "煳辣鸡丁（宫保鸡丁）",
+      "method": [
+        "鸡肉、花生米洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鸡肉等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--1df98a3f": {
+      "name": "黄焖大鲢鱼头",
+      "method": [
+        "鲢鱼头洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鲢鱼头等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--206c805b": {
+      "name": "姜爆鸭丝",
+      "method": [
+        "鸭肉洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鸭肉等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c6960e2c": {
+      "name": "辣子鱼",
+      "method": [
+        "鲜鱼洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鲜鱼等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--56a6ad20": {
+      "name": "魔芋烧鸭",
+      "method": [
+        "鸭肉、魔芋洗净切块，肉类先焯水去腥。",
+        "起锅烧油，下葱姜蒜炒香（红烧可加豆瓣或糖色上色）。",
+        "下主料煸炒上色，烹入料酒、酱油。",
+        "加热水没过食材，烧开后转小火炖至软糯入味。",
+        "调味后大火收汁，起锅装盘。"
+      ],
+      "type": "烧菜/红烧",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--177d2fcb": {
+      "name": "糯米圆子",
+      "method": [
+        "糯米洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下糯米等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--a276fea5": {
+      "name": "泡菜鱼",
+      "method": [
+        "鲜鱼、泡菜洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鲜鱼等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--f505b80e": {
+      "name": "清汤白菜",
+      "method": [
+        "白菜洗净改刀，肉类先焯水。",
+        "锅中加清水或高汤烧开，下主料。",
+        "小火煮至食材熟软。",
+        "加盐等调味，按需勾薄芡，撒葱花起锅。"
+      ],
+      "type": "汤羹",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--20e47827": {
+      "name": "清蒸鲢鱼",
+      "method": [
+        "鲢鱼处理干净，加调料码味腌制。",
+        "摆入蒸碗（粉蒸可裹米粉、垫红薯或土豆）。",
+        "上笼大火蒸至熟透软糯。",
+        "取出翻扣装盘，按需撒葱花。"
+      ],
+      "type": "蒸菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--09509a85": {
+      "name": "生爆虾仁",
+      "method": [
+        "虾仁洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下虾仁等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--c410dfe1": {
+      "name": "碎米豆腐",
+      "method": [
+        "豆腐洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下豆腐等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--14f19062": {
+      "name": "糖醋脆皮鱼",
+      "method": [
+        "鲜鱼洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下鲜鱼等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    },
+    "ex--73715b26": {
+      "name": "鱼香茄饼",
+      "method": [
+        "茄子洗净改刀，肉类可加盐、料酒、淀粉上浆码味。",
+        "起锅烧油，下葱姜蒜爆香。",
+        "下茄子等主料大火快炒至变色断生。",
+        "加盐、生抽等调味，翻炒均匀。",
+        "淋少许水淀粉收汁，起锅装盘。"
+      ],
+      "type": "炒菜",
+      "source": "generated-from-ingredients",
+      "reference": "大众川菜目录/川菜通用技法参考",
+      "needsReview": true,
+      "approved": false,
+      "confidence": "medium"
+    }
+  }
+}
