@@ -54,16 +54,16 @@
     "ex--baed7d9b": {
       "name": "葱酥鱼",
       "method": [
-        "鲜鱼治净，两面煎（或炸）至定型。",
-        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
-        "加料酒、酱油和适量汤，下鱼烧开转小火。",
-        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+        "小鲫鱼治净沥干，下油锅炸至外表酥脆，捞出。",
+        "锅垫一层大葱段、姜片，码上炸好的鱼。",
+        "加酱油、醋、糖、料酒和没过鱼的汤，小火慢㸆。",
+        "㸆至汤汁将干、葱香入味、鱼骨酥软，连葱装盘。"
       ],
       "type": "烧鱼",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--8aec747f": {
