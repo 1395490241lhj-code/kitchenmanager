@@ -106,10 +106,10 @@ export function showRecipeQuickModal(recipe, pack, inv = null, { onRoute = () =>
       <div class="rqm-feedback" id="rqmFeedback" hidden></div>
     </div>
     <div class="km-modal-actions rqm-actions">
-      <button type="button" class="btn ok" id="rqmPlan" ${plannedToday ? 'disabled' : ''}>${plannedToday ? '今天已计划' : '加入今日计划'}</button>
+      <button type="button" class="btn ok rqm-primary" id="rqmPlan" ${plannedToday ? 'disabled' : ''}>${plannedToday ? '今天已计划' : '加入今日计划'}</button>
       <button type="button" class="btn" id="rqmAddMissing" ${missing.length ? '' : 'disabled'}>${missing.length ? '缺的加入清单' : '食材已齐'}</button>
       <button type="button" class="btn" id="rqmFull">查看完整菜谱</button>
-      ${!isCreative ? `<button type="button" class="btn" id="rqmEdit">编辑</button>` : ''}
+      ${!isCreative ? `<button type="button" class="btn rqm-edit" id="rqmEdit">编辑</button>` : ''}
     </div>
   `;
 

@@ -7,6 +7,7 @@ import { loadInventory } from '../inventory.js?v=219';
 import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=219';
 import { escapeHtml, setInlineStatus } from '../components/status.js?v=219';
 import { RECIPE_CATEGORIES, searchRecipes, matchesCategory } from '../recipe-search.js?v=219';
+import { showRecipeCreateModal } from '../components/recipe-create-modal.js?v=219';
 
 // 【内存暂存】AI 解析出的草稿只存入 sessionStorage，不写 overlay/localStorage。
 // 仅当用户在编辑器里点击「保存」时才真正落地。用户取消/关闭则草稿被销毁，不留脏数据。
@@ -265,11 +266,9 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
   };
   wrap.querySelector('#methodOnly').onchange = draw;
   wrap.querySelector('#aiImportBtn').onclick = openImportModal;
+  // 手动新建：打开轻量「新建菜谱」弹窗（不跳转、不改 hash）；保存后整页重渲染以纳入新菜谱。
   wrap.querySelector('#addBtn').onclick = () => {
-    const id = genId(); const overlay = loadOverlay();
-    overlay.recipes = overlay.recipes || {}; overlay.recipes[id] = { name: '新菜谱', tags: ['自定义'] };
-    overlay.recipe_ingredients = overlay.recipe_ingredients || {}; overlay.recipe_ingredients[id] = [{ item: '', qty: null, unit: 'g' }];
-    saveOverlay(overlay); window.invalidatePackCache?.(); location.hash = `#recipe-edit:${id}`;
+    showRecipeCreateModal(pack, { onSaved: () => onRoute() });
   };
   return wrap;
 }

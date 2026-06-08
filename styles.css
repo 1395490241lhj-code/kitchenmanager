@@ -5425,23 +5425,81 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
   white-space: pre-wrap;
 }
 .rqm-method-empty { font-style: italic; opacity: 0.85; }
+.rqm-section:last-of-type { margin-bottom: 6px; }
 .rqm-feedback {
   font-size: 13px;
   color: var(--primary);
   font-weight: 600;
   padding: 6px 0 2px;
 }
-.rqm-actions {
+/* 底部操作区：grid 稳定布局，左右内边距与 .km-modal-body（内容/textarea）对齐，不贴圆角边 */
+.km-modal-actions.rqm-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
+  padding: 14px 20px 16px;
+  margin-top: 4px;
 }
-.rqm-actions .btn {
+.km-modal-actions.rqm-actions .btn {
   width: 100%;
-  flex: none;
+  flex: none;          /* 取消 .km-modal-actions 的 flex，交给 grid */
+  min-height: 44px;    /* 高度一致 + 触控友好 */
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+/* 主按钮「加入今日计划」与次按钮「编辑」各占整行，视觉更稳 */
+.km-modal-actions.rqm-actions .rqm-primary,
+.km-modal-actions.rqm-actions .rqm-edit { grid-column: 1 / -1; }
 @media (prefers-color-scheme: dark) {
   .rqm-pill { background: rgba(120, 120, 128, 0.24); }
+}
+
+/* ── 新建菜谱弹窗（recipe-create-modal） ── */
+.recipe-create-modal .rcm-field { margin-bottom: 12px; }
+.recipe-create-modal .rcm-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.recipe-create-modal .rcm-required { color: var(--danger); }
+.recipe-create-modal .rcm-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--separator);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-size: 15px;
+  font-family: inherit;
+}
+.recipe-create-modal .rcm-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.16);
+}
+.recipe-create-modal .rcm-area { min-height: 88px; line-height: 1.5; resize: vertical; }
+.recipe-create-modal .rcm-method-area { min-height: 110px; }
+/* 底部按钮区：与内容左右内边距对齐，主按钮更宽更突出 */
+.km-modal-actions.rcm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 12px;
+  padding: 14px 20px 16px;
+  margin-top: 4px;
+}
+.km-modal-actions.rcm-actions .btn {
+  width: 100%;
+  flex: none;
+  min-height: 44px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 菜单计划：缺货弹窗与一键采购微交互 */
