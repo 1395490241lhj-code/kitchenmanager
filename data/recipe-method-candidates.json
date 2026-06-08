@@ -23,16 +23,16 @@
     "ex--20105a67": {
       "name": "陈皮兔",
       "method": [
-        "兔肉治净改刀，加盐、料酒码味。",
-        "下油锅炸（或煎）至外表酥香、定型，捞出。",
-        "锅留底油，爆香大量干辣椒节和花椒（陈皮可同下）。",
-        "倒入主料快速翻炒，调味至干香裹味起锅。"
+        "陈皮提前泡软切小片；兔肉斩丁，加盐、料酒码味。",
+        "兔丁下油锅炸（或煸）至紧实干香，捞出。",
+        "锅留底油，下干辣椒、花椒、陈皮、姜蒜炒香。",
+        "倒回兔丁，加少许糖、酱油翻炒收汁，干香回甜起锅。"
       ],
       "type": "辣子/陈皮",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--24b2a22b": {
@@ -161,16 +161,16 @@
     "ex--1df98a3f": {
       "name": "黄焖大鲢鱼头",
       "method": [
-        "鲢鱼头治净，两面煎（或炸）至定型。",
-        "锅留底油，爆香姜蒜（干烧可下豆瓣炒出红油）。",
-        "加料酒、酱油和适量汤，下鱼烧开转小火。",
-        "烧至入味、汤汁浓稠，大火收汁亮油起锅。"
+        "鲢鱼头治净对半切，两面煎黄定型。",
+        "爆香姜蒜、豆瓣（可加蒜子、八角），烹料酒、酱油上色。",
+        "加热水或汤没过鱼头，加盖中小火焖至入味。",
+        "可下豆腐或粉条同焖，收浓汤汁，撒葱花起锅。"
       ],
       "type": "烧鱼",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--206c805b": {
@@ -191,16 +191,16 @@
     "ex--c6960e2c": {
       "name": "辣子鱼",
       "method": [
-        "鲜鱼治净改刀，加盐、料酒码味。",
-        "下油锅炸（或煎）至外表酥香、定型，捞出。",
-        "锅留底油，爆香大量干辣椒节和花椒（陈皮可同下）。",
-        "倒入主料快速翻炒，调味至干香裹味起锅。"
+        "鱼治净切块，加盐、料酒、姜葱码味，拍薄淀粉。",
+        "下油锅炸至外酥定型，捞出。",
+        "锅留底油，下大量干辣椒节、花椒煸出煳辣香。",
+        "倒入鱼块快速翻炒裹味，撒熟芝麻、葱花起锅。"
       ],
       "type": "辣子/陈皮",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--56a6ad20": {
@@ -221,16 +221,16 @@
     "ex--177d2fcb": {
       "name": "糯米圆子",
       "method": [
-        "糯米提前浸泡，沥干（或磨浆和成糯米团）。",
-        "搓成大小均匀的圆子，可包入豆沙或白糖馅。",
-        "下沸水煮至圆子浮起、熟透软糯（或上笼蒸熟）。",
-        "捞出按口味裹糖、淋醪糟或撒桂花即可。"
+        "糯米粉加温水和成软面团（或泡糯米打浆）。",
+        "搓成小圆子（可包红糖或豆沙馅）。",
+        "下沸水煮至浮起、熟透软糯。",
+        "可下入醪糟红糖汤同煮，或捞出裹黄豆粉 / 白糖食用。"
       ],
       "type": "甜点/圆子",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--a276fea5": {
@@ -296,16 +296,16 @@
     "ex--c410dfe1": {
       "name": "碎米豆腐",
       "method": [
-        "豆腐改刀成丁或块，入淡盐水焯一下沥干。",
-        "锅下油，爆香姜蒜（可下肉末或豆瓣炒香）。",
-        "加少量汤下豆腐轻烧，调味入味。",
-        "勾薄芡收汁，撒葱花起锅。"
+        "豆腐切小丁，入淡盐水焯一下沥干。",
+        "锅下油，下肉末炒散出油，加姜蒜末、豆瓣、豆豉炒香出红油。",
+        "下豆腐丁，加少量汤轻烧入味。",
+        "勾薄芡收汁，撒花椒面和葱花起锅。"
       ],
       "type": "豆腐菜",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     },
     "ex--14f19062": {
@@ -326,16 +326,16 @@
     "ex--73715b26": {
       "name": "鱼香茄饼",
       "method": [
-        "茄子改刀（茄饼可夹入肉馅、挂糊炸至金黄）。",
-        "用糖、醋、酱油、水淀粉兑成鱼香味汁。",
-        "锅下油，爆香泡椒、姜蒜末出香出色。",
-        "下主料略烧，烹入鱼香汁收汁亮油，撒葱花起锅。"
+        "茄子切两刀不断的夹刀片，夹入调好味的肉馅。",
+        "茄饼挂蛋糊，下油锅炸至两面金黄熟透，摆盘。",
+        "用糖、醋、酱油、水淀粉兑成鱼香汁。",
+        "锅下油爆香泡椒、姜蒜末，烹入鱼香汁熬浓，浇在茄饼上，撒葱花。"
       ],
       "type": "鱼香",
       "source": "generated-from-ingredients",
       "reference": "大众川菜目录/川菜通用技法参考",
-      "needsReview": true,
-      "approved": false,
+      "needsReview": false,
+      "approved": true,
       "confidence": "medium"
     }
   }
