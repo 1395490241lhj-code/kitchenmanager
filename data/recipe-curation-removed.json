@@ -25,24 +25,8 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--2901826f",
-      "name": "白汁豆腐饼",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--4b73d24b",
       "name": "白汁五柳鱼",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
-      "id": "ex--69ee3667",
-      "name": "白汁鲜鱼",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
       "duplicateOf": "",
       "hadMethod": false,
@@ -201,14 +185,6 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--9bfdb649",
-      "name": "翡翠虾仁",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--f7a17857",
       "name": "蜂窝豆腐",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
@@ -281,14 +257,6 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--46a1c25e",
-      "name": "芙蓉虾仁",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--3edf0403",
       "name": "芙蓉月光鸽蛋",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
@@ -321,27 +289,11 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--7aab63de",
-      "name": "干煸鱿鱼丝",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
-      "id": "ex--e698be40",
-      "name": "干煸鱿鱼笋丝",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--91b33bcc",
       "name": "干煵肉丝",
       "reason": "重复菜，保留更日常/更完整的版本",
       "duplicateOf": "干煸肉丝",
-      "hadMethod": false,
+      "hadMethod": true,
       "hadIngredients": false
     },
     {
@@ -365,7 +317,7 @@
       "name": "罐烧肉（东坡肉）",
       "reason": "重复菜，保留更日常/更完整的版本",
       "duplicateOf": "东坡肉",
-      "hadMethod": false,
+      "hadMethod": true,
       "hadIngredients": false
     },
     {
@@ -673,14 +625,6 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--36f76a55",
-      "name": "椒盐虾饼",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--5d2b35c0",
       "name": "椒盐鱼卷",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
@@ -803,14 +747,6 @@
     {
       "id": "ex--2c917eeb",
       "name": "晾干肉",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
-      "id": "ex--74ab30a9",
-      "name": "菱角豆腐",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
       "duplicateOf": "",
       "hadMethod": false,
@@ -987,9 +923,9 @@
     {
       "id": "ex--01308b6f",
       "name": "酿冬菇",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
+      "reason": "有补全做法，但偏工艺/进阶，暂不进入精简日常库",
       "duplicateOf": "",
-      "hadMethod": false,
+      "hadMethod": true,
       "hadIngredients": false
     },
     {
@@ -1019,9 +955,9 @@
     {
       "id": "ex--514e3fd8",
       "name": "酿萝卜",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
+      "reason": "有补全做法，但偏工艺/进阶，暂不进入精简日常库",
       "duplicateOf": "",
-      "hadMethod": false,
+      "hadMethod": true,
       "hadIngredients": false
     },
     {
@@ -1065,24 +1001,8 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--6f5f3be0",
-      "name": "芹黄鱼丝",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--c6a2b71b",
       "name": "清炖鹿冲",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
-      "id": "ex--6b17e20c",
-      "name": "清烩虾仁",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
       "duplicateOf": "",
       "hadMethod": false,
@@ -1137,14 +1057,6 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--edba36af",
-      "name": "清蒸青鳝",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--832d7c5d",
       "name": "热窝姜汁鸡",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
@@ -1169,14 +1081,6 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--8bd5bc3a",
-      "name": "软炸口蘑",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--b12c0135",
       "name": "软炸虾包",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
@@ -1187,9 +1091,9 @@
     {
       "id": "ex--d37d0851",
       "name": "软炸虾糕",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
+      "reason": "有补全做法，但偏工艺/进阶，暂不进入精简日常库",
       "duplicateOf": "",
-      "hadMethod": false,
+      "hadMethod": true,
       "hadIngredients": false
     },
     {
@@ -1235,14 +1139,6 @@
     {
       "id": "ex--470534f7",
       "name": "三色鸡淖",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
-      "id": "ex--57fd9bbb",
-      "name": "烧拌鲜笋",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
       "duplicateOf": "",
       "hadMethod": false,
@@ -1307,9 +1203,9 @@
     {
       "id": "ex--f788bca6",
       "name": "双色豆腐淖",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
+      "reason": "有补全做法，但偏工艺/进阶，暂不进入精简日常库",
       "duplicateOf": "",
-      "hadMethod": false,
+      "hadMethod": true,
       "hadIngredients": false
     },
     {
@@ -1379,14 +1275,6 @@
     {
       "id": "ex--948a7bbd",
       "name": "酥蚕豆泥",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
-      "id": "ex--a0a57b1c",
-      "name": "酸辣虾羹汤",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
       "duplicateOf": "",
       "hadMethod": false,
@@ -1593,14 +1481,6 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--cb8016d0",
-      "name": "盐白菜冬笋",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--96aa40ba",
       "name": "羊耳鸡卷",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
@@ -1665,14 +1545,6 @@
       "hadIngredients": false
     },
     {
-      "id": "ex--9f93d3f9",
-      "name": "炸豆芽饼",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
       "id": "ex--35411308",
       "name": "炸荷花卷",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
@@ -1715,14 +1587,6 @@
     {
       "id": "ex--345f11ae",
       "name": "蒸枣糕",
-      "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
-      "duplicateOf": "",
-      "hadMethod": false,
-      "hadIngredients": false
-    },
-    {
-      "id": "ex--01914cb3",
-      "name": "芝麻虾",
       "reason": "无做法且不日常（宴席化/罕见食材/老式工艺/菜名不清），暂移出",
       "duplicateOf": "",
       "hadMethod": false,

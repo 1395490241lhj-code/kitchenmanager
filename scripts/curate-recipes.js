@@ -137,6 +137,14 @@ const DUPLICATES = {
   '鱼香肉片': '鱼香肉丝',
 };
 
+// 有补全做法、但偏工艺/进阶，暂不进入精简日常库（继续留 full）。按 id 精确排除。
+const CURATED_DENYLIST = new Set([
+  'ex--f788bca6', // 双色豆腐淖（软嫩推炒进阶）
+  'ex--d37d0851', // 软炸虾糕（先蒸后炸两道工序）
+  'ex--01308b6f', // 酿冬菇（酿菜偏宴席）
+  'ex--514e3fd8', // 酿萝卜（做法含「另备肉馅」半推测）
+]);
+
 // ── 1. 复刻 applyCompletionOverlay，得到“有效菜谱集” ─────────────────────────
 function coarse(ings) {
   if (!Array.isArray(ings) || ings.length === 0) return true;
@@ -212,6 +220,12 @@ for (const r of recipes) {
 
   if (DUPLICATES[name]) {
     removed.push({ id: r.id, name, reason: '重复菜，保留更日常/更完整的版本', duplicateOf: DUPLICATES[name], hadMethod: hasMethod, hadIngredients: hasGoodIng });
+    continue;
+  }
+
+  // 有做法但偏工艺/进阶：按 id 排除，不进精简库（优先于「有 method 即保留」）。
+  if (CURATED_DENYLIST.has(r.id)) {
+    removed.push({ id: r.id, name, reason: '有补全做法，但偏工艺/进阶，暂不进入精简日常库', duplicateOf: '', hadMethod: hasMethod, hadIngredients: hasGoodIng });
     continue;
   }
 
