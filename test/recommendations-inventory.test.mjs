@@ -151,3 +151,24 @@ test('包装函数返回结构正确', () => {
   );
   assert.deepEqual(names(miss), ['牛肉']);
 });
+
+// 守门：统一调料口径后，高汤/清水/十三香/咖喱 不应被当核心食材算缺货
+test('菜谱仅含 高汤/清水/盐/生抽（均调料）→ 不算核心、不进 missing、status=unknown', () => {
+  const a = analyze([], [{ item: '高汤' }, { item: '清水' }, { item: '盐' }, { item: '生抽' }]);
+  assert.equal(a.totalCore, 0);
+  assert.equal(a.missing.length, 0);
+  assert.equal(a.status, 'unknown');
+});
+
+test('核心食材 + 高汤/十三香/咖喱 → 只对核心做缺货判断，调料不进 missing', () => {
+  const a = analyze(
+    [{ name: '土豆', qty: 3, unit: '个', stockStatus: 'ok' }],
+    [{ item: '土豆', qty: 2, unit: '个' }, { item: '牛肉', qty: 1, unit: '份' }, { item: '高汤' }, { item: '十三香' }, { item: '咖喱' }]
+  );
+  assert.equal(a.totalCore, 2);                 // 仅 土豆 + 牛肉
+  assert.deepEqual(names(a.missing), ['牛肉']); // 高汤/十三香/咖喱 不在 missing
+  assert.equal(a.status, 'partial');
+  for (const s of ['高汤', '十三香', '咖喱', '清水']) {
+    assert.ok(!names(a.missing).includes(s), `${s} 不应进 missing`);
+  }
+});
