@@ -47,6 +47,23 @@ test('isIngredientMatch 空名一律不匹配', () => {
   assert.equal(isIngredientMatch('', ''), false);
 });
 
+// ── 二、isIngredientMatch：豆制品同义（并入 INGREDIENT_ALIASES 后应匹配）──
+test('isIngredientMatch 豆制品同义应匹配', () => {
+  assert.equal(isIngredientMatch('豆干', '香干'), true);
+  assert.equal(isIngredientMatch('豆干', '豆腐干'), true);
+  assert.equal(isIngredientMatch('豆皮', '千张'), true);
+  assert.equal(isIngredientMatch('豆皮', '百叶'), true);
+  assert.equal(isIngredientMatch('腐竹', '支竹'), true);
+});
+
+test('isIngredientMatch 豆制品防误伤（不应匹配）', () => {
+  assert.equal(isIngredientMatch('豆瓣酱', '豆干'), false);
+  assert.equal(isIngredientMatch('豆腐', '豆皮'), false);   // 不因「豆」字误配
+  assert.equal(isIngredientMatch('豆干', '豆腐'), false);
+  assert.equal(isIngredientMatch('腐乳', '腐竹'), false);
+  assert.equal(isIngredientMatch('素鸡', '千张'), false);   // 素鸡未并入，仍不匹配
+});
+
 // ── 三、getStockCoverageAnalysis ──
 const inv = [
   { name: '土豆', qty: 3, unit: '个', stockStatus: 'ok' },
