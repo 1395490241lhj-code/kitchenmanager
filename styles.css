@@ -6726,3 +6726,110 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
   .today-quick-row { gap: 12px; }
   .today-quick-btn { min-height: 52px; padding: 15px 14px; gap: 10px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  首页 glass 精修（v157）—— 仅作用于 today-view，复用现有 liquid glass token，
+ *  不新增 design token、不改 DOM / 业务逻辑。向 iOS 天气页空气感靠拢：
+ *  更大圆角 / 半透明玻璃 / 柔和 tint / 更淡边框 / 更轻阴影 / 更淡分隔线。
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ① 顶部双状态卡 → 轻量 glass stat cards（柔和 tint，不再整块硬色） */
+.home-metrics.today-status { gap: 14px; }
+.today-status .home-metric {
+  border-radius: var(--radius-l);
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-cell-fill);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.today-status .home-metric.is-ok {
+  background: linear-gradient(160deg, rgba(52, 199, 89, 0.12), rgba(52, 199, 89, 0.04)), var(--glass-cell-fill);
+  border-color: rgba(52, 199, 89, 0.20);
+}
+.today-status .home-metric.is-warn {
+  background: linear-gradient(160deg, rgba(255, 159, 10, 0.15), rgba(255, 159, 10, 0.05)), var(--glass-cell-fill);
+  border-color: rgba(255, 159, 10, 0.22);
+}
+.today-status .home-metric.is-bad {
+  background: linear-gradient(160deg, rgba(255, 69, 58, 0.15), rgba(255, 69, 58, 0.05)), var(--glass-cell-fill);
+  border-color: rgba(255, 69, 58, 0.22);
+}
+.today-status .home-metric.is-info {
+  background: linear-gradient(160deg, rgba(0, 122, 255, 0.13), rgba(0, 122, 255, 0.04)), var(--glass-cell-fill);
+  border-color: rgba(0, 122, 255, 0.20);
+}
+
+/* ② 今日主卡：强化 glass 层次（顶部高光 specular + 更柔阴影 + 更淡分隔线） */
+.today-main-card {
+  position: relative;
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.today-main-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 42%);
+  opacity: 0.6;
+}
+.today-main-card > * { position: relative; z-index: 1; }
+.today-main-divider { opacity: 0.45; }
+
+/* ③ 空态去后台化：去掉虚线上传框观感，改轻柔 glass-cell。
+   menu-plan-empty 有 html[data-theme] 主题覆盖（0,2,1），用三类选择器（0,3,0）压过。 */
+.today-view .today-main-card .menu-plan-empty {
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-cell-fill);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+  border-radius: var(--radius-l);
+}
+.today-main-card .menu-plan-empty-icon { opacity: 0.5; }
+.today-empty {
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-cell-fill);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+  border-radius: var(--radius-l);
+}
+
+/* ④ AI 智能推荐入口 → 轻量 glass cell：弱化蓝硬边框，圆角更大，保留右箭头。 */
+.today-ai-toggle {
+  border-radius: var(--radius-l);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(0, 122, 255, 0.035)), var(--glass-cell-fill);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+  border: 1px solid rgba(0, 122, 255, 0.14);
+  box-shadow: 0 6px 16px rgba(0, 122, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.today-ai-toggle:hover {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.14), rgba(0, 122, 255, 0.05)), var(--glass-cell-fill);
+}
+html[data-theme="dark"] .today-ai-toggle {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.20), rgba(10, 132, 255, 0.08)), var(--glass-cell-fill);
+  border-color: rgba(10, 132, 255, 0.28);
+}
+
+/* ⑤ 底部快捷入口 → glass control pill cards（胶囊感更强，蓝色更柔）。 */
+.today-quick-row { gap: 12px; }
+.today-quick-btn {
+  min-height: 54px;
+  border-radius: var(--radius-l);
+  background: var(--glass-control-fill);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.today-quick-btn.is-primary {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.14), rgba(0, 122, 255, 0.05)), var(--glass-control-fill);
+  border-color: rgba(0, 122, 255, 0.18);
+  color: var(--primary-dark);
+}
+html[data-theme="dark"] .today-quick-btn.is-primary {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.22), rgba(10, 132, 255, 0.08)), var(--glass-control-fill);
+  border-color: rgba(10, 132, 255, 0.28);
+  color: #9ecbff;
+}
