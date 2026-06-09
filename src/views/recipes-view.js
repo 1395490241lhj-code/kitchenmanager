@@ -1,4 +1,5 @@
 import { loadOverlay, saveOverlay } from '../backup.js?v=219';
+import { S } from '../storage.js?v=219';
 import { genId } from '../shopping.js?v=219';
 import { hasRecipeMethod, calculateStockStatus, loadFavoriteRecipeIds, loadRecipeActivity } from '../recommendations.js?v=219';
 import { recipeCard } from '../components/recipe-card.js?v=219';
@@ -233,6 +234,17 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
         empty.innerHTML = `
           <p class="recipe-empty-title">没找到相关菜谱</p>
           <p class="recipe-empty-hint">可以换个食材名试试，例如 鸡肉、土豆、豆腐</p>`;
+        // 仅当前为精简库时：搜索无结果 → 引导去完整库（镜像 app.js getLibraryMode 判定，避免循环依赖）。
+        const libMode = (S.load(S.keys.settings, {}) || {}).recipeLibraryMode === 'full' ? 'full' : 'curated';
+        if (libMode === 'curated') {
+          const more = document.createElement('div');
+          more.className = 'recipe-empty-fulllib';
+          more.innerHTML = `
+            <p class="recipe-empty-hint">完整库里可能还有这道菜。你可以到 设置 → 菜谱库范围 切换为完整原始库。</p>
+            <button type="button" class="btn small" id="goSettingsFullLib">去设置</button>`;
+          more.querySelector('#goSettingsFullLib').onclick = () => { location.hash = '#settings'; };
+          empty.appendChild(more);
+        }
         grid.appendChild(empty);
         return;
       }

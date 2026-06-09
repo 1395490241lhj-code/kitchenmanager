@@ -4737,6 +4737,9 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 }
 .recipe-empty-title { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--text-main); }
 .recipe-empty-hint { margin: 0; font-size: 13px; color: var(--text-secondary); }
+/* 精简库搜索无结果 → 引导切换完整库（复用 empty/hint/btn 风格，仅加间距与分隔线） */
+.recipe-empty-fulllib { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--separator); }
+.recipe-empty-fulllib .recipe-empty-hint { margin-bottom: 8px; }
 
 /* ──────────────────────────────────────────────────────────────────────────
    首页灵感区布局包装（合并模式：今日灵感内容区移至底部）
