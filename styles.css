@@ -1535,17 +1535,34 @@ html[data-theme="dark"] .shopping-remark-input:focus { background: rgba(0, 0, 0,
   .method-glass { padding: 14px; }
   .method-step { gap: 10px; }
 }
+/* 无做法 fallback：融入 method-glass 玻璃面板，不再是独立灰色虚线块。AI 草稿入口保留。 */
+.method-glass .ai-empty-note {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0 0 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+/* 详情页区块之间留出空气感（食材 / 调料块）；method-glass 自带间距不被波及。 */
+.detail-view .block:not(.method-glass) {
+  margin-bottom: 18px;
+}
 .recipe-action-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* 纵向分区：上=下一步标题/说明，下=操作按钮。避免右侧 auto 列被按钮 max-content 撑爆、
+     把左侧文案压成一字一行（481–1199px 区间的竖排 bug）。 */
+  display: flex;
+  flex-direction: column;
   gap: 14px;
-  align-items: center;
   margin: 0 0 22px;
   padding: 16px;
   background: linear-gradient(135deg, rgba(255,255,255,0.82), rgba(240,248,255,0.58));
   border: 1px solid var(--glass-edge);
   border-radius: var(--radius-l);
   box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,0.8);
+}
+.recipe-action-copy {
+  min-width: 0;
 }
 .recipe-action-copy span {
   color: var(--primary);
@@ -1569,10 +1586,16 @@ html[data-theme="dark"] .shopping-remark-input:focus { background: rgba(0, 0, 0,
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+}
+/* 直接子级 = 次级按钮（缺少食材加入清单 / 标记为已做完）：均分一行，窄屏自动换行。
+   三个计划按钮在内层 div 里、已有自身 flex，不受此规则影响。 */
+.recipe-action-buttons > .btn {
+  flex: 1 1 140px;
+  min-width: 0;
 }
 .recipe-action-feedback {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
+  width: 100%;
   padding: 9px 12px;
   color: var(--status-ok-text);
   background: var(--status-ok-bg);
