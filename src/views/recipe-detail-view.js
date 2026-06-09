@@ -16,6 +16,17 @@ import {
 import { loadOverlay, saveOverlay } from '../backup.js?v=219';
 import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=219';
 import { showCalibrationModal } from '../components/modal.js?v=219';
+import { splitMethodSteps } from '../utils/method-steps.js?v=219';
+
+// 把做法字符串渲染成 glass 分步列表（每步 escapeHtml；无步骤时返回空串，由调用方兜底）。
+function methodToListHtml(method) {
+  const steps = splitMethodSteps(method);
+  if (!steps.length) return '';
+  const items = steps.map((s, i) =>
+    `<li class="method-step"><span class="method-step-num">${i + 1}</span><span class="method-step-text">${escapeHtml(s)}</span></li>`
+  ).join('');
+  return `<ol class="method-steps">${items}</ol>`;
+}
 
 export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   let r = (pack.recipes || []).find(x => x.id === id);
@@ -96,7 +107,10 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
 
   const div = document.createElement('div'); div.className = 'detail-view';
   const missingMethodContent = `<div class="ai-empty-note">暂无详细做法。可以让 AI 先生成草稿，确认后再保存。</div><button type="button" class="btn ai" id="genMethodBtn">✨ AI 生成草稿</button>`;
-  const methodContent = r.method ? `<div class="method-text">${escapeHtml(r.method)}</div>` : missingMethodContent;
+  // 已保存做法改为 glass 分步展示；若解析不出步骤（极端空白）回退原整段文本；无做法则保留 AI 草稿入口。
+  const methodContent = r.method
+    ? (methodToListHtml(r.method) || `<div class="method-text">${escapeHtml(r.method)}</div>`)
+    : missingMethodContent;
 
   // 食材 / 调料结构化分流：从用料表按 isSeasoning 拆出核心食材与调味品，
   // 再并入菜谱单列的 r.seasonings（按名称去重），渲染为上下两个微型区块。
@@ -114,7 +128,7 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   const foodBlock = `<div class="block"><h4>🥬 食材清单 Ingredients</h4><div class="ing-compact-container">${(foodItems.length ? foodItems : items).map(it => pillHtml(it)).join('')}</div></div>`;
   const seasoningBlock = seasoningItems.length ? `<div class="block ingredient-seasoning-block"><h4>🧂 调料清单 Seasonings <span class="meta seasoning-note">仅做菜谱参考，不参与库存扣减</span></h4><div class="ing-compact-container">${seasoningItems.map(it => pillHtml(it, 'seasoning-pill')).join('')}</div></div>` : '';
 
-  div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已安排在菜单计划' : '先加入菜单计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可选择扣减库存。</p></div><div class="recipe-action-buttons"><div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; width: 100%;"><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planToday" ${isPlannedToday ? 'disabled' : ''}>${isPlannedToday ? '今天已计划' : '计划今天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planTomorrow" ${isPlannedTomorrow ? 'disabled' : ''}>${isPlannedTomorrow ? '明天已计划' : '计划明天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planDayAfter" ${isPlannedDayAfter ? 'disabled' : ''}>${isPlannedDayAfter ? '后天已计划' : '计划后天'}</button></div><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div>${foodBlock}${seasoningBlock}<div class="block"><h4>制作方法 Method</h4><div id="methodArea">${methodContent}</div></div>`;
+  div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已安排在菜单计划' : '先加入菜单计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可选择扣减库存。</p></div><div class="recipe-action-buttons"><div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; width: 100%;"><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planToday" ${isPlannedToday ? 'disabled' : ''}>${isPlannedToday ? '今天已计划' : '计划今天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planTomorrow" ${isPlannedTomorrow ? 'disabled' : ''}>${isPlannedTomorrow ? '明天已计划' : '计划明天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planDayAfter" ${isPlannedDayAfter ? 'disabled' : ''}>${isPlannedDayAfter ? '后天已计划' : '计划后天'}</button></div><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入清单' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div>${foodBlock}${seasoningBlock}<section class="block method-glass glass-panel"><h4 class="method-glass-title">制作方法 Method</h4><div id="methodArea">${methodContent}</div></section>`;
 
   const actionFeedback = div.querySelector('#recipeActionFeedback');
   const showActionFeedback = (text) => {
@@ -207,7 +221,7 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
       currentOverlay.recipes = currentOverlay.recipes || {};
       currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id] || {}), method: text };
       saveOverlay(currentOverlay); window.invalidatePackCache?.(); r.method = text;
-      methodArea.innerHTML = `<div class="method-text">${escapeHtml(text)}</div><div class="small ok method-saved-note">已保存到菜谱</div>`;
+      methodArea.innerHTML = `${methodToListHtml(text) || `<div class="method-text">${escapeHtml(text)}</div>`}<div class="small ok method-saved-note">已保存到菜谱</div>`;
     };
     methodArea.querySelector('#regenerateAiMethodBtn').onclick = e => generateMethodDraft(e.currentTarget);
     methodArea.querySelector('#cancelAiMethodBtn').onclick = () => showMissingMethod();

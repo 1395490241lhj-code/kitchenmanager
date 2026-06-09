@@ -1483,6 +1483,58 @@ html[data-theme="dark"] .shopping-remark-input:focus { background: rgba(0, 0, 0,
   white-space: pre-line;
   line-height: 1.75;
 }
+/* 做法分步（glass 视觉试点）：复用 .glass-panel 单层玻璃，内部不再叠加 blur 层。 */
+.method-glass {
+  margin: 14px 0 22px;
+  padding: 16px 18px;
+}
+.method-glass-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.method-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.method-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.method-step-num {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  /* 半透明蓝 tint：明/暗两种主题都自适应，不依赖 --primary-soft 浅底 */
+  background: rgba(0, 122, 255, 0.14);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-top: 1px;
+}
+.method-step-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.7;
+  color: var(--text-main);
+  white-space: pre-line;
+  word-break: break-word;
+}
+@media (max-width: 390px) {
+  .method-glass { padding: 14px; }
+  .method-step { gap: 10px; }
+}
 .recipe-action-panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
