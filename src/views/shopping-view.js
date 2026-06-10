@@ -1,8 +1,6 @@
 import { todayISO } from '../storage.js?v=219';
 import {
   buildCatalog,
-  buildIngredientOptions,
-  getCanonicalName,
   guessKitchenUnit,
   isDryGoodName,
   normalizeKitchenAmount
@@ -18,12 +16,10 @@ import {
   convertShoppingItemToInventory,
   getVisibleShoppingItems,
   groupShoppingItemsByZone,
-  groupShoppingItemsBySource,
   loadShoppingItems,
   markAllShoppingItemsDone,
   mergeShoppingItems,
-  saveShoppingItems,
-  COMPLETED_SHOPPING_VISIBLE_HOURS
+  saveShoppingItems
 } from '../shopping.js?v=219';
 import {
   escapeHtml,
@@ -35,8 +31,6 @@ import { restoreStapleByPurchase, restoreStaplesByPurchase } from '../staples.js
 
 // 兼容旧入口：完整库存已迁到独立「库存」Tab，本页不再内嵌库存分段；保留空实现避免外部 import 报错。
 export function requestInventoryIntent() {}
-
-let shoppingViewMode = 'normal';
 
 function getShoppingRowIds(item) {
   if (Array.isArray(item?.ids) && item.ids.length) return item.ids;
@@ -125,31 +119,21 @@ function showShoppingInventoryModal(item, onConfirm, onCancel) {
 export function renderShopping(pack, { onRoute = () => {} } = {}){
   const catalog = buildCatalog(pack);
   const inv = loadInventory(catalog);
-  const ingredientOptions = buildIngredientOptions(catalog);
   const shoppingItems = loadShoppingItems();
   const mergedItems = mergeShoppingItems(shoppingItems);
   // 默认视图：未完成全部显示；已完成仅显示「最近 24 小时内」，更久的自动隐藏（数据不删）。
   const visibleItems = getVisibleShoppingItems(mergedItems, { includeRecentlyCompleted: true });
   const openItems = visibleItems.filter(item => !item.done);
   const doneItems = visibleItems.filter(item => item.done);
+  const unstockedDoneItems = doneItems.filter(item => !item.stockedIn);
 
   const page = document.createElement('div');
-  page.className = 'shopping-page';
+  page.className = 'shopping-page shopping-unified';
   page.innerHTML = `
     <h2 class="section-title">买菜清单</h2>
-    <div class="shopping-mode-switch" role="tablist" aria-label="买菜页模式">
-      <button type="button" class="${shoppingViewMode === 'normal' ? 'active' : ''}" data-mode="normal" role="tab" aria-selected="${shoppingViewMode === 'normal'}">普通</button>
-      <button type="button" class="${shoppingViewMode === 'market' ? 'active' : ''}" data-mode="market" role="tab" aria-selected="${shoppingViewMode === 'market'}">超市</button>
-    </div>
     <div id="shoppingStatus" class="inline-status" hidden></div>
   `;
   const status = page.querySelector('#shoppingStatus');
-  page.querySelectorAll('.shopping-mode-switch button').forEach(btn => {
-    btn.onclick = () => {
-      shoppingViewMode = btn.dataset.mode === 'market' ? 'market' : 'normal';
-      onRoute();
-    };
-  });
 
   const copyOpenItems = () => {
     const text = buildCopyableShoppingList([], loadShoppingItems());
@@ -166,271 +150,6 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     onRoute();
   };
 
-  const renderMarketMode = () => {
-    const market = document.createElement('section');
-    market.className = 'shopping-market';
-    const unstockedDoneItems = doneItems.filter(item => !item.stockedIn);
-    market.innerHTML = `
-      <div class="shopping-market-head">
-        <div>
-          <h3>今天要买 ${openItems.length} 样</h3>
-          <p>买到就点一下，买完可以回到普通模式记进厨房。</p>
-        </div>
-        <div class="shopping-market-actions">
-          <button type="button" class="shopping-tool-btn" id="marketCopyOpen">复制未买</button>
-          <button type="button" class="shopping-tool-btn" id="marketMarkAllDone">全部标记已买</button>
-        </div>
-      </div>
-      <div class="shopping-market-add">
-        <input id="marketAddName" type="text" placeholder="临时加点什么">
-        <button type="button" class="btn ok small" id="marketAddBtn">加入</button>
-      </div>
-      ${unstockedDoneItems.length ? `
-        <div class="shopping-market-stock-hint">
-          <span>有 ${unstockedDoneItems.length} 样买完还没记进厨房</span>
-          <button type="button" class="shopping-tool-btn shopping-tool-ok" id="marketGoStockIn">去记进厨房</button>
-        </div>
-      ` : ''}
-    `;
-
-    const addInput = market.querySelector('#marketAddName');
-    const addTemporaryItem = () => {
-      const name = addInput.value.trim();
-      if (!name) { setInlineStatus(status, '请输入要买的东西。', 'bad'); return; }
-      addShoppingItem(name, '', '', '手动', '');
-      shoppingViewMode = 'market';
-      onRoute();
-    };
-    market.querySelector('#marketAddBtn').onclick = addTemporaryItem;
-    addInput.onkeydown = event => {
-      if (event.key === 'Enter') addTemporaryItem();
-    };
-    market.querySelector('#marketCopyOpen').onclick = copyOpenItems;
-    market.querySelector('#marketMarkAllDone').onclick = markEveryOpenItemDone;
-    market.querySelector('#marketGoStockIn')?.addEventListener('click', () => {
-      shoppingViewMode = 'normal';
-      onRoute();
-    });
-
-    if (!visibleItems.length) {
-      const empty = document.createElement('div');
-      empty.className = 'shopping-market-empty';
-      empty.innerHTML = `
-        <strong>买菜清单是空的</strong>
-        <span>可以从推荐菜谱、做完补货，或者首页待买里添加。</span>
-        <button type="button" class="btn" id="marketGoToday">回首页看看</button>
-      `;
-      empty.querySelector('#marketGoToday').onclick = () => { location.hash = '#today'; };
-      market.appendChild(empty);
-      return market;
-    }
-
-    const list = document.createElement('div');
-    list.className = 'shopping-market-list';
-    groupShoppingItemsByZone(visibleItems).forEach(group => {
-      const zone = document.createElement('div');
-      zone.className = 'shopping-market-zone';
-      const openCount = group.items.filter(item => !item.done).length;
-      zone.innerHTML = `
-        <div class="shopping-market-zone-title">
-          <span>${escapeHtml(group.label)}</span>
-          <small>${openCount ? `${openCount} 未买` : '刚买好'}</small>
-        </div>
-      `;
-      group.items.forEach(item => {
-        const row = document.createElement('button');
-        row.type = 'button';
-        row.className = `shopping-market-row${item.done ? ' is-done' : ''}`;
-        row.setAttribute('aria-pressed', item.done ? 'true' : 'false');
-        const metaParts = [
-          item.amountText || '',
-          remarkDefault(item) || item.source || ''
-        ].filter(Boolean);
-        row.innerHTML = `
-          <span class="shopping-market-check" aria-hidden="true">${item.done ? '✓' : ''}</span>
-          <span class="shopping-market-main">
-            <span class="shopping-market-name">${escapeHtml(item.name)}</span>
-            <span class="shopping-market-meta">${escapeHtml(metaParts.join(' · ') || '按需')}</span>
-          </span>
-          ${item.done ? '<span class="shopping-market-done">已买</span>' : ''}
-        `;
-        row.onclick = () => {
-          const checked = !item.done;
-          const nowIso = new Date().toISOString();
-          updateShoppingRowsByIds(getShoppingRowIds(item), target => checked
-            ? ({ ...target, done: true, completedAt: target.completedAt || nowIso })
-            : ({ ...target, done: false, stockedIn: false, completedAt: null }));
-          if (checked) restoreStapleByPurchase(item.name);
-          shoppingViewMode = 'market';
-          onRoute();
-        };
-        zone.appendChild(row);
-      });
-      list.appendChild(zone);
-    });
-    market.appendChild(list);
-    return market;
-  };
-
-  if (shoppingViewMode === 'market') {
-    page.appendChild(renderMarketMode());
-    return page;
-  }
-
-  // 「添加项」内联快捷输入：默认隐藏，由「我的购物项」右上角的 ＋ 按钮唤出。
-  const manualCard = document.createElement('div');
-  manualCard.className = 'shopping-manual-inline is-hidden';
-  manualCard.innerHTML = `
-    <div class="shopping-add-row">
-      <input id="shoppingAddName" list="shoppingCatalogList" placeholder="想买什么">
-      <datalist id="shoppingCatalogList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
-      <input id="shoppingAddQty" type="number" min="0" step="1" placeholder="数量">
-      <select id="shoppingAddUnit"><option value="">无单位</option><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="包">包</option><option value="瓶">瓶</option><option value="把">把</option><option value="份">份</option><option value="g">g</option><option value="ml">ml</option></select>
-      <input id="shoppingAddRemark" type="text" class="shopping-add-remark" placeholder="备注 (选填)...">
-      <button type="button" class="btn ok" id="shoppingAddBtn">加入</button>
-    </div>
-  `;
-  manualCard.querySelector('#shoppingAddName').addEventListener('input', event => {
-    const val = event.target.value.trim();
-    if(val) setSelectValueWithOption(manualCard.querySelector('#shoppingAddUnit'), guessKitchenUnit(getCanonicalName(val)) || '');
-  });
-  manualCard.querySelector('#shoppingAddBtn').onclick = () => {
-    const name = manualCard.querySelector('#shoppingAddName').value.trim();
-    if(!name) { setInlineStatus(status, '请输入要买的东西。', 'bad'); return; }
-    const remark = manualCard.querySelector('#shoppingAddRemark').value.trim();
-    addShoppingItem(name, manualCard.querySelector('#shoppingAddQty').value || '', manualCard.querySelector('#shoppingAddUnit').value || '', '手动', remark);
-    manualCard.querySelector('#shoppingAddRemark').value = ''; // 加入后清空备注（onRoute 重渲染亦会重置，此处双保险）
-    onRoute();
-  };
-
-  const itemCard = document.createElement('div');
-  itemCard.className = 'card shopping-items-card';
-  itemCard.innerHTML = `
-    <div class="shopping-card-head shopping-toolbar">
-        <button type="button" class="btn ok small shopping-add-primary" id="miniAddItem">＋ 添加要买</button>
-      <div class="shopping-tool-group">
-        <button type="button" class="shopping-tool-btn" id="copyOpenShopping">复制未买</button>
-        <button type="button" class="shopping-tool-btn" id="markAllDone">全部标记已买</button>
-        <button type="button" class="shopping-tool-btn shopping-tool-ok is-hidden" id="batchStockIn">买完记进厨房</button>
-        <button type="button" class="shopping-tool-btn shopping-clear-btn" id="clearDone">清除已买</button>
-      </div>
-    </div>
-  `;
-  // 内联「添加项」快捷输入，嵌入在购物项区块顶部，默认隐藏。
-  itemCard.appendChild(manualCard);
-  itemCard.querySelector('#miniAddItem').onclick = () => {
-    manualCard.classList.toggle('is-hidden');
-    if (!manualCard.classList.contains('is-hidden')) manualCard.querySelector('#shoppingAddName').focus();
-  };
-
-  const itemList = document.createElement('div');
-  itemList.className = 'shopping-item-list grouped';
-
-  const renderItemRow = (item) => {
-    const row = document.createElement('div');
-    row.className = `shopping-item-row${item.done ? ' done' : ''}`;
-    const stockInHtml = item.done
-      ? item.stockedIn
-        ? '<span class="btn small stocked-in-badge" aria-label="已记进厨房">✓ 已记进厨房</span>'
-        : '<button type="button" class="btn ok small stock-in-btn">记进厨房</button>'
-      : '';
-    row.innerHTML = `
-      <label class="shopping-check"><input type="checkbox" ${item.done ? 'checked' : ''}><span>${escapeHtml(item.name)}</span></label>
-      <span class="shopping-item-amount">${escapeHtml(item.amountText || '按需')}</span>
-      <input type="text" class="shopping-remark-input" placeholder="点击添加备注..." value="${escapeOptionAttr(remarkDefault(item))}" aria-label="备注" title="${escapeOptionAttr(item.source || '')}">
-      <div class="shopping-row-actions">
-        ${stockInHtml}
-        <button type="button" class="btn small bad delete-shopping-btn">删</button>
-      </div>
-    `;
-    // 行内备注：原地直接修改，失焦 / 变更即写回底层数据并持久化（不触发整页重渲染，保持焦点）。
-    // 默认值多字段兼容：手写 remark 优先，回退系统自动生成的来源（菜谱缺货等血统备注）。
-    const remarkBaseline = remarkDefault(item);
-    const remarkInput = row.querySelector('.shopping-remark-input');
-    if (remarkInput) {
-      remarkInput.onclick = event => event.stopPropagation();
-      const commitRemark = () => {
-        const val = remarkInput.value.trim();
-        if (val === remarkBaseline) return; // 与当前显示值一致（未改动）→ 不写库
-        item.remark = val;
-        updateShoppingRowsByIds(item.ids, target => ({ ...target, remark: val }));
-      };
-      remarkInput.onchange = commitRemark;
-      remarkInput.onblur = commitRemark;
-    }
-    row.querySelector('input').onchange = event => {
-      const checked = event.target.checked;
-      const nowIso = new Date().toISOString();
-      // 勾选「已买」→ 记完成时间（启动 24h 隐藏倒计时）；取消 → 清空完成 / 入库状态，回到待购买。
-      updateShoppingRowsByIds(item.ids, target => checked
-        ? ({ ...target, done: true, completedAt: target.completedAt || nowIso })
-        : ({ ...target, done: false, stockedIn: false, completedAt: null }));
-      // 闭环：勾选「已买」时，若是常备品则恢复为充足并更新库存时间。
-      if (checked) restoreStapleByPurchase(item.name);
-      onRoute();
-    };
-    const stockBtn = row.querySelector('.stock-in-btn');
-    if(stockBtn) {
-      stockBtn.onclick = () => {
-        showShoppingInventoryModal(item, entry => {
-          mergeInventoryEntry(inv, entry, { mode: 'add' });
-          const nowIso = new Date().toISOString();
-          updateShoppingRowsByIds(item.ids, target => ({
-            ...target,
-            done: true,
-            stockedIn: true,
-            stockedInAt: nowIso,
-            completedAt: target.completedAt || nowIso
-          }));
-          restoreStapleByPurchase(item.name); // 闭环：常备品入库后恢复充足
-          setInlineStatus(status, `${entry.name} 已记进厨房。`, 'ok');
-          onRoute();
-        });
-      };
-    }
-    row.querySelector('.delete-shopping-btn').onclick = () => {
-      deleteShoppingRowsByIds(item.ids);
-      onRoute();
-    };
-    return row;
-  };
-
-  const renderGroups = (title, items, emptyText) => {
-    const section = document.createElement('div');
-    section.className = 'shopping-source-section';
-    section.innerHTML = `<div class="shopping-source-title">${escapeHtml(title)}<span>${items.length}</span></div>`;
-    if(!items.length) {
-      const empty = document.createElement('p');
-      empty.className = 'small';
-      empty.textContent = emptyText;
-      section.appendChild(empty);
-      return section;
-    }
-    groupShoppingItemsBySource(items).forEach(group => {
-      const groupDiv = document.createElement('div');
-      groupDiv.className = 'shopping-source-group';
-      groupDiv.innerHTML = `<div class="shopping-source-label">${escapeHtml(group.label)}</div>`;
-      group.items.forEach(item => groupDiv.appendChild(renderItemRow(item)));
-      section.appendChild(groupDiv);
-    });
-    return section;
-  };
-
-  itemList.appendChild(renderGroups('未买', openItems, '还没有未买的购物项。'));
-  const doneSection = renderGroups('最近完成', doneItems, '勾选"已买"后，可以在这里记进厨房。');
-  // 轻量说明：已完成项 24 小时后会自动从清单隐藏（数据仍保留）。
-  if (doneItems.length) {
-    const titleEl = doneSection.querySelector('.shopping-source-title');
-    if (titleEl) {
-      const hideHint = document.createElement('p');
-      hideHint.className = 'shopping-autohide-hint small';
-      hideHint.textContent = `完成 ${COMPLETED_SHOPPING_VISIBLE_HOURS} 小时后自动隐藏`;
-      titleEl.insertAdjacentElement('afterend', hideHint);
-    }
-  }
-  itemList.appendChild(doneSection);
-  itemCard.appendChild(itemList);
-
   const startBatchStockIn = (itemsList, index) => {
     if (index >= itemsList.length) {
       setInlineStatus(status, '已买的都记进厨房了。', 'ok');
@@ -441,7 +160,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     showShoppingInventoryModal(item, entry => {
       mergeInventoryEntry(inv, entry, { mode: 'add' });
       const nowIso = new Date().toISOString();
-      updateShoppingRowsByIds(item.ids, target => ({
+      updateShoppingRowsByIds(getShoppingRowIds(item), target => ({
         ...target,
         done: true,
         stockedIn: true,
@@ -455,26 +174,156 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     });
   };
 
-  const unstockedDoneItems = doneItems.filter(item => !item.stockedIn);
-  const batchBtn = itemCard.querySelector('#batchStockIn');
-  if (unstockedDoneItems.length > 0) {
-    batchBtn.classList.remove('is-hidden');
-    batchBtn.onclick = () => {
-      startBatchStockIn(unstockedDoneItems, 0);
-    };
-  } else {
-    batchBtn.classList.add('is-hidden');
+  const stockInOne = (item) => {
+    showShoppingInventoryModal(item, entry => {
+      mergeInventoryEntry(inv, entry, { mode: 'add' });
+      const nowIso = new Date().toISOString();
+      updateShoppingRowsByIds(getShoppingRowIds(item), target => ({
+        ...target,
+        done: true,
+        stockedIn: true,
+        stockedInAt: nowIso,
+        completedAt: target.completedAt || nowIso
+      }));
+      restoreStapleByPurchase(item.name);
+      setInlineStatus(status, `${entry.name} 已记进厨房。`, 'ok');
+      onRoute();
+    });
+  };
+
+  const toggleItemDone = (item) => {
+    const checked = !item.done;
+    const nowIso = new Date().toISOString();
+    updateShoppingRowsByIds(getShoppingRowIds(item), target => checked
+      ? ({ ...target, done: true, completedAt: target.completedAt || nowIso })
+      : ({ ...target, done: false, stockedIn: false, completedAt: null }));
+    if (checked) restoreStapleByPurchase(item.name);
+    onRoute();
+  };
+
+  const summary = document.createElement('section');
+  summary.className = 'shopping-summary-card';
+  summary.innerHTML = `
+    <div class="shopping-summary-copy">
+      <h3>今天要买 ${openItems.length} 样</h3>
+      <p>买到就点一下，买完可以顺手记进厨房。</p>
+    </div>
+    <div class="shopping-summary-actions">
+      <button type="button" class="shopping-tool-btn" id="copyOpenShopping">复制未买</button>
+      <button type="button" class="shopping-tool-btn" id="markAllDone">全部标记已买</button>
+      <button type="button" class="shopping-tool-btn shopping-clear-btn" id="clearDone">清除已买</button>
+    </div>
+  `;
+  summary.querySelector('#copyOpenShopping').onclick = copyOpenItems;
+  summary.querySelector('#markAllDone').onclick = markEveryOpenItemDone;
+  summary.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
+  page.appendChild(summary);
+
+  const quickAdd = document.createElement('div');
+  quickAdd.className = 'shopping-quick-add';
+  quickAdd.innerHTML = `
+    <input id="shoppingQuickAddName" type="text" placeholder="临时加点什么">
+    <button type="button" class="btn ok small" id="shoppingQuickAddBtn">加入</button>
+  `;
+  const quickInput = quickAdd.querySelector('#shoppingQuickAddName');
+  const addQuickItem = () => {
+    const name = quickInput.value.trim();
+    if (!name) { setInlineStatus(status, '请输入要买的东西。', 'bad'); return; }
+    addShoppingItem(name, '', '', '手动', '');
+    onRoute();
+  };
+  quickAdd.querySelector('#shoppingQuickAddBtn').onclick = addQuickItem;
+  quickInput.onkeydown = event => {
+    if (event.key === 'Enter') addQuickItem();
+  };
+  page.appendChild(quickAdd);
+
+  if (unstockedDoneItems.length) {
+    const banner = document.createElement('div');
+    banner.className = 'shopping-stockin-banner';
+    banner.innerHTML = `
+      <span>有 ${unstockedDoneItems.length} 样买完还没记进厨房</span>
+      <button type="button" class="shopping-tool-btn shopping-tool-ok" id="batchStockIn">全部记进厨房</button>
+    `;
+    banner.querySelector('#batchStockIn').onclick = () => startBatchStockIn(unstockedDoneItems, 0);
+    page.appendChild(banner);
   }
 
-  itemCard.querySelector('#markAllDone').onclick = () => {
-    markEveryOpenItemDone();
+  const list = document.createElement('div');
+  list.className = 'shopping-unified-list';
+
+  const renderUnifiedRow = (item) => {
+    const row = document.createElement('div');
+    row.className = `shopping-unified-row${item.done ? ' is-done' : ''}${item.stockedIn ? ' is-stocked' : ''}`;
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('aria-pressed', item.done ? 'true' : 'false');
+    const metaParts = [
+      item.amountText || '',
+      remarkDefault(item) || item.source || ''
+    ].filter(Boolean);
+    const actionHtml = item.done
+      ? item.stockedIn
+        ? '<span class="shopping-unified-state">已记进厨房</span>'
+        : '<span class="shopping-unified-state is-bought">已买</span><button type="button" class="shopping-unified-stock">记进厨房</button>'
+      : '<button type="button" class="shopping-unified-delete" aria-label="删除">删</button>';
+    row.innerHTML = `
+      <span class="shopping-unified-check" aria-hidden="true">${item.done ? '✓' : ''}</span>
+      <span class="shopping-unified-main">
+        <span class="shopping-unified-name">${escapeHtml(item.name)}</span>
+        <span class="shopping-unified-meta">${escapeHtml(metaParts.join(' · ') || '按需')}</span>
+      </span>
+      <span class="shopping-unified-actions">${actionHtml}</span>
+    `;
+    row.onclick = () => toggleItemDone(item);
+    row.onkeydown = event => {
+      if (!['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      toggleItemDone(item);
+    };
+    row.querySelector('.shopping-unified-delete')?.addEventListener('click', event => {
+      event.stopPropagation();
+      deleteShoppingRowsByIds(getShoppingRowIds(item));
+      onRoute();
+    });
+    row.querySelector('.shopping-unified-stock')?.addEventListener('click', event => {
+      event.stopPropagation();
+      stockInOne(item);
+    });
+    return row;
   };
-  itemCard.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
-  itemCard.querySelector('#copyOpenShopping').onclick = () => {
-    copyOpenItems();
+
+  const renderZone = (title, items, isDoneSection = false) => {
+    const section = document.createElement('section');
+    section.className = `shopping-zone-section${isDoneSection ? ' is-completed' : ''}`;
+    section.innerHTML = `
+      <div class="shopping-zone-title">
+        <span>${escapeHtml(title)}</span>
+        <small>${items.length}</small>
+      </div>
+    `;
+    items.forEach(item => section.appendChild(renderUnifiedRow(item)));
+    return section;
   };
-  // 清单页只负责「购物项」；常备货架已迁到独立「库存」Tab，这里只挂购物项卡片。
-  page.appendChild(itemCard);
+
+  if (!visibleItems.length) {
+    const empty = document.createElement('div');
+    empty.className = 'shopping-unified-empty';
+    empty.innerHTML = `
+      <strong>买菜清单是空的</strong>
+      <span>可以从推荐菜谱、做完补货，或者首页待买里添加。</span>
+      <button type="button" class="btn" id="shoppingGoToday">回首页看看</button>
+    `;
+    empty.querySelector('#shoppingGoToday').onclick = () => { location.hash = '#today'; };
+    list.appendChild(empty);
+  } else {
+    groupShoppingItemsByZone(openItems).forEach(group => {
+      list.appendChild(renderZone(group.label, group.items));
+    });
+    if (doneItems.length) list.appendChild(renderZone('最近完成', doneItems, true));
+  }
+
+  page.appendChild(list);
 
   return page;
 }
