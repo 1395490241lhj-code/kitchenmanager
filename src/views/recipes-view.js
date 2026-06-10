@@ -1,111 +1,11 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=219';
 import { S } from '../storage.js?v=219';
-import { genId } from '../shopping.js?v=219';
 import { hasRecipeMethod, calculateStockStatus, loadFavoriteRecipeIds, loadRecipeActivity } from '../recommendations.js?v=219';
 import { recipeCard } from '../components/recipe-card.js?v=219';
 import { buildCatalog } from '../ingredients.js?v=219';
 import { loadInventory } from '../inventory.js?v=219';
-import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=219';
-import { escapeHtml, setInlineStatus } from '../components/status.js?v=219';
 import { RECIPE_CATEGORIES, searchRecipes, matchesCategory } from '../recipe-search.js?v=219';
 import { showRecipeCreateModal } from '../components/recipe-create-modal.js?v=219';
-
-// 【内存暂存】AI 解析出的草稿只存入 sessionStorage，不写 overlay/localStorage。
-// 仅当用户在编辑器里点击「保存」时才真正落地。用户取消/关闭则草稿被销毁，不留脏数据。
-const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
-
-function openEditorWithAiDraft(draft) {
-  const tags = Array.from(new Set(['AI草稿', 'AI导入', ...(Array.isArray(draft.tags) ? draft.tags : [])]));
-  const seasonings = (Array.isArray(draft.seasonings) ? draft.seasonings : [])
-    .map(i => ({ item: i.item || '', qty: i.qty || '', unit: i.unit || '' }))
-    .filter(i => i.item);
-  const pending = {
-    name: draft.name || 'AI 导入菜谱草稿',
-    tags,
-    method: draft.method || '',
-    seasonings,
-    ingredients: (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty ?? null, unit: i.unit ?? null })),
-    isAiDraft: true,
-  };
-  try {
-    sessionStorage.setItem(AI_DRAFT_SESSION_KEY, JSON.stringify(pending));
-  } catch (e) {
-    console.warn('[AI导入] sessionStorage 写入失败，回退为直接写 overlay', e);
-    // 降级：直接写 overlay（旧行为）
-    const id = genId();
-    const ov = loadOverlay();
-    ov.recipes = ov.recipes || {};
-    ov.recipe_ingredients = ov.recipe_ingredients || {};
-    ov.recipes[id] = { name: pending.name, tags: pending.tags, method: pending.method, seasonings: pending.seasonings, isAiDraft: true };
-    ov.recipe_ingredients[id] = pending.ingredients;
-    saveOverlay(ov);
-    window.invalidatePackCache?.();
-    location.hash = `#recipe-edit:${id}`;
-    return;
-  }
-  // 用固定占位 id 跳转，编辑器读 sessionStorage 预填，不污染 overlay
-  location.hash = '#recipe-edit:ai-import-draft';
-}
-
-// AI 一键导入：移动端优先弹窗（链接 / 视频截图 → 120B 解析）。
-function openImportModal() {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="card ai-import-modal">
-      <h3 class="ai-import-title">导入菜谱</h3>
-      <p class="meta">粘贴菜谱链接，或上传短视频 / 配料表截图，自动整理成可编辑草稿。</p>
-      <label class="ai-import-field">
-        <span>🔗 粘贴链接</span>
-        <input id="aiImportUrl" type="url" inputmode="url" placeholder="小红书 / 网页菜谱链接">
-      </label>
-      <label class="ai-import-field ai-import-file">
-        <span>🎬 上传视频 / 截图</span>
-        <input id="aiImportFile" type="file" accept="image/*,video/*" hidden>
-        <span class="ai-import-filename" id="aiImportFileName">点此选择文件</span>
-      </label>
-      <div id="aiImportStatus" class="inline-status" hidden></div>
-      <button type="button" class="btn ai-import-go" id="aiImportGo">开始导入</button>
-      <button type="button" class="btn ai-import-cancel" id="aiImportCancel">取消</button>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  const close = () => overlay.remove();
-  overlay.onclick = (e) => { if (e.target === overlay) close(); };
-  overlay.querySelector('#aiImportCancel').onclick = close;
-
-  const fileInput = overlay.querySelector('#aiImportFile');
-  const fileName = overlay.querySelector('#aiImportFileName');
-  overlay.querySelector('.ai-import-file').onclick = (e) => { if (e.target !== fileInput) fileInput.click(); };
-  fileInput.onchange = () => { fileName.textContent = fileInput.files[0] ? fileInput.files[0].name : '点此选择文件'; };
-
-  const status = overlay.querySelector('#aiImportStatus');
-  const goBtn = overlay.querySelector('#aiImportGo');
-  goBtn.onclick = async () => {
-    if (goBtn.getAttribute('disabled')) return;
-    // 智能模糊提取：允许用户粘贴整段小红书分享语，自动捕获里面的合法 URL。
-    const raw = overlay.querySelector('#aiImportUrl').value.trim();
-    const match = raw.match(/https?:\/\/[^\s]+/g);
-    const url = match ? match[0].replace(/[，。、,.;；]+$/, '') : '';
-    const file = fileInput.files[0] || null;
-    if (!raw && !file) { setInlineStatus(status, '请粘贴链接或选择一个视频/截图。', 'bad'); return; }
-    if (raw && !url) { setInlineStatus(status, '没找到有效链接，请检查粘贴内容或改用截图导入。', 'bad'); return; }
-    goBtn.setAttribute('disabled', 'true');
-    goBtn.innerHTML = '<span class="spinner"></span> 正在整理菜谱…';
-    try {
-      const draft = await importRecipeFromSource({ url, file });
-      setInlineStatus(status, '解析完成，正在打开编辑器…', 'ok');
-      setTimeout(() => { close(); openEditorWithAiDraft(draft); }, 500);
-    } catch (err) {
-      // 抓取/输入类的友好提示直接展示；其余（API/解析错误）走统一文案。
-      const msg = String(err && err.message || '');
-      const friendly = /链接|截图|视频|粘贴/.test(msg) ? msg : formatAiErrorMessage(err);
-      setInlineStatus(status, friendly, 'bad');
-      goBtn.removeAttribute('disabled');
-      goBtn.innerHTML = '开始导入';
-    }
-  };
-}
+import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
 
 function mergeOverlayPreservingCurrent(currentOverlay, incomingOverlay) {
   const current = currentOverlay || {};
@@ -277,7 +177,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
     searchTimer = setTimeout(draw, 160);
   };
   wrap.querySelector('#methodOnly').onchange = draw;
-  wrap.querySelector('#aiImportBtn').onclick = openImportModal;
+  wrap.querySelector('#aiImportBtn').onclick = () => openRecipeImportModal();
   // 手动新建：打开轻量「新建菜谱」弹窗（不跳转、不改 hash）；保存后整页重渲染以纳入新菜谱。
   wrap.querySelector('#addBtn').onclick = () => {
     showRecipeCreateModal(pack, { onSaved: () => onRoute() });

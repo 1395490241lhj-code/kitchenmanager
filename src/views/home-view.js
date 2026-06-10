@@ -12,6 +12,7 @@ import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } f
 import { showRecommendationCards } from '../components/recipe-card.js?v=219';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
+import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -1126,20 +1127,19 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   return card;
 }
 
-// ③ 快捷操作区（两个轻量入口）：食材入库（直接打开采购物品入库登记弹窗）+ 待买速记（速记弹窗）。
+// ③ 快捷操作区（两个轻量入口）：记食材 + 导入菜谱。待买速记入口放进「待买」Tab。
 function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () => {} } = {}) {
   const section = document.createElement('section');
   section.className = 'today-section today-quick';
   section.innerHTML = `
     <div class="today-quick-row">
       <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>记食材</span></button>
-      <button type="button" class="today-quick-btn" id="qaMemo"><span class="tq-emoji">📝</span><span>记要买</span></button>
+      <button type="button" class="today-quick-btn" id="qaRecipeImport"><span class="tq-emoji">📸</span><span>导入菜谱</span></button>
     </div>
   `;
-  // 食材入库：直接打开现有「采购物品入库登记」弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再多一层选择。
+  // 记食材：直接打开现有「记进厨房」弹窗（📸 拍小票识别 + ✍️ 文本批量记）。
   section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
-  // 待买速记：弹「批量文本」速记弹窗（一行一项，不展示完整清单，不跳转）；添加后刷新顶部待购买数字。
-  section.querySelector('#qaMemo').onclick = () => showQuickShoppingNoteModal({ onAdd: refreshStatus });
+  section.querySelector('#qaRecipeImport').onclick = () => openRecipeImportModal();
   return section;
 }
 
@@ -1315,8 +1315,22 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
   // ── 🛒 待买：最近 3 项（名称+数量），「查看全部」沿用原待买弹窗 ──
   const renderShoppingTab = () => {
     const items = loadShoppingItems().filter(i => !i.done);
+    const openShoppingNote = () => {
+      showQuickShoppingNoteModal({
+        onAdd: () => {
+          lastWxTab = 'shopping';
+          onRoute();
+        }
+      });
+    };
     if (!items.length) {
-      body.innerHTML = '<div class="wx-empty">🧺 买菜清单是空的</div>';
+      body.innerHTML = `
+        <div class="wx-empty wx-shopping-empty">
+          <span>🧺 还没有要买的东西</span>
+          <button type="button" class="wx-mini-btn" id="wxShoppingAddEmpty">记要买</button>
+        </div>
+      `;
+      body.querySelector('#wxShoppingAddEmpty').onclick = openShoppingNote;
       return;
     }
     const recent = items.slice(-3).reverse();
@@ -1330,8 +1344,13 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     body.appendChild(list);
     const foot = document.createElement('div');
     foot.className = 'wx-actions';
-    foot.innerHTML = `<span class="wx-count-note">共 ${items.length} 项待买</span><button type="button" class="wx-mini-btn">查看全部 ›</button>`;
-    foot.querySelector('button').onclick = () => showPendingShoppingModal({ onChange: () => switchTab('shopping') });
+    foot.innerHTML = `
+      <span class="wx-count-note">共 ${items.length} 项待买</span>
+      <button type="button" class="wx-mini-btn" id="wxShoppingAdd">记要买</button>
+      <button type="button" class="wx-mini-btn" id="wxShoppingAll">查看全部 ›</button>
+    `;
+    foot.querySelector('#wxShoppingAdd').onclick = openShoppingNote;
+    foot.querySelector('#wxShoppingAll').onclick = () => showPendingShoppingModal({ onChange: () => switchTab('shopping') });
     body.appendChild(foot);
   };
 
