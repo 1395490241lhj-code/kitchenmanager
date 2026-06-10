@@ -32,6 +32,7 @@ export const S = {
     recipe_activity: 'km_v2_recipe_activity',
     shopping_items: 'km_v87_shopping_items',
     staples: 'km_v1_staples',
-    pantry_config: 'km_v1_pantry_config'
+    pantry_config: 'km_v1_pantry_config',
+    prep_done: 'km_v1_prep_done'
   }
 };

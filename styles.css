@@ -8270,3 +8270,87 @@ html[data-theme="dark"] .shopping-weather-stockin { color: #9ecbff; border-color
   .sw-hero-num { font-size: 42px; }
   .shopping-weather-hero { padding: 18px 16px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  首页「明天备菜」玻璃卡（v164）—— 解冻/泡发/腌制提醒，延续 Weather-style。
+ * ══════════════════════════════════════════════════════════════════════════ */
+.tomorrow-prep-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+.tomorrow-prep-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tomorrow-prep-title { margin: 0; font-size: 15px; font-weight: 800; color: var(--text-main); }
+.tomorrow-prep-subtitle { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.tomorrow-prep-list { display: flex; flex-direction: column; gap: 8px; }
+.tomorrow-prep-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--glass-cell-fill);
+  border: 1px solid var(--glass-edge);
+}
+.tomorrow-prep-item.is-done { opacity: 0.62; }
+.tomorrow-prep-icon { flex: 0 0 auto; font-size: 20px; line-height: 1; }
+.tomorrow-prep-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tomorrow-prep-name { font-size: 14px; font-weight: 700; color: var(--text-main); }
+.tomorrow-prep-item.is-done .tomorrow-prep-name { color: var(--text-secondary); }
+.tomorrow-prep-detail { font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; }
+.tomorrow-prep-recipe { font-size: 11.5px; color: var(--text-secondary); opacity: 0.75; }
+.tomorrow-prep-action {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 122, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.12), rgba(0, 122, 255, 0.04)), var(--glass-control-fill);
+  color: var(--primary-dark);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.12s ease;
+}
+.tomorrow-prep-action:active { transform: scale(0.95); }
+html[data-theme="dark"] .tomorrow-prep-action { color: #9ecbff; border-color: rgba(10, 132, 255, 0.32); }
+.tomorrow-prep-state { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--status-ok-text); white-space: nowrap; }
+.tomorrow-prep-more { margin: 0; font-size: 12px; color: var(--text-secondary); text-align: center; }
+.tomorrow-prep-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 4px 2px 2px;
+}
+.tomorrow-prep-empty strong { font-size: 14px; font-weight: 700; color: var(--text-main); }
+.tomorrow-prep-empty span { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; }
+.tomorrow-prep-cta {
+  margin-top: 4px;
+  min-height: 34px;
+  padding: 7px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 122, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.12), rgba(0, 122, 255, 0.04)), var(--glass-control-fill);
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.tomorrow-prep-cta:active { transform: scale(0.96); }
+html[data-theme="dark"] .tomorrow-prep-cta { color: #9ecbff; border-color: rgba(10, 132, 255, 0.32); }

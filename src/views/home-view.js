@@ -13,6 +13,7 @@ import { showRecommendationCards } from '../components/recipe-card.js?v=219';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
+import { getTomorrowPrepTasks } from '../utils/prep-planner.js?v=219';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
 
 /*
@@ -1480,13 +1481,96 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
   return { el: section, refresh: () => switchTab(lastWxTab || defaultTab) };
 }
 
+// ── 明天备菜：根据明天计划自动提醒「今晚先解冻 / 泡发 / 腌制」的轻量玻璃卡 ──
+//    任务由 prep-planner 纯规则动态生成；完成状态记在 S.keys.prep_done（只存状态不存任务）。
+function renderTomorrowPrepCard(pack, inv, { onRoute = () => {} } = {}) {
+  const plan = S.load(S.keys.plan, []);
+  const { planCount, tasks } = getTomorrowPrepTasks({ pack, inv, plan, today: todayISO() });
+
+  const card = document.createElement('section');
+  card.className = 'tomorrow-prep-card glass-panel';
+
+  // 状态 A：明天没有计划 → 轻提示 + 「安排明天」
+  if (!planCount) {
+    card.innerHTML = `
+      <div class="tomorrow-prep-head">
+        <h3 class="tomorrow-prep-title">明天备菜</h3>
+      </div>
+      <div class="tomorrow-prep-empty">
+        <strong>还没安排明天吃什么</strong>
+        <span>安排一道明天的菜，这里会提醒你今晚要不要先解冻或泡发。</span>
+        <button type="button" class="tomorrow-prep-cta" id="prepGoRecipes">安排明天</button>
+      </div>
+    `;
+    card.querySelector('#prepGoRecipes').onclick = () => { location.hash = '#recipes'; };
+    return card;
+  }
+
+  // 状态 B：有计划但没有需要准备的事 → 安心文案
+  if (!tasks.length) {
+    card.innerHTML = `
+      <div class="tomorrow-prep-head">
+        <h3 class="tomorrow-prep-title">明天备菜</h3>
+      </div>
+      <div class="tomorrow-prep-empty">
+        <strong>明天的菜不用提前准备</strong>
+        <span>到时候直接做就行。</span>
+      </div>
+    `;
+    return card;
+  }
+
+  // 状态 C：有准备事项 → 未完成在前、已完成弱化在后，最多展示 4 条。
+  const doneMap = S.load(S.keys.prep_done, {}) || {};
+  const isDone = (t) => !!(doneMap[t.id] && doneMap[t.id].done);
+  const ordered = [...tasks.filter(t => !isDone(t)), ...tasks.filter(isDone)];
+  const shown = ordered.slice(0, 4);
+  const restCount = ordered.length - shown.length;
+  const openCount = tasks.filter(t => !isDone(t)).length;
+
+  card.innerHTML = `
+    <div class="tomorrow-prep-head">
+      <h3 class="tomorrow-prep-title">明天备菜</h3>
+      <span class="tomorrow-prep-subtitle">${openCount > 0 ? `今晚可以先准备 ${openCount} 件事` : '都准备好了'}</span>
+    </div>
+    <div class="tomorrow-prep-list"></div>
+    ${restCount > 0 ? `<p class="tomorrow-prep-more">还有 ${restCount} 件，可以明早再看</p>` : ''}
+  `;
+  const list = card.querySelector('.tomorrow-prep-list');
+  shown.forEach(task => {
+    const done = isDone(task);
+    const row = document.createElement('div');
+    row.className = `tomorrow-prep-item${done ? ' is-done' : ''}`;
+    row.innerHTML = `
+      <span class="tomorrow-prep-icon" aria-hidden="true">${task.icon}</span>
+      <span class="tomorrow-prep-main">
+        <span class="tomorrow-prep-name">${escapeHtml(task.title)}</span>
+        <span class="tomorrow-prep-detail">${escapeHtml(task.detail)}</span>
+        <span class="tomorrow-prep-recipe">来自：${escapeHtml(task.recipeName)}</span>
+      </span>
+      ${done
+        ? '<span class="tomorrow-prep-state">已准备</span>'
+        : '<button type="button" class="tomorrow-prep-action">完成</button>'}
+    `;
+    const doneBtn = row.querySelector('.tomorrow-prep-action');
+    if (doneBtn) doneBtn.onclick = () => {
+      const next = S.load(S.keys.prep_done, {}) || {};
+      next[task.id] = { done: true, doneAt: new Date().toISOString() };
+      S.save(S.keys.prep_done, next);
+      onRoute();
+    };
+    list.appendChild(row);
+  });
+  return card;
+}
+
 export function renderHome(pack, { onRoute = () => {} } = {}) {
   const container = document.createElement('div');
   container.className = 'today-view';
   const catalog = buildCatalog(pack);
   const inv = loadInventory(catalog);
 
-  // 空库存 → 友好的可行动空状态（引导录入）。
+  // 空库存 → 友好的可行动空状态（引导录入），此时不显示明天备菜卡。
   if (!hasUsableInventory(inv)) {
     container.appendChild(renderOnboarding(pack, { onRoute }));
     return container;
@@ -1494,11 +1578,13 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
 
   // Weather-style 层级：① 顶部固定主状态（不随 tab 变）
   //                    ② 单一 glass 主面板（计划/到期/待买/推荐 tab 切换）
-  //                    ③ 两个轻量胶囊快捷入口。
+  //                    ③ 明天备菜玻璃卡（解冻/泡发/腌制提醒）
+  //                    ④ 两个轻量胶囊快捷入口。
   const summaryStats = getTodaySummaryStats(pack, inv);
   container.appendChild(renderWxStatus(summaryStats));
   const panel = createWeatherPanel(pack, inv, { onRoute });
   container.appendChild(panel.el);
+  container.appendChild(renderTomorrowPrepCard(pack, inv, { onRoute }));
   container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));
 
   return container;
