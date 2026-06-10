@@ -1668,14 +1668,14 @@ nav {
   height: 64px;
   margin: 0 auto;
   border-radius: 24px !important;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.3) !important;
-  border-top: 1.5px solid rgba(255, 255, 255, 0.7) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.14) 100%) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.26) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.62) !important;
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.08),
-    inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
-  backdrop-filter: blur(20px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
+    0 10px 30px rgba(0, 0, 0, 0.07),
+    inset 0 1px 1px rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(22px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(150%) !important;
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -6117,11 +6117,11 @@ html[data-theme="dark"] div.small { color: var(--text-secondary); }
    使「手动深色」也能拿到黑曜石液态底座；并为「手动浅色」补亮色护栏。
    只覆盖 Dock 底座配色与图标盒子清除，不动定位和尺寸。 ── */
 html[data-theme="dark"] nav {
-  background: linear-gradient(135deg, rgba(30, 30, 35, 0.5) 0%, rgba(15, 15, 20, 0.2) 100%) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
-  border-top: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  background: linear-gradient(135deg, rgba(30, 30, 35, 0.42) 0%, rgba(15, 15, 20, 0.18) 100%) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.07) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.18) !important;
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.4),
+    0 10px 34px rgba(0, 0, 0, 0.36),
     inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
 }
 html[data-theme="dark"] nav a { color: rgba(235, 235, 245, 0.6); }
@@ -6130,12 +6130,12 @@ html[data-theme="dark"] nav a.active { color: var(--primary); }
 html[data-theme="dark"] nav a.active svg { stroke: var(--primary); }
 
 html[data-theme="light"] nav {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 100%) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.3) !important;
-  border-top: 1.5px solid rgba(255, 255, 255, 0.7) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.14) 100%) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.26) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.62) !important;
   box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.08),
-    inset 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+    0 10px 30px rgba(0, 0, 0, 0.07),
+    inset 0 1px 1px rgba(255, 255, 255, 0.45) !important;
 }
 html[data-theme="light"] nav a { color: #8e8e93; }
 html[data-theme="light"] nav a svg { background: none; border: none; box-shadow: none; }
@@ -6595,6 +6595,35 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
 
 /* ── ③ 快捷操作：两个轻量按钮（食材入库 / 购物清单），不再用大方块 ── */
 .today-quick-row { display: flex; gap: 10px; }
+.today-quick {
+  margin-top: -2px;
+}
+.today-quick-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 5px;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.28)),
+    var(--glass-panel-fill);
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  backdrop-filter: var(--glass-blur-control);
+  -webkit-backdrop-filter: var(--glass-blur-control);
+  box-shadow: 0 10px 26px rgba(16, 24, 40, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+.today-quick-row::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 50%;
+  width: 1px;
+  background: rgba(60, 60, 67, 0.10);
+  transform: translateX(-0.5px);
+  pointer-events: none;
+}
 .today-quick-btn {
   flex: 1 1 0;
   display: inline-flex;
@@ -6862,13 +6891,13 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
 .wx-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px 14px 16px;
+  gap: 12px;
+  padding: 16px 16px 18px;
 }
 .wx-tabs {
   display: flex;
   gap: 3px;
-  padding: 3px;
+  padding: 4px;
   border-radius: 999px;
   background: rgba(120, 120, 128, 0.10);
   border: none;
@@ -6900,10 +6929,10 @@ html[data-theme="dark"] .wx-tab.is-active {
 }
 /* 同一块内容区：min-height 让四个 tab 复用同一块空间时面板高度稳定不跳。 */
 .wx-body {
-  min-height: 190px;
+  min-height: 210px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 /* tab 内列表行 / 空态 / 动作行 / 小胶囊按钮 */
@@ -6947,7 +6976,7 @@ html[data-theme="dark"] .wx-tab.is-active {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: wrap;
 }
 .wx-count-note { margin-right: auto; font-size: 12px; color: var(--text-secondary); }
@@ -6955,8 +6984,8 @@ html[data-theme="dark"] .wx-tab.is-active {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 32px;
-  padding: 6px 13px;
+  min-height: 31px;
+  padding: 5px 12px;
   border-radius: 999px;
   border: 1px solid var(--glass-edge);
   background: var(--glass-control-fill);
@@ -7006,8 +7035,8 @@ html[data-theme="dark"] .wx-tab.is-active {
 .wx-rec-card .home-suggest-card {
   flex: 1 1 auto;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 6px;
+  gap: 7px;
+  padding: 6px 6px;
   background: transparent;
   border: none;
   border-left: none;
@@ -7015,7 +7044,7 @@ html[data-theme="dark"] .wx-tab.is-active {
   border-radius: 0;
 }
 .wx-rec-card .home-suggest-name {
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 800;
   letter-spacing: -0.4px;
   line-height: 1.2;
@@ -7024,10 +7053,10 @@ html[data-theme="dark"] .wx-tab.is-active {
 .wx-rec-card .home-suggest-match { font-size: 11px; padding: 3px 10px; opacity: 0.92; }
 /* 「做这道 / 补清单」：iOS 半透明蓝 tint pill，替代实心硬蓝。 */
 .wx-rec-card .home-suggest-cook {
-  align-self: flex-start;
-  margin-top: 8px;
-  min-height: 38px;
-  padding: 8px 24px;
+  align-self: center;
+  margin-top: 4px;
+  min-height: 34px;
+  padding: 7px 20px;
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(0, 122, 255, 0.15), rgba(0, 122, 255, 0.07)), var(--glass-control-fill);
   border: 1px solid rgba(0, 122, 255, 0.20);
@@ -7043,20 +7072,45 @@ html[data-theme="dark"] .wx-rec-card .home-suggest-cook {
   color: #9ecbff;
 }
 .wx-rec-note { margin: 0; font-size: 12px; color: var(--text-secondary); }
+.wx-rec-card ~ .wx-actions {
+  justify-content: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.wx-rec-card ~ .wx-actions .wx-mini-btn {
+  min-height: 30px;
+  padding: 5px 11px;
+  font-size: 12px;
+}
 
 /* 快捷入口：更通透的胶囊，阴影更柔，蓝色主入口不抢视觉。 */
 .today-quick-btn {
-  min-height: 46px;
+  min-height: 42px;
   border-radius: 999px;
   font-size: 13.5px;
   font-weight: 600;
-  background: var(--glass-cell-fill);
-  border-color: var(--glass-edge);
-  box-shadow: 0 3px 10px rgba(16, 24, 40, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 .today-quick-btn.is-primary {
-  background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(0, 122, 255, 0.03)), var(--glass-cell-fill);
-  border-color: rgba(0, 122, 255, 0.14);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.13), rgba(0, 122, 255, 0.045)), rgba(255, 255, 255, 0.34);
+  border-color: rgba(0, 122, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+html[data-theme="dark"] .today-quick-row {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(28, 28, 30, 0.54);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+html[data-theme="dark"] .today-quick-row::after {
+  background: rgba(255, 255, 255, 0.10);
+}
+html[data-theme="dark"] .today-quick-btn {
+  background: transparent;
+  border-color: transparent;
 }
 html[data-theme="dark"] .today-quick-btn.is-primary {
   background: linear-gradient(135deg, rgba(10, 132, 255, 0.16), rgba(10, 132, 255, 0.06)), var(--glass-cell-fill);
@@ -7064,11 +7118,11 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
 }
 
 /* 信息流间距：状态区 → 面板 → 快捷入口，略收紧成一条连续流。 */
-.today-view { gap: 14px; }
+.today-view { gap: 13px; }
 
 /* 桌面：保持天气页式的单列重心，不让面板被拉成超宽横向表单。 */
 @media (min-width: 700px) {
-  .today-view { max-width: 640px; margin: 0 auto; }
+  .today-view { max-width: 740px; margin: 0 auto; }
 }
 
 @media (max-width: 390px) {
@@ -7078,6 +7132,31 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
 /* 移动端：把留白移进面板内部——面板长高成为主视觉体（像天气页主面板），
    页面级空白随之减少；footer 行靠 margin-top:auto 沉到面板底部。 */
 @media (max-width: 480px) {
-  .wx-status { padding-top: 16px; }
-  .wx-body { min-height: 252px; }
+  .today-view { gap: 12px; }
+  .wx-status { padding-top: 12px; }
+  .wx-panel {
+    min-height: 480px;
+    padding: 15px 14px 16px;
+  }
+  .wx-body { min-height: 380px; }
+  .wx-empty { padding: 24px 8px; }
+  .today-quick {
+    margin-top: -1px;
+    margin-bottom: 0;
+  }
+  .today-quick-row {
+    gap: 0;
+    padding: 4px;
+  }
+  .today-quick-btn {
+    min-height: 42px;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .wx-rec-card .home-suggest-card { gap: 6px; padding: 4px 4px; }
+  .wx-rec-card .home-suggest-name { font-size: 22px; }
+  .wx-rec-card .home-suggest-cook {
+    min-height: 33px;
+    padding: 7px 18px;
+  }
 }
