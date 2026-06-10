@@ -12,6 +12,7 @@ import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import { computeCookDeductions, applyCookCalibration } from '../inventory.js?v=219';
 import { showCalibrationModal } from './modal.js?v=219';
 import { escapeHtml } from './status.js?v=219';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from './cook-feedback.js?v=219';
 
 let currentPlanRange = 'today';
 export function getPlanRange() { return currentPlanRange; }
@@ -196,15 +197,23 @@ function cookPlans(targets, pack, inv, { onRoute = () => {}, title } = {}) {
   const predictions = computeCookDeductions(aggregateScaledItems(targets, pack), inv);
   if (!predictions.length) {
     markPlansCooked(targets);
-    createMenuPlanToast('✓ 已记录做完');
-    onRoute();
+    showCookCompleteFeedback({
+      updated: false,
+      onClose: onRoute,
+      onShoppingAdded: onRoute
+    });
     return;
   }
   showCalibrationModal(heading, predictions, (calibrations) => {
+    const candidates = getCookShoppingCandidates({ calibrations });
     applyCookCalibration(inv, calibrations);
     markPlansCooked(targets);
-    createMenuPlanToast(targets.length > 1 ? `✓ ${targets.length} 道菜已更新冰箱` : '✓ 冰箱已更新');
-    onRoute();
+    showCookCompleteFeedback({
+      updated: true,
+      candidates,
+      onClose: onRoute,
+      onShoppingAdded: onRoute
+    });
   }, () => {});
 }
 

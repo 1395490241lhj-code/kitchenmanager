@@ -160,16 +160,34 @@ function renderSuggestCard(card, pack, inv) {
     <p class="home-suggest-reason">${escapeHtml(card.reason || '')}</p>
     ${missingTag}
     <button type="button" class="btn ok small home-suggest-cook">${card.tone === 'almost' ? '加入买菜' : '做这道'}</button>
+    <div class="home-suggest-feedback" hidden></div>
   `;
   const cookBtn = el.querySelector('.home-suggest-cook');
+  const feedback = el.querySelector('.home-suggest-feedback');
+  const showPlanFeedback = (text) => {
+    feedback.hidden = false;
+    feedback.innerHTML = `<span>${escapeHtml(text)}</span><button type="button" class="home-suggest-go-plan">去今日看看</button>`;
+    feedback.querySelector('.home-suggest-go-plan').onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      lastWxTab = 'plan';
+      const planTab = document.querySelector('.wx-tab[data-tab="plan"]');
+      if ((location.hash === '#today' || !location.hash) && planTab) {
+        planTab.click();
+      } else {
+        location.hash = '#today';
+      }
+    };
+  };
   cookBtn.onclick = () => {
     if (!card.id) { brieflyConfirmButton(cookBtn, '示例'); return; }
     if (card.tone === 'almost' && card.row) {
       const count = addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list);
       brieflyConfirmButton(cookBtn, count ? '已加入买菜' : '已齐');
     } else {
-      addRecipeToPlan(card.id);
-      brieflyConfirmButton(cookBtn, '已加入');
+      const added = addRecipeToPlan(card.id);
+      brieflyConfirmButton(cookBtn, added ? '已加入今天' : '已在今天');
+      showPlanFeedback(added ? '已加入今天，做完后会帮你更新食材。' : '今天已经安排了这道菜。');
     }
   };
   if (card.id) {

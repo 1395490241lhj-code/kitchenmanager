@@ -16,6 +16,7 @@ import {
 import { loadOverlay, saveOverlay } from '../backup.js?v=219';
 import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=219';
 import { showCalibrationModal } from '../components/modal.js?v=219';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=219';
 import { splitMethodSteps } from '../utils/method-steps.js?v=219';
 
 // 把做法字符串渲染成 glass 分步列表（每步 escapeHtml；无步骤时返回空串，由调用方兜底）。
@@ -131,9 +132,15 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已安排在菜单计划' : '先加入菜单计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可选择同步食材余量。</p></div><div class="recipe-action-buttons"><div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; width: 100%;"><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planToday" ${isPlannedToday ? 'disabled' : ''}>${isPlannedToday ? '今天已计划' : '计划今天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planTomorrow" ${isPlannedTomorrow ? 'disabled' : ''}>${isPlannedTomorrow ? '明天已计划' : '计划明天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planDayAfter" ${isPlannedDayAfter ? 'disabled' : ''}>${isPlannedDayAfter ? '后天已计划' : '计划后天'}</button></div><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入买菜' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div>${foodBlock}${seasoningBlock}<section class="block method-glass glass-panel"><h4 class="method-glass-title">制作方法 Method</h4><div id="methodArea">${methodContent}</div></section>`;
 
   const actionFeedback = div.querySelector('#recipeActionFeedback');
-  const showActionFeedback = (text) => {
-    actionFeedback.hidden = false; actionFeedback.textContent = text;
-    window.setTimeout(() => { actionFeedback.hidden = true; }, 1800);
+  const showActionFeedback = (text, { actionLabel = '', onAction = null, autoHide = true } = {}) => {
+    actionFeedback.hidden = false;
+    if (actionLabel && typeof onAction === 'function') {
+      actionFeedback.innerHTML = `<span>${escapeHtml(text)}</span><button type="button" class="recipe-feedback-link">${escapeHtml(actionLabel)}</button>`;
+      actionFeedback.querySelector('.recipe-feedback-link').onclick = onAction;
+    } else {
+      actionFeedback.textContent = text;
+    }
+    if (autoHide) window.setTimeout(() => { actionFeedback.hidden = true; }, 1800);
   };
 
   const bindPlanBtn = (btnId, dateStr, successMsg, labelActive) => {
@@ -144,7 +151,11 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
         if (added) {
           btn.textContent = labelActive;
           btn.disabled = true;
-          showActionFeedback(successMsg);
+          showActionFeedback(successMsg, dateStr === today ? {
+            actionLabel: '去今日看看',
+            autoHide: false,
+            onAction: () => { location.hash = '#today'; }
+          } : {});
           if (typeof onRoute === 'function') {
             setTimeout(onRoute, 1000);
           }
@@ -153,7 +164,7 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
     }
   };
 
-  bindPlanBtn('#planToday', today, '已加入今天的计划。', '今天已计划');
+  bindPlanBtn('#planToday', today, '已加入今天，做完后会帮你更新食材。', '今天已计划');
   bindPlanBtn('#planTomorrow', tomorrowISO, '已加入明天的计划。', '明天已计划');
   bindPlanBtn('#planDayAfter', dayAfterISO, '已加入后天的计划。', '后天已计划');
 
@@ -173,11 +184,14 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
 
     // 没有任何匹配库存 → 直接记录做完，不弹校准舱。
     if (!predictions.length) {
-      const result = markRecipeCooked(id);
+      markRecipeCooked(id);
       brieflyConfirmButton(cookedBtn, '已记录');
-      showActionFeedback(result.removedFromPlan ? '已记录做完，并从今日计划移除。' : '已记录做完。');
       cookedBtn.disabled = false;
-      if (typeof onRoute === 'function') setTimeout(onRoute, 1000);
+      showCookCompleteFeedback({
+        updated: false,
+        onClose: () => { if (typeof onRoute === 'function') onRoute(); },
+        onShoppingAdded: () => { if (typeof onRoute === 'function') onRoute(); }
+      });
       return;
     }
 
@@ -186,16 +200,17 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
       predictions,
       // onConfirm: 写入校准后的库存 + 记录做完
       (calibrations) => {
+        const candidates = getCookShoppingCandidates({ calibrations });
         applyCookCalibration(inv, calibrations);
-        const summary = calibrations.map(c => c.unitType === 'PIECE'
-          ? `${c.name}→${c.finalQty}`
-          : `${c.name}→${({100:'充足',75:'大半',50:'一半',25:'见底',0:'断货'})[c.finalGear] || ''}`
-        ).join('、');
-        const result = markRecipeCooked(id);
+        markRecipeCooked(id);
         brieflyConfirmButton(cookedBtn, '已更新');
-        showActionFeedback(`冰箱已更新：${summary}。${result.removedFromPlan ? '已从今日计划移除。' : ''}`);
         cookedBtn.disabled = false;
-        if (typeof onRoute === 'function') setTimeout(onRoute, 1000);
+        showCookCompleteFeedback({
+          updated: true,
+          candidates,
+          onClose: () => { if (typeof onRoute === 'function') onRoute(); },
+          onShoppingAdded: () => { if (typeof onRoute === 'function') onRoute(); }
+        });
       },
       // onCancel
       () => { cookedBtn.disabled = false; }

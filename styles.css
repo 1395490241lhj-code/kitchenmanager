@@ -1594,6 +1594,10 @@ html[data-theme="dark"] .shopping-remark-input:focus { background: rgba(0, 0, 0,
   min-width: 0;
 }
 .recipe-action-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   flex-basis: 100%;
   width: 100%;
   padding: 9px 12px;
@@ -3546,6 +3550,35 @@ nav a:active { transform: scale(0.94); }
   padding: 1px 7px;
 }
 .home-suggest-cook { align-self: flex-start; margin-top: 4px; }
+.home-suggest-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--status-ok-border);
+  background: var(--status-ok-bg);
+  color: var(--status-ok-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.home-suggest-feedback[hidden] { display: none; }
+.home-suggest-go-plan,
+.recipe-feedback-link {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.58);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.home-suggest-go-plan:active,
+.recipe-feedback-link:active { transform: scale(0.96); }
 
 /* ── Section 2：紧急指标 / 雷达（2 列） ── */
 .home-metrics {
@@ -5443,6 +5476,58 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 }
 .km-modal-actions .km-modal-ai-btn:hover {
   filter: brightness(1.05);
+}
+
+.cook-feedback-modal {
+  max-width: 360px;
+}
+.cook-feedback-body {
+  padding-top: 4px;
+}
+.cook-feedback-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 10px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  font-size: 25px;
+}
+.cook-feedback-copy {
+  display: grid;
+  gap: 7px;
+  text-align: center;
+  color: var(--text-main);
+}
+.cook-feedback-copy p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.cook-feedback-restock {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.cook-feedback-restock span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  max-width: 100%;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--status-warn-bg);
+  color: var(--status-warn-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+.cook-feedback-restock small {
+  font-size: 10px;
+  opacity: 0.76;
 }
 
 /* ── 菜谱快速详情弹窗（recipe-quick-modal） ── */
