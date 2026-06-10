@@ -7036,6 +7036,19 @@ html[data-theme="dark"] .wx-tab.is-active {
   line-height: 1.6;
   color: var(--text-secondary);
 }
+.wx-rec-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.wx-rec-empty strong {
+  font-size: 14px;
+  color: var(--text-main);
+}
+.wx-empty-actions {
+  justify-content: center;
+  margin-top: 4px;
+}
 .wx-actions {
   margin-top: auto;
   display: flex;

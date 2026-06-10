@@ -1174,7 +1174,9 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
   const section = document.createElement('section');
   section.className = 'wx-status';
   const greeting = buildGreeting(expiringCount).split('！')[0]; // 「🌆 晚上好」——复用现有问候逻辑
-  const title = planCount > 0 ? `今天计划了 ${planCount} 道菜` : '今天还没决定吃什么';
+  const title = recommendationCount > 0
+    ? `今晚可以做 ${recommendationCount} 道菜`
+    : (planCount > 0 ? `今天计划了 ${planCount} 道菜` : '今天还没决定吃什么');
   const stats = [
     ['plan', '计划', planCount],
     ['expiry', '临期', expiringCount],
@@ -1278,8 +1280,8 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const empty = planNode.querySelector('.menu-plan-empty');
     if (empty) {
       empty.innerHTML = `
-        <span class="plan-empty-line">还没有加入今日计划，可以从推荐里挑一道</span>
-        <button type="button" class="wx-mini-btn" id="wxGoRecs">✨ 看推荐</button>
+        <span class="plan-empty-line">还没有安排今天吃什么</span>
+        <button type="button" class="wx-mini-btn" id="wxGoRecs">✨ 看看推荐</button>
       `;
       empty.querySelector('#wxGoRecs').onclick = () => switchTab('recs');
     }
@@ -1342,7 +1344,18 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const cardWrap = document.createElement('div');
     cardWrap.className = 'wx-rec-card';
     if (!cards.length) {
-      cardWrap.innerHTML = '<div class="wx-empty">还没有匹配到现在能做的菜<br>库存多录几样，这里就会出现推荐</div>';
+      cardWrap.innerHTML = `
+        <div class="wx-empty wx-rec-empty">
+          <strong>还没匹配到能直接做的菜</strong>
+          <span>再记几样常见食材，比如鸡蛋、番茄、土豆、豆腐，就能开始推荐。</span>
+          <div class="wx-actions wx-empty-actions">
+            <button type="button" class="wx-mini-btn" id="wxRecAddFood">继续记食材</button>
+            <button type="button" class="wx-mini-btn" id="wxRecGoRecipes">去菜谱看看</button>
+          </div>
+        </div>
+      `;
+      cardWrap.querySelector('#wxRecAddFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
+      cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
     } else if (mode === 'ai') {
       showRecommendationCards(cardWrap, [cards[idx]], pack, { onRoute });
     } else {
@@ -1433,8 +1446,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
   };
   section.querySelectorAll('.wx-tab').forEach(t => { t.onclick = () => switchTab(t.dataset.tab); });
 
-  // 默认 tab：有今日计划→计划；无计划但有推荐→推荐；否则计划。重渲染时记住上次所在 tab。
-  const defaultTab = getTodayPlanCount() > 0 ? 'plan' : (getInspirationCards(pack, inv).length > 0 ? 'recs' : 'plan');
+  // 默认 tab：优先回答“今晚能做什么”；手动切过 tab 时仍尊重 lastWxTab。
+  const defaultRecCount = getInspirationCards(pack, inv).length;
+  const defaultPlanCount = getTodayPlanCount();
+  const defaultTab = defaultRecCount > 0 ? 'recs' : (defaultPlanCount > 0 ? 'plan' : 'plan');
   switchTab(lastWxTab || defaultTab);
 
   return { el: section, refresh: () => switchTab(lastWxTab || defaultTab) };
