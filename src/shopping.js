@@ -268,6 +268,39 @@ export function groupShoppingItemsBySource(items) {
   return groups.filter(group => group.items.length);
 }
 
+export const SHOPPING_ZONE_ORDER = ['蔬菜水果', '肉蛋奶', '水产海鲜', '豆制品', '主食干货', '调料常备', '其他'];
+
+const SHOPPING_ZONE_RULES = [
+  ['蔬菜水果', ['青菜', '生菜', '白菜', '包菜', '菠菜', '芹菜', '西兰花', '黄瓜', '番茄', '西红柿', '土豆', '茄子', '豆角', '胡萝卜', '萝卜', '洋葱', '葱', '姜', '蒜', '苹果', '香蕉', '橙', '水果']],
+  ['肉蛋奶', ['猪肉', '牛肉', '羊肉', '鸡肉', '鸡翅', '鸡腿', '肉丝', '肉片', '鸡蛋', '蛋', '牛奶', '酸奶', '奶酪']],
+  ['水产海鲜', ['鱼', '虾', '贝', '蟹', '鱿鱼', '三文鱼', '海鲜']],
+  ['豆制品', ['豆腐', '豆皮', '豆干', '腐竹', '豆芽']],
+  ['主食干货', ['米', '面', '面条', '粉', '粉丝', '饺子', '馄饨', '面包', '馒头', '粥', '燕麦']],
+  ['调料常备', ['盐', '糖', '生抽', '老抽', '酱油', '醋', '料酒', '蚝油', '豆瓣酱', '辣椒', '花椒', '胡椒', '香油', '油', '调料', '酱']]
+];
+
+export function getShoppingZone(name) {
+  const raw = String(name || '').trim();
+  if (!raw) return '其他';
+  const canonical = getCanonicalName(raw) || raw;
+  const text = `${canonical} ${raw}`;
+  const match = SHOPPING_ZONE_RULES.find(([, keywords]) => keywords.some(keyword => text.includes(keyword)));
+  return match ? match[0] : '其他';
+}
+
+export function groupShoppingItemsByZone(items) {
+  const groups = SHOPPING_ZONE_ORDER.map(label => ({ label, items: [] }));
+  for (const item of items || []) {
+    const label = getShoppingZone(item && item.name);
+    const group = groups.find(g => g.label === label) || groups[groups.length - 1];
+    group.items.push(item);
+  }
+  groups.forEach(group => {
+    group.items.sort((a, b) => Number(!!a.done) - Number(!!b.done));
+  });
+  return groups.filter(group => group.items.length);
+}
+
 function formatShoppingLine(item, sourceOverride = '') {
   const amount = amountText(item.qty, item.unit);
   const source = sourceOverride || item.source || (item.sources || []).join('、');

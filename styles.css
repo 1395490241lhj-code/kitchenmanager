@@ -7500,3 +7500,235 @@ html[data-theme="dark"] .recipe-scene-chip.is-active {
 }
 .recipe-more-toggle:hover { color: var(--text-main); }
 .recipe-full-section { margin-top: 6px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  买菜页超市模式：一手勾选、按区域找货、已买弱化但不消失。
+ * ══════════════════════════════════════════════════════════════════════════ */
+.shopping-mode-switch {
+  display: inline-flex;
+  gap: 3px;
+  margin: -4px 0 12px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--glass-cell-fill);
+  border: 1px solid var(--glass-edge);
+}
+.shopping-mode-switch button {
+  min-width: 70px;
+  min-height: 32px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.shopping-mode-switch button.active {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.07);
+}
+html[data-theme="dark"] .shopping-mode-switch button.active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.shopping-market {
+  display: grid;
+  gap: 12px;
+}
+.shopping-market-head {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 22px;
+  background: var(--glass-fill-strong);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-sm);
+}
+.shopping-market-head h3 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+  color: var(--text-main);
+}
+.shopping-market-head p {
+  margin: 5px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.shopping-market-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.shopping-market-actions .shopping-tool-btn {
+  min-height: 34px;
+}
+.shopping-market-add {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 18px;
+  background: var(--surface-card);
+  border: 1px solid var(--glass-edge);
+}
+.shopping-market-add input {
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 15px;
+  outline: none;
+}
+.shopping-market-stock-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--status-info-bg);
+  color: var(--status-info-text);
+  border: 1px solid var(--status-info-border);
+  font-size: 13px;
+  font-weight: 700;
+}
+.shopping-market-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 28px 18px;
+  text-align: center;
+  border-radius: 22px;
+  background: var(--surface-card);
+  border: 1px dashed var(--glass-edge);
+}
+.shopping-market-empty strong {
+  font-size: 18px;
+  color: var(--text-main);
+}
+.shopping-market-empty span {
+  max-width: 280px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.shopping-market-list {
+  display: grid;
+  gap: 14px;
+}
+.shopping-market-zone {
+  display: grid;
+  gap: 7px;
+}
+.shopping-market-zone-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+}
+.shopping-market-zone-title small {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.72;
+}
+.shopping-market-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 60px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 18px;
+  background: var(--surface-card);
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.shopping-market-row:active {
+  transform: scale(0.985);
+}
+.shopping-market-check {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 2px solid rgba(0, 122, 255, 0.36);
+  background: rgba(0, 122, 255, 0.07);
+  color: var(--primary-dark);
+  font-size: 16px;
+  font-weight: 900;
+}
+.shopping-market-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.shopping-market-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 800;
+}
+.shopping-market-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.shopping-market-done {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--status-ok-bg);
+  color: var(--status-ok-text);
+  font-size: 11px;
+  font-weight: 800;
+}
+.shopping-market-row.is-done {
+  opacity: 0.58;
+  background: var(--surface-cell);
+}
+.shopping-market-row.is-done .shopping-market-name {
+  text-decoration: line-through;
+}
+
+@media (min-width: 720px) {
+  .shopping-market-head {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+  .shopping-market-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 420px) {
+  .shopping-mode-switch {
+    width: 100%;
+  }
+  .shopping-mode-switch button {
+    flex: 1 1 0;
+  }
+  .shopping-market-stock-hint {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
