@@ -127,10 +127,12 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const doneItems = visibleItems.filter(item => item.done);
   const unstockedDoneItems = doneItems.filter(item => !item.stockedIn);
 
+  // Weather-style 纵向页面：大标题 → 玻璃主状态卡 → 胶囊快速添加 → 入厨提示卡 →
+  // 分区玻璃卡（单列）→ 最近完成 → 底部轻浮动操作（随内容滚动，不遮底部导航）。
   const page = document.createElement('div');
-  page.className = 'shopping-page shopping-unified';
+  page.className = 'shopping-weather-page';
   page.innerHTML = `
-    <h2 class="section-title">买菜清单</h2>
+    <h2 class="shopping-weather-title">买菜清单</h2>
     <div id="shoppingStatus" class="inline-status" hidden></div>
   `;
   const status = page.querySelector('#shoppingStatus');
@@ -201,29 +203,29 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     onRoute();
   };
 
-  const summary = document.createElement('section');
-  summary.className = 'shopping-summary-card';
-  summary.innerHTML = `
-    <div class="shopping-summary-copy">
-      <h3>今天要买 ${openItems.length} 样</h3>
-      <p>买到就点一下，买完可以顺手记进厨房。</p>
+  // 顶部主状态卡：大数字 + 副文案 + 三个小统计（复制/全部已买/清除已买移到底部轻浮动操作）。
+  const hero = document.createElement('section');
+  hero.className = 'shopping-weather-hero';
+  hero.innerHTML = `
+    <div class="sw-hero-main">
+      <span class="sw-hero-eyebrow">今天要买</span>
+      <span class="sw-hero-num">${openItems.length}<small>样</small></span>
+      <p class="sw-hero-sub">买到就点一下，买完顺手记进厨房。</p>
     </div>
-    <div class="shopping-summary-actions">
-      <button type="button" class="shopping-tool-btn" id="copyOpenShopping">复制未买</button>
-      <button type="button" class="shopping-tool-btn" id="markAllDone">全部标记已买</button>
-      <button type="button" class="shopping-tool-btn shopping-clear-btn" id="clearDone">清除已买</button>
+    <div class="sw-hero-stats">
+      <span class="sw-hero-stat">未买 <strong>${openItems.length}</strong></span>
+      <span class="sw-hero-stat">已买 <strong>${doneItems.length}</strong></span>
+      <span class="sw-hero-stat">待入厨 <strong>${unstockedDoneItems.length}</strong></span>
     </div>
   `;
-  summary.querySelector('#copyOpenShopping').onclick = copyOpenItems;
-  summary.querySelector('#markAllDone').onclick = markEveryOpenItemDone;
-  summary.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
-  page.appendChild(summary);
+  page.appendChild(hero);
 
-  const quickAdd = document.createElement('div');
-  quickAdd.className = 'shopping-quick-add';
+  // 快速添加：半透明胶囊输入框，「加入」贴右侧。
+  const quickAdd = document.createElement('section');
+  quickAdd.className = 'shopping-weather-add';
   quickAdd.innerHTML = `
     <input id="shoppingQuickAddName" type="text" placeholder="临时加点什么">
-    <button type="button" class="btn ok small" id="shoppingQuickAddBtn">加入</button>
+    <button type="button" class="sw-add-btn" id="shoppingQuickAddBtn">加入</button>
   `;
   const quickInput = quickAdd.querySelector('#shoppingQuickAddName');
   const addQuickItem = () => {
@@ -238,23 +240,22 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   };
   page.appendChild(quickAdd);
 
+  // 待入厨提示卡：轻柔玻璃提示（不是警告），放在快速添加下、分区列表上。
   if (unstockedDoneItems.length) {
-    const banner = document.createElement('div');
-    banner.className = 'shopping-stockin-banner';
+    const banner = document.createElement('section');
+    banner.className = 'shopping-stockin-banner sw-tip-card';
     banner.innerHTML = `
-      <span>有 ${unstockedDoneItems.length} 样买完还没记进厨房</span>
-      <button type="button" class="shopping-tool-btn shopping-tool-ok" id="batchStockIn">全部记进厨房</button>
+      <span class="sw-tip-text">有 ${unstockedDoneItems.length} 样买完还没记进厨房</span>
+      <button type="button" class="sw-tip-btn" id="batchStockIn">全部记进厨房</button>
     `;
     banner.querySelector('#batchStockIn').onclick = () => startBatchStockIn(unstockedDoneItems, 0);
     page.appendChild(banner);
   }
 
-  const list = document.createElement('div');
-  list.className = 'shopping-unified-list';
-
-  const renderUnifiedRow = (item) => {
+  // iOS 天气式列表行：大圆形勾选 + 名称/备注 + 右侧弱化动作；整行可点切换已买。
+  const renderWeatherRow = (item) => {
     const row = document.createElement('div');
-    row.className = `shopping-unified-row${item.done ? ' is-done' : ''}${item.stockedIn ? ' is-stocked' : ''}`;
+    row.className = `shopping-weather-row${item.done ? ' is-done' : ''}${item.stockedIn ? ' is-stocked' : ''}`;
     row.setAttribute('role', 'button');
     row.setAttribute('tabindex', '0');
     row.setAttribute('aria-pressed', item.done ? 'true' : 'false');
@@ -264,16 +265,16 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     ].filter(Boolean);
     const actionHtml = item.done
       ? item.stockedIn
-        ? '<span class="shopping-unified-state">已记进厨房</span>'
-        : '<span class="shopping-unified-state is-bought">已买</span><button type="button" class="shopping-unified-stock">记进厨房</button>'
-      : '<button type="button" class="shopping-unified-delete" aria-label="删除">删</button>';
+        ? '<span class="sw-state-stocked">已记进厨房</span>'
+        : '<button type="button" class="shopping-weather-stockin">记进厨房</button>'
+      : '<button type="button" class="sw-row-delete" aria-label="删除">✕</button>';
     row.innerHTML = `
-      <span class="shopping-unified-check" aria-hidden="true">${item.done ? '✓' : ''}</span>
-      <span class="shopping-unified-main">
-        <span class="shopping-unified-name">${escapeHtml(item.name)}</span>
-        <span class="shopping-unified-meta">${escapeHtml(metaParts.join(' · ') || '按需')}</span>
+      <span class="shopping-weather-check" aria-hidden="true">${item.done ? '✓' : ''}</span>
+      <span class="shopping-weather-main">
+        <span class="shopping-weather-name">${escapeHtml(item.name)}</span>
+        <span class="shopping-weather-meta">${escapeHtml(metaParts.join(' · ') || '按需')}</span>
       </span>
-      <span class="shopping-unified-actions">${actionHtml}</span>
+      <span class="shopping-weather-row-actions">${actionHtml}</span>
     `;
     row.onclick = () => toggleItemDone(item);
     row.onkeydown = event => {
@@ -281,49 +282,67 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       event.preventDefault();
       toggleItemDone(item);
     };
-    row.querySelector('.shopping-unified-delete')?.addEventListener('click', event => {
+    row.querySelector('.sw-row-delete')?.addEventListener('click', event => {
       event.stopPropagation();
       deleteShoppingRowsByIds(getShoppingRowIds(item));
       onRoute();
     });
-    row.querySelector('.shopping-unified-stock')?.addEventListener('click', event => {
+    row.querySelector('.shopping-weather-stockin')?.addEventListener('click', event => {
       event.stopPropagation();
       stockInOne(item);
     });
     return row;
   };
 
-  const renderZone = (title, items, isDoneSection = false) => {
-    const section = document.createElement('section');
-    section.className = `shopping-zone-section${isDoneSection ? ' is-completed' : ''}`;
-    section.innerHTML = `
-      <div class="shopping-zone-title">
-        <span>${escapeHtml(title)}</span>
-        <small>${items.length}</small>
+  // 分区玻璃卡：标题行（分区名 + N 未买）+ 行列表；最近完成单独一张、整体更弱。
+  const renderZoneCard = (title, items, { completed = false } = {}) => {
+    const card = document.createElement('section');
+    card.className = `shopping-weather-zone${completed ? ' shopping-weather-completed' : ''}`;
+    card.innerHTML = `
+      <div class="shopping-weather-zone-head">
+        <span class="sw-zone-label">${escapeHtml(title)}</span>
+        <span class="shopping-weather-zone-count">${items.length}${completed ? '' : ' 未买'}</span>
       </div>
+      ${completed ? '<p class="sw-zone-sub">买完后可以在这里记进厨房。</p>' : ''}
     `;
-    items.forEach(item => section.appendChild(renderUnifiedRow(item)));
-    return section;
+    items.forEach(item => card.appendChild(renderWeatherRow(item)));
+    return card;
   };
 
   if (!visibleItems.length) {
-    const empty = document.createElement('div');
-    empty.className = 'shopping-unified-empty';
+    // 空状态：大玻璃卡。
+    const empty = document.createElement('section');
+    empty.className = 'shopping-weather-empty';
     empty.innerHTML = `
       <strong>买菜清单是空的</strong>
       <span>可以从推荐菜谱、做完补货，或者首页待买里添加。</span>
-      <button type="button" class="btn" id="shoppingGoToday">回首页看看</button>
+      <button type="button" class="sw-action-pill" id="shoppingGoToday">回首页看看</button>
     `;
     empty.querySelector('#shoppingGoToday').onclick = () => { location.hash = '#today'; };
-    list.appendChild(empty);
+    page.appendChild(empty);
   } else {
+    const zones = document.createElement('section');
+    zones.className = 'shopping-weather-zones';
     groupShoppingItemsByZone(openItems).forEach(group => {
-      list.appendChild(renderZone(group.label, group.items));
+      if (!group.items.length) return; // 空分区不显示
+      zones.appendChild(renderZoneCard(group.label, group.items));
     });
-    if (doneItems.length) list.appendChild(renderZone('最近完成', doneItems, true));
-  }
+    page.appendChild(zones);
+    if (doneItems.length) page.appendChild(renderZoneCard('最近完成', doneItems, { completed: true }));
 
-  page.appendChild(list);
+    // 底部轻浮动操作条：随内容滚动（不 fixed，避免遮底部导航）；清除已买弱化。
+    const actions = document.createElement('div');
+    actions.className = 'shopping-floating-actions';
+    actions.innerHTML = `
+      <button type="button" class="sw-action-pill" id="copyOpenShopping">复制未买</button>
+      <button type="button" class="sw-action-pill" id="markAllDone">全部已买</button>
+      <button type="button" class="sw-action-pill sw-action-weak" id="clearDone">清除已买</button>
+    `;
+    actions.querySelector('#copyOpenShopping').onclick = copyOpenItems;
+    actions.querySelector('#markAllDone').onclick = markEveryOpenItemDone;
+    actions.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
+    page.appendChild(actions);
+  }
 
   return page;
 }

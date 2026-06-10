@@ -7985,3 +7985,288 @@ html[data-theme="dark"] .shopping-mode-switch button.active {
     justify-self: start;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  买菜页 Weather-style（v163）—— 大标题 + 玻璃主状态卡 + 胶囊输入 + 单列分区玻璃卡
+ *  + 大圆勾选行 + 底部轻浮动操作。全部命名空间化，不影响其他页面。
+ * ══════════════════════════════════════════════════════════════════════════ */
+.shopping-weather-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+.shopping-weather-title {
+  margin: 6px 2px 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  color: var(--text-main);
+}
+
+/* 主状态卡 */
+.shopping-weather-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 26px;
+  background: var(--glass-panel-fill);
+  backdrop-filter: var(--glass-blur-panel);
+  -webkit-backdrop-filter: var(--glass-blur-panel);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 14px 36px rgba(16, 24, 40, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+.sw-hero-main { display: flex; flex-direction: column; gap: 4px; }
+.sw-hero-eyebrow { font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+.sw-hero-num { font-size: 46px; font-weight: 800; line-height: 1.05; letter-spacing: -1px; color: var(--text-main); }
+.sw-hero-num small { font-size: 16px; font-weight: 700; margin-left: 6px; color: var(--text-secondary); letter-spacing: 0; }
+.sw-hero-sub { margin: 2px 0 0; font-size: 13px; color: var(--text-secondary); }
+.sw-hero-stats { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw-hero-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--glass-cell-fill);
+  border: 1px solid var(--glass-edge);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.sw-hero-stat strong { color: var(--text-main); font-weight: 800; }
+
+/* 胶囊快速添加 */
+.shopping-weather-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: var(--glass-cell-fill);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+  border: 1px solid var(--glass-edge);
+}
+.shopping-weather-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 15px;
+  color: var(--text-main);
+  padding: 8px 0;
+}
+.shopping-weather-add input::placeholder { color: var(--text-secondary); opacity: 0.8; }
+.sw-add-btn {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.sw-add-btn:active { transform: scale(0.96); }
+
+/* 待入厨提示卡（压过旧 .shopping-stockin-banner 样式，含其移动端 column 覆盖） */
+.shopping-weather-page .shopping-stockin-banner.sw-tip-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.09), rgba(0, 122, 255, 0.03)), var(--glass-cell-fill);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+  border: 1px solid rgba(0, 122, 255, 0.16);
+  box-shadow: none;
+}
+.sw-tip-text { font-size: 13px; font-weight: 600; color: var(--text-main); }
+.sw-tip-btn {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 122, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.13), rgba(0, 122, 255, 0.05)), var(--glass-control-fill);
+  color: var(--primary-dark);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+html[data-theme="dark"] .sw-tip-btn { color: #9ecbff; border-color: rgba(10, 132, 255, 0.32); }
+
+/* 分区玻璃卡（单列） */
+.shopping-weather-zones { display: flex; flex-direction: column; gap: 12px; }
+.shopping-weather-zone {
+  padding: 8px 10px 6px;
+  border-radius: 24px;
+  background: var(--glass-panel-fill);
+  backdrop-filter: var(--glass-blur-panel);
+  -webkit-backdrop-filter: var(--glass-blur-panel);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.045), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.shopping-weather-zone-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 6px;
+}
+.sw-zone-label { font-size: 14px; font-weight: 800; color: var(--text-main); }
+.shopping-weather-zone-count { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.sw-zone-sub { margin: -2px 0 4px; padding: 0 10px; font-size: 12px; color: var(--text-secondary); }
+
+/* 列表行：大圆勾选 + 主信息 + 弱化动作；行间细分隔线（iOS 列表感，不要表格线） */
+.shopping-weather-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: 16px;
+}
+.shopping-weather-row + .shopping-weather-row { border-top: 1px solid var(--glass-edge); border-radius: 0 0 16px 16px; }
+.shopping-weather-row:active { background: rgba(120, 120, 128, 0.08); }
+.shopping-weather-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.shopping-weather-check {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid rgba(120, 120, 128, 0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  background: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.shopping-weather-row.is-done .shopping-weather-check {
+  background: #34c759;
+  border-color: transparent;
+}
+.shopping-weather-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.shopping-weather-name { font-size: 15px; font-weight: 700; color: var(--text-main); }
+.shopping-weather-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shopping-weather-row.is-done .shopping-weather-name {
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  text-decoration-color: rgba(120, 120, 128, 0.45);
+}
+.shopping-weather-row.is-done { opacity: 0.86; }
+.shopping-weather-row-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; }
+.sw-row-delete {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(120, 120, 128, 0.10);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.sw-row-delete:active { background: rgba(120, 120, 128, 0.20); }
+.shopping-weather-stockin {
+  min-height: 32px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 122, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.12), rgba(0, 122, 255, 0.04)), var(--glass-control-fill);
+  color: var(--primary-dark);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+html[data-theme="dark"] .shopping-weather-stockin { color: #9ecbff; border-color: rgba(10, 132, 255, 0.32); }
+.sw-state-stocked { font-size: 12px; font-weight: 700; color: var(--status-ok-text); white-space: nowrap; }
+
+/* 最近完成：整体更弱 */
+.shopping-weather-completed { opacity: 0.92; background: var(--glass-cell-fill); }
+.shopping-weather-completed .sw-zone-label { color: var(--text-secondary); }
+
+/* 底部轻浮动操作条（随内容滚动，不 fixed，避免遮底部导航） */
+.shopping-floating-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 6px;
+}
+.sw-action-pill {
+  min-height: 38px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-control-fill);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+  white-space: nowrap;
+}
+.sw-action-pill:active { transform: scale(0.95); }
+.sw-action-weak { background: transparent; color: var(--text-secondary); }
+
+/* 空状态大玻璃卡 */
+.shopping-weather-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 34px 20px;
+  border-radius: 26px;
+  text-align: center;
+  background: var(--glass-panel-fill);
+  backdrop-filter: var(--glass-blur-panel);
+  -webkit-backdrop-filter: var(--glass-blur-panel);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 14px 36px rgba(16, 24, 40, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.shopping-weather-empty strong { font-size: 17px; font-weight: 800; color: var(--text-main); }
+.shopping-weather-empty span { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.shopping-weather-empty .sw-action-pill { margin-top: 6px; }
+
+@media (max-width: 480px) {
+  .shopping-weather-title { font-size: 27px; }
+  .sw-hero-num { font-size: 42px; }
+  .shopping-weather-hero { padding: 18px 16px; }
+}
