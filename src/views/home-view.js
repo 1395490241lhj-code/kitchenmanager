@@ -1138,20 +1138,42 @@ function getTodayPlanCount() {
   return S.load(S.keys.plan, []).filter(p => p && p.date === today).length;
 }
 
+function getExpiringItemCount(inv) {
+  return (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3).length;
+}
+
+function getTodaySummaryStats(pack, inv) {
+  return {
+    planCount: getTodayPlanCount(),
+    expiringCount: getExpiringItemCount(inv),
+    shoppingCount: loadShoppingItems().filter(item => item && !item.done).length,
+    recommendationCount: getInspirationCards(pack, inv).length
+  };
+}
+
 // 顶部固定主状态区：问候 + 决策主文案 + 一行副文案。
 // 不是卡片：直接铺在页面背景上；下方面板 tab 切换不影响这里。
-function renderWxStatus({ planCount, recCount, expCount }) {
+function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendationCount }) {
   const section = document.createElement('section');
   section.className = 'wx-status';
-  const greeting = buildGreeting(expCount).split('！')[0]; // 「🌆 晚上好」——复用现有问候逻辑
+  const greeting = buildGreeting(expiringCount).split('！')[0]; // 「🌆 晚上好」——复用现有问候逻辑
   const title = planCount > 0 ? `今天计划了 ${planCount} 道菜` : '今天还没决定吃什么';
-  const sub = recCount > 0
-    ? `有 ${recCount} 个推荐可以看看`
-    : (expCount > 0 ? `有 ${expCount} 样食材需要优先处理` : '厨房状态很轻松');
+  const stats = [
+    ['plan', '计划', planCount],
+    ['expiry', '临期', expiringCount],
+    ['shopping', '待买', shoppingCount],
+    ['recs', '推荐', recommendationCount]
+  ];
   section.innerHTML = `
     <p class="wx-greeting">${escapeHtml(greeting)}</p>
     <h2 class="wx-title">${escapeHtml(title)}</h2>
-    <p class="wx-sub">${escapeHtml(sub)}</p>
+    <div class="wx-summary-stats" aria-label="今日厨房状态">
+      ${stats.map(([tone, label, value]) => `
+        <span class="wx-stat-pill is-${tone}">
+          <span>${escapeHtml(label)}</span><b>${escapeHtml(String(value || 0))}</b>
+        </span>
+      `).join('')}
+    </div>
   `;
   return section;
 }
@@ -1182,6 +1204,45 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const aiCards = savedAi ? processAiData(savedAi, pack) : [];
     if (aiCards.length) return { mode: 'ai', cards: aiCards, idx: 0 };
     return { mode: 'local', cards: getInspirationCards(pack, inv), idx: 0 };
+  };
+  const stepRecommendation = (delta = 1) => {
+    if (!recsState || !recsState.cards || recsState.cards.length <= 1) return;
+    const total = recsState.cards.length;
+    recsState.idx = (recsState.idx + delta + total) % total;
+    switchTab('recs');
+  };
+  const isCardControlTarget = (target) => Boolean(target && target.closest('button, a, input, select, textarea, [data-no-card-swipe], .home-suggest-name'));
+  const bindRecommendationCycling = (cardWrap) => {
+    if (!recsState || !recsState.cards || recsState.cards.length <= 1) return;
+    let touchStart = null;
+    let lastSwipeAt = 0;
+    cardWrap.classList.add('is-cyclable');
+    cardWrap.setAttribute('role', 'button');
+    cardWrap.setAttribute('tabindex', '0');
+    cardWrap.setAttribute('aria-label', '轻点或左右滑动切换下一道推荐');
+    cardWrap.onclick = (event) => {
+      if (Date.now() - lastSwipeAt < 350 || isCardControlTarget(event.target)) return;
+      stepRecommendation(1);
+    };
+    cardWrap.onkeydown = (event) => {
+      if (event.target !== cardWrap || !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      stepRecommendation(1);
+    };
+    cardWrap.onpointerdown = (event) => {
+      if (isCardControlTarget(event.target)) return;
+      touchStart = { x: event.clientX, y: event.clientY };
+    };
+    cardWrap.onpointerup = (event) => {
+      if (!touchStart || isCardControlTarget(event.target)) return;
+      const dx = event.clientX - touchStart.x;
+      const dy = event.clientY - touchStart.y;
+      touchStart = null;
+      if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.35 || Math.abs(dy) > 48) return;
+      lastSwipeAt = Date.now();
+      stepRecommendation(dx < 0 ? 1 : -1);
+    };
+    cardWrap.onpointercancel = () => { touchStart = null; };
   };
 
   // ── 📅 计划：动作组（即兴/全部做完/范围）+ 即兴托盘 + 计划列表，全部复用现有组件 ──
@@ -1270,7 +1331,20 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     } else {
       cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv));
     }
+    bindRecommendationCycling(cardWrap);
     body.appendChild(cardWrap);
+
+    if (cards.length > 1) {
+      const hint = document.createElement('div');
+      hint.className = 'wx-rec-hint';
+      hint.innerHTML = `
+        <span>轻点 / 左右滑动换一道</span>
+        <span class="wx-rec-dots" aria-hidden="true">
+          ${cards.map((_, i) => `<span class="${i === idx ? 'is-active' : ''}"></span>`).join('')}
+        </span>
+      `;
+      body.appendChild(hint);
+    }
 
     if (mode === 'ai' && cards.length) {
       const note = document.createElement('p');
@@ -1294,7 +1368,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     body.appendChild(foot);
 
     const nextBtn = foot.querySelector('#wxRecNext');
-    if (nextBtn) nextBtn.onclick = () => { recsState.idx = (recsState.idx + 1) % cards.length; switchTab('recs'); };
+    if (nextBtn) nextBtn.onclick = () => stepRecommendation(1);
     const localBtn = foot.querySelector('#wxRecLocal');
     if (localBtn) localBtn.onclick = () => {
       localStorage.removeItem(S.keys.ai_recs);
@@ -1364,10 +1438,8 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   // Weather-style 层级：① 顶部固定主状态（不随 tab 变）
   //                    ② 单一 glass 主面板（计划/到期/待买/推荐 tab 切换）
   //                    ③ 两个轻量胶囊快捷入口。
-  const expCount = (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3).length;
-  const recCount = getInspirationCards(pack, inv).length;
-  const planCount = getTodayPlanCount();
-  container.appendChild(renderWxStatus({ planCount, recCount, expCount }));
+  const summaryStats = getTodaySummaryStats(pack, inv);
+  container.appendChild(renderWxStatus(summaryStats));
   const panel = createWeatherPanel(pack, inv, { onRoute });
   container.appendChild(panel.el);
   container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));

@@ -6886,6 +6886,63 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
   color: var(--text-main);
 }
 .wx-sub { margin: 0; font-size: 13px; color: var(--text-secondary); opacity: 0.72; }
+.wx-summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+}
+.wx-stat-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  background: rgba(120, 120, 128, 0.09);
+  color: var(--text-secondary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+.wx-stat-pill b {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+.wx-stat-pill.is-plan {
+  color: #2563eb;
+  background: rgba(0, 122, 255, 0.11);
+  border-color: rgba(0, 122, 255, 0.13);
+}
+.wx-stat-pill.is-expiry {
+  color: #b45309;
+  background: rgba(255, 149, 0, 0.13);
+  border-color: rgba(255, 149, 0, 0.17);
+}
+.wx-stat-pill.is-shopping {
+  color: #0f766e;
+  background: rgba(45, 212, 191, 0.12);
+  border-color: rgba(20, 184, 166, 0.15);
+}
+.wx-stat-pill.is-recs {
+  color: #7c3aed;
+  background: rgba(139, 92, 246, 0.12);
+  border-color: rgba(139, 92, 246, 0.15);
+}
+html[data-theme="dark"] .wx-stat-pill {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+html[data-theme="dark"] .wx-stat-pill b { color: rgba(255, 255, 255, 0.92); }
+html[data-theme="dark"] .wx-stat-pill.is-plan { color: #8ec5ff; background: rgba(10, 132, 255, 0.16); border-color: rgba(10, 132, 255, 0.20); }
+html[data-theme="dark"] .wx-stat-pill.is-expiry { color: #ffc46b; background: rgba(255, 159, 10, 0.16); border-color: rgba(255, 159, 10, 0.20); }
+html[data-theme="dark"] .wx-stat-pill.is-shopping { color: #7dd3c7; background: rgba(45, 212, 191, 0.13); border-color: rgba(45, 212, 191, 0.17); }
+html[data-theme="dark"] .wx-stat-pill.is-recs { color: #c4b5fd; background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.19); }
 
 /* 单一主面板 */
 .wx-panel {
@@ -7030,6 +7087,20 @@ html[data-theme="dark"] .wx-tab.is-active {
 /* ✨ 推荐 tab：推荐不再是「卡片套卡片」——拍扁成面板内部的数据模块
    （类似天气面板里的温度区块）：透明底、无边框、菜名为主视觉、内容垂直居中分布。 */
 .wx-rec-card { flex: 1 1 auto; display: flex; flex-direction: column; }
+.wx-rec-card.is-cyclable {
+  cursor: pointer;
+  touch-action: pan-y;
+  border-radius: var(--radius-m);
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+.wx-rec-card.is-cyclable:active {
+  transform: scale(0.992);
+  background: rgba(120, 120, 128, 0.045);
+}
+.wx-rec-card.is-cyclable:focus-visible {
+  outline: 2px solid rgba(0, 122, 255, 0.34);
+  outline-offset: 3px;
+}
 .wx-rec-card .home-suggest-card,
 .wx-rec-card > .card { width: 100%; max-width: none; box-sizing: border-box; }
 .wx-rec-card .home-suggest-card {
@@ -7070,6 +7141,34 @@ html[data-theme="dark"] .wx-rec-card .home-suggest-cook {
   background: linear-gradient(135deg, rgba(10, 132, 255, 0.24), rgba(10, 132, 255, 0.10)), var(--glass-control-fill);
   border-color: rgba(10, 132, 255, 0.32);
   color: #9ecbff;
+}
+.wx-rec-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 18px;
+  margin-top: -4px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--text-secondary);
+  opacity: 0.68;
+}
+.wx-rec-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.wx-rec-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.25;
+}
+.wx-rec-dots span.is-active {
+  width: 13px;
+  opacity: 0.78;
 }
 .wx-rec-note { margin: 0; font-size: 12px; color: var(--text-secondary); }
 .wx-rec-card ~ .wx-actions {
