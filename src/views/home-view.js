@@ -618,26 +618,43 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
   return section;
 }
 
-// ── 空库存引导（库存录入已在「清单」页，引导跳转过去） ──────────────────────
+const DEMO_KITCHEN_ITEMS = [
+  { name: '鸡蛋', qty: 6, unit: '个' },
+  { name: '番茄', qty: 3, unit: '个' },
+  { name: '土豆', qty: 2, unit: '个' },
+  { name: '豆腐', qty: 1, unit: '盒' },
+  { name: '青椒', qty: 2, unit: '个' },
+  { name: '牛肉', qty: 1, unit: '份' },
+  { name: '面条', qty: 1, unit: '袋' },
+  { name: '青菜', qty: 1, unit: '把' }
+];
+
+// ── 空库存引导：先让新用户用生活化的入口完成第一步，而不是跳去别的页面。 ─────
 function renderOnboarding(pack, { onRoute = () => {} } = {}) {
   const section = document.createElement('section');
   section.className = 'home-hero is-onboarding';
   section.innerHTML = `
     <div class="home-hero-glow" aria-hidden="true"></div>
     <div class="home-hero-head">
-      <span class="home-hero-eyebrow">🍳 开始使用</span>
-      <h2 class="home-hero-greeting">先到「清单」页录入一些库存，立刻获得今日推荐和快到期提醒</h2>
+      <span class="home-hero-eyebrow">🍳 开始今晚这顿</span>
+      <h2 class="home-hero-greeting">今晚吃什么？先告诉我厨房里有什么</h2>
+      <p class="home-hero-note">随便记 3 样食材就能开始。数量不确定也没关系，系统会先按常见用量估算。</p>
     </div>
     <div class="home-actions-grid">
-      <button type="button" class="home-act-btn" id="obManual"><span class="home-act-emoji">📦</span><span>立即入库</span></button>
-      <button type="button" class="home-act-btn" id="obReceipt"><span class="home-act-emoji">🧾</span><span>拍小票</span></button>
-      <button type="button" class="home-act-btn" id="obBackup"><span class="home-act-emoji">💾</span><span>导入备份</span></button>
+      <button type="button" class="home-act-btn" id="obManual"><span class="home-act-emoji">✍️</span><span>手动记食材</span></button>
+      <button type="button" class="home-act-btn" id="obReceipt"><span class="home-act-emoji">🧾</span><span>拍小票识别</span></button>
+      <button type="button" class="home-act-btn" id="obDemo"><span class="home-act-emoji">🍳</span><span>试用示例厨房</span></button>
+      <button type="button" class="home-act-btn" id="obRecipes"><span class="home-act-emoji">📖</span><span>先逛菜谱</span></button>
     </div>
   `;
-  // 引导页：手动入库仍跳转到库存页的完整表单；拍小票直接在首页弹出统一批量入库弹窗。
-  section.querySelector('#obManual').onclick = () => { location.hash = '#shopping'; };
+  section.querySelector('#obManual').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
   section.querySelector('#obReceipt').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
-  section.querySelector('#obBackup').onclick = () => { location.hash = '#settings'; };
+  section.querySelector('#obDemo').onclick = () => {
+    const n = writeItemsToInventory(DEMO_KITCHEN_ITEMS, pack);
+    if (n > 0) lastWxTab = 'recs';
+    onRoute();
+  };
+  section.querySelector('#obRecipes').onclick = () => { location.hash = '#recipes'; };
   return section;
 }
 
@@ -705,8 +722,8 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     </div>
 
     <div class="batch-tab-panel is-hidden" id="batch-panel-text" role="tabpanel">
-      <p class="meta">每行一项，格式 <code>食材名 数量 单位</code>，单位可省略。</p>
-      <textarea id="batchTextInput" rows="6" class="batch-text-area" placeholder="西红柿 3 个&#10;牛肉 1 斤&#10;鸡蛋 6&#10;土豆 2"></textarea>
+      <p class="meta">每行一个食材。数量不确定也可以只写名字。</p>
+      <textarea id="batchTextInput" rows="6" class="batch-text-area" placeholder="鸡蛋 6个&#10;番茄 3个&#10;土豆 2个&#10;豆腐 1盒"></textarea>
       <div id="batchTextStatus" class="small inline-status" hidden></div>
     </div>
 

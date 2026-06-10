@@ -3625,6 +3625,10 @@ nav a:active { transform: scale(0.94); }
   gap: 12px;
 }
 .home-hero .home-actions-grid { grid-template-columns: repeat(3, 1fr); margin-top: 4px; }
+.home-hero.is-onboarding .home-actions-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
 .home-act-btn {
   display: flex;
   flex-direction: column;
@@ -3643,6 +3647,10 @@ nav a:active { transform: scale(0.94); }
   transition: transform 0.12s ease;
 }
 .home-hero .home-act-btn { background: var(--glass-fill-strong); padding: 14px 8px; font-size: 13px; }
+.home-hero.is-onboarding .home-act-btn {
+  min-height: 64px;
+  padding: 13px 8px;
+}
 .home-act-btn:active { transform: scale(0.97); }
 .home-act-emoji { font-size: 22px; }
 
