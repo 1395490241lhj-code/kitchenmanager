@@ -6,7 +6,7 @@
  * currentPlanRange 由本模块持有，并通过 getPlanRange() 暴露给购物页的「菜谱缺货」计算复用。
  */
 import { S, todayISO } from '../storage.js?v=219';
-import { explodeCombinedItems, guessKitchenUnit, getCanonicalName } from '../ingredients.js?v=219';
+import { explodeCombinedItems, guessKitchenUnit, getCanonicalName, isSeasoning } from '../ingredients.js?v=219';
 import { analyzeRecipeInventory, markRecipeCookedKeepPlan } from '../recommendations.js?v=219';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import { computeCookDeductions, applyCookCalibration } from '../inventory.js?v=219';
@@ -194,11 +194,16 @@ function cookPlans(targets, pack, inv, { onRoute = () => {}, title } = {}) {
   const heading = title || (targets.length === 1
     ? ((pack.recipes || []).find(r => r.id === targets[0].id)?.name || '这道菜')
     : `今日 ${targets.length} 道菜`);
-  const predictions = computeCookDeductions(aggregateScaledItems(targets, pack), inv);
+  const scaledItems = aggregateScaledItems(targets, pack);
+  const predictions = computeCookDeductions(scaledItems, inv);
   if (!predictions.length) {
+    const missingCandidates = scaledItems
+      .filter(it => it && it.item)
+      .filter(it => !isSeasoning(it.item));
     markPlansCooked(targets);
     showCookCompleteFeedback({
       updated: false,
+      missing: missingCandidates,
       onClose: onRoute,
       onShoppingAdded: onRoute
     });

@@ -184,11 +184,15 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
 
     // 没有任何匹配库存 → 直接记录做完，不弹校准舱。
     if (!predictions.length) {
+      const missingCandidates = (foodItems.length ? foodItems : items)
+        .filter(it => it && (it.item || it.name))
+        .filter(it => !isSeasoning(it.item || it.name));
       markRecipeCooked(id);
       brieflyConfirmButton(cookedBtn, '已记录');
       cookedBtn.disabled = false;
       showCookCompleteFeedback({
         updated: false,
+        missing: missingCandidates,
         onClose: () => { if (typeof onRoute === 'function') onRoute(); },
         onShoppingAdded: () => { if (typeof onRoute === 'function') onRoute(); }
       });

@@ -16,18 +16,19 @@ function addCandidate(map, item, reason = 'used-up') {
   const name = normalizeName(item?.name || item?.item);
   if (!name) return;
   const unit = item?.unit || guessKitchenUnit(name) || '';
+  const qty = item?.qty ?? '';
   const key = `${name}::${unit}`;
   if (!map.has(key)) {
     map.set(key, {
       name,
       unit,
-      qty: '',
+      qty,
       reason
     });
   }
 }
 
-export function getCookShoppingCandidates({ calibrations = [], skipped = [] } = {}) {
+export function getCookShoppingCandidates({ calibrations = [], skipped = [], missing = [] } = {}) {
   const map = new Map();
   (calibrations || [])
     .filter(isUsedUpCalibration)
@@ -37,19 +38,28 @@ export function getCookShoppingCandidates({ calibrations = [], skipped = [] } = 
     .filter(row => row && row.reason === 'no-stock')
     .forEach(row => addCandidate(map, row, 'no-stock'));
 
+  (missing || [])
+    .filter(row => row && (row.item || row.name))
+    .forEach(row => addCandidate(map, row, 'missing'));
+
   return [...map.values()];
 }
 
-function buildCookMessages({ updated = false, skipped = [], candidates = [] } = {}) {
+function buildCookMessages({ updated = false, skipped = [], candidates = [], missing = [] } = {}) {
   const messages = [];
   if (updated) messages.push('已帮你更新食材余量。');
   else messages.push('已记录最近做过。');
 
+  if (!updated && (missing || []).length) {
+    messages.push('这道菜的食材没有自动扣，可以按需加入买菜。');
+  }
   if ((skipped || []).length) {
     messages.push('有几样食材没自动扣，之后可以手动调整。');
   }
   if ((candidates || []).length) {
-    messages.push('有几样已经用完，可以顺手加入买菜。');
+    messages.push((missing || []).length
+      ? '有几样可以顺手加入买菜。'
+      : '有几样已经用完，可以顺手加入买菜。');
   }
   return messages;
 }
@@ -58,6 +68,13 @@ function normalizeShoppingCandidates(candidates = []) {
   const map = new Map();
   (candidates || []).forEach(item => addCandidate(map, item, item?.reason || 'used-up'));
   return [...map.values()];
+}
+
+function formatCandidateAmount(item) {
+  const qty = item?.qty === null || item?.qty === undefined ? '' : String(item.qty).trim();
+  const unit = String(item?.unit || '').trim();
+  if (qty && unit) return `${qty}${unit}`;
+  return qty || unit;
 }
 
 function closeModal(overlay, panel, afterClose = () => {}) {
@@ -76,12 +93,13 @@ export function showCookCompleteFeedback({
   updated = false,
   skipped = [],
   candidates = [],
+  missing = [],
   onClose = () => {},
   onShoppingAdded = null
 } = {}) {
-  const shoppingCandidates = getCookShoppingCandidates({ skipped }).concat(candidates || []);
+  const shoppingCandidates = getCookShoppingCandidates({ skipped, missing }).concat(candidates || []);
   const uniqueCandidates = normalizeShoppingCandidates(shoppingCandidates);
-  const messages = buildCookMessages({ updated, skipped, candidates: uniqueCandidates });
+  const messages = buildCookMessages({ updated, skipped, candidates: uniqueCandidates, missing });
 
   const overlay = document.createElement('div');
   overlay.className = 'km-modal-overlay';
@@ -105,7 +123,7 @@ export function showCookCompleteFeedback({
       ${uniqueCandidates.length ? `
         <div class="cook-feedback-restock">
           ${uniqueCandidates.slice(0, 5).map(item => `
-            <span>${escapeHtml(item.name)}${item.unit ? ` <small>${escapeHtml(item.unit)}</small>` : ''}</span>
+            <span>${escapeHtml(item.name)}${formatCandidateAmount(item) ? ` <small>${escapeHtml(formatCandidateAmount(item))}</small>` : ''}</span>
           `).join('')}
         </div>
       ` : ''}
@@ -136,7 +154,8 @@ export function showCookCompleteFeedback({
   if (shoppingBtn) {
     shoppingBtn.addEventListener('click', () => {
       uniqueCandidates.forEach(item => {
-        addShoppingItem(item.name, item.qty || '', item.unit || guessKitchenUnit(item.name) || '', '做完补货', '做完用完，顺手补上');
+        const remark = item.reason === 'missing' ? '做这道菜可能需要' : '做完用完，顺手补上';
+        addShoppingItem(item.name, item.qty || '', item.unit || guessKitchenUnit(item.name) || '', '做完补货', remark);
       });
       shoppingBtn.textContent = '已加入买菜';
       shoppingBtn.disabled = true;
