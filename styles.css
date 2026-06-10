@@ -6833,3 +6833,251 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
   border-color: rgba(10, 132, 255, 0.28);
   color: #9ecbff;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  首页 Weather-style 单面板（v158）—— 顶部固定主状态 + 单一 glass 面板，
+ *  面板顶部 segmented tabs 切换数据维度（📅计划/⏳到期/🛒待买/✨推荐）。
+ *  复用现有 glass token，不新增 design token。
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* 顶部固定主状态：不是卡片，直接铺在背景上（类似天气页顶部温度区）。 */
+.wx-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 8px 2px;
+}
+.wx-greeting { margin: 0; font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+.wx-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.16;
+  letter-spacing: -0.5px;
+  color: var(--text-main);
+}
+.wx-sub { margin: 0; font-size: 13px; color: var(--text-secondary); opacity: 0.72; }
+
+/* 单一主面板 */
+.wx-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 14px 16px;
+}
+.wx-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.10);
+  border: none;
+}
+html[data-theme="dark"] .wx-tabs { background: rgba(255, 255, 255, 0.07); }
+.wx-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 2px;
+  border: none;
+  background: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.wx-tab.is-active {
+  background: var(--glass-control-fill);
+  color: var(--text-main);
+  font-weight: 700;
+  box-shadow: 0 1px 5px rgba(16, 24, 40, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+html[data-theme="dark"] .wx-tab.is-active {
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+/* 同一块内容区：min-height 让四个 tab 复用同一块空间时面板高度稳定不跳。 */
+.wx-body {
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* tab 内列表行 / 空态 / 动作行 / 小胶囊按钮 */
+.wx-list { display: flex; flex-direction: column; gap: 8px; }
+.wx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--glass-cell-fill);
+  border: 1px solid var(--glass-edge);
+}
+.wx-row-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.wx-row-qty { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.wx-row-side { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.wx-row.is-warn .wx-row-side { color: var(--status-warn-text); }
+.wx-row.is-bad .wx-row-side { color: var(--status-bad-text); }
+.wx-empty {
+  margin: auto 0;
+  padding: 26px 10px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.wx-actions {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wx-count-note { margin-right: auto; font-size: 12px; color: var(--text-secondary); }
+.wx-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-control-fill);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.wx-mini-btn:active { transform: scale(0.95); }
+.wx-mini-btn.is-ai {
+  color: var(--primary);
+  border-color: rgba(0, 122, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(0, 122, 255, 0.03)), var(--glass-control-fill);
+}
+
+/* 📅 计划 tab：动作组靠右一行；内部计划卡拍扁融入面板，避免卡中卡。 */
+.wx-plan-actions { justify-content: flex-end; }
+.wx-panel .menu-plan-card,
+.wx-panel .card.menu-plan-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+}
+/* 计划空态：一行轻提示 + 小按钮（三类选择器压过 html[data-theme] 主题覆盖的底色/虚线）。 */
+.today-view .wx-panel .menu-plan-empty {
+  min-height: 0;
+  padding: 14px 4px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.plan-empty-line { font-size: 13px; color: var(--text-secondary); line-height: 1.5; text-align: center; }
+
+/* ✨ 推荐 tab：推荐不再是「卡片套卡片」——拍扁成面板内部的数据模块
+   （类似天气面板里的温度区块）：透明底、无边框、菜名为主视觉、内容垂直居中分布。 */
+.wx-rec-card { flex: 1 1 auto; display: flex; flex-direction: column; }
+.wx-rec-card .home-suggest-card,
+.wx-rec-card > .card { width: 100%; max-width: none; box-sizing: border-box; }
+.wx-rec-card .home-suggest-card {
+  flex: 1 1 auto;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 6px;
+  background: transparent;
+  border: none;
+  border-left: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+.wx-rec-card .home-suggest-name {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
+}
+.wx-rec-card .home-suggest-reason { flex: 0 0 auto; font-size: 13px; opacity: 0.85; }
+.wx-rec-card .home-suggest-match { font-size: 11px; padding: 3px 10px; opacity: 0.92; }
+/* 「做这道 / 补清单」：iOS 半透明蓝 tint pill，替代实心硬蓝。 */
+.wx-rec-card .home-suggest-cook {
+  align-self: flex-start;
+  margin-top: 8px;
+  min-height: 38px;
+  padding: 8px 24px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.15), rgba(0, 122, 255, 0.07)), var(--glass-control-fill);
+  border: 1px solid rgba(0, 122, 255, 0.20);
+  color: var(--primary-dark);
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.10);
+  transition: transform 0.12s ease;
+}
+.wx-rec-card .home-suggest-cook:active { transform: scale(0.97); }
+html[data-theme="dark"] .wx-rec-card .home-suggest-cook {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.24), rgba(10, 132, 255, 0.10)), var(--glass-control-fill);
+  border-color: rgba(10, 132, 255, 0.32);
+  color: #9ecbff;
+}
+.wx-rec-note { margin: 0; font-size: 12px; color: var(--text-secondary); }
+
+/* 快捷入口：更通透的胶囊，阴影更柔，蓝色主入口不抢视觉。 */
+.today-quick-btn {
+  min-height: 46px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: var(--glass-cell-fill);
+  border-color: var(--glass-edge);
+  box-shadow: 0 3px 10px rgba(16, 24, 40, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.today-quick-btn.is-primary {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(0, 122, 255, 0.03)), var(--glass-cell-fill);
+  border-color: rgba(0, 122, 255, 0.14);
+}
+html[data-theme="dark"] .today-quick-btn.is-primary {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.16), rgba(10, 132, 255, 0.06)), var(--glass-cell-fill);
+  border-color: rgba(10, 132, 255, 0.22);
+}
+
+/* 信息流间距：状态区 → 面板 → 快捷入口，略收紧成一条连续流。 */
+.today-view { gap: 14px; }
+
+/* 桌面：保持天气页式的单列重心，不让面板被拉成超宽横向表单。 */
+@media (min-width: 700px) {
+  .today-view { max-width: 640px; margin: 0 auto; }
+}
+
+@media (max-width: 390px) {
+  .wx-title { font-size: 25px; }
+  .wx-tab { font-size: 12px; padding: 8px 2px; }
+}
+/* 移动端：把留白移进面板内部——面板长高成为主视觉体（像天气页主面板），
+   页面级空白随之减少；footer 行靠 margin-top:auto 沉到面板底部。 */
+@media (max-width: 480px) {
+  .wx-status { padding-top: 16px; }
+  .wx-body { min-height: 252px; }
+}

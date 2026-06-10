@@ -1126,6 +1126,229 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
   return section;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+//  Weather-style 首页：顶部固定主状态 + 单一 glass 信息面板（tab 切换数据维度）。
+//  类比 iOS 天气：顶部城市/温度区固定不动，下方同一块面板用小图标切换不同数据。
+//  全部复用既有数据与弹窗函数，不新增推荐算法 / 持久化状态 / localStorage key。
+// ══════════════════════════════════════════════════════════════════════════
+
+// 今日计划项数（只读 plan key，按 date===今天计数，不改任何计划逻辑）。
+function getTodayPlanCount() {
+  const today = todayISO();
+  return S.load(S.keys.plan, []).filter(p => p && p.date === today).length;
+}
+
+// 顶部固定主状态区：问候 + 决策主文案 + 一行副文案。
+// 不是卡片：直接铺在页面背景上；下方面板 tab 切换不影响这里。
+function renderWxStatus({ planCount, recCount, expCount }) {
+  const section = document.createElement('section');
+  section.className = 'wx-status';
+  const greeting = buildGreeting(expCount).split('！')[0]; // 「🌆 晚上好」——复用现有问候逻辑
+  const title = planCount > 0 ? `今天计划了 ${planCount} 道菜` : '今天还没决定吃什么';
+  const sub = recCount > 0
+    ? `有 ${recCount} 个推荐可以看看`
+    : (expCount > 0 ? `有 ${expCount} 样食材需要优先处理` : '厨房状态很轻松');
+  section.innerHTML = `
+    <p class="wx-greeting">${escapeHtml(greeting)}</p>
+    <h2 class="wx-title">${escapeHtml(title)}</h2>
+    <p class="wx-sub">${escapeHtml(sub)}</p>
+  `;
+  return section;
+}
+
+// 当前 tab 的页内记忆（仅内存，不持久化）：范围筛选等触发整页重渲染时不丢所在 tab。
+let lastWxTab = null;
+
+// 单一主信息面板：顶部 segmented tabs（📅计划 / ⏳到期 / 🛒待买 / ✨推荐），
+// 下方同一块 .wx-body 区域按 tab 重渲染内容——巧妙复用同一块屏幕空间。
+function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
+  const section = document.createElement('section');
+  section.className = 'wx-panel glass-panel';
+  section.innerHTML = `
+    <div class="wx-tabs" role="tablist">
+      <button type="button" class="wx-tab" data-tab="plan" role="tab">📅 计划</button>
+      <button type="button" class="wx-tab" data-tab="expiry" role="tab">⏳ 到期</button>
+      <button type="button" class="wx-tab" data-tab="shopping" role="tab">🛒 待买</button>
+      <button type="button" class="wx-tab" data-tab="recs" role="tab">✨ 推荐</button>
+    </div>
+    <div class="wx-body" role="tabpanel"></div>
+  `;
+  const body = section.querySelector('.wx-body');
+
+  // 推荐 tab 状态（仅内存）：local=本地灵感卡 / ai=云端草稿；idx=「换一道」游标。
+  let recsState = null;
+  const initRecsState = () => {
+    const savedAi = S.load(S.keys.ai_recs, null);
+    const aiCards = savedAi ? processAiData(savedAi, pack) : [];
+    if (aiCards.length) return { mode: 'ai', cards: aiCards, idx: 0 };
+    return { mode: 'local', cards: getInspirationCards(pack, inv), idx: 0 };
+  };
+
+  // ── 📅 计划：动作组（即兴/全部做完/范围）+ 即兴托盘 + 计划列表，全部复用现有组件 ──
+  const renderPlanTab = () => {
+    const actions = document.createElement('div');
+    actions.className = 'menu-plan-head-actions wx-plan-actions';
+    const impromptu = buildImpromptuCooking(inv, { onRoute });
+    actions.appendChild(impromptu.button);
+    actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
+    actions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
+    body.appendChild(actions);
+    body.appendChild(impromptu.tray);
+
+    const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
+    // 空态瘦身：一行轻提示 + 「看推荐」切 tab（原空态是纯静态节点、无事件绑定，见 menu-plan.js）。
+    const empty = planNode.querySelector('.menu-plan-empty');
+    if (empty) {
+      empty.innerHTML = `
+        <span class="plan-empty-line">还没有加入今日计划，可以从推荐里挑一道</span>
+        <button type="button" class="wx-mini-btn" id="wxGoRecs">✨ 看推荐</button>
+      `;
+      empty.querySelector('#wxGoRecs').onclick = () => switchTab('recs');
+    }
+    body.appendChild(planNode);
+  };
+
+  // ── ⏳ 到期：最多 3 行（名称+剩余天数），「查看全部」沿用原到期弹窗 ──
+  const renderExpiryTab = () => {
+    const items = getExpiringItems(inv).slice(0, 3);
+    if (!items.length) {
+      body.innerHTML = '<div class="wx-empty">✅ 最近没有快到期的食材</div>';
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'wx-list';
+    list.innerHTML = items.map(it => {
+      const d = remainingDays(it);
+      const dayText = d < 0 ? `已过期 ${Math.abs(d)} 天` : d === 0 ? '今天到期' : `还剩 ${d} 天`;
+      const tone = d < 0 ? ' is-bad' : d <= 1 ? ' is-warn' : '';
+      const qty = (+it.qty > 0) ? `<span class="wx-row-qty">${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}</span>` : '';
+      return `<div class="wx-row${tone}"><span class="wx-row-main">${escapeHtml(it.name)}${qty}</span><span class="wx-row-side">${escapeHtml(dayText)}</span></div>`;
+    }).join('');
+    body.appendChild(list);
+    const foot = document.createElement('div');
+    foot.className = 'wx-actions';
+    foot.innerHTML = '<button type="button" class="wx-mini-btn">查看全部 ›</button>';
+    foot.querySelector('button').onclick = () => openExpiryListModal(inv, pack, { onRoute, onChange: () => switchTab('expiry') });
+    body.appendChild(foot);
+  };
+
+  // ── 🛒 待买：最近 3 项（名称+数量），「查看全部」沿用原待买弹窗 ──
+  const renderShoppingTab = () => {
+    const items = loadShoppingItems().filter(i => !i.done);
+    if (!items.length) {
+      body.innerHTML = '<div class="wx-empty">🧺 购物清单是空的</div>';
+      return;
+    }
+    const recent = items.slice(-3).reverse();
+    const list = document.createElement('div');
+    list.className = 'wx-list';
+    list.innerHTML = recent.map(it => {
+      const qty = it.qty ? `<span class="wx-row-qty">${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}</span>` : '';
+      const src = it.source ? `<span class="wx-row-side">${escapeHtml(it.source)}</span>` : '';
+      return `<div class="wx-row"><span class="wx-row-main">${escapeHtml(it.name)}${qty}</span>${src}</div>`;
+    }).join('');
+    body.appendChild(list);
+    const foot = document.createElement('div');
+    foot.className = 'wx-actions';
+    foot.innerHTML = `<span class="wx-count-note">共 ${items.length} 项待买</span><button type="button" class="wx-mini-btn">查看全部 ›</button>`;
+    foot.querySelector('button').onclick = () => showPendingShoppingModal({ onChange: () => switchTab('shopping') });
+    body.appendChild(foot);
+  };
+
+  // ── ✨ 推荐：一次只展示 1 个主推荐（不摊开三张卡）。
+  //    「换一道」在已有推荐里轮换；「AI 换一批」沿用原 callCloudAI → processAiData 流程。──
+  const renderRecsTab = () => {
+    if (!recsState) recsState = initRecsState();
+    const { mode, cards, idx } = recsState;
+
+    const cardWrap = document.createElement('div');
+    cardWrap.className = 'wx-rec-card';
+    if (!cards.length) {
+      cardWrap.innerHTML = '<div class="wx-empty">还没有匹配到现在能做的菜<br>库存多录几样，这里就会出现推荐</div>';
+    } else if (mode === 'ai') {
+      showRecommendationCards(cardWrap, [cards[idx]], pack, { onRoute });
+    } else {
+      cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv));
+    }
+    body.appendChild(cardWrap);
+
+    if (mode === 'ai' && cards.length) {
+      const note = document.createElement('p');
+      note.className = 'wx-rec-note';
+      note.textContent = 'AI 草稿推荐，确认后再安排。';
+      body.appendChild(note);
+    }
+
+    const aiStatus = document.createElement('div');
+    aiStatus.className = 'small inline-status wx-ai-status';
+    aiStatus.hidden = true;
+    body.appendChild(aiStatus);
+
+    const foot = document.createElement('div');
+    foot.className = 'wx-actions';
+    foot.innerHTML = `
+      ${mode === 'ai' && cards.length ? '<button type="button" class="wx-mini-btn" id="wxRecLocal">用本地推荐</button>' : ''}
+      ${cards.length > 1 ? '<button type="button" class="wx-mini-btn" id="wxRecNext">换一道 ›</button>' : ''}
+      <button type="button" class="wx-mini-btn is-ai" id="wxRecAi">✨ AI 换一批</button>
+    `;
+    body.appendChild(foot);
+
+    const nextBtn = foot.querySelector('#wxRecNext');
+    if (nextBtn) nextBtn.onclick = () => { recsState.idx = (recsState.idx + 1) % cards.length; switchTab('recs'); };
+    const localBtn = foot.querySelector('#wxRecLocal');
+    if (localBtn) localBtn.onclick = () => {
+      localStorage.removeItem(S.keys.ai_recs);
+      recsState = { mode: 'local', cards: getInspirationCards(pack, inv), idx: 0 };
+      switchTab('recs');
+    };
+    foot.querySelector('#wxRecAi').onclick = async (e) => {
+      const aiBtn = e.currentTarget;
+      if (aiBtn.getAttribute('disabled')) return;
+      aiBtn.setAttribute('disabled', 'true');
+      const original = aiBtn.textContent;
+      aiBtn.innerHTML = '<span class="spinner"></span> 思考中…';
+      const safety = setTimeout(() => { aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled'); }, 30000);
+      try {
+        const aiResult = await callCloudAI(pack, inv);
+        clearTimeout(safety);
+        const aiCards = processAiData(aiResult, pack);
+        if (aiCards.length > 0) {
+          S.save(S.keys.ai_recs, aiResult);
+          recsState = { mode: 'ai', cards: aiCards, idx: 0 };
+          switchTab('recs');
+          return;
+        }
+        setInlineStatus(aiStatus, 'AI 没有返回可用菜谱，已保留本地推荐。', 'info');
+      } catch (err) {
+        clearTimeout(safety);
+        setInlineStatus(aiStatus, formatAiErrorMessage(err), 'bad');
+      } finally {
+        aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled');
+      }
+    };
+  };
+
+  const TAB_RENDERERS = { plan: renderPlanTab, expiry: renderExpiryTab, shopping: renderShoppingTab, recs: renderRecsTab };
+  const switchTab = (name) => {
+    const tab = TAB_RENDERERS[name] ? name : 'plan';
+    lastWxTab = tab;
+    section.querySelectorAll('.wx-tab').forEach(t => {
+      const active = t.dataset.tab === tab;
+      t.classList.toggle('is-active', active);
+      t.setAttribute('aria-selected', String(active));
+    });
+    body.innerHTML = '';
+    TAB_RENDERERS[tab]();
+  };
+  section.querySelectorAll('.wx-tab').forEach(t => { t.onclick = () => switchTab(t.dataset.tab); });
+
+  // 默认 tab：有今日计划→计划；无计划但有推荐→推荐；否则计划。重渲染时记住上次所在 tab。
+  const defaultTab = getTodayPlanCount() > 0 ? 'plan' : (getInspirationCards(pack, inv).length > 0 ? 'recs' : 'plan');
+  switchTab(lastWxTab || defaultTab);
+
+  return { el: section, refresh: () => switchTab(lastWxTab || defaultTab) };
+}
+
 export function renderHome(pack, { onRoute = () => {} } = {}) {
   const container = document.createElement('div');
   container.className = 'today-view';
@@ -1138,11 +1361,16 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     return container;
   }
 
-  // 收敛后的层级：① 顶部双状态卡 ② 今日主卡（计划在上+AI在下，合并） ③ 两个轻量操作按钮。
-  const status = createStatusCards(inv, pack, { onRoute });
-  container.appendChild(status.el);
-  container.appendChild(renderMainCard(pack, inv, { onRoute }));
-  container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: status.refresh }));
+  // Weather-style 层级：① 顶部固定主状态（不随 tab 变）
+  //                    ② 单一 glass 主面板（计划/到期/待买/推荐 tab 切换）
+  //                    ③ 两个轻量胶囊快捷入口。
+  const expCount = (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3).length;
+  const recCount = getInspirationCards(pack, inv).length;
+  const planCount = getTodayPlanCount();
+  container.appendChild(renderWxStatus({ planCount, recCount, expCount }));
+  const panel = createWeatherPanel(pack, inv, { onRoute });
+  container.appendChild(panel.el);
+  container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));
 
   return container;
 }
