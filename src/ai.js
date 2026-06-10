@@ -72,7 +72,7 @@ export function normalizeAiIngredients(value) {
 export function validateReceiptItems(input) {
   const parsed = safeParseJson(input, '小票识别结果');
   const list = Array.isArray(parsed) ? parsed : parsed.items;
-  if (!list || !Array.isArray(list)) throw new Error('小票识别结果里没有可入库的食材。');
+  if (!list || !Array.isArray(list)) throw new Error('小票识别结果里没有能加入厨房的食材。');
 
   const items = list.map(item => {
     let nameStr = '';
@@ -100,7 +100,7 @@ export function validateReceiptItems(input) {
     };
   }).filter(Boolean);
 
-  if (!items.length) throw new Error('小票识别结果里没有可入库的食材。');
+  if (!items.length) throw new Error('小票识别结果里没有能加入厨房的食材。');
   return items;
 }
 
@@ -126,13 +126,13 @@ export function validateRecipeResult(input) {
 }
 
 export function validateRecommendationResult(input) {
-  const data = safeParseJson(input, 'AI 推荐结果');
-  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('AI 推荐结果不是对象。');
+  const data = safeParseJson(input, '推荐结果');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('推荐结果格式不对。');
 
   const local = Array.isArray(data.local)
     ? data.local.map(item => ({
       name: String(item?.name || '').trim(),
-      reason: String(item?.reason || 'AI 推荐').trim()
+      reason: String(item?.reason || '今日推荐').trim()
     })).filter(item => item.name)
     : [];
 
@@ -152,7 +152,7 @@ export function validateRecommendationResult(input) {
     }
   }
 
-  if (!local.length && !creative) throw new Error('AI 推荐结果缺少可用菜谱。');
+  if (!local.length && !creative) throw new Error('推荐结果里没有可用菜谱。');
   return { local, creative };
 }
 

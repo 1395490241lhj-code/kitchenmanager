@@ -167,11 +167,11 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   overlay.innerHTML = `
     <div class="card receipt-confirm-card">
       <h3>确认识别结果</h3>
-      <p class="meta">AI 识别只作为草稿，确认后才会入库。</p>
+      <p class="meta">识别结果只是草稿，确认后才会加入厨房。</p>
       <div class="receipt-confirm-list">${rows}</div>
       <div class="controls receipt-confirm-actions">
         <button type="button" class="btn" id="cancelReceiptConfirm">取消</button>
-        <button type="button" class="btn ok" id="saveReceiptConfirm">确认入库</button>
+        <button type="button" class="btn ok" id="saveReceiptConfirm">加入厨房</button>
       </div>
     </div>
   `;
@@ -197,13 +197,13 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
 
       const match = res.match;
       if (!match) {
-        matchContainer.innerHTML = `<span class="receipt-match-status none">作为新库存项</span>`;
+        matchContainer.innerHTML = `<span class="receipt-match-status none">作为新食材</span>`;
       } else if (match.type === 'exact') {
         const qtyText = match.shoppingItem.qty ? `${match.shoppingItem.qty}${match.shoppingItem.unit}` : '无数量';
         matchContainer.innerHTML = `
           <label class="receipt-match-label">
             <input type="checkbox" class="receipt-match-checkbox" checked data-shopping-id="${match.shoppingItem.id}">
-            <span>匹配到购物项：${escapeHtml(match.shoppingItem.name)} ${escapeHtml(qtyText)}${res.match.confidence === 'high' ? ' <span class="match-high-conf">(数量相近)</span>' : ''}</span>
+            <span>匹配到买菜项：${escapeHtml(match.shoppingItem.name)} ${escapeHtml(qtyText)}${res.match.confidence === 'high' ? ' <span class="match-high-conf">(数量相近)</span>' : ''}</span>
           </label>
         `;
       } else if (match.type === 'needsConfirm') {
@@ -280,7 +280,7 @@ export function showEditInventoryModal(item, onSave) {
   dialog.className = 'card modal-card';
 
   dialog.innerHTML = `
-    <h3 class="modal-title">📝 编辑库存: ${item.name}</h3>
+    <h3 class="modal-title">📝 编辑食材: ${item.name}</h3>
     <div class="modal-field-group">
       <label class="small modal-field-label">购买日期 (补录用)</label>
       <input type="date" id="editDate" value="${item.buyDate || todayISO()}" class="modal-field-input">
@@ -374,7 +374,7 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
         unitMismatch = (match.unit || '') !== (it.unit || '');
       } else {
         match = null;
-        stockText = '无匹配库存';
+        stockText = '没找到对应食材';
         defaultVal = '0';
         unitMismatch = false;
       }
@@ -400,36 +400,36 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
           <span class="deduct-name">${escapeHtml(row.name)}</span>
           <span class="deduct-recipe-qty">${row.recipeQty ? `用量 ${escapeHtml(String(row.recipeQty))}${escapeHtml(row.unit)}` : '用量不详'}</span>
           <span class="deduct-stock-info ${row.match ? 'has-match' : 'no-match'}">
-            ${row.match ? `库存 ${escapeHtml(row.stockText)}` : '无匹配库存'}
-            ${row.unitMismatch ? `<br><small class="deduct-unit-warning">⚠️ 库存单位（${escapeHtml(row.matchedUnit)}）与菜谱单位（${escapeHtml(row.unit)}）不同</small>` : ''}
+            ${row.match ? `厨房有 ${escapeHtml(row.stockText)}` : '没找到对应食材'}
+            ${row.unitMismatch ? `<br><small class="deduct-unit-warning">⚠️ 厨房里的单位（${escapeHtml(row.matchedUnit)}）与菜谱单位（${escapeHtml(row.unit)}）不同</small>` : ''}
           </span>
           <label class="deduct-qty-label">
-            <span>扣减</span>
+            <span>用掉</span>
             <input
               class="deduct-qty-input"
               type="number"
               min="0"
               step="0.1"
               value="${escapeOptionAttr(row.defaultVal)}"
-              ${!row.match ? 'disabled title="无库存匹配，无法扣减"' : ''}
+              ${!row.match ? 'disabled title="没找到对应食材，暂时不能同步"' : ''}
             >
             <span>${escapeHtml(row.unit) || ''}</span>
           </label>
-          ${row.unitMismatch ? `<label class="deduct-mismatch-warn is-hidden" id="deduct-mismatch-confirm-${i}"><input type="checkbox" class="deduct-mismatch-checkbox"> 我确认要从不同单位库存中扣减（可能不精确）</label>` : ''}
+          ${row.unitMismatch ? `<label class="deduct-mismatch-warn is-hidden" id="deduct-mismatch-confirm-${i}"><input type="checkbox" class="deduct-mismatch-checkbox"> 我确认要按不同单位同步（可能不精确）</label>` : ''}
         </div>
       `).join('')
-    : '<p class="meta">本菜谱没有核心食材信息，无需扣减。</p>';
+    : '<p class="meta">本菜谱没有核心食材信息，无需同步食材余量。</p>';
 
   overlay.innerHTML = `
     <div class="card deduct-stock-card">
-      <h3 class="modal-title">📦 是否扣减库存？</h3>
-      <p class="meta">做完 <strong>${escapeHtml(recipeName)}</strong> 后，可以按实际用量扣减对应食材。</p>
+      <h3 class="modal-title">🍳 要同步食材余量吗？</h3>
+      <p class="meta">做完 <strong>${escapeHtml(recipeName)}</strong> 后，可以顺手按实际用量更新食材余量。</p>
       <div class="deduct-stock-list">${rowsHtml}</div>
       <div id="deductModalStatus" class="inline-status" hidden></div>
       <div class="modal-actions deduct-stock-actions">
         <button type="button" class="btn modal-cancel-btn" id="deductCancelBtn">取消</button>
         <button type="button" class="btn" id="deductSkipBtn">仅记录做完</button>
-        <button type="button" class="btn ok" id="deductConfirmBtn">确认扣减并完成</button>
+        <button type="button" class="btn ok" id="deductConfirmBtn">同步食材并完成</button>
       </div>
     </div>
   `;
@@ -515,7 +515,7 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
 
     // 如果有跨单位行填了数量但没勾选确认，阻止关闭并提示（优先于超量检查）
     if (needsMismatchConfirm) {
-      setInlineStatus(statusEl, '请先勾选"我确认要从不同单位库存中扣减"后再继续。', 'bad');
+      setInlineStatus(statusEl, '请先勾选"我确认要按不同单位同步"后再继续。', 'bad');
       overLimitConfirmed = false;
       return;
     }
@@ -533,7 +533,7 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
       }
 
       if (d.qty > totalAvail + 0.001) {
-        overLimitNames.push(`${d.name}（输入 ${d.qty}${d.unit}，库存 ${totalAvail}${d.unit}）`);
+        overLimitNames.push(`${d.name}（输入 ${d.qty}${d.unit}，厨房有 ${totalAvail}${d.unit}）`);
       }
     }
 
@@ -542,7 +542,7 @@ export function showDeductStockModal(recipeName, coreItems, inv, onConfirm, onSk
       const nameList = overLimitNames.join('；');
       setInlineStatus(
         statusEl,
-        `以下食材扣减量超过当前库存，将扣至 0：${nameList}。请再次点击"确认扣减并完成"继续，或修改数量。`,
+        `以下食材同步数量超过当前余量，将记为 0：${nameList}。请再次点击"同步食材并完成"继续，或修改数量。`,
         'bad'
       );
       overLimitConfirmed = true; // 下次点击放行
@@ -582,7 +582,7 @@ export function showCleanFridgeModal(recs, options = {}) {
           <div class="clean-fridge-item-actions" style="display: flex; gap: 8px; flex-shrink: 0;">
             <a class="btn small clean-fridge-view-btn" href="#recipe:${item.r.id}" style="text-decoration: none;">详情</a>
             <button type="button" class="btn ${isAlmost ? '' : 'ok'} small clean-fridge-action-btn" data-id="${item.r.id}" data-mode="${isAlmost ? 'almost' : 'ready'}">
-              ${isAlmost ? '补清单' : '加入计划'}
+              ${isAlmost ? '加入买菜' : '加入计划'}
             </button>
           </div>
         </div>
@@ -594,7 +594,7 @@ export function showCleanFridgeModal(recs, options = {}) {
   overlay.innerHTML = `
     <div class="card clean-fridge-modal-card" style="width: min(540px, 95vw); max-height: min(600px, 90vh); overflow-y: auto;">
       <h3 class="modal-title">❄️ 帮我清冰箱</h3>
-      <p class="meta" style="margin-bottom: 16px;">系统已为您智能筛选出快到期、低存量或已开封的食材搭配做法：</p>
+      <p class="meta" style="margin-bottom: 16px;">我帮你挑出快到期、快见底或已开封的食材搭配做法：</p>
       <div class="clean-fridge-modal-body">${contentHtml}</div>
       <div class="modal-actions" style="margin-top: 20px;">
         <button type="button" class="btn ok" id="closeCleanFridgeBtn">知道了</button>
@@ -640,7 +640,7 @@ export function showQuickShoppingModal({ onAdd = () => {} } = {}) {
   panel.className = 'km-modal-content quick-shop-modal';
   panel.innerHTML = `
     <div class="km-modal-header">
-      <span class="km-modal-title">📝 待买速记</span>
+      <span class="km-modal-title">📝 记要买</span>
       <button type="button" class="km-modal-close" aria-label="关闭">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -710,7 +710,7 @@ export function showQuickShoppingNoteModal({ onAdd = () => {} } = {}) {
   panel.className = 'km-modal-content quick-note-modal';
   panel.innerHTML = `
     <div class="km-modal-header">
-      <span class="km-modal-title">📝 待买速记</span>
+      <span class="km-modal-title">📝 记要买</span>
       <button type="button" class="km-modal-close" aria-label="关闭">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -725,7 +725,7 @@ export function showQuickShoppingNoteModal({ onAdd = () => {} } = {}) {
     <div class="km-modal-actions quick-note-actions">
       <button type="button" class="btn" id="qnClear">清空</button>
       <button type="button" class="btn" id="qnClose">关闭</button>
-      <button type="button" class="btn ok" id="qnAdd">加入清单</button>
+      <button type="button" class="btn ok" id="qnAdd">加入买菜</button>
     </div>
   `;
   overlay.appendChild(panel);
@@ -780,7 +780,7 @@ export function showPendingShoppingModal({ onChange = () => {} } = {}) {
   panel.className = 'km-modal-content pending-shop-modal';
   panel.innerHTML = `
     <div class="km-modal-header">
-      <span class="km-modal-title">🛒 待购买食材</span>
+      <span class="km-modal-title">🛒 待买</span>
       <button type="button" class="km-modal-close" aria-label="关闭">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -829,8 +829,8 @@ export function showPendingShoppingModal({ onChange = () => {} } = {}) {
       const empty = document.createElement('div');
       empty.className = 'km-pending-empty';
       empty.innerHTML = `
-        <p class="km-pending-empty-text">当前没有待购买食材</p>
-        <button type="button" class="btn ok small km-pending-add" id="pendingAddEmpty">➕ 添加待买</button>
+        <p class="km-pending-empty-text">现在没有要买的</p>
+        <button type="button" class="btn ok small km-pending-add" id="pendingAddEmpty">➕ 添加要买</button>
       `;
       empty.querySelector('#pendingAddEmpty').onclick = openQuickAdd;
       body.appendChild(empty);
@@ -874,11 +874,10 @@ export function showPendingShoppingModal({ onChange = () => {} } = {}) {
 
     const footer = document.createElement('div');
     footer.className = 'km-modal-actions km-pending-footer';
-    footer.innerHTML = '<button type="button" class="btn ok small km-pending-add" id="pendingAddBtn">➕ 添加待买</button>';
+    footer.innerHTML = '<button type="button" class="btn ok small km-pending-add" id="pendingAddBtn">➕ 添加要买</button>';
     footer.querySelector('#pendingAddBtn').onclick = openQuickAdd;
     body.appendChild(footer);
   }
 
   renderList();
 }
-

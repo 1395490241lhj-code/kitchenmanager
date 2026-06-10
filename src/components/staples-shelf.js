@@ -141,7 +141,7 @@ function showPantryDeleteConfirm(entry, { onRoute = () => {} } = {}) {
       </button>
     </div>
     <div class="km-modal-body pantry-manage-body">
-      <p class="pantry-confirm-copy">「${escapeHtml(entry.name)}」会从常备货架里隐藏或删除，库存记录本身不会被清空。</p>
+      <p class="pantry-confirm-copy">「${escapeHtml(entry.name)}」会从常备货架里隐藏或删除，食材记录本身不会被清空。</p>
       <div class="km-modal-actions pantry-manage-actions">
         <button type="button" class="btn" id="cancelPantryDelete">取消</button>
         <button type="button" class="btn bad" id="confirmPantryDelete">移除</button>
@@ -172,7 +172,7 @@ export function renderStaplesShelf(inv, { onRoute = () => {} } = {}) {
   panel.innerHTML = `
     <div class="card staples-card">
       <div class="staples-card-head">
-        <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入购物清单；买好后在清单里勾选「已买」，常备调料会自动恢复为<strong>充足</strong>。</p>
+        <p class="meta shopping-staple-meta">标记为<strong>不足</strong>会自动加入买菜清单；买好后在买菜页勾选「已买」，常备调料会自动恢复为<strong>充足</strong>。</p>
         <button type="button" class="pantry-manage-btn" id="togglePantryManage">${isManagingPantry ? '✓ 完成' : '⚙️ 管理货架'}</button>
       </div>
       <div id="stapleShelf"></div>

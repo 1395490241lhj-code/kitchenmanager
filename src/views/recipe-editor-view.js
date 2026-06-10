@@ -101,7 +101,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     </table>
     <datalist id="recipeIngredientList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
 
-    <h3 class="editor-section-title">调料表 <span class="meta seasoning-note">仅作为菜谱参考，不参与库存扣减</span></h3>
+    <h3 class="editor-section-title">调料表 <span class="meta seasoning-note">仅作为菜谱参考，不参与食材余量</span></h3>
     <table class="table recipe-editor-table">
       <thead><tr><th>调料</th><th>数量</th><th>单位</th><th class="right"><a class="btn small" id="addSeasoningRow">新增</a></th></tr></thead>
       <tbody id="seasoningRows"></tbody>

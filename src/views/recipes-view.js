@@ -53,8 +53,8 @@ function openImportModal() {
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="card ai-import-modal">
-      <h3 class="ai-import-title">✨ AI 一键导入菜谱</h3>
-      <p class="meta">粘贴菜谱链接，或上传短视频 / 配料表截图，AI 自动解析为可编辑草稿。</p>
+      <h3 class="ai-import-title">导入菜谱</h3>
+      <p class="meta">粘贴菜谱链接，或上传短视频 / 配料表截图，自动整理成可编辑草稿。</p>
       <label class="ai-import-field">
         <span>🔗 粘贴链接</span>
         <input id="aiImportUrl" type="url" inputmode="url" placeholder="小红书 / 网页菜谱链接">
@@ -65,7 +65,7 @@ function openImportModal() {
         <span class="ai-import-filename" id="aiImportFileName">点此选择文件</span>
       </label>
       <div id="aiImportStatus" class="inline-status" hidden></div>
-      <button type="button" class="btn ai-import-go" id="aiImportGo">✨ 120B AI 智能解析</button>
+      <button type="button" class="btn ai-import-go" id="aiImportGo">开始导入</button>
       <button type="button" class="btn ai-import-cancel" id="aiImportCancel">取消</button>
     </div>
   `;
@@ -91,7 +91,7 @@ function openImportModal() {
     if (!raw && !file) { setInlineStatus(status, '请粘贴链接或选择一个视频/截图。', 'bad'); return; }
     if (raw && !url) { setInlineStatus(status, '没找到有效链接，请检查粘贴内容或改用截图导入。', 'bad'); return; }
     goBtn.setAttribute('disabled', 'true');
-    goBtn.innerHTML = '<span class="spinner"></span> 120B 解析中…';
+    goBtn.innerHTML = '<span class="spinner"></span> 正在整理菜谱…';
     try {
       const draft = await importRecipeFromSource({ url, file });
       setInlineStatus(status, '解析完成，正在打开编辑器…', 'ok');
@@ -102,7 +102,7 @@ function openImportModal() {
       const friendly = /链接|截图|视频|粘贴/.test(msg) ? msg : formatAiErrorMessage(err);
       setInlineStatus(status, friendly, 'bad');
       goBtn.removeAttribute('disabled');
-      goBtn.innerHTML = '✨ 120B AI 智能解析';
+      goBtn.innerHTML = '开始导入';
     }
   };
 }
@@ -155,7 +155,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
         <div class="recipe-cat-chips" id="recipeCatChips" role="tablist" aria-label="菜谱分类"></div>
       </div>
       <div class="recipe-primary-actions">
-        <button type="button" class="btn primary-action-btn ai-import-btn" id="aiImportBtn">✨ AI 一键导入</button>
+        <button type="button" class="btn primary-action-btn ai-import-btn" id="aiImportBtn">从链接/截图导入</button>
         <button type="button" class="btn primary-action-btn manual-add-btn" id="addBtn">➕ 手动新建菜谱</button>
       </div>
       <div class="recipe-filter-row">
@@ -240,7 +240,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
           const more = document.createElement('div');
           more.className = 'recipe-empty-fulllib';
           more.innerHTML = `
-            <p class="recipe-empty-hint">完整库里可能还有这道菜。你可以到 设置 → 菜谱库范围 切换为完整原始库。</p>
+            <p class="recipe-empty-hint">完整传统菜谱里可能还有这道菜。你可以到 设置 → 菜谱多少 切换。</p>
             <button type="button" class="btn small" id="goSettingsFullLib">去设置</button>`;
           more.querySelector('#goSettingsFullLib').onclick = () => { location.hash = '#settings'; };
           empty.appendChild(more);

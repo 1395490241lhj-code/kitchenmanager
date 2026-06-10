@@ -75,12 +75,12 @@ export function renderSettings() {
       </div>
       <div class="settings-row">
         <div class="settings-row-main">
-          <span class="settings-row-title">菜谱库范围</span>
-          <span class="settings-row-sub">精简日常更聚焦；完整库含全部原始菜谱</span>
+          <span class="settings-row-title">菜谱多少</span>
+          <span class="settings-row-sub">精简日常更聚焦；完整传统菜谱更全</span>
         </div>
         <select id="sLibMode" class="settings-input settings-select">
           <option value="curated" ${libMode === 'curated' ? 'selected' : ''}>精简日常（推荐）</option>
-          <option value="full" ${libMode === 'full' ? 'selected' : ''}>完整原始库</option>
+          <option value="full" ${libMode === 'full' ? 'selected' : ''}>完整传统菜谱</option>
         </select>
       </div>
     </div>
@@ -135,7 +135,7 @@ export function renderSettings() {
           </div>
         </div>
         <div class="settings-row is-stacked">
-          <div class="settings-row-main"><span class="settings-row-title">整个厨房</span><span class="settings-row-sub">库存、计划、购物项、常做菜、菜谱补丁等（结构版本 v${DATA_SCHEMA_VERSION}）</span></div>
+          <div class="settings-row-main"><span class="settings-row-title">整个厨房</span><span class="settings-row-sub">食材、计划、买菜项、常做菜、菜谱补丁等（结构版本 v${DATA_SCHEMA_VERSION}）</span></div>
           <div class="settings-backup-actions">
             <button type="button" class="btn ok" id="exportKitchenBackup">导出整个厨房</button>
             <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入整个厨房</label>

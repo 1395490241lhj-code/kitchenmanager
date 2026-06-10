@@ -175,10 +175,10 @@ export function formatInventoryAmount(item) {
 }
 
 export function formatStockLine(item, unit = '份') {
-  if(!item || item.stockStatus === 'empty' || (+item.qty || 0) <= 0) return '库存：没有';
+  if(!item || item.stockStatus === 'empty' || (+item.qty || 0) <= 0) return '厨房里没有';
   const amount = formatInventoryAmount({...item, unit: item.unit || unit});
   const state = inventoryStateInfo(item.stockStatus).label;
-  return `库存：${amount} · ${state}`;
+  return `厨房有：${amount} · ${state}`;
 }
 
 export function ensureStockItem(inv, config, kind = 'raw', status = 'empty') {

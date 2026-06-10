@@ -110,7 +110,7 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
   const card = document.createElement('div'); card.className = 'card';
   let badgeHtml = '';
   if (statusData.status === 'ok') {
-    badgeHtml = `<span class="kchip ok">✅ 库存充足</span>`;
+    badgeHtml = `<span class="kchip ok">✅ 食材够做</span>`;
   } else if (statusData.status === 'partial') {
     if (statusData.missing && statusData.missing.length > 0) {
       badgeHtml = `<span class="kchip warn">⚠️ 缺食材</span>`;
@@ -136,7 +136,7 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
     <p class="meta">${(r.tags||[]).join(' / ')}</p>
     <div class="controls">
       <button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button>
-      <button type="button" class="btn small" id="addMissingBtn">🛒 加入清单</button>
+      <button type="button" class="btn small" id="addMissingBtn">加入计划</button>
     </div>`;
   card.querySelector('.r-title-link').onclick = () => location.hash = `#recipe:${r.id}`;
   const addBtn = card.querySelector('#addMissingBtn');
@@ -144,8 +144,8 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
     addBtn.onclick = () => {
       const plan = S.load(S.keys.plan, []);
       const today = todayISO();
-      if (!plan.find(x => x.id === r.id && (x.date || today) === today)) { plan.push({ id: r.id, servings: 1, date: today }); S.save(S.keys.plan, plan); markRecipePlanned(r.id); alert('已加入清单。'); }
-      else { alert('已在清单中。'); }
+      if (!plan.find(x => x.id === r.id && (x.date || today) === today)) { plan.push({ id: r.id, servings: 1, date: today }); S.save(S.keys.plan, plan); markRecipePlanned(r.id); alert('已加入今日计划。'); }
+      else { alert('已在今日计划里。'); }
     };
   }
   // 快速删除入口
@@ -227,7 +227,7 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
   const { onRoute = () => {}, compact = false, statusData = null, pack = null, inv = null } = opts;
   if (compact) return compactRecipeCard(r, extraInfo, { onRoute, statusData, pack, inv });
   const card = document.createElement('div'); card.className = 'card';
-  const topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ AI 推荐</div>` : '';
+  const topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ 今日推荐</div>` : '';
   const reasonText = extraInfo && extraInfo.reason ? String(extraInfo.reason) : '';
   const explainText = extraInfo && Array.isArray(extraInfo.explain) && extraInfo.explain.length
     ? extraInfo.explain.join('；') : reasonText;
@@ -275,7 +275,7 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
     const btn = document.createElement('button'); btn.type = 'button';
     btn.className = 'btn ok small';
     // 已加入未做 → 「已加入」；其余（含今日已做完）→ 默认「加入清单」，完全释放锁定。
-    btn.textContent = isPlannedToday ? '已加入' : '加入清单';
+    btn.textContent = isPlannedToday ? '已加入' : '加入计划';
     btn.onclick = () => {
       const p = S.load(S.keys.plan, []);
       const row = p.find(x => x.id === r.id && (x.date || today) === today);
@@ -327,7 +327,7 @@ export function renderAiRecipeDraftCard(draft) {
   const card = document.createElement('div');
   card.className = 'card ai-draft-card';
   card.innerHTML = `
-    <div class="ai-draft-title">AI 菜谱草稿</div>
+    <div class="ai-draft-title">菜谱草稿</div>
     <h3>${escapeHtml(draft.name)}</h3>
     <p class="meta">这还不是正式菜谱。请确认后保存，或保存后继续编辑。</p>
     <div class="ing-compact-container">${draft.ingredients.map(item => `<span class="ing-tag-pill">${escapeHtml(item.item)}</span>`).join('')}</div>
@@ -367,7 +367,7 @@ export function renderRecipeSearchResults(query, pack, inv, { onRoute = () => {}
       grid.appendChild(searchResultCard(r, status, { onRoute }));
     });
   } else {
-    container.innerHTML += `<div class="search-empty-state"><p class="text-secondary">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">🤖 生成 AI 草稿【${query}】</button><div id="aiSearchStatus" class="small inline-status" hidden></div></div><div id="aiDraftResult"></div>`;
+    container.innerHTML += `<div class="search-empty-state"><p class="text-secondary">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">生成菜谱草稿【${query}】</button><div id="aiSearchStatus" class="small inline-status" hidden></div></div><div id="aiDraftResult"></div>`;
     setTimeout(() => {
       const btn = container.querySelector('#aiSearchBtn');
       const status = container.querySelector('#aiSearchStatus');
@@ -375,7 +375,7 @@ export function renderRecipeSearchResults(query, pack, inv, { onRoute = () => {}
       if (btn) {
         btn.onclick = async () => {
           btn.disabled = true;
-          btn.innerHTML = '<span class="spinner"></span> AI 搜索中...';
+          btn.innerHTML = '<span class="spinner"></span> 正在整理...';
           try {
             const invNames = inv.map(x => x.name).join(',');
             const aiRes = await callAiSearchRecipe(query, invNames);
@@ -386,7 +386,7 @@ export function renderRecipeSearchResults(query, pack, inv, { onRoute = () => {}
             setInlineStatus(status, formatAiErrorMessage(e), 'bad');
           } finally {
             btn.disabled = false;
-            btn.innerHTML = `🤖 生成 AI 草稿【${query}】`;
+            btn.innerHTML = `生成菜谱草稿【${query}】`;
           }
         };
       }

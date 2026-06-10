@@ -62,19 +62,19 @@ function showShoppingInventoryModal(item, onConfirm, onCancel) {
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="card shopping-inventory-modal">
-      <h3>确认入库</h3>
-      <p class="meta">买完后再入库。这里可以先修正名称、数量、单位和类型。</p>
+      <h3>记进厨房</h3>
+      <p class="meta">买完后顺手记进厨房。名称、数量不准也可以先改一下。</p>
       <div class="shopping-convert-grid">
         <label><span>食材名</span><input id="stockInName" value="${escapeOptionAttr(normalized.name)}"></label>
         <label><span>数量</span><input id="stockInQty" type="number" min="0" step="0.1" value="${escapeOptionAttr(normalized.qty)}"></label>
         <label><span>单位</span><select id="stockInUnit"><option value="">无单位</option><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="包">包</option><option value="瓶">瓶</option><option value="把">把</option><option value="份">份</option><option value="g">g</option><option value="ml">ml</option></select></label>
         <label><span>购买日期</span><input id="stockInDate" type="date" value="${todayISO()}"></label>
-        <label><span>类型</span><select id="stockInKind"><option value="raw">普通食材</option><option value="dry">常备干货</option></select></label>
+        <label><span>类型</span><select id="stockInKind"><option value="raw">新鲜食材</option><option value="dry">干货/调料</option></select></label>
       </div>
       <div id="stockInStatus" class="inline-status" hidden></div>
       <div class="controls receipt-confirm-actions">
         <button type="button" class="btn" id="cancelStockIn">取消</button>
-        <button type="button" class="btn ok" id="saveStockIn">确认入库</button>
+        <button type="button" class="btn ok" id="saveStockIn">记进厨房</button>
       </div>
     </div>
   `;
@@ -128,7 +128,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const page = document.createElement('div');
   page.className = 'shopping-page';
   page.innerHTML = `
-    <h2 class="section-title">清单</h2>
+    <h2 class="section-title">买菜清单</h2>
     <div id="shoppingStatus" class="inline-status" hidden></div>
   `;
   const status = page.querySelector('#shoppingStatus');
@@ -163,11 +163,11 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   itemCard.className = 'card shopping-items-card';
   itemCard.innerHTML = `
     <div class="shopping-card-head shopping-toolbar">
-      <button type="button" class="btn ok small shopping-add-primary" id="miniAddItem">＋ 添加项</button>
+        <button type="button" class="btn ok small shopping-add-primary" id="miniAddItem">＋ 添加要买</button>
       <div class="shopping-tool-group">
-        <button type="button" class="shopping-tool-btn" id="copyOpenShopping">复制未买清单</button>
+        <button type="button" class="shopping-tool-btn" id="copyOpenShopping">复制未买</button>
         <button type="button" class="shopping-tool-btn" id="markAllDone">全部标记已买</button>
-        <button type="button" class="shopping-tool-btn shopping-tool-ok is-hidden" id="batchStockIn">逐项确认入库</button>
+        <button type="button" class="shopping-tool-btn shopping-tool-ok is-hidden" id="batchStockIn">买完记进厨房</button>
         <button type="button" class="shopping-tool-btn shopping-clear-btn" id="clearDone">清除已买</button>
       </div>
     </div>
@@ -187,8 +187,8 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     row.className = `shopping-item-row${item.done ? ' done' : ''}`;
     const stockInHtml = item.done
       ? item.stockedIn
-        ? '<span class="btn small stocked-in-badge" aria-label="已入库">✓ 已入库</span>'
-        : '<button type="button" class="btn ok small stock-in-btn">入库</button>'
+        ? '<span class="btn small stocked-in-badge" aria-label="已记进厨房">✓ 已记进厨房</span>'
+        : '<button type="button" class="btn ok small stock-in-btn">记进厨房</button>'
       : '';
     row.innerHTML = `
       <label class="shopping-check"><input type="checkbox" ${item.done ? 'checked' : ''}><span>${escapeHtml(item.name)}</span></label>
@@ -239,7 +239,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
             completedAt: target.completedAt || nowIso
           }));
           restoreStapleByPurchase(item.name); // 闭环：常备品入库后恢复充足
-          setInlineStatus(status, `${entry.name} 已入库。`, 'ok');
+          setInlineStatus(status, `${entry.name} 已记进厨房。`, 'ok');
           onRoute();
         });
       };
@@ -273,7 +273,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   };
 
   itemList.appendChild(renderGroups('未买', openItems, '还没有未买的购物项。'));
-  const doneSection = renderGroups('最近完成', doneItems, '勾选"已买"后，可以在这里确认入库。');
+  const doneSection = renderGroups('最近完成', doneItems, '勾选"已买"后，可以在这里记进厨房。');
   // 轻量说明：已完成项 24 小时后会自动从清单隐藏（数据仍保留）。
   if (doneItems.length) {
     const titleEl = doneSection.querySelector('.shopping-source-title');
@@ -289,7 +289,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
 
   const startBatchStockIn = (itemsList, index) => {
     if (index >= itemsList.length) {
-      setInlineStatus(status, '已买项目逐项确认入库完成。', 'ok');
+      setInlineStatus(status, '已买的都记进厨房了。', 'ok');
       onRoute();
       return;
     }
@@ -332,9 +332,9 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   itemCard.querySelector('#clearDone').onclick = () => { clearDoneShoppingItems(); onRoute(); };
   itemCard.querySelector('#copyOpenShopping').onclick = () => {
     const text = buildCopyableShoppingList([], loadShoppingItems());
-    if(!text.trim()) { setInlineStatus(status, '清单是空的。', 'info'); return; }
+    if(!text.trim()) { setInlineStatus(status, '买菜清单是空的。', 'info'); return; }
     navigator.clipboard.writeText(text)
-      .then(() => setInlineStatus(status, '已复制未买清单。', 'ok'))
+      .then(() => setInlineStatus(status, '已复制未买内容。', 'ok'))
       .catch(() => setInlineStatus(status, text, 'info'));
   };
   // 清单页只负责「购物项」；常备货架已迁到独立「库存」Tab，这里只挂购物项卡片。

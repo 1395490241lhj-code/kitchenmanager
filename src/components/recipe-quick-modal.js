@@ -28,7 +28,7 @@ const CLOSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" s
 
 function statusBadgeHtml(statusData, missingCount) {
   if (!statusData) return '';
-  if (statusData.status === 'ok') return `<span class="kchip ok">✅ 库存够做</span>`;
+  if (statusData.status === 'ok') return `<span class="kchip ok">✅ 食材够做</span>`;
   if (statusData.status === 'partial') {
     if (missingCount === 0) return `<span class="kchip warn">⚠️ 需确认</span>`;
     if (missingCount <= 2) return `<span class="kchip warn">⚠️ 只差 ${missingCount} 样</span>`;
@@ -107,7 +107,7 @@ export function showRecipeQuickModal(recipe, pack, inv = null, { onRoute = () =>
     </div>
     <div class="km-modal-actions rqm-actions">
       <button type="button" class="btn ok rqm-primary" id="rqmPlan" ${plannedToday ? 'disabled' : ''}>${plannedToday ? '今天已计划' : '加入今日计划'}</button>
-      <button type="button" class="btn" id="rqmAddMissing" ${missing.length ? '' : 'disabled'}>${missing.length ? '缺的加入清单' : '食材已齐'}</button>
+      <button type="button" class="btn" id="rqmAddMissing" ${missing.length ? '' : 'disabled'}>${missing.length ? '缺的加入买菜' : '食材已齐'}</button>
       <button type="button" class="btn" id="rqmFull">查看完整菜谱</button>
       ${!isCreative ? `<button type="button" class="btn rqm-edit" id="rqmEdit">编辑</button>` : ''}
     </div>
@@ -163,8 +163,8 @@ export function showRecipeQuickModal(recipe, pack, inv = null, { onRoute = () =>
     addMissingBtn.onclick = () => {
       const count = addMissingRecipeIngredientsToShopping(r, pack, inventory, items);
       addMissingBtn.disabled = true;
-      addMissingBtn.textContent = '已加入清单';
-      showFeedback(count > 0 ? `已把 ${count} 项缺少食材加入购物清单。` : '没有需要补的食材。');
+      addMissingBtn.textContent = '已加入买菜';
+      showFeedback(count > 0 ? `已把 ${count} 项缺少食材加入买菜清单。` : '没有需要补的食材。');
     };
   }
 

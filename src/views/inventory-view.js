@@ -93,7 +93,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   const ingredientOptions = buildIngredientOptions(catalog);
   const header = document.createElement('div');
   header.className = 'main-title-center';
-  header.innerHTML = '<span>厨房</span>';
+  header.innerHTML = '<span>我的食材</span>';
   if (options.showTitle !== false) wrap.appendChild(header);
 
   // 「普通食材」分段面板：承载工具栏 + 添加表单 + 库存网格（常备库存另起一个面板）。
@@ -120,9 +120,9 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         <button type="button" class="inv-edit-toggle" id="toggleEditBtn" title="进入/退出编辑模式">
           <span class="inv-edit-toggle-label">✏️ 编辑食材</span>
         </button>
-        <button type="button" class="btn small inventory-export-btn" id="exportInventoryBtn" title="导出库存">
+        <button type="button" class="btn small inventory-export-btn" id="exportInventoryBtn" title="导出食材">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          <span>导出库存</span>
+          <span>导出食材</span>
         </button>
       </div>
     </div>
@@ -178,8 +178,8 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       <div class="full-width add-state-row">
         <span class="add-state-label">类型</span>
         <div class="add-state-options" id="addItemKind">
-          <button type="button" class="add-state-option active" data-kind="raw">普通食材</button>
-          <button type="button" class="add-state-option" data-kind="dry">常备干货</button>
+          <button type="button" class="add-state-option active" data-kind="raw">新鲜食材</button>
+          <button type="button" class="add-state-option" data-kind="dry">干货/调料</button>
         </div>
       </div>
       <div class="full-width add-state-row">
@@ -199,7 +199,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         <label class="inventory-frozen-label">
           <input type="checkbox" id="addFrozen" class="inventory-frozen-checkbox">冷冻
         </label>
-        <button id="addBtn" class="btn ok inventory-add-btn">入库</button>
+        <button id="addBtn" class="btn ok inventory-add-btn">加入厨房</button>
       </div>
     </div>`;
   normalPanel.appendChild(formContainer);
@@ -274,7 +274,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     const file = e.target.files[0]; if(!file) return;
     scanStatus.classList.add('visible'); scanStatus.innerHTML = '<span class="spinner"></span> 识别中...';
     try {
-      const rawItems = await withTimeout(recognizeReceipt(file), 30000, 'AI 识别超时');
+      const rawItems = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
       const items = (Array.isArray(rawItems) ? rawItems : []).filter(it => it && it.name).map(it => ({
         name: it.name,
         qty: it.qty,
@@ -282,10 +282,10 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         originalName: it.originalName || it.name
       }));
       if(items.length === 0) {
-        scanStatus.innerHTML = '<span class="text-danger">没有识别到可入库食材</span>';
+        scanStatus.innerHTML = '<span class="text-danger">没有识别到食材</span>';
         return;
       }
-      scanStatus.innerHTML = `识别到 ${items.length} 项，请确认后入库`;
+      scanStatus.innerHTML = `识别到 ${items.length} 项，请确认后加入厨房`;
       showReceiptConfirmationModal(items, confirmed => {
         const matchedIds = confirmed.map(it => it.matchedShoppingItemId).filter(Boolean);
         if (matchedIds.length > 0) {
@@ -296,10 +296,10 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           const itemKind = isDryGoodName(it.name) ? 'dry' : 'raw';
           mergeInventoryEntry(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: itemKind, shelf: itemKind === 'dry' ? 365 : guessShelfDays(it.name, unit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(it.name), isFrozen:false} : {}) }, { mode: 'add' });
         }
-        scanStatus.innerHTML = `✅ 已确认入库 ${confirmed.length} 项`;
+        scanStatus.innerHTML = `✅ 已加入厨房 ${confirmed.length} 项`;
         setTimeout(() => { scanStatus.classList.remove('visible'); renderTable(); onInventoryChanged(); }, 1200);
       }, () => {
-        scanStatus.innerHTML = '已取消入库';
+        scanStatus.innerHTML = '已取消';
         setTimeout(() => { scanStatus.classList.remove('visible'); }, 1200);
       });
     } catch(err) { scanStatus.innerHTML = `<span class="text-danger">❌ ${formatAiErrorMessage(err)}</span>`; }
@@ -333,7 +333,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       return remainingDays(a) - remainingDays(b);
     });
     if(filteredInv.length === 0) {
-      grid.innerHTML = `<div class="small inventory-empty-row">${inv.length===0 ? '库存空空如也，快去进货！' : '未找到'}</div>`;
+      grid.innerHTML = `<div class="small inventory-empty-row">${inv.length===0 ? '厨房里还没记食材，先加几样常吃的吧。' : '未找到'}</div>`;
       return;
     }
     for(const e of filteredInv){
@@ -493,10 +493,10 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   const segmented = document.createElement('div');
   segmented.className = 'inv-segmented';
   segmented.setAttribute('role', 'tablist');
-  segmented.setAttribute('aria-label', '库存分段');
+  segmented.setAttribute('aria-label', '食材分段');
   const TABS = [
-    { key: 'normal', label: '🥬 普通食材' },
-    { key: 'staples', label: '🧂 常备库存' }
+    { key: 'normal', label: '🥬 新鲜食材' },
+    { key: 'staples', label: '🧂 家里常备' }
   ];
   TABS.forEach(tab => {
     const btn = document.createElement('button');

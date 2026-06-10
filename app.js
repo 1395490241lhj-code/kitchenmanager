@@ -137,7 +137,7 @@ async function loadBasePack(v = '23') {
 
 function renderInventoryTab(pack, onRoute) {
   const wrap = document.createElement('div');
-  wrap.innerHTML = '<h2 class="section-title">库存</h2>';
+  wrap.innerHTML = '<h2 class="section-title">我的食材</h2>';
   wrap.appendChild(renderInventory(pack, { showTitle: false, onInventoryChanged: onRoute }));
   return wrap;
 }

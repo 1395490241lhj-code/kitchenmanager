@@ -61,7 +61,7 @@ export function restoreKitchenBackup(payload) {
   const backup = normalizeBackupForRestore(payload);
   const data = backup.data;
 
-  if (Array.isArray(data.inventory) && !S.save(S.keys.inventory, data.inventory)) throw new Error('库存写入失败，浏览器存储空间可能不足');
+  if (Array.isArray(data.inventory) && !S.save(S.keys.inventory, data.inventory)) throw new Error('食材写入失败，浏览器存储空间可能不足');
   if (Array.isArray(data.plan) && !S.save(S.keys.plan, data.plan)) throw new Error('今日计划写入失败，浏览器存储空间可能不足');
   if (data.overlay) saveOverlay(data.overlay);
   if (data.settings) {
@@ -75,7 +75,7 @@ export function restoreKitchenBackup(payload) {
   if (Array.isArray(data.favorite_recipes) && !S.save(S.keys.favorite_recipes, data.favorite_recipes)) throw new Error('常做菜写入失败，浏览器存储空间可能不足');
   if (data.recipe_usage && typeof data.recipe_usage === 'object' && !S.save(S.keys.recipe_usage, data.recipe_usage)) throw new Error('菜谱记录写入失败，浏览器存储空间可能不足');
   if (data.recipe_activity && typeof data.recipe_activity === 'object' && !S.save(S.keys.recipe_activity, data.recipe_activity)) throw new Error('菜谱活动记录写入失败，浏览器存储空间可能不足');
-  if (Array.isArray(data.shopping_items) && !saveShoppingItems(data.shopping_items)) throw new Error('购物清单写入失败，浏览器存储空间可能不足');
+  if (Array.isArray(data.shopping_items) && !saveShoppingItems(data.shopping_items)) throw new Error('买菜清单写入失败，浏览器存储空间可能不足');
   if (data.staples && typeof data.staples === 'object' && !Array.isArray(data.staples) && !S.save(S.keys.staples, data.staples)) throw new Error('常备品状态写入失败，浏览器存储空间可能不足');
   setStoredSchemaVersion(DATA_SCHEMA_VERSION);
   if (typeof window !== 'undefined' && window.invalidatePackCache) {

@@ -298,9 +298,9 @@ export function explainRecipeScore(scoreResult) {
   if (scoreResult.needsConfirm && scoreResult.needsConfirm.length) {
     scoreResult.needsConfirm.forEach(item => {
       if (item.reason === 'unit-mismatch') {
-        explain.push(`${item.name}库存单位不同，数量需确认`);
+        explain.push(`${item.name}食材单位不同，数量需确认`);
       } else if (item.reason === 'status-only') {
-        explain.push(`${item.name}库存状态需确认`);
+        explain.push(`${item.name}食材状态需确认`);
       }
     });
   }
@@ -567,7 +567,7 @@ export function getLocalRecommendations(pack, inv, forceRefresh = false) {
       missing: [],
       expiringMatches: [],
       reason: '随机探索',
-      explain: ['当前库存还没有明显匹配，先随便看看'],
+      explain: ['当前食材还没有明显匹配，先随便看看'],
       list: (pack.recipe_ingredients || {})[r.id] || []
     }));
   }

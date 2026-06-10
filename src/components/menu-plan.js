@@ -102,7 +102,7 @@ function showShortageModal(recipe, missing) {
   const body = document.createElement('div');
   body.className = 'km-modal-body menu-shortage-body';
   body.innerHTML = `
-    <p class="menu-shortage-subtitle">按当前库存和这道菜的计划份数估算，买菜前可以先确认一下。</p>
+    <p class="menu-shortage-subtitle">按现在厨房里的食材和这道菜的计划份数估算，买菜前可以先确认一下。</p>
     <div class="menu-shortage-list">
       ${missing.map((item, index) => `
         <div class="menu-shortage-row${index === missing.length - 1 ? ' is-last' : ''}">
@@ -112,7 +112,7 @@ function showShortageModal(recipe, missing) {
       `).join('')}
     </div>
     <div class="km-modal-actions menu-shortage-actions">
-      <button type="button" class="btn menu-shortage-add-btn" id="addShortageToShopping">[+] 一键加入购物清单</button>
+      <button type="button" class="btn menu-shortage-add-btn" id="addShortageToShopping">[+] 一键加入买菜</button>
     </div>
   `;
 
@@ -143,7 +143,7 @@ function showShortageModal(recipe, missing) {
     close();
     const metric = document.querySelector('#metricShopping .home-metric-num');
     if (metric) metric.textContent = String(loadShoppingItems().filter(item => !item.done).length);
-    createMenuPlanToast('✓ 已加入清单');
+    createMenuPlanToast('✓ 已加入买菜');
   };
 
   requestAnimationFrame(() => overlay.classList.add('open'));

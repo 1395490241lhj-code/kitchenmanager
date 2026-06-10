@@ -28,9 +28,9 @@ import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../c
 const mockAiRecommendations = {
   greeting: null, // 传 null 时由 buildGreeting() 按时间 + 库存自动生成
   cards: [
-    { id: null, name: '番茄炒蛋', matchLabel: '库存匹配 100%', missing: [], reason: '鸡蛋和番茄都在，十分钟上桌', tone: 'ready' },
+    { id: null, name: '番茄炒蛋', matchLabel: '食材已齐', missing: [], reason: '鸡蛋和番茄都在，十分钟上桌', tone: 'ready' },
     { id: null, name: '青椒肉丝', matchLabel: '只差 1 样', missing: ['青椒'], reason: '补个青椒就能下锅', tone: 'almost' },
-    { id: null, name: '麻婆豆腐', matchLabel: 'AI 灵感', missing: [], reason: '今晚想吃点麻辣的？', tone: 'idea' }
+    { id: null, name: '麻婆豆腐', matchLabel: '灵感菜', missing: [], reason: '今晚想吃点麻辣的？', tone: 'idea' }
   ]
 };
 
@@ -41,7 +41,7 @@ function buildGreeting(expiringCount) {
   if (expiringCount > 0) {
     return `${emoji} ${part}！有 ${expiringCount} 样食材快到期了，今晚可以这样做：`;
   }
-  return `${emoji} ${part}！根据你现在的库存，今晚推荐这几道：`;
+  return `${emoji} ${part}！根据你现在的食材，今晚推荐这几道：`;
 }
 
 // 到期提醒不统计鸡蛋、牛奶（它们按常备品状态管理，不看保质期）。
@@ -79,7 +79,7 @@ function openCleanFridgeHelper(pack, inv, onRoute = () => {}) {
       const recItem = recs.find(item => item.r.id === id);
       if (recItem) {
         const count = addMissingRecipeIngredientsToShopping(recItem.r, pack, inv, recItem.list);
-        brieflyConfirmButton(btn, count ? '已入清单' : '已齐');
+        brieflyConfirmButton(btn, count ? '已加入买菜' : '已齐');
         onRoute();
       }
     }
@@ -131,7 +131,7 @@ function getInspirationCards(pack, inv) {
       let matchLabel = '';
       let missing = [];
       if (tone === 'priority') matchLabel = '优先用掉';
-      else if (tone === 'ready') matchLabel = '库存匹配 100%';
+      else if (tone === 'ready') matchLabel = '食材已齐';
       else {
         missing = (row.missing || []).map(m => m.name || m.item).filter(Boolean);
         matchLabel = `只差 ${missing.length} 样`;
@@ -157,14 +157,14 @@ function renderSuggestCard(card, pack, inv) {
     <h3 class="home-suggest-name">${escapeHtml(card.name)}</h3>
     <p class="home-suggest-reason">${escapeHtml(card.reason || '')}</p>
     ${missingTag}
-    <button type="button" class="btn ok small home-suggest-cook">${card.tone === 'almost' ? '补清单' : '做这道'}</button>
+    <button type="button" class="btn ok small home-suggest-cook">${card.tone === 'almost' ? '加入买菜' : '做这道'}</button>
   `;
   const cookBtn = el.querySelector('.home-suggest-cook');
   cookBtn.onclick = () => {
     if (!card.id) { brieflyConfirmButton(cookBtn, '示例'); return; }
     if (card.tone === 'almost' && card.row) {
       const count = addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list);
-      brieflyConfirmButton(cookBtn, count ? '已入清单' : '已齐');
+      brieflyConfirmButton(cookBtn, count ? '已加入买菜' : '已齐');
     } else {
       addRecipeToPlan(card.id);
       brieflyConfirmButton(cookBtn, '已加入');
@@ -233,7 +233,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   toggleBtn.className = 'home-inspi-toggle-btn';
   toggleBtn.id = 'heroInspiToggle';
   // 卡片数量稍后更新
-  toggleBtn.innerHTML = `<span class="home-inspi-toggle-icon">✨</span><span class="home-inspi-toggle-text">查看今日 AI 智能灵感推荐</span><span class="home-inspi-toggle-arrow">›</span>`;
+  toggleBtn.innerHTML = `<span class="home-inspi-toggle-icon">✨</span><span class="home-inspi-toggle-text">查看今日推荐</span><span class="home-inspi-toggle-arrow">›</span>`;
   section.appendChild(toggleBtn);
 
   // 2. 折叠内容容器（默认隐藏）
@@ -244,8 +244,8 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   // 面板内部：问候语行（含「换一批」按钮） + 状态行 + 滚动卡片 + 注释
   inspiWrap.innerHTML = `
     <div class="home-inspi-panel-head">
-      <p class="home-hero-greeting">🔮 结合当前厨房库存，为你定制的今日烹饪灵感：</p>
-      <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 换一批</button>
+      <p class="home-hero-greeting">🔮 结合当前厨房食材，为你定制的今日烹饪灵感：</p>
+      <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ 换几道</button>
     </div>
     <div class="home-suggest-scroll"></div>
     <p class="home-hero-note" id="heroNote"></p>
@@ -264,7 +264,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     const arrow = toggleBtn.querySelector('.home-inspi-toggle-arrow');
     if (text) text.textContent = inspiExpanded
       ? '收起灵感推荐'
-      : `查看今日 AI 智能灵感推荐${count ? ` (${count})` : ''}`;
+      : `查看今日推荐${count ? ` (${count})` : ''}`;
     if (arrow) arrow.textContent = '›';
     toggleBtn.setAttribute('aria-expanded', String(inspiExpanded));
   };
@@ -289,7 +289,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     if (usingMock) cards = mockAiRecommendations.cards;
     scroll.innerHTML = '';
     cards.forEach(card => scroll.appendChild(renderSuggestCard(card, pack, inv)));
-    note.textContent = usingMock ? '示例推荐 · 录入更多库存后会自动匹配你的食材' : '';
+    note.textContent = usingMock ? '示例推荐 · 多记几样食材后会自动匹配' : '';
     note.hidden = !usingMock;
     updateToggleLabel(cards.length);
   };
@@ -298,7 +298,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   const showAi = (aiCards) => {
     showRecommendationCards(scroll, (aiCards || []).slice(0, 4), pack, { onRoute });
     note.hidden = false;
-    note.innerHTML = 'AI 草稿推荐，请确认后再安排。<button type="button" class="home-note-clear" id="heroAiClear">用本地推荐</button>';
+    note.innerHTML = '推荐仅供参考，安排前可以再看一眼。<button type="button" class="home-note-clear" id="heroAiClear">用本地推荐</button>';
     const clearBtn = note.querySelector('#heroAiClear');
     if (clearBtn) clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); showLocal(); setInlineStatus(aiStatus, '', 'info'); };
     updateToggleLabel((aiCards || []).slice(0, 4).length);
@@ -325,11 +325,11 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
       if (cards.length > 0) {
         S.save(S.keys.ai_recs, aiResult);
         showAi(cards);
-        setInlineStatus(aiStatus, 'AI 已生成草稿推荐。', 'ok');
+        setInlineStatus(aiStatus, '已生成几道推荐。', 'ok');
         // 自动展开（刷新后）
         if (!inspiExpanded) toggleBtn.click();
       } else {
-        setInlineStatus(aiStatus, 'AI 没有返回可用菜谱，已保留本地推荐。', 'info');
+        setInlineStatus(aiStatus, '暂时没有返回可用菜谱，已保留本地推荐。', 'info');
       }
     } catch (e) {
       clearTimeout(safety);
@@ -428,7 +428,7 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () =>
         ${qty ? `<span class="km-expiry-qty">${qty}</span>` : ''}
       </span>
       <span class="km-expiry-days">${dayText}</span>
-      <button type="button" class="btn small km-expiry-add">加入清单</button>
+      <button type="button" class="btn small km-expiry-add">加入买菜</button>
     `;
     li.querySelector('.km-expiry-add').onclick = (e) => {
       addShoppingItem(it.name, (+it.qty > 0 ? it.qty : ''), it.unit || '', '临期补货');
@@ -475,14 +475,14 @@ function buildMemoModal(onClose) {
   const wrap = document.createElement('div');
   wrap.className = 'km-modal-body';
   wrap.innerHTML = `
-    <p class="km-modal-hint" style="margin-top:0">输入名字后回车，快速加入购物清单。</p>
+    <p class="km-modal-hint" style="margin-top:0">输入名字后回车，快速加入买菜清单。</p>
     <div class="km-modal-add-row">
       <input class="km-modal-input" id="memoModalInput" placeholder="要买什么？">
       <button type="button" class="btn ok small" id="memoModalAdd">加入</button>
     </div>
     <ul class="km-memo-log" id="memoLog"></ul>
     <div class="km-modal-actions">
-      <button type="button" class="btn ok" id="gotoShoppingFromMemo">前往购物清单 →</button>
+      <button type="button" class="btn ok" id="gotoShoppingFromMemo">去买菜清单 →</button>
     </div>
   `;
 
@@ -545,7 +545,7 @@ function renderUrgentMetrics(pack, inv, activeShoppingCount, { onRoute = () => {
     <button type="button" class="home-metric is-info" id="metricShopping">
       <span class="home-metric-header">
         <span class="home-metric-icon">🛒</span>
-        <span class="home-metric-label">待买清单</span>
+        <span class="home-metric-label">待买</span>
       </span>
       <span class="home-metric-num">${activeShoppingCount}</span>
       <span class="home-metric-sub">项未完成</span>
@@ -577,7 +577,7 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
   section.className = 'home-actions-hub';
   section.innerHTML = `
     <div class="home-actions-grid">
-      <button type="button" class="home-act-btn" id="actQuickInput"><span class="home-act-emoji">📦</span><span>采购存入</span></button>
+      <button type="button" class="home-act-btn" id="actQuickInput"><span class="home-act-emoji">📦</span><span>记食材</span></button>
       <button type="button" class="home-act-btn" id="actQuickMemo"><span class="home-act-emoji">📝</span><span>速加待买</span></button>
     </div>
     <div class="home-activity" id="homeActivity"></div>
@@ -590,7 +590,7 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
       activity.innerHTML = '<span class="home-activity-empty">还没有待买项目，用上面的「随手记」随手记一笔</span>';
       return;
     }
-    activity.innerHTML = '<div class="home-activity-title">清单最近添加</div>' + recent.map(it => {
+    activity.innerHTML = '<div class="home-activity-title">最近记下要买</div>' + recent.map(it => {
       const qty = it.qty ? ` · ${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}` : '';
       const src = it.source ? `<small>${escapeHtml(it.source)}</small>` : '';
       return `<div class="home-activity-row"><span>📝 ${escapeHtml(it.name)}${qty}</span>${src}</div>`;
@@ -716,7 +716,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
         <input type="file" id="batchReceiptFile" accept="image/*" capture="environment" class="visually-hidden">
         <span class="receipt-camera-icon" aria-hidden="true">📷</span>
         <strong>点此拍摄 / 选择小票</strong>
-        <small>AI 自动识别食材并预览确认</small>
+        <small>自动识别食材并让你确认</small>
       </label>
       <div id="batchReceiptStatus" class="small inline-status" hidden></div>
     </div>
@@ -729,10 +729,10 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
 
     <div class="km-modal-actions">
       <button type="button" class="btn" id="batchCancel">取消</button>
-      <button type="button" class="btn ok" id="batchConfirm">确认入库</button>
+      <button type="button" class="btn ok" id="batchConfirm">加入厨房</button>
     </div>
   `;
-  const { overlay, close } = createHomeModal(body, '📦 采购物品入库登记');
+  const { overlay, close } = createHomeModal(body, '记进厨房');
 
   let currentTab = (initialTab === 'text' ? 'text' : 'receipt');
   const setTab = (name) => {
@@ -741,7 +741,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     overlay.querySelectorAll('.batch-tab-panel').forEach(p => p.classList.toggle('is-hidden', p.id !== `batch-panel-${name}`));
     // 拍小票模式：主按钮文案改为「打开相机」式提示；文本模式：恢复「确认入库」。
     const confirmBtn = overlay.querySelector('#batchConfirm');
-    confirmBtn.textContent = name === 'receipt' ? '选取小票图片' : '确认入库';
+    confirmBtn.textContent = name === 'receipt' ? '选取小票图片' : '加入厨房';
   };
   setTab(currentTab);
   overlay.querySelectorAll('.batch-tab').forEach(t => { t.onclick = () => setTab(t.dataset.tab); });
@@ -756,12 +756,12 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     if (!file) return;
     receiptStatus.hidden = false;
     receiptStatus.className = 'small inline-status info';
-    receiptStatus.innerHTML = '<span class="spinner"></span> AI 识别中…';
+    receiptStatus.innerHTML = '<span class="spinner"></span> 正在识别…';
     try {
-      const items = await withTimeout(recognizeReceipt(file), 30000, 'AI 识别超时');
+      const items = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
       if (!items || !items.length) {
         receiptStatus.className = 'small inline-status bad';
-        receiptStatus.textContent = '没有识别到可入库食材';
+        receiptStatus.textContent = '没有识别到食材';
         return;
       }
       // 借用既有的确认弹窗渲染可编辑预览列表，确认后再写库 → 统一走 writeItemsToInventory。
@@ -801,12 +801,12 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     if (n > 0) {
       statusEl.hidden = false;
       statusEl.className = 'small inline-status ok';
-      statusEl.textContent = `✓ 已入库 ${n} 项`;
+      statusEl.textContent = `✓ 已加入厨房 ${n} 项`;
       setTimeout(() => { close(); onRoute(); }, 600);
     } else {
       statusEl.hidden = false;
       statusEl.className = 'small inline-status bad';
-      statusEl.textContent = '入库失败：所有条目都无法识别为食材。';
+      statusEl.textContent = '没能加入厨房：这些内容还没识别成食材。';
     }
   };
 }
@@ -960,7 +960,7 @@ function createStatusCards(inv, pack, { onRoute = () => {} } = {}) {
     const shopCount = loadShoppingItems().filter(i => !i.done).length;
     const expTone = expCount === 0 ? 'is-ok' : (expiredCount > 0 ? 'is-bad' : 'is-warn');
     const expSub = expCount === 0 ? '暂无到期' : (expiredCount > 0 ? `${expiredCount} 样已过期` : '样快到期');
-    const shopSub = shopCount === 0 ? '清单为空' : '项待买';
+    const shopSub = shopCount === 0 ? '还没记要买' : '项待买';
 
     section.innerHTML = `
       <button type="button" class="home-metric ${expTone}" id="statExpiring">
@@ -969,7 +969,7 @@ function createStatusCards(inv, pack, { onRoute = () => {} } = {}) {
         <span class="home-metric-sub">${escapeHtml(expSub)}</span>
       </button>
       <button type="button" class="home-metric is-info" id="statShopping">
-        <span class="home-metric-header"><span class="home-metric-icon">🛒</span><span class="home-metric-label">待购买</span></span>
+        <span class="home-metric-header"><span class="home-metric-icon">🛒</span><span class="home-metric-label">待买</span></span>
         <span class="home-metric-num">${shopCount}</span>
         <span class="home-metric-sub">${escapeHtml(shopSub)}</span>
       </button>
@@ -996,8 +996,8 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
   toggle.innerHTML = `
     <span class="today-ai-toggle-icon">✨</span>
     <span class="today-ai-toggle-text">
-      <span class="today-ai-toggle-title">AI 智能推荐</span>
-      <span class="today-ai-toggle-sub" id="aiSummary">根据库存生成晚餐灵感</span>
+      <span class="today-ai-toggle-title">今日推荐</span>
+      <span class="today-ai-toggle-sub" id="aiSummary">根据食材生成晚餐灵感</span>
     </span>
     <span class="today-ai-toggle-arrow" aria-hidden="true">›</span>
   `;
@@ -1008,7 +1008,7 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
   body.setAttribute('aria-hidden', 'true');
   body.innerHTML = `
     <div class="today-ai-head">
-      <button type="button" class="home-mini-btn today-ai-btn" id="todayAiBtn">✨ AI 换一批</button>
+      <button type="button" class="home-mini-btn today-ai-btn" id="todayAiBtn">✨ 换几道</button>
     </div>
     <div class="today-picks-grid" id="todayPicksGrid"></div>
     <p class="today-picks-note" id="todayPicksNote" hidden></p>
@@ -1019,7 +1019,7 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
   const note = body.querySelector('#todayPicksNote');
   const aiBtn = body.querySelector('#todayAiBtn');
   const summary = toggle.querySelector('#aiSummary');
-  const setSummary = (n) => { summary.textContent = n > 0 ? `有 ${n} 个推荐` : '根据库存生成晚餐灵感'; };
+  const setSummary = (n) => { summary.textContent = n > 0 ? `有 ${n} 个推荐` : '根据食材生成晚餐灵感'; };
 
   const renderLocal = () => {
     const cards = getInspirationCards(pack, inv);
@@ -1035,7 +1035,7 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
     grid.innerHTML = '';
     showRecommendationCards(grid, list, pack, { onRoute });
     note.hidden = false;
-    note.innerHTML = 'AI 草稿推荐，确认后再安排。<button type="button" class="home-note-clear" id="todayAiClear">用本地推荐</button>';
+    note.innerHTML = '推荐仅供参考，安排前可以再看一眼。<button type="button" class="home-note-clear" id="todayAiClear">用本地推荐</button>';
     const clearBtn = note.querySelector('#todayAiClear');
     if (clearBtn) clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); renderLocal(); };
     setSummary(list.length);
@@ -1132,8 +1132,8 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
   section.className = 'today-section today-quick';
   section.innerHTML = `
     <div class="today-quick-row">
-      <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>食材入库</span></button>
-      <button type="button" class="today-quick-btn" id="qaMemo"><span class="tq-emoji">📝</span><span>待买速记</span></button>
+      <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>记食材</span></button>
+      <button type="button" class="today-quick-btn" id="qaMemo"><span class="tq-emoji">📝</span><span>记要买</span></button>
     </div>
   `;
   // 食材入库：直接打开现有「采购物品入库登记」弹窗（📸 拍小票识别 + ✍️ 文本批量记），不再多一层选择。
@@ -1316,7 +1316,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
   const renderShoppingTab = () => {
     const items = loadShoppingItems().filter(i => !i.done);
     if (!items.length) {
-      body.innerHTML = '<div class="wx-empty">🧺 购物清单是空的</div>';
+      body.innerHTML = '<div class="wx-empty">🧺 买菜清单是空的</div>';
       return;
     }
     const recent = items.slice(-3).reverse();
@@ -1379,7 +1379,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     if (mode === 'ai' && cards.length) {
       const note = document.createElement('p');
       note.className = 'wx-rec-note';
-      note.textContent = 'AI 草稿推荐，确认后再安排。';
+      note.textContent = '推荐仅供参考，安排前可以再看一眼。';
       body.appendChild(note);
     }
 
@@ -1393,7 +1393,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     foot.innerHTML = `
       ${mode === 'ai' && cards.length ? '<button type="button" class="wx-mini-btn" id="wxRecLocal">用本地推荐</button>' : ''}
       ${cards.length > 1 ? '<button type="button" class="wx-mini-btn" id="wxRecNext">换一道 ›</button>' : ''}
-      <button type="button" class="wx-mini-btn is-ai" id="wxRecAi">✨ AI 换一批</button>
+      <button type="button" class="wx-mini-btn is-ai" id="wxRecAi">✨ 换几道</button>
     `;
     body.appendChild(foot);
 
@@ -1422,7 +1422,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
           switchTab('recs');
           return;
         }
-        setInlineStatus(aiStatus, 'AI 没有返回可用菜谱，已保留本地推荐。', 'info');
+        setInlineStatus(aiStatus, '暂时没有返回可用菜谱，已保留本地推荐。', 'info');
       } catch (err) {
         clearTimeout(safety);
         setInlineStatus(aiStatus, formatAiErrorMessage(err), 'bad');
