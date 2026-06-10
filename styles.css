@@ -7285,3 +7285,52 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
     padding: 7px 18px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  食材页轻量录入（v159）—— 「随手记几样食材」glass 卡 + 常见食材 chips +
+ *  「更多选项」收起详细表单。复用 glass-panel / batch-text-area / inline-status。
+ * ══════════════════════════════════════════════════════════════════════════ */
+.inventory-quick-add {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.inventory-quick-title { font-size: 16px; font-weight: 800; color: var(--text-main); }
+.inventory-quick-hint { margin: -4px 0 0; font-size: 12.5px; color: var(--text-secondary); }
+.inventory-quick-textarea { min-height: 92px; margin: 0; }
+.inventory-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.inventory-chip {
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--glass-cell-fill);
+  border: 1px solid var(--glass-edge);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.inventory-chip:active { transform: scale(0.94); }
+.inventory-quick-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.inventory-quick-actions .btn { border-radius: 999px; }
+.inventory-quick-actions .btn.ok { min-width: 132px; }
+.inventory-advanced-toggle {
+  display: block;
+  margin: 2px auto 10px;
+  padding: 8px 18px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.inventory-advanced-toggle:hover { color: var(--text-main); }

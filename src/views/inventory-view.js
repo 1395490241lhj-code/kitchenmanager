@@ -38,6 +38,7 @@ import {
   setSelectValueWithOption
 } from '../components/status.js?v=219';import { markShoppingItemsStockedIn } from '../shopping.js?v=219';
 import { renderStaplesShelf } from '../components/staples-shelf.js?v=219';
+import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
 
 // 全局「编辑食材」模式开关（模块级，跨重渲染保持，避免保存后跳回只读态）。
 let isEditingInventory = false;
@@ -96,10 +97,81 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   header.innerHTML = '<span>我的食材</span>';
   if (options.showTitle !== false) wrap.appendChild(header);
 
-  // 「普通食材」分段面板：承载工具栏 + 添加表单 + 库存网格（常备库存另起一个面板）。
+  // 「普通食材」分段面板：承载轻量录入 + 工具栏 + 添加表单 + 库存网格（常备库存另起一个面板）。
   const normalPanel = document.createElement('div');
   normalPanel.className = 'inv-panel';
   normalPanel.dataset.panel = 'normal';
+
+  // ── 轻量录入区：随手记几样食材（每行一个，自动猜单位走 parseFoodLines + 现有写库链路）──
+  //    新用户第一眼看到的是这块，详细表单收进下方「更多选项」。
+  const QUICK_CHIPS = ['鸡蛋', '番茄', '土豆', '青菜', '豆腐', '牛肉', '面条', '胡萝卜'];
+  const quickAdd = document.createElement('div');
+  quickAdd.className = 'inventory-quick-add glass-panel';
+  quickAdd.innerHTML = `
+    <div class="inventory-quick-title">随手记几样食材</div>
+    <p class="inventory-quick-hint">每行一个食材。数量不确定也可以只写名字。</p>
+    <textarea class="batch-text-area inventory-quick-textarea" id="quickAddInput" rows="4" placeholder="鸡蛋 6个&#10;番茄 3个&#10;土豆&#10;豆腐 1盒"></textarea>
+    <div class="inventory-chip-row">${QUICK_CHIPS.map(n => `<button type="button" class="inventory-chip" data-name="${escapeOptionAttr(n)}">${escapeHtml(n)}</button>`).join('')}</div>
+    <div id="quickAddStatus" class="small inline-status" hidden></div>
+    <div class="inventory-quick-actions">
+      <button type="button" class="btn small" id="quickAddSample">试试常见食材</button>
+      <button type="button" class="btn ok" id="quickAddBtn">加入厨房</button>
+    </div>
+  `;
+  normalPanel.appendChild(quickAdd);
+
+  const quickInput = quickAdd.querySelector('#quickAddInput');
+  const quickStatus = quickAdd.querySelector('#quickAddStatus');
+  let quickStatusTimer = null;
+  const showQuickStatus = (text, tone) => {
+    quickStatus.hidden = false;
+    quickStatus.className = `small inline-status ${tone}`;
+    quickStatus.textContent = text;
+    clearTimeout(quickStatusTimer);
+    quickStatusTimer = setTimeout(() => { quickStatus.hidden = true; }, 2000);
+  };
+
+  // chips：只帮用户填输入框（追加一行），不直接写库；已有同名行则不重复追加。
+  quickAdd.querySelectorAll('.inventory-chip').forEach(chip => {
+    chip.onclick = () => {
+      const name = chip.dataset.name;
+      const lines = quickInput.value.split(/\r?\n/).map(l => l.trim());
+      if (lines.some(l => l === name || l.startsWith(name + ' '))) return;
+      quickInput.value = (quickInput.value.trim() ? quickInput.value.replace(/\s+$/, '') + '\n' : '') + name;
+    };
+  });
+
+  // 「试试常见食材」：只填进输入框示例，等用户确认后再点「加入厨房」。
+  quickAdd.querySelector('#quickAddSample').onclick = () => {
+    quickInput.value = '鸡蛋 6个\n番茄 3个\n土豆 2个\n青菜 1把';
+    quickInput.focus();
+  };
+
+  // 「加入厨房」：parseFoodLines 解析 → 规范名/猜单位/猜保质期 → mergeInventoryEntry 写库
+  // （与详细表单、小票识别同一条链路；单位相同累加、不同作新批次，行为不变）。
+  quickAdd.querySelector('#quickAddBtn').onclick = () => {
+    const parsed = parseFoodLines(quickInput.value);
+    let count = 0;
+    for (const it of parsed) {
+      const name = getCanonicalName(it.name || '');
+      if (!name) continue;
+      const qty = Number(it.qty);
+      const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
+      const unit = (it.unit && String(it.unit).trim()) || guessKitchenUnit(name) || '份';
+      const kind = isDryGoodName(name) ? 'dry' : 'raw';
+      const shelf = kind === 'dry' ? 365 : guessShelfDays(name, unit);
+      const entry = { name, qty: safeQty, unit, buyDate: todayISO(), kind, shelf, stockStatus: 'ok' };
+      if (kind === 'dry') { entry.dryPrep = getDryPrepText(name); entry.isFrozen = false; }
+      mergeInventoryEntry(inv, entry, { mode: 'add' });
+      count++;
+    }
+    if (!count) { showQuickStatus('先写一两样食材吧。', 'info'); return; }
+    quickInput.value = '';
+    showQuickStatus(`已加入 ${count} 样食材`, 'ok');
+    renderTable();
+    // 同小票识别流程：先让用户看到行内反馈，再延迟通知外部整页刷新。
+    setTimeout(() => onInventoryChanged(), 1500);
+  };
 
   const searchDiv = document.createElement('div'); searchDiv.className = 'inventory-toolbar';
 
@@ -202,17 +274,24 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         <button id="addBtn" class="btn ok inventory-add-btn">加入厨房</button>
       </div>
     </div>`;
+  // 「更多选项」：详细表单默认收起，文字按钮与工具栏「+」共用同一套展开/收起逻辑。
+  const advToggle = document.createElement('button');
+  advToggle.type = 'button';
+  advToggle.className = 'inventory-advanced-toggle';
+  normalPanel.appendChild(advToggle);
   normalPanel.appendChild(formContainer);
 
-  searchDiv.querySelector('#toggleAddBtn').onclick = () => {
-    formContainer.classList.toggle('open');
-    const btn = searchDiv.querySelector('#toggleAddBtn');
-    if (formContainer.classList.contains('open')) {
-      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-    } else {
-      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-    }
+  const PLUS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
+  const MINUS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
+  const syncAddFormUi = () => {
+    const open = formContainer.classList.contains('open');
+    advToggle.textContent = open ? '收起详细选项 ⌃' : '更多选项 ⌄';
+    searchDiv.querySelector('#toggleAddBtn').innerHTML = open ? MINUS_SVG : PLUS_SVG;
   };
+  const toggleAddForm = () => { formContainer.classList.toggle('open'); syncAddFormUi(); };
+  advToggle.onclick = toggleAddForm;
+  searchDiv.querySelector('#toggleAddBtn').onclick = toggleAddForm;
+  syncAddFormUi();
   let selectedKind = 'raw';
   const setAddKind = (kind) => {
     selectedKind = kind === 'dry' ? 'dry' : 'raw';

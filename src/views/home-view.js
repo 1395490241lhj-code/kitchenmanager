@@ -12,6 +12,7 @@ import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } f
 import { showRecommendationCards } from '../components/recipe-card.js?v=219';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
+import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
 
 /*
@@ -682,21 +683,8 @@ function writeItemsToInventory(items, pack) {
   return count;
 }
 
-// 文本批量录入解析器：每行「名称 数量 单位」，单位可省略；兼容「西红柿 3个」「鸡蛋 6」等写法。
-function parseTextBatchInput(text) {
-  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const out = [];
-  for (const line of lines) {
-    let m = line.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s*(\S+)?$/);                      // 「西红柿 3 个」/ 「鸡蛋 6」
-    if (!m) m = line.match(/^([^\d\s]+?)(\d+(?:\.\d+)?)\s*(\S+)?$/);                // 「西红柿3个」（无空格）
-    if (m) {
-      out.push({ name: m[1].trim(), qty: Number(m[2]) || 1, unit: (m[3] || '').trim() });
-    } else {
-      out.push({ name: line, qty: 1, unit: '' });
-    }
-  }
-  return out;
-}
+// 文本批量录入解析已抽成共享纯函数 parseFoodLines（src/utils/food-input-parser.js），
+// 与食材页「随手记几样食材」轻量录入区共用同一套「每行一个食材」解析规则。
 
 /**
  * 📦 批量入库统一弹窗：双 Tab 切换（📸 拍小票识别 / ✍️ 文本批量记），最终都走同一条写库逻辑。
@@ -790,7 +778,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       return;
     }
     const text = overlay.querySelector('#batchTextInput').value;
-    const parsed = parseTextBatchInput(text);
+    const parsed = parseFoodLines(text);
     const statusEl = overlay.querySelector('#batchTextStatus');
     if (!parsed.length) {
       statusEl.hidden = false;
