@@ -266,7 +266,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     const actionHtml = item.done
       ? item.stockedIn
         ? '<span class="sw-state-stocked">已记进厨房</span>'
-        : '<button type="button" class="shopping-weather-stockin">记进厨房</button>'
+        : '<span class="sw-state-bought">已买</span><button type="button" class="shopping-weather-stockin">记进厨房</button>'
       : '<button type="button" class="sw-row-delete" aria-label="删除">✕</button>';
     row.innerHTML = `
       <span class="shopping-weather-check" aria-hidden="true">${item.done ? '✓' : ''}</span>

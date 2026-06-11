@@ -8215,6 +8215,7 @@ html[data-theme="dark"] .sw-tip-btn { color: #9ecbff; border-color: rgba(10, 132
 }
 html[data-theme="dark"] .shopping-weather-stockin { color: #9ecbff; border-color: rgba(10, 132, 255, 0.32); }
 .sw-state-stocked { font-size: 12px; font-weight: 700; color: var(--status-ok-text); white-space: nowrap; }
+.sw-state-bought { font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
 
 /* 最近完成：整体更弱 */
 .shopping-weather-completed { opacity: 0.92; background: var(--glass-cell-fill); }
