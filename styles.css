@@ -8361,11 +8361,24 @@ html[data-theme="dark"] .tomorrow-prep-cta { color: #9ecbff; border-color: rgba(
  *  独立「明天备菜」大卡已退役（tomorrow-prep-* 样式保留备用）。
  * ══════════════════════════════════════════════════════════════════════════ */
 .menu-prep-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   margin: 2px 0 10px;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.5;
   color: var(--status-bad-text);
+}
+.menu-prep-jump {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
 }
 .menu-prep-tags {
   display: flex;

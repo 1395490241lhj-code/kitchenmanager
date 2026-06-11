@@ -305,9 +305,16 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
     const shown = prep.tasks.slice(0, 4);
     const suffix = prep.tasks.length > 4 ? '等' : '';
     const allThaw = prep.tasks.every(t => t.kind === 'thaw');
-    alert.textContent = allThaw
+    const text = allThaw
       ? `今晚记得解冻：${shown.map(t => t.title).join('、')}${suffix}`
       : `今晚需要提前准备：${shown.map(t => `${t.title}${PREP_VERB[t.kind]}`).join('、')}${suffix}`;
+    if (currentPlanRange === 'today') {
+      // 「只看今天」时明天的行不可见，提醒和列表会断开：补一个轻跳转切到未来 3 天。
+      alert.innerHTML = `<span>${escapeHtml(text)}</span><button type="button" class="menu-prep-jump">查看明天计划</button>`;
+      alert.querySelector('.menu-prep-jump').onclick = () => { currentPlanRange = '3days'; onRoute(); };
+    } else {
+      alert.textContent = text;
+    }
     planCard.appendChild(alert);
   }
 
