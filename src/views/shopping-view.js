@@ -116,6 +116,56 @@ function showShoppingInventoryModal(item, onConfirm, onCancel) {
   };
 }
 
+// 编辑买菜项：名称 / 数量 / 单位 / 备注（仅未买项；不改 shopping item 数据结构）。
+function showShoppingEditModal(item, onConfirm, onCancel) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="card shopping-edit-modal">
+      <h3>编辑要买的东西</h3>
+      <p class="meta">数量不确定也可以留空。</p>
+      <div class="shopping-convert-grid shopping-edit-grid">
+        <label><span>名称</span><input id="shoppingEditName" value="${escapeOptionAttr(item.name || '')}"></label>
+        <label><span>数量</span><input id="shoppingEditQty" type="number" min="0" step="0.1" value="${escapeOptionAttr(item.qty ?? '')}"></label>
+        <label><span>单位</span><select id="shoppingEditUnit"><option value="">无单位</option><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="包">包</option><option value="瓶">瓶</option><option value="把">把</option><option value="份">份</option><option value="g">g</option><option value="ml">ml</option></select></label>
+        <label><span>备注</span><input id="shoppingEditRemark" placeholder="比如 明天做牛肉面 / 买大一点" value="${escapeOptionAttr(item.remark || '')}"></label>
+      </div>
+      <div id="shoppingEditStatus" class="inline-status" hidden></div>
+      <div class="controls receipt-confirm-actions">
+        <button type="button" class="btn" id="cancelShoppingEdit">取消</button>
+        <button type="button" class="btn ok" id="saveShoppingEdit">保存</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  // 单位回填：已有自定义单位（如「斤」）也能选中（自动补 option）。
+  setSelectValueWithOption(overlay.querySelector('#shoppingEditUnit'), item.unit || '');
+
+  const close = () => overlay.remove();
+  const cancel = () => {
+    close();
+    if (typeof onCancel === 'function') onCancel();
+  };
+  overlay.querySelector('#cancelShoppingEdit').onclick = cancel;
+  overlay.onclick = event => { if (event.target === overlay) cancel(); };
+  overlay.querySelector('#saveShoppingEdit').onclick = () => {
+    const name = overlay.querySelector('#shoppingEditName').value.trim();
+    const qty = overlay.querySelector('#shoppingEditQty').value.trim();
+    const unit = overlay.querySelector('#shoppingEditUnit').value;
+    const remark = overlay.querySelector('#shoppingEditRemark').value.trim();
+    if (!name) {
+      setInlineStatus(overlay.querySelector('#shoppingEditStatus'), '名称不能为空。', 'bad');
+      return;
+    }
+    if (qty !== '' && Number(qty) < 0) {
+      setInlineStatus(overlay.querySelector('#shoppingEditStatus'), '数量不能为负数。', 'bad');
+      return;
+    }
+    onConfirm({ name, qty, unit, remark });
+    close();
+  };
+}
+
 export function renderShopping(pack, { onRoute = () => {} } = {}){
   const catalog = buildCatalog(pack);
   const inv = loadInventory(catalog);
@@ -203,6 +253,23 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     onRoute();
   };
 
+  // 编辑未买项：名称/数量/单位/备注；聚合项（合并行）会同步更新全部关联原始 rows。
+  const editOne = (item) => {
+    showShoppingEditModal(item, ({ name, qty, unit, remark }) => {
+      const amountText = qty !== '' && unit ? `${qty}${unit}` : (qty !== '' ? `${qty}` : (unit || ''));
+      updateShoppingRowsByIds(getShoppingRowIds(item), target => ({
+        ...target,
+        name,
+        qty,
+        unit,
+        amountText,
+        remark
+      }));
+      setInlineStatus(status, '已更新。', 'ok');
+      onRoute();
+    });
+  };
+
   // 顶部主状态卡：大数字 + 副文案 + 三个小统计（复制/全部已买/清除已买移到底部轻浮动操作）。
   const hero = document.createElement('section');
   hero.className = 'shopping-weather-hero';
@@ -267,7 +334,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       ? item.stockedIn
         ? '<span class="sw-state-stocked">已记进厨房</span>'
         : '<span class="sw-state-bought">已买</span><button type="button" class="shopping-weather-stockin">记进厨房</button>'
-      : '<button type="button" class="sw-row-delete" aria-label="删除">✕</button>';
+      : '<button type="button" class="sw-row-edit" aria-label="编辑">✎</button><button type="button" class="sw-row-delete" aria-label="删除">✕</button>';
     row.innerHTML = `
       <span class="shopping-weather-check" aria-hidden="true">${item.done ? '✓' : ''}</span>
       <span class="shopping-weather-main">
@@ -282,6 +349,10 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       event.preventDefault();
       toggleItemDone(item);
     };
+    row.querySelector('.sw-row-edit')?.addEventListener('click', event => {
+      event.stopPropagation(); // 编辑不触发「整行标记已买」
+      editOne(item);
+    });
     row.querySelector('.sw-row-delete')?.addEventListener('click', event => {
       event.stopPropagation();
       deleteShoppingRowsByIds(getShoppingRowIds(item));

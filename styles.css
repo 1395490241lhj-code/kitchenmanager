@@ -8189,6 +8189,7 @@ html[data-theme="dark"] .sw-tip-btn { color: #9ecbff; border-color: rgba(10, 132
 }
 .shopping-weather-row.is-done { opacity: 0.86; }
 .shopping-weather-row-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; }
+.sw-row-edit,
 .sw-row-delete {
   width: 28px;
   height: 28px;
@@ -8200,7 +8201,13 @@ html[data-theme="dark"] .sw-tip-btn { color: #9ecbff; border-color: rgba(10, 132
   cursor: pointer;
   transition: background 0.15s ease;
 }
+.sw-row-edit:active,
 .sw-row-delete:active { background: rgba(120, 120, 128, 0.20); }
+
+/* 编辑买菜项弹窗：复用 modal-overlay/card 与 shopping-convert-grid 布局 */
+.shopping-edit-modal { max-width: 420px; }
+.shopping-edit-grid label:first-child,
+.shopping-edit-grid label:last-child { grid-column: 1 / -1; }
 .shopping-weather-stockin {
   min-height: 32px;
   padding: 6px 13px;
