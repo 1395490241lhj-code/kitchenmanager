@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getTomorrowPrepTasks, nextDateISO } from '../src/utils/prep-planner.js';
+import { getTomorrowPrepTasks, getPrepTasksForPlanItems, nextDateISO } from '../src/utils/prep-planner.js';
 
 const TODAY = '2026-06-10';
 const TOMORROW = '2026-06-11';
@@ -85,6 +85,19 @@ test('解冻和腌制可同时命中同一食材；同 kind+食材全局不重�
   const out = getTomorrowPrepTasks({ pack: PACK, inv, plan, today: TODAY });
   const kinds = out.tasks.map(t => t.kind).sort();
   assert.deepEqual(kinds, ['marinate', 'thaw']);
+});
+
+test('getPrepTasksForPlanItems：通用入口直接吃已筛好的计划项', () => {
+  const inv = [{ name: '牛肉', qty: 1, unit: '斤', stockStatus: 'ok', isFrozen: true }];
+  const out = getPrepTasksForPlanItems({
+    pack: PACK, inv,
+    planItems: [{ id: 'r-beef', date: TOMORROW }],
+    targetDate: TOMORROW
+  });
+  assert.equal(out.planCount, 1);
+  assert.equal(out.tasks.length, 1);
+  assert.equal(out.tasks[0].kind, 'thaw');
+  assert.equal(out.tasks[0].targetDate, TOMORROW);
 });
 
 test('已做完 / 非明天 / 库中不存在的计划项一律忽略', () => {

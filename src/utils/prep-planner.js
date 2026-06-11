@@ -44,21 +44,21 @@ function ingredientNames(recipe, map) {
 }
 
 /**
- * 生成明天的备菜任务。
- * @param {{pack: object, inv: Array, plan: Array, today: string}} args
- * @returns {{targetDate: string, planCount: number, tasks: Array}}
+ * 通用入口：对一组计划项生成备菜任务（供计划组件等复用）。
+ * @param {{pack: object, inv: Array, planItems: Array, targetDate: string}} args
+ *   planItems —— 已按日期筛好的 plan 行（内部仍会跳过 isCooked / 库里不存在的菜谱并按 id 去重）
+ * @returns {{planCount: number, tasks: Array}}
  *   task: { id, kind, icon, title, detail, recipeId, recipeName, ingredientName, targetDate }
  */
-export function getTomorrowPrepTasks({ pack, inv, plan, today }) {
-  const targetDate = nextDateISO(today);
+export function getPrepTasksForPlanItems({ pack, inv, planItems, targetDate }) {
   const recipes = Array.isArray(pack?.recipes) ? pack.recipes : [];
   const map = pack?.recipe_ingredients || {};
 
-  // 明天的计划（只看未做完的、库里真实存在的菜谱；按 recipeId 去重）。
+  // 只看未做完的、库里真实存在的菜谱；按 recipeId 去重。
   const seenRecipe = new Set();
   const tomorrowRecipes = [];
-  for (const p of (Array.isArray(plan) ? plan : [])) {
-    if (!p || p.date !== targetDate || p.isCooked) continue;
+  for (const p of (Array.isArray(planItems) ? planItems : [])) {
+    if (!p || p.isCooked) continue;
     if (seenRecipe.has(p.id)) continue;
     const r = recipes.find(x => x?.id === p.id);
     if (!r) continue;
@@ -108,5 +108,17 @@ export function getTomorrowPrepTasks({ pack, inv, plan, today }) {
     }
   }
 
-  return { targetDate, planCount: tomorrowRecipes.length, tasks };
+  return { planCount: tomorrowRecipes.length, tasks };
+}
+
+/**
+ * 便捷入口：生成「明天」的备菜任务（targetDate = today + 1）。
+ * @param {{pack: object, inv: Array, plan: Array, today: string}} args
+ * @returns {{targetDate: string, planCount: number, tasks: Array}}
+ */
+export function getTomorrowPrepTasks({ pack, inv, plan, today }) {
+  const targetDate = nextDateISO(today);
+  const planItems = (Array.isArray(plan) ? plan : []).filter(p => p && p.date === targetDate);
+  const { planCount, tasks } = getPrepTasksForPlanItems({ pack, inv, planItems, targetDate });
+  return { targetDate, planCount, tasks };
 }

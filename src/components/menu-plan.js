@@ -10,6 +10,7 @@ import { explodeCombinedItems, guessKitchenUnit, getCanonicalName, isSeasoning }
 import { analyzeRecipeInventory, markRecipeCookedKeepPlan } from '../recommendations.js?v=219';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import { computeCookDeductions, applyCookCalibration } from '../inventory.js?v=219';
+import { getTomorrowPrepTasks } from '../utils/prep-planner.js?v=219';
 import { showCalibrationModal } from './modal.js?v=219';
 import { escapeHtml } from './status.js?v=219';
 import { getCookShoppingCandidates, showCookCompleteFeedback } from './cook-feedback.js?v=219';
@@ -289,6 +290,27 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
     return true;
   });
 
+  // ── 「今晚提前准备」：只对明天的计划生成（prep-planner 纯规则），不污染今天 ──
+  //    顶部一行轻提醒 + 对应明天菜谱行的小标签；后天及以后不提醒，避免太早打扰。
+  const PREP_VERB = { thaw: '解冻', soak: '泡发', marinate: '腌制' };
+  const prep = getTomorrowPrepTasks({ pack, inv: inventory, plan, today });
+  const prepByRecipe = new Map();
+  prep.tasks.forEach(t => {
+    if (!prepByRecipe.has(t.recipeId)) prepByRecipe.set(t.recipeId, []);
+    prepByRecipe.get(t.recipeId).push(t);
+  });
+  if (prep.tasks.length) {
+    const alert = document.createElement('div');
+    alert.className = 'menu-prep-alert';
+    const shown = prep.tasks.slice(0, 4);
+    const suffix = prep.tasks.length > 4 ? '等' : '';
+    const allThaw = prep.tasks.every(t => t.kind === 'thaw');
+    alert.textContent = allThaw
+      ? `今晚记得解冻：${shown.map(t => t.title).join('、')}${suffix}`
+      : `今晚需要提前准备：${shown.map(t => `${t.title}${PREP_VERB[t.kind]}`).join('、')}${suffix}`;
+    planCard.appendChild(alert);
+  }
+
   const planList = document.createElement('div');
   planList.className = 'shopping-plan-list';
   if (!filteredPlans.length) {
@@ -339,12 +361,20 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
       const cookBtnHtml = isCooked
         ? '<button type="button" class="menu-cook-btn is-done" disabled>已完成</button>'
         : '<button type="button" class="menu-cook-btn">🍳 做好了</button>';
+      // 明天的菜如有准备任务，在菜名下方挂小胶囊标签（🧊 解冻 牛肉 / 💧 泡发 木耳 / 🧂 腌制 鸡翅）。
+      const prepTasks = (!isCooked && item.date === tomorrowISO) ? (prepByRecipe.get(item.id) || []) : [];
+      const prepTagsHtml = prepTasks.length
+        ? `<div class="menu-prep-tags">${prepTasks.map(t =>
+            `<span class="menu-prep-tag menu-prep-tag-${t.kind}">${t.icon} ${PREP_VERB[t.kind]} ${escapeHtml(t.title)}</span>`
+          ).join('')}</div>`
+        : '';
       row.innerHTML = `
         <div class="menu-row-left">
           <span class="shopping-plan-name">
             <span class="shopping-plan-recipe-title">${escapeHtml(recipe.name)} <small class="shopping-plan-date-label">(${label})</small></span>
             ${shortageBadge}
           </span>
+          ${prepTagsHtml}
           <label class="shopping-servings menu-row-servings"><span>份数</span><input type="number" min="1" max="8" step="1" value="${item.servings || 1}"${isCooked ? ' disabled' : ''}></label>
         </div>
         <div class="menu-row-actions">
