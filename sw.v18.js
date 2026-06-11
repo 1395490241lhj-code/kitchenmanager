@@ -1,4 +1,4 @@
-const CACHE_NAME = 'km-v40';
+const CACHE_NAME = 'km-v41';
 const CORE = [
   './',
   './index.html',

@@ -2,9 +2,9 @@ import { S, todayISO } from './storage.js?v=219';
 import {
   explodeCombinedItems,
   getCanonicalName,
-  guessKitchenUnit,
-  isSeasoning
+  guessKitchenUnit
 } from './ingredients.js?v=219';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=219';
 import {
   daysBetween,
   getStockCoverageAnalysis,
@@ -16,12 +16,14 @@ import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=219';
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
+  // 统一菜谱用料口径：只保留 role === 'core' 的核心食材参与库存匹配 / 缺货 / 买菜；
+  // 调料（盐/生抽/水淀粉…）与非库存项（水/高汤/汤汁/适量…）一律排除。
   return (sourceItems || [])
     .map(item => {
       const name = getCanonicalName(item.item || item.name || '');
       return { ...item, item: name, name };
     })
-    .filter(item => item.item && !isSeasoning(item.item));
+    .filter(item => item.item && classifyRecipeIngredient(item.item).role === 'core');
 }
 
 function normalizeRecommendationSet(value) {

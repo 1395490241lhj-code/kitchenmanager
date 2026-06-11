@@ -6,7 +6,8 @@
  * currentPlanRange 由本模块持有，并通过 getPlanRange() 暴露给购物页的「菜谱缺货」计算复用。
  */
 import { S, todayISO } from '../storage.js?v=219';
-import { explodeCombinedItems, guessKitchenUnit, getCanonicalName, isSeasoning } from '../ingredients.js?v=219';
+import { explodeCombinedItems, guessKitchenUnit, getCanonicalName } from '../ingredients.js?v=219';
+import { classifyRecipeIngredient } from '../utils/recipe-sanitizer.js?v=219';
 import { analyzeRecipeInventory, markRecipeCookedKeepPlan } from '../recommendations.js?v=219';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import { computeCookDeductions, applyCookCalibration } from '../inventory.js?v=219';
@@ -198,9 +199,10 @@ function cookPlans(targets, pack, inv, { onRoute = () => {}, title } = {}) {
   const scaledItems = aggregateScaledItems(targets, pack);
   const predictions = computeCookDeductions(scaledItems, inv);
   if (!predictions.length) {
+    // 只把核心食材作为「加入买菜」候选：调料与水/汤/量词等非库存项绝不进买菜。
     const missingCandidates = scaledItems
       .filter(it => it && it.item)
-      .filter(it => !isSeasoning(it.item));
+      .filter(it => classifyRecipeIngredient(it.item).role === 'core');
     markPlansCooked(targets);
     showCookCompleteFeedback({
       updated: false,

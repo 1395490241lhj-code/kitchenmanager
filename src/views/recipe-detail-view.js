@@ -1,6 +1,6 @@
 import { S, todayISO } from '../storage.js?v=219';
 import { buildCatalog, explodeCombinedItems, isSeasoning } from '../ingredients.js?v=219';
-import { splitIngredients } from '../utils/recipe-sanitizer.js?v=219';
+import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=219';
 import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=219';
 import {
   addMissingRecipeIngredientsToShopping,
@@ -113,9 +113,10 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
     ? (methodToListHtml(r.method) || `<div class="method-text">${escapeHtml(r.method)}</div>`)
     : missingMethodContent;
 
-  // 食材 / 调料结构化分流：从用料表按 isSeasoning 拆出核心食材与调味品，
+  // 食材 / 调料 / 非库存三分流：食材清单只显示核心食材，调料清单显示调料；
+  // 水 / 高汤 / 汤汁 / 适量等非库存项不展示（做法文本里自然会出现，无需重复）。
   // 再并入菜谱单列的 r.seasonings（按名称去重），渲染为上下两个微型区块。
-  const { foods: foodItems, seasonings: itemSeasonings } = splitIngredients(items);
+  const { foods: foodItems, seasonings: itemSeasonings } = splitRecipeIngredients(items);
   const extraSeasonings = Array.isArray(r.seasonings) ? r.seasonings.filter(s => s && s.item) : [];
   const seasoningItems = [];
   const seenSeasoning = new Set();

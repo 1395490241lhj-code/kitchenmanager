@@ -10,6 +10,8 @@ import {
   guessKitchenUnit,
   guessShelfDays,
   isDryGoodName,
+  isNonStockCookingTerm,
+  isSeasoning,
   normalizeKitchenAmount
 } from '../ingredients.js?v=219';
 import {
@@ -91,7 +93,10 @@ function lifeStatus(e){
 
 export function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div');
   const onInventoryChanged = typeof options.onInventoryChanged === 'function' ? options.onInventoryChanged : () => {};
-  const ingredientOptions = buildIngredientOptions(catalog);
+  // 食材页 datalist 只给核心食材候选：调料别名与水/汤/量词不进库存候选
+  // （菜谱编辑器的 datalist 不受影响，录菜谱仍可选调料）。
+  const ingredientOptions = buildIngredientOptions(catalog)
+    .filter(o => !isSeasoning(o.value) && !isNonStockCookingTerm(o.value));
   const header = document.createElement('div');
   header.className = 'main-title-center';
   header.innerHTML = '<span>我的食材</span>';
