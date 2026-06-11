@@ -47,6 +47,24 @@ test('splitIngredients 兼容：foods=core，seasonings 合并 seasoning+nonStoc
   assert.deepEqual(out.seasonings.map(x => x.item), ['盐', '高汤']);
 });
 
+test('seasoning：扩展写法（姜片/蒜末/郫县豆瓣/油类/腐乳/淀粉勾芡）', () => {
+  for (const n of ['姜片', '姜丝', '姜末', '蒜片', '蒜末', '葱段', '郫县豆瓣', '郫县豆瓣酱', '食用油', '红油', '花椒油', '醪糟汁', '腐乳', '豆腐乳', '化猪油', '芡汁', '勾芡汁', '水淀粉', '湿淀粉', '绍酒', '绍兴酒']) {
+    assert.equal(roleOf(n), 'seasoning', `${n} 应为 seasoning`);
+  }
+});
+
+test('non-stock：汤底/锅底/冰水与汤类变体', () => {
+  for (const n of ['汤料', '汤底', '锅底', '冰水', '热水', '凉水', '原汤', '牛骨汤', '猪骨高汤']) {
+    assert.equal(roleOf(n), 'non-stock', `${n} 应为 non-stock`);
+  }
+});
+
+test('core：带汤/粉字的真实食物与腌渍核心菜不误杀', () => {
+  for (const n of ['汤圆', '汤面', '汤粉', '米粉', '河粉', '凉粉', '粉丝', '酸菜', '酸豆角', '泡菜', '榨菜', '盐菜']) {
+    assert.equal(roleOf(n), 'core', `${n} 应为 core`);
+  }
+});
+
 test('isSeasoningName：非 core 一律 true（扣减/备菜的排除过滤口径）', () => {
   assert.equal(isSeasoningName('盐'), true);
   assert.equal(isSeasoningName('高汤'), true);

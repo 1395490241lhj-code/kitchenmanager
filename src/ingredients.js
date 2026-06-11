@@ -111,7 +111,6 @@ const NON_STOCK_EXACT = new Set([
   '水', '汤', '汁',
   '清水', '开水', '沸水', '热水', '温水', '冷水', '凉水', '冰水',
   '高汤', '清汤', '鲜汤', '肉汤', '鸡汤', '骨汤', '原汤', '汤汁', '汤底', '锅底', '汤料',
-  '水淀粉欠汁', '芡汁',
   '适量', '少许', '若干', '些许', '适当', '备用', '按需', '适口', '少量', '适量即可'
 ]);
 export function isNonStockCookingTerm(name) {
@@ -122,6 +121,19 @@ export function isNonStockCookingTerm(name) {
   // 「老母鸡汤 / 牛骨汤 / 猪骨高汤」等以汤类词结尾的变体（最多 4 个前缀字）。
   if (/^[一-龥]{0,4}(高汤|清汤|鲜汤|肉汤|鸡汤|骨汤|原汤|汤汁)$/.test(n)) return true;
   return false;
+}
+
+// 调料扩展写法（姜片/蒜末/油类/酒类/腐乳/淀粉勾芡等 SEASONINGS 之外的常见变体）。
+// 与 recipe-sanitizer 的扩展口径保持同步（ingredients 不能 import sanitizer，避免循环依赖，
+// 故本地维护一份；catalog 只收核心食材就靠它兜底）。
+const SEASONING_EXTRA_LOCAL_REGEX = /^(白胡椒|白胡椒粉|姜片|姜丝|姜末|蒜末|蒜片|蒜瓣|蒜苗|葱段|葱末|小葱|香葱|食用油|植物油|花生油|色拉油|菜籽油|橄榄油|调和油|郫县豆瓣|郫县豆瓣酱|红油|辣椒油|花椒油|藤椒油|白酒|黄酒|啤酒|绍酒|绍兴酒|甜酒|曲酒|蜂蜜|芝麻|白芝麻|熟芝麻|花椒粒|辣椒粉|干花椒|香料|卤料|椒盐|醪糟|醪糟汁|腐乳|豆腐乳|豆腐乳水|豆瓣乳水|化猪油|湿淀粉|水淀粉|芡汁|勾芡汁|玉米淀粉|土豆淀粉|红薯淀粉)$/;
+
+// 「不是核心食材」的本地兜底判定：调料（含扩展写法）或非库存烹饪介质 / 量词。
+// 仅供 buildCatalog 等 ingredients 内部使用；菜谱侧请用 recipe-sanitizer 的统一分类。
+export function isRecipeNonCoreName(name) {
+  const n = String(name || '').trim();
+  if (!n) return true;
+  return isSeasoning(n) || isNonStockCookingTerm(n) || SEASONING_EXTRA_LOCAL_REGEX.test(n);
 }
 
 export const ENGLISH_INGREDIENT_ALIASES = {
@@ -371,8 +383,9 @@ export function buildCatalog(pack) {
     for(const it of explodeCombinedItems(list)){
       const n=(it.item||'').trim();
       if(!n) continue;
-      // 只收核心食材进候选：调料与水/汤/量词等非库存项不进食材页 datalist 与库存候选。
-      if(isSeasoning(n) || isNonStockCookingTerm(n)) continue;
+      // 只收核心食材进候选：调料（含姜片/蒜末/油类/淀粉勾芡等扩展写法）与
+      // 水/汤/量词等非库存项不进食材页 datalist 与库存候选。
+      if(isRecipeNonCoreName(n)) continue;
       units[n]=units[n]||it.unit||'g';
       set.add(n);
     }

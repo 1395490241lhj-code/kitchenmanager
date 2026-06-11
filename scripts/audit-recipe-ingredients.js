@@ -40,6 +40,7 @@ const CORE_WORD_RE = /(豆腐|肉|菜|蛋|鱼|虾|菇|耳|笋|瓜|薯|藕|茄)/;
 
 (async () => {
   const { classifyRecipeIngredient } = await import('../src/utils/recipe-sanitizer.js');
+  const { buildCatalog } = await import('../src/ingredients.js');
 
   const sources = [];
   const curated = loadJson('data/sichuan-recipes.curated.json');
@@ -106,4 +107,19 @@ const CORE_WORD_RE = /(豆腐|肉|菜|蛋|鱼|虾|菇|耳|笋|瓜|薯|藕|茄)/;
   } else {
     console.log('Suspicious items: 无 🎉');
   }
+
+  // ── Catalog leak check：buildCatalog 收进候选的名字必须全部是 core ──
+  console.log('');
+  console.log('Catalog leak check');
+  console.log('------------------');
+  const leaks = [];
+  for (const [label, pack] of [['curated', curated], ['full', full]]) {
+    if (!pack) continue;
+    for (const entry of buildCatalog(pack)) {
+      const { role, reason } = classifyRecipeIngredient(entry.name);
+      if (role !== 'core') leaks.push({ source: label, name: entry.name, role, reason });
+    }
+  }
+  console.log(`Catalog leaks: ${leaks.length}`);
+  for (const l of leaks) console.log(`  - [${l.source}] ${l.name} → ${l.role}（${l.reason}）`);
 })();

@@ -10,10 +10,9 @@ import {
   guessKitchenUnit,
   guessShelfDays,
   isDryGoodName,
-  isNonStockCookingTerm,
-  isSeasoning,
   normalizeKitchenAmount
 } from '../ingredients.js?v=219';
+import { classifyRecipeIngredient } from '../utils/recipe-sanitizer.js?v=219';
 import {
   GEAR_LABELS,
   OUT_OF_STOCK_TTL_MS,
@@ -93,10 +92,11 @@ function lifeStatus(e){
 
 export function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div');
   const onInventoryChanged = typeof options.onInventoryChanged === 'function' ? options.onInventoryChanged : () => {};
-  // 食材页 datalist 只给核心食材候选：调料别名与水/汤/量词不进库存候选
+  // 食材页 datalist 只给核心食材候选（统一分类器口径）：调料别名（含姜片/蒜末/
+  // 郫县豆瓣/水淀粉等扩展写法）与水/汤/量词不进库存候选
   // （菜谱编辑器的 datalist 不受影响，录菜谱仍可选调料）。
   const ingredientOptions = buildIngredientOptions(catalog)
-    .filter(o => !isSeasoning(o.value) && !isNonStockCookingTerm(o.value));
+    .filter(o => classifyRecipeIngredient(o.value).role === 'core');
   const header = document.createElement('div');
   header.className = 'main-title-center';
   header.innerHTML = '<span>我的食材</span>';
