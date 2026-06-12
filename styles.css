@@ -8144,7 +8144,9 @@ html[data-theme="dark"] .sw-tip-btn { color: #9ecbff; border-color: rgba(10, 132
   transition: background 0.15s ease;
   border-radius: 16px;
 }
-.shopping-weather-row + .shopping-weather-row { border-top: 1px solid var(--glass-edge); border-radius: 0 0 16px 16px; }
+/* 行现在包在 .shopping-weather-row-wrap 里（行 + 可选行内编辑区），分隔线挂 wrap。 */
+.shopping-weather-row-wrap + .shopping-weather-row-wrap { border-top: 1px solid var(--glass-edge); }
+.shopping-weather-row-wrap + .shopping-weather-row-wrap .shopping-weather-row { border-radius: 0 0 16px 16px; }
 .shopping-weather-row:active { background: rgba(120, 120, 128, 0.08); }
 .shopping-weather-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .shopping-weather-check {
@@ -8204,10 +8206,73 @@ html[data-theme="dark"] .sw-tip-btn { color: #9ecbff; border-color: rgba(10, 132
 .sw-row-edit:active,
 .sw-row-delete:active { background: rgba(120, 120, 128, 0.20); }
 
-/* 编辑买菜项弹窗：复用 modal-overlay/card 与 shopping-convert-grid 布局 */
-.shopping-edit-modal { max-width: 420px; }
-.shopping-edit-grid label:first-child,
-.shopping-edit-grid label:last-child { grid-column: 1 / -1; }
+/* ── 行内编辑区（无弹窗）：卡片内部轻量展开，Weather-style 玻璃输入 ── */
+.shopping-weather-row-edit {
+  padding: 4px 10px 12px 52px; /* 左缩进对齐行主体（勾选圆 30 + 间距） */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sw-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.sw-edit-name-field,
+.sw-edit-remark-field { grid-column: 1 / -1; }
+.sw-edit-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.sw-edit-grid input,
+.sw-edit-grid select {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-cell-fill);
+  font-size: 14px;
+  color: var(--text-main);
+  outline: none;
+}
+.sw-edit-grid input:focus,
+.sw-edit-grid select:focus { border-color: rgba(0, 122, 255, 0.35); }
+.sw-edit-status { margin: 0; }
+.sw-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.sw-edit-save,
+.sw-edit-cancel {
+  min-height: 34px;
+  padding: 7px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.sw-edit-save {
+  border: 1px solid rgba(0, 122, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.13), rgba(0, 122, 255, 0.05)), var(--glass-control-fill);
+  color: var(--primary-dark);
+}
+html[data-theme="dark"] .sw-edit-save { color: #9ecbff; border-color: rgba(10, 132, 255, 0.32); }
+.sw-edit-cancel {
+  border: 1px solid var(--glass-edge);
+  background: transparent;
+  color: var(--text-secondary);
+}
+.sw-edit-save:active,
+.sw-edit-cancel:active { transform: scale(0.95); }
+@media (max-width: 480px) {
+  .shopping-weather-row-edit { padding-left: 12px; }
+}
 .shopping-weather-stockin {
   min-height: 32px;
   padding: 6px 13px;

@@ -304,8 +304,11 @@ export function groupShoppingItemsByZone(items) {
 function formatShoppingLine(item, sourceOverride = '') {
   const amount = amountText(item.qty, item.unit);
   const source = sourceOverride || item.source || (item.sources || []).join('、');
+  // 手写备注一并带上（与来源不同才显示，避免「菜谱缺货：X（菜谱缺货：X）」式重复）。
+  const remark = String(item.remark || '').trim();
+  const remarkPart = remark && remark !== source ? ` ${remark}` : '';
   const suffix = source ? `（${source}）` : '';
-  return `- ${item.name}${amount ? ` ${amount}` : ''}${suffix}`;
+  return `- ${item.name}${amount ? ` ${amount}` : ''}${remarkPart}${suffix}`;
 }
 
 export function buildCopyableShoppingList(missing, items) {

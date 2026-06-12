@@ -116,54 +116,22 @@ function showShoppingInventoryModal(item, onConfirm, onCancel) {
   };
 }
 
-// 编辑买菜项：名称 / 数量 / 单位 / 备注（仅未买项；不改 shopping item 数据结构）。
-function showShoppingEditModal(item, onConfirm, onCancel) {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="card shopping-edit-modal">
-      <h3>编辑要买的东西</h3>
-      <p class="meta">数量不确定也可以留空。</p>
-      <div class="shopping-convert-grid shopping-edit-grid">
-        <label><span>名称</span><input id="shoppingEditName" value="${escapeOptionAttr(item.name || '')}"></label>
-        <label><span>数量</span><input id="shoppingEditQty" type="number" min="0" step="0.1" value="${escapeOptionAttr(item.qty ?? '')}"></label>
-        <label><span>单位</span><select id="shoppingEditUnit"><option value="">无单位</option><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="包">包</option><option value="瓶">瓶</option><option value="把">把</option><option value="份">份</option><option value="g">g</option><option value="ml">ml</option></select></label>
-        <label><span>备注</span><input id="shoppingEditRemark" placeholder="比如 明天做牛肉面 / 买大一点" value="${escapeOptionAttr(item.remark || '')}"></label>
-      </div>
-      <div id="shoppingEditStatus" class="inline-status" hidden></div>
-      <div class="controls receipt-confirm-actions">
-        <button type="button" class="btn" id="cancelShoppingEdit">取消</button>
-        <button type="button" class="btn ok" id="saveShoppingEdit">保存</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  // 单位回填：已有自定义单位（如「斤」）也能选中（自动补 option）。
-  setSelectValueWithOption(overlay.querySelector('#shoppingEditUnit'), item.unit || '');
+// ── 行内编辑（无弹窗）─────────────────────────────────────────────────────
+// 当前展开编辑的行（聚合项用全部原始 ids 拼 key）。仅页面内存，不持久化。
+let editingShoppingRowKey = null;
 
-  const close = () => overlay.remove();
-  const cancel = () => {
-    close();
-    if (typeof onCancel === 'function') onCancel();
-  };
-  overlay.querySelector('#cancelShoppingEdit').onclick = cancel;
-  overlay.onclick = event => { if (event.target === overlay) cancel(); };
-  overlay.querySelector('#saveShoppingEdit').onclick = () => {
-    const name = overlay.querySelector('#shoppingEditName').value.trim();
-    const qty = overlay.querySelector('#shoppingEditQty').value.trim();
-    const unit = overlay.querySelector('#shoppingEditUnit').value;
-    const remark = overlay.querySelector('#shoppingEditRemark').value.trim();
-    if (!name) {
-      setInlineStatus(overlay.querySelector('#shoppingEditStatus'), '名称不能为空。', 'bad');
-      return;
-    }
-    if (qty !== '' && Number(qty) < 0) {
-      setInlineStatus(overlay.querySelector('#shoppingEditStatus'), '数量不能为负数。', 'bad');
-      return;
-    }
-    onConfirm({ name, qty, unit, remark });
-    close();
-  };
+function shoppingRowKey(item) {
+  return getShoppingRowIds(item).join('|');
+}
+
+// 数量 + 单位 → amountText：都有拼接，单有取单，否则空串。
+function formatShoppingAmountText(qty, unit) {
+  const q = String(qty || '').trim();
+  const u = String(unit || '').trim();
+  if (q && u) return `${q}${u}`;
+  if (q) return q;
+  if (u) return u;
+  return '';
 }
 
 export function renderShopping(pack, { onRoute = () => {} } = {}){
@@ -253,21 +221,29 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     onRoute();
   };
 
-  // 编辑未买项：名称/数量/单位/备注；聚合项（合并行）会同步更新全部关联原始 rows。
-  const editOne = (item) => {
-    showShoppingEditModal(item, ({ name, qty, unit, remark }) => {
-      const amountText = qty !== '' && unit ? `${qty}${unit}` : (qty !== '' ? `${qty}` : (unit || ''));
-      updateShoppingRowsByIds(getShoppingRowIds(item), target => ({
-        ...target,
-        name,
-        qty,
-        unit,
-        amountText,
-        remark
-      }));
-      setInlineStatus(status, '已更新。', 'ok');
-      onRoute();
-    });
+  // 编辑未买项（行内展开，无弹窗）：点 ✎ 切换该行的原地编辑区。
+  const startEditRow = (item) => {
+    editingShoppingRowKey = shoppingRowKey(item);
+    onRoute();
+  };
+  const stopEditRow = () => {
+    editingShoppingRowKey = null;
+    onRoute();
+  };
+  // 保存：聚合项（合并行）同步更新全部关联原始 rows；只动既有字段，不碰 done/stockedIn/completedAt。
+  const saveEditRow = (item, { name, qty, unit, remark }) => {
+    const amountText = formatShoppingAmountText(qty, unit);
+    updateShoppingRowsByIds(getShoppingRowIds(item), target => ({
+      ...target,
+      name,
+      qty,
+      unit,
+      amountText,
+      remark
+    }));
+    editingShoppingRowKey = null;
+    setInlineStatus(status, '已更新。', 'ok');
+    onRoute();
   };
 
   // 顶部主状态卡：大数字 + 副文案 + 三个小统计（复制/全部已买/清除已买移到底部轻浮动操作）。
@@ -351,7 +327,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     };
     row.querySelector('.sw-row-edit')?.addEventListener('click', event => {
       event.stopPropagation(); // 编辑不触发「整行标记已买」
-      editOne(item);
+      startEditRow(item);
     });
     row.querySelector('.sw-row-delete')?.addEventListener('click', event => {
       event.stopPropagation();
@@ -362,7 +338,78 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       event.stopPropagation();
       stockInOne(item);
     });
-    return row;
+
+    // 行 + 可选行内编辑区，包成 wrap（分区卡 append wrap；编辑区不在 row 内，
+    // 其点击/键盘事件不会冒泡到 row 的 toggle）。
+    const wrap = document.createElement('div');
+    wrap.className = 'shopping-weather-row-wrap';
+    wrap.appendChild(row);
+    if (!item.done && editingShoppingRowKey === shoppingRowKey(item)) {
+      wrap.appendChild(renderRowEditPanel(item));
+    }
+    return wrap;
+  };
+
+  // 行内编辑区：名称/数量/单位/备注 + 取消/保存。备注默认值 = remarkDefault(item)
+  // （手写 remark 优先，否则菜谱来源等 source/reason 文案变成可编辑备注）。
+  const renderRowEditPanel = (item) => {
+    const panel = document.createElement('div');
+    panel.className = 'shopping-weather-row-edit';
+    panel.innerHTML = `
+      <div class="sw-edit-grid">
+        <label class="sw-edit-name-field">
+          <span>名称</span>
+          <input class="sw-edit-name" value="${escapeOptionAttr(item.name || '')}">
+        </label>
+        <label>
+          <span>数量</span>
+          <input class="sw-edit-qty" type="number" min="0" step="0.1" value="${escapeOptionAttr(item.qty ?? '')}">
+        </label>
+        <label>
+          <span>单位</span>
+          <select class="sw-edit-unit">
+            <option value="">无单位</option><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="包">包</option><option value="瓶">瓶</option><option value="把">把</option><option value="份">份</option><option value="g">g</option><option value="ml">ml</option>
+          </select>
+        </label>
+        <label class="sw-edit-remark-field">
+          <span>备注</span>
+          <input class="sw-edit-remark" placeholder="比如 明天做凉拌菜" value="${escapeOptionAttr(item.remark || remarkDefault(item) || '')}">
+        </label>
+      </div>
+      <div class="sw-edit-status inline-status" hidden></div>
+      <div class="sw-edit-actions">
+        <button type="button" class="sw-edit-cancel">取消</button>
+        <button type="button" class="sw-edit-save">保存</button>
+      </div>
+    `;
+    // 自定义单位（如「斤」）自动补 option 并选中。
+    setSelectValueWithOption(panel.querySelector('.sw-edit-unit'), item.unit || '');
+    // 状态元素用闭包持有：setInlineStatus 会重写 className（抹掉 sw-edit-status 类），
+    // 不能每次按类名重查，否则第二次校验报错显示不出来。
+    const editStatus = panel.querySelector('.sw-edit-status');
+
+    const doSave = () => {
+      const name = panel.querySelector('.sw-edit-name').value.trim();
+      const qty = panel.querySelector('.sw-edit-qty').value.trim();
+      const unit = panel.querySelector('.sw-edit-unit').value;
+      const remark = panel.querySelector('.sw-edit-remark').value.trim();
+      if (!name) { setInlineStatus(editStatus, '名称不能为空。', 'bad'); return; }
+      if (qty !== '' && Number(qty) < 0) { setInlineStatus(editStatus, '数量不能为负数。', 'bad'); return; }
+      saveEditRow(item, { name, qty, unit, remark });
+    };
+
+    // 防冲突：编辑区内的点击/键盘事件一律不冒泡（不触发整行已买）；输入框 Enter = 保存。
+    panel.addEventListener('click', event => event.stopPropagation());
+    panel.addEventListener('keydown', event => {
+      event.stopPropagation();
+      if (event.key === 'Enter' && event.target.tagName !== 'BUTTON') {
+        event.preventDefault();
+        doSave();
+      }
+    });
+    panel.querySelector('.sw-edit-save').onclick = doSave;
+    panel.querySelector('.sw-edit-cancel').onclick = () => stopEditRow();
+    return panel;
   };
 
   // 分区玻璃卡：标题行（分区名 + N 未买）+ 行列表；最近完成单独一张、整体更弱。
