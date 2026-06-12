@@ -134,17 +134,20 @@ export function loadShoppingItems() {
       needsSave = true;
     }
 
-    const normalizedDone = !!item.done;
-    if (item.done !== normalizedDone) {
-      needsSave = true;
-    }
-
     const normalizedStockedIn = !!item.stockedIn;
     if (item.stockedIn !== normalizedStockedIn) {
       needsSave = true;
     }
 
-    const normalizedStockedInAt = item.stockedInAt || null;
+    const normalizedDone = !!item.done || normalizedStockedIn;
+    if (item.done !== normalizedDone) {
+      needsSave = true;
+    }
+
+    const normalizedStockedInAt = normalizedStockedIn ? (item.stockedInAt || null) : null;
+    if ((item.stockedInAt || null) !== normalizedStockedInAt) {
+      needsSave = true;
+    }
 
     // 备注（手动添加 / 行内就地编辑）：必须在归一化重建对象时保留，否则刷新即丢失。
     const normalizedRemark = typeof item.remark === 'string' ? item.remark : '';
@@ -345,7 +348,7 @@ export function markAllShoppingItemsDone() {
 }
 
 export function clearDoneShoppingItems() {
-  const items = loadShoppingItems().filter(item => !item.done);
+  const items = loadShoppingItems().filter(item => !isShoppingItemCompleted(item));
   saveShoppingItems(items);
   return items;
 }
@@ -364,7 +367,7 @@ export function markShoppingItemCompleted(id) {
 
 // 取消完成：回到待购买，清空完成 / 入库状态与时间。
 export function markShoppingItemActive(id) {
-  updateShoppingItemById(id, it => ({ ...it, done: false, stockedIn: false, completedAt: null }));
+  updateShoppingItemById(id, it => ({ ...it, done: false, stockedIn: false, stockedInAt: null, completedAt: null }));
 }
 
 // 标记为已入库：done + stockedIn + 入库时间 + 完成时间。

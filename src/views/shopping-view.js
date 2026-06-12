@@ -216,7 +216,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     const nowIso = new Date().toISOString();
     updateShoppingRowsByIds(getShoppingRowIds(item), target => checked
       ? ({ ...target, done: true, completedAt: target.completedAt || nowIso })
-      : ({ ...target, done: false, stockedIn: false, completedAt: null }));
+      : ({ ...target, done: false, stockedIn: false, stockedInAt: null, completedAt: null }));
     if (checked) restoreStapleByPurchase(item.name);
     onRoute();
   };
