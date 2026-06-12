@@ -4,7 +4,7 @@ import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
-  hasRecipeMethod, rankRecipesForRecommendation,
+  findRecipesUsingIngredients, hasRecipeMethod, normalizeTargetIngredientNames, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
 } from '../recommendations.js?v=219';
 import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=219';
@@ -1205,6 +1205,15 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
 
 // 当前 tab 的页内记忆（仅内存，不持久化）：范围筛选等触发整页重渲染时不丢所在 tab。
 let lastWxTab = null;
+let targetRecipeQuery = '';
+
+function parseTargetRecipeQuery(query) {
+  const parts = String(query || '')
+    .split(/[\s,，、/]+/)
+    .map(item => item.trim())
+    .filter(Boolean);
+  return normalizeTargetIngredientNames(parts, 5);
+}
 
 // 单一主信息面板：顶部 segmented tabs（📅计划 / ⏳到期 / 🛒待买 / ✨推荐），
 // 下方同一块 .wx-body 区域按 tab 重渲染内容——巧妙复用同一块屏幕空间。
@@ -1362,13 +1371,80 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
 
   // ── ✨ 推荐：一次只展示 1 个主推荐（不摊开三张卡）。
   //    「换一道」在已有推荐里轮换；「AI 换一批」沿用原 callCloudAI → processAiData 流程。──
+  const renderTargetRecipeSearch = (targetNames, resultCount) => {
+    const hasQuery = !!targetRecipeQuery.trim();
+    const search = document.createElement('div');
+    search.className = 'target-recipe-search';
+    const hint = targetNames.length
+      ? `用「${escapeHtml(targetNames.join('、'))}」能做这些${Number.isFinite(resultCount) ? ` · ${resultCount} 道` : ''}`
+      : hasQuery
+        ? '没识别到可推荐的主食材，可以试试牛肉、番茄、土豆。'
+        : '输入 1-5 样想用的食材，先从本地菜谱里找。';
+    search.innerHTML = `
+      <div class="target-recipe-head">
+        <span>想用这些食材？</span>
+        <small class="target-recipe-hint">${hint}</small>
+      </div>
+      <div class="target-recipe-input-row">
+        <input class="target-recipe-input" type="text" value="${escapeOptionAttr(targetRecipeQuery)}" placeholder="比如 牛肉 土豆 / 鸡蛋 番茄">
+        <button type="button" class="target-recipe-btn">推荐</button>
+        ${hasQuery ? '<button type="button" class="target-recipe-clear">清空</button>' : ''}
+      </div>
+    `;
+    const input = search.querySelector('.target-recipe-input');
+    const applyQuery = () => {
+      targetRecipeQuery = input.value.trim();
+      recsState = null;
+      switchTab('recs');
+    };
+    search.querySelector('.target-recipe-btn').onclick = applyQuery;
+    input.onkeydown = event => {
+      if (event.key === 'Enter') applyQuery();
+    };
+    search.querySelector('.target-recipe-clear')?.addEventListener('click', () => {
+      targetRecipeQuery = '';
+      recsState = null;
+      switchTab('recs');
+    });
+    return search;
+  };
+
   const renderRecsTab = () => {
-    if (!recsState) recsState = initRecsState();
+    const targetNames = parseTargetRecipeQuery(targetRecipeQuery);
+    const targetKey = targetNames.join('|');
+    if (targetNames.length) {
+      const targetCards = findRecipesUsingIngredients(pack, inv, targetNames, {
+        context: getRecommendationUiContext(),
+        limit: 8
+      });
+      const prevIdx = recsState && recsState.mode === 'target' && recsState.key === targetKey ? recsState.idx : 0;
+      recsState = {
+        mode: 'target',
+        cards: targetCards,
+        idx: Math.min(prevIdx, Math.max(0, targetCards.length - 1)),
+        key: targetKey,
+        targets: targetNames
+      };
+    } else if (!recsState || recsState.mode === 'target') {
+      recsState = initRecsState();
+    }
     const { mode, cards, idx } = recsState;
+    body.appendChild(renderTargetRecipeSearch(targetNames, cards.length));
 
     const cardWrap = document.createElement('div');
     cardWrap.className = 'wx-rec-card';
-    if (!cards.length) {
+    if (!cards.length && mode === 'target' && targetNames.length) {
+      cardWrap.innerHTML = `
+        <div class="wx-empty wx-rec-empty">
+          <strong>还没找到同时用到这些食材的菜</strong>
+          <span>可以少填一个食材试试，或者去菜谱库看看。</span>
+          <div class="wx-actions wx-empty-actions">
+            <button type="button" class="wx-mini-btn" id="wxRecGoRecipes">去菜谱看看</button>
+          </div>
+        </div>
+      `;
+      cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
+    } else if (!cards.length) {
       cardWrap.innerHTML = `
         <div class="wx-empty wx-rec-empty">
           <strong>还没匹配到能直接做的菜</strong>
@@ -1401,7 +1477,12 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       body.appendChild(hint);
     }
 
-    if (mode === 'ai' && cards.length) {
+    if (mode === 'target' && cards.length) {
+      const note = document.createElement('p');
+      note.className = 'wx-rec-note target-recipe-summary';
+      note.textContent = '本地菜谱匹配结果，不调用 AI。';
+      body.appendChild(note);
+    } else if (mode === 'ai' && cards.length) {
       const note = document.createElement('p');
       note.className = 'wx-rec-note';
       note.textContent = '推荐仅供参考，安排前可以再看一眼。';
@@ -1421,6 +1502,11 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       <button type="button" class="wx-mini-btn is-ai" id="wxRecAi">✨ 换几道</button>
     `;
     body.appendChild(foot);
+    if (mode === 'target') foot.querySelector('#wxRecAi')?.remove();
+    if (!foot.querySelector('button')) {
+      foot.remove();
+      return;
+    }
 
     const nextBtn = foot.querySelector('#wxRecNext');
     if (nextBtn) nextBtn.onclick = () => stepRecommendation(1);
@@ -1430,7 +1516,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       recsState = { mode: 'local', cards: getInspirationCards(pack, inv), idx: 0 };
       switchTab('recs');
     };
-    foot.querySelector('#wxRecAi').onclick = async (e) => {
+    const aiTrigger = foot.querySelector('#wxRecAi');
+    if (!aiTrigger) return;
+    aiTrigger.onclick = async (e) => {
       const aiBtn = e.currentTarget;
       if (aiBtn.getAttribute('disabled')) return;
       aiBtn.setAttribute('disabled', 'true');

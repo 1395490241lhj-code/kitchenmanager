@@ -355,6 +355,129 @@ function pickRecipeReason(result) {
   return result.totalCore ? `还缺 ${result.missing.length} 项核心食材` : '缺少核心食材信息';
 }
 
+function formatIngredientList(names, limit = 4) {
+  const clean = (names || []).filter(Boolean);
+  const head = clean.slice(0, limit).join('、');
+  return `${head}${clean.length > limit ? '等' : ''}`;
+}
+
+export function normalizeTargetIngredientNames(targetNames, limit = 5) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of (targetNames || [])) {
+    const name = getCanonicalName(String(raw || '').trim());
+    if (!name || seen.has(name)) continue;
+    if (classifyRecipeIngredient(name).role !== 'core') continue;
+    seen.add(name);
+    out.push(name);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function targetMatchesCore(targetName, coreItem) {
+  const coreName = coreItem && (coreItem.item || coreItem.name);
+  return !!coreName && (
+    isIngredientMatch(coreName, targetName) ||
+    isIngredientMatch(targetName, coreName)
+  );
+}
+
+function buildTargetRecipeReason({ targetHits, missingTargets, inventoryMissing }) {
+  if (targetHits.length && !missingTargets.length && !inventoryMissing.length) {
+    return `${formatIngredientList(targetHits)}都在，今晚可以做`;
+  }
+  if (targetHits.length && !missingTargets.length) {
+    const missingNames = (inventoryMissing || []).map(item => item.name || item.item).filter(Boolean);
+    return `会用到${formatIngredientList(targetHits)}，还缺${formatIngredientList(missingNames, 2)}`;
+  }
+  if (targetHits.length) {
+    return `用到了${formatIngredientList(targetHits)}，没用到${formatIngredientList(missingTargets)}`;
+  }
+  return '没有命中指定食材';
+}
+
+export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}) {
+  const targets = normalizeTargetIngredientNames(targetNames, options.limitTargets || 5);
+  if (!targets.length) return [];
+
+  const context = options.context || getRecommendationContext();
+  const limit = options.limit || 8;
+
+  return (pack.recipes || [])
+    .map(recipe => {
+      const scored = scoreRecipe(recipe, pack, inv, context);
+      if (!scored.totalCore) return null;
+      const core = scored.core || getRecipeCoreIngredients(recipe, pack);
+      const targetHits = targets.filter(target => core.some(item => targetMatchesCore(target, item)));
+      if (!targetHits.length) return null;
+      const missingTargets = targets.filter(target => !targetHits.includes(target));
+      const hitCount = targetHits.length;
+      const completeTargetHit = hitCount === targets.length;
+      const inventoryMissing = scored.missing || [];
+      const recentPenalty = scored.recentDays === null
+        ? 0
+        : scored.recentDays <= 1
+          ? -16
+          : scored.recentDays <= 5
+            ? -8
+            : 0;
+      const plannedPenalty = scored.isPlannedToday ? -20 : (scored.isPlannedFuture ? -10 : 0);
+      const methodBonus = scored.hasMethod ? 8 : -8;
+      const score = (
+        hitCount * 100 +
+        (completeTargetHit ? 60 : 0) +
+        (scored.matchCount || 0) * 8 +
+        (scored.coverage || 0) * 25 -
+        inventoryMissing.length * 10 +
+        methodBonus +
+        recentPenalty +
+        plannedPenalty
+      );
+      const missingNames = inventoryMissing.map(item => item.name || item.item).filter(Boolean);
+      const tone = inventoryMissing.length > 0 && inventoryMissing.length <= 2
+        ? 'almost'
+        : completeTargetHit
+          ? 'ready'
+          : 'idea';
+      const matchLabel = completeTargetHit && inventoryMissing.length > 0 && inventoryMissing.length <= 2
+        ? `缺 ${inventoryMissing.length} 样`
+        : `用到 ${hitCount}/${targets.length}`;
+      const row = {
+        ...scored,
+        targetHits,
+        targetTotal: targets.length,
+        missingTargets,
+        inventoryMissing
+      };
+      return {
+        id: recipe.id,
+        name: recipe.name,
+        matchLabel,
+        missing: missingNames,
+        reason: buildTargetRecipeReason({ targetHits, missingTargets, inventoryMissing }),
+        tone,
+        row,
+        targetHits,
+        targetTotal: targets.length,
+        missingTargets,
+        inventoryMissing,
+        score: Math.round(score * 10) / 10,
+        completeTargetHit,
+        targetNames: targets
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) =>
+      Number(b.completeTargetHit) - Number(a.completeTargetHit) ||
+      b.targetHits.length - a.targetHits.length ||
+      b.score - a.score ||
+      a.inventoryMissing.length - b.inventoryMissing.length ||
+      a.name.localeCompare(b.name, 'zh-Hans-CN')
+    )
+    .slice(0, limit);
+}
+
 export function scoreRecipe(recipe, pack, inv, context = {}) {
   const analysis = analyzeRecipeInventory(recipe, pack, inv);
   const favoriteIds = normalizeRecommendationSet(context.favoriteIds);
