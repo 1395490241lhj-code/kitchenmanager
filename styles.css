@@ -8606,6 +8606,12 @@ html[data-theme="dark"] .target-recipe-btn {
   flex-wrap: wrap;
 }
 .target-recipe-ai-hint { font-size: 12px; color: var(--text-secondary); margin-right: auto; }
+.target-recipe-ai-btn {
+  border-radius: 999px;
+  white-space: nowrap;
+  min-height: 34px;
+  padding-inline: 14px;
+}
 .target-recipe-ai-note {
   margin: 0;
   font-size: 12px;
@@ -8630,4 +8636,17 @@ html[data-theme="dark"] .target-recipe-btn {
   max-height: 180px;
   overflow-y: auto;
   font-size: 13px;
+}
+@media (max-width: 520px) {
+  .target-recipe-ai-actions {
+    align-items: stretch;
+  }
+  .target-recipe-ai-hint {
+    width: 100%;
+    margin-right: 0;
+  }
+  .target-recipe-ai-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }

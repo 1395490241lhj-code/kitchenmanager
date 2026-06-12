@@ -1455,9 +1455,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       const again = document.createElement('div');
       again.className = 'target-recipe-ai-actions';
       again.innerHTML = `
-        <span class="target-recipe-ai-hint">换一种会优先切换做法形态，不只是换菜名。</span>
+        <span class="target-recipe-ai-hint">会优先换做法形态，不只是换菜名。</span>
         <button type="button" class="wx-mini-btn target-recipe-ai-btn" id="targetAiAgain"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
-          ${targetCreativeStatus === 'loading' ? '正在换个做法...' : '换一种'}
+          ${targetCreativeStatus === 'loading' ? '正在换个方向...' : '换一种做法'}
         </button>
       `;
       box.appendChild(again);
@@ -1473,7 +1473,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       actions.innerHTML = `
         <span class="target-recipe-ai-hint">${localCards.length ? '本地不够合心意？' : '本地菜谱里没找到很合适的'}</span>
         <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetAiBtn"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
-          ${targetCreativeStatus === 'loading' ? '正在换个做法...' : '让 AI 想一个做法'}
+          ${targetCreativeStatus === 'loading' ? '正在换个方向...' : '让 AI 想一个做法'}
         </button>
       `;
       box.appendChild(actions);
@@ -1583,7 +1583,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       const hint = document.createElement('div');
       hint.className = 'wx-rec-hint';
       hint.innerHTML = `
-        <span>轻点 / 左右滑动换一道</span>
+        <span>${mode === 'target' ? '轻点 / 左右滑动看下一个本地菜' : '轻点 / 左右滑动换一道'}</span>
         <span class="wx-rec-dots" aria-hidden="true">
           ${cards.map((_, i) => `<span class="${i === idx ? 'is-active' : ''}"></span>`).join('')}
         </span>
@@ -1617,7 +1617,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     foot.className = 'wx-actions';
     foot.innerHTML = `
       ${mode === 'ai' && cards.length ? '<button type="button" class="wx-mini-btn" id="wxRecLocal">用本地推荐</button>' : ''}
-      ${cards.length > 1 ? '<button type="button" class="wx-mini-btn" id="wxRecNext">换一道 ›</button>' : ''}
+      ${mode !== 'target' && cards.length > 1 ? '<button type="button" class="wx-mini-btn" id="wxRecNext">换一道 ›</button>' : ''}
       <button type="button" class="wx-mini-btn is-ai" id="wxRecAi">✨ 换几道</button>
     `;
     body.appendChild(foot);
