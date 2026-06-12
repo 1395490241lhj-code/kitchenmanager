@@ -1,4 +1,5 @@
 import { S, todayISO } from './storage.js?v=219';
+import { perfCount } from './utils/perf.js?v=219';
 import {
   getCanonicalName,
   getDryPrepText,
@@ -94,6 +95,7 @@ function classifyShoppingSource(item) {
 let isNormalizing = false;
 
 export function loadShoppingItems() {
+  perfCount('loadShoppingItems');
   const rawItems = S.load(S.keys.shopping_items, []);
   if (!Array.isArray(rawItems)) {
     return [];
@@ -194,6 +196,7 @@ export function loadShoppingItems() {
 }
 
 export function saveShoppingItems(items) {
+  perfCount('saveShoppingItems');
   return S.save(S.keys.shopping_items, items.filter(item => item && item.name));
 }
 

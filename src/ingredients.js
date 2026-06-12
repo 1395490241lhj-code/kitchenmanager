@@ -135,9 +135,14 @@ const CORE_PROTECT_LOCAL_REGEX = /(豆腐(?!乳)|豆干|豆皮|千张|腐竹|支
 export function isRecipeNonCoreName(name) {
   const n = String(name || '').trim();
   if (!n) return true;
+  const hit = nonCoreNameMemo.get(n);
+  if (hit !== undefined) return hit;
   const base = n.replace(/^水发/, '') || n;
-  if (CORE_PROTECT_LOCAL_REGEX.test(base)) return false;
-  return isSeasoning(n) || isNonStockCookingTerm(n) || SEASONING_EXTRA_LOCAL_REGEX.test(n);
+  const result = CORE_PROTECT_LOCAL_REGEX.test(base)
+    ? false
+    : (isSeasoning(n) || isNonStockCookingTerm(n) || SEASONING_EXTRA_LOCAL_REGEX.test(n));
+  nonCoreNameMemo.set(n, result);
+  return result;
 }
 
 export const ENGLISH_INGREDIENT_ALIASES = {
@@ -238,8 +243,26 @@ export function checkAlias(name) {
   return null;
 }
 
+// ── 热路径 memo（性能）────────────────────────────────────────────────────
+// getCanonicalName / family / matchNames / 非核心判定 全部由静态表驱动（别名表、
+// 食材族、正则常量），同输入恒同输出 → 模块级 Map 缓存安全、永不失效。
+// 推荐计算每次首页渲染会调用它们数十万次，无缓存时满库渲染可达 20s+。
+const canonicalNameMemo = new Map();
+const familyKeyMemo = new Map();
+const matchNamesMemo = new Map();
+const nonCoreNameMemo = new Map();
+
 export function getCanonicalName(name) {
   if(!name) return "";
+  const memoKey = String(name);
+  const hit = canonicalNameMemo.get(memoKey);
+  if (hit !== undefined) return hit;
+  const result = computeCanonicalName(memoKey);
+  canonicalNameMemo.set(memoKey, result);
+  return result;
+}
+
+function computeCanonicalName(name) {
   let n = String(name).trim();
   if (checkAlias(n)) return checkAlias(n);
   const noParens = n.replace(/（.*?）|\(.*?\)/g, '').trim();
@@ -324,14 +347,29 @@ function canonicalSet(values) {
   return new Set((values || []).map(v => getCanonicalName(v)).filter(Boolean));
 }
 
+// 食材族反查表：首次使用时一次性构建 canonical → familyKey（此前每次调用都遍历
+// 全部 family 并重建 canonicalSet，是推荐计算的最大热点之一）。
+let familyKeyIndex = null;
+function getFamilyKeyIndex() {
+  if (familyKeyIndex) return familyKeyIndex;
+  familyKeyIndex = new Map();
+  for (const [key, group] of Object.entries(INGREDIENT_FAMILIES)) {
+    for (const raw of [...(group.broad || []), ...(group.members || [])]) {
+      const canonical = getCanonicalName(raw);
+      if (canonical && !familyKeyIndex.has(canonical)) familyKeyIndex.set(canonical, key);
+    }
+  }
+  return familyKeyIndex;
+}
+
 export function getIngredientFamilyKey(name) {
   const canonical = getCanonicalName(name || '');
   if (!canonical) return '';
-  for (const [key, group] of Object.entries(INGREDIENT_FAMILIES)) {
-    const names = canonicalSet([...(group.broad || []), ...(group.members || [])]);
-    if (names.has(canonical)) return key;
-  }
-  return '';
+  const hit = familyKeyMemo.get(canonical);
+  if (hit !== undefined) return hit;
+  const result = getFamilyKeyIndex().get(canonical) || '';
+  familyKeyMemo.set(canonical, result);
+  return result;
 }
 
 export function getIngredientFamilyCandidates(name, { includeBroad = false, canonicalize = true } = {}) {
@@ -355,6 +393,8 @@ function isBroadFamilyName(name, key) {
 export function getIngredientMatchNames(name) {
   const canonical = getCanonicalName(name || '');
   if (!canonical) return [];
+  const hit = matchNamesMemo.get(canonical);
+  if (hit !== undefined) return hit;
   const names = new Set([canonical]);
   for (const alias of (INGREDIENT_ALIASES[canonical] || [])) {
     const normalized = getCanonicalName(alias);
@@ -366,7 +406,9 @@ export function getIngredientMatchNames(name) {
       if (candidate) names.add(candidate);
     }
   }
-  return [...names].filter(Boolean);
+  const result = [...names].filter(Boolean);
+  matchNamesMemo.set(canonical, result);
+  return result;
 }
 
 export function isSmartIngredientMatch(a, b, options = {}) {
@@ -517,7 +559,11 @@ export function normalizeKitchenAmount(name, qty, unit, options = {}) {
   return { name: n, qty: Math.round(q * 100) / 100, unit: u };
 }
 
+import { perfMeasure as __perfMeasure } from './utils/perf.js?v=219';
 export function buildCatalog(pack) {
+  return __perfMeasure('buildCatalog', () => buildCatalogImpl(pack));
+}
+function buildCatalogImpl(pack) {
   const units = {}, set = new Set();
   for(const list of Object.values(pack.recipe_ingredients||{})){
     for(const it of explodeCombinedItems(list)){

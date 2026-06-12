@@ -805,7 +805,7 @@ p.meta { font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; lin
   backdrop-filter: var(--glass-blur-control);
   -webkit-backdrop-filter: var(--glass-blur-control);
   box-shadow: 0 5px 14px rgba(16,24,40,0.045), inset 0 1px 0 rgba(255,255,255,0.88), inset 0 -1px 0 rgba(255,255,255,0.22);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none; line-height: 1.2; white-space: nowrap; flex-shrink: 0;
 }
 .btn:active { transform: scale(0.96); filter: brightness(0.95); }
@@ -840,7 +840,7 @@ input, select, textarea {
   -webkit-backdrop-filter: saturate(1.35) blur(18px);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
   border-radius: var(--radius-m); padding: 12px 14px; font-size: 16px;
-  color: var(--text-main); outline: none; transition: all 0.2s;
+  color: var(--text-main); outline: none; transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
   font-family: inherit; width: 100%;
 }
 input:focus, select:focus, textarea:focus {
@@ -1296,7 +1296,7 @@ html[data-theme="dark"] .shopping-remark-input:focus { background: rgba(0, 0, 0,
 .ing-compact-container { display: flex; flex-wrap: wrap; gap: 8px; }
 .ing-tag-pill {
   display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px;
-  background: var(--tag-bg); font-size: 13px; color: var(--tag-text); border: 1px solid var(--tag-border); transition: all 0.2s;
+  background: var(--tag-bg); font-size: 13px; color: var(--tag-text); border: 1px solid var(--tag-border); transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 .ing-tag-pill.active { font-weight: 600; }
 .staple-item.active {
@@ -2178,7 +2178,7 @@ nav a:active { transform: scale(0.94); }
 /* === 库存添加面板 === */
 .add-form-container {
   background: var(--bg-card); border-radius: var(--radius-l); padding: 0; max-height: 0;
-  overflow: hidden; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; margin-bottom: 0; border: 1px solid transparent;
+  overflow: hidden; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; margin-bottom: 0; border: 1px solid transparent;
 }
 .add-form-container.open {
   padding: 20px; max-height: 500px; opacity: 1; margin-bottom: 20px; border-color: var(--primary); box-shadow: var(--shadow-float);
@@ -4471,7 +4471,7 @@ html[data-theme="dark"] .inv-ie-name { background: rgba(0, 0, 0, 0.2); border-co
   cursor: pointer;
   filter: grayscale(0.7);
   opacity: 0.6;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 .inv-ie-freeze.is-on {
   filter: none;
@@ -8788,4 +8788,27 @@ html[data-theme="light"] .target-recipe-btn:disabled,
 html[data-theme="light"] .target-recipe-ai-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  移动端性能（v17x）：降低 backdrop-filter 模糊半径——blur 代价与半径平方相关，
+ *  小屏上 28px→14px 视觉几乎无差但合成开销大减；滚动/主题切换更顺。
+ *  仅影响 ≤640px；桌面端保持原玻璃质感。
+ * ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  :root,
+  html[data-theme="light"],
+  html[data-theme="dark"] {
+    --glass-blur-hero:    saturate(1.7) blur(22px);
+    --glass-blur-panel:   saturate(1.5) blur(14px);
+    --glass-blur-cell:    saturate(1.25) blur(7px);
+    --glass-blur-control: saturate(1.35) blur(10px);
+    --glass-blur-nav:     saturate(1.6) blur(18px);
+  }
+  /* 底部导航的内联 blur 同步降档（原 20px，!important 对齐原规则强度） */
+  nav {
+    backdrop-filter: blur(12px) saturate(150%) !important;
+    -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
+  }
 }

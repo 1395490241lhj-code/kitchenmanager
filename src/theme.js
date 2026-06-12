@@ -10,6 +10,7 @@
  *  - 偏好保存在 settings.theme（localStorage），随「整个厨房」备份一起迁移。
  */
 import { S } from './storage.js?v=219';
+import { perfEnabled, perfMark } from './utils/perf.js?v=219';
 
 const VALID = new Set(['light', 'dark']);
 
@@ -28,6 +29,13 @@ export function getSavedTheme() {
 export function applyTheme(theme) {
   const t = VALID.has(theme) ? theme : 'system';
   const effective = t === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : t;
+  if (perfEnabled()) {
+    const t0 = performance.now();
+    document.documentElement.setAttribute('data-theme', effective);
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      console.log(`[perf] applyTheme(${effective}) → 呈现: ${(performance.now() - t0).toFixed(1)}ms`)));
+    return;
+  }
   document.documentElement.setAttribute('data-theme', effective);
 }
 

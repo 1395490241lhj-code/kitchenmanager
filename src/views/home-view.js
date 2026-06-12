@@ -11,6 +11,7 @@ import { callAiCreativeRecipeByIngredients, callCloudAI, formatAiErrorMessage, g
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=219';
 import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=219';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=219';
+import { perfMeasure } from '../utils/perf.js?v=219';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
@@ -1166,12 +1167,14 @@ function getExpiringItemCount(inv) {
   return (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3).length;
 }
 
-function getTodaySummaryStats(pack, inv) {
+function getTodaySummaryStats(pack, inv, { inspirationCards = null } = {}) {
+  // inspirationCards 可由调用方传入（renderHome 一次渲染内复用，避免全库推荐重算多次）。
+  const cards = inspirationCards || getInspirationCards(pack, inv);
   return {
     planCount: getTodayPlanCount(),
     expiringCount: getExpiringItemCount(inv),
     shoppingCount: loadShoppingItems().filter(item => item && !item.done).length,
-    recommendationCount: getInspirationCards(pack, inv).length
+    recommendationCount: cards.length
   };
 }
 
@@ -1239,7 +1242,14 @@ function parseTargetRecipeQuery(query, inv) {
 
 // 单一主信息面板：顶部 segmented tabs（📅计划 / ⏳到期 / 🛒待买 / ✨推荐），
 // 下方同一块 .wx-body 区域按 tab 重渲染内容——巧妙复用同一块屏幕空间。
-function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
+function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = null } = {}) {
+  // 本面板生命周期内的本地推荐缓存：pack/inv 在一次渲染内不变（任何写库操作都会
+  // onRoute 整页重建面板），同一面板内多处需要本地推荐时只算一次全库排序。
+  let inspirationCache = Array.isArray(inspirationCards) ? inspirationCards : null;
+  const getInspirationCached = () => {
+    if (!inspirationCache) inspirationCache = getInspirationCards(pack, inv);
+    return inspirationCache;
+  };
   const section = document.createElement('section');
   section.className = 'wx-panel glass-panel';
   section.innerHTML = `
@@ -1259,7 +1269,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const savedAi = S.load(S.keys.ai_recs, null);
     const aiCards = savedAi ? processAiData(savedAi, pack) : [];
     if (aiCards.length) return { mode: 'ai', cards: aiCards, idx: 0 };
-    return { mode: 'local', cards: getInspirationCards(pack, inv), idx: 0 };
+    return { mode: 'local', cards: getInspirationCached(), idx: 0 };
   };
   const stepRecommendation = (delta = 1) => {
     if (!recsState || !recsState.cards || recsState.cards.length <= 1) return;
@@ -1524,12 +1534,17 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const targetNames = targetDescriptors.map(t => t.canonical);
     const targetKey = targetNames.join('|');
     if (targetNames.length) {
-      const targetCards = findRecipesUsingIngredients(pack, inv, targetNames, {
-        context: getRecommendationUiContext(),
-        limit: 6,
-        targetDescriptors
-      });
-      const prevIdx = recsState && recsState.mode === 'target' && recsState.key === targetKey ? recsState.idx : 0;
+      // 同一面板内目标没变（如点 AI 按钮 / 来回切 tab 触发的重绘）→ 复用上次结果，
+      // 不重扫全库；pack/inv 变化必经 onRoute 重建面板，缓存自然失效。
+      const sameTarget = recsState && recsState.mode === 'target' && recsState.key === targetKey;
+      const targetCards = sameTarget
+        ? recsState.cards
+        : perfMeasure(`findRecipesUsingIngredients(${targetKey})`, () => findRecipesUsingIngredients(pack, inv, targetNames, {
+            context: getRecommendationUiContext(),
+            limit: 6,
+            targetDescriptors
+          }));
+      const prevIdx = sameTarget ? recsState.idx : 0;
       recsState = {
         mode: 'target',
         cards: targetCards,
@@ -1630,7 +1645,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const localBtn = foot.querySelector('#wxRecLocal');
     if (localBtn) localBtn.onclick = () => {
       localStorage.removeItem(S.keys.ai_recs);
-      recsState = { mode: 'local', cards: getInspirationCards(pack, inv), idx: 0 };
+      recsState = { mode: 'local', cards: getInspirationCached(), idx: 0 };
       switchTab('recs');
     };
     const aiTrigger = foot.querySelector('#wxRecAi');
@@ -1672,12 +1687,12 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       t.setAttribute('aria-selected', String(active));
     });
     body.innerHTML = '';
-    TAB_RENDERERS[tab]();
+    perfMeasure(`wx-switchTab:${tab}`, () => TAB_RENDERERS[tab]());
   };
   section.querySelectorAll('.wx-tab').forEach(t => { t.onclick = () => switchTab(t.dataset.tab); });
 
   // 默认 tab：优先回答“今晚能做什么”；手动切过 tab 时仍尊重 lastWxTab。
-  const defaultRecCount = getInspirationCards(pack, inv).length;
+  const defaultRecCount = getInspirationCached().length;
   const defaultPlanCount = getTodayPlanCount();
   const defaultTab = defaultRecCount > 0 ? 'recs' : (defaultPlanCount > 0 ? 'plan' : 'plan');
   switchTab(lastWxTab || defaultTab);
@@ -1704,9 +1719,11 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   //                    ② 单一 glass 主面板（计划/到期/待买/推荐 tab 切换；
   //                       计划 tab 内含「今晚提前准备」提醒与行内标签）
   //                    ③ 两个轻量胶囊快捷入口。
-  const summaryStats = getTodaySummaryStats(pack, inv);
+  // 一次渲染只跑一遍全库本地推荐：状态区计数与主面板（默认 tab / 推荐 tab）共用同一份结果。
+  const inspirationCards = perfMeasure('getInspirationCards(home)', () => getInspirationCards(pack, inv));
+  const summaryStats = getTodaySummaryStats(pack, inv, { inspirationCards });
   container.appendChild(renderWxStatus(summaryStats));
-  const panel = createWeatherPanel(pack, inv, { onRoute });
+  const panel = perfMeasure('createWeatherPanel', () => createWeatherPanel(pack, inv, { onRoute, inspirationCards }));
   container.appendChild(panel.el);
   container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));
 

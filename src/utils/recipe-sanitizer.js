@@ -50,9 +50,21 @@ function nameOf(x) {
  * @param {string} rawName 菜谱用料名
  * @returns {{name: string, role: 'core'|'seasoning'|'non-stock', reason: string}}
  */
+// 分类由静态规则驱动（正则/常量表），同输入恒同输出 → 模块级 memo 安全。
+// 推荐/缺货/买菜每次渲染会对全库食材反复分类，是高频热路径。
+const classifyMemo = new Map();
+
 export function classifyRecipeIngredient(rawName) {
   const name = String(rawName || '').trim();
   if (!name) return { name, role: 'non-stock', reason: 'empty' };
+  const hit = classifyMemo.get(name);
+  if (hit !== undefined) return hit;
+  const result = computeClassification(name);
+  classifyMemo.set(name, result);
+  return result;
+}
+
+function computeClassification(name) {
   // 「水发木耳」按「木耳」分类；剥空了则用原名。
   const base = name.replace(SOAKED_PREFIX_REGEX, '') || name;
   if (CORE_PROTECT_REGEX.test(base)) return { name, role: 'core', reason: 'core-protect' };
