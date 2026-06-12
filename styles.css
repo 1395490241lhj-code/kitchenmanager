@@ -8645,3 +8645,129 @@ html[data-theme="dark"] .target-recipe-btn {
     justify-content: center;
   }
 }
+
+/* UI stability: Weather panel empty state should not inherit standalone empty-card fills. */
+.today-view .wx-panel .shopping-plan-list {
+  background: transparent !important;
+}
+.today-view .wx-panel .menu-plan-empty,
+html[data-theme="light"] .today-view .wx-panel .menu-plan-empty,
+html[data-theme="dark"] .today-view .wx-panel .menu-plan-empty {
+  min-height: 0;
+  padding: 14px 4px;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.today-view .wx-panel .menu-plan-empty::before,
+.today-view .wx-panel .menu-plan-empty::after {
+  content: none !important;
+  display: none !important;
+}
+.today-view .wx-panel .menu-plan-empty .plan-empty-line {
+  background: transparent !important;
+}
+
+/* Light-theme guardrails: old prefers-color-scheme blocks must not keep controls dark after switching back. */
+html[data-theme="light"] .btn:not(.ok):not(.ai):not(.bad):not(.favorite-btn):not(.is-confirmed),
+html[data-theme="light"] .wx-mini-btn:not(.is-ai),
+html[data-theme="light"] .sw-action-pill:not(.sw-action-weak),
+html[data-theme="light"] .sw-edit-cancel,
+html[data-theme="light"] .target-recipe-clear {
+  background: var(--glass-control-fill);
+  color: var(--text-main);
+  border-color: var(--glass-edge);
+  box-shadow:
+    0 5px 14px rgba(16, 24, 40, 0.045),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+html[data-theme="light"] .shopping-tool-btn {
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border-color: var(--separator);
+}
+html[data-theme="light"] .shopping-tool-ok,
+html[data-theme="light"] .sw-edit-save,
+html[data-theme="light"] .shopping-weather-stockin,
+html[data-theme="light"] .sw-tip-btn,
+html[data-theme="light"] .tomorrow-prep-action,
+html[data-theme="light"] .tomorrow-prep-cta,
+html[data-theme="light"] .wx-mini-btn.is-ai,
+html[data-theme="light"] .target-recipe-btn,
+html[data-theme="light"] .target-recipe-ai-btn,
+html[data-theme="light"] .today-quick-btn.is-primary,
+html[data-theme="light"] .wx-rec-card .home-suggest-cook {
+  color: var(--primary-dark);
+  border-color: rgba(0, 122, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(0, 122, 255, 0.13), rgba(0, 122, 255, 0.045)),
+    var(--glass-control-fill);
+}
+html[data-theme="light"] .btn.ok {
+  background: linear-gradient(180deg, #0a84ff 0%, #007aff 100%);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.42);
+}
+html[data-theme="light"] .btn.ai {
+  background: linear-gradient(135deg, #0a84ff 0%, #5e5ce6 100%);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+html[data-theme="light"] .btn.bad {
+  background: var(--status-bad-bg);
+  color: var(--status-bad-text);
+  border-color: var(--status-bad-border);
+}
+html[data-theme="light"] .btn.is-confirmed {
+  background: var(--status-ok-bg);
+  color: var(--status-ok-text);
+  border-color: var(--status-ok-border);
+}
+html[data-theme="light"] .btn.favorite-btn {
+  background: #fff6df;
+  color: #946200;
+}
+html[data-theme="light"] .btn.favorite-btn.active {
+  background: var(--warning);
+  color: #fff;
+  border-color: var(--warning);
+}
+html[data-theme="light"] .wx-tabs {
+  background: rgba(120, 120, 128, 0.10);
+}
+html[data-theme="light"] .wx-tab {
+  color: var(--text-secondary);
+}
+html[data-theme="light"] .wx-tab.is-active {
+  background: var(--glass-control-fill);
+  color: var(--text-main);
+  box-shadow:
+    0 1px 5px rgba(16, 24, 40, 0.10),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+html[data-theme="light"] .today-quick-row {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18));
+  border-color: rgba(255, 255, 255, 0.52);
+}
+html[data-theme="light"] .today-quick-row::after {
+  background: rgba(60, 60, 67, 0.12);
+}
+html[data-theme="light"] .today-quick-btn:not(.is-primary) {
+  background: transparent;
+  color: var(--text-main);
+  border-color: transparent;
+}
+html[data-theme="light"] .sw-action-pill.sw-action-weak,
+html[data-theme="light"] .sw-edit-cancel {
+  color: var(--text-secondary);
+}
+html[data-theme="light"] button:disabled,
+html[data-theme="light"] .btn:disabled,
+html[data-theme="light"] .wx-mini-btn:disabled,
+html[data-theme="light"] .target-recipe-btn:disabled,
+html[data-theme="light"] .target-recipe-ai-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
