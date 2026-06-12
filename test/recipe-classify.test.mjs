@@ -2,8 +2,12 @@
 // 菜谱用料三分类口径回归（core / seasoning / non-stock）。纯函数，零网络/零 localStorage/零 DOM。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 
 import { classifyRecipeIngredient, splitRecipeIngredients, splitIngredients, isSeasoningName } from '../src/utils/recipe-sanitizer.js';
+
+const require = createRequire(import.meta.url);
+const { detectCompositeIngredientItem } = require('../scripts/audit-recipe-ingredients.js');
 
 const roleOf = (n) => classifyRecipeIngredient(n).role;
 
@@ -60,7 +64,20 @@ test('non-stock：汤底/锅底/冰水与汤类变体', () => {
 });
 
 test('core：带汤/粉字的真实食物与腌渍核心菜不误杀', () => {
-  for (const n of ['汤圆', '汤面', '汤粉', '米粉', '河粉', '凉粉', '粉丝', '酸菜', '酸豆角', '泡菜', '榨菜', '盐菜']) {
+  for (const n of ['汤圆', '汤面', '汤粉', '米粉', '河粉', '凉粉', '粉丝', '酸菜', '酸豆角', '泡菜', '榨菜', '盐菜', '盐白菜']) {
+    assert.equal(roleOf(n), 'core', `${n} 应为 core`);
+  }
+});
+
+test('audit：识别复合食材 item，但不误伤普通带数字或说明的食材名', () => {
+  assert.equal(detectCompositeIngredientItem('酥肉，熟猪肚，熟猪舌', classifyRecipeIngredient).isComposite, true);
+  for (const n of ['二荆条', '十三香', '五花肉', '水发木耳', '盐菜', '兰花（干黄花菜/金针菜）']) {
+    assert.equal(detectCompositeIngredientItem(n, classifyRecipeIngredient).isComposite, false, `${n} 不应被当成复合 item`);
+  }
+});
+
+test('audit：拆分后的复合食材候选仍是核心食材', () => {
+  for (const n of ['酥肉', '熟猪肚', '熟猪舌']) {
     assert.equal(roleOf(n), 'core', `${n} 应为 core`);
   }
 });
