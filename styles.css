@@ -8605,7 +8605,6 @@ html[data-theme="dark"] .target-recipe-btn {
   gap: 10px;
   flex-wrap: wrap;
 }
-.target-recipe-ai-hint { font-size: 12px; color: var(--text-secondary); margin-right: auto; }
 .target-recipe-ai-btn {
   border-radius: 999px;
   white-space: nowrap;
@@ -8640,10 +8639,6 @@ html[data-theme="dark"] .target-recipe-btn {
 @media (max-width: 520px) {
   .target-recipe-ai-actions {
     align-items: stretch;
-  }
-  .target-recipe-ai-hint {
-    width: 100%;
-    margin-right: 0;
   }
   .target-recipe-ai-btn {
     width: 100%;

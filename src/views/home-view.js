@@ -1455,7 +1455,6 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       const again = document.createElement('div');
       again.className = 'target-recipe-ai-actions';
       again.innerHTML = `
-        <span class="target-recipe-ai-hint">会优先换做法形态，不只是换菜名。</span>
         <button type="button" class="wx-mini-btn target-recipe-ai-btn" id="targetAiAgain"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
           ${targetCreativeStatus === 'loading' ? '正在换个方向...' : '换一种做法'}
         </button>
@@ -1471,7 +1470,6 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       const actions = document.createElement('div');
       actions.className = 'target-recipe-ai-actions';
       actions.innerHTML = `
-        <span class="target-recipe-ai-hint">${localCards.length ? '本地不够合心意？' : '本地菜谱里没找到很合适的'}</span>
         <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetAiBtn"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
           ${targetCreativeStatus === 'loading' ? '正在换个方向...' : '让 AI 想一个做法'}
         </button>
