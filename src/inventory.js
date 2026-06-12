@@ -1,23 +1,16 @@
 import { S, todayISO } from './storage.js?v=219';
 import {
-  INGREDIENT_ALIASES,
   UNIT_TYPE,
   getCanonicalName,
   getDryGoodConfig,
   getDryPrepText,
+  getIngredientMatchNames as getSmartIngredientMatchNames,
   getUnitType,
   guessShelfDays,
-  isDryGoodName
+  isDryGoodName,
+  isSmartIngredientMatch
 } from './ingredients.js?v=219';
 import { isSeasoningName } from './utils/recipe-sanitizer.js?v=219';
-
-export const RECIPE_GENERIC_MATCHES = {
-  "猪肉": ["五花肉", "瘦肉"],
-  "鸡肉": ["鸡腿", "鸡翅", "鸡脯肉"],
-  "鲜鱼": ["鲫鱼", "鲤鱼", "草鱼", "鲢鱼"],
-  "虾": ["虾仁"],
-  "蘑菇": ["香菇", "口蘑"]
-};
 
 export const INVENTORY_STATES = [
   { value: 'ok', label: '够用', className: 'ok' },
@@ -27,29 +20,11 @@ export const INVENTORY_STATES = [
 ];
 
 export function getIngredientMatchNames(name) {
-  const canonical = getCanonicalName(name || '');
-  const names = new Set([canonical]);
-  const aliases = INGREDIENT_ALIASES[canonical] || [];
-  aliases.forEach(alias => names.add(getCanonicalName(alias)));
-  (RECIPE_GENERIC_MATCHES[canonical] || []).forEach(item => names.add(getCanonicalName(item)));
-  return Array.from(names).filter(Boolean);
+  return getSmartIngredientMatchNames(name);
 }
 
 export function isIngredientMatch(recipeName, stockName) {
-  const recipeCanonical = getCanonicalName(recipeName || '');
-  const stockCanonical = getCanonicalName(stockName || '');
-  if (!recipeCanonical || !stockCanonical) return false;
-  if (recipeCanonical === stockCanonical) return true;
-  const recipeNames = getIngredientMatchNames(recipeCanonical);
-  const stockNames = getIngredientMatchNames(stockCanonical);
-  if (recipeNames.some(name => stockNames.includes(name))) return true;
-  const recipeSpecifics = (RECIPE_GENERIC_MATCHES[recipeCanonical] || []).map(item => getCanonicalName(item));
-  const stockSpecifics = (RECIPE_GENERIC_MATCHES[stockCanonical] || []).map(item => getCanonicalName(item));
-  if (recipeSpecifics.includes(stockCanonical) || stockSpecifics.includes(recipeCanonical)) return true;
-  if (recipeCanonical.length >= 2 && stockCanonical.length >= 2) {
-    return recipeCanonical.includes(stockCanonical) || stockCanonical.includes(recipeCanonical);
-  }
-  return false;
+  return isSmartIngredientMatch(recipeName, stockName);
 }
 
 export function isInventoryAvailable(item) {

@@ -2,7 +2,7 @@ export const INGREDIENT_ALIASES = {
   "五花肉": ["五花猪肉", "猪五花", "三线肉", "带皮五花肉", "五花"],
   "肥膘": ["猪肥膘", "肥膘肉", "熟猪肥膘", "熟猪肥膘肉", "熟猪肥膘片", "板油", "猪板油", "肥肉"],
   "瘦肉": ["猪瘦肉", "精瘦肉", "里脊", "里脊肉", "猪里脊", "猪里脊肉", "里脊块", "猪里脊块", "里脊切块", "猪里脊切块", "冷冻里脊", "冷冻猪里脊", "里脊丝", "里脊片", "瘦肉丝", "瘦肉片"],
-  "猪肉": ["肉", "猪肉片", "猪肉丝", "肉丝", "肉片", "肉末", "猪腿肉", "二刀肉", "肥瘦肉", "肥瘦猪肉"],
+  "猪肉": ["猪肉片", "猪肉丝", "肉丝", "肉片", "肉末", "猪腿肉", "二刀肉", "肥瘦肉", "肥瘦猪肉"],
   "排骨": ["猪排", "猪排骨", "小排", "大排", "纤排"],
   "猪蹄": ["猪脚", "猪手", "蹄花"],
   "猪肚": ["肚头", "猪肚头"],
@@ -27,10 +27,11 @@ export const INGREDIENT_ALIASES = {
   "鱿鱼": ["鲜鱿鱼", "水发鱿鱼", "干鱿鱼", "鱿鱼须", "鱿鱼圈"],
   "海参": ["水发海参", "刺参", "开乌参"],
   "田鸡": ["田鸡腿", "青蛙"],
+  "笋": ["鲜笋", "竹笋", "笋子", "明笋", "笋片"],
   "冬笋": ["鲜冬笋", "冬笋尖", "冬笋片"],
   "春笋": ["鲜春笋"],
   "玉兰片": ["兰片", "水发兰片", "水发玉兰片"],
-  "青菜": ["小白菜", "上海青", "瓢儿白", "油菜", "青菜头", "菜心", "青菜心", "小白菜秧"],
+  "青菜": ["小白菜", "上海青", "瓢儿白", "油菜", "生菜", "青菜头", "菜心", "青菜心", "小白菜秧"],
   "白菜": ["大白菜", "黄芽白", "绍菜", "莲花白", "莲白", "卷心菜", "包菜", "黄秧白"],
   "菠菜": ["菠菜叶", "菠菜心"],
   "芹菜": ["西芹", "旱芹", "药芹", "芹黄"],
@@ -45,16 +46,16 @@ export const INGREDIENT_ALIASES = {
   "豆干": ["豆腐干", "香干", "白干", "五香豆干", "卤干"],
   "豆皮": ["千张", "百叶"],
   "腐竹": ["支竹"],
-  "青椒": ["菜椒", "甜椒", "尖椒", "螺丝椒", "灯笼椒", "青辣椒", "二荆条"],
+  "青椒": ["菜椒", "甜椒", "尖椒", "螺丝椒", "灯笼椒", "青辣椒", "红椒", "辣椒", "二荆条"],
   "洋葱": ["圆葱", "葱头"],
   "胡萝卜": ["红萝卜"],
   "香菜": ["芫荽"],
-  "鸡蛋": ["蛋", "鸡子"],
+  "鸡蛋": ["蛋", "鸡子", "蛋清", "鸡蛋清", "蛋白", "鸡蛋白"],
   "牛奶": ["奶", "鲜奶"],
   "蚕豆": ["胡豆", "鲜蚕豆", "扁豆", "蚕豆（扁豆）"],
   "豌豆": ["青豆", "鲜豌豆", "豌豆尖", "豆尖", "鲜豌豆仁"],
   "豆芽": ["黄豆芽", "绿豆芽", "豆芽菜", "银芽"],
-  "蘑菇": ["菌菇", "鲜蘑菇", "蘑菇片"],
+  "蘑菇": ["菌菇", "鲜蘑菇", "蘑菇片", "平菇", "金针菇", "杏鲍菇"],
   "香菇": ["冬菇", "花菇", "干香菇", "水发香菇", "冬菇（香菇）"],
   "口蘑": ["干口蘑", "水发口蘑"],
   "木耳": ["黑木耳", "云耳", "水发木耳"],
@@ -127,12 +128,15 @@ export function isNonStockCookingTerm(name) {
 // 与 recipe-sanitizer 的扩展口径保持同步（ingredients 不能 import sanitizer，避免循环依赖，
 // 故本地维护一份；catalog 只收核心食材就靠它兜底）。
 const SEASONING_EXTRA_LOCAL_REGEX = /^(白胡椒|白胡椒粉|姜片|姜丝|姜末|蒜末|蒜片|蒜瓣|蒜苗|葱段|葱末|小葱|香葱|食用油|植物油|花生油|色拉油|菜籽油|橄榄油|调和油|郫县豆瓣|郫县豆瓣酱|红油|辣椒油|花椒油|藤椒油|白酒|黄酒|啤酒|绍酒|绍兴酒|甜酒|曲酒|蜂蜜|芝麻|白芝麻|熟芝麻|花椒粒|辣椒粉|干花椒|香料|卤料|椒盐|醪糟|醪糟汁|腐乳|豆腐乳|豆腐乳水|豆瓣乳水|化猪油|湿淀粉|水淀粉|芡汁|勾芡汁|玉米淀粉|土豆淀粉|红薯淀粉)$/;
+const CORE_PROTECT_LOCAL_REGEX = /(豆腐(?!乳)|豆干|豆皮|千张|腐竹|支竹|木耳|香菇|海带|银耳|黄花菜|酸菜|泡菜|榨菜|盐菜|盐白菜|梅干菜|汤圆|汤面|汤粉|米粉|河粉|凉粉)/;
 
 // 「不是核心食材」的本地兜底判定：调料（含扩展写法）或非库存烹饪介质 / 量词。
 // 仅供 buildCatalog 等 ingredients 内部使用；菜谱侧请用 recipe-sanitizer 的统一分类。
 export function isRecipeNonCoreName(name) {
   const n = String(name || '').trim();
   if (!n) return true;
+  const base = n.replace(/^水发/, '') || n;
+  if (CORE_PROTECT_LOCAL_REGEX.test(base)) return false;
   return isSeasoning(n) || isNonStockCookingTerm(n) || SEASONING_EXTRA_LOCAL_REGEX.test(n);
 }
 
@@ -255,6 +259,142 @@ export function getCanonicalName(name) {
     }
   }
   return n;
+}
+
+export const INGREDIENT_FAMILIES = {
+  pork: {
+    broad: ['猪肉'],
+    members: ['猪肉', '瘦肉', '五花肉', '肥膘', '排骨', '猪蹄', '猪肚', '猪腰', '猪肝']
+  },
+  beef: {
+    broad: ['牛肉'],
+    members: ['牛肉', '牛腩']
+  },
+  lamb: {
+    broad: ['羊肉'],
+    members: ['羊肉']
+  },
+  chicken: {
+    broad: ['鸡肉'],
+    members: ['鸡肉', '鸡脯肉', '鸡腿', '鸡翅']
+  },
+  meat: {
+    broad: ['肉'],
+    members: ['猪肉', '牛肉', '鸡肉', '羊肉']
+  },
+  fish: {
+    broad: ['鲜鱼', '鱼'],
+    members: ['鲜鱼', '鲫鱼', '鲤鱼', '草鱼', '鲢鱼']
+  },
+  shrimp: {
+    broad: ['虾'],
+    members: ['虾', '虾仁']
+  },
+  seafood: {
+    broad: ['海鲜'],
+    members: ['鱼', '鲜鱼', '虾', '鱿鱼']
+  },
+  mushroom: {
+    broad: ['蘑菇', '菌菇'],
+    members: ['蘑菇', '香菇', '口蘑', '平菇', '金针菇', '杏鲍菇']
+  },
+  leafy: {
+    broad: ['青菜', '绿叶菜'],
+    members: ['青菜', '小白菜', '上海青', '油菜', '菠菜', '生菜']
+  },
+  pepper: {
+    broad: ['青椒', '辣椒'],
+    members: ['青椒', '红椒', '尖椒', '二荆条']
+  },
+  tofu: {
+    broad: ['豆制品'],
+    members: ['豆腐', '豆干', '豆皮', '腐竹']
+  },
+  egg: {
+    broad: ['鸡蛋', '蛋'],
+    members: ['鸡蛋']
+  },
+  shoot: {
+    broad: ['笋'],
+    members: ['笋', '冬笋', '春笋', '玉兰片']
+  }
+};
+
+function canonicalSet(values) {
+  return new Set((values || []).map(v => getCanonicalName(v)).filter(Boolean));
+}
+
+export function getIngredientFamilyKey(name) {
+  const canonical = getCanonicalName(name || '');
+  if (!canonical) return '';
+  for (const [key, group] of Object.entries(INGREDIENT_FAMILIES)) {
+    const names = canonicalSet([...(group.broad || []), ...(group.members || [])]);
+    if (names.has(canonical)) return key;
+  }
+  return '';
+}
+
+export function getIngredientFamilyCandidates(name, { includeBroad = false, canonicalize = true } = {}) {
+  const key = getIngredientFamilyKey(name);
+  if (!key) return [getCanonicalName(name || '')].filter(Boolean);
+  const group = INGREDIENT_FAMILIES[key];
+  const values = includeBroad
+    ? [...(group.broad || []), ...(group.members || [])]
+    : [...(group.members || [])];
+  const normalized = canonicalize ? values.map(v => getCanonicalName(v)) : values.map(v => String(v || '').trim());
+  return [...new Set(normalized.filter(Boolean))];
+}
+
+function isBroadFamilyName(name, key) {
+  const group = INGREDIENT_FAMILIES[key];
+  if (!group) return false;
+  const canonical = getCanonicalName(name || '');
+  return canonicalSet(group.broad || []).has(canonical);
+}
+
+export function getIngredientMatchNames(name) {
+  const canonical = getCanonicalName(name || '');
+  if (!canonical) return [];
+  const names = new Set([canonical]);
+  for (const alias of (INGREDIENT_ALIASES[canonical] || [])) {
+    const normalized = getCanonicalName(alias);
+    if (normalized) names.add(normalized);
+  }
+  const key = getIngredientFamilyKey(canonical);
+  if (key && isBroadFamilyName(canonical, key)) {
+    for (const candidate of getIngredientFamilyCandidates(canonical, { includeBroad: true })) {
+      if (candidate) names.add(candidate);
+    }
+  }
+  return [...names].filter(Boolean);
+}
+
+export function isSmartIngredientMatch(a, b, options = {}) {
+  const {
+    allowContains = true,
+    allowSiblingFamilyMatch = false,
+    includeNonCore = false
+  } = options;
+  const ca = getCanonicalName(a || '');
+  const cb = getCanonicalName(b || '');
+  if (!ca || !cb) return false;
+  if (!includeNonCore && (isRecipeNonCoreName(ca) || isRecipeNonCoreName(cb))) return false;
+  if (ca === cb) return true;
+
+  const namesA = getIngredientMatchNames(ca);
+  const namesB = getIngredientMatchNames(cb);
+  if (namesA.some(name => namesB.includes(name))) return true;
+
+  const fa = getIngredientFamilyKey(ca);
+  const fb = getIngredientFamilyKey(cb);
+  if (fa && fa === fb) {
+    if (allowSiblingFamilyMatch || isBroadFamilyName(ca, fa) || isBroadFamilyName(cb, fb)) return true;
+  }
+
+  if (allowContains && ca.length >= 2 && cb.length >= 2) {
+    return ca.includes(cb) || cb.includes(ca);
+  }
+  return false;
 }
 
 export function buildIngredientOptions(catalog) {

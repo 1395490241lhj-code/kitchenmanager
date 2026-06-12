@@ -2,14 +2,14 @@ import { S, todayISO } from './storage.js?v=219';
 import {
   explodeCombinedItems,
   getCanonicalName,
-  guessKitchenUnit
+  guessKitchenUnit,
+  isSmartIngredientMatch
 } from './ingredients.js?v=219';
 import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=219';
 import {
   daysBetween,
   getStockCoverageAnalysis,
-  remainingDays,
-  isIngredientMatch
+  remainingDays
 } from './inventory.js?v=219';
 import { addShoppingItem } from './shopping.js?v=219';
 import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=219';
@@ -378,11 +378,7 @@ export function normalizeTargetIngredientNames(targetNames, limit = 5) {
 // 单个候选词 vs 菜谱核心食材：同义词/别名（isIngredientMatch 双向）+ 包含兜底（鸡翅中→鸡翅）。
 function candidateMatchesCore(candidate, coreName) {
   if (!candidate || !coreName) return false;
-  if (isIngredientMatch(coreName, candidate) || isIngredientMatch(candidate, coreName)) return true;
-  // 包含匹配：双向、且较短一方至少 2 字，避免「肉」「鱼」单字误伤一切。
-  if (candidate.length >= 2 && coreName.includes(candidate)) return true;
-  if (coreName.length >= 2 && candidate.includes(coreName)) return true;
-  return false;
+  return isSmartIngredientMatch(coreName, candidate);
 }
 
 // 目标（含类别展开候选组）vs 菜谱核心食材：任一候选命中即算命中。
@@ -938,7 +934,7 @@ export function getCleanFridgeRecommendations(pack, inv, context = {}) {
     const matchedPriorities = [];
 
     for (const ing of core) {
-      const matchedItem = priorityItems.find(pItem => isIngredientMatch(ing.item, pItem.name));
+      const matchedItem = priorityItems.find(pItem => isSmartIngredientMatch(ing.item, pItem.name));
       if (matchedItem) {
         matchedPriorities.push({ ing, pItem: matchedItem });
       }

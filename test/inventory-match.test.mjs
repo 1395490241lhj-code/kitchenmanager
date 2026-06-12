@@ -9,6 +9,7 @@ import {
   isIngredientMatch,
   getStockCoverageAnalysis
 } from '../src/inventory.js';
+import { isSmartIngredientMatch } from '../src/ingredients.js';
 
 // ── 一、isInventoryAvailable ──
 test('isInventoryAvailable 真实行为', () => {
@@ -25,10 +26,30 @@ test('isIngredientMatch 应匹配（别名 / 泛称 / generic）', () => {
   assert.equal(isIngredientMatch('土豆', '马铃薯'), true); // 别名
   assert.equal(isIngredientMatch('土豆', '洋芋'), true);   // 别名
   assert.equal(isIngredientMatch('香菇', '干香菇'), true); // 前缀归一
-  assert.equal(isIngredientMatch('猪肉', '五花肉'), true); // RECIPE_GENERIC_MATCHES
-  assert.equal(isIngredientMatch('鸡肉', '鸡腿'), true);   // RECIPE_GENERIC_MATCHES
-  assert.equal(isIngredientMatch('蘑菇', '香菇'), true);   // RECIPE_GENERIC_MATCHES
-  assert.equal(isIngredientMatch('肉', '猪肉'), true);     // 泛称「肉」canonical 归到「猪肉」
+  assert.equal(isIngredientMatch('猪肉', '五花肉'), true); // 食材族
+  assert.equal(isIngredientMatch('鸡肉', '鸡腿'), true);   // 食材族
+  assert.equal(isIngredientMatch('蘑菇', '香菇'), true);   // 食材族
+  assert.equal(isIngredientMatch('肉', '猪肉'), true);     // 泛称「肉」按食材族匹配猪肉
+});
+
+test('isSmartIngredientMatch 统一口径：常见别名与宽泛食材族可匹配', () => {
+  assert.equal(isSmartIngredientMatch('番茄', '西红柿'), true);
+  assert.equal(isSmartIngredientMatch('鸡蛋', '蛋清'), true);
+  assert.equal(isSmartIngredientMatch('蘑菇', '香菇'), true);
+  assert.equal(isSmartIngredientMatch('蘑菇', '平菇'), true);
+  assert.equal(isSmartIngredientMatch('蘑菇', '口蘑'), true);
+  assert.equal(isSmartIngredientMatch('肉片', '猪肉'), true);
+  assert.equal(isSmartIngredientMatch('肉片', '瘦肉'), true);
+  assert.equal(isSmartIngredientMatch('青菜', '小白菜'), true);
+  assert.equal(isSmartIngredientMatch('青菜', '上海青'), true);
+  assert.equal(isSmartIngredientMatch('青菜', '油菜'), true);
+  assert.equal(isSmartIngredientMatch('鸡肉', '鸡腿'), true);
+  assert.equal(isSmartIngredientMatch('鸡肉', '鸡胸'), true);
+  assert.equal(isSmartIngredientMatch('鸡肉', '鸡翅'), true);
+  assert.equal(isSmartIngredientMatch('辣椒', '二荆条'), true);
+  assert.equal(isSmartIngredientMatch('虾', '虾仁'), true);
+  assert.equal(isSmartIngredientMatch('鱼', '鱼片'), true);
+  assert.equal(isSmartIngredientMatch('笋', '冬笋'), true);
 });
 
 // ── 二、isIngredientMatch：不应匹配 ──
@@ -38,6 +59,14 @@ test('isIngredientMatch 不应匹配（防误配 / 防污染）', () => {
   assert.equal(isIngredientMatch('鱼', '鱼香'), false);       // 鱼不被鱼香误判
   assert.equal(isIngredientMatch('牛肉', '鸡肉'), false);     // 不同肉类
   assert.equal(isIngredientMatch('豆腐', '豆瓣酱'), false);   // 豆腐 ≠ 豆瓣酱
+  assert.equal(isIngredientMatch('盐菜', '盐'), false);       // 腌渍菜 ≠ 调料盐
+  assert.equal(isIngredientMatch('盐白菜', '盐'), false);     // 腌渍菜 ≠ 调料盐
+  assert.equal(isIngredientMatch('十三香', '香菇'), false);   // 调料不参与核心匹配
+  assert.equal(isIngredientMatch('五花肉', '花'), false);     // 短字不做包含误配
+  assert.equal(isIngredientMatch('二荆条', '荆条'), false);   // 短碎片不做核心匹配
+  assert.equal(isIngredientMatch('高汤', '鲜鱼'), false);
+  assert.equal(isIngredientMatch('水', '鱼'), false);
+  assert.equal(isIngredientMatch('适量', '牛肉'), false);
 });
 
 // ── 二、isIngredientMatch：边界（空名）──
@@ -101,6 +130,15 @@ test('getStockCoverageAnalysis 别名匹配（马铃薯→土豆）→ exact', (
   const a = getStockCoverageAnalysis(inv, '马铃薯', 1, '个');
   assert.equal(a.confidence, 'exact');
   assert.equal(a.coveredQty, 3);
+});
+
+test('getStockCoverageAnalysis 使用统一匹配：西红柿库存覆盖番茄，鸡腿覆盖鸡肉', () => {
+  const inv2 = [
+    { name: '西红柿', qty: 2, unit: '个', stockStatus: 'ok' },
+    { name: '鸡腿', qty: 2, unit: '个', stockStatus: 'ok' }
+  ];
+  assert.equal(getStockCoverageAnalysis(inv2, '番茄', 1, '个').confidence, 'exact');
+  assert.equal(getStockCoverageAnalysis(inv2, '鸡肉', 1, '个').confidence, 'exact');
 });
 
 test('getStockCoverageAnalysis 无匹配 → none', () => {
