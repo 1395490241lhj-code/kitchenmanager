@@ -1,5 +1,6 @@
 import { CUSTOM_AI } from './config.js?v=219';
 import { S } from './storage.js?v=219';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=219';
 
 function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
@@ -301,6 +302,43 @@ export async function callAiForMethod(recipeName, ingredients) {
 
   const raw = await callAiService(prompt);
   return validateMethodResult(raw);
+}
+
+// AI 草稿的食材二次过滤：只留核心食材（盐/水/葱姜蒜/高汤等绝不进 ingredients）。
+// 纯函数，供「指定食材创意做法」与测试复用。
+export function filterAiDraftCoreIngredients(draft) {
+  const ingredients = (draft.ingredients || []).filter(it => classifyRecipeIngredient(it.item).role === 'core');
+  if (!ingredients.length) throw new Error('AI 没有返回可用核心食材');
+  return { ...draft, ingredients };
+}
+
+/**
+ * 「想用这些食材」AI 创意做法：基于用户指定食材 + 当前库存生成一道家常草稿。
+ * 只返回草稿（isAiDraft），绝不自动保存；调用方让用户确认后再入库。
+ */
+export async function callAiCreativeRecipeByIngredients({ targets = [], inventoryNames = [], localRecipeNames = [] } = {}) {
+  const prompt = `用户想用这些食材做一道菜：【${targets.join('、')}】。
+当前厨房里还有：【${inventoryNames.join('、') || '没有更多库存信息'}】。
+本地菜谱已经推荐过这些菜，请不要重复同名或几乎同名的菜：【${localRecipeNames.join('、') || '无'}】。
+
+请生成一道「家常、可执行、不夸张」的创意菜草稿，必须尽量用上用户指定的食材，做法适合家庭厨房（3-6 步），不要餐厅级复杂做法。
+
+请严格返回 JSON，不要 markdown，不要解释：
+{
+  "name": "菜名",
+  "ingredients": [
+    {"item": "核心食材", "qty": "", "unit": ""}
+  ],
+  "method": "1. 步骤...\\n2. 步骤..."
+}
+
+硬性要求：
+- ingredients 只列肉、菜、蛋、豆制品、菌菇等核心主材。
+- 不要把葱姜蒜、盐糖油酱醋、料酒、淀粉、水、高汤、汤汁列入 ingredients；需要调料只写在 method 里。
+- name 不要和上面列出的本地菜名重复。`;
+  const raw = await callAiService(prompt);
+  const draft = validateRecipeResult(raw);
+  return { ...filterAiDraftCoreIngredients(draft), draftSource: 'target-ingredients' };
 }
 
 export async function callAiSearchRecipe(query, invNames) {

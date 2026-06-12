@@ -375,12 +375,21 @@ export function normalizeTargetIngredientNames(targetNames, limit = 5) {
   return out;
 }
 
-function targetMatchesCore(targetName, coreItem) {
+// 单个候选词 vs 菜谱核心食材：同义词/别名（isIngredientMatch 双向）+ 包含兜底（鸡翅中→鸡翅）。
+function candidateMatchesCore(candidate, coreName) {
+  if (!candidate || !coreName) return false;
+  if (isIngredientMatch(coreName, candidate) || isIngredientMatch(candidate, coreName)) return true;
+  // 包含匹配：双向、且较短一方至少 2 字，避免「肉」「鱼」单字误伤一切。
+  if (candidate.length >= 2 && coreName.includes(candidate)) return true;
+  if (coreName.length >= 2 && candidate.includes(coreName)) return true;
+  return false;
+}
+
+// 目标（含类别展开候选组）vs 菜谱核心食材：任一候选命中即算命中。
+function targetMatchesCore(target, coreItem) {
   const coreName = coreItem && (coreItem.item || coreItem.name);
-  return !!coreName && (
-    isIngredientMatch(coreName, targetName) ||
-    isIngredientMatch(targetName, coreName)
-  );
+  if (!coreName) return false;
+  return (target.candidates || [target.canonical]).some(c => candidateMatchesCore(c, coreName));
 }
 
 function buildTargetRecipeReason({ targetHits, missingTargets, inventoryMissing }) {
@@ -398,20 +407,30 @@ function buildTargetRecipeReason({ targetHits, missingTargets, inventoryMissing 
 }
 
 export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}) {
-  const targets = normalizeTargetIngredientNames(targetNames, options.limitTargets || 5);
-  if (!targets.length) return [];
+  // 目标描述符：优先用上层传入的解析结果（含类别展开候选组 + 库存辅助排序）；
+  // 否则把规范名数组包装成单候选描述符（向后兼容旧调用）。
+  const descriptors = Array.isArray(options.targetDescriptors) && options.targetDescriptors.length
+    ? options.targetDescriptors
+        .filter(t => t && t.canonical)
+        .map(t => ({ canonical: t.canonical, candidates: (t.candidates && t.candidates.length) ? t.candidates : [t.canonical] }))
+        .slice(0, options.limitTargets || 5)
+    : normalizeTargetIngredientNames(targetNames, options.limitTargets || 5)
+        .map(name => ({ canonical: name, candidates: [name] }));
+  if (!descriptors.length) return [];
 
   const context = options.context || getRecommendationContext();
-  const limit = options.limit || 8;
+  const limit = options.limit || 6;
 
   return (pack.recipes || [])
     .map(recipe => {
       const scored = scoreRecipe(recipe, pack, inv, context);
       if (!scored.totalCore) return null;
       const core = scored.core || getRecipeCoreIngredients(recipe, pack);
-      const targetHits = targets.filter(target => core.some(item => targetMatchesCore(target, item)));
-      if (!targetHits.length) return null;
-      const missingTargets = targets.filter(target => !targetHits.includes(target));
+      const hitDescriptors = descriptors.filter(target => core.some(item => targetMatchesCore(target, item)));
+      if (!hitDescriptors.length) return null;
+      const targets = descriptors.map(d => d.canonical);
+      const targetHits = hitDescriptors.map(d => d.canonical);
+      const missingTargets = targets.filter(name => !targetHits.includes(name));
       const hitCount = targetHits.length;
       const completeTargetHit = hitCount === targets.length;
       const inventoryMissing = scored.missing || [];
@@ -460,6 +479,8 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
         row,
         targetHits,
         targetTotal: targets.length,
+        targetMatchedNames: targetHits,
+        targetMissingNames: missingTargets,
         missingTargets,
         inventoryMissing,
         score: Math.round(score * 10) / 10,

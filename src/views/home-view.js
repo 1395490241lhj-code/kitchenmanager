@@ -4,12 +4,13 @@ import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
-  findRecipesUsingIngredients, hasRecipeMethod, normalizeTargetIngredientNames, rankRecipesForRecommendation,
+  findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
 } from '../recommendations.js?v=219';
-import { callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=219';
+import { callAiCreativeRecipeByIngredients, callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=219';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=219';
-import { showRecommendationCards } from '../components/recipe-card.js?v=219';
+import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=219';
+import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=219';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
@@ -1206,13 +1207,21 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
 // 当前 tab 的页内记忆（仅内存，不持久化）：范围筛选等触发整页重渲染时不丢所在 tab。
 let lastWxTab = null;
 let targetRecipeQuery = '';
+// AI 创意做法状态（仅页面内存，不持久化）：idle / loading / error / success。
+let targetCreativeDraft = null;
+let targetCreativeStatus = 'idle';
+let targetCreativeError = '';
 
-function parseTargetRecipeQuery(query) {
-  const parts = String(query || '')
-    .split(/[\s,，、/]+/)
-    .map(item => item.trim())
-    .filter(Boolean);
-  return normalizeTargetIngredientNames(parts, 5);
+function resetTargetCreative() {
+  targetCreativeDraft = null;
+  targetCreativeStatus = 'idle';
+  targetCreativeError = '';
+}
+
+// 解析目标食材：类别展开（菌菇/绿叶菜/肉片…）+ 库存辅助 + 调料过滤，详见 ingredient-intent。
+function parseTargetRecipeQuery(query, inv) {
+  const inventoryNames = (inv || []).map(x => x && x.name).filter(Boolean);
+  return parseTargetIngredients(query, { inventoryNames, limit: 5 }).targets;
 }
 
 // 单一主信息面板：顶部 segmented tabs（📅计划 / ⏳到期 / 🛒待买 / ✨推荐），
@@ -1395,6 +1404,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const applyQuery = () => {
       targetRecipeQuery = input.value.trim();
       recsState = null;
+      resetTargetCreative(); // 换了目标食材，旧的 AI 草稿不再适用
       switchTab('recs');
     };
     search.querySelector('.target-recipe-btn').onclick = applyQuery;
@@ -1404,18 +1414,81 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     search.querySelector('.target-recipe-clear')?.addEventListener('click', () => {
       targetRecipeQuery = '';
       recsState = null;
+      resetTargetCreative();
       switchTab('recs');
     });
     return search;
   };
 
+  // ── AI 创意做法（指定食材模式专属）：本地结果之下、明确分层；只有点按钮才调 AI ──
+  const renderTargetCreativeBox = (targetNames, localCards) => {
+    const box = document.createElement('div');
+    box.className = 'target-recipe-ai-box';
+
+    if (targetCreativeStatus === 'success' && targetCreativeDraft) {
+      const note = document.createElement('p');
+      note.className = 'target-recipe-ai-note';
+      note.textContent = `AI 草稿 · 用到${targetNames.join('、')} · 确认后再保存`;
+      box.appendChild(note);
+      const cardHost = document.createElement('div');
+      cardHost.className = 'target-recipe-ai-card';
+      // 复用现有草稿卡：查看做法（卡内直接展示）+ 保存草稿/保存并编辑/取消，绝不自动保存。
+      cardHost.appendChild(renderAiRecipeDraftCard(targetCreativeDraft));
+      box.appendChild(cardHost);
+      const again = document.createElement('div');
+      again.className = 'target-recipe-ai-actions';
+      again.innerHTML = '<button type="button" class="wx-mini-btn target-recipe-ai-btn" id="targetAiAgain">再想一个</button>';
+      box.appendChild(again);
+    } else {
+      const actions = document.createElement('div');
+      actions.className = 'target-recipe-ai-actions';
+      actions.innerHTML = `
+        <span class="target-recipe-ai-hint">${localCards.length ? '本地不够合心意？' : '本地菜谱里没找到很合适的'}</span>
+        <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetAiBtn"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
+          ${targetCreativeStatus === 'loading' ? '正在想...' : '让 AI 想一个做法'}
+        </button>
+      `;
+      box.appendChild(actions);
+      if (targetCreativeStatus === 'error' && targetCreativeError) {
+        const err = document.createElement('div');
+        err.className = 'small inline-status bad';
+        err.textContent = targetCreativeError;
+        box.appendChild(err);
+      }
+    }
+
+    const trigger = box.querySelector('#targetAiBtn, #targetAiAgain');
+    if (trigger) trigger.onclick = async () => {
+      if (targetCreativeStatus === 'loading') return;
+      targetCreativeStatus = 'loading';
+      targetCreativeError = '';
+      switchTab('recs'); // 立即反馈「正在想...」
+      try {
+        const draft = await withTimeout(callAiCreativeRecipeByIngredients({
+          targets: targetNames,
+          inventoryNames: (inv || []).map(x => x && x.name).filter(Boolean),
+          localRecipeNames: localCards.map(c => c.name).filter(Boolean)
+        }), 30000, 'AI 响应超时');
+        targetCreativeDraft = draft;
+        targetCreativeStatus = 'success';
+      } catch (err) {
+        targetCreativeStatus = 'error';
+        targetCreativeError = formatAiErrorMessage(err);
+      }
+      switchTab('recs');
+    };
+    return box;
+  };
+
   const renderRecsTab = () => {
-    const targetNames = parseTargetRecipeQuery(targetRecipeQuery);
+    const targetDescriptors = parseTargetRecipeQuery(targetRecipeQuery, inv);
+    const targetNames = targetDescriptors.map(t => t.canonical);
     const targetKey = targetNames.join('|');
     if (targetNames.length) {
       const targetCards = findRecipesUsingIngredients(pack, inv, targetNames, {
         context: getRecommendationUiContext(),
-        limit: 8
+        limit: 6,
+        targetDescriptors
       });
       const prevIdx = recsState && recsState.mode === 'target' && recsState.key === targetKey ? recsState.idx : 0;
       recsState = {
@@ -1482,7 +1555,12 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       note.className = 'wx-rec-note target-recipe-summary';
       note.textContent = '本地菜谱匹配结果，不调用 AI。';
       body.appendChild(note);
-    } else if (mode === 'ai' && cards.length) {
+    }
+    // AI 创意做法入口：指定食材模式专属，本地结果（或空提示）之下，分层清楚。
+    if (mode === 'target' && targetNames.length) {
+      body.appendChild(renderTargetCreativeBox(targetNames, cards));
+    }
+    if (mode === 'ai' && cards.length) {
       const note = document.createElement('p');
       note.className = 'wx-rec-note';
       note.textContent = '推荐仅供参考，安排前可以再看一眼。';

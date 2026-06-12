@@ -8588,3 +8588,33 @@ html[data-theme="dark"] .target-recipe-btn {
     font-size: 12px;
   }
 }
+
+/* ── 「想用这些食材」AI 创意做法区（v168）：本地结果之下、轻分层，不抢主视觉 ── */
+.target-recipe-ai-box {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--glass-edge);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.target-recipe-ai-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.target-recipe-ai-hint { font-size: 12px; color: var(--text-secondary); margin-right: auto; }
+.target-recipe-ai-note {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--status-warn-text);
+}
+.target-recipe-ai-card .ai-draft-card { margin-bottom: 0; }
+.target-recipe-ai-card .method-text {
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 13px;
+}
