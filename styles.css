@@ -8651,9 +8651,12 @@ html[data-theme="dark"] .target-recipe-btn {
 .today-view .wx-panel .menu-plan-card,
 .today-view .wx-panel .card.shopping-plan-card,
 .today-view .wx-panel .card.menu-plan-card {
-  background: transparent !important;
+  background: none !important;
   border: 0 !important;
   box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: visible !important;
 }
 .today-view .wx-panel .shopping-plan-card::before,
 .today-view .wx-panel .menu-plan-card::before,
@@ -8663,18 +8666,29 @@ html[data-theme="dark"] .target-recipe-btn {
   display: none !important;
 }
 .today-view .wx-panel .shopping-plan-list {
-  background: transparent !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  background: none !important;
   border: 0 !important;
   box-shadow: none !important;
   padding: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.today-view .wx-panel .shopping-plan-list::before,
+.today-view .wx-panel .shopping-plan-list::after {
+  content: none !important;
+  display: none !important;
 }
 .today-view .wx-panel .menu-plan-empty,
 html[data-theme="light"] .today-view .wx-panel .menu-plan-empty,
 html[data-theme="dark"] .today-view .wx-panel .menu-plan-empty {
   min-height: 0;
-  padding: 14px 4px;
+  width: 100%;
+  margin: 0 !important;
+  padding: 14px 4px !important;
   border: 0 !important;
-  background: transparent !important;
+  background: none !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -8686,6 +8700,115 @@ html[data-theme="dark"] .today-view .wx-panel .menu-plan-empty {
 }
 .today-view .wx-panel .menu-plan-empty .plan-empty-line {
   background: transparent !important;
+}
+
+/* Component theme guardrails: one light/dark button and empty-state language across pages. */
+html[data-theme="light"] {
+  --km-control-bg: rgba(255, 255, 255, 0.58);
+  --km-control-border: rgba(60, 60, 67, 0.12);
+  --km-control-text: #1d1d1f;
+  --km-control-shadow: 0 5px 14px rgba(16, 24, 40, 0.045), inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --km-primary-control-bg: linear-gradient(135deg, rgba(0, 122, 255, 0.13), rgba(0, 122, 255, 0.045)), rgba(255, 255, 255, 0.58);
+  --km-primary-control-border: rgba(0, 122, 255, 0.22);
+  --km-primary-control-text: var(--primary-dark);
+  --km-danger-control-bg: var(--status-bad-bg);
+  --km-danger-control-border: var(--status-bad-border);
+  --km-danger-control-text: var(--status-bad-text);
+  --km-empty-bg: rgba(255, 255, 255, 0.22);
+  --km-empty-border: rgba(60, 60, 67, 0.10);
+}
+html[data-theme="dark"] {
+  --km-control-bg: rgba(255, 255, 255, 0.08);
+  --km-control-border: rgba(255, 255, 255, 0.13);
+  --km-control-text: rgba(245, 245, 247, 0.92);
+  --km-control-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --km-primary-control-bg: linear-gradient(135deg, rgba(10, 132, 255, 0.18), rgba(10, 132, 255, 0.065)), rgba(255, 255, 255, 0.06);
+  --km-primary-control-border: rgba(10, 132, 255, 0.28);
+  --km-primary-control-text: #9ecbff;
+  --km-danger-control-bg: rgba(255, 105, 97, 0.16);
+  --km-danger-control-border: rgba(255, 105, 97, 0.24);
+  --km-danger-control-text: #ff9a94;
+  --km-empty-bg: rgba(255, 255, 255, 0.035);
+  --km-empty-border: rgba(255, 255, 255, 0.10);
+}
+
+.btn:not(.ok):not(.ai):not(.bad):not(.favorite-btn):not(.is-confirmed),
+.wx-mini-btn:not(.is-ai),
+.home-mini-btn:not(.is-active),
+.today-quick-btn:not(.is-primary),
+.shopping-tool-btn:not(.shopping-tool-ok),
+.sw-action-pill:not(.sw-action-weak),
+.sw-edit-cancel,
+.recipe-light-action,
+.target-recipe-clear {
+  background: var(--km-control-bg);
+  color: var(--km-control-text);
+  border-color: var(--km-control-border);
+  box-shadow: var(--km-control-shadow);
+}
+
+.shopping-tool-ok,
+.sw-edit-save,
+.shopping-weather-stockin,
+.sw-tip-btn,
+.tomorrow-prep-action,
+.tomorrow-prep-cta,
+.wx-mini-btn.is-ai,
+.target-recipe-btn,
+.target-recipe-ai-btn,
+.today-quick-btn.is-primary,
+.wx-rec-card .home-suggest-cook {
+  background: var(--km-primary-control-bg);
+  color: var(--km-primary-control-text);
+  border-color: var(--km-primary-control-border);
+}
+
+.btn.bad,
+.shopping-clear-btn,
+.recipe-card-del-btn {
+  background: var(--km-danger-control-bg);
+  color: var(--km-danger-control-text);
+  border-color: var(--km-danger-control-border);
+}
+
+.btn:focus-visible,
+.wx-mini-btn:focus-visible,
+.home-mini-btn:focus-visible,
+.today-quick-btn:focus-visible,
+.shopping-tool-btn:focus-visible,
+.sw-action-pill:focus-visible,
+.sw-edit-save:focus-visible,
+.sw-edit-cancel:focus-visible,
+.recipe-light-action:focus-visible,
+.target-recipe-btn:focus-visible,
+.target-recipe-ai-btn:focus-visible,
+.target-recipe-clear:focus-visible {
+  outline: 2px solid rgba(0, 122, 255, 0.36);
+  outline-offset: 2px;
+}
+
+.home-empty-state,
+.search-empty-state,
+.recipe-empty-state,
+.recipe-scene-empty,
+.rec-empty-card,
+.clean-fridge-empty,
+.shopping-weather-empty,
+.shopping-market-empty,
+.shopping-unified-empty,
+.tomorrow-prep-empty,
+.today-empty {
+  background: var(--km-empty-bg);
+  border-color: var(--km-empty-border);
+  box-shadow: none;
+}
+.wx-empty,
+.today-view .wx-panel .wx-empty,
+.km-modal-empty,
+.km-pending-empty {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 /* Light-theme guardrails: old prefers-color-scheme blocks must not keep controls dark after switching back. */
