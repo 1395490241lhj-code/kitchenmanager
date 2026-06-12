@@ -7,7 +7,7 @@ import {
   findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, processAiData
 } from '../recommendations.js?v=219';
-import { callAiCreativeRecipeByIngredients, callCloudAI, formatAiErrorMessage, recognizeReceipt, withTimeout } from '../ai.js?v=219';
+import { callAiCreativeRecipeByIngredients, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=219';
 import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=219';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=219';
@@ -1211,11 +1211,24 @@ let targetRecipeQuery = '';
 let targetCreativeDraft = null;
 let targetCreativeStatus = 'idle';
 let targetCreativeError = '';
+let targetCreativeHistory = { names: [], modes: [] };
 
 function resetTargetCreative() {
   targetCreativeDraft = null;
   targetCreativeStatus = 'idle';
   targetCreativeError = '';
+  targetCreativeHistory = { names: [], modes: [] };
+}
+
+function rememberTargetCreativeDraft(draft) {
+  const name = String(draft?.name || '').trim();
+  const mode = String(draft?.dishMode || '').trim();
+  if (name && !targetCreativeHistory.names.includes(name)) {
+    targetCreativeHistory.names = [...targetCreativeHistory.names, name].slice(-8);
+  }
+  if (mode && !targetCreativeHistory.modes.includes(mode)) {
+    targetCreativeHistory.modes = [...targetCreativeHistory.modes, mode].slice(-10);
+  }
 }
 
 // 解析目标食材：类别展开（菌菇/绿叶菜/肉片…）+ 库存辅助 + 调料过滤，详见 ingredient-intent。
@@ -1425,10 +1438,14 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const box = document.createElement('div');
     box.className = 'target-recipe-ai-box';
 
-    if (targetCreativeStatus === 'success' && targetCreativeDraft) {
+    if ((targetCreativeStatus === 'success' || targetCreativeStatus === 'loading') && targetCreativeDraft) {
+      const modeLabel = getCreativeDishModeLabel(targetCreativeDraft.dishMode);
       const note = document.createElement('p');
       note.className = 'target-recipe-ai-note';
-      note.textContent = `AI 草稿 · 用到${targetNames.join('、')} · 确认后再保存`;
+      note.innerHTML = `
+        <span class="target-recipe-ai-mode">AI 草稿 · ${escapeHtml(modeLabel)}</span>
+        <span>用到${escapeHtml(targetNames.join('、'))} · 确认后再保存</span>
+      `;
       box.appendChild(note);
       const cardHost = document.createElement('div');
       cardHost.className = 'target-recipe-ai-card';
@@ -1437,15 +1454,26 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
       box.appendChild(cardHost);
       const again = document.createElement('div');
       again.className = 'target-recipe-ai-actions';
-      again.innerHTML = '<button type="button" class="wx-mini-btn target-recipe-ai-btn" id="targetAiAgain">再想一个</button>';
+      again.innerHTML = `
+        <span class="target-recipe-ai-hint">换一种会优先切换做法形态，不只是换菜名。</span>
+        <button type="button" class="wx-mini-btn target-recipe-ai-btn" id="targetAiAgain"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
+          ${targetCreativeStatus === 'loading' ? '正在换个做法...' : '换一种'}
+        </button>
+      `;
       box.appendChild(again);
+      if (targetCreativeError) {
+        const err = document.createElement('div');
+        err.className = 'small inline-status bad';
+        err.textContent = targetCreativeError;
+        box.appendChild(err);
+      }
     } else {
       const actions = document.createElement('div');
       actions.className = 'target-recipe-ai-actions';
       actions.innerHTML = `
         <span class="target-recipe-ai-hint">${localCards.length ? '本地不够合心意？' : '本地菜谱里没找到很合适的'}</span>
         <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetAiBtn"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
-          ${targetCreativeStatus === 'loading' ? '正在想...' : '让 AI 想一个做法'}
+          ${targetCreativeStatus === 'loading' ? '正在换个做法...' : '让 AI 想一个做法'}
         </button>
       `;
       box.appendChild(actions);
@@ -1460,6 +1488,15 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
     const trigger = box.querySelector('#targetAiBtn, #targetAiAgain');
     if (trigger) trigger.onclick = async () => {
       if (targetCreativeStatus === 'loading') return;
+      const nextMode = pickNextCreativeDishMode(targetCreativeHistory.modes, targetCreativeDraft?.dishMode || '');
+      const avoidedRecipeNames = [
+        ...targetCreativeHistory.names,
+        targetCreativeDraft?.name
+      ].filter(Boolean);
+      const avoidedDishModes = [
+        ...targetCreativeHistory.modes,
+        targetCreativeDraft?.dishMode
+      ].filter(Boolean);
       targetCreativeStatus = 'loading';
       targetCreativeError = '';
       switchTab('recs'); // 立即反馈「正在想...」
@@ -1467,12 +1504,16 @@ function createWeatherPanel(pack, inv, { onRoute = () => {} } = {}) {
         const draft = await withTimeout(callAiCreativeRecipeByIngredients({
           targets: targetNames,
           inventoryNames: (inv || []).map(x => x && x.name).filter(Boolean),
-          localRecipeNames: localCards.map(c => c.name).filter(Boolean)
+          localRecipeNames: localCards.map(c => c.name).filter(Boolean),
+          preferredDishMode: nextMode.key,
+          avoidedRecipeNames,
+          avoidedDishModes
         }), 30000, 'AI 响应超时');
         targetCreativeDraft = draft;
+        rememberTargetCreativeDraft(draft);
         targetCreativeStatus = 'success';
       } catch (err) {
-        targetCreativeStatus = 'error';
+        targetCreativeStatus = targetCreativeDraft ? 'success' : 'error';
         targetCreativeError = formatAiErrorMessage(err);
       }
       switchTab('recs');

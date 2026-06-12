@@ -8611,6 +8611,19 @@ html[data-theme="dark"] .target-recipe-btn {
   font-size: 12px;
   font-weight: 600;
   color: var(--status-warn-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.target-recipe-ai-mode {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
 }
 .target-recipe-ai-card .ai-draft-card { margin-bottom: 0; }
 .target-recipe-ai-card .method-text {

@@ -112,6 +112,8 @@ export function validateRecipeResult(input) {
   const name = String(data.name || '').trim();
   const method = String(data.method || '').trim();
   const ingredients = normalizeAiIngredients(data.ingredients);
+  const dishMode = String(data.dishMode || '').trim();
+  const reason = String(data.reason || '').trim();
 
   if (!name) throw new Error('AI 菜谱缺少菜名。');
   if (!ingredients.length) throw new Error('AI 菜谱缺少食材数组。');
@@ -121,6 +123,8 @@ export function validateRecipeResult(input) {
     name,
     ingredients,
     method,
+    ...(dishMode ? { dishMode } : {}),
+    ...(reason ? { reason } : {}),
     isAiDraft: true,
     draftSource: 'ai-search'
   };
@@ -304,10 +308,76 @@ export async function callAiForMethod(recipeName, ingredients) {
   return validateMethodResult(raw);
 }
 
+export const CREATIVE_DISH_MODES = [
+  { key: 'stir_fry', label: '快炒' },
+  { key: 'braised_rice', label: '焖饭' },
+  { key: 'risotto', label: '烩饭' },
+  { key: 'rice_bowl', label: '盖饭' },
+  { key: 'noodle', label: '汤面/拌面' },
+  { key: 'soup_stew', label: '炖煮' },
+  { key: 'oven_roast', label: '烤盘/焗烤' },
+  { key: 'warm_salad', label: '温沙拉' },
+  { key: 'pancake', label: '蛋饼/煎饼' },
+  { key: 'wrap', label: '卷饼' }
+];
+
+export function getCreativeDishModeLabel(key) {
+  return CREATIVE_DISH_MODES.find(mode => mode.key === key)?.label || '创意做法';
+}
+
+export function pickNextCreativeDishMode(usedModes = [], lastMode = '') {
+  const used = new Set((usedModes || []).map(mode => String(mode || '').trim()).filter(Boolean));
+  const previous = String(lastMode || usedModes?.[usedModes.length - 1] || '').trim();
+  return CREATIVE_DISH_MODES.find(mode => !used.has(mode.key) && mode.key !== previous)
+    || CREATIVE_DISH_MODES.find(mode => mode.key !== previous)
+    || CREATIVE_DISH_MODES[0];
+}
+
+export function inferCreativeDishModeFromName(name) {
+  const text = String(name || '');
+  if (/焖饭|煲仔饭|饭煲/.test(text)) return 'braised_rice';
+  if (/烩饭|炖饭/.test(text)) return 'risotto';
+  if (/盖饭|浇饭|丼/.test(text)) return 'rice_bowl';
+  if (/汤面|拌面|面条|炒面|面$/.test(text)) return 'noodle';
+  if (/炖|煮|汤|煲|烩菜/.test(text)) return 'soup_stew';
+  if (/烤|焗|焙|烤盘/.test(text)) return 'oven_roast';
+  if (/沙拉|温拌/.test(text)) return 'warm_salad';
+  if (/蛋饼|煎饼|饼/.test(text)) return 'pancake';
+  if (/卷饼|春卷|卷/.test(text)) return 'wrap';
+  if (/炒|爆|小炒|快炒|清炒/.test(text)) return 'stir_fry';
+  return '';
+}
+
+export function normalizeCreativeRecipeName(name) {
+  return String(name || '')
+    .replace(/\s+/g, '')
+    .replace(/[·,，、/／\\-]/g, '')
+    .replace(/鸡肉[片丁丝块粒末]/g, '鸡肉')
+    .replace(/鸡[丁丝片]/g, '鸡肉')
+    .replace(/牛肉[片丁丝块粒末]/g, '牛肉')
+    .replace(/猪肉[片丁丝块粒末]/g, '猪肉')
+    .replace(/肉[片丁丝块粒末]/g, '肉')
+    .replace(/切[片丁丝块]/g, '')
+    .trim();
+}
+
+export function areCreativeRecipeNamesSimilar(a, b) {
+  const modeA = inferCreativeDishModeFromName(a);
+  const modeB = inferCreativeDishModeFromName(b);
+  if (modeA && modeB && modeA !== modeB) return false;
+
+  const nameA = normalizeCreativeRecipeName(a);
+  const nameB = normalizeCreativeRecipeName(b);
+  if (!nameA || !nameB) return false;
+  if (nameA === nameB) return true;
+  return Boolean(modeA && modeB && modeA === modeB && (nameA.includes(nameB) || nameB.includes(nameA)));
+}
+
 // AI 草稿的食材二次过滤：只留核心食材（盐/水/葱姜蒜/高汤等绝不进 ingredients）。
 // 纯函数，供「指定食材创意做法」与测试复用。
 export function filterAiDraftCoreIngredients(draft) {
-  const ingredients = (draft.ingredients || []).filter(it => classifyRecipeIngredient(it.item).role === 'core');
+  const ingredients = normalizeAiIngredients(draft.ingredients || [])
+    .filter(it => classifyRecipeIngredient(it.item).role === 'core');
   if (!ingredients.length) throw new Error('AI 没有返回可用核心食材');
   return { ...draft, ingredients };
 }
@@ -316,16 +386,38 @@ export function filterAiDraftCoreIngredients(draft) {
  * 「想用这些食材」AI 创意做法：基于用户指定食材 + 当前库存生成一道家常草稿。
  * 只返回草稿（isAiDraft），绝不自动保存；调用方让用户确认后再入库。
  */
-export async function callAiCreativeRecipeByIngredients({ targets = [], inventoryNames = [], localRecipeNames = [] } = {}) {
+export async function callAiCreativeRecipeByIngredients({
+  targets = [],
+  inventoryNames = [],
+  localRecipeNames = [],
+  preferredDishMode = '',
+  avoidedRecipeNames = [],
+  avoidedDishModes = []
+} = {}) {
+  const preferred = CREATIVE_DISH_MODES.find(mode => mode.key === preferredDishMode)
+    || pickNextCreativeDishMode(avoidedDishModes);
+  const avoidedModes = [...new Set((avoidedDishModes || []).filter(Boolean))]
+    .map(getCreativeDishModeLabel)
+    .filter(Boolean);
+  const avoidedNames = [...new Set([...(localRecipeNames || []), ...(avoidedRecipeNames || [])]
+    .map(name => String(name || '').trim())
+    .filter(Boolean))];
+  const modeOptions = CREATIVE_DISH_MODES.map(mode => `${mode.key}=${mode.label}`).join('；');
   const prompt = `用户想用这些食材做一道菜：【${targets.join('、')}】。
 当前厨房里还有：【${inventoryNames.join('、') || '没有更多库存信息'}】。
-本地菜谱已经推荐过这些菜，请不要重复同名或几乎同名的菜：【${localRecipeNames.join('、') || '无'}】。
+已经出现过或需要避开的菜名：【${avoidedNames.join('、') || '无'}】。
+已经用过的烹饪形态：【${avoidedModes.join('、') || '无'}】。
+
+本次必须优先使用这个烹饪形态：${preferred.label}（dishMode=${preferred.key}）。
+可选形态池：${modeOptions}。
 
 请生成一道「家常、可执行、不夸张」的创意菜草稿，必须尽量用上用户指定的食材，做法适合家庭厨房（3-6 步），不要餐厅级复杂做法。
 
 请严格返回 JSON，不要 markdown，不要解释：
 {
   "name": "菜名",
+  "dishMode": "${preferred.key}",
+  "reason": "为什么适合这些食材",
   "ingredients": [
     {"item": "核心食材", "qty": "", "unit": ""}
   ],
@@ -333,12 +425,22 @@ export async function callAiCreativeRecipeByIngredients({ targets = [], inventor
 }
 
 硬性要求：
+- dishMode 必须是上面形态池里的 key，优先返回 ${preferred.key}。
+- 如果刚推荐过炒菜，本次不要再推荐炒菜；不要把同一道菜从鸡肉片改成鸡肉丁/鸡肉丝来伪装变化。
+- 菜品形态要明显不同，可以是焖饭、烩饭、盖饭、汤面/拌面、炖煮、烤盘/焗烤、温沙拉、蛋饼/煎饼、卷饼等方向。
 - ingredients 只列肉、菜、蛋、豆制品、菌菇等核心主材。
 - 不要把葱姜蒜、盐糖油酱醋、料酒、淀粉、水、高汤、汤汁列入 ingredients；需要调料只写在 method 里。
-- name 不要和上面列出的本地菜名重复。`;
+- name 不要和上面列出的菜名重复，也不要只是刀工变化。`;
   const raw = await callAiService(prompt);
   const draft = validateRecipeResult(raw);
-  return { ...filterAiDraftCoreIngredients(draft), draftSource: 'target-ingredients' };
+  const cleaned = filterAiDraftCoreIngredients(draft);
+  if (avoidedNames.some(name => areCreativeRecipeNamesSimilar(name, cleaned.name))) {
+    throw new Error('AI 返回的做法和上一道太像，请再点一次换一种。');
+  }
+  const dishMode = CREATIVE_DISH_MODES.some(mode => mode.key === cleaned.dishMode)
+    ? cleaned.dishMode
+    : preferred.key;
+  return { ...cleaned, dishMode, draftSource: 'target-ingredients' };
 }
 
 export async function callAiSearchRecipe(query, invNames) {
