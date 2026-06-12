@@ -300,7 +300,7 @@ export const INGREDIENT_FAMILIES = {
   },
   leafy: {
     broad: ['青菜', '绿叶菜'],
-    members: ['青菜', '小白菜', '上海青', '油菜', '菠菜', '生菜']
+    members: ['青菜', '小白菜', '上海青', '油菜', '菠菜', '生菜', '空心菜']
   },
   pepper: {
     broad: ['青椒', '辣椒'],

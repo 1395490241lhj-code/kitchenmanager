@@ -37,7 +37,7 @@ test('类别展开：菌菇 → 香菇/蘑菇/平菇等候选', () => {
 
 test('类别展开：绿叶菜 / 辣椒 / 豆制品 / 海鲜 / 蛋', () => {
   const leafy = parseTargetIngredients('绿叶菜').targets[0];
-  assert.ok(['青菜', '菠菜', '生菜'].every(c => leafy.candidates.includes(c)));
+  assert.ok(['青菜', '菠菜', '生菜', '空心菜'].every(c => leafy.candidates.includes(c)));
   const pepper = parseTargetIngredients('辣椒').targets[0];
   assert.ok(['青椒', '红椒'].every(c => pepper.candidates.includes(c)));
   const tofu = parseTargetIngredients('豆制品').targets[0];

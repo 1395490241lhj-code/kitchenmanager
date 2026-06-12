@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   isInventoryAvailable,
   isIngredientMatch,
+  computeCookDeductions,
   getStockCoverageAnalysis
 } from '../src/inventory.js';
 import { isSmartIngredientMatch } from '../src/ingredients.js';
@@ -43,6 +44,7 @@ test('isSmartIngredientMatch 统一口径：常见别名与宽泛食材族可匹
   assert.equal(isSmartIngredientMatch('青菜', '小白菜'), true);
   assert.equal(isSmartIngredientMatch('青菜', '上海青'), true);
   assert.equal(isSmartIngredientMatch('青菜', '油菜'), true);
+  assert.equal(isSmartIngredientMatch('青菜', '空心菜'), true);
   assert.equal(isSmartIngredientMatch('鸡肉', '鸡腿'), true);
   assert.equal(isSmartIngredientMatch('鸡肉', '鸡胸'), true);
   assert.equal(isSmartIngredientMatch('鸡肉', '鸡翅'), true);
@@ -135,10 +137,22 @@ test('getStockCoverageAnalysis 别名匹配（马铃薯→土豆）→ exact', (
 test('getStockCoverageAnalysis 使用统一匹配：西红柿库存覆盖番茄，鸡腿覆盖鸡肉', () => {
   const inv2 = [
     { name: '西红柿', qty: 2, unit: '个', stockStatus: 'ok' },
+    { name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' },
     { name: '鸡腿', qty: 2, unit: '个', stockStatus: 'ok' }
   ];
   assert.equal(getStockCoverageAnalysis(inv2, '番茄', 1, '个').confidence, 'exact');
+  assert.equal(getStockCoverageAnalysis(inv2, '西红柿', 1, '个').confidence, 'exact');
   assert.equal(getStockCoverageAnalysis(inv2, '鸡肉', 1, '个').confidence, 'exact');
+});
+
+test('computeCookDeductions 使用统一匹配：鸡肉需求可扣鸡腿库存', () => {
+  const rows = computeCookDeductions(
+    [{ item: '鸡肉', qty: 1, unit: '个' }],
+    [{ name: '鸡腿', qty: 2, unit: '个', stockStatus: 'ok' }]
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].name, '鸡肉');
+  assert.equal(rows[0].match.name, '鸡腿');
 });
 
 test('getStockCoverageAnalysis 无匹配 → none', () => {

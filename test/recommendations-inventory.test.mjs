@@ -127,6 +127,22 @@ test('同义词匹配：库存土豆 满足菜谱马铃薯 → ok', () => {
   assert.equal(a.missing.length, 0);
 });
 
+test('统一匹配用于缺货判断：番茄/西红柿双向、鸡腿覆盖鸡肉，不误报缺货', () => {
+  const tomato = analyze(
+    [{ name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' }],
+    [{ item: '西红柿', qty: 1, unit: '个' }]
+  );
+  assert.equal(tomato.status, 'ok');
+  assert.equal(tomato.missing.length, 0);
+
+  const chicken = analyze(
+    [{ name: '鸡腿', qty: 2, unit: '个', stockStatus: 'ok' }],
+    [{ item: '鸡肉', qty: 1, unit: '个' }]
+  );
+  assert.equal(chicken.status, 'ok');
+  assert.equal(chicken.missing.length, 0);
+});
+
 // 额外：仅调料（无核心食材）→ unknown
 test('菜谱仅含调料（totalCore=0）→ status=unknown', () => {
   const a = analyze([], [{ item: '盐' }, { item: '生抽' }]);
