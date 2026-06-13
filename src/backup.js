@@ -5,7 +5,50 @@ import {
   normalizeBackupForRestore,
   setStoredSchemaVersion
 } from './migrations.js?v=219';
-import { loadShoppingItems, saveShoppingItems } from './shopping.js?v=219';
+
+export const BACKUP_APP_ID = 'kitchenmanager';
+export const BACKUP_FORMAT_VERSION = 1;
+
+const BACKUP_KEY_NAMES = [
+  'inventory',
+  'plan',
+  'shopping_items',
+  'favorite_recipes',
+  'recipe_usage',
+  'recipe_activity',
+  'settings',
+  'staples',
+  'pantry_config',
+  'prep_done',
+  'overlay',
+  'local_recs',
+  'ai_recs',
+  'rec_time',
+  'rec_signature'
+];
+
+const BACKUP_DEFAULTS = {
+  inventory: [],
+  plan: [],
+  shopping_items: [],
+  favorite_recipes: [],
+  recipe_usage: {},
+  recipe_activity: {},
+  settings: {},
+  staples: {},
+  pantry_config: {},
+  prep_done: {},
+  overlay: null,
+  local_recs: null,
+  ai_recs: null,
+  rec_time: 0,
+  rec_signature: null
+};
+
+const clone = value => JSON.parse(JSON.stringify(value ?? null));
+
+const isPlainObject = value =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
 
 export function emptyOverlay() {
   return { version: 1, recipes: {}, recipe_ingredients: {}, deletes: {} };
@@ -17,6 +60,24 @@ export function loadOverlay() {
 
 export function saveOverlay(overlay) {
   if (!S.save(S.keys.overlay, overlay)) throw new Error('菜谱补丁写入失败，浏览器存储空间可能不足');
+}
+
+export function getKitchenBackupKeyEntries() {
+  return BACKUP_KEY_NAMES
+    .filter(name => S.keys[name])
+    .map(name => [name, S.keys[name]]);
+}
+
+function scrubSettingsForBackup(settings) {
+  const next = isPlainObject(settings) ? { ...settings } : {};
+  delete next.apiKey;
+  return next;
+}
+
+function readBackupValue(name, key) {
+  if (name === 'overlay') return loadOverlay();
+  if (name === 'settings') return scrubSettingsForBackup(S.load(key, {}));
+  return S.load(key, clone(BACKUP_DEFAULTS[name]));
 }
 
 export function downloadJsonFile(payload, filename) {
@@ -31,58 +92,163 @@ export function downloadJsonFile(payload, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export function buildKitchenBackup() {
-  const originalSettings = S.load(S.keys.settings, {});
-  const settings = { ...originalSettings };
-  delete settings.apiKey;
-
+export function exportKitchenBackup() {
+  const keys = {};
+  for (const [name, key] of getKitchenBackupKeyEntries()) {
+    keys[key] = readBackupValue(name, key);
+  }
   return {
-    type: 'kitchen-backup',
-    version: 1,
-    appVersion: APP_VERSION,
+    app: BACKUP_APP_ID,
     schemaVersion: DATA_SCHEMA_VERSION,
+    backupVersion: BACKUP_FORMAT_VERSION,
+    appVersion: APP_VERSION,
     exportedAt: new Date().toISOString(),
-    data: {
-      schemaVersion: DATA_SCHEMA_VERSION,
-      inventory: S.load(S.keys.inventory, []),
-      plan: S.load(S.keys.plan, []),
-      overlay: loadOverlay(),
-      settings: settings,
-      favorite_recipes: S.load(S.keys.favorite_recipes, []),
-      recipe_usage: S.load(S.keys.recipe_usage, {}),
-      recipe_activity: S.load(S.keys.recipe_activity, {}),
-      shopping_items: loadShoppingItems(),
-      staples: S.load(S.keys.staples, {})
-    }
+    keys
   };
 }
 
-export function restoreKitchenBackup(payload) {
-  const backup = normalizeBackupForRestore(payload);
-  const data = backup.data;
+export const buildKitchenBackup = exportKitchenBackup;
 
-  if (Array.isArray(data.inventory) && !S.save(S.keys.inventory, data.inventory)) throw new Error('食材写入失败，浏览器存储空间可能不足');
-  if (Array.isArray(data.plan) && !S.save(S.keys.plan, data.plan)) throw new Error('今日计划写入失败，浏览器存储空间可能不足');
-  if (data.overlay) saveOverlay(data.overlay);
-  if (data.settings) {
-    const currentSettings = S.load(S.keys.settings, {});
-    const newSettings = { ...data.settings };
-    if (!newSettings.apiKey && currentSettings.apiKey) {
-      newSettings.apiKey = currentSettings.apiKey;
-    }
-    if (!S.save(S.keys.settings, newSettings)) throw new Error('设置写入失败，浏览器存储空间可能不足');
+function parseBackupInput(input) {
+  if (typeof input !== 'string') return input;
+  try {
+    return JSON.parse(input);
+  } catch (error) {
+    throw new Error('备份文件无法读取');
   }
-  if (Array.isArray(data.favorite_recipes) && !S.save(S.keys.favorite_recipes, data.favorite_recipes)) throw new Error('常做菜写入失败，浏览器存储空间可能不足');
-  if (data.recipe_usage && typeof data.recipe_usage === 'object' && !S.save(S.keys.recipe_usage, data.recipe_usage)) throw new Error('菜谱记录写入失败，浏览器存储空间可能不足');
-  if (data.recipe_activity && typeof data.recipe_activity === 'object' && !S.save(S.keys.recipe_activity, data.recipe_activity)) throw new Error('菜谱活动记录写入失败，浏览器存储空间可能不足');
-  if (Array.isArray(data.shopping_items) && !saveShoppingItems(data.shopping_items)) throw new Error('买菜清单写入失败，浏览器存储空间可能不足');
-  if (data.staples && typeof data.staples === 'object' && !Array.isArray(data.staples) && !S.save(S.keys.staples, data.staples)) throw new Error('常备品状态写入失败，浏览器存储空间可能不足');
-  setStoredSchemaVersion(DATA_SCHEMA_VERSION);
+}
+
+function keysFromLegacyData(data = {}) {
+  const keys = {};
+  const setIfPresent = (name, value) => {
+    if (value !== undefined && S.keys[name]) keys[S.keys[name]] = value;
+  };
+  setIfPresent('inventory', Array.isArray(data.inventory) ? data.inventory : []);
+  setIfPresent('plan', Array.isArray(data.plan) ? data.plan : []);
+  setIfPresent('shopping_items', Array.isArray(data.shopping_items) ? data.shopping_items : []);
+  setIfPresent('favorite_recipes', Array.isArray(data.favorite_recipes) ? data.favorite_recipes : []);
+  setIfPresent('recipe_usage', isPlainObject(data.recipe_usage) ? data.recipe_usage : {});
+  setIfPresent('recipe_activity', isPlainObject(data.recipe_activity) ? data.recipe_activity : {});
+  setIfPresent('settings', scrubSettingsForBackup(data.settings));
+  setIfPresent('staples', isPlainObject(data.staples) ? data.staples : {});
+  setIfPresent('pantry_config', isPlainObject(data.pantry_config) ? data.pantry_config : {});
+  setIfPresent('prep_done', isPlainObject(data.prep_done) ? data.prep_done : {});
+  setIfPresent('overlay', isPlainObject(data.overlay) ? data.overlay : emptyOverlay());
+  setIfPresent('local_recs', data.local_recs ?? null);
+  setIfPresent('ai_recs', data.ai_recs ?? null);
+  setIfPresent('rec_time', data.rec_time ?? 0);
+  setIfPresent('rec_signature', data.rec_signature ?? null);
+  return keys;
+}
+
+function legacyBackupToCurrent(payload) {
+  const backup = normalizeBackupForRestore(payload);
+  return {
+    app: BACKUP_APP_ID,
+    schemaVersion: DATA_SCHEMA_VERSION,
+    backupVersion: BACKUP_FORMAT_VERSION,
+    appVersion: backup.appVersion || APP_VERSION,
+    exportedAt: backup.exportedAt || new Date().toISOString(),
+    migratedFromSchemaVersion: backup.migratedFromSchemaVersion,
+    keys: keysFromLegacyData(backup.data)
+  };
+}
+
+export function validateKitchenBackup(input) {
+  const payload = parseBackupInput(input);
+  if (!isPlainObject(payload)) {
+    throw new Error('备份文件无法读取');
+  }
+
+  if (payload.app !== undefined && payload.app !== BACKUP_APP_ID) {
+    throw new Error('这不是 Kitchen Manager 的备份文件');
+  }
+
+  if (payload.app === undefined && (payload.type === 'kitchen-backup' || payload.type === 'kitchen-inventory')) {
+    return legacyBackupToCurrent(payload);
+  }
+
+  if (payload.app !== BACKUP_APP_ID) {
+    throw new Error('这不是 Kitchen Manager 的备份文件');
+  }
+
+  const schemaVersion = Number(payload.schemaVersion);
+  if (!Number.isFinite(schemaVersion) || schemaVersion < 1) {
+    throw new Error('备份文件缺少数据版本');
+  }
+  if (schemaVersion > DATA_SCHEMA_VERSION) {
+    throw new Error(`这个备份的数据版本是 v${schemaVersion}，当前应用只支持到 v${DATA_SCHEMA_VERSION}`);
+  }
+  if (!isPlainObject(payload.keys)) {
+    throw new Error('备份文件缺少厨房数据');
+  }
+
+  const allowedKeys = new Set(getKitchenBackupKeyEntries().map(([, key]) => key));
+  const keys = {};
+  for (const [key, value] of Object.entries(payload.keys)) {
+    if (!allowedKeys.has(key)) continue;
+    let serialized;
+    try {
+      serialized = JSON.stringify(value);
+    } catch (error) {
+      throw new Error(`备份里的 ${key} 无法读取`);
+    }
+    if (serialized === undefined) {
+      throw new Error(`备份里的 ${key} 无法读取`);
+    }
+    keys[key] = value;
+  }
+  if (!Object.keys(keys).length) {
+    throw new Error('备份文件里没有可恢复的厨房数据');
+  }
+
+  return { ...payload, schemaVersion: DATA_SCHEMA_VERSION, keys };
+}
+
+function restoreBackupEntries(entries) {
+  const serialized = entries.map(([key, value]) => [key, JSON.stringify(value)]);
+  const allKeys = new Set([...getKitchenBackupKeyEntries().map(([, key]) => key), S.keys.schema_version]);
+  const snapshot = new Map();
+  for (const key of allKeys) snapshot.set(key, localStorage.getItem(key));
+
+  try {
+    for (const [key, value] of serialized) localStorage.setItem(key, value);
+    setStoredSchemaVersion(DATA_SCHEMA_VERSION);
+  } catch (error) {
+    for (const [key, value] of snapshot.entries()) {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    }
+    throw new Error(`导入失败，当前厨房数据没有被覆盖：${error.message || error}`);
+  }
+}
+
+export function importKitchenBackup(input) {
+  const backup = validateKitchenBackup(input);
+  const allowedKeys = new Set(getKitchenBackupKeyEntries().map(([, key]) => key));
+  const currentSettings = S.load(S.keys.settings, {});
+  const entries = [];
+
+  for (const [key, value] of Object.entries(backup.keys)) {
+    if (!allowedKeys.has(key)) continue;
+    if (key === S.keys.settings) {
+      const settings = scrubSettingsForBackup(value);
+      if (currentSettings.apiKey) settings.apiKey = currentSettings.apiKey;
+      entries.push([key, settings]);
+      continue;
+    }
+    entries.push([key, value]);
+  }
+  if (!entries.length) throw new Error('备份文件里没有可恢复的厨房数据');
+
+  restoreBackupEntries(entries);
   if (typeof window !== 'undefined' && window.invalidatePackCache) {
     window.invalidatePackCache();
   }
   return backup;
 }
+
+export const restoreKitchenBackup = importKitchenBackup;
 
 export function applyOverlay(base, overlay) {
   const recipes = [];

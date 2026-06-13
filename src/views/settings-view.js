@@ -1,7 +1,6 @@
 import { S, todayISO } from '../storage.js?v=219';
 import { CUSTOM_AI } from '../config.js?v=219';
-import { DATA_SCHEMA_VERSION } from '../migrations.js?v=219';
-import { buildKitchenBackup, downloadJsonFile, loadOverlay, restoreKitchenBackup, saveOverlay } from '../backup.js?v=219';
+import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, saveOverlay, validateKitchenBackup } from '../backup.js?v=219';
 import { setInlineStatus, escapeHtml } from '../components/status.js?v=219';
 import { getSavedTheme, saveTheme } from '../theme.js?v=219';
 
@@ -142,10 +141,10 @@ export function renderSettings() {
           </div>
         </div>
         <div class="settings-row is-stacked">
-          <div class="settings-row-main"><span class="settings-row-title">整个厨房</span><span class="settings-row-sub">食材、计划、买菜项、常做菜、菜谱补丁等（结构版本 v${DATA_SCHEMA_VERSION}）</span></div>
+          <div class="settings-row-main"><span class="settings-row-title">数据备份</span><span class="settings-row-sub">导出当前厨房数据，换设备或清缓存前可以先保存一份。</span></div>
           <div class="settings-backup-actions">
-            <button type="button" class="btn ok" id="exportKitchenBackup">导出整个厨房</button>
-            <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入整个厨房</label>
+            <button type="button" class="btn ok" id="exportKitchenBackup">导出备份</button>
+            <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入备份</label>
           </div>
         </div>
         <div class="settings-row is-stacked">
@@ -245,7 +244,8 @@ export function renderSettings() {
     reader.readAsText(file);
   };
   div.querySelector('#exportKitchenBackup').onclick = () => {
-    downloadJsonFile(buildKitchenBackup(), `kitchen-backup-${todayISO()}.json`);
+    downloadJsonFile(buildKitchenBackup(), `kitchenmanager-backup-${todayISO()}.json`);
+    setInlineStatus(div.querySelector('#settingsStatus'), '备份已导出。', 'ok');
   };
   div.querySelector('#importKitchenBackup').onchange = e => {
     const file = e.target.files[0]; if (!file) return;
@@ -253,14 +253,20 @@ export function renderSettings() {
     const statusEl = div.querySelector('#settingsStatus');
     reader.onload = () => {
       try {
-        restoreKitchenBackup(JSON.parse(reader.result));
+        const backup = validateKitchenBackup(String(reader.result || ''));
+        if (!window.confirm('导入会覆盖当前厨房数据，确定继续吗？')) {
+          e.target.value = '';
+          return;
+        }
+        importKitchenBackup(backup);
         setInlineStatus(statusEl, '备份已导入，页面将刷新。', 'ok');
         setTimeout(() => location.reload(), 1200);
       }
       catch (err) {
-        setInlineStatus(statusEl, '导入失败：' + err.message, 'bad');
+        setInlineStatus(statusEl, err.message || '备份文件无法读取', 'bad');
       }
     };
+    reader.onerror = () => setInlineStatus(statusEl, '备份文件无法读取', 'bad');
     reader.readAsText(file);
   };
 
