@@ -3686,6 +3686,19 @@ nav a:active { transform: scale(0.94); }
 }
 .home-act-btn:active { transform: scale(0.97); }
 .home-act-emoji { font-size: 22px; }
+.home-act-copy {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+.home-act-copy small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1.25;
+}
 
 .home-memo {
   display: flex;
@@ -6073,6 +6086,13 @@ html[data-theme="dark"] .settings-input,
   gap: 10px;
 }
 .settings-backup-actions .btn { flex: 1 1 140px; }
+.settings-tips-link {
+  border-radius: 999px;
+  min-height: 36px;
+}
+@media (max-width: 560px) {
+  .settings-tips-link { width: 100%; }
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    深色模式 · 组件级层级与材质（Apple HIG 对齐）
@@ -7121,6 +7141,22 @@ html[data-theme="dark"] .wx-tab.is-active {
   line-height: 1.6;
   color: var(--text-secondary);
 }
+.wx-empty strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-main);
+  font-size: 14px;
+}
+.wx-help-text,
+.wx-rec-guide,
+.target-recipe-ai-hint {
+  display: block;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
 .wx-shopping-empty {
   display: grid;
   justify-items: center;
@@ -7134,6 +7170,10 @@ html[data-theme="dark"] .wx-tab.is-active {
 .wx-rec-empty strong {
   font-size: 14px;
   color: var(--text-main);
+}
+.wx-rec-guide {
+  text-align: center;
+  opacity: 0.86;
 }
 .wx-empty-actions {
   justify-content: center;

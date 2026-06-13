@@ -433,7 +433,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     empty.className = 'shopping-weather-empty';
     empty.innerHTML = `
       <strong>买菜清单是空的</strong>
-      <span>可以从推荐菜谱、做完补货，或者首页待买里添加。</span>
+      <span>缺食材可以从菜谱加入买菜；买完勾选，再点“记进厨房”。</span>
       <button type="button" class="sw-action-pill" id="shoppingGoToday">回首页看看</button>
     `;
     empty.querySelector('#shoppingGoToday').onclick = () => { location.hash = '#today'; };

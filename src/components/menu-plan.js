@@ -327,8 +327,8 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
     empty.className = 'menu-plan-empty';
     empty.innerHTML = `
       <div class="menu-plan-empty-icon" aria-hidden="true">🍽️</div>
-      <div class="menu-plan-empty-title">该时间段暂未添加菜谱</div>
-      <p>可以从推荐菜谱里加入今日计划。</p>
+      <div class="menu-plan-empty-title">还没有安排吃什么</div>
+      <p>从推荐里挑一道；做完后可以更新食材，缺的顺手加入买菜。</p>
     `;
     planList.appendChild(empty);
   } else {

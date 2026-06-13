@@ -658,15 +658,15 @@ function renderOnboarding(pack, { onRoute = () => {} } = {}) {
   section.innerHTML = `
     <div class="home-hero-glow" aria-hidden="true"></div>
     <div class="home-hero-head">
-      <span class="home-hero-eyebrow">🍳 开始今晚这顿</span>
-      <h2 class="home-hero-greeting">今晚吃什么？先告诉我厨房里有什么</h2>
-      <p class="home-hero-note">随便记 3 样食材就能开始。数量不确定也没关系，系统会先按常见用量估算。</p>
+      <span class="home-hero-eyebrow">🍳 从几样食材开始</span>
+      <h2 class="home-hero-greeting">先告诉我厨房里有什么</h2>
+      <p class="home-hero-note">记几样食材后，我会帮你看今晚能做什么、缺什么、该买什么。</p>
     </div>
     <div class="home-actions-grid">
-      <button type="button" class="home-act-btn" id="obManual"><span class="home-act-emoji">✍️</span><span>手动记食材</span></button>
-      <button type="button" class="home-act-btn" id="obReceipt"><span class="home-act-emoji">🧾</span><span>拍小票识别</span></button>
-      <button type="button" class="home-act-btn" id="obDemo"><span class="home-act-emoji">🍳</span><span>试用示例厨房</span></button>
-      <button type="button" class="home-act-btn" id="obRecipes"><span class="home-act-emoji">📖</span><span>先逛菜谱</span></button>
+      <button type="button" class="home-act-btn" id="obManual"><span class="home-act-emoji">✍️</span><span class="home-act-copy"><span>手动记食材</span><small>先输入几样</small></span></button>
+      <button type="button" class="home-act-btn" id="obReceipt"><span class="home-act-emoji">🧾</span><span class="home-act-copy"><span>拍小票识别</span><small>刚买完菜</small></span></button>
+      <button type="button" class="home-act-btn" id="obDemo"><span class="home-act-emoji">🍳</span><span class="home-act-copy"><span>试用示例厨房</span><small>先看完整流程</small></span></button>
+      <button type="button" class="home-act-btn" id="obRecipes"><span class="home-act-emoji">📖</span><span class="home-act-copy"><span>先逛菜谱</span><small>不想录入也可以</small></span></button>
     </div>
   `;
   section.querySelector('#obManual').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
@@ -1328,6 +1328,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     if (empty) {
       empty.innerHTML = `
         <span class="plan-empty-line">还没有安排今天吃什么</span>
+        <span class="wx-help-text">计划就是今天/明天准备吃什么。</span>
         <button type="button" class="wx-mini-btn" id="wxGoRecs">✨ 看看推荐</button>
       `;
       empty.querySelector('#wxGoRecs').onclick = () => switchTab('recs');
@@ -1339,7 +1340,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   const renderExpiryTab = () => {
     const items = getExpiringItems(inv).slice(0, 3);
     if (!items.length) {
-      body.innerHTML = '<div class="wx-empty">✅ 最近没有快到期的食材</div>';
+      body.innerHTML = '<div class="wx-empty"><strong>✅ 最近没有快到期的食材</strong><span class="wx-help-text">这里会提醒你优先吃掉快过期的食材。</span></div>';
       return;
     }
     const list = document.createElement('div');
@@ -1374,6 +1375,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       body.innerHTML = `
         <div class="wx-empty wx-shopping-empty">
           <span>🧺 还没有要买的东西</span>
+          <small class="wx-help-text">缺的食材、做完要补的东西会放在这里。</small>
           <button type="button" class="wx-mini-btn" id="wxShoppingAddEmpty">记要买</button>
         </div>
       `;
@@ -1411,7 +1413,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       ? `用「${escapeHtml(targetNames.join('、'))}」能做这些${Number.isFinite(resultCount) ? ` · ${resultCount} 道` : ''}`
       : hasQuery
         ? '没识别到可推荐的主食材，可以试试牛肉、番茄、土豆。'
-        : '输入 1-5 样想用的食材，先从本地菜谱里找。';
+        : '比如：番茄 鸡蛋、蘑菇 鸡肉。先从本地菜谱里找。';
     search.innerHTML = `
       <div class="target-recipe-head">
         <span>想用这些食材？</span>
@@ -1454,7 +1456,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       note.className = 'target-recipe-ai-note';
       note.innerHTML = `
         <span class="target-recipe-ai-mode">AI 草稿 · ${escapeHtml(modeLabel)}</span>
-        <span>用到${escapeHtml(targetNames.join('、'))} · 确认后再保存</span>
+        <span>用到${escapeHtml(targetNames.join('、'))} · 草稿确认后才会保存</span>
       `;
       box.appendChild(note);
       const cardHost = document.createElement('div');
@@ -1485,6 +1487,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         </button>
       `;
       box.appendChild(actions);
+      const hint = document.createElement('p');
+      hint.className = 'target-recipe-ai-hint';
+      hint.textContent = 'AI 只生成草稿，确认后才会保存。';
+      box.appendChild(hint);
       if (targetCreativeStatus === 'error' && targetCreativeError) {
         const err = document.createElement('div');
         err.className = 'small inline-status bad';
@@ -1565,6 +1571,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         <div class="wx-empty wx-rec-empty">
           <strong>还没找到同时用到这些食材的菜</strong>
           <span>可以少填一个食材试试，或者去菜谱库看看。</span>
+          <small class="wx-help-text">也可以让 AI 先想一个草稿，确认后再保存。</small>
           <div class="wx-actions wx-empty-actions">
             <button type="button" class="wx-mini-btn" id="wxRecGoRecipes">去菜谱看看</button>
           </div>
@@ -1576,6 +1583,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         <div class="wx-empty wx-rec-empty">
           <strong>还没匹配到能直接做的菜</strong>
           <span>再记几样常见食材，比如鸡蛋、番茄、土豆、豆腐，就能开始推荐。</span>
+          <small class="wx-help-text">推荐会优先看现有食材，缺的可以加入买菜。</small>
           <div class="wx-actions wx-empty-actions">
             <button type="button" class="wx-mini-btn" id="wxRecAddFood">继续记食材</button>
             <button type="button" class="wx-mini-btn" id="wxRecGoRecipes">去菜谱看看</button>
@@ -1591,6 +1599,13 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     }
     bindRecommendationCycling(cardWrap);
     body.appendChild(cardWrap);
+
+    if (cards.length) {
+      const guide = document.createElement('p');
+      guide.className = 'wx-rec-guide';
+      guide.textContent = '点“做这道”会加入今日计划，做完后可以顺手更新食材。';
+      body.appendChild(guide);
+    }
 
     if (cards.length > 1) {
       const hint = document.createElement('div');

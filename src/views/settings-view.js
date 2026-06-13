@@ -83,6 +83,13 @@ export function renderSettings() {
           <option value="full" ${libMode === 'full' ? 'selected' : ''}>完整传统菜谱</option>
         </select>
       </div>
+      <div class="settings-row">
+        <div class="settings-row-main">
+          <span class="settings-row-title">使用提示</span>
+          <span class="settings-row-sub">回到今日页，看记食材、推荐、买菜和做完后的轻提示。</span>
+        </div>
+        <a class="btn settings-tips-link" href="#today">查看使用提示</a>
+      </div>
     </div>
 
     <!-- 渐进式展现：低频 / 极客配置统一收进可折叠面板 -->
