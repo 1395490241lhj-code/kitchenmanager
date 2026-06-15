@@ -211,5 +211,38 @@ async function onRoute() {
 window.addEventListener('hashchange', onRoute);
 onRoute();
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * 移动端底部 Dock 紧凑态：向下滚收缩成纯图标，向上滚 / 靠近顶部 / 切换页面 / 点击展开。
+ * 纯 UI（只切 body class，不写 localStorage、不动路由）。仅 ≤720px 生效；桌面不受影响。
+ * ────────────────────────────────────────────────────────────────────────── */
+(() => {
+  const mobile = window.matchMedia('(max-width: 720px)');
+  const setCompact = (on) => document.body.classList.toggle('is-dock-compact', on && mobile.matches);
+  let lastY = window.scrollY || 0;
+  let ticking = false;
+
+  const onScroll = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const y = window.scrollY || 0;
+      if (!mobile.matches) { setCompact(false); }
+      else if (y < 40) setCompact(false);                 // 靠近顶部 → 展开
+      else if (y > lastY + 6 && y > 80) setCompact(true);  // 向下滚 + 越过阈值 → 收缩
+      else if (y < lastY - 6) setCompact(false);           // 向上滚 → 展开
+      lastY = y;
+      ticking = false;
+    });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  // 切换页面（hashchange）后总是展开；scrollY 复位由各视图重渲染负责。
+  window.addEventListener('hashchange', () => { lastY = 0; setCompact(false); });
+  // 点击底部导航：先展开再跳转（跳转本身由 a[href] 完成）。
+  el('nav')?.addEventListener('click', () => setCompact(false));
+  // 视口跨过 720px 断点时清掉紧凑态，保证桌面始终展开。
+  mobile.addEventListener('change', () => setCompact(false));
+})();
+
 // 首次进入时启动新手引导（内部已判断 km_onboarded_v1，并略延迟等首屏渲染）。
 maybeStartOnboarding();

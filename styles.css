@@ -8975,3 +8975,67 @@ html[data-theme="light"] .target-recipe-ai-btn:disabled {
     -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *  底部 Dock 收口（v17x）：① 底部 scrim 让内容滑到 dock 前先融入背景，不再从
+ *  dock 下方空隙生硬划过；② 移动端 dock 更贴近底部 safe area；③ 向下滚动收缩成
+ *  纯图标紧凑态。纯 UI，不改路由 / 数据 / 业务。
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ① 底部渐隐 scrim：固定贴底，z-index 介于内容(≈0)与 dock(999) 之间；pointer-events:none
+   不挡点击。dock 的毛玻璃仍在其上，保留玻璃质感；但 dock 下方/两侧不再露出生硬内容。 */
+body::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 900;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--dock-scrim, rgba(240, 242, 246, 0.96)) 0%, var(--dock-scrim, rgba(240, 242, 246, 0.96)) 24%, transparent 100%);
+  transition: height 0.22s ease;
+}
+html[data-theme="light"] body { --dock-scrim: rgba(240, 242, 246, 0.96); }
+html[data-theme="dark"] body  { --dock-scrim: rgba(9, 12, 19, 0.97); }
+@media (prefers-color-scheme: dark) {
+  body { --dock-scrim: rgba(9, 12, 19, 0.97); }
+}
+
+/* dock 平滑过渡（高度 / 形变）；标签单独过渡，便于紧凑态淡出。 */
+nav { transition: height 0.22s ease, max-width 0.22s ease, transform 0.22s ease; }
+nav a span { transition: opacity 0.18s ease, max-height 0.18s ease, margin 0.18s ease; }
+
+/* ② + ③ 仅移动端（≤720px）：dock 更贴底；向下滚收缩成纯图标。 */
+@media (max-width: 720px) {
+  nav {
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    right: 12px;
+  }
+  /* 紧凑态：dock 变矮、隐藏文字标签，仅留图标；当前项靠颜色保持高亮。 */
+  body.is-dock-compact nav {
+    height: 52px;
+  }
+  body.is-dock-compact nav a {
+    min-height: 44px; /* 触控热区仍 ≥44px */
+    gap: 0;
+  }
+  body.is-dock-compact nav a span {
+    opacity: 0;
+    max-height: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+  /* 紧凑态下 dock 更矮，scrim 也略收，避免遮挡过多内容。 */
+  body.is-dock-compact::after {
+    height: calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 降低动效偏好：dock / scrim / 标签都不做过渡动画。 */
+@media (prefers-reduced-motion: reduce) {
+  nav,
+  nav a span,
+  body::after { transition: none; }
+}
