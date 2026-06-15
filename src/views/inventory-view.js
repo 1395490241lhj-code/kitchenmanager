@@ -185,14 +185,10 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     <div class="inventory-toolbar-actions">
       <!-- 左侧动作组（功能抓取）：相机 + 新增 -->
       <div class="inventory-toolbar-left">
-        <label class="btn ai small inventory-camera-label" title="拍照识别小票">
-          <input type="file" id="camInput" accept="image/*" capture="environment" class="visually-hidden">
+        <label class="btn ai small inventory-camera-label" title="选取小票图片">
+          <input type="file" id="camInput" accept="image/*" class="visually-hidden">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-          <span>拍照识别</span>
-        </label>
-        <label class="btn small inventory-camera-label" title="从相册选择小票">
-          <input type="file" id="albumInput" accept="image/*" class="visually-hidden">
-          <span>从相册选择</span>
+          <span>选取小票图片</span>
         </label>
         <button type="button" class="btn ok icon-only" id="toggleAddBtn">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -392,7 +388,6 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     finally { if (inputEl) inputEl.value = ''; }
   };
   searchDiv.querySelector('#camInput').onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
-  searchDiv.querySelector('#albumInput').onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
   function renderTable(){
     grid.innerHTML='';
 

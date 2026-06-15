@@ -730,15 +730,10 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
 
     <div class="batch-tab-panel" id="batch-panel-receipt" role="tabpanel">
       <div class="receipt-drop-zone">
-        <input type="file" id="batchReceiptCameraFile" accept="image/*" capture="environment" class="visually-hidden">
-        <input type="file" id="batchReceiptAlbumFile" accept="image/*" class="visually-hidden">
+        <input type="file" id="batchReceiptFile" accept="image/*" class="visually-hidden">
         <span class="receipt-camera-icon" aria-hidden="true">📷</span>
         <strong>拍小票识别</strong>
         <small>自动识别食材并让你确认</small>
-        <div class="controls">
-          <button type="button" class="btn ai small" id="batchReceiptCameraBtn">拍照识别</button>
-          <button type="button" class="btn small" id="batchReceiptAlbumBtn">从相册选择</button>
-        </div>
       </div>
       <div id="batchReceiptStatus" class="small inline-status" hidden></div>
     </div>
@@ -771,8 +766,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   overlay.querySelector('#batchCancel').onclick = close;
 
   // ── 模式 A：拍小票识别 ──
-  const receiptCameraInput = overlay.querySelector('#batchReceiptCameraFile');
-  const receiptAlbumInput = overlay.querySelector('#batchReceiptAlbumFile');
+  const receiptFileInput = overlay.querySelector('#batchReceiptFile');
   const receiptStatus = overlay.querySelector('#batchReceiptStatus');
   const handleReceiptFile = async (file, inputEl) => {
     if (!file) return;
@@ -805,15 +799,12 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       if (inputEl) inputEl.value = '';
     }
   };
-  receiptCameraInput.onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
-  receiptAlbumInput.onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
-  overlay.querySelector('#batchReceiptCameraBtn').onclick = () => receiptCameraInput.click();
-  overlay.querySelector('#batchReceiptAlbumBtn').onclick = () => receiptAlbumInput.click();
+  receiptFileInput.onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
 
   // ── 模式 B：文本批量记 ──
   overlay.querySelector('#batchConfirm').onclick = () => {
     if (currentTab === 'receipt') {
-      receiptAlbumInput.click(); // 在拍小票 Tab 下，主按钮默认打开相册选择
+      receiptFileInput.click(); // iPhone 会弹出相册 / 拍照 / 文件选择
       return;
     }
     const text = overlay.querySelector('#batchTextInput').value;
