@@ -72,19 +72,27 @@ export function normalizeAiIngredients(value) {
 }
 
 const RECEIPT_REVIEW_RULES = [
-  { re: /(苹果|香蕉|橙子|橙|柑橘|桔子|橘子|橘|葡萄|草莓|蓝莓|梨|桃|芒果|西瓜|哈密瓜|柠檬|牛油果|猕猴桃|水果|mandarin|orange|apple|banana|pear|grape|strawberry|blueberry|peach|mango|watermelon|lemon|avocado|kiwi)/i, reason: '水果，默认不加入做菜食材' },
-  { re: /(方便面|泡面|速食面|instant\s*noodle|ramen)/i, reason: '即食/速食，默认不加入做菜食材' },
-  { re: /(水饺|饺子|抄手|馄饨|云吞|汤圆|包子|馒头|披萨|鸡块|薯条|速冻|冷冻成品|pizza|spring\s*roll|dumpling|wonton)/i, reason: '冷冻成品，默认不加入做菜食材' },
-  { re: /(薯片|饼干|巧克力|糖果|可乐|饮料|果汁|奶茶|汽水|甜品|蛋糕|冰淇淋|酸奶|牛奶饮料|零食|cola|soda|juice|beverage|drink|cookie|chips|chocolate|candy|yogurt)/i, reason: '零食饮料，默认不加入做菜食材' },
+  { re: /(苹果|香蕉|橙子|橙|柑橘|桔子|橘子|橘|葡萄|草莓|蓝莓|梨|桃|芒果|西瓜|哈密瓜|柠檬|牛油果|猕猴桃|水果|mandarin|tangerine|orange|apple|banana|pear|grape|strawberry|blueberry|peach|mango|watermelon|lemon|avocado|kiwi)/i, reason: '水果，默认不加入做菜食材' },
+  { re: /(方便面|泡面|速食面|instant\s*noodle|ramen|cup\s*noodle|spicy\s*seafood\s*noodle|seafood\s*noodle)/i, reason: '即食/速食，默认不加入做菜食材' },
+  { re: /(水饺|饺子|抄手|馄饨|云吞|汤圆|包子|馒头|粽子|披萨|鸡块|薯条|速冻|冷冻成品|pizza|spring\s*roll|dumpling|wonton|sticky\s*rice\s*dumpling)/i, reason: '冷冻成品，默认不加入做菜食材' },
+  { re: /(薯片|饼干|巧克力|糖果|可乐|饮料|果汁|奶茶|汽水|甜品|蛋糕|糕点|冰淇淋|酸奶|牛奶饮料|零食|snowy\s*cake|cake|cola|soda|juice|beverage|drink|cookie|chips|chocolate|candy|yogurt)/i, reason: '零食饮料，默认不加入做菜食材' },
+  { re: /(dried\s*anchovy\s*w\/?\s*peanut|anchovy.*peanut|peanut.*anchovy|小鱼干花生|花生小鱼干)/i, reason: '加工食品，默认不加入做菜食材' },
   { re: /(便当|熟食|烤鸡|卤味|沙拉|即食|预制菜)/, reason: '熟食/即食食品，默认不加入做菜食材' }
 ];
 
 const RECEIPT_PANTRY_RULES = [
   { re: /(大米|糯米|杂粮|小米|黑米|燕麦|米\b|挂面|面条|意面|米粉|粉丝|面粉|淀粉|玉米淀粉)/, reason: '常备主食/干粉' },
   { re: /(干木耳|木耳|干香菇|香菇干|腐竹|海带|紫菜|绿豆|红豆|黄豆|干豆|罐头)/, reason: '干货或常备货架物品' },
+  { re: /(红皮花生|花生|red\s*skin\s*peanut|peanut)/i, reason: '常备干货，归入常备货架' },
   { re: /(盐|糖|生抽|老抽|酱油|醋|料酒|蚝油|味精|鸡精|花椒|八角|香叶|桂皮|干辣椒|辣椒粉|胡椒|香油|菜油|猪油|食用油|调料|豆瓣酱|甜面酱|豆豉)/, reason: '基础调味，归入常备货架' },
   { re: /(^|\s)(葱|小葱|大葱|青葱|姜|生姜|老姜|嫩姜|姜片|姜块|蒜|大蒜|蒜头|香菜|小米辣|scallion|green onion|ginger|garlic)(\s|$)/i, reason: '常备货架 / 调味基础品' },
   { re: /(牛奶)$/, reason: '日常补给，归入常备货架' }
+];
+
+const RECEIPT_INVENTORY_RULES = [
+  { re: /(豆腐|tofu|medium\s*firm\s*tofu|firm\s*tofu|soft\s*tofu)/i, reason: '' },
+  { re: /(青菜|油菜|莴笋|豆芽|choy|yu\s*choy|stem\s*lettuce|beansprout|bean\s*sprout)/i, reason: '' },
+  { re: /(鸡腿|鸡肉|猪肉|牛肉|虾|鱼|chicken\s*leg|chicken\s*thigh|pork|beef|shrimp|prawn|fish)/i, reason: '' }
 ];
 
 const RECEIPT_IGNORED_RULES = [
@@ -105,6 +113,8 @@ export function classifyReceiptItem(name, originalName = '') {
   if (review) return { group: 'review', reason: review.reason };
   const pantry = matchReceiptRule(text, RECEIPT_PANTRY_RULES);
   if (pantry) return { group: 'pantry', reason: pantry.reason };
+  const inventory = matchReceiptRule(text, RECEIPT_INVENTORY_RULES);
+  if (inventory) return { group: 'inventory', reason: inventory.reason };
 
   const canonical = getCanonicalName(cleanName);
   const role = classifyRecipeIngredient(canonical || cleanName).role;
@@ -201,7 +211,7 @@ export function normalizeReceiptQuantityForKitchen(item, category = 'inventory')
   if (safeCategory === 'ignored') return out;
 
   const weight = findReceiptWeight(out);
-  if (weight) {
+  if (safeCategory === 'inventory' && weight) {
     out.qty = estimateServingsFromWeight(weight);
     out.unit = '份';
     out.note = `按 ${formatReceiptNumber(weight.value)} ${weight.unit} 估算，可在加入前调整份数`;
@@ -471,8 +481,11 @@ export async function recognizeReceipt(file) {
 - 普通做菜食材最终建议按“份”管理；如果小票显示 lb/kg/g，请保留原始重量信息，但 qty/unit 优先输出成估算份数，例如 2 lb 猪肉 -> { "qty": 2, "unit": "份" }，0.8 lb 虾 -> { "qty": 1, "unit": "份" }。
 - 包装商品 qty 应为整数，不要输出 0.81 包 / 0.81 个这类小数包装数量。
 - inventory 只放真正适合作为做菜库存的核心食材：肉、鱼虾、蔬菜、蛋、豆腐、菌菇等鲜货。
+- tofu / medium firm tofu / firm tofu / soft tofu 必须识别为“豆腐”，放入 inventory。
+- 青菜、油菜、莴笋、豆芽、choy、yu choy、stem lettuce、beansprout、鸡腿、pork、beef、shrimp、fish 等鲜货放入 inventory。
 - pantry 放常备货架 / 干货 / 主食基础：姜、葱、蒜、干辣椒、花椒、八角、香叶、桂皮、大米、糯米、杂粮、面条、挂面、意面、米粉、粉丝、面粉、淀粉、干木耳、干香菇、腐竹、海带、紫菜、罐头、干豆，以及盐糖油酱醋等基础调味。
-- review 放需要用户确认、不默认加入普通库存的食品：水果、零食、饮料、甜品、酸奶、熟食、即食食品、方便面、泡面、速冻水饺、抄手、馄饨、汤圆、包子、馒头、披萨、鸡块、薯条等冷冻/即食成品。
+- pantry 不是所有耐放食品。只有做饭基础储备、普通干面、原料型干货和调味基础品进入 pantry；加工食品不要放 pantry。
+- review 放需要用户确认、不默认加入普通库存的食品：水果、零食、饮料、甜品、酸奶、熟食、即食食品、方便面、泡面、spicy seafood noodle、instant noodle、ramen、cup noodle、速冻水饺、抄手、馄饨、云吞、汤圆、粽子、包子、馒头、披萨、鸡块、薯条、糕点、snowy cake、cake、Dried Anchovy w/Peanut 等冷冻/即食/加工食品。
 - ignored 放完全不应处理的内容：购物袋、税费、折扣、会员信息、纸巾、清洁用品、非食品、收银信息。
 - 葱姜蒜、盐、糖、酱油、醋、味精、花椒、辣椒、油等佐料不要放入 inventory，可放 pantry。`;
   const raw = await callAiService(prompt, base64);

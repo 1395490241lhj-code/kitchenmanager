@@ -164,3 +164,62 @@ test('normalizeReceiptQuantityForKitchen 可单独估算重量', () => {
     { name: '猪肉', qty: 2, unit: '份', note: '按 2 lb 估算，可在加入前调整份数' }
   );
 });
+
+test('Freshway 小票：速食面和加工小食进入 review，不进 pantry/inventory', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Spicy Seafood Noodle', name: 'Spicy Seafood Noodle', qty: 1, unit: '包' },
+    { originalName: 'Dried Anchovy w/Peanut', name: 'Dried Anchovy w/Peanut', qty: 1, unit: '包' },
+    { originalName: 'Snowy Cake', name: 'Snowy Cake', qty: 1, unit: '盒' }
+  ]);
+  assert.deepEqual(out.inventory, []);
+  assert.deepEqual(out.pantry, []);
+  assert.deepEqual(out.review.map(item => item.name), ['Spicy Seafood Noodle', 'Dried Anchovy w/Peanut', 'Snowy Cake']);
+});
+
+test('Freshway 小票：豆腐和鲜货进入 inventory，不被忽略', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Medium Firm Tofu', name: 'Medium Firm Tofu', qty: 1, unit: '盒' },
+    { originalName: 'Yu Choy', name: 'Yu Choy', qty: 1, unit: '把' },
+    { originalName: 'Beansprout', name: 'Beansprout', qty: 1, unit: '袋' },
+    { originalName: 'Stem Lettuce', name: 'Stem Lettuce', qty: 1, unit: '根' },
+    { originalName: 'Chicken Leg 2 lb', name: 'Chicken Leg', qty: 2, unit: 'lb' }
+  ]);
+  assert.deepEqual(out.ignored, []);
+  assert.deepEqual(out.inventory.map(item => item.name), ['Medium Firm Tofu', 'Yu Choy', 'Beansprout', 'Stem Lettuce', 'Chicken Leg']);
+  assert.equal(out.inventory.at(-1).qty, 2);
+  assert.equal(out.inventory.at(-1).unit, '份');
+});
+
+test('Freshway 小票：花生进 pantry 或 review，但绝不 ignored；小鱼干花生优先 review', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Red Skin Peanut', name: 'Red Skin Peanut', qty: 1, unit: '包' },
+    { originalName: 'Dried Anchovy w/Peanut', name: 'Dried Anchovy w/Peanut', qty: 1, unit: '包' }
+  ]);
+  assert.deepEqual(out.ignored, []);
+  assert.deepEqual(out.pantry.map(item => item.name), ['Red Skin Peanut']);
+  assert.deepEqual(out.review.map(item => item.name), ['Dried Anchovy w/Peanut']);
+});
+
+test('Freshway 小票：橘子水饺粽子糕点进入 review，姜进入 pantry', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Tangerine', name: 'Tangerine', qty: 1, unit: '袋' },
+    { name: '水饺', qty: 1, unit: '袋' },
+    { name: '粽子', qty: 2, unit: '个' },
+    { name: '糕点', qty: 1, unit: '盒' },
+    { originalName: 'Ginger', name: 'Ginger', qty: 1, unit: '袋' }
+  ]);
+  assert.deepEqual(out.inventory, []);
+  assert.deepEqual(out.review.map(item => item.name), ['Tangerine', '水饺', '粽子', '糕点']);
+  assert.deepEqual(out.pantry.map(item => item.name), ['Ginger']);
+});
+
+test('review/pantry 项不强制把重量转成份，只有 inventory 生鲜转份', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Spicy Seafood Noodle 0.81 lb', name: 'Spicy Seafood Noodle', qty: 0.81, unit: 'lb' },
+    { originalName: 'Red Skin Peanut 0.5 lb', name: 'Red Skin Peanut', qty: 0.5, unit: 'lb' },
+    { originalName: 'Pork 0.81 lb', name: 'Pork', qty: 0.81, unit: 'lb' }
+  ]);
+  assert.deepEqual(out.review.map(item => [item.name, item.qty, item.unit]), [['Spicy Seafood Noodle', 0.81, 'lb']]);
+  assert.deepEqual(out.pantry.map(item => [item.name, item.qty, item.unit]), [['Red Skin Peanut', 0.5, 'lb']]);
+  assert.deepEqual(out.inventory.map(item => [item.name, item.qty, item.unit]), [['Pork', 1, '份']]);
+});
