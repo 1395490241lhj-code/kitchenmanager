@@ -227,8 +227,8 @@ onRoute();
     requestAnimationFrame(() => {
       const y = window.scrollY || 0;
       if (!mobile.matches) { setCompact(false); }
-      else if (y < 40) setCompact(false);                 // 靠近顶部 → 展开
-      else if (y > lastY + 6 && y > 80) setCompact(true);  // 向下滚 + 越过阈值 → 收缩
+      else if (y < 64) setCompact(false);                  // 靠近顶部 → 展开
+      else if (y > lastY + 6 && y > 96) setCompact(true);  // 向下滚 + 越过阈值 → 收缩
       else if (y < lastY - 6) setCompact(false);           // 向上滚 → 展开
       lastY = y;
       ticking = false;

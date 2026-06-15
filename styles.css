@@ -9002,23 +9002,41 @@ html[data-theme="dark"] body  { --dock-scrim: rgba(9, 12, 19, 0.97); }
   body { --dock-scrim: rgba(9, 12, 19, 0.97); }
 }
 
-/* dock 平滑过渡（高度 / 形变）；标签单独过渡，便于紧凑态淡出。 */
-nav { transition: height 0.22s ease, max-width 0.22s ease, transform 0.22s ease; }
-nav a span { transition: opacity 0.18s ease, max-height 0.18s ease, margin 0.18s ease; }
+/* dock 平滑过渡：宽/高/圆角/内距 用具体属性过渡（无 transition:all）；标签单独淡出。
+   两种状态都用 translateX(-50%) 居中定位，过渡只动 width/height 等可插值长度，不跳 left。 */
+nav { transition: width 0.24s ease, height 0.24s ease, border-radius 0.24s ease, padding 0.24s ease, background 0.2s ease; }
+nav a { transition: width 0.2s ease, height 0.2s ease, background 0.18s ease, color 0.2s ease, transform 0.16s ease; }
+nav a span { transition: opacity 0.16s ease, max-height 0.18s ease, margin 0.18s ease; }
 
-/* ② + ③ 仅移动端（≤720px）：dock 更贴底；向下滚收缩成纯图标。 */
+/* ② + ③ 仅移动端（≤720px）：dock 更贴底；向下滚收缩成 Apple Music 风格浮动图标 dock。 */
 @media (max-width: 720px) {
+  /* 展开态：居中、接近满宽（视觉等同此前 left/right:12）。 */
   nav {
+    left: 50%;
+    right: auto;
+    width: calc(100% - 24px);
+    max-width: 560px;
     bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-    left: 12px;
-    right: 12px;
+    transform: translate3d(-50%, 0, 0);
+    -webkit-transform: translate3d(-50%, 0, 0);
   }
-  /* 紧凑态：dock 变矮、隐藏文字标签，仅留图标；当前项靠颜色保持高亮。 */
+
+  /* 紧凑态：收窄成居中浮动胶囊，更矮更圆；每个 tab 是 44px 圆形图标按钮。 */
   body.is-dock-compact nav {
-    height: 52px;
+    width: 256px;
+    height: 58px;
+    padding: 5px 8px;
+    gap: 4px;
+    border-radius: 29px !important;
+    justify-content: center;
   }
   body.is-dock-compact nav a {
-    min-height: 44px; /* 触控热区仍 ≥44px */
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;     /* 触控热区 ≥44px */
+    border-radius: 50%;
+    padding: 0;
     gap: 0;
   }
   body.is-dock-compact nav a span {
@@ -9027,10 +9045,18 @@ nav a span { transition: opacity 0.18s ease, max-height 0.18s ease, margin 0.18s
     margin: 0;
     overflow: hidden;
   }
-  /* 紧凑态下 dock 更矮，scrim 也略收，避免遮挡过多内容。 */
-  body.is-dock-compact::after {
-    height: calc(84px + env(safe-area-inset-bottom, 0px));
+  /* 当前 tab：圆形高亮底（浅/深各一档），比展开态只换色更明显。 */
+  body.is-dock-compact nav a.active {
+    background: rgba(0, 122, 255, 0.14);
   }
+  /* 紧凑态更矮，scrim 跟着略收，少挡内容。 */
+  body.is-dock-compact::after {
+    height: calc(78px + env(safe-area-inset-bottom, 0px));
+  }
+}
+html[data-theme="dark"] body.is-dock-compact nav a.active { background: rgba(10, 132, 255, 0.24); }
+@media (prefers-color-scheme: dark) {
+  body.is-dock-compact nav a.active { background: rgba(10, 132, 255, 0.24); }
 }
 
 /* 降低动效偏好：dock / scrim / 标签都不做过渡动画。 */
