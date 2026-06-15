@@ -218,7 +218,14 @@ onRoute();
 (() => {
   const mobile = window.matchMedia('(max-width: 720px)');
   const setCompact = (on) => document.body.classList.toggle('is-dock-compact', on && mobile.matches);
+  const isCompact = () => document.body.classList.contains('is-dock-compact');
+  const TOP_EXPAND_Y = 64;
+  const DOWN_COMPACT_Y = 96;
+  const DOWN_SCROLL_DELTA = 6;
+  const UP_SCROLL_DELTA = 32;
+  const BOTTOM_GUARD = 120;
   let lastY = window.scrollY || 0;
+  let upwardAnchorY = lastY;
   let ticking = false;
 
   const onScroll = () => {
@@ -226,10 +233,16 @@ onRoute();
     ticking = true;
     requestAnimationFrame(() => {
       const y = window.scrollY || 0;
-      if (!mobile.matches) { setCompact(false); }
-      else if (y < 64) setCompact(false);                  // 靠近顶部 → 展开
-      else if (y > lastY + 6 && y > 96) setCompact(true);  // 向下滚 + 越过阈值 → 收缩
-      else if (y < lastY - 6) setCompact(false);           // 向上滚 → 展开
+      const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const nearBottom = maxY > 0 && y >= maxY - BOTTOM_GUARD;
+      const scrollingDown = y > lastY + DOWN_SCROLL_DELTA;
+      const scrollingUp = y < lastY;
+      if (!mobile.matches) { setCompact(false); upwardAnchorY = y; }
+      else if (maxY <= DOWN_COMPACT_Y) { setCompact(false); upwardAnchorY = y; } // 短页面没有必要收缩
+      else if (y < TOP_EXPAND_Y) { setCompact(false); upwardAnchorY = y; }       // 靠近顶部 → 展开
+      else if (scrollingDown && y > DOWN_COMPACT_Y) { upwardAnchorY = y; setCompact(true); }
+      else if (nearBottom && isCompact()) setCompact(true); // iOS 底部回弹：保持紧凑，避免误判向上滚
+      else if (scrollingUp && y < upwardAnchorY - UP_SCROLL_DELTA) { setCompact(false); upwardAnchorY = y; }
       lastY = y;
       ticking = false;
     });
@@ -237,7 +250,7 @@ onRoute();
   window.addEventListener('scroll', onScroll, { passive: true });
 
   // 切换页面（hashchange）后总是展开；scrollY 复位由各视图重渲染负责。
-  window.addEventListener('hashchange', () => { lastY = 0; setCompact(false); });
+  window.addEventListener('hashchange', () => { lastY = 0; upwardAnchorY = 0; setCompact(false); });
   // 点击底部导航：先展开再跳转（跳转本身由 a[href] 完成）。
   el('nav')?.addEventListener('click', () => setCompact(false));
   // 视口跨过 720px 断点时清掉紧凑态，保证桌面始终展开。
