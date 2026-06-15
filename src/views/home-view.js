@@ -729,12 +729,17 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     </div>
 
     <div class="batch-tab-panel" id="batch-panel-receipt" role="tabpanel">
-      <label class="receipt-drop-zone" for="batchReceiptFile">
-        <input type="file" id="batchReceiptFile" accept="image/*" capture="environment" class="visually-hidden">
+      <div class="receipt-drop-zone">
+        <input type="file" id="batchReceiptCameraFile" accept="image/*" capture="environment" class="visually-hidden">
+        <input type="file" id="batchReceiptAlbumFile" accept="image/*" class="visually-hidden">
         <span class="receipt-camera-icon" aria-hidden="true">📷</span>
-        <strong>点此拍摄 / 选择小票</strong>
+        <strong>拍小票识别</strong>
         <small>自动识别食材并让你确认</small>
-      </label>
+        <div class="controls">
+          <button type="button" class="btn ai small" id="batchReceiptCameraBtn">拍照识别</button>
+          <button type="button" class="btn small" id="batchReceiptAlbumBtn">从相册选择</button>
+        </div>
+      </div>
       <div id="batchReceiptStatus" class="small inline-status" hidden></div>
     </div>
 
@@ -766,10 +771,10 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   overlay.querySelector('#batchCancel').onclick = close;
 
   // ── 模式 A：拍小票识别 ──
-  const receiptFileInput = overlay.querySelector('#batchReceiptFile');
+  const receiptCameraInput = overlay.querySelector('#batchReceiptCameraFile');
+  const receiptAlbumInput = overlay.querySelector('#batchReceiptAlbumFile');
   const receiptStatus = overlay.querySelector('#batchReceiptStatus');
-  receiptFileInput.onchange = async (e) => {
-    const file = e.target.files[0];
+  const handleReceiptFile = async (file, inputEl) => {
     if (!file) return;
     receiptStatus.hidden = false;
     receiptStatus.className = 'small inline-status info';
@@ -797,14 +802,18 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       receiptStatus.className = 'small inline-status bad';
       receiptStatus.textContent = '❌ ' + formatAiErrorMessage(err);
     } finally {
-      e.target.value = '';
+      if (inputEl) inputEl.value = '';
     }
   };
+  receiptCameraInput.onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
+  receiptAlbumInput.onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
+  overlay.querySelector('#batchReceiptCameraBtn').onclick = () => receiptCameraInput.click();
+  overlay.querySelector('#batchReceiptAlbumBtn').onclick = () => receiptAlbumInput.click();
 
   // ── 模式 B：文本批量记 ──
   overlay.querySelector('#batchConfirm').onclick = () => {
     if (currentTab === 'receipt') {
-      receiptFileInput.click(); // 在拍小票 Tab 下，主按钮直接打开相机/相册选择
+      receiptAlbumInput.click(); // 在拍小票 Tab 下，主按钮默认打开相册选择
       return;
     }
     const text = overlay.querySelector('#batchTextInput').value;
