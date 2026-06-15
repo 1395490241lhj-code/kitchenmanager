@@ -40,6 +40,7 @@ import {
 } from '../components/status.js?v=219';import { markShoppingItemsStockedIn } from '../shopping.js?v=219';
 import { renderStaplesShelf } from '../components/staples-shelf.js?v=219';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
+import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=219';
 
 // 全局「编辑食材」模式开关（模块级，跨重渲染保持，避免保存后跳回只读态）。
 let isEditingInventory = false;
@@ -358,29 +359,25 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     const file = e.target.files[0]; if(!file) return;
     scanStatus.classList.add('visible'); scanStatus.innerHTML = '<span class="spinner"></span> 识别中...';
     try {
-      const rawItems = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
-      const items = (Array.isArray(rawItems) ? rawItems : []).filter(it => it && it.name).map(it => ({
-        name: it.name,
-        qty: it.qty,
-        unit: it.unit,
-        originalName: it.originalName || it.name
-      }));
-      if(items.length === 0) {
-        scanStatus.innerHTML = '<span class="text-danger">没有识别到食材</span>';
+      const result = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
+      const total = ['inventory', 'pantry', 'review', 'ignored'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
+      if(total === 0) {
+        scanStatus.innerHTML = '<span class="text-danger">没有识别到可处理的内容</span>';
         return;
       }
-      scanStatus.innerHTML = `识别到 ${items.length} 项，请确认后加入厨房`;
-      showReceiptConfirmationModal(items, confirmed => {
-        const matchedIds = confirmed.map(it => it.matchedShoppingItemId).filter(Boolean);
+      scanStatus.innerHTML = `识别到 ${total} 项，请确认后加入厨房`;
+      showReceiptConfirmationModal(result, ({ inventory = [], pantry = [] } = {}) => {
+        const matchedIds = inventory.map(it => it.matchedShoppingItemId).filter(Boolean);
         if (matchedIds.length > 0) {
           markShoppingItemsStockedIn(matchedIds);
         }
-        for(const it of confirmed) {
+        for(const it of inventory) {
           const unit = it.unit || guessKitchenUnit(it.name);
           const itemKind = isDryGoodName(it.name) ? 'dry' : 'raw';
           mergeInventoryEntry(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: itemKind, shelf: itemKind === 'dry' ? 365 : guessShelfDays(it.name, unit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(it.name), isFrozen:false} : {}) }, { mode: 'add' });
         }
-        scanStatus.innerHTML = `✅ 已加入厨房 ${confirmed.length} 项`;
+        const pantryCount = applyReceiptPantryItems(pantry, inv);
+        scanStatus.innerHTML = `✅ 已加入厨房 ${inventory.length + pantryCount} 项`;
         setTimeout(() => { scanStatus.classList.remove('visible'); renderTable(); onInventoryChanged(); }, 1200);
       }, () => {
         scanStatus.innerHTML = '已取消';

@@ -15,6 +15,7 @@ import { perfMeasure } from '../utils/perf.js?v=219';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
+import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=219';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
 
 /*
@@ -703,6 +704,13 @@ function writeItemsToInventory(items, pack) {
   return count;
 }
 
+function writeReceiptPantryItems(items, pack) {
+  if (!Array.isArray(items) || !items.length) return 0;
+  const catalog = buildCatalog(pack);
+  const inv = loadInventory(catalog);
+  return applyReceiptPantryItems(items, inv);
+}
+
 // 文本批量录入解析已抽成共享纯函数 parseFoodLines（src/utils/food-input-parser.js），
 // 与食材页「随手记几样食材」轻量录入区共用同一套「每行一个食材」解析规则。
 
@@ -767,19 +775,21 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     receiptStatus.className = 'small inline-status info';
     receiptStatus.innerHTML = '<span class="spinner"></span> 正在识别…';
     try {
-      const items = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
-      if (!items || !items.length) {
+      const result = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
+      const total = ['inventory', 'pantry', 'review', 'ignored'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
+      if (!total) {
         receiptStatus.className = 'small inline-status bad';
-        receiptStatus.textContent = '没有识别到食材';
+        receiptStatus.textContent = '没有识别到可处理的内容';
         return;
       }
       // 借用既有的确认弹窗渲染可编辑预览列表，确认后再写库 → 统一走 writeItemsToInventory。
       close();
       showReceiptConfirmationModal(
-        items.map(it => ({ name: it.name, qty: it.qty, unit: it.unit, originalName: it.originalName || it.name })),
-        (confirmed) => {
-          const n = writeItemsToInventory(confirmed, pack);
-          if (n > 0) onRoute();
+        result,
+        ({ inventory = [], pantry = [] } = {}) => {
+          const n = writeItemsToInventory(inventory, pack);
+          const p = writeReceiptPantryItems(pantry, pack);
+          if (n + p > 0) onRoute();
         },
         () => { /* 用户取消：不写库 */ }
       );

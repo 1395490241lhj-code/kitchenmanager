@@ -136,20 +136,41 @@ export function showCalibrationModal(recipeName, predictions, onConfirm, onCance
   };
 }
 
+function normalizeReceiptConfirmGroups(input) {
+  if (Array.isArray(input)) return { inventory: input, pantry: [], review: [], ignored: [] };
+  const source = input && typeof input === 'object' ? input : {};
+  return {
+    inventory: Array.isArray(source.inventory) ? source.inventory : [],
+    pantry: Array.isArray(source.pantry) ? source.pantry : [],
+    review: Array.isArray(source.review) ? source.review : [],
+    ignored: Array.isArray(source.ignored) ? source.ignored : []
+  };
+}
+
 export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   const unitOptions = ['个', '盒', '袋', '包', '瓶', '把', '份', 'g', 'ml'];
-  const rows = items.map((item, index) => {
+  const groups = normalizeReceiptConfirmGroups(items);
+  let rowIndex = 0;
+  const renderEditableRow = (item, groupKey, checked) => {
     const normalized = normalizeKitchenAmount(item.name, item.qty, item.unit, { source: 'receipt' });
     const name = normalized.name;
     const unit = normalized.unit;
     const qty = normalized.qty;
     const originalName = item.originalName || item.name;
     const showOrig = originalName && originalName !== name;
+    const reason = item.reason || '';
+    const index = rowIndex++;
+    const target = groupKey === 'pantry' ? 'pantry' : 'inventory';
+    const actionText = groupKey === 'pantry' ? '加入货架' : (groupKey === 'review' ? '可选加入' : '加入食材');
 
     return `
-      <div class="receipt-confirm-item" data-index="${index}" data-original-name="${escapeOptionAttr(originalName)}">
+      <div class="receipt-confirm-item${checked ? '' : ' is-unselected'}" data-index="${index}" data-group="${groupKey}" data-target="${target}" data-original-name="${escapeOptionAttr(originalName)}">
+        <label class="receipt-select-label">
+          <input type="checkbox" class="receipt-select-checkbox" ${checked ? 'checked' : ''}>
+          <span>${escapeHtml(actionText)}</span>
+        </label>
         <div class="receipt-confirm-row">
           <input class="receipt-name" value="${escapeOptionAttr(name)}" placeholder="食材名">
           <input class="receipt-qty" type="number" min="0" step="0.1" value="${qty}">
@@ -159,8 +180,41 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
           <button type="button" class="btn bad small receipt-remove">删</button>
         </div>
         ${showOrig ? `<div class="receipt-original-name">原文：${escapeHtml(originalName)}</div>` : ''}
+        ${reason ? `<div class="receipt-original-name">提示：${escapeHtml(reason)}</div>` : ''}
         <div class="receipt-match-container"></div>
       </div>
+    `;
+  };
+  const renderIgnoredRow = (item) => {
+    const name = item.name || item.originalName || '未命名';
+    const reason = item.reason || '不是厨房食材';
+    return `
+      <div class="receipt-ignored-item">
+        <strong>${escapeHtml(name)}</strong>
+        <span>${escapeHtml(reason)}</span>
+      </div>
+    `;
+  };
+  const groupMeta = [
+    { key: 'inventory', title: '加入食材', note: '这些会加入厨房食材。', checked: true },
+    { key: 'pantry', title: '常备货架', note: '这些更像常备货架，不参与普通库存。', checked: true },
+    { key: 'review', title: '需要确认', note: '这些可能是水果、零食或速冻成品，默认不加入。', checked: false },
+    { key: 'ignored', title: '已忽略', note: '这些不是厨房食材，已忽略。', checked: false }
+  ];
+  const rows = groupMeta.map(meta => {
+    const list = groups[meta.key] || [];
+    if (!list.length) return '';
+    const body = meta.key === 'ignored'
+      ? list.map(renderIgnoredRow).join('')
+      : list.map(item => renderEditableRow(item, meta.key, meta.checked)).join('');
+    return `
+      <section class="receipt-confirm-group receipt-group-${meta.key}">
+        <div class="receipt-group-head">
+          <strong>${escapeHtml(meta.title)}</strong>
+          <span>${escapeHtml(meta.note)}</span>
+        </div>
+        <div class="receipt-group-list">${body}</div>
+      </section>
     `;
   }).join('');
 
@@ -179,7 +233,20 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   const shoppingItems = loadShoppingItems();
 
   const refreshMatches = () => {
-    const currentRows = Array.from(overlay.querySelectorAll('.receipt-confirm-item')).map(itemEl => {
+    overlay.querySelectorAll('.receipt-confirm-item').forEach(itemEl => {
+      itemEl.classList.toggle('is-unselected', !itemEl.querySelector('.receipt-select-checkbox')?.checked);
+      const matchContainer = itemEl.querySelector('.receipt-match-container');
+      if (!matchContainer) return;
+      if (itemEl.dataset.target === 'pantry') {
+        matchContainer.innerHTML = `<span class="receipt-match-status none">加入常备货架</span>`;
+      } else {
+        matchContainer.innerHTML = '';
+      }
+    });
+
+    const currentRows = Array.from(overlay.querySelectorAll('.receipt-confirm-item'))
+      .filter(itemEl => itemEl.dataset.target === 'inventory' && itemEl.querySelector('.receipt-select-checkbox')?.checked)
+      .map(itemEl => {
       return {
         name: itemEl.querySelector('.receipt-name').value.trim(),
         qty: itemEl.querySelector('.receipt-qty').value,
@@ -230,18 +297,20 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
     if(onCancel) onCancel();
   };
   overlay.querySelector('#saveReceiptConfirm').onclick = () => {
-    const confirmed = Array.from(overlay.querySelectorAll('.receipt-confirm-item')).map(itemEl => {
+    const payload = { inventory: [], pantry: [] };
+    Array.from(overlay.querySelectorAll('.receipt-confirm-item')).forEach(itemEl => {
+      if (!itemEl.querySelector('.receipt-select-checkbox')?.checked) return;
       const nameEl = itemEl.querySelector('.receipt-name');
       const qtyEl = itemEl.querySelector('.receipt-qty');
       const unitEl = itemEl.querySelector('.receipt-unit');
-      if (!nameEl) return null;
+      if (!nameEl) return;
 
       const name = nameEl.value.trim();
       const qty = qtyEl.value;
       const unit = unitEl.value;
 
       const normalized = normalizeKitchenAmount(name, qty, unit, { source: 'receipt' });
-      if (!normalized.name) return null;
+      if (!normalized.name) return;
 
       const originalName = itemEl.dataset.originalName || normalized.name;
       normalized.originalName = originalName;
@@ -250,11 +319,12 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
       if (matchCheckbox && matchCheckbox.checked) {
         normalized.matchedShoppingItemId = matchCheckbox.dataset.shoppingId;
       }
-      return normalized;
-    }).filter(Boolean);
+      if (itemEl.dataset.target === 'pantry') payload.pantry.push(normalized);
+      else payload.inventory.push(normalized);
+    });
 
     close();
-    onConfirm(confirmed);
+    onConfirm(payload);
   };
   overlay.onclick = e => {
     if(e.target === overlay) {

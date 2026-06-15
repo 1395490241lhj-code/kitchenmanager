@@ -1,5 +1,6 @@
 import { CUSTOM_AI } from './config.js?v=219';
 import { S } from './storage.js?v=219';
+import { getCanonicalName } from './ingredients.js?v=219';
 import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=219';
 
 function getAiConfig() {
@@ -70,39 +71,125 @@ export function normalizeAiIngredients(value) {
   }).filter(Boolean);
 }
 
-export function validateReceiptItems(input) {
+const RECEIPT_REVIEW_RULES = [
+  { re: /(苹果|香蕉|橙子|橙|橘子|橘|葡萄|草莓|蓝莓|梨|桃|芒果|西瓜|哈密瓜|水果)/, reason: '水果，默认不加入做菜食材' },
+  { re: /(水饺|饺子|抄手|馄饨|云吞|汤圆|包子|披萨|鸡块|薯条|速冻|冷冻成品)/, reason: '冷冻成品，默认不加入做菜食材' },
+  { re: /(薯片|饼干|巧克力|糖果|可乐|饮料|果汁|奶茶|汽水|甜品|蛋糕|冰淇淋|酸奶|牛奶饮料|零食)/, reason: '零食饮料，默认不加入做菜食材' },
+  { re: /(便当|熟食|烤鸡|卤味|沙拉|即食|预制菜)/, reason: '熟食/即食食品，默认不加入做菜食材' }
+];
+
+const RECEIPT_PANTRY_RULES = [
+  { re: /(大米|糯米|杂粮|小米|黑米|燕麦|米\b|挂面|面条|意面|米粉|粉丝|面粉|淀粉|玉米淀粉)/, reason: '常备主食/干粉' },
+  { re: /(干木耳|木耳|干香菇|香菇干|腐竹|海带|紫菜|绿豆|红豆|黄豆|干豆|罐头)/, reason: '干货或常备货架物品' },
+  { re: /(盐|糖|生抽|老抽|酱油|醋|料酒|蚝油|味精|鸡精|花椒|干辣椒|辣椒粉|胡椒|香油|菜油|猪油|食用油|调料|豆瓣酱|甜面酱|豆豉)/, reason: '基础调味，归入常备货架' },
+  { re: /^(葱|姜|蒜|大葱|香菜|小米辣)$/, reason: '生鲜常备，归入常备货架' },
+  { re: /(牛奶)$/, reason: '日常补给，归入常备货架' }
+];
+
+const RECEIPT_IGNORED_RULES = [
+  { re: /(购物袋|塑料袋|环保袋|袋费|税费|税|折扣|优惠|会员|收银|找零|礼品卡|纸巾|清洁|洗洁精|洗衣|非食品)/, reason: '非厨房食材' },
+  { re: /^(水|清水|冰水|高汤|汤汁|适量)$/, reason: '不需要加入厨房数据' }
+];
+
+function matchReceiptRule(text, rules) {
+  return rules.find(rule => rule.re.test(text));
+}
+
+export function classifyReceiptItem(name, originalName = '') {
+  const cleanName = String(name || '').trim();
+  const text = `${cleanName} ${String(originalName || '').trim()}`;
+  const ignored = matchReceiptRule(text, RECEIPT_IGNORED_RULES);
+  if (ignored) return { group: 'ignored', reason: ignored.reason };
+  const review = matchReceiptRule(text, RECEIPT_REVIEW_RULES);
+  if (review) return { group: 'review', reason: review.reason };
+  const pantry = matchReceiptRule(text, RECEIPT_PANTRY_RULES);
+  if (pantry) return { group: 'pantry', reason: pantry.reason };
+
+  const canonical = getCanonicalName(cleanName);
+  const role = classifyRecipeIngredient(canonical || cleanName).role;
+  if (role === 'seasoning') return { group: 'pantry', reason: '基础调味，归入常备货架' };
+  if (role !== 'core') return { group: 'ignored', reason: '不参与做菜库存' };
+  return { group: 'inventory', reason: '' };
+}
+
+function normalizeReceiptItem(item) {
+  let nameStr = '';
+  let originalNameStr = '';
+  let qty = 1;
+  let unitStr = '';
+  let reason = '';
+
+  if (typeof item === 'string') {
+    nameStr = item.trim();
+    originalNameStr = nameStr;
+  } else if (item && typeof item === 'object') {
+    nameStr = String(item.name || item.item || '').trim();
+    originalNameStr = String(item.originalName || '').trim() || nameStr;
+    qty = item.qty ?? item.amount ?? 1;
+    unitStr = String(item.unit || '').trim();
+    reason = String(item.reason || '').trim();
+  }
+
+  const displayName = nameStr || originalNameStr;
+  if (!displayName) return null;
+
+  return {
+    name: nameStr || originalNameStr,
+    originalName: originalNameStr || nameStr,
+    qty: qty || 1,
+    unit: unitStr,
+    ...(reason ? { reason } : {})
+  };
+}
+
+export function validateReceiptResult(input) {
   const parsed = safeParseJson(input, '小票识别结果');
-  const list = Array.isArray(parsed) ? parsed : parsed.items;
-  if (!list || !Array.isArray(list)) throw new Error('小票识别结果里没有能加入厨房的食材。');
+  const groups = {
+    inventory: [],
+    pantry: [],
+    review: [],
+    ignored: []
+  };
 
-  const items = list.map(item => {
-    let nameStr = '';
-    let originalNameStr = '';
-    let qty = 1;
-    let unitStr = '';
+  const append = (item, aiGroup = 'inventory') => {
+    const normalized = normalizeReceiptItem(item);
+    if (!normalized) return;
+    const local = classifyReceiptItem(normalized.name, normalized.originalName);
+    const targetGroup = local.group !== 'inventory' ? local.group : aiGroup;
+    const safeGroup = ['inventory', 'pantry', 'review', 'ignored'].includes(targetGroup) ? targetGroup : 'review';
+    const reason = normalized.reason || local.reason || (
+      safeGroup === 'review' ? '需要确认是否加入厨房' :
+      safeGroup === 'pantry' ? '更适合放在常备货架' :
+      safeGroup === 'ignored' ? '不是厨房食材' : ''
+    );
+    groups[safeGroup].push({ ...normalized, ...(reason ? { reason } : {}) });
+  };
 
-    if (typeof item === 'string') {
-      nameStr = item.trim();
-      originalNameStr = nameStr;
-    } else if (item && typeof item === 'object') {
-      nameStr = String(item.name || item.item || '').trim();
-      originalNameStr = String(item.originalName || '').trim() || nameStr;
-      qty = item.qty ?? item.amount ?? 1;
-      unitStr = String(item.unit || '').trim();
-    }
-
-    if (!nameStr) return null;
-
-    return {
-      name: nameStr,
-      originalName: originalNameStr,
-      qty: qty || 1,
-      unit: unitStr
+  if (Array.isArray(parsed)) {
+    parsed.forEach(item => append(item, 'inventory'));
+  } else if (parsed && typeof parsed === 'object') {
+    const aliases = {
+      inventory: parsed.inventory || parsed.items || [],
+      pantry: parsed.pantry || [],
+      review: parsed.review || [],
+      ignored: parsed.ignored || []
     };
-  }).filter(Boolean);
+    Object.entries(aliases).forEach(([group, list]) => {
+      if (Array.isArray(list)) list.forEach(item => append(item, group));
+    });
+  } else {
+    throw new Error('小票识别结果里没有能处理的内容。');
+  }
 
-  if (!items.length) throw new Error('小票识别结果里没有能加入厨房的食材。');
-  return items;
+  const total = groups.inventory.length + groups.pantry.length + groups.review.length + groups.ignored.length;
+  if (!total) throw new Error('小票识别结果里没有能处理的内容。');
+  return groups;
+}
+
+export function validateReceiptItems(input) {
+  const result = validateReceiptResult(input);
+  if (!result.inventory.length) throw new Error('小票识别结果里没有能加入厨房的食材。');
+  return result.inventory;
 }
 
 export function validateRecipeResult(input) {
@@ -246,18 +333,24 @@ export function formatAiErrorMessage(error) {
 
 export async function recognizeReceipt(file) {
   const base64 = await compressImage(file);
-  const prompt = `你是一个中文食材管理助手。请分析图片收据，只提取真实食品/食材。
+  const prompt = `你是一个中文家庭厨房小票整理助手。请分析图片收据，把商品分成四类：做菜食材、常备货架、需要确认、已忽略。
 
 请严格返回 JSON 格式，不要包含 Markdown 标记（如 \`\`\`json），也不要任何解释或说明。
 返回结构如下：
-[
-  {
-    "originalName": "King Oyster Mushroom",
-    "name": "杏鲍菇",
-    "qty": 1,
-    "unit": "盒"
-  }
-]
+{
+  "inventory": [
+    { "originalName": "Pork Belly", "name": "五花肉", "qty": 1, "unit": "盒" }
+  ],
+  "pantry": [
+    { "originalName": "Noodles", "name": "挂面", "qty": 1, "unit": "包" }
+  ],
+  "review": [
+    { "originalName": "Frozen Dumplings", "name": "速冻水饺", "qty": 1, "unit": "袋", "reason": "冷冻成品，默认不加入做菜食材" }
+  ],
+  "ignored": [
+    { "originalName": "Shopping Bag", "reason": "非食品" }
+  ]
+}
 
 字段及要求：
 - originalName: 小票上的原始名称（包含英文或数字等商品名）。
@@ -285,9 +378,13 @@ export async function recognizeReceipt(file) {
     - "shrimp" / "prawns" -> "虾"
 - qty: 食材数量，可以是数字。不确定时填 1。
 - unit: 单位，必须是字符串。不确定时填空字符串。
-- 忽略非食品、购物袋、折扣、税费、会员信息。并且忽略葱姜蒜、盐、糖、酱油、醋、味精、花椒、辣椒等佐料。`;
+- inventory 只放真正适合作为做菜库存的核心食材：肉、鱼虾、蔬菜、蛋、豆腐、菌菇等鲜货。
+- pantry 放常备货架 / 干货 / 主食基础：大米、糯米、杂粮、面条、挂面、意面、米粉、粉丝、面粉、淀粉、干木耳、干香菇、腐竹、海带、紫菜、罐头、干豆，以及盐糖油酱醋等基础调味。
+- review 放需要用户确认、不默认加入普通库存的食品：水果、零食、饮料、甜品、酸奶、熟食、即食食品、速冻水饺、抄手、馄饨、汤圆、包子、披萨、鸡块、薯条等冷冻成品。
+- ignored 放完全不应处理的内容：购物袋、税费、折扣、会员信息、纸巾、清洁用品、非食品、收银信息。
+- 葱姜蒜、盐、糖、酱油、醋、味精、花椒、辣椒、油等佐料不要放入 inventory，可放 pantry。`;
   const raw = await callAiService(prompt, base64);
-  return validateReceiptItems(raw);
+  return validateReceiptResult(raw);
 }
 
 export async function callAiForMethod(recipeName, ingredients) {
