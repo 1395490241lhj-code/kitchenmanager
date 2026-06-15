@@ -72,17 +72,18 @@ export function normalizeAiIngredients(value) {
 }
 
 const RECEIPT_REVIEW_RULES = [
-  { re: /(苹果|香蕉|橙子|橙|橘子|橘|葡萄|草莓|蓝莓|梨|桃|芒果|西瓜|哈密瓜|水果)/, reason: '水果，默认不加入做菜食材' },
-  { re: /(水饺|饺子|抄手|馄饨|云吞|汤圆|包子|披萨|鸡块|薯条|速冻|冷冻成品)/, reason: '冷冻成品，默认不加入做菜食材' },
-  { re: /(薯片|饼干|巧克力|糖果|可乐|饮料|果汁|奶茶|汽水|甜品|蛋糕|冰淇淋|酸奶|牛奶饮料|零食)/, reason: '零食饮料，默认不加入做菜食材' },
+  { re: /(苹果|香蕉|橙子|橙|柑橘|桔子|橘子|橘|葡萄|草莓|蓝莓|梨|桃|芒果|西瓜|哈密瓜|柠檬|牛油果|猕猴桃|水果|mandarin|orange|apple|banana|pear|grape|strawberry|blueberry|peach|mango|watermelon|lemon|avocado|kiwi)/i, reason: '水果，默认不加入做菜食材' },
+  { re: /(方便面|泡面|速食面|instant\s*noodle|ramen)/i, reason: '即食/速食，默认不加入做菜食材' },
+  { re: /(水饺|饺子|抄手|馄饨|云吞|汤圆|包子|馒头|披萨|鸡块|薯条|速冻|冷冻成品|pizza|spring\s*roll|dumpling|wonton)/i, reason: '冷冻成品，默认不加入做菜食材' },
+  { re: /(薯片|饼干|巧克力|糖果|可乐|饮料|果汁|奶茶|汽水|甜品|蛋糕|冰淇淋|酸奶|牛奶饮料|零食|cola|soda|juice|beverage|drink|cookie|chips|chocolate|candy|yogurt)/i, reason: '零食饮料，默认不加入做菜食材' },
   { re: /(便当|熟食|烤鸡|卤味|沙拉|即食|预制菜)/, reason: '熟食/即食食品，默认不加入做菜食材' }
 ];
 
 const RECEIPT_PANTRY_RULES = [
   { re: /(大米|糯米|杂粮|小米|黑米|燕麦|米\b|挂面|面条|意面|米粉|粉丝|面粉|淀粉|玉米淀粉)/, reason: '常备主食/干粉' },
   { re: /(干木耳|木耳|干香菇|香菇干|腐竹|海带|紫菜|绿豆|红豆|黄豆|干豆|罐头)/, reason: '干货或常备货架物品' },
-  { re: /(盐|糖|生抽|老抽|酱油|醋|料酒|蚝油|味精|鸡精|花椒|干辣椒|辣椒粉|胡椒|香油|菜油|猪油|食用油|调料|豆瓣酱|甜面酱|豆豉)/, reason: '基础调味，归入常备货架' },
-  { re: /^(葱|姜|蒜|大葱|香菜|小米辣)$/, reason: '生鲜常备，归入常备货架' },
+  { re: /(盐|糖|生抽|老抽|酱油|醋|料酒|蚝油|味精|鸡精|花椒|八角|香叶|桂皮|干辣椒|辣椒粉|胡椒|香油|菜油|猪油|食用油|调料|豆瓣酱|甜面酱|豆豉)/, reason: '基础调味，归入常备货架' },
+  { re: /(^|\s)(葱|小葱|大葱|青葱|姜|生姜|老姜|嫩姜|姜片|姜块|蒜|大蒜|蒜头|香菜|小米辣|scallion|green onion|ginger|garlic)(\s|$)/i, reason: '常备货架 / 调味基础品' },
   { re: /(牛奶)$/, reason: '日常补给，归入常备货架' }
 ];
 
@@ -142,6 +143,91 @@ function normalizeReceiptItem(item) {
   };
 }
 
+function toReceiptNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const cleaned = String(value).trim().replace(/[^\d.-]/g, '');
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatReceiptNumber(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value || '').trim();
+  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(2))).replace(/\.0+$/, '');
+}
+
+function normalizeReceiptWeightUnit(unit) {
+  const u = String(unit || '').trim().toLowerCase();
+  if (['lb', 'lbs', 'pound', 'pounds', '磅'].includes(u)) return { type: 'lb', label: 'lb' };
+  if (['kg', '公斤', '千克'].includes(u)) return { type: 'kg', label: 'kg' };
+  if (['g', 'gram', 'grams', '克'].includes(u)) return { type: 'g', label: 'g' };
+  if (['斤'].includes(u)) return { type: 'jin', label: '斤' };
+  if (['两'].includes(u)) return { type: 'liang', label: '两' };
+  return null;
+}
+
+function findReceiptWeight(item) {
+  const qty = toReceiptNumber(item.qty);
+  const unitInfo = normalizeReceiptWeightUnit(item.unit);
+  if (unitInfo && qty !== null && qty > 0) {
+    return { value: qty, unit: unitInfo.label, type: unitInfo.type };
+  }
+
+  const text = `${item.originalName || ''} ${item.name || ''} ${item.reason || ''}`;
+  const match = text.match(/(\d+(?:\.\d+)?)\s*(lb|lbs|pound|pounds|磅|kg|公斤|千克|g|gram|grams|克|斤|两)/i);
+  if (!match) return null;
+  const info = normalizeReceiptWeightUnit(match[2]);
+  const value = toReceiptNumber(match[1]);
+  if (!info || value === null || value <= 0) return null;
+  return { value, unit: info.label, type: info.type };
+}
+
+function estimateServingsFromWeight(weight) {
+  if (!weight) return 1;
+  if (weight.type === 'kg') return Math.max(1, Math.round(weight.value * 2));
+  if (weight.type === 'g') return Math.max(1, Math.round(weight.value / 500));
+  if (weight.type === 'liang') return Math.max(1, Math.round(weight.value / 5));
+  return Math.max(1, Math.round(weight.value));
+}
+
+function isPackageLikeUnit(unit) {
+  return ['个', '颗', '只', '根', '块', '片', '份', '把', '袋', '包', '瓶', '盒', '罐', '条', '张', '件'].includes(String(unit || '').trim());
+}
+
+export function normalizeReceiptQuantityForKitchen(item, category = 'inventory') {
+  const out = { ...item };
+  const safeCategory = ['inventory', 'pantry', 'review', 'ignored'].includes(category) ? category : 'review';
+  if (safeCategory === 'ignored') return out;
+
+  const weight = findReceiptWeight(out);
+  if (weight) {
+    out.qty = estimateServingsFromWeight(weight);
+    out.unit = '份';
+    out.note = `按 ${formatReceiptNumber(weight.value)} ${weight.unit} 估算，可在加入前调整份数`;
+    return out;
+  }
+
+  const qty = toReceiptNumber(out.qty);
+  const unit = String(out.unit || '').trim();
+
+  if (safeCategory === 'inventory' && !unit) {
+    out.qty = 1;
+    out.unit = '份';
+    if (qty !== null && qty !== 1) out.note = '数量单位需要确认，先按 1 份估算';
+    return out;
+  }
+
+  if (isPackageLikeUnit(unit) && qty !== null && qty > 0 && !Number.isInteger(qty)) {
+    out.qty = Math.max(1, Math.round(qty));
+    out.unit = unit;
+    out.note = '数量已按包装取整，可在加入前调整';
+    return out;
+  }
+
+  return out;
+}
+
 export function validateReceiptResult(input) {
   const parsed = safeParseJson(input, '小票识别结果');
   const groups = {
@@ -157,12 +243,16 @@ export function validateReceiptResult(input) {
     const local = classifyReceiptItem(normalized.name, normalized.originalName);
     const targetGroup = local.group !== 'inventory' ? local.group : aiGroup;
     const safeGroup = ['inventory', 'pantry', 'review', 'ignored'].includes(targetGroup) ? targetGroup : 'review';
-    const reason = normalized.reason || local.reason || (
+    const adjusted = normalizeReceiptQuantityForKitchen(normalized, safeGroup);
+    const baseReason = local.reason || normalized.reason || (
       safeGroup === 'review' ? '需要确认是否加入厨房' :
       safeGroup === 'pantry' ? '更适合放在常备货架' :
       safeGroup === 'ignored' ? '不是厨房食材' : ''
     );
-    groups[safeGroup].push({ ...normalized, ...(reason ? { reason } : {}) });
+    const reasonParts = [baseReason, adjusted.note].filter(Boolean);
+    const reason = [...new Set(reasonParts)].join('；');
+    delete adjusted.note;
+    groups[safeGroup].push({ ...adjusted, ...(reason ? { reason } : {}) });
   };
 
   if (Array.isArray(parsed)) {
@@ -378,9 +468,11 @@ export async function recognizeReceipt(file) {
     - "shrimp" / "prawns" -> "虾"
 - qty: 食材数量，可以是数字。不确定时填 1。
 - unit: 单位，必须是字符串。不确定时填空字符串。
+- 普通做菜食材最终建议按“份”管理；如果小票显示 lb/kg/g，请保留原始重量信息，但 qty/unit 优先输出成估算份数，例如 2 lb 猪肉 -> { "qty": 2, "unit": "份" }，0.8 lb 虾 -> { "qty": 1, "unit": "份" }。
+- 包装商品 qty 应为整数，不要输出 0.81 包 / 0.81 个这类小数包装数量。
 - inventory 只放真正适合作为做菜库存的核心食材：肉、鱼虾、蔬菜、蛋、豆腐、菌菇等鲜货。
-- pantry 放常备货架 / 干货 / 主食基础：大米、糯米、杂粮、面条、挂面、意面、米粉、粉丝、面粉、淀粉、干木耳、干香菇、腐竹、海带、紫菜、罐头、干豆，以及盐糖油酱醋等基础调味。
-- review 放需要用户确认、不默认加入普通库存的食品：水果、零食、饮料、甜品、酸奶、熟食、即食食品、速冻水饺、抄手、馄饨、汤圆、包子、披萨、鸡块、薯条等冷冻成品。
+- pantry 放常备货架 / 干货 / 主食基础：姜、葱、蒜、干辣椒、花椒、八角、香叶、桂皮、大米、糯米、杂粮、面条、挂面、意面、米粉、粉丝、面粉、淀粉、干木耳、干香菇、腐竹、海带、紫菜、罐头、干豆，以及盐糖油酱醋等基础调味。
+- review 放需要用户确认、不默认加入普通库存的食品：水果、零食、饮料、甜品、酸奶、熟食、即食食品、方便面、泡面、速冻水饺、抄手、馄饨、汤圆、包子、馒头、披萨、鸡块、薯条等冷冻/即食成品。
 - ignored 放完全不应处理的内容：购物袋、税费、折扣、会员信息、纸巾、清洁用品、非食品、收银信息。
 - 葱姜蒜、盐、糖、酱油、醋、味精、花椒、辣椒、油等佐料不要放入 inventory，可放 pantry。`;
   const raw = await callAiService(prompt, base64);

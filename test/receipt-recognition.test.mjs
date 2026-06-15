@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   classifyReceiptItem,
+  normalizeReceiptQuantityForKitchen,
   validateReceiptItems,
   validateReceiptResult
 } from '../src/ai.js';
@@ -89,4 +90,77 @@ test('classifyReceiptItem 明确分组：佐料不进入 inventory，清水被�
   assert.equal(classifyReceiptItem('生抽').group, 'pantry');
   assert.equal(classifyReceiptItem('清水').group, 'ignored');
   assert.equal(classifyReceiptItem('豆腐').group, 'inventory');
+});
+
+test('橘子 / 桔子 / mandarin orange 进入 review，不进入 inventory', () => {
+  const out = validateReceiptResult([
+    { name: '橘子' },
+    { name: '桔子' },
+    { originalName: 'Mandarin Orange', name: 'mandarin orange' }
+  ]);
+  assert.deepEqual(out.inventory, []);
+  assert.deepEqual(out.review.map(item => item.name), ['橘子', '桔子', 'mandarin orange']);
+});
+
+test('方便面 / instant noodle / ramen 进入 review，不进入 inventory', () => {
+  const out = validateReceiptResult([
+    { name: '方便面' },
+    { originalName: 'Instant Noodle', name: 'instant noodle' },
+    { originalName: 'Ramen', name: 'ramen' }
+  ]);
+  assert.deepEqual(out.inventory, []);
+  assert.deepEqual(out.review.map(item => item.name), ['方便面', 'instant noodle', 'ramen']);
+});
+
+test('姜葱蒜英文别名进入 pantry，不进入 inventory', () => {
+  const out = validateReceiptResult([
+    { name: '姜' },
+    { originalName: 'Ginger', name: 'ginger' },
+    { originalName: 'Green Onion', name: 'green onion' },
+    { originalName: 'Garlic', name: 'garlic' },
+    { name: '大蒜' }
+  ]);
+  assert.deepEqual(out.inventory, []);
+  assert.deepEqual(out.pantry.map(item => item.name), ['姜', 'ginger', 'green onion', 'garlic', '大蒜']);
+});
+
+test('小票重量会按份估算，不保存 lb/kg/g 到普通食材', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Pork 2 lb', name: '猪肉', qty: 2, unit: 'lb' },
+    { originalName: 'Beef 0.81 lb', name: '牛肉', qty: 0.81, unit: 'lb' },
+    { originalName: 'Shrimp 450 g', name: '虾', qty: 450, unit: 'g' },
+    { originalName: 'Fish 0.35 kg', name: '鱼', qty: 0.35, unit: 'kg' }
+  ]);
+  assert.deepEqual(out.inventory.map(item => [item.name, item.qty, item.unit]), [
+    ['猪肉', 2, '份'],
+    ['牛肉', 1, '份'],
+    ['虾', 1, '份'],
+    ['鱼', 1, '份']
+  ]);
+  assert.ok(out.inventory.every(item => !['lb', 'kg', 'g'].includes(item.unit)));
+  assert.match(out.inventory[1].reason, /按 0.81 lb 估算/);
+});
+
+test('原文里的重量优先纠偏，避免 0.81 被当成个数入库', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Beef 0.81 lb', name: '牛肉', qty: 0.81, unit: '个' }
+  ]);
+  assert.equal(out.inventory[0].qty, 1);
+  assert.equal(out.inventory[0].unit, '份');
+});
+
+test('包装商品小数数量会取整，避免 0.81 个直接入库', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Tomato pack', name: '番茄', qty: 0.81, unit: '个' }
+  ]);
+  assert.equal(out.inventory[0].qty, 1);
+  assert.equal(out.inventory[0].unit, '个');
+  assert.match(out.inventory[0].reason, /包装取整/);
+});
+
+test('normalizeReceiptQuantityForKitchen 可单独估算重量', () => {
+  assert.deepEqual(
+    normalizeReceiptQuantityForKitchen({ name: '猪肉', qty: 2, unit: 'lb' }, 'inventory'),
+    { name: '猪肉', qty: 2, unit: '份', note: '按 2 lb 估算，可在加入前调整份数' }
+  );
 });
