@@ -74,9 +74,9 @@ export function normalizeAiIngredients(value) {
 const RECEIPT_REVIEW_RULES = [
   { re: /(苹果|香蕉|橙子|橙|柑橘|桔子|橘子|橘|葡萄|草莓|蓝莓|梨|桃|芒果|西瓜|哈密瓜|柠檬|牛油果|猕猴桃|水果|mandarin|tangerine|orange|apple|banana|pear|grape|strawberry|blueberry|peach|mango|watermelon|lemon|avocado|kiwi)/i, reason: '水果，默认不加入做菜食材' },
   { re: /(方便面|泡面|速食面|instant\s*noodle|ramen|cup\s*noodle|spicy\s*seafood\s*noodle|seafood\s*noodle)/i, reason: '即食/速食，默认不加入做菜食材' },
-  { re: /(水饺|饺子|抄手|馄饨|云吞|汤圆|包子|馒头|粽子|披萨|鸡块|薯条|速冻|冷冻成品|pizza|spring\s*roll|dumpling|wonton|sticky\s*rice\s*dumpling)/i, reason: '冷冻成品，默认不加入做菜食材' },
-  { re: /(薯片|饼干|巧克力|糖果|可乐|饮料|果汁|奶茶|汽水|甜品|蛋糕|糕点|冰淇淋|酸奶|牛奶饮料|零食|snowy\s*cake|cake|cola|soda|juice|beverage|drink|cookie|chips|chocolate|candy|yogurt)/i, reason: '零食饮料，默认不加入做菜食材' },
-  { re: /(dried\s*anchovy\s*w\/?\s*peanut|anchovy.*peanut|peanut.*anchovy|小鱼干花生|花生小鱼干)/i, reason: '加工食品，默认不加入做菜食材' },
+  { re: /(水饺|水餃|饺子|餃子|抄手|馄饨|餛飩|云吞|雲吞|汤圆|湯圓|包子|馒头|饅頭|粽子|咸肉粽|粽|披萨|披薩|鸡块|雞塊|薯条|薯條|速冻|速凍|冷冻成品|冷凍成品|pizza|spring\s*roll|dumpling|wonton|sticky\s*rice\s*dumpling)/i, reason: '冷冻成品，默认不加入做菜食材' },
+  { re: /(薯片|饼干|餅乾|巧克力|糖果|可乐|可樂|饮料|飲料|果汁|奶茶|汽水|甜品|蛋糕|糕点|糕點|雪贝|雪貝|芋泥雪贝|芋泥雪貝|冰淇淋|酸奶|牛奶饮料|牛奶飲料|零食|snowy\s*cake|cake|cola|soda|juice|beverage|drink|cookie|chips|chocolate|candy|yogurt)/i, reason: '零食饮料，默认不加入做菜食材' },
+  { re: /(dried\s*anchovy\s*w\/?\s*peanut|anchovy.*peanut|peanut.*anchovy|小鱼干花生|小魚乾花生|鱼干花生|魚乾花生|花生小鱼干|花生小魚乾)/i, reason: '加工食品，默认不加入做菜食材' },
   { re: /(便当|熟食|烤鸡|卤味|沙拉|即食|预制菜)/, reason: '熟食/即食食品，默认不加入做菜食材' }
 ];
 
@@ -91,7 +91,7 @@ const RECEIPT_PANTRY_RULES = [
 
 const RECEIPT_INVENTORY_RULES = [
   { re: /(豆腐|tofu|medium\s*firm\s*tofu|firm\s*tofu|soft\s*tofu)/i, reason: '' },
-  { re: /(青菜|油菜|莴笋|豆芽|choy|yu\s*choy|stem\s*lettuce|beansprout|bean\s*sprout)/i, reason: '' },
+  { re: /(青菜|油菜|油菜苗|菜苗|莴笋|萵筍|豆芽|豆芽菜|choy|yu\s*choy|stem\s*lettuce|beansprout|bean\s*sprout)/i, reason: '' },
   { re: /(鸡腿|鸡肉|猪肉|牛肉|虾|鱼|chicken\s*leg|chicken\s*thigh|pork|beef|shrimp|prawn|fish)/i, reason: '' }
 ];
 

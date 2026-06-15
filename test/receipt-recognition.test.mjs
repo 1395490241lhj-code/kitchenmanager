@@ -321,3 +321,53 @@ test('receipt 校验只做内存分类，用户确认前不写 localStorage', ()
     else globalThis.localStorage = previous;
   }
 });
+
+test('照片 1 Freshway 小票：真实商品名分组符合厨房规则', () => {
+  const out = validateReceiptResult([
+    { originalName: '鲜肉白菜水餃 TC Pork Cabbage Dumplings', name: '鲜肉白菜水餃', qty: 1, unit: '袋' },
+    { originalName: 'TC Pork Dumplings Series', name: 'pork dumplings series', qty: 1, unit: '袋' },
+    { originalName: 'Israel Tangerine In Mesh Bag 2.73 lb', name: 'tangerine', qty: 2.73, unit: 'lb' },
+    { originalName: 'Green Ton Choy 0.94 lb', name: 'green ton choy', qty: 0.94, unit: 'lb' },
+    { originalName: '芋泥雪貝 Taro Snowy Cake', name: '芋泥雪貝', qty: 1, unit: '盒' },
+    { originalName: '香辣海鲜味方便面 NS Spicy Seafood Noodle', name: 'spicy seafood noodle', qty: 1, unit: '包' },
+    { originalName: '五香咸肉粽 AH Pork Sticky Rice Dumpling', name: '五香咸肉粽', qty: 1, unit: '个' },
+    { originalName: '小魚乾花生 SXZ Dried Anchovy w/Peanut', name: '小魚乾花生', qty: 1, unit: '包' },
+    { originalName: '油菜苗 Junior Yu Choy 1.12 lb', name: '油菜苗', qty: 1.12, unit: 'lb' },
+    { originalName: '板豆腐 Wing Loon Medium Firm Tofu', name: 'medium firm tofu', qty: 1, unit: '盒' },
+    { originalName: '紅衣花生 Merilin Red Skin Peanut', name: 'red skin peanut', qty: 1, unit: '包' },
+    { originalName: '豆芽菜 Beansprout 0.35 lb', name: '豆芽菜', qty: 0.35, unit: 'lb' },
+    { originalName: '散装生姜 Loose Ginger 0.41 lb', name: 'ginger', qty: 0.41, unit: 'lb' },
+    { originalName: '莴笋 Stem Lettuce 0.81 lb', name: '莴笋', qty: 0.81, unit: 'lb' },
+    { originalName: '有皮無骨雞扒 Boneless Skin-On Chicken Leg', name: 'boneless skin-on chicken leg', qty: 1, unit: '份' }
+  ]);
+
+  assert.deepEqual(out.ignored, []);
+  assert.deepEqual(out.inventory.map(item => item.name), [
+    'green ton choy',
+    '油菜苗',
+    'medium firm tofu',
+    '豆芽菜',
+    '莴笋',
+    'boneless skin-on chicken leg'
+  ]);
+  assert.deepEqual(out.pantry.map(item => item.name), ['red skin peanut', 'ginger']);
+  assert.deepEqual(out.review.map(item => item.name), [
+    '鲜肉白菜水餃',
+    'pork dumplings series',
+    'tangerine',
+    '芋泥雪貝',
+    'spicy seafood noodle',
+    '五香咸肉粽',
+    '小魚乾花生'
+  ]);
+  assert.ok(out.inventory.every(item => !['lb', 'kg', 'g'].includes(item.unit)));
+  assert.deepEqual(
+    out.inventory.filter(item => ['green ton choy', '油菜苗', '豆芽菜', '莴笋'].includes(item.name)).map(item => [item.name, item.qty, item.unit]),
+    [
+      ['green ton choy', 1, '份'],
+      ['油菜苗', 1, '份'],
+      ['豆芽菜', 1, '份'],
+      ['莴笋', 1, '份']
+    ]
+  );
+});
