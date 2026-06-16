@@ -587,7 +587,7 @@ function buildCatalogImpl(pack) {
 export const UNIT_TYPE = { PIECE: 'PIECE', GEAR: 'GEAR' };
 
 // 离散可数单位 → 计件
-const PIECE_UNITS = new Set(['个', '颗', '只', '根', '片', '块', '枚', '瓣', '条', '棵', '头', '张', '支', '盒', '袋', '包', '瓶', '罐', '听']);
+const PIECE_UNITS = new Set(['个', '颗', '只', '根', '片', '块', '枚', '瓣', '条', '棵', '头', '张', '支', '盒', '袋', '包', '瓶', '罐', '听', '份']);
 
 /**
  * 判定食材属于「计件(PIECE)」还是「档位(GEAR)」。

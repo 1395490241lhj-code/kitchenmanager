@@ -6810,6 +6810,18 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
   transform: translateX(-0.5px);
   pointer-events: none;
 }
+.today-quick-row.is-three::before,
+.today-quick-row.is-three::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  width: 1px;
+  background: rgba(60, 60, 67, 0.10);
+  pointer-events: none;
+}
+.today-quick-row.is-three::before { left: 33.333%; }
+.today-quick-row.is-three::after { left: 66.666%; transform: none; }
 .today-quick-btn {
   flex: 1 1 0;
   display: inline-flex;
@@ -6892,6 +6904,94 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
   display: inline-flex;
   align-items: center;   /* 文字垂直居中 */
   justify-content: center;
+}
+
+.cooked-meal-modal { max-width: 430px; }
+.cooked-meal-body { display: grid; gap: 12px; }
+.cooked-meal-textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  border-radius: 18px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-cell);
+  color: var(--text-main);
+  padding: 13px 14px;
+  font: inherit;
+  line-height: 1.45;
+  outline: none;
+}
+.cooked-meal-textarea:focus {
+  border-color: rgba(0, 122, 255, 0.35);
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.10);
+}
+.cooked-meal-result { display: grid; gap: 10px; }
+.cooked-meal-suggestion-head { display: grid; gap: 3px; padding: 2px 2px 0; }
+.cooked-meal-suggestion-head strong { font-size: 15px; color: var(--text-main); }
+.cooked-meal-suggestion-head span { font-size: 12px; color: var(--text-secondary); }
+.cooked-meal-list { display: grid; gap: 8px; }
+.cooked-meal-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 11px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-cell);
+}
+.cooked-meal-check { width: 18px; height: 18px; accent-color: var(--primary); }
+.cooked-meal-main { display: grid; gap: 2px; min-width: 0; }
+.cooked-meal-main strong {
+  font-size: 14px;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cooked-meal-main small {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cooked-meal-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.cooked-meal-use {
+  width: 58px;
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-strong);
+  color: var(--text-main);
+  text-align: center;
+  font: inherit;
+}
+.cooked-meal-gear {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+.cooked-meal-actions { gap: 8px; }
+html[data-theme="dark"] .cooked-meal-textarea,
+html[data-theme="dark"] .cooked-meal-row,
+html[data-theme="dark"] .cooked-meal-use {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+html[data-theme="dark"] .cooked-meal-gear {
+  background: rgba(10, 132, 255, 0.18);
+  color: #9ecbff;
 }
 
 /* 折叠体：默认收起，点击展开（max-height 过渡，避免一上来就铺满卡片）。 */
@@ -7428,7 +7528,8 @@ html[data-theme="dark"] .today-quick-row {
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
-html[data-theme="dark"] .today-quick-row::after {
+html[data-theme="dark"] .today-quick-row::after,
+html[data-theme="dark"] .today-quick-row.is-three::before {
   background: rgba(255, 255, 255, 0.10);
 }
 html[data-theme="dark"] .today-quick-btn {
@@ -7475,6 +7576,11 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
     min-height: 42px;
     padding: 10px 12px;
     gap: 8px;
+  }
+  .today-quick-row.is-three .today-quick-btn {
+    padding-inline: 6px;
+    gap: 5px;
+    font-size: 12.5px;
   }
   .wx-rec-card .home-suggest-card { gap: 6px; padding: 4px 4px; }
   .wx-rec-card .home-suggest-name { font-size: 22px; }
@@ -9005,7 +9111,8 @@ html[data-theme="light"] .today-quick-row {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18));
   border-color: rgba(255, 255, 255, 0.52);
 }
-html[data-theme="light"] .today-quick-row::after {
+html[data-theme="light"] .today-quick-row::after,
+html[data-theme="light"] .today-quick-row.is-three::before {
   background: rgba(60, 60, 67, 0.12);
 }
 html[data-theme="light"] .today-quick-btn:not(.is-primary) {

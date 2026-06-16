@@ -355,6 +355,34 @@ function validateMethodResult(input) {
   return method;
 }
 
+export function validateCookedMealResult(input) {
+  const data = safeParseJson(input, '刚做了什么分析结果');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('刚做了什么分析结果不是对象。');
+
+  const dishes = Array.isArray(data.dishes)
+    ? data.dishes.map(dish => {
+      const name = String(dish?.name || '').trim();
+      const matchedRecipeName = String(dish?.matchedRecipeName || '').trim();
+      const usedIngredients = Array.isArray(dish?.usedIngredients)
+        ? dish.usedIngredients.map(item => {
+          const name = String(item?.name || item?.item || '').trim();
+          if (!name || classifyRecipeIngredient(name).role !== 'core') return null;
+          return {
+            name,
+            qty: item?.qty ?? '',
+            unit: String(item?.unit || '').trim(),
+            reason: String(item?.reason || 'AI 推测，需确认').trim()
+          };
+        }).filter(Boolean)
+        : [];
+      return { name, matchedRecipeName, usedIngredients };
+    }).filter(dish => dish.name || dish.matchedRecipeName || dish.usedIngredients.length)
+    : [];
+
+  if (!dishes.length) throw new Error('AI 没有判断出可确认的食材。');
+  return { dishes, needsReview: data.needsReview !== false };
+}
+
 function compressImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -508,6 +536,51 @@ export async function callAiForMethod(recipeName, ingredients) {
 
   const raw = await callAiService(prompt);
   return validateMethodResult(raw);
+}
+
+export async function callAiForCookedMeal(text, inventory = [], recipes = []) {
+  const inventoryNames = (inventory || [])
+    .map(item => item && item.name)
+    .filter(Boolean)
+    .slice(0, 80);
+  const recipeNames = (recipes || [])
+    .map(recipe => recipe && recipe.name)
+    .filter(Boolean)
+    .slice(0, 120);
+  const prompt = `你是一个谨慎的家庭厨房助手。用户刚刚描述自己做了什么，请只从“用户描述”和“当前厨房库存”里提取可能实际用掉的核心食材候选。你只能生成候选，绝不能决定扣库存。
+
+用户描述：
+${String(text || '').trim()}
+
+当前厨房库存：
+${inventoryNames.join('、') || '无'}
+
+可参考的已有菜谱名：
+${recipeNames.join('、') || '无'}
+
+请严格返回 JSON，不要 markdown，不要解释：
+{
+  "dishes": [
+    {
+      "name": "青菜豆腐汤",
+      "matchedRecipeName": "",
+      "usedIngredients": [
+        { "name": "青菜", "qty": 1, "unit": "份", "reason": "用户提到青菜" }
+      ]
+    }
+  ],
+  "needsReview": true
+}
+
+硬性规则：
+- usedIngredients 只能包含当前厨房库存里存在或能明确同义匹配的食材。
+- 不要凭空编造库存里没有的食材。
+- 只列核心主材：肉、鱼虾、蔬菜、蛋、豆制品、菌菇等。
+- 不要列葱姜蒜、盐糖油酱醋、料酒、淀粉、水、高汤、汤汁、适量等调料或非库存项。
+- 用户说得很模糊时，少列或不列候选，needsReview 必须为 true。
+- qty 是估算用量；不确定填 1。`;
+  const raw = await callAiService(prompt);
+  return validateCookedMealResult(raw);
 }
 
 export const CREATIVE_DISH_MODES = [

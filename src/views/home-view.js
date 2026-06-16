@@ -1,13 +1,13 @@
 import { S, todayISO } from '../storage.js?v=219';
 import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=219';
-import { isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=219';
+import { applyCookCalibration, computeCookDeductions, isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=219';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
-  getCleanFridgeRecommendations, processAiData
+  getCleanFridgeRecommendations, markRecipeCookedKeepPlan, processAiData
 } from '../recommendations.js?v=219';
-import { callAiCreativeRecipeByIngredients, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
+import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=219';
 import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=219';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=219';
@@ -17,6 +17,14 @@ import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../c
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
 import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=219';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=219';
+import {
+  buildLocalCookedMealCandidates,
+  getRecipeCoreItems,
+  matchCookedMealRecipe,
+  mergeCookedMealCandidates,
+  normalizeAiCookedMealResult
+} from '../utils/cooked-meal.js?v=219';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -1150,15 +1158,230 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
   const section = document.createElement('section');
   section.className = 'today-section today-quick';
   section.innerHTML = `
-    <div class="today-quick-row">
+    <div class="today-quick-row is-three">
       <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>记食材</span></button>
       <button type="button" class="today-quick-btn" id="qaRecipeImport"><span class="tq-emoji">📸</span><span>导入菜谱</span></button>
+      <button type="button" class="today-quick-btn" id="qaCookedMeal"><span class="tq-emoji">🍳</span><span>我刚做了</span></button>
     </div>
   `;
   // 记食材：直接打开现有「记进厨房」弹窗（📸 拍小票识别 + ✍️ 文本批量记）。
   section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
   section.querySelector('#qaRecipeImport').onclick = () => openRecipeImportModal();
+  section.querySelector('#qaCookedMeal').onclick = () => openCookedMealModal(pack, inv, { onRoute });
   return section;
+}
+
+function decorateCookedPredictions(predictions, candidates) {
+  return (predictions || []).map(prediction => {
+    const matchName = prediction.match?.name || prediction.name;
+    const candidate = (candidates || []).find(item =>
+      item && (item.matchName === matchName || item.item === matchName || getCanonicalName(item.item) === getCanonicalName(prediction.name))
+    );
+    return {
+      ...prediction,
+      reason: candidate?.reason || '需确认',
+      suggestedQty: Number.isFinite(Number(candidate?.qty)) && Number(candidate.qty) > 0
+        ? Number(candidate.qty)
+        : (prediction.recipeQty || 1)
+    };
+  });
+}
+
+function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'km-modal-overlay';
+  const panel = document.createElement('div');
+  panel.className = 'km-modal-content cooked-meal-modal';
+  panel.innerHTML = `
+    <div class="km-modal-header">
+      <span class="km-modal-title">刚做了什么？</span>
+      <button type="button" class="km-modal-close" aria-label="关闭">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="km-modal-body cooked-meal-body">
+      <textarea class="cooked-meal-textarea" id="cookedMealText" rows="4" placeholder="比如：番茄炒蛋、青菜豆腐汤，或者我炒了鸡腿和豆芽"></textarea>
+      <div class="small inline-status cooked-meal-status" id="cookedMealStatus" hidden></div>
+      <div class="cooked-meal-result" id="cookedMealResult"></div>
+      <div class="km-modal-actions cooked-meal-actions">
+        <button type="button" class="btn" id="cookedMealCancel">取消</button>
+        <button type="button" class="btn ok" id="cookedMealAnalyze">生成扣库存建议</button>
+      </div>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const textInput = panel.querySelector('#cookedMealText');
+  const status = panel.querySelector('#cookedMealStatus');
+  const resultHost = panel.querySelector('#cookedMealResult');
+  const analyzeBtn = panel.querySelector('#cookedMealAnalyze');
+
+  let closing = false;
+  const close = (after = () => {}) => {
+    if (closing) return;
+    closing = true;
+    panel.style.transition = 'transform 0.2s ease-in, opacity 0.2s ease-in';
+    panel.style.opacity = '0';
+    panel.style.transform = 'translate3d(0, 0, 0) scale(0.95)';
+    overlay.classList.add('closing');
+    window.setTimeout(() => {
+      overlay.remove();
+      after();
+    }, 220);
+  };
+  const showStatus = (message, tone = '') => {
+    status.hidden = false;
+    status.className = `small inline-status cooked-meal-status ${tone}`.trim();
+    status.textContent = message;
+  };
+  const clearStatus = () => {
+    status.hidden = true;
+    status.textContent = '';
+  };
+
+  function renderConfirm({ recipe, predictions, sourceLabel }) {
+    const title = recipe
+      ? `匹配到「${recipe.name}」`
+      : '可能用到了这些食材';
+    resultHost.innerHTML = `
+      <div class="cooked-meal-suggestion-head">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(sourceLabel || '确认后才会更新食材')}</span>
+      </div>
+      <div class="cooked-meal-list">
+        ${predictions.map((prediction, index) => {
+          const isPiece = prediction.unitType === UNIT_TYPE.PIECE;
+          const unit = prediction.unit || prediction.match?.unit || '';
+          const current = isPiece
+            ? `当前 ${prediction.currentQty}${unit}`
+            : `当前 ${GEAR_LABELS[gearInfo(prediction.currentGear).value] || '有'}`;
+          const control = isPiece
+            ? `<input class="cooked-meal-use" type="number" min="0" step="1" value="${escapeOptionAttr(String(prediction.suggestedQty || prediction.recipeQty || 1))}"><span>${escapeHtml(unit || '份')}</span>`
+            : `<span class="cooked-meal-gear">降一档</span>`;
+          return `
+            <label class="cooked-meal-row" data-index="${index}">
+              <input type="checkbox" class="cooked-meal-check" checked>
+              <span class="cooked-meal-main">
+                <strong>${escapeHtml(prediction.match?.name || prediction.name)}</strong>
+                <small>${escapeHtml(prediction.reason || '需确认')} · ${escapeHtml(current)}</small>
+              </span>
+              <span class="cooked-meal-control">${control}</span>
+            </label>
+          `;
+        }).join('')}
+      </div>
+    `;
+    analyzeBtn.textContent = '确认更新库存';
+    analyzeBtn.disabled = false;
+    analyzeBtn.onclick = () => {
+      const rows = Array.from(resultHost.querySelectorAll('.cooked-meal-row'));
+      const calibrations = rows.map(row => {
+        if (!row.querySelector('.cooked-meal-check')?.checked) return null;
+        const prediction = predictions[Number(row.dataset.index)];
+        if (!prediction) return null;
+        if (prediction.unitType === UNIT_TYPE.PIECE) {
+          const useQty = Math.max(0, Math.round(Number(row.querySelector('.cooked-meal-use')?.value) || 0));
+          if (useQty <= 0) return null;
+          return {
+            match: prediction.match,
+            name: prediction.name,
+            unitType: UNIT_TYPE.PIECE,
+            finalQty: Math.max(0, (Number(prediction.currentQty) || 0) - useQty)
+          };
+        }
+        return {
+          match: prediction.match,
+          name: prediction.name,
+          unitType: UNIT_TYPE.GEAR,
+          finalGear: prediction.predictedGear
+        };
+      }).filter(Boolean);
+      if (!calibrations.length) {
+        showStatus('至少勾选一样食材。', 'bad');
+        return;
+      }
+      const shoppingCandidates = getCookShoppingCandidates({ calibrations });
+      applyCookCalibration(inv, calibrations);
+      if (recipe?.id) markRecipeCookedKeepPlan(recipe.id);
+      close(() => showCookCompleteFeedback({
+        updated: true,
+        candidates: shoppingCandidates,
+        onClose: onRoute,
+        onShoppingAdded: onRoute
+      }));
+    };
+  }
+
+  async function analyze() {
+    const text = textInput.value.trim();
+    resultHost.innerHTML = '';
+    if (!text) {
+      showStatus('先写一下刚做了什么。', 'bad');
+      textInput.focus();
+      return;
+    }
+    clearStatus();
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = '正在分析...';
+    const recipes = pack.recipes || [];
+    const recipe = matchCookedMealRecipe(text, recipes);
+    let sourceLabel = '';
+    let candidates = [];
+
+    if (recipe) {
+      candidates = getRecipeCoreItems(recipe, pack);
+      sourceLabel = '来自已有菜谱，确认后才会更新食材。';
+    }
+
+    let predictions = computeCookDeductions(candidates, inv);
+    if (!predictions.length) {
+      const localCandidates = buildLocalCookedMealCandidates(text, inv);
+      predictions = computeCookDeductions(localCandidates, inv);
+      if (predictions.length) {
+        candidates = localCandidates;
+        sourceLabel = '根据你刚刚提到的食材匹配库存。';
+      }
+    }
+
+    if (!predictions.length) {
+      try {
+        const aiResult = await withTimeout(callAiForCookedMeal(text, inv, recipes), 22000, 'AI 响应超时');
+        const normalized = normalizeAiCookedMealResult(aiResult, inv);
+        const aiCandidates = mergeCookedMealCandidates(normalized.candidates);
+        predictions = computeCookDeductions(aiCandidates, inv);
+        if (predictions.length) {
+          candidates = aiCandidates;
+          sourceLabel = 'AI 辅助整理，仍需你确认。';
+        }
+      } catch (err) {
+        showStatus(`${formatAiErrorMessage(err)} 已尝试用本地规则匹配。`, 'bad');
+      }
+    }
+
+    if (!predictions.length) {
+      analyzeBtn.disabled = false;
+      analyzeBtn.textContent = '生成扣库存建议';
+      if (status.hidden) showStatus('没能判断用到了哪些库存食材，可以手动选择或稍后再记。', 'bad');
+      return;
+    }
+
+    const decorated = decorateCookedPredictions(predictions, candidates);
+    clearStatus();
+    renderConfirm({ recipe, predictions: decorated, sourceLabel });
+  }
+
+  analyzeBtn.onclick = analyze;
+  panel.querySelector('.km-modal-close').onclick = () => close();
+  panel.querySelector('#cookedMealCancel').onclick = () => close();
+  overlay.onclick = event => { if (event.target === overlay) close(); };
+  textInput.onkeydown = event => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') analyze();
+  };
+  requestAnimationFrame(() => overlay.classList.add('open'));
+  setTimeout(() => textInput.focus(), 80);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
