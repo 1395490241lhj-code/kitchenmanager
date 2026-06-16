@@ -1001,17 +1001,18 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   const card = document.createElement('section');
   card.className = 'today-main-card';
 
-  // 头部：今日计划标题 + 动作组（记录做完 / ✓全部做完 / 范围筛选）
+  // 头部：今日计划标题 + 动作组（✓全部做完 / 范围筛选）
   const head = document.createElement('div');
   head.className = 'today-section-head today-main-head';
   head.innerHTML = '<h2 class="today-section-title">📅 今日计划</h2>';
   const actions = document.createElement('div');
   actions.className = 'menu-plan-head-actions';
-  actions.appendChild(createRecordCookedButton(pack, inv, { onRoute }));
   actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
   actions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
   head.appendChild(actions);
   card.appendChild(head);
+
+  card.appendChild(createRecordCookedCta(pack, inv, { onRoute }));
 
   // 上半部分：今日计划（复用 renderMenuPlan，保留进详情 / 做完 / 扣库存）
   const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
@@ -1092,10 +1093,36 @@ function markTodayPlanCooked(recipeId) {
 function createRecordCookedButton(pack, inv, { onRoute = () => {} } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'home-mini-btn record-cooked-btn';
-  button.textContent = '🍳 记录做完';
-  button.onclick = () => openCookedMealModal(pack, inv, { onRoute });
+  button.className = 'record-cooked-btn';
+  button.innerHTML = '<span class="record-cooked-icon">🍽️</span><span>饭后记一下</span>';
+  button.onclick = () => {
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.classList.add('is-opening');
+    button.innerHTML = '<span class="record-cooked-icon">🍽️</span><span>打开中...</span>';
+    requestAnimationFrame(() => {
+      openCookedMealModal(pack, inv, { onRoute });
+      window.setTimeout(() => {
+        button.innerHTML = original;
+        button.disabled = false;
+        button.classList.remove('is-opening');
+      }, 180);
+    });
+  };
   return button;
+}
+
+function createRecordCookedCta(pack, inv, { onRoute = () => {} } = {}) {
+  const cta = document.createElement('div');
+  cta.className = 'record-cooked-cta';
+  cta.innerHTML = `
+    <span class="record-cooked-cta-text">
+      <strong>做完饭了？</strong>
+      <small>顺手把用掉的食材记一下</small>
+    </span>
+  `;
+  cta.appendChild(createRecordCookedButton(pack, inv, { onRoute }));
+  return cta;
 }
 
 function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
@@ -1105,7 +1132,7 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
   panel.className = 'km-modal-content cooked-meal-modal';
   panel.innerHTML = `
     <div class="km-modal-header">
-      <span class="km-modal-title">刚做了什么？</span>
+      <span class="km-modal-title">饭后记一下</span>
       <button type="button" class="km-modal-close" aria-label="关闭">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -1208,7 +1235,7 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
     const merged = mergeCookedMealCandidates(candidates);
     const predictions = decorateCookedPredictions(computeCookDeductions(merged, inv), merged);
     if (!predictions.length) {
-      showStatus('没能判断用到了哪些库存食材，可以直接选择食材。', 'bad');
+      showStatus('没判断出用到哪些食材，可以直接从库存里选。', 'bad');
       renderInventoryPicker({ title: '直接选库存食材' });
       resetAnalyzeButton();
       return;
@@ -1222,14 +1249,15 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
   }
 
   function renderConfirm() {
-    const title = currentRecipe
-      ? `匹配到「${currentRecipe.name}」`
-      : '可能用到了这些食材';
+    const title = '可能用掉了这些';
+    const subtitle = currentRecipe
+      ? `按「${currentRecipe.name}」整理，你可以增删改，确认后才会更新库存。`
+      : '你可以增删改，确认后才会更新库存。';
     const predictions = currentPredictions;
     resultHost.innerHTML = `
       <div class="cooked-meal-suggestion-head">
         <strong>${escapeHtml(title)}</strong>
-        <span>${escapeHtml(currentSourceLabel || '确认后才会更新食材')}</span>
+        <span>${escapeHtml(subtitle)}</span>
       </div>
       <div class="cooked-meal-list">
         ${predictions.map((prediction, index) => {
@@ -1400,7 +1428,7 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
     const text = textInput.value.trim();
     resultHost.innerHTML = '';
     if (!text) {
-      showStatus('先写一下刚做了什么。', 'bad');
+      showStatus('先写一下刚吃了什么。', 'bad');
       textInput.focus();
       return;
     }
@@ -1444,7 +1472,7 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
     if (!predictions.length) {
       analyzeBtn.disabled = false;
       analyzeBtn.textContent = '生成建议';
-      if (status.hidden) showStatus('没能判断用到了哪些库存食材，可以直接选择食材。', 'bad');
+      if (status.hidden) showStatus('没判断出用到哪些食材，可以直接从库存里选。', 'bad');
       renderInventoryPicker({ title: '直接选库存食材' });
       return;
     }
@@ -1631,14 +1659,15 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     cardWrap.onpointercancel = () => { touchStart = null; };
   };
 
-  // ── 📅 计划：动作组（记录做完/全部做完/范围）+ 计划列表，全部复用现有组件 ──
+  // ── 📅 计划：动作组（全部做完/范围）+ 饭后轻 CTA + 计划列表，全部复用现有组件 ──
   const renderPlanTab = () => {
     const actions = document.createElement('div');
     actions.className = 'menu-plan-head-actions wx-plan-actions';
-    actions.appendChild(createRecordCookedButton(pack, inv, { onRoute }));
     actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
     actions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
     body.appendChild(actions);
+
+    body.appendChild(createRecordCookedCta(pack, inv, { onRoute }));
 
     const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
     // 空态瘦身：一行轻提示 + 「看推荐」切 tab（原空态是纯静态节点、无事件绑定，见 menu-plan.js）。

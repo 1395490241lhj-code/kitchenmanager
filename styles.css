@@ -6778,6 +6778,77 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
   justify-content: center;
 }
 
+.record-cooked-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--surface-cell-border);
+  background:
+    linear-gradient(135deg, rgba(255, 149, 0, 0.12), rgba(255, 255, 255, 0.08)),
+    var(--surface-cell);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.record-cooked-cta-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.record-cooked-cta-text strong {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 850;
+}
+.record-cooked-cta-text small {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.record-cooked-btn {
+  min-height: 44px;
+  padding: 0 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 149, 0, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 184, 64, 0.26), rgba(255, 255, 255, 0.10)),
+    var(--surface-strong);
+  color: var(--text-main);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(255, 149, 0, 0.10);
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.record-cooked-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+.record-cooked-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 149, 0, 0.42);
+  box-shadow: 0 10px 24px rgba(255, 149, 0, 0.14);
+}
+.record-cooked-btn:active,
+.record-cooked-btn.is-opening {
+  transform: scale(0.98);
+}
+.record-cooked-btn:focus-visible {
+  outline: 3px solid rgba(255, 149, 0, 0.24);
+  outline-offset: 3px;
+}
+.record-cooked-btn:disabled {
+  cursor: default;
+  opacity: 0.84;
+}
 .cooked-meal-modal { max-width: 430px; }
 .cooked-meal-body { display: grid; gap: 12px; }
 .cooked-meal-start {
@@ -6813,6 +6884,14 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+}
+.cooked-meal-plan-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 122, 255, 0.28);
+}
+.cooked-meal-plan-chip:active {
+  transform: scale(0.98);
 }
 .cooked-meal-muted {
   color: var(--text-secondary);
@@ -6931,6 +7010,12 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
   border: 1px solid var(--surface-cell-border);
   background: var(--surface-cell);
 }
+.cooked-meal-select-btn {
+  min-height: 40px;
+  justify-content: center;
+  border-color: rgba(0, 122, 255, 0.18);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(255, 255, 255, 0.04)), var(--surface-strong);
+}
 .cooked-meal-picker-head {
   display: grid;
   gap: 8px;
@@ -6997,6 +7082,28 @@ html[data-theme="dark"] .cooked-meal-stock-option {
 html[data-theme="dark"] .cooked-meal-gear {
   background: rgba(10, 132, 255, 0.18);
   color: #9ecbff;
+}
+html[data-theme="dark"] .record-cooked-cta {
+  background:
+    linear-gradient(135deg, rgba(255, 159, 10, 0.16), rgba(255, 255, 255, 0.04)),
+    rgba(255, 255, 255, 0.05);
+}
+html[data-theme="dark"] .record-cooked-btn {
+  background:
+    linear-gradient(135deg, rgba(255, 159, 10, 0.24), rgba(255, 255, 255, 0.05)),
+    rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 159, 10, 0.28);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+@media (prefers-reduced-motion: reduce) {
+  .record-cooked-btn,
+  .cooked-meal-plan-chip {
+    transition: none;
+  }
+  .record-cooked-btn:hover,
+  .cooked-meal-plan-chip:hover {
+    transform: none;
+  }
 }
 
 /* 折叠体：默认收起，点击展开（max-height 过渡，避免一上来就铺满卡片）。 */
