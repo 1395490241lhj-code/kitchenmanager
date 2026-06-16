@@ -3995,122 +3995,6 @@ html[data-theme="dark"] .receipt-ignored-item {
 }
 .home-mini-btn:active { transform: scale(0.96); }
 .home-mini-btn:hover { color: var(--text-main); }
-/* 🍳 即兴烹饪：激活态高亮 */
-.home-mini-btn.impromptu-btn.is-active {
-  color: #fff;
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-/* ════════════════════════════════════════════════════════════════════════
- * 即兴烹饪 · 冰箱物资微调盘点舱（液态磨砂折叠面板）
- * ════════════════════════════════════════════════════════════════════════ */
-.km-inline-tray {
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  margin: 0;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
-  border: 1px solid transparent;
-  transition: max-height 0.3s ease, opacity 0.25s ease, margin 0.25s ease, padding 0.25s ease;
-}
-.km-inline-tray:not(.is-collapsed) {
-  max-height: 340px;
-  opacity: 1;
-  margin: 8px 0 4px;
-  padding: 8px;
-  overflow-y: auto;
-  border-color: rgba(120, 120, 128, 0.18);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-}
-html[data-theme="dark"] .km-inline-tray { background: rgba(40, 40, 46, 0.55); }
-html[data-theme="dark"] .km-inline-tray:not(.is-collapsed) { border-color: rgba(255, 255, 255, 0.12); }
-.km-tray-empty { padding: 14px; text-align: center; color: var(--text-secondary); font-size: 13px; }
-/* 微型灵魂加料舱：极其紧凑的 3~4 列高密度网格（slate-50 / zinc-900-50 底） */
-.km-tray-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 10px;
-  border-radius: 12px;
-  background: rgba(148, 163, 184, 0.14);
-}
-@media (min-width: 520px) {
-  .km-tray-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-html[data-theme="dark"] .km-tray-grid { background: rgba(24, 24, 27, 0.5); }
-.km-tray-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  padding: 6px 4px;
-  border-radius: 9px;
-  background: var(--bg-card);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-html[data-theme="dark"] .km-tray-cell { background: rgba(255, 255, 255, 0.04); }
-.km-tray-name {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-main);
-  text-align: center;
-}
-.km-tray-ctrl { flex: 0 0 auto; }
-/* GEAR：5 个微型圆点 */
-.km-gear-dots { display: inline-flex; align-items: center; gap: 5px; }
-.km-gear-dot {
-  width: 10px;
-  height: 10px;
-  padding: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(120, 120, 128, 0.5);
-  background: transparent;
-  cursor: pointer;
-  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
-}
-.km-gear-dot:hover { transform: scale(1.2); }
-.km-gear-dot.is-active { border-color: transparent; }
-.km-gear-dot.gear-100.is-active { background: #1f9d57; }
-.km-gear-dot.gear-75.is-active  { background: #2aa563; }
-.km-gear-dot.gear-50.is-active  { background: #d29a00; }
-.km-gear-dot.gear-25.is-active  { background: #e8731a; }
-.km-gear-dot.gear-0.is-active   { background: #9a9aa0; }
-/* PIECE：微型 [-] 数量 [+] 步进器 */
-.km-piece-step { display: inline-flex; align-items: center; gap: 5px; }
-.km-piece-step .km-step-minus,
-.km-piece-step .km-step-plus {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--separator);
-  background: var(--bg-card);
-  color: var(--primary);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.km-piece-step .km-step-minus:active,
-.km-piece-step .km-step-plus:active { transform: scale(0.88); }
-.km-piece-step .km-piece-qty { min-width: 16px; text-align: center; font-size: 13px; font-weight: 700; color: var(--text-main); }
-.km-piece-step small { color: var(--text-secondary); font-size: 11px; }
-html[data-theme="dark"] .km-piece-step .km-step-minus,
-html[data-theme="dark"] .km-piece-step .km-step-plus { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.14); }
-/* 底部 ✓ 记录完成 */
-.km-tray-footer { display: flex; justify-content: flex-end; padding: 8px 4px 2px; position: sticky; bottom: 0; }
-.km-tray-done { font-weight: 700; }
 
 /* ── 菜谱页置顶搜索（从首页迁入） ── */
 .recipe-finder-section { margin-bottom: 14px; }
@@ -6810,18 +6694,6 @@ html[data-theme="dark"] .menu-cook-btn.is-done { background: rgba(255, 255, 255,
   transform: translateX(-0.5px);
   pointer-events: none;
 }
-.today-quick-row.is-three::before,
-.today-quick-row.is-three::after {
-  content: '';
-  position: absolute;
-  top: 12px;
-  bottom: 12px;
-  width: 1px;
-  background: rgba(60, 60, 67, 0.10);
-  pointer-events: none;
-}
-.today-quick-row.is-three::before { left: 33.333%; }
-.today-quick-row.is-three::after { left: 66.666%; transform: none; }
 .today-quick-btn {
   flex: 1 1 0;
   display: inline-flex;
@@ -6908,6 +6780,44 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
 
 .cooked-meal-modal { max-width: 430px; }
 .cooked-meal-body { display: grid; gap: 12px; }
+.cooked-meal-start {
+  display: grid;
+  gap: 10px;
+}
+.cooked-meal-start[hidden] { display: none; }
+.cooked-meal-start-block {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-cell);
+}
+.cooked-meal-start-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+.cooked-meal-plan-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.cooked-meal-plan-chip {
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-strong);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cooked-meal-muted {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 .cooked-meal-textarea {
   width: 100%;
   min-height: 112px;
@@ -6932,7 +6842,7 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
 .cooked-meal-list { display: grid; gap: 8px; }
 .cooked-meal-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   min-height: 56px;
@@ -6975,6 +6885,26 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
   text-align: center;
   font: inherit;
 }
+.cooked-meal-unit {
+  width: 42px;
+  min-height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-strong);
+  color: var(--text-main);
+  text-align: center;
+  font: inherit;
+}
+.cooked-meal-final-gear {
+  min-height: 34px;
+  max-width: 106px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-strong);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 12px;
+}
 .cooked-meal-gear {
   padding: 6px 10px;
   border-radius: 999px;
@@ -6982,10 +6912,85 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
   color: var(--primary-dark);
   font-weight: 700;
 }
+.cooked-meal-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(255, 59, 48, 0.10);
+  color: var(--danger);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cooked-meal-picker {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-cell);
+}
+.cooked-meal-picker-head {
+  display: grid;
+  gap: 8px;
+}
+.cooked-meal-picker-head strong {
+  color: var(--text-main);
+  font-size: 14px;
+}
+.cooked-meal-picker-filter {
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-strong);
+  color: var(--text-main);
+  padding: 0 12px;
+  font: inherit;
+}
+.cooked-meal-picker-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  max-height: 220px;
+  overflow: auto;
+}
+.cooked-meal-stock-option {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 8px 9px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid var(--surface-cell-border);
+  background: var(--surface-strong);
+  color: var(--text-main);
+  cursor: pointer;
+}
+.cooked-meal-stock-option span,
+.cooked-meal-stock-option small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cooked-meal-stock-option span { font-size: 13px; font-weight: 800; }
+.cooked-meal-stock-option small { font-size: 11px; color: var(--text-secondary); }
+.cooked-meal-stock-option.is-suggested {
+  border-color: rgba(0, 122, 255, 0.22);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(0, 122, 255, 0.025)), var(--surface-strong);
+}
 .cooked-meal-actions { gap: 8px; }
 html[data-theme="dark"] .cooked-meal-textarea,
 html[data-theme="dark"] .cooked-meal-row,
-html[data-theme="dark"] .cooked-meal-use {
+html[data-theme="dark"] .cooked-meal-use,
+html[data-theme="dark"] .cooked-meal-unit,
+html[data-theme="dark"] .cooked-meal-final-gear,
+html[data-theme="dark"] .cooked-meal-start-block,
+html[data-theme="dark"] .cooked-meal-picker,
+html[data-theme="dark"] .cooked-meal-plan-chip,
+html[data-theme="dark"] .cooked-meal-picker-filter,
+html[data-theme="dark"] .cooked-meal-stock-option {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.12);
 }
@@ -7528,8 +7533,7 @@ html[data-theme="dark"] .today-quick-row {
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
-html[data-theme="dark"] .today-quick-row::after,
-html[data-theme="dark"] .today-quick-row.is-three::before {
+html[data-theme="dark"] .today-quick-row::after {
   background: rgba(255, 255, 255, 0.10);
 }
 html[data-theme="dark"] .today-quick-btn {
@@ -7576,11 +7580,6 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
     min-height: 42px;
     padding: 10px 12px;
     gap: 8px;
-  }
-  .today-quick-row.is-three .today-quick-btn {
-    padding-inline: 6px;
-    gap: 5px;
-    font-size: 12.5px;
   }
   .wx-rec-card .home-suggest-card { gap: 6px; padding: 4px 4px; }
   .wx-rec-card .home-suggest-name { font-size: 22px; }
@@ -9111,8 +9110,7 @@ html[data-theme="light"] .today-quick-row {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.18));
   border-color: rgba(255, 255, 255, 0.52);
 }
-html[data-theme="light"] .today-quick-row::after,
-html[data-theme="light"] .today-quick-row.is-three::before {
+html[data-theme="light"] .today-quick-row::after {
   background: rgba(60, 60, 67, 0.12);
 }
 html[data-theme="light"] .today-quick-btn:not(.is-primary) {

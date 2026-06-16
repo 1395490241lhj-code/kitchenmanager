@@ -7,8 +7,10 @@ import {
   buildLocalCookedMealCandidates,
   getRecipeCoreItems,
   matchCookedMealRecipe,
+  mergeCookedMealCandidates,
   normalizeAiCookedMealResult
 } from '../src/utils/cooked-meal.js?v=219';
+import { validateCookedMealResult } from '../src/ai.js?v=219';
 
 test.beforeEach(() => {
   installLocalStorageStub();
@@ -89,6 +91,27 @@ test('用户取消时不写库存；确认后才扣减库存', () => {
   const after = S.load(S.keys.inventory, []);
   assert.equal(after.find(item => item.name === '鸡腿').qty, 1);
   assert.equal(after.find(item => item.name === '豆芽').qty, 0);
+});
+
+test('直接选食材模式可以从库存加入确认列表，来源为你手动添加', () => {
+  const manual = mergeCookedMealCandidates([
+    { item: '莴笋', qty: 1, unit: '份', reason: '你手动添加', matchName: '莴笋' }
+  ]);
+  assert.equal(manual.length, 1);
+  assert.equal(manual[0].item, '莴笋');
+  assert.equal(manual[0].reason, '你手动添加');
+});
+
+test('AI 顶层 usedIngredients 格式也能校验，调料会被过滤', () => {
+  const result = validateCookedMealResult({
+    usedIngredients: [
+      { name: '鸡腿', qty: 1, unit: '份', reason: '用户提到鸡腿' },
+      { name: '盐', qty: 1, unit: '勺', reason: '调味' }
+    ],
+    needsReview: true
+  });
+  assert.equal(result.dishes.length, 1);
+  assert.deepEqual(result.dishes[0].usedIngredients.map(item => item.name), ['鸡腿']);
 });
 
 test('空输入或模糊描述不会生成本地候选', () => {

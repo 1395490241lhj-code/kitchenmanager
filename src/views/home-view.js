@@ -1,6 +1,6 @@
 import { S, todayISO } from '../storage.js?v=219';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, getUnitType, UNIT_TYPE } from '../ingredients.js?v=219';
-import { applyCookCalibration, computeCookDeductions, isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, saveInventory, getItemGear, gearInfo, GEAR_LABELS, syncOutOfStockTimestamp } from '../inventory.js?v=219';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, UNIT_TYPE } from '../ingredients.js?v=219';
+import { applyCookCalibration, computeCookDeductions, isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, gearInfo, GEAR_LABELS } from '../inventory.js?v=219';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
@@ -838,133 +838,11 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   };
 }
 
-// 把档位值写回食材并同步 stockStatus / qty / 断货时间戳（与库存编辑保持一致）。
-function applyGearImpromptu(e, value) {
-  e.gear = value;
-  e.unitType = UNIT_TYPE.GEAR;
-  if (value === 0) { e.stockStatus = 'empty'; e.qty = 0; }
-  else if (value <= 25) { e.stockStatus = 'low'; if (!(+e.qty > 0)) e.qty = 1; }
-  else { e.stockStatus = 'ok'; if (!(+e.qty > 0)) e.qty = 1; }
-  syncOutOfStockTimestamp(e);
-}
-
-/**
- * 🍳 即兴烹饪：今日餐单标题行的快捷入口 + 就地展开的「冰箱物资微调盘点舱」。
- * 返回 { button, tray }，由调用方分别塞进头部动作组与头部下方。
- * 闭环：就地微调 inv → [✓ 记录完成] → 持久化冰箱 + 推虚拟 48h 卡 + 食材实体反疲劳计数 + 收起。
- */
-// 🧪 万能加料白名单：只放行适合下面 / 煮螺蛳粉 / 麻辣烫等场景的快熟百搭配料。
+// “直接选食材”里的推荐排序：适合下面 / 煮螺蛳粉 / 麻辣烫等场景的快熟百搭配料优先出现。
 const IMPROMPTU_ALLOWED_REGEX = /(菜|茼蒿|菠菜|韭菜|肠|午餐肉|培根|香肠|火腿|丸|棒|饺|千层肚|菇|豆腐|豆皮|腐竹|木耳|蛋|面条|粉|年糕|水饺)/;
 
-// 即兴面板前置过滤器：有货（isInventoryAvailable）且命中百搭白名单，才进面板。
 function isImpromptuCandidate(e) {
   return isInventoryAvailable(e) && IMPROMPTU_ALLOWED_REGEX.test(String(e.name || ''));
-}
-
-function buildImpromptuCooking(inv, { onRoute = () => {} } = {}) {
-  let showImpromptuTray = false;
-  const consumed = new Set(); // 本次会话被改动过的食材实体
-
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'home-mini-btn impromptu-btn';
-  button.textContent = '🍳 即兴烹饪';
-
-  const tray = document.createElement('div');
-  tray.className = 'km-inline-tray is-collapsed';
-
-  const renderTrayBody = () => {
-    tray.innerHTML = '';
-    // 前置白名单过滤：只展示有货且属于百搭快熟配料的资产。
-    const items = (inv || []).filter(isImpromptuCandidate);
-    if (!items.length) {
-      tray.innerHTML = '<div class="km-tray-empty">冰箱里暂无适合即兴下厨的快熟配料。</div>';
-      return;
-    }
-    // 极其紧凑的 3~4 列高密度网格，界面极度压扁。
-    const grid = document.createElement('div');
-    grid.className = 'km-tray-grid';
-    for (const e of items) {
-      const unitType = e.unitType || getUnitType(e.name, e.unit);
-      const cell = document.createElement('div');
-      cell.className = 'km-tray-cell';
-      cell.innerHTML = `<span class="km-tray-name">${escapeHtml(e.name)}</span>`;
-      const ctrl = document.createElement('div');
-      ctrl.className = 'km-tray-ctrl';
-      if (unitType === UNIT_TYPE.GEAR) {
-        const cur = gearInfo(getItemGear(e)).value;
-        ctrl.innerHTML = `<div class="km-gear-dots" role="group" aria-label="档位">${
-          [100, 75, 50, 25, 0].map(g => `<button type="button" class="km-gear-dot gear-${g}${g === cur ? ' is-active' : ''}" data-gear="${g}" title="${GEAR_LABELS[g]}" aria-label="${GEAR_LABELS[g]}"></button>`).join('')
-        }</div>`;
-        cell.appendChild(ctrl);
-        const dots = ctrl.querySelectorAll('.km-gear-dot');
-        dots.forEach(dot => {
-          dot.onclick = () => {
-            applyGearImpromptu(e, +dot.dataset.gear);
-            consumed.add(e);
-            dots.forEach(d => d.classList.toggle('is-active', d === dot));
-          };
-        });
-      } else {
-        const qty = +e.qty || 0;
-        ctrl.innerHTML = `<div class="km-piece-step"><button type="button" class="km-step-minus" aria-label="减少">−</button><span class="km-piece-qty">${qty}</span><button type="button" class="km-step-plus" aria-label="增加">+</button></div>`;
-        cell.appendChild(ctrl);
-        const qtyEl = ctrl.querySelector('.km-piece-qty');
-        const setQty = (next) => {
-          e.qty = next;
-          e.unitType = UNIT_TYPE.PIECE;
-          e.stockStatus = next <= 0 ? 'empty' : 'ok';
-          syncOutOfStockTimestamp(e);
-          consumed.add(e);
-          qtyEl.textContent = next;
-        };
-        ctrl.querySelector('.km-step-minus').onclick = () => setQty(Math.max(0, (+e.qty || 0) - 1));
-        ctrl.querySelector('.km-step-plus').onclick = () => setQty((+e.qty || 0) + 1);
-      }
-      grid.appendChild(cell);
-    }
-    const footer = document.createElement('div');
-    footer.className = 'km-tray-footer';
-    const doneBtn = document.createElement('button');
-    doneBtn.type = 'button';
-    doneBtn.className = 'btn ok small km-tray-done';
-    doneBtn.textContent = '✓ 记录完成';
-    doneBtn.onclick = commit;
-    footer.appendChild(doneBtn);
-    tray.appendChild(grid);
-    tray.appendChild(footer);
-  };
-
-  function commit() {
-    // 3.3 刷新「食材实体」反疲劳权重：被消耗食材 cookedCount++ / lastCookedAt
-    const now = Date.now();
-    consumed.forEach(e => {
-      e.cookedCount = (e.cookedCount || 0) + 1;
-      e.lastCookedAt = now;
-    });
-    // 3.1 更新冰箱主库持久化
-    saveInventory(inv);
-    // 3.2 生成虚拟排程卡片（触发 48h 自动下线逻辑）
-    const plans = S.load(S.keys.plan, []);
-    plans.push({ id: 'adhoc_' + Date.now(), name: '[即兴配餐] (空心菜、火腿肠等)', isCooked: true, cookedAt: Date.now(), date: todayISO() });
-    S.save(S.keys.plan, plans);
-    // 3.4 关闭并刷新整页
-    showImpromptuTray = false;
-    onRoute();
-  }
-
-  button.onclick = () => {
-    showImpromptuTray = !showImpromptuTray;
-    button.classList.toggle('is-active', showImpromptuTray);
-    if (showImpromptuTray) {
-      renderTrayBody();
-      tray.classList.remove('is-collapsed');
-    } else {
-      tray.classList.add('is-collapsed');
-    }
-  };
-
-  return { button, tray };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1123,19 +1001,17 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   const card = document.createElement('section');
   card.className = 'today-main-card';
 
-  // 头部：今日计划标题 + 动作组（🍳即兴 / ✓全部做完 / 范围筛选）
+  // 头部：今日计划标题 + 动作组（记录做完 / ✓全部做完 / 范围筛选）
   const head = document.createElement('div');
   head.className = 'today-section-head today-main-head';
   head.innerHTML = '<h2 class="today-section-title">📅 今日计划</h2>';
   const actions = document.createElement('div');
   actions.className = 'menu-plan-head-actions';
-  const impromptu = buildImpromptuCooking(inv, { onRoute });
-  actions.appendChild(impromptu.button);
+  actions.appendChild(createRecordCookedButton(pack, inv, { onRoute }));
   actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
   actions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
   head.appendChild(actions);
   card.appendChild(head);
-  card.appendChild(impromptu.tray); // 即兴托盘紧随头部，点按钮就地展开
 
   // 上半部分：今日计划（复用 renderMenuPlan，保留进详情 / 做完 / 扣库存）
   const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
@@ -1158,16 +1034,14 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
   const section = document.createElement('section');
   section.className = 'today-section today-quick';
   section.innerHTML = `
-    <div class="today-quick-row is-three">
+    <div class="today-quick-row">
       <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>记食材</span></button>
       <button type="button" class="today-quick-btn" id="qaRecipeImport"><span class="tq-emoji">📸</span><span>导入菜谱</span></button>
-      <button type="button" class="today-quick-btn" id="qaCookedMeal"><span class="tq-emoji">🍳</span><span>我刚做了</span></button>
     </div>
   `;
   // 记食材：直接打开现有「记进厨房」弹窗（📸 拍小票识别 + ✍️ 文本批量记）。
   section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
   section.querySelector('#qaRecipeImport').onclick = () => openRecipeImportModal();
-  section.querySelector('#qaCookedMeal').onclick = () => openCookedMealModal(pack, inv, { onRoute });
   return section;
 }
 
@@ -1187,6 +1061,43 @@ function decorateCookedPredictions(predictions, candidates) {
   });
 }
 
+function getTodayPlanRecipeRows(pack) {
+  const today = todayISO();
+  const recipes = pack.recipes || [];
+  return S.load(S.keys.plan, [])
+    .filter(row => row && (row.date || today) === today && !row.isCooked)
+    .map(row => {
+      const recipe = recipes.find(r => r.id === row.id);
+      return recipe ? { row, recipe } : null;
+    })
+    .filter(Boolean);
+}
+
+function markTodayPlanCooked(recipeId) {
+  if (!recipeId) return;
+  const today = todayISO();
+  const plans = S.load(S.keys.plan, []);
+  let changed = false;
+  for (const row of plans) {
+    if (row && row.id === recipeId && (row.date || today) === today && !row.isCooked) {
+      row.isCooked = true;
+      row.cookedAt = Date.now();
+      changed = true;
+    }
+  }
+  if (changed) S.save(S.keys.plan, plans);
+  markRecipeCookedKeepPlan(recipeId);
+}
+
+function createRecordCookedButton(pack, inv, { onRoute = () => {} } = {}) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'home-mini-btn record-cooked-btn';
+  button.textContent = '🍳 记录做完';
+  button.onclick = () => openCookedMealModal(pack, inv, { onRoute });
+  return button;
+}
+
 function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'km-modal-overlay';
@@ -1202,12 +1113,14 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
       </button>
     </div>
     <div class="km-modal-body cooked-meal-body">
-      <textarea class="cooked-meal-textarea" id="cookedMealText" rows="4" placeholder="比如：番茄炒蛋、青菜豆腐汤，或者我炒了鸡腿和豆芽"></textarea>
+      <div class="cooked-meal-start" id="cookedMealStart"></div>
+      <textarea class="cooked-meal-textarea" id="cookedMealText" rows="4" placeholder="比如：番茄炒蛋，或者我炒了鸡腿和豆芽"></textarea>
       <div class="small inline-status cooked-meal-status" id="cookedMealStatus" hidden></div>
       <div class="cooked-meal-result" id="cookedMealResult"></div>
       <div class="km-modal-actions cooked-meal-actions">
         <button type="button" class="btn" id="cookedMealCancel">取消</button>
-        <button type="button" class="btn ok" id="cookedMealAnalyze">生成扣库存建议</button>
+        <button type="button" class="btn" id="cookedMealAddAction" hidden>添加食材</button>
+        <button type="button" class="btn ok" id="cookedMealAnalyze">生成建议</button>
       </div>
     </div>
   `;
@@ -1215,9 +1128,17 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
   document.body.appendChild(overlay);
 
   const textInput = panel.querySelector('#cookedMealText');
+  const startHost = panel.querySelector('#cookedMealStart');
   const status = panel.querySelector('#cookedMealStatus');
   const resultHost = panel.querySelector('#cookedMealResult');
   const analyzeBtn = panel.querySelector('#cookedMealAnalyze');
+  const addActionBtn = panel.querySelector('#cookedMealAddAction');
+  const recipes = pack.recipes || [];
+  let currentRecipe = null;
+  let currentCandidates = [];
+  let currentPredictions = [];
+  let currentSourceLabel = '';
+  let currentMarkPlanId = '';
 
   let closing = false;
   const close = (after = () => {}) => {
@@ -1241,15 +1162,74 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
     status.hidden = true;
     status.textContent = '';
   };
+  const resetAnalyzeButton = () => {
+    analyzeBtn.textContent = '生成建议';
+    analyzeBtn.disabled = false;
+    analyzeBtn.onclick = analyze;
+    addActionBtn.hidden = true;
+  };
 
-  function renderConfirm({ recipe, predictions, sourceLabel }) {
-    const title = recipe
-      ? `匹配到「${recipe.name}」`
+  function renderStart() {
+    const planRows = getTodayPlanRecipeRows(pack);
+    startHost.innerHTML = `
+      <section class="cooked-meal-start-block">
+        <div class="cooked-meal-start-title">从今日计划记录</div>
+        <div class="cooked-meal-plan-list">
+          ${planRows.length
+            ? planRows.slice(0, 5).map(({ recipe }) => `
+              <button type="button" class="cooked-meal-plan-chip" data-recipe-id="${escapeOptionAttr(recipe.id)}">${escapeHtml(recipe.name)}</button>
+            `).join('')
+            : '<span class="cooked-meal-muted">今天还没有待完成的计划。</span>'}
+        </div>
+      </section>
+      <section class="cooked-meal-start-block">
+        <div class="cooked-meal-start-title">直接选食材</div>
+        <button type="button" class="wx-mini-btn cooked-meal-select-btn" id="cookedMealPickStock">直接选库存食材</button>
+      </section>
+    `;
+    startHost.querySelectorAll('.cooked-meal-plan-chip').forEach(btn => {
+      btn.onclick = () => {
+        const recipe = recipes.find(r => r.id === btn.dataset.recipeId);
+        if (recipe) useRecipeForCookedMeal(recipe, { source: '来自今日计划', markPlan: true });
+      };
+    });
+    startHost.querySelector('#cookedMealPickStock')?.addEventListener('click', () => {
+      clearStatus();
+      currentRecipe = null;
+      currentCandidates = [];
+      currentPredictions = [];
+      currentSourceLabel = '你手动选择库存食材。';
+      currentMarkPlanId = '';
+      renderInventoryPicker({ title: '直接选库存食材' });
+    });
+  }
+
+  function recomputeAndRenderConfirm({ recipe = currentRecipe, candidates = currentCandidates, sourceLabel = currentSourceLabel, markPlanId = currentMarkPlanId } = {}) {
+    const merged = mergeCookedMealCandidates(candidates);
+    const predictions = decorateCookedPredictions(computeCookDeductions(merged, inv), merged);
+    if (!predictions.length) {
+      showStatus('没能判断用到了哪些库存食材，可以直接选择食材。', 'bad');
+      renderInventoryPicker({ title: '直接选库存食材' });
+      resetAnalyzeButton();
+      return;
+    }
+    currentRecipe = recipe || null;
+    currentCandidates = merged;
+    currentPredictions = predictions;
+    currentSourceLabel = sourceLabel || '确认后才会更新食材。';
+    currentMarkPlanId = markPlanId || '';
+    renderConfirm();
+  }
+
+  function renderConfirm() {
+    const title = currentRecipe
+      ? `匹配到「${currentRecipe.name}」`
       : '可能用到了这些食材';
+    const predictions = currentPredictions;
     resultHost.innerHTML = `
       <div class="cooked-meal-suggestion-head">
         <strong>${escapeHtml(title)}</strong>
-        <span>${escapeHtml(sourceLabel || '确认后才会更新食材')}</span>
+        <span>${escapeHtml(currentSourceLabel || '确认后才会更新食材')}</span>
       </div>
       <div class="cooked-meal-list">
         ${predictions.map((prediction, index) => {
@@ -1259,23 +1239,44 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
             ? `当前 ${prediction.currentQty}${unit}`
             : `当前 ${GEAR_LABELS[gearInfo(prediction.currentGear).value] || '有'}`;
           const control = isPiece
-            ? `<input class="cooked-meal-use" type="number" min="0" step="1" value="${escapeOptionAttr(String(prediction.suggestedQty || prediction.recipeQty || 1))}"><span>${escapeHtml(unit || '份')}</span>`
-            : `<span class="cooked-meal-gear">降一档</span>`;
+            ? `<input class="cooked-meal-use" type="number" min="0" step="1" value="${escapeOptionAttr(String(prediction.suggestedQty || prediction.recipeQty || 1))}"><input class="cooked-meal-unit" value="${escapeOptionAttr(unit || '份')}" aria-label="单位">`
+            : `<select class="cooked-meal-final-gear" aria-label="剩余档位">${[100, 75, 50, 25, 0].map(g => `<option value="${g}"${g === prediction.predictedGear ? ' selected' : ''}>剩余${GEAR_LABELS[g]}</option>`).join('')}</select>`;
           return `
-            <label class="cooked-meal-row" data-index="${index}">
+            <div class="cooked-meal-row" data-index="${index}">
               <input type="checkbox" class="cooked-meal-check" checked>
               <span class="cooked-meal-main">
                 <strong>${escapeHtml(prediction.match?.name || prediction.name)}</strong>
                 <small>${escapeHtml(prediction.reason || '需确认')} · ${escapeHtml(current)}</small>
               </span>
               <span class="cooked-meal-control">${control}</span>
-            </label>
+              <button type="button" class="cooked-meal-remove" aria-label="移除">×</button>
+            </div>
           `;
         }).join('')}
       </div>
     `;
+    resultHost.querySelectorAll('.cooked-meal-remove').forEach(btn => {
+      btn.onclick = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const row = btn.closest('.cooked-meal-row');
+        const prediction = predictions[Number(row?.dataset.index)];
+        const key = getCanonicalName(prediction?.match?.name || prediction?.name || '');
+        currentCandidates = currentCandidates.filter(item => (getCanonicalName(item?.item || item?.name || '') !== key));
+        if (!currentCandidates.length) {
+          resultHost.innerHTML = '';
+          showStatus('确认单已清空，可以直接选择食材。', '');
+          renderInventoryPicker({ title: '直接选库存食材' });
+        } else {
+          recomputeAndRenderConfirm();
+        }
+      };
+    });
+    startHost.hidden = true;
     analyzeBtn.textContent = '确认更新库存';
     analyzeBtn.disabled = false;
+    addActionBtn.hidden = false;
+    addActionBtn.onclick = () => renderInventoryPicker({ title: '添加库存食材', append: true });
     analyzeBtn.onclick = () => {
       const rows = Array.from(resultHost.querySelectorAll('.cooked-meal-row'));
       const calibrations = rows.map(row => {
@@ -1284,7 +1285,9 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
         if (!prediction) return null;
         if (prediction.unitType === UNIT_TYPE.PIECE) {
           const useQty = Math.max(0, Math.round(Number(row.querySelector('.cooked-meal-use')?.value) || 0));
+          const unit = String(row.querySelector('.cooked-meal-unit')?.value || prediction.unit || prediction.match?.unit || '').trim();
           if (useQty <= 0) return null;
+          if (unit && prediction.match) prediction.match.unit = unit;
           return {
             match: prediction.match,
             name: prediction.name,
@@ -1296,7 +1299,7 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
           match: prediction.match,
           name: prediction.name,
           unitType: UNIT_TYPE.GEAR,
-          finalGear: prediction.predictedGear
+          finalGear: Number(row.querySelector('.cooked-meal-final-gear')?.value ?? prediction.predictedGear)
         };
       }).filter(Boolean);
       if (!calibrations.length) {
@@ -1305,7 +1308,8 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
       }
       const shoppingCandidates = getCookShoppingCandidates({ calibrations });
       applyCookCalibration(inv, calibrations);
-      if (recipe?.id) markRecipeCookedKeepPlan(recipe.id);
+      if (currentMarkPlanId) markTodayPlanCooked(currentMarkPlanId);
+      else if (currentRecipe?.id) markRecipeCookedKeepPlan(currentRecipe.id);
       close(() => showCookCompleteFeedback({
         updated: true,
         candidates: shoppingCandidates,
@@ -1313,6 +1317,83 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
         onShoppingAdded: onRoute
       }));
     };
+  }
+
+  function renderInventoryPicker({ title = '选择库存食材', append = false } = {}) {
+    const available = (inv || [])
+      .filter(item => item && isInventoryAvailable(item))
+      .filter(item => mergeCookedMealCandidates([{ item: item.name }]).length)
+      .sort((a, b) => Number(isImpromptuCandidate(b)) - Number(isImpromptuCandidate(a)) || String(a.name).localeCompare(String(b.name), 'zh-Hans-CN'));
+    const picker = document.createElement('div');
+    picker.className = 'cooked-meal-picker';
+    picker.innerHTML = `
+      <div class="cooked-meal-picker-head">
+        <strong>${escapeHtml(title)}</strong>
+        <input class="cooked-meal-picker-filter" type="search" placeholder="搜索库存食材">
+      </div>
+      <div class="cooked-meal-picker-list">
+        ${available.length
+          ? available.map(item => `
+            <button type="button" class="cooked-meal-stock-option${isImpromptuCandidate(item) ? ' is-suggested' : ''}" data-name="${escapeOptionAttr(item.name)}">
+              <span>${escapeHtml(item.name)}</span>
+              <small>${escapeHtml(item.qty ? `${item.qty}${item.unit || ''}` : item.unit || '')}</small>
+            </button>
+          `).join('')
+          : '<span class="cooked-meal-muted">当前没有可扣减的库存食材。</span>'}
+      </div>
+    `;
+    const host = append && currentPredictions.length ? resultHost : resultHost;
+    if (append && currentPredictions.length) {
+      host.querySelector('.cooked-meal-picker')?.remove();
+      host.appendChild(picker);
+    } else {
+      startHost.hidden = true;
+      addActionBtn.hidden = true;
+      resultHost.innerHTML = '';
+      resultHost.appendChild(picker);
+    }
+    const filter = picker.querySelector('.cooked-meal-picker-filter');
+    const refreshFilter = () => {
+      const q = getCanonicalName(filter.value.trim()) || filter.value.trim();
+      picker.querySelectorAll('.cooked-meal-stock-option').forEach(btn => {
+        const name = btn.dataset.name || '';
+        const canonical = getCanonicalName(name) || '';
+        btn.hidden = q && !name.includes(q) && !canonical.includes(q);
+      });
+    };
+    filter.oninput = refreshFilter;
+    picker.querySelectorAll('.cooked-meal-stock-option').forEach(btn => {
+      btn.onclick = () => {
+        const item = available.find(x => x.name === btn.dataset.name);
+        if (!item) return;
+        const next = {
+          item: item.name,
+          qty: 1,
+          unit: item.unit || guessKitchenUnit(item.name) || '份',
+          reason: '你手动添加',
+          matchName: item.name
+        };
+        currentCandidates = mergeCookedMealCandidates(currentCandidates, [next]);
+        recomputeAndRenderConfirm({
+          recipe: currentRecipe,
+          candidates: currentCandidates,
+          sourceLabel: currentSourceLabel || '你手动选择库存食材。',
+          markPlanId: currentMarkPlanId
+        });
+      };
+    });
+    filter.focus();
+  }
+
+  function useRecipeForCookedMeal(recipe, { source = '来自菜谱', markPlan = false } = {}) {
+    clearStatus();
+    const candidates = getRecipeCoreItems(recipe, pack).map(item => ({ ...item, reason: source }));
+    recomputeAndRenderConfirm({
+      recipe,
+      candidates,
+      sourceLabel: `${source}，确认后才会更新食材。`,
+      markPlanId: markPlan ? recipe.id : ''
+    });
   }
 
   async function analyze() {
@@ -1326,14 +1407,13 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
     clearStatus();
     analyzeBtn.disabled = true;
     analyzeBtn.textContent = '正在分析...';
-    const recipes = pack.recipes || [];
     const recipe = matchCookedMealRecipe(text, recipes);
     let sourceLabel = '';
     let candidates = [];
 
     if (recipe) {
-      candidates = getRecipeCoreItems(recipe, pack);
-      sourceLabel = '来自已有菜谱，确认后才会更新食材。';
+      candidates = getRecipeCoreItems(recipe, pack).map(item => ({ ...item, reason: '来自菜谱' }));
+      sourceLabel = '来自菜谱，确认后才会更新食材。';
     }
 
     let predictions = computeCookDeductions(candidates, inv);
@@ -1363,14 +1443,20 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
 
     if (!predictions.length) {
       analyzeBtn.disabled = false;
-      analyzeBtn.textContent = '生成扣库存建议';
-      if (status.hidden) showStatus('没能判断用到了哪些库存食材，可以手动选择或稍后再记。', 'bad');
+      analyzeBtn.textContent = '生成建议';
+      if (status.hidden) showStatus('没能判断用到了哪些库存食材，可以直接选择食材。', 'bad');
+      renderInventoryPicker({ title: '直接选库存食材' });
       return;
     }
 
     const decorated = decorateCookedPredictions(predictions, candidates);
     clearStatus();
-    renderConfirm({ recipe, predictions: decorated, sourceLabel });
+    currentRecipe = recipe || null;
+    currentCandidates = mergeCookedMealCandidates(candidates);
+    currentPredictions = decorated;
+    currentSourceLabel = sourceLabel || '确认后才会更新食材。';
+    currentMarkPlanId = '';
+    renderConfirm();
   }
 
   analyzeBtn.onclick = analyze;
@@ -1380,6 +1466,7 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
   textInput.onkeydown = event => {
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') analyze();
   };
+  renderStart();
   requestAnimationFrame(() => overlay.classList.add('open'));
   setTimeout(() => textInput.focus(), 80);
 }
@@ -1544,16 +1631,14 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     cardWrap.onpointercancel = () => { touchStart = null; };
   };
 
-  // ── 📅 计划：动作组（即兴/全部做完/范围）+ 即兴托盘 + 计划列表，全部复用现有组件 ──
+  // ── 📅 计划：动作组（记录做完/全部做完/范围）+ 计划列表，全部复用现有组件 ──
   const renderPlanTab = () => {
     const actions = document.createElement('div');
     actions.className = 'menu-plan-head-actions wx-plan-actions';
-    const impromptu = buildImpromptuCooking(inv, { onRoute });
-    actions.appendChild(impromptu.button);
+    actions.appendChild(createRecordCookedButton(pack, inv, { onRoute }));
     actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
     actions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
     body.appendChild(actions);
-    body.appendChild(impromptu.tray);
 
     const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
     // 空态瘦身：一行轻提示 + 「看推荐」切 tab（原空态是纯静态节点、无事件绑定，见 menu-plan.js）。

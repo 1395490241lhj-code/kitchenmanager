@@ -1,7 +1,7 @@
 /*
  * src/utils/cooked-meal.js
  *
- * “我刚做了”入口的纯逻辑：只负责把自然语言转换成候选库存项。
+ * “记录做完”入口的纯逻辑：只负责把自然语言转换成候选库存项。
  * 不读写 localStorage，不操作 DOM；真正扣减仍由首页确认弹窗调用 inventory 逻辑。
  */
 import {

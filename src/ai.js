@@ -359,8 +359,11 @@ export function validateCookedMealResult(input) {
   const data = safeParseJson(input, '刚做了什么分析结果');
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('刚做了什么分析结果不是对象。');
 
-  const dishes = Array.isArray(data.dishes)
-    ? data.dishes.map(dish => {
+  const rawDishes = Array.isArray(data.dishes)
+    ? data.dishes
+    : (Array.isArray(data.usedIngredients) ? [{ name: '', matchedRecipeName: '', usedIngredients: data.usedIngredients }] : []);
+  const dishes = rawDishes
+    .map(dish => {
       const name = String(dish?.name || '').trim();
       const matchedRecipeName = String(dish?.matchedRecipeName || '').trim();
       const usedIngredients = Array.isArray(dish?.usedIngredients)
@@ -376,8 +379,7 @@ export function validateCookedMealResult(input) {
         }).filter(Boolean)
         : [];
       return { name, matchedRecipeName, usedIngredients };
-    }).filter(dish => dish.name || dish.matchedRecipeName || dish.usedIngredients.length)
-    : [];
+    }).filter(dish => dish.name || dish.matchedRecipeName || dish.usedIngredients.length);
 
   if (!dishes.length) throw new Error('AI 没有判断出可确认的食材。');
   return { dishes, needsReview: data.needsReview !== false };
