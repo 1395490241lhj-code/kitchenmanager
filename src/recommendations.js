@@ -1,5 +1,6 @@
 import { S, todayISO } from './storage.js?v=219';
 import {
+  INGREDIENT_ALIASES,
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
@@ -13,6 +14,7 @@ import {
 } from './inventory.js?v=219';
 import { addShoppingItem } from './shopping.js?v=219';
 import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=219';
+import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=219';
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
@@ -400,6 +402,96 @@ function buildTargetRecipeReason({ targetHits, missingTargets, inventoryMissing 
     return `用到了${formatIngredientList(targetHits)}，没用到${formatIngredientList(missingTargets)}`;
   }
   return '没有命中指定食材';
+}
+
+function getRecipeCoreSearchTerms(name) {
+  const canonical = getCanonicalName(name || '');
+  if (!canonical) return [];
+  const names = new Set([canonical, name]);
+  for (const alias of (INGREDIENT_ALIASES[canonical] || [])) {
+    if (alias) names.add(alias);
+  }
+  return [...names]
+    .map(item => normalizeText(item))
+    .filter(item => item && (item.length >= 2 || item === '蛋'));
+}
+
+function getCompactRecipeIngredientHits(recipe, pack, queryNorm) {
+  if (!queryNorm) return [];
+  const hits = [];
+  const seen = new Set();
+  for (const core of getRecipeCoreIngredients(recipe, pack)) {
+    const name = core.item || core.name;
+    const terms = getRecipeCoreSearchTerms(name);
+    if (!terms.some(term => queryNorm.includes(term))) continue;
+    const canonical = getCanonicalName(name);
+    if (!canonical || seen.has(canonical)) continue;
+    seen.add(canonical);
+    hits.push(canonical);
+  }
+  return hits;
+}
+
+export function findRecipesByName(pack, query, options = {}) {
+  const q = String(query || '').trim();
+  const qNorm = normalizeText(q);
+  if (!qNorm) return [];
+  const recipes = pack.recipes || [];
+  const limit = options.limit || 5;
+  const context = options.context || {};
+  const searchOptions = {
+    ...options,
+    context: {
+      ...context,
+      favoriteIds: context.favoriteIds ? normalizeRecommendationSet(context.favoriteIds) : undefined,
+      stockableIds: context.stockableIds ? normalizeRecommendationSet(context.stockableIds) : undefined,
+      almostIds: context.almostIds ? normalizeRecommendationSet(context.almostIds) : undefined,
+      recentIds: context.recentIds ? normalizeRecommendationSet(context.recentIds) : undefined
+    }
+  };
+  const resultMap = new Map();
+
+  const remember = (recipe, score, reasons = []) => {
+    if (!recipe || !recipe.id || score <= 0) return;
+    const prev = resultMap.get(recipe.id);
+    const nextReasons = [...new Set([...(prev?.reasons || []), ...reasons].filter(Boolean))];
+    resultMap.set(recipe.id, {
+      recipe,
+      score: Math.max(prev?.score || 0, score),
+      reasons: nextReasons
+    });
+  };
+
+  for (const result of searchRecipesByText(recipes, q, pack, searchOptions).slice(0, Math.max(limit * 2, 8))) {
+    const nameNorm = normalizeText(result.recipe?.name || '');
+    const nameReason = nameNorm === qNorm
+      ? '菜名完全匹配'
+      : nameNorm.includes(qNorm) || qNorm.includes(nameNorm)
+        ? '菜名匹配'
+        : '';
+    remember(result.recipe, result.score, [nameReason, ...(result.reasons || [])]);
+  }
+
+  for (const recipe of recipes) {
+    const nameNorm = normalizeText(recipe.name || '');
+    const hits = getCompactRecipeIngredientHits(recipe, pack, qNorm);
+    if (hits.length < 2 && !(nameNorm && (nameNorm.includes(qNorm) || qNorm.includes(nameNorm)))) continue;
+    const score = hits.length * 90 + (nameNorm === qNorm ? 500 : nameNorm.includes(qNorm) ? 180 : 0);
+    remember(recipe, score, hits.length ? [`用到${formatIngredientList(hits, 3)}`] : ['菜名匹配']);
+  }
+
+  return [...resultMap.values()]
+    .sort((a, b) => b.score - a.score || String(a.recipe.name || '').localeCompare(String(b.recipe.name || ''), 'zh-Hans-CN'))
+    .slice(0, limit)
+    .map(item => ({
+      id: item.recipe.id,
+      name: item.recipe.name,
+      r: item.recipe,
+      recipe: item.recipe,
+      score: Math.round(item.score * 10) / 10,
+      matchLabel: '现有菜谱',
+      reason: item.reasons[0] || '本地菜谱匹配'
+    }));
 }
 
 export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}) {

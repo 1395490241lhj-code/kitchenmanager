@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 
 import { installLocalStorageStub, resetLocalStorage } from './helpers/localstorage-stub.mjs';
 import {
+  addRecipeToPlan,
+  findRecipesByName,
   findRecipesUsingIngredients,
   normalizeTargetIngredientNames
 } from '../src/recommendations.js';
+import { S } from '../src/storage.js';
 
 beforeEach(() => {
   installLocalStorageStub();
@@ -71,6 +74,34 @@ test('番茄目标能匹配菜谱里的西红柿', () => {
   );
   assert.equal(results[0].id, 'tomato-egg');
   assert.equal(results[0].targetHits.length, 2);
+});
+
+test('首页统一搜索：输入现有菜名“番茄炒蛋”能匹配菜谱', () => {
+  const results = findRecipesByName(PACK, '番茄炒蛋', { context: CONTEXT });
+  assert.equal(results[0].id, 'tomato-egg');
+  assert.equal(results[0].matchLabel, '现有菜谱');
+});
+
+test('首页统一搜索：输入别名“西红柿鸡蛋”也尽量匹配番茄炒蛋', () => {
+  const results = findRecipesByName(PACK, '西红柿鸡蛋', { context: CONTEXT });
+  assert.equal(results[0].id, 'tomato-egg');
+  assert.match(results[0].reason, /用到|匹配/);
+});
+
+test('首页统一搜索：多个食材仍走食材推荐逻辑', () => {
+  const { targets } = parseTargetIngredients('鸡蛋 番茄');
+  const results = findRecipesUsingIngredients(PACK, [], targets.map(t => t.canonical), {
+    context: CONTEXT,
+    targetDescriptors: targets
+  });
+  assert.equal(results[0].id, 'tomato-egg');
+});
+
+test('首页统一搜索：菜名结果加入今日计划不会重复创建计划', () => {
+  assert.equal(addRecipeToPlan('tomato-egg', '2026-06-11'), true);
+  assert.equal(addRecipeToPlan('tomato-egg', '2026-06-11'), false);
+  const plan = S.load(S.keys.plan, []);
+  assert.equal(plan.filter(item => item.id === 'tomato-egg' && item.date === '2026-06-11').length, 1);
 });
 
 test('目标里的盐、水、高汤会被过滤，不参与目标匹配', () => {

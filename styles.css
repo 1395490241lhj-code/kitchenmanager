@@ -8885,6 +8885,74 @@ html[data-theme="dark"] .menu-prep-tag-marinate { color: #ffd08a; border-color: 
 .target-recipe-summary {
   margin-top: -2px;
 }
+.target-recipe-section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 3px 2px 7px;
+  color: var(--text-main);
+}
+.target-recipe-section-title strong {
+  font-size: 13px;
+  font-weight: 850;
+}
+.target-recipe-section-title span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+.target-recipe-results {
+  display: grid;
+  gap: 7px;
+}
+.target-recipe-result-list {
+  display: grid;
+  gap: 7px;
+}
+.target-recipe-result-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 58px;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid var(--glass-edge);
+  background: var(--surface-cell);
+}
+.target-recipe-result-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.target-recipe-result-main strong,
+.target-recipe-result-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.target-recipe-result-main strong {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 850;
+}
+.target-recipe-result-main small {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+.target-recipe-result-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.target-recipe-plan-btn {
+  background: var(--km-primary-control-bg);
+  color: var(--km-primary-control-text);
+  border-color: var(--km-primary-control-border);
+}
 html[data-theme="dark"] .target-recipe-search {
   background: linear-gradient(135deg, rgba(40, 44, 54, 0.42), rgba(20, 22, 28, 0.18));
 }
@@ -8912,9 +8980,23 @@ html[data-theme="dark"] .target-recipe-btn {
     padding: 0 10px;
     font-size: 12px;
   }
+  .target-recipe-section-title,
+  .target-recipe-result-card,
+  .target-recipe-result-actions {
+    align-items: stretch;
+  }
+  .target-recipe-section-title,
+  .target-recipe-result-card {
+    flex-direction: column;
+  }
+  .target-recipe-result-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
 }
 
-/* ── 「想用这些食材」AI 创意做法区（v168）：本地结果之下、轻分层，不抢主视觉 ── */
+/* ── 首页统一搜索里的 AI 草稿区：本地结果之下、轻分层，不抢主视觉 ── */
 .target-recipe-ai-box {
   margin-top: 10px;
   padding-top: 10px;
@@ -9081,6 +9163,7 @@ html[data-theme="dark"] {
 .wx-mini-btn.is-ai,
 .target-recipe-btn,
 .target-recipe-ai-btn,
+.target-recipe-plan-btn,
 .today-quick-btn.is-primary,
 .wx-rec-card .home-suggest-cook {
   background: var(--km-primary-control-bg);
@@ -9107,6 +9190,7 @@ html[data-theme="dark"] {
 .recipe-light-action:focus-visible,
 .target-recipe-btn:focus-visible,
 .target-recipe-ai-btn:focus-visible,
+.target-recipe-plan-btn:focus-visible,
 .target-recipe-clear:focus-visible {
   outline: 2px solid rgba(0, 122, 255, 0.36);
   outline-offset: 2px;
@@ -9163,6 +9247,7 @@ html[data-theme="light"] .tomorrow-prep-cta,
 html[data-theme="light"] .wx-mini-btn.is-ai,
 html[data-theme="light"] .target-recipe-btn,
 html[data-theme="light"] .target-recipe-ai-btn,
+html[data-theme="light"] .target-recipe-plan-btn,
 html[data-theme="light"] .today-quick-btn.is-primary,
 html[data-theme="light"] .wx-rec-card .home-suggest-cook {
   color: var(--primary-dark);
@@ -9233,7 +9318,8 @@ html[data-theme="light"] button:disabled,
 html[data-theme="light"] .btn:disabled,
 html[data-theme="light"] .wx-mini-btn:disabled,
 html[data-theme="light"] .target-recipe-btn:disabled,
-html[data-theme="light"] .target-recipe-ai-btn:disabled {
+html[data-theme="light"] .target-recipe-ai-btn:disabled,
+html[data-theme="light"] .target-recipe-plan-btn:disabled {
   opacity: 0.55;
   cursor: default;
 }

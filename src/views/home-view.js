@@ -4,10 +4,10 @@ import { applyCookCalibration, computeCookDeductions, isInventoryAvailable, load
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
-  findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
+  findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, markRecipeCookedKeepPlan, processAiData
 } from '../recommendations.js?v=219';
-import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
+import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=219';
 import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=219';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=219';
@@ -1563,12 +1563,23 @@ let targetCreativeDraft = null;
 let targetCreativeStatus = 'idle';
 let targetCreativeError = '';
 let targetCreativeHistory = { names: [], modes: [] };
+let targetDishDraft = null;
+let targetDishStatus = 'idle';
+let targetDishError = '';
+let targetDishQuery = '';
 
 function resetTargetCreative() {
   targetCreativeDraft = null;
   targetCreativeStatus = 'idle';
   targetCreativeError = '';
   targetCreativeHistory = { names: [], modes: [] };
+}
+
+function resetTargetDishDraft() {
+  targetDishDraft = null;
+  targetDishStatus = 'idle';
+  targetDishError = '';
+  targetDishQuery = '';
 }
 
 function rememberTargetCreativeDraft(draft) {
@@ -1584,8 +1595,18 @@ function rememberTargetCreativeDraft(draft) {
 
 // 解析目标食材：类别展开（菌菇/绿叶菜/肉片…）+ 库存辅助 + 调料过滤，详见 ingredient-intent。
 function parseTargetRecipeQuery(query, inv) {
+  const raw = String(query || '').trim();
   const inventoryNames = (inv || []).map(x => x && x.name).filter(Boolean);
-  return parseTargetIngredients(query, { inventoryNames, limit: 5 }).targets;
+  const parsed = parseTargetIngredients(raw, { inventoryNames, limit: 5 }).targets;
+  const hasSeparator = /[\s,，、/;；]+/.test(raw);
+  if (!hasSeparator && parsed.length === 1 && raw.length >= 3) {
+    const target = parsed[0];
+    const stockSet = new Set(inventoryNames.map(name => getCanonicalName(name)).filter(Boolean));
+    if (target.canonical === getCanonicalName(raw) && !target.category && !stockSet.has(target.canonical)) {
+      return [];
+    }
+  }
+  return parsed;
 }
 
 // 单一主信息面板：顶部 segmented tabs（📅计划 / ⏳到期 / 🛒待买 / ✨推荐），
@@ -1752,23 +1773,24 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
 
   // ── ✨ 推荐：一次只展示 1 个主推荐（不摊开三张卡）。
   //    「换一道」在已有推荐里轮换；「AI 换一批」沿用原 callCloudAI → processAiData 流程。──
-  const renderTargetRecipeSearch = (targetNames, resultCount) => {
+  const renderTargetRecipeSearch = (targetNames, resultCount, nameCount = 0) => {
     const hasQuery = !!targetRecipeQuery.trim();
     const search = document.createElement('div');
     search.className = 'target-recipe-search';
-    const hint = targetNames.length
-      ? `用「${escapeHtml(targetNames.join('、'))}」能做这些${Number.isFinite(resultCount) ? ` · ${resultCount} 道` : ''}`
-      : hasQuery
-        ? '没识别到可推荐的主食材，可以试试牛肉、番茄、土豆。'
-        : '比如：番茄 鸡蛋、蘑菇 鸡肉。先从本地菜谱里找。';
+    const hint = hasQuery
+      ? ([
+          nameCount ? `找到 ${nameCount} 道现有菜谱` : '',
+          targetNames.length && Number.isFinite(resultCount) ? `按食材推荐 ${resultCount} 道` : ''
+        ].filter(Boolean).join(' · ') || '没找到现有菜谱，可以让 AI 生成草稿。')
+      : '输入菜名或食材，找到后可以直接加入今天。';
     search.innerHTML = `
       <div class="target-recipe-head">
-        <span>想用这些食材？</span>
+        <span>想做什么？</span>
         <small class="target-recipe-hint">${hint}</small>
       </div>
       <div class="target-recipe-input-row">
-        <input class="target-recipe-input" type="text" value="${escapeOptionAttr(targetRecipeQuery)}" placeholder="比如 牛肉 土豆 / 鸡蛋 番茄">
-        <button type="button" class="target-recipe-btn">推荐</button>
+        <input class="target-recipe-input" type="text" value="${escapeOptionAttr(targetRecipeQuery)}" placeholder="比如 番茄炒蛋 / 鸡蛋 番茄">
+        <button type="button" class="target-recipe-btn">找菜</button>
         ${hasQuery ? '<button type="button" class="target-recipe-clear">清空</button>' : ''}
       </div>
     `;
@@ -1777,6 +1799,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       targetRecipeQuery = input.value.trim();
       recsState = null;
       resetTargetCreative(); // 换了目标食材，旧的 AI 草稿不再适用
+      resetTargetDishDraft();
       switchTab('recs');
     };
     search.querySelector('.target-recipe-btn').onclick = applyQuery;
@@ -1787,9 +1810,58 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       targetRecipeQuery = '';
       recsState = null;
       resetTargetCreative();
+      resetTargetDishDraft();
       switchTab('recs');
     });
     return search;
+  };
+
+  const renderRecipeNameResults = (matches) => {
+    const section = document.createElement('div');
+    section.className = 'target-recipe-results';
+    section.innerHTML = `
+      <div class="target-recipe-section-title">
+        <strong>找到这些菜</strong>
+        <span>可以直接加入今天</span>
+      </div>
+      <div class="target-recipe-result-list"></div>
+    `;
+    const list = section.querySelector('.target-recipe-result-list');
+    matches.forEach(item => {
+      const card = document.createElement('article');
+      card.className = 'target-recipe-result-card';
+      card.innerHTML = `
+        <span class="target-recipe-result-main">
+          <strong>${escapeHtml(item.name)}</strong>
+          <small>${escapeHtml(item.reason || '本地菜谱匹配')}</small>
+        </span>
+        <span class="target-recipe-result-actions">
+          <button type="button" class="wx-mini-btn target-recipe-plan-btn">加入今日计划</button>
+          <button type="button" class="wx-mini-btn target-recipe-view-btn">查看做法</button>
+        </span>
+      `;
+      const addBtn = card.querySelector('.target-recipe-plan-btn');
+      addBtn.onclick = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        const added = addRecipeToPlan(item.id);
+        brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+      };
+      card.querySelector('.target-recipe-view-btn').onclick = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        location.hash = `#recipe:${item.id}`;
+      };
+      list.appendChild(card);
+    });
+    return section;
+  };
+
+  const renderTargetSectionTitle = (title, subtitle = '') => {
+    const head = document.createElement('div');
+    head.className = 'target-recipe-section-title';
+    head.innerHTML = `<strong>${escapeHtml(title)}</strong>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ''}`;
+    return head;
   };
 
   // ── AI 创意做法（指定食材模式专属）：本地结果之下、明确分层；只有点按钮才调 AI ──
@@ -1882,9 +1954,75 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     return box;
   };
 
+  const renderDishDraftBox = (query) => {
+    const box = document.createElement('div');
+    box.className = 'target-recipe-ai-box target-recipe-dish-ai';
+    if (targetDishDraft && targetDishQuery === query) {
+      const note = document.createElement('p');
+      note.className = 'target-recipe-ai-note';
+      note.innerHTML = '<span class="target-recipe-ai-mode">AI 草稿</span><span>确认后才会保存，不会自动加入今天。</span>';
+      box.appendChild(note);
+      const cardHost = document.createElement('div');
+      cardHost.className = 'target-recipe-ai-card';
+      cardHost.appendChild(renderAiRecipeDraftCard(targetDishDraft));
+      box.appendChild(cardHost);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'wx-empty wx-rec-empty target-recipe-no-match';
+      empty.innerHTML = `
+        <strong>没找到现有菜谱</strong>
+        <span>可以让 AI 先生成一份草稿，确认后再保存。</span>
+      `;
+      box.appendChild(empty);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'target-recipe-ai-actions';
+    actions.innerHTML = `
+      <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetDishAiBtn"${targetDishStatus === 'loading' ? ' disabled' : ''}>
+        ${targetDishStatus === 'loading' ? '正在整理菜谱...' : '让 AI 生成这道菜'}
+      </button>
+    `;
+    box.appendChild(actions);
+    if (targetDishError) {
+      const err = document.createElement('div');
+      err.className = 'small inline-status bad';
+      err.textContent = targetDishError;
+      box.appendChild(err);
+    }
+
+    const trigger = box.querySelector('#targetDishAiBtn');
+    if (trigger) trigger.onclick = async () => {
+      if (targetDishStatus === 'loading') return;
+      targetDishStatus = 'loading';
+      targetDishError = '';
+      targetDishQuery = query;
+      switchTab('recs');
+      try {
+        const invNames = (inv || []).map(x => x && x.name).filter(Boolean).join('、');
+        targetDishDraft = await withTimeout(callAiSearchRecipe(query, invNames), 30000, 'AI 响应超时');
+        targetDishQuery = query;
+        targetDishStatus = 'success';
+      } catch (err) {
+        targetDishStatus = 'error';
+        targetDishError = `${formatAiErrorMessage(err)} 可以换个菜名或先按食材推荐。`;
+      }
+      switchTab('recs');
+    };
+    return box;
+  };
+
   const renderRecsTab = () => {
+    const rawQuery = targetRecipeQuery.trim();
+    const hasSearchQuery = !!rawQuery;
     const targetDescriptors = parseTargetRecipeQuery(targetRecipeQuery, inv);
     const targetNames = targetDescriptors.map(t => t.canonical);
+    const nameMatches = hasSearchQuery
+      ? perfMeasure(`findRecipesByName(${rawQuery})`, () => findRecipesByName(pack, rawQuery, {
+          context: getRecommendationUiContext(),
+          limit: 4
+        }))
+      : [];
     const targetKey = targetNames.join('|');
     if (targetNames.length) {
       // 同一面板内目标没变（如点 AI 按钮 / 来回切 tab 触发的重绘）→ 复用上次结果，
@@ -1905,11 +2043,21 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         key: targetKey,
         targets: targetNames
       };
+    } else if (hasSearchQuery) {
+      recsState = { mode: 'search', cards: [], idx: 0, key: rawQuery };
     } else if (!recsState || recsState.mode === 'target') {
       recsState = initRecsState();
     }
     const { mode, cards, idx } = recsState;
-    body.appendChild(renderTargetRecipeSearch(targetNames, cards.length));
+    body.appendChild(renderTargetRecipeSearch(targetNames, cards.length, nameMatches.length));
+    if (nameMatches.length) {
+      body.appendChild(renderRecipeNameResults(nameMatches));
+    }
+
+    if (hasSearchQuery && !targetNames.length) {
+      if (!nameMatches.length) body.appendChild(renderDishDraftBox(rawQuery));
+      return;
+    }
 
     const cardWrap = document.createElement('div');
     cardWrap.className = 'wx-rec-card';
@@ -1945,6 +2093,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv));
     }
     bindRecommendationCycling(cardWrap);
+    if (mode === 'target' && targetNames.length) {
+      body.appendChild(renderTargetSectionTitle('按这些食材推荐', '继续从本地菜谱里找'));
+    }
     body.appendChild(cardWrap);
 
     if (cards.length) {
