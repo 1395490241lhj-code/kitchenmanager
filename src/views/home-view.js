@@ -1,5 +1,5 @@
 import { S, todayISO } from '../storage.js?v=219';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, UNIT_TYPE } from '../ingredients.js?v=219';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, UNIT_TYPE, explodeCombinedItems } from '../ingredients.js?v=219';
 import { applyCookCalibration, computeCookDeductions, isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, gearInfo, GEAR_LABELS } from '../inventory.js?v=219';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import {
@@ -15,6 +15,8 @@ import { perfMeasure } from '../utils/perf.js?v=219';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
+import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=219';
+import { splitMethodSteps } from '../utils/method-steps.js?v=219';
 import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=219';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
 import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=219';
@@ -1791,7 +1793,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       <div class="target-recipe-input-row">
         <input class="target-recipe-input" type="text" value="${escapeOptionAttr(targetRecipeQuery)}" placeholder="比如 番茄炒蛋 / 鸡蛋 番茄">
         <button type="button" class="target-recipe-btn">找菜</button>
-        ${hasQuery ? '<button type="button" class="target-recipe-clear">清空</button>' : ''}
+        ${hasQuery ? '<button type="button" class="target-recipe-clear" aria-label="清空搜索" title="清空搜索">❌</button>' : ''}
       </div>
     `;
     const input = search.querySelector('.target-recipe-input');
@@ -1812,6 +1814,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       resetTargetCreative();
       resetTargetDishDraft();
       switchTab('recs');
+      requestAnimationFrame(() => document.querySelector('.today-view .target-recipe-input')?.focus());
     });
     return search;
   };
@@ -1850,7 +1853,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       card.querySelector('.target-recipe-view-btn').onclick = event => {
         event.preventDefault();
         event.stopPropagation();
-        location.hash = `#recipe:${item.id}`;
+        openRecipePreviewModal(item.r || item.recipe);
       };
       list.appendChild(card);
     });
@@ -1862,6 +1865,60 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     head.className = 'target-recipe-section-title';
     head.innerHTML = `<strong>${escapeHtml(title)}</strong>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ''}`;
     return head;
+  };
+
+  const renderPreviewIngredientChips = (items, emptyText) => {
+    if (!items.length) return `<span class="recipe-preview-muted">${escapeHtml(emptyText)}</span>`;
+    return items.map(item => {
+      const name = item.item || item.name || '';
+      const amount = [item.qty, item.unit].filter(v => v !== null && v !== undefined && String(v).trim()).join('');
+      return `<span class="recipe-preview-chip"><strong>${escapeHtml(name)}</strong>${amount ? `<small>${escapeHtml(amount)}</small>` : ''}</span>`;
+    }).join('');
+  };
+
+  const renderPreviewMethod = (method) => {
+    const steps = splitMethodSteps(method);
+    if (!steps.length) {
+      return '<p class="recipe-preview-muted">这个菜谱还没有做法，可以先加入计划或稍后补做法。</p>';
+    }
+    return `<ol class="recipe-preview-steps">${steps.map((step, index) => `
+      <li><span>${index + 1}</span><p>${escapeHtml(step)}</p></li>
+    `).join('')}</ol>`;
+  };
+
+  const openRecipePreviewModal = (recipe) => {
+    if (!recipe) return;
+    const items = explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
+    const { foods, seasonings, nonStock } = splitRecipeIngredients(items);
+    const referenceItems = [...seasonings, ...nonStock];
+    const content = document.createElement('div');
+    content.className = 'km-modal-body recipe-preview-body';
+    content.innerHTML = `
+      <section class="recipe-preview-section">
+        <h4>核心食材</h4>
+        <div class="recipe-preview-chip-list">${renderPreviewIngredientChips(foods, '还没有录入核心食材。')}</div>
+      </section>
+      <section class="recipe-preview-section">
+        <h4>调味 / 参考配料</h4>
+        <div class="recipe-preview-chip-list">${renderPreviewIngredientChips(referenceItems, '暂无调味或参考配料。')}</div>
+      </section>
+      <section class="recipe-preview-section">
+        <h4>做法</h4>
+        ${renderPreviewMethod(recipe.method || '')}
+      </section>
+      <div class="km-modal-actions recipe-preview-actions">
+        <button type="button" class="btn" id="recipePreviewClose">关闭</button>
+        <button type="button" class="btn ok" id="recipePreviewPlan">加入今日计划</button>
+      </div>
+    `;
+    const modal = createHomeModal(content, recipe.name || '菜谱预览');
+    const addBtn = content.querySelector('#recipePreviewPlan');
+    addBtn.onclick = event => {
+      event.preventDefault();
+      const added = addRecipeToPlan(recipe.id);
+      brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+    };
+    content.querySelector('#recipePreviewClose').onclick = modal.close;
   };
 
   // ── AI 创意做法（指定食材模式专属）：本地结果之下、明确分层；只有点按钮才调 AI ──
@@ -1968,22 +2025,36 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       box.appendChild(cardHost);
     } else {
       const empty = document.createElement('div');
-      empty.className = 'wx-empty wx-rec-empty target-recipe-no-match';
+      empty.className = 'target-recipe-fallback-head';
       empty.innerHTML = `
         <strong>没找到现有菜谱</strong>
-        <span>可以让 AI 先生成一份草稿，确认后再保存。</span>
+        <span>可以生成草稿，也可以以后接入联网参考。</span>
       `;
       box.appendChild(empty);
     }
 
-    const actions = document.createElement('div');
-    actions.className = 'target-recipe-ai-actions';
-    actions.innerHTML = `
-      <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetDishAiBtn"${targetDishStatus === 'loading' ? ' disabled' : ''}>
-        ${targetDishStatus === 'loading' ? '正在整理菜谱...' : '让 AI 生成这道菜'}
-      </button>
+    const options = document.createElement('div');
+    options.className = 'target-recipe-fallback-grid';
+    options.innerHTML = `
+      <article class="target-recipe-fallback-card">
+        <span>
+          <strong>AI 生成草稿</strong>
+          <small>根据你的厨房和菜名生成一份可编辑草稿。</small>
+        </span>
+        <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetDishAiBtn"${targetDishStatus === 'loading' ? ' disabled' : ''}>
+          ${targetDishStatus === 'loading' ? '正在整理草稿...' : (targetDishDraft && targetDishQuery === query ? '重新生成 AI 草稿' : '生成 AI 草稿')}
+        </button>
+      </article>
+      <article class="target-recipe-fallback-card">
+        <span>
+          <strong>联网搜索参考</strong>
+          <small>当前还没接入，后续可从网上找相近做法。</small>
+        </span>
+        <button type="button" class="wx-mini-btn target-recipe-web-btn" id="targetDishWebBtn">联网找做法</button>
+      </article>
+      <div class="small inline-status target-recipe-web-status" id="targetDishWebStatus" hidden></div>
     `;
-    box.appendChild(actions);
+    box.appendChild(options);
     if (targetDishError) {
       const err = document.createElement('div');
       err.className = 'small inline-status bad';
@@ -2008,6 +2079,11 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         targetDishError = `${formatAiErrorMessage(err)} 可以换个菜名或先按食材推荐。`;
       }
       switchTab('recs');
+    };
+    const webBtn = box.querySelector('#targetDishWebBtn');
+    const webStatus = box.querySelector('#targetDishWebStatus');
+    if (webBtn) webBtn.onclick = () => {
+      setInlineStatus(webStatus, '当前还没有接入联网搜索，只能先用 AI 生成草稿。', 'info');
     };
     return box;
   };
