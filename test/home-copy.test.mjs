@@ -25,3 +25,11 @@ test('内置数据不主动使用“韭葱”或 leek 作为食材名', () => {
   const overlay = read('data/recipe-completion-overlay.json');
   assert.doesNotMatch(`${curated}\n${raw}\n${overlay}`, /韭葱|leeks?/i);
 });
+
+test('首页菜谱预览区区分本地菜谱和 AI 草稿来源', () => {
+  const home = read('src/views/home-view.js');
+
+  assert.match(home, /本地菜谱 · 可以直接加入今日计划/);
+  assert.match(home, /AI 草稿 ·/);
+  assert.match(home, /AI 草稿，确认后才会保存/);
+});

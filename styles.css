@@ -9115,6 +9115,13 @@ html[data-theme="dark"] .target-recipe-btn {
   display: grid;
   gap: 13px;
 }
+.recipe-preview-source {
+  margin: -2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
 .recipe-preview-section {
   display: grid;
   gap: 8px;

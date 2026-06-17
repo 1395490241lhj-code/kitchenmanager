@@ -1903,7 +1903,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     `).join('')}</ol>`;
   };
 
-  const openRecipePreviewModal = (recipe) => {
+  const openRecipePreviewModal = (recipe, { sourceLabel = '本地菜谱 · 可以直接加入今日计划' } = {}) => {
     if (!recipe) return;
     const items = explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
     const { foods, seasonings, nonStock } = splitRecipeIngredients(items);
@@ -1911,6 +1911,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     const content = document.createElement('div');
     content.className = 'km-modal-body recipe-preview-body';
     content.innerHTML = `
+      <p class="recipe-preview-source">${escapeHtml(sourceLabel)}</p>
       <section class="recipe-preview-section">
         <h4>核心食材</h4>
         <div class="recipe-preview-chip-list">${renderPreviewIngredientChips(foods, '还没有录入核心食材。')}</div>
@@ -1991,7 +1992,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       box.appendChild(actions);
       const hint = document.createElement('p');
       hint.className = 'target-recipe-ai-hint';
-      hint.textContent = 'AI 只生成草稿，确认后才会保存。';
+      hint.textContent = 'AI 草稿，确认后才会保存。';
       box.appendChild(hint);
       if (targetCreativeStatus === 'error' && targetCreativeError) {
         const err = document.createElement('div');
