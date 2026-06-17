@@ -1820,6 +1820,12 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   };
 
   const renderRecipeNameResults = (matches) => {
+    const refreshAfterAdd = (added) => {
+      if (!added) return;
+      window.setTimeout(() => {
+        onRoute();
+      }, 650);
+    };
     const section = document.createElement('div');
     section.className = 'target-recipe-results';
     section.innerHTML = `
@@ -1833,27 +1839,38 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     matches.forEach(item => {
       const card = document.createElement('article');
       card.className = 'target-recipe-result-card';
+      card.setAttribute('role', 'button');
+      card.tabIndex = 0;
       card.innerHTML = `
         <span class="target-recipe-result-main">
           <strong>${escapeHtml(item.name)}</strong>
           <small>${escapeHtml(item.reason || '本地菜谱匹配')}</small>
         </span>
         <span class="target-recipe-result-actions">
-          <button type="button" class="wx-mini-btn target-recipe-plan-btn">加入今日计划</button>
           <button type="button" class="wx-mini-btn target-recipe-view-btn">查看做法</button>
+          <button type="button" class="wx-mini-btn target-recipe-plan-btn">加入今日计划</button>
         </span>
       `;
+      const openPreview = () => openRecipePreviewModal(item.r || item.recipe);
       const addBtn = card.querySelector('.target-recipe-plan-btn');
       addBtn.onclick = event => {
         event.preventDefault();
         event.stopPropagation();
         const added = addRecipeToPlan(item.id);
         brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+        refreshAfterAdd(added);
       };
       card.querySelector('.target-recipe-view-btn').onclick = event => {
         event.preventDefault();
         event.stopPropagation();
-        openRecipePreviewModal(item.r || item.recipe);
+        openPreview();
+      };
+      card.onclick = openPreview;
+      card.onkeydown = event => {
+        if (event.target.closest('button, a, input, select, textarea')) return;
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        openPreview();
       };
       list.appendChild(card);
     });
@@ -1909,14 +1926,23 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       <div class="km-modal-actions recipe-preview-actions">
         <button type="button" class="btn" id="recipePreviewClose">关闭</button>
         <button type="button" class="btn ok" id="recipePreviewPlan">加入今日计划</button>
+        <button type="button" class="btn recipe-preview-go-plan" id="recipePreviewGoPlan" hidden>查看今日计划</button>
       </div>
     `;
     const modal = createHomeModal(content, recipe.name || '菜谱预览');
     const addBtn = content.querySelector('#recipePreviewPlan');
+    const goPlanBtn = content.querySelector('#recipePreviewGoPlan');
     addBtn.onclick = event => {
       event.preventDefault();
       const added = addRecipeToPlan(recipe.id);
       brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+      goPlanBtn.hidden = false;
+    };
+    goPlanBtn.onclick = event => {
+      event.preventDefault();
+      lastWxTab = 'plan';
+      modal.close();
+      window.setTimeout(() => onRoute(), 220);
     };
     content.querySelector('#recipePreviewClose').onclick = modal.close;
   };
