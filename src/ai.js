@@ -51,6 +51,14 @@ export function safeParseJson(input, label = 'AI 返回') {
   }
 }
 
+function normalizeAiIngredientDisplayName(name) {
+  const raw = String(name || '').trim();
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  if (raw === '韭葱' || /\bleeks?\b/.test(lower)) return '葱';
+  return raw;
+}
+
 export function normalizeAiIngredients(value) {
   let list = value;
   if (typeof value === 'string') list = value.split(/[，,、/;；|]+/).map(item => item.trim());
@@ -58,10 +66,10 @@ export function normalizeAiIngredients(value) {
 
   return list.map(item => {
     if (typeof item === 'string') {
-      return { item: item.trim(), qty: '', unit: '' };
+      return { item: normalizeAiIngredientDisplayName(item), qty: '', unit: '' };
     }
     if (!item || typeof item !== 'object') return null;
-    const name = String(item.item || item.name || '').trim();
+    const name = normalizeAiIngredientDisplayName(item.item || item.name || '');
     if (!name) return null;
     return {
       item: name,
@@ -707,6 +715,7 @@ export async function callAiCreativeRecipeByIngredients({
 - 菜品形态要明显不同，可以是焖饭、烩饭、盖饭、汤面/拌面、炖煮、烤盘/焗烤、温沙拉、蛋饼/煎饼、卷饼等方向。
 - ingredients 只列肉、菜、蛋、豆制品、菌菇等核心主材。
 - 不要把葱姜蒜、盐糖油酱醋、料酒、淀粉、水、高汤、汤汁列入 ingredients；需要调料只写在 method 里。
+- 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。
 - name 不要和上面列出的菜名重复，也不要只是刀工变化。`;
   const raw = await callAiService(prompt);
   const draft = validateRecipeResult(raw);
@@ -737,7 +746,8 @@ export async function callAiSearchRecipe(query, invNames) {
 - name 必须是字符串。
 - ingredients 必须是数组，只列肉、菜、蛋、豆制品等核心主材。
 - method 必须是字符串。
-- 不要把葱姜蒜、盐糖油酱醋等佐料列入 ingredients。`;
+- 不要把葱姜蒜、盐糖油酱醋等佐料列入 ingredients。
+- 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。`;
   const raw = await callAiService(prompt);
   return validateRecipeResult(raw);
 }
@@ -799,7 +809,8 @@ export async function callCloudAI(pack, inv) {
 - creative.name 必须是字符串。
 - creative.ingredients 必须是数组，只列核心主材。
 - creative 是 AI 草稿，不是最终菜谱。
-- 严禁用葱姜蒜、香菜、调料替代肉菜蛋豆等主材。${antiFatigueRule}`;
+- 严禁用葱姜蒜、香菜、调料替代肉菜蛋豆等主材。
+- 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。${antiFatigueRule}`;
 
   const raw = await callAiService(prompt);
   return validateRecommendationResult(raw);

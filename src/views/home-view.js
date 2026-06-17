@@ -45,7 +45,7 @@ const mockAiRecommendations = {
   cards: [
     { id: null, name: '番茄炒蛋', matchLabel: '食材已齐', missing: [], reason: '鸡蛋和番茄都在，十分钟上桌', tone: 'ready' },
     { id: null, name: '青椒肉丝', matchLabel: '只差 1 样', missing: ['青椒'], reason: '补个青椒就能下锅', tone: 'almost' },
-    { id: null, name: '麻婆豆腐', matchLabel: '灵感菜', missing: [], reason: '今晚想吃点麻辣的？', tone: 'idea' }
+    { id: null, name: '麻婆豆腐', matchLabel: '灵感菜', missing: [], reason: '今天想吃点麻辣的？', tone: 'idea' }
   ]
 };
 
@@ -54,9 +54,9 @@ function buildGreeting(expiringCount) {
   const part = h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 14 ? '中午好' : h < 18 ? '下午好' : '晚上好';
   const emoji = h < 5 ? '🌙' : h < 18 ? '👋' : '🌆';
   if (expiringCount > 0) {
-    return `${emoji} ${part}！有 ${expiringCount} 样食材快到期了，今晚可以这样做：`;
+    return `${emoji} ${part}！有 ${expiringCount} 样食材快到期了，今天可以这样做：`;
   }
-  return `${emoji} ${part}！根据你现在的食材，今晚推荐这几道：`;
+  return `${emoji} ${part}！根据你现在的食材，今天推荐这几道：`;
 }
 
 // 到期提醒不统计鸡蛋、牛奶（它们按常备品状态管理，不看保质期）。
@@ -671,7 +671,7 @@ function renderOnboarding(pack, { onRoute = () => {} } = {}) {
     <div class="home-hero-head">
       <span class="home-hero-eyebrow">🍳 从几样食材开始</span>
       <h2 class="home-hero-greeting">先告诉我厨房里有什么</h2>
-      <p class="home-hero-note">记几样食材后，我会帮你看今晚能做什么、缺什么、该买什么。</p>
+      <p class="home-hero-note">记几样食材后，我会帮你看今天能做什么、缺什么、该买什么。</p>
     </div>
     <div class="home-actions-grid">
       <button type="button" class="home-act-btn" id="obManual"><span class="home-act-emoji">✍️</span><span class="home-act-copy"><span>手动记食材</span><small>先输入几样</small></span></button>
@@ -848,7 +848,7 @@ function isImpromptuCandidate(e) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  「今日」决策页：用户打开即知「今晚吃什么 / 优先用掉什么 / 计划是什么 / 缺什么」。
+//  「今日」决策页：用户打开即知「今天吃什么 / 优先用掉什么 / 计划是什么 / 缺什么」。
 //  全部复用既有数据逻辑（getTodayDecisionGroups / getInspirationCards /
 //  getExpiringItems / renderSuggestCard / renderMenuPlan / openCleanFridgeHelper…），
 //  本段只负责信息层级与 UI 组装，不重写推荐算法。
@@ -1535,7 +1535,7 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
   section.className = 'wx-status';
   const greeting = buildGreeting(expiringCount).split('！')[0]; // 「🌆 晚上好」——复用现有问候逻辑
   const title = recommendationCount > 0
-    ? `今晚可以做 ${recommendationCount} 道菜`
+    ? `今天可以做 ${recommendationCount} 道菜`
     : (planCount > 0 ? `今天计划了 ${planCount} 道菜` : '今天还没决定吃什么');
   const stats = [
     ['plan', '计划', planCount],
@@ -2028,7 +2028,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       empty.className = 'target-recipe-fallback-head';
       empty.innerHTML = `
         <strong>没找到现有菜谱</strong>
-        <span>可以生成草稿，也可以以后接入联网参考。</span>
+        <span>可以先让 AI 生成一份可编辑草稿。</span>
       `;
       box.appendChild(empty);
     }
@@ -2045,14 +2045,6 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
           ${targetDishStatus === 'loading' ? '正在整理草稿...' : (targetDishDraft && targetDishQuery === query ? '重新生成 AI 草稿' : '生成 AI 草稿')}
         </button>
       </article>
-      <article class="target-recipe-fallback-card">
-        <span>
-          <strong>联网搜索参考</strong>
-          <small>当前还没接入，后续可从网上找相近做法。</small>
-        </span>
-        <button type="button" class="wx-mini-btn target-recipe-web-btn" id="targetDishWebBtn">联网找做法</button>
-      </article>
-      <div class="small inline-status target-recipe-web-status" id="targetDishWebStatus" hidden></div>
     `;
     box.appendChild(options);
     if (targetDishError) {
@@ -2079,11 +2071,6 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         targetDishError = `${formatAiErrorMessage(err)} 可以换个菜名或先按食材推荐。`;
       }
       switchTab('recs');
-    };
-    const webBtn = box.querySelector('#targetDishWebBtn');
-    const webStatus = box.querySelector('#targetDishWebStatus');
-    if (webBtn) webBtn.onclick = () => {
-      setInlineStatus(webStatus, '当前还没有接入联网搜索，只能先用 AI 生成草稿。', 'info');
     };
     return box;
   };
@@ -2280,7 +2267,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   };
   section.querySelectorAll('.wx-tab').forEach(t => { t.onclick = () => switchTab(t.dataset.tab); });
 
-  // 默认 tab：优先回答“今晚能做什么”；手动切过 tab 时仍尊重 lastWxTab。
+  // 默认 tab：优先回答“今天能做什么”；手动切过 tab 时仍尊重 lastWxTab。
   const defaultRecCount = getInspirationCached().length;
   const defaultPlanCount = getTodayPlanCount();
   const defaultTab = defaultRecCount > 0 ? 'recs' : (defaultPlanCount > 0 ? 'plan' : 'plan');

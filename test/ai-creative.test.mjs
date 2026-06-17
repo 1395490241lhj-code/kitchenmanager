@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   areCreativeRecipeNamesSimilar,
   filterAiDraftCoreIngredients,
+  normalizeAiIngredients,
   pickNextCreativeDishMode
 } from '../src/ai.js';
 
@@ -38,4 +39,17 @@ test('AI 创意做法：ingredients 只保留核心食材，过滤盐水高汤�
     ]
   });
   assert.deepEqual(out.ingredients.map(item => item.item), ['鸡肉', '芦笋', '蘑菇']);
+});
+
+test('AI 草稿归一化：leek / 韭葱 不展示为韭葱', () => {
+  assert.deepEqual(
+    normalizeAiIngredients([{ item: 'leek' }, { item: 'leeks' }, { item: '韭葱' }]).map(item => item.item),
+    ['葱', '葱', '葱']
+  );
+  const out = filterAiDraftCoreIngredients({
+    name: '鸡肉炒菜',
+    method: '1. 炒熟。',
+    ingredients: [{ item: '鸡肉' }, { item: 'leek' }]
+  });
+  assert.deepEqual(out.ingredients.map(item => item.item), ['鸡肉']);
 });

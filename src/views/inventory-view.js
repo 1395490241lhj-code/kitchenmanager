@@ -416,7 +416,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       return remainingDays(a) - remainingDays(b);
     });
     if(filteredInv.length === 0) {
-      grid.innerHTML = `<div class="small inventory-empty-row">${inv.length===0 ? '厨房里还没记食材，先加几样常吃的吧。记完就能看今晚推荐。' : '未找到'}</div>`;
+      grid.innerHTML = `<div class="small inventory-empty-row">${inv.length===0 ? '厨房里还没记食材，先加几样常吃的吧。记完就能看今天推荐。' : '未找到'}</div>`;
       return;
     }
     for(const e of filteredInv){

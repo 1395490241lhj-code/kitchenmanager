@@ -9081,15 +9081,6 @@ html[data-theme="dark"] .target-recipe-btn {
   font-size: 11.5px;
   line-height: 1.35;
 }
-.target-recipe-web-btn {
-  border-radius: 999px;
-  min-height: 34px;
-  padding-inline: 14px;
-  white-space: nowrap;
-}
-.target-recipe-web-status {
-  margin-top: 1px;
-}
 .recipe-preview-body {
   display: grid;
   gap: 13px;
@@ -9179,10 +9170,6 @@ html[data-theme="dark"] .target-recipe-btn {
   .target-recipe-fallback-card {
     align-items: stretch;
     flex-direction: column;
-  }
-  .target-recipe-web-btn {
-    width: 100%;
-    justify-content: center;
   }
 }
 
@@ -9463,9 +9450,9 @@ html[data-theme="dark"] .target-recipe-clear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
   padding: 0;
   border-radius: 999px;
   background: var(--km-danger-control-bg);

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getCanonicalName } from '../src/ingredients.js';
+import { getCanonicalName, normalizeReceiptIngredientName } from '../src/ingredients.js';
 
 test('getCanonicalName 豆制品同义归一一致', () => {
   // 豆干组
@@ -26,4 +26,17 @@ test('getCanonicalName 不误伤其它食材语义', () => {
   assert.notEqual(getCanonicalName('腐乳'), getCanonicalName('腐竹'));
   // 豆瓣酱不等于豆干
   assert.notEqual(getCanonicalName('豆瓣酱'), getCanonicalName('豆干'));
+});
+
+test('leek / 韭葱 归入葱类展示，但不混淆韭菜、蒜苗和大葱', () => {
+  assert.equal(getCanonicalName('韭葱'), '葱');
+  assert.equal(getCanonicalName('leek'), '葱');
+  assert.equal(getCanonicalName('leeks'), '葱');
+  assert.equal(normalizeReceiptIngredientName('fresh leek'), '葱');
+
+  assert.equal(getCanonicalName('韭菜'), '韭菜');
+  assert.equal(getCanonicalName('蒜苗'), '蒜苗');
+  assert.equal(getCanonicalName('大葱'), '葱');
+  assert.notEqual(getCanonicalName('韭菜'), getCanonicalName('葱'));
+  assert.notEqual(getCanonicalName('蒜苗'), getCanonicalName('葱'));
 });

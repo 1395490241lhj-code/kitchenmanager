@@ -75,7 +75,7 @@ export const INGREDIENT_ALIASES = {
   "姜": ["老姜", "生姜", "姜片", "姜米", "姜丝"],
   "子姜": ["嫩姜", "紫姜", "仔姜"],
   "蒜": ["大蒜", "蒜瓣", "独蒜", "蒜头", "蒜米", "蒜片"],
-  "葱": ["大葱", "小葱", "香葱", "葱白", "葱花", "葱段", "葱节"]
+  "葱": ["大葱", "小葱", "香葱", "葱白", "葱花", "葱段", "葱节", "韭葱", "leek", "leeks"]
 };
 
 export const DRY_GOODS = [
@@ -163,6 +163,8 @@ export const ENGLISH_INGREDIENT_ALIASES = {
   "cabbage": "白菜",
   "scallion": "葱",
   "green onion": "葱",
+  "leek": "葱",
+  "leeks": "葱",
   "cilantro": "香菜",
   "coriander": "香菜",
   "eggplant": "茄子",

@@ -392,7 +392,7 @@ function targetMatchesCore(target, coreItem) {
 
 function buildTargetRecipeReason({ targetHits, missingTargets, inventoryMissing }) {
   if (targetHits.length && !missingTargets.length && !inventoryMissing.length) {
-    return `${formatIngredientList(targetHits)}都在，今晚可以做`;
+    return `${formatIngredientList(targetHits)}都在，今天可以做`;
   }
   if (targetHits.length && !missingTargets.length) {
     const missingNames = (inventoryMissing || []).map(item => item.name || item.item).filter(Boolean);
