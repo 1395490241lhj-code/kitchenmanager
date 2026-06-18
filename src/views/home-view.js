@@ -175,10 +175,14 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null } = {}) {
     <h3 class="home-suggest-name">${escapeHtml(card.name)}</h3>
     <p class="home-suggest-reason">${escapeHtml(card.reason || '')}</p>
     ${missingTag}
-    <button type="button" class="btn ok small home-suggest-cook">${card.tone === 'almost' ? '加入买菜' : '做这道'}</button>
+    <div class="home-suggest-actions">
+      ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看做法</button>' : ''}
+      <button type="button" class="btn ok small home-suggest-cook">${card.tone === 'almost' ? '加入买菜' : '做这道'}</button>
+    </div>
     <div class="home-suggest-feedback" hidden></div>
   `;
   const cookBtn = el.querySelector('.home-suggest-cook');
+  const previewBtn = el.querySelector('.home-suggest-preview');
   const feedback = el.querySelector('.home-suggest-feedback');
   const openPreview = (event) => {
     event?.preventDefault();
@@ -215,23 +219,13 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null } = {}) {
       showPlanFeedback(added ? '已加入今天，做完后会帮你更新食材。' : '今天已经安排了这道菜。');
     }
   };
+  if (previewBtn) previewBtn.onclick = openPreview;
   if (card.id) {
     const name = el.querySelector('.home-suggest-name');
-    name.classList.add('is-link');
     if (canPreview) {
-      el.classList.add('is-previewable');
-      el.setAttribute('role', 'button');
-      el.tabIndex = 0;
-      el.onclick = event => {
-        if (event.target.closest('button, a, input, select, textarea, [data-no-card-swipe]')) return;
-        openPreview(event);
-      };
-      el.onkeydown = event => {
-        if (event.target !== el || (event.key !== 'Enter' && event.key !== ' ')) return;
-        openPreview(event);
-      };
-      name.onclick = openPreview;
+      el.classList.add('has-preview-action');
     } else {
+      name.classList.add('is-link');
       name.onclick = () => { location.hash = `#recipe:${card.id}`; };
     }
   }
@@ -1684,7 +1678,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     recsState.idx = (recsState.idx + delta + total) % total;
     switchTab('recs');
   };
-  const isCardControlTarget = (target) => Boolean(target && target.closest('button, a, input, select, textarea, [data-no-card-swipe], .home-suggest-name'));
+  const isCardControlTarget = (target) => Boolean(target && target.closest('button, a, input, select, textarea, [data-no-card-swipe]'));
   const bindRecommendationCycling = (cardWrap) => {
     if (!recsState || !recsState.cards || recsState.cards.length <= 1) return;
     let touchStart = null;
@@ -1946,8 +1940,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     const { foods, seasonings, nonStock } = splitRecipeIngredients(items);
     const referenceItems = [...seasonings, ...nonStock];
     const content = document.createElement('div');
-    content.className = 'km-modal-body recipe-preview-body';
+    content.className = 'recipe-preview-shell';
     content.innerHTML = `
+      <div class="km-modal-body recipe-preview-body">
       <p class="recipe-preview-source">${escapeHtml(sourceLabel)}</p>
       <section class="recipe-preview-section">
         <h4>核心食材</h4>
@@ -1961,6 +1956,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         <h4>做法</h4>
         ${renderPreviewMethod(recipe.method || '')}
       </section>
+      </div>
       <div class="km-modal-actions recipe-preview-actions">
         <button type="button" class="btn" id="recipePreviewClose">关闭</button>
         <button type="button" class="btn ok" id="recipePreviewPlan">加入今日计划</button>

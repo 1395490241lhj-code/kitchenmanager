@@ -3829,7 +3829,23 @@ html[data-theme="dark"] .receipt-ignored-item {
   border-radius: 6px;
   padding: 1px 7px;
 }
-.home-suggest-cook { align-self: flex-start; margin-top: 4px; }
+.home-suggest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.home-suggest-actions .btn {
+  flex: 1 1 112px;
+  min-height: 34px;
+}
+.home-suggest-preview {
+  background: var(--glass-control-fill);
+  border-color: var(--glass-edge);
+  color: var(--text-main);
+}
+.home-suggest-cook { align-self: flex-start; }
 .home-suggest-feedback {
   display: flex;
   align-items: center;
@@ -7820,6 +7836,14 @@ html[data-theme="dark"] .wx-tab.is-active {
 .wx-rec-card .home-suggest-reason { flex: 0 0 auto; font-size: 13px; opacity: 0.85; }
 .wx-rec-card .home-suggest-match { font-size: 11px; padding: 3px 10px; opacity: 0.92; }
 /* 「做这道 / 补清单」：iOS 半透明蓝 tint pill，替代实心硬蓝。 */
+.wx-rec-card .home-suggest-actions {
+  justify-content: center;
+  align-self: stretch;
+}
+.wx-rec-card .home-suggest-actions .btn {
+  flex: 0 1 auto;
+  min-width: 112px;
+}
 .wx-rec-card .home-suggest-cook {
   align-self: center;
   margin-top: 4px;
@@ -9381,9 +9405,17 @@ html[data-theme="dark"] .target-recipe-btn {
   font-size: 11.5px;
   line-height: 1.35;
 }
+.recipe-preview-shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
 .recipe-preview-body {
   display: grid;
   gap: 13px;
+  padding-bottom: 16px;
 }
 .recipe-preview-source {
   margin: -2px 0 0;
@@ -9464,9 +9496,31 @@ html[data-theme="dark"] .target-recipe-btn {
   line-height: 1.55;
 }
 .recipe-preview-actions {
-  margin-top: 2px;
+  position: static;
+  bottom: auto;
+  z-index: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 10px;
+  margin-top: 0;
+  padding: 12px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--separator);
+  background: var(--bg-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.38);
+}
+.recipe-preview-actions .btn {
+  min-width: 0;
+  min-height: 44px;
+}
+.recipe-preview-actions .recipe-preview-go-plan:not([hidden]) {
+  grid-column: 1 / -1;
 }
 @media (max-width: 520px) {
+  .recipe-preview-actions {
+    padding-inline: 16px;
+  }
   .target-recipe-ai-actions {
     align-items: stretch;
   }

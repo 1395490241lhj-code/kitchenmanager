@@ -259,20 +259,7 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
     ${reasonText ? `<div class="ai-reason" title="${escapeOptionAttr(explainText)}">${escapeHtml(reasonText)}</div>` : ''}
     <div class="controls recipe-card-controls"></div>`;
   const titleEl = card.querySelector('.r-title');
-  if (canPreview) {
-    card.classList.add('is-previewable');
-    card.setAttribute('role', 'button');
-    card.tabIndex = 0;
-    card.addEventListener('click', event => {
-      if (event.target.closest('button, a, input, select, textarea, [data-no-card-swipe]')) return;
-      openPreview(event);
-    });
-    card.addEventListener('keydown', event => {
-      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
-      openPreview(event);
-    });
-    titleEl.onclick = openPreview;
-  } else {
+  if (!canPreview) {
     titleEl.onclick = () => location.hash = `#recipe:${r.id}`;
   }
   const editBtn = card.querySelector('.btn-edit');
