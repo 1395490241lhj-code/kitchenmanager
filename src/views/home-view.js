@@ -413,6 +413,8 @@ function createHomeModal(contentEl, title = '') {
 
   const panel = document.createElement('div');
   panel.className = 'km-modal-content';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
 
   // 标题行 + X 关闭按钮
   const header = document.createElement('div');
@@ -445,7 +447,11 @@ function createHomeModal(contentEl, title = '') {
 
   document.body.appendChild(overlay);
   // 触发入场动画
-  requestAnimationFrame(() => overlay.classList.add('open'));
+  requestAnimationFrame(() => {
+    overlay.classList.add('open');
+    const focusTarget = panel.querySelector('input:not([type="hidden"]), textarea, select, button:not(.km-modal-close)') || header.querySelector('.km-modal-close');
+    focusTarget?.focus?.({ preventScroll: true });
+  });
 
   return { overlay, close };
 }

@@ -40,8 +40,11 @@ export function openRecipeImportModal() {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="card ai-import-modal">
-      <h3 class="ai-import-title">导入菜谱</h3>
+    <div class="card ai-import-modal" role="dialog" aria-modal="true" aria-labelledby="aiImportTitle">
+      <div class="modal-sheet-header ai-import-header">
+        <h3 class="ai-import-title" id="aiImportTitle">导入菜谱</h3>
+        <button type="button" class="modal-sheet-close" id="aiImportClose" aria-label="关闭">×</button>
+      </div>
       <p class="meta">粘贴菜谱链接，或上传截图/视频，系统会整理成可编辑草稿。</p>
       <label class="ai-import-field">
         <span>🔗 粘贴链接</span>
@@ -53,14 +56,18 @@ export function openRecipeImportModal() {
         <span class="ai-import-filename" id="aiImportFileName">点此选择文件</span>
       </label>
       <div id="aiImportStatus" class="inline-status" hidden></div>
-      <button type="button" class="btn ai-import-go" id="aiImportGo">开始导入</button>
-      <button type="button" class="btn ai-import-cancel" id="aiImportCancel">取消</button>
+      <div class="modal-actions ai-import-actions">
+        <button type="button" class="btn ai-import-cancel" id="aiImportCancel">取消</button>
+        <button type="button" class="btn ai-import-go" id="aiImportGo">开始导入</button>
+      </div>
     </div>
   `;
   document.body.appendChild(overlay);
   const close = () => overlay.remove();
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  overlay.querySelector('#aiImportClose').onclick = close;
   overlay.querySelector('#aiImportCancel').onclick = close;
+  requestAnimationFrame(() => overlay.querySelector('#aiImportUrl')?.focus?.({ preventScroll: true }));
 
   const fileInput = overlay.querySelector('#aiImportFile');
   const fileName = overlay.querySelector('#aiImportFileName');

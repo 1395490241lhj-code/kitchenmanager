@@ -2488,16 +2488,26 @@ nav a:active { transform: scale(0.94); }
   position: fixed;
   inset: 0;
   background: rgba(16, 24, 40, 0.46);
-  z-index: 999;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
   backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   transition: opacity 0.2s ease-out;
 }
 .modal-overlay.closing {
   opacity: 0;
+}
+.modal-overlay > .card,
+.modal-overlay .modal-card {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 560px);
+  max-height: min(760px, 90vh);
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .modal-card {
   width: 90%;
@@ -2510,17 +2520,27 @@ nav a:active { transform: scale(0.94); }
 }
 .shopping-inventory-modal {
   width: min(560px, 100%);
-  max-height: min(760px, 92vh);
-  overflow: auto;
+  max-height: min(760px, 90vh);
+}
+.shopping-inventory-modal .shopping-convert-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .receipt-confirm-card {
   width: min(680px, 100%);
-  max-height: min(760px, 92vh);
-  overflow: auto;
+  max-height: min(760px, 90vh);
 }
 .receipt-confirm-list {
   display: grid;
   gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .receipt-confirm-group {
   display: grid;
@@ -2611,6 +2631,15 @@ html[data-theme="dark"] .receipt-ignored-item {
 .receipt-confirm-actions {
   justify-content: flex-end;
   margin-top: 16px;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  padding-top: 12px;
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--separator);
+  background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.64) 24%, rgba(255,255,255,0.78));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.95); }
@@ -2660,8 +2689,23 @@ html[data-theme="dark"] .receipt-ignored-item {
 }
 .modal-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-end;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin-top: 16px;
+  padding-top: 12px;
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--separator);
+  background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.64) 24%, rgba(255,255,255,0.78));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.modal-actions .btn,
+.controls.receipt-confirm-actions .btn {
+  min-height: 44px;
 }
 .modal-cancel-btn {
   background: transparent;
@@ -2675,14 +2719,26 @@ html[data-theme="dark"] .receipt-ignored-item {
 /* --- Deduct Stock Modal (标记做完 → 扣减库存) --- */
 .deduct-stock-card {
   width: min(640px, 100%);
-  max-height: min(80vh, 700px);
-  overflow-y: auto;
+  max-height: min(760px, 90vh);
 }
 .deduct-stock-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   margin: 16px 0;
+}
+.clean-fridge-modal-body,
+.clean-fridge-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .deduct-row {
   display: grid;
@@ -4594,6 +4650,31 @@ html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); 
   gap: 12px;
   padding: 18px 16px;
 }
+.modal-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+}
+.modal-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.16);
+  color: var(--text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-sheet-close:hover {
+  background: var(--status-bad-bg);
+  color: var(--danger);
+}
 .ai-import-title { margin: 0; font-size: 18px; font-weight: 800; }
 .ai-import-field {
   display: flex;
@@ -4635,7 +4716,13 @@ html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); 
   cursor: pointer;
 }
 .ai-import-go[disabled] { opacity: 0.7; }
-.ai-import-cancel { width: 100%; }
+.ai-import-actions {
+  margin-top: 2px;
+}
+.ai-import-actions .btn {
+  flex: 1 1 0;
+}
+.ai-import-cancel { width: auto; }
 
 @media (max-width: 480px) {
   .ai-import-modal {
@@ -5045,10 +5132,12 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 /* 纯正液态半透明玻璃 (Liquid Glass) */
 .km-modal-content {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 400px;
-  max-height: 85vh;
-  overflow-y: auto;
+  max-width: 560px;
+  max-height: min(760px, 90vh);
+  overflow: hidden;
   margin: 0 !important;
   border-radius: 24px !important;
 
@@ -5122,6 +5211,14 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
   }
 }
 
+@supports (height: 100dvh) {
+  .km-modal-content,
+  .modal-overlay > .card,
+  .modal-overlay .modal-card {
+    max-height: min(760px, calc(100dvh - 32px));
+  }
+}
+
 /* 弹窗标题行 */
 .km-modal-header {
   display: flex;
@@ -5172,6 +5269,11 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 /* 弹窗主体内容 */
 .km-modal-body {
   padding: 16px 20px 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .km-modal-empty {
   text-align: center;
@@ -5447,14 +5549,22 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 /* 统一底部操作行 */
 .km-modal-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 10px;
-  padding-top: 8px;
+  padding: 10px 0 max(8px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--separator);
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.56) 22%, rgba(255,255,255,0.68));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
 .km-modal-actions .btn {
   flex: 1 1 0;
   border-radius: 12px;
+  min-height: 44px;
   padding: 12px 14px;
   font-weight: 700;
 }
@@ -9368,6 +9478,33 @@ html[data-theme="dark"] {
   border-color: var(--km-danger-control-border);
 }
 
+html[data-theme="dark"] .km-modal-actions,
+html[data-theme="dark"] .modal-actions,
+html[data-theme="dark"] .receipt-confirm-actions {
+  background: linear-gradient(180deg, rgba(20, 22, 28, 0), rgba(30, 33, 42, 0.72) 24%, rgba(30, 33, 42, 0.88));
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+html[data-theme="light"] .km-modal-actions,
+html[data-theme="light"] .modal-actions,
+html[data-theme="light"] .receipt-confirm-actions {
+  background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.64) 24%, rgba(255,255,255,0.78));
+  border-top-color: rgba(60, 60, 67, 0.12);
+}
+.modal-overlay .btn.ok,
+.km-modal-actions .btn.ok,
+.km-modal-actions .km-modal-ai-btn,
+.modal-overlay .ai-import-go {
+  background: var(--km-primary-control-bg);
+  color: var(--km-primary-control-text);
+  border-color: var(--km-primary-control-border);
+}
+.modal-overlay .btn.bad,
+.km-modal-actions .btn.bad {
+  background: var(--km-danger-control-bg);
+  color: var(--km-danger-control-text);
+  border-color: var(--km-danger-control-border);
+}
+
 .btn:focus-visible,
 .wx-mini-btn:focus-visible,
 .home-mini-btn:focus-visible,
@@ -9407,6 +9544,53 @@ html[data-theme="dark"] {
   background: transparent;
   border: 0;
   box-shadow: none;
+}
+
+@media (max-width: 560px) {
+  .km-modal-overlay,
+  .modal-overlay {
+    padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+  }
+  .km-modal-content,
+  .modal-overlay > .card,
+  .modal-overlay .modal-card {
+    width: min(100%, 560px);
+    max-height: min(760px, calc(100vh - 24px));
+  }
+  .km-modal-header {
+    padding: 14px 52px 12px 16px;
+  }
+  .km-modal-body {
+    padding: 14px 16px 6px;
+  }
+  .km-modal-actions,
+  .modal-actions,
+  .receipt-confirm-actions {
+    gap: 8px;
+  }
+  .km-modal-actions .btn,
+  .modal-actions .btn,
+  .receipt-confirm-actions .btn {
+    flex: 1 1 140px;
+    min-height: 44px;
+  }
+  .receipt-confirm-row {
+    grid-template-columns: minmax(0, 1fr) 72px 78px auto;
+    gap: 6px;
+  }
+  .deduct-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@supports (height: 100dvh) {
+  @media (max-width: 560px) {
+    .km-modal-content,
+    .modal-overlay > .card,
+    .modal-overlay .modal-card {
+      max-height: min(760px, calc(100dvh - 24px));
+    }
+  }
 }
 
 /* Light-theme guardrails: old prefers-color-scheme blocks must not keep controls dark after switching back. */
