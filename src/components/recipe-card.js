@@ -224,9 +224,16 @@ function compactRecipeCard(r, extraInfo, { onRoute, statusData, pack, inv }) {
 }
 
 export function recipeCard(r, list, extraInfo = null, opts = {}) {
-  const { onRoute = () => {}, compact = false, statusData = null, pack = null, inv = null } = opts;
+  const { onRoute = () => {}, compact = false, statusData = null, pack = null, inv = null, onPreviewRecipe = null } = opts;
   if (compact) return compactRecipeCard(r, extraInfo, { onRoute, statusData, pack, inv });
   const card = document.createElement('div'); card.className = 'card';
+  const isCreative = String(r.id).startsWith('creative-');
+  const canPreview = Boolean(typeof onPreviewRecipe === 'function' && !isCreative);
+  const openPreview = (event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (canPreview) onPreviewRecipe(r);
+  };
   const topHtml = (extraInfo && extraInfo.isAi) ? `<div class="ai-badge">✨ 今日推荐</div>` : '';
   const reasonText = extraInfo && extraInfo.reason ? String(extraInfo.reason) : '';
   const explainText = extraInfo && Array.isArray(extraInfo.explain) && extraInfo.explain.length
@@ -245,7 +252,23 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
     <div class="ing-compact-container"></div>
     ${reasonText ? `<div class="ai-reason" title="${escapeOptionAttr(explainText)}">${escapeHtml(reasonText)}</div>` : ''}
     <div class="controls recipe-card-controls"></div>`;
-  card.querySelector('.r-title').onclick = () => location.hash = `#recipe:${r.id}`;
+  const titleEl = card.querySelector('.r-title');
+  if (canPreview) {
+    card.classList.add('is-previewable');
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+    card.addEventListener('click', event => {
+      if (event.target.closest('button, a, input, select, textarea, [data-no-card-swipe]')) return;
+      openPreview(event);
+    });
+    card.addEventListener('keydown', event => {
+      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+      openPreview(event);
+    });
+    titleEl.onclick = openPreview;
+  } else {
+    titleEl.onclick = () => location.hash = `#recipe:${r.id}`;
+  }
   const editBtn = card.querySelector('.btn-edit');
   if (editBtn) editBtn.onclick = (e) => { e.stopPropagation(); location.hash = `#recipe-edit:${r.id}`; };
   const tagContainer = card.querySelector('.ing-compact-container');
@@ -271,12 +294,19 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
     const favoriteBtn = document.createElement('button'); favoriteBtn.type = 'button';
     favoriteBtn.className = `btn small favorite-btn${isFavoriteRecipe(r.id) ? ' active' : ''}`;
     favoriteBtn.textContent = isFavoriteRecipe(r.id) ? '常做' : '设为常做';
-    favoriteBtn.onclick = () => { toggleFavoriteRecipe(r.id); onRoute(); };
+    favoriteBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFavoriteRecipe(r.id);
+      onRoute();
+    };
     const btn = document.createElement('button'); btn.type = 'button';
     btn.className = 'btn ok small';
     // 已加入未做 → 「已加入」；其余（含今日已做完）→ 默认「加入清单」，完全释放锁定。
     btn.textContent = isPlannedToday ? '已加入' : '加入计划';
-    btn.onclick = () => {
+    btn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       const p = S.load(S.keys.plan, []);
       const row = p.find(x => x.id === r.id && (x.date || today) === today);
       if (row && !row.isCooked) {
@@ -297,7 +327,14 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
     };
     const detailBtn = document.createElement('button'); detailBtn.type = 'button'; detailBtn.className = 'btn small';
     detailBtn.textContent = hasRecipeMethod(r) ? '查看' : '补做法';
-    detailBtn.onclick = () => location.hash = `#recipe:${r.id}`;
+    detailBtn.onclick = event => {
+      if (canPreview) openPreview(event);
+      else {
+        event.preventDefault();
+        event.stopPropagation();
+        location.hash = `#recipe:${r.id}`;
+      }
+    };
     card.querySelector('.controls').appendChild(favoriteBtn);
     card.querySelector('.controls').appendChild(btn);
     card.querySelector('.controls').appendChild(detailBtn);
@@ -310,7 +347,7 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
   return card;
 }
 
-export function showRecommendationCards(container, list, pack, { onRoute = () => {} } = {}) {
+export function showRecommendationCards(container, list, pack, { onRoute = () => {}, onPreviewRecipe = null } = {}) {
   container.innerHTML = '';
   if (!list || list.length === 0) {
     container.innerHTML = '<div class="card small rec-empty-card">暂无推荐。</div>';
@@ -319,7 +356,7 @@ export function showRecommendationCards(container, list, pack, { onRoute = () =>
   const map = pack.recipe_ingredients || {};
   list.forEach(item => {
     const isAi = item.isAi !== undefined ? item.isAi : false;
-    container.appendChild(recipeCard(item.r, item.list || map[item.r.id], { reason: item.reason, explain: item.explain, score: item.score, isAi }, { onRoute }));
+    container.appendChild(recipeCard(item.r, item.list || map[item.r.id], { reason: item.reason, explain: item.explain, score: item.score, isAi }, { onRoute, onPreviewRecipe }));
   });
 }
 

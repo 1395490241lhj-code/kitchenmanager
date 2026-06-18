@@ -33,3 +33,13 @@ test('首页菜谱预览区区分本地菜谱和 AI 草稿来源', () => {
   assert.match(home, /AI 草稿 ·/);
   assert.match(home, /AI 草稿，确认后才会保存/);
 });
+
+test('首页推荐菜谱使用弹窗预览，AI 草稿不伪装成本地菜谱', () => {
+  const home = read('src/views/home-view.js');
+  const card = read('src/components/recipe-card.js');
+
+  assert.match(home, /renderSuggestCard\(cards\[idx\], pack, inv, \{ onPreviewRecipe: openRecipePreviewModal \}\)/);
+  assert.match(home, /showRecommendationCards\(cardWrap, \[cards\[idx\]\], pack, \{ onRoute, onPreviewRecipe: openRecipePreviewModal \}\)/);
+  assert.match(card, /onPreviewRecipe = null/);
+  assert.match(card, /!isCreative/);
+});

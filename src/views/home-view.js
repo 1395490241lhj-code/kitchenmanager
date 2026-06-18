@@ -161,9 +161,11 @@ function getInspirationCards(pack, inv) {
 }
 
 // ── Section 1: AI 灵感面板（Hero 胶囊） ───────────────────────────────────────
-function renderSuggestCard(card, pack, inv) {
+function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null } = {}) {
   const el = document.createElement('article');
   el.className = `home-suggest-card tone-${card.tone || 'idea'}`;
+  const previewRecipe = card.row?.r || card.r || card.recipe || null;
+  const canPreview = Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !String(card.id).startsWith('creative-'));
   const missingTag = (card.missing && card.missing.length)
     ? `<span class="home-suggest-missing">缺 ${escapeHtml(card.missing.join('、'))}</span>`
     : '';
@@ -177,6 +179,11 @@ function renderSuggestCard(card, pack, inv) {
   `;
   const cookBtn = el.querySelector('.home-suggest-cook');
   const feedback = el.querySelector('.home-suggest-feedback');
+  const openPreview = (event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (canPreview) onPreviewRecipe(previewRecipe);
+  };
   const showPlanFeedback = (text) => {
     feedback.hidden = false;
     feedback.innerHTML = `<span>${escapeHtml(text)}</span><button type="button" class="home-suggest-go-plan">去今日看看</button>`;
@@ -192,7 +199,9 @@ function renderSuggestCard(card, pack, inv) {
       }
     };
   };
-  cookBtn.onclick = () => {
+  cookBtn.onclick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     if (!card.id) { brieflyConfirmButton(cookBtn, '示例'); return; }
     if (card.tone === 'almost' && card.row) {
       const count = addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list);
@@ -206,7 +215,22 @@ function renderSuggestCard(card, pack, inv) {
   if (card.id) {
     const name = el.querySelector('.home-suggest-name');
     name.classList.add('is-link');
-    name.onclick = () => { location.hash = `#recipe:${card.id}`; };
+    if (canPreview) {
+      el.classList.add('is-previewable');
+      el.setAttribute('role', 'button');
+      el.tabIndex = 0;
+      el.onclick = event => {
+        if (event.target.closest('button, a, input, select, textarea, [data-no-card-swipe]')) return;
+        openPreview(event);
+      };
+      el.onkeydown = event => {
+        if (event.target !== el || (event.key !== 'Enter' && event.key !== ' ')) return;
+        openPreview(event);
+      };
+      name.onclick = openPreview;
+    } else {
+      name.onclick = () => { location.hash = `#recipe:${card.id}`; };
+    }
   }
   return el;
 }
@@ -2178,9 +2202,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       cardWrap.querySelector('#wxRecAddFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
       cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
     } else if (mode === 'ai') {
-      showRecommendationCards(cardWrap, [cards[idx]], pack, { onRoute });
+      showRecommendationCards(cardWrap, [cards[idx]], pack, { onRoute, onPreviewRecipe: openRecipePreviewModal });
     } else {
-      cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv));
+      cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv, { onPreviewRecipe: openRecipePreviewModal }));
     }
     bindRecommendationCycling(cardWrap);
     if (mode === 'target' && targetNames.length) {

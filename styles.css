@@ -3581,6 +3581,29 @@ html[data-theme="dark"] .receipt-ignored-item {
   border-left: 3px solid var(--separator);
   box-shadow: var(--shadow-sm);
 }
+.home-suggest-card.is-previewable,
+.home-suggest-scroll > .card.is-previewable,
+.wx-rec-card > .card.is-previewable {
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+}
+.home-suggest-card.is-previewable:hover,
+.home-suggest-scroll > .card.is-previewable:hover,
+.wx-rec-card > .card.is-previewable:hover {
+  border-color: var(--km-control-border, var(--glass-edge));
+  transform: translateY(-1px);
+}
+.home-suggest-card.is-previewable:active,
+.home-suggest-scroll > .card.is-previewable:active,
+.wx-rec-card > .card.is-previewable:active {
+  transform: scale(0.985);
+}
+.home-suggest-card.is-previewable:focus-visible,
+.home-suggest-scroll > .card.is-previewable:focus-visible,
+.wx-rec-card > .card.is-previewable:focus-visible {
+  outline: 2px solid rgba(0, 122, 255, 0.36);
+  outline-offset: 2px;
+}
 .home-suggest-card.tone-priority { border-left-color: var(--danger); }
 .home-suggest-card.tone-ready    { border-left-color: var(--accent); }
 .home-suggest-card.tone-almost   { border-left-color: var(--primary); }
@@ -9011,9 +9034,18 @@ html[data-theme="dark"] .target-recipe-btn {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .home-suggest-card.is-previewable,
+  .home-suggest-scroll > .card.is-previewable,
+  .wx-rec-card > .card.is-previewable,
   .target-recipe-result-card {
     transition: none;
   }
+  .home-suggest-card.is-previewable:hover,
+  .home-suggest-scroll > .card.is-previewable:hover,
+  .wx-rec-card > .card.is-previewable:hover,
+  .home-suggest-card.is-previewable:active,
+  .home-suggest-scroll > .card.is-previewable:active,
+  .wx-rec-card > .card.is-previewable:active,
   .target-recipe-result-card:hover,
   .target-recipe-result-card:active {
     transform: none;
