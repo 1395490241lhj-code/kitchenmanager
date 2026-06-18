@@ -73,7 +73,6 @@ function attachQuickDelete(recipeId, cardEl) {
     clearTimeout(autoHideTimer);
     // 写入 overlay deletes
     try {
-      const { loadOverlay: lo, saveOverlay: so } = { loadOverlay: () => (JSON.parse(localStorage.getItem('kitchen-overlay') || '{}')), saveOverlay: () => {} };
       // 使用导入的模块函数（已 import 在文件顶部）
       const ov = loadOverlay();
       ov.deletes = ov.deletes || {};
@@ -145,8 +144,14 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
     addBtn.onclick = () => {
       const plan = S.load(S.keys.plan, []);
       const today = todayISO();
-      if (!plan.find(x => x.id === r.id && (x.date || today) === today)) { plan.push({ id: r.id, servings: 1, date: today }); S.save(S.keys.plan, plan); markRecipePlanned(r.id); alert('已加入今日计划。'); }
-      else { alert('已在今日计划里。'); }
+      if (!plan.find(x => x.id === r.id && (x.date || today) === today)) {
+        plan.push({ id: r.id, servings: 1, date: today });
+        S.save(S.keys.plan, plan);
+        markRecipePlanned(r.id);
+        showToast('已加入今日计划', { tone: 'success' });
+      } else {
+        showToast('已在今天', { tone: 'info' });
+      }
     };
   }
   // 快速删除入口
