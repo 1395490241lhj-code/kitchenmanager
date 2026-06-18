@@ -25,7 +25,8 @@ import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
-  setSelectValueWithOption
+  setSelectValueWithOption,
+  showToast
 } from '../components/status.js?v=219';
 import { restoreStapleByPurchase, restoreStaplesByPurchase } from '../staples.js?v=219';
 
@@ -167,12 +168,14 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     const openNames = loadShoppingItems().filter(it => !it.done).map(it => it.name);
     markAllShoppingItemsDone();
     restoreStaplesByPurchase(openNames);
+    if (openNames.length) showToast('已标记买到', { tone: 'success' });
     onRoute();
   };
 
   const startBatchStockIn = (itemsList, index) => {
     if (index >= itemsList.length) {
       setInlineStatus(status, '已买的都记进厨房了。', 'ok');
+      showToast('已入库', { tone: 'success' });
       onRoute();
       return;
     }
@@ -207,6 +210,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       }));
       restoreStapleByPurchase(item.name);
       setInlineStatus(status, `${entry.name} 已记进厨房。`, 'ok');
+      showToast('已入库', { tone: 'success' });
       onRoute();
     });
   };
@@ -218,6 +222,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
       ? ({ ...target, done: true, completedAt: target.completedAt || nowIso })
       : ({ ...target, done: false, stockedIn: false, stockedInAt: null, completedAt: null }));
     if (checked) restoreStapleByPurchase(item.name);
+    if (checked) showToast('已标记买到', { tone: 'success' });
     onRoute();
   };
 
@@ -275,6 +280,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     const name = quickInput.value.trim();
     if (!name) { setInlineStatus(status, '请输入要买的东西。', 'bad'); return; }
     addShoppingItem(name, '', '', '手动', '');
+    showToast('已加入买菜清单', { tone: 'success' });
     onRoute();
   };
   quickAdd.querySelector('#shoppingQuickAddBtn').onclick = addQuickItem;
@@ -332,6 +338,7 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
     row.querySelector('.sw-row-delete')?.addEventListener('click', event => {
       event.stopPropagation();
       deleteShoppingRowsByIds(getShoppingRowIds(item));
+      showToast('已删除', { tone: 'info' });
       onRoute();
     });
     row.querySelector('.shopping-weather-stockin')?.addEventListener('click', event => {

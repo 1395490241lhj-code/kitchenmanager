@@ -1,6 +1,6 @@
 import { todayISO } from '../storage.js?v=219';
 import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=219';
-import { escapeOptionAttr, escapeHtml, setInlineStatus } from './status.js?v=219';
+import { escapeOptionAttr, escapeHtml, setInlineStatus, showToast } from './status.js?v=219';
 import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=219';
 import { loadShoppingItems, saveShoppingItems, mergeShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem, addShoppingItemsFromText } from '../shopping.js?v=219';
 
@@ -325,6 +325,10 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
 
     close();
     onConfirm(payload);
+    const selectedCount = payload.inventory.length + payload.pantry.length;
+    showToast(selectedCount ? '小票已导入' : '没有识别到可入库食材', {
+      tone: selectedCount ? 'success' : 'warning'
+    });
   };
   overlay.onclick = e => {
     if(e.target === overlay) {
@@ -754,6 +758,7 @@ export function showQuickShoppingModal({ onAdd = () => {} } = {}) {
     const name = nameInput.value.trim();
     if (!name) { nameInput.focus(); return; }
     addShoppingItem(name, qtyInput.value || '', unitSel.value || '', '速记');
+    showToast('已加入买菜清单', { tone: 'success' });
     hint.hidden = false;
     hint.textContent = `✓ 已加入待买：${name}`;
     nameInput.value = ''; qtyInput.value = ''; unitSel.value = '';
@@ -826,6 +831,7 @@ export function showQuickShoppingNoteModal({ onAdd = () => {} } = {}) {
   panel.querySelector('#qnAdd').onclick = () => {
     const { added, skipped } = addShoppingItemsFromText(input.value, '速记');
     if (added === 0) { showHint('没有识别到可加入的食材。', false); return; }
+    showToast('已加入买菜清单', { tone: 'success' });
     showHint(`✓ 已加入 ${added} 项待买${skipped ? `，跳过 ${skipped} 行` : ''}`, true);
     input.value = '';
     onAdd();
@@ -930,11 +936,13 @@ export function showPendingShoppingModal({ onChange = () => {} } = {}) {
       li.querySelector('.km-pending-done').onclick = () => {
         const nowIso = new Date().toISOString();
         updateByIds(item.ids, it => ({ ...it, done: true, completedAt: it.completedAt || nowIso }));
+        showToast('已标记买到', { tone: 'success' });
         renderList();
         onChange();
       };
       li.querySelector('.km-pending-del').onclick = () => {
         deleteByIds(item.ids);
+        showToast('已删除', { tone: 'info' });
         renderList();
         onChange();
       };

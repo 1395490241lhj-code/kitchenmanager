@@ -21,7 +21,8 @@ import {
 import {
   escapeHtml,
   escapeOptionAttr,
-  setInlineStatus
+  setInlineStatus,
+  showToast
 } from './status.js?v=219';
 import { showRecipeQuickModal } from './recipe-quick-modal.js?v=219';
 
@@ -384,6 +385,7 @@ export function renderAiRecipeDraftCard(draft) {
     overlay.recipe_ingredients[tempId] = draft.ingredients.map(item => ({ item: item.item, qty: item.qty || null, unit: item.unit || null }));
     saveOverlay(overlay);
     window.invalidatePackCache?.();
+    showToast('AI 草稿已保存', { tone: 'success' });
     location.hash = goEdit ? `#recipe-edit:${tempId}` : `#recipe:${tempId}`;
     location.reload();
   };
@@ -421,6 +423,7 @@ export function renderRecipeSearchResults(query, pack, inv, { onRoute = () => {}
             setInlineStatus(status, '已生成草稿，请确认后再保存。', 'ok');
           } catch (e) {
             setInlineStatus(status, formatAiErrorMessage(e), 'bad');
+            showToast('AI 暂不可用', { tone: 'error' });
           } finally {
             btn.disabled = false;
             btn.innerHTML = `生成菜谱草稿【${query}】`;

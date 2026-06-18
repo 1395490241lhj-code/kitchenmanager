@@ -1,7 +1,7 @@
 import { loadOverlay, saveOverlay } from '../backup.js?v=219';
 import { genId } from '../shopping.js?v=219';
 import { importRecipeFromSource, formatAiErrorMessage } from '../ai.js?v=219';
-import { setInlineStatus } from './status.js?v=219';
+import { setInlineStatus, showToast } from './status.js?v=219';
 
 const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
 
@@ -94,6 +94,7 @@ export function openRecipeImportModal() {
       const msg = String(err && err.message || '');
       const friendly = /链接|截图|视频|粘贴/.test(msg) ? msg : formatAiErrorMessage(err);
       setInlineStatus(status, friendly, 'bad');
+      showToast('AI 暂不可用', { tone: 'error' });
       goBtn.removeAttribute('disabled');
       goBtn.innerHTML = '开始导入';
     }

@@ -17,7 +17,8 @@ import {
   getRecipeStatusInfo,
   normalizeDifficulty,
   setInlineStatus,
-  setSelectValueWithOption
+  setSelectValueWithOption,
+  showToast
 } from '../components/status.js?v=219';
 
 /**
@@ -281,6 +282,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     }
     window.invalidatePackCache?.();
     showEditorStatus('已保存。', 'ok');
+    showToast(isAiImportDraft ? 'AI 草稿已保存' : '已保存菜谱', { tone: 'success' });
     window.setTimeout(() => history.back(), 450);
   };
 

@@ -1,7 +1,7 @@
 import { S, todayISO } from '../storage.js?v=219';
 import { CUSTOM_AI } from '../config.js?v=219';
 import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, saveOverlay, validateKitchenBackup } from '../backup.js?v=219';
-import { setInlineStatus, escapeHtml } from '../components/status.js?v=219';
+import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=219';
 import { getSavedTheme, saveTheme } from '../theme.js?v=219';
 
 // 渐进式展现：「高级与数据设置」面板的展开状态，记忆在模块作用域（同次会话内保持）。
@@ -246,6 +246,7 @@ export function renderSettings() {
   div.querySelector('#exportKitchenBackup').onclick = () => {
     downloadJsonFile(buildKitchenBackup(), `kitchenmanager-backup-${todayISO()}.json`);
     setInlineStatus(div.querySelector('#settingsStatus'), '备份已导出。', 'ok');
+    showToast('备份已导出', { tone: 'success' });
   };
   div.querySelector('#importKitchenBackup').onchange = e => {
     const file = e.target.files[0]; if (!file) return;
@@ -260,13 +261,18 @@ export function renderSettings() {
         }
         importKitchenBackup(backup);
         setInlineStatus(statusEl, '备份已导入，页面将刷新。', 'ok');
+        showToast('备份已导入', { tone: 'success' });
         setTimeout(() => location.reload(), 1200);
       }
       catch (err) {
         setInlineStatus(statusEl, err.message || '备份文件无法读取', 'bad');
+        showToast('备份导入失败', { tone: 'error' });
       }
     };
-    reader.onerror = () => setInlineStatus(statusEl, '备份文件无法读取', 'bad');
+    reader.onerror = () => {
+      setInlineStatus(statusEl, '备份文件无法读取', 'bad');
+      showToast('备份导入失败', { tone: 'error' });
+    };
     reader.readAsText(file);
   };
 

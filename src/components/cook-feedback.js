@@ -1,6 +1,6 @@
 import { getCanonicalName, guessKitchenUnit } from '../ingredients.js?v=219';
 import { addShoppingItem } from '../shopping.js?v=219';
-import { escapeHtml } from './status.js?v=219';
+import { escapeHtml, showToast } from './status.js?v=219';
 
 function normalizeName(name) {
   return getCanonicalName(name || '') || String(name || '').trim();
@@ -157,6 +157,7 @@ export function showCookCompleteFeedback({
         const remark = item.reason === 'missing' ? '做这道菜可能需要' : '做完用完，顺手补上';
         addShoppingItem(item.name, item.qty || '', item.unit || guessKitchenUnit(item.name) || '', '做完补货', remark);
       });
+      showToast('已加入买菜清单', { tone: 'success' });
       shoppingBtn.textContent = '已加入买菜';
       shoppingBtn.disabled = true;
       window.setTimeout(() => close(typeof onShoppingAdded === 'function' ? onShoppingAdded : onClose), 450);

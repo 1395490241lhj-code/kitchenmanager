@@ -8,7 +8,7 @@ import {
   getCleanFridgeRecommendations, markRecipeCookedKeepPlan, processAiData
 } from '../recommendations.js?v=219';
 import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus } from '../components/status.js?v=219';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus, showToast } from '../components/status.js?v=219';
 import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=219';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=219';
 import { perfMeasure } from '../utils/perf.js?v=219';
@@ -94,6 +94,7 @@ function openCleanFridgeHelper(pack, inv, onRoute = () => {}) {
       const recItem = recs.find(item => item.r.id === id);
       if (recItem) {
         const count = addMissingRecipeIngredientsToShopping(recItem.r, pack, inv, recItem.list);
+        if (count) showToast('已加入买菜清单', { tone: 'success' });
         brieflyConfirmButton(btn, count ? '已加入买菜' : '已齐');
         onRoute();
       }
@@ -205,10 +206,12 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null } = {}) {
     if (!card.id) { brieflyConfirmButton(cookBtn, '示例'); return; }
     if (card.tone === 'almost' && card.row) {
       const count = addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list);
+      if (count) showToast('已加入买菜清单', { tone: 'success' });
       brieflyConfirmButton(cookBtn, count ? '已加入买菜' : '已齐');
     } else {
       const added = addRecipeToPlan(card.id);
       brieflyConfirmButton(cookBtn, added ? '已加入今天' : '已在今天');
+      showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
       showPlanFeedback(added ? '已加入今天，做完后会帮你更新食材。' : '今天已经安排了这道菜。');
     }
   };
@@ -819,6 +822,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       if (!total) {
         receiptStatus.className = 'small inline-status bad';
         receiptStatus.textContent = '没有识别到可处理的内容';
+        showToast('没有识别到可入库食材', { tone: 'warning' });
         return;
       }
       // 借用既有的确认弹窗渲染可编辑预览列表，确认后再写库 → 统一走 writeItemsToInventory。
@@ -1363,11 +1367,13 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
         };
       }).filter(Boolean);
       if (!calibrations.length) {
+        showToast('没有选择要更新的食材', { tone: 'warning' });
         showStatus('至少勾选一样食材。', 'bad');
         return;
       }
       const shoppingCandidates = getCookShoppingCandidates({ calibrations });
       applyCookCalibration(inv, calibrations);
+      showToast('已更新库存', { tone: 'success' });
       if (currentMarkPlanId) markTodayPlanCooked(currentMarkPlanId);
       else if (currentRecipe?.id) markRecipeCookedKeepPlan(currentRecipe.id);
       close(() => showCookCompleteFeedback({
@@ -1888,6 +1894,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         event.stopPropagation();
         const added = addRecipeToPlan(item.id);
         brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+        showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
         refreshAfterAdd(added);
       };
       card.querySelector('.target-recipe-view-btn').onclick = event => {
@@ -1967,6 +1974,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       event.preventDefault();
       const added = addRecipeToPlan(recipe.id);
       brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+      showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
       goPlanBtn.hidden = false;
     };
     goPlanBtn.onclick = event => {
@@ -2062,6 +2070,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       } catch (err) {
         targetCreativeStatus = targetCreativeDraft ? 'success' : 'error';
         targetCreativeError = formatAiErrorMessage(err);
+        showToast('AI 暂不可用', { tone: 'error' });
       }
       switchTab('recs');
     };
@@ -2126,6 +2135,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       } catch (err) {
         targetDishStatus = 'error';
         targetDishError = `${formatAiErrorMessage(err)} 可以换个菜名或先按食材推荐。`;
+        showToast('AI 暂不可用', { tone: 'error' });
       }
       switchTab('recs');
     };
@@ -2304,6 +2314,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       } catch (err) {
         clearTimeout(safety);
         setInlineStatus(aiStatus, formatAiErrorMessage(err), 'bad');
+        showToast('AI 暂不可用', { tone: 'error' });
       } finally {
         aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled');
       }

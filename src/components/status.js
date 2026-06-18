@@ -31,6 +31,103 @@ export function setInlineStatus(node, message, type = 'info') {
   node.className = `small inline-status ${type}`;
 }
 
+const TOAST_TONES = new Set(['success', 'info', 'warning', 'error']);
+let toastRoot = null;
+let toastTimer = null;
+
+function getToastRoot() {
+  if (typeof document === 'undefined') return null;
+  if (toastRoot && toastRoot.isConnected) return toastRoot;
+  toastRoot = document.querySelector('.km-toast-root');
+  if (!toastRoot) {
+    toastRoot = document.createElement('div');
+    toastRoot.className = 'km-toast-root';
+    toastRoot.setAttribute('aria-live', 'polite');
+    toastRoot.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(toastRoot);
+  }
+  return toastRoot;
+}
+
+export function showToast(message, options = {}) {
+  const text = String(message || '').trim();
+  if (!text || typeof document === 'undefined') return null;
+
+  const {
+    tone = 'info',
+    duration = 2200,
+    actionText = '',
+    onAction = null
+  } = options || {};
+  const safeTone = TOAST_TONES.has(tone) ? tone : 'info';
+  const root = getToastRoot();
+  if (!root) return null;
+
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+  root.innerHTML = '';
+
+  const toast = document.createElement('div');
+  toast.className = `km-toast is-${safeTone}`;
+  toast.setAttribute('role', safeTone === 'error' ? 'alert' : 'status');
+
+  const messageEl = document.createElement('span');
+  messageEl.className = 'km-toast-message';
+  messageEl.textContent = text;
+  toast.appendChild(messageEl);
+
+  if (actionText && typeof onAction === 'function') {
+    const actionBtn = document.createElement('button');
+    actionBtn.type = 'button';
+    actionBtn.className = 'km-toast-action';
+    actionBtn.textContent = actionText;
+    actionBtn.onclick = () => {
+      onAction();
+      dismissToast(toast, root);
+    };
+    toast.appendChild(actionBtn);
+  }
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'km-toast-close';
+  closeBtn.setAttribute('aria-label', '关闭提示');
+  closeBtn.textContent = '×';
+  closeBtn.onclick = () => dismissToast(toast, root);
+  toast.appendChild(closeBtn);
+
+  root.appendChild(toast);
+  const runSoon = typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame
+    : (callback) => setTimeout(callback, 0);
+  runSoon(() => toast.classList.add('is-visible'));
+
+  if (Number.isFinite(duration) && duration >= 0) {
+    toastTimer = setTimeout(() => dismissToast(toast, root), duration);
+  }
+
+  return { root, toast, close: () => dismissToast(toast, root) };
+}
+
+function dismissToast(toast, root) {
+  if (!toast || !root || !toast.parentNode) return;
+  if (toastTimer) {
+    clearTimeout(toastTimer);
+    toastTimer = null;
+  }
+  toast.classList.remove('is-visible');
+  toast.classList.add('is-hiding');
+  setTimeout(() => {
+    if (toast.parentNode) toast.remove();
+    if (root.children.length === 0) {
+      root.remove();
+      if (toastRoot === root) toastRoot = null;
+    }
+  }, 160);
+}
+
 export function setSelectValueWithOption(select, value) {
   const v = String(value || '').trim();
   if (!v || !select) return;

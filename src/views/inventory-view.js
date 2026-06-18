@@ -36,7 +36,8 @@ import {
 import {
   escapeHtml,
   escapeOptionAttr,
-  setSelectValueWithOption
+  setSelectValueWithOption,
+  showToast
 } from '../components/status.js?v=219';import { markShoppingItemsStockedIn } from '../shopping.js?v=219';
 import { renderStaplesShelf } from '../components/staples-shelf.js?v=219';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
@@ -364,6 +365,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       const total = ['inventory', 'pantry', 'review', 'ignored'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
       if(total === 0) {
         scanStatus.innerHTML = '<span class="text-danger">没有识别到可处理的内容</span>';
+        showToast('没有识别到可入库食材', { tone: 'warning' });
         return;
       }
       scanStatus.innerHTML = `识别到 ${total} 项，请确认后加入厨房`;

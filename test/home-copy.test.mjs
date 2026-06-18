@@ -43,3 +43,11 @@ test('首页推荐菜谱使用弹窗预览，AI 草稿不伪装成本地菜谱',
   assert.match(card, /onPreviewRecipe = null/);
   assert.match(card, /!isCreative/);
 });
+
+test('首页加入今日计划入口接入统一 Toast，且保留按钮反馈', () => {
+  const home = read('src/views/home-view.js');
+
+  assert.match(home, /showToast/);
+  assert.match(home, /brieflyConfirmButton/);
+  assert.equal((home.match(/showToast\(added \? '已加入今日计划' : '已在今天'/g) || []).length, 3);
+});

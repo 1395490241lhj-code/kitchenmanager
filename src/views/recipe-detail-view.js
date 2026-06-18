@@ -14,7 +14,7 @@ import {
   withTimeout
 } from '../ai.js?v=219';
 import { loadOverlay, saveOverlay } from '../backup.js?v=219';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo } from '../components/status.js?v=219';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=219';
 import { showCalibrationModal } from '../components/modal.js?v=219';
 import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=219';
 import { splitMethodSteps } from '../utils/method-steps.js?v=219';
@@ -263,6 +263,7 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
       } catch (e) {
         console.warn(`Attempt ${attempt} failed:`, e);
         if (attempt > maxRetries) {
+          showToast('AI 暂不可用', { tone: 'error' });
           methodArea.innerHTML = `${missingMethodContent}<div class="ai-empty-note">${escapeHtml(formatAiErrorMessage(e))} 你仍然可以点"编辑 / 录入"手动补做法。</div>`;
           bindGenerateMethodButton(); genBtn.innerHTML = resetLabel; genBtn.removeAttribute('disabled');
         } else {
