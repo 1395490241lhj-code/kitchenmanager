@@ -492,6 +492,7 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () =>
     `;
     li.querySelector('.km-expiry-add').onclick = (e) => {
       addShoppingItem(it.name, (+it.qty > 0 ? it.qty : ''), it.unit || '', '临期补货');
+      showToast('已加入买菜清单', { tone: 'success' });
       const btn = e.currentTarget;
       btn.textContent = '已加入';
       btn.disabled = true;

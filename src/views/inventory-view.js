@@ -38,7 +38,8 @@ import {
   escapeOptionAttr,
   setSelectValueWithOption,
   showToast
-} from '../components/status.js?v=219';import { markShoppingItemsStockedIn } from '../shopping.js?v=219';
+} from '../components/status.js?v=219';
+import { markShoppingItemsStockedIn } from '../shopping.js?v=219';
 import { renderStaplesShelf } from '../components/staples-shelf.js?v=219';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
 import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=219';
@@ -175,6 +176,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     if (!count) { showQuickStatus('先写一两样食材吧。', 'info'); return; }
     quickInput.value = '';
     showQuickStatus(`已加入 ${count} 样食材`, 'ok');
+    showToast(`已加入 ${count} 样食材`, { tone: 'success' });
     renderTable();
     // 同小票识别流程：先让用户看到行内反馈，再延迟通知外部整页刷新。
     setTimeout(() => onInventoryChanged(), 1500);
