@@ -106,7 +106,7 @@ export function recipeMethodBadge(recipe) {
     : '<span class="kchip method-missing">缺做法</span>';
 }
 
-export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
+export function searchResultCard(r, statusData, { onRoute = () => {}, onPreviewRecipe = null } = {}) {
   const card = document.createElement('div'); card.className = 'card';
   let badgeHtml = '';
   if (statusData.status === 'ok') {
@@ -135,13 +135,23 @@ export function searchResultCard(r, statusData, { onRoute = () => {} } = {}) {
     </div>
     <p class="meta">${(r.tags||[]).join(' / ')}</p>
     <div class="controls">
-      <button type="button" class="btn small" onclick="location.hash='#recipe:${r.id}'">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button>
+      <button type="button" class="btn small" id="viewRecipeBtn">${hasRecipeMethod(r) ? '查看做法' : '补做法'}</button>
       <button type="button" class="btn small" id="addMissingBtn">加入计划</button>
     </div>`;
-  card.querySelector('.r-title-link').onclick = () => location.hash = `#recipe:${r.id}`;
+  const openRecipe = (event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    if (typeof onPreviewRecipe === 'function') onPreviewRecipe(r);
+    else location.hash = `#recipe:${r.id}`;
+  };
+  card.querySelector('.r-title-link').onclick = openRecipe;
+  const viewBtn = card.querySelector('#viewRecipeBtn');
+  if (viewBtn) viewBtn.onclick = openRecipe;
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {
-    addBtn.onclick = () => {
+    addBtn.onclick = (event) => {
+      event?.preventDefault();
+      event?.stopPropagation();
       const plan = S.load(S.keys.plan, []);
       const today = todayISO();
       if (!plan.find(x => x.id === r.id && (x.date || today) === today)) {
@@ -379,7 +389,6 @@ export function renderAiRecipeDraftCard(draft) {
     window.invalidatePackCache?.();
     showToast('AI 草稿已保存', { tone: 'success' });
     location.hash = goEdit ? `#recipe-edit:${tempId}` : `#recipe:${tempId}`;
-    location.reload();
   };
   card.querySelector('#saveAiRecipeDraft').onclick = () => saveDraft(false);
   card.querySelector('#editAiRecipeDraft').onclick = () => saveDraft(true);

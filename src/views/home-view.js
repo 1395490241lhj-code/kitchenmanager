@@ -570,6 +570,7 @@ function buildMemoModal(onClose) {
     const name = input.value.trim();
     if (!name) return;
     addShoppingItem(name, '', '', '速记');
+    showToast('已加入买菜清单', { tone: 'success' });
     input.value = '';
     input.focus();
     refreshLog();
