@@ -7687,7 +7687,6 @@ html[data-theme="dark"] .wx-tab.is-active {
   font-size: 14px;
 }
 .wx-help-text,
-.wx-rec-guide,
 .target-recipe-ai-hint {
   display: block;
   margin: 0;
@@ -7709,10 +7708,6 @@ html[data-theme="dark"] .wx-tab.is-active {
 .wx-rec-empty strong {
   font-size: 14px;
   color: var(--text-main);
-}
-.wx-rec-guide {
-  text-align: center;
-  opacity: 0.86;
 }
 .wx-empty-actions {
   justify-content: center;
@@ -7840,17 +7835,13 @@ html[data-theme="dark"] .wx-rec-card .home-suggest-cook {
   border-color: rgba(10, 132, 255, 0.32);
   color: #9ecbff;
 }
-.wx-rec-hint {
+.wx-rec-dots-only {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 9px;
-  min-height: 18px;
-  margin-top: -4px;
-  font-size: 11.5px;
-  font-weight: 650;
+  min-height: 8px;
+  margin-top: -7px;
   color: var(--text-secondary);
-  opacity: 0.68;
+  opacity: 0.58;
 }
 .wx-rec-dots {
   display: inline-flex;
@@ -7868,7 +7859,6 @@ html[data-theme="dark"] .wx-rec-card .home-suggest-cook {
   width: 13px;
   opacity: 0.78;
 }
-.wx-rec-note { margin: 0; font-size: 12px; color: var(--text-secondary); }
 .wx-rec-card ~ .wx-actions {
   justify-content: center;
   gap: 6px;
@@ -9143,9 +9133,6 @@ html[data-theme="dark"] .menu-prep-tag-marinate { color: #ffd08a; border-color: 
 .target-recipe-clear {
   background: transparent;
   color: var(--text-secondary);
-}
-.target-recipe-summary {
-  margin-top: -2px;
 }
 .target-recipe-section-title {
   display: flex;

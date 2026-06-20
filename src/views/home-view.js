@@ -352,7 +352,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   const showAi = (aiCards) => {
     showRecommendationCards(scroll, (aiCards || []).slice(0, 4), pack, { onRoute });
     note.hidden = false;
-    note.innerHTML = '推荐仅供参考，安排前可以再看一眼。<button type="button" class="home-note-clear" id="heroAiClear">用本地推荐</button>';
+    note.innerHTML = '<button type="button" class="home-note-clear" id="heroAiClear">用本地推荐</button>';
     const clearBtn = note.querySelector('#heroAiClear');
     if (clearBtn) clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); showLocal(); setInlineStatus(aiStatus, '', 'info'); };
     updateToggleLabel((aiCards || []).slice(0, 4).length);
@@ -972,7 +972,7 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
     grid.innerHTML = '';
     showRecommendationCards(grid, list, pack, { onRoute });
     note.hidden = false;
-    note.innerHTML = '推荐仅供参考，安排前可以再看一眼。<button type="button" class="home-note-clear" id="todayAiClear">用本地推荐</button>';
+    note.innerHTML = '<button type="button" class="home-note-clear" id="todayAiClear">用本地推荐</button>';
     const clearBtn = note.querySelector('#todayAiClear');
     if (clearBtn) clearBtn.onclick = () => { localStorage.removeItem(S.keys.ai_recs); renderLocal(); };
     setSummary(list.length);
@@ -2226,42 +2226,20 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     }
     body.appendChild(cardWrap);
 
-    if (cards.length) {
-      const guide = document.createElement('p');
-      guide.className = 'wx-rec-guide';
-      guide.textContent = '点“做这道”会加入今日计划，做完后可以顺手更新食材。';
-      body.appendChild(guide);
-    }
-
     if (cards.length > 1) {
-      const hint = document.createElement('div');
-      hint.className = 'wx-rec-hint';
-      hint.innerHTML = `
-        <span>${mode === 'target' ? '轻点 / 左右滑动看下一个本地菜' : '轻点 / 左右滑动换一道'}</span>
+      const dots = document.createElement('div');
+      dots.className = 'wx-rec-dots-only';
+      dots.innerHTML = `
         <span class="wx-rec-dots" aria-hidden="true">
           ${cards.map((_, i) => `<span class="${i === idx ? 'is-active' : ''}"></span>`).join('')}
         </span>
       `;
-      body.appendChild(hint);
-    }
-
-    if (mode === 'target' && cards.length) {
-      const note = document.createElement('p');
-      note.className = 'wx-rec-note target-recipe-summary';
-      note.textContent = '本地菜谱匹配结果，不调用 AI。';
-      body.appendChild(note);
+      body.appendChild(dots);
     }
     // AI 创意做法入口：指定食材模式专属，本地结果（或空提示）之下，分层清楚。
     if (mode === 'target' && targetNames.length) {
       body.appendChild(renderTargetCreativeBox(targetNames, cards));
     }
-    if (mode === 'ai' && cards.length) {
-      const note = document.createElement('p');
-      note.className = 'wx-rec-note';
-      note.textContent = '推荐仅供参考，安排前可以再看一眼。';
-      body.appendChild(note);
-    }
-
     const aiStatus = document.createElement('div');
     aiStatus.className = 'small inline-status wx-ai-status';
     aiStatus.hidden = true;
