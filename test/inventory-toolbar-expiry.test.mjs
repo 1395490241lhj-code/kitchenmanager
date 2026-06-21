@@ -16,23 +16,36 @@ function read(rel) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('食材页顶部工具区把小票入口合并进 + 菜单', () => {
+test('食材页顶部工具区把小票入口合并进“记进厨房”窗口', () => {
   const source = read('src/views/inventory-view.js');
   const styles = read('styles.css');
 
   assert.doesNotMatch(source, /inventory-camera-label/);
-  assert.match(source, /id="inventoryAddMenuBtn"/);
+  assert.doesNotMatch(source, /更多选项/);
+  assert.doesNotMatch(source, /inventoryAddMenu/);
+  assert.doesNotMatch(source, /inventory-add-menu/);
+  assert.doesNotMatch(source, /add-form-container/);
+  assert.doesNotMatch(source, /id="camInput"/);
+  assert.match(source, /id="inventoryAddBtn"/);
+  assert.match(source, /openInventoryAddModal\('manual'\)/);
+  assert.match(source, /id="inventoryAddTitle">记进厨房</);
   assert.match(source, /class="inventory-tool-row"/);
   assert.match(source, /class="inventory-tool-btn inventory-add-trigger is-primary"/);
-  assert.match(source, /id="inventoryManualAddAction"[\s\S]*?>手动添加食材</);
-  assert.match(source, /id="inventoryReceiptAction"[\s\S]*?>选取小票图片</);
-  assert.match(source, /id="inventoryBatchAction"[\s\S]*?>批量输入食材</);
-  assert.match(source, /<input type="file" id="camInput" accept="image\/\*" class="visually-hidden">/);
+  assert.match(source, />手动记食材<\/button>/);
+  assert.match(source, />拍小票识别<\/button>/);
+  assert.match(source, /id="inventoryModalText"/);
+  assert.match(source, /id="inventoryModalSample"/);
+  assert.match(source, /id="inventoryModalFrozen"/);
+  assert.match(source, /id="inventoryModalReceiptInput" accept="image\/\*" class="visually-hidden"/);
   assert.doesNotMatch(source, /capture="environment"/);
 
   assert.match(styles, /\.inventory-tool-row\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\) minmax\(0, 1fr\);/);
   assert.match(styles, /\.inventory-tool-btn\s*\{[\s\S]*?height: 44px;/);
-  assert.match(styles, /\.inventory-add-menu\s*\{/);
+  assert.match(styles, /\.inventory-add-modal\s*\{/);
+  assert.match(styles, /\.inventory-add-tabs\s*\{/);
+  assert.match(styles, /\.inventory-receipt-pick-card\s*\{/);
+  assert.doesNotMatch(styles, /\.inventory-add-menu\s*\{/);
+  assert.doesNotMatch(styles, /\.inventory-advanced-toggle\s*\{/);
 });
 
 test('编辑模式表达为剩余有效期，并按今天重新计算剩余天数', () => {

@@ -1,18 +1,14 @@
-import { els } from '../dom.js?v=219';
 import { todayISO } from '../storage.js?v=219';
 import {
   UNIT_TYPE,
   buildCatalog,
-  buildIngredientOptions,
   getCanonicalName,
   getDryPrepText,
   getUnitType,
   guessKitchenUnit,
   guessShelfDays,
-  isDryGoodName,
-  normalizeKitchenAmount
+  isDryGoodName
 } from '../ingredients.js?v=219';
-import { classifyRecipeIngredient } from '../utils/recipe-sanitizer.js?v=219';
 import {
   FROZEN_DEFAULT_SHELF_DAYS,
   GEAR_LABELS,
@@ -37,7 +33,6 @@ import {
 import {
   escapeHtml,
   escapeOptionAttr,
-  setSelectValueWithOption,
   showToast
 } from '../components/status.js?v=219';
 import { markShoppingItemsStockedIn } from '../shopping.js?v=219';
@@ -96,11 +91,6 @@ function lifeStatus(e){
 
 export function renderInventory(pack, options = {}){ const catalog=buildCatalog(pack); const inv=loadInventory(catalog); const wrap=document.createElement('div');
   const onInventoryChanged = typeof options.onInventoryChanged === 'function' ? options.onInventoryChanged : () => {};
-  // 食材页 datalist 只给核心食材候选（统一分类器口径）：调料别名（含姜片/蒜末/
-  // 郫县豆瓣/水淀粉等扩展写法）与水/汤/量词不进库存候选
-  // （菜谱编辑器的 datalist 不受影响，录菜谱仍可选调料）。
-  const ingredientOptions = buildIngredientOptions(catalog)
-    .filter(o => classifyRecipeIngredient(o.value).role === 'core');
   const header = document.createElement('div');
   header.className = 'main-title-center';
   header.innerHTML = '<span>我的食材</span>';
@@ -112,7 +102,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   normalPanel.dataset.panel = 'normal';
 
   // ── 轻量录入区：随手记几样食材（每行一个，自动猜单位走 parseFoodLines + 现有写库链路）──
-  //    新用户第一眼看到的是这块，详细表单收进下方「更多选项」。
+  //    新用户第一眼看到的是这块；更完整的添加入口收进工具栏「+」里的“记进厨房”窗口。
   const QUICK_CHIPS = ['鸡蛋', '番茄', '土豆', '青菜', '豆腐', '牛肉', '面条', '胡萝卜'];
   const quickAdd = document.createElement('div');
   quickAdd.className = 'inventory-quick-add glass-panel';
@@ -131,13 +121,47 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
 
   const quickInput = quickAdd.querySelector('#quickAddInput');
   const quickStatus = quickAdd.querySelector('#quickAddStatus');
-  let quickStatusTimer = null;
-  const showQuickStatus = (text, tone) => {
-    quickStatus.hidden = false;
-    quickStatus.className = `small inline-status ${tone}`;
-    quickStatus.textContent = text;
-    clearTimeout(quickStatusTimer);
-    quickStatusTimer = setTimeout(() => { quickStatus.hidden = true; }, 2000);
+  const inlineStatusTimers = new WeakMap();
+  const showInlineStatus = (statusEl, text, tone = 'info') => {
+    if (!statusEl) return;
+    statusEl.hidden = false;
+    statusEl.className = `small inline-status ${tone}`;
+    statusEl.textContent = text;
+    clearTimeout(inlineStatusTimers.get(statusEl));
+    inlineStatusTimers.set(statusEl, setTimeout(() => { statusEl.hidden = true; }, 2200));
+  };
+  const addTextInventoryItems = (text, { textarea = null, statusEl = quickStatus, frozen = false } = {}) => {
+    const parsed = parseFoodLines(text);
+    let count = 0;
+    for (const it of parsed) {
+      const name = getCanonicalName(it.name || '');
+      if (!name) continue;
+      const qty = Number(it.qty);
+      const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
+      const unit = (it.unit && String(it.unit).trim()) || guessKitchenUnit(name) || '份';
+      const kind = isDryGoodName(name) ? 'dry' : 'raw';
+      const isFrozen = kind === 'raw' && frozen;
+      const shelf = kind === 'dry' ? 365 : (isFrozen ? FROZEN_DEFAULT_SHELF_DAYS : guessShelfDays(name, unit));
+      const entry = { name, qty: safeQty, unit, buyDate: todayISO(), kind, shelf, stockStatus: 'ok' };
+      if (kind === 'dry') {
+        entry.dryPrep = getDryPrepText(name);
+        entry.isFrozen = false;
+      } else if (isFrozen) {
+        entry.isFrozen = true;
+      }
+      mergeInventoryEntry(inv, entry, { mode: 'add' });
+      count++;
+    }
+    if (!count) {
+      showInlineStatus(statusEl, '先写一两样食材吧。', 'info');
+      return 0;
+    }
+    if (textarea) textarea.value = '';
+    showInlineStatus(statusEl, `已加入 ${count} 样食材`, 'ok');
+    showToast(`已加入 ${count} 样食材`, { tone: 'success' });
+    renderTable();
+    setTimeout(() => onInventoryChanged(), 1500);
+    return count;
   };
 
   // chips：只帮用户填输入框（追加一行），不直接写库；已有同名行则不重复追加。
@@ -157,47 +181,19 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   };
 
   // 「加入厨房」：parseFoodLines 解析 → 规范名/猜单位/猜保质期 → mergeInventoryEntry 写库
-  // （与详细表单、小票识别同一条链路；单位相同累加、不同作新批次，行为不变）。
+  // （与“记进厨房”弹窗、小票识别同一条链路；单位相同累加、不同作新批次，行为不变）。
   quickAdd.querySelector('#quickAddBtn').onclick = () => {
-    const parsed = parseFoodLines(quickInput.value);
-    let count = 0;
-    for (const it of parsed) {
-      const name = getCanonicalName(it.name || '');
-      if (!name) continue;
-      const qty = Number(it.qty);
-      const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
-      const unit = (it.unit && String(it.unit).trim()) || guessKitchenUnit(name) || '份';
-      const kind = isDryGoodName(name) ? 'dry' : 'raw';
-      const shelf = kind === 'dry' ? 365 : guessShelfDays(name, unit);
-      const entry = { name, qty: safeQty, unit, buyDate: todayISO(), kind, shelf, stockStatus: 'ok' };
-      if (kind === 'dry') { entry.dryPrep = getDryPrepText(name); entry.isFrozen = false; }
-      mergeInventoryEntry(inv, entry, { mode: 'add' });
-      count++;
-    }
-    if (!count) { showQuickStatus('先写一两样食材吧。', 'info'); return; }
-    quickInput.value = '';
-    showQuickStatus(`已加入 ${count} 样食材`, 'ok');
-    showToast(`已加入 ${count} 样食材`, { tone: 'success' });
-    renderTable();
-    // 同小票识别流程：先让用户看到行内反馈，再延迟通知外部整页刷新。
-    setTimeout(() => onInventoryChanged(), 1500);
+    addTextInventoryItems(quickInput.value, { textarea: quickInput, statusEl: quickStatus });
   };
 
   const searchDiv = document.createElement('div'); searchDiv.className = 'inventory-toolbar';
 
   searchDiv.innerHTML = `
     <div class="inventory-tool-row">
-      <div class="inventory-add-menu-wrap">
-        <button type="button" class="inventory-tool-btn inventory-add-trigger is-primary" id="inventoryAddMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="inventoryAddMenu" title="添加食材">
-          <span class="inventory-tool-icon">+</span>
-          <span>添加</span>
-        </button>
-        <div class="inventory-add-menu" id="inventoryAddMenu" role="menu" hidden>
-          <button type="button" class="inventory-add-menu-item" id="inventoryManualAddAction" role="menuitem">手动添加食材</button>
-          <button type="button" class="inventory-add-menu-item" id="inventoryReceiptAction" role="menuitem">选取小票图片</button>
-          <button type="button" class="inventory-add-menu-item" id="inventoryBatchAction" role="menuitem">批量输入食材</button>
-        </div>
-      </div>
+      <button type="button" class="inventory-tool-btn inventory-add-trigger is-primary" id="inventoryAddBtn" aria-label="记进厨房" title="记进厨房">
+        <span class="inventory-tool-icon">+</span>
+        <span>添加</span>
+      </button>
       <button type="button" class="inventory-tool-btn inventory-edit-toggle" id="toggleEditBtn" title="进入/退出编辑模式">
         <span class="inv-edit-toggle-label">编辑</span>
       </button>
@@ -206,8 +202,6 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         <span>导出</span>
       </button>
     </div>
-    <input type="file" id="camInput" accept="image/*" class="visually-hidden">
-    <div id="scanStatus" class="small inventory-scan-status"></div>
   `;
   normalPanel.appendChild(searchDiv);
 
@@ -249,155 +243,22 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   };
   syncEditBtn();
 
-  const formContainer = document.createElement('div'); formContainer.className = 'add-form-container';
-  formContainer.innerHTML = `
-    <div class="form-grid">
-      <div class="full-width">
-        <input id="addName" list="catalogList" placeholder="食材名称 (必填)" class="full-width-input">
-        <datalist id="catalogList">${ingredientOptions.map(o=>`<option value="${escapeOptionAttr(o.value)}"${o.label ? ` label="${escapeOptionAttr(o.label)}"` : ''}></option>`).join('')}</datalist>
-      </div>
-      <div class="full-width add-state-row">
-        <span class="add-state-label">类型</span>
-        <div class="add-state-options" id="addItemKind">
-          <button type="button" class="add-state-option active" data-kind="raw">新鲜食材</button>
-          <button type="button" class="add-state-option" data-kind="dry">干货/调料</button>
-        </div>
-      </div>
-      <div class="full-width add-state-row">
-        <span class="add-state-label">状态</span>
-        <div class="add-state-options" id="addStockStatus">
-          <button type="button" class="add-state-option active" data-status="ok">够用</button>
-          <button type="button" class="add-state-option" data-status="low">快没了</button>
-          <button type="button" class="add-state-option" data-status="unknown">不确定</button>
-        </div>
-      </div>
-      <div class="qty-group">
-        <input id="addQty" type="number" min="0" step="1" placeholder="数量（可选）" class="qty-input-field">
-        <select id="addUnit" class="unit-select"><option value="个">个</option><option value="盒">盒</option><option value="袋">袋</option><option value="瓶">瓶</option><option value="把">把</option><option value="份" selected>份</option><option value="g">g</option><option value="ml">ml</option></select>
-      </div>
-      <input id="addDate" type="date" value="${todayISO()}" class="full-width-input">
-      <div class="full-width inventory-add-footer">
-        <label class="inventory-frozen-label">
-          <input type="checkbox" id="addFrozen" class="inventory-frozen-checkbox">冷冻
-        </label>
-        <button id="addBtn" class="btn ok inventory-add-btn">加入厨房</button>
-      </div>
-    </div>`;
-  // 「更多选项」：详细表单默认收起，文字按钮与工具栏「+」共用同一套展开/收起逻辑。
-  const advToggle = document.createElement('button');
-  advToggle.type = 'button';
-  advToggle.className = 'inventory-advanced-toggle';
-  normalPanel.appendChild(advToggle);
-  normalPanel.appendChild(formContainer);
-
-  const syncAddFormUi = () => {
-    const open = formContainer.classList.contains('open');
-    advToggle.textContent = open ? '收起详细选项 ⌃' : '更多选项 ⌄';
-  };
-  const setAddFormOpen = (open) => { formContainer.classList.toggle('open', !!open); syncAddFormUi(); };
-  const toggleAddForm = () => setAddFormOpen(!formContainer.classList.contains('open'));
-  advToggle.onclick = toggleAddForm;
-  syncAddFormUi();
-
-  const addMenuBtn = searchDiv.querySelector('#inventoryAddMenuBtn');
-  const addMenu = searchDiv.querySelector('#inventoryAddMenu');
-  const closeAddMenu = () => {
-    addMenu.hidden = true;
-    addMenuBtn.setAttribute('aria-expanded', 'false');
-  };
-  const toggleAddMenu = () => {
-    const open = addMenu.hidden;
-    addMenu.hidden = !open;
-    addMenuBtn.setAttribute('aria-expanded', String(open));
-  };
-  addMenuBtn.onclick = (event) => {
-    event.stopPropagation();
-    toggleAddMenu();
-  };
-  addMenu.onclick = (event) => event.stopPropagation();
-  searchDiv.querySelector('#inventoryManualAddAction').onclick = () => {
-    closeAddMenu();
-    setAddFormOpen(true);
-    formContainer.querySelector('#addName')?.focus();
-  };
-  searchDiv.querySelector('#inventoryReceiptAction').onclick = () => {
-    closeAddMenu();
-    searchDiv.querySelector('#camInput')?.click();
-  };
-  searchDiv.querySelector('#inventoryBatchAction').onclick = () => {
-    closeAddMenu();
-    quickInput.focus();
-    quickAdd.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  };
-  let selectedKind = 'raw';
-  const setAddKind = (kind) => {
-    selectedKind = kind === 'dry' ? 'dry' : 'raw';
-    els('#addItemKind .add-state-option', formContainer).forEach(x => x.classList.toggle('active', x.dataset.kind === selectedKind));
-    formContainer.querySelector('#addFrozen').closest('label').classList.toggle('hidden', selectedKind === 'dry');
-  };
-  els('#addItemKind .add-state-option', formContainer).forEach(btn => {
-    btn.onclick = () => setAddKind(btn.dataset.kind);
-  });
-  formContainer.querySelector('#addName').addEventListener('input', (e)=>{
-    const val = e.target.value.trim();
-    if(val){
-      const canonical = getCanonicalName(val);
-      setSelectValueWithOption(formContainer.querySelector('#addUnit'), guessKitchenUnit(canonical) || '份');
-      if(isDryGoodName(canonical)) setAddKind('dry');
-    }
-  });
-  let selectedStockStatus = 'ok';
-  els('#addStockStatus .add-state-option', formContainer).forEach(btn => {
-    btn.onclick = () => {
-      selectedStockStatus = btn.dataset.status || 'ok';
-      els('#addStockStatus .add-state-option', formContainer).forEach(x => x.classList.toggle('active', x === btn));
-    };
-  });
-
-  formContainer.querySelector('#addBtn').onclick=()=>{
-    const rawName=formContainer.querySelector('#addName').value.trim();
-    if(!rawName) return alert('请输入食材名称');
-    const name=getCanonicalName(rawName);
-
-    const qtyText = formContainer.querySelector('#addQty').value.trim();
-    let qty = qtyText === '' ? 1 : Number(qtyText);
-    if(!Number.isFinite(qty)) qty = 1;
-    if (qty < 0) qty = 0;
-
-    const unit=formContainer.querySelector('#addUnit').value || guessKitchenUnit(name) || '份';
-    setSelectValueWithOption(formContainer.querySelector('#addUnit'), unit);
-    const date=formContainer.querySelector('#addDate').value||todayISO();
-    const itemKind = selectedKind === 'dry' || isDryGoodName(name) ? 'dry' : 'raw';
-    const isFrozen = itemKind === 'dry' ? false : formContainer.querySelector('#addFrozen').checked;
-
-    const shelfDays = itemKind === 'dry' ? 365 : (isFrozen ? FROZEN_DEFAULT_SHELF_DAYS : guessShelfDays(name, unit));
-
-    mergeInventoryEntry(inv, {name, qty, unit, buyDate:date, kind:itemKind, shelf:shelfDays, isFrozen: isFrozen, stockStatus:selectedStockStatus, ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(name)} : {})}, { mode: 'add' });
-
-    formContainer.querySelector('#addName').value = '';
-    formContainer.querySelector('#addQty').value = '';
-    formContainer.querySelector('#addFrozen').checked = false;
-    setAddKind('raw');
-    selectedStockStatus = 'ok';
-    els('#addStockStatus .add-state-option', formContainer).forEach(x => x.classList.toggle('active', x.dataset.status === 'ok'));
-    renderTable();
-    onInventoryChanged();
-  };
-
-  const grid=document.createElement('div'); grid.className='inventory-grid'; normalPanel.appendChild(grid);
-  const scanStatus = searchDiv.querySelector('#scanStatus');
-  const handleReceiptFile = async (file, inputEl) => {
+  const handleReceiptFile = async (file, inputEl, statusEl) => {
     if(!file) return;
-    scanStatus.classList.add('visible'); scanStatus.innerHTML = '<span class="spinner"></span> 识别中...';
+    if (statusEl) {
+      statusEl.classList.add('visible');
+      statusEl.hidden = false;
+      statusEl.innerHTML = '<span class="spinner"></span> 识别中...';
+    }
     try {
       const result = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
       const total = ['inventory', 'pantry', 'review', 'ignored'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
       if(total === 0) {
-        scanStatus.innerHTML = '<span class="text-danger">没有识别到可处理的内容</span>';
+        if (statusEl) statusEl.innerHTML = '<span class="text-danger">没有识别到可处理的内容</span>';
         showToast('没有识别到可入库食材', { tone: 'warning' });
         return;
       }
-      scanStatus.innerHTML = `识别到 ${total} 项，请确认后加入厨房`;
+      if (statusEl) statusEl.innerHTML = `识别到 ${total} 项，请确认后加入厨房`;
       showReceiptConfirmationModal(result, ({ inventory = [], pantry = [] } = {}) => {
         const matchedIds = inventory.map(it => it.matchedShoppingItemId).filter(Boolean);
         if (matchedIds.length > 0) {
@@ -409,16 +270,143 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           mergeInventoryEntry(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: itemKind, shelf: itemKind === 'dry' ? 365 : guessShelfDays(it.name, unit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(it.name), isFrozen:false} : {}) }, { mode: 'add' });
         }
         const pantryCount = applyReceiptPantryItems(pantry, inv);
-        scanStatus.innerHTML = `✅ 已加入厨房 ${inventory.length + pantryCount} 项`;
-        setTimeout(() => { scanStatus.classList.remove('visible'); renderTable(); onInventoryChanged(); }, 1200);
+        if (statusEl) statusEl.innerHTML = `✅ 已加入厨房 ${inventory.length + pantryCount} 项`;
+        setTimeout(() => {
+          statusEl?.classList.remove('visible');
+          if (statusEl) statusEl.hidden = true;
+          renderTable();
+          onInventoryChanged();
+        }, 1200);
       }, () => {
-        scanStatus.innerHTML = '已取消';
-        setTimeout(() => { scanStatus.classList.remove('visible'); }, 1200);
+        if (statusEl) statusEl.innerHTML = '已取消';
+        setTimeout(() => {
+          statusEl?.classList.remove('visible');
+          if (statusEl) statusEl.hidden = true;
+        }, 1200);
       });
-    } catch(err) { scanStatus.innerHTML = `<span class="text-danger">❌ ${formatAiErrorMessage(err)}</span>`; }
+    } catch(err) {
+      if (statusEl) statusEl.innerHTML = `<span class="text-danger">❌ ${formatAiErrorMessage(err)}</span>`;
+    }
     finally { if (inputEl) inputEl.value = ''; }
   };
-  searchDiv.querySelector('#camInput').onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
+
+  const openInventoryAddModal = (initialTab = 'manual') => {
+    const overlay = document.createElement('div');
+    overlay.className = 'km-modal-overlay';
+    overlay.innerHTML = `
+      <div class="km-modal-content inventory-add-modal" role="dialog" aria-modal="true" aria-labelledby="inventoryAddTitle">
+        <div class="km-modal-header">
+          <span class="km-modal-title" id="inventoryAddTitle">记进厨房</span>
+          <button type="button" class="km-modal-close" aria-label="关闭">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="km-modal-body inventory-add-modal-body">
+          <div class="inventory-add-tabs" role="tablist" aria-label="记进厨房方式">
+            <button type="button" class="inventory-add-tab" data-tab="manual" role="tab">手动记食材</button>
+            <button type="button" class="inventory-add-tab" data-tab="receipt" role="tab">拍小票识别</button>
+          </div>
+          <section class="inventory-add-pane" data-pane="manual">
+            <div class="inventory-modal-card">
+              <div class="inventory-quick-title">随手记几样食材</div>
+              <p class="inventory-quick-hint">每行一个食材，数量不确定也可以只写名字。</p>
+              <textarea class="batch-text-area inventory-modal-textarea" id="inventoryModalText" rows="5" placeholder="鸡蛋 6个&#10;番茄 3个&#10;土豆&#10;豆腐 1盒"></textarea>
+              <div class="inventory-chip-row">${QUICK_CHIPS.map(n => `<button type="button" class="inventory-chip" data-name="${escapeOptionAttr(n)}">${escapeHtml(n)}</button>`).join('')}</div>
+              <div class="inventory-modal-options">
+                <button type="button" class="btn small" id="inventoryModalSample">试试常见食材</button>
+                <label class="inventory-modal-freeze">
+                  <input type="checkbox" id="inventoryModalFrozen"> 按冷冻保存
+                </label>
+              </div>
+              <div id="inventoryModalManualStatus" class="small inline-status" hidden></div>
+            </div>
+          </section>
+          <section class="inventory-add-pane" data-pane="receipt" hidden>
+            <div class="inventory-modal-card inventory-receipt-card">
+              <div class="inventory-quick-title">拍小票识别</div>
+              <p class="inventory-quick-hint">选择小票图片，识别后你再确认入库。</p>
+              <div class="inventory-receipt-pick-card" aria-hidden="true">
+                <span class="inventory-receipt-icon">📷</span>
+                <span>
+                  <strong>选择图片后再确认</strong>
+                  <small>支持相册、拍照或文件</small>
+                </span>
+              </div>
+              <input type="file" id="inventoryModalReceiptInput" accept="image/*" class="visually-hidden">
+              <div id="inventoryModalReceiptStatus" class="small inventory-scan-status" hidden></div>
+            </div>
+          </section>
+        </div>
+        <div class="km-modal-actions inventory-add-modal-actions">
+          <button type="button" class="btn" id="inventoryAddCancel">取消</button>
+          <button type="button" class="btn ok" id="inventoryAddPrimary">加入厨房</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('open'));
+
+    const close = () => {
+      overlay.classList.add('closing');
+      setTimeout(() => overlay.remove(), 180);
+    };
+    const modalText = overlay.querySelector('#inventoryModalText');
+    const manualStatus = overlay.querySelector('#inventoryModalManualStatus');
+    const receiptInput = overlay.querySelector('#inventoryModalReceiptInput');
+    const receiptStatus = overlay.querySelector('#inventoryModalReceiptStatus');
+    const primaryBtn = overlay.querySelector('#inventoryAddPrimary');
+    let activeTab = initialTab === 'receipt' ? 'receipt' : 'manual';
+
+    const setTab = (tab) => {
+      activeTab = tab === 'receipt' ? 'receipt' : 'manual';
+      overlay.querySelectorAll('.inventory-add-tab').forEach(btn => {
+        const isActive = btn.dataset.tab === activeTab;
+        btn.classList.toggle('is-active', isActive);
+        btn.setAttribute('aria-selected', String(isActive));
+      });
+      overlay.querySelectorAll('.inventory-add-pane').forEach(pane => {
+        const isActive = pane.dataset.pane === activeTab;
+        pane.hidden = !isActive;
+        pane.classList.toggle('is-active', isActive);
+      });
+      primaryBtn.textContent = activeTab === 'receipt' ? '选取小票图片' : '加入厨房';
+      if (activeTab === 'manual') modalText?.focus();
+    };
+
+    overlay.querySelector('.km-modal-close').onclick = close;
+    overlay.querySelector('#inventoryAddCancel').onclick = close;
+    overlay.querySelectorAll('.inventory-add-tab').forEach(btn => {
+      btn.onclick = () => setTab(btn.dataset.tab);
+    });
+    overlay.querySelectorAll('.inventory-chip').forEach(chip => {
+      chip.onclick = () => {
+        const name = chip.dataset.name;
+        const lines = modalText.value.split(/\r?\n/).map(l => l.trim());
+        if (lines.some(l => l === name || l.startsWith(name + ' '))) return;
+        modalText.value = (modalText.value.trim() ? modalText.value.replace(/\s+$/, '') + '\n' : '') + name;
+        modalText.focus();
+      };
+    });
+    overlay.querySelector('#inventoryModalSample').onclick = () => {
+      modalText.value = '鸡蛋 6个\n番茄 3个\n土豆 2个\n青菜 1把';
+      modalText.focus();
+    };
+    receiptInput.onchange = (event) => handleReceiptFile(event.target.files?.[0], event.target, receiptStatus);
+    primaryBtn.onclick = () => {
+      if (activeTab === 'receipt') {
+        receiptInput.click();
+        return;
+      }
+      const frozen = overlay.querySelector('#inventoryModalFrozen')?.checked;
+      addTextInventoryItems(modalText.value, { textarea: modalText, statusEl: manualStatus, frozen });
+    };
+
+    setTab(activeTab);
+  };
+
+  searchDiv.querySelector('#inventoryAddBtn').onclick = () => openInventoryAddModal('manual');
+
+  const grid=document.createElement('div'); grid.className='inventory-grid'; normalPanel.appendChild(grid);
   function renderTable(){
     grid.innerHTML='';
 

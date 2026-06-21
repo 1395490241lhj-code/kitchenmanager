@@ -19,9 +19,9 @@ test('到期食材弹窗加入买菜保留局部反馈并补充 Toast', () => {
 test('库存页快速加入成功后显示 Toast，空输入不显示 success Toast', () => {
   const inventory = read('src/views/inventory-view.js');
 
-  assert.match(inventory, /if \(!count\) \{ showQuickStatus\('先写一两样食材吧。', 'info'\); return; \}/);
-  assert.match(inventory, /showQuickStatus\(`已加入 \$\{count\} 样食材`, 'ok'\);[\s\S]*?showToast\(`已加入 \$\{count\} 样食材`, \{ tone: 'success' \}\);/);
-  assert.match(inventory, /quickInput\.value = '';/);
+  assert.match(inventory, /if \(!count\) \{[\s\S]*?showInlineStatus\(statusEl, '先写一两样食材吧。', 'info'\);[\s\S]*?return 0;[\s\S]*?\}/);
+  assert.match(inventory, /showInlineStatus\(statusEl, `已加入 \$\{count\} 样食材`, 'ok'\);[\s\S]*?showToast\(`已加入 \$\{count\} 样食材`, \{ tone: 'success' \}\);/);
+  assert.match(inventory, /if \(textarea\) textarea\.value = '';/);
   assert.match(inventory, /renderTable\(\);/);
   assert.match(inventory, /setTimeout\(\(\) => onInventoryChanged\(\), 1500\);/);
 });

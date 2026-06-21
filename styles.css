@@ -2174,9 +2174,6 @@ nav a:active { transform: scale(0.94); }
   nav a.active { color: var(--primary); }
   nav a.active svg { stroke: var(--primary); }
 
-  .add-form-container.open {
-    border-color: rgba(10,132,255,0.48);
-  }
 }
 
 /* === 桌面端自适应布局 === */
@@ -2254,10 +2251,6 @@ nav a:active { transform: scale(0.94); }
     margin-bottom: 0;
   }
 
-  .add-form-container.open {
-    max-height: 640px;
-  }
-
   nav {
     top: auto;
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
@@ -2301,15 +2294,6 @@ nav a:active { transform: scale(0.94); }
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
-}
-
-/* === 库存添加面板 === */
-.add-form-container {
-  background: var(--bg-card); border-radius: var(--radius-l); padding: 0; max-height: 0;
-  overflow: hidden; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0; margin-bottom: 0; border: 1px solid transparent;
-}
-.add-form-container.open {
-  padding: 20px; max-height: 500px; opacity: 1; margin-bottom: 20px; border-color: var(--primary); box-shadow: var(--shadow-float);
 }
 
 .spinner {
@@ -2540,7 +2524,7 @@ nav a:active { transform: scale(0.94); }
   transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .inventory-tool-row > .inventory-tool-btn,
-.inventory-add-menu-wrap > .inventory-tool-btn {
+.inventory-tool-row > .inventory-add-trigger {
   width: 100%;
 }
 .inventory-tool-btn:active {
@@ -2569,46 +2553,6 @@ nav a:active { transform: scale(0.94); }
   border-color: rgba(52, 199, 89, 0.28);
   color: var(--status-ok-text);
 }
-.inventory-add-menu-wrap {
-  position: relative;
-  min-width: 0;
-}
-.inventory-add-menu {
-  position: absolute;
-  z-index: 20;
-  left: 0;
-  top: calc(100% + 8px);
-  width: min(230px, 86vw);
-  padding: 6px;
-  border: 1px solid var(--glass-edge);
-  border-radius: 18px;
-  background: var(--surface-popover, var(--bg-card));
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
-  backdrop-filter: blur(18px);
-}
-.inventory-add-menu[hidden] {
-  display: none;
-}
-.inventory-add-menu-item {
-  width: 100%;
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 13px;
-  background: transparent;
-  color: var(--text-main);
-  font-size: 13px;
-  font-weight: 700;
-  text-align: left;
-  cursor: pointer;
-}
-.inventory-add-menu-item:hover,
-.inventory-add-menu-item:focus-visible {
-  background: var(--glass-control-fill);
-  outline: none;
-}
 .inventory-scan-status {
   color: var(--accent);
   display: none;
@@ -2627,27 +2571,6 @@ nav a:active { transform: scale(0.94); }
 }
 .unit-select {
   width: 40%;
-}
-.inventory-add-footer {
-  display: flex;
-  align-items: center;
-  margin-top: 4px;
-}
-.inventory-frozen-label {
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-  cursor: pointer;
-  margin-right: auto;
-}
-.inventory-frozen-checkbox {
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
-  accent-color: var(--accent);
-}
-.inventory-add-btn {
-  min-width: 100px;
 }
 
 /* --- inventory table columns --- */
@@ -8005,8 +7928,8 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
- *  食材页轻量录入（v159）—— 「随手记几样食材」glass 卡 + 常见食材 chips +
- *  「更多选项」收起详细表单。复用 glass-panel / batch-text-area / inline-status。
+ *  食材页轻量录入（v159）—— 「随手记几样食材」glass 卡 + 常见食材 chips。
+ *  「+」会打开同风格的“记进厨房”sheet。
  * ══════════════════════════════════════════════════════════════════════════ */
 .inventory-quick-add {
   display: flex;
@@ -8040,18 +7963,152 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
 }
 .inventory-quick-actions .btn { border-radius: 999px; }
 .inventory-quick-actions .btn.ok { min-width: 132px; }
-.inventory-advanced-toggle {
-  display: block;
-  margin: 2px auto 10px;
-  padding: 8px 18px;
-  background: none;
-  border: none;
-  font-size: 13px;
-  font-weight: 600;
+.inventory-add-modal {
+  max-width: 680px;
+}
+.inventory-add-modal-body {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 14px;
+}
+.inventory-add-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--glass-cell-fill);
+  border: 1px solid var(--glass-edge);
+}
+.inventory-add-tab {
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
   color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.inventory-add-tab:active { transform: scale(0.98); }
+.inventory-add-tab.is-active {
+  background: var(--glass-control-fill);
+  color: var(--text-main);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+.inventory-add-pane[hidden] { display: none; }
+.inventory-modal-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 22px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.inventory-modal-textarea {
+  min-height: 116px;
+  margin: 0;
+}
+.inventory-modal-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.inventory-modal-options .btn {
+  border-radius: 999px;
+}
+.inventory-modal-freeze {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--glass-cell-fill);
+  border: 1px solid var(--glass-edge);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
 }
-.inventory-advanced-toggle:hover { color: var(--text-main); }
+.inventory-modal-freeze input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.inventory-receipt-card {
+  gap: 14px;
+}
+.inventory-receipt-pick-card {
+  width: 100%;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 122, 255, 0.18);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(52, 199, 89, 0.06)), var(--glass-cell-fill);
+  color: var(--text-main);
+  text-align: left;
+}
+.inventory-receipt-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 15px;
+  background: rgba(0, 122, 255, 0.14);
+  font-size: 20px;
+}
+.inventory-receipt-pick-card strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+}
+.inventory-receipt-pick-card small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.inventory-add-modal-actions {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+@media (max-width: 520px) {
+  .inventory-add-modal {
+    max-width: none;
+  }
+  .inventory-add-modal-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .inventory-modal-card {
+    padding: 14px;
+    border-radius: 20px;
+  }
+  .inventory-modal-options {
+    align-items: stretch;
+  }
+  .inventory-modal-options .btn,
+  .inventory-modal-freeze {
+    flex: 1 1 150px;
+    justify-content: center;
+  }
+  .inventory-add-modal-actions {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
  *  菜谱页新手友好首屏（v160）—— 生活化标题 + 场景 chips + 「新手友好家常菜」区块，
@@ -8119,7 +8176,7 @@ html[data-theme="dark"] .recipe-scene-chip.is-active {
 .recipe-scene-empty { grid-column: 1 / -1; }
 .recipe-scene-empty .btn { margin-top: 8px; }
 
-/* 「查看更多菜谱 / 收起更多菜谱」：与食材页「更多选项」同款轻文字切换 */
+/* 「查看更多菜谱 / 收起更多菜谱」：轻文字切换 */
 .recipe-more-toggle {
   display: block;
   margin: 14px auto 6px;
