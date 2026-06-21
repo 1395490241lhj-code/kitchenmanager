@@ -1,0 +1,99 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import test from 'node:test';
+
+import {
+  FROZEN_DEFAULT_SHELF_DAYS,
+  mergeInventoryEntry,
+  remainingDays
+} from '../src/inventory.js';
+import { todayISO } from '../src/storage.js';
+
+const root = process.cwd();
+
+function read(rel) {
+  return readFileSync(join(root, rel), 'utf8');
+}
+
+test('食材页顶部工具区把小票入口合并进 + 菜单', () => {
+  const source = read('src/views/inventory-view.js');
+  const styles = read('styles.css');
+
+  assert.doesNotMatch(source, /inventory-camera-label/);
+  assert.match(source, /id="inventoryAddMenuBtn"/);
+  assert.match(source, /class="inventory-tool-row"/);
+  assert.match(source, /class="inventory-tool-btn inventory-add-trigger is-primary"/);
+  assert.match(source, /id="inventoryManualAddAction"[\s\S]*?>手动添加食材</);
+  assert.match(source, /id="inventoryReceiptAction"[\s\S]*?>选取小票图片</);
+  assert.match(source, /id="inventoryBatchAction"[\s\S]*?>批量输入食材</);
+  assert.match(source, /<input type="file" id="camInput" accept="image\/\*" class="visually-hidden">/);
+  assert.doesNotMatch(source, /capture="environment"/);
+
+  assert.match(styles, /\.inventory-tool-row\s*\{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\) minmax\(0, 1fr\);/);
+  assert.match(styles, /\.inventory-tool-btn\s*\{[\s\S]*?height: 44px;/);
+  assert.match(styles, /\.inventory-add-menu\s*\{/);
+});
+
+test('编辑模式表达为剩余有效期，并按今天重新计算剩余天数', () => {
+  const source = read('src/views/inventory-view.js');
+
+  assert.match(source, /inv-ie-shelf-label">剩余<\/span>/);
+  assert.match(source, /aria-label="剩余有效期天数"/);
+  assert.doesNotMatch(source, /aria-label="保质期天数"/);
+  assert.match(source, /const remainingInputValue = Math\.max\(0, Math\.round\(remainingDays\(e\)\)\);/);
+  assert.match(source, /e\.buyDate = todayISO\(\);[\s\S]*?e\.shelf = n;/);
+  assert.match(source, /const userEditedRemaining = inputRemaining !== remainingInputValue;/);
+  assert.match(source, /if \(e\.isFrozen && !userEditedRemaining\)/);
+
+  const item = { name: '番茄', qty: 1, unit: '个', buyDate: todayISO(), shelf: 5, stockStatus: 'ok' };
+  assert.equal(remainingDays(item), 5);
+});
+
+test('冷冻食材默认剩余有效期为 30 天，且不会缩短更长手动天数', () => {
+  assert.equal(FROZEN_DEFAULT_SHELF_DAYS, 30);
+
+  const shortFresh = [{
+    name: '鸡腿',
+    qty: 1,
+    unit: '份',
+    kind: 'raw',
+    buyDate: todayISO(),
+    shelf: 3,
+    stockStatus: 'ok'
+  }];
+  mergeInventoryEntry(shortFresh, {
+    name: '鸡腿',
+    qty: 1,
+    unit: '份',
+    kind: 'raw',
+    buyDate: todayISO(),
+    shelf: 3,
+    isFrozen: true,
+    stockStatus: 'ok'
+  }, { save: false });
+  assert.equal(shortFresh[0].isFrozen, true);
+  assert.equal(remainingDays(shortFresh[0]), FROZEN_DEFAULT_SHELF_DAYS);
+
+  const longFrozen = [{
+    name: '牛肉',
+    qty: 1,
+    unit: '份',
+    kind: 'raw',
+    buyDate: todayISO(),
+    shelf: 60,
+    stockStatus: 'ok'
+  }];
+  mergeInventoryEntry(longFrozen, {
+    name: '牛肉',
+    qty: 1,
+    unit: '份',
+    kind: 'raw',
+    buyDate: todayISO(),
+    shelf: FROZEN_DEFAULT_SHELF_DAYS,
+    isFrozen: true,
+    stockStatus: 'ok'
+  }, { save: false });
+  assert.equal(longFrozen[0].isFrozen, true);
+  assert.equal(remainingDays(longFrozen[0]), 60);
+});

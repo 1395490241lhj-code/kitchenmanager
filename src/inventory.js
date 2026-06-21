@@ -12,6 +12,8 @@ import {
 } from './ingredients.js?v=219';
 import { isSeasoningName } from './utils/recipe-sanitizer.js?v=219';
 
+export const FROZEN_DEFAULT_SHELF_DAYS = 30;
+
 export const INVENTORY_STATES = [
   { value: 'ok', label: '够用', className: 'ok' },
   { value: 'low', label: '快没了', className: 'low' },
@@ -223,7 +225,16 @@ export function mergeInventoryEntry(inv, entry, { mode = 'add', save = true } = 
       exact.qty = (+exact.qty || 0) + (+entry.qty || 0);
       // 更新其余字段（保留旧的 buyDate 以免刷新保质期）
       if (entry.stockStatus) exact.stockStatus = entry.stockStatus;
-      if (entry.isFrozen !== undefined) exact.isFrozen = entry.isFrozen;
+      if (entry.isFrozen !== undefined) {
+        exact.isFrozen = entry.isFrozen;
+        if (entry.isFrozen === true && entryKind !== 'dry') {
+          const currentRemaining = remainingDays(exact);
+          if (!(currentRemaining >= FROZEN_DEFAULT_SHELF_DAYS)) {
+            exact.buyDate = todayISO();
+            exact.shelf = FROZEN_DEFAULT_SHELF_DAYS;
+          }
+        }
+      }
       if (entryKind === 'dry') {
         exact.shelf = 365;
         exact.dryPrep = getDryPrepText(entry.name);

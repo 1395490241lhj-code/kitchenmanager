@@ -2512,25 +2512,102 @@ nav a:active { transform: scale(0.94); }
 .inventory-toolbar {
   margin-bottom: 8px;
 }
-.inventory-toolbar-actions {
-  display: flex;
-  flex-direction: row;
+.inventory-tool-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;   /* 两极分流：左功能组 ←→ 右管理组 */
+  gap: 8px;
   width: 100%;
   margin-bottom: 12px;
 }
-.inventory-toolbar-left,
-.inventory-toolbar-right {
-  display: flex;
+.inventory-tool-btn {
+  min-width: 0;
+  min-height: 44px;
+  height: 44px;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-control-fill);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.inventory-tool-row > .inventory-tool-btn,
+.inventory-add-menu-wrap > .inventory-tool-btn {
+  width: 100%;
+}
+.inventory-tool-btn:active {
+  transform: scale(0.97);
+}
+.inventory-tool-btn:focus-visible {
+  outline: 2px solid rgba(0, 122, 255, 0.36);
+  outline-offset: 2px;
+}
+.inventory-tool-btn.is-primary {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.92), rgba(0, 122, 255, 0.78));
+  border-color: rgba(0, 122, 255, 0.34);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(0, 122, 255, 0.22);
+}
+.inventory-tool-icon {
+  font-size: 21px;
+  line-height: 1;
+  margin-top: -1px;
 }
 .inventory-export-btn {
   gap: 6px;
 }
-.inventory-camera-label {
+.inventory-edit-toggle.is-active {
+  background: rgba(52, 199, 89, 0.16);
+  border-color: rgba(52, 199, 89, 0.28);
+  color: var(--status-ok-text);
+}
+.inventory-add-menu-wrap {
+  position: relative;
+  min-width: 0;
+}
+.inventory-add-menu {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  top: calc(100% + 8px);
+  width: min(230px, 86vw);
+  padding: 6px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 18px;
+  background: var(--surface-popover, var(--bg-card));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(18px);
+}
+.inventory-add-menu[hidden] {
+  display: none;
+}
+.inventory-add-menu-item {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
   cursor: pointer;
+}
+.inventory-add-menu-item:hover,
+.inventory-add-menu-item:focus-visible {
+  background: var(--glass-control-fill);
+  outline: none;
 }
 .inventory-scan-status {
   color: var(--accent);
@@ -4666,6 +4743,10 @@ html[data-theme="dark"] .inv-ie-name { background: rgba(0, 0, 0, 0.2); border-co
   color: var(--text-secondary);
   white-space: nowrap;
 }
+.inv-ie-shelf-label {
+  font-size: 11.5px;
+  font-weight: 700;
+}
 .inv-ie-shelf-input {
   width: 34px;
   text-align: center;
@@ -4719,31 +4800,6 @@ html[data-theme="dark"] .inv-ie-step { background: rgba(255, 255, 255, 0.08); bo
 .inv-ie-gear.gear-50.is-active  { background: #d29a00; }
 .inv-ie-gear.gear-25.is-active  { background: #e8731a; }
 .inv-ie-gear.gear-0.is-active   { background: #9a9aa0; }
-
-/* ── 顶部「编辑食材」全局切换按钮 ── */
-.inv-edit-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-main);
-  background: rgba(120, 120, 128, 0.12);
-  border: 1px solid transparent;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
-}
-.inv-edit-toggle:hover { background: rgba(120, 120, 128, 0.20); }
-.inv-edit-toggle:active { transform: scale(0.97); }
-.inv-edit-toggle.is-active {
-  background: var(--accent);
-  color: #fff;
-}
-html[data-theme="dark"] .inv-edit-toggle { background: rgba(255, 255, 255, 0.10); color: #ebebf5; }
-html[data-theme="dark"] .inv-edit-toggle:hover { background: rgba(255, 255, 255, 0.16); }
-html[data-theme="dark"] .inv-edit-toggle.is-active { background: var(--accent); color: #fff; }
 
 /* ── 菜谱页：AI 一键导入入口按钮 ── */
 .ai-import-btn {

@@ -14,6 +14,7 @@ import {
 } from '../ingredients.js?v=219';
 import { classifyRecipeIngredient } from '../utils/recipe-sanitizer.js?v=219';
 import {
+  FROZEN_DEFAULT_SHELF_DAYS,
   GEAR_LABELS,
   OUT_OF_STOCK_TTL_MS,
   gearInfo,
@@ -185,29 +186,27 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   const searchDiv = document.createElement('div'); searchDiv.className = 'inventory-toolbar';
 
   searchDiv.innerHTML = `
-    <div class="inventory-toolbar-actions">
-      <!-- 左侧动作组（功能抓取）：相机 + 新增 -->
-      <div class="inventory-toolbar-left">
-        <label class="btn ai small inventory-camera-label" title="选取小票图片">
-          <input type="file" id="camInput" accept="image/*" class="visually-hidden">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-          <span>选取小票图片</span>
-        </label>
-        <button type="button" class="btn ok icon-only" id="toggleAddBtn">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    <div class="inventory-tool-row">
+      <div class="inventory-add-menu-wrap">
+        <button type="button" class="inventory-tool-btn inventory-add-trigger is-primary" id="inventoryAddMenuBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="inventoryAddMenu" title="添加食材">
+          <span class="inventory-tool-icon">+</span>
+          <span>添加</span>
         </button>
+        <div class="inventory-add-menu" id="inventoryAddMenu" role="menu" hidden>
+          <button type="button" class="inventory-add-menu-item" id="inventoryManualAddAction" role="menuitem">手动添加食材</button>
+          <button type="button" class="inventory-add-menu-item" id="inventoryReceiptAction" role="menuitem">选取小票图片</button>
+          <button type="button" class="inventory-add-menu-item" id="inventoryBatchAction" role="menuitem">批量输入食材</button>
+        </div>
       </div>
-      <!-- 右侧动作组（系统管理）：编辑 + 导出 -->
-      <div class="inventory-toolbar-right">
-        <button type="button" class="inv-edit-toggle" id="toggleEditBtn" title="进入/退出编辑模式">
-          <span class="inv-edit-toggle-label">✏️ 编辑食材</span>
-        </button>
-        <button type="button" class="btn small inventory-export-btn" id="exportInventoryBtn" title="导出食材">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-          <span>导出食材</span>
-        </button>
-      </div>
+      <button type="button" class="inventory-tool-btn inventory-edit-toggle" id="toggleEditBtn" title="进入/退出编辑模式">
+        <span class="inv-edit-toggle-label">编辑</span>
+      </button>
+      <button type="button" class="inventory-tool-btn inventory-export-btn" id="exportInventoryBtn" title="导出食材">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        <span>导出</span>
+      </button>
     </div>
+    <input type="file" id="camInput" accept="image/*" class="visually-hidden">
     <div id="scanStatus" class="small inventory-scan-status"></div>
   `;
   normalPanel.appendChild(searchDiv);
@@ -234,7 +233,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   const editBtn = searchDiv.querySelector('#toggleEditBtn');
   const syncEditBtn = () => {
     editBtn.classList.toggle('is-active', isEditingInventory);
-    editBtn.querySelector('.inv-edit-toggle-label').textContent = isEditingInventory ? '✓ 完成' : '✏️ 编辑食材';
+    editBtn.querySelector('.inv-edit-toggle-label').textContent = isEditingInventory ? '完成' : '编辑';
   };
   editBtn.onclick = () => {
     isEditingInventory = !isEditingInventory;
@@ -291,17 +290,45 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   normalPanel.appendChild(advToggle);
   normalPanel.appendChild(formContainer);
 
-  const PLUS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
-  const MINUS_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>`;
   const syncAddFormUi = () => {
     const open = formContainer.classList.contains('open');
     advToggle.textContent = open ? '收起详细选项 ⌃' : '更多选项 ⌄';
-    searchDiv.querySelector('#toggleAddBtn').innerHTML = open ? MINUS_SVG : PLUS_SVG;
   };
-  const toggleAddForm = () => { formContainer.classList.toggle('open'); syncAddFormUi(); };
+  const setAddFormOpen = (open) => { formContainer.classList.toggle('open', !!open); syncAddFormUi(); };
+  const toggleAddForm = () => setAddFormOpen(!formContainer.classList.contains('open'));
   advToggle.onclick = toggleAddForm;
-  searchDiv.querySelector('#toggleAddBtn').onclick = toggleAddForm;
   syncAddFormUi();
+
+  const addMenuBtn = searchDiv.querySelector('#inventoryAddMenuBtn');
+  const addMenu = searchDiv.querySelector('#inventoryAddMenu');
+  const closeAddMenu = () => {
+    addMenu.hidden = true;
+    addMenuBtn.setAttribute('aria-expanded', 'false');
+  };
+  const toggleAddMenu = () => {
+    const open = addMenu.hidden;
+    addMenu.hidden = !open;
+    addMenuBtn.setAttribute('aria-expanded', String(open));
+  };
+  addMenuBtn.onclick = (event) => {
+    event.stopPropagation();
+    toggleAddMenu();
+  };
+  addMenu.onclick = (event) => event.stopPropagation();
+  searchDiv.querySelector('#inventoryManualAddAction').onclick = () => {
+    closeAddMenu();
+    setAddFormOpen(true);
+    formContainer.querySelector('#addName')?.focus();
+  };
+  searchDiv.querySelector('#inventoryReceiptAction').onclick = () => {
+    closeAddMenu();
+    searchDiv.querySelector('#camInput')?.click();
+  };
+  searchDiv.querySelector('#inventoryBatchAction').onclick = () => {
+    closeAddMenu();
+    quickInput.focus();
+    quickAdd.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
   let selectedKind = 'raw';
   const setAddKind = (kind) => {
     selectedKind = kind === 'dry' ? 'dry' : 'raw';
@@ -343,7 +370,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     const itemKind = selectedKind === 'dry' || isDryGoodName(name) ? 'dry' : 'raw';
     const isFrozen = itemKind === 'dry' ? false : formContainer.querySelector('#addFrozen').checked;
 
-    const shelfDays = itemKind === 'dry' ? 365 : (isFrozen ? 180 : guessShelfDays(name, unit));
+    const shelfDays = itemKind === 'dry' ? 365 : (isFrozen ? FROZEN_DEFAULT_SHELF_DAYS : guessShelfDays(name, unit));
 
     mergeInventoryEntry(inv, {name, qty, unit, buyDate:date, kind:itemKind, shelf:shelfDays, isFrozen: isFrozen, stockStatus:selectedStockStatus, ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(name)} : {})}, { mode: 'add' });
 
@@ -450,6 +477,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           : `<div class="inv-ie-gears" role="group" aria-label="油表档位">${
                [100, 75, 50, 25, 0].map(g => `<button type="button" class="inv-ie-gear gear-${g}${g === gearCur ? ' is-active' : ''}" data-gear="${g}" title="${GEAR_LABELS[g]}" aria-label="${GEAR_LABELS[g]}"></button>`).join('')
              }</div>`;
+        const remainingInputValue = Math.max(0, Math.round(remainingDays(e)));
 
         card.innerHTML = `
           <div class="inv-ie-top">
@@ -458,7 +486,8 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           </div>
           <div class="inv-ie-bottom">
             <label class="inv-ie-shelf">
-              <input type="number" min="0" step="1" class="inv-ie-shelf-input" value="${Number(e.shelf) || 0}" aria-label="保质期天数"> 天
+              <span class="inv-ie-shelf-label">剩余</span>
+              <input type="number" min="0" step="1" class="inv-ie-shelf-input" value="${remainingInputValue}" aria-label="剩余有效期天数"> 天
             </label>
             <div class="inv-ie-stock">${stockControl}</div>
           </div>
@@ -471,16 +500,33 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         nameInput.onchange = commitName;
         nameInput.onblur = commitName;
 
-        // 保质期：写回 e.shelf（≥ 0）；人工修改同样强制清空断货时间戳。
+        // 剩余有效期：输入 X 天表示从今天起还剩 X 天，不再理解成总保质期。
         const shelfInput = card.querySelector('.inv-ie-shelf-input');
-        const commitShelf = () => { let n = Math.max(0, Math.round(+shelfInput.value || 0)); e.shelf = n; shelfInput.value = n; e.outOfStockAt = null; };
+        const commitShelf = () => {
+          let n = Math.max(0, Math.round(+shelfInput.value || 0));
+          e.buyDate = todayISO();
+          e.shelf = n;
+          shelfInput.value = n;
+          e.outOfStockAt = null;
+        };
         shelfInput.onchange = commitShelf;
         shelfInput.onblur = commitShelf;
 
         // 冷冻：原地取反，仅切换高亮，不重渲染。
         const freezeBtn = card.querySelector('.inv-ie-freeze');
         freezeBtn.onclick = () => {
+          const inputRemaining = Math.max(0, Math.round(+shelfInput.value || 0));
+          const userEditedRemaining = inputRemaining !== remainingInputValue;
+          commitShelf();
           e.isFrozen = !e.isFrozen;
+          if (e.isFrozen && !userEditedRemaining) {
+            const currentRemaining = remainingDays(e);
+            if (!(currentRemaining >= FROZEN_DEFAULT_SHELF_DAYS)) {
+              e.buyDate = todayISO();
+              e.shelf = FROZEN_DEFAULT_SHELF_DAYS;
+              shelfInput.value = FROZEN_DEFAULT_SHELF_DAYS;
+            }
+          }
           freezeBtn.classList.toggle('is-on', e.isFrozen);
           freezeBtn.setAttribute('aria-pressed', e.isFrozen ? 'true' : 'false');
         };
