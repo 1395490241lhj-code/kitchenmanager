@@ -4,7 +4,7 @@ import {
   guessKitchenUnit,
   isSmartIngredientMatch
 } from '../ingredients.js?v=219';
-import { isInventoryAvailable } from '../inventory.js?v=219';
+import { isInventoryAvailable, remainingDays } from '../inventory.js?v=219';
 import { normalizeText } from '../recipe-search.js?v=219';
 import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=219';
 
@@ -13,7 +13,7 @@ const PROCESSED_FOOD_RE = /(水饺|饺子|抄手|馄饨|云吞|汤圆|粽|方便
 export const VARIANT_INGREDIENT_FAMILIES = [
   { key: 'stir_fry_meat', label: '可炒肉类', names: ['猪肉', '牛肉', '鸡肉', '鸡腿'] },
   { key: 'egg_tofu', label: '蛋白轻食', names: ['鸡蛋', '豆腐'] },
-  { key: 'leafy_green', label: '绿叶菜', names: ['青菜', '油菜', '小白菜', '上海青', '菠菜', '生菜', '空心菜'] },
+  { key: 'leafy_green', label: '绿叶菜', names: ['青菜', '油菜', '小白菜', '上海青', '菠菜', '生菜', '空心菜', '木耳菜', '苋菜', '茼蒿', '芥兰', '豌豆尖', '油麦菜', 'A菜'] },
   { key: 'mushroom', label: '菌菇', names: ['蘑菇', '香菇', '平菇', '口蘑', '金针菇', '杏鲍菇'] },
   { key: 'pepper', label: '椒类', names: ['青椒', '红椒', '尖椒', '辣椒', '二荆条'] }
 ];
@@ -40,6 +40,10 @@ function getFamily(name) {
     if (family.names.some(item => isSmartIngredientMatch(canonical, item))) return family;
   }
   return null;
+}
+
+export function getVariantIngredientFamilyKey(name) {
+  return getFamily(name)?.key || '';
 }
 
 function getCoreRows(pack, recipe) {
@@ -148,6 +152,117 @@ function formatNames(names, limit = 3) {
   return `${head}${clean.length > limit ? '等' : ''}`;
 }
 
+const GENERIC_LEAFY_TEMPLATES = [
+  {
+    key: 'egg_drop_leafy_soup',
+    requires: ['鸡蛋'],
+    priority: 90,
+    name: ingredient => `${ingredient}蛋花汤`,
+    reason: ingredient => `${ingredient}适合做清爽蛋花汤，家里有鸡蛋时很顺手。`,
+    ingredients: ingredient => [
+      { item: ingredient, qty: 1, unit: guessKitchenUnit(ingredient) || '把' },
+      { item: '鸡蛋', qty: 1, unit: '个' },
+      { item: '盐', qty: '', unit: '' },
+      { item: '香油', qty: '', unit: '' }
+    ],
+    method: ingredient => [
+      `1. ${ingredient}洗净切段，鸡蛋打散。`,
+      '2. 锅里加水或高汤煮开。',
+      `3. 下${ingredient}煮到变软。`,
+      '4. 淋入蛋液，轻轻搅开，加盐调味。'
+    ].join('\n')
+  },
+  {
+    key: 'tofu_leafy_soup',
+    requires: ['豆腐'],
+    priority: 82,
+    name: ingredient => `${ingredient}豆腐汤`,
+    reason: ingredient => `${ingredient}和豆腐一起煮汤，清淡不费事。`,
+    ingredients: ingredient => [
+      { item: ingredient, qty: 1, unit: guessKitchenUnit(ingredient) || '把' },
+      { item: '豆腐', qty: 1, unit: '盒' },
+      { item: '盐', qty: '', unit: '' },
+      { item: '香油', qty: '', unit: '' }
+    ],
+    method: ingredient => [
+      `1. 豆腐切块，${ingredient}洗净。`,
+      '2. 水开后下豆腐煮几分钟。',
+      `3. 下${ingredient}煮到变软。`,
+      '4. 加盐和少量香油调味。'
+    ].join('\n')
+  },
+  {
+    key: 'garlic_stir_fry_leafy',
+    requires: [],
+    priority: 70,
+    name: ingredient => `蒜蓉清炒${ingredient}`,
+    reason: ingredient => `${ingredient}适合蒜蓉清炒，也可以做汤。`,
+    ingredients: ingredient => [
+      { item: ingredient, qty: 1, unit: guessKitchenUnit(ingredient) || '把' },
+      { item: '蒜', qty: '', unit: '' },
+      { item: '油', qty: '', unit: '' },
+      { item: '盐', qty: '', unit: '' }
+    ],
+    method: ingredient => [
+      `1. ${ingredient}洗净沥干，蒜切末。`,
+      '2. 热锅下油，先爆香蒜末。',
+      `3. 下${ingredient}大火快炒，炒到变软。`,
+      '4. 加盐调味，出锅前可以滴一点香油。'
+    ].join('\n')
+  }
+];
+
+function getExistingRecipeNameSet(pack = {}, extraNames = []) {
+  return new Set([
+    ...(pack.recipes || []).map(recipe => recipe?.name || ''),
+    ...(extraNames || [])
+  ].map(name => normalizeText(name)).filter(Boolean));
+}
+
+function getInventoryEntryScore(item, targetNames) {
+  const name = getCanonicalName(item.name || '');
+  const targetHit = targetNames.some(target => isSmartIngredientMatch(target, name)) ? 200 : 0;
+  const days = remainingDays(item);
+  const expiryScore = Number.isFinite(days) ? Math.max(0, 45 - Math.max(-5, days)) : 0;
+  const qty = Number(item.qty);
+  const qtyScore = Number.isFinite(qty) ? Math.min(30, Math.max(0, qty)) : 0;
+  return targetHit + expiryScore + qtyScore;
+}
+
+function getGenericTemplateInventoryItems(inv, targetNames) {
+  const byName = new Map();
+  for (const item of inv || []) {
+    if (!isInventoryAvailable(item)) continue;
+    const name = getCanonicalName(item.name || '');
+    if (!name || !isVariantSafeIngredient(name) || getFamily(name)?.key !== 'leafy_green') continue;
+    const score = getInventoryEntryScore(item, targetNames);
+    const previous = byName.get(name);
+    if (!previous || score > previous.score) byName.set(name, { item, name, score });
+  }
+  return [...byName.values()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'zh-Hans-CN'));
+}
+
+function buildGenericTemplateCard(ingredientName, template, score) {
+  const ingredients = template.ingredients(ingredientName);
+  const recipeIngredients = ingredients.map(item => ({ ...item }));
+  return {
+    id: `generic:${ingredientName}:${template.key}`,
+    name: template.name(ingredientName),
+    ingredientName,
+    templateKey: template.key,
+    matchLabel: '简单做法',
+    sourceLabel: '通用做法 · 适合绿叶菜',
+    reason: template.reason(ingredientName),
+    ingredients,
+    recipeIngredients,
+    methodDraft: template.method(ingredientName),
+    tags: ['简单做法'],
+    tone: 'generic',
+    score,
+    isGenericTemplate: true
+  };
+}
+
 export function buildVariantMethodDraft(variant) {
   const replacements = variant.replacements || [];
   const changeText = replacements.map(item => `${item.from}换成${item.to}`).join('、');
@@ -236,4 +351,40 @@ export function getRecipeVariantRecommendations(pack = {}, inv = [], options = {
     .slice(0, limit);
 }
 
+export function getGenericIngredientRecipeRecommendations(pack = {}, inv = [], options = {}) {
+  const limit = options.limit ?? 3;
+  const perIngredientLimit = options.perIngredientLimit ?? 2;
+  const targetNames = (options.targetNames || []).map(getCanonicalName).filter(Boolean);
+  const invNames = getInventoryNames(inv);
+  if (!invNames.length || limit <= 0) return [];
+
+  const existingNames = getExistingRecipeNameSet(pack, options.existingNames || []);
+  const rows = getGenericTemplateInventoryItems(inv, targetNames);
+  const results = [];
+  const seen = new Set();
+
+  for (const row of rows) {
+    let madeForIngredient = 0;
+    const templates = GENERIC_LEAFY_TEMPLATES
+      .filter(template => (template.requires || []).every(name => hasInventoryMatch(invNames, name)))
+      .sort((a, b) => b.priority - a.priority);
+
+    for (const template of templates) {
+      if (madeForIngredient >= perIngredientLimit || results.length >= limit) break;
+      const card = buildGenericTemplateCard(row.name, template, row.score + template.priority);
+      const nameKey = normalizeText(card.name);
+      if (!nameKey || existingNames.has(nameKey) || seen.has(nameKey)) continue;
+      seen.add(nameKey);
+      results.push(card);
+      madeForIngredient++;
+    }
+    if (results.length >= limit) break;
+  }
+
+  return results
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'zh-Hans-CN'))
+    .slice(0, limit);
+}
+
 export const buildRecipeVariantRecommendations = getRecipeVariantRecommendations;
+export const buildGenericRecipeTemplateRecommendations = getGenericIngredientRecipeRecommendations;

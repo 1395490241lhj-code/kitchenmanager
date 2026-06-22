@@ -32,6 +32,14 @@ export const INGREDIENT_ALIASES = {
   "春笋": ["鲜春笋"],
   "玉兰片": ["兰片", "水发兰片", "水发玉兰片"],
   "青菜": ["小白菜", "上海青", "瓢儿白", "油菜", "生菜", "青菜头", "菜心", "青菜心", "小白菜秧"],
+  "木耳菜": ["软浆叶", "软江叶", "软浆菜", "落葵", "藤菜", "潺菜", "豆腐菜", "紫角叶", "malabar spinach", "ceylon spinach", "vine spinach"],
+  "空心菜": ["通菜", "蕹菜", "ong choy", "water spinach"],
+  "苋菜": ["红苋菜", "青苋菜", "amaranth"],
+  "茼蒿": ["皇帝菜", "tong ho", "garland chrysanthemum"],
+  "芥兰": ["芥蓝", "gai lan", "chinese broccoli"],
+  "豌豆尖": ["豆尖", "豆苗", "pea shoots"],
+  "油麦菜": ["莴笋叶", "youmai cai"],
+  "A菜": ["台湾莴苣", "A choy"],
   "白菜": ["大白菜", "黄芽白", "绍菜", "莲花白", "莲白", "卷心菜", "包菜", "黄秧白"],
   "菠菜": ["菠菜叶", "菠菜心"],
   "芹菜": ["西芹", "旱芹", "药芹", "芹黄"],
@@ -53,7 +61,7 @@ export const INGREDIENT_ALIASES = {
   "鸡蛋": ["蛋", "鸡子", "蛋清", "鸡蛋清", "蛋白", "鸡蛋白"],
   "牛奶": ["奶", "鲜奶"],
   "蚕豆": ["胡豆", "鲜蚕豆", "扁豆", "蚕豆（扁豆）"],
-  "豌豆": ["青豆", "鲜豌豆", "豌豆尖", "豆尖", "鲜豌豆仁"],
+  "豌豆": ["青豆", "鲜豌豆", "鲜豌豆仁"],
   "豆芽": ["黄豆芽", "绿豆芽", "豆芽菜", "银芽"],
   "蘑菇": ["菌菇", "鲜蘑菇", "蘑菇片", "平菇", "金针菇", "杏鲍菇"],
   "香菇": ["冬菇", "花菇", "干香菇", "水发香菇", "冬菇（香菇）"],
@@ -158,6 +166,19 @@ export const ENGLISH_INGREDIENT_ALIASES = {
   "cremini mushroom": "蘑菇",
   "bok choy": "青菜",
   "baby bok choy": "小白菜",
+  "malabar spinach": "木耳菜",
+  "ceylon spinach": "木耳菜",
+  "vine spinach": "木耳菜",
+  "water spinach": "空心菜",
+  "ong choy": "空心菜",
+  "amaranth": "苋菜",
+  "tong ho": "茼蒿",
+  "garland chrysanthemum": "茼蒿",
+  "gai lan": "芥兰",
+  "chinese broccoli": "芥兰",
+  "pea shoots": "豌豆尖",
+  "youmai cai": "油麦菜",
+  "a choy": "A菜",
   "napa cabbage": "白菜",
   "chinese cabbage": "白菜",
   "cabbage": "白菜",
@@ -325,7 +346,7 @@ export const INGREDIENT_FAMILIES = {
   },
   leafy: {
     broad: ['青菜', '绿叶菜'],
-    members: ['青菜', '小白菜', '上海青', '油菜', '菠菜', '生菜', '空心菜']
+    members: ['青菜', '小白菜', '上海青', '油菜', '菠菜', '生菜', '空心菜', '木耳菜', '苋菜', '茼蒿', '芥兰', '豌豆尖', '油麦菜', 'A菜']
   },
   pepper: {
     broad: ['青椒', '辣椒'],
@@ -536,7 +557,7 @@ export function guessKitchenUnit(name) {
   if (includesAny(['米', '大米', '面粉', '挂面', '面条', '粉丝', '速冻', '饺子', '馄饨'])) return '袋';
   if (includesAny(['酱油', '生抽', '老抽', '醋', '料酒', '油', '牛奶', '饮料'])) return '瓶';
   if (isDryGoodName(n)) return getDryGoodConfig(n)?.unit || '包';
-  if (includesAny(['葱', '香菜', '芹菜', '韭菜', '蒜苗', '菠菜', '青菜'])) return '把';
+  if (includesAny(['葱', '香菜', '芹菜', '韭菜', '蒜苗', '菠菜', '青菜', '木耳菜', '空心菜', '苋菜', '茼蒿', '芥兰', '豌豆尖', '油麦菜', 'A菜'])) return '把';
   if (includesAny(['猪肉', '牛肉', '羊肉', '鸡肉', '鸭肉', '排骨', '鱼', '虾', '肉'])) return '份';
   return '份';
 }

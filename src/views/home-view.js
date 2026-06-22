@@ -5,7 +5,7 @@ import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
-  getCleanFridgeRecommendations, getRecipeVariantRecommendations, markRecipeCookedKeepPlan, processAiData
+  getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, markRecipeCookedKeepPlan, processAiData
 } from '../recommendations.js?v=219';
 import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus, showToast } from '../components/status.js?v=219';
@@ -171,6 +171,23 @@ function getInspirationCards(pack, inv) {
       tone: 'variant',
       variant,
       isVariant: true
+    });
+  }
+  const genericTemplates = getGenericIngredientRecipeRecommendations(pack, inv, {
+    limit: Math.max(0, 3 - cards.length),
+    existingNames: cards.map(card => card.name)
+  });
+  for (const item of genericTemplates) {
+    if (cards.length >= 3) break;
+    cards.push({
+      ...item,
+      id: item.id,
+      name: item.name,
+      matchLabel: item.matchLabel || '简单做法',
+      reason: item.reason || '',
+      tone: 'generic',
+      variant: item,
+      isGenericTemplate: true
     });
   }
   return cards;
@@ -2011,25 +2028,29 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     content.querySelector('#recipePreviewClose').onclick = modal.close;
   };
 
-  const formatVariantReplacements = (variant) => (variant.replacements || [])
-    .map(item => `${item.from} → ${item.to}`)
-    .join('、');
+  const formatVariantReplacements = (variant) => {
+    if (variant?.isGenericTemplate) return `用 ${variant.ingredientName || variant.name} 生成本地通用做法`;
+    return (variant.replacements || [])
+      .map(item => `${item.from} → ${item.to}`)
+      .join('、');
+  };
 
   const saveVariantAndAddPlan = (variant, button, goPlanBtn) => {
     try {
+      const isGeneric = Boolean(variant?.isGenericTemplate);
       const newId = createUserRecipe(pack, {
         name: variant.name,
-        tags: ['变化菜'],
+        tags: variant.tags || [isGeneric ? '简单做法' : '变化菜'],
         method: variant.methodDraft || '',
         ingredients: variant.recipeIngredients || variant.ingredients || []
       });
       const added = addRecipeToPlan(newId);
       brieflyConfirmButton(button, added ? '已加入今天' : '已保存');
-      showToast('已保存变化菜并加入今日计划', { tone: 'success' });
+      showToast(isGeneric ? '已保存简单做法并加入今日计划' : '已保存变化菜并加入今日计划', { tone: 'success' });
       if (goPlanBtn) goPlanBtn.hidden = false;
       return newId;
     } catch (err) {
-      showToast(err?.message || '变化菜保存失败', { tone: 'error' });
+      showToast(err?.message || '保存失败', { tone: 'error' });
       return null;
     }
   };
@@ -2038,14 +2059,15 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     if (!variant) return;
     const content = document.createElement('div');
     content.className = 'recipe-preview-shell recipe-variant-preview-shell';
+    const isGeneric = Boolean(variant.isGenericTemplate);
     const replacementsText = formatVariantReplacements(variant);
     content.innerHTML = `
       <div class="km-modal-body recipe-preview-body">
-        <p class="recipe-preview-source">${escapeHtml(variant.sourceLabel || `变化菜 · 由 ${variant.baseRecipeName || '现有菜谱'} 改`)}</p>
+        <p class="recipe-preview-source">${escapeHtml(variant.sourceLabel || (isGeneric ? '通用做法 · 适合现有食材' : `变化菜 · 由 ${variant.baseRecipeName || '现有菜谱'} 改`))}</p>
         <section class="recipe-preview-section recipe-variant-note">
-          <h4>变化关系</h4>
+          <h4>${isGeneric ? '做法来源' : '变化关系'}</h4>
           <p>${escapeHtml(replacementsText || '根据现有食材微调。')}</p>
-          <small>这还不是正式菜谱，加入今日计划前会先保存为你的菜谱。</small>
+          <small>${isGeneric ? '这是一份本地生成的简单做法，加入今日计划前会先保存为你的菜谱。' : '这还不是正式菜谱，加入今日计划前会先保存为你的菜谱。'}</small>
         </section>
         <section class="recipe-preview-section">
           <h4>核心食材</h4>
@@ -2063,7 +2085,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         <button type="button" class="btn recipe-preview-go-plan" id="variantPreviewGoPlan" hidden>查看今日计划</button>
       </div>
     `;
-    const modal = createHomeModal(content, confirmPlan ? '加入变化菜' : variant.name || '变化菜预览');
+    const modal = createHomeModal(content, confirmPlan ? (isGeneric ? '加入简单做法' : '加入变化菜') : variant.name || (isGeneric ? '简单做法预览' : '变化菜预览'));
     const saveBtn = content.querySelector('#variantPreviewSave');
     const goPlanBtn = content.querySelector('#variantPreviewGoPlan');
     content.querySelector('#variantPreviewClose').onclick = modal.close;
@@ -2273,10 +2295,24 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
               limit: 4,
               targetNames
             });
+            const genericTemplates = getGenericIngredientRecipeRecommendations(pack, inv, {
+              limit: 3,
+              targetNames,
+              existingNames: [
+                ...directCards.map(item => item.name),
+                ...variants.map(item => item.name)
+              ]
+            });
             const seen = new Set(directCards.map(item => item.id || item.name));
             return [
               ...directCards,
               ...variants.filter(item => {
+                const key = item.id || item.name;
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              }),
+              ...genericTemplates.filter(item => {
                 const key = item.id || item.name;
                 if (!key || seen.has(key)) return false;
                 seen.add(key);

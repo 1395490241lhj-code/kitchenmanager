@@ -16,8 +16,10 @@ import { addShoppingItem } from './shopping.js?v=219';
 import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=219';
 import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=219';
 export {
+  buildGenericRecipeTemplateRecommendations,
   buildRecipeVariantRecommendations,
   buildVariantMethodDraft,
+  getGenericIngredientRecipeRecommendations,
   getRecipeVariantRecommendations
 } from './utils/recipe-variants.js?v=219';
 

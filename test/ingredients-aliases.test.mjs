@@ -4,7 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getCanonicalName, normalizeReceiptIngredientName } from '../src/ingredients.js';
+import { getCanonicalName, getIngredientFamilyKey, isSeasoning, normalizeReceiptIngredientName } from '../src/ingredients.js';
+import { classifyRecipeIngredient } from '../src/utils/recipe-sanitizer.js';
 
 test('getCanonicalName 豆制品同义归一一致', () => {
   // 豆干组
@@ -39,4 +40,19 @@ test('leek / 韭葱 归入葱类展示，但不混淆韭菜、蒜苗和大葱', 
   assert.equal(getCanonicalName('大葱'), '葱');
   assert.notEqual(getCanonicalName('韭菜'), getCanonicalName('葱'));
   assert.notEqual(getCanonicalName('蒜苗'), getCanonicalName('葱'));
+});
+
+test('软浆叶 / 落葵 / malabar spinach 归一为木耳菜，且不混淆木耳', () => {
+  const muerCai = '\u6728\u8033\u83dc';
+  assert.equal(getCanonicalName('\u8f6f\u6d46\u53f6'), muerCai);
+  assert.equal(getCanonicalName('\u843d\u8475'), muerCai);
+  assert.equal(getCanonicalName('malabar spinach'), muerCai);
+  assert.equal(getCanonicalName('ceylon spinach'), muerCai);
+  assert.equal(getCanonicalName('vine spinach'), muerCai);
+  assert.equal(normalizeReceiptIngredientName('fresh malabar spinach'), muerCai);
+
+  assert.notEqual(getCanonicalName(muerCai), getCanonicalName('\u6728\u8033'));
+  assert.equal(classifyRecipeIngredient(muerCai).role, 'core');
+  assert.equal(isSeasoning(muerCai), false);
+  assert.equal(getIngredientFamilyKey(muerCai), 'leafy');
 });

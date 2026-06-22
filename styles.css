@@ -3770,6 +3770,7 @@ html[data-theme="dark"] .receipt-ignored-item {
 .home-suggest-card.tone-almost   { border-left-color: var(--primary); }
 .home-suggest-card.tone-idea     { border-left-color: var(--status-draft-text); }
 .home-suggest-card.tone-variant  { border-left-color: var(--status-warn-text); }
+.home-suggest-card.tone-generic  { border-left-color: var(--status-info-text); }
 
 .home-suggest-match {
   align-self: flex-start;
@@ -3785,6 +3786,7 @@ html[data-theme="dark"] .receipt-ignored-item {
 .tone-almost .home-suggest-match   { background: var(--status-info-bg); color: var(--status-info-text); }
 .tone-idea .home-suggest-match     { background: var(--status-draft-bg); color: var(--status-draft-text); }
 .tone-variant .home-suggest-match  { background: var(--status-warn-bg); color: var(--status-warn-text); }
+.tone-generic .home-suggest-match  { background: var(--status-info-bg); color: var(--status-info-text); }
 
 .home-suggest-name {
   margin: 2px 0 0;
