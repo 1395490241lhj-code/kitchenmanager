@@ -3769,6 +3769,7 @@ html[data-theme="dark"] .receipt-ignored-item {
 .home-suggest-card.tone-ready    { border-left-color: var(--accent); }
 .home-suggest-card.tone-almost   { border-left-color: var(--primary); }
 .home-suggest-card.tone-idea     { border-left-color: var(--status-draft-text); }
+.home-suggest-card.tone-variant  { border-left-color: var(--status-warn-text); }
 
 .home-suggest-match {
   align-self: flex-start;
@@ -3783,6 +3784,7 @@ html[data-theme="dark"] .receipt-ignored-item {
 .tone-ready .home-suggest-match    { background: var(--status-ok-bg);  color: var(--status-ok-text); }
 .tone-almost .home-suggest-match   { background: var(--status-info-bg); color: var(--status-info-text); }
 .tone-idea .home-suggest-match     { background: var(--status-draft-bg); color: var(--status-draft-text); }
+.tone-variant .home-suggest-match  { background: var(--status-warn-bg); color: var(--status-warn-text); }
 
 .home-suggest-name {
   margin: 2px 0 0;
@@ -3791,6 +3793,13 @@ html[data-theme="dark"] .receipt-ignored-item {
   color: var(--text-main);
 }
 .home-suggest-name.is-link { cursor: pointer; }
+.home-suggest-source {
+  display: block;
+  margin-top: -2px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
 .home-suggest-reason {
   margin: 0;
   font-size: 13px;
@@ -9501,6 +9510,26 @@ html[data-theme="dark"] .target-recipe-btn {
   color: var(--text-main);
   font-size: 13px;
   font-weight: 850;
+}
+.recipe-variant-note {
+  border: 1px solid var(--glass-edge);
+  background: var(--glass-fill);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.recipe-variant-note p {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--text-main);
+  font-weight: 700;
+}
+.recipe-variant-note small {
+  display: block;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+.recipe-variant-actions .btn {
+  flex: 1 1 170px;
 }
 .recipe-preview-chip-list {
   display: flex;

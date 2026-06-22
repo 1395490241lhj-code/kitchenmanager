@@ -15,6 +15,11 @@ import {
 import { addShoppingItem } from './shopping.js?v=219';
 import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=219';
 import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=219';
+export {
+  buildRecipeVariantRecommendations,
+  buildVariantMethodDraft,
+  getRecipeVariantRecommendations
+} from './utils/recipe-variants.js?v=219';
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);

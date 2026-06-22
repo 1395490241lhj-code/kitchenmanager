@@ -5,7 +5,7 @@ import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
 import {
   addMissingRecipeIngredientsToShopping, addRecipeToPlan,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
-  getCleanFridgeRecommendations, markRecipeCookedKeepPlan, processAiData
+  getCleanFridgeRecommendations, getRecipeVariantRecommendations, markRecipeCookedKeepPlan, processAiData
 } from '../recommendations.js?v=219';
 import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus, showToast } from '../components/status.js?v=219';
@@ -19,6 +19,7 @@ import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=219';
 import { splitMethodSteps } from '../utils/method-steps.js?v=219';
 import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=219';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
+import { createUserRecipe } from '../components/recipe-create-modal.js?v=219';
 import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=219';
 import {
   buildLocalCookedMealCandidates,
@@ -158,26 +159,44 @@ function getInspirationCards(pack, inv) {
   pushFrom(groups.priority, 'priority');
   pushFrom(groups.ready, 'ready');
   pushFrom(groups.almost, 'almost');
+  const variants = getRecipeVariantRecommendations(pack, inv, { limit: Math.max(0, 3 - cards.length) });
+  for (const variant of variants) {
+    if (cards.length >= 3) break;
+    cards.push({
+      ...variant,
+      id: variant.id,
+      name: variant.name,
+      matchLabel: variant.matchLabel || '变化菜',
+      reason: variant.reason || '',
+      tone: 'variant',
+      variant,
+      isVariant: true
+    });
+  }
   return cards;
 }
 
 // ── Section 1: AI 灵感面板（Hero 胶囊） ───────────────────────────────────────
-function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null } = {}) {
+function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewVariant = null } = {}) {
   const el = document.createElement('article');
   el.className = `home-suggest-card tone-${card.tone || 'idea'}`;
+  const variant = card.variant || (card.isVariant ? card : null);
   const previewRecipe = card.row?.r || card.r || card.recipe || null;
-  const canPreview = Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !String(card.id).startsWith('creative-'));
+  const canPreviewVariant = Boolean(variant && typeof onPreviewVariant === 'function');
+  const canPreview = canPreviewVariant || Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !String(card.id).startsWith('creative-'));
+  const sourceText = variant?.sourceLabel ? `<small class="home-suggest-source">${escapeHtml(variant.sourceLabel)}</small>` : '';
   const missingTag = (card.missing && card.missing.length)
     ? `<span class="home-suggest-missing">缺 ${escapeHtml(card.missing.join('、'))}</span>`
     : '';
   el.innerHTML = `
     <span class="home-suggest-match">${escapeHtml(card.matchLabel || '')}</span>
     <h3 class="home-suggest-name">${escapeHtml(card.name)}</h3>
+    ${sourceText}
     <p class="home-suggest-reason">${escapeHtml(card.reason || '')}</p>
     ${missingTag}
     <div class="home-suggest-actions">
       ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看做法</button>' : ''}
-      <button type="button" class="btn ok small home-suggest-cook">${card.tone === 'almost' ? '加入买菜' : '做这道'}</button>
+      <button type="button" class="btn ok small home-suggest-cook">${variant ? '加入今日计划' : (card.tone === 'almost' ? '加入买菜' : '做这道')}</button>
     </div>
     <div class="home-suggest-feedback" hidden></div>
   `;
@@ -187,6 +206,10 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null } = {}) {
   const openPreview = (event) => {
     event?.preventDefault();
     event?.stopPropagation();
+    if (canPreviewVariant) {
+      onPreviewVariant(variant);
+      return;
+    }
     if (canPreview) onPreviewRecipe(previewRecipe);
   };
   const showPlanFeedback = (text) => {
@@ -207,6 +230,10 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null } = {}) {
   cookBtn.onclick = (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (variant) {
+      onPreviewVariant?.(variant, { confirmPlan: true });
+      return;
+    }
     if (!card.id) { brieflyConfirmButton(cookBtn, '示例'); return; }
     if (card.tone === 'almost' && card.row) {
       const count = addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list);
@@ -1984,6 +2011,82 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     content.querySelector('#recipePreviewClose').onclick = modal.close;
   };
 
+  const formatVariantReplacements = (variant) => (variant.replacements || [])
+    .map(item => `${item.from} → ${item.to}`)
+    .join('、');
+
+  const saveVariantAndAddPlan = (variant, button, goPlanBtn) => {
+    try {
+      const newId = createUserRecipe(pack, {
+        name: variant.name,
+        tags: ['变化菜'],
+        method: variant.methodDraft || '',
+        ingredients: variant.recipeIngredients || variant.ingredients || []
+      });
+      const added = addRecipeToPlan(newId);
+      brieflyConfirmButton(button, added ? '已加入今天' : '已保存');
+      showToast('已保存变化菜并加入今日计划', { tone: 'success' });
+      if (goPlanBtn) goPlanBtn.hidden = false;
+      return newId;
+    } catch (err) {
+      showToast(err?.message || '变化菜保存失败', { tone: 'error' });
+      return null;
+    }
+  };
+
+  const openRecipeVariantPreviewModal = (variant, { confirmPlan = false } = {}) => {
+    if (!variant) return;
+    const content = document.createElement('div');
+    content.className = 'recipe-preview-shell recipe-variant-preview-shell';
+    const replacementsText = formatVariantReplacements(variant);
+    content.innerHTML = `
+      <div class="km-modal-body recipe-preview-body">
+        <p class="recipe-preview-source">${escapeHtml(variant.sourceLabel || `变化菜 · 由 ${variant.baseRecipeName || '现有菜谱'} 改`)}</p>
+        <section class="recipe-preview-section recipe-variant-note">
+          <h4>变化关系</h4>
+          <p>${escapeHtml(replacementsText || '根据现有食材微调。')}</p>
+          <small>这还不是正式菜谱，加入今日计划前会先保存为你的菜谱。</small>
+        </section>
+        <section class="recipe-preview-section">
+          <h4>核心食材</h4>
+          <div class="recipe-preview-chip-list">${renderPreviewIngredientChips(variant.ingredients || [], '还没有生成核心食材。')}</div>
+        </section>
+        <section class="recipe-preview-section">
+          <h4>做法提示</h4>
+          ${renderPreviewMethod(variant.methodDraft || '')}
+        </section>
+      </div>
+      <div class="km-modal-actions recipe-preview-actions recipe-variant-actions">
+        <button type="button" class="btn" id="variantPreviewClose">${confirmPlan ? '取消' : '关闭'}</button>
+        <button type="button" class="btn" id="variantPreviewOnly">仅查看做法</button>
+        <button type="button" class="btn ok" id="variantPreviewSave">保存为菜谱并加入今日计划</button>
+        <button type="button" class="btn recipe-preview-go-plan" id="variantPreviewGoPlan" hidden>查看今日计划</button>
+      </div>
+    `;
+    const modal = createHomeModal(content, confirmPlan ? '加入变化菜' : variant.name || '变化菜预览');
+    const saveBtn = content.querySelector('#variantPreviewSave');
+    const goPlanBtn = content.querySelector('#variantPreviewGoPlan');
+    content.querySelector('#variantPreviewClose').onclick = modal.close;
+    content.querySelector('#variantPreviewOnly').onclick = event => {
+      event.preventDefault();
+      content.querySelector('.recipe-preview-body')?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    };
+    saveBtn.onclick = event => {
+      event.preventDefault();
+      const newId = saveVariantAndAddPlan(variant, saveBtn, goPlanBtn);
+      if (newId) {
+        saveBtn.disabled = true;
+        window.invalidatePackCache?.();
+      }
+    };
+    goPlanBtn.onclick = event => {
+      event.preventDefault();
+      lastWxTab = 'plan';
+      modal.close();
+      window.setTimeout(() => onRoute(), 220);
+    };
+  };
+
   // ── AI 创意做法（指定食材模式专属）：本地结果之下、明确分层；只有点按钮才调 AI ──
   const renderTargetCreativeBox = (targetNames, localCards) => {
     const box = document.createElement('div');
@@ -2156,13 +2259,31 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       // 同一面板内目标没变（如点 AI 按钮 / 来回切 tab 触发的重绘）→ 复用上次结果，
       // 不重扫全库；pack/inv 变化必经 onRoute 重建面板，缓存自然失效。
       const sameTarget = recsState && recsState.mode === 'target' && recsState.key === targetKey;
-      const targetCards = sameTarget
+      const directCards = sameTarget
         ? recsState.cards
         : perfMeasure(`findRecipesUsingIngredients(${targetKey})`, () => findRecipesUsingIngredients(pack, inv, targetNames, {
             context: getRecommendationUiContext(),
             limit: 6,
             targetDescriptors
           }));
+      const targetCards = sameTarget
+        ? directCards
+        : (() => {
+            const variants = getRecipeVariantRecommendations(pack, inv, {
+              limit: 4,
+              targetNames
+            });
+            const seen = new Set(directCards.map(item => item.id || item.name));
+            return [
+              ...directCards,
+              ...variants.filter(item => {
+                const key = item.id || item.name;
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              })
+            ].slice(0, 6);
+          })();
       const prevIdx = sameTarget ? recsState.idx : 0;
       recsState = {
         mode: 'target',
@@ -2218,7 +2339,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     } else if (mode === 'ai') {
       showRecommendationCards(cardWrap, [cards[idx]], pack, { onRoute, onPreviewRecipe: openRecipePreviewModal });
     } else {
-      cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv, { onPreviewRecipe: openRecipePreviewModal }));
+      cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv, {
+        onPreviewRecipe: openRecipePreviewModal,
+        onPreviewVariant: openRecipeVariantPreviewModal
+      }));
     }
     bindRecommendationCycling(cardWrap);
     if (mode === 'target' && targetNames.length) {

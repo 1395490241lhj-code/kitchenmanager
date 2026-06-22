@@ -38,7 +38,7 @@ test('首页推荐菜谱使用弹窗预览，AI 草稿不伪装成本地菜谱',
   const home = read('src/views/home-view.js');
   const card = read('src/components/recipe-card.js');
 
-  assert.match(home, /renderSuggestCard\(cards\[idx\], pack, inv, \{ onPreviewRecipe: openRecipePreviewModal \}\)/);
+  assert.match(home, /renderSuggestCard\(cards\[idx\], pack, inv, \{\s*onPreviewRecipe: openRecipePreviewModal,\s*onPreviewVariant: openRecipeVariantPreviewModal\s*\}\)/);
   assert.match(home, /showRecommendationCards\(cardWrap, \[cards\[idx\]\], pack, \{ onRoute, onPreviewRecipe: openRecipePreviewModal \}\)/);
   assert.match(card, /onPreviewRecipe = null/);
   assert.match(card, /!isCreative/);
