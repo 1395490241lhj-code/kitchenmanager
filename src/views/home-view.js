@@ -1113,7 +1113,7 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
   section.innerHTML = `
     <div class="today-quick-row">
       <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>记食材</span></button>
-      <button type="button" class="today-quick-btn" id="qaRecipeImport"><span class="tq-emoji">📸</span><span>导入菜谱</span></button>
+      <button type="button" class="today-quick-btn" id="qaRecipeImport"><span class="tq-emoji">📖</span><span>导入菜谱</span></button>
     </div>
   `;
   // 记食材：直接打开现有「记进厨房」弹窗（📸 拍小票识别 + ✍️ 文本批量记）。

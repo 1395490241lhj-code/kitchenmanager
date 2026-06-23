@@ -10116,3 +10116,116 @@ html[data-theme="dark"] body.is-dock-compact nav a.active { background: rgba(10,
   nav a span,
   body::after { transition: none; }
 }
+
+/* Home quick actions should read as two tappable cards, not a segmented control. */
+.today-quick-row,
+html[data-theme="light"] .today-quick-row,
+html[data-theme="dark"] .today-quick-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.today-quick-row::after,
+html[data-theme="light"] .today-quick-row::after,
+html[data-theme="dark"] .today-quick-row::after {
+  content: none;
+  display: none;
+}
+
+.today-quick-btn,
+html[data-theme="light"] .today-quick-btn:not(.is-primary),
+html[data-theme="dark"] .today-quick-btn {
+  min-width: 0;
+  min-height: 52px;
+  padding: 9px 12px;
+  gap: 9px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.60);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  color: var(--text-main);
+  box-shadow:
+    0 10px 24px rgba(16, 24, 40, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: var(--glass-blur-control);
+  -webkit-backdrop-filter: var(--glass-blur-control);
+}
+
+.today-quick-btn.is-primary,
+html[data-theme="light"] .today-quick-btn.is-primary {
+  background:
+    linear-gradient(135deg, rgba(0, 122, 255, 0.16), rgba(0, 122, 255, 0.045)),
+    rgba(255, 255, 255, 0.66);
+  border-color: rgba(0, 122, 255, 0.22);
+  color: var(--primary-dark);
+}
+
+html[data-theme="dark"] .today-quick-btn {
+  background: rgba(44, 44, 46, 0.58);
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+html[data-theme="dark"] .today-quick-btn.is-primary {
+  background:
+    linear-gradient(135deg, rgba(10, 132, 255, 0.24), rgba(10, 132, 255, 0.08)),
+    rgba(44, 44, 46, 0.62);
+  border-color: rgba(10, 132, 255, 0.32);
+  color: #9ecbff;
+}
+
+.today-quick-btn .tq-emoji {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  background: rgba(120, 120, 128, 0.12);
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.today-quick-btn.is-primary .tq-emoji {
+  background: rgba(0, 122, 255, 0.13);
+}
+
+html[data-theme="dark"] .today-quick-btn .tq-emoji {
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .today-quick-btn:hover {
+    transform: translateY(-1px);
+  }
+}
+
+.today-quick-btn:active {
+  transform: scale(0.98);
+}
+
+@media (max-width: 480px) {
+  .today-quick-row,
+  html[data-theme="light"] .today-quick-row,
+  html[data-theme="dark"] .today-quick-row {
+    gap: 8px;
+    padding: 0;
+  }
+  .today-quick-btn,
+  html[data-theme="light"] .today-quick-btn:not(.is-primary),
+  html[data-theme="dark"] .today-quick-btn {
+    min-height: 50px;
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+}
