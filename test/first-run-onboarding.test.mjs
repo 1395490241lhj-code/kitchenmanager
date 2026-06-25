@@ -14,9 +14,9 @@ test('empty inventory home prioritizes demo kitchen, then text entry, then recip
   const styles = read('styles.css');
 
   assert.match(home, /今天不知道吃什么？/);
-  assert.match(home, /先试一个示例厨房，马上看看今天能做什么、缺什么、该买什么。/);
+  assert.match(home, /先用一个示例厨房体验一次：看推荐、安排今日计划、做完后更新库存。/);
   assert.match(home, /id="obDemo"/);
-  assert.match(home, /试用示例厨房/);
+  assert.match(home, /开始示例体验/);
   assert.match(home, /id="obManual"/);
   assert.match(home, /记录我的食材/);
   assert.match(home, /id="obRecipes"/);
@@ -33,13 +33,48 @@ test('first-run onboarding copy explains the cooking flow without product jargon
   const stepsBlock = source.slice(source.indexOf('const STEPS'), source.indexOf('export function hasOnboarded'));
 
   assert.match(source, /const ONBOARD_KEY = 'km_onboarded_v1';/);
-  assert.match(stepsBlock, /title: '先记几样食材'/);
-  assert.match(stepsBlock, /body: '不用完整整理冰箱，先写 3 到 5 样常见食材就行。'/);
-  assert.match(stepsBlock, /title: '看看今天能做什么'/);
-  assert.match(stepsBlock, /body: '我会根据现有食材推荐能做的菜，也会提醒还缺什么。'/);
-  assert.match(stepsBlock, /title: '做完顺手更新'/);
-  assert.match(stepsBlock, /饭后记一下/);
+  assert.match(stepsBlock, /title: '先从一次体验开始'/);
+  assert.match(stepsBlock, /body: '你可以先用示例厨房走一遍流程，再决定要不要记录自己的食材。'/);
+  assert.match(stepsBlock, /title: '真实使用也很简单'/);
+  assert.match(stepsBlock, /body: '记几样食材后，我会帮你看今天能做什么、缺什么、该买什么。'/);
+  assert.match(stepsBlock, /title: '数据在本地'/);
+  assert.match(stepsBlock, /设置页可以导出备份/);
   assert.doesNotMatch(stepsBlock, /悬浮 Dock 舱|双轨制冰箱|高情商主厨校准|未来厨房|管家会帮你自动理解一切/);
+});
+
+test('guided demo stores step state and renders reversible example guidance', () => {
+  const home = read('src/views/home-view.js');
+  const storage = read('src/storage.js');
+  const styles = read('styles.css');
+
+  assert.match(storage, /demo_mode: 'km_demo_mode'/);
+  assert.match(storage, /demo_snapshot: 'km_demo_snapshot_v1'/);
+  assert.match(storage, /demo_step: 'km_demo_step_v1'/);
+  assert.match(home, /localStorage\.setItem\(S\.keys\.demo_mode, '1'\)/);
+  assert.match(home, /localStorage\.setItem\(S\.keys\.demo_step, 'recs'\)/);
+  assert.match(home, /S\.save\(S\.keys\.demo_snapshot/);
+  assert.match(home, /当前是示例体验/);
+  assert.match(home, /第 2 步：看看今天能做什么/);
+  assert.match(home, /第 3 步：今日计划已经安排好了/);
+  assert.match(home, /第 4 步：做完后更新库存/);
+  assert.match(home, /示例体验完成/);
+  assert.match(home, /开始我的厨房/);
+  assert.match(home, /localStorage\.removeItem\(S\.keys\.demo_mode\)/);
+  assert.match(home, /localStorage\.removeItem\(S\.keys\.demo_snapshot\)/);
+  assert.match(home, /localStorage\.removeItem\(S\.keys\.demo_step\)/);
+  assert.doesNotMatch(home, /localStorage\.clear\(/);
+  assert.match(styles, /\.demo-kitchen-primary/);
+  assert.match(styles, /\.demo-kitchen-actions/);
+});
+
+test('guided demo advances on plan add and cooked-meal completion only in demo mode', () => {
+  const home = read('src/views/home-view.js');
+
+  assert.match(home, /function markDemoPlanAdded\(added\)/);
+  assert.match(home, /setDemoStep\('plan'\)/);
+  assert.match(home, /markDemoPlanAdded\(added\)/);
+  assert.match(home, /if \(isDemoKitchenMode\(\)\) setDemoStep\('cook'\);/);
+  assert.match(home, /if \(isDemoKitchenMode\(\)\) setDemoStep\('done'\);/);
 });
 
 test('real first inventory entry guides users into recommendations', () => {

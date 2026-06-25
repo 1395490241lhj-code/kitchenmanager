@@ -90,7 +90,12 @@ function getRecommendationUiContext() {
 function openCleanFridgeHelper(pack, inv, onRoute = () => {}) {
   const recs = getCleanFridgeRecommendations(pack, inv, getRecommendationUiContext());
   showCleanFridgeModal(recs, {
-    onAddPlan: (id, btn) => { addRecipeToPlan(id); brieflyConfirmButton(btn, '已加入'); onRoute(); },
+    onAddPlan: (id, btn) => {
+      const added = addRecipeToPlan(id);
+      markDemoPlanAdded(added);
+      brieflyConfirmButton(btn, added ? '已加入' : '已在今天');
+      onRoute();
+    },
     onAddShopping: (id, btn) => {
       const recItem = recs.find(item => item.r.id === id);
       if (recItem) {
@@ -259,6 +264,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
     } else {
       const added = addRecipeToPlan(card.id);
       brieflyConfirmButton(cookBtn, added ? '已加入今天' : '已在今天');
+      markDemoPlanAdded(added);
       const firstPlanGuide = consumeFirstPlanGuideMessage(added);
       showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
       showFirstPlanGuideToast(firstPlanGuide);
@@ -746,10 +752,10 @@ function renderOnboarding(pack, { onRoute = () => {} } = {}) {
     <div class="home-hero-head">
       <span class="home-hero-eyebrow">🍳 先看今天能吃什么</span>
       <h2 class="home-hero-greeting">今天不知道吃什么？</h2>
-      <p class="home-hero-note">先试一个示例厨房，马上看看今天能做什么、缺什么、该买什么。</p>
+      <p class="home-hero-note">先用一个示例厨房体验一次：看推荐、安排今日计划、做完后更新库存。</p>
     </div>
     <div class="home-actions-grid home-onboarding-actions">
-      <button type="button" class="home-act-btn home-onboarding-demo is-primary" id="obDemo"><span class="home-act-emoji">🍳</span><span class="home-act-copy"><span>试用示例厨房</span><small>马上看到推荐、待买和到期提醒</small></span></button>
+      <button type="button" class="home-act-btn home-onboarding-demo is-primary" id="obDemo"><span class="home-act-emoji">🍳</span><span class="home-act-copy"><span>开始示例体验</span><small>先走一遍完整流程</small></span></button>
       <button type="button" class="home-act-btn home-onboarding-manual" id="obManual"><span class="home-act-emoji">✍️</span><span class="home-act-copy"><span>记录我的食材</span><small>先写 3 到 5 样就行</small></span></button>
     </div>
     <div class="home-onboarding-link-row">
@@ -782,6 +788,28 @@ function isDemoKitchenMode() {
   try { return localStorage.getItem(S.keys.demo_mode) === '1'; } catch (e) { return false; }
 }
 
+function getDemoStep() {
+  try { return localStorage.getItem(S.keys.demo_step) || 'recs'; } catch (e) { return 'recs'; }
+}
+
+function setDemoStep(step) {
+  if (!isDemoKitchenMode()) return;
+  try { localStorage.setItem(S.keys.demo_step, step); } catch (e) { /* ignore private mode */ }
+}
+
+function advanceDemoStep(step, { onRoute = null } = {}) {
+  if (!isDemoKitchenMode()) return;
+  setDemoStep(step);
+  if (step === 'recs') lastWxTab = 'recs';
+  if (step === 'plan' || step === 'cook') lastWxTab = 'plan';
+  if (typeof onRoute === 'function') onRoute();
+}
+
+function markDemoPlanAdded(added) {
+  if (!added || !isDemoKitchenMode()) return;
+  setDemoStep('plan');
+}
+
 function saveDemoKitchenSnapshot() {
   if (isDemoKitchenMode() && localStorage.getItem(S.keys.demo_snapshot)) return;
   const keys = {};
@@ -797,6 +825,7 @@ function saveDemoKitchenSnapshot() {
 function enterDemoKitchen(pack, { onRoute = () => {} } = {}) {
   saveDemoKitchenSnapshot();
   localStorage.setItem(S.keys.demo_mode, '1');
+  localStorage.setItem(S.keys.demo_step, 'recs');
   const n = writeItemsToInventory(DEMO_KITCHEN_ITEMS, pack);
   if (n > 0) lastWxTab = 'recs';
   onRoute();
@@ -821,25 +850,94 @@ function exitDemoKitchen({ onRoute = () => {} } = {}) {
   restoreDemoKitchenSnapshot(snapshot);
   localStorage.removeItem(S.keys.demo_mode);
   localStorage.removeItem(S.keys.demo_snapshot);
+  localStorage.removeItem(S.keys.demo_step);
   lastWxTab = null;
   onRoute();
 }
 
 function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
+  const step = getDemoStep();
+  const state = {
+    intro: {
+      title: '示例体验：食材已经准备好',
+      body: '我先放了几样常见食材。你可以像真实厨房一样试用，不会影响你的设置。',
+      primary: '看看今天能做什么',
+      primaryStep: 'recs',
+      secondary: '退出示例',
+      secondaryAction: 'exit'
+    },
+    recs: {
+      title: '第 2 步：看看今天能做什么',
+      body: '根据这些示例食材，选择一道菜加入今日计划。',
+      primary: '查看推荐',
+      primaryStep: 'recs',
+      secondary: '退出示例',
+      secondaryAction: 'exit'
+    },
+    plan: {
+      title: '第 3 步：今日计划已经安排好了',
+      body: '今日计划就是你准备吃什么。做完后，点“饭后记一下”来更新库存。',
+      primary: '去今日计划',
+      primaryStep: 'cook',
+      secondary: '退出示例',
+      secondaryAction: 'exit'
+    },
+    cook: {
+      title: '第 4 步：做完后更新库存',
+      body: '“饭后记一下”会帮你确认用掉了哪些食材，并提醒要不要补货。',
+      primary: '我知道了',
+      primaryStep: 'done',
+      secondary: '开始我的厨房',
+      secondaryAction: 'exit'
+    },
+    done: {
+      title: '示例体验完成',
+      body: '现在你已经体验了：看推荐、加入今日计划、饭后更新库存。接下来可以开始记录自己的厨房。',
+      primary: '开始我的厨房',
+      primaryAction: 'exit',
+      secondary: '继续试用',
+      secondaryStep: 'recs'
+    }
+  }[step] || {
+    title: '当前是示例体验',
+    body: '你可以随便试用推荐、计划和买菜清单。准备记录自己的厨房时，可以退出示例。',
+    primary: '查看推荐',
+    primaryStep: 'recs',
+    secondary: '退出示例',
+    secondaryAction: 'exit'
+  };
   const banner = document.createElement('section');
   banner.className = 'demo-kitchen-banner';
   banner.innerHTML = `
     <div class="demo-kitchen-copy">
-      <strong>当前是示例厨房</strong>
-      <span>你可以随便试用推荐、计划和买菜清单。准备记录自己的厨房时，可以退出示例。</span>
+      <small>当前是示例体验</small>
+      <strong>${escapeHtml(state.title)}</strong>
+      <span>${escapeHtml(state.body)}</span>
     </div>
-    <button type="button" class="demo-kitchen-exit">退出示例厨房</button>
+    <div class="demo-kitchen-actions">
+      <button type="button" class="demo-kitchen-primary">${escapeHtml(state.primary)}</button>
+      <button type="button" class="demo-kitchen-exit">${escapeHtml(state.secondary)}</button>
+    </div>
   `;
-  banner.querySelector('.demo-kitchen-exit').onclick = () => {
+  const confirmExit = () => {
     const ok = window.confirm('退出后会清除示例食材和示例计划，回到空厨房。你的设置不会被删除。');
     if (!ok) return;
     exitDemoKitchen({ onRoute });
-    showToast('已退出示例厨房', { tone: 'info' });
+    showToast('已退出示例体验', { tone: 'info' });
+  };
+  banner.querySelector('.demo-kitchen-primary').onclick = () => {
+    if (state.primaryAction === 'exit') {
+      confirmExit();
+      return;
+    }
+    advanceDemoStep(state.primaryStep || 'recs', { onRoute });
+  };
+  banner.querySelector('.demo-kitchen-exit').onclick = () => {
+    if (state.secondaryAction === 'exit') {
+      confirmExit();
+      return;
+    }
+    advanceDemoStep(state.secondaryStep || 'recs', { onRoute });
   };
   return banner;
 }
@@ -1255,6 +1353,7 @@ function createRecordCookedButton(pack, inv, { onRoute = () => {} } = {}) {
   button.className = 'record-cooked-btn';
   button.innerHTML = '<span class="record-cooked-icon">🍽️</span><span>饭后记一下</span>';
   button.onclick = () => {
+    if (isDemoKitchenMode()) setDemoStep('cook');
     const original = button.innerHTML;
     button.disabled = true;
     button.classList.add('is-opening');
@@ -1497,6 +1596,7 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
       const shoppingCandidates = getCookShoppingCandidates({ calibrations });
       applyCookCalibration(inv, calibrations);
       showToast('已更新库存', { tone: 'success' });
+      if (isDemoKitchenMode()) setDemoStep('done');
       if (currentMarkPlanId) markTodayPlanCooked(currentMarkPlanId);
       else if (currentRecipe?.id) markRecipeCookedKeepPlan(currentRecipe.id);
       close(() => showCookCompleteFeedback({
@@ -2035,6 +2135,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         event.stopPropagation();
         const added = addRecipeToPlan(item.id);
         brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+        markDemoPlanAdded(added);
         const firstPlanGuide = consumeFirstPlanGuideMessage(added);
         showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
         showFirstPlanGuideToast(firstPlanGuide);
@@ -2119,6 +2220,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       event.preventDefault();
       const added = addRecipeToPlan(recipe.id);
       brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+      markDemoPlanAdded(added);
       const firstPlanGuide = consumeFirstPlanGuideMessage(added);
       showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
       showFirstPlanGuideToast(firstPlanGuide);
@@ -2151,6 +2253,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       });
       const added = addRecipeToPlan(newId);
       brieflyConfirmButton(button, added ? '已加入今天' : '已保存');
+      markDemoPlanAdded(added);
       showToast(isGeneric ? '已保存简单做法并加入今日计划' : '已保存变化菜并加入今日计划', { tone: 'success' });
       if (goPlanBtn) goPlanBtn.hidden = false;
       return newId;

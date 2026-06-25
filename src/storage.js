@@ -35,6 +35,7 @@ export const S = {
     pantry_config: 'km_v1_pantry_config',
     prep_done: 'km_v1_prep_done',
     demo_mode: 'km_demo_mode',
-    demo_snapshot: 'km_demo_snapshot_v1'
+    demo_snapshot: 'km_demo_snapshot_v1',
+    demo_step: 'km_demo_step_v1'
   }
 };

@@ -15,6 +15,7 @@ test('demo kitchen mode uses centralized keys and snapshots business data', () =
 
   assert.match(storage, /demo_mode: 'km_demo_mode'/);
   assert.match(storage, /demo_snapshot: 'km_demo_snapshot_v1'/);
+  assert.match(storage, /demo_step: 'km_demo_step_v1'/);
   assert.match(home, /const DEMO_BUSINESS_KEY_NAMES = \[/);
   assert.match(home, /'inventory'/);
   assert.match(home, /'plan'/);
@@ -31,6 +32,7 @@ test('demo kitchen mode uses centralized keys and snapshots business data', () =
   assert.match(home, /'favorite_recipes'/);
   assert.match(home, /S\.save\(S\.keys\.demo_snapshot/);
   assert.match(home, /localStorage\.setItem\(S\.keys\.demo_mode, '1'\)/);
+  assert.match(home, /localStorage\.setItem\(S\.keys\.demo_step, 'recs'\)/);
   assert.match(home, /section\.querySelector\('#obDemo'\)\.onclick = \(\) => enterDemoKitchen\(pack, \{ onRoute \}\);/);
 });
 
@@ -42,14 +44,17 @@ test('demo kitchen exit restores snapshot without clearing personal settings', (
   assert.match(home, /restoreDemoKitchenSnapshot\(snapshot\)/);
   assert.match(home, /localStorage\.removeItem\(S\.keys\.demo_mode\)/);
   assert.match(home, /localStorage\.removeItem\(S\.keys\.demo_snapshot\)/);
+  assert.match(home, /localStorage\.removeItem\(S\.keys\.demo_step\)/);
   assert.doesNotMatch(home, /localStorage\.clear\(/);
   assert.doesNotMatch(home, /removeItem\(S\.keys\.settings\)/);
   assert.doesNotMatch(home, /removeItem\(S\.keys\.schema_version\)/);
   assert.doesNotMatch(home, /km_onboarded_v1[\s\S]{0,160}removeItem/);
-  assert.match(home, /当前是示例厨房/);
-  assert.match(home, /退出示例厨房/);
+  assert.match(home, /当前是示例体验/);
+  assert.match(home, /退出示例/);
+  assert.match(home, /开始我的厨房/);
   assert.match(home, /你的设置不会被删除/);
   assert.match(styles, /\.demo-kitchen-banner/);
+  assert.match(styles, /\.demo-kitchen-primary/);
   assert.match(styles, /\.demo-kitchen-exit/);
 });
 

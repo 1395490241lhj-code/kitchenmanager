@@ -12,22 +12,22 @@ const ONBOARD_KEY = 'km_onboarded_v1';
 
 const STEPS = [
   {
-    emoji: '🥚',
-    title: '先记几样食材',
-    target: '.home-hero.is-onboarding, #nav-inventory',
-    body: '不用完整整理冰箱，先写 3 到 5 样常见食材就行。'
-  },
-  {
     emoji: '🍳',
-    title: '看看今天能做什么',
-    target: '.wx-panel, .today-quick',
-    body: '我会根据现有食材推荐能做的菜，也会提醒还缺什么。'
+    title: '先从一次体验开始',
+    target: '.home-hero.is-onboarding, #nav-inventory',
+    body: '你可以先用示例厨房走一遍流程，再决定要不要记录自己的食材。'
   },
   {
-    emoji: '✅',
-    title: '做完顺手更新',
+    emoji: '🥚',
+    title: '真实使用也很简单',
+    target: '.wx-panel, .today-quick',
+    body: '记几样食材后，我会帮你看今天能做什么、缺什么、该买什么。'
+  },
+  {
+    emoji: '💾',
+    title: '数据在本地',
     target: '.record-cooked-btn, .record-cooked-cta, nav',
-    body: '吃完后点一下“饭后记一下”，库存和买菜清单会跟着更新。'
+    body: '你的厨房数据保存在当前浏览器里，设置页可以导出备份。'
   }
 ];
 
