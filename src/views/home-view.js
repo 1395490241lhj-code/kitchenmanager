@@ -218,11 +218,13 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
     ${missingTag}
     <div class="home-suggest-actions">
       ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看做法</button>' : ''}
-      <button type="button" class="btn ok small home-suggest-cook">${variant ? '加入今日计划' : (card.tone === 'almost' ? '加入买菜' : '做这道')}</button>
+      <button type="button" class="btn ok small home-suggest-cook">加入今日计划</button>
+      ${card.tone === 'almost' && card.row ? '<button type="button" class="btn small home-suggest-shopping">补到买菜</button>' : ''}
     </div>
     <div class="home-suggest-feedback" hidden></div>
   `;
   const cookBtn = el.querySelector('.home-suggest-cook');
+  const shoppingBtn = el.querySelector('.home-suggest-shopping');
   const previewBtn = el.querySelector('.home-suggest-preview');
   const feedback = el.querySelector('.home-suggest-feedback');
   const openPreview = (event) => {
@@ -257,21 +259,30 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       return;
     }
     if (!card.id) { brieflyConfirmButton(cookBtn, '示例'); return; }
-    if (card.tone === 'almost' && card.row) {
-      const count = addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list);
-      if (count) showToast('已加入买菜清单', { tone: 'success' });
-      brieflyConfirmButton(cookBtn, count ? '已加入买菜' : '已齐');
-    } else {
-      const added = addRecipeToPlan(card.id);
-      brieflyConfirmButton(cookBtn, added ? '已加入今天' : '已在今天');
-      markDemoPlanAdded(added);
-      const firstPlanGuide = consumeFirstPlanGuideMessage(added);
-      showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
-      showFirstPlanGuideToast(firstPlanGuide);
-      showPlanFeedback(added ? (firstPlanGuide || '已加入今天，做完后会帮你更新食材。') : '今天已经安排了这道菜。');
-    }
+    const added = addRecipeToPlan(card.id);
+    const shoppingCount = card.tone === 'almost' && card.row
+      ? addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list)
+      : 0;
+    brieflyConfirmButton(cookBtn, added ? '已加入今天' : '已在今天');
+    markDemoPlanAdded(added);
+    const firstPlanGuide = consumeFirstPlanGuideMessage(added);
+    const successMessage = shoppingCount ? '已加入今日计划，缺的食材已放入买菜清单。' : '已加入今日计划';
+    showToast(added ? successMessage : '已在今天', { tone: added ? 'success' : 'info' });
+    showFirstPlanGuideToast(firstPlanGuide);
+    showPlanFeedback(added
+      ? (firstPlanGuide || (shoppingCount ? successMessage : '已加入今天，做完后会帮你更新食材。'))
+      : '今天已经安排了这道菜。');
   };
   if (previewBtn) previewBtn.onclick = openPreview;
+  if (shoppingBtn) {
+    shoppingBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const count = addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list);
+      if (count) showToast('已加入买菜清单', { tone: 'success' });
+      brieflyConfirmButton(shoppingBtn, count ? '已加入买菜' : '已齐');
+    };
+  }
   if (card.id) {
     const name = el.querySelector('.home-suggest-name');
     if (canPreview) {
@@ -808,6 +819,27 @@ function advanceDemoStep(step, { onRoute = null } = {}) {
 function markDemoPlanAdded(added) {
   if (!added || !isDemoKitchenMode()) return;
   setDemoStep('plan');
+  refreshDemoKitchenBanner();
+}
+
+function refreshDemoKitchenBanner({ onRoute = null } = {}) {
+  const current = document.querySelector('.demo-kitchen-banner');
+  if (!current) return;
+  const route = onRoute || current.__demoOnRoute || (() => {});
+  const next = renderDemoKitchenBanner({ onRoute: route });
+  current.replaceWith(next);
+}
+
+function syncDemoStepFromTab(tabName, { onRoute = () => {} } = {}) {
+  if (!isDemoKitchenMode()) return;
+  if (tabName === 'recs') {
+    setDemoStep('recs');
+  } else if (tabName === 'plan') {
+    setDemoStep(getTodayPlanCount() > 0 ? 'cook' : 'recs');
+  } else {
+    return;
+  }
+  refreshDemoKitchenBanner({ onRoute });
 }
 
 function saveDemoKitchenSnapshot() {
@@ -867,24 +899,24 @@ function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
       secondaryAction: 'exit'
     },
     recs: {
-      title: '第 2 步：看看今天能做什么',
-      body: '根据这些示例食材，选择一道菜加入今日计划。',
+      title: '第 2 步：选一道今天想吃的菜',
+      body: '在下面的推荐里，点“加入今日计划”。缺的食材可以顺手放进买菜清单。',
       primary: '查看推荐',
       primaryStep: 'recs',
       secondary: '退出示例',
       secondaryAction: 'exit'
     },
     plan: {
-      title: '第 3 步：今日计划已经安排好了',
-      body: '今日计划就是你准备吃什么。做完后，点“饭后记一下”来更新库存。',
+      title: '第 3 步：做完后更新库存',
+      body: '今日计划已经有菜了。做完后点“饭后记一下”，我会帮你确认用掉了哪些食材。',
       primary: '去今日计划',
       primaryStep: 'cook',
       secondary: '退出示例',
       secondaryAction: 'exit'
     },
     cook: {
-      title: '第 4 步：做完后更新库存',
-      body: '“饭后记一下”会帮你确认用掉了哪些食材，并提醒要不要补货。',
+      title: '第 3 步：做完后更新库存',
+      body: '今日计划已经有菜了。做完后点“饭后记一下”，我会帮你确认用掉了哪些食材。',
       primary: '我知道了',
       primaryStep: 'done',
       secondary: '开始我的厨房',
@@ -892,7 +924,7 @@ function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
     },
     done: {
       title: '示例体验完成',
-      body: '现在你已经体验了：看推荐、加入今日计划、饭后更新库存。接下来可以开始记录自己的厨房。',
+      body: '你已经体验了推荐、今日计划和饭后更新。现在可以开始记录自己的厨房。',
       primary: '开始我的厨房',
       primaryAction: 'exit',
       secondary: '继续试用',
@@ -908,6 +940,7 @@ function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
   };
   const banner = document.createElement('section');
   banner.className = 'demo-kitchen-banner';
+  banner.__demoOnRoute = onRoute;
   banner.innerHTML = `
     <div class="demo-kitchen-copy">
       <small>当前是示例体验</small>
@@ -1353,7 +1386,10 @@ function createRecordCookedButton(pack, inv, { onRoute = () => {} } = {}) {
   button.className = 'record-cooked-btn';
   button.innerHTML = '<span class="record-cooked-icon">🍽️</span><span>饭后记一下</span>';
   button.onclick = () => {
-    if (isDemoKitchenMode()) setDemoStep('cook');
+    if (isDemoKitchenMode()) {
+      setDemoStep('cook');
+      refreshDemoKitchenBanner({ onRoute });
+    }
     const original = button.innerHTML;
     button.disabled = true;
     button.classList.add('is-opening');
@@ -1596,7 +1632,10 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
       const shoppingCandidates = getCookShoppingCandidates({ calibrations });
       applyCookCalibration(inv, calibrations);
       showToast('已更新库存', { tone: 'success' });
-      if (isDemoKitchenMode()) setDemoStep('done');
+      if (isDemoKitchenMode()) {
+        setDemoStep('done');
+        refreshDemoKitchenBanner({ onRoute });
+      }
       if (currentMarkPlanId) markTodayPlanCooked(currentMarkPlanId);
       else if (currentRecipe?.id) markRecipeCookedKeepPlan(currentRecipe.id);
       close(() => showCookCompleteFeedback({
@@ -2698,6 +2737,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   const switchTab = (name) => {
     const tab = TAB_RENDERERS[name] ? name : 'plan';
     lastWxTab = tab;
+    syncDemoStepFromTab(tab, { onRoute });
     section.querySelectorAll('.wx-tab').forEach(t => {
       const active = t.dataset.tab === tab;
       t.classList.toggle('is-active', active);

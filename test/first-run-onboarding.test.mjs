@@ -54,9 +54,10 @@ test('guided demo stores step state and renders reversible example guidance', ()
   assert.match(home, /localStorage\.setItem\(S\.keys\.demo_step, 'recs'\)/);
   assert.match(home, /S\.save\(S\.keys\.demo_snapshot/);
   assert.match(home, /当前是示例体验/);
-  assert.match(home, /第 2 步：看看今天能做什么/);
-  assert.match(home, /第 3 步：今日计划已经安排好了/);
-  assert.match(home, /第 4 步：做完后更新库存/);
+  assert.match(home, /第 2 步：选一道今天想吃的菜/);
+  assert.match(home, /在下面的推荐里，点“加入今日计划”。缺的食材可以顺手放进买菜清单。/);
+  assert.match(home, /第 3 步：做完后更新库存/);
+  assert.match(home, /今日计划已经有菜了。做完后点“饭后记一下”，我会帮你确认用掉了哪些食材。/);
   assert.match(home, /示例体验完成/);
   assert.match(home, /开始我的厨房/);
   assert.match(home, /localStorage\.removeItem\(S\.keys\.demo_mode\)/);
@@ -73,8 +74,28 @@ test('guided demo advances on plan add and cooked-meal completion only in demo m
   assert.match(home, /function markDemoPlanAdded\(added\)/);
   assert.match(home, /setDemoStep\('plan'\)/);
   assert.match(home, /markDemoPlanAdded\(added\)/);
-  assert.match(home, /if \(isDemoKitchenMode\(\)\) setDemoStep\('cook'\);/);
-  assert.match(home, /if \(isDemoKitchenMode\(\)\) setDemoStep\('done'\);/);
+  assert.match(home, /function syncDemoStepFromTab\(tabName/);
+  assert.match(home, /if \(tabName === 'recs'\) \{\s*setDemoStep\('recs'\);/);
+  assert.match(home, /setDemoStep\(getTodayPlanCount\(\) > 0 \? 'cook' : 'recs'\);/);
+  assert.match(home, /syncDemoStepFromTab\(tab, \{ onRoute \}\);/);
+  assert.match(home, /if \(isDemoKitchenMode\(\)\) \{\s*setDemoStep\('cook'\);/);
+  assert.match(home, /if \(isDemoKitchenMode\(\)\) \{\s*setDemoStep\('done'\);/);
+  assert.match(home, /refreshDemoKitchenBanner\(\{ onRoute \}\);/);
+});
+
+test('almost recommendation cards can join today plan and still fill shopping list', () => {
+  const home = read('src/views/home-view.js');
+  const styles = read('styles.css');
+
+  assert.match(home, /<button type="button" class="btn ok small home-suggest-cook">加入今日计划<\/button>/);
+  assert.match(home, /home-suggest-shopping/);
+  assert.match(home, /补到买菜/);
+  assert.match(home, /const added = addRecipeToPlan\(card\.id\);/);
+  assert.match(home, /const shoppingCount = card\.tone === 'almost' && card\.row/);
+  assert.match(home, /addMissingRecipeIngredientsToShopping\(card\.row\.r, pack, inv, card\.row\.list\)/);
+  assert.match(home, /已加入今日计划，缺的食材已放入买菜清单。/);
+  assert.doesNotMatch(home, /card\.tone === 'almost' \? '加入买菜' : '做这道'/);
+  assert.match(styles, /\.home-suggest-shopping/);
 });
 
 test('real first inventory entry guides users into recommendations', () => {

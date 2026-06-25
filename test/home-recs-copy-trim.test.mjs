@@ -25,12 +25,13 @@ test('推荐卡按钮、切换和 Toast 反馈仍保留', () => {
   assert.match(home, /home-suggest-preview/);
   assert.match(home, /查看做法/);
   assert.match(home, /home-suggest-cook/);
-  assert.match(home, /做这道/);
-  assert.match(home, /加入买菜/);
+  assert.match(home, /加入今日计划/);
+  assert.match(home, /home-suggest-shopping/);
+  assert.match(home, /补到买菜/);
   assert.match(home, /const stepRecommendation = \(delta = 1\) =>/);
   assert.match(home, /cardWrap\.onpointerdown/);
   assert.match(home, /cardWrap\.onpointerup/);
-  assert.match(home, /showToast\(added \? '已加入今日计划' : '已在今天'/);
+  assert.match(home, /showToast\(added \? successMessage : '已在今天'/);
 });
 
 test('删除说明文案后清理旧 CSS，并保留低占用圆点指示', () => {

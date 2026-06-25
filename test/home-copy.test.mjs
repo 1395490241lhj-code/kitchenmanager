@@ -49,5 +49,6 @@ test('首页加入今日计划入口接入统一 Toast，且保留按钮反馈',
 
   assert.match(home, /showToast/);
   assert.match(home, /brieflyConfirmButton/);
-  assert.equal((home.match(/showToast\(added \? '已加入今日计划' : '已在今天'/g) || []).length, 3);
+  assert.equal((home.match(/showToast\(added \? '已加入今日计划' : '已在今天'/g) || []).length, 2);
+  assert.match(home, /showToast\(added \? successMessage : '已在今天'/);
 });
