@@ -5,10 +5,11 @@
  * - /api/xhs-extract：服务端抓取小红书/网页菜谱文案，绕过浏览器 CORS。
  *     跟随 302 短链（xhslink.com → 真实长链）、伪造移动端 UA、正则提取
  *     window.__INITIAL_STATE__ / og:title / description 等文案，返回纯文本 JSON。
+ * - /api/ai-chat：默认 AI 代理（密钥/Base URL 来自环境变量），前端不需要本地 API Key。
  * - /api/ai-parse：后端统一呼叫 openai/gpt-oss-120b（密钥/Base URL 来自环境变量），
- *     返回模型 JSON 原文，前端不再需要本地 API Key。
+ *     返回模型 JSON 原文。
  *
- * 环境变量（Render）：PORT、OPENAI_API_KEY、OPENAI_BASE_URL、OPENAI_MODEL（可选）。
+ * 环境变量（Render）：PORT、OPENAI_API_KEY、OPENAI_BASE_URL、OPENAI_MODEL、OPENAI_VISION_MODEL（可选）。
  * 启动：npm install && npm start  （默认 http://localhost:3000）
  */
 const path = require('path');
@@ -32,6 +33,13 @@ const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleW
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.groq.com/openai/v1';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'openai/gpt-oss-120b';
+const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || OPENAI_MODEL;
+
+const AI_PROMPT_MAX_CHARS = 12000;
+const AI_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const AI_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const AI_RATE_LIMIT_MAX = 30;
+const aiRateLimitBuckets = new Map();
 
 // 把 Base URL 归一为 chat/completions 完整地址。
 function resolveChatUrl(base) {
@@ -39,6 +47,32 @@ function resolveChatUrl(base) {
   if (/\/chat\/completions$/.test(b)) return b;
   if (/\/v\d+$/.test(b)) return `${b}/chat/completions`;
   return `${b}/v1/chat/completions`;
+}
+
+function getClientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function isAiRateLimited(req) {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  const bucket = aiRateLimitBuckets.get(ip) || { start: now, count: 0 };
+  if (now - bucket.start > AI_RATE_LIMIT_WINDOW_MS) {
+    bucket.start = now;
+    bucket.count = 0;
+  }
+  bucket.count += 1;
+  aiRateLimitBuckets.set(ip, bucket);
+  return bucket.count > AI_RATE_LIMIT_MAX;
+}
+
+function estimateBase64Bytes(value) {
+  const raw = String(value || '');
+  if (!raw) return 0;
+  const payload = raw.includes(',') ? raw.split(',').pop() : raw;
+  const compact = payload.replace(/\s+/g, '');
+  return Math.ceil(compact.length * 3 / 4);
 }
 
 const IMPORT_SYSTEM_PROMPT = `你是一位资深中餐大厨兼菜谱结构化助手。用户会给你一段来自小红书/网页的菜谱文案，或一张配料表/视频截图。
@@ -379,6 +413,59 @@ function sanitizeRecipe(recipe) {
 
   return recipe;
 }
+
+app.get('/api/ai-status', (req, res) => {
+  res.json({
+    available: Boolean(OPENAI_API_KEY),
+    mode: 'cloud',
+    modelConfigured: Boolean(OPENAI_MODEL)
+  });
+});
+
+// 默认 AI 代理：前端不持有密钥；只返回模型内容，不透出上游错误细节。
+app.post('/api/ai-chat', async (req, res) => {
+  if (isAiRateLimited(req)) return res.status(429).json({ error: 'AI 请求太频繁，请稍后再试。' });
+  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'AI 服务暂时不可用。' });
+
+  const body = req.body || {};
+  const prompt = String(body.prompt || '').trim();
+  const imageBase64 = body.imageBase64 ? String(body.imageBase64) : '';
+  const taskType = String(body.taskType || 'general').trim().slice(0, 40) || 'general';
+
+  if (!prompt) return res.status(400).json({ error: '缺少 prompt。' });
+  if (prompt.length > AI_PROMPT_MAX_CHARS) return res.status(413).json({ error: 'prompt 过长。' });
+  if (estimateBase64Bytes(imageBase64) > AI_IMAGE_MAX_BYTES) return res.status(413).json({ error: '图片过大。' });
+
+  const userContent = imageBase64
+    ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageBase64 } }]
+    : prompt;
+  const model = imageBase64 ? OPENAI_VISION_MODEL : OPENAI_MODEL;
+
+  try {
+    const resp = await axios.post(
+      resolveChatUrl(OPENAI_BASE_URL),
+      {
+        model,
+        messages: [
+          { role: 'system', content: `Kitchen Manager task: ${taskType}. Return only the requested content.` },
+          { role: 'user', content: userContent }
+        ],
+        temperature: 0.2
+      },
+      {
+        timeout: 45000,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+      }
+    );
+    const content = resp.data && resp.data.choices && resp.data.choices[0] && resp.data.choices[0].message
+      ? (resp.data.choices[0].message.content || '')
+      : '';
+    if (!content) return res.status(502).json({ error: 'AI 服务暂时不可用。' });
+    return res.json({ content });
+  } catch (_) {
+    return res.status(502).json({ error: 'AI 服务暂时不可用。' });
+  }
+});
 
 // AI 解析路由：后端统一呼叫 openai/gpt-oss-120b，密钥来自 Render 环境变量。
 app.post('/api/ai-parse', async (req, res) => {

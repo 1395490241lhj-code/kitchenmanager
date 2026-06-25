@@ -45,6 +45,7 @@ function mergeRecipeOverlay(currentOverlay, incomingOverlay) {
 
 export function renderSettings() {
   const s = S.load(S.keys.settings, { apiUrl: '', apiKey: '', model: '' });
+  const aiProviderMode = s.aiProviderMode === 'byok' ? 'byok' : 'cloud';
   const displayUrl = s.apiUrl || CUSTOM_AI.URL;
   const displayKey = s.apiKey || '';
   const displayModel = s.model || CUSTOM_AI.MODEL;
@@ -101,6 +102,35 @@ export function renderSettings() {
       <!-- 区块 B：AI 模型配置 -->
       <div class="settings-group-label">🤖 AI 模型配置</div>
       <div class="settings-group">
+        <div class="settings-row is-stacked">
+          <div class="settings-row-main">
+            <span class="settings-row-title">AI 使用方式</span>
+            <span class="settings-row-sub">默认走内置服务；高级用户也可以继续使用自己的 Key。</span>
+          </div>
+          <div class="settings-ai-mode" role="radiogroup" aria-label="AI 使用方式">
+            <label class="settings-ai-option${aiProviderMode === 'cloud' ? ' is-active' : ''}">
+              <input type="radio" name="aiProviderMode" value="cloud" ${aiProviderMode === 'cloud' ? 'checked' : ''}>
+              <span>
+                <strong>使用内置 AI 服务（推荐）</strong>
+                <small>不用在浏览器里配置 API Key。</small>
+              </span>
+            </label>
+            <label class="settings-ai-option${aiProviderMode === 'byok' ? ' is-active' : ''}">
+              <input type="radio" name="aiProviderMode" value="byok" ${aiProviderMode === 'byok' ? 'checked' : ''}>
+              <span>
+                <strong>使用自己的 API Key（高级）</strong>
+                <small>Key 只保存在本机浏览器，备份默认不含 Key。</small>
+              </span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-row is-stacked" id="cloudAiBox">
+          <div class="settings-row-main">
+            <span class="settings-row-title">当前使用内置 AI 服务。</span>
+            <span class="settings-row-sub">小票图片、菜名和你主动提交的文字会发送到后端 AI 服务；厨房库存仍保存在本地浏览器。</span>
+          </div>
+        </div>
+        <div class="settings-byok-fields" id="byokAiBox">
         <div class="settings-row">
           <div class="settings-row-main">
             <span class="settings-row-title">快速预设</span>
@@ -127,6 +157,7 @@ export function renderSettings() {
         </div>
         <div class="settings-row is-action">
           <a class="btn ok" id="saveSet">保存 AI 设置</a>
+        </div>
         </div>
       </div>
 
@@ -198,6 +229,27 @@ export function renderSettings() {
     const val = e.target.value;
     if (presets[val]) { div.querySelector('#sUrl').value = presets[val].url; div.querySelector('#sModel').value = presets[val].model; }
   };
+  const cloudAiBox = div.querySelector('#cloudAiBox');
+  const byokAiBox = div.querySelector('#byokAiBox');
+  const syncAiModeUi = (mode) => {
+    const isByok = mode === 'byok';
+    cloudAiBox.hidden = isByok;
+    byokAiBox.hidden = !isByok;
+    div.querySelectorAll('.settings-ai-option').forEach(label => {
+      label.classList.toggle('is-active', label.querySelector('input')?.value === mode);
+    });
+  };
+  syncAiModeUi(aiProviderMode);
+  div.querySelectorAll('input[name="aiProviderMode"]').forEach(input => {
+    input.onchange = () => {
+      const mode = input.value === 'byok' ? 'byok' : 'cloud';
+      const currentSettings = S.load(S.keys.settings, {});
+      S.save(S.keys.settings, { ...currentSettings, aiProviderMode: mode });
+      syncAiModeUi(mode);
+      const statusEl = div.querySelector('#settingsStatus');
+      setInlineStatus(statusEl, mode === 'cloud' ? '已切换为内置 AI 服务。' : '已切换为自带 API Key 模式。', 'ok');
+    };
+  });
   div.querySelector('#sLibMode').onchange = (e) => {
     const mode = e.target.value === 'full' ? 'full' : 'curated';
     const currentSettings = S.load(S.keys.settings, {});
@@ -211,6 +263,7 @@ export function renderSettings() {
     const currentSettings = S.load(S.keys.settings, {});
     const newS = {
       ...currentSettings,
+      aiProviderMode: 'byok',
       apiUrl: div.querySelector('#sUrl').value.trim(),
       apiKey: div.querySelector('#sKey').value.trim(),
       model: div.querySelector('#sModel').value.trim()

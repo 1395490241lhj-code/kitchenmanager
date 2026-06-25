@@ -6,8 +6,20 @@ import {
   postProcessReceiptItems
 } from './utils/receipt-import.js?v=219';
 
-function getAiConfig() {
+const CLOUD_AI_ERROR = 'AI 暂不可用：云端服务暂时不可用。本地功能仍可正常使用。';
+const BYOK_MISSING_KEY_ERROR = 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
+
+export function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
+  const aiProviderMode = localSettings.aiProviderMode === 'byok' ? 'byok' : 'cloud';
+
+  if (aiProviderMode === 'cloud') {
+    return {
+      mode: 'cloud',
+      apiUrl: '/api/ai-chat'
+    };
+  }
+
   let apiKey = localSettings.apiKey || CUSTOM_AI.KEY;
   let apiUrl = localSettings.apiUrl || CUSTOM_AI.URL;
   let model = localSettings.model || CUSTOM_AI.MODEL;
@@ -19,8 +31,8 @@ function getAiConfig() {
     else apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
   }
 
-  if (!apiKey) return null;
-  return { apiKey, apiUrl, textModel: model, visionModel };
+  if (!apiKey) return { mode: 'byok', missingKey: true };
+  return { mode: 'byok', apiKey, apiUrl, textModel: model, visionModel };
 }
 
 function extractJsonText(text) {
@@ -373,9 +385,30 @@ function compressImage(file) {
   });
 }
 
-async function callAiService(prompt, imageBase64 = null) {
+async function callAiService(prompt, imageBase64 = null, options = {}) {
   const conf = getAiConfig();
-  if (!conf) throw new Error('未配置 API Key，转为本地模式');
+  const taskType = String(options.taskType || 'general').trim() || 'general';
+
+  if (conf.mode === 'cloud') {
+    let res;
+    try {
+      res = await fetch(conf.apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, imageBase64, taskType })
+      });
+    } catch (_) {
+      throw new Error(CLOUD_AI_ERROR);
+    }
+    let data = null;
+    try { data = await res.json(); } catch (_) { /* non-json cloud failure */ }
+    if (!res.ok) throw new Error(CLOUD_AI_ERROR);
+    const content = data && typeof data.content === 'string' ? data.content : '';
+    if (!content) throw new Error(CLOUD_AI_ERROR);
+    return content;
+  }
+
+  if (!conf || conf.missingKey) throw new Error(BYOK_MISSING_KEY_ERROR);
 
   let messages = [];
   let activeModel = conf.textModel;
@@ -410,6 +443,8 @@ export function withTimeout(promise, ms, message) {
 
 export function formatAiErrorMessage(error) {
   const msg = String(error?.message || error || '');
+  if (msg.includes('云端服务暂时不可用')) return CLOUD_AI_ERROR;
+  if (msg.includes('还没有配置 API Key')) return BYOK_MISSING_KEY_ERROR;
   if (msg.includes('未配置')) return 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
   if (msg.includes('401')) return 'AI 暂不可用：API Key 可能已过期。本地功能仍可正常使用。';
   if (msg.includes('429')) return 'AI 暂不可用：请求太频繁或额度不足。本地功能仍可正常使用。';
@@ -491,7 +526,7 @@ export async function recognizeReceipt(file) {
 - 不认识的食品、中文/英文缩写、内部商品名，只要像食物就放 review，reason 写“需要确认”，不要 ignored。
 - ignored 放完全不应处理的内容：购物袋、税费、折扣、会员信息、押金、纸巾、清洁用品、非食品、收银/支付信息。
 - 葱姜蒜、盐、糖、酱油、醋、味精、花椒、辣椒、油等佐料不要放入 inventory，可放 pantry。`;
-  const raw = await callAiService(prompt, base64);
+  const raw = await callAiService(prompt, base64, { taskType: 'receipt' });
   return validateReceiptResult(raw);
 }
 
@@ -509,7 +544,7 @@ export async function callAiForMethod(recipeName, ingredients) {
 - 步骤要清晰、家常、可执行。
 - 不要把结果说成最终答案，只作为用户可编辑草稿。`;
 
-  const raw = await callAiService(prompt);
+  const raw = await callAiService(prompt, null, { taskType: 'method' });
   return validateMethodResult(raw);
 }
 
@@ -554,7 +589,7 @@ ${recipeNames.join('、') || '无'}
 - 不要列葱姜蒜、盐糖油酱醋、料酒、淀粉、水、高汤、汤汁、适量等调料或非库存项。
 - 用户说得很模糊时，少列或不列候选，needsReview 必须为 true。
 - qty 是估算用量；不确定填 1。`;
-  const raw = await callAiService(prompt);
+  const raw = await callAiService(prompt, null, { taskType: 'cooked-meal' });
   return validateCookedMealResult(raw);
 }
 
@@ -682,7 +717,7 @@ export async function callAiCreativeRecipeByIngredients({
 - 不要把葱姜蒜、盐糖油酱醋、料酒、淀粉、水、高汤、汤汁列入 ingredients；需要调料只写在 method 里。
 - 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。
 - name 不要和上面列出的菜名重复，也不要只是刀工变化。`;
-  const raw = await callAiService(prompt);
+  const raw = await callAiService(prompt, null, { taskType: 'creative-recipe' });
   const draft = validateRecipeResult(raw);
   const cleaned = filterAiDraftCoreIngredients(draft);
   if (avoidedNames.some(name => areCreativeRecipeNamesSimilar(name, cleaned.name))) {
@@ -713,7 +748,7 @@ export async function callAiSearchRecipe(query, invNames) {
 - method 必须是字符串。
 - 不要把葱姜蒜、盐糖油酱醋等佐料列入 ingredients。
 - 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。`;
-  const raw = await callAiService(prompt);
+  const raw = await callAiService(prompt, null, { taskType: 'recipe-search' });
   return validateRecipeResult(raw);
 }
 
@@ -777,7 +812,7 @@ export async function callCloudAI(pack, inv) {
 - 严禁用葱姜蒜、香菜、调料替代肉菜蛋豆等主材。
 - 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。${antiFatigueRule}`;
 
-  const raw = await callAiService(prompt);
+  const raw = await callAiService(prompt, null, { taskType: 'recommendation' });
   return validateRecommendationResult(raw);
 }
 
