@@ -259,8 +259,10 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
     } else {
       const added = addRecipeToPlan(card.id);
       brieflyConfirmButton(cookBtn, added ? '已加入今天' : '已在今天');
+      const firstPlanGuide = consumeFirstPlanGuideMessage(added);
       showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
-      showPlanFeedback(added ? '已加入今天，做完后会帮你更新食材。' : '今天已经安排了这道菜。');
+      showFirstPlanGuideToast(firstPlanGuide);
+      showPlanFeedback(added ? (firstPlanGuide || '已加入今天，做完后会帮你更新食材。') : '今天已经安排了这道菜。');
     }
   };
   if (previewBtn) previewBtn.onclick = openPreview;
@@ -982,7 +984,10 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     if (n > 0) {
       statusEl.hidden = false;
       statusEl.className = 'small inline-status ok';
-      statusEl.textContent = `✓ 已加入厨房 ${n} 项`;
+      statusEl.textContent = `已记录 ${n} 样食材，看看今天能做什么。`;
+      lastWxTab = 'recs';
+      setPostInventoryGuide(n);
+      showToast(`已记录 ${n} 样食材，看看今天能做什么。`, { tone: 'success' });
       setTimeout(() => { close(); onRoute(); }, 600);
     } else {
       statusEl.hidden = false;
@@ -1713,6 +1718,8 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
 
 // 当前 tab 的页内记忆（仅内存，不持久化）：范围筛选等触发整页重渲染时不丢所在 tab。
 let lastWxTab = null;
+let postInventoryGuide = null;
+let postInventoryPlanGuidePending = false;
 let targetRecipeQuery = '';
 // AI 创意做法状态（仅页面内存，不持久化）：idle / loading / error / success。
 let targetCreativeDraft = null;
@@ -1723,6 +1730,22 @@ let targetDishDraft = null;
 let targetDishStatus = 'idle';
 let targetDishError = '';
 let targetDishQuery = '';
+
+function setPostInventoryGuide(count) {
+  postInventoryGuide = { count, createdAt: Date.now() };
+  postInventoryPlanGuidePending = true;
+}
+
+function consumeFirstPlanGuideMessage(added) {
+  if (!added || !postInventoryPlanGuidePending) return '';
+  postInventoryPlanGuidePending = false;
+  return '已加入今日计划。做完后点“饭后记一下”，我会帮你更新剩余食材和待买清单。';
+}
+
+function showFirstPlanGuideToast(message) {
+  if (!message) return;
+  showToast(message, { tone: 'success', duration: 4200 });
+}
 
 function resetTargetCreative() {
   targetCreativeDraft = null;
@@ -2012,7 +2035,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         event.stopPropagation();
         const added = addRecipeToPlan(item.id);
         brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+        const firstPlanGuide = consumeFirstPlanGuideMessage(added);
         showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
+        showFirstPlanGuideToast(firstPlanGuide);
         refreshAfterAdd(added);
       };
       card.querySelector('.target-recipe-view-btn').onclick = event => {
@@ -2094,7 +2119,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       event.preventDefault();
       const added = addRecipeToPlan(recipe.id);
       brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
+      const firstPlanGuide = consumeFirstPlanGuideMessage(added);
       showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
+      showFirstPlanGuideToast(firstPlanGuide);
       goPlanBtn.hidden = false;
     };
     goPlanBtn.onclick = event => {
@@ -2343,6 +2370,31 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     return box;
   };
 
+  const renderPostInventoryGuide = () => {
+    if (!postInventoryGuide) return null;
+    const guide = document.createElement('div');
+    guide.className = 'post-inventory-guide';
+    guide.innerHTML = `
+      <div class="post-inventory-guide-copy">
+        <strong>已经记下食材了</strong>
+        <span>下一步，选一道今天想吃的菜加入今日计划。</span>
+      </div>
+      <div class="post-inventory-guide-actions">
+        <button type="button" class="wx-mini-btn is-primary" id="postInventoryGuideRecs">看推荐</button>
+        <button type="button" class="wx-mini-btn" id="postInventoryGuideAdd">继续记食材</button>
+      </div>
+    `;
+    guide.querySelector('#postInventoryGuideRecs').onclick = () => {
+      postInventoryGuide = null;
+      lastWxTab = 'recs';
+      switchTab('recs');
+    };
+    guide.querySelector('#postInventoryGuideAdd').onclick = () => {
+      openBatchInputModal(pack, { onRoute, initialTab: 'text' });
+    };
+    return guide;
+  };
+
   const renderRecsTab = () => {
     const rawQuery = targetRecipeQuery.trim();
     const hasSearchQuery = !!rawQuery;
@@ -2413,6 +2465,8 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     }
     const { mode, cards, idx } = recsState;
     body.appendChild(renderTargetRecipeSearch(targetNames, cards.length, nameMatches.length));
+    const postGuide = renderPostInventoryGuide();
+    if (postGuide) body.appendChild(postGuide);
     if (nameMatches.length) {
       body.appendChild(renderRecipeNameResults(nameMatches));
     }
@@ -2427,20 +2481,22 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     if (!cards.length && mode === 'target' && targetNames.length) {
       cardWrap.innerHTML = `
         <div class="wx-empty wx-rec-empty">
-          <strong>还没找到同时用到这些食材的菜</strong>
-          <span>可以少填一个食材试试，或者去菜谱库看看。</span>
+          <strong>还没有匹配到能直接做的菜</strong>
+          <span>可以再记几样食材，或者先去菜谱里挑一道。</span>
           <small class="wx-help-text">也可以让 AI 先想一个草稿，确认后再保存。</small>
           <div class="wx-actions wx-empty-actions">
+            <button type="button" class="wx-mini-btn" id="wxRecAddFood">继续记食材</button>
             <button type="button" class="wx-mini-btn" id="wxRecGoRecipes">去菜谱看看</button>
           </div>
         </div>
       `;
+      cardWrap.querySelector('#wxRecAddFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
       cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
     } else if (!cards.length) {
       cardWrap.innerHTML = `
         <div class="wx-empty wx-rec-empty">
-          <strong>还没匹配到能直接做的菜</strong>
-          <span>再记几样常见食材，比如鸡蛋、番茄、土豆、豆腐，就能开始推荐。</span>
+          <strong>还没有匹配到能直接做的菜</strong>
+          <span>可以再记几样食材，或者先去菜谱里挑一道。</span>
           <small class="wx-help-text">推荐会优先看现有食材，缺的可以加入买菜。</small>
           <div class="wx-actions wx-empty-actions">
             <button type="button" class="wx-mini-btn" id="wxRecAddFood">继续记食材</button>
