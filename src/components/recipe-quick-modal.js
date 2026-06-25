@@ -9,20 +9,20 @@
  *  - 复用 .km-modal-overlay / .km-modal-content 既有玻璃质感 + 动画（与待买速记等弹窗一致）。
  *  - 关闭弹窗不触发列表重渲染，保证搜索 / 分类 / 滚动状态不丢。
  */
-import { S, todayISO } from '../storage.js?v=219';
-import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=219';
-import { splitIngredients } from '../utils/recipe-sanitizer.js?v=219';
-import { loadInventory } from '../inventory.js?v=219';
+import { S, todayISO } from '../storage.js?v=222';
+import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=222';
+import { splitIngredients } from '../utils/recipe-sanitizer.js?v=222';
+import { loadInventory } from '../inventory.js?v=222';
 import {
   calculateStockStatus,
   getMissingRecipeIngredients,
-  addRecipeToPlan,
   addMissingRecipeIngredientsToShopping,
   isFavoriteRecipe,
   toggleFavoriteRecipe,
-} from '../recommendations.js?v=219';
-import { loadOverlay } from '../backup.js?v=219';
-import { escapeHtml } from './status.js?v=219';
+} from '../recommendations.js?v=222';
+import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=222';
+import { loadOverlay } from '../backup.js?v=222';
+import { escapeHtml } from './status.js?v=222';
 
 const CLOSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
@@ -146,14 +146,22 @@ export function showRecipeQuickModal(recipe, pack, inv = null, { onRoute = () =>
     };
   }
 
-  // 加入今日计划（复用 addRecipeToPlan，默认今天）。
+  // 加入今日计划：统一经过缺食材检查。
   const planBtn = panel.querySelector('#rqmPlan');
   if (planBtn) {
-    planBtn.onclick = () => {
-      const added = addRecipeToPlan(id, today);
+    planBtn.onclick = async () => {
+      const result = await addRecipeToPlanWithMissingCheck(id, pack, inventory, {
+        date: today,
+        recipe: r,
+        fallbackItems: items,
+        source: 'quick-modal'
+      });
       planBtn.disabled = true;
       planBtn.textContent = '今天已计划';
-      showFeedback(added ? '已加入今日计划。' : '已在今日计划中。');
+      if (!result.added) showFeedback('已在今日计划中。');
+      else if (result.missing.length && result.shoppingAddedCount) showFeedback('已加入今日计划，缺的食材已加入买菜清单。');
+      else if (result.missing.length) showFeedback('已加入今日计划，缺的食材可稍后处理。');
+      else showFeedback('已加入今日计划。');
     };
   }
 

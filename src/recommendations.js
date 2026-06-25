@@ -1,27 +1,27 @@
-import { S, todayISO } from './storage.js?v=219';
+import { S, todayISO } from './storage.js?v=222';
 import {
   INGREDIENT_ALIASES,
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
   isSmartIngredientMatch
-} from './ingredients.js?v=219';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=219';
+} from './ingredients.js?v=222';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=222';
 import {
   daysBetween,
   getStockCoverageAnalysis,
   remainingDays
-} from './inventory.js?v=219';
-import { addShoppingItem } from './shopping.js?v=219';
-import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=219';
-import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=219';
+} from './inventory.js?v=222';
+import { addShoppingItem } from './shopping.js?v=222';
+import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=222';
+import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=222';
 export {
   buildGenericRecipeTemplateRecommendations,
   buildRecipeVariantRecommendations,
   buildVariantMethodDraft,
   getGenericIngredientRecipeRecommendations,
   getRecipeVariantRecommendations
-} from './utils/recipe-variants.js?v=219';
+} from './utils/recipe-variants.js?v=222';
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
@@ -279,8 +279,10 @@ export function getMissingRecipeIngredients(recipe, pack, inv, fallbackItems = n
   return analyzeRecipeInventory(recipe, pack, inv, fallbackItems).missing;
 }
 
-export function addMissingRecipeIngredientsToShopping(recipe, pack, inv, fallbackItems = null) {
-  const missing = getMissingRecipeIngredients(recipe, pack, inv, fallbackItems);
+export function addMissingRecipeIngredientsToShopping(recipe, pack, inv, fallbackItems = null, missingOverride = null) {
+  const missing = Array.isArray(missingOverride)
+    ? missingOverride
+    : getMissingRecipeIngredients(recipe, pack, inv, fallbackItems);
   const remark = `菜谱缺货：${recipe.name || '菜谱'}`;
   missing.forEach(item => {
     // 显式写入「血统备注」，新代买项天生自带来源说明，且允许用户后续覆盖。

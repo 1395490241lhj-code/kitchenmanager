@@ -6,7 +6,7 @@
  *     跟随 302 短链（xhslink.com → 真实长链）、伪造移动端 UA、正则提取
  *     window.__INITIAL_STATE__ / og:title / description 等文案，返回纯文本 JSON。
  * - /api/ai-chat：默认 AI 代理（密钥/Base URL 来自环境变量），前端不需要本地 API Key。
- * - /api/ai-parse：后端统一呼叫 openai/gpt-oss-120b（密钥/Base URL 来自环境变量），
+ * - /api/ai-parse：后端统一呼叫 AI（文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL），
  *     返回模型 JSON 原文。
  *
  * 环境变量（Render）：PORT、OPENAI_API_KEY、OPENAI_BASE_URL、OPENAI_MODEL、OPENAI_VISION_MODEL（可选）。
@@ -26,6 +26,16 @@ const PORT = process.env.PORT || 3000;
 
 // 解析 JSON 请求体（截图 base64 较大，放宽上限）。
 app.use(express.json({ limit: '12mb' }));
+app.use((err, req, res, next) => {
+  if (!err) return next();
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    return sendAiJsonError(res, 413, 'request_too_large', '请求体过大。');
+  }
+  if (err.type === 'entity.parse.failed' || err.status === 400) {
+    return sendAiJsonError(res, 400, 'bad_json', 'JSON 请求格式不正确。');
+  }
+  return next(err);
+});
 
 const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1';
 
@@ -33,10 +43,11 @@ const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleW
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.groq.com/openai/v1';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'openai/gpt-oss-120b';
-const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || OPENAI_MODEL;
+const DEFAULT_OPENAI_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || DEFAULT_OPENAI_VISION_MODEL;
 
 const AI_PROMPT_MAX_CHARS = 12000;
-const AI_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const AI_IMAGE_MAX_BASE64_BYTES = 4 * 1024 * 1024;
 const AI_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const AI_RATE_LIMIT_MAX = 30;
 const aiRateLimitBuckets = new Map();
@@ -67,12 +78,69 @@ function isAiRateLimited(req) {
   return bucket.count > AI_RATE_LIMIT_MAX;
 }
 
-function estimateBase64Bytes(value) {
+function estimateBase64EncodedBytes(value) {
   const raw = String(value || '');
   if (!raw) return 0;
   const payload = raw.includes(',') ? raw.split(',').pop() : raw;
   const compact = payload.replace(/\s+/g, '');
-  return Math.ceil(compact.length * 3 / 4);
+  return compact.length;
+}
+
+function redactSecret(value) {
+  let text = String(value || '');
+  if (OPENAI_API_KEY) text = text.replaceAll(OPENAI_API_KEY, '[redacted]');
+  return text.slice(0, 500);
+}
+
+function sendAiJsonError(res, status, code, error, extra = {}) {
+  const safeStatus = Number.isInteger(status) && status >= 400 && status < 600 ? status : 502;
+  return res.status(safeStatus).json({
+    error,
+    status: safeStatus,
+    code,
+    ...extra
+  });
+}
+
+function getUpstreamAiErrorInfo(err) {
+  const status = err && err.response && Number.isInteger(err.response.status)
+    ? err.response.status
+    : (err && err.code === 'ECONNABORTED' ? 504 : 502);
+  const data = err && err.response ? err.response.data : null;
+  const upstreamError = data && typeof data === 'object' ? data.error : null;
+  const code = upstreamError && typeof upstreamError === 'object' && upstreamError.code
+    ? upstreamError.code
+    : (upstreamError && typeof upstreamError === 'object' && upstreamError.type)
+      ? upstreamError.type
+      : data && typeof data === 'object' && data.code
+        ? data.code
+        : err && err.code
+          ? err.code
+          : 'upstream_error';
+  const detail = upstreamError && typeof upstreamError === 'object' && upstreamError.message
+    ? upstreamError.message
+    : data && typeof data === 'object' && data.message
+      ? data.message
+      : typeof data === 'string'
+        ? data
+        : err && err.message
+          ? err.message
+          : '上游 AI 服务请求失败。';
+  return {
+    status,
+    code: String(code || 'upstream_error').slice(0, 80),
+    detail: redactSecret(detail)
+  };
+}
+
+function sendAiUpstreamError(res, err, error = 'AI 服务暂时不可用。') {
+  const info = getUpstreamAiErrorInfo(err);
+  const payload = {
+    upstreamStatus: info.status,
+    upstreamCode: info.code
+  };
+  if (process.env.NODE_ENV !== 'production') payload.detail = info.detail;
+  return sendAiJsonError(res, info.status, info.code, error, payload);
 }
 
 const IMPORT_SYSTEM_PROMPT = `你是一位资深中餐大厨兼菜谱结构化助手。用户会给你一段来自小红书/网页的菜谱文案，或一张配料表/视频截图。
@@ -418,23 +486,27 @@ app.get('/api/ai-status', (req, res) => {
   res.json({
     available: Boolean(OPENAI_API_KEY),
     mode: 'cloud',
-    modelConfigured: Boolean(OPENAI_MODEL)
+    modelConfigured: Boolean(OPENAI_MODEL),
+    visionModelConfigured: Boolean(OPENAI_VISION_MODEL),
+    imageMaxBase64Bytes: AI_IMAGE_MAX_BASE64_BYTES
   });
 });
 
-// 默认 AI 代理：前端不持有密钥；只返回模型内容，不透出上游错误细节。
+// 默认 AI 代理：前端不持有密钥；只返回模型内容和安全的错误状态，不透出密钥。
 app.post('/api/ai-chat', async (req, res) => {
-  if (isAiRateLimited(req)) return res.status(429).json({ error: 'AI 请求太频繁，请稍后再试。' });
-  if (!OPENAI_API_KEY) return res.status(503).json({ error: 'AI 服务暂时不可用。' });
+  if (isAiRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。');
+  if (!OPENAI_API_KEY) return sendAiJsonError(res, 503, 'missing_api_key', 'AI 服务暂时不可用。');
 
   const body = req.body || {};
   const prompt = String(body.prompt || '').trim();
   const imageBase64 = body.imageBase64 ? String(body.imageBase64) : '';
   const taskType = String(body.taskType || 'general').trim().slice(0, 40) || 'general';
 
-  if (!prompt) return res.status(400).json({ error: '缺少 prompt。' });
-  if (prompt.length > AI_PROMPT_MAX_CHARS) return res.status(413).json({ error: 'prompt 过长。' });
-  if (estimateBase64Bytes(imageBase64) > AI_IMAGE_MAX_BYTES) return res.status(413).json({ error: '图片过大。' });
+  if (!prompt) return sendAiJsonError(res, 400, 'missing_prompt', '缺少 prompt。');
+  if (prompt.length > AI_PROMPT_MAX_CHARS) return sendAiJsonError(res, 413, 'prompt_too_large', 'prompt 过长。', { maxChars: AI_PROMPT_MAX_CHARS });
+  if (estimateBase64EncodedBytes(imageBase64) > AI_IMAGE_MAX_BASE64_BYTES) {
+    return sendAiJsonError(res, 413, 'image_too_large', '图片过大。', { maxBase64Bytes: AI_IMAGE_MAX_BASE64_BYTES });
+  }
 
   const userContent = imageBase64
     ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageBase64 } }]
@@ -460,19 +532,22 @@ app.post('/api/ai-chat', async (req, res) => {
     const content = resp.data && resp.data.choices && resp.data.choices[0] && resp.data.choices[0].message
       ? (resp.data.choices[0].message.content || '')
       : '';
-    if (!content) return res.status(502).json({ error: 'AI 服务暂时不可用。' });
+    if (!content) return sendAiJsonError(res, 502, 'empty_response', 'AI 服务暂时不可用。');
     return res.json({ content });
-  } catch (_) {
-    return res.status(502).json({ error: 'AI 服务暂时不可用。' });
+  } catch (err) {
+    return sendAiUpstreamError(res, err);
   }
 });
 
-// AI 解析路由：后端统一呼叫 openai/gpt-oss-120b，密钥来自 Render 环境变量。
+// AI 解析路由：文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL，密钥来自 Render 环境变量。
 app.post('/api/ai-parse', async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
   const imageBase64 = (req.body && req.body.imageBase64) || null;
-  if (!text && !imageBase64) return res.status(400).json({ error: '缺少待解析的文案或图片。' });
-  if (!OPENAI_API_KEY) return res.status(503).json({ error: '后端未配置 AI 密钥（OPENAI_API_KEY）。' });
+  if (!text && !imageBase64) return sendAiJsonError(res, 400, 'missing_input', '缺少待解析的文案或图片。');
+  if (!OPENAI_API_KEY) return sendAiJsonError(res, 503, 'missing_api_key', '后端未配置 AI 密钥（OPENAI_API_KEY）。');
+  if (estimateBase64EncodedBytes(imageBase64) > AI_IMAGE_MAX_BASE64_BYTES) {
+    return sendAiJsonError(res, 413, 'image_too_large', '图片过大。', { maxBase64Bytes: AI_IMAGE_MAX_BASE64_BYTES });
+  }
 
   const instruction = text
     ? `请把下面这段菜谱文案整理成规定的 JSON：\n\n${text}`
@@ -485,7 +560,7 @@ app.post('/api/ai-parse', async (req, res) => {
     const resp = await axios.post(
       resolveChatUrl(OPENAI_BASE_URL),
       {
-        model: OPENAI_MODEL,
+        model: imageBase64 ? OPENAI_VISION_MODEL : OPENAI_MODEL,
         messages: [
           { role: 'system', content: IMPORT_SYSTEM_PROMPT },
           { role: 'user', content: userContent }
@@ -501,7 +576,7 @@ app.post('/api/ai-parse', async (req, res) => {
     const content = resp.data && resp.data.choices && resp.data.choices[0] && resp.data.choices[0].message
       ? (resp.data.choices[0].message.content || '')
       : '';
-    if (!content) return res.status(502).json({ error: 'AI 没有返回内容，请稍后重试。' });
+    if (!content) return sendAiJsonError(res, 502, 'empty_response', 'AI 没有返回内容，请稍后重试。');
 
     // ── 终极降级兜底：在后端先清洗一遍 AI 的 JSON，再回给前端。──
     //   保险栈：① 系统提示已硬约束；② 这里 JS 兜底过滤常备品 + qty 必填 + method 剥序号。
@@ -513,10 +588,7 @@ app.post('/api/ai-parse', async (req, res) => {
     }
     return res.json({ content });
   } catch (err) {
-    const status = err.response && err.response.status;
-    const apiMsg = err.response && err.response.data && err.response.data.error && err.response.data.error.message;
-    const msg = status ? `AI 解析失败（${status}）：${apiMsg || '请稍后重试。'}` : 'AI 解析请求失败，请稍后重试。';
-    return res.status(502).json({ error: msg });
+    return sendAiUpstreamError(res, err, 'AI 解析请求失败，请稍后重试。');
   }
 });
 

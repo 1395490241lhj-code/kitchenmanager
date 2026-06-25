@@ -7,10 +7,10 @@
  *  - 仅做第一阶段轻量新建（菜名 / 标签 / 食材多行 / 做法）；完整编辑仍走 #recipe-edit:id。
  *  - 复用 .km-modal-overlay / .km-modal-content 既有底部弹窗风格。
  */
-import { genId } from '../shopping.js?v=219';
-import { getCanonicalName } from '../ingredients.js?v=219';
-import { applyOverlay, loadOverlay, saveOverlay } from '../backup.js?v=219';
-import { escapeHtml, showToast } from './status.js?v=219';
+import { genId } from '../shopping.js?v=222';
+import { getCanonicalName } from '../ingredients.js?v=222';
+import { applyOverlay, loadOverlay, saveOverlay } from '../backup.js?v=222';
+import { escapeHtml, showToast } from './status.js?v=222';
 
 const CLOSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 

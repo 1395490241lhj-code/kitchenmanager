@@ -6,13 +6,17 @@ import { join } from 'node:path';
 import {
   callAiSearchRecipe,
   formatAiErrorMessage,
-  getAiConfig
+  getAiConfig,
+  recognizeReceipt
 } from '../src/ai.js';
 import { S } from '../src/storage.js';
 
 const root = process.cwd();
 const oldLocalStorage = global.localStorage;
 const oldFetch = global.fetch;
+const oldFileReader = global.FileReader;
+const oldImage = global.Image;
+const oldDocument = global.document;
 
 function read(rel) {
   return readFileSync(join(root, rel), 'utf8');
@@ -51,6 +55,9 @@ beforeEach(() => {
 afterEach(() => {
   global.fetch = oldFetch;
   global.localStorage = oldLocalStorage;
+  global.FileReader = oldFileReader;
+  global.Image = oldImage;
+  global.document = oldDocument;
 });
 
 test('默认 AI 配置使用 cloud 模式，不需要本地 API Key', () => {
@@ -76,6 +83,89 @@ test('cloud 模式调用同源 /api/ai-chat，并带 taskType', async () => {
   assert.equal(request.options.headers.Authorization, undefined);
   assert.equal(request.body.taskType, 'recipe-search');
   assert.match(request.body.prompt, /番茄炒蛋/);
+});
+
+test('cloud 模式错误保留后端 status/code，便于定位上游失败', async () => {
+  global.fetch = async () => ({
+    ok: false,
+    status: 404,
+    json: async () => ({
+      error: 'AI 服务暂时不可用。',
+      status: 404,
+      code: 'model_not_found',
+      upstreamStatus: 404,
+      upstreamCode: 'model_not_found'
+    })
+  });
+
+  await assert.rejects(
+    () => callAiSearchRecipe('番茄炒蛋', '鸡蛋、番茄'),
+    /404\/model_not_found/
+  );
+});
+
+test('小票识别走同源 /api/ai-chat，不在前端携带 Authorization', async () => {
+  const canvasAttempts = [];
+  global.FileReader = class MockFileReader {
+    readAsDataURL() {
+      queueMicrotask(() => {
+        this.onload({ target: { result: 'data:image/png;base64,source-image' } });
+      });
+    }
+  };
+  global.Image = class MockImage {
+    set src(value) {
+      this._src = value;
+      this.width = 1600;
+      this.height = 900;
+      queueMicrotask(() => this.onload());
+    }
+  };
+  global.document = {
+    createElement(tag) {
+      assert.equal(tag, 'canvas');
+      return {
+        width: 0,
+        height: 0,
+        getContext(type) {
+          assert.equal(type, '2d');
+          return {
+            clearRect() {},
+            drawImage() {}
+          };
+        },
+        toDataURL(type, quality) {
+          canvasAttempts.push({ width: this.width, height: this.height, type, quality });
+          return `data:image/jpeg;base64,${'a'.repeat(120)}`;
+        }
+      };
+    }
+  };
+
+  let request = null;
+  global.fetch = async (url, options) => {
+    request = { url, options, body: JSON.parse(options.body) };
+    return {
+      ok: true,
+      json: async () => ({
+        content: JSON.stringify({
+          inventory: [{ rawText: '鸡蛋 Eggs', name: '鸡蛋', qty: 1, unit: '盒' }],
+          pantry: [],
+          review: [],
+          ignored: []
+        })
+      })
+    };
+  };
+
+  const out = await recognizeReceipt({ type: 'image/png' });
+  assert.equal(request.url, '/api/ai-chat');
+  assert.equal(request.options.headers.Authorization, undefined);
+  assert.equal(request.body.taskType, 'receipt');
+  assert.match(request.body.prompt, /小票/);
+  assert.match(request.body.imageBase64, /^data:image\/jpeg;base64,/);
+  assert.deepEqual(canvasAttempts[0], { width: 896, height: 504, type: 'image/jpeg', quality: 0.68 });
+  assert.equal(out.inventory[0].name, '鸡蛋');
 });
 
 test('BYOK 模式继续使用用户配置的 apiUrl / apiKey / model', async () => {
@@ -146,11 +236,41 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   assert.match(server, /app\.post\('\/api\/ai-chat'/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /OPENAI_VISION_MODEL/);
+  assert.match(server, /DEFAULT_OPENAI_VISION_MODEL = 'meta-llama\/llama-4-scout-17b-16e-instruct'/);
+  assert.match(server, /OPENAI_VISION_MODEL = process\.env\.OPENAI_VISION_MODEL \|\| DEFAULT_OPENAI_VISION_MODEL/);
   assert.match(server, /AI_PROMPT_MAX_CHARS = 12000/);
-  assert.match(server, /AI_IMAGE_MAX_BYTES = 8 \* 1024 \* 1024/);
+  assert.match(server, /AI_IMAGE_MAX_BASE64_BYTES = 4 \* 1024 \* 1024/);
   assert.match(server, /AI_RATE_LIMIT_MAX = 30/);
   assert.match(server, /x-forwarded-for/);
   assert.match(server, /res\.json\(\{ content \}\)/);
+  assert.match(server, /status: safeStatus/);
+  assert.match(server, /code,/);
+  assert.match(server, /request_too_large/);
+  assert.match(server, /bad_json/);
+  assert.match(aiChatRoute, /const model = imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL;/);
+  assert.match(aiChatRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
+  assert.match(aiChatRoute, /sendAiUpstreamError\(res, err\)/);
   assert.doesNotMatch(aiChatRoute, /OPENAI_API_KEY[^\n]*res\.json|res\.json\([^)]*OPENAI_API_KEY/);
   assert.doesNotMatch(aiChatRoute, /err\.response\.data/);
+});
+
+test('/api/ai-parse 图片路径同样使用视觉模型', () => {
+  const server = read('server.js');
+  const aiParseRoute = server.slice(
+    server.indexOf("app.post('/api/ai-parse'"),
+    server.indexOf('// 静态托管前端')
+  );
+
+  assert.match(aiParseRoute, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL/);
+  assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
+  assert.match(aiParseRoute, /sendAiUpstreamError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);
+});
+
+test('小票图片会压到 Groq base64 图片限制以内的目标尺寸', () => {
+  const ai = read('src/ai.js');
+
+  assert.match(ai, /CLOUD_IMAGE_TARGET_BASE64_BYTES = Math\.floor\(3\.6 \* 1024 \* 1024\)/);
+  assert.match(ai, /RECEIPT_IMAGE_COMPRESSION_ATTEMPTS = \[/);
+  assert.match(ai, /\{ maxSide: 512, quality: 0\.5 \}/);
+  assert.match(ai, /getDataUrlPayloadLength\(dataUrl\) <= CLOUD_IMAGE_TARGET_BASE64_BYTES/);
 });

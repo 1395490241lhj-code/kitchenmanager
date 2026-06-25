@@ -15,8 +15,8 @@ test('searchResultCard 使用 Toast 反馈加入今日计划，不再调用 aler
   assert.doesNotMatch(source, /alert\('已加入今日计划。'\)/);
   assert.doesNotMatch(source, /alert\('已在今日计划里。'\)/);
   assert.doesNotMatch(source, /\balert\(/);
-  assert.match(source, /showToast\('已加入今日计划', \{ tone: 'success' \}\)/);
-  assert.match(source, /showToast\('已在今天', \{ tone: 'info' \}\)/);
+  assert.match(source, /addRecipeToPlanWithMissingCheck\(r\.id, ctx\.pack, ctx\.inv/);
+  assert.match(source, /source: 'search-result'/);
 });
 
 test('attachQuickDelete 不再包含旧 overlay 影子代码，仍使用 overlay 模块读写', () => {
@@ -24,7 +24,7 @@ test('attachQuickDelete 不再包含旧 overlay 影子代码，仍使用 overlay
   const staleOverlayKey = ['kitchen', 'overlay'].join('-');
 
   assert.equal(source.includes(staleOverlayKey), false);
-  assert.match(source, /import \{\s*loadOverlay,\s*saveOverlay\s*\} from '\.\.\/backup\.js\?v=219';/s);
+  assert.match(source, /import \{\s*loadOverlay,\s*saveOverlay\s*\} from '\.\.\/backup\.js\?v=\d+';/s);
   assert.match(source, /const ov = loadOverlay\(\);/);
   assert.match(source, /saveOverlay\(ov\);/);
 });

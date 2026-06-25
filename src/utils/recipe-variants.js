@@ -3,10 +3,10 @@ import {
   getCanonicalName,
   guessKitchenUnit,
   isSmartIngredientMatch
-} from '../ingredients.js?v=219';
-import { isInventoryAvailable, remainingDays } from '../inventory.js?v=219';
-import { normalizeText } from '../recipe-search.js?v=219';
-import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=219';
+} from '../ingredients.js?v=222';
+import { isInventoryAvailable, remainingDays } from '../inventory.js?v=222';
+import { normalizeText } from '../recipe-search.js?v=222';
+import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=222';
 
 const PROCESSED_FOOD_RE = /(水饺|饺子|抄手|馄饨|云吞|汤圆|粽|方便面|泡面|速食|披萨|薯条|鸡块|雪贝|糕点|零食|饮料|小鱼干|鱼干花生|香肠|丸)$/;
 

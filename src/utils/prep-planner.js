@@ -10,8 +10,8 @@
  * 同一道菜最多 3 个任务；没有 method 的菜谱绝不猜腌制。
  * 完成状态由调用方用稳定 id 记录（S.keys.prep_done），任务本体每次动态生成。
  */
-import { getMatchingInventoryItems } from '../inventory.js?v=219';
-import { isSeasoningName } from './recipe-sanitizer.js?v=219';
+import { getMatchingInventoryItems } from '../inventory.js?v=222';
+import { isSeasoningName } from './recipe-sanitizer.js?v=222';
 
 // 肉类 / 水产（解冻候选）
 const MEAT_REGEX = /(猪肉|牛肉|羊肉|鸡肉|鸡翅|鸡腿|排骨|肉丝|肉片|五花肉|里脊|鱼|虾|海鲜)/;

@@ -38,8 +38,8 @@ test('首页推荐菜谱使用弹窗预览，AI 草稿不伪装成本地菜谱',
   const home = read('src/views/home-view.js');
   const card = read('src/components/recipe-card.js');
 
-  assert.match(home, /renderSuggestCard\(cards\[idx\], pack, inv, \{\s*onPreviewRecipe: openRecipePreviewModal,\s*onPreviewVariant: openRecipeVariantPreviewModal\s*\}\)/);
-  assert.match(home, /showRecommendationCards\(cardWrap, \[cards\[idx\]\], pack, \{ onRoute, onPreviewRecipe: openRecipePreviewModal \}\)/);
+  assert.match(home, /renderSuggestCard\(cards\[idx\], pack, inv, \{\s*onPreviewRecipe: openRecipePreviewModal,\s*onPreviewVariant: openRecipeVariantPreviewModal,\s*onRoute\s*\}\)/);
+  assert.match(home, /showRecommendationCards\(cardWrap, \[cards\[idx\]\], pack, \{ onRoute, onPreviewRecipe: openRecipePreviewModal, inv \}\)/);
   assert.match(card, /onPreviewRecipe = null/);
   assert.match(card, /!isCreative/);
 });
@@ -49,6 +49,7 @@ test('首页加入今日计划入口接入统一 Toast，且保留按钮反馈',
 
   assert.match(home, /showToast/);
   assert.match(home, /brieflyConfirmButton/);
-  assert.equal((home.match(/showToast\(added \? '已加入今日计划' : '已在今天'/g) || []).length, 2);
-  assert.match(home, /showToast\(added \? successMessage : '已在今天'/);
+  assert.match(home, /addRecipeToPlanWithMissingCheck/);
+  assert.match(home, /已加入今日计划，缺的食材已加入买菜清单/);
+  assert.match(home, /已加入今日计划，缺的食材可稍后处理/);
 });

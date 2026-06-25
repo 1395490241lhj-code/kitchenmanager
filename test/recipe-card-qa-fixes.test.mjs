@@ -46,7 +46,8 @@ test('searchResultCard supports optional preview callback without inline hash ha
   assert.match(block, /if \(typeof onPreviewRecipe === 'function'\) onPreviewRecipe\(r\);/);
   assert.match(block, /else location\.hash = `#recipe:\$\{r\.id\}`;/);
   assert.match(block, /viewBtn\.onclick = openRecipe;/);
-  assert.match(block, /event\?\.stopPropagation\(\);[\s\S]*?const plan = S\.load/);
+  assert.match(block, /event\?\.stopPropagation\(\);[\s\S]*?addRecipeToPlanWithMissingCheck\(r\.id, ctx\.pack, ctx\.inv/);
+  assert.match(block, /source: 'search-result'/);
 });
 
 test('legacy memo modal is still wired and shows a toast after adding shopping item', () => {

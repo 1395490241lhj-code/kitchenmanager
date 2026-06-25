@@ -1,13 +1,20 @@
-import { CUSTOM_AI } from './config.js?v=219';
-import { S } from './storage.js?v=219';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=219';
+import { CUSTOM_AI } from './config.js?v=222';
+import { S } from './storage.js?v=222';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=222';
 import {
   classifyReceiptCandidate,
   postProcessReceiptItems
-} from './utils/receipt-import.js?v=219';
+} from './utils/receipt-import.js?v=222';
 
 const CLOUD_AI_ERROR = 'AI 暂不可用：云端服务暂时不可用。本地功能仍可正常使用。';
 const BYOK_MISSING_KEY_ERROR = 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
+const CLOUD_IMAGE_TARGET_BASE64_BYTES = Math.floor(3.6 * 1024 * 1024);
+const RECEIPT_IMAGE_COMPRESSION_ATTEMPTS = [
+  { maxSide: 896, quality: 0.68 },
+  { maxSide: 768, quality: 0.62 },
+  { maxSide: 640, quality: 0.56 },
+  { maxSide: 512, quality: 0.5 }
+];
 
 export function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
@@ -355,6 +362,26 @@ export function validateCookedMealResult(input) {
   return { dishes, needsReview: data.needsReview !== false };
 }
 
+function getDataUrlPayloadLength(dataUrl) {
+  const raw = String(dataUrl || '');
+  const payload = raw.includes(',') ? raw.split(',').pop() : raw;
+  return payload.replace(/\s+/g, '').length;
+}
+
+function fitImageSize(width, height, maxSide) {
+  let w = Number(width) || 0;
+  let h = Number(height) || 0;
+  const max = Number(maxSide) || 0;
+  if (!w || !h || !max) return { w: 1, h: 1 };
+  if (w > h) {
+    if (w > max) { h *= max / w; w = max; }
+  } else if (h > max) {
+    w *= max / h;
+    h = max;
+  }
+  return { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
+}
+
 function compressImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -365,19 +392,23 @@ function compressImage(file) {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        let w = img.width;
-        let h = img.height;
-        const max = 1024;
-        if (w > h) {
-          if (w > max) { h *= max / w; w = max; }
-        } else if (h > max) {
-          w *= max / h;
-          h = max;
+        let bestDataUrl = '';
+
+        for (const attempt of RECEIPT_IMAGE_COMPRESSION_ATTEMPTS) {
+          const { w, h } = fitImageSize(img.width, img.height, attempt.maxSide);
+          canvas.width = w;
+          canvas.height = h;
+          ctx.clearRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', attempt.quality);
+          bestDataUrl = dataUrl;
+          if (getDataUrlPayloadLength(dataUrl) <= CLOUD_IMAGE_TARGET_BASE64_BYTES) {
+            resolve(dataUrl);
+            return;
+          }
         }
-        canvas.width = w;
-        canvas.height = h;
-        ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
+
+        resolve(bestDataUrl);
       };
       img.onerror = () => reject(new Error('图片读取失败，请换一张更清晰的小票。'));
     };
@@ -402,9 +433,14 @@ async function callAiService(prompt, imageBase64 = null, options = {}) {
     }
     let data = null;
     try { data = await res.json(); } catch (_) { /* non-json cloud failure */ }
-    if (!res.ok) throw new Error(CLOUD_AI_ERROR);
+    if (!res.ok) {
+      const status = data && data.status ? data.status : res.status;
+      const code = data && (data.code || data.upstreamCode) ? (data.code || data.upstreamCode) : '';
+      const detail = data && (data.detail || data.error || data.message) ? (data.detail || data.error || data.message) : '云端服务暂时不可用';
+      throw new Error(`云端服务请求失败 (${status}${code ? `/${code}` : ''})：${detail}`);
+    }
     const content = data && typeof data.content === 'string' ? data.content : '';
-    if (!content) throw new Error(CLOUD_AI_ERROR);
+    if (!content) throw new Error('云端服务请求失败 (502/empty_response)：AI 没有返回内容');
     return content;
   }
 
@@ -447,8 +483,10 @@ export function formatAiErrorMessage(error) {
   if (msg.includes('还没有配置 API Key')) return BYOK_MISSING_KEY_ERROR;
   if (msg.includes('未配置')) return 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
   if (msg.includes('401')) return 'AI 暂不可用：API Key 可能已过期。本地功能仍可正常使用。';
+  if (msg.includes('413') || msg.includes('image_too_large')) return 'AI 暂不可用：图片太大，请换一张更小或更清晰的小票图。本地功能仍可正常使用。';
   if (msg.includes('429')) return 'AI 暂不可用：请求太频繁或额度不足。本地功能仍可正常使用。';
   if (msg.includes('404')) return 'AI 暂不可用：模型名称可能不正确。本地功能仍可正常使用。';
+  if (msg.includes('503') || msg.includes('missing_api_key')) return 'AI 暂不可用：云端服务还没有配置好。本地功能仍可正常使用。';
   if (msg.includes('超时')) return 'AI 暂不可用：响应超时。本地功能仍可正常使用。';
   if (msg.includes('格式不正确') || msg.includes('缺少') || msg.includes('没有返回可识别')) return `AI 返回内容不能直接使用：${msg}`;
   return `AI 暂不可用：${msg || '未知错误'}。本地功能仍可正常使用。`;
@@ -876,7 +914,7 @@ function validateImportedRecipe(input) {
   return { name, tags, ingredients, seasonings, method, isAiDraft: true, draftSource: 'ai-import' };
 }
 
-// 通过后端 /api/ai-parse 调用 openai/gpt-oss-120b（密钥与 Base URL 由 Render 环境变量提供）。
+// 通过后端 /api/ai-parse 调用 AI：文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL。
 // 前端不再校验本地 API Key，未配置也能正常点击、走后端代理。
 async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
   let res;

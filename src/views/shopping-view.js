@@ -1,14 +1,14 @@
-import { todayISO } from '../storage.js?v=219';
+import { todayISO } from '../storage.js?v=222';
 import {
   buildCatalog,
   guessKitchenUnit,
   isDryGoodName,
   normalizeKitchenAmount
-} from '../ingredients.js?v=219';
+} from '../ingredients.js?v=222';
 import {
   loadInventory,
   mergeInventoryEntry
-} from '../inventory.js?v=219';
+} from '../inventory.js?v=222';
 import {
   addShoppingItem,
   buildCopyableShoppingList,
@@ -20,15 +20,15 @@ import {
   markAllShoppingItemsDone,
   mergeShoppingItems,
   saveShoppingItems
-} from '../shopping.js?v=219';
+} from '../shopping.js?v=222';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   setSelectValueWithOption,
   showToast
-} from '../components/status.js?v=219';
-import { restoreStapleByPurchase, restoreStaplesByPurchase } from '../staples.js?v=219';
+} from '../components/status.js?v=222';
+import { restoreStapleByPurchase, restoreStaplesByPurchase } from '../staples.js?v=222';
 
 // 兼容旧入口：完整库存已迁到独立「库存」Tab，本页不再内嵌库存分段；保留空实现避免外部 import 报错。
 export function requestInventoryIntent() {}

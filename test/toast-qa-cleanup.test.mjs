@@ -30,7 +30,7 @@ test('inventory-view import 格式拆开，不再出现 ;import', () => {
   const inventory = read('src/views/inventory-view.js');
 
   assert.doesNotMatch(inventory, /;import/);
-  assert.match(inventory, /showToast\s*\n\} from '\.\.\/components\/status\.js\?v=219';\nimport \{ markShoppingItemsStockedIn \} from '\.\.\/shopping\.js\?v=219';/);
+  assert.match(inventory, /showToast\s*\n\} from '\.\.\/components\/status\.js\?v=\d+';\nimport \{ markShoppingItemsStockedIn \} from '\.\.\/shopping\.js\?v=\d+';/);
 });
 
 test('旧 is-previewable 推荐卡样式已清理，搜索结果卡交互样式保留', () => {

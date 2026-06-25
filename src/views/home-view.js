@@ -1,33 +1,34 @@
-import { S, todayISO } from '../storage.js?v=219';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, UNIT_TYPE, explodeCombinedItems } from '../ingredients.js?v=219';
-import { applyCookCalibration, computeCookDeductions, isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, gearInfo, GEAR_LABELS } from '../inventory.js?v=219';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=219';
+import { S, todayISO } from '../storage.js?v=222';
+import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, UNIT_TYPE, explodeCombinedItems } from '../ingredients.js?v=222';
+import { applyCookCalibration, computeCookDeductions, isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, gearInfo, GEAR_LABELS } from '../inventory.js?v=222';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=222';
 import {
-  addMissingRecipeIngredientsToShopping, addRecipeToPlan,
+  addMissingRecipeIngredientsToShopping,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, markRecipeCookedKeepPlan, processAiData
-} from '../recommendations.js?v=219';
-import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=219';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus, showToast } from '../components/status.js?v=219';
-import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=219';
-import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=219';
-import { perfMeasure } from '../utils/perf.js?v=219';
-import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=219';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=219';
-import { parseFoodLines } from '../utils/food-input-parser.js?v=219';
-import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=219';
-import { splitMethodSteps } from '../utils/method-steps.js?v=219';
-import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=219';
-import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=219';
-import { createUserRecipe } from '../components/recipe-create-modal.js?v=219';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=219';
+} from '../recommendations.js?v=222';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=222';
+import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=222';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus, showToast } from '../components/status.js?v=222';
+import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=222';
+import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=222';
+import { perfMeasure } from '../utils/perf.js?v=222';
+import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=222';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=222';
+import { parseFoodLines } from '../utils/food-input-parser.js?v=222';
+import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=222';
+import { splitMethodSteps } from '../utils/method-steps.js?v=222';
+import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=222';
+import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=222';
+import { createUserRecipe } from '../components/recipe-create-modal.js?v=222';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=222';
 import {
   buildLocalCookedMealCandidates,
   getRecipeCoreItems,
   matchCookedMealRecipe,
   mergeCookedMealCandidates,
   normalizeAiCookedMealResult
-} from '../utils/cooked-meal.js?v=219';
+} from '../utils/cooked-meal.js?v=222';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -90,10 +91,16 @@ function getRecommendationUiContext() {
 function openCleanFridgeHelper(pack, inv, onRoute = () => {}) {
   const recs = getCleanFridgeRecommendations(pack, inv, getRecommendationUiContext());
   showCleanFridgeModal(recs, {
-    onAddPlan: (id, btn) => {
-      const added = addRecipeToPlan(id);
-      markDemoPlanAdded(added);
-      brieflyConfirmButton(btn, added ? '已加入' : '已在今天');
+    onAddPlan: async (id, btn) => {
+      const recItem = recs.find(item => item.r.id === id);
+      const result = await addRecipeToPlanWithMissingCheck(id, pack, inv, {
+        recipe: recItem?.r,
+        fallbackItems: recItem?.list,
+        missing: recItem?.missing,
+        source: isDemoKitchenMode() ? 'demo' : 'clean-fridge',
+        onPlanAdded: markDemoPlanAdded
+      });
+      brieflyConfirmButton(btn, result.added ? '已加入' : '已在今天');
       onRoute();
     },
     onAddShopping: (id, btn) => {
@@ -199,7 +206,7 @@ function getInspirationCards(pack, inv) {
 }
 
 // ── Section 1: AI 灵感面板（Hero 胶囊） ───────────────────────────────────────
-function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewVariant = null } = {}) {
+function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewVariant = null, onRoute = null } = {}) {
   const el = document.createElement('article');
   el.className = `home-suggest-card tone-${card.tone || 'idea'}`;
   const variant = card.variant || (card.isVariant ? card : null);
@@ -208,7 +215,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
   const canPreview = canPreviewVariant || Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !String(card.id).startsWith('creative-'));
   const sourceText = variant?.sourceLabel ? `<small class="home-suggest-source">${escapeHtml(variant.sourceLabel)}</small>` : '';
   const missingTag = (card.missing && card.missing.length)
-    ? `<span class="home-suggest-missing">缺 ${escapeHtml(card.missing.join('、'))}</span>`
+    ? `<span class="home-suggest-missing">缺 ${card.missing.length} 样：${escapeHtml(card.missing.join('、'))}</span>`
     : '';
   el.innerHTML = `
     <span class="home-suggest-match">${escapeHtml(card.matchLabel || '')}</span>
@@ -243,6 +250,10 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       event.preventDefault();
       event.stopPropagation();
       lastWxTab = 'plan';
+      if (typeof onRoute === 'function') {
+        onRoute();
+        return;
+      }
       const planTab = document.querySelector('.wx-tab[data-tab="plan"]');
       if ((location.hash === '#today' || !location.hash) && planTab) {
         planTab.click();
@@ -251,7 +262,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       }
     };
   };
-  cookBtn.onclick = (event) => {
+  cookBtn.onclick = async (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (variant) {
@@ -259,18 +270,21 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       return;
     }
     if (!card.id) { brieflyConfirmButton(cookBtn, '示例'); return; }
-    const added = addRecipeToPlan(card.id);
-    const shoppingCount = card.tone === 'almost' && card.row
-      ? addMissingRecipeIngredientsToShopping(card.row.r, pack, inv, card.row.list)
-      : 0;
-    brieflyConfirmButton(cookBtn, added ? '已加入今天' : '已在今天');
-    markDemoPlanAdded(added);
-    const firstPlanGuide = consumeFirstPlanGuideMessage(added);
-    const successMessage = shoppingCount ? '已加入今日计划，缺的食材已放入买菜清单。' : '已加入今日计划';
-    showToast(added ? successMessage : '已在今天', { tone: added ? 'success' : 'info' });
+    const result = await addRecipeToPlanWithMissingCheck(card.id, pack, inv, {
+      recipe: card.row?.r || previewRecipe,
+      fallbackItems: card.row?.list,
+      missing: card.row?.missing,
+      source: isDemoKitchenMode() ? 'demo' : 'recommendation',
+      onPlanAdded: markDemoPlanAdded
+    });
+    brieflyConfirmButton(cookBtn, result.added ? '已加入今天' : '已在今天');
+    const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
     showFirstPlanGuideToast(firstPlanGuide);
-    showPlanFeedback(added
-      ? (firstPlanGuide || (shoppingCount ? successMessage : '已加入今天，做完后会帮你更新食材。'))
+    const successMessage = result.missing.length
+      ? (result.shoppingAddedCount ? '已加入今日计划，缺的食材已加入买菜清单。' : '已加入今日计划，缺的食材可稍后处理。')
+      : '已加入今天，做完后会帮你更新食材。';
+    showPlanFeedback(result.added
+      ? (result.missing.length ? successMessage : (firstPlanGuide || successMessage))
       : '今天已经安排了这道菜。');
   };
   if (previewBtn) previewBtn.onclick = openPreview;
@@ -413,7 +427,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
 
   // AI 推荐：最多展示 4 张
   const showAi = (aiCards) => {
-    showRecommendationCards(scroll, (aiCards || []).slice(0, 4), pack, { onRoute });
+    showRecommendationCards(scroll, (aiCards || []).slice(0, 4), pack, { onRoute, inv });
     note.hidden = false;
     note.innerHTML = '<button type="button" class="home-note-clear" id="heroAiClear">用本地推荐</button>';
     const clearBtn = note.querySelector('#heroAiClear');
@@ -1228,7 +1242,7 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
   const showAi = (aiCards) => {
     const list = (aiCards || []).slice(0, 3);
     grid.innerHTML = '';
-    showRecommendationCards(grid, list, pack, { onRoute });
+    showRecommendationCards(grid, list, pack, { onRoute, inv });
     note.hidden = false;
     note.innerHTML = '<button type="button" class="home-note-clear" id="todayAiClear">用本地推荐</button>';
     const clearBtn = note.querySelector('#todayAiClear');
@@ -2169,16 +2183,20 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       `;
       const openPreview = () => openRecipePreviewModal(item.r || item.recipe);
       const addBtn = card.querySelector('.target-recipe-plan-btn');
-      addBtn.onclick = event => {
+      addBtn.onclick = async event => {
         event.preventDefault();
         event.stopPropagation();
-        const added = addRecipeToPlan(item.id);
-        brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
-        markDemoPlanAdded(added);
-        const firstPlanGuide = consumeFirstPlanGuideMessage(added);
-        showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
+        const recipe = item.r || item.recipe;
+        const result = await addRecipeToPlanWithMissingCheck(item.id, pack, inv, {
+          recipe,
+          fallbackItems: recipe ? pack.recipe_ingredients?.[recipe.id] : null,
+          source: isDemoKitchenMode() ? 'demo' : 'search-result',
+          onPlanAdded: markDemoPlanAdded
+        });
+        brieflyConfirmButton(addBtn, result.added ? '已加入今天' : '已在今天');
+        const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
         showFirstPlanGuideToast(firstPlanGuide);
-        refreshAfterAdd(added);
+        refreshAfterAdd(result.added);
       };
       card.querySelector('.target-recipe-view-btn').onclick = event => {
         event.preventDefault();
@@ -2255,13 +2273,16 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     const modal = createHomeModal(content, recipe.name || '菜谱预览');
     const addBtn = content.querySelector('#recipePreviewPlan');
     const goPlanBtn = content.querySelector('#recipePreviewGoPlan');
-    addBtn.onclick = event => {
+    addBtn.onclick = async event => {
       event.preventDefault();
-      const added = addRecipeToPlan(recipe.id);
-      brieflyConfirmButton(addBtn, added ? '已加入今天' : '已在今天');
-      markDemoPlanAdded(added);
-      const firstPlanGuide = consumeFirstPlanGuideMessage(added);
-      showToast(added ? '已加入今日计划' : '已在今天', { tone: added ? 'success' : 'info' });
+      const result = await addRecipeToPlanWithMissingCheck(recipe.id, pack, inv, {
+        recipe,
+        fallbackItems: items,
+        source: isDemoKitchenMode() ? 'demo' : 'recipe-preview',
+        onPlanAdded: markDemoPlanAdded
+      });
+      brieflyConfirmButton(addBtn, result.added ? '已加入今天' : '已在今天');
+      const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
       showFirstPlanGuideToast(firstPlanGuide);
       goPlanBtn.hidden = false;
     };
@@ -2281,19 +2302,32 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       .join('、');
   };
 
-  const saveVariantAndAddPlan = (variant, button, goPlanBtn) => {
+  const saveVariantAndAddPlan = async (variant, button, goPlanBtn) => {
     try {
       const isGeneric = Boolean(variant?.isGenericTemplate);
-      const newId = createUserRecipe(pack, {
+      const ingredients = variant.recipeIngredients || variant.ingredients || [];
+      const recipeDraft = {
         name: variant.name,
         tags: variant.tags || [isGeneric ? '简单做法' : '变化菜'],
         method: variant.methodDraft || '',
-        ingredients: variant.recipeIngredients || variant.ingredients || []
+        ingredients
+      };
+      const newId = createUserRecipe(pack, recipeDraft);
+      const result = await addRecipeToPlanWithMissingCheck(newId, pack, inv, {
+        recipe: { id: newId, name: recipeDraft.name, tags: recipeDraft.tags, method: recipeDraft.method },
+        fallbackItems: ingredients,
+        source: isGeneric ? 'generic-template' : 'variant',
+        onPlanAdded: markDemoPlanAdded,
+        toast: false
       });
-      const added = addRecipeToPlan(newId);
-      brieflyConfirmButton(button, added ? '已加入今天' : '已保存');
-      markDemoPlanAdded(added);
-      showToast(isGeneric ? '已保存简单做法并加入今日计划' : '已保存变化菜并加入今日计划', { tone: 'success' });
+      brieflyConfirmButton(button, result.added ? '已加入今天' : '已保存');
+      if (result.missing.length) {
+        showToast(result.shoppingAddedCount
+          ? '已保存并加入今日计划，缺的食材已加入买菜清单'
+          : '已保存并加入今日计划，缺的食材可稍后处理', { tone: 'success' });
+      } else {
+        showToast(isGeneric ? '已保存简单做法并加入今日计划' : '已保存变化菜并加入今日计划', { tone: 'success' });
+      }
       if (goPlanBtn) goPlanBtn.hidden = false;
       return newId;
     } catch (err) {
@@ -2340,9 +2374,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       event.preventDefault();
       content.querySelector('.recipe-preview-body')?.scrollTo?.({ top: 0, behavior: 'smooth' });
     };
-    saveBtn.onclick = event => {
+    saveBtn.onclick = async event => {
       event.preventDefault();
-      const newId = saveVariantAndAddPlan(variant, saveBtn, goPlanBtn);
+      const newId = await saveVariantAndAddPlan(variant, saveBtn, goPlanBtn);
       if (newId) {
         saveBtn.disabled = true;
         window.invalidatePackCache?.();
@@ -2649,11 +2683,12 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       cardWrap.querySelector('#wxRecAddFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
       cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
     } else if (mode === 'ai') {
-      showRecommendationCards(cardWrap, [cards[idx]], pack, { onRoute, onPreviewRecipe: openRecipePreviewModal });
+      showRecommendationCards(cardWrap, [cards[idx]], pack, { onRoute, onPreviewRecipe: openRecipePreviewModal, inv });
     } else {
       cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv, {
         onPreviewRecipe: openRecipePreviewModal,
-        onPreviewVariant: openRecipeVariantPreviewModal
+        onPreviewVariant: openRecipeVariantPreviewModal,
+        onRoute
       }));
     }
     bindRecommendationCycling(cardWrap);

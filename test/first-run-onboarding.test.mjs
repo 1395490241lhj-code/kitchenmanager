@@ -90,10 +90,11 @@ test('almost recommendation cards can join today plan and still fill shopping li
   assert.match(home, /<button type="button" class="btn ok small home-suggest-cook">加入今日计划<\/button>/);
   assert.match(home, /home-suggest-shopping/);
   assert.match(home, /补到买菜/);
-  assert.match(home, /const added = addRecipeToPlan\(card\.id\);/);
-  assert.match(home, /const shoppingCount = card\.tone === 'almost' && card\.row/);
+  assert.match(home, /await addRecipeToPlanWithMissingCheck\(card\.id, pack, inv/);
+  assert.match(home, /missing: card\.row\?\.missing/);
   assert.match(home, /addMissingRecipeIngredientsToShopping\(card\.row\.r, pack, inv, card\.row\.list\)/);
-  assert.match(home, /已加入今日计划，缺的食材已放入买菜清单。/);
+  assert.match(home, /已加入今日计划，缺的食材已加入买菜清单。/);
+  assert.match(home, /已加入今日计划，缺的食材可稍后处理。/);
   assert.doesNotMatch(home, /card\.tone === 'almost' \? '加入买菜' : '做这道'/);
   assert.match(styles, /\.home-suggest-shopping/);
 });

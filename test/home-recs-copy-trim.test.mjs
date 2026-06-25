@@ -31,7 +31,8 @@ test('推荐卡按钮、切换和 Toast 反馈仍保留', () => {
   assert.match(home, /const stepRecommendation = \(delta = 1\) =>/);
   assert.match(home, /cardWrap\.onpointerdown/);
   assert.match(home, /cardWrap\.onpointerup/);
-  assert.match(home, /showToast\(added \? successMessage : '已在今天'/);
+  assert.match(home, /addRecipeToPlanWithMissingCheck\(card\.id, pack, inv/);
+  assert.match(home, /shoppingAddedCount/);
 });
 
 test('删除说明文案后清理旧 CSS，并保留低占用圆点指示', () => {

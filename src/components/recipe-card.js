@@ -1,32 +1,45 @@
-import { S, todayISO } from '../storage.js?v=219';
+import { S, todayISO } from '../storage.js?v=222';
 import {
   explodeCombinedItems
-} from '../ingredients.js?v=219';
-import { splitIngredients } from '../utils/recipe-sanitizer.js?v=219';
+} from '../ingredients.js?v=222';
+import { splitIngredients } from '../utils/recipe-sanitizer.js?v=222';
 import {
   hasRecipeMethod,
   isFavoriteRecipe,
-  markRecipePlanned,
   toggleFavoriteRecipe,
   calculateStockStatus
-} from '../recommendations.js?v=219';
+} from '../recommendations.js?v=222';
+import { loadInventory } from '../inventory.js?v=222';
+import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=222';
 import {
   callAiSearchRecipe,
   formatAiErrorMessage
-} from '../ai.js?v=219';
+} from '../ai.js?v=222';
 import {
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=219';
+} from '../backup.js?v=222';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   showToast
-} from './status.js?v=219';
-import { showRecipeQuickModal } from './recipe-quick-modal.js?v=219';
+} from './status.js?v=222';
+import { showRecipeQuickModal } from './recipe-quick-modal.js?v=222';
 
 const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+
+function getPlanContextForRecipe(recipe, pack, inv, fallbackItems = null) {
+  const items = Array.isArray(fallbackItems) ? fallbackItems : pack?.recipe_ingredients?.[recipe.id] || [];
+  return {
+    pack: pack || {
+      recipes: [recipe],
+      recipe_ingredients: { [recipe.id]: items }
+    },
+    inv: Array.isArray(inv) ? inv : loadInventory(),
+    fallbackItems: items
+  };
+}
 
 /**
  * 卡片快速删除入口：配备内联气泡确认（无需弹窗）。
@@ -106,7 +119,7 @@ export function recipeMethodBadge(recipe) {
     : '<span class="kchip method-missing">缺做法</span>';
 }
 
-export function searchResultCard(r, statusData, { onRoute = () => {}, onPreviewRecipe = null } = {}) {
+export function searchResultCard(r, statusData, { onRoute = () => {}, onPreviewRecipe = null, pack = null, inv = null } = {}) {
   const card = document.createElement('div'); card.className = 'card';
   let badgeHtml = '';
   if (statusData.status === 'ok') {
@@ -149,19 +162,16 @@ export function searchResultCard(r, statusData, { onRoute = () => {}, onPreviewR
   if (viewBtn) viewBtn.onclick = openRecipe;
   const addBtn = card.querySelector('#addMissingBtn');
   if (addBtn) {
-    addBtn.onclick = (event) => {
+    addBtn.onclick = async (event) => {
       event?.preventDefault();
       event?.stopPropagation();
-      const plan = S.load(S.keys.plan, []);
-      const today = todayISO();
-      if (!plan.find(x => x.id === r.id && (x.date || today) === today)) {
-        plan.push({ id: r.id, servings: 1, date: today });
-        S.save(S.keys.plan, plan);
-        markRecipePlanned(r.id);
-        showToast('已加入今日计划', { tone: 'success' });
-      } else {
-        showToast('已在今天', { tone: 'info' });
-      }
+      const ctx = getPlanContextForRecipe(r, pack, inv);
+      await addRecipeToPlanWithMissingCheck(r.id, ctx.pack, ctx.inv, {
+        recipe: r,
+        fallbackItems: ctx.fallbackItems,
+        source: 'search-result',
+        onRoute
+      });
     };
   }
   // 快速删除入口
@@ -307,7 +317,7 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
     btn.className = 'btn ok small';
     // 已加入未做 → 「已加入」；其余（含今日已做完）→ 默认「加入清单」，完全释放锁定。
     btn.textContent = isPlannedToday ? '已加入' : '加入计划';
-    btn.onclick = (event) => {
+    btn.onclick = async (event) => {
       event.preventDefault();
       event.stopPropagation();
       const p = S.load(S.keys.plan, []);
@@ -316,15 +326,22 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
         // 已加入未做 → 再次点击取消今天的排程（仅针对今天，不动明后天）。
         S.save(S.keys.plan, p.filter(x => x !== row));
       } else if (row && row.isCooked) {
-        // 今天已做完 → 点击重新排入今日计划（清除已做标记，复用同一条，不产生重复）。
-        delete row.isCooked;
-        delete row.cookedAt;
-        S.save(S.keys.plan, p);
+        // 今天已做完 → 重新走加入今日计划流程，避免绕过缺食材确认。
+        S.save(S.keys.plan, p.filter(x => x !== row));
+        const ctx = getPlanContextForRecipe(r, pack, inv, list);
+        await addRecipeToPlanWithMissingCheck(r.id, ctx.pack, ctx.inv, {
+          recipe: r,
+          fallbackItems: ctx.fallbackItems,
+          source: 'recipe-card-replan'
+        });
       } else {
         // 今天尚未排程 → 加入今日计划。
-        p.push({ id: r.id, servings: 1, date: today });
-        markRecipePlanned(r.id);
-        S.save(S.keys.plan, p);
+        const ctx = getPlanContextForRecipe(r, pack, inv, list);
+        await addRecipeToPlanWithMissingCheck(r.id, ctx.pack, ctx.inv, {
+          recipe: r,
+          fallbackItems: ctx.fallbackItems,
+          source: 'recipe-card'
+        });
       }
       onRoute();
     };
@@ -350,7 +367,7 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
   return card;
 }
 
-export function showRecommendationCards(container, list, pack, { onRoute = () => {}, onPreviewRecipe = null } = {}) {
+export function showRecommendationCards(container, list, pack, { onRoute = () => {}, onPreviewRecipe = null, inv = null } = {}) {
   container.innerHTML = '';
   if (!list || list.length === 0) {
     container.innerHTML = '<div class="card small rec-empty-card">暂无推荐。</div>';
@@ -359,7 +376,7 @@ export function showRecommendationCards(container, list, pack, { onRoute = () =>
   const map = pack.recipe_ingredients || {};
   list.forEach(item => {
     const isAi = item.isAi !== undefined ? item.isAi : false;
-    container.appendChild(recipeCard(item.r, item.list || map[item.r.id], { reason: item.reason, explain: item.explain, score: item.score, isAi }, { onRoute, onPreviewRecipe }));
+    container.appendChild(recipeCard(item.r, item.list || map[item.r.id], { reason: item.reason, explain: item.explain, score: item.score, isAi }, { onRoute, onPreviewRecipe, pack, inv }));
   });
 }
 
@@ -404,7 +421,7 @@ export function renderRecipeSearchResults(query, pack, inv, { onRoute = () => {}
   if (results.length > 0) {
     results.forEach(r => {
       const status = calculateStockStatus(r, pack, inv);
-      grid.appendChild(searchResultCard(r, status, { onRoute }));
+      grid.appendChild(searchResultCard(r, status, { onRoute, pack, inv }));
     });
   } else {
     container.innerHTML += `<div class="search-empty-state"><p class="text-secondary">未找到相关菜谱。</p><button type="button" class="btn ai" id="aiSearchBtn">生成菜谱草稿【${query}】</button><div id="aiSearchStatus" class="small inline-status" hidden></div></div><div id="aiDraftResult"></div>`;

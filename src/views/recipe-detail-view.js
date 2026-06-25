@@ -1,23 +1,23 @@
-import { S, todayISO } from '../storage.js?v=219';
-import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=219';
-import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=219';
-import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=219';
+import { S, todayISO } from '../storage.js?v=222';
+import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=222';
+import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=222';
+import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=222';
 import {
   addMissingRecipeIngredientsToShopping,
-  addRecipeToPlan,
   getMissingRecipeIngredients,
   markRecipeCooked
-} from '../recommendations.js?v=219';
+} from '../recommendations.js?v=222';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=222';
 import {
   callAiForMethod,
   formatAiErrorMessage,
   withTimeout
-} from '../ai.js?v=219';
-import { loadOverlay, saveOverlay } from '../backup.js?v=219';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=219';
-import { showCalibrationModal } from '../components/modal.js?v=219';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=219';
-import { splitMethodSteps } from '../utils/method-steps.js?v=219';
+} from '../ai.js?v=222';
+import { loadOverlay, saveOverlay } from '../backup.js?v=222';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=222';
+import { showCalibrationModal } from '../components/modal.js?v=222';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=222';
+import { splitMethodSteps } from '../utils/method-steps.js?v=222';
 
 // 把做法字符串渲染成 glass 分步列表（每步 escapeHtml；无步骤时返回空串，由调用方兜底）。
 function methodToListHtml(method) {
@@ -149,12 +149,27 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   const bindPlanBtn = (btnId, dateStr, successMsg, labelActive) => {
     const btn = div.querySelector(btnId);
     if (btn) {
-      btn.onclick = () => {
-        const added = addRecipeToPlan(id, dateStr);
+      btn.onclick = async () => {
+        const planLabel = dateStr === today
+          ? '今日计划'
+          : dateStr === tomorrowISO
+            ? '明天计划'
+            : '后天计划';
+        const result = await addRecipeToPlanWithMissingCheck(id, pack, inv, {
+          date: dateStr,
+          recipe: r,
+          fallbackItems: items,
+          planLabel,
+          source: 'recipe-detail'
+        });
+        const added = result.added;
         if (added) {
           btn.textContent = labelActive;
           btn.disabled = true;
-          showActionFeedback(successMsg, dateStr === today ? {
+          const feedbackMsg = result.missing.length
+            ? (result.shoppingAddedCount ? `已加入${planLabel}，缺的食材已加入买菜清单。` : `已加入${planLabel}，缺的食材可稍后处理。`)
+            : successMsg;
+          showActionFeedback(feedbackMsg, dateStr === today ? {
             actionLabel: '去今日看看',
             autoHide: false,
             onAction: () => { location.hash = '#today'; }
