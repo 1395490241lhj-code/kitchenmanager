@@ -742,19 +742,19 @@ function renderOnboarding(pack, { onRoute = () => {} } = {}) {
   section.innerHTML = `
     <div class="home-hero-glow" aria-hidden="true"></div>
     <div class="home-hero-head">
-      <span class="home-hero-eyebrow">🍳 从几样食材开始</span>
-      <h2 class="home-hero-greeting">先告诉我厨房里有什么</h2>
-      <p class="home-hero-note">记几样食材后，我会帮你看今天能做什么、缺什么、该买什么。</p>
+      <span class="home-hero-eyebrow">🍳 先看今天能吃什么</span>
+      <h2 class="home-hero-greeting">今天不知道吃什么？</h2>
+      <p class="home-hero-note">先试一个示例厨房，马上看看今天能做什么、缺什么、该买什么。</p>
     </div>
-    <div class="home-actions-grid">
-      <button type="button" class="home-act-btn" id="obManual"><span class="home-act-emoji">✍️</span><span class="home-act-copy"><span>手动记食材</span><small>先输入几样</small></span></button>
-      <button type="button" class="home-act-btn" id="obReceipt"><span class="home-act-emoji">🧾</span><span class="home-act-copy"><span>拍小票识别</span><small>刚买完菜</small></span></button>
-      <button type="button" class="home-act-btn" id="obDemo"><span class="home-act-emoji">🍳</span><span class="home-act-copy"><span>试用示例厨房</span><small>先看完整流程</small></span></button>
-      <button type="button" class="home-act-btn" id="obRecipes"><span class="home-act-emoji">📖</span><span class="home-act-copy"><span>先逛菜谱</span><small>不想录入也可以</small></span></button>
+    <div class="home-actions-grid home-onboarding-actions">
+      <button type="button" class="home-act-btn home-onboarding-demo is-primary" id="obDemo"><span class="home-act-emoji">🍳</span><span class="home-act-copy"><span>试用示例厨房</span><small>马上看到推荐、待买和到期提醒</small></span></button>
+      <button type="button" class="home-act-btn home-onboarding-manual" id="obManual"><span class="home-act-emoji">✍️</span><span class="home-act-copy"><span>记录我的食材</span><small>先写 3 到 5 样就行</small></span></button>
+    </div>
+    <div class="home-onboarding-link-row">
+      <button type="button" class="home-onboarding-link" id="obRecipes">先逛菜谱</button>
     </div>
   `;
   section.querySelector('#obManual').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
-  section.querySelector('#obReceipt').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
   section.querySelector('#obDemo').onclick = () => {
     const n = writeItemsToInventory(DEMO_KITCHEN_ITEMS, pack);
     if (n > 0) lastWxTab = 'recs';

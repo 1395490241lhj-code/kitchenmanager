@@ -12,22 +12,22 @@ const ONBOARD_KEY = 'km_onboarded_v1';
 
 const STEPS = [
   {
-    emoji: '🧭',
-    title: '认识悬浮 Dock 舱',
-    target: 'nav',
-    body: '欢迎来到未来厨房！底部的悬浮液态舱是你的导航中枢，单手滑按，即可在今日、食材、买菜和设置间切换。'
-  },
-  {
     emoji: '🥚',
-    title: '独特的双轨制冰箱',
-    target: '#nav-shop',
-    body: '做菜不再需要斤斤计较！鸡蛋、肉类按“个数”精准数件；蔬菜、调料改用“自适应油表”。充足还是见底，一目了然。'
+    title: '先记几样食材',
+    target: '.home-hero.is-onboarding, #nav-inventory',
+    body: '不用完整整理冰箱，先写 3 到 5 样常见食材就行。'
   },
   {
-    emoji: '👨‍🍳',
-    title: '高情商主厨校准',
-    target: '.menu-plan-card, .home-combo-plan, .home-hero',
-    body: '每次烹饪完成后，管家会帮你顺手同步食材余量。你只需在弹窗里勾选“差不多”或“全用光了”，厨房记录就不会脱节。'
+    emoji: '🍳',
+    title: '看看今天能做什么',
+    target: '.wx-panel, .today-quick',
+    body: '我会根据现有食材推荐能做的菜，也会提醒还缺什么。'
+  },
+  {
+    emoji: '✅',
+    title: '做完顺手更新',
+    target: '.record-cooked-btn, .record-cooked-cta, nav',
+    body: '吃完后点一下“饭后记一下”，库存和买菜清单会跟着更新。'
   }
 ];
 
