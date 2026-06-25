@@ -33,6 +33,8 @@ export const S = {
     shopping_items: 'km_v87_shopping_items',
     staples: 'km_v1_staples',
     pantry_config: 'km_v1_pantry_config',
-    prep_done: 'km_v1_prep_done'
+    prep_done: 'km_v1_prep_done',
+    demo_mode: 'km_demo_mode',
+    demo_snapshot: 'km_demo_snapshot_v1'
   }
 };

@@ -755,13 +755,91 @@ function renderOnboarding(pack, { onRoute = () => {} } = {}) {
     </div>
   `;
   section.querySelector('#obManual').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
-  section.querySelector('#obDemo').onclick = () => {
-    const n = writeItemsToInventory(DEMO_KITCHEN_ITEMS, pack);
-    if (n > 0) lastWxTab = 'recs';
-    onRoute();
-  };
+  section.querySelector('#obDemo').onclick = () => enterDemoKitchen(pack, { onRoute });
   section.querySelector('#obRecipes').onclick = () => { location.hash = '#recipes'; };
   return section;
+}
+
+const DEMO_BUSINESS_KEY_NAMES = [
+  'inventory',
+  'plan',
+  'shopping_items',
+  'staples',
+  'pantry_config',
+  'prep_done',
+  'ai_recs',
+  'local_recs',
+  'rec_time',
+  'rec_signature',
+  'recipe_usage',
+  'recipe_activity',
+  'favorite_recipes'
+];
+
+function isDemoKitchenMode() {
+  try { return localStorage.getItem(S.keys.demo_mode) === '1'; } catch (e) { return false; }
+}
+
+function saveDemoKitchenSnapshot() {
+  if (isDemoKitchenMode() && localStorage.getItem(S.keys.demo_snapshot)) return;
+  const keys = {};
+  for (const name of DEMO_BUSINESS_KEY_NAMES) {
+    const key = S.keys[name];
+    if (!key) continue;
+    const value = localStorage.getItem(key);
+    keys[name] = value === null ? { exists: false } : { exists: true, value };
+  }
+  S.save(S.keys.demo_snapshot, { version: 1, createdAt: new Date().toISOString(), keys });
+}
+
+function enterDemoKitchen(pack, { onRoute = () => {} } = {}) {
+  saveDemoKitchenSnapshot();
+  localStorage.setItem(S.keys.demo_mode, '1');
+  const n = writeItemsToInventory(DEMO_KITCHEN_ITEMS, pack);
+  if (n > 0) lastWxTab = 'recs';
+  onRoute();
+}
+
+function restoreDemoKitchenSnapshot(snapshot) {
+  const keys = snapshot && snapshot.keys && typeof snapshot.keys === 'object' ? snapshot.keys : null;
+  for (const name of DEMO_BUSINESS_KEY_NAMES) {
+    const key = S.keys[name];
+    if (!key) continue;
+    const record = keys ? keys[name] : null;
+    if (record && record.exists && typeof record.value === 'string') {
+      localStorage.setItem(key, record.value);
+    } else {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
+function exitDemoKitchen({ onRoute = () => {} } = {}) {
+  const snapshot = S.load(S.keys.demo_snapshot, null);
+  restoreDemoKitchenSnapshot(snapshot);
+  localStorage.removeItem(S.keys.demo_mode);
+  localStorage.removeItem(S.keys.demo_snapshot);
+  lastWxTab = null;
+  onRoute();
+}
+
+function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
+  const banner = document.createElement('section');
+  banner.className = 'demo-kitchen-banner';
+  banner.innerHTML = `
+    <div class="demo-kitchen-copy">
+      <strong>当前是示例厨房</strong>
+      <span>你可以随便试用推荐、计划和买菜清单。准备记录自己的厨房时，可以退出示例。</span>
+    </div>
+    <button type="button" class="demo-kitchen-exit">退出示例厨房</button>
+  `;
+  banner.querySelector('.demo-kitchen-exit').onclick = () => {
+    const ok = window.confirm('退出后会清除示例食材和示例计划，回到空厨房。你的设置不会被删除。');
+    if (!ok) return;
+    exitDemoKitchen({ onRoute });
+    showToast('已退出示例厨房', { tone: 'info' });
+  };
+  return banner;
 }
 
 // ── 批量入库统一写入：所有模式（小票 / 文本）共用同一条数据落地路径 ──────────
@@ -2488,6 +2566,11 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   container.className = 'today-view';
   const catalog = buildCatalog(pack);
   const inv = loadInventory(catalog);
+  const isDemoMode = isDemoKitchenMode();
+
+  if (isDemoMode) {
+    container.appendChild(renderDemoKitchenBanner({ onRoute }));
+  }
 
   // 空库存 → 友好的可行动空状态（引导录入）。
   if (!hasUsableInventory(inv)) {
