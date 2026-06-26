@@ -8,6 +8,8 @@ import {
 
 export const BACKUP_APP_ID = 'kitchenmanager';
 export const BACKUP_FORMAT_VERSION = 1;
+export const BACKUP_NUDGE_DISMISS_DAYS = 7;
+export const BACKUP_RECENT_EXPORT_DAYS = 30;
 
 const BACKUP_KEY_NAMES = [
   'inventory',
@@ -45,10 +47,100 @@ const BACKUP_DEFAULTS = {
   rec_signature: null
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 const clone = value => JSON.parse(JSON.stringify(value ?? null));
 
 const isPlainObject = value =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+
+function readTimestamp(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return 0;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function writeTimestamp(key, now = Date.now()) {
+  try {
+    localStorage.setItem(key, String(now));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function wasWithinDays(key, now = Date.now(), days = 0) {
+  const timestamp = readTimestamp(key);
+  if (!timestamp) return false;
+  const age = Number(now) - timestamp;
+  return age >= 0 && age < days * DAY_MS;
+}
+
+function isUsableInventoryItem(item) {
+  if (!item || !String(item.name || '').trim()) return false;
+  const qty = Number(item.qty ?? 1);
+  return !Number.isFinite(qty) || qty > 0;
+}
+
+function hasPlanItem(plan) {
+  return (plan || []).some(item => item && item.id && !item.isCooked);
+}
+
+function hasOpenShoppingItems(items) {
+  return (items || []).filter(item => item && item.name && !item.done && !item.stockedIn).length >= 3;
+}
+
+function hasUserRecipePatch(overlay) {
+  if (!isPlainObject(overlay)) return false;
+  return Object.keys(overlay.recipes || {}).length > 0
+    || Object.keys(overlay.recipe_ingredients || {}).length > 0
+    || Object.keys(overlay.deletes || {}).length > 0;
+}
+
+export function hasKitchenDataForBackupNudge({ inventory = [], plan = [], shoppingItems = [], overlay = null } = {}) {
+  return (inventory || []).filter(isUsableInventoryItem).length >= 5
+    || hasPlanItem(plan)
+    || hasOpenShoppingItems(shoppingItems)
+    || hasUserRecipePatch(overlay);
+}
+
+export function hasRecentBackupNudgeDismissal(now = Date.now()) {
+  return wasWithinDays(S.keys.backup_nudge_dismissed_at, now, BACKUP_NUDGE_DISMISS_DAYS);
+}
+
+export function hasRecentKitchenBackupExport(now = Date.now()) {
+  return wasWithinDays(S.keys.backup_last_exported_at, now, BACKUP_RECENT_EXPORT_DAYS);
+}
+
+export function markBackupNudgeDismissed(now = Date.now()) {
+  return writeTimestamp(S.keys.backup_nudge_dismissed_at, now);
+}
+
+export function markKitchenBackupExported(now = Date.now()) {
+  return writeTimestamp(S.keys.backup_last_exported_at, now);
+}
+
+export function shouldShowBackupNudge({
+  inventory = [],
+  plan = [],
+  shoppingItems = [],
+  overlay = null,
+  isDemoMode = false,
+  now = Date.now()
+} = {}) {
+  if (isDemoMode) return false;
+  if (!hasKitchenDataForBackupNudge({ inventory, plan, shoppingItems, overlay })) return false;
+  if (hasRecentBackupNudgeDismissal(now)) return false;
+  if (hasRecentKitchenBackupExport(now)) return false;
+  return true;
+}
 
 export function emptyOverlay() {
   return { version: 1, recipes: {}, recipe_ingredients: {}, deletes: {} };

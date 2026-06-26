@@ -57,9 +57,8 @@ test('菜谱保存、AI 草稿保存和 AI 不可用接入 Toast', () => {
 test('备份导入导出接入 Toast，错误处理仍保留 inline status', () => {
   const settings = read('src/views/settings-view.js');
 
-  assert.match(settings, /showToast\('备份已导出', \{ tone: 'success' \}\)/);
+  assert.match(settings, /showToast\(KITCHEN_BACKUP_EXPORT_MESSAGE, \{ tone: 'success' \}\)/);
   assert.match(settings, /showToast\('备份已导入', \{ tone: 'success' \}\)/);
   assert.match(settings, /showToast\('备份导入失败', \{ tone: 'error' \}\)/);
   assert.match(settings, /setInlineStatus\(statusEl, err\.message \|\| '备份文件无法读取', 'bad'\)/);
 });
-

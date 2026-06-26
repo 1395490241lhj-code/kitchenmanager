@@ -6507,6 +6507,24 @@ html[data-theme="dark"] .settings-input,
   gap: 10px;
 }
 .settings-backup-actions .btn { flex: 1 1 140px; }
+.settings-import-confirm-modal {
+  max-width: 460px;
+}
+.settings-import-confirm-body {
+  display: grid;
+  gap: 12px;
+}
+.settings-import-confirm-body p {
+  margin: 0;
+  color: var(--text-main);
+  line-height: 1.55;
+}
+.settings-import-confirm-actions .btn {
+  flex: 1 1 130px;
+}
+.settings-import-confirm-actions #settingsImportContinue {
+  flex-basis: 100%;
+}
 .settings-tips-link {
   border-radius: 999px;
   min-height: 36px;
@@ -10681,6 +10699,77 @@ html[data-theme="dark"] .demo-kitchen-exit {
   background: rgba(255, 214, 10, 0.14);
   border-color: rgba(255, 214, 10, 0.28);
   color: #ffd66b;
+}
+
+.home-backup-nudge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(52, 199, 89, 0.14), rgba(0, 122, 255, 0.08)),
+    var(--glass-cell-fill);
+  border: 1px solid rgba(52, 199, 89, 0.22);
+  box-shadow:
+    0 10px 24px rgba(16, 24, 40, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+}
+
+.home-backup-nudge-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.home-backup-nudge-copy strong {
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.home-backup-nudge-copy span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.home-backup-nudge-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.home-backup-nudge-actions .btn {
+  min-height: 38px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+html[data-theme="dark"] .home-backup-nudge {
+  background:
+    linear-gradient(135deg, rgba(48, 209, 88, 0.16), rgba(10, 132, 255, 0.10)),
+    var(--glass-cell-fill);
+  border-color: rgba(48, 209, 88, 0.24);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+@media (max-width: 560px) {
+  .home-backup-nudge {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .home-backup-nudge-actions {
+    width: 100%;
+  }
+  .home-backup-nudge-actions .btn {
+    flex: 1 1 0;
+  }
 }
 
 .post-inventory-guide {

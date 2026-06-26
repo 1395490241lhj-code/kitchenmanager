@@ -22,6 +22,7 @@ import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=222';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=222';
 import { createUserRecipe } from '../components/recipe-create-modal.js?v=222';
 import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=222';
+import { buildKitchenBackup, downloadJsonFile, loadOverlay, markBackupNudgeDismissed, markKitchenBackupExported, shouldShowBackupNudge } from '../backup.js?v=223';
 import {
   buildLocalCookedMealCandidates,
   getRecipeCoreItems,
@@ -63,6 +64,8 @@ function buildGreeting(expiringCount) {
 
 // 到期提醒不统计鸡蛋、牛奶（它们按常备品状态管理，不看保质期）。
 const EXPIRY_EXCLUDE_NAMES = new Set(['鸡蛋', '牛奶']);
+const KITCHEN_BACKUP_EXPORT_MESSAGE = '已导出厨房备份。请把文件保存到 iCloud、网盘或电脑里。';
+
 function isExpiryTracked(item) {
   return isInventoryAvailable(item) && !EXPIRY_EXCLUDE_NAMES.has(getCanonicalName(item.name || ''));
 }
@@ -76,6 +79,48 @@ function getExpiringItems(inv) {
 
 function hasUsableInventory(inv) {
   return (inv || []).some(isInventoryAvailable);
+}
+
+function getTodayPlanRowsForBackupNudge() {
+  const today = todayISO();
+  return S.load(S.keys.plan, [])
+    .filter(row => row && (row.date || today) === today && !row.isCooked);
+}
+
+function renderBackupNudge(inv, { isDemoMode = false } = {}) {
+  const shouldShow = shouldShowBackupNudge({
+    inventory: inv,
+    plan: getTodayPlanRowsForBackupNudge(),
+    shoppingItems: loadShoppingItems(),
+    overlay: loadOverlay(),
+    isDemoMode
+  });
+  if (!shouldShow) return null;
+
+  const section = document.createElement('section');
+  section.className = 'home-backup-nudge';
+  section.innerHTML = `
+    <div class="home-backup-nudge-copy">
+      <strong>已经有厨房数据了，建议导出一份备份。</strong>
+      <span>换设备或清缓存前，可以用它恢复。</span>
+    </div>
+    <div class="home-backup-nudge-actions">
+      <button type="button" class="btn ok" id="homeBackupExport">导出备份</button>
+      <button type="button" class="btn" id="homeBackupLater">稍后提醒</button>
+    </div>
+  `;
+  section.querySelector('#homeBackupExport').onclick = () => {
+    downloadJsonFile(buildKitchenBackup(), `kitchenmanager-backup-${todayISO()}.json`);
+    markKitchenBackupExported();
+    section.remove();
+    showToast(KITCHEN_BACKUP_EXPORT_MESSAGE, { tone: 'success' });
+  };
+  section.querySelector('#homeBackupLater').onclick = () => {
+    markBackupNudgeDismissed();
+    section.remove();
+    showToast('好的，7 天内不再提醒。', { tone: 'info' });
+  };
+  return section;
 }
 
 function getRecommendationUiContext() {
@@ -2831,6 +2876,8 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   const inspirationCards = perfMeasure('getInspirationCards(home)', () => getInspirationCards(pack, inv));
   const summaryStats = getTodaySummaryStats(pack, inv, { inspirationCards });
   container.appendChild(renderWxStatus(summaryStats));
+  const backupNudge = renderBackupNudge(inv, { isDemoMode });
+  if (backupNudge) container.appendChild(backupNudge);
   const panel = perfMeasure('createWeatherPanel', () => createWeatherPanel(pack, inv, { onRoute, inspirationCards }));
   container.appendChild(panel.el);
   container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));

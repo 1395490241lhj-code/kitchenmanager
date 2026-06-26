@@ -1,6 +1,6 @@
 import { S, todayISO } from '../storage.js?v=222';
 import { CUSTOM_AI } from '../config.js?v=222';
-import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, saveOverlay, validateKitchenBackup } from '../backup.js?v=222';
+import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=223';
 import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=222';
 import { getSavedTheme, saveTheme } from '../theme.js?v=222';
 
@@ -41,6 +41,65 @@ function mergeRecipeOverlay(currentOverlay, incomingOverlay) {
     imported.push(id);
   });
   return { overlay: next, conflicts, imported };
+}
+
+const KITCHEN_BACKUP_EXPORT_MESSAGE = '已导出厨房备份。请把文件保存到 iCloud、网盘或电脑里。';
+
+function downloadCurrentKitchenBackup() {
+  downloadJsonFile(buildKitchenBackup(), `kitchenmanager-backup-${todayISO()}.json`);
+  markKitchenBackupExported();
+}
+
+function showKitchenBackupImportConfirm({ onContinue, onExportCurrent, onCancel = () => {} } = {}) {
+  const overlay = document.createElement('div');
+  overlay.className = 'km-modal-overlay open';
+  overlay.innerHTML = `
+    <div class="km-modal-content settings-import-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="settingsImportTitle">
+      <div class="km-modal-header">
+        <span class="km-modal-title" id="settingsImportTitle">导入厨房备份</span>
+        <button type="button" class="km-modal-close" id="settingsImportClose" aria-label="关闭">×</button>
+      </div>
+      <div class="km-modal-body settings-import-confirm-body">
+        <p>导入备份会用备份中的厨房数据覆盖当前本地数据。建议先导出当前数据再继续。</p>
+        <div class="small inline-status" id="settingsImportConfirmStatus" hidden></div>
+      </div>
+      <div class="km-modal-actions settings-import-confirm-actions">
+        <button type="button" class="btn ok" id="settingsImportContinue">继续导入</button>
+        <button type="button" class="btn" id="settingsImportExportCurrent">先导出当前数据</button>
+        <button type="button" class="btn" id="settingsImportCancel">取消</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  let closed = false;
+  const close = (after = () => {}) => {
+    if (closed) return;
+    closed = true;
+    overlay.classList.add('closing');
+    window.setTimeout(() => {
+      overlay.remove();
+      after();
+    }, 160);
+  };
+
+  const confirmStatus = overlay.querySelector('#settingsImportConfirmStatus');
+  overlay.querySelector('#settingsImportContinue').onclick = () => close(onContinue);
+  overlay.querySelector('#settingsImportExportCurrent').onclick = () => {
+    try {
+      onExportCurrent();
+      setInlineStatus(confirmStatus, '已导出当前数据。你可以继续导入，或取消后稍后处理。', 'ok');
+    } catch (err) {
+      setInlineStatus(confirmStatus, '导出当前数据失败：' + (err.message || err), 'bad');
+    }
+  };
+  const cancel = () => close(onCancel);
+  overlay.querySelector('#settingsImportCancel').onclick = cancel;
+  overlay.querySelector('#settingsImportClose').onclick = cancel;
+  overlay.onclick = (event) => {
+    if (event.target === overlay) cancel();
+  };
+  return overlay;
 }
 
 export function renderSettings() {
@@ -179,17 +238,17 @@ export function renderSettings() {
       <div class="settings-group-label">💾 数据管理</div>
       <div class="settings-group">
         <div class="settings-row is-stacked">
-          <div class="settings-row-main"><span class="settings-row-title">菜谱补丁</span><span class="settings-row-sub">仅含你对菜谱的新增 / 编辑 / 删除，便于多设备同步</span></div>
+          <div class="settings-row-main"><span class="settings-row-title">厨房完整备份</span><span class="settings-row-sub">包含库存、今日计划、买菜清单、常备品、设置、菜谱补丁等用户数据。换设备或清缓存前建议保存一份，默认不包含 API Key。</span></div>
           <div class="settings-backup-actions">
-            <button type="button" class="btn ok" id="exportRecipeOverlay">导出菜谱备份</button>
-            <label class="btn"><input type="file" id="importRecipeOverlay" accept="application/json,.json" hidden>恢复 / 导入菜谱</label>
+            <button type="button" class="btn ok" id="exportKitchenBackup">导出厨房备份</button>
+            <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入厨房备份</label>
           </div>
         </div>
         <div class="settings-row is-stacked">
-          <div class="settings-row-main"><span class="settings-row-title">数据备份</span><span class="settings-row-sub">导出当前厨房数据，换设备或清缓存前可以先保存一份。</span></div>
+          <div class="settings-row-main"><span class="settings-row-title">菜谱补丁</span><span class="settings-row-sub">只导出你新增、编辑或删除的菜谱内容，适合单独迁移菜谱库修改。</span></div>
           <div class="settings-backup-actions">
-            <button type="button" class="btn ok" id="exportKitchenBackup">导出备份</button>
-            <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入备份</label>
+            <button type="button" class="btn ok" id="exportRecipeOverlay">导出菜谱补丁</button>
+            <label class="btn"><input type="file" id="importRecipeOverlay" accept="application/json,.json" hidden>导入菜谱补丁</label>
           </div>
         </div>
         <div class="settings-row is-stacked">
@@ -371,9 +430,9 @@ export function renderSettings() {
     reader.readAsText(file);
   };
   div.querySelector('#exportKitchenBackup').onclick = () => {
-    downloadJsonFile(buildKitchenBackup(), `kitchenmanager-backup-${todayISO()}.json`);
-    setInlineStatus(div.querySelector('#settingsStatus'), '备份已导出。', 'ok');
-    showToast('备份已导出', { tone: 'success' });
+    downloadCurrentKitchenBackup();
+    setInlineStatus(div.querySelector('#settingsStatus'), KITCHEN_BACKUP_EXPORT_MESSAGE, 'ok');
+    showToast(KITCHEN_BACKUP_EXPORT_MESSAGE, { tone: 'success' });
   };
   div.querySelector('#importKitchenBackup').onchange = e => {
     const file = e.target.files[0]; if (!file) return;
@@ -382,23 +441,39 @@ export function renderSettings() {
     reader.onload = () => {
       try {
         const backup = validateKitchenBackup(String(reader.result || ''));
-        if (!window.confirm('导入会覆盖当前厨房数据，确定继续吗？')) {
-          e.target.value = '';
-          return;
-        }
-        importKitchenBackup(backup);
-        setInlineStatus(statusEl, '备份已导入，页面将刷新。', 'ok');
-        showToast('备份已导入', { tone: 'success' });
-        setTimeout(() => location.reload(), 1200);
+        showKitchenBackupImportConfirm({
+          onContinue: () => {
+            try {
+              importKitchenBackup(backup);
+              setInlineStatus(statusEl, '备份已导入，页面将刷新。', 'ok');
+              showToast('备份已导入', { tone: 'success' });
+              setTimeout(() => location.reload(), 1200);
+            } catch (err) {
+              setInlineStatus(statusEl, err.message || '备份导入失败', 'bad');
+              showToast('备份导入失败', { tone: 'error' });
+              e.target.value = '';
+            }
+          },
+          onExportCurrent: () => {
+            downloadCurrentKitchenBackup();
+            setInlineStatus(statusEl, KITCHEN_BACKUP_EXPORT_MESSAGE, 'ok');
+            showToast(KITCHEN_BACKUP_EXPORT_MESSAGE, { tone: 'success' });
+          },
+          onCancel: () => {
+            e.target.value = '';
+          }
+        });
       }
       catch (err) {
         setInlineStatus(statusEl, err.message || '备份文件无法读取', 'bad');
         showToast('备份导入失败', { tone: 'error' });
+        e.target.value = '';
       }
     };
     reader.onerror = () => {
       setInlineStatus(statusEl, '备份文件无法读取', 'bad');
       showToast('备份导入失败', { tone: 'error' });
+      e.target.value = '';
     };
     reader.readAsText(file);
   };

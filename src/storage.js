@@ -36,6 +36,8 @@ export const S = {
     prep_done: 'km_v1_prep_done',
     demo_mode: 'km_demo_mode',
     demo_snapshot: 'km_demo_snapshot_v1',
-    demo_step: 'km_demo_step_v1'
+    demo_step: 'km_demo_step_v1',
+    backup_nudge_dismissed_at: 'km_backup_nudge_dismissed_at',
+    backup_last_exported_at: 'km_backup_last_exported_at'
   }
 };

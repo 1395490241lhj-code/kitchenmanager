@@ -9,6 +9,9 @@ import {
   exportKitchenBackup,
   getKitchenBackupKeyEntries,
   importKitchenBackup,
+  markBackupNudgeDismissed,
+  markKitchenBackupExported,
+  shouldShowBackupNudge,
   validateKitchenBackup
 } from '../src/backup.js';
 
@@ -48,6 +51,101 @@ test('exportKitchenBackup 只导出允许的 S.keys，且不包含 apiKey', () =
   assert.equal(Object.hasOwn(backup.keys, 'other_site_key'), false);
   assert.equal(backup.keys[S.keys.settings].apiKey, undefined);
   assert.equal(backup.keys[S.keys.settings].theme, 'dark');
+});
+
+test('shouldShowBackupNudge 空厨房不显示', () => {
+  assert.equal(shouldShowBackupNudge({
+    inventory: [],
+    plan: [],
+    shoppingItems: [],
+    overlay: null,
+    now: 1000
+  }), false);
+});
+
+test('shouldShowBackupNudge demo 模式不显示', () => {
+  assert.equal(shouldShowBackupNudge({
+    inventory: [
+      { name: '鸡蛋', qty: 1 },
+      { name: '番茄', qty: 1 },
+      { name: '土豆', qty: 1 },
+      { name: '青椒', qty: 1 },
+      { name: '豆腐', qty: 1 }
+    ],
+    isDemoMode: true,
+    now: 1000
+  }), false);
+});
+
+test('shouldShowBackupNudge 库存达到 5 样时显示', () => {
+  assert.equal(shouldShowBackupNudge({
+    inventory: [
+      { name: '鸡蛋', qty: 1 },
+      { name: '番茄', qty: 1 },
+      { name: '土豆', qty: 1 },
+      { name: '青椒', qty: 1 },
+      { name: '豆腐', qty: 1 }
+    ],
+    now: 1000
+  }), true);
+});
+
+test('shouldShowBackupNudge 今日计划达到 1 道时显示', () => {
+  assert.equal(shouldShowBackupNudge({
+    plan: [{ id: 'recipe-1', date: '2026-06-25' }],
+    now: 1000
+  }), true);
+});
+
+test('shouldShowBackupNudge 买菜清单达到 3 项或有菜谱补丁时显示', () => {
+  assert.equal(shouldShowBackupNudge({
+    shoppingItems: [
+      { name: '青椒' },
+      { name: '牛肉' },
+      { name: '面条' }
+    ],
+    now: 1000
+  }), true);
+  assert.equal(shouldShowBackupNudge({
+    overlay: { version: 1, recipes: { custom: { name: '自定义菜' } }, recipe_ingredients: {}, deletes: {} },
+    now: 1000
+  }), true);
+});
+
+test('markBackupNudgeDismissed 后短期内不再显示', () => {
+  const now = 1_800_000_000_000;
+  markBackupNudgeDismissed(now);
+  assert.equal(localStorage.getItem(S.keys.backup_nudge_dismissed_at), String(now));
+  assert.equal(shouldShowBackupNudge({
+    inventory: [
+      { name: '鸡蛋', qty: 1 },
+      { name: '番茄', qty: 1 },
+      { name: '土豆', qty: 1 },
+      { name: '青椒', qty: 1 },
+      { name: '豆腐', qty: 1 }
+    ],
+    now: now + 6 * 24 * 60 * 60 * 1000
+  }), false);
+  assert.equal(shouldShowBackupNudge({
+    inventory: [
+      { name: '鸡蛋', qty: 1 },
+      { name: '番茄', qty: 1 },
+      { name: '土豆', qty: 1 },
+      { name: '青椒', qty: 1 },
+      { name: '豆腐', qty: 1 }
+    ],
+    now: now + 8 * 24 * 60 * 60 * 1000
+  }), true);
+});
+
+test('markKitchenBackupExported 会记录导出时间并节流提醒', () => {
+  const now = 1_800_000_000_000;
+  markKitchenBackupExported(now);
+  assert.equal(localStorage.getItem(S.keys.backup_last_exported_at), String(now));
+  assert.equal(shouldShowBackupNudge({
+    plan: [{ id: 'recipe-1', date: '2026-06-25' }],
+    now: now + 2 * 24 * 60 * 60 * 1000
+  }), false);
 });
 
 test('validateKitchenBackup 接受合法备份', () => {
