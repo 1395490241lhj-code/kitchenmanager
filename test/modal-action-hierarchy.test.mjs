@@ -9,6 +9,13 @@ function read(rel) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
+function cssRule(source, selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = source.match(new RegExp(`(?:^|\\n)${escaped}\\s*\\{[\\s\\S]*?\\n\\}`));
+  assert.ok(match, `Missing CSS rule for ${selector}`);
+  return match[0];
+}
+
 test('缺菜确认弹窗使用统一结构和主弱按钮层级', () => {
   const source = read('src/components/plan-missing-check.js');
 
@@ -86,6 +93,34 @@ test('通用 modal 和按钮层级样式存在且互相区分', () => {
   assert.match(styles, /\.km-modal-actions \.km-action-weak/);
   assert.match(styles, /\.km-modal-actions \.km-action-danger/);
   assert.match(styles, /\.ai-action-status-actions \.km-action-primary/);
+});
+
+test('modal action/footer 容器使用透明背景，避免浅色白块', () => {
+  const styles = read('styles.css');
+  const sharedSelectors = [
+    '.km-modal-actions',
+    '.modal-actions',
+    '.receipt-confirm-actions',
+    '.recipe-preview-actions',
+  ];
+
+  for (const selector of sharedSelectors) {
+    const rule = cssRule(styles, selector);
+    assert.match(rule, /background: transparent;/);
+    assert.match(rule, /box-shadow: none;/);
+    assert.match(rule, /backdrop-filter: none;/);
+    assert.doesNotMatch(rule, /background:\s*(?:#fff|white|var\(--bg-card\))/);
+    assert.doesNotMatch(rule, /rgba\(255,\s*255,\s*255,\s*0\.(?:5|6|7|8|9)/);
+  }
+
+  assert.match(
+    styles,
+    /html\[data-theme="light"\] \.km-modal-actions,[\s\S]*?html\[data-theme="light"\] \.receipt-confirm-actions\s*\{\s*background: transparent;/,
+  );
+  assert.match(
+    styles,
+    /html\[data-theme="dark"\] \.km-modal-actions,[\s\S]*?html\[data-theme="dark"\] \.receipt-confirm-actions\s*\{\s*background: transparent;/,
+  );
 });
 
 test('记进厨房弹窗 action 区使用透明专用背景，避免浅色白块', () => {
