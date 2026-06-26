@@ -10772,6 +10772,109 @@ html[data-theme="dark"] .home-backup-nudge {
   }
 }
 
+.home-pwa-install-nudge {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(0, 122, 255, 0.13), rgba(52, 199, 89, 0.07)),
+    var(--glass-cell-fill);
+  border: 1px solid rgba(0, 122, 255, 0.20);
+  box-shadow:
+    0 10px 24px rgba(16, 24, 40, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  backdrop-filter: var(--glass-blur-cell);
+  -webkit-backdrop-filter: var(--glass-blur-cell);
+}
+
+.home-pwa-install-icon {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 122, 255, 0.12);
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.home-pwa-install-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.home-pwa-install-copy strong {
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.home-pwa-install-copy span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.home-pwa-install-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.home-pwa-install-actions .btn {
+  min-height: 38px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+html[data-theme="dark"] .home-pwa-install-nudge {
+  background:
+    linear-gradient(135deg, rgba(10, 132, 255, 0.16), rgba(48, 209, 88, 0.08)),
+    var(--glass-cell-fill);
+  border-color: rgba(10, 132, 255, 0.24);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+html[data-theme="dark"] .home-pwa-install-icon {
+  background: rgba(10, 132, 255, 0.16);
+  color: #78bfff;
+}
+
+@media (max-width: 768px) {
+  .home-pwa-install-nudge {
+    display: flex;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-pwa-install-nudge {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .home-pwa-install-icon {
+    margin-top: 1px;
+  }
+  .home-pwa-install-copy {
+    flex: 1 1 calc(100% - 46px);
+  }
+  .home-pwa-install-actions {
+    width: 100%;
+    padding-left: 46px;
+  }
+  .home-pwa-install-actions .btn {
+    flex: 1 1 0;
+  }
+}
+
 .post-inventory-guide {
   display: flex;
   align-items: center;
