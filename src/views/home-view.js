@@ -300,6 +300,30 @@ function getInspirationCards(pack, inv) {
   return cards;
 }
 
+function formatMissingSummary(missing = []) {
+  const items = Array.from(new Set((missing || []).map(item => String(item || '').trim()).filter(Boolean)));
+  if (!items.length) return '';
+  if (items.length === 1) return `只差 1 样：${items[0]}`;
+  const shown = items.slice(0, 3).join('、');
+  return `还缺 ${items.length} 样：${shown}${items.length > 3 ? '等' : ''}`;
+}
+
+function getSuggestTags(card, missing = []) {
+  const tags = [];
+  const add = value => {
+    const text = String(value || '').trim();
+    if (text && !tags.includes(text)) tags.push(text);
+  };
+  if (missing.length) add(missing.length === 1 ? '只差 1 样' : `还缺 ${missing.length} 样`);
+  else if (card.tone === 'ready') add('食材齐');
+  if (card.tone === 'priority') add('用掉临期');
+  if (card.tone === 'variant') add('变化菜');
+  if (card.tone === 'generic') add('快手');
+  add(card.matchLabel);
+  add('今日推荐');
+  return tags.slice(0, 4);
+}
+
 // ── Section 1: AI 灵感面板（Hero 胶囊） ───────────────────────────────────────
 function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewVariant = null, onRoute = null } = {}) {
   const el = document.createElement('article');
@@ -309,19 +333,28 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
   const canPreviewVariant = Boolean(variant && typeof onPreviewVariant === 'function');
   const canPreview = canPreviewVariant || Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !String(card.id).startsWith('creative-'));
   const sourceText = variant?.sourceLabel ? `<small class="home-suggest-source">${escapeHtml(variant.sourceLabel)}</small>` : '';
-  const missingTag = (card.missing && card.missing.length)
-    ? `<span class="home-suggest-missing">缺 ${card.missing.length} 样：${escapeHtml(card.missing.join('、'))}</span>`
+  const missing = Array.from(new Set((card.missing || []).map(item => String(item || '').trim()).filter(Boolean)));
+  const missingSummary = formatMissingSummary(missing);
+  const missingTag = missingSummary
+    ? `<span class="home-suggest-missing">${escapeHtml(missingSummary)}</span>`
     : '';
+  const tags = getSuggestTags(card, missing);
+  const reason = missingSummary || card.reason || (card.tone === 'ready' ? '食材基本齐，可以直接做' : '');
   el.innerHTML = `
-    <span class="home-suggest-match">${escapeHtml(card.matchLabel || '')}</span>
+    <div class="home-suggest-kicker">
+      <span class="home-suggest-match">${escapeHtml(card.matchLabel || '今日推荐')}</span>
+      ${sourceText}
+    </div>
     <h3 class="home-suggest-name">${escapeHtml(card.name)}</h3>
-    ${sourceText}
-    <p class="home-suggest-reason">${escapeHtml(card.reason || '')}</p>
+    <p class="home-suggest-reason">${escapeHtml(reason)}</p>
     ${missingTag}
+    <div class="home-suggest-tags">
+      ${tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}
+    </div>
     <div class="home-suggest-actions">
-      ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看做法</button>' : ''}
       <button type="button" class="btn ok small home-suggest-cook">加入今日计划</button>
-      ${card.tone === 'almost' && card.row ? '<button type="button" class="btn small home-suggest-shopping">补到买菜</button>' : ''}
+      ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看做法</button>' : ''}
+      ${missing.length && card.row ? '<button type="button" class="btn small home-suggest-shopping">补到买菜</button>' : ''}
     </div>
     <div class="home-suggest-feedback" hidden></div>
   `;
@@ -1952,21 +1985,27 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
   const section = document.createElement('section');
   section.className = 'wx-status';
   const greeting = buildGreeting(expiringCount).split('！')[0]; // 「🌆 晚上好」——复用现有问候逻辑
-  const title = recommendationCount > 0
-    ? `今天可以做 ${recommendationCount} 道菜`
-    : (planCount > 0 ? `今天计划了 ${planCount} 道菜` : '今天还没决定吃什么');
+  let title = '今天还没决定吃什么';
+  let subtitle = '先记录几样食材，或者去菜谱里找灵感。';
+  if (planCount > 0) {
+    title = '今天已经安排好了';
+    subtitle = `准备做 ${planCount} 道菜。做完后记一下，库存会自动更新。`;
+  } else if (recommendationCount > 0) {
+    title = `今天可以做 ${recommendationCount} 道菜`;
+    subtitle = '根据你现在的食材，先选一道加入今日计划。';
+  }
   const stats = [
-    ['plan', '计划', planCount],
+    ['plan', '今日计划', planCount],
     ['expiry', '临期', expiringCount],
-    ['shopping', '待买', shoppingCount],
-    ['recs', '推荐', recommendationCount]
+    ['shopping', '待买', shoppingCount]
   ];
   section.innerHTML = `
     <p class="wx-greeting">${escapeHtml(greeting)}</p>
     <h2 class="wx-title">${escapeHtml(title)}</h2>
+    <p class="wx-sub">${escapeHtml(subtitle)}</p>
     <div class="wx-summary-stats" aria-label="今日厨房状态">
       ${stats.map(([tone, label, value]) => `
-        <span class="wx-stat-pill is-${tone}">
+        <span class="wx-stat-pill is-${tone}${value ? '' : ' is-empty'}">
           <span>${escapeHtml(label)}</span><b>${escapeHtml(String(value || 0))}</b>
         </span>
       `).join('')}
@@ -2117,9 +2156,22 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     };
     cardWrap.onpointercancel = () => { touchStart = null; };
   };
+  const renderWxSectionIntro = (title, subtitle = '') => {
+    const head = document.createElement('div');
+    head.className = 'wx-section-intro';
+    head.innerHTML = `<h3>${escapeHtml(title)}</h3>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}`;
+    return head;
+  };
 
   // ── 📅 计划：动作组（全部做完/范围）+ 饭后轻 CTA + 计划列表，全部复用现有组件 ──
   const renderPlanTab = () => {
+    const todayPlanCount = getTodayPlanCount();
+    body.appendChild(renderWxSectionIntro(
+      '今日计划',
+      todayPlanCount > 0
+        ? `已经安排 ${todayPlanCount} 道菜。做完后顺手记一下。`
+        : '还没有安排今天吃什么。可以从下面推荐里选一道。'
+    ));
     const actions = document.createElement('div');
     actions.className = 'menu-plan-head-actions wx-plan-actions';
     actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
@@ -2800,6 +2852,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     bindRecommendationCycling(cardWrap);
     if (mode === 'target' && targetNames.length) {
       body.appendChild(renderTargetSectionTitle('按这些食材推荐', '继续从本地菜谱里找'));
+    } else if (cards.length) {
+      body.appendChild(renderWxSectionIntro('推荐先做这几道', '优先显示食材更齐、能用掉临期食材的菜。'));
+    } else {
+      body.appendChild(renderWxSectionIntro('暂无合适推荐', '再记录几样食材，推荐会更准。'));
     }
     body.appendChild(cardWrap);
 

@@ -3797,6 +3797,12 @@ html[data-theme="dark"] .receipt-ignored-item {
 .home-suggest-card.tone-variant  { border-left-color: var(--status-warn-text); }
 .home-suggest-card.tone-generic  { border-left-color: var(--status-info-text); }
 
+.home-suggest-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
 .home-suggest-match {
   align-self: flex-start;
   font-size: 11px;
@@ -3821,8 +3827,8 @@ html[data-theme="dark"] .receipt-ignored-item {
 }
 .home-suggest-name.is-link { cursor: pointer; }
 .home-suggest-source {
-  display: block;
-  margin-top: -2px;
+  display: inline-flex;
+  align-items: center;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 700;
@@ -3832,15 +3838,33 @@ html[data-theme="dark"] .receipt-ignored-item {
   font-size: 13px;
   line-height: 1.4;
   color: var(--text-secondary);
-  flex: 1;
 }
 .home-suggest-missing {
   align-self: flex-start;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 800;
   color: var(--status-warn-text);
   background: var(--status-warn-bg);
-  border-radius: 6px;
-  padding: 1px 7px;
+  border-radius: 999px;
+  padding: 5px 9px;
+}
+.home-suggest-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 1px;
+}
+.home-suggest-tags span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.10);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
 }
 .home-suggest-actions {
   display: flex;
@@ -3852,6 +3876,11 @@ html[data-theme="dark"] .receipt-ignored-item {
 .home-suggest-actions .btn {
   flex: 1 1 112px;
   min-height: 34px;
+}
+.home-suggest-actions .home-suggest-cook {
+  flex-basis: 100%;
+  min-height: 38px;
+  font-weight: 850;
 }
 .home-suggest-preview {
   background: var(--glass-control-fill);
@@ -7762,10 +7791,17 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
   font-size: 28px;
   font-weight: 800;
   line-height: 1.16;
-  letter-spacing: -0.5px;
+  letter-spacing: 0;
   color: var(--text-main);
 }
-.wx-sub { margin: 0; font-size: 13px; color: var(--text-secondary); opacity: 0.72; }
+.wx-sub {
+  margin: 0;
+  max-width: 32rem;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  opacity: 0.82;
+}
 .wx-summary-stats {
   display: flex;
   flex-wrap: wrap;
@@ -7792,6 +7828,9 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
   font-size: 13px;
   font-weight: 800;
   color: var(--text-main);
+}
+.wx-stat-pill.is-empty {
+  opacity: 0.62;
 }
 .wx-stat-pill.is-plan {
   color: #2563eb;
@@ -7830,6 +7869,24 @@ html[data-theme="dark"] .wx-stat-pill.is-recs { color: #c4b5fd; background: rgba
   flex-direction: column;
   gap: 12px;
   padding: 16px 16px 18px;
+}
+.wx-section-intro {
+  display: grid;
+  gap: 3px;
+  margin: 0 0 -2px;
+}
+.wx-section-intro h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 16px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+.wx-section-intro p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
 }
 .wx-tabs {
   display: flex;
@@ -8030,11 +8087,17 @@ html[data-theme="dark"] .wx-tab.is-active {
 .wx-rec-card .home-suggest-name {
   font-size: 23px;
   font-weight: 800;
-  letter-spacing: -0.4px;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 .wx-rec-card .home-suggest-reason { flex: 0 0 auto; font-size: 13px; opacity: 0.85; }
 .wx-rec-card .home-suggest-match { font-size: 11px; padding: 3px 10px; opacity: 0.92; }
+.wx-rec-card .home-suggest-tags {
+  justify-content: center;
+}
+.wx-rec-card .home-suggest-missing {
+  align-self: center;
+}
 /* 「做这道 / 补清单」：iOS 半透明蓝 tint pill，替代实心硬蓝。 */
 .wx-rec-card .home-suggest-actions {
   justify-content: center;
@@ -8046,6 +8109,7 @@ html[data-theme="dark"] .wx-tab.is-active {
 }
 .wx-rec-card .home-suggest-cook {
   align-self: center;
+  flex-basis: 100%;
   margin-top: 4px;
   min-height: 34px;
   padding: 7px 20px;
