@@ -20,7 +20,7 @@ import {
   isFavoriteRecipe,
   toggleFavoriteRecipe,
 } from '../recommendations.js?v=222';
-import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=222';
+import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=223';
 import { loadOverlay } from '../backup.js?v=222';
 import { escapeHtml } from './status.js?v=222';
 

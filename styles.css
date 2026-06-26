@@ -1654,8 +1654,10 @@ html[data-theme="dark"] .shopping-remark-input:focus { background: rgba(0, 0, 0,
   margin-top: 2px;
 }
 .ai-action-status-actions .btn {
-  min-height: 34px;
-  border-radius: 999px;
+  flex: 1 1 132px;
+  min-height: 38px;
+  border-radius: 12px;
+  justify-content: center;
 }
 .km-toast-root {
   position: fixed;
@@ -4814,11 +4816,14 @@ html[data-theme="dark"] .inv-ie-step { background: rgba(255, 255, 255, 0.08); bo
 
 /* ── AI 导入弹窗 ── */
 .ai-import-modal {
-  width: min(440px, 94vw);
-  display: flex;
-  flex-direction: column;
+  max-width: 440px;
+  padding: 0;
+  gap: 0;
+}
+.ai-import-body {
+  display: grid;
   gap: 12px;
-  padding: 18px 16px;
+  padding-bottom: 6px;
 }
 .modal-sheet-header {
   display: flex;
@@ -4909,9 +4914,6 @@ html[data-theme="dark"] .inv-ie-step { background: rgba(255, 255, 255, 0.08); bo
 @media (max-width: 480px) {
   .ai-import-modal {
     width: 100%;
-    border-radius: 20px 20px 0 0;
-    align-self: flex-end;
-    margin-bottom: 0;
   }
 }
 
@@ -5367,13 +5369,18 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 .plan-missing-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .plan-missing-body p {
   margin: 0;
-  color: var(--text-main);
   line-height: 1.55;
+}
+.plan-missing-body .km-modal-subtitle {
+  color: var(--text-secondary);
+}
+.plan-missing-body .km-modal-note {
+  color: var(--text-secondary);
 }
 
 .plan-missing-list {
@@ -5463,6 +5470,18 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
   font-weight: 700;
   color: var(--text-main);
   letter-spacing: 0.01em;
+}
+.km-modal-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.km-modal-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
 }
 .km-modal-close {
   position: absolute;
@@ -5793,6 +5812,29 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
   min-height: 44px;
   padding: 12px 14px;
   font-weight: 700;
+}
+.km-modal-actions .km-action-primary,
+.ai-action-status-actions .km-action-primary {
+  font-weight: 850;
+}
+.km-modal-actions .km-action-secondary,
+.ai-action-status-actions .km-action-secondary {
+  background: var(--surface-strong);
+  color: var(--text-main);
+  border-color: var(--surface-cell-border);
+}
+.km-modal-actions .km-action-weak,
+.ai-action-status-actions .km-action-weak {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--surface-cell-border);
+  box-shadow: none;
+}
+.km-modal-actions .km-action-danger,
+.ai-action-status-actions .km-action-danger {
+  background: var(--km-danger-control-bg);
+  color: var(--km-danger-control-text);
+  border-color: var(--km-danger-control-border);
 }
 .km-modal-actions .km-modal-ai-btn {
   flex: 1.35 1 0;
@@ -6545,14 +6587,20 @@ html[data-theme="dark"] .settings-input,
 }
 .settings-import-confirm-body p {
   margin: 0;
-  color: var(--text-main);
   line-height: 1.55;
 }
-.settings-import-confirm-actions .btn {
-  flex: 1 1 130px;
+.settings-import-confirm-body .km-modal-subtitle {
+  color: var(--text-secondary);
 }
-.settings-import-confirm-actions #settingsImportContinue {
-  flex-basis: 100%;
+.settings-import-confirm-actions {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr 1fr;
+  gap: 10px;
+}
+.settings-import-confirm-actions .btn {
+  width: 100%;
+  flex: none;
+  margin: 0;
 }
 .settings-tips-link {
   border-radius: 999px;
@@ -6560,6 +6608,12 @@ html[data-theme="dark"] .settings-input,
 }
 @media (max-width: 560px) {
   .settings-tips-link { width: 100%; }
+  .settings-import-confirm-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .settings-import-confirm-actions #settingsImportContinue {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -7362,6 +7416,9 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
 }
 .cooked-meal-modal { max-width: 430px; }
 .cooked-meal-body { display: grid; gap: 12px; }
+.cooked-meal-intro {
+  margin-bottom: -2px;
+}
 .cooked-meal-start {
   display: grid;
   gap: 10px;
@@ -7576,7 +7633,27 @@ html[data-theme="dark"] .quick-shop-hint { color: #86efac; }
   border-color: rgba(0, 122, 255, 0.22);
   background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(0, 122, 255, 0.025)), var(--surface-strong);
 }
-.cooked-meal-actions { gap: 8px; }
+.cooked-meal-actions {
+  display: grid;
+  grid-template-columns: 0.82fr 1fr 1.18fr;
+  gap: 8px;
+}
+.cooked-meal-actions .btn {
+  width: 100%;
+  flex: none;
+  margin: 0;
+}
+.cooked-meal-actions #cookedMealAnalyze {
+  min-width: 0;
+}
+@media (max-width: 420px) {
+  .cooked-meal-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cooked-meal-actions #cookedMealAnalyze {
+    grid-column: 1 / -1;
+  }
+}
 html[data-theme="dark"] .cooked-meal-textarea,
 html[data-theme="dark"] .cooked-meal-row,
 html[data-theme="dark"] .cooked-meal-use,
@@ -10167,6 +10244,10 @@ html[data-theme="light"] .receipt-confirm-actions {
     flex: 1 1 140px;
     min-height: 44px;
   }
+  .settings-import-confirm-actions .btn,
+  .cooked-meal-actions .btn {
+    flex: none;
+  }
   .receipt-confirm-row {
     grid-template-columns: minmax(0, 1fr) 72px 78px auto;
     gap: 6px;
@@ -10241,6 +10322,19 @@ html[data-theme="light"] .btn.is-confirmed {
   background: var(--status-ok-bg);
   color: var(--status-ok-text);
   border-color: var(--status-ok-border);
+}
+html[data-theme="light"] .km-modal-actions .km-action-secondary,
+html[data-theme="light"] .ai-action-status-actions .km-action-secondary {
+  background: var(--surface-strong);
+  color: var(--text-main);
+  border-color: var(--surface-cell-border);
+}
+html[data-theme="light"] .km-modal-actions .km-action-weak,
+html[data-theme="light"] .ai-action-status-actions .km-action-weak {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--surface-cell-border);
+  box-shadow: none;
 }
 html[data-theme="light"] .btn.favorite-btn {
   background: #fff6df;

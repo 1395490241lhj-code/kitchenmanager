@@ -1,7 +1,7 @@
 import { loadOverlay, saveOverlay } from '../backup.js?v=222';
 import { genId } from '../shopping.js?v=222';
 import { importRecipeFromSource, getRecipeImportAiFailureCopy } from '../ai.js?v=222';
-import { setActionStatus, setInlineStatus, showToast } from './status.js?v=222';
+import { setActionStatus, setInlineStatus, showToast } from './status.js?v=223';
 
 const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
 
@@ -38,36 +38,44 @@ function openEditorWithAiDraft(draft) {
 
 export function openRecipeImportModal() {
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
+  overlay.className = 'km-modal-overlay open ai-import-overlay';
   overlay.innerHTML = `
-    <div class="card ai-import-modal" role="dialog" aria-modal="true" aria-labelledby="aiImportTitle">
-      <div class="modal-sheet-header ai-import-header">
-        <h3 class="ai-import-title" id="aiImportTitle">导入菜谱</h3>
-        <button type="button" class="modal-sheet-close" id="aiImportClose" aria-label="关闭">×</button>
+    <div class="km-modal-content ai-import-modal" role="dialog" aria-modal="true" aria-labelledby="aiImportTitle">
+      <div class="km-modal-header ai-import-header">
+        <span class="km-modal-title ai-import-title" id="aiImportTitle">导入菜谱</span>
+        <button type="button" class="km-modal-close" id="aiImportClose" aria-label="关闭">×</button>
       </div>
-      <p class="meta">粘贴菜谱链接，或上传截图/视频，系统会整理成可编辑草稿。</p>
-      <label class="ai-import-field">
-        <span>🔗 粘贴链接</span>
-        <input id="aiImportUrl" type="url" inputmode="url" placeholder="小红书 / 网页菜谱链接">
-      </label>
-      <label class="ai-import-field ai-import-text-field" id="aiImportTextField" hidden>
-        <span>粘贴菜谱文字</span>
-        <textarea id="aiImportText" rows="5" placeholder="菜名、食材、做法都可以直接粘贴在这里"></textarea>
-      </label>
-      <label class="ai-import-field ai-import-file">
-        <span>🎬 上传视频 / 截图</span>
-        <input id="aiImportFile" type="file" accept="image/*,video/*" hidden>
-        <span class="ai-import-filename" id="aiImportFileName">点此选择文件</span>
-      </label>
-      <div id="aiImportStatus" class="inline-status" hidden></div>
-      <div class="modal-actions ai-import-actions">
-        <button type="button" class="btn ai-import-cancel" id="aiImportCancel">取消</button>
-        <button type="button" class="btn ai-import-go" id="aiImportGo">开始导入</button>
+      <div class="km-modal-body ai-import-body">
+        <p class="km-modal-subtitle">粘贴菜谱链接，或上传截图/视频，系统会整理成可编辑草稿。</p>
+        <label class="ai-import-field">
+          <span>粘贴链接</span>
+          <input id="aiImportUrl" type="url" inputmode="url" placeholder="小红书 / 网页菜谱链接">
+        </label>
+        <label class="ai-import-field ai-import-text-field" id="aiImportTextField" hidden>
+          <span>粘贴菜谱文字</span>
+          <textarea id="aiImportText" rows="5" placeholder="菜名、食材、做法都可以直接粘贴在这里"></textarea>
+        </label>
+        <label class="ai-import-field ai-import-file">
+          <span>上传视频 / 截图</span>
+          <input id="aiImportFile" type="file" accept="image/*,video/*" hidden>
+          <span class="ai-import-filename" id="aiImportFileName">点此选择文件</span>
+        </label>
+        <div id="aiImportStatus" class="inline-status" hidden></div>
+      </div>
+      <div class="km-modal-actions ai-import-actions">
+        <button type="button" class="btn km-action-weak ai-import-cancel" id="aiImportCancel">取消</button>
+        <button type="button" class="btn ok km-action-primary ai-import-go" id="aiImportGo">开始导入</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
-  const close = () => overlay.remove();
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    overlay.classList.add('closing');
+    window.setTimeout(() => overlay.remove(), 160);
+  };
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
   overlay.querySelector('#aiImportClose').onclick = close;
   overlay.querySelector('#aiImportCancel').onclick = close;

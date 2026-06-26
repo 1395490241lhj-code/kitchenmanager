@@ -14,7 +14,7 @@ import { computeCookDeductions, applyCookCalibration } from '../inventory.js?v=2
 import { getTomorrowPrepTasks } from '../utils/prep-planner.js?v=222';
 import { showCalibrationModal } from './modal.js?v=222';
 import { escapeHtml } from './status.js?v=222';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from './cook-feedback.js?v=222';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from './cook-feedback.js?v=223';
 
 let currentPlanRange = 'today';
 export function getPlanRange() { return currentPlanRange; }
@@ -115,7 +115,7 @@ function showShortageModal(recipe, missing) {
       `).join('')}
     </div>
     <div class="km-modal-actions menu-shortage-actions">
-      <button type="button" class="btn menu-shortage-add-btn" id="addShortageToShopping">[+] 一键加入买菜</button>
+      <button type="button" class="btn ok km-action-primary menu-shortage-add-btn" id="addShortageToShopping">一键加入买菜</button>
     </div>
   `;
 

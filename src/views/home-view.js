@@ -7,21 +7,21 @@ import {
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, markRecipeCookedKeepPlan, processAiData
 } from '../recommendations.js?v=222';
-import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=222';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=223';
 import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=222';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=222';
-import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=222';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=223';
+import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=223';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=222';
 import { perfMeasure } from '../utils/perf.js?v=222';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=222';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=222';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=223';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=222';
 import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=222';
 import { splitMethodSteps } from '../utils/method-steps.js?v=222';
 import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=222';
-import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=222';
+import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=223';
 import { createUserRecipe } from '../components/recipe-create-modal.js?v=222';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=222';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=223';
 import { buildKitchenBackup, downloadJsonFile, loadOverlay, markBackupNudgeDismissed, markKitchenBackupExported, shouldShowBackupNudge } from '../backup.js?v=223';
 import { dismissPwaInstallPrompt, getPwaInstallPromptState, promptPwaInstall } from '../pwa-install.js?v=224';
 import {
@@ -1587,14 +1587,15 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
       </button>
     </div>
     <div class="km-modal-body cooked-meal-body">
+      <p class="km-modal-subtitle cooked-meal-intro">选择实际做了哪些菜，库存会按用量更新。</p>
       <div class="cooked-meal-start" id="cookedMealStart"></div>
       <textarea class="cooked-meal-textarea" id="cookedMealText" rows="4" placeholder="比如：番茄炒蛋，或者我炒了鸡腿和豆芽"></textarea>
       <div class="small inline-status cooked-meal-status" id="cookedMealStatus" hidden></div>
       <div class="cooked-meal-result" id="cookedMealResult"></div>
       <div class="km-modal-actions cooked-meal-actions">
-        <button type="button" class="btn" id="cookedMealCancel">取消</button>
-        <button type="button" class="btn" id="cookedMealAddAction" hidden>添加食材</button>
-        <button type="button" class="btn ok" id="cookedMealAnalyze">生成建议</button>
+        <button type="button" class="btn km-action-weak" id="cookedMealCancel">稍后</button>
+        <button type="button" class="btn km-action-secondary" id="cookedMealAddAction" hidden>添加食材</button>
+        <button type="button" class="btn ok km-action-primary" id="cookedMealAnalyze">生成建议</button>
       </div>
     </div>
   `;
@@ -1748,7 +1749,7 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
       };
     });
     startHost.hidden = true;
-    analyzeBtn.textContent = '确认更新库存';
+    analyzeBtn.textContent = '更新库存';
     analyzeBtn.disabled = false;
     addActionBtn.hidden = false;
     addActionBtn.onclick = () => renderInventoryPicker({ title: '添加库存食材', append: true });

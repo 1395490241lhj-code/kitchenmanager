@@ -42,15 +42,15 @@ export function setActionStatus(node, {
 } = {}) {
   if (!node) return;
   node.hidden = false;
-  node.className = `small inline-status ${type} ai-action-status`;
+  node.className = `small inline-status ${type} ai-action-status km-action-panel`;
   const actions = [
-    primaryText ? `<button type="button" class="btn ok small" data-ai-action="primary">${escapeHtml(primaryText)}</button>` : '',
-    secondaryText ? `<button type="button" class="btn small" data-ai-action="secondary">${escapeHtml(secondaryText)}</button>` : ''
+    secondaryText ? `<button type="button" class="btn small km-action-secondary" data-ai-action="secondary">${escapeHtml(secondaryText)}</button>` : '',
+    primaryText ? `<button type="button" class="btn ok small km-action-primary" data-ai-action="primary">${escapeHtml(primaryText)}</button>` : ''
   ].filter(Boolean).join('');
   node.innerHTML = `
     <div class="ai-action-status-content">
-      ${title ? `<strong>${escapeHtml(title)}</strong>` : ''}
-      ${message ? `<span>${escapeHtml(message)}</span>` : ''}
+      ${title ? `<strong class="km-action-title">${escapeHtml(title)}</strong>` : ''}
+      ${message ? `<span class="km-action-message">${escapeHtml(message)}</span>` : ''}
       ${actions ? `<div class="ai-action-status-actions">${actions}</div>` : ''}
     </div>
   `;

@@ -35,7 +35,7 @@ import {
   escapeOptionAttr,
   setActionStatus,
   showToast
-} from '../components/status.js?v=222';
+} from '../components/status.js?v=223';
 import { markShoppingItemsStockedIn } from '../shopping.js?v=222';
 import { renderStaplesShelf } from '../components/staples-shelf.js?v=222';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=222';

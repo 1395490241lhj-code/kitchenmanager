@@ -1,6 +1,6 @@
 import { getCanonicalName, guessKitchenUnit } from '../ingredients.js?v=222';
 import { addShoppingItem } from '../shopping.js?v=222';
-import { escapeHtml, showToast } from './status.js?v=222';
+import { escapeHtml, showToast } from './status.js?v=223';
 
 function normalizeName(name) {
   return getCanonicalName(name || '') || String(name || '').trim();
@@ -128,8 +128,8 @@ export function showCookCompleteFeedback({
         </div>
       ` : ''}
       <div class="km-modal-actions cook-feedback-actions">
-        <button type="button" class="btn" id="cookFeedbackClose">知道了</button>
-        ${uniqueCandidates.length ? '<button type="button" class="btn ok" id="cookFeedbackShopping">加入买菜</button>' : ''}
+        <button type="button" class="btn km-action-weak" id="cookFeedbackClose">知道了</button>
+        ${uniqueCandidates.length ? '<button type="button" class="btn ok km-action-primary" id="cookFeedbackShopping">加入买菜</button>' : ''}
       </div>
     </div>
   `;

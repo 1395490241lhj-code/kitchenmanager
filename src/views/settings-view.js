@@ -1,7 +1,7 @@
 import { S, todayISO } from '../storage.js?v=222';
 import { CUSTOM_AI } from '../config.js?v=222';
 import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=223';
-import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=222';
+import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=223';
 import { getSavedTheme, saveTheme } from '../theme.js?v=222';
 
 // 渐进式展现：「高级与数据设置」面板的展开状态，记忆在模块作用域（同次会话内保持）。
@@ -56,17 +56,17 @@ function showKitchenBackupImportConfirm({ onContinue, onExportCurrent, onCancel 
   overlay.innerHTML = `
     <div class="km-modal-content settings-import-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="settingsImportTitle">
       <div class="km-modal-header">
-        <span class="km-modal-title" id="settingsImportTitle">导入厨房备份</span>
+        <span class="km-modal-title" id="settingsImportTitle">导入厨房备份？</span>
         <button type="button" class="km-modal-close" id="settingsImportClose" aria-label="关闭">×</button>
       </div>
       <div class="km-modal-body settings-import-confirm-body">
-        <p>导入备份会用备份中的厨房数据覆盖当前本地数据。建议先导出当前数据再继续。</p>
+        <p class="km-modal-subtitle">导入备份会用备份中的厨房数据覆盖当前本地数据。建议先导出当前数据。</p>
         <div class="small inline-status" id="settingsImportConfirmStatus" hidden></div>
       </div>
       <div class="km-modal-actions settings-import-confirm-actions">
-        <button type="button" class="btn ok" id="settingsImportContinue">继续导入</button>
-        <button type="button" class="btn" id="settingsImportExportCurrent">先导出当前数据</button>
-        <button type="button" class="btn" id="settingsImportCancel">取消</button>
+        <button type="button" class="btn km-action-weak" id="settingsImportCancel">取消</button>
+        <button type="button" class="btn km-action-secondary" id="settingsImportExportCurrent">先导出当前数据</button>
+        <button type="button" class="btn ok km-action-primary" id="settingsImportContinue">继续导入</button>
       </div>
     </div>
   `;

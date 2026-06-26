@@ -7,16 +7,16 @@ import {
   getMissingRecipeIngredients,
   markRecipeCooked
 } from '../recommendations.js?v=222';
-import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=222';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=223';
 import {
   callAiForMethod,
   formatAiErrorMessage,
   withTimeout
 } from '../ai.js?v=222';
 import { loadOverlay, saveOverlay } from '../backup.js?v=222';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=222';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=223';
 import { showCalibrationModal } from '../components/modal.js?v=222';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=222';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=223';
 import { splitMethodSteps } from '../utils/method-steps.js?v=222';
 
 // 把做法字符串渲染成 glass 分步列表（每步 escapeHtml；无步骤时返回空串，由调用方兜底）。

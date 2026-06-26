@@ -42,13 +42,13 @@ export function showMissingPlanConfirm({ recipeName = '这道菜', planLabel = '
           <span class="km-modal-title" id="planMissingTitle">还缺几样食材</span>
         </div>
         <div class="km-modal-body plan-missing-body">
-          <p>这道菜已经加入${escapeHtml(planLabel)}，但目前厨房里还缺：${escapeHtml(formatMissingNames(missing))}。</p>
+          <p class="km-modal-subtitle">「${escapeHtml(recipeName)}」已经加入${escapeHtml(planLabel)}。下面这些可以顺手加入买菜清单。</p>
           <div class="plan-missing-list">${uniqueMissingItems(missing).map(item => `<span>${escapeHtml(item.name || item.item)}</span>`).join('')}</div>
-          <p class="meta">要顺手加入买菜清单吗？</p>
+          <p class="km-modal-note">取消后也会保留今日计划，可以稍后再处理。</p>
         </div>
         <div class="km-modal-actions plan-missing-actions">
-          <button type="button" class="btn" id="planMissingSkip">暂时不用</button>
-          <button type="button" class="btn ok" id="planMissingAdd">加入买菜清单</button>
+          <button type="button" class="btn km-action-weak" id="planMissingSkip">暂时不用</button>
+          <button type="button" class="btn ok km-action-primary" id="planMissingAdd">加入买菜清单</button>
         </div>
       </div>
     `;
