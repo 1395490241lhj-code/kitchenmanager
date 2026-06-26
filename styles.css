@@ -10176,6 +10176,15 @@ html[data-theme="light"] .receipt-confirm-actions {
   background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.64) 24%, rgba(255,255,255,0.78));
   border-top-color: rgba(60, 60, 67, 0.12);
 }
+.batch-input-body .km-modal-actions.batch-input-actions,
+html[data-theme="light"] .batch-input-body .km-modal-actions.batch-input-actions,
+html[data-theme="dark"] .batch-input-body .km-modal-actions.batch-input-actions {
+  background: transparent;
+  border-top-color: rgba(120, 120, 128, 0.18);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 .modal-overlay .btn.ok,
 .km-modal-actions .btn.ok,
 .km-modal-actions .km-modal-ai-btn,

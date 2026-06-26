@@ -87,3 +87,14 @@ test('通用 modal 和按钮层级样式存在且互相区分', () => {
   assert.match(styles, /\.km-modal-actions \.km-action-danger/);
   assert.match(styles, /\.ai-action-status-actions \.km-action-primary/);
 });
+
+test('记进厨房弹窗 action 区使用透明专用背景，避免浅色白块', () => {
+  const home = read('src/views/home-view.js');
+  const styles = read('styles.css');
+
+  assert.match(home, /class="km-modal-actions batch-input-actions"/);
+  assert.match(styles, /\.batch-input-body \.km-modal-actions\.batch-input-actions/);
+  assert.match(styles, /html\[data-theme="light"\] \.batch-input-body \.km-modal-actions\.batch-input-actions/);
+  assert.match(styles, /background: transparent;/);
+  assert.match(styles, /backdrop-filter: none;/);
+});

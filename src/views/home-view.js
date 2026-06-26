@@ -1180,7 +1180,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       <div id="batchTextStatus" class="small inline-status" hidden></div>
     </div>
 
-    <div class="km-modal-actions">
+    <div class="km-modal-actions batch-input-actions">
       <button type="button" class="btn" id="batchCancel">取消</button>
       <button type="button" class="btn ok" id="batchConfirm">加入厨房</button>
     </div>
