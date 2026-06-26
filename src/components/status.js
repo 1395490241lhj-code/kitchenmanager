@@ -31,6 +31,35 @@ export function setInlineStatus(node, message, type = 'info') {
   node.className = `small inline-status ${type}`;
 }
 
+export function setActionStatus(node, {
+  title = '',
+  message = '',
+  type = 'bad',
+  primaryText = '',
+  secondaryText = '',
+  onPrimary = null,
+  onSecondary = null
+} = {}) {
+  if (!node) return;
+  node.hidden = false;
+  node.className = `small inline-status ${type} ai-action-status`;
+  const actions = [
+    primaryText ? `<button type="button" class="btn ok small" data-ai-action="primary">${escapeHtml(primaryText)}</button>` : '',
+    secondaryText ? `<button type="button" class="btn small" data-ai-action="secondary">${escapeHtml(secondaryText)}</button>` : ''
+  ].filter(Boolean).join('');
+  node.innerHTML = `
+    <div class="ai-action-status-content">
+      ${title ? `<strong>${escapeHtml(title)}</strong>` : ''}
+      ${message ? `<span>${escapeHtml(message)}</span>` : ''}
+      ${actions ? `<div class="ai-action-status-actions">${actions}</div>` : ''}
+    </div>
+  `;
+  const primary = node.querySelector('[data-ai-action="primary"]');
+  const secondary = node.querySelector('[data-ai-action="secondary"]');
+  if (primary && typeof onPrimary === 'function') primary.onclick = onPrimary;
+  if (secondary && typeof onSecondary === 'function') secondary.onclick = onSecondary;
+}
+
 const TOAST_TONES = new Set(['success', 'info', 'warning', 'error']);
 let toastRoot = null;
 let toastTimer = null;

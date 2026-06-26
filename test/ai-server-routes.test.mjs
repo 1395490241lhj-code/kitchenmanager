@@ -92,10 +92,63 @@ async function runPost(app, path, body = {}) {
   return res;
 }
 
+async function runGet(app, path) {
+  const route = app.routes.find(item => item.method === 'GET' && item.path === path);
+  assert.ok(route, `${path} route should be registered`);
+  const req = { headers: {}, ip: '127.0.0.1', socket: { remoteAddress: '127.0.0.1' } };
+  const res = createRes();
+  await route.handler(req, res);
+  return res;
+}
+
 afterEach(() => {
   Module._load = originalLoad;
   process.env = { ...originalEnv };
   delete require.cache[serverPath];
+});
+
+test('/api/ai-status 配置完整时返回可用状态且不泄露 API Key', async () => {
+  const { app } = loadServerWithMocks({
+    env: {
+      OPENAI_API_KEY: 'test-key',
+      OPENAI_BASE_URL: 'https://api.groq.com/openai/v1',
+      OPENAI_MODEL: 'openai/gpt-oss-120b',
+      OPENAI_VISION_MODEL: 'meta-llama/llama-4-scout-17b-16e-instruct'
+    }
+  });
+
+  const res = await runGet(app, '/api/ai-status');
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.available, true);
+  assert.equal(res.body.mode, 'cloud');
+  assert.equal(res.body.textModelConfigured, true);
+  assert.equal(res.body.visionModelConfigured, true);
+  assert.equal(res.body.baseUrlConfigured, true);
+  assert.equal(res.body.message, '内置 AI 服务已配置');
+  assert.doesNotMatch(JSON.stringify(res.body), /test-key|Authorization|Bearer/);
+});
+
+test('/api/ai-status 缺少 OPENAI_API_KEY 时返回安全 code', async () => {
+  const { app } = loadServerWithMocks({
+    env: {
+      OPENAI_API_KEY: '',
+      OPENAI_BASE_URL: 'https://api.groq.com/openai/v1',
+      OPENAI_MODEL: 'openai/gpt-oss-120b',
+      OPENAI_VISION_MODEL: 'meta-llama/llama-4-scout-17b-16e-instruct'
+    }
+  });
+
+  const res = await runGet(app, '/api/ai-status');
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.available, false);
+  assert.equal(res.body.code, 'missing_api_key');
+  assert.equal(res.body.message, '内置 AI 服务未配置');
+  assert.equal(res.body.textModelConfigured, false);
+  assert.equal(res.body.visionModelConfigured, false);
+  assert.equal(res.body.baseUrlConfigured, true);
+  assert.doesNotMatch(JSON.stringify(res.body), /test-key|Authorization|Bearer/);
 });
 
 test('/api/ai-chat 图片请求默认使用 Groq 视觉模型，不回退到文本模型', async () => {

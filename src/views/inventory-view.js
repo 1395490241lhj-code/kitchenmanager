@@ -23,7 +23,7 @@ import {
   upsertInventory
 } from '../inventory.js?v=222';
 import {
-  formatAiErrorMessage,
+  getReceiptAiFailureCopy,
   recognizeReceipt,
   withTimeout
 } from '../ai.js?v=222';
@@ -33,6 +33,7 @@ import {
 import {
   escapeHtml,
   escapeOptionAttr,
+  setActionStatus,
   showToast
 } from '../components/status.js?v=222';
 import { markShoppingItemsStockedIn } from '../shopping.js?v=222';
@@ -243,7 +244,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   };
   syncEditBtn();
 
-  const handleReceiptFile = async (file, inputEl, statusEl) => {
+  const handleReceiptFile = async (file, inputEl, statusEl, actions = {}) => {
     if(!file) return;
     if (statusEl) {
       statusEl.classList.add('visible');
@@ -285,7 +286,23 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         }, 1200);
       });
     } catch(err) {
-      if (statusEl) statusEl.innerHTML = `<span class="text-danger">❌ ${formatAiErrorMessage(err)}</span>`;
+      if (statusEl) {
+        const copy = getReceiptAiFailureCopy(err);
+        setActionStatus(statusEl, {
+          title: copy.title,
+          message: copy.message,
+          primaryText: '改用文本批量记',
+          secondaryText: '重新选择图片',
+          onPrimary: () => {
+            if (typeof actions.onText === 'function') actions.onText();
+          },
+          onSecondary: () => {
+            if (typeof actions.onRetry === 'function') actions.onRetry();
+            else inputEl?.click?.();
+          }
+        });
+      }
+      showToast('小票识别暂时不可用', { tone: 'warning' });
     }
     finally { if (inputEl) inputEl.value = ''; }
   };
@@ -391,7 +408,13 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       modalText.value = '鸡蛋 6个\n番茄 3个\n土豆 2个\n青菜 1把';
       modalText.focus();
     };
-    receiptInput.onchange = (event) => handleReceiptFile(event.target.files?.[0], event.target, receiptStatus);
+    receiptInput.onchange = (event) => handleReceiptFile(event.target.files?.[0], event.target, receiptStatus, {
+      onRetry: () => receiptInput.click(),
+      onText: () => {
+        setTab('manual');
+        modalText?.focus();
+      }
+    });
     primaryBtn.onclick = () => {
       if (activeTab === 'receipt') {
         receiptInput.click();

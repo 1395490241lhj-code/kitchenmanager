@@ -8,8 +8,8 @@ import {
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, markRecipeCookedKeepPlan, processAiData
 } from '../recommendations.js?v=222';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=222';
-import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=222';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setInlineStatus, showToast } from '../components/status.js?v=222';
+import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=222';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=222';
 import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=222';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=222';
 import { perfMeasure } from '../utils/perf.js?v=222';
@@ -1102,8 +1102,19 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
         () => { /* 用户取消：不写库 */ }
       );
     } catch (err) {
-      receiptStatus.className = 'small inline-status bad';
-      receiptStatus.textContent = '❌ ' + formatAiErrorMessage(err);
+      const copy = getReceiptAiFailureCopy(err);
+      setActionStatus(receiptStatus, {
+        title: copy.title,
+        message: copy.message,
+        primaryText: '改用文本批量记',
+        secondaryText: '重新选择图片',
+        onPrimary: () => {
+          setTab('text');
+          overlay.querySelector('#batchTextInput')?.focus();
+        },
+        onSecondary: () => receiptFileInput.click()
+      });
+      showToast('小票识别暂时不可用', { tone: 'warning' });
     } finally {
       if (inputEl) inputEl.value = '';
     }

@@ -16,6 +16,42 @@ const RECEIPT_IMAGE_COMPRESSION_ATTEMPTS = [
   { maxSide: 512, quality: 0.5 }
 ];
 
+function createCloudAiError({ status = 0, code = '', upstreamStatus = 0, upstreamCode = '', detail = '', fallback = '云端服务请求失败' } = {}) {
+  const statusText = status ? String(status) : '';
+  const codeText = String(code || upstreamCode || '').trim();
+  const marker = statusText || codeText ? ` (${statusText}${codeText ? `/${codeText}` : ''})` : '';
+  const message = `${fallback}${marker}${detail ? `：${detail}` : ''}`;
+  const error = new Error(message);
+  if (status) error.status = Number(status);
+  if (codeText) error.code = codeText;
+  if (upstreamStatus) error.upstreamStatus = Number(upstreamStatus);
+  if (upstreamCode) error.upstreamCode = String(upstreamCode);
+  return error;
+}
+
+export function getAiErrorDetails(error) {
+  const msg = String(error?.message || error || '');
+  const statusMatch = msg.match(/\((\d{3})(?:\/([^)：]+))?\)/);
+  const status = Number(error?.status || statusMatch?.[1] || 0) || 0;
+  const upstreamStatus = Number(error?.upstreamStatus || 0) || 0;
+  const code = String(error?.code || statusMatch?.[2] || '').trim();
+  const upstreamCode = String(error?.upstreamCode || '').trim();
+  return {
+    status,
+    code,
+    upstreamStatus,
+    upstreamCode,
+    message: msg
+  };
+}
+
+function formatAiStatusCode(details) {
+  const status = details?.status || details?.upstreamStatus || 0;
+  const code = details?.code || details?.upstreamCode || '';
+  if (!status && !code) return '';
+  return `（${status || 'error'}${code ? `/${code}` : ''}）`;
+}
+
 export function getAiConfig() {
   const localSettings = S.load(S.keys.settings, {});
   const aiProviderMode = localSettings.aiProviderMode === 'byok' ? 'byok' : 'cloud';
@@ -436,11 +472,13 @@ async function callAiService(prompt, imageBase64 = null, options = {}) {
     if (!res.ok) {
       const status = data && data.status ? data.status : res.status;
       const code = data && (data.code || data.upstreamCode) ? (data.code || data.upstreamCode) : '';
+      const upstreamStatus = data && data.upstreamStatus ? data.upstreamStatus : 0;
+      const upstreamCode = data && data.upstreamCode ? data.upstreamCode : '';
       const detail = data && (data.detail || data.error || data.message) ? (data.detail || data.error || data.message) : '云端服务暂时不可用';
-      throw new Error(`云端服务请求失败 (${status}${code ? `/${code}` : ''})：${detail}`);
+      throw createCloudAiError({ status, code, upstreamStatus, upstreamCode, detail });
     }
     const content = data && typeof data.content === 'string' ? data.content : '';
-    if (!content) throw new Error('云端服务请求失败 (502/empty_response)：AI 没有返回内容');
+    if (!content) throw createCloudAiError({ status: 502, code: 'empty_response', detail: 'AI 没有返回内容' });
     return content;
   }
 
@@ -479,17 +517,64 @@ export function withTimeout(promise, ms, message) {
 
 export function formatAiErrorMessage(error) {
   const msg = String(error?.message || error || '');
+  const details = getAiErrorDetails(error);
+  const code = details.code || details.upstreamCode;
+  const status = details.status || details.upstreamStatus;
+  const marker = formatAiStatusCode(details);
   if (msg.includes('云端服务暂时不可用')) return CLOUD_AI_ERROR;
   if (msg.includes('还没有配置 API Key')) return BYOK_MISSING_KEY_ERROR;
-  if (msg.includes('未配置')) return 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
-  if (msg.includes('401')) return 'AI 暂不可用：API Key 可能已过期。本地功能仍可正常使用。';
-  if (msg.includes('413') || msg.includes('image_too_large')) return 'AI 暂不可用：图片太大，请换一张更小或更清晰的小票图。本地功能仍可正常使用。';
-  if (msg.includes('429')) return 'AI 暂不可用：请求太频繁或额度不足。本地功能仍可正常使用。';
-  if (msg.includes('404')) return 'AI 暂不可用：模型名称可能不正确。本地功能仍可正常使用。';
-  if (msg.includes('503') || msg.includes('missing_api_key')) return 'AI 暂不可用：云端服务还没有配置好。本地功能仍可正常使用。';
+  if (msg.includes('未配置')) return `AI 暂不可用：还没有配置 API Key${marker}。本地功能仍可正常使用。`;
+  if (status === 401 || msg.includes('401')) return `AI 暂不可用：API Key 可能已过期${marker}。本地功能仍可正常使用。`;
+  if (status === 413 || code === 'image_too_large' || msg.includes('image_too_large')) return `AI 暂不可用：图片太大，请换一张更小或更清晰的小票图${marker}。本地功能仍可正常使用。`;
+  if (status === 429 || code === 'rate_limited' || code === 'rate_limit' || msg.includes('429')) return `AI 暂不可用：请求太频繁或额度不足${marker}。本地功能仍可正常使用。`;
+  if (status === 404 || code === 'model_not_found' || msg.includes('404')) return `AI 暂不可用：模型名称可能不正确${marker}。本地功能仍可正常使用。`;
+  if (status === 503 || code === 'missing_api_key' || msg.includes('missing_api_key')) return `AI 暂不可用：云端服务还没有配置好${marker}。本地功能仍可正常使用。`;
   if (msg.includes('超时')) return 'AI 暂不可用：响应超时。本地功能仍可正常使用。';
   if (msg.includes('格式不正确') || msg.includes('缺少') || msg.includes('没有返回可识别')) return `AI 返回内容不能直接使用：${msg}`;
   return `AI 暂不可用：${msg || '未知错误'}。本地功能仍可正常使用。`;
+}
+
+export function getReceiptAiFailureCopy(error) {
+  const details = getAiErrorDetails(error);
+  const status = details.status || details.upstreamStatus;
+  const code = details.code || details.upstreamCode;
+  if (status === 413 || code === 'image_too_large') {
+    return {
+      title: '小票识别暂时不可用',
+      message: '图片太大，请换一张更清晰但文件更小的图片，或改用文本批量记。'
+    };
+  }
+  if (status === 404 || code === 'model_not_found') {
+    return {
+      title: '小票识别暂时不可用',
+      message: '图片识别模型暂不可用，请稍后再试或改用文本批量记。'
+    };
+  }
+  if (status === 429 || code === 'rate_limited' || code === 'rate_limit') {
+    return {
+      title: '小票识别暂时不可用',
+      message: '请求太频繁，请稍后再试。你也可以先改用文本批量记。'
+    };
+  }
+  if (status === 503 || code === 'missing_api_key') {
+    return {
+      title: '小票识别暂时不可用',
+      message: '内置 AI 服务尚未配置，请改用文本批量记。本地功能仍可正常使用。'
+    };
+  }
+  return {
+    title: '小票识别暂时不可用',
+    message: '云端服务暂时不可用，本地功能仍可正常使用。你可以先改用文本批量记。'
+  };
+}
+
+export function getRecipeImportAiFailureCopy(error) {
+  const details = getAiErrorDetails(error);
+  const marker = formatAiStatusCode(details);
+  return {
+    title: 'AI 导入暂时不可用',
+    message: `你可以改用粘贴文本整理，或稍后再试${marker ? ` ${marker}` : ''}。`
+  };
 }
 
 export async function recognizeReceipt(file) {
@@ -930,7 +1015,14 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
   let data = null;
   try { data = await res.json(); } catch (_) { /* 非 JSON 响应 */ }
   if (!res.ok) {
-    throw new Error((data && data.error) || `AI 解析失败 (${res.status})。`);
+    throw createCloudAiError({
+      status: data?.status || res.status,
+      code: data?.code || data?.upstreamCode || '',
+      upstreamStatus: data?.upstreamStatus || 0,
+      upstreamCode: data?.upstreamCode || '',
+      detail: data?.detail || data?.error || data?.message || 'AI 解析失败',
+      fallback: 'AI 解析失败'
+    });
   }
   // 后端返回模型原文 content，由前端统一校验对齐编辑器字段。
   return validateImportedRecipe((data && data.content) || '');
@@ -941,9 +1033,10 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
  * @param {{ url?: string, file?: File }} input
  * @returns {Promise<{name, tags, ingredients:[{item,qty,unit}], method, isAiDraft, draftSource}>}
  */
-export async function importRecipeFromSource({ url = '', file = null } = {}) {
+export async function importRecipeFromSource({ url = '', file = null, text = '' } = {}) {
   const cleanUrl = String(url || '').trim();
-  if (!cleanUrl && !file) throw new Error('请粘贴链接或上传视频/截图。');
+  const pastedText = String(text || '').trim();
+  if (!cleanUrl && !file && !pastedText) throw new Error('请粘贴链接、菜谱文字或上传视频/截图。');
 
   // 截图 → 走视觉解析；视频暂不支持逐帧，引导用户改用截图。
   let imageBase64 = null;
@@ -953,8 +1046,8 @@ export async function importRecipeFromSource({ url = '', file = null } = {}) {
   }
 
   // 链接 → 抓取文案（可能被跨域/验证码拦截，给出友好提示）。
-  let sourceText = '';
-  if (cleanUrl) sourceText = await fetchRecipeText(cleanUrl);
+  let sourceText = pastedText;
+  if (!sourceText && cleanUrl) sourceText = await fetchRecipeText(cleanUrl);
 
   if (!sourceText && !imageBase64) throw new Error('没有可解析的内容，请改用文字或截图导入。');
 

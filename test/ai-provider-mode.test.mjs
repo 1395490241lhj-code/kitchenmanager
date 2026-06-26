@@ -6,7 +6,9 @@ import { join } from 'node:path';
 import {
   callAiSearchRecipe,
   formatAiErrorMessage,
+  getAiErrorDetails,
   getAiConfig,
+  getReceiptAiFailureCopy,
   recognizeReceipt
 } from '../src/ai.js';
 import { S } from '../src/storage.js';
@@ -102,6 +104,46 @@ test('cloud 模式错误保留后端 status/code，便于定位上游失败', as
     () => callAiSearchRecipe('番茄炒蛋', '鸡蛋、番茄'),
     /404\/model_not_found/
   );
+});
+
+test('AI 错误格式保留 status/code，且 413 小票失败提示可操作', () => {
+  const err = new Error('云端服务请求失败 (413/image_too_large)：图片过大。');
+  err.status = 413;
+  err.code = 'image_too_large';
+
+  const details = getAiErrorDetails(err);
+  const copy = getReceiptAiFailureCopy(err);
+
+  assert.equal(details.status, 413);
+  assert.equal(details.code, 'image_too_large');
+  assert.match(formatAiErrorMessage(err), /413\/image_too_large/);
+  assert.match(copy.message, /图片太大/);
+  assert.match(copy.message, /文本批量记/);
+});
+
+test('小票识别失败区提供重新选择图片和改用文本批量记入口', () => {
+  const home = read('src/views/home-view.js');
+  const inventory = read('src/views/inventory-view.js');
+
+  assert.match(home, /primaryText: '改用文本批量记'/);
+  assert.match(home, /secondaryText: '重新选择图片'/);
+  assert.match(home, /setTab\('text'\)/);
+  assert.match(inventory, /primaryText: '改用文本批量记'/);
+  assert.match(inventory, /secondaryText: '重新选择图片'/);
+  assert.match(inventory, /setTab\('manual'\)/);
+});
+
+test('AI 菜谱导入失败提供粘贴文本和稍后再试兜底', () => {
+  const modal = read('src/components/recipe-import-modal.js');
+  const ai = read('src/ai.js');
+
+  assert.match(modal, /id="aiImportTextField" hidden/);
+  assert.match(modal, /primaryText: textModeVisible \? '' : '改用粘贴文本'/);
+  assert.match(modal, /secondaryText: '稍后再试'/);
+  assert.match(modal, /textField\.hidden = false/);
+  assert.match(modal, /textInput\.focus\(\)/);
+  assert.match(ai, /importRecipeFromSource\(\{ url = '', file = null, text = '' \}/);
+  assert.match(ai, /pastedText/);
 });
 
 test('小票识别走同源 /api/ai-chat，不在前端携带 Authorization', async () => {
@@ -212,6 +254,11 @@ test('设置页默认展示内置 AI 服务，并只在 BYOK 区域展示高级�
   assert.match(settings, /const aiProviderMode = s\.aiProviderMode === 'byok' \? 'byok' : 'cloud';/);
   assert.match(settings, /id="cloudAiBox"/);
   assert.match(settings, /id="byokAiBox"/);
+  assert.match(settings, /id="cloudAiStatusCard"/);
+  assert.match(settings, /id="testCloudAiBtn"/);
+  assert.match(settings, /fetch\('\/api\/ai-status', \{ cache: 'no-store' \}\)/);
+  assert.match(settings, /textModelConfigured/);
+  assert.match(settings, /visionModelConfigured/);
   assert.match(settings, /byokAiBox\.hidden = !isByok;/);
   assert.match(settings, /aiProviderMode: 'byok'/);
 });

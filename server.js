@@ -483,12 +483,38 @@ function sanitizeRecipe(recipe) {
 }
 
 app.get('/api/ai-status', (req, res) => {
+  const baseUrlConfigured = Boolean(String(OPENAI_BASE_URL || '').trim());
+  const apiKeyConfigured = Boolean(String(OPENAI_API_KEY || '').trim());
+  const rawTextModelConfigured = Boolean(String(OPENAI_MODEL || '').trim());
+  const rawVisionModelConfigured = Boolean(String(OPENAI_VISION_MODEL || '').trim());
+  const textModelConfigured = apiKeyConfigured && rawTextModelConfigured;
+  const visionModelConfigured = apiKeyConfigured && rawVisionModelConfigured;
+  const available = apiKeyConfigured && baseUrlConfigured && rawTextModelConfigured && rawVisionModelConfigured;
+  let code = '';
+  let message = available ? '内置 AI 服务已配置' : '内置 AI 服务暂不可用';
+  if (!apiKeyConfigured) {
+    code = 'missing_api_key';
+    message = '内置 AI 服务未配置';
+  } else if (!baseUrlConfigured) {
+    code = 'missing_base_url';
+    message = '内置 AI 服务地址未配置';
+  } else if (!rawTextModelConfigured) {
+    code = 'missing_text_model';
+    message = '文本模型未配置';
+  } else if (!rawVisionModelConfigured) {
+    code = 'missing_vision_model';
+    message = '图片识别模型未配置';
+  }
   res.json({
-    available: Boolean(OPENAI_API_KEY),
+    available,
     mode: 'cloud',
-    modelConfigured: Boolean(OPENAI_MODEL),
-    visionModelConfigured: Boolean(OPENAI_VISION_MODEL),
-    imageMaxBase64Bytes: AI_IMAGE_MAX_BASE64_BYTES
+    textModelConfigured,
+    visionModelConfigured,
+    baseUrlConfigured,
+    modelConfigured: textModelConfigured,
+    imageMaxBase64Bytes: AI_IMAGE_MAX_BASE64_BYTES,
+    ...(code ? { code } : {}),
+    message
   });
 });
 

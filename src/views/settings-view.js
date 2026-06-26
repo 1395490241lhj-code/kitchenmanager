@@ -129,6 +129,20 @@ export function renderSettings() {
             <span class="settings-row-title">当前使用内置 AI 服务。</span>
             <span class="settings-row-sub">小票图片、菜名和你主动提交的文字会发送到后端 AI 服务；厨房库存仍保存在本地浏览器。</span>
           </div>
+          <div class="settings-ai-status-card" id="cloudAiStatusCard" data-state="unknown">
+            <div class="settings-ai-status-head">
+              <div>
+                <span class="settings-ai-status-title">内置 AI 服务</span>
+                <span class="settings-ai-status-sub" id="cloudAiStatusMessage">未检测。AI 是加速器，本地记食材、买菜和计划仍可正常使用。</span>
+              </div>
+              <span class="settings-ai-status-pill is-unknown" id="cloudAiStatusPill">未检测</span>
+            </div>
+            <div class="settings-ai-status-grid">
+              <span>文本任务</span><strong id="cloudAiTextStatus">未检测</strong>
+              <span>图片识别</span><strong id="cloudAiVisionStatus">未检测</strong>
+            </div>
+            <button type="button" class="btn small" id="testCloudAiBtn">测试 AI 服务</button>
+          </div>
         </div>
         <div class="settings-byok-fields" id="byokAiBox">
         <div class="settings-row">
@@ -231,6 +245,66 @@ export function renderSettings() {
   };
   const cloudAiBox = div.querySelector('#cloudAiBox');
   const byokAiBox = div.querySelector('#byokAiBox');
+  const cloudAiStatusCard = div.querySelector('#cloudAiStatusCard');
+  const cloudAiStatusPill = div.querySelector('#cloudAiStatusPill');
+  const cloudAiStatusMessage = div.querySelector('#cloudAiStatusMessage');
+  const cloudAiTextStatus = div.querySelector('#cloudAiTextStatus');
+  const cloudAiVisionStatus = div.querySelector('#cloudAiVisionStatus');
+  const testCloudAiBtn = div.querySelector('#testCloudAiBtn');
+  const setCloudAiStatus = (data = null, state = 'unknown') => {
+    const available = Boolean(data?.available);
+    const textConfigured = Boolean(data?.textModelConfigured ?? data?.modelConfigured);
+    const visionConfigured = Boolean(data?.visionModelConfigured);
+    const code = String(data?.code || '').trim();
+    const message = String(data?.message || '').trim();
+    const displayState = state === 'checking' ? 'checking' : available ? 'ok' : data ? 'bad' : 'unknown';
+    cloudAiStatusCard.dataset.state = displayState;
+    cloudAiStatusPill.className = `settings-ai-status-pill is-${displayState}`;
+    cloudAiStatusPill.textContent = displayState === 'checking'
+      ? '检测中'
+      : displayState === 'ok'
+        ? '可用'
+        : displayState === 'bad'
+          ? '暂不可用'
+          : '未检测';
+    cloudAiTextStatus.textContent = data ? (textConfigured ? '已配置' : '未配置') : '未检测';
+    cloudAiVisionStatus.textContent = data ? (visionConfigured ? '已配置' : '未配置') : '未检测';
+    const reason = code === 'missing_api_key'
+      ? '后端未配置 API Key'
+      : code === 'missing_vision_model'
+        ? '图片识别模型未配置'
+        : code === 'missing_text_model'
+          ? '文本模型未配置'
+          : code === 'missing_base_url'
+            ? '服务地址未配置'
+            : message;
+    cloudAiStatusMessage.textContent = displayState === 'checking'
+      ? '正在检测后端配置，不会调用模型或消耗额度。'
+      : displayState === 'ok'
+        ? '内置 AI 服务已配置。AI 是加速器，本地功能仍可正常使用。'
+        : displayState === 'bad'
+          ? `${reason || '服务暂不可用'}。AI 是加速器，本地功能仍可正常使用。`
+          : '未检测。AI 是加速器，本地记食材、买菜和计划仍可正常使用。';
+  };
+  setCloudAiStatus();
+  testCloudAiBtn.onclick = async () => {
+    const statusEl = div.querySelector('#settingsStatus');
+    setCloudAiStatus(null, 'checking');
+    testCloudAiBtn.disabled = true;
+    testCloudAiBtn.innerHTML = '<span class="spinner"></span> 检测中';
+    try {
+      const res = await fetch('/api/ai-status', { cache: 'no-store' });
+      const data = await res.json().catch(() => ({}));
+      setCloudAiStatus(data);
+      setInlineStatus(statusEl, data?.available ? '内置 AI 服务已配置。' : (data?.message || '内置 AI 服务暂不可用。'), data?.available ? 'ok' : 'bad');
+    } catch (err) {
+      setCloudAiStatus({ available: false, code: 'status_request_failed', message: '服务暂不可用' });
+      setInlineStatus(statusEl, 'AI 服务状态检测失败，本地功能仍可正常使用。', 'bad');
+    } finally {
+      testCloudAiBtn.disabled = false;
+      testCloudAiBtn.textContent = '测试 AI 服务';
+    }
+  };
   const syncAiModeUi = (mode) => {
     const isByok = mode === 'byok';
     cloudAiBox.hidden = isByok;
