@@ -122,8 +122,8 @@ export function renderSettings() {
     <h2 class="section-title">我的</h2>
     <div id="settingsStatus" class="small inline-status" hidden></div>
 
-    <!-- 区块 A：通用与外观（高频核心偏好，默认展开） -->
-    <div class="settings-group-label">通用与外观</div>
+    <!-- 区块 A：常用设置（高频核心偏好，默认展开） -->
+    <div class="settings-group-label">常用设置</div>
     <div class="settings-group">
       <div class="settings-row">
         <div class="settings-row-main">
@@ -151,20 +151,66 @@ export function renderSettings() {
       </div>
     </div>
 
+    <!-- 区块 B：AI 服务（默认只展示内置服务状态和测试入口） -->
+    <div class="settings-group-label">AI 服务</div>
+    <div class="settings-group">
+      <div class="settings-row is-stacked" id="cloudAiBox">
+        <div class="settings-row-main">
+          <span class="settings-row-title">内置 AI 服务</span>
+          <span class="settings-row-sub">用于小票识别、菜谱导入和 AI 辅助整理。默认不需要自己配置 API Key，你的厨房数据仍保存在本地。</span>
+        </div>
+        <div class="settings-ai-status-card" id="cloudAiStatusCard" data-state="unknown">
+          <div class="settings-ai-status-head">
+            <div>
+              <span class="settings-ai-status-title">内置 AI 服务</span>
+              <span class="settings-ai-status-sub" id="cloudAiStatusMessage">未检测。AI 是加速器，本地记食材、买菜和计划仍可正常使用。</span>
+            </div>
+            <span class="settings-ai-status-pill is-unknown" id="cloudAiStatusPill">未检测</span>
+          </div>
+          <div class="settings-ai-status-grid">
+            <span>文本任务</span><strong id="cloudAiTextStatus">未检测</strong>
+            <span>图片识别</span><strong id="cloudAiVisionStatus">未检测</strong>
+          </div>
+          <button type="button" class="btn small" id="testCloudAiBtn">测试 AI 服务</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 区块 C：数据安全（普通用户默认可见） -->
+    <div class="settings-group-label">数据安全</div>
+    <div class="settings-group">
+      <div class="settings-row is-stacked">
+        <div class="settings-row-main">
+          <span class="settings-row-title">厨房完整备份</span>
+          <span class="settings-row-sub">Kitchen Manager 主要把数据保存在当前浏览器。换设备、清缓存或卸载前，建议导出一份厨房备份。</span>
+        </div>
+        <p class="settings-data-note">包含库存、今日计划、买菜清单、常备品、设置、菜谱补丁等用户数据。默认不包含 API Key。</p>
+        <div class="settings-backup-actions">
+          <button type="button" class="btn ok" id="exportKitchenBackup">导出厨房备份</button>
+          <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入厨房备份</label>
+        </div>
+      </div>
+    </div>
+
     <!-- 渐进式展现：低频 / 极客配置统一收进可折叠面板 -->
     <button type="button" class="settings-advanced-toggle" id="advToggle" aria-expanded="false" aria-controls="advPanel">
-      <span id="advToggleLabel">展开高级与数据设置</span>
+      <span id="advToggleLabel">展开高级设置</span>
       <span class="settings-adv-chevron" aria-hidden="true">⌄</span>
     </button>
 
     <div class="settings-advanced-panel" id="advPanel" hidden>
-      <!-- 区块 B：AI 模型配置 -->
-      <div class="settings-group-label">🤖 AI 模型配置</div>
+      <div class="settings-group-label">高级设置</div>
       <div class="settings-group">
         <div class="settings-row is-stacked">
           <div class="settings-row-main">
-            <span class="settings-row-title">AI 使用方式</span>
-            <span class="settings-row-sub">默认走内置服务；高级用户也可以继续使用自己的 Key。</span>
+            <span class="settings-row-title">自定义 AI（高级）</span>
+            <span class="settings-row-sub">这里包含自定义 AI、缓存和调试相关选项。普通使用一般不用修改。</span>
+          </div>
+        </div>
+        <div class="settings-row is-stacked">
+          <div class="settings-row-main">
+            <span class="settings-row-title">使用自己的 API Key</span>
+            <span class="settings-row-sub">高级用户可以改用自带 Key；默认内置 AI 服务无需配置。</span>
           </div>
           <div class="settings-ai-mode" role="radiogroup" aria-label="AI 使用方式">
             <label class="settings-ai-option${aiProviderMode === 'cloud' ? ' is-active' : ''}">
@@ -183,26 +229,6 @@ export function renderSettings() {
             </label>
           </div>
         </div>
-        <div class="settings-row is-stacked" id="cloudAiBox">
-          <div class="settings-row-main">
-            <span class="settings-row-title">当前使用内置 AI 服务。</span>
-            <span class="settings-row-sub">小票图片、菜名和你主动提交的文字会发送到后端 AI 服务；厨房库存仍保存在本地浏览器。</span>
-          </div>
-          <div class="settings-ai-status-card" id="cloudAiStatusCard" data-state="unknown">
-            <div class="settings-ai-status-head">
-              <div>
-                <span class="settings-ai-status-title">内置 AI 服务</span>
-                <span class="settings-ai-status-sub" id="cloudAiStatusMessage">未检测。AI 是加速器，本地记食材、买菜和计划仍可正常使用。</span>
-              </div>
-              <span class="settings-ai-status-pill is-unknown" id="cloudAiStatusPill">未检测</span>
-            </div>
-            <div class="settings-ai-status-grid">
-              <span>文本任务</span><strong id="cloudAiTextStatus">未检测</strong>
-              <span>图片识别</span><strong id="cloudAiVisionStatus">未检测</strong>
-            </div>
-            <button type="button" class="btn small" id="testCloudAiBtn">测试 AI 服务</button>
-          </div>
-        </div>
         <div class="settings-byok-fields" id="byokAiBox">
         <div class="settings-row">
           <div class="settings-row-main">
@@ -217,11 +243,11 @@ export function renderSettings() {
           </select>
         </div>
         <div class="settings-row is-stacked">
-          <div class="settings-row-main"><span class="settings-row-title">API 地址</span><span class="settings-row-sub">兼容 OpenAI 协议的端点（含本地 Ollama）</span></div>
+          <div class="settings-row-main"><span class="settings-row-title">API Base URL</span><span class="settings-row-sub">兼容 OpenAI 协议的端点（含本地 Ollama）</span></div>
           <input id="sUrl" class="settings-input" value="${escapeHtml(displayUrl)}" placeholder="https://…/v1/chat/completions">
         </div>
         <div class="settings-row is-stacked">
-          <div class="settings-row-main"><span class="settings-row-title">模型名称</span><span class="settings-row-sub">如 gpt-4o、llama3、qwen2.5 等 Tag</span></div>
+          <div class="settings-row-main"><span class="settings-row-title">文本模型</span><span class="settings-row-sub">如 gpt-4o、llama3、qwen2.5 等 Tag</span></div>
           <input id="sModel" class="settings-input" value="${escapeHtml(displayModel)}" placeholder="模型 / Tag 名称">
         </div>
         <div class="settings-row is-stacked">
@@ -232,26 +258,14 @@ export function renderSettings() {
           <a class="btn ok" id="saveSet">保存 AI 设置</a>
         </div>
         </div>
-      </div>
-
-      <!-- 区块 C：数据管理 -->
-      <div class="settings-group-label">💾 数据管理</div>
-      <div class="settings-group">
-        <div class="settings-row is-stacked">
-          <div class="settings-row-main"><span class="settings-row-title">厨房完整备份</span><span class="settings-row-sub">包含库存、今日计划、买菜清单、常备品、设置、菜谱补丁等用户数据。换设备或清缓存前建议保存一份，默认不包含 API Key。</span></div>
-          <div class="settings-backup-actions">
-            <button type="button" class="btn ok" id="exportKitchenBackup">导出厨房备份</button>
-            <label class="btn"><input type="file" id="importKitchenBackup" accept="application/json,.json" hidden>导入厨房备份</label>
-          </div>
-        </div>
-        <div class="settings-row is-stacked">
+        <div class="settings-row is-stacked settings-advanced-tool">
           <div class="settings-row-main"><span class="settings-row-title">菜谱补丁</span><span class="settings-row-sub">只导出你新增、编辑或删除的菜谱内容，适合单独迁移菜谱库修改。</span></div>
           <div class="settings-backup-actions">
             <button type="button" class="btn ok" id="exportRecipeOverlay">导出菜谱补丁</button>
             <label class="btn"><input type="file" id="importRecipeOverlay" accept="application/json,.json" hidden>导入菜谱补丁</label>
           </div>
         </div>
-        <div class="settings-row is-stacked">
+        <div class="settings-row is-stacked settings-advanced-tool">
           <div class="settings-row-main"><span class="settings-row-title">清除缓存</span><span class="settings-row-sub">清理离线缓存并刷新，不会删除你的厨房数据</span></div>
           <div class="settings-backup-actions">
             <button type="button" class="btn" id="clearCacheBtn">清除缓存并刷新</button>
@@ -259,7 +273,7 @@ export function renderSettings() {
         </div>
       </div>
 
-      <!-- 区块 D：菜谱库精简报告（只读，低频查看） -->
+      <!-- 菜谱库精简报告（只读，低频查看） -->
       <div class="settings-group-label">🗂️ 菜谱库精简报告</div>
       <div class="settings-group" id="curationReport">
         <p class="settings-group-note">正在加载报告…</p>
@@ -276,7 +290,7 @@ export function renderSettings() {
     };
   });
 
-  // ── 渐进式展现：展开 / 收起「高级与数据设置」 ──
+  // ── 渐进式展现：展开 / 收起「高级设置」 ──
   const advToggle = div.querySelector('#advToggle');
   const advPanel = div.querySelector('#advPanel');
   const advLabel = div.querySelector('#advToggleLabel');
@@ -285,7 +299,7 @@ export function renderSettings() {
     advancedOpen = open;
     advPanel.hidden = !open;
     advToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    advLabel.textContent = open ? '收起高级与数据设置' : '展开高级与数据设置';
+    advLabel.textContent = open ? '收起高级设置' : '展开高级设置';
     if (open && !curationLoaded) {
       curationLoaded = true;
       loadCurationReport(div.querySelector('#curationReport'), libMode);
@@ -366,7 +380,7 @@ export function renderSettings() {
   };
   const syncAiModeUi = (mode) => {
     const isByok = mode === 'byok';
-    cloudAiBox.hidden = isByok;
+    cloudAiBox.hidden = false;
     byokAiBox.hidden = !isByok;
     div.querySelectorAll('.settings-ai-option').forEach(label => {
       label.classList.toggle('is-active', label.querySelector('input')?.value === mode);

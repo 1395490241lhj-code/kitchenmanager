@@ -6360,6 +6360,16 @@ html[data-theme="light"] .settings-group { background: var(--bg-input); }
   line-height: 1.55;
   margin: 6px 8px 4px;
 }
+.settings-data-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-cell-border);
+  border-radius: 14px;
+  background: var(--surface-cell);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .settings-ai-mode {
   display: grid;
   gap: 12px;
@@ -6569,6 +6579,12 @@ html[data-theme="dark"] .settings-input,
   overflow: hidden;
 }
 .settings-advanced-panel[hidden] { display: none; }
+.settings-advanced-tool {
+  margin-top: 4px;
+  padding-inline: 12px;
+  border-radius: 16px;
+  background: rgba(120, 120, 128, 0.06);
+}
 
 /* 行内按钮（保存 / 清除缓存 / 备份）等宽舒展 */
 .settings-row.is-action .btn { width: 100%; }
