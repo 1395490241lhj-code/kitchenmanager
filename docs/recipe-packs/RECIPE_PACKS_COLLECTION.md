@@ -29,6 +29,7 @@
 | `cuisine` | 菜系或风格，例如 `chinese-home`、`sichuan`、`western-light`。 |
 | `tags` | 用于筛选和解释推荐理由，例如 `quick`、`lunchbox`、`low-oil`。 |
 | `coreIngredients` | 核心食材，会影响推荐和缺菜检测。 |
+| `stapleIngredients` | 主食基底，例如米饭、面条、乌冬、意面、面包、藜麦。后续推荐可以低权重使用。 |
 | `optionalIngredients` | 可替换或可省略食材。 |
 | `flavorIngredients` | 决定菜品风味但不属于普通调料的材料，例如豆瓣酱、咖喱块、泡菜。 |
 | `seasonings` | 基础调料，例如盐、生抽、糖、醋、胡椒粉。 |
@@ -53,6 +54,8 @@
 - `packs` 用于推荐偏好。
 - `tags` 用于筛选和解释推荐理由。
 - `sourceNotes` 只记录来源灵感，不复制原文。
+- `lunchboxFriendly` 表示适合装饭盒带走，当天吃也算。
+- `leftoverFriendly` 表示隔夜或再次加热后仍然相对好吃。
 
 ## 4. 版权和来源规则
 
@@ -267,6 +270,7 @@
 ## 11. 核心食材、风味材料和普通调料
 
 - `coreIngredients`：没有它就不像这道菜，会参与推荐和缺菜检测。
+- `stapleIngredients`：米饭、面条、乌冬、意面、面包、藜麦等主食基底，后续推荐可以低权重使用。
 - `optionalIngredients`：可替换或可省略。
 - `flavorIngredients`：决定风味但不是普通调料，例如豆瓣酱、咖喱块、泡菜、椰奶、番茄罐头。
 - `seasonings`：盐、生抽、老抽、糖、醋、胡椒粉、料酒等基础调味，默认不参与缺菜检测。
@@ -285,3 +289,30 @@
 - 三文鱼藜麦碗：`light-healthy` + `high-protein`
 - 牛肉西兰花饭：`quick-solo` + `high-protein`
 - 蒸蛋羹：`basic-home` + `light-healthy`
+
+## 13. Ingredient Field Precedence
+
+每个食材只能出现在一个 ingredient 字段中。字段优先级如下：
+
+1. `coreIngredients`
+2. `stapleIngredients`
+3. `flavorIngredients`
+4. `optionalIngredients`
+5. `seasonings`
+
+字段含义：
+
+- `coreIngredients`：没有它就不像这道菜，参与推荐和缺菜检测。
+- `stapleIngredients`：米饭、面条、乌冬、意面、面包等主食基底。后续可以参与推荐，但权重低于核心蛋白 / 蔬菜。
+- `flavorIngredients`：决定风味但不是普通调料，例如豆瓣酱、咖喱块、泡菜、椰奶、番茄罐头、照烧汁。
+- `optionalIngredients`：可以省略或替换。
+- `seasonings`：盐、生抽、糖、醋、胡椒粉、料酒等基础调味。
+
+使用规则：
+
+- 同一个食材不要重复出现在多个 ingredient 字段。
+- 如果一个材料既是菜名身份的一部分，又决定风味，优先放入 `coreIngredients`。
+- 例如“泡菜炒饭”中的泡菜应放入 `coreIngredients`，不要同时放入 `flavorIngredients`。
+- “咖喱鸡肉饭”中的咖喱块应放入 `flavorIngredients`。
+- “肥牛饭”中的米饭可以放入 `stapleIngredients`。
+- “番茄鸡蛋面”中的面条可以放入 `stapleIngredients`，核心仍然是番茄和鸡蛋。
