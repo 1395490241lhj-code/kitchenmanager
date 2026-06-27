@@ -316,3 +316,32 @@
 - “咖喱鸡肉饭”中的咖喱块应放入 `flavorIngredients`。
 - “肥牛饭”中的米饭可以放入 `stapleIngredients`。
 - “番茄鸡蛋面”中的面条可以放入 `stapleIngredients`，核心仍然是番茄和鸡蛋。
+
+## 14. Recipe Pack Sample Validator
+
+继续新增或调整 `docs/recipe-packs/recipe-pack-samples.json` 后，必须运行本地校验脚本：
+
+```bash
+node scripts/validate-recipe-pack-samples.js
+```
+
+也可以使用 npm script：
+
+```bash
+npm run validate:recipe-packs
+```
+
+validator 会检查：
+
+- 顶层结构和 recipes 数量。
+- 必填字段是否存在。
+- 数组字段类型是否正确。
+- `id` 和 `name` 是否重复。
+- ingredient fields 是否跨字段重复。
+- packs、difficulty、spicyLevel、oilLevel、proteinLevel、reviewStatus、sourceType 等枚举是否有效。
+- tags 与字段的一致性 warning，例如 noodle/rice/soup/high-protein/meal-prep/vegetarian-friendly。
+- packs 与字段的一致性 warning，例如 quick-solo/light-healthy/high-protein/spicy-sichuan-hunan。
+
+有 error 时脚本会 `process.exit(1)`；只有 warning 时会通过，但需要人工判断是否要修正。
+
+注意：`legacy` 可用于未来标记旧菜谱数据，但 `recipe-pack-samples.json` 是候选样例池，validator 只允许 `draft`、`review-needed`、`approved`。

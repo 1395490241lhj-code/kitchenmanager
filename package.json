@@ -5,7 +5,8 @@
   "description": "Kitchen Manager / 厨房管理 —— 本地优先的家庭厨房库存、菜谱与购物清单工具（全栈一体化：Express 静态托管 + 小红书抓取代理）。",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "validate:recipe-packs": "node scripts/validate-recipe-pack-samples.js"
   },
   "engines": {
     "node": ">=18"
