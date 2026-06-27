@@ -592,6 +592,11 @@ git log --oneline -5
 
 ### 14.1 Development Iteration Workflow
 
+![Development Iteration Workflow](docs/diagrams/development-workflow.svg)
+
+<details>
+<summary>Mermaid source</summary>
+
 ```mermaid
 flowchart TD
     A[开始一个新任务] --> B[阅读 PROJECT_WORKFLOW.md]
@@ -639,7 +644,14 @@ flowchart TD
     AJ -->|否| AL[任务完成]
 ```
 
+</details>
+
 ### 14.2 Product User Journey Workflow
+
+![Product User Journey Workflow](docs/diagrams/product-user-journey.svg)
+
+<details>
+<summary>Mermaid source</summary>
 
 ```mermaid
 flowchart TD
@@ -688,6 +700,8 @@ flowchart TD
     M -->|是| M1[提示添加到主屏幕]
     M1 --> G
 ```
+
+</details>
 
 ## 15. UI / UX Principles
 

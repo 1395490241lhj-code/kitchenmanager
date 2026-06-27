@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Kitchen Manager Product Journey</title>
+  <desc id="desc">Kitchen Manager user journey map from first visit to ingredient entry, daily decision, missing ingredients and long-term use.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffaf2"/>
+      <stop offset="0.5" stop-color="#f7fbff"/>
+      <stop offset="1" stop-color="#f0fff8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="13" flood-color="#243044" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L12,7 L2,12 Z" fill="#64748b"/>
+    </marker>
+    <style>
+      .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 42px; font-weight: 800; fill: #172033; }
+      .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 22px; fill: #5f6878; }
+      .lane-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 29px; font-weight: 800; fill: #172033; }
+      .lane-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 22px; fill: #30394a; }
+      .pill { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 18px; font-weight: 750; fill: #ffffff; }
+      .tag { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 18px; font-weight: 700; fill: #435063; }
+      .arrow { fill: none; stroke: #64748b; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .soft-arrow { fill: none; stroke: #9aa7b9; stroke-width: 3; stroke-dasharray: 8 8; stroke-linecap: round; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1400" height="900" rx="36" fill="url(#bg)"/>
+  <circle cx="130" cy="140" r="160" fill="#fde68a" opacity="0.24"/>
+  <circle cx="1140" cy="170" r="190" fill="#bae6fd" opacity="0.36"/>
+  <circle cx="970" cy="790" r="210" fill="#bbf7d0" opacity="0.3"/>
+
+  <text x="70" y="82" class="title">Kitchen Manager Product Journey</text>
+  <text x="72" y="118" class="subtitle">从第一次打开，到每天选菜、补买、做完更新，再到长期备份和安装。</text>
+
+  <!-- Journey lanes -->
+  <g filter="url(#shadow)">
+    <rect x="58" y="180" width="240" height="500" rx="30" fill="#ffffff" stroke="#fde2a6" stroke-width="2"/>
+    <rect x="58" y="180" width="240" height="76" rx="30" fill="#fef3c7"/>
+    <text x="92" y="229" class="lane-title">首次进入</text>
+    <text x="92" y="306" class="lane-text">空厨房</text>
+    <text x="92" y="352" class="lane-text">示例体验</text>
+    <text x="92" y="398" class="lane-text">记录真实食材</text>
+    <rect x="90" y="595" width="135" height="36" rx="18" fill="#f59e0b"/>
+    <text x="112" y="619" class="pill">低摩擦开始</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="328" y="180" width="240" height="500" rx="30" fill="#ffffff" stroke="#c9e8ff" stroke-width="2"/>
+    <rect x="328" y="180" width="240" height="76" rx="30" fill="#dbeafe"/>
+    <text x="362" y="229" class="lane-title">录入食材</text>
+    <text x="362" y="306" class="lane-text">文本批量记</text>
+    <text x="362" y="352" class="lane-text">小票识别</text>
+    <text x="362" y="398" class="lane-text">AI 失败兜底</text>
+    <rect x="360" y="548" width="142" height="36" rx="18" fill="#2563eb"/>
+    <text x="381" y="572" class="pill">AI 是加速器</text>
+    <rect x="360" y="595" width="140" height="36" rx="18" fill="#64748b"/>
+    <text x="381" y="619" class="pill">失败有兜底</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="598" y="180" width="240" height="500" rx="30" fill="#ffffff" stroke="#ccefd6" stroke-width="2"/>
+    <rect x="598" y="180" width="240" height="76" rx="30" fill="#dcfce7"/>
+    <text x="632" y="229" class="lane-title">今日决策</text>
+    <text x="632" y="306" class="lane-text">今日状态</text>
+    <text x="632" y="352" class="lane-text">推荐卡</text>
+    <text x="632" y="398" class="lane-text">加入今日计划</text>
+    <rect x="630" y="595" width="126" height="36" rx="18" fill="#16a34a"/>
+    <text x="651" y="619" class="pill">主操作清楚</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="868" y="180" width="240" height="500" rx="30" fill="#ffffff" stroke="#f6ccd8" stroke-width="2"/>
+    <rect x="868" y="180" width="240" height="76" rx="30" fill="#ffe4e6"/>
+    <text x="902" y="229" class="lane-title">缺菜与做饭</text>
+    <text x="902" y="306" class="lane-text">缺菜确认</text>
+    <text x="902" y="352" class="lane-text">加入买菜清单</text>
+    <text x="902" y="398" class="lane-text">饭后记一下</text>
+    <text x="902" y="444" class="lane-text">更新库存</text>
+    <rect x="900" y="595" width="128" height="36" rx="18" fill="#e11d48"/>
+    <text x="921" y="619" class="pill">自然闭环</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1138" y="180" width="240" height="500" rx="30" fill="#ffffff" stroke="#d9d4ff" stroke-width="2"/>
+    <rect x="1138" y="180" width="240" height="76" rx="30" fill="#ede9fe"/>
+    <text x="1172" y="229" class="lane-title">长期使用</text>
+    <text x="1172" y="306" class="lane-text">导出备份</text>
+    <text x="1172" y="352" class="lane-text">添加到主屏幕</text>
+    <text x="1172" y="398" class="lane-text">普通 / 高级设置</text>
+    <rect x="1170" y="548" width="128" height="36" rx="18" fill="#7c3aed"/>
+    <text x="1191" y="572" class="pill">数据可备份</text>
+    <rect x="1170" y="595" width="128" height="36" rx="18" fill="#0891b2"/>
+    <text x="1191" y="619" class="pill">本地优先</text>
+  </g>
+
+  <!-- Main progression arrows -->
+  <path class="arrow" d="M298 430 C310 430, 316 430, 328 430"/>
+  <path class="arrow" d="M568 430 C580 430, 586 430, 598 430"/>
+  <path class="arrow" d="M838 430 C850 430, 856 430, 868 430"/>
+  <path class="arrow" d="M1108 430 C1120 430, 1126 430, 1138 430"/>
+
+  <!-- Helpful loops / branches -->
+  <path class="soft-arrow" d="M448 680 C448 745, 718 745, 718 680"/>
+  <text x="510" y="732" class="tag">录入后回到今日页</text>
+  <path class="soft-arrow" d="M988 680 C988 765, 718 765, 718 680"/>
+  <text x="770" y="785" class="tag">做完更新后重新推荐</text>
+
+  <rect x="72" y="740" width="1256" height="86" rx="26" fill="#ffffff" opacity="0.78" stroke="#d7dee9"/>
+  <text x="105" y="777" class="tag">体验原则</text>
+  <text x="105" y="812" class="lane-text">先让用户完成厨房任务，再给 AI、备份和安装提示；失败时给下一步，不让用户卡死。</text>
+</svg>
