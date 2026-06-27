@@ -329,7 +329,312 @@ Backup：
 10. 线上验收关键路径。
 11. 如果页面仍旧，强刷或清 PWA 缓存，可使用 `sw-reset.html`。
 
-## 9. UI / UX Principles
+## 9. Local Development Setup
+
+### Required Tools
+
+- Git。
+- Node.js 18 或以上。
+- npm。
+- GitHub CLI，推荐安装但不是必须。
+
+### Recommended macOS Setup
+
+```bash
+brew install node
+brew install gh
+gh auth login
+gh auth status
+```
+
+如果本机 shell 提示 `zsh: command not found: node`，先确认 Node.js 是否安装并在当前 shell 的 `PATH` 中：
+
+```bash
+node -v
+npm -v
+```
+
+### Common Local Commands
+
+```bash
+git status -sb
+git pull origin main
+git log --oneline -5
+git diff --stat
+git diff --check
+npm test
+node --test
+node --check path/to/changed-file.js
+```
+
+### Running the App Locally
+
+当前 `package.json` 只有 `start` 和 `test` scripts。不要凭空使用不存在的 `npm run dev`。
+
+```bash
+npm install
+npm start
+```
+
+默认 Express 服务由 `server.js` 启动，通常访问 `http://localhost:3000`。如果只需要静态预览，也可以用简单静态服务器，但 `/api/ai-chat`、`/api/ai-parse`、`/api/ai-status` 和 `/api/xhs-extract` 只有 Express 后端模式才可用。
+
+## 10. Environment and Secrets
+
+- GitHub 仓库不能提交 `.env`、API Key、Groq Key、OpenAI Key、GitHub PAT 或任何长期 token。
+- Render 环境变量只放在 Render 后台，不写进前端代码、文档示例或测试 fixture。
+- 前端 cloud mode 不应出现后端内置 key；cloud mode 只调用同源后端接口。
+- BYOK key 是用户自己的浏览器本地配置，只能保存在 localStorage，不进入备份。
+- 如果截图、聊天记录、日志或 issue 中出现 key，应立即 revoke / rotate。
+- 测试和日志不能输出 `Authorization`、完整 base64 图片、完整 prompt 或完整上游响应。
+- Debug AI 问题时只保留安全的 `status`、`code`、`upstreamStatus`、`upstreamCode` 和简短错误原因。
+
+## 11. Agent Handoff Rules
+
+### 11.1 One Agent at a Time
+
+- 不要让 Code X 和 Claude Code 同时修改同一批文件。
+- 同一时间只让一个 agent 写代码。
+- 另一个 agent 可以做审查、解释、prompt 编写或风险分析，但不要并行改文件。
+
+### 11.2 Always Sync Before Switching Agents
+
+切换 agent 前必须：
+
+1. 运行 `git status -sb`。
+2. 如果有改动，先 commit、stash，或明确说明这些改动要保留。
+3. 运行 `git pull origin main`。
+4. 新 agent 先阅读 `PROJECT_WORKFLOW.md`。
+5. 新 agent 先确认最近 5 个 commit：
+
+```bash
+git log --oneline -5
+```
+
+### 11.3 Handoff Summary
+
+每次从一个 agent 切到另一个 agent，前一个 agent 应输出：
+
+- 修改文件。
+- 已完成内容。
+- 未完成内容。
+- 测试结果。
+- 是否已 push。
+- 是否需要部署。
+- 是否需要清 PWA 缓存。
+- 是否有风险点。
+
+### 11.4 Do Not Duplicate Fixes
+
+新 agent 接手后，不要重新实现已经完成的功能。先检查：
+
+- 相关文件。
+- 相关测试。
+- 最近 commit。
+- GitHub Actions 状态。
+
+## 12. Troubleshooting / Common Issues
+
+### 12.1 Node.js Not Found
+
+场景：
+
+```text
+zsh: command not found: node
+```
+
+说明：本机没有安装 Node.js，或者当前 shell 找不到 `node`。
+
+处理：
+
+- macOS 可以运行 `brew install node`。
+- 然后确认 `node -v` 和 `npm -v`。
+- 如果 Code X 能跑测试但本机不能，说明 Code X 环境和本机终端环境不同。
+- 不要因为本机没有 Node.js 就判断代码失败；要看 agent 是否已在自己的环境跑过测试。
+
+### 12.2 Code X Workspace Is Out of Credits
+
+场景：Code X 已完成修改和测试，但无法执行 `git add`、`git commit` 或 `git push`，提示：
+
+```text
+workspace is out of credits
+```
+
+说明：这是 Code X 环境限制，不一定是 Git 权限问题，也不是代码问题。
+
+处理：
+
+- Agent 不应绕过限制。
+- Agent 应输出已修改文件、测试结果和用户需要手动执行的 git 命令。
+- 用户可在本机项目目录中手动执行：
+
+```bash
+git status -sb
+git diff --stat
+git add PROJECT_WORKFLOW.md
+git commit -m "Improve project workflow documentation"
+git push origin main
+```
+
+### 12.3 GitHub Pages Deployment Conflict
+
+场景：GitHub Pages deploy 失败，日志出现：
+
+```text
+deployment request failed due to in progress deployment
+```
+
+说明：上一个 GitHub Pages deployment 还没结束，新的部署撞车了。通常不是代码问题。
+
+处理：
+
+- 打开 GitHub Actions 或 Deployments。
+- 等待旧 deployment 结束。
+- 或取消仍在 running 的旧 workflow。
+- 对失败的 workflow 点击 Re-run failed jobs。
+- 如果 build 成功、只有 deploy 失败，优先重跑 failed jobs。
+
+### 12.4 PWA / Service Worker Still Showing Old UI
+
+场景：GitHub Pages 已经部署成功，但页面还是旧版本。
+
+处理：
+
+- 先普通刷新。
+- 再强制刷新。
+- 如果是 PWA standalone，关闭后重新打开。
+- 必要时清站点数据。
+- 可使用 `sw-reset.html`。
+- 检查是否已经 bump `app.js?v=...`、`styles.css?v=...` 和 `sw.v18.js` cache name。
+- 不要在没有确认缓存问题前重复改代码。
+
+### 12.5 Render / AI Service Unavailable
+
+场景：小票识别或 AI 菜谱导入显示 AI 暂不可用。
+
+排查：
+
+- 检查 `/api/ai-status`。
+- 检查 Render 环境变量：
+  - `OPENAI_API_KEY`
+  - `OPENAI_BASE_URL`
+  - `OPENAI_MODEL`
+  - `OPENAI_VISION_MODEL`
+- 文本任务应使用 `OPENAI_MODEL`。
+- 图片任务应使用 `OPENAI_VISION_MODEL`。
+- Groq / OpenAI-compatible key 不得出现在前端、GitHub 或截图中。
+- 修改 Render 环境变量后，需要重新部署后端。
+- 如果 key 曾经出现在截图或聊天中，应 revoke / rotate。
+
+### 12.6 Browser Network Shows API Key
+
+场景：浏览器 Network 里出现 `Authorization: Bearer ...`，且这个 key 是后端内置 key。
+
+说明：这是严重问题。cloud mode 不应从前端直连 Groq / OpenAI，也不应暴露后端 key。
+
+处理：
+
+- 立刻停止部署或回滚。
+- 检查 `src/ai.js` 的 cloud / BYOK 分流。
+- cloud mode 必须调用 same-origin backend route，例如 `/api/ai-chat` 或 `/api/ai-parse`。
+- BYOK 才允许使用用户自己的浏览器端 API Key。
+- 已泄露的 key 必须 rotate。
+
+### 12.7 GitHub CLI / Push Issues
+
+场景：agent 或本机 push 失败，出现：
+
+```text
+could not read Username for 'https://github.com': Device not configured
+```
+
+处理：
+
+- 本机环境可安装并登录 GitHub CLI：
+
+```bash
+brew install gh
+gh auth login
+gh auth status
+```
+
+- 如果是云端 agent，不会自动继承本机 GitHub 登录。
+- 云端 agent 需要 GitHub integration 或专门的 token / secrets。
+- 不要把 PAT 写进仓库、聊天记录或代码文件。
+
+### 12.8 Local Workspace and Cloud Workspace Mismatch
+
+场景：Code X 说有本地改动，但用户终端 `git status -sb` 显示 clean。
+
+说明：可能 Code X 修改的是另一个 workspace，不是用户终端所在目录。
+
+处理：让 agent 运行：
+
+```bash
+pwd
+git status -sb
+git diff --stat
+git log --oneline -5
+```
+
+用户本机也运行同样命令。比较路径和 commit。如果路径不同，不要盲目提交。
+
+## 13. Multi-device Data Sync Rules
+
+- 当前项目是 local-first PWA，不提供账号系统或自动云同步。
+- 多设备迁移以“导出厨房备份 -> 在另一台设备导入”为准。
+- 导入备份会覆盖当前浏览器中的本地厨房数据，必须先确认。
+- 导入前如果当前设备已有真实数据，先导出当前数据。
+- 备份默认不包含 API Key；新设备导入后需要重新配置 BYOK key。
+- 不要承诺“多端自动一致”或“实时同步”，除非未来明确实现账号 / 云同步。
+- 如果未来做云同步，必须先设计冲突解决、离线合并、备份恢复和撤销策略，不能直接把 localStorage 静默上传或覆盖。
+
+## 14. Workflow Diagrams
+
+### 14.1 Development Iteration Workflow
+
+```mermaid
+flowchart TD
+  A["开始任务"] --> B["读 PROJECT_WORKFLOW"]
+  B --> C["git status"]
+  C --> D["git pull"]
+  D --> E["阅读相关文件"]
+  E --> F["小步修改"]
+  F --> G["自动检查"]
+  G --> H["人工验收"]
+  H --> I["commit"]
+  I --> J["push"]
+  J --> K["GitHub Pages / Render 部署"]
+  K --> L["线上验收"]
+  L --> M{"有缓存或部署问题？"}
+  M -->|是| N["排查缓存 / 部署"]
+  N --> L
+  M -->|否| O["完成"]
+```
+
+### 14.2 Product User Journey Workflow
+
+```mermaid
+flowchart TD
+  A["首次打开"] --> B{"是否已有数据？"}
+  B -->|空厨房| C["示例体验或记录食材"]
+  B -->|已有数据| D["今日页"]
+  C --> D
+  D --> E["查看推荐"]
+  E --> F["加入今日计划"]
+  F --> G{"缺核心食材？"}
+  G -->|是| H["缺菜确认"]
+  H --> I{"加入买菜清单？"}
+  I -->|是| J["买菜清单"]
+  I -->|否| K["保留今日计划"]
+  G -->|否| K
+  J --> L["做饭"]
+  K --> L
+  L --> M["饭后记一下"]
+  M --> N["更新库存"]
+  N --> O["备份提醒 / PWA 安装提示"]
+```
+
+## 15. UI / UX Principles
 
 - 今日页是主页面，不是功能索引页。
 - 用户第一眼应该知道今天是否已有计划、还能做什么、缺什么。
@@ -343,7 +648,7 @@ Backup：
 - 文案要温和、具体、少技术词。
 - 移动端优先，深色和浅色都必须可读。
 
-## 10. Future Roadmap
+## 16. Future Roadmap
 
 ### Near-term
 
@@ -369,7 +674,7 @@ Backup：
 - 价格 / 采购记录。
 - 营养和饮食偏好。
 
-## 11. Definition of Done
+## 17. Definition of Done
 
 每个任务完成时必须满足：
 
