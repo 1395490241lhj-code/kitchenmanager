@@ -30,7 +30,8 @@
 | `tags` | 用于筛选和解释推荐理由，例如 `quick`、`lunchbox`、`low-oil`。 |
 | `coreIngredients` | 核心食材，会影响推荐和缺菜检测。 |
 | `optionalIngredients` | 可替换或可省略食材。 |
-| `seasonings` | 调料和决定风味的材料。 |
+| `flavorIngredients` | 决定菜品风味但不属于普通调料的材料，例如豆瓣酱、咖喱块、泡菜。 |
+| `seasonings` | 基础调料，例如盐、生抽、糖、醋、胡椒粉。 |
 | `equipment` | 需要的设备，例如炒锅、蒸锅、烤箱、空气炸锅。 |
 | `timeMinutes` | 预计用时，单位分钟。 |
 | `difficulty` | 难度，例如 `easy`、`medium`、`hard`。 |
@@ -47,7 +48,8 @@
 字段使用原则：
 
 - `coreIngredients` 影响推荐和缺菜检测。
-- `seasonings` 默认不作为缺菜检测核心，除非是豆瓣酱、咖喱块、泡菜等决定性风味材料。
+- `flavorIngredients` 可用于解释口味和后续更细的缺菜提示，但第一阶段不接入业务逻辑。
+- `seasonings` 默认不作为缺菜检测核心，除非未来明确把某些决定性风味材料迁入 `flavorIngredients` 或 `coreIngredients`。
 - `packs` 用于推荐偏好。
 - `tags` 用于筛选和解释推荐理由。
 - `sourceNotes` 只记录来源灵感，不复制原文。
@@ -182,3 +184,104 @@
 3. 第三步：给现有菜谱补 metadata。
 4. 第四步：新增 recipe packs 设置和推荐加权。
 5. 第五步：逐步扩展更多菜谱包。
+
+## 9. 字段枚举标准
+
+`difficulty` 固定值：
+
+- `easy`
+- `medium`
+- `hard`
+
+`spicyLevel` 固定值：
+
+- `none`
+- `mild`
+- `medium`
+- `hot`
+
+`oilLevel` 固定值：
+
+- `low`
+- `medium`
+- `high`
+
+`proteinLevel` 固定值：
+
+- `low`
+- `medium`
+- `high`
+
+`reviewStatus` 固定值：
+
+- `draft`
+- `review-needed`
+- `approved`
+- `legacy`
+
+`sourceType` 固定值：
+
+- `original`
+- `adapted`
+- `common-dish`
+- `ai-draft`
+
+`equipment` 建议值：
+
+- `stove`
+- `pot`
+- `wok`
+- `pan`
+- `rice-cooker`
+- `oven`
+- `air-fryer`
+- `microwave`
+- `steamer`
+
+`tags` 建议使用英文短标签，例如：
+
+- `quick`
+- `solo`
+- `lunchbox`
+- `low-oil`
+- `high-protein`
+- `spicy`
+- `soup`
+- `noodle`
+- `rice`
+- `one-pot`
+- `meal-prep`
+- `vegetarian-friendly`
+
+## 10. ID 命名规则
+
+- 使用小写英文。
+- 单词之间用短横线。
+- 不使用中文、空格、特殊符号。
+- 一旦上线不要随意改 ID。
+- 同名不同版本可加后缀，例如：
+  - `mapo-tofu`
+  - `mapo-tofu-light`
+  - `mapo-tofu-quick`
+
+## 11. 核心食材、风味材料和普通调料
+
+- `coreIngredients`：没有它就不像这道菜，会参与推荐和缺菜检测。
+- `optionalIngredients`：可替换或可省略。
+- `flavorIngredients`：决定风味但不是普通调料，例如豆瓣酱、咖喱块、泡菜、椰奶、番茄罐头。
+- `seasonings`：盐、生抽、老抽、糖、醋、胡椒粉、料酒等基础调味，默认不参与缺菜检测。
+
+判断原则：
+
+- 如果少了这个材料，菜名和主要口味都不成立，优先放入 `coreIngredients` 或 `flavorIngredients`。
+- 如果只是提升香气、颜色或口感，且可以省略或替换，放入 `optionalIngredients`。
+- 如果是大多数厨房常备、用量少、不是菜品身份的一部分，放入 `seasonings`。
+- 对豆瓣酱、咖喱块、泡菜等材料要谨慎：它们不是普通调料，通常应进入 `flavorIngredients`。
+
+## 12. 多菜谱包示例
+
+- 番茄鸡蛋面：`basic-home` + `quick-solo`
+- 麻婆豆腐：`basic-home` + `spicy-sichuan-hunan`
+- 三文鱼藜麦碗：`light-healthy` + `high-protein`
+- 牛肉西兰花饭：`quick-solo` + `high-protein`
+- 蒸蛋羹：`basic-home` + `light-healthy`
