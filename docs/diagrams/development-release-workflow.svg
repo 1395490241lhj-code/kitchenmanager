@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Kitchen Manager Development and Release Workflow</title>
+  <desc id="desc">A seven-stage development and release workflow for Code X, Claude Code, and human contributors.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7fbff"/>
+      <stop offset="0.5" stop-color="#f8f7ff"/>
+      <stop offset="1" stop-color="#f1fff8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#213047" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L12,7 L2,12 Z" fill="#637083"/>
+    </marker>
+    <style>
+      .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 44px; font-weight: 850; fill: #172033; }
+      .subtitle { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 23px; fill: #607086; }
+      .stage-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 25px; font-weight: 830; fill: #172033; }
+      .stage-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 20px; fill: #334155; }
+      .badge { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 17px; font-weight: 780; fill: #fff; }
+      .note { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 20px; fill: #526072; }
+      .arrow { fill: none; stroke: #637083; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow); }
+      .branch { fill: none; stroke: #ef4444; stroke-width: 4; stroke-dasharray: 9 9; stroke-linecap: round; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1600" height="900" rx="36" fill="url(#bg)"/>
+  <circle cx="210" cy="160" r="180" fill="#dbeafe" opacity="0.42"/>
+  <circle cx="1280" cy="150" r="210" fill="#dcfce7" opacity="0.36"/>
+  <circle cx="890" cy="790" r="220" fill="#fde68a" opacity="0.25"/>
+  <text x="70" y="78" class="title">Kitchen Manager Development and Release Workflow</text>
+  <text x="72" y="116" class="subtitle">给 Code X、Claude Code 和人工开发者的端到端交付路线：从同步到排障。</text>
+
+  <g filter="url(#shadow)">
+    <rect x="55" y="185" width="200" height="255" rx="26" fill="#fff" stroke="#c9ddff"/>
+    <rect x="55" y="185" width="200" height="62" rx="26" fill="#dbeafe"/>
+    <circle cx="86" cy="216" r="18" fill="#2563eb"/>
+    <text x="81" y="223" class="badge">1</text>
+    <text x="115" y="224" class="stage-title">Start</text>
+    <text x="85" y="295" class="stage-text">读 workflow</text>
+    <text x="85" y="334" class="stage-text">确认任务范围</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="285" y="185" width="200" height="255" rx="26" fill="#fff" stroke="#bee8cf"/>
+    <rect x="285" y="185" width="200" height="62" rx="26" fill="#dcfce7"/>
+    <circle cx="316" cy="216" r="18" fill="#16a34a"/>
+    <text x="311" y="223" class="badge">2</text>
+    <text x="345" y="224" class="stage-title">Sync</text>
+    <text x="315" y="295" class="stage-text">git status</text>
+    <text x="315" y="334" class="stage-text">git pull</text>
+    <text x="315" y="373" class="stage-text">最近 commit</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="515" y="185" width="200" height="255" rx="26" fill="#fff" stroke="#f6dba9"/>
+    <rect x="515" y="185" width="200" height="62" rx="26" fill="#fef3c7"/>
+    <circle cx="546" cy="216" r="18" fill="#d97706"/>
+    <text x="541" y="223" class="badge">3</text>
+    <text x="575" y="224" class="stage-title">Plan</text>
+    <text x="545" y="295" class="stage-text">阅读相关文件</text>
+    <text x="545" y="334" class="stage-text">明确不改什么</text>
+    <text x="545" y="373" class="stage-text">小步计划</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="745" y="185" width="200" height="255" rx="26" fill="#fff" stroke="#ffd1dc"/>
+    <rect x="745" y="185" width="200" height="62" rx="26" fill="#ffe4e6"/>
+    <circle cx="776" cy="216" r="18" fill="#e11d48"/>
+    <text x="771" y="223" class="badge">4</text>
+    <text x="805" y="224" class="stage-title">Build</text>
+    <text x="775" y="295" class="stage-text">修改相关文件</text>
+    <text x="775" y="334" class="stage-text">保护核心流程</text>
+    <text x="775" y="373" class="stage-text">无无关改动</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="975" y="185" width="200" height="255" rx="26" fill="#fff" stroke="#d8d0ff"/>
+    <rect x="975" y="185" width="200" height="62" rx="26" fill="#ede9fe"/>
+    <circle cx="1006" cy="216" r="18" fill="#7c3aed"/>
+    <text x="1001" y="223" class="badge">5</text>
+    <text x="1035" y="224" class="stage-title">Test</text>
+    <text x="1005" y="295" class="stage-text">diff --check</text>
+    <text x="1005" y="334" class="stage-text">node --check</text>
+    <text x="1005" y="373" class="stage-text">node --test</text>
+    <text x="1005" y="412" class="stage-text">人工验收</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="1205" y="185" width="200" height="255" rx="26" fill="#fff" stroke="#bdebf0"/>
+    <rect x="1205" y="185" width="200" height="62" rx="26" fill="#cffafe"/>
+    <circle cx="1236" cy="216" r="18" fill="#0891b2"/>
+    <text x="1231" y="223" class="badge">6</text>
+    <text x="1265" y="224" class="stage-title">Release</text>
+    <text x="1235" y="295" class="stage-text">commit / push</text>
+    <text x="1235" y="334" class="stage-text">GitHub Pages</text>
+    <text x="1235" y="373" class="stage-text">Render</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="560" y="565" width="480" height="190" rx="28" fill="#fff" stroke="#fecaca"/>
+    <rect x="560" y="565" width="480" height="60" rx="28" fill="#fee2e2"/>
+    <text x="595" y="604" class="stage-title">Verify / Troubleshoot</text>
+    <text x="600" y="665" class="stage-text">Pages deploy conflict</text>
+    <text x="600" y="704" class="stage-text">PWA cache old UI</text>
+    <text x="820" y="665" class="stage-text">AI service unavailable</text>
+    <text x="820" y="704" class="stage-text">workspace out of credits</text>
+  </g>
+
+  <path class="arrow" d="M255 312 H285"/>
+  <path class="arrow" d="M485 312 H515"/>
+  <path class="arrow" d="M715 312 H745"/>
+  <path class="arrow" d="M945 312 H975"/>
+  <path class="arrow" d="M1175 312 H1205"/>
+  <path class="arrow" d="M1305 440 C1305 520, 1040 520, 960 565"/>
+  <path class="branch" d="M790 565 C690 525, 600 510, 515 440"/>
+  <text x="150" y="818" class="note">规则：一个 agent 写代码，另一个只能审查；切换前必须同步、总结和确认最近 commit。</text>
+</svg>

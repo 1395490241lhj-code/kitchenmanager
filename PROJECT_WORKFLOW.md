@@ -590,68 +590,14 @@ git log --oneline -5
 
 ## 14. Workflow Diagrams
 
-### 14.1 Development Iteration Workflow
+These diagrams are the visual project map for Kitchen Manager. They should help future work stay oriented around the product loop, feature boundaries, data safety rules, and release workflow.
 
-![Development Iteration Workflow](docs/diagrams/development-workflow.svg)
+### 14.1 Product Journey Map
 
-<details>
-<summary>Mermaid source</summary>
-
-```mermaid
-flowchart TD
-    A[开始一个新任务] --> B[阅读 PROJECT_WORKFLOW.md]
-    B --> C[确认任务范围]
-    C --> D[git status -sb]
-    D --> E{工作区干净吗?}
-    E -->|是| F[git pull origin main]
-    E -->|否| G[确认已有改动来源]
-    G --> H{是否属于本次任务?}
-    H -->|是| I[继续处理]
-    H -->|否| J[暂停并询问用户]
-    F --> I
-    I --> K[阅读相关文件]
-    K --> L[说明修改计划]
-    L --> M[小步修改]
-    M --> N[检查是否误伤核心流程]
-    N --> O[git diff --stat]
-    O --> P[git diff --check]
-    P --> Q{是否改 JS?}
-    Q -->|是| R[node --check changed-file.js]
-    Q -->|否| S[跳过 JS 语法检查]
-    R --> T[node --test]
-    S --> T
-    T --> U{测试通过?}
-    U -->|否| V[修复问题后重测]
-    V --> O
-    U -->|是| W[人工验收核心路径]
-    W --> X{需要 bump 资源版本或 SW cache?}
-    X -->|是| Y[bump app.js / styles.css / sw.v18.js]
-    Y --> O
-    X -->|否| Z[总结修改和影响范围]
-    Z --> AA{是否允许提交推送?}
-    AA -->|否| AB[输出手动 git 命令]
-    AA -->|是| AC[git add 相关文件]
-    AC --> AD[git commit -m 清楚信息]
-    AD --> AE[git push origin main]
-    AE --> AF[检查 GitHub Actions / Pages]
-    AF --> AG{部署成功?}
-    AG -->|否| AH[等待或 Re-run failed jobs]
-    AH --> AF
-    AG -->|是| AI[线上验收]
-    AI --> AJ{页面是否仍是旧版本?}
-    AJ -->|是| AK[强刷 / 清 PWA 缓存 / sw-reset.html]
-    AK --> AI
-    AJ -->|否| AL[任务完成]
-```
-
-</details>
-
-### 14.2 Product User Journey Workflow
-
-![Product User Journey Workflow](docs/diagrams/product-user-journey.svg)
+![Product Journey Map](docs/diagrams/product-journey-map.svg)
 
 <details>
-<summary>Mermaid source</summary>
+<summary>Mermaid source (legacy product journey)</summary>
 
 ```mermaid
 flowchart TD
@@ -699,6 +645,70 @@ flowchart TD
     G --> M{移动端且未安装?}
     M -->|是| M1[提示添加到主屏幕]
     M1 --> G
+```
+
+</details>
+
+### 14.2 Feature Map
+
+![Feature Map](docs/diagrams/feature-map.svg)
+
+### 14.3 Data and AI Flow
+
+![Data and AI Flow](docs/diagrams/data-ai-flow.svg)
+
+### 14.4 Development and Release Workflow
+
+![Development and Release Workflow](docs/diagrams/development-release-workflow.svg)
+
+<details>
+<summary>Mermaid source (legacy development workflow)</summary>
+
+```mermaid
+flowchart TD
+    A[开始一个新任务] --> B[阅读 PROJECT_WORKFLOW.md]
+    B --> C[确认任务范围]
+    C --> D[git status -sb]
+    D --> E{工作区干净吗?}
+    E -->|是| F[git pull origin main]
+    E -->|否| G[确认已有改动来源]
+    G --> H{是否属于本次任务?}
+    H -->|是| I[继续处理]
+    H -->|否| J[暂停并询问用户]
+    F --> I
+    I --> K[阅读相关文件]
+    K --> L[说明修改计划]
+    L --> M[小步修改]
+    M --> N[检查是否误伤核心流程]
+    N --> O[git diff --stat]
+    O --> P[git diff --check]
+    P --> Q{是否改 JS?}
+    Q -->|是| R[node --check changed-file.js]
+    Q -->|否| S[跳过 JS 语法检查]
+    R --> T[node --test]
+    S --> T
+    T --> U{测试通过?}
+    U -->|否| V[修复问题后重测]
+    V --> O
+    U -->|是| W[人工验收核心路径]
+    W --> X{需要 bump 资源版本或 SW cache?}
+    X -->|是| Y[bump app.js / styles.css / sw.v18.js]
+    Y --> O
+    X -->|否| Z[总结修改和影响范围]
+    Z --> AA{是否允许提交推送?}
+    AA -->|否| AB[输出手动 git 命令]
+    AA -->|是| AC[git add 相关文件]
+    AC --> AD[git commit -m 清楚信息]
+    AD --> AE[git push origin main]
+    AE --> AF[检查 GitHub Actions / Pages]
+    AF --> AG{部署成功?}
+    AG -->|否| AH[等待或 Re-run failed jobs]
+    AH --> AF
+    AG -->|是| AI[线上验收]
+    AI --> AJ{页面是否仍是旧版本?}
+    AJ -->|是| AK[强刷 / 清 PWA 缓存 / sw-reset.html]
+    AK --> AI
+    AJ -->|否| AL[任务完成]
 ```
 
 </details>
