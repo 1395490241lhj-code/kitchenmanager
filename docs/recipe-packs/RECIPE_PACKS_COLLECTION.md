@@ -312,7 +312,7 @@
 
 - 同一个食材不要重复出现在多个 ingredient 字段。
 - 如果一个材料既是菜名身份的一部分，又决定风味，优先放入 `coreIngredients`。
-- 例如“泡菜炒饭”中的泡菜应放入 `coreIngredients`，不要同时放入 `flavorIngredients`。
+- 例如“泡菜炒饭”中的米饭应放入 `stapleIngredients`；泡菜如果主要用于定义风味，可以放入 `flavorIngredients`；不要同时放入 `coreIngredients` 和 `flavorIngredients`。
 - “咖喱鸡肉饭”中的咖喱块应放入 `flavorIngredients`。
 - “肥牛饭”中的米饭可以放入 `stapleIngredients`。
 - “番茄鸡蛋面”中的面条可以放入 `stapleIngredients`，核心仍然是番茄和鸡蛋。
