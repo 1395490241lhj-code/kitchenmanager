@@ -53,6 +53,55 @@ export function getRecipesGroupedByPack(data) {
   return groups;
 }
 
+export function normalizeRecipePackPreferenceIds(data, candidateIds) {
+  if (!Array.isArray(candidateIds)) return [];
+
+  const validPackIds = new Set(
+    getRecipePacks(data)
+      .map((pack) => pack && pack.id)
+      .filter((packId) => typeof packId === 'string')
+  );
+  const seen = new Set();
+  const out = [];
+
+  for (const packId of candidateIds) {
+    if (typeof packId !== 'string') continue;
+    if (!validPackIds.has(packId) || seen.has(packId)) continue;
+    seen.add(packId);
+    out.push(packId);
+  }
+
+  return out;
+}
+
+export function getEnabledRecipePackIds(data, settings) {
+  const hasSettingsObject = settings && typeof settings === 'object' && !Array.isArray(settings);
+  if (!hasSettingsObject || !Object.prototype.hasOwnProperty.call(settings, 'enabledRecipePackIds')) {
+    return getDefaultEnabledRecipePackIds(data);
+  }
+
+  // Missing/undefined means "use defaults"; [] means "user explicitly disabled all packs".
+  if (settings.enabledRecipePackIds === undefined) {
+    return getDefaultEnabledRecipePackIds(data);
+  }
+
+  if (!Array.isArray(settings.enabledRecipePackIds)) {
+    return getDefaultEnabledRecipePackIds(data);
+  }
+
+  return normalizeRecipePackPreferenceIds(data, settings.enabledRecipePackIds);
+}
+
+export function createRecipePackSettingsPatch(data, enabledPackIds) {
+  return {
+    enabledRecipePackIds: normalizeRecipePackPreferenceIds(data, enabledPackIds)
+  };
+}
+
+export function getRecipesForSettings(data, settings) {
+  return getRecipesByEnabledPacks(data, getEnabledRecipePackIds(data, settings));
+}
+
 export function summarizeRecipePackData(data) {
   const groups = getRecipesGroupedByPack(data);
   const recipesByPackCount = {};

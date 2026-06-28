@@ -17,6 +17,10 @@ test('can import src/recipe-packs.js', async () => {
   assert.equal(typeof recipePacks.getRecipePackById, 'function');
   assert.equal(typeof recipePacks.getRecipesByEnabledPacks, 'function');
   assert.equal(typeof recipePacks.getRecipesGroupedByPack, 'function');
+  assert.equal(typeof recipePacks.normalizeRecipePackPreferenceIds, 'function');
+  assert.equal(typeof recipePacks.getEnabledRecipePackIds, 'function');
+  assert.equal(typeof recipePacks.createRecipePackSettingsPatch, 'function');
+  assert.equal(typeof recipePacks.getRecipesForSettings, 'function');
   assert.equal(typeof recipePacks.summarizeRecipePackData, 'function');
 });
 
@@ -99,6 +103,63 @@ test('summarizeRecipePackData returns counts and default packs', async () => {
   assert.equal(summary.recipesByPackCount['quick-solo'] > 0, true);
 });
 
+test('normalizeRecipePackPreferenceIds filters invalid ids, dedupes, and preserves input order', async () => {
+  const { normalizeRecipePackPreferenceIds } = await loadRecipePacksModule();
+  const candidateIds = ['quick-solo', 'missing', 'quick-solo', 'basic-home'];
+
+  assert.deepEqual(normalizeRecipePackPreferenceIds(data, candidateIds), ['quick-solo', 'basic-home']);
+  assert.deepEqual(candidateIds, ['quick-solo', 'missing', 'quick-solo', 'basic-home']);
+  assert.deepEqual(normalizeRecipePackPreferenceIds(data, null), []);
+  assert.deepEqual(normalizeRecipePackPreferenceIds(data, 'quick-solo'), []);
+});
+
+test('getEnabledRecipePackIds falls back to defaults only when settings are missing or undefined', async () => {
+  const { getEnabledRecipePackIds } = await loadRecipePacksModule();
+
+  assert.deepEqual(getEnabledRecipePackIds(data), ['basic-home', 'quick-solo']);
+  assert.deepEqual(getEnabledRecipePackIds(data, {}), ['basic-home', 'quick-solo']);
+  assert.deepEqual(getEnabledRecipePackIds(data, { enabledRecipePackIds: undefined }), ['basic-home', 'quick-solo']);
+  assert.deepEqual(getEnabledRecipePackIds(data, { enabledRecipePackIds: 'quick-solo' }), ['basic-home', 'quick-solo']);
+});
+
+test('getEnabledRecipePackIds treats [] as user explicitly disabling all packs', async () => {
+  const { getEnabledRecipePackIds } = await loadRecipePacksModule();
+
+  assert.deepEqual(getEnabledRecipePackIds(data, { enabledRecipePackIds: [] }), []);
+  assert.deepEqual(getEnabledRecipePackIds(data, { enabledRecipePackIds: ['quick-solo'] }), ['quick-solo']);
+  assert.deepEqual(
+    getEnabledRecipePackIds(data, { enabledRecipePackIds: ['missing', 'quick-solo', 'quick-solo', 'basic-home'] }),
+    ['quick-solo', 'basic-home']
+  );
+});
+
+test('createRecipePackSettingsPatch normalizes ids and preserves explicit empty selection', async () => {
+  const { createRecipePackSettingsPatch } = await loadRecipePacksModule();
+
+  assert.deepEqual(createRecipePackSettingsPatch(data, ['missing', 'quick-solo', 'quick-solo']), {
+    enabledRecipePackIds: ['quick-solo']
+  });
+  assert.deepEqual(createRecipePackSettingsPatch(data, []), {
+    enabledRecipePackIds: []
+  });
+});
+
+test('getRecipesForSettings uses defaults, custom packs, and explicit empty selection', async () => {
+  const { getRecipesForSettings } = await loadRecipePacksModule();
+
+  const defaultRecipes = getRecipesForSettings(data);
+  assert.ok(defaultRecipes.length > 0);
+  assert.ok(defaultRecipes.every((recipe) => recipe.packs.some((packId) => ['basic-home', 'quick-solo'].includes(packId))));
+  assert.equal(defaultRecipes.length, new Set(defaultRecipes.map((recipe) => recipe.id)).size);
+
+  const quickSoloRecipes = getRecipesForSettings(data, { enabledRecipePackIds: ['quick-solo'] });
+  assert.ok(quickSoloRecipes.length > 0);
+  assert.ok(quickSoloRecipes.every((recipe) => recipe.packs.includes('quick-solo')));
+  assert.equal(quickSoloRecipes.length, new Set(quickSoloRecipes.map((recipe) => recipe.id)).size);
+
+  assert.deepEqual(getRecipesForSettings(data, { enabledRecipePackIds: [] }), []);
+});
+
 test('helpers handle invalid input safely', async () => {
   const {
     getRecipePacks,
@@ -107,6 +168,10 @@ test('helpers handle invalid input safely', async () => {
     getRecipePackById,
     getRecipesByEnabledPacks,
     getRecipesGroupedByPack,
+    normalizeRecipePackPreferenceIds,
+    getEnabledRecipePackIds,
+    createRecipePackSettingsPatch,
+    getRecipesForSettings,
     summarizeRecipePackData
   } = await loadRecipePacksModule();
 
@@ -119,6 +184,10 @@ test('helpers handle invalid input safely', async () => {
   assert.deepEqual(getRecipesByEnabledPacks(null, ['basic-home']), []);
   assert.deepEqual(getRecipesByEnabledPacks(data, null), []);
   assert.deepEqual(getRecipesGroupedByPack(null), {});
+  assert.deepEqual(normalizeRecipePackPreferenceIds(null, ['basic-home']), []);
+  assert.deepEqual(getEnabledRecipePackIds(null, { enabledRecipePackIds: ['basic-home'] }), []);
+  assert.deepEqual(createRecipePackSettingsPatch(null, ['basic-home']), { enabledRecipePackIds: [] });
+  assert.deepEqual(getRecipesForSettings(null, { enabledRecipePackIds: ['basic-home'] }), []);
   assert.deepEqual(summarizeRecipePackData(null), {
     packCount: 0,
     recipeCount: 0,

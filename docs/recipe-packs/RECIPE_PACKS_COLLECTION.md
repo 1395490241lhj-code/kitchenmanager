@@ -372,3 +372,22 @@ node scripts/validate-recipe-packs.js
 - 只把字段稳定、`reviewStatus` 合适的菜谱复制到 `data/recipe-packs.json`。
 - `data/recipe-packs.json` 中的每个 `recipe.packs` 必须引用顶层 `packs` 中已定义的 pack id。
 - 当前阶段不要把 `data/recipe-packs.json` 接入 App UI、推荐逻辑或设置页。
+
+## 16. Recipe Pack Preference Settings
+
+未来用户选择启用哪些菜谱包时，可以在现有 settings 数据中使用字段：
+
+```json
+{
+  "enabledRecipePackIds": ["basic-home", "quick-solo"]
+}
+```
+
+字段语义：
+
+- `enabledRecipePackIds` 不存在：使用 `data/recipe-packs.json` 中 `defaultEnabled: true` 的 pack。
+- `enabledRecipePackIds: undefined`：等同于字段不存在，使用默认 pack。
+- `enabledRecipePackIds: []`：用户明确关闭全部 recipe packs。
+- 非空数组：按用户选择启用 pack，并过滤不存在或重复的 pack id。
+
+当前这只是数据层 helper 约定，尚未接入设置页 UI，也不会影响现有推荐系统。
