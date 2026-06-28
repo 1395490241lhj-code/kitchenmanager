@@ -393,5 +393,15 @@ node scripts/validate-recipe-packs.js
 实现约束：
 
 - 该字段 merge 到现有 settings 对象，不新增 localStorage key。
-- 当前设置页只保存偏好，不调用 `getRecipesForSettings`，不会影响本地推荐、AI 推荐或今日推荐结果。
-- 后续阶段才会把 recipe pack preferences 用于推荐加权或候选池扩展。
+- 当前设置页只保存偏好，不调用 `getRecipesForSettings`，不会把 recipe pack recipes 合并进候选池。
+
+## 17. Recipe Pack Preference Scoring Hints
+
+Recipe pack preferences 当前只作为本地推荐的轻量 scoring hint：
+
+- 命中用户启用 pack 的现有推荐候选会获得很小的排序加分。
+- 未启用 pack 不会被降权，也不会被过滤。
+- 用户明确关闭全部 pack 时，不加分，但推荐结果不会变空。
+- `data/recipe-packs.json.recipes` 不会直接合并进现有推荐候选池。
+- 不影响 AI 推荐、今日计划、缺菜检测、买菜清单或饭后库存更新。
+- 未来阶段才会考虑把 formal recipe pack recipes 作为正式候选接入推荐系统。

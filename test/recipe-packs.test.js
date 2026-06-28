@@ -21,6 +21,8 @@ test('can import src/recipe-packs.js', async () => {
   assert.equal(typeof recipePacks.getEnabledRecipePackIds, 'function');
   assert.equal(typeof recipePacks.createRecipePackSettingsPatch, 'function');
   assert.equal(typeof recipePacks.getRecipesForSettings, 'function');
+  assert.equal(typeof recipePacks.buildRecipePackMetadataIndex, 'function');
+  assert.equal(typeof recipePacks.getRecipePackScoringHint, 'function');
   assert.equal(typeof recipePacks.summarizeRecipePackData, 'function');
 });
 
@@ -160,6 +162,58 @@ test('getRecipesForSettings uses defaults, custom packs, and explicit empty sele
   assert.deepEqual(getRecipesForSettings(data, { enabledRecipePackIds: [] }), []);
 });
 
+test('buildRecipePackMetadataIndex supports id and name lookup without mutating data', async () => {
+  const { buildRecipePackMetadataIndex } = await loadRecipePacksModule();
+  const index = buildRecipePackMetadataIndex(data);
+
+  assert.equal(index.byId.get('tomato-egg-stir-fry').name, '番茄炒蛋');
+  assert.equal(index.byName.get('番茄炒蛋').id, 'tomato-egg-stir-fry');
+  assert.equal(data.recipes.length, 20);
+});
+
+test('getRecipePackScoringHint gives a light bonus only for enabled pack matches', async () => {
+  const { buildRecipePackMetadataIndex, getRecipePackScoringHint } = await loadRecipePacksModule();
+  const index = buildRecipePackMetadataIndex(data);
+
+  const defaultHint = getRecipePackScoringHint(
+    { id: 'local-id', name: '番茄炒蛋' },
+    data,
+    {},
+    { index }
+  );
+  assert.equal(defaultHint.matched, true);
+  assert.deepEqual(defaultHint.matchedPackIds, ['basic-home']);
+  assert.deepEqual(defaultHint.enabledPackIds, ['basic-home', 'quick-solo']);
+  assert.equal(defaultHint.scoreBonus, 3);
+  assert.match(defaultHint.reason, /基础家常菜/);
+
+  const quickSoloHint = getRecipePackScoringHint(
+    { id: 'scallion-oil-noodles', name: '本地名称可不同' },
+    data,
+    { enabledRecipePackIds: ['quick-solo'] },
+    { index }
+  );
+  assert.equal(quickSoloHint.scoreBonus, 3);
+
+  const disabledHint = getRecipePackScoringHint(
+    { id: 'tomato-egg-stir-fry', name: '番茄炒蛋' },
+    data,
+    { enabledRecipePackIds: [] },
+    { index }
+  );
+  assert.equal(disabledHint.matched, true);
+  assert.equal(disabledHint.scoreBonus, 0);
+
+  const unmatchedHint = getRecipePackScoringHint(
+    { id: 'missing-local', name: '不存在的本地菜' },
+    data,
+    { enabledRecipePackIds: ['quick-solo'] },
+    { index }
+  );
+  assert.equal(unmatchedHint.matched, false);
+  assert.equal(unmatchedHint.scoreBonus, 0);
+});
+
 test('helpers handle invalid input safely', async () => {
   const {
     getRecipePacks,
@@ -172,6 +226,8 @@ test('helpers handle invalid input safely', async () => {
     getEnabledRecipePackIds,
     createRecipePackSettingsPatch,
     getRecipesForSettings,
+    buildRecipePackMetadataIndex,
+    getRecipePackScoringHint,
     summarizeRecipePackData
   } = await loadRecipePacksModule();
 
@@ -188,6 +244,14 @@ test('helpers handle invalid input safely', async () => {
   assert.deepEqual(getEnabledRecipePackIds(null, { enabledRecipePackIds: ['basic-home'] }), []);
   assert.deepEqual(createRecipePackSettingsPatch(null, ['basic-home']), { enabledRecipePackIds: [] });
   assert.deepEqual(getRecipesForSettings(null, { enabledRecipePackIds: ['basic-home'] }), []);
+  assert.equal(buildRecipePackMetadataIndex(null).byId.size, 0);
+  assert.deepEqual(getRecipePackScoringHint(null, null, null), {
+    matched: false,
+    matchedPackIds: [],
+    enabledPackIds: [],
+    scoreBonus: 0,
+    reason: null
+  });
   assert.deepEqual(summarizeRecipePackData(null), {
     packCount: 0,
     recipeCount: 0,

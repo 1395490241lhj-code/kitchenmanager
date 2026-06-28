@@ -15,6 +15,11 @@ import {
 import { addShoppingItem } from './shopping.js?v=222';
 import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=222';
 import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=222';
+import {
+  buildRecipePackMetadataIndex,
+  getEnabledRecipePackIds,
+  getRecipePackScoringHint
+} from './recipe-packs.js?v=222';
 export {
   buildGenericRecipeTemplateRecommendations,
   buildRecipeVariantRecommendations,
@@ -22,6 +27,42 @@ export {
   getGenericIngredientRecipeRecommendations,
   getRecipeVariantRecommendations
 } from './utils/recipe-variants.js?v=222';
+
+const RECIPE_PACK_SCORING_BONUS = 3;
+
+// Lightweight scoring bridge for formal recipe packs. This intentionally includes
+// only id/name/packs metadata and never contributes recipes to the recommendation pool.
+const RECIPE_PACK_SCORING_DATA = {
+  packs: [
+    { id: 'basic-home', name: '基础家常菜', defaultEnabled: true },
+    { id: 'quick-solo', name: '快手一人食', defaultEnabled: true },
+    { id: 'light-healthy', name: '清淡少油', defaultEnabled: false },
+    { id: 'spicy-sichuan-hunan', name: '川湘辣味', defaultEnabled: false },
+    { id: 'high-protein', name: '健身高蛋白', defaultEnabled: false }
+  ],
+  recipes: [
+    { id: 'tomato-egg-stir-fry', name: '番茄炒蛋', packs: ['basic-home'] },
+    { id: 'tomato-egg-noodles', name: '番茄鸡蛋面', packs: ['basic-home', 'quick-solo'] },
+    { id: 'green-pepper-pork', name: '青椒肉丝', packs: ['basic-home'] },
+    { id: 'potato-shreds', name: '土豆丝', packs: ['basic-home'] },
+    { id: 'mapo-tofu', name: '麻婆豆腐', packs: ['basic-home', 'spicy-sichuan-hunan'] },
+    { id: 'kung-pao-chicken', name: '宫保鸡丁', packs: ['basic-home', 'spicy-sichuan-hunan'] },
+    { id: 'chicken-curry-rice', name: '咖喱鸡肉饭', packs: ['basic-home', 'quick-solo'] },
+    { id: 'teriyaki-chicken-rice', name: '照烧鸡腿饭', packs: ['basic-home', 'quick-solo'] },
+    { id: 'beef-roll-rice-bowl', name: '肥牛饭', packs: ['quick-solo'] },
+    { id: 'kimchi-fried-rice', name: '韩式泡菜炒饭', packs: ['quick-solo'] },
+    { id: 'scallion-oil-noodles', name: '葱油拌面', packs: ['quick-solo'] },
+    { id: 'tomato-tofu-soup', name: '番茄豆腐汤', packs: ['light-healthy'] },
+    { id: 'steamed-egg-custard', name: '蒸蛋羹', packs: ['basic-home', 'light-healthy'] },
+    { id: 'salmon-quinoa-bowl', name: '三文鱼藜麦碗', packs: ['light-healthy', 'high-protein'] },
+    { id: 'shrimp-scrambled-eggs', name: '虾仁炒蛋', packs: ['basic-home', 'quick-solo', 'high-protein'] },
+    { id: 'garlic-broccoli', name: '蒜蓉西兰花', packs: ['basic-home', 'light-healthy'] },
+    { id: 'napa-tofu-soup', name: '白菜豆腐汤', packs: ['basic-home', 'light-healthy'] },
+    { id: 'onion-beef-stir-fry', name: '洋葱炒牛肉', packs: ['basic-home', 'quick-solo', 'high-protein'] },
+    { id: 'pan-seared-salmon-rice', name: '煎三文鱼饭', packs: ['high-protein', 'light-healthy', 'quick-solo'] },
+    { id: 'chicken-quinoa-bowl', name: '鸡肉藜麦碗', packs: ['high-protein', 'light-healthy'] }
+  ]
+};
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
   const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
@@ -39,6 +80,34 @@ function normalizeRecommendationSet(value) {
   if (value instanceof Set) return value;
   if (Array.isArray(value)) return new Set(value);
   return new Set();
+}
+
+function getRecipePackPreferenceScoringContext(context = {}) {
+  const safeContext = context && typeof context === 'object' ? context : {};
+  if (safeContext.recipePackPreferenceScoring) return safeContext.recipePackPreferenceScoring;
+
+  const data = safeContext.recipePackData || RECIPE_PACK_SCORING_DATA;
+  const settings = Object.prototype.hasOwnProperty.call(safeContext, 'settings')
+    ? safeContext.settings
+    : S.load(S.keys.settings, {});
+  const enabledPackIds = Array.isArray(safeContext.enabledRecipePackIds)
+    ? getEnabledRecipePackIds(data, { enabledRecipePackIds: safeContext.enabledRecipePackIds })
+    : getEnabledRecipePackIds(data, settings);
+
+  return {
+    data,
+    enabledPackIds,
+    index: safeContext.recipePackMetadataIndex || buildRecipePackMetadataIndex(data)
+  };
+}
+
+function getRecipePackPreferenceHint(recipe, context = {}) {
+  const scoring = getRecipePackPreferenceScoringContext(context);
+  return getRecipePackScoringHint(recipe, scoring.data, null, {
+    index: scoring.index,
+    enabledPackIds: scoring.enabledPackIds,
+    bonus: RECIPE_PACK_SCORING_BONUS
+  });
 }
 
 function getPlanIds(context = {}) {
@@ -338,6 +407,9 @@ export function explainRecipeScore(scoreResult) {
   if (scoreResult.cookedCount > 0) {
     explain.push(`做过 ${scoreResult.cookedCount} 次，轻微加分`);
   }
+  if (scoreResult.recipePackPreference && scoreResult.recipePackPreference.reason) {
+    explain.push(scoreResult.recipePackPreference.reason);
+  }
   if (scoreResult.hasMethod) explain.push('有完整做法');
   else explain.push('缺少做法，已降权');
 
@@ -515,7 +587,11 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
         .map(name => ({ canonical: name, candidates: [name] }));
   if (!descriptors.length) return [];
 
-  const context = options.context || getRecommendationContext();
+  const baseContext = options.context || getRecommendationContext();
+  const context = {
+    ...baseContext,
+    recipePackPreferenceScoring: getRecipePackPreferenceScoringContext(baseContext)
+  };
   const limit = options.limit || 6;
 
   return (pack.recipes || [])
@@ -619,6 +695,7 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
   const isPlanned = isPlannedToday || isPlannedFuture;
 
   const recentDays = daysSince(activity.cookedAt, today);
+  const recipePackHint = getRecipePackPreferenceHint(recipe, context);
 
   let score = 0;
   const scoreParts = {};
@@ -626,6 +703,7 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
   if (analysis.totalCore === 0) {
     score = -999;
     scoreParts.noCorePenalty = -999;
+    scoreParts.recipePackPreferenceBonus = 0;
   } else {
     scoreParts.coverage = analysis.coverage * 100;
     scoreParts.missingPenalty = analysis.missing.length * -18;
@@ -649,6 +727,7 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     else scoreParts.recentPenalty = 0;
 
     scoreParts.cookedCountBonus = Math.min(6, (activity.cookedCount || 0) * 1.5);
+    scoreParts.recipePackPreferenceBonus = recipePackHint.scoreBonus;
 
     score = Object.values(scoreParts).reduce((sum, value) => sum + value, 0);
   }
@@ -677,6 +756,7 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     isPlannedFuture,
     recentDays,
     cookedCount: activity.cookedCount || 0,
+    recipePackPreference: recipePackHint,
     scoreParts
   };
   result.explain = explainRecipeScore(result);
@@ -685,8 +765,12 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
 }
 
 export function rankRecipesForRecommendation(pack, inv, context = {}) {
+  const scoringContext = {
+    ...context,
+    recipePackPreferenceScoring: getRecipePackPreferenceScoringContext(context)
+  };
   const scored = (pack.recipes || [])
-    .map(recipe => scoreRecipe(recipe, pack, inv, context))
+    .map(recipe => scoreRecipe(recipe, pack, inv, scoringContext))
     .filter(result => result.totalCore > 0);
 
   const effectiveMatches = scored.filter(result => result.matchCount > 0 || (result.uncertain && result.uncertain.length > 0));
@@ -717,6 +801,10 @@ export function buildRecommendationSignature(pack, inv, context) {
   })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
   const safeFavorites = (context.favoriteIds || []).slice().sort();
+  const safeRecipePackPreferences = getRecipePackPreferenceScoringContext(context)
+    .enabledPackIds
+    .slice()
+    .sort();
 
   const activityData = context.recipeActivity || context.recipe_activity || loadRecipeActivity();
   const safeActivity = Object.entries(activityData)
@@ -738,6 +826,7 @@ export function buildRecommendationSignature(pack, inv, context) {
     inv: safeInv,
     plan: safePlan,
     fav: safeFavorites,
+    recipePackPrefs: safeRecipePackPreferences,
     activity: safeActivity,
     recCount: recipesCount,
     ingSum: ingSummary
@@ -749,6 +838,7 @@ function getRecommendationContext() {
     favoriteIds: loadFavoriteRecipeIds(),
     recipeActivity: loadRecipeActivity(),
     plan: S.load(S.keys.plan, []),
+    settings: S.load(S.keys.settings, {}),
     today: todayISO()
   };
 }
@@ -1014,7 +1104,11 @@ export function processAiData(aiResult, pack) {
 
 export function getCleanFridgeRecommendations(pack, inv, context = {}) {
   const today = context.today || todayISO();
-  const safeContext = { ...context, today };
+  const baseContext = { ...context, today };
+  const safeContext = {
+    ...baseContext,
+    recipePackPreferenceScoring: getRecipePackPreferenceScoringContext(baseContext)
+  };
   
   // 1. Find priority items
   const priorityItems = (inv || []).filter(item => {

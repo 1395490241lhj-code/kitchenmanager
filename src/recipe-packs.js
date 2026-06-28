@@ -7,6 +7,10 @@ function hasPackId(recipe, enabledPackIds) {
   return recipePacks.some((packId) => enabledPackIds.has(packId));
 }
 
+function cleanString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 export function getRecipePacks(data) {
   return asArray(data && data.packs);
 }
@@ -100,6 +104,59 @@ export function createRecipePackSettingsPatch(data, enabledPackIds) {
 
 export function getRecipesForSettings(data, settings) {
   return getRecipesByEnabledPacks(data, getEnabledRecipePackIds(data, settings));
+}
+
+export function buildRecipePackMetadataIndex(data) {
+  const byId = new Map();
+  const byName = new Map();
+
+  for (const recipe of getRecipePackRecipes(data)) {
+    const id = cleanString(recipe && recipe.id);
+    const name = cleanString(recipe && recipe.name);
+    if (id) byId.set(id, recipe);
+    if (name) byName.set(name, recipe);
+  }
+
+  return { byId, byName };
+}
+
+export function getRecipePackScoringHint(recipe, data, settings, options = {}) {
+  const index = options.index || buildRecipePackMetadataIndex(data);
+  const enabledPackIds = Array.isArray(options.enabledPackIds)
+    ? normalizeRecipePackPreferenceIds(data, options.enabledPackIds)
+    : getEnabledRecipePackIds(data, settings);
+  const bonus = Number.isFinite(options.bonus) ? options.bonus : 3;
+  const id = cleanString(recipe && recipe.id);
+  const name = cleanString(recipe && recipe.name);
+  const metadata = (id && index.byId?.get(id)) || (name && index.byName?.get(name)) || null;
+
+  if (!metadata) {
+    return {
+      matched: false,
+      matchedPackIds: [],
+      enabledPackIds,
+      scoreBonus: 0,
+      reason: null
+    };
+  }
+
+  const matchedPackIds = normalizeRecipePackPreferenceIds(data, asArray(metadata.packs));
+  const enabledSet = new Set(enabledPackIds);
+  const enabledMatches = matchedPackIds.filter(packId => enabledSet.has(packId));
+  const packNames = getRecipePacks(data)
+    .filter(pack => enabledMatches.includes(pack.id))
+    .map(pack => pack.name)
+    .filter(Boolean);
+
+  return {
+    matched: true,
+    matchedPackIds,
+    enabledPackIds,
+    scoreBonus: enabledMatches.length ? bonus : 0,
+    reason: enabledMatches.length
+      ? `符合你的菜谱偏好：${packNames.join('、') || enabledMatches.join('、')}`
+      : null
+  };
 }
 
 export function summarizeRecipePackData(data) {

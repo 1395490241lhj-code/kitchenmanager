@@ -726,6 +726,7 @@ flowchart TD
 - 失败时不要让用户卡死，要给下一步。
 - 文案要温和、具体、少技术词。
 - 移动端优先，深色和浅色都必须可读。
+- Recipe pack preferences 当前只作为本地推荐的轻量排序提示；formal recipe pack recipes 尚未合并进推荐候选池。
 
 ## 16. Future Roadmap
 
