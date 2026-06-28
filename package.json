@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "validate:recipe-packs": "node scripts/validate-recipe-pack-samples.js"
+    "validate:recipe-packs": "node scripts/validate-recipe-pack-samples.js",
+    "validate:recipe-pack-data": "node scripts/validate-recipe-packs.js"
   },
   "engines": {
     "node": ">=18"

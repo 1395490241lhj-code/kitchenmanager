@@ -345,3 +345,30 @@ validator 会检查：
 有 error 时脚本会 `process.exit(1)`；只有 warning 时会通过，但需要人工判断是否要修正。
 
 注意：`legacy` 可用于未来标记旧菜谱数据，但 `recipe-pack-samples.json` 是候选样例池，validator 只允许 `draft`、`review-needed`、`approved`。
+
+## 15. Formal Recipe Pack Data Layer
+
+`docs/recipe-packs/recipe-pack-samples.json` 是 draft 样例池，用于采集、试写和 QA recipe metadata。它不应直接作为 App 的正式数据源。
+
+`data/recipe-packs.json` 是未来 App 使用的正式 recipe packs 数据源，包含 pack definitions 和经过初步筛选的 recipes。当前正式数据源仍未接入 App、设置页或推荐系统。
+
+新增或调整 recipe pack 数据后需要运行：
+
+```bash
+npm run validate:recipe-packs
+npm run validate:recipe-pack-data
+```
+
+也可以直接运行：
+
+```bash
+node scripts/validate-recipe-pack-samples.js
+node scripts/validate-recipe-packs.js
+```
+
+数据维护原则：
+
+- 先在 sample 文件里扩展和 QA。
+- 只把字段稳定、`reviewStatus` 合适的菜谱复制到 `data/recipe-packs.json`。
+- `data/recipe-packs.json` 中的每个 `recipe.packs` 必须引用顶层 `packs` 中已定义的 pack id。
+- 当前阶段不要把 `data/recipe-packs.json` 接入 App UI、推荐逻辑或设置页。

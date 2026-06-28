@@ -1,0 +1,1008 @@
+{
+  "version": 1,
+  "status": "experimental",
+  "notes": "Formal recipe pack data. Not yet connected to the app recommendation flow.",
+  "packs": [
+    {
+      "id": "basic-home",
+      "name": "基础家常菜",
+      "description": "日常家庭做饭、常见中式家常菜、食材容易购买",
+      "defaultEnabled": true
+    },
+    {
+      "id": "quick-solo",
+      "name": "快手一人食",
+      "description": "一人吃饭、下班快速解决、步骤少、出餐快",
+      "defaultEnabled": true
+    },
+    {
+      "id": "light-healthy",
+      "name": "清淡少油",
+      "description": "清爽、低油、汤菜、蒸煮烤为主",
+      "defaultEnabled": false
+    },
+    {
+      "id": "spicy-sichuan-hunan",
+      "name": "川湘辣味",
+      "description": "辣味、豆瓣酱、泡椒、剁椒、重口味下饭菜",
+      "defaultEnabled": false
+    },
+    {
+      "id": "high-protein",
+      "name": "健身高蛋白",
+      "description": "鸡胸、鱼虾、牛肉、豆制品、蛋类、适合备餐",
+      "defaultEnabled": false
+    }
+  ],
+  "recipes": [
+    {
+      "id": "tomato-egg-stir-fry",
+      "name": "番茄炒蛋",
+      "packs": [
+        "basic-home"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "quick",
+        "rice",
+        "lunchbox"
+      ],
+      "coreIngredients": [
+        "番茄",
+        "鸡蛋"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "葱"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "糖",
+        "生抽"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 15,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "medium",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common home-style dish; structure rewritten for Kitchen Manager.",
+      "reviewStatus": "draft",
+      "cookingNotes": "先炒蛋盛出，再炒番茄出汁，最后合炒调味。"
+    },
+    {
+      "id": "tomato-egg-noodles",
+      "name": "番茄鸡蛋面",
+      "packs": [
+        "basic-home",
+        "quick-solo"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "quick",
+        "solo",
+        "noodle"
+      ],
+      "coreIngredients": [
+        "番茄",
+        "鸡蛋"
+      ],
+      "stapleIngredients": [
+        "面条"
+      ],
+      "optionalIngredients": [
+        "青菜",
+        "葱"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "生抽",
+        "白胡椒粉"
+      ],
+      "equipment": [
+        "stove",
+        "pot",
+        "pan"
+      ],
+      "timeMinutes": 20,
+      "difficulty": "easy",
+      "servings": 1,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": false,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common noodle meal; simplified for quick solo cooking.",
+      "reviewStatus": "draft",
+      "cookingNotes": "番茄炒出汤汁后加水煮面，最后加入炒蛋和青菜。"
+    },
+    {
+      "id": "green-pepper-pork",
+      "name": "青椒肉丝",
+      "packs": [
+        "basic-home"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "quick",
+        "rice",
+        "lunchbox"
+      ],
+      "coreIngredients": [
+        "猪肉",
+        "青椒"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "胡萝卜",
+        "洋葱"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "生抽",
+        "料酒",
+        "淀粉"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 25,
+      "difficulty": "medium",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "mild",
+      "oilLevel": "medium",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common home-style stir-fry; ingredient set adapted for supermarket availability.",
+      "reviewStatus": "draft",
+      "cookingNotes": "肉丝先腌后快炒，青椒断生后合炒调味。"
+    },
+    {
+      "id": "potato-shreds",
+      "name": "土豆丝",
+      "packs": [
+        "basic-home"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "quick",
+        "vegetarian-friendly",
+        "rice"
+      ],
+      "coreIngredients": [
+        "土豆"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "青椒",
+        "胡萝卜"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "醋",
+        "生抽"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 20,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "medium",
+      "proteinLevel": "low",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common home-style vegetable dish; kept as a plain non-spicy base version.",
+      "reviewStatus": "draft",
+      "cookingNotes": "土豆丝冲洗去淀粉，急火快炒并用醋保持清爽口感。"
+    },
+    {
+      "id": "mapo-tofu",
+      "name": "麻婆豆腐",
+      "packs": [
+        "basic-home",
+        "spicy-sichuan-hunan"
+      ],
+      "cuisine": [
+        "sichuan"
+      ],
+      "tags": [
+        "spicy",
+        "rice"
+      ],
+      "coreIngredients": [
+        "豆腐",
+        "肉末"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "葱"
+      ],
+      "flavorIngredients": [
+        "豆瓣酱",
+        "花椒"
+      ],
+      "seasonings": [
+        "生抽",
+        "糖",
+        "淀粉"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 25,
+      "difficulty": "medium",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "medium",
+      "oilLevel": "medium",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Classic common dish; method summarized in original wording.",
+      "reviewStatus": "draft",
+      "cookingNotes": "炒香豆瓣酱和肉末，加豆腐轻推入味，最后勾薄芡。"
+    },
+    {
+      "id": "kung-pao-chicken",
+      "name": "宫保鸡丁",
+      "packs": [
+        "basic-home",
+        "spicy-sichuan-hunan"
+      ],
+      "cuisine": [
+        "sichuan"
+      ],
+      "tags": [
+        "spicy",
+        "rice",
+        "lunchbox"
+      ],
+      "coreIngredients": [
+        "鸡肉",
+        "花生"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "黄瓜",
+        "青椒"
+      ],
+      "flavorIngredients": [
+        "干辣椒",
+        "花椒"
+      ],
+      "seasonings": [
+        "生抽",
+        "醋",
+        "糖",
+        "淀粉"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 30,
+      "difficulty": "medium",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "medium",
+      "oilLevel": "medium",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common restaurant and home dish; simplified for ordinary kitchens.",
+      "reviewStatus": "draft",
+      "cookingNotes": "鸡丁腌好滑炒，和配菜、花生、酸甜咸口酱汁快速合炒。"
+    },
+    {
+      "id": "chicken-curry-rice",
+      "name": "咖喱鸡肉饭",
+      "packs": [
+        "basic-home",
+        "quick-solo"
+      ],
+      "cuisine": [
+        "japanese-home"
+      ],
+      "tags": [
+        "rice",
+        "one-pot",
+        "lunchbox"
+      ],
+      "coreIngredients": [
+        "鸡肉",
+        "土豆",
+        "胡萝卜"
+      ],
+      "stapleIngredients": [
+        "米饭"
+      ],
+      "optionalIngredients": [
+        "洋葱",
+        "豌豆"
+      ],
+      "flavorIngredients": [
+        "咖喱块"
+      ],
+      "seasonings": [
+        "盐",
+        "黑胡椒粉"
+      ],
+      "equipment": [
+        "stove",
+        "pot",
+        "rice-cooker"
+      ],
+      "timeMinutes": 35,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "mild",
+      "oilLevel": "medium",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common boxed-curry meal; ingredient list uses widely available items.",
+      "reviewStatus": "draft",
+      "cookingNotes": "鸡肉和蔬菜炒香后加水煮软，关小火融入咖喱块。"
+    },
+    {
+      "id": "teriyaki-chicken-rice",
+      "name": "照烧鸡腿饭",
+      "packs": [
+        "basic-home",
+        "quick-solo"
+      ],
+      "cuisine": [
+        "japanese-home"
+      ],
+      "tags": [
+        "quick",
+        "rice",
+        "lunchbox"
+      ],
+      "coreIngredients": [
+        "鸡腿肉"
+      ],
+      "stapleIngredients": [
+        "米饭"
+      ],
+      "optionalIngredients": [
+        "西兰花",
+        "胡萝卜"
+      ],
+      "flavorIngredients": [
+        "照烧汁"
+      ],
+      "seasonings": [
+        "盐",
+        "黑胡椒粉"
+      ],
+      "equipment": [
+        "stove",
+        "pan",
+        "rice-cooker"
+      ],
+      "timeMinutes": 30,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "medium",
+      "proteinLevel": "high",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common rice bowl style; sauce can be store-bought or homemade.",
+      "reviewStatus": "draft",
+      "cookingNotes": "鸡腿肉煎熟后裹照烧汁，配米饭和焯烫蔬菜。"
+    },
+    {
+      "id": "beef-roll-rice-bowl",
+      "name": "肥牛饭",
+      "packs": [
+        "quick-solo"
+      ],
+      "cuisine": [
+        "japanese-home"
+      ],
+      "tags": [
+        "quick",
+        "solo",
+        "rice"
+      ],
+      "coreIngredients": [
+        "肥牛卷",
+        "洋葱"
+      ],
+      "stapleIngredients": [
+        "米饭"
+      ],
+      "optionalIngredients": [
+        "鸡蛋",
+        "葱"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "生抽",
+        "糖",
+        "料酒"
+      ],
+      "equipment": [
+        "stove",
+        "pan",
+        "rice-cooker"
+      ],
+      "timeMinutes": 20,
+      "difficulty": "easy",
+      "servings": 1,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "high",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common quick rice bowl; adapted for frozen beef rolls often sold in Asian groceries.",
+      "reviewStatus": "draft",
+      "cookingNotes": "洋葱煮软后加入肥牛卷和调味汁，盖在米饭上。"
+    },
+    {
+      "id": "kimchi-fried-rice",
+      "name": "韩式泡菜炒饭",
+      "packs": [
+        "quick-solo"
+      ],
+      "cuisine": [
+        "korean-home"
+      ],
+      "tags": [
+        "quick",
+        "solo",
+        "rice",
+        "spicy"
+      ],
+      "coreIngredients": [
+        "鸡蛋"
+      ],
+      "stapleIngredients": [
+        "米饭"
+      ],
+      "optionalIngredients": [
+        "火腿",
+        "葱",
+        "海苔"
+      ],
+      "flavorIngredients": [
+        "泡菜"
+      ],
+      "seasonings": [
+        "生抽",
+        "糖"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 15,
+      "difficulty": "easy",
+      "servings": 1,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": true,
+      "spicyLevel": "mild",
+      "oilLevel": "medium",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common fried rice variation; uses store-bought kimchi.",
+      "reviewStatus": "draft",
+      "cookingNotes": "先炒泡菜和米饭，最后加鸡蛋或煎蛋补蛋白。"
+    },
+    {
+      "id": "scallion-oil-noodles",
+      "name": "葱油拌面",
+      "packs": [
+        "quick-solo"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "quick",
+        "solo",
+        "noodle",
+        "vegetarian-friendly"
+      ],
+      "coreIngredients": [],
+      "stapleIngredients": [
+        "面条"
+      ],
+      "optionalIngredients": [
+        "鸡蛋",
+        "青菜",
+        "葱"
+      ],
+      "flavorIngredients": [
+        "葱油"
+      ],
+      "seasonings": [
+        "生抽",
+        "老抽",
+        "糖"
+      ],
+      "equipment": [
+        "stove",
+        "pot",
+        "pan"
+      ],
+      "timeMinutes": 15,
+      "difficulty": "easy",
+      "servings": 1,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": false,
+      "spicyLevel": "none",
+      "oilLevel": "medium",
+      "proteinLevel": "low",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common quick noodle dish; sauce summarized without copying any recipe text.",
+      "reviewStatus": "draft",
+      "cookingNotes": "小火熬葱油和酱汁，拌入煮好的面条。"
+    },
+    {
+      "id": "tomato-tofu-soup",
+      "name": "番茄豆腐汤",
+      "packs": [
+        "light-healthy"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "soup",
+        "low-oil",
+        "vegetarian-friendly"
+      ],
+      "coreIngredients": [
+        "番茄",
+        "豆腐"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "鸡蛋",
+        "青菜",
+        "金针菇"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "白胡椒粉"
+      ],
+      "equipment": [
+        "stove",
+        "pot"
+      ],
+      "timeMinutes": 20,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": false,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common light soup; designed as a low-oil option.",
+      "reviewStatus": "draft",
+      "cookingNotes": "番茄煮出酸甜汤底，再加入豆腐和可选蔬菜。"
+    },
+    {
+      "id": "steamed-egg-custard",
+      "name": "蒸蛋羹",
+      "packs": [
+        "basic-home",
+        "light-healthy"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "low-oil"
+      ],
+      "coreIngredients": [
+        "鸡蛋"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "虾仁",
+        "葱"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "生抽",
+        "香油"
+      ],
+      "equipment": [
+        "stove",
+        "pot",
+        "steamer"
+      ],
+      "timeMinutes": 20,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": false,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common home-style steamed egg dish.",
+      "reviewStatus": "draft",
+      "cookingNotes": "蛋液加温水过滤后蒸熟，出锅少量调味。"
+    },
+    {
+      "id": "salmon-quinoa-bowl",
+      "name": "三文鱼藜麦碗",
+      "packs": [
+        "light-healthy",
+        "high-protein"
+      ],
+      "cuisine": [
+        "western-light"
+      ],
+      "tags": [
+        "high-protein",
+        "low-oil",
+        "meal-prep"
+      ],
+      "coreIngredients": [
+        "三文鱼",
+        "西兰花"
+      ],
+      "stapleIngredients": [
+        "藜麦"
+      ],
+      "optionalIngredients": [
+        "牛油果",
+        "玉米",
+        "小番茄"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "黑胡椒粉",
+        "柠檬汁"
+      ],
+      "equipment": [
+        "stove",
+        "pan",
+        "pot"
+      ],
+      "timeMinutes": 35,
+      "difficulty": "medium",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "high",
+      "sourceType": "common-dish",
+      "sourceNotes": "Modern healthy bowl concept using ingredients common in Canadian supermarkets.",
+      "reviewStatus": "draft",
+      "cookingNotes": "三文鱼煎熟，配煮好的藜麦和焯烫或烤蔬菜。"
+    },
+    {
+      "id": "shrimp-scrambled-eggs",
+      "name": "虾仁炒蛋",
+      "packs": [
+        "basic-home",
+        "quick-solo",
+        "high-protein"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "quick",
+        "high-protein",
+        "rice"
+      ],
+      "coreIngredients": [
+        "虾仁",
+        "鸡蛋"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "葱",
+        "豌豆"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "白胡椒粉",
+        "料酒"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 15,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "medium",
+      "proteinLevel": "high",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common home-style dish using frozen shrimp that is widely available in Canadian supermarkets.",
+      "reviewStatus": "draft",
+      "cookingNotes": "虾仁先滑熟，倒入蛋液轻推成块，保持嫩度后出锅。"
+    },
+    {
+      "id": "garlic-broccoli",
+      "name": "蒜蓉西兰花",
+      "packs": [
+        "basic-home",
+        "light-healthy"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "quick",
+        "low-oil",
+        "vegetarian-friendly"
+      ],
+      "coreIngredients": [
+        "西兰花"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "胡萝卜"
+      ],
+      "flavorIngredients": [
+        "蒜"
+      ],
+      "seasonings": [
+        "盐",
+        "生抽"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 15,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": false,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "low",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common home-style vegetable dish; structure rewritten for Kitchen Manager.",
+      "reviewStatus": "draft",
+      "cookingNotes": "西兰花焯到断生，再和蒜香调味快速翻匀。"
+    },
+    {
+      "id": "napa-tofu-soup",
+      "name": "白菜豆腐汤",
+      "packs": [
+        "basic-home",
+        "light-healthy"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "soup",
+        "low-oil",
+        "vegetarian-friendly"
+      ],
+      "coreIngredients": [
+        "白菜",
+        "豆腐"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "粉丝",
+        "香菇"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "白胡椒粉"
+      ],
+      "equipment": [
+        "stove",
+        "pot"
+      ],
+      "timeMinutes": 20,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": false,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "medium",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common light soup; adapted for easy supermarket ingredients.",
+      "reviewStatus": "draft",
+      "cookingNotes": "白菜煮软后加入豆腐，小火煮到汤味清甜再调味。"
+    },
+    {
+      "id": "onion-beef-stir-fry",
+      "name": "洋葱炒牛肉",
+      "packs": [
+        "basic-home",
+        "quick-solo",
+        "high-protein"
+      ],
+      "cuisine": [
+        "chinese-home"
+      ],
+      "tags": [
+        "quick",
+        "rice",
+        "high-protein"
+      ],
+      "coreIngredients": [
+        "牛肉",
+        "洋葱"
+      ],
+      "stapleIngredients": [],
+      "optionalIngredients": [
+        "青椒"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "生抽",
+        "料酒",
+        "黑胡椒粉",
+        "淀粉"
+      ],
+      "equipment": [
+        "stove",
+        "wok"
+      ],
+      "timeMinutes": 20,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "medium",
+      "proteinLevel": "high",
+      "sourceType": "common-dish",
+      "sourceNotes": "Common quick home-style stir-fry; adapted for thin-sliced beef or sirloin.",
+      "reviewStatus": "draft",
+      "cookingNotes": "牛肉腌后快炒至变色，洋葱炒甜后合炒调味。"
+    },
+    {
+      "id": "pan-seared-salmon-rice",
+      "name": "煎三文鱼饭",
+      "packs": [
+        "high-protein",
+        "light-healthy",
+        "quick-solo"
+      ],
+      "cuisine": [
+        "western-light"
+      ],
+      "tags": [
+        "high-protein",
+        "rice",
+        "meal-prep"
+      ],
+      "coreIngredients": [
+        "三文鱼"
+      ],
+      "stapleIngredients": [
+        "米饭"
+      ],
+      "optionalIngredients": [
+        "西兰花",
+        "玉米",
+        "小番茄"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "黑胡椒粉",
+        "柠檬汁"
+      ],
+      "equipment": [
+        "stove",
+        "pan",
+        "rice-cooker"
+      ],
+      "timeMinutes": 30,
+      "difficulty": "easy",
+      "servings": 1,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "high",
+      "sourceType": "common-dish",
+      "sourceNotes": "High-protein rice bowl concept using salmon commonly sold in Canadian supermarkets.",
+      "reviewStatus": "draft",
+      "cookingNotes": "三文鱼简单煎熟，搭配米饭和蔬菜做成饭碗。"
+    },
+    {
+      "id": "chicken-quinoa-bowl",
+      "name": "鸡肉藜麦碗",
+      "packs": [
+        "high-protein",
+        "light-healthy"
+      ],
+      "cuisine": [
+        "western-light"
+      ],
+      "tags": [
+        "high-protein",
+        "meal-prep",
+        "low-oil"
+      ],
+      "coreIngredients": [
+        "鸡胸肉",
+        "西兰花"
+      ],
+      "stapleIngredients": [
+        "藜麦"
+      ],
+      "optionalIngredients": [
+        "玉米",
+        "小番茄",
+        "牛油果"
+      ],
+      "flavorIngredients": [],
+      "seasonings": [
+        "盐",
+        "黑胡椒粉",
+        "柠檬汁"
+      ],
+      "equipment": [
+        "stove",
+        "pan",
+        "pot"
+      ],
+      "timeMinutes": 35,
+      "difficulty": "easy",
+      "servings": 2,
+      "leftoverFriendly": true,
+      "lunchboxFriendly": true,
+      "spicyLevel": "none",
+      "oilLevel": "low",
+      "proteinLevel": "high",
+      "sourceType": "common-dish",
+      "sourceNotes": "High-protein bowl concept; simplified for Kitchen Manager.",
+      "reviewStatus": "draft",
+      "cookingNotes": "鸡胸肉煎熟切片，和藜麦、蔬菜组合成可备餐的碗。"
+    }
+  ]
+}
