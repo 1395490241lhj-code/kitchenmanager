@@ -31,6 +31,17 @@ test('默认区域显示内置 AI 状态和测试按钮', () => {
   assert.match(source, /fetch\('\/api\/ai-status', \{ cache: 'no-store' \}\)/);
 });
 
+test('设置页显示菜谱偏好但不接入推荐结果', () => {
+  const source = read('src/views/settings-view.js');
+
+  assert.match(source, /<div class="settings-group-label">菜谱偏好<\/div>/);
+  assert.match(source, /当前只是保存偏好，不会改变推荐结果/);
+  assert.match(source, /data-recipe-pack-id/);
+  assert.match(source, /createRecipePackSettingsPatch/);
+  assert.match(source, /enabledRecipePackIds/);
+  assert.doesNotMatch(source, /getRecipesForSettings/);
+});
+
 test('API Base URL 和文本模型字段只位于 BYOK 高级区域', () => {
   const source = read('src/views/settings-view.js');
   const byokBox = source.indexOf('id="byokAiBox"');

@@ -3,6 +3,7 @@ import { CUSTOM_AI } from '../config.js?v=222';
 import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=223';
 import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=223';
 import { getSavedTheme, saveTheme } from '../theme.js?v=222';
+import { createRecipePackSettingsPatch, getDefaultEnabledRecipePackIds, getEnabledRecipePackIds, getRecipePacks } from '../recipe-packs.js?v=222';
 
 // 渐进式展现：「高级与数据设置」面板的展开状态，记忆在模块作用域（同次会话内保持）。
 let advancedOpen = false;
@@ -12,6 +13,77 @@ const THEME_OPTIONS = [
   { key: 'light', label: '浅色' },
   { key: 'dark', label: '深色' }
 ];
+
+// Temporary UI bridge: keep this pack definition list aligned with data/recipe-packs.json
+// until the browser app has a single JSON data loading path for formal recipe pack data.
+const RECIPE_PACK_PREFERENCE_DATA = {
+  packs: [
+    {
+      id: 'basic-home',
+      name: '基础家常菜',
+      description: '日常家庭做饭、常见中式家常菜、食材容易购买',
+      defaultEnabled: true
+    },
+    {
+      id: 'quick-solo',
+      name: '快手一人食',
+      description: '一人吃饭、下班快速解决、步骤少、出餐快',
+      defaultEnabled: true
+    },
+    {
+      id: 'light-healthy',
+      name: '清淡少油',
+      description: '清爽、低油、汤菜、蒸煮烤为主',
+      defaultEnabled: false
+    },
+    {
+      id: 'spicy-sichuan-hunan',
+      name: '川湘辣味',
+      description: '辣味、豆瓣酱、泡椒、剁椒、重口味下饭菜',
+      defaultEnabled: false
+    },
+    {
+      id: 'high-protein',
+      name: '健身高蛋白',
+      description: '鸡胸、鱼虾、牛肉、豆制品、蛋类、适合备餐',
+      defaultEnabled: false
+    }
+  ],
+  recipes: []
+};
+
+function renderRecipePackPreferenceOptions(settings) {
+  const enabledPackIds = new Set(getEnabledRecipePackIds(RECIPE_PACK_PREFERENCE_DATA, settings));
+  const defaultPackNames = getRecipePacks(RECIPE_PACK_PREFERENCE_DATA)
+    .filter(pack => getDefaultEnabledRecipePackIds(RECIPE_PACK_PREFERENCE_DATA).includes(pack.id))
+    .map(pack => pack.name)
+    .join('、');
+
+  const rows = getRecipePacks(RECIPE_PACK_PREFERENCE_DATA).map(pack => {
+    const checked = enabledPackIds.has(pack.id);
+    const inputId = `recipePack-${pack.id}`;
+    return `
+      <label class="settings-row" for="${escapeHtml(inputId)}">
+        <div class="settings-row-main">
+          <span class="settings-row-title">${escapeHtml(pack.name)}</span>
+          <span class="settings-row-sub">${escapeHtml(pack.description)}</span>
+        </div>
+        <input id="${escapeHtml(inputId)}" type="checkbox" data-recipe-pack-id="${escapeHtml(pack.id)}" ${checked ? 'checked' : ''}>
+      </label>
+    `;
+  }).join('');
+
+  return `
+    <div class="settings-row is-stacked">
+      <div class="settings-row-main">
+        <span class="settings-row-title">菜谱偏好</span>
+        <span class="settings-row-sub">选择你更常做的菜谱类型。当前只是保存偏好，不会改变推荐结果。</span>
+      </div>
+      <p class="settings-data-note">未自定义时默认启用：${escapeHtml(defaultPackNames)}。你也可以全部关闭，表示暂不使用 recipe pack 偏好。</p>
+    </div>
+    ${rows}
+  `;
+}
 
 // 与 recipes-view.js 中迁出来的同名工具一致：合并外部 overlay 时保留当前用户已有的菜谱补丁，避免覆盖。
 function mergeRecipeOverlay(currentOverlay, incomingOverlay) {
@@ -151,7 +223,13 @@ export function renderSettings() {
       </div>
     </div>
 
-    <!-- 区块 B：AI 服务（默认只展示内置服务状态和测试入口） -->
+    <!-- 区块 B：菜谱偏好（仅保存偏好，暂不影响推荐结果） -->
+    <div class="settings-group-label">菜谱偏好</div>
+    <div class="settings-group" id="recipePackPreferenceBox">
+      ${renderRecipePackPreferenceOptions(s)}
+    </div>
+
+    <!-- 区块 C：AI 服务（默认只展示内置服务状态和测试入口） -->
     <div class="settings-group-label">AI 服务</div>
     <div class="settings-group">
       <div class="settings-row is-stacked" id="cloudAiBox">
@@ -176,7 +254,7 @@ export function renderSettings() {
       </div>
     </div>
 
-    <!-- 区块 C：数据安全（普通用户默认可见） -->
+    <!-- 区块 D：数据安全（普通用户默认可见） -->
     <div class="settings-group-label">数据安全</div>
     <div class="settings-group">
       <div class="settings-row is-stacked">
@@ -287,6 +365,26 @@ export function renderSettings() {
     btn.onclick = () => {
       saveTheme(btn.dataset.theme);
       themeSegEl.querySelectorAll('.settings-seg-btn').forEach(b => b.classList.toggle('is-active', b === btn));
+    };
+  });
+
+  // ── 菜谱包偏好：仅写入 settings.enabledRecipePackIds，当前不接入推荐排序或候选池 ──
+  const syncRecipePackOptionState = (enabledIds) => {
+    const enabledSet = new Set(enabledIds);
+    div.querySelectorAll('[data-recipe-pack-id]').forEach(input => {
+      input.checked = enabledSet.has(input.dataset.recipePackId);
+    });
+  };
+  div.querySelectorAll('[data-recipe-pack-id]').forEach(input => {
+    input.onchange = () => {
+      const selectedIds = Array.from(div.querySelectorAll('[data-recipe-pack-id]'))
+        .filter(item => item.checked)
+        .map(item => item.dataset.recipePackId);
+      const currentSettings = S.load(S.keys.settings, {});
+      const patch = createRecipePackSettingsPatch(RECIPE_PACK_PREFERENCE_DATA, selectedIds);
+      S.save(S.keys.settings, { ...currentSettings, ...patch });
+      syncRecipePackOptionState(patch.enabledRecipePackIds);
+      setInlineStatus(div.querySelector('#settingsStatus'), '已保存菜谱偏好。当前不会改变推荐结果。', 'ok');
     };
   });
 

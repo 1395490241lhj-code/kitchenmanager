@@ -350,7 +350,7 @@ validator 会检查：
 
 `docs/recipe-packs/recipe-pack-samples.json` 是 draft 样例池，用于采集、试写和 QA recipe metadata。它不应直接作为 App 的正式数据源。
 
-`data/recipe-packs.json` 是未来 App 使用的正式 recipe packs 数据源，包含 pack definitions 和经过初步筛选的 recipes。当前正式数据源仍未接入 App、设置页或推荐系统。
+`data/recipe-packs.json` 是未来 App 使用的正式 recipe packs 数据源，包含 pack definitions 和经过初步筛选的 recipes。当前正式数据源仍未接入推荐系统；设置页已提供轻量偏好保存入口，但不会改变推荐结果。
 
 新增或调整 recipe pack 数据后需要运行：
 
@@ -371,11 +371,11 @@ node scripts/validate-recipe-packs.js
 - 先在 sample 文件里扩展和 QA。
 - 只把字段稳定、`reviewStatus` 合适的菜谱复制到 `data/recipe-packs.json`。
 - `data/recipe-packs.json` 中的每个 `recipe.packs` 必须引用顶层 `packs` 中已定义的 pack id。
-- 当前阶段不要把 `data/recipe-packs.json` 接入 App UI、推荐逻辑或设置页。
+- 当前阶段不要把 `data/recipe-packs.json` 接入推荐逻辑，也不要把 recipes 合并进现有推荐候选池。
 
 ## 16. Recipe Pack Preference Settings
 
-未来用户选择启用哪些菜谱包时，可以在现有 settings 数据中使用字段：
+设置页可以保存用户选择启用哪些菜谱包，字段存放在现有 settings 数据中：
 
 ```json
 {
@@ -390,4 +390,8 @@ node scripts/validate-recipe-packs.js
 - `enabledRecipePackIds: []`：用户明确关闭全部 recipe packs。
 - 非空数组：按用户选择启用 pack，并过滤不存在或重复的 pack id。
 
-当前这只是数据层 helper 约定，尚未接入设置页 UI，也不会影响现有推荐系统。
+实现约束：
+
+- 该字段 merge 到现有 settings 对象，不新增 localStorage key。
+- 当前设置页只保存偏好，不调用 `getRecipesForSettings`，不会影响本地推荐、AI 推荐或今日推荐结果。
+- 后续阶段才会把 recipe pack preferences 用于推荐加权或候选池扩展。
