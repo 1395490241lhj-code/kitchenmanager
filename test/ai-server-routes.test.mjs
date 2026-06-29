@@ -191,10 +191,36 @@ test('/api/ai-chat 文本请求继续使用 OPENAI_MODEL', async () => {
 });
 
 test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
-  let capturedPayload = null;
+  const capturedPayloads = [];
   const { app } = loadServerWithMocks({
     axiosPost: async (_url, payload) => {
-      capturedPayload = payload;
+      capturedPayloads.push(payload);
+      if (capturedPayloads.length === 1) {
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  dishNameCandidates: ['番茄炒蛋'],
+                  observedMainIngredients: ['鸡蛋'],
+                  observedSeasonings: ['盐'],
+                  observedAromatics: [],
+                  observedLiquids: [],
+                  observedActions: [
+                    { order: 1, action: '鸡蛋打散', ingredients: ['鸡蛋'], evidenceText: '鸡蛋打散', confidence: 'high' },
+                    { order: 2, action: '下锅炒熟', ingredients: ['鸡蛋'], evidenceText: '下锅炒熟', confidence: 'high' }
+                  ],
+                  observedTimes: [],
+                  observedTools: [],
+                  uncertainItems: [],
+                  missingInfo: [],
+                  sourceConfidence: 'high'
+                })
+              }
+            }]
+          }
+        };
+      }
       return {
         data: {
           choices: [{
@@ -218,7 +244,13 @@ test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
   });
 
   assert.equal(res.statusCode, 200);
-  assert.equal(capturedPayload.model, 'meta-llama/llama-4-scout-17b-16e-instruct');
+  assert.equal(capturedPayloads.length, 2);
+  assert.equal(capturedPayloads[0].model, 'meta-llama/llama-4-scout-17b-16e-instruct');
+  assert.match(capturedPayloads[0].messages[0].content, /证据抽取器/);
+  assert.match(capturedPayloads[0].messages[0].content, /observedActions/);
+  assert.match(capturedPayloads[0].messages[0].content, /有"水"不等于加水焖煮/);
+  assert.equal(capturedPayloads[1].model, 'openai/gpt-oss-120b');
+  assert.match(capturedPayloads[1].messages[1].content, /evidence JSON/);
 });
 
 test('后端上游错误响应保留 status/code，并且不泄露 API Key', async () => {

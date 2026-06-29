@@ -228,6 +228,51 @@ test('菜谱导入完整性检查接受已保留的肉类腌制步骤', () => {
   assert.doesNotMatch(result.warnings.join('\n'), /15分钟|30分钟/);
 });
 
+test('菜谱导入完整性检查提示肉类 method 过短和调味料遗漏', () => {
+  const method = '鸡腿腌制时加入小苏打并抓匀。铁锅预热后高温快速煎炒鸡腿至表面焦干。';
+  const result = checkImportedRecipeStepCoverage({
+    ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+    seasonings: [
+      { item: '藤椒', qty: '1', unit: '把' },
+      { item: '生抽', qty: '2', unit: '勺' },
+      { item: '老抽', qty: '1', unit: '勺' },
+      { item: '料酒', qty: '1', unit: '勺' },
+      { item: '盐', qty: '1', unit: '适量' },
+      { item: '糖', qty: '1', unit: '适量' },
+      { item: '小苏打', qty: '1', unit: '克' }
+    ],
+    sourceText: '鸡腿加入小苏打、生抽、老抽、料酒、盐、糖抓匀腌制，再加入藤椒调味。',
+    method
+  });
+
+  assert.equal(method, '鸡腿腌制时加入小苏打并抓匀。铁锅预热后高温快速煎炒鸡腿至表面焦干。');
+  assert.match(result.warnings.join('\n'), /做法步骤过于简略/);
+  assert.match(result.warnings.join('\n'), /关键风味材料藤椒未在做法中明确出现/);
+  assert.match(result.warnings.join('\n'), /做法可能遗漏部分调味料的使用方式：藤椒、生抽、老抽、料酒、盐、糖/);
+  assert.match(result.warnings.join('\n'), /只保留了小苏打/);
+});
+
+test('菜谱导入完整性检查使用 evidence 标记低置信度和水用途', () => {
+  const method = '鸡腿煎至两面金黄。';
+  const result = checkImportedRecipeStepCoverage({
+    ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+    method,
+    evidence: {
+      observedMainIngredients: ['鸡腿'],
+      observedLiquids: ['水'],
+      observedActions: [
+        { order: 1, action: '鸡腿煎至两面金黄', ingredients: ['鸡腿'], evidenceText: '煎至两面金黄', confidence: 'medium' }
+      ],
+      sourceConfidence: 'low'
+    }
+  });
+
+  assert.equal(method, '鸡腿煎至两面金黄。');
+  assert.match(result.warnings.join('\n'), /水.*用途/);
+  assert.match(result.warnings.join('\n'), /可提取信息较少/);
+  assert.doesNotMatch(result.warnings.join('\n'), /请加水焖煮|加水焖熟/);
+});
+
 test('菜谱导入完整性检查接受鲜藤椒的真实加入动作', () => {
   const result = checkImportedRecipeStepCoverage({
     seasonings: [{ item: '鲜藤椒', qty: '1', unit: '把' }],
@@ -274,9 +319,12 @@ test('菜谱导入完整性 warning 不阻止生成可编辑草稿', async () =>
   assert.equal(draft.name, '藤椒鸡腿');
   assert.equal(draft.isAiDraft, true);
   assert.equal(draft.needsReview, true);
-  assert.match(draft.method, /需要确认/);
-  assert.match(draft.method, /水/);
-  assert.match(draft.method, /藤椒粉/);
+  assert.doesNotMatch(draft.method, /需要确认/);
+  assert.deepEqual(draft.warnings, [
+    '原内容列出了水，但做法未明确说明水的用途，请确认。',
+    '关键风味材料藤椒粉未在做法中明确出现，请确认加入时机。',
+    '做法步骤过于简略，可能遗漏腌制、调味或出锅步骤，请确认。'
+  ]);
 });
 
 test('菜谱导入保留鲜藤椒步骤，不自动补成加水焖熟', async () => {
@@ -309,7 +357,7 @@ test('菜谱导入保留鲜藤椒步骤，不自动补成加水焖熟', async ()
   const draft = await importRecipeFromSource({ text: '鲜藤椒鸡腿做法' });
   assert.match(draft.method, /加入鲜藤椒、生抽、老抽、料酒、盐、糖调味/);
   assert.doesNotMatch(draft.method, /加水焖熟|加水焖煮|加水炖煮|加水收汁/);
-  assert.match(draft.method, /原内容列出了水，但做法未明确说明水的用途，请确认。/);
+  assert.doesNotMatch(draft.method, /需要确认|原内容列出了水/);
   assert.doesNotMatch(draft.method, /鲜藤椒未在做法中明确出现/);
   assert.deepEqual(draft.warnings, ['原内容列出了水，但做法未明确说明水的用途，请确认。']);
 });
@@ -347,9 +395,23 @@ test('菜谱导入综合保留腌制、煎制、鲜藤椒调味和出锅阶段',
   assert.match(draft.method, /加入鲜藤椒和生抽等调味料/);
   assert.match(draft.method, /出锅/);
   assert.doesNotMatch(draft.method, /加水焖熟|加水焖煮|收汁/);
-  assert.match(draft.method, /原内容列出了水，但做法未明确说明水的用途，请确认。/);
+  assert.doesNotMatch(draft.method, /需要确认|原内容列出了水/);
+  assert.deepEqual(draft.warnings, ['原内容列出了水，但做法未明确说明水的用途，请确认。']);
   assert.doesNotMatch(draft.warnings.join('\n'), /肉类腌制/);
   assert.doesNotMatch(draft.warnings.join('\n'), /鲜藤椒未在做法中明确出现/);
+});
+
+test('AI 菜谱导入 warning 单独传给编辑页，不写入 Method', () => {
+  const modal = read('src/components/recipe-import-modal.js');
+  const editor = read('src/views/recipe-editor-view.js');
+  const ai = read('src/ai.js');
+
+  assert.doesNotMatch(ai, /appendRecipeImportWarnings/);
+  assert.match(modal, /warnings: Array\.isArray\(draft\.warnings\)/);
+  assert.match(editor, /aiDraftWarnings/);
+  assert.match(editor, /这个菜谱可能需要确认/);
+  assert.match(editor, /nextRecipe\.reviewNotes = aiDraftWarnings\.join\('\\n'\)/);
+  assert.doesNotMatch(editor.slice(editor.indexOf('<textarea id="rMethod"'), editor.indexOf('<div class="controls editor-actions"')), /需要确认/);
 });
 
 test('小票识别走同源 /api/ai-chat，不在前端携带 Authorization', async () => {
@@ -514,7 +576,14 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
     server.indexOf('// 静态托管前端')
   );
 
+  assert.match(server, /RECIPE_EVIDENCE_SYSTEM_PROMPT/);
+  assert.match(server, /observedActions/);
+  assert.match(server, /有"水"不等于加水焖煮/);
+  assert.match(aiParseRoute, /const evidenceResp = await axios\.post/);
   assert.match(aiParseRoute, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL/);
+  assert.match(aiParseRoute, /const recipeResp = await axios\.post/);
+  assert.match(aiParseRoute, /model: OPENAI_MODEL/);
+  assert.match(aiParseRoute, /sanitizeRecipe\(parsed, \{ sourceText: text, evidence \}\)/);
   assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiParseRoute, /sendAiUpstreamError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);
 });

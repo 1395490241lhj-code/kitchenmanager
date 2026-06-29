@@ -1632,6 +1632,13 @@ html[data-theme="dark"] .shopping-remark-input:focus { background: rgba(0, 0, 0,
   background: var(--status-bad-bg);
   border-color: var(--status-bad-border);
 }
+.ai-draft-warning ul {
+  margin: 6px 0 0 18px;
+  padding: 0;
+}
+.ai-draft-warning li + li {
+  margin-top: 4px;
+}
 .ai-action-status {
   display: block;
   line-height: 1.45;

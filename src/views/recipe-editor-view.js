@@ -67,7 +67,16 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   }
   // AI 导入草稿：从 sessionStorage 预填，不读 overlay
   const r = isAiImportDraft
-    ? { id: 'ai-import-draft', name: aiPendingDraft.name, tags: aiPendingDraft.tags, method: aiPendingDraft.method, seasonings: aiPendingDraft.seasonings, isAiDraft: true }
+    ? {
+        id: 'ai-import-draft',
+        name: aiPendingDraft.name,
+        tags: aiPendingDraft.tags,
+        method: aiPendingDraft.method,
+        seasonings: aiPendingDraft.seasonings,
+        warnings: aiPendingDraft.warnings,
+        needsReview: aiPendingDraft.needsReview,
+        isAiDraft: true
+      }
     : {...(rBase||{id}), ...rOv};
   const items = isAiImportDraft
     ? (aiPendingDraft.ingredients || []).map(x => ({...x}))
@@ -75,6 +84,12 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const isCustomRecipe = isAiImportDraft ? true : !rBase;
   const statusInfo = getRecipeStatusInfo(r, id, isAiImportDraft ? null : rBase, isAiImportDraft ? { isAiDraft: true } : rOv);
   const isAiDraft = isAiImportDraft || statusInfo.className === 'draft';
+  const aiDraftWarnings = isAiImportDraft && Array.isArray(aiPendingDraft.warnings)
+    ? aiPendingDraft.warnings.map(w => String(w || '').trim()).filter(Boolean)
+    : [];
+  const aiWarningHtml = aiDraftWarnings.length
+    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong><ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
+    : '';
 
   const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card';
   wrap.innerHTML = `
@@ -86,6 +101,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
       <span class="recipe-status-pill ${statusInfo.className}">${escapeHtml(statusInfo.label)}</span>
       ${isAiDraft ? '<span class="meta">保存时可转为普通自定义菜谱。</span>' : ''}
     </div>
+    ${aiWarningHtml}
     <div id="editorStatus" class="inline-status" hidden></div>
     <div class="editor-field-grid">
       <div class="full"><label class="small">菜名</label><input id="rName" value="${escapeOptionAttr(r.name||'')}" class="full-width-input"></div>
@@ -265,6 +281,11 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     const servings = wrap.querySelector('#rServings').value.trim();
     const seasonings = collectSeasonings();
     const nextRecipe = { name, tags, method, seasonings };
+    if (isAiImportDraft && aiDraftWarnings.length) {
+      nextRecipe.warnings = aiDraftWarnings;
+      nextRecipe.reviewNotes = aiDraftWarnings.join('\n');
+      nextRecipe.needsReview = true;
+    }
     if(prepTime) nextRecipe.prepTime = prepTime;
     if(difficulty) nextRecipe.difficulty = difficulty;
     if(servings) nextRecipe.servings = servings;

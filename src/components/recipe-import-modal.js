@@ -1,6 +1,6 @@
 import { loadOverlay, saveOverlay } from '../backup.js?v=222';
 import { genId } from '../shopping.js?v=222';
-import { importRecipeFromSource, getRecipeImportAiFailureCopy } from '../ai.js?v=224';
+import { importRecipeFromSource, getRecipeImportAiFailureCopy } from '../ai.js?v=225';
 import { setActionStatus, setInlineStatus, showToast } from './status.js?v=223';
 
 const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
@@ -16,6 +16,8 @@ function openEditorWithAiDraft(draft) {
     method: draft.method || '',
     seasonings,
     ingredients: (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty ?? null, unit: i.unit ?? null })),
+    warnings: Array.isArray(draft.warnings) ? draft.warnings.filter(Boolean) : [],
+    needsReview: Boolean(draft.needsReview),
     isAiDraft: true,
   };
   try {
@@ -26,7 +28,16 @@ function openEditorWithAiDraft(draft) {
     const ov = loadOverlay();
     ov.recipes = ov.recipes || {};
     ov.recipe_ingredients = ov.recipe_ingredients || {};
-    ov.recipes[id] = { name: pending.name, tags: pending.tags, method: pending.method, seasonings: pending.seasonings, isAiDraft: true };
+    ov.recipes[id] = {
+      name: pending.name,
+      tags: pending.tags,
+      method: pending.method,
+      seasonings: pending.seasonings,
+      warnings: pending.warnings,
+      reviewNotes: pending.warnings.join('\n'),
+      needsReview: pending.needsReview,
+      isAiDraft: true
+    };
     ov.recipe_ingredients[id] = pending.ingredients;
     saveOverlay(ov);
     window.invalidatePackCache?.();
