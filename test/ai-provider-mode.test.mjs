@@ -293,10 +293,34 @@ test('视频菜谱 source diagnostics 标记短关键词来源为低置信度', 
   assert.equal(diagnostics.sourceType, 'xiaohongshu');
   assert.equal(diagnostics.sourceConfidence, 'low');
   assert.equal(diagnostics.rawTextLength, '鸡腿 小苏打 藤椒'.length);
+  assert.equal(diagnostics.rawTextPreview, '鸡腿 小苏打 藤椒');
   assert.equal(diagnostics.observedIngredientCount, 2);
   assert.equal(diagnostics.observedActionCount, 1);
   assert.match(diagnostics.warnings.join('\n'), /来源文本很短/);
   assert.match(diagnostics.warnings.join('\n'), /明确做法步骤较少/);
+});
+
+test('视频菜谱 source diagnostics 截断 rawTextPreview', () => {
+  const rawText = `开头${'很长的抓取文本'.repeat(80)}结尾`;
+  const diagnostics = buildRecipeImportSourceDiagnostics({
+    sourceType: 'web',
+    sourceText: rawText,
+    evidence: {
+      observedMainIngredients: ['鸡腿', '土豆', '青椒'],
+      observedSeasonings: ['生抽', '盐', '糖'],
+      observedActions: [
+        { order: 1, action: '处理鸡腿', ingredients: ['鸡腿'], evidenceText: '处理鸡腿', confidence: 'high' },
+        { order: 2, action: '下锅煎炒', ingredients: ['鸡腿'], evidenceText: '下锅煎炒', confidence: 'high' },
+        { order: 3, action: '加入配菜调味', ingredients: ['土豆', '青椒', '生抽'], evidenceText: '加入配菜调味', confidence: 'high' }
+      ],
+      sourceConfidence: 'high'
+    }
+  });
+
+  assert.equal(diagnostics.rawTextLength, rawText.length);
+  assert.equal(diagnostics.rawTextPreview.length, 400);
+  assert.equal(diagnostics.rawTextPreview, rawText.slice(0, 400));
+  assert.doesNotMatch(diagnostics.rawTextPreview, /结尾$/);
 });
 
 test('视频菜谱 source diagnostics 对充足 evidence 不提示信息不足', () => {
@@ -428,6 +452,7 @@ test('菜谱导入保留 source diagnostics 并提示提取信息不足', async 
           observedIngredientCount: 2,
           observedActionCount: 1,
           observedSeasoningCount: 1,
+          rawTextPreview: '鸡腿 小苏打 藤椒',
           sourceConfidence: 'low',
           warnings: ['来源文本很短，可能只包含零散关键词。']
         },
@@ -443,10 +468,11 @@ test('菜谱导入保留 source diagnostics 并提示提取信息不足', async 
 
   const draft = await importRecipeFromSource({ url: 'http://xhslink.com/o/example' });
   assert.equal(draft.diagnostics.sourceConfidence, 'low');
+  assert.equal(draft.diagnostics.rawTextPreview, '鸡腿 小苏打 藤椒');
   assert.equal(draft.diagnostics.observedActionCount, 1);
   assert.deepEqual(draft.debugEvidenceSummary.observedIngredients, ['鸡腿', '藤椒']);
-  assert.match(draft.warnings.join('\n'), /视频可提取信息较少/);
-  assert.doesNotMatch(draft.method, /需要确认|提取信息不足|视频可提取信息较少/);
+  assert.match(draft.warnings.join('\n'), /链接可提取信息较少/);
+  assert.doesNotMatch(draft.method, /需要确认|提取信息不足|链接可提取信息较少/);
 });
 
 test('菜谱导入保留鲜藤椒步骤，不自动补成加水焖熟', async () => {
@@ -534,6 +560,7 @@ test('AI 菜谱导入 warning 单独传给编辑页，不写入 Method', () => {
   assert.match(editor, /aiDraftWarnings/);
   assert.match(editor, /aiDraftDiagnostics/);
   assert.match(editor, /提取置信度/);
+  assert.match(editor, /抓取原文预览/);
   assert.match(editor, /这个菜谱可能需要确认/);
   assert.match(editor, /nextRecipe\.reviewNotes = aiDraftWarnings\.join\('\\n'\)/);
   assert.doesNotMatch(editor.slice(editor.indexOf('<textarea id="rMethod"'), editor.indexOf('<div class="controls editor-actions"')), /需要确认/);

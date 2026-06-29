@@ -95,8 +95,11 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const aiDiagnosticSummary = aiDraftDiagnostics
     ? `提取置信度：${aiDraftDiagnostics.sourceConfidence || 'unknown'} · 食材 ${aiDraftDiagnostics.observedIngredientCount ?? 0} · 调料 ${aiDraftDiagnostics.observedSeasoningCount ?? 0} · 步骤 ${aiDraftDiagnostics.observedActionCount ?? 0}`
     : '';
+  const aiRawTextPreview = aiDraftDiagnostics && aiDraftDiagnostics.rawTextPreview
+    ? String(aiDraftDiagnostics.rawTextPreview || '').trim()
+    : '';
   const aiWarningHtml = aiDraftWarnings.length
-    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
+    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}${aiRawTextPreview ? `<div class="meta">抓取原文预览：${escapeHtml(aiRawTextPreview)}</div>` : ''}<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
     : '';
 
   const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card';

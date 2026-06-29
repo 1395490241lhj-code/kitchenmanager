@@ -297,6 +297,7 @@ export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sour
   return {
     sourceType: normalizedSourceType,
     rawTextLength: rawText.length,
+    rawTextPreview: rawText.slice(0, 400),
     hasTitle: listEvidenceField(evidence, 'dishNameCandidates').length > 0,
     hasCaption,
     hasDescription,
@@ -316,7 +317,7 @@ export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sour
 function getSourceDiagnosticsWarnings(diagnostics) {
   if (!diagnostics || typeof diagnostics !== 'object') return [];
   return diagnostics.sourceConfidence === 'low'
-    ? ['视频可提取信息较少，菜谱可能不完整，请补充原文、截图或手动确认。']
+    ? ['链接可提取信息较少，菜谱可能缺少食材、调料或步骤，请人工确认。']
     : [];
 }
 
@@ -369,7 +370,7 @@ export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings =
   const sourceConfidence = String(evidence?.sourceConfidence || '').trim().toLowerCase();
   const observedActionCount = Array.isArray(evidence?.observedActions) ? evidence.observedActions.length : 0;
   if (sourceConfidence === 'low' || (observedActionCount > 0 && observedActionCount < 3 && methodStepCount > 0 && methodStepCount < 3)) {
-    warnings.push('视频可提取信息较少，菜谱可能不完整，请补充原文、截图或手动确认。');
+    warnings.push('链接可提取信息较少，菜谱可能缺少食材、调料或步骤，请人工确认。');
   }
 
   return {
