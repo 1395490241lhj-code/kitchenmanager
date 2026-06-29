@@ -146,17 +146,19 @@ function sendAiUpstreamError(res, err, error = 'AI 服务暂时不可用。') {
 const IMPORT_SYSTEM_PROMPT = `你是一位资深中餐大厨兼菜谱结构化助手。用户会给你一段来自小红书/网页的菜谱文案，或一张配料表/视频截图。
 请把其中的菜谱信息做语义清洗后，严格只返回一个 JSON 对象（不要 markdown 代码块、不要任何解释文字）。
 
-⚠️ 四条最高优先级铁律（违反任意一条即视为输出失败，必须严格执行）：
+⚠️ 最高优先级铁律（违反任意一条即视为输出失败，必须严格执行）：
 1. 【严禁空数量】ingredients 与 seasonings 数组里每个对象的 qty 必须是有效数字字符串（如 "1"、"2"、"0.5"），不允许 "" / null / undefined / 缺省字段 / "适量" / "少许" / "半" / "一" 等任何非数字内容。
 2. 【食材 / 调料 双列表】必须输出两个独立数组：
    · ingredients = 核心食材（肉、禽、蛋、海鲜、蔬菜、豆制品、主食、特色配料等，参与库存扣减）。
-   · seasonings  = 常备调料与背景介质（如 水、生抽、老抽、醋、糖、盐、味精、鸡精、食用油 / 植物油 / 菜籽油 / 大豆油 / 玉米油 / 葵花籽油 / 调和油 / 色拉油、料酒、淀粉、香油、花椒、干辣椒、八角、桂皮、葱姜蒜等）。不参与库存扣减，但仍要出现在 method 步骤文字里。
+   · seasonings  = 常备调料与背景介质（如 水、生抽、老抽、醋、糖、盐、味精、鸡精、食用油 / 植物油 / 菜籽油 / 大豆油 / 玉米油 / 葵花籽油 / 调和油 / 色拉油、料酒、淀粉、香油、花椒、干辣椒、八角、桂皮、葱姜蒜等）。不参与库存扣减；除水/高汤等用途不明确项外，来源明确支持的调味动作应出现在 method 步骤文字里。
    · ingredients 数组里严禁出现 seasonings 类目；反之亦然。
 3. 【method 格式干净】method 必须是字符串数组，每个元素的文本【严禁包含任何序号前缀】（如 "1. " / "1、" / "第一步：" / "步骤2：" / "一、" / "(1) "）；直接以动词或主语开头。
-4. 【method 文字保留调料】即便 seasonings 列出了水/油/盐，method 步骤文字里仍要写出对应动作（"锅中倒油烧热"、"加水大火焖煮"、"调入盐"），保持烹饪指导连贯。
+4. 【method 只写来源支持的动作】油/盐/生抽等调味动作只有在来源内容明确支持时才写入 method。水/清水/高汤是高风险项：只有来源内容明确出现"加水"、"倒水"、"清水"、"高汤"、"焖"、"炖"、"煮"、"收汁"、"盖盖焖"等动作时，才允许写入加水/焖煮/收汁步骤。
 5. 【严格依据原内容】不要把小红书/视频菜谱改写成泛用做法；必须保留原内容里的烹饪顺序、加料顺序、火候变化和收尾动作。
-6. 【关键动作覆盖】如果原内容提到或用料中出现加水/加汤/焖煮/收汁/撒藤椒/下藤椒/加辣椒/加葱姜蒜/豆瓣酱/咖喱块/泡菜等关键动作或风味材料，method 中必须体现其用途和加入时机。
-7. 【不确定要标记】如果抓取内容像视频片段、配料表或不完整文案，或者某个关键材料没有明确加入时机，不要自信脑补；在 warnings 中写明"原内容未明确说明 X 的加入时机，请确认"，并把 needsReview 设为 true。
+6. 【禁止脑补加水焖煮】不要因为 ingredients 或 seasonings 里出现"水"，就生成"加水焖熟"、"加水焖煮"、"加水炖煮"、"加水收汁"等步骤。若来源只列出水但没有明确用途，method 不要写水，只在 warnings 中写"原内容列出了水，但未明确说明用途，请人工确认。"
+7. 【关键动作覆盖】如果原内容明确提到加汤/焖煮/收汁/撒藤椒/下藤椒/加辣椒/加葱姜蒜/豆瓣酱/咖喱块/泡菜等关键动作或风味材料，method 中必须体现其真实用途和加入时机。
+8. 【藤椒形态必须保真】鲜藤椒、藤椒、藤椒粉、花椒不要互相改写。如果来源是"鲜藤椒"，步骤也应保留为"鲜藤椒"或"新鲜藤椒"；不要改成"藤椒粉腌制"，除非来源明确就是藤椒粉和腌制。
+9. 【不确定要标记】如果抓取内容像视频片段、配料表或不完整文案，或者某个关键材料没有明确加入时机，不要自信脑补；在 warnings 中写明"原内容未明确说明 X 的加入时机，请确认"，并把 needsReview 设为 true。
 
 JSON 字段如下：
 {
@@ -195,7 +197,8 @@ JSON 字段如下：
   · 直接以动词或主语开头：错 "1. 土豆切丝"；对 "土豆切丝"。
 - 至少 2 个步骤；建议 3–8 个；每步独立、可执行、清晰。
 - 视频/图文菜谱宁可拆成更细步骤，也不要压缩成 4-5 步通用做法。
-- 如果 method 中没有体现 seasonings 里的水/高汤/藤椒粉/花椒/辣椒/豆瓣酱/咖喱块/泡菜/葱姜蒜的用途，应在 warnings 中提醒用户确认。
+- 如果来源内容没有明确说明水/高汤的用途，不要把它写成加水焖煮步骤，只在 warnings 中提醒用户确认。
+- 如果 method 中没有体现鲜藤椒/藤椒粉/花椒/辣椒/豆瓣酱/咖喱块/泡菜/葱姜蒜等关键风味材料的用途，应在 warnings 中提醒用户确认。
 
 其它要求：
 - name 必填，为简洁标准菜名。
@@ -432,9 +435,12 @@ const RECIPE_STEP_COVERAGE_RULES = [
   {
     label: '水',
     ingredient: /^(?:水|清水|开水|温水|热水|凉水|高汤|清汤|鲜汤|肉汤|鸡汤|骨汤|汤|汤汁)$/u,
-    method: /水|清水|高汤|汤|焖|煮|炖|烧开|收汁/u
+    method: /加水|倒水|添水|注水|兑水|清水|高汤|加汤|倒汤|焖|炖|煮|烧开|收汁|盖盖焖/u,
+    warning: (name) => `原内容列出了${name}，但做法未明确说明${name}的用途，请确认。`
   },
-  { label: '藤椒粉', ingredient: /藤椒/u, method: /藤椒/u },
+  { label: '鲜藤椒', ingredient: /^(?:鲜藤椒|新鲜藤椒)$/u, method: /鲜藤椒|新鲜藤椒/u },
+  { label: '藤椒粉', ingredient: /^藤椒粉$/u, method: /藤椒粉/u },
+  { label: '藤椒', ingredient: /^藤椒$/u, method: /藤椒/u },
   { label: '花椒', ingredient: /花椒|麻椒/u, method: /花椒|麻椒/u },
   { label: '辣椒', ingredient: /辣椒|小米辣|二荆条|干辣椒|辣椒粉|辣椒面|剁椒|泡椒/u, method: /辣椒|小米辣|二荆条|干辣椒|辣椒粉|辣椒面|剁椒|泡椒|辣/u },
   { label: '豆瓣酱', ingredient: /豆瓣/u, method: /豆瓣/u },
@@ -444,6 +450,11 @@ const RECIPE_STEP_COVERAGE_RULES = [
   { label: '姜', ingredient: /^(?:姜|生姜|姜片|姜丝|姜末)$/u, method: /姜/u },
   { label: '葱', ingredient: /^(?:葱|小葱|香葱|大葱|葱花|葱段|葱末)$/u, method: /葱/u }
 ];
+
+function getRecipeStepCoverageWarning(rule, ingredientName) {
+  if (typeof rule.warning === 'function') return rule.warning(ingredientName);
+  return `关键风味材料${ingredientName}未在做法中明确出现，请确认加入时机。`;
+}
 
 function checkRecipeStepCoverage(recipe) {
   const items = [
@@ -468,9 +479,11 @@ function checkRecipeStepCoverage(recipe) {
   const uniqueMissing = [...new Set(missingInSteps)];
   return {
     missingInSteps: uniqueMissing,
-    warnings: uniqueMissing.length
-      ? [`部分关键食材没有在做法中明确出现：${uniqueMissing.join('、')}。请确认加入时机。`]
-      : []
+    warnings: uniqueMissing.map(name => {
+      const rule = RECIPE_STEP_COVERAGE_RULES.find(item => item.ingredient.test(name));
+      if (rule) rule.ingredient.lastIndex = 0;
+      return rule ? getRecipeStepCoverageWarning(rule, name) : `关键材料${name}未在做法中明确出现，请确认加入时机。`;
+    })
   };
 }
 
@@ -636,7 +649,7 @@ app.post('/api/ai-parse', async (req, res) => {
   }
 
   const instruction = text
-    ? `请把下面这段菜谱文案整理成规定的 JSON：\n\n${text}`
+    ? `请把下面这段【来源内容】整理成规定的 JSON。method 只能使用来源内容明确支持的动作，不要根据常见做法补步骤：\n\n${text}`
     : '请根据这张配料表/菜谱截图，整理成规定的 JSON。';
   const userContent = imageBase64
     ? [{ type: 'text', text: instruction }, { type: 'image_url', image_url: { url: imageBase64 } }]

@@ -141,9 +141,12 @@ const RECIPE_STEP_COVERAGE_RULES = [
   {
     label: '水',
     ingredient: /^(?:水|清水|开水|温水|热水|凉水|高汤|清汤|鲜汤|肉汤|鸡汤|骨汤|汤|汤汁)$/u,
-    method: /水|清水|高汤|汤|焖|煮|炖|烧开|收汁/u
+    method: /加水|倒水|添水|注水|兑水|清水|高汤|加汤|倒汤|焖|炖|煮|烧开|收汁|盖盖焖/u,
+    warning: (name) => `原内容列出了${name}，但做法未明确说明${name}的用途，请确认。`
   },
-  { label: '藤椒粉', ingredient: /藤椒/u, method: /藤椒/u },
+  { label: '鲜藤椒', ingredient: /^(?:鲜藤椒|新鲜藤椒)$/u, method: /鲜藤椒|新鲜藤椒/u },
+  { label: '藤椒粉', ingredient: /^藤椒粉$/u, method: /藤椒粉/u },
+  { label: '藤椒', ingredient: /^藤椒$/u, method: /藤椒/u },
   { label: '花椒', ingredient: /花椒|麻椒/u, method: /花椒|麻椒/u },
   { label: '辣椒', ingredient: /辣椒|小米辣|二荆条|干辣椒|辣椒粉|辣椒面|剁椒|泡椒/u, method: /辣椒|小米辣|二荆条|干辣椒|辣椒粉|辣椒面|剁椒|泡椒|辣/u },
   { label: '豆瓣酱', ingredient: /豆瓣/u, method: /豆瓣/u },
@@ -153,6 +156,11 @@ const RECIPE_STEP_COVERAGE_RULES = [
   { label: '姜', ingredient: /^(?:姜|生姜|姜片|姜丝|姜末)$/u, method: /姜/u },
   { label: '葱', ingredient: /^(?:葱|小葱|香葱|大葱|葱花|葱段|葱末)$/u, method: /葱/u }
 ];
+
+function getRecipeStepCoverageWarning(rule, ingredientName) {
+  if (typeof rule.warning === 'function') return rule.warning(ingredientName);
+  return `关键风味材料${ingredientName}未在做法中明确出现，请确认加入时机。`;
+}
 
 export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings = [], method = '' } = {}) {
   const items = [
@@ -171,9 +179,10 @@ export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings =
   const uniqueMissing = [...new Set(missingInSteps)];
   return {
     missingInSteps: uniqueMissing,
-    warnings: uniqueMissing.length
-      ? [`部分关键食材没有在做法中明确出现：${uniqueMissing.join('、')}。请确认加入时机。`]
-      : []
+    warnings: uniqueMissing.map(name => {
+      const rule = RECIPE_STEP_COVERAGE_RULES.find(item => item.ingredient.test(name));
+      return rule ? getRecipeStepCoverageWarning(rule, name) : `关键材料${name}未在做法中明确出现，请确认加入时机。`;
+    })
   };
 }
 
