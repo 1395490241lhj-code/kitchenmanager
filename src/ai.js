@@ -137,6 +137,52 @@ export function normalizeAiIngredients(value) {
   }).filter(Boolean);
 }
 
+const RECIPE_STEP_COVERAGE_RULES = [
+  {
+    label: '水',
+    ingredient: /^(?:水|清水|开水|温水|热水|凉水|高汤|清汤|鲜汤|肉汤|鸡汤|骨汤|汤|汤汁)$/u,
+    method: /水|清水|高汤|汤|焖|煮|炖|烧开|收汁/u
+  },
+  { label: '藤椒粉', ingredient: /藤椒/u, method: /藤椒/u },
+  { label: '花椒', ingredient: /花椒|麻椒/u, method: /花椒|麻椒/u },
+  { label: '辣椒', ingredient: /辣椒|小米辣|二荆条|干辣椒|辣椒粉|辣椒面|剁椒|泡椒/u, method: /辣椒|小米辣|二荆条|干辣椒|辣椒粉|辣椒面|剁椒|泡椒|辣/u },
+  { label: '豆瓣酱', ingredient: /豆瓣/u, method: /豆瓣/u },
+  { label: '咖喱块', ingredient: /咖喱/u, method: /咖喱/u },
+  { label: '泡菜', ingredient: /泡菜/u, method: /泡菜/u },
+  { label: '蒜', ingredient: /^(?:蒜|大蒜|蒜末|蒜蓉|蒜片|蒜瓣)$/u, method: /蒜/u },
+  { label: '姜', ingredient: /^(?:姜|生姜|姜片|姜丝|姜末)$/u, method: /姜/u },
+  { label: '葱', ingredient: /^(?:葱|小葱|香葱|大葱|葱花|葱段|葱末)$/u, method: /葱/u }
+];
+
+export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings = [], method = '' } = {}) {
+  const items = [
+    ...(Array.isArray(ingredients) ? ingredients : []),
+    ...(Array.isArray(seasonings) ? seasonings : [])
+  ].map(item => String(item?.item || item?.name || item || '').trim()).filter(Boolean);
+  const methodText = Array.isArray(method) ? method.join('\n') : String(method || '');
+  const missingInSteps = [];
+
+  for (const rule of RECIPE_STEP_COVERAGE_RULES) {
+    const matched = items.find(name => rule.ingredient.test(name));
+    if (!matched) continue;
+    if (!rule.method.test(methodText)) missingInSteps.push(matched);
+  }
+
+  const uniqueMissing = [...new Set(missingInSteps)];
+  return {
+    missingInSteps: uniqueMissing,
+    warnings: uniqueMissing.length
+      ? [`部分关键食材没有在做法中明确出现：${uniqueMissing.join('、')}。请确认加入时机。`]
+      : []
+  };
+}
+
+function appendRecipeImportWarnings(method, warnings = []) {
+  const cleanWarnings = [...new Set((warnings || []).map(w => String(w || '').trim()).filter(Boolean))];
+  if (!cleanWarnings.length) return method;
+  return `${String(method || '').trim()}\n\n需要确认：${cleanWarnings.join('；')}`;
+}
+
 export function classifyReceiptItem(name, originalName = '') {
   const local = classifyReceiptCandidate({ name, originalName });
   return { group: local.group, reason: local.reason || '' };
@@ -991,12 +1037,27 @@ function validateImportedRecipe(input) {
   const ingredients = normalizeAiIngredients(data.ingredients);
   const seasonings = normalizeAiIngredients(data.seasonings);
   const tags = Array.isArray(data.tags) ? data.tags.map(t => String(t || '').trim()).filter(Boolean).slice(0, 4) : [];
+  const importedWarnings = Array.isArray(data.warnings)
+    ? data.warnings.map(w => String(w || '').trim()).filter(Boolean)
+    : [];
+  const coverage = checkImportedRecipeStepCoverage({ ingredients, seasonings, method });
+  const warnings = [...new Set([...importedWarnings, ...coverage.warnings])];
 
   if (!name) throw new Error('AI 菜谱缺少菜名。');
   if (!ingredients.length) throw new Error('AI 菜谱缺少食材。');
   if (!method) throw new Error('AI 菜谱缺少做法。');
 
-  return { name, tags, ingredients, seasonings, method, isAiDraft: true, draftSource: 'ai-import' };
+  return {
+    name,
+    tags,
+    ingredients,
+    seasonings,
+    method: appendRecipeImportWarnings(method, warnings),
+    warnings,
+    needsReview: Boolean(data.needsReview || warnings.length),
+    isAiDraft: true,
+    draftSource: 'ai-import'
+  };
 }
 
 // 通过后端 /api/ai-parse 调用 AI：文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL。
@@ -1025,7 +1086,7 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
     });
   }
   // 后端返回模型原文 content，由前端统一校验对齐编辑器字段。
-  return validateImportedRecipe((data && data.content) || '');
+  return validateImportedRecipe((data && (data.recipe || data.content)) || '');
 }
 
 /**
