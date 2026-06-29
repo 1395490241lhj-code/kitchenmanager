@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
+  buildRecipeImportSourceDiagnostics,
   callAiSearchRecipe,
   checkImportedRecipeStepCoverage,
   formatAiErrorMessage,
@@ -273,6 +274,59 @@ test('菜谱导入完整性检查使用 evidence 标记低置信度和水用途'
   assert.doesNotMatch(result.warnings.join('\n'), /请加水焖煮|加水焖熟/);
 });
 
+test('视频菜谱 source diagnostics 标记短关键词来源为低置信度', () => {
+  const diagnostics = buildRecipeImportSourceDiagnostics({
+    sourceType: 'xiaohongshu',
+    sourceText: '鸡腿 小苏打 藤椒',
+    evidence: {
+      observedMainIngredients: ['鸡腿'],
+      observedSeasonings: ['小苏打'],
+      observedAromatics: ['藤椒'],
+      observedActions: [
+        { order: 1, action: '加入小苏打腌制', ingredients: ['鸡腿', '小苏打'], evidenceText: '小苏打', confidence: 'low' }
+      ],
+      sourceConfidence: 'medium'
+    },
+    method: '鸡腿加入小苏打抓匀。'
+  });
+
+  assert.equal(diagnostics.sourceType, 'xiaohongshu');
+  assert.equal(diagnostics.sourceConfidence, 'low');
+  assert.equal(diagnostics.rawTextLength, '鸡腿 小苏打 藤椒'.length);
+  assert.equal(diagnostics.observedIngredientCount, 2);
+  assert.equal(diagnostics.observedActionCount, 1);
+  assert.match(diagnostics.warnings.join('\n'), /来源文本很短/);
+  assert.match(diagnostics.warnings.join('\n'), /明确做法步骤较少/);
+});
+
+test('视频菜谱 source diagnostics 对充足 evidence 不提示信息不足', () => {
+  const sourceText = '鲜藤椒鸡腿做法：鸡腿洗净擦干，加入生抽、老抽、料酒、盐、糖抓匀腌制。铁锅预热后倒入少量食用油，放入鸡腿煎至两面金黄。再加入鲜藤椒和少量生抽等调味料翻炒均匀，最后撒葱花后出锅装盘。视频字幕按顺序展示了腌制、煎制、调味和出锅四个阶段。';
+  const diagnostics = buildRecipeImportSourceDiagnostics({
+    sourceType: 'xiaohongshu',
+    sourceText,
+    evidence: {
+      dishNameCandidates: ['鲜藤椒鸡腿'],
+      observedMainIngredients: ['鸡腿'],
+      observedSeasonings: ['生抽', '老抽', '料酒', '盐', '糖'],
+      observedAromatics: ['鲜藤椒', '葱花'],
+      observedLiquids: [],
+      observedActions: [
+        { order: 1, action: '鸡腿洗净擦干', ingredients: ['鸡腿'], evidenceText: '鸡腿洗净擦干', confidence: 'high' },
+        { order: 2, action: '加入调味料抓匀腌制', ingredients: ['生抽', '老抽', '料酒', '盐', '糖'], evidenceText: '抓匀腌制', confidence: 'high' },
+        { order: 3, action: '煎至两面金黄', ingredients: ['鸡腿'], evidenceText: '煎至两面金黄', confidence: 'high' },
+        { order: 4, action: '加入鲜藤椒调味后出锅', ingredients: ['鲜藤椒', '生抽'], evidenceText: '加入鲜藤椒和生抽等调味料翻炒均匀后出锅', confidence: 'high' }
+      ],
+      sourceConfidence: 'high'
+    },
+    method: sourceText
+  });
+
+  assert.notEqual(diagnostics.sourceConfidence, 'low');
+  assert.equal(diagnostics.observedActionCount, 4);
+  assert.equal(diagnostics.observedIngredientCount, 3);
+  assert.doesNotMatch(diagnostics.warnings.join('\n'), /信息较少|步骤较少/);
+});
+
 test('菜谱导入完整性检查接受鲜藤椒的真实加入动作', () => {
   const result = checkImportedRecipeStepCoverage({
     seasonings: [{ item: '鲜藤椒', qty: '1', unit: '把' }],
@@ -325,6 +379,74 @@ test('菜谱导入完整性 warning 不阻止生成可编辑草稿', async () =>
     '关键风味材料藤椒粉未在做法中明确出现，请确认加入时机。',
     '做法步骤过于简略，可能遗漏腌制、调味或出锅步骤，请确认。'
   ]);
+});
+
+test('菜谱导入保留 source diagnostics 并提示提取信息不足', async () => {
+  global.fetch = async (url, options) => {
+    if (String(url).startsWith('/api/xhs-extract')) {
+      return {
+        ok: true,
+        json: async () => ({ text: '鸡腿 小苏打 藤椒' })
+      };
+    }
+    assert.equal(url, '/api/ai-parse');
+    const body = JSON.parse(options.body);
+    assert.equal(body.sourceType, 'xiaohongshu');
+    assert.match(body.text, /鸡腿 小苏打 藤椒/);
+    return {
+      ok: true,
+      json: async () => ({
+        recipe: {
+          name: '藤椒鸡腿',
+          tags: ['AI草稿'],
+          ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+          seasonings: [
+            { item: '小苏打', qty: '1', unit: '克' },
+            { item: '藤椒', qty: '1', unit: '把' }
+          ],
+          method: ['鸡腿加入小苏打抓匀', '高温煎炒鸡腿']
+        },
+        evidence: {
+          observedMainIngredients: ['鸡腿'],
+          observedSeasonings: ['小苏打'],
+          observedAromatics: ['藤椒'],
+          observedActions: [
+            { order: 1, action: '鸡腿加入小苏打', ingredients: ['鸡腿', '小苏打'], evidenceText: '鸡腿 小苏打', confidence: 'low' }
+          ],
+          sourceConfidence: 'low'
+        },
+        diagnostics: {
+          sourceType: 'xiaohongshu',
+          rawTextLength: 9,
+          hasTitle: false,
+          hasCaption: true,
+          hasDescription: true,
+          hasOcrText: false,
+          hasTranscript: false,
+          hasVideoFrames: false,
+          hasImages: false,
+          observedIngredientCount: 2,
+          observedActionCount: 1,
+          observedSeasoningCount: 1,
+          sourceConfidence: 'low',
+          warnings: ['来源文本很短，可能只包含零散关键词。']
+        },
+        debugEvidenceSummary: {
+          sourceTextSnippet: '鸡腿 小苏打 藤椒',
+          observedIngredients: ['鸡腿', '藤椒'],
+          observedSeasonings: ['小苏打'],
+          observedActions: ['鸡腿加入小苏打']
+        }
+      })
+    };
+  };
+
+  const draft = await importRecipeFromSource({ url: 'http://xhslink.com/o/example' });
+  assert.equal(draft.diagnostics.sourceConfidence, 'low');
+  assert.equal(draft.diagnostics.observedActionCount, 1);
+  assert.deepEqual(draft.debugEvidenceSummary.observedIngredients, ['鸡腿', '藤椒']);
+  assert.match(draft.warnings.join('\n'), /视频可提取信息较少/);
+  assert.doesNotMatch(draft.method, /需要确认|提取信息不足|视频可提取信息较少/);
 });
 
 test('菜谱导入保留鲜藤椒步骤，不自动补成加水焖熟', async () => {
@@ -408,7 +530,10 @@ test('AI 菜谱导入 warning 单独传给编辑页，不写入 Method', () => {
 
   assert.doesNotMatch(ai, /appendRecipeImportWarnings/);
   assert.match(modal, /warnings: Array\.isArray\(draft\.warnings\)/);
+  assert.match(modal, /diagnostics: draft\.diagnostics/);
   assert.match(editor, /aiDraftWarnings/);
+  assert.match(editor, /aiDraftDiagnostics/);
+  assert.match(editor, /提取置信度/);
   assert.match(editor, /这个菜谱可能需要确认/);
   assert.match(editor, /nextRecipe\.reviewNotes = aiDraftWarnings\.join\('\\n'\)/);
   assert.doesNotMatch(editor.slice(editor.indexOf('<textarea id="rMethod"'), editor.indexOf('<div class="controls editor-actions"')), /需要确认/);
@@ -583,7 +708,7 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   assert.match(aiParseRoute, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL/);
   assert.match(aiParseRoute, /const recipeResp = await axios\.post/);
   assert.match(aiParseRoute, /model: OPENAI_MODEL/);
-  assert.match(aiParseRoute, /sanitizeRecipe\(parsed, \{ sourceText: text, evidence \}\)/);
+  assert.match(aiParseRoute, /sanitizeRecipe\(parsed, \{ sourceText: text, evidence, diagnostics: initialDiagnostics \}\)/);
   assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiParseRoute, /sendAiUpstreamError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);
 });

@@ -251,6 +251,10 @@ test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
   assert.match(capturedPayloads[0].messages[0].content, /有"水"不等于加水焖煮/);
   assert.equal(capturedPayloads[1].model, 'openai/gpt-oss-120b');
   assert.match(capturedPayloads[1].messages[1].content, /evidence JSON/);
+  assert.match(capturedPayloads[1].messages[1].content, /sourceDiagnostics/);
+  assert.equal(res.body.diagnostics.sourceConfidence, 'low');
+  assert.equal(res.body.diagnostics.observedActionCount, 2);
+  assert.deepEqual(res.body.debugEvidenceSummary.observedIngredients, ['鸡蛋']);
 });
 
 test('后端上游错误响应保留 status/code，并且不泄露 API Key', async () => {

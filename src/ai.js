@@ -212,6 +212,13 @@ function listEvidenceItems(evidence) {
     .filter(Boolean);
 }
 
+function listEvidenceField(evidence, field) {
+  if (!evidence || typeof evidence !== 'object' || !Array.isArray(evidence[field])) return [];
+  return evidence[field]
+    .map(item => String(item?.item || item?.name || item || '').trim())
+    .filter(Boolean);
+}
+
 function getEvidenceActionText(evidence) {
   if (!evidence || typeof evidence !== 'object' || !Array.isArray(evidence.observedActions)) return '';
   return evidence.observedActions.map(action => [
@@ -221,7 +228,99 @@ function getEvidenceActionText(evidence) {
   ].filter(Boolean).join(' ')).join('\n');
 }
 
-export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings = [], method = '', sourceText = '', evidence = null } = {}) {
+function normalizeRecipeImportSourceType(sourceType, { imageBase64 = null } = {}) {
+  const raw = String(sourceType || '').trim().toLowerCase();
+  if (['xiaohongshu', 'video', 'web', 'manual'].includes(raw)) return raw;
+  return imageBase64 ? 'manual' : 'manual';
+}
+
+function getObservedIngredientCount(evidence) {
+  return [...new Set([
+    ...listEvidenceField(evidence, 'observedMainIngredients'),
+    ...listEvidenceField(evidence, 'observedAromatics'),
+    ...listEvidenceField(evidence, 'observedLiquids')
+  ])].length;
+}
+
+function getObservedSeasoningCount(evidence) {
+  return [...new Set(listEvidenceField(evidence, 'observedSeasonings'))].length;
+}
+
+export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sourceText = '', imageBase64 = null, evidence = null, method = '' } = {}) {
+  const normalizedSourceType = normalizeRecipeImportSourceType(sourceType, { imageBase64 });
+  const rawText = String(sourceText || '').trim();
+  const observedIngredientCount = getObservedIngredientCount(evidence);
+  const observedSeasoningCount = getObservedSeasoningCount(evidence);
+  const observedActionCount = Array.isArray(evidence?.observedActions) ? evidence.observedActions.length : 0;
+  const methodText = Array.isArray(method) ? method.join('\n') : String(method || '');
+  const methodStepCount = methodText ? countRecipeMethodSteps(methodText) : 0;
+  const hasImages = Boolean(imageBase64);
+  const hasEvidenceFromImage = hasImages && (observedIngredientCount + observedSeasoningCount + observedActionCount > 0);
+  const hasDescription = rawText.length > 0;
+  const hasCaption = normalizedSourceType === 'xiaohongshu' && rawText.length > 0;
+  const hasTranscript = /字幕|transcript|旁白|口播/u.test(rawText);
+  const hasOcrText = hasEvidenceFromImage || /ocr|截图文字|图片文字/u.test(rawText);
+  const hasVideoFrames = false;
+  const hasAnyExtractedContent = rawText.length > 0 || hasImages || observedIngredientCount + observedSeasoningCount + observedActionCount > 0;
+  const evidenceConfidence = String(evidence?.sourceConfidence || '').trim().toLowerCase();
+  const warnings = [];
+
+  if (rawText && rawText.length < 100) warnings.push('来源文本很短，可能只包含零散关键词。');
+  if (observedIngredientCount < 3) warnings.push('识别到的核心食材较少。');
+  if (observedActionCount < 3) warnings.push('识别到的明确做法步骤较少。');
+  if (!hasCaption && !hasDescription && !hasOcrText && !hasTranscript && !hasVideoFrames && !hasImages) {
+    warnings.push('未获取到可用的正文、字幕、OCR、视频帧或图片信息。');
+  }
+  if (['xiaohongshu', 'video', 'web'].includes(normalizedSourceType) && methodStepCount > 0 && methodStepCount < 3) {
+    warnings.push('生成的做法步骤少于 3 步。');
+  }
+
+  let sourceConfidence = 'medium';
+  if (
+    evidenceConfidence === 'low' ||
+    rawText && rawText.length < 100 ||
+    observedIngredientCount < 3 ||
+    observedActionCount < 3 ||
+    !hasAnyExtractedContent ||
+    (['xiaohongshu', 'video', 'web'].includes(normalizedSourceType) && methodStepCount > 0 && methodStepCount < 3)
+  ) {
+    sourceConfidence = 'low';
+  } else if (
+    evidenceConfidence === 'high' &&
+    (rawText.length >= 160 || hasImages) &&
+    observedIngredientCount >= 3 &&
+    observedActionCount >= 3
+  ) {
+    sourceConfidence = 'high';
+  }
+
+  return {
+    sourceType: normalizedSourceType,
+    rawTextLength: rawText.length,
+    hasTitle: listEvidenceField(evidence, 'dishNameCandidates').length > 0,
+    hasCaption,
+    hasDescription,
+    hasOcrText,
+    hasTranscript,
+    hasVideoFrames,
+    hasImages,
+    observedIngredientCount,
+    observedActionCount,
+    observedSeasoningCount,
+    methodStepCount,
+    sourceConfidence,
+    warnings: [...new Set(warnings)]
+  };
+}
+
+function getSourceDiagnosticsWarnings(diagnostics) {
+  if (!diagnostics || typeof diagnostics !== 'object') return [];
+  return diagnostics.sourceConfidence === 'low'
+    ? ['视频可提取信息较少，菜谱可能不完整，请补充原文、截图或手动确认。']
+    : [];
+}
+
+export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings = [], method = '', sourceText = '', evidence = null, diagnostics = null } = {}) {
   const items = [
     ...(Array.isArray(ingredients) ? ingredients : []),
     ...(Array.isArray(seasonings) ? seasonings : []),
@@ -270,12 +369,12 @@ export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings =
   const sourceConfidence = String(evidence?.sourceConfidence || '').trim().toLowerCase();
   const observedActionCount = Array.isArray(evidence?.observedActions) ? evidence.observedActions.length : 0;
   if (sourceConfidence === 'low' || (observedActionCount > 0 && observedActionCount < 3 && methodStepCount > 0 && methodStepCount < 3)) {
-    warnings.push('视频/链接可提取信息较少，菜谱步骤可能不完整，请人工确认。');
+    warnings.push('视频可提取信息较少，菜谱可能不完整，请补充原文、截图或手动确认。');
   }
 
   return {
     missingInSteps: uniqueMissing,
-    warnings: [...new Set(warnings)]
+    warnings: [...new Set([...warnings, ...getSourceDiagnosticsWarnings(diagnostics)])]
   };
 }
 
@@ -1107,7 +1206,7 @@ async function fetchRecipeText(url) {
 }
 
 // 解析 120B 返回，校验并对齐编辑器字段（name / tags / ingredients / method）。
-function validateImportedRecipe(input, { sourceText = '', evidence = null } = {}) {
+function validateImportedRecipe(input, { sourceText = '', evidence = null, diagnostics = null, debugEvidenceSummary = null, sourceType = 'manual', imageBase64 = null } = {}) {
   const data = safeParseJson(input, 'AI 菜谱结果');
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('AI 菜谱结果不是对象。');
 
@@ -1136,7 +1235,10 @@ function validateImportedRecipe(input, { sourceText = '', evidence = null } = {}
   const importedWarnings = Array.isArray(data.warnings)
     ? data.warnings.map(w => String(w || '').trim()).filter(Boolean)
     : [];
-  const coverage = checkImportedRecipeStepCoverage({ ingredients, seasonings, method, sourceText, evidence });
+  const sourceDiagnostics = diagnostics && typeof diagnostics === 'object'
+    ? diagnostics
+    : (evidence ? buildRecipeImportSourceDiagnostics({ sourceType, sourceText, imageBase64, evidence, method }) : null);
+  const coverage = checkImportedRecipeStepCoverage({ ingredients, seasonings, method, sourceText, evidence, diagnostics: sourceDiagnostics });
   const warnings = [...new Set([...importedWarnings, ...coverage.warnings])];
 
   if (!name) throw new Error('AI 菜谱缺少菜名。');
@@ -1150,6 +1252,8 @@ function validateImportedRecipe(input, { sourceText = '', evidence = null } = {}
     seasonings,
     method,
     warnings,
+    diagnostics: sourceDiagnostics,
+    debugEvidenceSummary,
     needsReview: Boolean(data.needsReview || warnings.length),
     isAiDraft: true,
     draftSource: 'ai-import'
@@ -1158,13 +1262,13 @@ function validateImportedRecipe(input, { sourceText = '', evidence = null } = {}
 
 // 通过后端 /api/ai-parse 调用 AI：文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL。
 // 前端不再校验本地 API Key，未配置也能正常点击、走后端代理。
-async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
+async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType = 'manual' } = {}) {
   let res;
   try {
     res = await fetch('/api/ai-parse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, imageBase64 })
+      body: JSON.stringify({ text, imageBase64, sourceType })
     });
   } catch (e) {
     throw new Error('AI 服务暂不可用（后端未启动？），请稍后重试。');
@@ -1182,7 +1286,14 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
     });
   }
   // 后端返回模型原文 content，由前端统一校验对齐编辑器字段。
-  return validateImportedRecipe((data && (data.recipe || data.content)) || '', { sourceText: text, evidence: data?.evidence || null });
+  return validateImportedRecipe((data && (data.recipe || data.content)) || '', {
+    sourceText: text,
+    evidence: data?.evidence || null,
+    diagnostics: data?.diagnostics || null,
+    debugEvidenceSummary: data?.debugEvidenceSummary || null,
+    sourceType,
+    imageBase64
+  });
 }
 
 /**
@@ -1208,5 +1319,12 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
 
   if (!sourceText && !imageBase64) throw new Error('没有可解析的内容，请改用文字或截图导入。');
 
-  return parseRecipeWith120B({ text: sourceText, imageBase64 });
+  let sourceType = pastedText ? 'manual' : 'manual';
+  if (cleanUrl) {
+    sourceType = /(?:xhslink|xiaohongshu|小红书)/i.test(cleanUrl) ? 'xiaohongshu' : 'web';
+  } else if (file && /^video\//.test(file.type)) {
+    sourceType = 'video';
+  }
+
+  return parseRecipeWith120B({ text: sourceText, imageBase64, sourceType });
 }

@@ -74,6 +74,8 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
         method: aiPendingDraft.method,
         seasonings: aiPendingDraft.seasonings,
         warnings: aiPendingDraft.warnings,
+        diagnostics: aiPendingDraft.diagnostics,
+        debugEvidenceSummary: aiPendingDraft.debugEvidenceSummary,
         needsReview: aiPendingDraft.needsReview,
         isAiDraft: true
       }
@@ -87,8 +89,14 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const aiDraftWarnings = isAiImportDraft && Array.isArray(aiPendingDraft.warnings)
     ? aiPendingDraft.warnings.map(w => String(w || '').trim()).filter(Boolean)
     : [];
+  const aiDraftDiagnostics = isAiImportDraft && aiPendingDraft.diagnostics && typeof aiPendingDraft.diagnostics === 'object'
+    ? aiPendingDraft.diagnostics
+    : null;
+  const aiDiagnosticSummary = aiDraftDiagnostics
+    ? `提取置信度：${aiDraftDiagnostics.sourceConfidence || 'unknown'} · 食材 ${aiDraftDiagnostics.observedIngredientCount ?? 0} · 调料 ${aiDraftDiagnostics.observedSeasoningCount ?? 0} · 步骤 ${aiDraftDiagnostics.observedActionCount ?? 0}`
+    : '';
   const aiWarningHtml = aiDraftWarnings.length
-    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong><ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
+    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
     : '';
 
   const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card';
