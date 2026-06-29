@@ -192,6 +192,42 @@ test('菜谱导入完整性检查接受明确的藤椒粉使用步骤', () => {
   assert.deepEqual(result.warnings, []);
 });
 
+test('菜谱导入完整性检查提示原文肉类腌制步骤被遗漏', () => {
+  const result = checkImportedRecipeStepCoverage({
+    ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+    seasonings: [
+      { item: '生抽', qty: '2', unit: '勺' },
+      { item: '老抽', qty: '1', unit: '勺' },
+      { item: '料酒', qty: '1', unit: '勺' },
+      { item: '盐', qty: '1', unit: '适量' },
+      { item: '糖', qty: '1', unit: '适量' }
+    ],
+    sourceText: '鸡腿洗净擦干，加入生抽、老抽、料酒、盐、糖抓匀腌制。',
+    method: '鸡腿煎至两面金黄，加入鲜藤椒和生抽调味后出锅。'
+  });
+
+  assert.match(result.warnings.join('\n'), /肉类腌制/);
+  assert.match(result.warnings.join('\n'), /未明确保留腌制步骤/);
+});
+
+test('菜谱导入完整性检查接受已保留的肉类腌制步骤', () => {
+  const result = checkImportedRecipeStepCoverage({
+    ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+    seasonings: [
+      { item: '生抽', qty: '2', unit: '勺' },
+      { item: '老抽', qty: '1', unit: '勺' },
+      { item: '料酒', qty: '1', unit: '勺' },
+      { item: '盐', qty: '1', unit: '适量' },
+      { item: '糖', qty: '1', unit: '适量' }
+    ],
+    sourceText: '鸡腿洗净擦干，加入生抽、老抽、料酒、盐、糖抓匀腌制。',
+    method: '鸡腿洗净擦干，加入生抽、老抽、料酒、盐、糖抓匀腌制。锅中倒油，放入鸡腿煎至两面金黄。'
+  });
+
+  assert.doesNotMatch(result.warnings.join('\n'), /肉类腌制/);
+  assert.doesNotMatch(result.warnings.join('\n'), /15分钟|30分钟/);
+});
+
 test('菜谱导入完整性检查接受鲜藤椒的真实加入动作', () => {
   const result = checkImportedRecipeStepCoverage({
     seasonings: [{ item: '鲜藤椒', qty: '1', unit: '把' }],
@@ -276,6 +312,44 @@ test('菜谱导入保留鲜藤椒步骤，不自动补成加水焖熟', async ()
   assert.match(draft.method, /原内容列出了水，但做法未明确说明水的用途，请确认。/);
   assert.doesNotMatch(draft.method, /鲜藤椒未在做法中明确出现/);
   assert.deepEqual(draft.warnings, ['原内容列出了水，但做法未明确说明水的用途，请确认。']);
+});
+
+test('菜谱导入综合保留腌制、煎制、鲜藤椒调味和出锅阶段', async () => {
+  const sourceMethod = '鸡腿洗净擦干，加入生抽、老抽、料酒、盐、糖抓匀腌制。锅中倒油，放入鸡腿煎至两面金黄，加入鲜藤椒和生抽等调味料翻炒均匀后出锅。';
+  global.fetch = async (url, options) => {
+    assert.equal(url, '/api/ai-parse');
+    assert.match(JSON.parse(options.body).text, /鸡腿洗净擦干/);
+    return {
+      ok: true,
+      json: async () => ({
+        content: JSON.stringify({
+          name: '鲜藤椒鸡腿',
+          tags: ['家常菜'],
+          ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+          seasonings: [
+            { item: '鲜藤椒', qty: '1', unit: '把' },
+            { item: '生抽', qty: '2', unit: '勺' },
+            { item: '老抽', qty: '1', unit: '勺' },
+            { item: '料酒', qty: '1', unit: '勺' },
+            { item: '盐', qty: '1', unit: '适量' },
+            { item: '糖', qty: '1', unit: '适量' },
+            { item: '水', qty: '1', unit: '杯' }
+          ],
+          method: sourceMethod
+        })
+      })
+    };
+  };
+
+  const draft = await importRecipeFromSource({ text: sourceMethod });
+  assert.match(draft.method, /抓匀腌制/);
+  assert.match(draft.method, /煎至两面金黄/);
+  assert.match(draft.method, /加入鲜藤椒和生抽等调味料/);
+  assert.match(draft.method, /出锅/);
+  assert.doesNotMatch(draft.method, /加水焖熟|加水焖煮|收汁/);
+  assert.match(draft.method, /原内容列出了水，但做法未明确说明水的用途，请确认。/);
+  assert.doesNotMatch(draft.warnings.join('\n'), /肉类腌制/);
+  assert.doesNotMatch(draft.warnings.join('\n'), /鲜藤椒未在做法中明确出现/);
 });
 
 test('小票识别走同源 /api/ai-chat，不在前端携带 Authorization', async () => {

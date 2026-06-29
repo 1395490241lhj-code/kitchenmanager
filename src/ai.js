@@ -162,7 +162,11 @@ function getRecipeStepCoverageWarning(rule, ingredientName) {
   return `关键风味材料${ingredientName}未在做法中明确出现，请确认加入时机。`;
 }
 
-export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings = [], method = '' } = {}) {
+const MEAT_RECIPE_INGREDIENT_PATTERN = /鸡腿|鸡肉|鸡翅|鸡胸|鸡丁|牛肉|猪肉|羊肉|肉片|肉丝|肉末|五花肉|里脊|排骨|鱼片|虾仁/u;
+const MARINADE_SOURCE_PATTERN = /腌|腌制|抓匀|拌匀|料酒|生抽|老抽|盐|糖|胡椒|淀粉/u;
+const MARINADE_METHOD_PATTERN = /腌|腌制|抓匀|拌匀/u;
+
+export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings = [], method = '', sourceText = '' } = {}) {
   const items = [
     ...(Array.isArray(ingredients) ? ingredients : []),
     ...(Array.isArray(seasonings) ? seasonings : [])
@@ -177,12 +181,19 @@ export function checkImportedRecipeStepCoverage({ ingredients = [], seasonings =
   }
 
   const uniqueMissing = [...new Set(missingInSteps)];
+  const warnings = uniqueMissing.map(name => {
+    const rule = RECIPE_STEP_COVERAGE_RULES.find(item => item.ingredient.test(name));
+    return rule ? getRecipeStepCoverageWarning(rule, name) : `关键材料${name}未在做法中明确出现，请确认加入时机。`;
+  });
+  const evidenceText = String(sourceText || '');
+  const hasMeat = items.some(name => MEAT_RECIPE_INGREDIENT_PATTERN.test(name));
+  if (hasMeat && evidenceText && MARINADE_SOURCE_PATTERN.test(evidenceText) && !MARINADE_METHOD_PATTERN.test(methodText)) {
+    warnings.push('原内容可能包含肉类腌制信息，但做法中未明确保留腌制步骤，请确认。');
+  }
+
   return {
     missingInSteps: uniqueMissing,
-    warnings: uniqueMissing.map(name => {
-      const rule = RECIPE_STEP_COVERAGE_RULES.find(item => item.ingredient.test(name));
-      return rule ? getRecipeStepCoverageWarning(rule, name) : `关键材料${name}未在做法中明确出现，请确认加入时机。`;
-    })
+    warnings: [...new Set(warnings)]
   };
 }
 
@@ -1020,7 +1031,7 @@ async function fetchRecipeText(url) {
 }
 
 // 解析 120B 返回，校验并对齐编辑器字段（name / tags / ingredients / method）。
-function validateImportedRecipe(input) {
+function validateImportedRecipe(input, { sourceText = '' } = {}) {
   const data = safeParseJson(input, 'AI 菜谱结果');
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('AI 菜谱结果不是对象。');
 
@@ -1049,7 +1060,7 @@ function validateImportedRecipe(input) {
   const importedWarnings = Array.isArray(data.warnings)
     ? data.warnings.map(w => String(w || '').trim()).filter(Boolean)
     : [];
-  const coverage = checkImportedRecipeStepCoverage({ ingredients, seasonings, method });
+  const coverage = checkImportedRecipeStepCoverage({ ingredients, seasonings, method, sourceText });
   const warnings = [...new Set([...importedWarnings, ...coverage.warnings])];
 
   if (!name) throw new Error('AI 菜谱缺少菜名。');
@@ -1095,7 +1106,7 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null } = {}) {
     });
   }
   // 后端返回模型原文 content，由前端统一校验对齐编辑器字段。
-  return validateImportedRecipe((data && (data.recipe || data.content)) || '');
+  return validateImportedRecipe((data && (data.recipe || data.content)) || '', { sourceText: text });
 }
 
 /**
