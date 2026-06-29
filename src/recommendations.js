@@ -19,7 +19,7 @@ import {
   buildRecipePackMetadataIndex,
   getEnabledRecipePackIds,
   getRecipePackScoringHint
-} from './recipe-packs.js?v=222';
+} from './recipe-packs.js?v=223';
 export {
   buildGenericRecipeTemplateRecommendations,
   buildRecipeVariantRecommendations,
@@ -616,6 +616,7 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
             : 0;
       const plannedPenalty = scored.isPlannedToday ? -20 : (scored.isPlannedFuture ? -10 : 0);
       const methodBonus = scored.hasMethod ? 8 : -8;
+      const recipePackPreferenceBonus = scored.scoreParts?.recipePackPreferenceBonus || 0;
       const score = (
         hitCount * 100 +
         (completeTargetHit ? 60 : 0) +
@@ -624,7 +625,8 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
         inventoryMissing.length * 10 +
         methodBonus +
         recentPenalty +
-        plannedPenalty
+        plannedPenalty +
+        recipePackPreferenceBonus
       );
       const missingNames = inventoryMissing.map(item => item.name || item.item).filter(Boolean);
       const tone = inventoryMissing.length > 0 && inventoryMissing.length <= 2

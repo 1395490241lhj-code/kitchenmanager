@@ -2,7 +2,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { installLocalStorageStub, resetLocalStorage } from './helpers/localstorage-stub.mjs';
-import { rankRecipesForRecommendation, scoreRecipe } from '../src/recommendations.js';
+import { findRecipesUsingIngredients, rankRecipesForRecommendation, scoreRecipe } from '../src/recommendations.js';
 
 beforeEach(() => {
   installLocalStorageStub();
@@ -89,4 +89,24 @@ test('recipe pack scoring does not change missing ingredient detection', () => {
 
   assert.equal(scored.scoreParts.recipePackPreferenceBonus, 3);
   assert.deepEqual(scored.missing.map(item => item.name || item.item), ['鸡蛋']);
+});
+
+test('target ingredient recommendations include recipe pack bonus without adding candidates', () => {
+  const results = findRecipesUsingIngredients(PACK, INV, ['鸡蛋'], {
+    context: {
+      ...BASE_CONTEXT,
+      settings: { enabledRecipePackIds: ['quick-solo'] }
+    },
+    limit: 6
+  });
+
+  assert.equal(results.length, PACK.recipes.length);
+  assert.ok(results.every(item => PACK.recipes.some(recipe => recipe.id === item.id)));
+  assert.ok(!results.some(item => item.name === '番茄炒蛋'));
+
+  const boosted = results.find(item => item.name === '葱油拌面');
+  const neutral = results.find(item => item.name === '蒸蛋羹');
+  assert.equal(boosted.row.scoreParts.recipePackPreferenceBonus, 3);
+  assert.equal(neutral.row.scoreParts.recipePackPreferenceBonus, 0);
+  assert.equal(boosted.score - neutral.score, 3);
 });
