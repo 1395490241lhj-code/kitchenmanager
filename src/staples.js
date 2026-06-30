@@ -49,8 +49,26 @@ function normalizePantryConfig(raw) {
   };
 }
 
+// ── 解析记忆化 ────────────────────────────────────────────────────────────
+// 常备配置 / 常备状态在推荐排序时会被「每道菜 × 每样食材」反复读取（见
+// recommendations.js analyzeRecipeInventory 的常备拦截循环），原本每次都要
+// JSON.parse + 重新分组，是排序热路径上的主要开销。
+// 这里按 localStorage 的「原始字符串」做记忆化：任何写入——无论是
+// saveStaples / savePantryConfig、备份恢复的直接 setItem，还是测试里的
+// resetLocalStorage——都会改变原始字符串，从而自动失效缓存，杜绝脏读。
+// 省掉的是重复的 parse 与集合重建；每次仍做一次 O(1) 的 getItem + 字符串比较。
+let _pantryRaw = null;
+let _pantryConfig = null;
+let _configuredStapleNames = null;
+
 export function loadPantryConfig() {
-  return normalizePantryConfig(S.load(S.keys.pantry_config, {}));
+  const raw = localStorage.getItem(S.keys.pantry_config);
+  if (raw !== _pantryRaw || !_pantryConfig) {
+    _pantryRaw = raw;
+    _pantryConfig = normalizePantryConfig(S.load(S.keys.pantry_config, {}));
+    _configuredStapleNames = null; // 配置变了，派生的常备名集合一并失效，留待懒重建
+  }
+  return _pantryConfig;
 }
 
 export function savePantryConfig(config) {
@@ -184,8 +202,22 @@ export function removePantryEntry(entry) {
   return { ok: true };
 }
 
+// 自定义常备名集合：从当前常备配置派生，按 pantry 原始字符串缓存（失效逻辑见
+// loadPantryConfig）。避免在热路径上对每个候选名都重建一遍分组。
+function getConfiguredStapleNames() {
+  loadPantryConfig(); // 触发缓存校验：配置变更时会把 _configuredStapleNames 置空
+  if (!_configuredStapleNames) {
+    const set = new Set();
+    getManagedStapleGroups().forEach(group =>
+      group.items.forEach(item => set.add(getCanonicalName(item.name)))
+    );
+    _configuredStapleNames = set;
+  }
+  return _configuredStapleNames;
+}
+
 function isConfiguredStaple(canonical) {
-  return getManagedStapleGroups().some(group => group.items.some(item => getCanonicalName(item.name) === canonical));
+  return getConfiguredStapleNames().has(canonical);
 }
 
 export function isStaple(name) {
@@ -219,9 +251,17 @@ export function isStapleOutOfStock(name) {
   return getStapleState(name).status === STAPLE_STATUS.INSUFFICIENT;
 }
 
+let _staplesRaw = null;
+let _staplesMap = null;
+
 function loadStaples() {
-  const map = S.load(S.keys.staples, {});
-  return (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
+  const raw = localStorage.getItem(S.keys.staples);
+  if (raw !== _staplesRaw || !_staplesMap) {
+    _staplesRaw = raw;
+    const map = S.load(S.keys.staples, {});
+    _staplesMap = (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
+  }
+  return _staplesMap;
 }
 
 function saveStaples(map) {
