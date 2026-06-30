@@ -1561,6 +1561,7 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
   const cleanUrl = String(url || '').trim();
   const pastedText = String(text || '').trim();
   if (!cleanUrl && !file && !pastedText) throw new Error('请粘贴链接或菜谱文字。');
+  const isXiaohongshuUrl = /(?:xhslink|xiaohongshu|小红书)/i.test(cleanUrl);
 
   // 图片文件 → 走视觉解析；视频文件暂不支持逐帧，链接导入仍是主流程。
   let imageBase64 = null;
@@ -1573,9 +1574,32 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
   let sourceText = '';
   let sourceMetadata = null;
   if (cleanUrl) {
-    const linkSource = await fetchRecipeSource(cleanUrl);
-    sourceText = [linkSource.text, pastedText].filter(Boolean).join('\n');
-    sourceMetadata = linkSource.metadata;
+    try {
+      const linkSource = await fetchRecipeSource(cleanUrl);
+      sourceText = pastedText
+        ? `【链接提取内容】\n${linkSource.text}\n\n【用户补充内容】\n${pastedText}`
+        : linkSource.text;
+      sourceMetadata = {
+        ...(linkSource.metadata || {}),
+        ...(pastedText
+          ? {
+              hasUserSupplement: true,
+              userSupplementPreview: pastedText.slice(0, 300)
+            }
+          : {})
+      };
+    } catch (err) {
+      if (!pastedText) throw err;
+      sourceText = pastedText;
+      sourceMetadata = {
+        url: cleanUrl,
+        finalUrl: '',
+        extractionMode: 'link-fallback-text',
+        warnings: ['链接解析失败，已改用粘贴文字生成草稿。'],
+        hasUserSupplement: true,
+        userSupplementPreview: pastedText.slice(0, 300)
+      };
+    }
   } else {
     sourceText = pastedText;
   }
@@ -1584,7 +1608,7 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
 
   let sourceType = pastedText ? 'manual' : 'manual';
   if (cleanUrl) {
-    sourceType = /(?:xhslink|xiaohongshu|小红书)/i.test(cleanUrl) ? 'xiaohongshu' : 'web';
+    sourceType = isXiaohongshuUrl ? 'xiaohongshu' : 'web';
   } else if (file && /^video\//.test(file.type)) {
     sourceType = 'video';
   }
