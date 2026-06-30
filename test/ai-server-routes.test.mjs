@@ -387,6 +387,9 @@ test('/api/xhs-extract 少量标题信息也返回 text 和有用 warnings', asy
   assert.match(res.body.text, /番茄炒蛋/);
   assert.ok(res.body.warnings.includes('链接可提取内容较少，可能需要人工确认。'));
   assert.ok(res.body.warnings.includes('未提取到完整做法步骤。'));
+  assert.equal(res.body.media.mediaDiagnostics.hasVideo, false);
+  assert.deepEqual(res.body.media.videoUrls, []);
+  assert.ok(res.body.warnings.includes('未从页面中提取到可用视频地址。'));
 });
 
 test('/api/xhs-extract 支持 twitter meta description 作为可用来源', async () => {
@@ -406,6 +409,75 @@ test('/api/xhs-extract 支持 twitter meta description 作为可用来源', asyn
   assert.equal(res.body.hasStructuredMeta, true);
   assert.match(res.body.text, /土豆切丝冲洗/);
   assert.doesNotMatch(res.body.text, /黄金薯/);
+});
+
+test('/api/xhs-extract 会提取页面里的视频和封面 URL 但不加入正文', async () => {
+  const html = `<!doctype html><html><head>
+    <meta property="og:title" content="藤椒鸡腿">
+    <meta property="og:description" content="鸡腿洗净擦干，加入生抽抓匀腌制。锅中煎至两面焦香，加入鲜藤椒调味后出锅。">
+    <meta property="og:video:secure_url" content="https://video.example.com/meta-play.mp4?token=1&amp;from=og">
+    <meta property="og:image" content="https://img.example.com/cover-og.jpg">
+  </head><body>
+    <video src="https://media.example.com/video-tag.m3u8" poster="https://img.example.com/poster.webp"></video>
+    <script>
+      window.__INITIAL_STATE__ = {
+        note: {
+          video: {
+            streamUrl: "https:\\/\\/sns-video.example.com\\/stream\\/abc.m3u8",
+            h264: "https:\\/\\/sns-video.example.com\\/h264\\/abc.mp4",
+            backupUrls: ["https://backup.example.com/vod/abc.mp4"]
+          },
+          imageList: [{ url: "https://sns-img.example.com/a.webp" }],
+          cover: { url: "https://sns-img.example.com/cover.jpg" }
+        }
+      };
+    </script>
+  </body></html>`;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({ status: 200, headers: {}, data: html })
+  });
+
+  const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/video-note' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.media.mediaDiagnostics.hasVideo, true);
+  assert.ok(res.body.media.mediaDiagnostics.videoUrlCount >= 4);
+  assert.ok(res.body.media.videoUrls.includes('https://video.example.com/meta-play.mp4?token=1&from=og'));
+  assert.ok(res.body.media.videoUrls.includes('https://sns-video.example.com/h264/abc.mp4'));
+  assert.ok(res.body.media.videoUrls.includes('https://sns-video.example.com/stream/abc.m3u8'));
+  assert.ok(res.body.media.coverUrls.includes('https://img.example.com/cover-og.jpg'));
+  assert.ok(res.body.media.coverUrls.includes('https://img.example.com/poster.webp'));
+  assert.ok(res.body.media.imageUrls.includes('https://sns-img.example.com/a.webp'));
+  assert.ok(res.body.media.mediaDiagnostics.extractionHints.includes('meta-video'));
+  assert.ok(!res.body.warnings.includes('未从页面中提取到可用视频地址。'));
+  assert.doesNotMatch(res.body.text, /meta-play\.mp4|h264\/abc\.mp4|stream\/abc\.m3u8/);
+});
+
+test('/api/xhs-extract 会过滤脚本中的内网媒体 URL', async () => {
+  const html = `<!doctype html><html><head>
+    <meta property="og:title" content="番茄炒蛋">
+    <meta property="og:description" content="番茄切块，鸡蛋打散。锅中炒鸡蛋，放入番茄翻炒，加盐调味后出锅。">
+  </head><body>
+    <script>
+      window.__INITIAL_STATE__ = {
+        video: {
+          streamUrl: "http://127.0.0.1/private.mp4",
+          backupUrls: ["https://public.example.com/sns-video/ok.mp4"]
+        }
+      };
+    </script>
+  </body></html>`;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({ status: 200, headers: {}, data: html })
+  });
+
+  const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/video-filter' });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.media.videoUrls, ['https://public.example.com/sns-video/ok.mp4']);
+  assert.doesNotMatch(JSON.stringify(res.body.media), /127\.0\.0\.1/);
 });
 
 test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async () => {

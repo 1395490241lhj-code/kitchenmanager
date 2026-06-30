@@ -298,6 +298,20 @@ function extractMetaContent(html, matcher) {
   return '';
 }
 
+function extractMetaContents(html, matcher) {
+  const tags = String(html || '').match(/<meta\b[^>]*>/gi) || [];
+  const output = [];
+  for (const tag of tags) {
+    const property = getHtmlAttr(tag, 'property').toLowerCase();
+    const name = getHtmlAttr(tag, 'name').toLowerCase();
+    if (matcher({ property, name })) {
+      const content = getHtmlAttr(tag, 'content');
+      if (content) output.push(content);
+    }
+  }
+  return uniqueTextList(output, 20);
+}
+
 function safeParseJsonText(text) {
   try { return JSON.parse(String(text || '').trim()); } catch (_) { return null; }
 }
@@ -491,6 +505,172 @@ function chooseRecipeExtractionMode({ initialStateText, jsonLdText, metaText, vi
   if (metaText) return 'meta';
   if (visibleText) return 'html-text';
   return 'link-only';
+}
+
+const MEDIA_URL_PATTERN = /https?:\/\/[^\s"'<>`),\]]+/gi;
+const VIDEO_FIELD_PATTERN = /(?:^|\.|_)(video|videourl|video_url|masterurl|master_url|streamurl|stream_url|h264|h265|backupurls|backup_urls|originvideokey|origin_video_key)(?:$|\.|_)/i;
+const IMAGE_FIELD_PATTERN = /(?:^|\.|_)(image|images|imagelist|image_list|img|photo|photos|poster)(?:$|\.|_)/i;
+const COVER_FIELD_PATTERN = /(?:^|\.|_)(cover|coverurl|cover_url|poster)(?:$|\.|_)/i;
+const VIDEO_URL_HINT_PATTERN = /\.(?:mp4|m3u8)(?:[?#]|$)|video|stream|sns-video|vod|h264|h265/i;
+const IMAGE_URL_HINT_PATTERN = /\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)|image|cover|sns-img|photo/i;
+
+function normalizeMediaUrl(candidate) {
+  const cleaned = decodeHtmlText(candidate)
+    .replace(/\\\//g, '/')
+    .replace(/[\\，。、,.;；]+$/g, '')
+    .trim();
+  if (!/^https?:\/\//i.test(cleaned)) return '';
+  try {
+    const parsed = new URL(cleaned);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    if (isBlockedHostname(parsed.hostname)) return '';
+    if (net.isIP(normalizeIp(parsed.hostname)) && isBlockedIp(parsed.hostname)) return '';
+    return parsed.href;
+  } catch (_) {
+    return '';
+  }
+}
+
+function extractHttpUrlsFromText(text) {
+  const normalized = decodeHtmlText(text)
+    .replace(/\\u002f/gi, '/')
+    .replace(/\\\//g, '/');
+  return uniqueTextList((normalized.match(MEDIA_URL_PATTERN) || []).map(normalizeMediaUrl).filter(Boolean), 80);
+}
+
+function createMediaAccumulator() {
+  const video = [];
+  const image = [];
+  const cover = [];
+  const seen = {
+    video: new Set(),
+    image: new Set(),
+    cover: new Set()
+  };
+  const hints = [];
+  const seenHints = new Set();
+
+  function addHint(hint) {
+    if (hint && !seenHints.has(hint)) {
+      seenHints.add(hint);
+      hints.push(hint);
+    }
+  }
+
+  function addUrl(rawUrl, bucket, hint = '') {
+    const url = normalizeMediaUrl(rawUrl);
+    if (!url || !seen[bucket] || seen[bucket].has(url)) return;
+    seen[bucket].add(url);
+    if (bucket === 'video') video.push(url);
+    if (bucket === 'image') image.push(url);
+    if (bucket === 'cover') cover.push(url);
+    addHint(hint);
+  }
+
+  return { video, image, cover, hints, addUrl, addHint };
+}
+
+function classifyMediaUrl(url, keyPath = '') {
+  const hint = String(keyPath || '');
+  if (COVER_FIELD_PATTERN.test(hint)) return 'cover';
+  if (IMAGE_FIELD_PATTERN.test(hint) && !VIDEO_FIELD_PATTERN.test(hint)) return 'image';
+  if (VIDEO_FIELD_PATTERN.test(hint) || VIDEO_URL_HINT_PATTERN.test(url)) return 'video';
+  if (IMAGE_URL_HINT_PATTERN.test(url)) return 'image';
+  return '';
+}
+
+function collectMediaFromObject(value, media, keyPath = '', depth = 0) {
+  if (value == null || depth > 8) return;
+  if (typeof value === 'string') {
+    for (const url of extractHttpUrlsFromText(value)) {
+      const bucket = classifyMediaUrl(url, keyPath);
+      if (bucket) media.addUrl(url, bucket, keyPath ? `script-field:${keyPath}` : 'script-url');
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach(item => collectMediaFromObject(item, media, keyPath, depth + 1));
+    return;
+  }
+  if (typeof value !== 'object') return;
+  for (const [key, item] of Object.entries(value)) {
+    const nextPath = keyPath ? `${keyPath}.${key}` : key;
+    collectMediaFromObject(item, media, nextPath, depth + 1);
+  }
+}
+
+function collectMediaFromScript(script, media) {
+  const body = script.replace(/^<script\b[^>]*>/i, '').replace(/<\/script>$/i, '').trim();
+  const isInitialState = /__(?:INITIAL_STATE|NEXT_DATA)__|hydration/i.test(script);
+  const hint = isInitialState ? 'initial-state' : 'script';
+
+  for (const url of extractHttpUrlsFromText(body)) {
+    const bucket = classifyMediaUrl(url, body.slice(Math.max(0, body.indexOf(url) - 80), body.indexOf(url) + 80));
+    if (bucket) media.addUrl(url, bucket, `${hint}:url-scan`);
+  }
+
+  const parsedScriptJson = safeParseJsonText(decodeHtmlText(body));
+  collectMediaFromObject(parsedScriptJson, media, hint);
+  const parsedJsonString = parseJsonParseCall(body);
+  collectMediaFromObject(parsedJsonString, media, hint);
+
+  const assignmentPattern = /(?:window\.)?__(?:INITIAL_STATE|NEXT_DATA)__\s*=\s*/gi;
+  let assignment;
+  while ((assignment = assignmentPattern.exec(body))) {
+    const afterAssignment = body.slice(assignmentPattern.lastIndex);
+    collectMediaFromObject(parseJsonParseCall(afterAssignment), media, 'initial-state');
+    const balancedObject = extractBalancedJsonObject(body, assignmentPattern.lastIndex);
+    if (balancedObject) collectMediaFromObject(safeParseJsonText(decodeHtmlText(balancedObject)), media, 'initial-state');
+  }
+}
+
+// 从页面源码中提取媒体 URL 供诊断；不下载、不探测、不请求这些 URL。
+function extractMediaFromHtml(html, context = {}) {
+  const media = createMediaAccumulator();
+  const source = String(html || '');
+
+  const metaVideoUrls = extractMetaContents(source, ({ property, name }) => (
+    ['og:video', 'og:video:url', 'og:video:secure_url', 'video', 'twitter:player:stream'].includes(property)
+    || ['og:video', 'og:video:url', 'og:video:secure_url', 'video', 'twitter:player:stream'].includes(name)
+  ));
+  metaVideoUrls.forEach(url => media.addUrl(url, 'video', 'meta-video'));
+
+  const metaImageUrls = extractMetaContents(source, ({ property, name }) => (
+    ['og:image', 'og:image:url', 'og:image:secure_url', 'twitter:image'].includes(property)
+    || ['og:image', 'og:image:url', 'og:image:secure_url', 'twitter:image'].includes(name)
+  ));
+  metaImageUrls.forEach(url => media.addUrl(url, 'cover', 'meta-image'));
+
+  const videoTags = source.match(/<video\b[^>]*>/gi) || [];
+  videoTags.forEach(tag => {
+    media.addUrl(getHtmlAttr(tag, 'src'), 'video', 'video-tag');
+    media.addUrl(getHtmlAttr(tag, 'poster'), 'cover', 'video-poster');
+  });
+  const sourceTags = source.match(/<source\b[^>]*>/gi) || [];
+  sourceTags.forEach(tag => media.addUrl(getHtmlAttr(tag, 'src'), 'video', 'source-tag'));
+
+  const imageTags = source.match(/<img\b[^>]*>/gi) || [];
+  imageTags.forEach(tag => {
+    const src = getHtmlAttr(tag, 'src') || getHtmlAttr(tag, 'data-src');
+    if (src) media.addUrl(src, 'image', 'img-tag');
+  });
+
+  const scripts = source.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+  scripts.forEach(script => collectMediaFromScript(script, media));
+
+  media.video.sort((a, b) => Number(VIDEO_URL_HINT_PATTERN.test(b)) - Number(VIDEO_URL_HINT_PATTERN.test(a)));
+  return {
+    videoUrls: media.video.slice(0, 20),
+    imageUrls: media.image.slice(0, 30),
+    coverUrls: media.cover.slice(0, 20),
+    mediaDiagnostics: {
+      hasVideo: media.video.length > 0,
+      videoUrlCount: media.video.length,
+      imageUrlCount: media.image.length,
+      extractionHints: media.hints,
+      sourceType: guessSourceTypeFromUrl(context.finalUrl || context.url || '')
+    }
+  };
 }
 
 // 从小红书/网页源码尽力提取链接页面文字。只返回页面可抓取字段，不执行 JS、不下载视频。
@@ -768,11 +948,16 @@ app.get('/api/xhs-extract', async (req, res) => {
     }
 
     const source = extractRecipeSourceFromHtml(html, { url: startUrl.href, finalUrl: fetched.finalUrl });
+    const media = extractMediaFromHtml(html, { url: startUrl.href, finalUrl: fetched.finalUrl });
     const text = source.trustedText || source.cleanedRecipeText;
     if (!text) {
       return res.status(422).json({ error: '没能从链接页面文字中提取到菜谱文案，请稍后重试或手动编辑。' });
     }
     const sourceSplit = splitRecipeSourceText(text);
+    const warnings = uniqueTextList([
+      ...source.warnings,
+      ...(media.mediaDiagnostics.hasVideo ? [] : ['未从页面中提取到可用视频地址。'])
+    ], 12);
 
     // finalUrl 已逐跳校验，只会是公网地址，不泄露内部主机。
     return res.json({
@@ -790,11 +975,12 @@ app.get('/api/xhs-extract', async (req, res) => {
       trustedTextPreview: source.trustedText.slice(0, 500),
       rawTextLength: source.rawText.length,
       rawTextPreview: source.rawText.slice(0, 500),
-      warnings: source.warnings,
+      warnings,
       cleanedRecipeText: sourceSplit.cleanedRecipeText,
       excludedSocialTextPreview: sourceSplit.excludedSocialTextPreview,
       sourceBuckets: sourceSplit.sourceBuckets,
-      sourceSegmentsPreview: sourceSplit.sourceSegmentsPreview
+      sourceSegmentsPreview: sourceSplit.sourceSegmentsPreview,
+      media
     });
   } catch (err) {
     return res.status(502).json({ error: '链接抓取失败，请稍后重试或粘贴菜谱文字。' });
