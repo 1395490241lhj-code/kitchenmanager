@@ -326,8 +326,10 @@ test('视频菜谱 source diagnostics 截断 rawTextPreview', () => {
 
 test('小红书 source splitter 过滤评论弹幕和推荐文案，不让小苏打污染 cleanedRecipeText', () => {
   const raw = [
-    '藤椒鸡腿一道看起来就很好吃的菜 #家常菜 #鸡腿 #藤椒鸡腿',
-    '段老师这题我会',
+    '🔥 家常版藤椒鸡腿详细版教程……',
+    '藤椒鸡腿一道看起来就很好吃的菜，从前期处理的细节，精确到克的腌制比例，到在家怎么丝滑是运用铁锅，都一一道来',
+    '#家常菜 #鸡腿 #藤椒鸡腿',
+    '段老师这题我会[黄金薯R]终于体会到当学霸的感觉了',
     '黄金薯R',
     '双椒鸡拌面',
     '如果高温快速煸干外面的肉里面还是嫩的',
@@ -337,11 +339,25 @@ test('小红书 source splitter 过滤评论弹幕和推荐文案，不让小苏
   ].join('\n');
   const split = splitRecipeSourceText(raw);
 
+  assert.match(split.authorCandidateText, /家常版藤椒鸡腿详细版教程/);
+  assert.match(split.authorCandidateText, /前期处理/);
+  assert.match(split.authorCandidateText, /腌制比例/);
+  assert.match(split.authorCandidateText, /铁锅/);
+  assert.match(split.cleanedRecipeText, /家常版藤椒鸡腿详细版教程/);
+  assert.match(split.cleanedRecipeText, /藤椒鸡腿/);
   assert.doesNotMatch(split.cleanedRecipeText, /段老师这题我会|黄金薯|双椒鸡拌面|小苏打/);
   assert.match(split.excludedSocialTextPreview, /小苏打/);
   assert.match(split.excludedSocialTextPreview, /视频号/);
-  assert.equal(split.sourceBuckets.trusted.length, 0);
+  assert.ok(split.sourceBuckets.trusted.length >= 2);
   assert.ok(split.sourceBuckets.excluded.length >= 5);
+});
+
+test('小红书 source splitter 在没有社交 marker 时保留作者首行候选', () => {
+  const split = splitRecipeSourceText('🔥 家常版藤椒鸡腿详细版教程…… #家常菜 #鸡腿 #藤椒鸡腿');
+
+  assert.match(split.authorCandidateText, /家常版藤椒鸡腿详细版教程/);
+  assert.match(split.cleanedRecipeText, /家常版藤椒鸡腿详细版教程/);
+  assert.ok(split.weakRecipeHints.some(hint => hint.includes('#鸡腿')));
 });
 
 test('小红书话题标签只作为 weak source，不进入 trusted recipe evidence', () => {
@@ -389,9 +405,57 @@ test('小红书 source diagnostics 显示 raw cleaned excluded 三类预览', ()
   });
 
   assert.match(diagnostics.rawTextPreview, /小苏打/);
+  assert.match(diagnostics.authorCandidateTextPreview, /鸡腿洗净擦干/);
   assert.doesNotMatch(diagnostics.cleanedTextPreview, /小苏打|视频号/);
   assert.match(diagnostics.excludedSocialTextPreview, /小苏打/);
   assert.match(diagnostics.warnings.join('\n'), /已忽略疑似评论/);
+});
+
+test('菜谱导入 0 evidence 不保留泛用做法步骤', async () => {
+  global.fetch = async (url, options) => {
+    assert.equal(url, '/api/ai-parse');
+    assert.match(JSON.parse(options.body).text, /藤椒鸡腿/);
+    return {
+      ok: true,
+      json: async () => ({
+        recipe: {
+          name: '藤椒鸡腿',
+          tags: ['AI草稿'],
+          ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+          seasonings: [],
+          method: ['鸡腿清洗并沥干', '鸡腿进行烹饪', '按个人口味调味']
+        },
+        evidence: {
+          observedMainIngredients: [],
+          observedSeasonings: [],
+          observedAromatics: [],
+          observedLiquids: [],
+          observedActions: [],
+          sourceConfidence: 'low'
+        },
+        diagnostics: {
+          sourceType: 'xiaohongshu',
+          rawTextLength: 80,
+          rawTextPreview: '藤椒鸡腿标题和评论',
+          authorCandidateTextPreview: '藤椒鸡腿标题',
+          cleanedTextLength: 18,
+          cleanedTextPreview: '藤椒鸡腿标题',
+          excludedSocialTextPreview: '段老师这题我会',
+          observedIngredientCount: 0,
+          observedSeasoningCount: 0,
+          observedActionCount: 0,
+          sourceConfidence: 'low',
+          warnings: ['清洗后可用菜谱正文较少。']
+        }
+      })
+    };
+  };
+
+  const draft = await importRecipeFromSource({ text: '藤椒鸡腿标题和评论' });
+  assert.equal(draft.name, '藤椒鸡腿');
+  assert.equal(draft.method, '');
+  assert.match(draft.warnings.join('\n'), /未能可靠提取完整做法|链接可提取信息较少/);
+  assert.doesNotMatch(draft.method, /鸡腿进行烹饪|按个人口味调味|煮熟即可/);
 });
 
 test('视频菜谱 source diagnostics 对充足 evidence 不提示信息不足', () => {
@@ -632,6 +696,7 @@ test('AI 菜谱导入 warning 单独传给编辑页，不写入 Method', () => {
   assert.match(editor, /aiDraftDiagnostics/);
   assert.match(editor, /提取置信度/);
   assert.match(editor, /抓取原文预览/);
+  assert.match(editor, /作者正文候选/);
   assert.match(editor, /清洗后菜谱文本/);
   assert.match(editor, /已忽略疑似评论\/弹幕\/推荐文案/);
   assert.match(editor, /这个菜谱可能需要确认/);

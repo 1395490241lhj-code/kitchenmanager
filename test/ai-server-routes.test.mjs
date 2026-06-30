@@ -302,6 +302,9 @@ test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async 
     }
   });
   const socialText = [
+    '🔥 家常版藤椒鸡腿详细版教程……',
+    '藤椒鸡腿一道看起来就很好吃的菜，从前期处理的细节，精确到克的腌制比例，到在家怎么丝滑是运用铁锅，都一一道来',
+    '#家常菜 #鸡腿 #藤椒鸡腿',
     '藤椒鸡腿一道看起来就很好吃的菜 #家常菜 #鸡腿 #藤椒鸡腿',
     '段老师这题我会',
     '黄金薯R',
@@ -319,9 +322,13 @@ test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async 
   assert.equal(res.statusCode, 200);
   assert.equal(capturedPayloads.length, 2);
   const evidencePrompt = capturedPayloads[0].messages[1].content;
+  assert.match(evidencePrompt, /家常版藤椒鸡腿详细版教程/);
+  assert.match(evidencePrompt, /腌制比例/);
+  assert.match(evidencePrompt, /铁锅/);
   assert.doesNotMatch(evidencePrompt, /小苏打|段老师|视频号|双椒鸡拌面|黄金薯/);
   assert.doesNotMatch(JSON.stringify(res.body.recipe), /小苏打/);
   assert.match(res.body.diagnostics.rawTextPreview, /小苏打/);
+  assert.match(res.body.diagnostics.authorCandidateTextPreview, /家常版藤椒鸡腿详细版教程/);
   assert.doesNotMatch(res.body.diagnostics.cleanedTextPreview, /小苏打/);
   assert.match(res.body.diagnostics.excludedSocialTextPreview, /小苏打/);
   assert.match(res.body.recipe.warnings.join('\n'), /链接可提取信息较少/);
