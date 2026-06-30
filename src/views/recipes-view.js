@@ -5,7 +5,7 @@ import { buildCatalog } from '../ingredients.js?v=222';
 import { loadInventory } from '../inventory.js?v=222';
 import { RECIPE_CATEGORIES, searchRecipes, matchesCategory } from '../recipe-search.js?v=222';
 import { showRecipeCreateModal } from '../components/recipe-create-modal.js?v=222';
-import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=223';
+import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=224';
 
 function mergeOverlayPreservingCurrent(currentOverlay, incomingOverlay) {
   const current = currentOverlay || {};

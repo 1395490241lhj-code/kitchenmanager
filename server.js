@@ -956,6 +956,14 @@ const MEDIA_FRAME_OCR_ERROR = new Error('MEDIA_FRAME_OCR_FAILED');
 const MEDIA_TRANSCRIBE_ERROR = new Error('MEDIA_TRANSCRIBE_FAILED');
 const MEDIA_EMPTY_TRANSCRIPT_ERROR = new Error('MEDIA_EMPTY_TRANSCRIPT');
 
+function createPublicApiError(status, error, code = '') {
+  const err = new Error(error);
+  err.publicStatus = status;
+  err.publicError = error;
+  err.publicCode = code;
+  return err;
+}
+
 async function ensureMediaTempDir() {
   await fs.promises.mkdir(MEDIA_TMP_DIR, { recursive: true });
   return MEDIA_TMP_DIR;
@@ -1338,6 +1346,11 @@ function parseFrameOcrContent(content) {
   };
 }
 
+function appendSourceSection(sections, title, value) {
+  const text = String(value || '').trim();
+  if (text) sections.push(`【${title}】\n${text}`);
+}
+
 async function ocrFrameWithVisionModel(frameId, framePath) {
   if (!OPENAI_API_KEY) throw new Error('MISSING_OPENAI_API_KEY');
   const frameBuffer = await fs.promises.readFile(framePath);
@@ -1386,66 +1399,141 @@ async function ocrFrameWithVisionModel(frameId, framePath) {
   };
 }
 
-// 代理路由：抓取并返回菜谱文案。
-app.get('/api/xhs-extract', async (req, res) => {
-  // 模糊提取：允许用户传整段小红书分享语，服务端再用同一条正则兜底捕获 URL。
-  const startUrl = extractHttpUrl(req.query.url);
-  if (!startUrl) return res.status(400).json({ error: '仅支持 http/https 链接。' });
+async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0) {
+  const mediaDiagnostics = {
+    hasVideo: Boolean(videoUrl),
+    videoUrlCount: Number(videoUrlCount || 0),
+    selectedVideoHost: '',
+    audioExtracted: false,
+    transcriptLength: 0,
+    framesExtracted: 0,
+    ocrFrameCount: 0,
+    ocrTextLength: 0,
+    warnings: []
+  };
+  if (!videoUrl) return { transcriptText: '', ocrText: '', mediaDiagnostics };
+
+  try {
+    mediaDiagnostics.selectedVideoHost = new URL(videoUrl).hostname;
+  } catch (_) {
+    mediaDiagnostics.selectedVideoHost = '';
+  }
+
+  let downloaded = null;
+  let transcriptText = '';
+  let ocrText = '';
+  try {
+    downloaded = await downloadVideoToTemp(videoUrl);
+  } catch (_) {
+    mediaDiagnostics.warnings.push('视频转录失败，仅使用页面文字生成草稿。');
+    return { transcriptText, ocrText, mediaDiagnostics };
+  }
+
+  try {
+    const audioPath = path.join(MEDIA_TMP_DIR, `${downloaded.id}.m4a`);
+    await extractAudioWithFfmpeg(downloaded.videoPath, audioPath);
+    mediaDiagnostics.audioExtracted = true;
+    const transcript = await transcribeAudioFile(audioPath);
+    transcriptText = transcript.transcript;
+    mediaDiagnostics.transcriptLength = transcript.transcriptLength;
+  } catch (_) {
+    mediaDiagnostics.warnings.push('视频口播读取失败，已继续尝试读取页面文字和画面文字。');
+  }
+
+  try {
+    const frameResult = await extractFramesWithFfmpeg(downloaded.videoPath, { maxFrames: MEDIA_MAX_FRAME_COUNT });
+    mediaDiagnostics.framesExtracted = frameResult.frames.length;
+    const ocrFrames = [];
+    for (const frame of frameResult.frames) {
+      ocrFrames.push(await ocrFrameWithVisionModel(frame.frameId, path.join(MEDIA_TMP_DIR, frame.frameId)));
+    }
+    mediaDiagnostics.ocrFrameCount = ocrFrames.length;
+    ocrText = ocrFrames
+      .map(frame => String(frame.text || '').trim())
+      .filter(Boolean)
+      .join('\n\n');
+    mediaDiagnostics.ocrTextLength = ocrText.length;
+  } catch (_) {
+    mediaDiagnostics.warnings.push('视频画面文字读取失败，已继续使用可提取的其他内容生成草稿。');
+  }
+
+  if (!transcriptText && !ocrText) {
+    mediaDiagnostics.warnings.push('视频转录失败，仅使用页面文字生成草稿。');
+  }
+  mediaDiagnostics.warnings = uniqueTextList(mediaDiagnostics.warnings, 8);
+  return { transcriptText, ocrText, mediaDiagnostics };
+}
+
+function buildRecipeSourcePayload({ startUrl, fetched, html, source, media, allowEmptyText = false }) {
+  const text = source.trustedText || source.cleanedRecipeText || '';
+  if (!text && !allowEmptyText) {
+    throw createPublicApiError(422, '没能从链接页面文字中提取到菜谱文案，请稍后重试或手动编辑。', 'no_recipe_text');
+  }
+  const sourceSplit = splitRecipeSourceText(text);
+  const warnings = uniqueTextList([
+    ...source.warnings,
+    ...(media.mediaDiagnostics.hasVideo ? [] : ['未从页面中提取到可用视频地址。'])
+  ], 12);
+  return {
+    text,
+    finalUrl: fetched.finalUrl,
+    url: startUrl.href,
+    extractionMode: source.extractionMode,
+    hasHtml: source.hasHtml,
+    hasStructuredMeta: source.hasStructuredMeta,
+    hasOgDescription: source.hasOgDescription,
+    hasJsonLd: source.hasJsonLd,
+    hasInitialState: source.hasInitialState,
+    trustedText: source.trustedText,
+    trustedTextLength: source.trustedText.length,
+    trustedTextPreview: source.trustedText.slice(0, 500),
+    rawTextLength: source.rawText.length,
+    rawTextPreview: source.rawText.slice(0, 500),
+    warnings,
+    cleanedRecipeText: sourceSplit.cleanedRecipeText,
+    excludedSocialTextPreview: sourceSplit.excludedSocialTextPreview,
+    sourceBuckets: sourceSplit.sourceBuckets,
+    sourceSegmentsPreview: sourceSplit.sourceSegmentsPreview,
+    media
+  };
+}
+
+async function extractRecipeSourcePayloadFromUrl(urlInput, { allowEmptyText = false } = {}) {
+  const startUrl = extractHttpUrl(urlInput);
+  if (!startUrl) {
+    throw createPublicApiError(400, '仅支持 http/https 链接。', 'invalid_url');
+  }
 
   let fetched;
   try {
     fetched = await fetchFollowingRedirectsSafely(startUrl, 5);
   } catch (err) {
     if (err === SSRF_ERROR) {
-      // 泛化文案：不回显内部 IP / 主机 / DNS / stack
-      return res.status(400).json({ error: '不支持的链接地址，请粘贴公开的小红书/网页链接或菜谱文字。' });
+      throw createPublicApiError(400, '不支持的链接地址，请粘贴公开的小红书/网页链接或菜谱文字。', 'blocked_url');
     }
-    return res.status(502).json({ error: '链接抓取失败，请稍后重试或粘贴菜谱文字。' });
+    throw createPublicApiError(502, '链接抓取失败，请稍后重试或粘贴菜谱文字。', 'fetch_failed');
   }
 
+  const html = String(fetched.resp.data || '');
+  if (/验证码|滑块验证|滑动验证|安全验证|captcha/i.test(html) && !/__INITIAL_STATE__/.test(html)) {
+    throw createPublicApiError(502, '链接被平台验证拦截，当前只能解析公开页面文字。', 'blocked_by_captcha');
+  }
+
+  const source = extractRecipeSourceFromHtml(html, { url: startUrl.href, finalUrl: fetched.finalUrl });
+  const media = extractMediaFromHtml(html, { url: startUrl.href, finalUrl: fetched.finalUrl });
+  return buildRecipeSourcePayload({ startUrl, fetched, html, source, media, allowEmptyText });
+}
+
+// 代理路由：抓取并返回菜谱文案。
+app.get('/api/xhs-extract', async (req, res) => {
+  // 模糊提取：允许用户传整段小红书分享语，服务端再用同一条正则兜底捕获 URL。
   try {
-    const resp = fetched.resp;
-    const html = String(resp.data || '');
-    if (/验证码|滑块验证|滑动验证|安全验证|captcha/i.test(html) && !/__INITIAL_STATE__/.test(html)) {
-      return res.status(502).json({ error: '链接被平台验证拦截，当前只能解析公开页面文字。' });
-    }
-
-    const source = extractRecipeSourceFromHtml(html, { url: startUrl.href, finalUrl: fetched.finalUrl });
-    const media = extractMediaFromHtml(html, { url: startUrl.href, finalUrl: fetched.finalUrl });
-    const text = source.trustedText || source.cleanedRecipeText;
-    if (!text) {
-      return res.status(422).json({ error: '没能从链接页面文字中提取到菜谱文案，请稍后重试或手动编辑。' });
-    }
-    const sourceSplit = splitRecipeSourceText(text);
-    const warnings = uniqueTextList([
-      ...source.warnings,
-      ...(media.mediaDiagnostics.hasVideo ? [] : ['未从页面中提取到可用视频地址。'])
-    ], 12);
-
-    // finalUrl 已逐跳校验，只会是公网地址，不泄露内部主机。
-    return res.json({
-      text,
-      finalUrl: fetched.finalUrl,
-      url: startUrl.href,
-      extractionMode: source.extractionMode,
-      hasHtml: source.hasHtml,
-      hasStructuredMeta: source.hasStructuredMeta,
-      hasOgDescription: source.hasOgDescription,
-      hasJsonLd: source.hasJsonLd,
-      hasInitialState: source.hasInitialState,
-      trustedText: source.trustedText,
-      trustedTextLength: source.trustedText.length,
-      trustedTextPreview: source.trustedText.slice(0, 500),
-      rawTextLength: source.rawText.length,
-      rawTextPreview: source.rawText.slice(0, 500),
-      warnings,
-      cleanedRecipeText: sourceSplit.cleanedRecipeText,
-      excludedSocialTextPreview: sourceSplit.excludedSocialTextPreview,
-      sourceBuckets: sourceSplit.sourceBuckets,
-      sourceSegmentsPreview: sourceSplit.sourceSegmentsPreview,
-      media
-    });
+    const payload = await extractRecipeSourcePayloadFromUrl(req.query.url);
+    return res.json(payload);
   } catch (err) {
+    if (err && err.publicStatus) {
+      return res.status(err.publicStatus).json({ error: err.publicError });
+    }
     return res.status(502).json({ error: '链接抓取失败，请稍后重试或粘贴菜谱文字。' });
   }
 });
@@ -1958,13 +2046,16 @@ function buildSourceExtractionDiagnostics({ sourceType = 'manual', sourceText = 
     ? (Array.isArray(recipe.method) ? recipe.method.join('\n') : String(recipe.method || ''))
     : '';
   const methodStepCount = recipe ? countRecipeMethodSteps(methodText) : 0;
+  const mediaDiagnostics = metadata.mediaDiagnostics && typeof metadata.mediaDiagnostics === 'object'
+    ? metadata.mediaDiagnostics
+    : {};
   const hasImages = Boolean(imageBase64);
   const hasEvidenceFromImage = hasImages && (observedIngredientCount + observedSeasoningCount + observedActionCount > 0);
   const hasDescription = rawText.length > 0;
   const hasCaption = normalizedSourceType === 'xiaohongshu' && rawText.length > 0;
-  const hasTranscript = /字幕|transcript|旁白|口播/u.test(rawText);
-  const hasOcrText = hasEvidenceFromImage || /ocr|截图文字|图片文字/u.test(rawText);
-  const hasVideoFrames = false;
+  const hasTranscript = /字幕|transcript|旁白|口播|视频口播转录/u.test(rawText) || Number(mediaDiagnostics.transcriptLength || 0) > 0;
+  const hasOcrText = hasEvidenceFromImage || /ocr|截图文字|图片文字|画面文字/u.test(rawText) || Number(mediaDiagnostics.ocrTextLength || 0) > 0;
+  const hasVideoFrames = Number(mediaDiagnostics.framesExtracted || 0) > 0;
   const hasAnyExtractedContent = rawText.length > 0 || hasImages || observedIngredientCount + observedSeasoningCount + observedActionCount > 0;
   const evidenceConfidence = String(evidence?.sourceConfidence || '').trim().toLowerCase();
   const warnings = [];
@@ -1973,6 +2064,7 @@ function buildSourceExtractionDiagnostics({ sourceType = 'manual', sourceText = 
   if (rawText && cleanedRecipeText.length < 80) warnings.push('清洗后可用菜谱正文较少，可能只提取到标题或话题，食材、调料和步骤需要人工确认。');
   if (metadata.extractionMode === 'link-only') warnings.push('链接解析结果：仅从页面文字中提取，未读取视频画面。');
   if (Array.isArray(metadata.warnings)) metadata.warnings.forEach(w => warnings.push(String(w || '').trim()));
+  if (Array.isArray(mediaDiagnostics.warnings)) mediaDiagnostics.warnings.forEach(w => warnings.push(String(w || '').trim()));
   if (excludedSocialText) warnings.push('已忽略疑似评论/弹幕/推荐文案，避免污染菜谱。');
   if (observedIngredientCount < 3) warnings.push('识别到的核心食材较少。');
   if (observedActionCount < 3) warnings.push('识别到的明确做法步骤较少。');
@@ -2355,6 +2447,188 @@ app.post('/api/ai-chat', async (req, res) => {
   }
 });
 
+function createAiParsePipelineError(status, code, message) {
+  const err = new Error(message);
+  err.aiParseStatus = status;
+  err.aiParseCode = code;
+  err.aiParseMessage = message;
+  return err;
+}
+
+function sendAiParsePipelineError(res, err, fallback = 'AI 解析请求失败，请稍后重试。') {
+  if (err && err.aiParseStatus) {
+    return sendAiJsonError(res, err.aiParseStatus, err.aiParseCode || 'ai_parse_error', err.aiParseMessage || fallback);
+  }
+  return sendAiUpstreamError(res, err, fallback);
+}
+
+async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceType = 'manual', sourceMetadata = null } = {}) {
+  const normalizedSourceType = normalizeSourceType(sourceType, { imageBase64 });
+  const sourceSplit = splitRecipeSourceText(text);
+  const evidenceSourceText = sourceSplit.cleanedRecipeText || (normalizedSourceType === 'manual' ? text : '');
+  const evidenceInstruction = text
+    ? `请从下面这段【cleanedRecipeText】抽取菜谱 evidence。只记录明确出现的信息，不要生成最终菜谱。不要使用 comments/excludedSocialText 中的内容：\n\n${evidenceSourceText}`
+    : '请根据这张配料表/菜谱截图抽取菜谱 evidence。只记录明确出现的信息，不要生成最终菜谱。';
+  const evidenceUserContent = imageBase64
+    ? [{ type: 'text', text: evidenceInstruction }, { type: 'image_url', image_url: { url: imageBase64 } }]
+    : evidenceInstruction;
+
+  const evidenceResp = await axios.post(
+    resolveChatUrl(OPENAI_BASE_URL),
+    {
+      model: imageBase64 ? OPENAI_VISION_MODEL : OPENAI_MODEL,
+      messages: [
+        { role: 'system', content: RECIPE_EVIDENCE_SYSTEM_PROMPT },
+        { role: 'user', content: evidenceUserContent }
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' }
+    },
+    {
+      timeout: 45000,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+    }
+  );
+  const evidenceContent = getAiMessageContent(evidenceResp);
+  if (!evidenceContent) throw createAiParsePipelineError(502, 'empty_response', 'AI 没有返回证据内容，请稍后重试。');
+  const evidence = safeParseModelJson(evidenceContent);
+  if (!evidence) throw createAiParsePipelineError(502, 'bad_evidence_json', 'AI 没有返回可识别的菜谱证据，请稍后重试。');
+
+  const initialDiagnostics = buildSourceExtractionDiagnostics({
+    sourceType: normalizedSourceType,
+    sourceText: text,
+    imageBase64,
+    evidence,
+    sourceSplit,
+    sourceMetadata
+  });
+  if (shouldReturnLowEvidenceDraft({ sourceType: normalizedSourceType, evidence })) {
+    const draft = buildLowEvidenceRecipeDraft({ sourceType: normalizedSourceType, evidence, sourceSplit, diagnostics: initialDiagnostics });
+    const diagnostics = buildSourceExtractionDiagnostics({
+      sourceType: normalizedSourceType,
+      sourceText: text,
+      imageBase64,
+      evidence,
+      recipe: draft,
+      sourceSplit,
+      sourceMetadata
+    });
+    applySourceDiagnosticsWarnings(draft, diagnostics);
+    const debugEvidenceSummary = buildDebugEvidenceSummary({ sourceText: text, evidence, diagnostics, sourceSplit });
+    return { content: JSON.stringify(draft), recipe: draft, evidence, diagnostics, debugEvidenceSummary };
+  }
+
+  const recipeInstruction = `请根据下面的 evidence JSON 和 sourceDiagnostics 生成最终菜谱 JSON。method 必须按 observedActions 顺序生成；不要新增 evidence 不支持的关键动作。若 sourceDiagnostics.sourceConfidence 为 low，只生成证据支持的 draft，并在 warnings 中提示信息不足。\n\n${JSON.stringify({ evidence, sourceDiagnostics: initialDiagnostics })}`;
+  const recipeResp = await axios.post(
+    resolveChatUrl(OPENAI_BASE_URL),
+    {
+      model: OPENAI_MODEL,
+      messages: [
+        { role: 'system', content: IMPORT_SYSTEM_PROMPT },
+        { role: 'user', content: recipeInstruction }
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' }
+    },
+    {
+      timeout: 45000,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+    }
+  );
+  const content = getAiMessageContent(recipeResp);
+  if (!content) throw createAiParsePipelineError(502, 'empty_response', 'AI 没有返回内容，请稍后重试。');
+
+  const parsed = safeParseModelJson(content);
+  if (parsed) {
+    const cleaned = sanitizeRecipe(parsed, { sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics });
+    const diagnostics = buildSourceExtractionDiagnostics({
+      sourceType: normalizedSourceType,
+      sourceText: text,
+      imageBase64,
+      evidence,
+      recipe: cleaned,
+      sourceSplit,
+      sourceMetadata
+    });
+    applySourceDiagnosticsWarnings(cleaned, diagnostics);
+    const debugEvidenceSummary = buildDebugEvidenceSummary({ sourceText: text, evidence, diagnostics, sourceSplit });
+    return { content: JSON.stringify(cleaned), recipe: cleaned, evidence, diagnostics, debugEvidenceSummary };
+  }
+  return { content };
+}
+
+app.post('/api/recipe-import-from-url', async (req, res) => {
+  const rawUrl = String(req.body?.url || '').trim();
+  const userText = String(req.body?.userText || '').trim();
+  if (!rawUrl) return sendAiJsonError(res, 400, 'missing_url', '缺少链接。');
+  if (!OPENAI_API_KEY) return sendAiJsonError(res, 503, 'missing_api_key', '后端未配置 AI 密钥（OPENAI_API_KEY）。');
+
+  let sourcePayload;
+  try {
+    sourcePayload = await extractRecipeSourcePayloadFromUrl(rawUrl, { allowEmptyText: true });
+  } catch (err) {
+    if (err && err.publicStatus) {
+      return sendAiJsonError(res, err.publicStatus, err.publicCode || 'link_extract_failed', err.publicError);
+    }
+    return sendAiJsonError(res, 502, 'link_extract_failed', '链接抓取失败，请稍后重试或粘贴菜谱文字。');
+  }
+
+  const pageText = String(sourcePayload.text || '').trim();
+  const videoUrls = Array.isArray(sourcePayload.media?.videoUrls) ? sourcePayload.media.videoUrls : [];
+  const videoTextResult = await extractVideoRecipeTextForImport(videoUrls[0], videoUrls.length);
+  const mediaDiagnostics = {
+    ...videoTextResult.mediaDiagnostics,
+    extractionMode: sourcePayload.extractionMode,
+    pageTextLength: pageText.length
+  };
+  const sections = [];
+  appendSourceSection(sections, '页面文字', pageText);
+  appendSourceSection(sections, '视频口播转录', videoTextResult.transcriptText);
+  appendSourceSection(sections, '视频画面文字', videoTextResult.ocrText);
+  appendSourceSection(sections, '用户补充', userText);
+  const sourceText = sections.join('\n\n').trim();
+  if (!sourceText) {
+    return sendAiJsonError(res, 422, 'no_recipe_text', '没能从链接中读取到足够内容，请粘贴菜谱文字后再试。', { mediaDiagnostics });
+  }
+
+  const sourceMetadata = {
+    url: sourcePayload.url || rawUrl,
+    finalUrl: sourcePayload.finalUrl || '',
+    extractionMode: sourcePayload.extractionMode || 'link-only',
+    hasHtml: Boolean(sourcePayload.hasHtml),
+    hasStructuredMeta: Boolean(sourcePayload.hasStructuredMeta),
+    hasOgDescription: Boolean(sourcePayload.hasOgDescription),
+    hasJsonLd: Boolean(sourcePayload.hasJsonLd),
+    hasInitialState: Boolean(sourcePayload.hasInitialState),
+    trustedTextLength: Number(sourcePayload.trustedTextLength || pageText.length),
+    trustedTextPreview: String(sourcePayload.trustedTextPreview || pageText).slice(0, 500),
+    rawTextLength: Number(sourcePayload.rawTextLength || 0),
+    rawTextPreview: String(sourcePayload.rawTextPreview || '').slice(0, 500),
+    warnings: uniqueTextList([
+      ...(Array.isArray(sourcePayload.warnings) ? sourcePayload.warnings : []),
+      ...(Array.isArray(mediaDiagnostics.warnings) ? mediaDiagnostics.warnings : [])
+    ], 16),
+    mediaDiagnostics,
+    ...(userText
+      ? {
+          hasUserSupplement: true,
+          userSupplementPreview: userText.slice(0, 300)
+        }
+      : {})
+  };
+
+  try {
+    const draft = await parseRecipeDraftWithAi({
+      text: sourceText,
+      sourceType: 'xiaohongshu',
+      sourceMetadata
+    });
+    return res.json({ ...draft, mediaDiagnostics });
+  } catch (err) {
+    return sendAiParsePipelineError(res, err, 'AI 解析请求失败，请稍后重试。');
+  }
+});
+
 // AI 解析路由：文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL，密钥来自 Render 环境变量。
 app.post('/api/ai-parse', async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
@@ -2369,79 +2643,10 @@ app.post('/api/ai-parse', async (req, res) => {
   }
 
   const sourceType = normalizeSourceType(req.body && req.body.sourceType, { imageBase64 });
-  const sourceSplit = splitRecipeSourceText(text);
-  const evidenceSourceText = sourceSplit.cleanedRecipeText || (sourceType === 'manual' ? text : '');
-  const evidenceInstruction = text
-    ? `请从下面这段【cleanedRecipeText】抽取菜谱 evidence。只记录明确出现的信息，不要生成最终菜谱。不要使用 comments/excludedSocialText 中的内容：\n\n${evidenceSourceText}`
-    : '请根据这张配料表/菜谱截图抽取菜谱 evidence。只记录明确出现的信息，不要生成最终菜谱。';
-  const evidenceUserContent = imageBase64
-    ? [{ type: 'text', text: evidenceInstruction }, { type: 'image_url', image_url: { url: imageBase64 } }]
-    : evidenceInstruction;
-
   try {
-    const evidenceResp = await axios.post(
-      resolveChatUrl(OPENAI_BASE_URL),
-      {
-        model: imageBase64 ? OPENAI_VISION_MODEL : OPENAI_MODEL,
-        messages: [
-          { role: 'system', content: RECIPE_EVIDENCE_SYSTEM_PROMPT },
-          { role: 'user', content: evidenceUserContent }
-        ],
-        temperature: 0.2,
-        response_format: { type: 'json_object' }
-      },
-      {
-        timeout: 45000,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
-      }
-    );
-    const evidenceContent = getAiMessageContent(evidenceResp);
-    if (!evidenceContent) return sendAiJsonError(res, 502, 'empty_response', 'AI 没有返回证据内容，请稍后重试。');
-    const evidence = safeParseModelJson(evidenceContent);
-    if (!evidence) return sendAiJsonError(res, 502, 'bad_evidence_json', 'AI 没有返回可识别的菜谱证据，请稍后重试。');
-
-    const initialDiagnostics = buildSourceExtractionDiagnostics({ sourceType, sourceText: text, imageBase64, evidence, sourceSplit, sourceMetadata });
-    if (shouldReturnLowEvidenceDraft({ sourceType, evidence })) {
-      const draft = buildLowEvidenceRecipeDraft({ sourceType, evidence, sourceSplit, diagnostics: initialDiagnostics });
-      const diagnostics = buildSourceExtractionDiagnostics({ sourceType, sourceText: text, imageBase64, evidence, recipe: draft, sourceSplit, sourceMetadata });
-      applySourceDiagnosticsWarnings(draft, diagnostics);
-      const debugEvidenceSummary = buildDebugEvidenceSummary({ sourceText: text, evidence, diagnostics, sourceSplit });
-      return res.json({ content: JSON.stringify(draft), recipe: draft, evidence, diagnostics, debugEvidenceSummary });
-    }
-    const recipeInstruction = `请根据下面的 evidence JSON 和 sourceDiagnostics 生成最终菜谱 JSON。method 必须按 observedActions 顺序生成；不要新增 evidence 不支持的关键动作。若 sourceDiagnostics.sourceConfidence 为 low，只生成证据支持的 draft，并在 warnings 中提示信息不足。\n\n${JSON.stringify({ evidence, sourceDiagnostics: initialDiagnostics })}`;
-    const recipeResp = await axios.post(
-      resolveChatUrl(OPENAI_BASE_URL),
-      {
-        model: OPENAI_MODEL,
-        messages: [
-          { role: 'system', content: IMPORT_SYSTEM_PROMPT },
-          { role: 'user', content: recipeInstruction }
-        ],
-        temperature: 0.2,
-        response_format: { type: 'json_object' }
-      },
-      {
-        timeout: 45000,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
-      }
-    );
-    const content = getAiMessageContent(recipeResp);
-    if (!content) return sendAiJsonError(res, 502, 'empty_response', 'AI 没有返回内容，请稍后重试。');
-
-    // ── 终极降级兜底：在后端先清洗一遍 AI 的 JSON，再回给前端。──
-    //   保险栈：① 系统提示已硬约束；② 这里 JS 兜底过滤常备品 + qty 必填 + method 剥序号。
-    const parsed = safeParseModelJson(content);
-    if (parsed) {
-      const cleaned = sanitizeRecipe(parsed, { sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics });
-      const diagnostics = buildSourceExtractionDiagnostics({ sourceType, sourceText: text, imageBase64, evidence, recipe: cleaned, sourceSplit, sourceMetadata });
-      applySourceDiagnosticsWarnings(cleaned, diagnostics);
-      const debugEvidenceSummary = buildDebugEvidenceSummary({ sourceText: text, evidence, diagnostics, sourceSplit });
-      // 同时回传清洗后的对象 + 原 content（前端 validateImportedRecipe 兼容字符串/对象/数组）。
-      return res.json({ content: JSON.stringify(cleaned), recipe: cleaned, evidence, diagnostics, debugEvidenceSummary });
-    }
-    return res.json({ content });
+    return res.json(await parseRecipeDraftWithAi({ text, imageBase64, sourceType, sourceMetadata }));
   } catch (err) {
-    return sendAiUpstreamError(res, err, 'AI 解析请求失败，请稍后重试。');
+    return sendAiParsePipelineError(res, err, 'AI 解析请求失败，请稍后重试。');
   }
 });
 

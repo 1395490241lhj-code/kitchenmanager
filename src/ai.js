@@ -1552,6 +1552,39 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType =
   });
 }
 
+async function importXiaohongshuRecipeFromUrl({ url = '', userText = '' } = {}) {
+  let res;
+  try {
+    res = await fetch('/api/recipe-import-from-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, userText })
+    });
+  } catch (e) {
+    throw new Error('AI 服务暂不可用（后端未启动？），请稍后重试。');
+  }
+  let data = null;
+  try { data = await res.json(); } catch (_) { /* 非 JSON 响应 */ }
+  if (!res.ok) {
+    throw createCloudAiError({
+      status: data?.status || res.status,
+      code: data?.code || data?.upstreamCode || '',
+      upstreamStatus: data?.upstreamStatus || 0,
+      upstreamCode: data?.upstreamCode || '',
+      detail: data?.detail || data?.error || data?.message || 'AI 解析失败',
+      fallback: 'AI 解析失败'
+    });
+  }
+  const draft = validateImportedRecipe((data && (data.recipe || data.content)) || '', {
+    evidence: data?.evidence || null,
+    diagnostics: data?.diagnostics || null,
+    debugEvidenceSummary: data?.debugEvidenceSummary || null,
+    sourceType: 'xiaohongshu'
+  });
+  if (data?.mediaDiagnostics) draft.mediaDiagnostics = data.mediaDiagnostics;
+  return draft;
+}
+
 /**
  * 解析外部菜谱来源（优先小红书/网页链接，其次手动文字/图片文件）→ 可编辑菜谱草稿。
  * @param {{ url?: string, file?: File }} input
@@ -1568,6 +1601,26 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
   if (file) {
     if (/^image\//.test(file.type)) imageBase64 = await compressImage(file);
     else if (!cleanUrl) throw new Error('暂不支持直接解析视频文件，请粘贴小红书链接或菜谱文字。');
+  }
+
+  if (cleanUrl && isXiaohongshuUrl && !imageBase64) {
+    try {
+      return await importXiaohongshuRecipeFromUrl({ url: cleanUrl, userText: pastedText });
+    } catch (err) {
+      if (!pastedText) throw err;
+      return parseRecipeWith120B({
+        text: pastedText,
+        sourceType: 'manual',
+        sourceMetadata: {
+          url: cleanUrl,
+          finalUrl: '',
+          extractionMode: 'link-fallback-text',
+          warnings: ['链接解析失败，已改用粘贴文字生成草稿。'],
+          hasUserSupplement: true,
+          userSupplementPreview: pastedText.slice(0, 300)
+        }
+      });
+    }
   }
 
   // 链接 → 抓取页面文字；textarea 中链接以外的内容作为补充上下文。

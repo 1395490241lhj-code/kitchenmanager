@@ -871,6 +871,255 @@ test('/api/media/transcribe 上游失败或空 transcript 返回 502', async () 
   assert.equal(empty.body.message, '音频转录结果为空，请稍后重试。');
 });
 
+test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR 和用户补充后生成草稿', async () => {
+  const videoBytes = Buffer.from('fake-video');
+  const audioBytes = Buffer.from('fake-audio');
+  const capturedAiPayloads = [];
+  const childProcessMock = {
+    spawn(_bin, args) {
+      const child = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.kill = () => {};
+      setImmediate(() => {
+        if (args.includes('-hide_banner')) {
+          child.stderr.emit('data', 'Duration: 00:00:09.00, start: 0.000000');
+          child.emit('close', 1);
+          return;
+        }
+        const outputPath = args[args.length - 1];
+        if (/\.m4a$/i.test(outputPath)) fs.writeFileSync(outputPath, audioBytes);
+        else fs.writeFileSync(outputPath, Buffer.from('fake-jpg'));
+        child.emit('close', 0);
+      });
+      return child;
+    }
+  };
+  globalThis.fetch = async (_url, options) => {
+    assert.equal(options.body.get('model'), 'gpt-4o-mini-transcribe');
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { text: '鸡腿洗净擦干，加入生抽抓匀腌制。锅中煎至两面金黄。' };
+      }
+    };
+  };
+  const { app } = loadServerWithMocks({
+    childProcessMock,
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async (url, options) => {
+      if (options.responseType === 'stream') {
+        assert.equal(url, 'https://video.example.com/recipe.mp4');
+        return {
+          status: 200,
+          headers: { 'content-length': String(videoBytes.length) },
+          data: Readable.from([videoBytes])
+        };
+      }
+      return {
+        status: 200,
+        headers: {},
+        data: `
+          <html><head>
+            <meta property="og:title" content="藤椒鸡腿">
+            <meta property="og:description" content="页面文字：藤椒鸡腿，鸡腿和鲜藤椒。">
+            <meta property="og:video" content="https://video.example.com/recipe.mp4">
+          </head><body></body></html>
+        `
+      };
+    },
+    axiosPost: async (_url, payload) => {
+      capturedAiPayloads.push(payload);
+      if (payload.model === 'meta-llama/llama-4-scout-17b-16e-instruct') {
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({ text: '字幕：加入鲜藤椒和生抽调味，翻炒后出锅。', confidence: 'high' })
+              }
+            }]
+          }
+        };
+      }
+      if (/菜谱证据抽取器/.test(payload.messages[0].content)) {
+        const prompt = payload.messages[1].content;
+        assert.match(prompt, /页面文字：藤椒鸡腿/);
+        assert.match(prompt, /加入生抽抓匀腌制/);
+        assert.match(prompt, /加入鲜藤椒和生抽调味/);
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  dishNameCandidates: ['藤椒鸡腿'],
+                  observedMainIngredients: ['鸡腿'],
+                  observedSeasonings: ['生抽'],
+                  observedAromatics: ['鲜藤椒'],
+                  observedLiquids: [],
+                  observedActions: [
+                    { order: 1, action: '鸡腿洗净擦干并腌制', ingredients: ['鸡腿', '生抽'], evidenceText: '加入生抽抓匀腌制', confidence: 'high' },
+                    { order: 2, action: '煎至两面金黄', ingredients: ['鸡腿'], evidenceText: '煎至两面金黄', confidence: 'high' },
+                    { order: 3, action: '加入鲜藤椒调味后出锅', ingredients: ['鲜藤椒'], evidenceText: '加入鲜藤椒和生抽调味，翻炒后出锅', confidence: 'high' }
+                  ],
+                  sourceConfidence: 'high'
+                })
+              }
+            }]
+          }
+        };
+      }
+      return {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                name: '藤椒鸡腿',
+                tags: ['AI草稿'],
+                ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+                seasonings: [{ item: '鲜藤椒', qty: '1', unit: '把' }, { item: '生抽', qty: '1', unit: '勺' }],
+                method: ['鸡腿洗净擦干，加入生抽抓匀腌制。', '煎至两面金黄。', '加入鲜藤椒和生抽调味，翻炒后出锅。']
+              })
+            }
+          }]
+        }
+      };
+    }
+  });
+
+  const res = await runPost(app, '/api/recipe-import-from-url', {
+    url: 'http://xhslink.com/o/example',
+    userText: '用户补充：少油'
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.recipe.name, '藤椒鸡腿');
+  assert.equal(res.body.mediaDiagnostics.hasVideo, true);
+  assert.ok(res.body.mediaDiagnostics.transcriptLength > 0);
+  assert.ok(res.body.mediaDiagnostics.framesExtracted > 0);
+  assert.match(res.body.recipe.method.join('\n'), /鲜藤椒/);
+  assert.ok(capturedAiPayloads.some(payload => payload.model === 'meta-llama/llama-4-scout-17b-16e-instruct'));
+});
+
+test('/api/recipe-import-from-url 视频处理失败时使用页面文字继续生成草稿', async () => {
+  const aiPayloads = [];
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async (url, options) => {
+      if (options.responseType === 'stream') throw new Error('download failed');
+      return {
+        status: 200,
+        headers: {},
+        data: `
+          <meta property="og:description" content="页面文字：番茄炒蛋，番茄切块，鸡蛋炒散。">
+          <meta property="og:video" content="https://video.example.com/broken.mp4">
+        `
+      };
+    },
+    axiosPost: async (_url, payload) => {
+      aiPayloads.push(payload);
+      assert.notEqual(payload.model, 'meta-llama/llama-4-scout-17b-16e-instruct');
+      if (/菜谱证据抽取器/.test(payload.messages[0].content)) {
+        assert.match(payload.messages[1].content, /页面文字：番茄炒蛋/);
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  dishNameCandidates: ['番茄炒蛋'],
+                  observedMainIngredients: ['番茄', '鸡蛋'],
+                  observedSeasonings: [],
+                  observedActions: [
+                    { order: 1, action: '番茄切块', ingredients: ['番茄'], evidenceText: '番茄切块', confidence: 'medium' }
+                  ],
+                  sourceConfidence: 'low'
+                })
+              }
+            }]
+          }
+        };
+      }
+      return {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                name: '番茄炒蛋',
+                tags: ['AI草稿'],
+                ingredients: [{ item: '番茄', qty: '1', unit: '个' }, { item: '鸡蛋', qty: '2', unit: '个' }],
+                seasonings: [],
+                method: ['番茄切块。']
+              })
+            }
+          }]
+        }
+      };
+    }
+  });
+
+  const res = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/broken' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.recipe.name, '番茄炒蛋');
+  assert.match(res.body.mediaDiagnostics.warnings.join('\n'), /视频转录失败，仅使用页面文字生成草稿/);
+  assert.match(res.body.recipe.warnings.join('\n'), /链接可提取信息较少/);
+  assert.equal(aiPayloads.length, 2);
+});
+
+test('/api/recipe-import-from-url 没有视频地址时继续使用页面文字生成草稿', async () => {
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({
+      status: 200,
+      headers: {},
+      data: '<meta property="og:description" content="页面文字：葱油拌面，面条煮熟，加入葱油拌匀。">'
+    }),
+    axiosPost: async (_url, payload) => {
+      if (/菜谱证据抽取器/.test(payload.messages[0].content)) {
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  dishNameCandidates: ['葱油拌面'],
+                  observedMainIngredients: ['面条'],
+                  observedSeasonings: ['葱油'],
+                  observedActions: [
+                    { order: 1, action: '面条煮熟', ingredients: ['面条'], evidenceText: '面条煮熟', confidence: 'medium' },
+                    { order: 2, action: '加入葱油拌匀', ingredients: ['葱油'], evidenceText: '加入葱油拌匀', confidence: 'medium' }
+                  ],
+                  sourceConfidence: 'medium'
+                })
+              }
+            }]
+          }
+        };
+      }
+      return {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                name: '葱油拌面',
+                tags: ['AI草稿'],
+                ingredients: [{ item: '面条', qty: '1', unit: '份' }],
+                seasonings: [{ item: '葱油', qty: '1', unit: '勺' }],
+                method: ['面条煮熟。', '加入葱油拌匀。']
+              })
+            }
+          }]
+        }
+      };
+    }
+  });
+
+  const res = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/no-video' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.mediaDiagnostics.hasVideo, false);
+  assert.equal(res.body.mediaDiagnostics.videoUrlCount, 0);
+  assert.equal(res.body.recipe.name, '葱油拌面');
+});
+
 test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async () => {
   const capturedPayloads = [];
   const { app } = loadServerWithMocks({

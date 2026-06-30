@@ -570,32 +570,9 @@ test('菜谱导入完整性 warning 不阻止生成可编辑草稿', async () =>
 
 test('菜谱导入保留 source diagnostics 并提示提取信息不足', async () => {
   global.fetch = async (url, options) => {
-    if (String(url).startsWith('/api/xhs-extract')) {
-      return {
-        ok: true,
-        json: async () => ({
-          text: '鸡腿 小苏打 藤椒',
-          url: 'http://xhslink.com/o/example',
-          finalUrl: 'https://www.xiaohongshu.com/explore/example',
-          extractionMode: 'link-only',
-          hasHtml: true,
-          hasStructuredMeta: true,
-          hasOgDescription: false,
-          hasJsonLd: false,
-          hasInitialState: false,
-          trustedTextLength: 9,
-          trustedTextPreview: '鸡腿 小苏打 藤椒',
-          rawTextLength: 80,
-          rawTextPreview: '鸡腿 小苏打 藤椒 段老师这题我会'
-        })
-      };
-    }
-    assert.equal(url, '/api/ai-parse');
+    assert.equal(url, '/api/recipe-import-from-url');
     const body = JSON.parse(options.body);
-    assert.equal(body.sourceType, 'xiaohongshu');
-    assert.match(body.text, /鸡腿 小苏打 藤椒/);
-    assert.equal(body.sourceMetadata.extractionMode, 'link-only');
-    assert.equal(body.sourceMetadata.finalUrl, 'https://www.xiaohongshu.com/explore/example');
+    assert.equal(body.url, 'http://xhslink.com/o/example');
     return {
       ok: true,
       json: async () => ({
@@ -617,6 +594,13 @@ test('菜谱导入保留 source diagnostics 并提示提取信息不足', async 
             { order: 1, action: '鸡腿加入小苏打', ingredients: ['鸡腿', '小苏打'], evidenceText: '鸡腿 小苏打', confidence: 'low' }
           ],
           sourceConfidence: 'low'
+        },
+        mediaDiagnostics: {
+          hasVideo: true,
+          videoUrlCount: 1,
+          transcriptLength: 0,
+          ocrTextLength: 0,
+          warnings: ['视频转录失败，仅使用页面文字生成草稿。']
         },
         diagnostics: {
           sourceType: 'xiaohongshu',
@@ -649,6 +633,7 @@ test('菜谱导入保留 source diagnostics 并提示提取信息不足', async 
   };
 
   const draft = await importRecipeFromSource({ url: 'http://xhslink.com/o/example' });
+  assert.equal(draft.mediaDiagnostics.hasVideo, true);
   assert.equal(draft.diagnostics.sourceConfidence, 'low');
   assert.equal(draft.diagnostics.extractionMode, 'link-only');
   assert.equal(draft.diagnostics.finalUrl, 'https://www.xiaohongshu.com/explore/example');
@@ -663,24 +648,10 @@ test('菜谱导入支持小红书分享文案提取链接并保留补充文字',
   const calls = [];
   global.fetch = async (url, options) => {
     calls.push(String(url));
-    if (String(url).startsWith('/api/xhs-extract')) {
-      assert.match(String(url), /xhslink\.com/);
-      return {
-        ok: true,
-        json: async () => ({
-          text: '链接正文：鸡腿洗净擦干，加入生抽抓匀腌制。',
-          extractionMode: 'link-only',
-          trustedTextPreview: '链接正文：鸡腿洗净擦干',
-          rawTextPreview: '链接正文 raw'
-        })
-      };
-    }
-    assert.equal(url, '/api/ai-parse');
+    assert.equal(url, '/api/recipe-import-from-url');
     const body = JSON.parse(options.body);
-    assert.equal(body.sourceType, 'xiaohongshu');
-    assert.match(body.text, /链接正文：鸡腿洗净擦干/);
-    assert.match(body.text, /88 复制打开小红书/);
-    assert.equal(body.sourceMetadata.extractionMode, 'link-only');
+    assert.equal(body.url, 'http://xhslink.com/a/xxxxx');
+    assert.equal(body.userText, '88 复制打开小红书');
     return {
       ok: true,
       json: async () => ({
@@ -699,7 +670,8 @@ test('菜谱导入支持小红书分享文案提取链接并保留补充文字',
             { order: 2, action: '加入生抽抓匀腌制', ingredients: ['生抽'], evidenceText: '加入生抽抓匀腌制', confidence: 'high' }
           ],
           sourceConfidence: 'medium'
-        }
+        },
+        mediaDiagnostics: { hasVideo: false, videoUrlCount: 0, warnings: [] }
       })
     };
   };
@@ -709,10 +681,7 @@ test('菜谱导入支持小红书分享文案提取链接并保留补充文字',
     text: '88 复制打开小红书'
   });
   assert.equal(draft.name, '藤椒鸡腿');
-  assert.deepEqual(calls, [
-    '/api/xhs-extract?url=http%3A%2F%2Fxhslink.com%2Fa%2Fxxxxx',
-    '/api/ai-parse'
-  ]);
+  assert.deepEqual(calls, ['/api/recipe-import-from-url']);
 });
 
 test('菜谱导入保留鲜藤椒步骤，不自动补成加水焖熟', async () => {
@@ -979,6 +948,10 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
 
 test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   const server = read('server.js');
+  const aiParsePipeline = server.slice(
+    server.indexOf('async function parseRecipeDraftWithAi'),
+    server.indexOf("app.post('/api/recipe-import-from-url'")
+  );
   const aiParseRoute = server.slice(
     server.indexOf("app.post('/api/ai-parse'"),
     server.indexOf('// 静态托管前端')
@@ -987,13 +960,14 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   assert.match(server, /RECIPE_EVIDENCE_SYSTEM_PROMPT/);
   assert.match(server, /observedActions/);
   assert.match(server, /有"水"不等于加水焖煮/);
-  assert.match(aiParseRoute, /const evidenceResp = await axios\.post/);
-  assert.match(aiParseRoute, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL/);
-  assert.match(aiParseRoute, /const recipeResp = await axios\.post/);
-  assert.match(aiParseRoute, /model: OPENAI_MODEL/);
-  assert.match(aiParseRoute, /sanitizeRecipe\(parsed, \{ sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics \}\)/);
+  assert.match(aiParsePipeline, /const evidenceResp = await axios\.post/);
+  assert.match(aiParsePipeline, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL/);
+  assert.match(aiParsePipeline, /const recipeResp = await axios\.post/);
+  assert.match(aiParsePipeline, /model: OPENAI_MODEL/);
+  assert.match(aiParsePipeline, /sanitizeRecipe\(parsed, \{ sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics \}\)/);
   assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
-  assert.match(aiParseRoute, /sendAiUpstreamError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);
+  assert.match(aiParseRoute, /parseRecipeDraftWithAi\(\{ text, imageBase64, sourceType, sourceMetadata \}\)/);
+  assert.match(aiParseRoute, /sendAiParsePipelineError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);
 });
 
 test('小票图片会压到 Groq base64 图片限制以内的目标尺寸', () => {

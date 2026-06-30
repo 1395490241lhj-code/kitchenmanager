@@ -1,6 +1,6 @@
 import { loadOverlay, saveOverlay } from '../backup.js?v=222';
 import { genId } from '../shopping.js?v=222';
-import { importRecipeFromSource, getRecipeImportAiFailureCopy } from '../ai.js?v=225';
+import { importRecipeFromSource, getRecipeImportAiFailureCopy } from '../ai.js?v=226';
 import { setActionStatus, setInlineStatus, showToast } from './status.js?v=223';
 
 const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
@@ -103,8 +103,11 @@ export function openRecipeImportModal() {
     const rawInput = importInput.value.trim();
     if (!rawInput) { setInlineStatus(status, '请先粘贴小红书链接、网页链接或菜谱文字。', 'bad'); return; }
     const { url, remainingText } = extractFirstHttpUrl(rawInput);
+    const isXiaohongshuUrl = /(?:xhslink|xiaohongshu|小红书)/i.test(url || '');
+    const loadingText = isXiaohongshuUrl ? '正在读取视频内容，可能需要稍等片刻…' : '正在整理菜谱…';
     goBtn.setAttribute('disabled', 'true');
-    goBtn.innerHTML = '<span class="spinner"></span> 正在整理菜谱…';
+    goBtn.innerHTML = `<span class="spinner"></span> ${loadingText}`;
+    setInlineStatus(status, loadingText, 'info');
     try {
       const draft = url
         ? await importRecipeFromSource({ url, text: remainingText, file: null })
