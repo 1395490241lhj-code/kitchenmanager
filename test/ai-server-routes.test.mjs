@@ -278,7 +278,7 @@ test('/api/xhs-extract 优先使用 og/meta 结构化字段，不让 body 评论
   const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/note' });
 
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body.extractionMode, 'link-only');
+  assert.equal(res.body.extractionMode, 'meta');
   assert.equal(res.body.hasStructuredMeta, true);
   assert.equal(res.body.hasOgDescription, true);
   assert.match(res.body.text, /藤椒鸡腿详细版教程/);
@@ -289,7 +289,16 @@ test('/api/xhs-extract 优先使用 og/meta 结构化字段，不让 body 评论
 
 test('/api/xhs-extract 可以从 JSON-LD 提取 name 和 description', async () => {
   const html = `<!doctype html><html><head>
-    <script type="application/ld+json">{"@type":"Recipe","name":"鲜藤椒鸡腿","description":"鸡腿加入鲜藤椒和生抽调味后出锅。"}</script>
+    <script type="application/ld+json">{
+      "@type":"Recipe",
+      "name":"鲜藤椒鸡腿",
+      "description":"鸡腿加入鲜藤椒和生抽调味后出锅。",
+      "recipeIngredient":["鸡腿","鲜藤椒","生抽"],
+      "recipeInstructions":[
+        {"@type":"HowToStep","text":"鸡腿洗净擦干。"},
+        {"@type":"HowToStep","text":"加入鲜藤椒和生抽调味后出锅。"}
+      ]
+    }</script>
   </head><body>评论：太喜欢这道菜了</body></html>`;
   const { app } = loadServerWithMocks({
     dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
@@ -299,10 +308,47 @@ test('/api/xhs-extract 可以从 JSON-LD 提取 name 和 description', async () 
   const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/jsonld' });
 
   assert.equal(res.statusCode, 200);
+  assert.equal(res.body.extractionMode, 'json-ld');
   assert.equal(res.body.hasJsonLd, true);
   assert.match(res.body.text, /鲜藤椒鸡腿/);
+  assert.match(res.body.text, /鸡腿、鲜藤椒、生抽/);
+  assert.match(res.body.text, /鸡腿洗净擦干/);
   assert.match(res.body.text, /加入鲜藤椒和生抽调味后出锅/);
   assert.doesNotMatch(res.body.text, /太喜欢/);
+});
+
+test('/api/xhs-extract 可以从 INITIAL_STATE 提取作者标题和正文', async () => {
+  const html = `<!doctype html><html><head></head><body>
+    <script>
+      window.__INITIAL_STATE__ = {
+        note: {
+          noteDetailMap: {
+            one: {
+              note: {
+                title: "番茄炒蛋",
+                desc: "番茄切块，鸡蛋打散。锅中倒油炒鸡蛋，放入番茄翻炒，加盐调味后出锅。"
+              }
+            }
+          }
+        }
+      };
+    </script>
+    评论：这个看起来太好吃了，求教程。
+  </body></html>`;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({ status: 200, headers: {}, data: html })
+  });
+
+  const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/initial' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.extractionMode, 'initial-state');
+  assert.equal(res.body.hasInitialState, true);
+  assert.match(res.body.text, /番茄炒蛋/);
+  assert.match(res.body.text, /番茄切块/);
+  assert.match(res.body.text, /加盐调味后出锅/);
+  assert.doesNotMatch(res.body.text, /求教程/);
 });
 
 test('/api/xhs-extract body fallback 会按片段过滤评论和推荐文案', async () => {
@@ -319,11 +365,47 @@ test('/api/xhs-extract body fallback 会按片段过滤评论和推荐文案', a
   const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/body' });
 
   assert.equal(res.statusCode, 200);
+  assert.equal(res.body.extractionMode, 'html-text');
   assert.match(res.body.text, /家常版藤椒鸡腿详细版教程/);
   assert.match(res.body.text, /腌制比例/);
   assert.doesNotMatch(res.body.text, /段老师|小苏打|双椒鸡拌面|视频号为啥不要了/);
   assert.match(res.body.rawTextPreview, /小苏打/);
   assert.ok(res.body.sourceSegmentsPreview.some(seg => seg.type === 'authorCandidate'));
+});
+
+test('/api/xhs-extract 少量标题信息也返回 text 和有用 warnings', async () => {
+  const html = `<!doctype html><html><head><title>番茄炒蛋</title></head><body>点赞 收藏 评论 关注</body></html>`;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({ status: 200, headers: {}, data: html })
+  });
+
+  const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/title-only' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.extractionMode, 'link-only');
+  assert.match(res.body.text, /番茄炒蛋/);
+  assert.ok(res.body.warnings.includes('链接可提取内容较少，可能需要人工确认。'));
+  assert.ok(res.body.warnings.includes('未提取到完整做法步骤。'));
+});
+
+test('/api/xhs-extract 支持 twitter meta description 作为可用来源', async () => {
+  const html = `<!doctype html><html><head>
+    <meta name="twitter:title" content="土豆丝">
+    <meta name="twitter:description" content="土豆切丝冲洗，锅中热油放入土豆丝翻炒，加入醋和盐调味后出锅。">
+  </head><body>相关推荐：黄金薯</body></html>`;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({ status: 200, headers: {}, data: html })
+  });
+
+  const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/twitter' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.extractionMode, 'meta');
+  assert.equal(res.body.hasStructuredMeta, true);
+  assert.match(res.body.text, /土豆切丝冲洗/);
+  assert.doesNotMatch(res.body.text, /黄金薯/);
 });
 
 test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async () => {
