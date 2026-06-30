@@ -64,8 +64,13 @@ const RECIPE_PACK_SCORING_DATA = {
   ]
 };
 
-export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
-  const sourceItems = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
+// 核心食材记忆化：结果只由「来源用料数组」决定。默认路径以 pack 里该菜的原始用料
+// 数组为键，fallbackItems 路径以传入数组为键；pack 重建（invalidatePackCache 换新数组）
+// 时旧键随之失效。同一次渲染里 rankRecipes / 清冰箱 / scoreRecipe 多条路径会命中同一缓存，
+// 省掉对同一道菜反复 explode + 分类。返回的数组是只读共享引用——所有调用方只遍历不修改。
+const _coreIngredientsCache = new WeakMap();
+
+function computeCoreIngredients(sourceItems) {
   // 统一菜谱用料口径：只保留 role === 'core' 的核心食材参与库存匹配 / 缺货 / 买菜；
   // 调料（盐/生抽/水淀粉…）与非库存项（水/高汤/汤汁/适量…）一律排除。
   return (sourceItems || [])
@@ -74,6 +79,19 @@ export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
       return { ...item, item: name, name };
     })
     .filter(item => item.item && classifyRecipeIngredient(item.item).role === 'core');
+}
+
+export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
+  const rawSource = (pack.recipe_ingredients || {})[recipe.id];
+  const cacheKey = fallbackItems || rawSource;
+  if (!cacheKey || typeof cacheKey !== 'object') {
+    return computeCoreIngredients(fallbackItems || explodeCombinedItems(rawSource || []));
+  }
+  const cached = _coreIngredientsCache.get(cacheKey);
+  if (cached) return cached;
+  const computed = computeCoreIngredients(fallbackItems || explodeCombinedItems(rawSource || []));
+  _coreIngredientsCache.set(cacheKey, computed);
+  return computed;
 }
 
 function normalizeRecommendationSet(value) {
@@ -151,7 +169,9 @@ function explainMissingNames(missing, limit = 3) {
 
 export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) {
   const list = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
-  const core = getRecipeCoreIngredients(recipe, pack, list);
+  // 用 fallbackItems（而非已展开的 list）取核心食材：默认路径才能命中按原始用料数组
+  // 记忆化的缓存。两者推导出的核心食材完全一致（fallbackItems 为空时内部会展开同一份用料）。
+  const core = getRecipeCoreIngredients(recipe, pack, fallbackItems);
   const matches = [];
   const missing = [];
   const expiringMatches = [];
@@ -598,7 +618,7 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
     .map(recipe => {
       const scored = scoreRecipe(recipe, pack, inv, context);
       if (!scored.totalCore) return null;
-      const core = scored.core || getRecipeCoreIngredients(recipe, pack);
+      const core = scored.core; // scoreRecipe 必定带回 core，无需再次计算
       const hitDescriptors = descriptors.filter(target => core.some(item => targetMatchesCore(target, item)));
       if (!hitDescriptors.length) return null;
       const targets = descriptors.map(d => d.canonical);
