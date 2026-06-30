@@ -542,7 +542,9 @@ test('/api/media/extract-audio 下载视频到临时文件并调用 ffmpeg 提�
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.ok, true);
   assert.match(res.body.audioPath, /^[0-9a-f-]+\.m4a$/i);
+  assert.match(res.body.videoId, /^[0-9a-f-]+\.video$/i);
   assert.doesNotMatch(res.body.audioPath, /\//);
+  assert.doesNotMatch(res.body.videoId, /\//);
   assert.equal(res.body.durationSeconds, 3.5);
   assert.equal(res.body.bytes, audioBytes.length);
   assert.equal(res.body.videoBytes, videoBytes.length);
@@ -612,6 +614,141 @@ test('/api/media/extract-audio ffmpeg 失败返回友好错误', async () => {
   assert.equal(res.statusCode, 502);
   assert.equal(res.body.ok, false);
   assert.equal(res.body.message, '音频提取失败，请稍后重试。');
+});
+
+test('/api/media/extract-frames 从临时视频抽取关键帧并返回 frameIds', async () => {
+  await writeTempMediaFile('frames-source.video', Buffer.from('fake-video'));
+  const spawnCalls = [];
+  const childProcessMock = {
+    spawn(bin, args, options) {
+      spawnCalls.push({ bin, args, options });
+      assert.equal(bin, '/mock/ffmpeg');
+      assert.equal(options.shell, undefined);
+      const child = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.kill = () => {};
+      setImmediate(() => {
+        if (args.includes('-hide_banner')) {
+          child.stderr.emit('data', 'Duration: 00:00:12.00, start: 0.000000');
+          child.emit('close', 1);
+          return;
+        }
+        const outputPath = args[args.length - 1];
+        fs.writeFileSync(outputPath, Buffer.from('fake-jpg'));
+        child.emit('close', 0);
+      });
+      return child;
+    }
+  };
+  const { app } = loadServerWithMocks({ childProcessMock });
+
+  const res = await runPost(app, '/api/media/extract-frames', { videoId: 'frames-source.video', maxFrames: 3 });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.durationSeconds, 12);
+  assert.deepEqual(res.body.frameIds, ['frames-source-frame-01.jpg', 'frames-source-frame-02.jpg', 'frames-source-frame-03.jpg']);
+  assert.equal(res.body.frames.length, 3);
+  assert.ok(res.body.frames.every(frame => frame.bytes === Buffer.byteLength('fake-jpg')));
+  assert.equal(spawnCalls.length, 4);
+  assert.ok(spawnCalls[0].args.includes('-hide_banner'));
+  assert.ok(spawnCalls.slice(1).every(call => call.args.includes('scale=720:-2')));
+  assert.ok(spawnCalls.slice(1).every(call => call.args.includes('-frames:v')));
+});
+
+test('/api/media/extract-frames 拒绝非法或不存在的 videoId', async () => {
+  const { app } = loadServerWithMocks();
+
+  const invalid = await runPost(app, '/api/media/extract-frames', { videoId: '../secret.video' });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.body.message, '视频文件标识不合法。');
+
+  const missing = await runPost(app, '/api/media/extract-frames', { videoId: 'missing.video' });
+  assert.equal(missing.statusCode, 404);
+  assert.equal(missing.body.message, '视频文件不存在。');
+});
+
+test('/api/media/ocr-frames 使用视觉模型提取帧中文字且不生成菜谱', async () => {
+  await writeTempMediaFile('ocr-frame-01.jpg', Buffer.from('fake-jpg-1'));
+  await writeTempMediaFile('ocr-frame-02.jpg', Buffer.from('fake-jpg-2'));
+  const capturedPayloads = [];
+  const { app } = loadServerWithMocks({
+    axiosPost: async (url, payload, options) => {
+      capturedPayloads.push({ url, payload, options });
+      assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
+      assert.equal(options.headers.Authorization, 'Bearer test-key');
+      assert.equal(payload.model, 'meta-llama/llama-4-scout-17b-16e-instruct');
+      const userContent = payload.messages[1].content;
+      assert.match(userContent[0].text, /只提取画面中清晰可见/);
+      assert.match(userContent[0].text, /不要根据画面猜完整做法/);
+      assert.match(userContent[1].image_url.url, /^data:image\/jpeg;base64,/);
+      return {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({ text: '鸡腿 2 个\n生抽 1 勺', confidence: 'high' })
+            }
+          }]
+        }
+      };
+    }
+  });
+
+  const res = await runPost(app, '/api/media/ocr-frames', { frameIds: ['ocr-frame-01.jpg', 'ocr-frame-02.jpg'] });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.match(res.body.ocrText, /鸡腿 2 个/);
+  assert.equal(res.body.frames.length, 2);
+  assert.equal(res.body.frames[0].confidence, 'high');
+  assert.equal(capturedPayloads.length, 2);
+});
+
+test('/api/media/ocr-frames 最多处理 8 帧并拒绝非法 frameId', async () => {
+  for (let i = 1; i <= 9; i++) {
+    await writeTempMediaFile(`cap-frame-${String(i).padStart(2, '0')}.jpg`, Buffer.from(`jpg-${i}`));
+  }
+  let calls = 0;
+  const { app } = loadServerWithMocks({
+    axiosPost: async () => {
+      calls += 1;
+      return {
+        data: {
+          choices: [{
+            message: { content: JSON.stringify({ text: '字幕', confidence: 'medium' }) }
+          }]
+        }
+      };
+    }
+  });
+
+  const frameIds = Array.from({ length: 9 }, (_, index) => `cap-frame-${String(index + 1).padStart(2, '0')}.jpg`);
+  const capped = await runPost(app, '/api/media/ocr-frames', { frameIds });
+  assert.equal(capped.statusCode, 200);
+  assert.equal(capped.body.frames.length, 8);
+  assert.equal(calls, 8);
+
+  const invalid = await runPost(app, '/api/media/ocr-frames', { frameIds: ['../secret.jpg'] });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.body.message, '图片帧标识不合法。');
+});
+
+test('/api/media/ocr-frames 缺少密钥或上游失败时返回友好错误', async () => {
+  await writeTempMediaFile('ocr-fail.jpg', Buffer.from('fake-jpg'));
+  const noKeyApp = loadServerWithMocks({ env: { OPENAI_API_KEY: '' } }).app;
+  const noKey = await runPost(noKeyApp, '/api/media/ocr-frames', { frameIds: ['ocr-fail.jpg'] });
+  assert.equal(noKey.statusCode, 503);
+  assert.equal(noKey.body.message, '后端未配置 AI 密钥。');
+
+  delete require.cache[serverPath];
+  const failApp = loadServerWithMocks({
+    axiosPost: async () => {
+      throw new Error('vision failed');
+    }
+  }).app;
+  const failed = await runPost(failApp, '/api/media/ocr-frames', { frameIds: ['ocr-fail.jpg'] });
+  assert.equal(failed.statusCode, 502);
+  assert.equal(failed.body.message, '画面文字识别失败，请稍后重试。');
 });
 
 test('/api/media/transcribe 调用 OpenAI audio transcriptions 并返回 transcript', async () => {

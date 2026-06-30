@@ -946,9 +946,13 @@ const MEDIA_TMP_DIR = path.join(os.tmpdir(), 'kitchenmanager-media');
 const MEDIA_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
 const MEDIA_DOWNLOAD_TIMEOUT_MS = 30000;
 const MEDIA_FILE_TTL_MS = 60 * 60 * 1000;
+const MEDIA_MAX_FRAME_COUNT = 8;
+const MEDIA_MAX_FRAME_BYTES = 2 * 1024 * 1024;
 const MEDIA_TOO_LARGE_ERROR = new Error('MEDIA_TOO_LARGE');
 const MEDIA_DOWNLOAD_ERROR = new Error('MEDIA_DOWNLOAD_FAILED');
 const MEDIA_FFMPEG_ERROR = new Error('MEDIA_FFMPEG_FAILED');
+const MEDIA_FRAME_TOO_LARGE_ERROR = new Error('MEDIA_FRAME_TOO_LARGE');
+const MEDIA_FRAME_OCR_ERROR = new Error('MEDIA_FRAME_OCR_FAILED');
 const MEDIA_TRANSCRIBE_ERROR = new Error('MEDIA_TRANSCRIBE_FAILED');
 const MEDIA_EMPTY_TRANSCRIPT_ERROR = new Error('MEDIA_EMPTY_TRANSCRIPT');
 
@@ -1075,6 +1079,35 @@ function parseFfmpegDuration(stderrText) {
   return Math.round((hours * 3600 + minutes * 60 + seconds) * 1000) / 1000;
 }
 
+function runFfmpegProcess(args, { timeoutMs = 60000, allowNonZero = false } = {}) {
+  if (!ffmpegPath) return Promise.reject(MEDIA_FFMPEG_ERROR);
+  return new Promise((resolve, reject) => {
+    let stderr = '';
+    let settled = false;
+    const child = spawn(ffmpegPath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    const finish = (err, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (err) reject(err);
+      else resolve(result);
+    };
+    const timer = setTimeout(() => {
+      try { child.kill('SIGKILL'); } catch (_) {}
+      finish(MEDIA_FFMPEG_ERROR);
+    }, timeoutMs);
+    child.stderr?.on('data', chunk => {
+      stderr += String(chunk || '').slice(0, 4000);
+      if (stderr.length > 12000) stderr = stderr.slice(-12000);
+    });
+    child.on('error', () => finish(MEDIA_FFMPEG_ERROR));
+    child.on('close', code => {
+      if (code === 0 || allowNonZero) finish(null, { code, stderr });
+      else finish(MEDIA_FFMPEG_ERROR);
+    });
+  });
+}
+
 async function extractAudioWithFfmpeg(videoPath, audioPath) {
   if (!ffmpegPath) throw MEDIA_FFMPEG_ERROR;
   return new Promise((resolve, reject) => {
@@ -1109,10 +1142,114 @@ async function extractAudioWithFfmpeg(videoPath, audioPath) {
   });
 }
 
+async function probeVideoDurationSeconds(videoPath) {
+  try {
+    const result = await runFfmpegProcess(['-hide_banner', '-i', videoPath], { timeoutMs: 15000, allowNonZero: true });
+    return parseFfmpegDuration(result.stderr);
+  } catch (_) {
+    return null;
+  }
+}
+
+function clampMediaFrameCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return MEDIA_MAX_FRAME_COUNT;
+  return Math.max(1, Math.min(MEDIA_MAX_FRAME_COUNT, Math.floor(n)));
+}
+
+function buildEvenFrameTimestamps(durationSeconds, count) {
+  const duration = Number(durationSeconds);
+  if (!Number.isFinite(duration) || duration <= 0 || count <= 0) return [];
+  return Array.from({ length: count }, (_, index) => {
+    const t = duration * (index + 1) / (count + 1);
+    return Math.max(0.1, Math.round(t * 1000) / 1000);
+  });
+}
+
+async function assertMediaFrameSize(filePath) {
+  const stat = await fs.promises.stat(filePath);
+  if (stat.size > MEDIA_MAX_FRAME_BYTES) {
+    await fs.promises.unlink(filePath).catch(() => {});
+    throw MEDIA_FRAME_TOO_LARGE_ERROR;
+  }
+  return stat.size;
+}
+
+async function extractFramesWithFfmpeg(videoPath, { maxFrames = MEDIA_MAX_FRAME_COUNT } = {}) {
+  if (!ffmpegPath) throw MEDIA_FFMPEG_ERROR;
+  await cleanupOldMediaFiles();
+  await ensureMediaTempDir();
+  const count = clampMediaFrameCount(maxFrames);
+  const baseId = path.basename(videoPath).replace(/\.[^.]+$/, '');
+  const durationSeconds = await probeVideoDurationSeconds(videoPath);
+  const frames = [];
+
+  if (durationSeconds) {
+    const timestamps = buildEvenFrameTimestamps(durationSeconds, count);
+    for (let index = 0; index < timestamps.length; index++) {
+      const frameId = `${baseId}-frame-${String(index + 1).padStart(2, '0')}.jpg`;
+      const framePath = path.join(MEDIA_TMP_DIR, frameId);
+      await runFfmpegProcess([
+        '-y',
+        '-ss', String(timestamps[index]),
+        '-i', videoPath,
+        '-frames:v', '1',
+        '-vf', 'scale=720:-2',
+        '-q:v', '5',
+        framePath
+      ], { timeoutMs: 60000 });
+      const bytes = await assertMediaFrameSize(framePath);
+      frames.push({ frameId, bytes, timestampSeconds: timestamps[index] });
+    }
+  } else {
+    const prefix = `${baseId}-frame-`;
+    const pattern = path.join(MEDIA_TMP_DIR, `${prefix}%02d.jpg`);
+    await runFfmpegProcess([
+      '-y',
+      '-i', videoPath,
+      '-vf', 'fps=1/3,scale=720:-2',
+      '-frames:v', String(count),
+      '-q:v', '5',
+      pattern
+    ], { timeoutMs: 60000 });
+    const entries = await fs.promises.readdir(MEDIA_TMP_DIR, { withFileTypes: true });
+    const frameIds = entries
+      .filter(entry => entry.isFile() && entry.name.startsWith(prefix) && /\.jpe?g$/i.test(entry.name))
+      .map(entry => entry.name)
+      .sort()
+      .slice(0, count);
+    for (const frameId of frameIds) {
+      const bytes = await assertMediaFrameSize(path.join(MEDIA_TMP_DIR, frameId));
+      frames.push({ frameId, bytes, timestampSeconds: null });
+    }
+  }
+
+  if (!frames.length) throw MEDIA_FFMPEG_ERROR;
+  return { durationSeconds, frames };
+}
+
 function resolveMediaAudioPath(audioPath) {
   const basename = String(audioPath || '').trim();
   if (!basename || basename !== path.basename(basename)) return null;
   if (!/^[a-zA-Z0-9._-]+\.(?:m4a|mp3|wav|aac)$/i.test(basename)) return null;
+  const resolved = path.resolve(MEDIA_TMP_DIR, basename);
+  const root = path.resolve(MEDIA_TMP_DIR) + path.sep;
+  return resolved.startsWith(root) ? resolved : null;
+}
+
+function resolveMediaVideoPath(videoId) {
+  const basename = String(videoId || '').trim();
+  if (!basename || basename !== path.basename(basename)) return null;
+  if (!/^[a-zA-Z0-9._-]+\.video$/i.test(basename)) return null;
+  const resolved = path.resolve(MEDIA_TMP_DIR, basename);
+  const root = path.resolve(MEDIA_TMP_DIR) + path.sep;
+  return resolved.startsWith(root) ? resolved : null;
+}
+
+function resolveMediaFramePath(frameId) {
+  const basename = String(frameId || '').trim();
+  if (!basename || basename !== path.basename(basename)) return null;
+  if (!/^[a-zA-Z0-9._-]+\.(?:jpg|jpeg|png|webp)$/i.test(basename)) return null;
   const resolved = path.resolve(MEDIA_TMP_DIR, basename);
   const root = path.resolve(MEDIA_TMP_DIR) + path.sep;
   return resolved.startsWith(root) ? resolved : null;
@@ -1124,6 +1261,13 @@ function getAudioMimeType(audioFilePath) {
   if (ext === '.wav') return 'audio/wav';
   if (ext === '.aac') return 'audio/aac';
   return 'audio/mp4';
+}
+
+function getImageMimeType(imagePath) {
+  const ext = path.extname(imagePath).toLowerCase();
+  if (ext === '.png') return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  return 'image/jpeg';
 }
 
 function getTranscriptText(payload) {
@@ -1169,6 +1313,76 @@ async function transcribeAudioFile(audioFilePath) {
     transcript,
     model: OPENAI_TRANSCRIBE_MODEL,
     transcriptLength: transcript.length
+  };
+}
+
+function normalizeOcrConfidence(value) {
+  const confidence = String(value || '').trim().toLowerCase();
+  return ['low', 'medium', 'high'].includes(confidence) ? confidence : 'low';
+}
+
+function parseFrameOcrContent(content) {
+  const parsed = safeParseModelJson(content);
+  if (parsed && typeof parsed === 'object') {
+    const text = Array.isArray(parsed.lines)
+      ? parsed.lines.map(line => String(line || '').trim()).filter(Boolean).join('\n')
+      : String(parsed.text || parsed.ocrText || parsed.content || '').trim();
+    return {
+      text,
+      confidence: normalizeOcrConfidence(parsed.confidence)
+    };
+  }
+  return {
+    text: String(content || '').replace(/```(?:json)?/gi, '').trim(),
+    confidence: 'low'
+  };
+}
+
+async function ocrFrameWithVisionModel(frameId, framePath) {
+  if (!OPENAI_API_KEY) throw new Error('MISSING_OPENAI_API_KEY');
+  const frameBuffer = await fs.promises.readFile(framePath);
+  if (frameBuffer.length > MEDIA_MAX_FRAME_BYTES) throw MEDIA_FRAME_TOO_LARGE_ERROR;
+  const dataUrl = `data:${getImageMimeType(framePath)};base64,${frameBuffer.toString('base64')}`;
+  const prompt = [
+    '你是 Kitchen Manager 的视频菜谱画面文字识别器。',
+    '只提取画面中清晰可见、与菜谱相关的文字：食材、调料、用量、火候、时间、步骤字幕。',
+    '不要根据画面猜完整做法，不要补全看不见的步骤，不要写菜谱总结。',
+    '如果没有看见菜谱文字，text 返回空字符串。',
+    '请只返回 JSON：{"text":"逐行 OCR 文本","confidence":"low|medium|high"}'
+  ].join('\n');
+
+  let resp;
+  try {
+    resp = await axios.post(
+      resolveChatUrl(OPENAI_BASE_URL),
+      {
+        model: OPENAI_VISION_MODEL,
+        messages: [
+          { role: 'system', content: 'Extract visible recipe text from a video frame. Do not infer a recipe.' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } }
+            ]
+          }
+        ],
+        temperature: 0.1
+      },
+      {
+        timeout: 45000,
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+      }
+    );
+  } catch (_) {
+    throw MEDIA_FRAME_OCR_ERROR;
+  }
+  const content = getAiMessageContent(resp);
+  const result = parseFrameOcrContent(content);
+  return {
+    frameId,
+    text: result.text,
+    confidence: result.text ? result.confidence : 'low'
   };
 }
 
@@ -1253,6 +1467,7 @@ app.post('/api/media/extract-audio', async (req, res) => {
     return res.json({
       ok: true,
       audioPath: path.basename(audioPath),
+      videoId: path.basename(downloaded.videoPath),
       durationSeconds,
       bytes: audioStat.size,
       videoBytes: downloaded.bytes
@@ -1268,6 +1483,90 @@ app.post('/api/media/extract-audio', async (req, res) => {
       return res.status(400).json({ ok: false, error: '不支持的视频地址。', message: '不支持的视频地址。' });
     }
     return res.status(502).json({ ok: false, error: '视频下载失败，请稍后重试。', message: '视频下载失败，请稍后重试。' });
+  }
+});
+
+app.post('/api/media/extract-frames', async (req, res) => {
+  const videoId = String(req.body?.videoId || '').trim();
+  const videoPath = resolveMediaVideoPath(videoId);
+  if (!videoPath) {
+    return res.status(400).json({ ok: false, error: '视频文件标识不合法。', message: '视频文件标识不合法。' });
+  }
+  try {
+    await fs.promises.access(videoPath, fs.constants.R_OK);
+  } catch (_) {
+    return res.status(404).json({ ok: false, error: '视频文件不存在。', message: '视频文件不存在。' });
+  }
+
+  try {
+    const maxFrames = clampMediaFrameCount(req.body?.maxFrames);
+    const result = await extractFramesWithFfmpeg(videoPath, { maxFrames });
+    await cleanupOldMediaFiles();
+    return res.json({
+      ok: true,
+      videoId: path.basename(videoPath),
+      durationSeconds: result.durationSeconds,
+      frameIds: result.frames.map(frame => frame.frameId),
+      frames: result.frames
+    });
+  } catch (err) {
+    if (err === MEDIA_FRAME_TOO_LARGE_ERROR) {
+      return res.status(413).json({ ok: false, error: '视频画面过大，暂不支持识别。', message: '视频画面过大，暂不支持识别。' });
+    }
+    return res.status(502).json({ ok: false, error: '视频抽帧失败，请稍后重试。', message: '视频抽帧失败，请稍后重试。' });
+  }
+});
+
+app.post('/api/media/ocr-frames', async (req, res) => {
+  if (isAiRateLimited(req)) {
+    return res.status(429).json({ ok: false, error: 'AI 请求太频繁，请稍后再试。', message: 'AI 请求太频繁，请稍后再试。' });
+  }
+  if (!OPENAI_API_KEY) {
+    return res.status(503).json({ ok: false, error: '后端未配置 AI 密钥。', message: '后端未配置 AI 密钥。' });
+  }
+  const requestedFrameIds = Array.isArray(req.body?.frameIds)
+    ? req.body.frameIds.map(item => String(item || '').trim()).filter(Boolean)
+    : [];
+  if (!requestedFrameIds.length) {
+    return res.status(400).json({ ok: false, error: '缺少 frameIds。', message: '缺少 frameIds。' });
+  }
+  const frameIds = requestedFrameIds.slice(0, MEDIA_MAX_FRAME_COUNT);
+  const framePaths = [];
+  for (const frameId of frameIds) {
+    const framePath = resolveMediaFramePath(frameId);
+    if (!framePath) {
+      return res.status(400).json({ ok: false, error: '图片帧标识不合法。', message: '图片帧标识不合法。' });
+    }
+    try {
+      await fs.promises.access(framePath, fs.constants.R_OK);
+      const stat = await fs.promises.stat(framePath);
+      if (stat.size > MEDIA_MAX_FRAME_BYTES) {
+        return res.status(413).json({ ok: false, error: '图片帧过大，暂不支持识别。', message: '图片帧过大，暂不支持识别。' });
+      }
+    } catch (err) {
+      if (err && err.code === 'ENOENT') {
+        return res.status(404).json({ ok: false, error: '图片帧不存在。', message: '图片帧不存在。' });
+      }
+      return res.status(502).json({ ok: false, error: '图片帧读取失败，请稍后重试。', message: '图片帧读取失败，请稍后重试。' });
+    }
+    framePaths.push({ frameId: path.basename(framePath), framePath });
+  }
+
+  try {
+    const frames = [];
+    for (const frame of framePaths) {
+      frames.push(await ocrFrameWithVisionModel(frame.frameId, frame.framePath));
+    }
+    const ocrText = frames
+      .map(frame => String(frame.text || '').trim())
+      .filter(Boolean)
+      .join('\n\n');
+    return res.json({ ok: true, ocrText, frames });
+  } catch (err) {
+    if (err === MEDIA_FRAME_TOO_LARGE_ERROR) {
+      return res.status(413).json({ ok: false, error: '图片帧过大，暂不支持识别。', message: '图片帧过大，暂不支持识别。' });
+    }
+    return res.status(502).json({ ok: false, error: '画面文字识别失败，请稍后重试。', message: '画面文字识别失败，请稍后重试。' });
   }
 });
 
