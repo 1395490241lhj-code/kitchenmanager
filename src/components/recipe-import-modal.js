@@ -5,6 +5,16 @@ import { setActionStatus, setInlineStatus, showToast } from './status.js?v=223';
 
 const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
 
+export function extractFirstHttpUrl(text) {
+  const raw = String(text || '');
+  const match = raw.match(/https?:\/\/[^\s，。、,.;；]+/i);
+  if (!match) return { url: '', remainingText: raw.trim() };
+  const originalUrl = match[0];
+  const url = originalUrl.replace(/[，。、,.;；]+$/, '');
+  const remainingText = raw.replace(originalUrl, ' ').replace(/\s+/g, ' ').trim();
+  return { url, remainingText };
+}
+
 function openEditorWithAiDraft(draft) {
   const tags = Array.from(new Set(['AI草稿', 'AI导入', ...(Array.isArray(draft.tags) ? draft.tags : [])]));
   const seasonings = (Array.isArray(draft.seasonings) ? draft.seasonings : [])
@@ -59,19 +69,10 @@ export function openRecipeImportModal() {
         <button type="button" class="km-modal-close" id="aiImportClose" aria-label="关闭">×</button>
       </div>
       <div class="km-modal-body ai-import-body">
-        <p class="km-modal-subtitle">粘贴小红书或网页菜谱链接，系统会尽量从页面文字整理成可编辑草稿。</p>
+        <p class="km-modal-subtitle">粘贴小红书链接、网页菜谱链接或菜谱文字，系统会尽量整理成可编辑草稿。</p>
         <label class="ai-import-field">
-          <span>粘贴链接</span>
-          <input id="aiImportUrl" type="url" inputmode="url" placeholder="小红书 / 网页菜谱链接">
-        </label>
-        <label class="ai-import-field ai-import-text-field" id="aiImportTextField" hidden>
-          <span>粘贴菜谱文字</span>
-          <textarea id="aiImportText" rows="5" placeholder="菜名、食材、做法都可以直接粘贴在这里"></textarea>
-        </label>
-        <label class="ai-import-field ai-import-file">
-          <span>可选：图片文件</span>
-          <input id="aiImportFile" type="file" accept="image/*,video/*" hidden>
-          <span class="ai-import-filename" id="aiImportFileName">点此选择文件</span>
+          <span>粘贴内容</span>
+          <textarea id="aiImportInput" rows="5" placeholder="粘贴小红书链接、网页链接或菜谱文字"></textarea>
         </label>
         <div id="aiImportStatus" class="inline-status" hidden></div>
       </div>
@@ -92,44 +93,34 @@ export function openRecipeImportModal() {
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
   overlay.querySelector('#aiImportClose').onclick = close;
   overlay.querySelector('#aiImportCancel').onclick = close;
-  requestAnimationFrame(() => overlay.querySelector('#aiImportUrl')?.focus?.({ preventScroll: true }));
-
-  const fileInput = overlay.querySelector('#aiImportFile');
-  const fileName = overlay.querySelector('#aiImportFileName');
-  const textField = overlay.querySelector('#aiImportTextField');
-  const textInput = overlay.querySelector('#aiImportText');
-  overlay.querySelector('.ai-import-file').onclick = (e) => { if (e.target !== fileInput) fileInput.click(); };
-  fileInput.onchange = () => { fileName.textContent = fileInput.files[0] ? fileInput.files[0].name : '点此选择文件'; };
+  const importInput = overlay.querySelector('#aiImportInput');
+  requestAnimationFrame(() => importInput?.focus?.({ preventScroll: true }));
 
   const status = overlay.querySelector('#aiImportStatus');
   const goBtn = overlay.querySelector('#aiImportGo');
   goBtn.onclick = async () => {
     if (goBtn.getAttribute('disabled')) return;
-    const raw = overlay.querySelector('#aiImportUrl').value.trim();
-    const pastedText = textInput.value.trim();
-    const match = raw.match(/https?:\/\/[^\s]+/g);
-    const url = match ? match[0].replace(/[，。、,.;；]+$/, '') : '';
-    const file = fileInput.files[0] || null;
-    if (!raw && !file && !pastedText) { setInlineStatus(status, '请粘贴链接或菜谱文字。', 'bad'); return; }
-    if (raw && !url && !pastedText) { setInlineStatus(status, '没找到有效链接，请检查粘贴内容，或改用粘贴文本。', 'bad'); return; }
+    const rawInput = importInput.value.trim();
+    if (!rawInput) { setInlineStatus(status, '请先粘贴小红书链接、网页链接或菜谱文字。', 'bad'); return; }
+    const { url, remainingText } = extractFirstHttpUrl(rawInput);
     goBtn.setAttribute('disabled', 'true');
     goBtn.innerHTML = '<span class="spinner"></span> 正在整理菜谱…';
     try {
-      const draft = await importRecipeFromSource(pastedText ? { text: pastedText, file: null } : { url, file });
+      const draft = url
+        ? await importRecipeFromSource({ url, text: remainingText, file: null })
+        : await importRecipeFromSource({ text: rawInput, file: null });
       setInlineStatus(status, '解析完成，正在打开编辑器…', 'ok');
       setTimeout(() => { close(); openEditorWithAiDraft(draft); }, 500);
     } catch (err) {
       const copy = getRecipeImportAiFailureCopy(err);
-      const textModeVisible = !textField.hidden;
       setActionStatus(status, {
         title: copy.title,
         message: copy.message,
-        primaryText: textModeVisible ? '' : '改用粘贴文本',
+        primaryText: '编辑后重试',
         secondaryText: '稍后再试',
         onPrimary: () => {
-          textField.hidden = false;
-          textInput.focus();
-          setInlineStatus(status, '可以直接粘贴菜谱文字后再点开始导入。', 'info');
+          importInput.focus();
+          setInlineStatus(status, '可以把菜谱文字直接粘贴到上方，再点开始导入。', 'info');
         },
         onSecondary: () => setInlineStatus(status, '可以稍后再试；本地菜谱和厨房数据不受影响。', 'info')
       });

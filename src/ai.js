@@ -1569,13 +1569,15 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
     else if (!cleanUrl) throw new Error('暂不支持直接解析视频文件，请粘贴小红书链接或菜谱文字。');
   }
 
-  // 链接 → 抓取文案（可能被跨域/验证码拦截，给出友好提示）。
-  let sourceText = pastedText;
+  // 链接 → 抓取页面文字；textarea 中链接以外的内容作为补充上下文。
+  let sourceText = '';
   let sourceMetadata = null;
-  if (!sourceText && cleanUrl) {
+  if (cleanUrl) {
     const linkSource = await fetchRecipeSource(cleanUrl);
-    sourceText = linkSource.text;
+    sourceText = [linkSource.text, pastedText].filter(Boolean).join('\n');
     sourceMetadata = linkSource.metadata;
+  } else {
+    sourceText = pastedText;
   }
 
   if (!sourceText && !imageBase64) throw new Error('没有可解析的链接文字，请粘贴链接或菜谱文字。');

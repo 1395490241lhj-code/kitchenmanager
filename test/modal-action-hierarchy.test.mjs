@@ -55,7 +55,7 @@ test('AI 菜谱导入弹窗接入统一 modal 外壳和失败兜底', () => {
   assert.match(source, /km-modal-content ai-import-modal/);
   assert.match(source, /km-modal-title ai-import-title/);
   assert.match(source, /km-modal-subtitle/);
-  assert.match(source, /primaryText: textModeVisible \? '' : '改用粘贴文本'/);
+  assert.match(source, /primaryText: '编辑后重试'/);
   assert.match(source, /secondaryText: '稍后再试'/);
   assert.match(source, /btn ok km-action-primary ai-import-go/);
 });

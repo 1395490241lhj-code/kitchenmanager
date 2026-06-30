@@ -135,7 +135,7 @@ export function renderRecipes(pack, { onRoute = () => {} } = {}) {
     <div class="recipe-page-head">
       <h2 class="section-title recipe-page-title">今天想做点什么？</h2>
       <div class="recipe-light-actions">
-        <button type="button" class="recipe-light-action" id="aiImportBtn">从链接导入</button>
+        <button type="button" class="recipe-light-action" id="aiImportBtn">导入菜谱</button>
         <button type="button" class="recipe-light-action" id="addBtn">手动新建</button>
       </div>
     </div>

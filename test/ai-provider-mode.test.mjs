@@ -142,11 +142,15 @@ test('AI 菜谱导入失败提供粘贴文本和稍后再试兜底', () => {
   const modal = read('src/components/recipe-import-modal.js');
   const ai = read('src/ai.js');
 
-  assert.match(modal, /id="aiImportTextField" hidden/);
-  assert.match(modal, /primaryText: textModeVisible \? '' : '改用粘贴文本'/);
+  assert.match(modal, /id="aiImportInput"/);
+  assert.match(modal, /粘贴小红书链接、网页菜谱链接或菜谱文字/);
+  assert.match(modal, /extractFirstHttpUrl/);
+  assert.match(modal, /importRecipeFromSource\(\{ url, text: remainingText, file: null \}\)/);
+  assert.match(modal, /importRecipeFromSource\(\{ text: rawInput, file: null \}\)/);
+  assert.doesNotMatch(modal, /id="aiImportTextField"|id="aiImportUrl"|aiImportFileName|可选：图片文件/);
+  assert.match(modal, /primaryText: '编辑后重试'/);
   assert.match(modal, /secondaryText: '稍后再试'/);
-  assert.match(modal, /textField\.hidden = false/);
-  assert.match(modal, /textInput\.focus\(\)/);
+  assert.match(modal, /importInput\.focus\(\)/);
   assert.match(ai, /importRecipeFromSource\(\{ url = '', file = null, text = '' \}/);
   assert.match(ai, /pastedText/);
 });
@@ -655,6 +659,62 @@ test('菜谱导入保留 source diagnostics 并提示提取信息不足', async 
   assert.doesNotMatch(draft.method, /需要确认|提取信息不足|链接可提取信息较少/);
 });
 
+test('菜谱导入支持小红书分享文案提取链接并保留补充文字', async () => {
+  const calls = [];
+  global.fetch = async (url, options) => {
+    calls.push(String(url));
+    if (String(url).startsWith('/api/xhs-extract')) {
+      assert.match(String(url), /xhslink\.com/);
+      return {
+        ok: true,
+        json: async () => ({
+          text: '链接正文：鸡腿洗净擦干，加入生抽抓匀腌制。',
+          extractionMode: 'link-only',
+          trustedTextPreview: '链接正文：鸡腿洗净擦干',
+          rawTextPreview: '链接正文 raw'
+        })
+      };
+    }
+    assert.equal(url, '/api/ai-parse');
+    const body = JSON.parse(options.body);
+    assert.equal(body.sourceType, 'xiaohongshu');
+    assert.match(body.text, /链接正文：鸡腿洗净擦干/);
+    assert.match(body.text, /88 复制打开小红书/);
+    assert.equal(body.sourceMetadata.extractionMode, 'link-only');
+    return {
+      ok: true,
+      json: async () => ({
+        recipe: {
+          name: '藤椒鸡腿',
+          tags: ['AI草稿'],
+          ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+          seasonings: [{ item: '生抽', qty: '1', unit: '勺' }],
+          method: ['鸡腿洗净擦干', '加入生抽抓匀腌制']
+        },
+        evidence: {
+          observedMainIngredients: ['鸡腿'],
+          observedSeasonings: ['生抽'],
+          observedActions: [
+            { order: 1, action: '鸡腿洗净擦干', ingredients: ['鸡腿'], evidenceText: '鸡腿洗净擦干', confidence: 'high' },
+            { order: 2, action: '加入生抽抓匀腌制', ingredients: ['生抽'], evidenceText: '加入生抽抓匀腌制', confidence: 'high' }
+          ],
+          sourceConfidence: 'medium'
+        }
+      })
+    };
+  };
+
+  const draft = await importRecipeFromSource({
+    url: 'http://xhslink.com/a/xxxxx',
+    text: '88 复制打开小红书'
+  });
+  assert.equal(draft.name, '藤椒鸡腿');
+  assert.deepEqual(calls, [
+    '/api/xhs-extract?url=http%3A%2F%2Fxhslink.com%2Fa%2Fxxxxx',
+    '/api/ai-parse'
+  ]);
+});
+
 test('菜谱导入保留鲜藤椒步骤，不自动补成加水焖熟', async () => {
   const sourceMethod = '鸡腿煎至两面金黄，加入鲜藤椒、生抽、老抽、料酒、盐、糖调味，翻炒均匀后出锅。';
   global.fetch = async (url, options) => {
@@ -756,8 +816,9 @@ test('小红书链接导入文案保持链接优先，不要求上传截图', ()
   const recipesView = read('src/views/recipes-view.js');
   const ai = read('src/ai.js');
 
-  assert.match(modal, /粘贴小红书或网页菜谱链接/);
-  assert.match(recipesView, /从链接导入/);
+  assert.match(modal, /粘贴小红书链接、网页菜谱链接或菜谱文字/);
+  assert.match(modal, /placeholder="粘贴小红书链接、网页链接或菜谱文字"/);
+  assert.match(recipesView, /导入菜谱/);
   assert.doesNotMatch(`${modal}\n${recipesView}\n${ai}`, /必须上传截图|请上传截图|上传视频关键帧|改用.*截图|视频\/截图|链接\/截图/);
 });
 
