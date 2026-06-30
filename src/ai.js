@@ -249,7 +249,9 @@ const HASHTAG_PATTERN = /#[\p{L}\p{N}_-]+/gu;
 const SOCIAL_NOISE_PATTERN = /老师|这题我会|好怀念|视频号|分享给家人|太喜欢|求教程|为什么|为啥|是不是|希望|我觉得|一次性解决|一定不能错过|详细教程|收藏|点赞|关注|转发|评论|回复|弹幕|用户|段老师|不要了|粘锅问题|教程来了|安排上|好吃吗|求做法|同款|看起来就很好吃/u;
 const SOCIAL_DISTRACTOR_PATTERN = /黄金薯|小龙虾|双椒鸡拌面|炒面/u;
 const SOCIAL_SEGMENT_MARKER_PATTERN = /段老师|这题我会|黄金薯|双椒鸡拌面|视频号|分享给家人|好怀念|有村|希望珠宝|一次性解决|小龙虾|求教程|为什么|为啥|是不是|太喜欢|\[doge\]|\[哭惹R\]|\[黄金薯R\]|\[飞吻R\]|\[萌萌哒R\]/u;
+const SOCIAL_SEGMENT_MARKER_GLOBAL_PATTERN = /(段老师|这题我会|黄金薯|双椒鸡拌面|视频号|分享给家人|好怀念|有村|希望珠宝|一次性解决|小龙虾|求教程|为什么|为啥|是不是|太喜欢|老师|\[doge\]|\[哭惹R\]|\[黄金薯R\]|\[飞吻R\]|\[萌萌哒R\])/gu;
 const RECIPE_SIGNAL_PATTERN = /食材|用料|配料|调料|做法|步骤|洗净|擦干|去骨|切|改刀|加入|放入|倒入|撒入|腌|腌制|抓匀|拌匀|煎|炒|焖|炖|煮|蒸|烤|炸|空气炸|调味|翻炒|出锅|装盘|生抽|老抽|料酒|鲜藤椒|藤椒粉|花椒|辣椒|豆瓣|咖喱|泡菜/u;
+const AUTHOR_RECIPE_DESCRIPTION_PATTERN = /教程|详细版|家常版|前期处理|腌制比例|精确到克|铁锅|看起来就很好吃|都会讲到|一道.+菜|做法|比例|细节/u;
 const COMMENT_STYLE_PATTERN = /^(?:如果|可以|建议|为啥|为什么|是不是|求|老师|我|你|他|她|这|太|好|希望|感觉|觉得|评论区)/u;
 
 function normalizeSourceLine(line) {
@@ -296,6 +298,93 @@ function isTrustedRecipeLine(line) {
   return RECIPE_SIGNAL_PATTERN.test(normalized);
 }
 
+function splitRawSourceIntoCandidateSegments(rawText) {
+  const raw = String(rawText || '').trim();
+  if (!raw) return [];
+  return raw
+    .replace(/\r|\u2028|\u2029/g, '\n')
+    .replace(/(#[\p{L}\p{N}_-]+)/gu, '\n$1\n')
+    .replace(SOCIAL_SEGMENT_MARKER_GLOBAL_PATTERN, '\n$1')
+    .replace(/(\[[^\]\n]{1,16}\])/gu, '$1\n')
+    .replace(/([。！？!?]+|…{2,}|\.{3,})/gu, '$1\n')
+    .split(/\n+/g)
+    .map(segment => segment.trim())
+    .filter(Boolean);
+}
+
+function classifyRecipeSourceSegment(segment, { index = 0, afterSocialMarker = false } = {}) {
+  const text = String(segment || '').trim();
+  const normalizedText = normalizeSourceLine(text);
+  const authorText = cleanAuthorCandidateLine(text);
+  const reasons = [];
+  if (!normalizedText) return { text, normalizedText: '', type: 'excluded', reasons: ['empty'] };
+  if (isHashtagOnlyLine(text)) {
+    return { text, normalizedText, type: 'hashtag', reasons: ['hashtag'] };
+  }
+  const hasSocialMarker = SOCIAL_SEGMENT_MARKER_PATTERN.test(text) || SOCIAL_SEGMENT_MARKER_PATTERN.test(normalizedText);
+  const hasDistractor = SOCIAL_DISTRACTOR_PATTERN.test(normalizedText);
+  const hasAuthorRecipeDescription = AUTHOR_RECIPE_DESCRIPTION_PATTERN.test(authorText);
+  const hasRecipeSignal = RECIPE_SIGNAL_PATTERN.test(normalizedText);
+  const hasCommentSuggestion = /一丢丢|一点点|少少|丢一点/u.test(normalizedText);
+
+  if (hasDistractor) {
+    reasons.push('related-recommendation');
+    return { text, normalizedText, type: 'relatedRecommendation', reasons };
+  }
+  if (hasCommentSuggestion || (hasSocialMarker && !hasAuthorRecipeDescription)) {
+    reasons.push(hasCommentSuggestion ? 'comment-style' : 'social-marker');
+    return { text, normalizedText, type: 'comment', reasons };
+  }
+  if (afterSocialMarker && !hasRecipeSignal && !hasAuthorRecipeDescription) {
+    return { text, normalizedText, type: 'comment', reasons: ['after-social-marker'] };
+  }
+  if (hasRecipeSignal && !afterSocialMarker) {
+    return {
+      text,
+      normalizedText: cleanAuthorCandidateLine(text) || normalizedText,
+      type: 'recipeStep',
+      reasons: ['recipe-signal']
+    };
+  }
+  if (hasAuthorRecipeDescription) {
+    return {
+      text,
+      normalizedText: authorText || normalizedText,
+      type: 'authorCandidate',
+      reasons: ['recipe-description']
+    };
+  }
+  if (index <= 1 && authorText && authorText.length > 6 && !isSocialNoiseLine(text)) {
+    return {
+      text,
+      normalizedText: authorText,
+      type: 'authorCandidate',
+      reasons: ['title-like']
+    };
+  }
+  if (isSocialNoiseLine(text) || afterSocialMarker) {
+    return { text, normalizedText, type: 'comment', reasons: ['social-noise'] };
+  }
+  return {
+    text,
+    normalizedText: authorText || normalizedText,
+    type: 'weakHint',
+    reasons: ['weak-title-or-context']
+  };
+}
+
+export function segmentSocialRecipeText(rawText) {
+  const rawSegments = splitRawSourceIntoCandidateSegments(rawText);
+  const segments = [];
+  let afterSocialMarker = false;
+  rawSegments.forEach((segment, index) => {
+    const classified = classifyRecipeSourceSegment(segment, { index, afterSocialMarker });
+    if (['comment', 'relatedRecommendation'].includes(classified.type)) afterSocialMarker = true;
+    segments.push(classified);
+  });
+  return segments;
+}
+
 function uniqueTextList(list, limit = 12) {
   const seen = new Set();
   return list.map(item => String(item || '').trim())
@@ -309,76 +398,22 @@ export function splitRecipeSourceText(rawText) {
   const trusted = [];
   const weak = [];
   const excluded = [];
-  const lines = raw
-    .split(/\n+|\r+|\u2028|\u2029/g)
-    .map(line => line.trim())
-    .filter(Boolean);
-  const firstSocialIndex = lines.findIndex(line => SOCIAL_SEGMENT_MARKER_PATTERN.test(line));
-  const authorLines = firstSocialIndex >= 0 ? lines.slice(0, firstSocialIndex) : [];
-  const remainingLines = firstSocialIndex >= 0 ? lines.slice(firstSocialIndex) : lines;
+  const segments = segmentSocialRecipeText(raw);
 
-  for (const rawLine of authorLines) {
-    const cleanedLine = cleanAuthorCandidateLine(rawLine);
-    if (!cleanedLine) {
-      const tags = rawLine.match(HASHTAG_PATTERN) || [];
-      if (tags.length) weak.push(tags.join(' '));
-      continue;
+  for (const segment of segments) {
+    if (['authorCandidate', 'recipeStep'].includes(segment.type)) {
+      trusted.push(segment.normalizedText);
+    } else if (['hashtag', 'weakHint'].includes(segment.type)) {
+      weak.push(segment.normalizedText);
+    } else {
+      excluded.push(segment.text);
     }
-    if ((isSocialNoiseLine(rawLine) && !/看起来就很好吃/u.test(cleanedLine)) || /一丢丢|一点点|少少|丢一点/u.test(cleanedLine)) {
-      excluded.push(rawLine);
-      continue;
-    }
-    const tags = rawLine.match(HASHTAG_PATTERN) || [];
-    if (tags.length) weak.push(tags.join(' '));
-    if (!isHashtagOnlyLine(rawLine)) trusted.push(cleanedLine);
-  }
-
-  for (let index = 0; index < remainingLines.length; index += 1) {
-    const rawLine = remainingLines[index];
-    const cleanedLine = normalizeSourceLine(rawLine);
-    if (!cleanedLine) {
-      excluded.push(rawLine);
-      continue;
-    }
-    if (firstSocialIndex < 0 && index === 0) {
-      const tags = rawLine.match(HASHTAG_PATTERN) || [];
-      if (tags.length) weak.push(tags.join(' '));
-      const authorLine = cleanAuthorCandidateLine(rawLine);
-      if (authorLine && !isHashtagOnlyLine(rawLine) && (!isSocialNoiseLine(rawLine) || /看起来就很好吃/u.test(authorLine))) {
-        trusted.push(authorLine);
-      } else if (authorLine) {
-        weak.push(authorLine);
-      }
-      continue;
-    }
-    if (isSocialNoiseLine(rawLine)) {
-      excluded.push(rawLine);
-      continue;
-    }
-    if (isHashtagOnlyLine(cleanedLine)) {
-      weak.push(cleanedLine);
-      continue;
-    }
-    const tags = cleanedLine.match(HASHTAG_PATTERN) || [];
-    if (isTrustedRecipeLine(cleanedLine)) {
-      trusted.push(cleanedLine.replace(HASHTAG_PATTERN, '').trim() || cleanedLine);
-      if (tags.length) weak.push(tags.join(' '));
-      continue;
-    }
-    if (firstSocialIndex < 0 && tags.length) {
-      weak.push(cleanedLine);
-      continue;
-    }
-    excluded.push(rawLine);
   }
 
   const uniqueTrusted = uniqueTextList(trusted, 24);
   const uniqueWeak = uniqueTextList(weak, 12);
   const uniqueExcluded = uniqueTextList(excluded, 24);
-  const weakHints = uniqueWeak.length
-    ? [`弱线索（仅用于菜名/标签，不作为食材或步骤证据）：${uniqueWeak.join('；')}`]
-    : [];
-  const cleanedRecipeText = [...weakHints, ...uniqueTrusted].join('\n').trim();
+  const cleanedRecipeText = uniqueTrusted.join('\n').trim();
   const excludedSocialText = uniqueExcluded.join('\n').trim();
   return {
     titleText: uniqueWeak[0] || '',
@@ -398,7 +433,13 @@ export function splitRecipeSourceText(rawText) {
       trusted: uniqueTrusted,
       weak: uniqueWeak,
       excluded: uniqueExcluded
-    }
+    },
+    sourceSegments: segments,
+    sourceSegmentsPreview: segments.slice(0, 12).map(segment => ({
+      type: segment.type,
+      text: segment.normalizedText || segment.text,
+      reasons: segment.reasons || []
+    }))
   };
 }
 
@@ -489,6 +530,7 @@ export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sour
       weak: uniqueTextList(split.sourceBuckets?.weak || [], 8),
       excluded: uniqueTextList(split.sourceBuckets?.excluded || [], 8)
     },
+    sourceSegmentsPreview: Array.isArray(split.sourceSegmentsPreview) ? split.sourceSegmentsPreview.slice(0, 12) : [],
     hasTitle: listEvidenceField(evidence, 'dishNameCandidates').length > 0,
     hasCaption,
     hasDescription,
@@ -1377,24 +1419,41 @@ export async function callCloudAI(pack, inv) {
 
 // 抓取小红书/网页菜谱文案：交给同源后端 /api/xhs-extract（server.js）完成
 // 302 跟随、移动端 UA 伪造与 __INITIAL_STATE__ 解析，绕过浏览器跨域限制。
-async function fetchRecipeText(url) {
+async function fetchRecipeSource(url) {
   let res;
   try {
     res = await fetch(`/api/xhs-extract?url=${encodeURIComponent(url)}`);
   } catch (e) {
     // 后端不可用（如纯静态托管、未启动 node server.js）
-    throw new Error('链接抓取受限，请改用文字或截图导入。');
+    throw new Error('链接抓取受限，请稍后重试或粘贴菜谱文字。');
   }
   let data = null;
   try { data = await res.json(); } catch (_) { /* 非 JSON 响应 */ }
   if (!res.ok) {
-    throw new Error((data && data.error) || '链接抓取受限，请改用文字或截图导入。');
+    throw new Error((data && data.error) || '链接抓取受限，请稍后重试或粘贴菜谱文字。');
   }
   const text = data && data.text;
   if (!text || String(text).length < 6) {
-    throw new Error('没能从链接里提取到菜谱文案，请改用文字或截图导入。');
+    throw new Error('没能从链接页面文字中提取到菜谱文案，请稍后重试或手动编辑。');
   }
-  return String(text);
+  return {
+    text: String(text),
+    metadata: {
+      url: data.url || url,
+      finalUrl: data.finalUrl || '',
+      extractionMode: data.extractionMode || 'link-only',
+      hasHtml: Boolean(data.hasHtml),
+      hasStructuredMeta: Boolean(data.hasStructuredMeta),
+      hasOgDescription: Boolean(data.hasOgDescription),
+      hasJsonLd: Boolean(data.hasJsonLd),
+      hasInitialState: Boolean(data.hasInitialState),
+      trustedTextLength: Number(data.trustedTextLength || String(text).length),
+      trustedTextPreview: String(data.trustedTextPreview || text).slice(0, 500),
+      rawTextLength: Number(data.rawTextLength || 0),
+      rawTextPreview: String(data.rawTextPreview || '').slice(0, 500),
+      warnings: Array.isArray(data.warnings) ? data.warnings : []
+    }
+  };
 }
 
 // 解析 120B 返回，校验并对齐编辑器字段（name / tags / ingredients / method）。
@@ -1430,7 +1489,7 @@ function validateImportedRecipe(input, { sourceText = '', evidence = null, diagn
     ? data.warnings.map(w => String(w || '').trim()).filter(Boolean)
     : [];
   if (methodBeforeGenericFilter && methodBeforeGenericFilter !== method) {
-    importedWarnings.push('清洗后可用菜谱正文较少，未能可靠提取完整做法，请补充原文、截图或手动编辑。');
+    importedWarnings.push('清洗后可用菜谱正文较少，未能可靠提取完整做法，请补充原文或手动编辑。');
   }
   const sourceDiagnostics = diagnostics && typeof diagnostics === 'object'
     ? diagnostics
@@ -1439,7 +1498,7 @@ function validateImportedRecipe(input, { sourceText = '', evidence = null, diagn
   const warnings = [...new Set([...importedWarnings, ...coverage.warnings])];
 
   if (!name) throw new Error('AI 菜谱缺少菜名。');
-  if (!ingredients.length) throw new Error('AI 菜谱缺少食材。');
+  if (!ingredients.length && !warnings.length && !data.needsReview) throw new Error('AI 菜谱缺少食材。');
   if (!method && !warnings.length && !data.needsReview) throw new Error('AI 菜谱缺少做法。');
 
   return {
@@ -1459,13 +1518,13 @@ function validateImportedRecipe(input, { sourceText = '', evidence = null, diagn
 
 // 通过后端 /api/ai-parse 调用 AI：文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL。
 // 前端不再校验本地 API Key，未配置也能正常点击、走后端代理。
-async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType = 'manual' } = {}) {
+async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType = 'manual', sourceMetadata = null } = {}) {
   let res;
   try {
     res = await fetch('/api/ai-parse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, imageBase64, sourceType })
+      body: JSON.stringify({ text, imageBase64, sourceType, sourceMetadata })
     });
   } catch (e) {
     throw new Error('AI 服务暂不可用（后端未启动？），请稍后重试。');
@@ -1494,27 +1553,32 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType =
 }
 
 /**
- * 解析外部菜谱来源（小红书/网页链接、配料表截图）→ 可编辑菜谱草稿。
+ * 解析外部菜谱来源（优先小红书/网页链接，其次手动文字/图片文件）→ 可编辑菜谱草稿。
  * @param {{ url?: string, file?: File }} input
  * @returns {Promise<{name, tags, ingredients:[{item,qty,unit}], method, isAiDraft, draftSource}>}
  */
 export async function importRecipeFromSource({ url = '', file = null, text = '' } = {}) {
   const cleanUrl = String(url || '').trim();
   const pastedText = String(text || '').trim();
-  if (!cleanUrl && !file && !pastedText) throw new Error('请粘贴链接、菜谱文字或上传视频/截图。');
+  if (!cleanUrl && !file && !pastedText) throw new Error('请粘贴链接或菜谱文字。');
 
-  // 截图 → 走视觉解析；视频暂不支持逐帧，引导用户改用截图。
+  // 图片文件 → 走视觉解析；视频文件暂不支持逐帧，链接导入仍是主流程。
   let imageBase64 = null;
   if (file) {
     if (/^image\//.test(file.type)) imageBase64 = await compressImage(file);
-    else if (!cleanUrl) throw new Error('暂不支持直接解析视频，请改用配料表截图或文字导入。');
+    else if (!cleanUrl) throw new Error('暂不支持直接解析视频文件，请粘贴小红书链接或菜谱文字。');
   }
 
   // 链接 → 抓取文案（可能被跨域/验证码拦截，给出友好提示）。
   let sourceText = pastedText;
-  if (!sourceText && cleanUrl) sourceText = await fetchRecipeText(cleanUrl);
+  let sourceMetadata = null;
+  if (!sourceText && cleanUrl) {
+    const linkSource = await fetchRecipeSource(cleanUrl);
+    sourceText = linkSource.text;
+    sourceMetadata = linkSource.metadata;
+  }
 
-  if (!sourceText && !imageBase64) throw new Error('没有可解析的内容，请改用文字或截图导入。');
+  if (!sourceText && !imageBase64) throw new Error('没有可解析的链接文字，请粘贴链接或菜谱文字。');
 
   let sourceType = pastedText ? 'manual' : 'manual';
   if (cleanUrl) {
@@ -1523,5 +1587,5 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
     sourceType = 'video';
   }
 
-  return parseRecipeWith120B({ text: sourceText, imageBase64, sourceType });
+  return parseRecipeWith120B({ text: sourceText, imageBase64, sourceType, sourceMetadata });
 }

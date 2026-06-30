@@ -59,7 +59,7 @@ export function openRecipeImportModal() {
         <button type="button" class="km-modal-close" id="aiImportClose" aria-label="关闭">×</button>
       </div>
       <div class="km-modal-body ai-import-body">
-        <p class="km-modal-subtitle">粘贴菜谱链接，或上传截图/视频，系统会整理成可编辑草稿。</p>
+        <p class="km-modal-subtitle">粘贴小红书或网页菜谱链接，系统会尽量从页面文字整理成可编辑草稿。</p>
         <label class="ai-import-field">
           <span>粘贴链接</span>
           <input id="aiImportUrl" type="url" inputmode="url" placeholder="小红书 / 网页菜谱链接">
@@ -69,7 +69,7 @@ export function openRecipeImportModal() {
           <textarea id="aiImportText" rows="5" placeholder="菜名、食材、做法都可以直接粘贴在这里"></textarea>
         </label>
         <label class="ai-import-field ai-import-file">
-          <span>上传视频 / 截图</span>
+          <span>可选：图片文件</span>
           <input id="aiImportFile" type="file" accept="image/*,video/*" hidden>
           <span class="ai-import-filename" id="aiImportFileName">点此选择文件</span>
         </label>
@@ -110,7 +110,7 @@ export function openRecipeImportModal() {
     const match = raw.match(/https?:\/\/[^\s]+/g);
     const url = match ? match[0].replace(/[，。、,.;；]+$/, '') : '';
     const file = fileInput.files[0] || null;
-    if (!raw && !file && !pastedText) { setInlineStatus(status, '请粘贴链接、菜谱文字或选择一个视频/截图。', 'bad'); return; }
+    if (!raw && !file && !pastedText) { setInlineStatus(status, '请粘贴链接或菜谱文字。', 'bad'); return; }
     if (raw && !url && !pastedText) { setInlineStatus(status, '没找到有效链接，请检查粘贴内容，或改用粘贴文本。', 'bad'); return; }
     goBtn.setAttribute('disabled', 'true');
     goBtn.innerHTML = '<span class="spinner"></span> 正在整理菜谱…';

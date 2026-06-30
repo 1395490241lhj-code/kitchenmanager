@@ -257,30 +257,176 @@ JSON 字段如下：
 - tags 给 1-4 个，体现菜系/口味/类别。
 - 只输出 JSON 本身。`;
 
-// 从小红书/网页源码尽力提取菜谱文案（与原 ai.js 中逻辑一致，移植到服务端）。
+function decodeHtmlText(value) {
+  return String(value || '')
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_m, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\\n/g, '\n')
+    .replace(/\\"/g, '"')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stripHtmlTags(html) {
+  return decodeHtmlText(String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' '));
+}
+
+function getHtmlAttr(tag, attrName) {
+  const re = new RegExp(`${attrName}\\s*=\\s*["']([^"']*)["']`, 'i');
+  const match = String(tag || '').match(re);
+  return match ? decodeHtmlText(match[1]) : '';
+}
+
+function extractMetaContent(html, matcher) {
+  const tags = String(html || '').match(/<meta\b[^>]*>/gi) || [];
+  for (const tag of tags) {
+    const property = getHtmlAttr(tag, 'property').toLowerCase();
+    const name = getHtmlAttr(tag, 'name').toLowerCase();
+    if (matcher({ property, name })) {
+      const content = getHtmlAttr(tag, 'content');
+      if (content) return content;
+    }
+  }
+  return '';
+}
+
+function safeParseJsonText(text) {
+  try { return JSON.parse(String(text || '').trim()); } catch (_) { return null; }
+}
+
+function collectStructuredTextFromObject(value, output = [], depth = 0) {
+  if (!value || depth > 8 || output.length >= 40) return output;
+  if (Array.isArray(value)) {
+    value.forEach(item => collectStructuredTextFromObject(item, output, depth + 1));
+    return output;
+  }
+  if (typeof value !== 'object') return output;
+  const keys = ['name', 'title', 'desc', 'description', 'noteText', 'content', 'caption'];
+  for (const key of keys) {
+    if (typeof value[key] === 'string') output.push(value[key]);
+  }
+  if (value.shareInfo && typeof value.shareInfo === 'object') {
+    collectStructuredTextFromObject(value.shareInfo, output, depth + 1);
+  }
+  for (const item of Object.values(value)) {
+    if (item && typeof item === 'object') collectStructuredTextFromObject(item, output, depth + 1);
+  }
+  return output;
+}
+
+function extractJsonLdText(html) {
+  const output = [];
+  const scripts = String(html || '').match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || [];
+  scripts.forEach(script => {
+    const body = script.replace(/^<script\b[^>]*>/i, '').replace(/<\/script>$/i, '').trim();
+    const parsed = safeParseJsonText(decodeHtmlText(body));
+    collectStructuredTextFromObject(parsed, output);
+  });
+  return uniqueTextList(output, 16).join('\n');
+}
+
+function extractInitialStateText(html) {
+  const output = [];
+  const scripts = String(html || '').match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
+  scripts.forEach(script => {
+    if (!/(__INITIAL_STATE__|__NEXT_DATA__|hydration|note|desc|title|shareInfo)/i.test(script)) return;
+    const body = script.replace(/^<script\b[^>]*>/i, '').replace(/<\/script>$/i, '').trim();
+    const nextData = /id=["']__NEXT_DATA__["']/i.test(script) ? safeParseJsonText(decodeHtmlText(body)) : null;
+    collectStructuredTextFromObject(nextData, output);
+    const assignment = body.match(/(?:window\.)?__(?:INITIAL_STATE|NEXT_DATA)__\s*=\s*(\{[\s\S]*?\})\s*;?\s*$/);
+    if (assignment) collectStructuredTextFromObject(safeParseJsonText(decodeHtmlText(assignment[1])), output);
+    const fields = body.match(/"(?:desc|title|content|noteText|description|caption)"\s*:\s*"((?:[^"\\]|\\.)*)"/g) || [];
+    fields.forEach(field => output.push(field.replace(/^"[^"]+"\s*:\s*"/, '').replace(/"$/, '')));
+  });
+  return uniqueTextList(output.map(decodeHtmlText), 24).join('\n');
+}
+
+function extractVisibleText(html) {
+  const bodyMatch = String(html || '').match(/<body\b[^>]*>([\s\S]*?)<\/body>/i);
+  const body = bodyMatch ? bodyMatch[1] : html;
+  return stripHtmlTags(body).slice(0, 4000);
+}
+
+function guessSourceTypeFromUrl(url) {
+  return /(?:xhslink|xiaohongshu|小红书)/i.test(String(url || '')) ? 'xiaohongshu' : 'web';
+}
+
+// 从小红书/网页源码尽力提取链接页面文字。只返回页面可抓取字段，不执行 JS、不下载视频。
+function extractRecipeSourceFromHtml(html, { url = '', finalUrl = '' } = {}) {
+  const titleText = decodeHtmlText((String(html || '').match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '');
+  const ogTitle = extractMetaContent(html, ({ property, name }) => property === 'og:title' || name === 'og:title');
+  const ogDescription = extractMetaContent(html, ({ property, name }) => property === 'og:description' || name === 'og:description');
+  const metaDescription = extractMetaContent(html, ({ name }) => name === 'description');
+  const jsonLdText = extractJsonLdText(html);
+  const initialStateText = extractInitialStateText(html);
+  const visibleText = extractVisibleText(html);
+  const visibleSplit = splitRecipeSourceText(visibleText);
+  const visibleTextPreview = visibleText.slice(0, 500);
+  const structuredParts = uniqueTextList([
+    ogTitle,
+    ogDescription,
+    metaDescription,
+    titleText,
+    jsonLdText,
+    initialStateText
+  ], 30);
+  const trustedText = uniqueTextList([
+    ...structuredParts,
+    visibleSplit.cleanedRecipeText
+  ], 40).join('\n').trim();
+  const rawText = uniqueTextList([
+    ...structuredParts,
+    visibleText
+  ], 40).join('\n').trim();
+  const split = splitRecipeSourceText(trustedText || visibleText);
+  const warnings = [];
+  if (!jsonLdText && !initialStateText && !ogDescription && !metaDescription) {
+    warnings.push('当前链接只能解析到部分页面文字，平台可能限制了视频内容读取，菜谱可能需要人工确认。');
+  }
+  if (!split.cleanedRecipeText) {
+    warnings.push('未从链接页面文字中提取到明确配料或步骤。');
+  }
+  return {
+    url,
+    finalUrl,
+    sourceType: guessSourceTypeFromUrl(finalUrl || url),
+    extractionMode: 'link-only',
+    hasHtml: Boolean(html),
+    hasStructuredMeta: Boolean(ogTitle || ogDescription || metaDescription || titleText),
+    hasOgDescription: Boolean(ogDescription),
+    hasJsonLd: Boolean(jsonLdText),
+    hasInitialState: Boolean(initialStateText),
+    titleText,
+    metaDescription,
+    ogTitle,
+    ogDescription,
+    jsonLdText,
+    initialStateText,
+    authorCaptionText: split.authorCandidateText,
+    visibleTextPreview,
+    rawText,
+    trustedText,
+    weakText: split.weakRecipeHints.join('\n'),
+    excludedTextPreview: split.excludedSocialTextPreview,
+    cleanedRecipeText: split.cleanedRecipeText,
+    sourceBuckets: split.sourceBuckets,
+    sourceSegmentsPreview: split.sourceSegmentsPreview,
+    warnings
+  };
+}
+
+// Backward-compatible helper for older tests/callers.
 function extractXhsText(html) {
-  const parts = [];
-  const push = (v) => { const s = String(v || '').trim(); if (s) parts.push(s); };
-
-  const og = html.match(/<meta[^>]+(?:property|name)=["']og:title["'][^>]*content=["']([^"']+)["']/i);
-  if (og) push(og[1]);
-  const desc = html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']+)["']/i);
-  if (desc) push(desc[1]);
-
-  const state = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{[\s\S]*?\})\s*<\/script>/);
-  const blob = state ? state[1] : html;
-  const fields = blob.match(/"(?:desc|title|content|noteText)":"((?:[^"\\]|\\.)*)"/g) || [];
-  fields.forEach(f => push(f.replace(/^"[^"]+":"/, '').replace(/"$/, '')));
-
-  const seen = new Set();
-  return parts
-    .map(s => s
-      .replace(/\\u[0-9a-fA-F]{4}/g, m => String.fromCharCode(parseInt(m.slice(2), 16)))
-      .replace(/\\n/g, '\n')
-      .replace(/\\"/g, '"')
-      .trim())
-    .filter(s => s && !seen.has(s) && seen.add(s))
-    .join('\n');
+  const source = extractRecipeSourceFromHtml(html);
+  return source.trustedText || source.cleanedRecipeText || '';
 }
 
 // ── SSRF 加固：阻止抓取 localhost / 私网 / 链路本地 / 云元数据，含 DNS 解析与逐跳重定向校验 ──
@@ -441,21 +587,22 @@ app.get('/api/xhs-extract', async (req, res) => {
   } catch (err) {
     if (err === SSRF_ERROR) {
       // 泛化文案：不回显内部 IP / 主机 / DNS / stack
-      return res.status(400).json({ error: '不支持的链接地址，请改用文字或截图导入。' });
+      return res.status(400).json({ error: '不支持的链接地址，请粘贴公开的小红书/网页链接或菜谱文字。' });
     }
-    return res.status(502).json({ error: '链接抓取失败，请改用文字或截图导入。' });
+    return res.status(502).json({ error: '链接抓取失败，请稍后重试或粘贴菜谱文字。' });
   }
 
   try {
     const resp = fetched.resp;
     const html = String(resp.data || '');
     if (/验证码|滑块验证|滑动验证|安全验证|captcha/i.test(html) && !/__INITIAL_STATE__/.test(html)) {
-      return res.status(502).json({ error: '链接被验证码拦截，请改用文字或截图导入。' });
+      return res.status(502).json({ error: '链接被平台验证拦截，当前只能解析公开页面文字。' });
     }
 
-    const text = extractXhsText(html);
+    const source = extractRecipeSourceFromHtml(html, { url: startUrl.href, finalUrl: fetched.finalUrl });
+    const text = source.trustedText || source.cleanedRecipeText;
     if (!text || text.length < 6) {
-      return res.status(422).json({ error: '没能从链接里提取到菜谱文案，请改用文字或截图导入。' });
+      return res.status(422).json({ error: '没能从链接页面文字中提取到菜谱文案，请稍后重试或手动编辑。' });
     }
     const sourceSplit = splitRecipeSourceText(text);
 
@@ -463,12 +610,26 @@ app.get('/api/xhs-extract', async (req, res) => {
     return res.json({
       text,
       finalUrl: fetched.finalUrl,
+      url: startUrl.href,
+      extractionMode: source.extractionMode,
+      hasHtml: source.hasHtml,
+      hasStructuredMeta: source.hasStructuredMeta,
+      hasOgDescription: source.hasOgDescription,
+      hasJsonLd: source.hasJsonLd,
+      hasInitialState: source.hasInitialState,
+      trustedText: source.trustedText,
+      trustedTextLength: source.trustedText.length,
+      trustedTextPreview: source.trustedText.slice(0, 500),
+      rawTextLength: source.rawText.length,
+      rawTextPreview: source.rawText.slice(0, 500),
+      warnings: source.warnings,
       cleanedRecipeText: sourceSplit.cleanedRecipeText,
       excludedSocialTextPreview: sourceSplit.excludedSocialTextPreview,
-      sourceBuckets: sourceSplit.sourceBuckets
+      sourceBuckets: sourceSplit.sourceBuckets,
+      sourceSegmentsPreview: sourceSplit.sourceSegmentsPreview
     });
   } catch (err) {
-    return res.status(502).json({ error: '链接抓取失败，请改用文字或截图导入。' });
+    return res.status(502).json({ error: '链接抓取失败，请稍后重试或粘贴菜谱文字。' });
   }
 });
 
@@ -600,7 +761,9 @@ const HASHTAG_PATTERN = /#[\p{L}\p{N}_-]+/gu;
 const SOCIAL_NOISE_PATTERN = /老师|这题我会|好怀念|视频号|分享给家人|太喜欢|求教程|为什么|为啥|是不是|希望|我觉得|一次性解决|一定不能错过|详细教程|收藏|点赞|关注|转发|评论|回复|弹幕|用户|段老师|不要了|粘锅问题|教程来了|安排上|好吃吗|求做法|同款|看起来就很好吃/u;
 const SOCIAL_DISTRACTOR_PATTERN = /黄金薯|小龙虾|双椒鸡拌面|炒面/u;
 const SOCIAL_SEGMENT_MARKER_PATTERN = /段老师|这题我会|黄金薯|双椒鸡拌面|视频号|分享给家人|好怀念|有村|希望珠宝|一次性解决|小龙虾|求教程|为什么|为啥|是不是|太喜欢|\[doge\]|\[哭惹R\]|\[黄金薯R\]|\[飞吻R\]|\[萌萌哒R\]/u;
+const SOCIAL_SEGMENT_MARKER_GLOBAL_PATTERN = /(段老师|这题我会|黄金薯|双椒鸡拌面|视频号|分享给家人|好怀念|有村|希望珠宝|一次性解决|小龙虾|求教程|为什么|为啥|是不是|太喜欢|老师|\[doge\]|\[哭惹R\]|\[黄金薯R\]|\[飞吻R\]|\[萌萌哒R\])/gu;
 const RECIPE_SIGNAL_PATTERN = /食材|用料|配料|调料|做法|步骤|洗净|擦干|去骨|切|改刀|加入|放入|倒入|撒入|腌|腌制|抓匀|拌匀|煎|炒|焖|炖|煮|蒸|烤|炸|空气炸|调味|翻炒|出锅|装盘|生抽|老抽|料酒|鲜藤椒|藤椒粉|花椒|辣椒|豆瓣|咖喱|泡菜/u;
+const AUTHOR_RECIPE_DESCRIPTION_PATTERN = /教程|详细版|家常版|前期处理|腌制比例|精确到克|铁锅|看起来就很好吃|都会讲到|一道.+菜|做法|比例|细节/u;
 const COMMENT_STYLE_PATTERN = /^(?:如果|可以|建议|为啥|为什么|是不是|求|老师|我|你|他|她|这|太|好|希望|感觉|觉得|评论区)/u;
 
 function normalizeSourceLine(line) {
@@ -647,6 +810,93 @@ function isTrustedRecipeLine(line) {
   return RECIPE_SIGNAL_PATTERN.test(normalized);
 }
 
+function splitRawSourceIntoCandidateSegments(rawText) {
+  const raw = String(rawText || '').trim();
+  if (!raw) return [];
+  return raw
+    .replace(/\r|\u2028|\u2029/g, '\n')
+    .replace(/(#[\p{L}\p{N}_-]+)/gu, '\n$1\n')
+    .replace(SOCIAL_SEGMENT_MARKER_GLOBAL_PATTERN, '\n$1')
+    .replace(/(\[[^\]\n]{1,16}\])/gu, '$1\n')
+    .replace(/([。！？!?]+|…{2,}|\.{3,})/gu, '$1\n')
+    .split(/\n+/g)
+    .map(segment => segment.trim())
+    .filter(Boolean);
+}
+
+function classifyRecipeSourceSegment(segment, { index = 0, afterSocialMarker = false } = {}) {
+  const text = String(segment || '').trim();
+  const normalizedText = normalizeSourceLine(text);
+  const authorText = cleanAuthorCandidateLine(text);
+  const reasons = [];
+  if (!normalizedText) return { text, normalizedText: '', type: 'excluded', reasons: ['empty'] };
+  if (isHashtagOnlyLine(text)) {
+    return { text, normalizedText, type: 'hashtag', reasons: ['hashtag'] };
+  }
+  const hasSocialMarker = SOCIAL_SEGMENT_MARKER_PATTERN.test(text) || SOCIAL_SEGMENT_MARKER_PATTERN.test(normalizedText);
+  const hasDistractor = SOCIAL_DISTRACTOR_PATTERN.test(normalizedText);
+  const hasAuthorRecipeDescription = AUTHOR_RECIPE_DESCRIPTION_PATTERN.test(authorText);
+  const hasRecipeSignal = RECIPE_SIGNAL_PATTERN.test(normalizedText);
+  const hasCommentSuggestion = /一丢丢|一点点|少少|丢一点/u.test(normalizedText);
+
+  if (hasDistractor) {
+    reasons.push('related-recommendation');
+    return { text, normalizedText, type: 'relatedRecommendation', reasons };
+  }
+  if (hasCommentSuggestion || (hasSocialMarker && !hasAuthorRecipeDescription)) {
+    reasons.push(hasCommentSuggestion ? 'comment-style' : 'social-marker');
+    return { text, normalizedText, type: 'comment', reasons };
+  }
+  if (afterSocialMarker && !hasRecipeSignal && !hasAuthorRecipeDescription) {
+    return { text, normalizedText, type: 'comment', reasons: ['after-social-marker'] };
+  }
+  if (hasRecipeSignal && !afterSocialMarker) {
+    return {
+      text,
+      normalizedText: cleanAuthorCandidateLine(text) || normalizedText,
+      type: 'recipeStep',
+      reasons: ['recipe-signal']
+    };
+  }
+  if (hasAuthorRecipeDescription) {
+    return {
+      text,
+      normalizedText: authorText || normalizedText,
+      type: 'authorCandidate',
+      reasons: ['recipe-description']
+    };
+  }
+  if (index <= 1 && authorText && authorText.length > 6 && !isSocialNoiseLine(text)) {
+    return {
+      text,
+      normalizedText: authorText,
+      type: 'authorCandidate',
+      reasons: ['title-like']
+    };
+  }
+  if (isSocialNoiseLine(text) || afterSocialMarker) {
+    return { text, normalizedText, type: 'comment', reasons: ['social-noise'] };
+  }
+  return {
+    text,
+    normalizedText: authorText || normalizedText,
+    type: 'weakHint',
+    reasons: ['weak-title-or-context']
+  };
+}
+
+function segmentSocialRecipeText(rawText) {
+  const rawSegments = splitRawSourceIntoCandidateSegments(rawText);
+  const segments = [];
+  let afterSocialMarker = false;
+  rawSegments.forEach((segment, index) => {
+    const classified = classifyRecipeSourceSegment(segment, { index, afterSocialMarker });
+    if (['comment', 'relatedRecommendation'].includes(classified.type)) afterSocialMarker = true;
+    segments.push(classified);
+  });
+  return segments;
+}
+
 function uniqueTextList(list, limit = 12) {
   const seen = new Set();
   return list.map(item => String(item || '').trim())
@@ -660,76 +910,22 @@ function splitRecipeSourceText(rawText) {
   const trusted = [];
   const weak = [];
   const excluded = [];
-  const lines = raw
-    .split(/\n+|\r+|\u2028|\u2029/g)
-    .map(line => line.trim())
-    .filter(Boolean);
-  const firstSocialIndex = lines.findIndex(line => SOCIAL_SEGMENT_MARKER_PATTERN.test(line));
-  const authorLines = firstSocialIndex >= 0 ? lines.slice(0, firstSocialIndex) : [];
-  const remainingLines = firstSocialIndex >= 0 ? lines.slice(firstSocialIndex) : lines;
+  const segments = segmentSocialRecipeText(raw);
 
-  for (const rawLine of authorLines) {
-    const cleanedLine = cleanAuthorCandidateLine(rawLine);
-    if (!cleanedLine) {
-      const tags = rawLine.match(HASHTAG_PATTERN) || [];
-      if (tags.length) weak.push(tags.join(' '));
-      continue;
+  for (const segment of segments) {
+    if (['authorCandidate', 'recipeStep'].includes(segment.type)) {
+      trusted.push(segment.normalizedText);
+    } else if (['hashtag', 'weakHint'].includes(segment.type)) {
+      weak.push(segment.normalizedText);
+    } else {
+      excluded.push(segment.text);
     }
-    if ((isSocialNoiseLine(rawLine) && !/看起来就很好吃/u.test(cleanedLine)) || /一丢丢|一点点|少少|丢一点/u.test(cleanedLine)) {
-      excluded.push(rawLine);
-      continue;
-    }
-    const tags = rawLine.match(HASHTAG_PATTERN) || [];
-    if (tags.length) weak.push(tags.join(' '));
-    if (!isHashtagOnlyLine(rawLine)) trusted.push(cleanedLine);
-  }
-
-  for (let index = 0; index < remainingLines.length; index += 1) {
-    const rawLine = remainingLines[index];
-    const cleanedLine = normalizeSourceLine(rawLine);
-    if (!cleanedLine) {
-      excluded.push(rawLine);
-      continue;
-    }
-    if (firstSocialIndex < 0 && index === 0) {
-      const tags = rawLine.match(HASHTAG_PATTERN) || [];
-      if (tags.length) weak.push(tags.join(' '));
-      const authorLine = cleanAuthorCandidateLine(rawLine);
-      if (authorLine && !isHashtagOnlyLine(rawLine) && (!isSocialNoiseLine(rawLine) || /看起来就很好吃/u.test(authorLine))) {
-        trusted.push(authorLine);
-      } else if (authorLine) {
-        weak.push(authorLine);
-      }
-      continue;
-    }
-    if (isSocialNoiseLine(rawLine)) {
-      excluded.push(rawLine);
-      continue;
-    }
-    if (isHashtagOnlyLine(cleanedLine)) {
-      weak.push(cleanedLine);
-      continue;
-    }
-    const tags = cleanedLine.match(HASHTAG_PATTERN) || [];
-    if (isTrustedRecipeLine(cleanedLine)) {
-      trusted.push(cleanedLine.replace(HASHTAG_PATTERN, '').trim() || cleanedLine);
-      if (tags.length) weak.push(tags.join(' '));
-      continue;
-    }
-    if (firstSocialIndex < 0 && tags.length) {
-      weak.push(cleanedLine);
-      continue;
-    }
-    excluded.push(rawLine);
   }
 
   const uniqueTrusted = uniqueTextList(trusted, 24);
   const uniqueWeak = uniqueTextList(weak, 12);
   const uniqueExcluded = uniqueTextList(excluded, 24);
-  const weakHints = uniqueWeak.length
-    ? [`弱线索（仅用于菜名/标签，不作为食材或步骤证据）：${uniqueWeak.join('；')}`]
-    : [];
-  const cleanedRecipeText = [...weakHints, ...uniqueTrusted].join('\n').trim();
+  const cleanedRecipeText = uniqueTrusted.join('\n').trim();
   const excludedSocialText = uniqueExcluded.join('\n').trim();
   return {
     titleText: uniqueWeak[0] || '',
@@ -749,7 +945,13 @@ function splitRecipeSourceText(rawText) {
       trusted: uniqueTrusted,
       weak: uniqueWeak,
       excluded: uniqueExcluded
-    }
+    },
+    sourceSegments: segments,
+    sourceSegmentsPreview: segments.slice(0, 12).map(segment => ({
+      type: segment.type,
+      text: segment.normalizedText || segment.text,
+      reasons: segment.reasons || []
+    }))
   };
 }
 
@@ -775,10 +977,11 @@ function getObservedSeasoningCount(evidence) {
   return [...new Set(listEvidenceField(evidence, 'observedSeasonings'))].length;
 }
 
-function buildSourceExtractionDiagnostics({ sourceType = 'manual', sourceText = '', imageBase64 = null, evidence = null, recipe = null, sourceSplit = null } = {}) {
+function buildSourceExtractionDiagnostics({ sourceType = 'manual', sourceText = '', imageBase64 = null, evidence = null, recipe = null, sourceSplit = null, sourceMetadata = null } = {}) {
   const normalizedSourceType = normalizeSourceType(sourceType, { imageBase64 });
   const rawText = String(sourceText || '').trim();
   const split = sourceSplit || splitRecipeSourceText(rawText);
+  const metadata = sourceMetadata && typeof sourceMetadata === 'object' ? sourceMetadata : {};
   const cleanedRecipeText = String(split.cleanedRecipeText || '').trim();
   const excludedSocialText = String(split.excludedSocialTextPreview || split.commentText || '').trim();
   const observedIngredientCount = getObservedIngredientCount(evidence);
@@ -801,6 +1004,8 @@ function buildSourceExtractionDiagnostics({ sourceType = 'manual', sourceText = 
 
   if (rawText && rawText.length < 100) warnings.push('来源文本很短，可能只包含零散关键词。');
   if (rawText && cleanedRecipeText.length < 80) warnings.push('清洗后可用菜谱正文较少，可能只提取到标题或话题，食材、调料和步骤需要人工确认。');
+  if (metadata.extractionMode === 'link-only') warnings.push('链接解析结果：仅从页面文字中提取，未读取视频画面。');
+  if (Array.isArray(metadata.warnings)) metadata.warnings.forEach(w => warnings.push(String(w || '').trim()));
   if (excludedSocialText) warnings.push('已忽略疑似评论/弹幕/推荐文案，避免污染菜谱。');
   if (observedIngredientCount < 3) warnings.push('识别到的核心食材较少。');
   if (observedActionCount < 3) warnings.push('识别到的明确做法步骤较少。');
@@ -833,8 +1038,18 @@ function buildSourceExtractionDiagnostics({ sourceType = 'manual', sourceText = 
 
   return {
     sourceType: normalizedSourceType,
-    rawTextLength: rawText.length,
-    rawTextPreview: rawText.slice(0, 400),
+    url: metadata.url || '',
+    finalUrl: metadata.finalUrl || '',
+    extractionMode: metadata.extractionMode || '',
+    hasHtml: Boolean(metadata.hasHtml),
+    hasStructuredMeta: Boolean(metadata.hasStructuredMeta),
+    hasOgDescription: Boolean(metadata.hasOgDescription),
+    hasJsonLd: Boolean(metadata.hasJsonLd),
+    hasInitialState: Boolean(metadata.hasInitialState),
+    trustedTextLength: Number.isFinite(metadata.trustedTextLength) ? metadata.trustedTextLength : rawText.length,
+    trustedTextPreview: String(metadata.trustedTextPreview || rawText.slice(0, 400)).trim().slice(0, 400),
+    rawTextLength: Number.isFinite(metadata.rawTextLength) ? metadata.rawTextLength : rawText.length,
+    rawTextPreview: String(metadata.rawTextPreview || rawText.slice(0, 400)).trim().slice(0, 400),
     authorCandidateTextPreview: String(split.authorCandidateText || '').trim().slice(0, 400),
     cleanedTextLength: cleanedRecipeText.length,
     cleanedTextPreview: cleanedRecipeText.slice(0, 400),
@@ -846,6 +1061,7 @@ function buildSourceExtractionDiagnostics({ sourceType = 'manual', sourceText = 
       weak: uniqueTextList(split.sourceBuckets?.weak || [], 8),
       excluded: uniqueTextList(split.sourceBuckets?.excluded || [], 8)
     },
+    sourceSegmentsPreview: Array.isArray(split.sourceSegmentsPreview) ? split.sourceSegmentsPreview.slice(0, 12) : [],
     hasTitle: listEvidenceField(evidence, 'dishNameCandidates').length > 0,
     hasCaption,
     hasDescription,
@@ -858,7 +1074,7 @@ function buildSourceExtractionDiagnostics({ sourceType = 'manual', sourceText = 
     observedSeasoningCount,
     methodStepCount,
     sourceConfidence,
-    warnings: [...new Set(warnings)]
+    warnings: [...new Set(warnings.map(w => String(w || '').trim()).filter(Boolean))]
   };
 }
 
@@ -880,6 +1096,7 @@ function buildDebugEvidenceSummary({ sourceText = '', evidence = null, diagnosti
     sourceTextSnippet: String(sourceText || '').trim().slice(0, 400),
     cleanedTextSnippet: String(split.cleanedRecipeText || '').trim().slice(0, 400),
     excludedSocialTextSnippet: String(split.excludedSocialTextPreview || split.commentText || '').trim().slice(0, 400),
+    sourceSegmentsPreview: Array.isArray(split.sourceSegmentsPreview) ? split.sourceSegmentsPreview.slice(0, 8) : [],
     observedIngredients: [
       ...listEvidenceField(evidence, 'observedMainIngredients'),
       ...listEvidenceField(evidence, 'observedAromatics'),
@@ -888,6 +1105,51 @@ function buildDebugEvidenceSummary({ sourceText = '', evidence = null, diagnosti
     observedSeasonings: listEvidenceField(evidence, 'observedSeasonings').slice(0, 20),
     observedActions: actions,
     diagnostics
+  };
+}
+
+function normalizeEvidenceName(name) {
+  return String(name || '').replace(/^#+/u, '').trim();
+}
+
+function pickDraftRecipeNameFromEvidence(evidence, sourceSplit) {
+  const names = [
+    ...listEvidenceField(evidence, 'dishNameCandidates'),
+    ...(Array.isArray(sourceSplit?.weakRecipeHints) ? sourceSplit.weakRecipeHints : []),
+    String(sourceSplit?.authorCandidateText || '').split(/\n+/)[0] || ''
+  ]
+    .flatMap(item => String(item || '').split(/\s+/))
+    .map(normalizeEvidenceName)
+    .filter(Boolean)
+    .filter(name => !/家常菜|美食|教程|详细版|食谱|下饭菜/u.test(name));
+  return names.sort((a, b) => b.length - a.length)[0] || '未命名菜谱';
+}
+
+function evidenceItemsToRecipeRows(items) {
+  return uniqueTextList(items, 12).map(item => ({ item, qty: '', unit: '' }));
+}
+
+function shouldReturnLowEvidenceDraft({ sourceType, evidence }) {
+  const normalizedSourceType = normalizeSourceType(sourceType);
+  if (!['xiaohongshu', 'video', 'web'].includes(normalizedSourceType)) return false;
+  return getObservedActionCount(evidence) === 0;
+}
+
+function buildLowEvidenceRecipeDraft({ sourceType, evidence, sourceSplit, diagnostics }) {
+  const warning = '清洗后可用菜谱正文较少，未能可靠提取完整做法，请补充原文或手动编辑。';
+  return {
+    name: pickDraftRecipeNameFromEvidence(evidence, sourceSplit),
+    tags: ['AI草稿', 'AI导入'],
+    ingredients: evidenceItemsToRecipeRows([
+      ...listEvidenceField(evidence, 'observedMainIngredients'),
+      ...listEvidenceField(evidence, 'observedAromatics'),
+      ...listEvidenceField(evidence, 'observedLiquids')
+    ]),
+    seasonings: evidenceItemsToRecipeRows(listEvidenceField(evidence, 'observedSeasonings')),
+    method: [],
+    warnings: [...new Set([warning, ...getSourceDiagnosticsWarnings(diagnostics)])],
+    needsReview: true,
+    sourceType: normalizeSourceType(sourceType)
   };
 }
 
@@ -1021,7 +1283,7 @@ function sanitizeRecipe(recipe, options = {}) {
     if (beforeGenericFilterCount > recipe.method.length) {
       recipe.warnings = [
         ...(Array.isArray(recipe.warnings) ? recipe.warnings : []),
-        '清洗后可用菜谱正文较少，未能可靠提取完整做法，请补充原文、截图或手动编辑。'
+        '清洗后可用菜谱正文较少，未能可靠提取完整做法，请补充原文或手动编辑。'
       ];
       recipe.needsReview = true;
     }
@@ -1130,6 +1392,9 @@ app.post('/api/ai-chat', async (req, res) => {
 app.post('/api/ai-parse', async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
   const imageBase64 = (req.body && req.body.imageBase64) || null;
+  const sourceMetadata = req.body && req.body.sourceMetadata && typeof req.body.sourceMetadata === 'object'
+    ? req.body.sourceMetadata
+    : null;
   if (!text && !imageBase64) return sendAiJsonError(res, 400, 'missing_input', '缺少待解析的文案或图片。');
   if (!OPENAI_API_KEY) return sendAiJsonError(res, 503, 'missing_api_key', '后端未配置 AI 密钥（OPENAI_API_KEY）。');
   if (estimateBase64EncodedBytes(imageBase64) > AI_IMAGE_MAX_BASE64_BYTES) {
@@ -1168,7 +1433,14 @@ app.post('/api/ai-parse', async (req, res) => {
     const evidence = safeParseModelJson(evidenceContent);
     if (!evidence) return sendAiJsonError(res, 502, 'bad_evidence_json', 'AI 没有返回可识别的菜谱证据，请稍后重试。');
 
-    const initialDiagnostics = buildSourceExtractionDiagnostics({ sourceType, sourceText: text, imageBase64, evidence, sourceSplit });
+    const initialDiagnostics = buildSourceExtractionDiagnostics({ sourceType, sourceText: text, imageBase64, evidence, sourceSplit, sourceMetadata });
+    if (shouldReturnLowEvidenceDraft({ sourceType, evidence })) {
+      const draft = buildLowEvidenceRecipeDraft({ sourceType, evidence, sourceSplit, diagnostics: initialDiagnostics });
+      const diagnostics = buildSourceExtractionDiagnostics({ sourceType, sourceText: text, imageBase64, evidence, recipe: draft, sourceSplit, sourceMetadata });
+      applySourceDiagnosticsWarnings(draft, diagnostics);
+      const debugEvidenceSummary = buildDebugEvidenceSummary({ sourceText: text, evidence, diagnostics, sourceSplit });
+      return res.json({ content: JSON.stringify(draft), recipe: draft, evidence, diagnostics, debugEvidenceSummary });
+    }
     const recipeInstruction = `请根据下面的 evidence JSON 和 sourceDiagnostics 生成最终菜谱 JSON。method 必须按 observedActions 顺序生成；不要新增 evidence 不支持的关键动作。若 sourceDiagnostics.sourceConfidence 为 low，只生成证据支持的 draft，并在 warnings 中提示信息不足。\n\n${JSON.stringify({ evidence, sourceDiagnostics: initialDiagnostics })}`;
     const recipeResp = await axios.post(
       resolveChatUrl(OPENAI_BASE_URL),
@@ -1194,7 +1466,7 @@ app.post('/api/ai-parse', async (req, res) => {
     const parsed = safeParseModelJson(content);
     if (parsed) {
       const cleaned = sanitizeRecipe(parsed, { sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics });
-      const diagnostics = buildSourceExtractionDiagnostics({ sourceType, sourceText: text, imageBase64, evidence, recipe: cleaned, sourceSplit });
+      const diagnostics = buildSourceExtractionDiagnostics({ sourceType, sourceText: text, imageBase64, evidence, recipe: cleaned, sourceSplit, sourceMetadata });
       applySourceDiagnosticsWarnings(cleaned, diagnostics);
       const debugEvidenceSummary = buildDebugEvidenceSummary({ sourceText: text, evidence, diagnostics, sourceSplit });
       // 同时回传清洗后的对象 + 原 content（前端 validateImportedRecipe 兼容字符串/对象/数组）。

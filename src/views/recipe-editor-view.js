@@ -95,6 +95,9 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const aiDiagnosticSummary = aiDraftDiagnostics
     ? `提取置信度：${aiDraftDiagnostics.sourceConfidence || 'unknown'} · 食材 ${aiDraftDiagnostics.observedIngredientCount ?? 0} · 调料 ${aiDraftDiagnostics.observedSeasoningCount ?? 0} · 步骤 ${aiDraftDiagnostics.observedActionCount ?? 0}`
     : '';
+  const aiLinkOnlySummary = aiDraftDiagnostics && aiDraftDiagnostics.extractionMode === 'link-only'
+    ? '链接解析结果：仅从页面文字中提取，未读取视频画面。'
+    : '';
   const aiRawTextPreview = aiDraftDiagnostics && aiDraftDiagnostics.rawTextPreview
     ? String(aiDraftDiagnostics.rawTextPreview || '').trim()
     : '';
@@ -107,8 +110,14 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const aiExcludedSocialPreview = aiDraftDiagnostics && aiDraftDiagnostics.excludedSocialTextPreview
     ? String(aiDraftDiagnostics.excludedSocialTextPreview || '').trim()
     : '';
+  const aiSegmentsPreview = aiDraftDiagnostics && Array.isArray(aiDraftDiagnostics.sourceSegmentsPreview)
+    ? aiDraftDiagnostics.sourceSegmentsPreview
+      .slice(0, 5)
+      .map(seg => `${seg.type || 'unknown'}:${String(seg.text || '').slice(0, 24)}`)
+      .join(' / ')
+    : '';
   const aiWarningHtml = aiDraftWarnings.length
-    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}${aiRawTextPreview ? `<div class="meta">抓取原文预览：${escapeHtml(aiRawTextPreview)}</div>` : ''}${aiAuthorCandidatePreview ? `<div class="meta">作者正文候选：${escapeHtml(aiAuthorCandidatePreview)}</div>` : ''}${aiCleanedTextPreview ? `<div class="meta">清洗后菜谱文本：${escapeHtml(aiCleanedTextPreview)}</div>` : ''}${aiExcludedSocialPreview ? `<div class="meta">已忽略疑似评论/弹幕/推荐文案，避免污染菜谱。</div>` : ''}<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
+    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}${aiLinkOnlySummary ? `<div class="meta">${escapeHtml(aiLinkOnlySummary)}</div>` : ''}${aiRawTextPreview ? `<div class="meta">抓取原文预览：${escapeHtml(aiRawTextPreview)}</div>` : ''}${aiAuthorCandidatePreview ? `<div class="meta">作者正文候选：${escapeHtml(aiAuthorCandidatePreview)}</div>` : ''}${aiCleanedTextPreview ? `<div class="meta">清洗后菜谱文本：${escapeHtml(aiCleanedTextPreview)}</div>` : ''}${aiSegmentsPreview ? `<div class="meta">来源片段分类：${escapeHtml(aiSegmentsPreview)}</div>` : ''}${aiExcludedSocialPreview ? `<div class="meta">已按片段清洗来源文本，忽略疑似评论/弹幕/推荐文案。</div>` : ''}<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
     : '';
 
   const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card';

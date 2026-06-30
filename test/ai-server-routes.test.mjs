@@ -56,12 +56,16 @@ function createRes() {
   };
 }
 
-function loadServerWithMocks({ axiosPost, env = {} } = {}) {
+function loadServerWithMocks({ axiosPost, axiosGet, dnsLookup, env = {} } = {}) {
   const expressMock = createExpressMock();
-  const axiosMock = { post: axiosPost || (async () => ({ data: { choices: [{ message: { content: 'ok' } }] } })) };
+  const axiosMock = {
+    post: axiosPost || (async () => ({ data: { choices: [{ message: { content: 'ok' } }] } })),
+    get: axiosGet || (async () => ({ status: 200, headers: {}, data: '' }))
+  };
   Module._load = function mockedLoad(request, parent, isMain) {
     if (request === 'express') return expressMock;
     if (request === 'axios') return axiosMock;
+    if (request === 'dns' && dnsLookup) return { promises: { lookup: dnsLookup } };
     return originalLoad.call(this, request, parent, isMain);
   };
 
@@ -92,10 +96,10 @@ async function runPost(app, path, body = {}) {
   return res;
 }
 
-async function runGet(app, path) {
+async function runGet(app, path, query = {}) {
   const route = app.routes.find(item => item.method === 'GET' && item.path === path);
   assert.ok(route, `${path} route should be registered`);
-  const req = { headers: {}, ip: '127.0.0.1', socket: { remoteAddress: '127.0.0.1' } };
+  const req = { query, headers: {}, ip: '127.0.0.1', socket: { remoteAddress: '127.0.0.1' } };
   const res = createRes();
   await route.handler(req, res);
   return res;
@@ -257,6 +261,71 @@ test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
   assert.deepEqual(res.body.debugEvidenceSummary.observedIngredients, ['鸡蛋']);
 });
 
+test('/api/xhs-extract 优先使用 og/meta 结构化字段，不让 body 评论进入 trusted text', async () => {
+  const html = `<!doctype html><html><head>
+    <title>页面标题不优先</title>
+    <meta property="og:title" content="藤椒鸡腿详细版教程">
+    <meta property="og:description" content="作者正文：鸡腿洗净擦干，加入生抽、老抽、料酒抓匀腌制。">
+    <meta name="description" content="普通简介：铁锅煎至两面焦香。">
+  </head><body>
+    段老师这题我会 腌的时候放一丢丢小苏打 双椒鸡拌面 视频号为啥不要了
+  </body></html>`;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({ status: 200, headers: {}, data: html })
+  });
+
+  const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/note' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.extractionMode, 'link-only');
+  assert.equal(res.body.hasStructuredMeta, true);
+  assert.equal(res.body.hasOgDescription, true);
+  assert.match(res.body.text, /藤椒鸡腿详细版教程/);
+  assert.match(res.body.text, /鸡腿洗净擦干/);
+  assert.doesNotMatch(res.body.text, /小苏打|双椒鸡拌面|视频号为啥不要了|段老师/);
+  assert.match(res.body.rawTextPreview, /小苏打/);
+});
+
+test('/api/xhs-extract 可以从 JSON-LD 提取 name 和 description', async () => {
+  const html = `<!doctype html><html><head>
+    <script type="application/ld+json">{"@type":"Recipe","name":"鲜藤椒鸡腿","description":"鸡腿加入鲜藤椒和生抽调味后出锅。"}</script>
+  </head><body>评论：太喜欢这道菜了</body></html>`;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({ status: 200, headers: {}, data: html })
+  });
+
+  const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/jsonld' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.hasJsonLd, true);
+  assert.match(res.body.text, /鲜藤椒鸡腿/);
+  assert.match(res.body.text, /加入鲜藤椒和生抽调味后出锅/);
+  assert.doesNotMatch(res.body.text, /太喜欢/);
+});
+
+test('/api/xhs-extract body fallback 会按片段过滤评论和推荐文案', async () => {
+  const html = `<!doctype html><html><body>
+    家常版藤椒鸡腿详细版教程…… 藤椒鸡腿一道看起来就很好吃的菜，从前期处理的细节，精确到克的腌制比例，到在家怎么丝滑是运用铁锅，都一一道来
+    #家常菜 #鸡腿 #藤椒鸡腿
+    段老师这题我会 腌的时候放一丢丢小苏打[doge] 西安有一道菜叫双椒鸡拌面 视频号为啥不要了
+  </body></html>`;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({ status: 200, headers: {}, data: html })
+  });
+
+  const res = await runGet(app, '/api/xhs-extract', { url: 'https://example.com/body' });
+
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body.text, /家常版藤椒鸡腿详细版教程/);
+  assert.match(res.body.text, /腌制比例/);
+  assert.doesNotMatch(res.body.text, /段老师|小苏打|双椒鸡拌面|视频号为啥不要了/);
+  assert.match(res.body.rawTextPreview, /小苏打/);
+  assert.ok(res.body.sourceSegmentsPreview.some(seg => seg.type === 'authorCandidate'));
+});
+
 test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async () => {
   const capturedPayloads = [];
   const { app } = loadServerWithMocks({
@@ -316,21 +385,39 @@ test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async 
 
   const res = await runPost(app, '/api/ai-parse', {
     text: socialText,
-    sourceType: 'xiaohongshu'
+    sourceType: 'xiaohongshu',
+    sourceMetadata: {
+      url: 'http://xhslink.com/o/example',
+      finalUrl: 'https://www.xiaohongshu.com/explore/example',
+      extractionMode: 'link-only',
+      hasHtml: true,
+      hasStructuredMeta: true,
+      trustedTextLength: socialText.length,
+      trustedTextPreview: socialText.slice(0, 80),
+      rawTextLength: socialText.length + 20,
+      rawTextPreview: `${socialText} raw tail`,
+      warnings: ['当前链接只能解析到部分页面文字，平台可能限制了视频内容读取，菜谱可能需要人工确认。']
+    }
   });
 
   assert.equal(res.statusCode, 200);
-  assert.equal(capturedPayloads.length, 2);
+  assert.equal(capturedPayloads.length, 1);
   const evidencePrompt = capturedPayloads[0].messages[1].content;
   assert.match(evidencePrompt, /家常版藤椒鸡腿详细版教程/);
   assert.match(evidencePrompt, /腌制比例/);
   assert.match(evidencePrompt, /铁锅/);
   assert.doesNotMatch(evidencePrompt, /小苏打|段老师|视频号|双椒鸡拌面|黄金薯/);
   assert.doesNotMatch(JSON.stringify(res.body.recipe), /小苏打/);
+  assert.deepEqual(res.body.recipe.method, []);
   assert.match(res.body.diagnostics.rawTextPreview, /小苏打/);
+  assert.equal(res.body.diagnostics.extractionMode, 'link-only');
+  assert.equal(res.body.diagnostics.finalUrl, 'https://www.xiaohongshu.com/explore/example');
+  assert.match(res.body.diagnostics.trustedTextPreview, /家常版藤椒鸡腿/);
   assert.match(res.body.diagnostics.authorCandidateTextPreview, /家常版藤椒鸡腿详细版教程/);
   assert.doesNotMatch(res.body.diagnostics.cleanedTextPreview, /小苏打/);
   assert.match(res.body.diagnostics.excludedSocialTextPreview, /小苏打/);
+  assert.ok(Array.isArray(res.body.diagnostics.sourceSegmentsPreview));
+  assert.ok(res.body.diagnostics.sourceSegmentsPreview.some(seg => seg.type === 'authorCandidate'));
   assert.match(res.body.recipe.warnings.join('\n'), /链接可提取信息较少/);
 });
 
