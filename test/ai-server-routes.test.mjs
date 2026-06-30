@@ -257,6 +257,76 @@ test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
   assert.deepEqual(res.body.debugEvidenceSummary.observedIngredients, ['鸡蛋']);
 });
 
+test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async () => {
+  const capturedPayloads = [];
+  const { app } = loadServerWithMocks({
+    axiosPost: async (_url, payload) => {
+      capturedPayloads.push(payload);
+      if (capturedPayloads.length === 1) {
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  dishNameCandidates: ['藤椒鸡腿'],
+                  observedMainIngredients: ['鸡腿'],
+                  observedSeasonings: [],
+                  observedAromatics: ['藤椒'],
+                  observedLiquids: [],
+                  observedActions: [],
+                  observedTimes: [],
+                  observedTools: [],
+                  uncertainItems: [],
+                  missingInfo: ['可提取菜谱正文较少'],
+                  sourceConfidence: 'low'
+                })
+              }
+            }]
+          }
+        };
+      }
+      return {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                name: '藤椒鸡腿',
+                ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+                seasonings: [{ item: '藤椒', qty: '1', unit: '把' }],
+                method: ['根据已识别内容整理为草稿']
+              })
+            }
+          }]
+        }
+      };
+    }
+  });
+  const socialText = [
+    '藤椒鸡腿一道看起来就很好吃的菜 #家常菜 #鸡腿 #藤椒鸡腿',
+    '段老师这题我会',
+    '黄金薯R',
+    '双椒鸡拌面',
+    '腌的时候放一丢丢小苏打',
+    '视频号为啥不要了',
+    '一次性解决所有铁锅粘锅问题'
+  ].join('\n');
+
+  const res = await runPost(app, '/api/ai-parse', {
+    text: socialText,
+    sourceType: 'xiaohongshu'
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(capturedPayloads.length, 2);
+  const evidencePrompt = capturedPayloads[0].messages[1].content;
+  assert.doesNotMatch(evidencePrompt, /小苏打|段老师|视频号|双椒鸡拌面|黄金薯/);
+  assert.doesNotMatch(JSON.stringify(res.body.recipe), /小苏打/);
+  assert.match(res.body.diagnostics.rawTextPreview, /小苏打/);
+  assert.doesNotMatch(res.body.diagnostics.cleanedTextPreview, /小苏打/);
+  assert.match(res.body.diagnostics.excludedSocialTextPreview, /小苏打/);
+  assert.match(res.body.recipe.warnings.join('\n'), /链接可提取信息较少/);
+});
+
 test('后端上游错误响应保留 status/code，并且不泄露 API Key', async () => {
   const { app } = loadServerWithMocks({
     axiosPost: async () => {

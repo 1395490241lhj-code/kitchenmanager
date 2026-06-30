@@ -12,7 +12,8 @@ import {
   getAiConfig,
   getReceiptAiFailureCopy,
   importRecipeFromSource,
-  recognizeReceipt
+  recognizeReceipt,
+  splitRecipeSourceText
 } from '../src/ai.js';
 import { S } from '../src/storage.js';
 
@@ -323,6 +324,76 @@ test('视频菜谱 source diagnostics 截断 rawTextPreview', () => {
   assert.doesNotMatch(diagnostics.rawTextPreview, /结尾$/);
 });
 
+test('小红书 source splitter 过滤评论弹幕和推荐文案，不让小苏打污染 cleanedRecipeText', () => {
+  const raw = [
+    '藤椒鸡腿一道看起来就很好吃的菜 #家常菜 #鸡腿 #藤椒鸡腿',
+    '段老师这题我会',
+    '黄金薯R',
+    '双椒鸡拌面',
+    '如果高温快速煸干外面的肉里面还是嫩的',
+    '腌的时候放一丢丢小苏打',
+    '视频号为啥不要了',
+    '一次性解决所有铁锅粘锅问题'
+  ].join('\n');
+  const split = splitRecipeSourceText(raw);
+
+  assert.doesNotMatch(split.cleanedRecipeText, /段老师这题我会|黄金薯|双椒鸡拌面|小苏打/);
+  assert.match(split.excludedSocialTextPreview, /小苏打/);
+  assert.match(split.excludedSocialTextPreview, /视频号/);
+  assert.equal(split.sourceBuckets.trusted.length, 0);
+  assert.ok(split.sourceBuckets.excluded.length >= 5);
+});
+
+test('小红书话题标签只作为 weak source，不进入 trusted recipe evidence', () => {
+  const split = splitRecipeSourceText('#家常菜 #鸡腿 #藤椒鸡腿');
+
+  assert.match(split.cleanedRecipeText, /弱线索/);
+  assert.match(split.cleanedRecipeText, /#藤椒鸡腿/);
+  assert.deepEqual(split.sourceBuckets.trusted, []);
+  assert.deepEqual(split.sourceBuckets.excluded, []);
+});
+
+test('小红书 trusted 作者正文会保留进 cleanedRecipeText', () => {
+  const trustedText = '鸡腿洗净擦干，加入生抽、老抽、料酒、盐、糖抓匀腌制。铁锅烧热后放入鸡腿煎至两面焦香，加入鲜藤椒和生抽调味后出锅。';
+  const split = splitRecipeSourceText([
+    '段老师这题我会',
+    trustedText,
+    '视频号为啥不要了'
+  ].join('\n'));
+
+  assert.match(split.cleanedRecipeText, /抓匀腌制/);
+  assert.match(split.cleanedRecipeText, /加入鲜藤椒和生抽调味后出锅/);
+  assert.doesNotMatch(split.cleanedRecipeText, /段老师|视频号/);
+  assert.match(split.excludedSocialTextPreview, /段老师/);
+});
+
+test('小红书 source diagnostics 显示 raw cleaned excluded 三类预览', () => {
+  const raw = [
+    '鸡腿洗净擦干，加入生抽、老抽、料酒、盐、糖抓匀腌制。',
+    '腌的时候放一丢丢小苏打',
+    '视频号为啥不要了'
+  ].join('\n');
+  const split = splitRecipeSourceText(raw);
+  const diagnostics = buildRecipeImportSourceDiagnostics({
+    sourceType: 'xiaohongshu',
+    sourceText: raw,
+    sourceSplit: split,
+    evidence: {
+      observedMainIngredients: ['鸡腿'],
+      observedSeasonings: ['生抽', '老抽', '料酒', '盐', '糖'],
+      observedActions: [
+        { order: 1, action: '加入调味料抓匀腌制', ingredients: ['鸡腿', '生抽'], evidenceText: '抓匀腌制', confidence: 'high' }
+      ],
+      sourceConfidence: 'medium'
+    }
+  });
+
+  assert.match(diagnostics.rawTextPreview, /小苏打/);
+  assert.doesNotMatch(diagnostics.cleanedTextPreview, /小苏打|视频号/);
+  assert.match(diagnostics.excludedSocialTextPreview, /小苏打/);
+  assert.match(diagnostics.warnings.join('\n'), /已忽略疑似评论/);
+});
+
 test('视频菜谱 source diagnostics 对充足 evidence 不提示信息不足', () => {
   const sourceText = '鲜藤椒鸡腿做法：鸡腿洗净擦干，加入生抽、老抽、料酒、盐、糖抓匀腌制。铁锅预热后倒入少量食用油，放入鸡腿煎至两面金黄。再加入鲜藤椒和少量生抽等调味料翻炒均匀，最后撒葱花后出锅装盘。视频字幕按顺序展示了腌制、煎制、调味和出锅四个阶段。';
   const diagnostics = buildRecipeImportSourceDiagnostics({
@@ -561,6 +632,8 @@ test('AI 菜谱导入 warning 单独传给编辑页，不写入 Method', () => {
   assert.match(editor, /aiDraftDiagnostics/);
   assert.match(editor, /提取置信度/);
   assert.match(editor, /抓取原文预览/);
+  assert.match(editor, /清洗后菜谱文本/);
+  assert.match(editor, /已忽略疑似评论\/弹幕\/推荐文案/);
   assert.match(editor, /这个菜谱可能需要确认/);
   assert.match(editor, /nextRecipe\.reviewNotes = aiDraftWarnings\.join\('\\n'\)/);
   assert.doesNotMatch(editor.slice(editor.indexOf('<textarea id="rMethod"'), editor.indexOf('<div class="controls editor-actions"')), /需要确认/);
@@ -735,7 +808,7 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   assert.match(aiParseRoute, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL/);
   assert.match(aiParseRoute, /const recipeResp = await axios\.post/);
   assert.match(aiParseRoute, /model: OPENAI_MODEL/);
-  assert.match(aiParseRoute, /sanitizeRecipe\(parsed, \{ sourceText: text, evidence, diagnostics: initialDiagnostics \}\)/);
+  assert.match(aiParseRoute, /sanitizeRecipe\(parsed, \{ sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics \}\)/);
   assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiParseRoute, /sendAiUpstreamError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);
 });

@@ -98,8 +98,14 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   const aiRawTextPreview = aiDraftDiagnostics && aiDraftDiagnostics.rawTextPreview
     ? String(aiDraftDiagnostics.rawTextPreview || '').trim()
     : '';
+  const aiCleanedTextPreview = aiDraftDiagnostics && aiDraftDiagnostics.cleanedTextPreview
+    ? String(aiDraftDiagnostics.cleanedTextPreview || '').trim()
+    : '';
+  const aiExcludedSocialPreview = aiDraftDiagnostics && aiDraftDiagnostics.excludedSocialTextPreview
+    ? String(aiDraftDiagnostics.excludedSocialTextPreview || '').trim()
+    : '';
   const aiWarningHtml = aiDraftWarnings.length
-    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}${aiRawTextPreview ? `<div class="meta">抓取原文预览：${escapeHtml(aiRawTextPreview)}</div>` : ''}<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
+    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}${aiRawTextPreview ? `<div class="meta">抓取原文预览：${escapeHtml(aiRawTextPreview)}</div>` : ''}${aiCleanedTextPreview ? `<div class="meta">清洗后菜谱文本：${escapeHtml(aiCleanedTextPreview)}</div>` : ''}${aiExcludedSocialPreview ? `<div class="meta">已忽略疑似评论/弹幕/推荐文案，避免污染菜谱。</div>` : ''}<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
     : '';
 
   const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card';

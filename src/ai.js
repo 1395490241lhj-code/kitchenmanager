@@ -228,6 +228,123 @@ function getEvidenceActionText(evidence) {
   ].filter(Boolean).join(' ')).join('\n');
 }
 
+const SOCIAL_EMOJI_PATTERN = /\[[^\]\n]{1,16}\]/gu;
+const HASHTAG_PATTERN = /#[\p{L}\p{N}_-]+/gu;
+const SOCIAL_NOISE_PATTERN = /老师|这题我会|好怀念|视频号|分享给家人|太喜欢|求教程|为什么|为啥|是不是|希望|我觉得|一次性解决|一定不能错过|详细教程|收藏|点赞|关注|转发|评论|回复|弹幕|用户|段老师|不要了|粘锅问题|教程来了|安排上|好吃吗|求做法|同款|看起来就很好吃/u;
+const SOCIAL_DISTRACTOR_PATTERN = /黄金薯|小龙虾|双椒鸡拌面|炒面/u;
+const RECIPE_SIGNAL_PATTERN = /食材|用料|配料|调料|做法|步骤|洗净|擦干|去骨|切|改刀|加入|放入|倒入|撒入|腌|腌制|抓匀|拌匀|煎|炒|焖|炖|煮|蒸|烤|炸|空气炸|调味|翻炒|出锅|装盘|生抽|老抽|料酒|鲜藤椒|藤椒粉|花椒|辣椒|豆瓣|咖喱|泡菜/u;
+const COMMENT_STYLE_PATTERN = /^(?:如果|可以|建议|为啥|为什么|是不是|求|老师|我|你|他|她|这|太|好|希望|感觉|觉得|评论区)/u;
+
+function normalizeSourceLine(line) {
+  return String(line || '')
+    .replace(SOCIAL_EMOJI_PATTERN, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isHashtagOnlyLine(line) {
+  const withoutTags = String(line || '').replace(HASHTAG_PATTERN, '').trim();
+  return !withoutTags && (String(line || '').match(HASHTAG_PATTERN) || []).length > 0;
+}
+
+function isSocialNoiseLine(line) {
+  const raw = String(line || '').trim();
+  const normalized = normalizeSourceLine(raw);
+  if (!normalized) return true;
+  SOCIAL_EMOJI_PATTERN.lastIndex = 0;
+  if (SOCIAL_EMOJI_PATTERN.test(raw)) {
+    SOCIAL_EMOJI_PATTERN.lastIndex = 0;
+    return true;
+  }
+  SOCIAL_EMOJI_PATTERN.lastIndex = 0;
+  if (SOCIAL_NOISE_PATTERN.test(normalized)) return true;
+  if (SOCIAL_DISTRACTOR_PATTERN.test(normalized)) return true;
+  if (/[一-龥]{1,10}R$/u.test(normalized)) return true;
+  if (/一丢丢|一点点|少少|丢一点/u.test(normalized) && !/作者|正文|步骤/u.test(normalized)) return true;
+  if (COMMENT_STYLE_PATTERN.test(normalized) && !/^[^，。；;]{0,12}(?:食材|做法|步骤|用料|配料)/u.test(normalized)) return true;
+  return false;
+}
+
+function isTrustedRecipeLine(line) {
+  const normalized = normalizeSourceLine(line);
+  if (!normalized || isHashtagOnlyLine(normalized) || isSocialNoiseLine(line)) return false;
+  return RECIPE_SIGNAL_PATTERN.test(normalized);
+}
+
+function uniqueTextList(list, limit = 12) {
+  const seen = new Set();
+  return list.map(item => String(item || '').trim())
+    .filter(Boolean)
+    .filter(item => !seen.has(item) && seen.add(item))
+    .slice(0, limit);
+}
+
+export function splitRecipeSourceText(rawText) {
+  const raw = String(rawText || '').trim();
+  const trusted = [];
+  const weak = [];
+  const excluded = [];
+  const lines = raw
+    .split(/\n+|\r+|\u2028|\u2029/g)
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const rawLine = lines[index];
+    const cleanedLine = normalizeSourceLine(rawLine);
+    if (!cleanedLine) {
+      excluded.push(rawLine);
+      continue;
+    }
+    if (isSocialNoiseLine(rawLine)) {
+      excluded.push(rawLine);
+      continue;
+    }
+    if (isHashtagOnlyLine(cleanedLine)) {
+      weak.push(cleanedLine);
+      continue;
+    }
+    const tags = cleanedLine.match(HASHTAG_PATTERN) || [];
+    if (isTrustedRecipeLine(cleanedLine)) {
+      trusted.push(cleanedLine.replace(HASHTAG_PATTERN, '').trim() || cleanedLine);
+      if (tags.length) weak.push(tags.join(' '));
+      continue;
+    }
+    if (index === 0 || tags.length) {
+      weak.push(cleanedLine);
+      continue;
+    }
+    excluded.push(rawLine);
+  }
+
+  const uniqueTrusted = uniqueTextList(trusted, 24);
+  const uniqueWeak = uniqueTextList(weak, 12);
+  const uniqueExcluded = uniqueTextList(excluded, 24);
+  const weakHints = uniqueWeak.length
+    ? [`弱线索（仅用于菜名/标签，不作为食材或步骤证据）：${uniqueWeak.join('；')}`]
+    : [];
+  const cleanedRecipeText = [...weakHints, ...uniqueTrusted].join('\n').trim();
+  const excludedSocialText = uniqueExcluded.join('\n').trim();
+  return {
+    titleText: uniqueWeak[0] || '',
+    authorCaptionText: uniqueTrusted.join('\n'),
+    descriptionText: uniqueTrusted.join('\n'),
+    ocrText: '',
+    transcriptText: '',
+    hashtagText: uniqueWeak.filter(line => /#/.test(line)).join('\n'),
+    commentText: uniqueExcluded.join('\n'),
+    relatedRecommendationText: uniqueExcluded.filter(line => SOCIAL_DISTRACTOR_PATTERN.test(line)).join('\n'),
+    rawText: raw,
+    cleanedRecipeText,
+    excludedSocialTextPreview: excludedSocialText.slice(0, 400),
+    sourceBuckets: {
+      trusted: uniqueTrusted,
+      weak: uniqueWeak,
+      excluded: uniqueExcluded
+    }
+  };
+}
+
 function normalizeRecipeImportSourceType(sourceType, { imageBase64 = null } = {}) {
   const raw = String(sourceType || '').trim().toLowerCase();
   if (['xiaohongshu', 'video', 'web', 'manual'].includes(raw)) return raw;
@@ -246,9 +363,12 @@ function getObservedSeasoningCount(evidence) {
   return [...new Set(listEvidenceField(evidence, 'observedSeasonings'))].length;
 }
 
-export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sourceText = '', imageBase64 = null, evidence = null, method = '' } = {}) {
+export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sourceText = '', imageBase64 = null, evidence = null, method = '', sourceSplit = null } = {}) {
   const normalizedSourceType = normalizeRecipeImportSourceType(sourceType, { imageBase64 });
   const rawText = String(sourceText || '').trim();
+  const split = sourceSplit || splitRecipeSourceText(rawText);
+  const cleanedRecipeText = String(split.cleanedRecipeText || '').trim();
+  const excludedSocialText = String(split.excludedSocialTextPreview || split.commentText || '').trim();
   const observedIngredientCount = getObservedIngredientCount(evidence);
   const observedSeasoningCount = getObservedSeasoningCount(evidence);
   const observedActionCount = Array.isArray(evidence?.observedActions) ? evidence.observedActions.length : 0;
@@ -266,6 +386,8 @@ export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sour
   const warnings = [];
 
   if (rawText && rawText.length < 100) warnings.push('来源文本很短，可能只包含零散关键词。');
+  if (rawText && cleanedRecipeText.length < 80) warnings.push('可提取菜谱正文较少。');
+  if (excludedSocialText) warnings.push('已忽略疑似评论/弹幕/推荐文案，避免污染菜谱。');
   if (observedIngredientCount < 3) warnings.push('识别到的核心食材较少。');
   if (observedActionCount < 3) warnings.push('识别到的明确做法步骤较少。');
   if (!hasCaption && !hasDescription && !hasOcrText && !hasTranscript && !hasVideoFrames && !hasImages) {
@@ -279,6 +401,7 @@ export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sour
   if (
     evidenceConfidence === 'low' ||
     rawText && rawText.length < 100 ||
+    (rawText && cleanedRecipeText.length < 80) ||
     observedIngredientCount < 3 ||
     observedActionCount < 3 ||
     !hasAnyExtractedContent ||
@@ -298,6 +421,15 @@ export function buildRecipeImportSourceDiagnostics({ sourceType = 'manual', sour
     sourceType: normalizedSourceType,
     rawTextLength: rawText.length,
     rawTextPreview: rawText.slice(0, 400),
+    cleanedTextLength: cleanedRecipeText.length,
+    cleanedTextPreview: cleanedRecipeText.slice(0, 400),
+    excludedSocialTextLength: excludedSocialText.length,
+    excludedSocialTextPreview: excludedSocialText.slice(0, 400),
+    sourceBuckets: {
+      trusted: uniqueTextList(split.sourceBuckets?.trusted || [], 8),
+      weak: uniqueTextList(split.sourceBuckets?.weak || [], 8),
+      excluded: uniqueTextList(split.sourceBuckets?.excluded || [], 8)
+    },
     hasTitle: listEvidenceField(evidence, 'dishNameCandidates').length > 0,
     hasCaption,
     hasDescription,
