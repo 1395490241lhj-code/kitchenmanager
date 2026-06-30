@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const Module = require('node:module');
@@ -12,6 +14,15 @@ const originalLoad = Module._load;
 const root = process.cwd();
 const serverPath = resolve(root, 'server.js');
 const originalEnv = { ...process.env };
+const originalFetch = globalThis.fetch;
+
+async function writeTempMediaFile(name, contents = 'audio') {
+  const dir = path.join(os.tmpdir(), 'kitchenmanager-media');
+  await fs.promises.mkdir(dir, { recursive: true });
+  const filePath = path.join(dir, name);
+  await fs.promises.writeFile(filePath, contents);
+  return filePath;
+}
 
 function createExpressMock() {
   function express() {
@@ -113,6 +124,7 @@ async function runGet(app, path, query = {}) {
 afterEach(() => {
   Module._load = originalLoad;
   process.env = { ...originalEnv };
+  globalThis.fetch = originalFetch;
   delete require.cache[serverPath];
 });
 
@@ -600,6 +612,126 @@ test('/api/media/extract-audio ffmpeg 失败返回友好错误', async () => {
   assert.equal(res.statusCode, 502);
   assert.equal(res.body.ok, false);
   assert.equal(res.body.message, '音频提取失败，请稍后重试。');
+});
+
+test('/api/media/transcribe 调用 OpenAI audio transcriptions 并返回 transcript', async () => {
+  await writeTempMediaFile('transcribe-success.m4a', Buffer.from('fake-audio'));
+  let capturedUrl = '';
+  let capturedOptions = null;
+  globalThis.fetch = async (url, options) => {
+    capturedUrl = String(url);
+    capturedOptions = options;
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers.Authorization, 'Bearer test-key');
+    assert.equal(options.body.get('model'), 'gpt-4o-mini-transcribe');
+    assert.equal(options.body.get('response_format'), 'json');
+    assert.equal(options.body.get('language'), 'zh');
+    assert.ok(options.body.get('file'));
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { text: '鸡腿先腌制，然后下锅煎香。' };
+      }
+    };
+  };
+  const { app } = loadServerWithMocks();
+
+  const res = await runPost(app, '/api/media/transcribe', { audioPath: 'transcribe-success.m4a' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.transcript, '鸡腿先腌制，然后下锅煎香。');
+  assert.equal(res.body.model, 'gpt-4o-mini-transcribe');
+  assert.equal(res.body.transcriptLength, 13);
+  assert.equal(capturedUrl, 'https://api.groq.com/openai/v1/audio/transcriptions');
+  assert.ok(capturedOptions.body);
+});
+
+test('/api/media/transcribe 支持通过 OPENAI_TRANSCRIBE_MODEL 覆盖模型', async () => {
+  await writeTempMediaFile('transcribe-model.m4a', Buffer.from('fake-audio'));
+  globalThis.fetch = async (_url, options) => {
+    assert.equal(options.body.get('model'), 'custom-transcribe-model');
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { text: '测试转录文本' };
+      }
+    };
+  };
+  const { app } = loadServerWithMocks({
+    env: { OPENAI_TRANSCRIBE_MODEL: 'custom-transcribe-model' }
+  });
+
+  const res = await runPost(app, '/api/media/transcribe', { audioPath: 'transcribe-model.m4a' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.model, 'custom-transcribe-model');
+});
+
+test('/api/media/transcribe 拒绝非法 audioPath', async () => {
+  const { app } = loadServerWithMocks();
+
+  const res = await runPost(app, '/api/media/transcribe', { audioPath: '../secret.m4a' });
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.message, '音频文件标识不合法。');
+});
+
+test('/api/media/transcribe 音频文件不存在返回 404', async () => {
+  const { app } = loadServerWithMocks();
+
+  const res = await runPost(app, '/api/media/transcribe', { audioPath: 'missing-audio.m4a' });
+
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.message, '音频文件不存在。');
+});
+
+test('/api/media/transcribe 缺少 OPENAI_API_KEY 返回 503 且不调用上游', async () => {
+  await writeTempMediaFile('transcribe-no-key.m4a', Buffer.from('fake-audio'));
+  let fetchCalled = false;
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    throw new Error('should not call upstream without key');
+  };
+  const { app } = loadServerWithMocks({ env: { OPENAI_API_KEY: '' } });
+
+  const res = await runPost(app, '/api/media/transcribe', { audioPath: 'transcribe-no-key.m4a' });
+
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.ok, false);
+  assert.equal(fetchCalled, false);
+});
+
+test('/api/media/transcribe 上游失败或空 transcript 返回 502', async () => {
+  await writeTempMediaFile('transcribe-upstream.m4a', Buffer.from('fake-audio'));
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 429,
+    async json() {
+      return { error: { message: 'rate limited' } };
+    }
+  });
+  const failedApp = loadServerWithMocks().app;
+  const failed = await runPost(failedApp, '/api/media/transcribe', { audioPath: 'transcribe-upstream.m4a' });
+  assert.equal(failed.statusCode, 502);
+  assert.equal(failed.body.message, '音频转录失败，请稍后重试。');
+
+  delete require.cache[serverPath];
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return { text: '' };
+    }
+  });
+  const emptyApp = loadServerWithMocks().app;
+  const empty = await runPost(emptyApp, '/api/media/transcribe', { audioPath: 'transcribe-upstream.m4a' });
+  assert.equal(empty.statusCode, 502);
+  assert.equal(empty.body.message, '音频转录结果为空，请稍后重试。');
 });
 
 test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async () => {

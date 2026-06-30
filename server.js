@@ -9,7 +9,7 @@
  * - /api/ai-parse：后端统一呼叫 AI（文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL），
  *     返回模型 JSON 原文。
  *
- * 环境变量（Render）：PORT、OPENAI_API_KEY、OPENAI_BASE_URL、OPENAI_MODEL、OPENAI_VISION_MODEL（可选）。
+ * 环境变量（Render）：PORT、OPENAI_API_KEY、OPENAI_BASE_URL、OPENAI_MODEL、OPENAI_VISION_MODEL（可选）、OPENAI_TRANSCRIBE_MODEL（可选）。
  * 启动：npm install && npm start  （默认 http://localhost:3000）
  */
 const path = require('path');
@@ -55,6 +55,7 @@ const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.groq.com/ope
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'openai/gpt-oss-120b';
 const DEFAULT_OPENAI_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || DEFAULT_OPENAI_VISION_MODEL;
+const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
 
 const AI_PROMPT_MAX_CHARS = 12000;
 const AI_IMAGE_MAX_BASE64_BYTES = 4 * 1024 * 1024;
@@ -68,6 +69,14 @@ function resolveChatUrl(base) {
   if (/\/chat\/completions$/.test(b)) return b;
   if (/\/v\d+$/.test(b)) return `${b}/chat/completions`;
   return `${b}/v1/chat/completions`;
+}
+
+function resolveAudioTranscriptionsUrl(base) {
+  const b = String(base || '').trim().replace(/\/+$/, '');
+  if (/\/audio\/transcriptions$/.test(b)) return b;
+  if (/\/chat\/completions$/.test(b)) return `${b.replace(/\/chat\/completions$/, '')}/audio/transcriptions`;
+  if (/\/v\d+$/.test(b)) return `${b}/audio/transcriptions`;
+  return `${b}/v1/audio/transcriptions`;
 }
 
 function getClientIp(req) {
@@ -940,6 +949,8 @@ const MEDIA_FILE_TTL_MS = 60 * 60 * 1000;
 const MEDIA_TOO_LARGE_ERROR = new Error('MEDIA_TOO_LARGE');
 const MEDIA_DOWNLOAD_ERROR = new Error('MEDIA_DOWNLOAD_FAILED');
 const MEDIA_FFMPEG_ERROR = new Error('MEDIA_FFMPEG_FAILED');
+const MEDIA_TRANSCRIBE_ERROR = new Error('MEDIA_TRANSCRIBE_FAILED');
+const MEDIA_EMPTY_TRANSCRIPT_ERROR = new Error('MEDIA_EMPTY_TRANSCRIPT');
 
 async function ensureMediaTempDir() {
   await fs.promises.mkdir(MEDIA_TMP_DIR, { recursive: true });
@@ -1098,6 +1109,69 @@ async function extractAudioWithFfmpeg(videoPath, audioPath) {
   });
 }
 
+function resolveMediaAudioPath(audioPath) {
+  const basename = String(audioPath || '').trim();
+  if (!basename || basename !== path.basename(basename)) return null;
+  if (!/^[a-zA-Z0-9._-]+\.(?:m4a|mp3|wav|aac)$/i.test(basename)) return null;
+  const resolved = path.resolve(MEDIA_TMP_DIR, basename);
+  const root = path.resolve(MEDIA_TMP_DIR) + path.sep;
+  return resolved.startsWith(root) ? resolved : null;
+}
+
+function getAudioMimeType(audioFilePath) {
+  const ext = path.extname(audioFilePath).toLowerCase();
+  if (ext === '.mp3') return 'audio/mpeg';
+  if (ext === '.wav') return 'audio/wav';
+  if (ext === '.aac') return 'audio/aac';
+  return 'audio/mp4';
+}
+
+function getTranscriptText(payload) {
+  if (!payload || typeof payload !== 'object') return '';
+  return String(payload.text || payload.transcript || '').trim();
+}
+
+async function transcribeAudioFile(audioFilePath) {
+  if (!OPENAI_API_KEY) throw new Error('MISSING_OPENAI_API_KEY');
+  if (typeof fetch !== 'function' || typeof FormData === 'undefined' || typeof Blob === 'undefined') {
+    throw MEDIA_TRANSCRIBE_ERROR;
+  }
+  const audioBuffer = await fs.promises.readFile(audioFilePath);
+  const form = new FormData();
+  form.append('model', OPENAI_TRANSCRIBE_MODEL);
+  form.append('response_format', 'json');
+  form.append('language', 'zh');
+  form.append('file', new Blob([audioBuffer], { type: getAudioMimeType(audioFilePath) }), path.basename(audioFilePath));
+
+  let response;
+  try {
+    response = await fetch(resolveAudioTranscriptionsUrl(OPENAI_BASE_URL), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`
+      },
+      body: form
+    });
+  } catch (_) {
+    throw MEDIA_TRANSCRIBE_ERROR;
+  }
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_) {
+    payload = null;
+  }
+  if (!response.ok) throw MEDIA_TRANSCRIBE_ERROR;
+  const transcript = getTranscriptText(payload);
+  if (!transcript) throw MEDIA_EMPTY_TRANSCRIPT_ERROR;
+  return {
+    transcript,
+    model: OPENAI_TRANSCRIBE_MODEL,
+    transcriptLength: transcript.length
+  };
+}
+
 // 代理路由：抓取并返回菜谱文案。
 app.get('/api/xhs-extract', async (req, res) => {
   // 模糊提取：允许用户传整段小红书分享语，服务端再用同一条正则兜底捕获 URL。
@@ -1194,6 +1268,32 @@ app.post('/api/media/extract-audio', async (req, res) => {
       return res.status(400).json({ ok: false, error: '不支持的视频地址。', message: '不支持的视频地址。' });
     }
     return res.status(502).json({ ok: false, error: '视频下载失败，请稍后重试。', message: '视频下载失败，请稍后重试。' });
+  }
+});
+
+app.post('/api/media/transcribe', async (req, res) => {
+  if (!OPENAI_API_KEY) {
+    return res.status(503).json({ ok: false, error: '后端未配置 AI 密钥。', message: '后端未配置 AI 密钥。' });
+  }
+  const audioPathInput = String(req.body?.audioPath || '').trim();
+  const audioPath = resolveMediaAudioPath(audioPathInput);
+  if (!audioPath) {
+    return res.status(400).json({ ok: false, error: '音频文件标识不合法。', message: '音频文件标识不合法。' });
+  }
+  try {
+    await fs.promises.access(audioPath, fs.constants.R_OK);
+  } catch (_) {
+    return res.status(404).json({ ok: false, error: '音频文件不存在。', message: '音频文件不存在。' });
+  }
+
+  try {
+    const result = await transcribeAudioFile(audioPath);
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    if (err === MEDIA_EMPTY_TRANSCRIPT_ERROR) {
+      return res.status(502).json({ ok: false, error: '音频转录结果为空，请稍后重试。', message: '音频转录结果为空，请稍后重试。' });
+    }
+    return res.status(502).json({ ok: false, error: '音频转录失败，请稍后重试。', message: '音频转录失败，请稍后重试。' });
   }
 });
 
