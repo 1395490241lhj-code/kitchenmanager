@@ -2,6 +2,9 @@ import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
+import { Readable } from 'node:stream';
+import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const Module = require('node:module');
@@ -56,7 +59,7 @@ function createRes() {
   };
 }
 
-function loadServerWithMocks({ axiosPost, axiosGet, dnsLookup, env = {} } = {}) {
+function loadServerWithMocks({ axiosPost, axiosGet, dnsLookup, env = {}, childProcessMock, ffmpegStatic = '/mock/ffmpeg' } = {}) {
   const expressMock = createExpressMock();
   const axiosMock = {
     post: axiosPost || (async () => ({ data: { choices: [{ message: { content: 'ok' } }] } })),
@@ -66,6 +69,8 @@ function loadServerWithMocks({ axiosPost, axiosGet, dnsLookup, env = {} } = {}) 
     if (request === 'express') return expressMock;
     if (request === 'axios') return axiosMock;
     if (request === 'dns' && dnsLookup) return { promises: { lookup: dnsLookup } };
+    if (request === 'ffmpeg-static') return ffmpegStatic;
+    if (request === 'child_process' && childProcessMock) return childProcessMock;
     return originalLoad.call(this, request, parent, isMain);
   };
 
@@ -478,6 +483,123 @@ test('/api/xhs-extract 会过滤脚本中的内网媒体 URL', async () => {
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.media.videoUrls, ['https://public.example.com/sns-video/ok.mp4']);
   assert.doesNotMatch(JSON.stringify(res.body.media), /127\.0\.0\.1/);
+});
+
+test('/api/media/extract-audio 下载视频到临时文件并调用 ffmpeg 提取 m4a', async () => {
+  const videoBytes = Buffer.from('fake-video-bytes');
+  const audioBytes = Buffer.from('fake-audio-bytes');
+  const requestedUrls = [];
+  const spawnCalls = [];
+  const childProcessMock = {
+    spawn(bin, args, options) {
+      spawnCalls.push({ bin, args, options });
+      const inputPath = args[args.indexOf('-i') + 1];
+      const outputPath = args[args.length - 1];
+      assert.equal(bin, '/mock/ffmpeg');
+      assert.ok(fs.existsSync(inputPath));
+      assert.match(outputPath, /\.m4a$/);
+      assert.equal(options.shell, undefined);
+      fs.writeFileSync(outputPath, audioBytes);
+      const child = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.kill = () => {};
+      setImmediate(() => {
+        child.stderr.emit('data', 'Duration: 00:00:03.50, start: 0.000000');
+        child.emit('close', 0);
+      });
+      return child;
+    }
+  };
+  const { app } = loadServerWithMocks({
+    childProcessMock,
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async (url, options) => {
+      requestedUrls.push(url);
+      assert.equal(options.responseType, 'stream');
+      assert.equal(options.maxRedirects, 0);
+      return {
+        status: 200,
+        headers: { 'content-length': String(videoBytes.length) },
+        data: Readable.from([videoBytes])
+      };
+    }
+  });
+
+  const res = await runPost(app, '/api/media/extract-audio', { videoUrl: 'https://video.example.com/play.mp4' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.ok, true);
+  assert.match(res.body.audioPath, /^[0-9a-f-]+\.m4a$/i);
+  assert.doesNotMatch(res.body.audioPath, /\//);
+  assert.equal(res.body.durationSeconds, 3.5);
+  assert.equal(res.body.bytes, audioBytes.length);
+  assert.equal(res.body.videoBytes, videoBytes.length);
+  assert.deepEqual(requestedUrls, ['https://video.example.com/play.mp4']);
+  assert.equal(spawnCalls.length, 1);
+  assert.deepEqual(spawnCalls[0].args.slice(0, 2), ['-y', '-i']);
+  assert.ok(spawnCalls[0].args.includes('-vn'));
+  assert.ok(spawnCalls[0].args.includes('16000'));
+});
+
+test('/api/media/extract-audio 视频文件过大返回 413', async () => {
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({
+      status: 200,
+      headers: { 'content-length': String(80 * 1024 * 1024 + 1) },
+      data: Readable.from([])
+    })
+  });
+
+  const res = await runPost(app, '/api/media/extract-audio', { videoUrl: 'https://video.example.com/large.mp4' });
+
+  assert.equal(res.statusCode, 413);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.message, '视频文件过大，暂不支持导入。');
+});
+
+test('/api/media/extract-audio 拒绝内网视频地址且不下载', async () => {
+  let axiosCalled = false;
+  const { app } = loadServerWithMocks({
+    axiosGet: async () => {
+      axiosCalled = true;
+      throw new Error('should not download private url');
+    }
+  });
+
+  const res = await runPost(app, '/api/media/extract-audio', { videoUrl: 'http://127.0.0.1/private.mp4' });
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.message, '不支持的视频地址。');
+  assert.equal(axiosCalled, false);
+});
+
+test('/api/media/extract-audio ffmpeg 失败返回友好错误', async () => {
+  const childProcessMock = {
+    spawn() {
+      const child = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.kill = () => {};
+      setImmediate(() => child.emit('close', 1));
+      return child;
+    }
+  };
+  const { app } = loadServerWithMocks({
+    childProcessMock,
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({
+      status: 200,
+      headers: { 'content-length': '5' },
+      data: Readable.from([Buffer.from('video')])
+    })
+  });
+
+  const res = await runPost(app, '/api/media/extract-audio', { videoUrl: 'https://video.example.com/fail.mp4' });
+
+  assert.equal(res.statusCode, 502);
+  assert.equal(res.body.ok, false);
+  assert.equal(res.body.message, '音频提取失败，请稍后重试。');
 });
 
 test('/api/ai-parse 会过滤评论和社交噪声后再抽取 evidence', async () => {

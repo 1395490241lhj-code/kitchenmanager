@@ -13,12 +13,22 @@
  * 启动：npm install && npm start  （默认 http://localhost:3000）
  */
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const crypto = require('crypto');
 const express = require('express');
 const axios = require('axios');
 const dns = require('dns').promises;
 const net = require('net');
 const http = require('http');
 const https = require('https');
+const { spawn } = require('child_process');
+let ffmpegPath = '';
+try {
+  ffmpegPath = require('ffmpeg-static') || '';
+} catch (_) {
+  ffmpegPath = '';
+}
 
 const app = express();
 const ROOT = __dirname;
@@ -923,6 +933,171 @@ async function fetchFollowingRedirectsSafely(startUrl, maxHops = 5) {
   throw SSRF_ERROR; // 超过最大跳数
 }
 
+const MEDIA_TMP_DIR = path.join(os.tmpdir(), 'kitchenmanager-media');
+const MEDIA_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
+const MEDIA_DOWNLOAD_TIMEOUT_MS = 30000;
+const MEDIA_FILE_TTL_MS = 60 * 60 * 1000;
+const MEDIA_TOO_LARGE_ERROR = new Error('MEDIA_TOO_LARGE');
+const MEDIA_DOWNLOAD_ERROR = new Error('MEDIA_DOWNLOAD_FAILED');
+const MEDIA_FFMPEG_ERROR = new Error('MEDIA_FFMPEG_FAILED');
+
+async function ensureMediaTempDir() {
+  await fs.promises.mkdir(MEDIA_TMP_DIR, { recursive: true });
+  return MEDIA_TMP_DIR;
+}
+
+async function cleanupOldMediaFiles(now = Date.now()) {
+  await ensureMediaTempDir();
+  let entries = [];
+  try {
+    entries = await fs.promises.readdir(MEDIA_TMP_DIR, { withFileTypes: true });
+  } catch (_) {
+    return;
+  }
+  await Promise.all(entries.map(async entry => {
+    if (!entry.isFile()) return;
+    const filePath = path.join(MEDIA_TMP_DIR, entry.name);
+    try {
+      const stat = await fs.promises.stat(filePath);
+      if (now - stat.mtimeMs > MEDIA_FILE_TTL_MS) await fs.promises.unlink(filePath);
+    } catch (_) {
+      // 临时文件清理是 best-effort，失败不影响本次请求。
+    }
+  }));
+}
+
+function parseContentLength(headers = {}) {
+  const raw = headers['content-length'] || headers['Content-Length'];
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+async function fetchMediaFollowingRedirectsSafely(startUrl, maxHops = 5) {
+  let current = startUrl;
+  for (let hop = 0; hop <= maxHops; hop++) {
+    const validated = await resolveAndValidatePublicUrl(current);
+    const lookup = createPinnedLookup(validated.ip, validated.family);
+    const agent = current.protocol === 'https:'
+      ? new https.Agent({ lookup, keepAlive: false })
+      : new http.Agent({ lookup, keepAlive: false });
+
+    const resp = await axios.get(current.href, {
+      maxRedirects: 0,
+      timeout: MEDIA_DOWNLOAD_TIMEOUT_MS,
+      responseType: 'stream',
+      maxContentLength: MEDIA_MAX_VIDEO_BYTES,
+      maxBodyLength: MEDIA_MAX_VIDEO_BYTES,
+      httpAgent: agent,
+      httpsAgent: agent,
+      headers: {
+        'User-Agent': MOBILE_UA,
+        'Accept': 'video/*,application/octet-stream,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.9'
+      },
+      validateStatus: s => s >= 200 && s < 400
+    });
+
+    if (resp.status >= 300 && resp.status < 400) {
+      const loc = resp.headers && resp.headers.location;
+      if (!loc) throw SSRF_ERROR;
+      let next;
+      try { next = new URL(loc, current); } catch (_) { throw SSRF_ERROR; }
+      if (next.protocol !== 'http:' && next.protocol !== 'https:') throw SSRF_ERROR;
+      current = next;
+      continue;
+    }
+
+    const contentLength = parseContentLength(resp.headers || {});
+    if (contentLength != null && contentLength > MEDIA_MAX_VIDEO_BYTES) throw MEDIA_TOO_LARGE_ERROR;
+    return { resp, finalUrl: current.href, contentLength };
+  }
+  throw SSRF_ERROR;
+}
+
+async function writeMediaStreamToFile(stream, filePath) {
+  return new Promise((resolve, reject) => {
+    let bytes = 0;
+    let settled = false;
+    const out = fs.createWriteStream(filePath, { flags: 'wx' });
+    function finish(err) {
+      if (settled) return;
+      settled = true;
+      if (err) {
+        stream.destroy?.();
+        out.destroy?.();
+        fs.promises.unlink(filePath).catch(() => {});
+        reject(err);
+      } else {
+        resolve(bytes);
+      }
+    }
+    stream.on('data', chunk => {
+      bytes += Buffer.byteLength(chunk);
+      if (bytes > MEDIA_MAX_VIDEO_BYTES) finish(MEDIA_TOO_LARGE_ERROR);
+    });
+    stream.on('error', err => finish(err || MEDIA_DOWNLOAD_ERROR));
+    out.on('error', err => finish(err || MEDIA_DOWNLOAD_ERROR));
+    out.on('finish', () => finish(null));
+    stream.pipe(out);
+  });
+}
+
+async function downloadVideoToTemp(videoUrl) {
+  const startUrl = extractHttpUrl(videoUrl);
+  if (!startUrl) throw SSRF_ERROR;
+  await cleanupOldMediaFiles();
+  await ensureMediaTempDir();
+  const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
+  const videoPath = path.join(MEDIA_TMP_DIR, `${id}.video`);
+  const fetched = await fetchMediaFollowingRedirectsSafely(startUrl, 5);
+  const bytes = await writeMediaStreamToFile(fetched.resp.data, videoPath);
+  return { id, videoPath, bytes, finalUrl: fetched.finalUrl };
+}
+
+function parseFfmpegDuration(stderrText) {
+  const match = String(stderrText || '').match(/Duration:\s*(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  if (![hours, minutes, seconds].every(Number.isFinite)) return null;
+  return Math.round((hours * 3600 + minutes * 60 + seconds) * 1000) / 1000;
+}
+
+async function extractAudioWithFfmpeg(videoPath, audioPath) {
+  if (!ffmpegPath) throw MEDIA_FFMPEG_ERROR;
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-y',
+      '-i', videoPath,
+      '-vn',
+      '-ac', '1',
+      '-ar', '16000',
+      '-b:a', '64k',
+      audioPath
+    ];
+    let stderr = '';
+    const child = spawn(ffmpegPath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(MEDIA_FFMPEG_ERROR);
+    }, 60000);
+    child.stderr?.on('data', chunk => {
+      stderr += String(chunk || '').slice(0, 4000);
+      if (stderr.length > 12000) stderr = stderr.slice(-12000);
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+      reject(MEDIA_FFMPEG_ERROR);
+    });
+    child.on('close', code => {
+      clearTimeout(timer);
+      if (code === 0) resolve({ durationSeconds: parseFfmpegDuration(stderr) });
+      else reject(MEDIA_FFMPEG_ERROR);
+    });
+  });
+}
+
 // 代理路由：抓取并返回菜谱文案。
 app.get('/api/xhs-extract', async (req, res) => {
   // 模糊提取：允许用户传整段小红书分享语，服务端再用同一条正则兜底捕获 URL。
@@ -984,6 +1159,41 @@ app.get('/api/xhs-extract', async (req, res) => {
     });
   } catch (err) {
     return res.status(502).json({ error: '链接抓取失败，请稍后重试或粘贴菜谱文字。' });
+  }
+});
+
+app.post('/api/media/extract-audio', async (req, res) => {
+  const videoUrl = String(req.body?.videoUrl || '').trim();
+  if (!videoUrl) {
+    return res.status(400).json({ ok: false, error: '缺少 videoUrl。', message: '缺少 videoUrl。' });
+  }
+
+  let downloaded = null;
+  try {
+    await cleanupOldMediaFiles();
+    downloaded = await downloadVideoToTemp(videoUrl);
+    const audioPath = path.join(MEDIA_TMP_DIR, `${downloaded.id}.m4a`);
+    const { durationSeconds } = await extractAudioWithFfmpeg(downloaded.videoPath, audioPath);
+    const audioStat = await fs.promises.stat(audioPath);
+    await cleanupOldMediaFiles();
+    return res.json({
+      ok: true,
+      audioPath: path.basename(audioPath),
+      durationSeconds,
+      bytes: audioStat.size,
+      videoBytes: downloaded.bytes
+    });
+  } catch (err) {
+    if (err === MEDIA_TOO_LARGE_ERROR) {
+      return res.status(413).json({ ok: false, error: '视频文件过大，暂不支持导入。', message: '视频文件过大，暂不支持导入。' });
+    }
+    if (err === MEDIA_FFMPEG_ERROR) {
+      return res.status(502).json({ ok: false, error: '音频提取失败，请稍后重试。', message: '音频提取失败，请稍后重试。' });
+    }
+    if (err === SSRF_ERROR) {
+      return res.status(400).json({ ok: false, error: '不支持的视频地址。', message: '不支持的视频地址。' });
+    }
+    return res.status(502).json({ ok: false, error: '视频下载失败，请稍后重试。', message: '视频下载失败，请稍后重试。' });
   }
 });
 
