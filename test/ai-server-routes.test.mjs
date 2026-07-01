@@ -432,6 +432,7 @@ test('/api/xhs-extract 会提取页面里的视频和封面 URL 但不加入正�
   const html = `<!doctype html><html><head>
     <meta property="og:title" content="藤椒鸡腿">
     <meta property="og:description" content="鸡腿洗净擦干，加入生抽抓匀腌制。锅中煎至两面焦香，加入鲜藤椒调味后出锅。">
+    <meta property="og:video" content="https://www.xiaohongshu.com/discovery/item/abc123">
     <meta property="og:video:secure_url" content="https://video.example.com/meta-play.mp4?token=1&amp;from=og">
     <meta property="og:image" content="https://img.example.com/cover-og.jpg">
   </head><body>
@@ -440,6 +441,7 @@ test('/api/xhs-extract 会提取页面里的视频和封面 URL 但不加入正�
       window.__INITIAL_STATE__ = {
         note: {
           video: {
+            shareUrl: "https://www.xiaohongshu.com/explore/abc123",
             streamUrl: "https:\\/\\/sns-video.example.com\\/stream\\/abc.m3u8",
             h264: "https:\\/\\/sns-video.example.com\\/h264\\/abc.mp4",
             backupUrls: ["https://backup.example.com/vod/abc.mp4"]
@@ -460,9 +462,13 @@ test('/api/xhs-extract 会提取页面里的视频和封面 URL 但不加入正�
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.media.mediaDiagnostics.hasVideo, true);
   assert.ok(res.body.media.mediaDiagnostics.videoUrlCount >= 4);
+  assert.equal(res.body.media.videoUrls[0], 'https://sns-video.example.com/stream/abc.m3u8');
+  assert.ok(res.body.media.mediaDiagnostics.rejectedVideoUrlCount >= 1);
+  assert.ok(res.body.media.mediaDiagnostics.rejectedVideoUrlHosts.includes('www.xiaohongshu.com'));
   assert.ok(res.body.media.videoUrls.includes('https://video.example.com/meta-play.mp4?token=1&from=og'));
   assert.ok(res.body.media.videoUrls.includes('https://sns-video.example.com/h264/abc.mp4'));
   assert.ok(res.body.media.videoUrls.includes('https://sns-video.example.com/stream/abc.m3u8'));
+  assert.ok(!res.body.media.videoUrls.some(url => /www\.xiaohongshu\.com\/(?:discovery\/item|explore)/.test(url)));
   assert.ok(res.body.media.coverUrls.includes('https://img.example.com/cover-og.jpg'));
   assert.ok(res.body.media.coverUrls.includes('https://img.example.com/poster.webp'));
   assert.ok(res.body.media.imageUrls.includes('https://sns-img.example.com/a.webp'));
@@ -909,7 +915,7 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
     dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
     axiosGet: async (url, options) => {
       if (options.responseType === 'stream') {
-        assert.equal(url, 'https://video.example.com/recipe.mp4');
+        assert.equal(url, 'https://sns-video-abc.xhscdn.com/stream/recipe.m3u8');
         return {
           status: 200,
           headers: { 'content-length': String(videoBytes.length) },
@@ -923,7 +929,18 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
           <html><head>
             <meta property="og:title" content="藤椒鸡腿">
             <meta property="og:description" content="页面文字：藤椒鸡腿，鸡腿和鲜藤椒。">
-            <meta property="og:video" content="https://video.example.com/recipe.mp4">
+            <meta property="og:video" content="https://www.xiaohongshu.com/discovery/item/not-video">
+            <script>
+              window.__INITIAL_STATE__ = {
+                note: {
+                  video: {
+                    shareUrl: "https://www.xiaohongshu.com/explore/not-video",
+                    streamUrl: "https://sns-video-abc.xhscdn.com/stream/recipe.m3u8",
+                    h264: "https://sns-video-abc.xhscdn.com/h264/recipe.mp4"
+                  }
+                }
+              };
+            </script>
           </head><body></body></html>
         `
       };
@@ -994,6 +1011,11 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.recipe.name, '藤椒鸡腿');
   assert.equal(res.body.mediaDiagnostics.hasVideo, true);
+  assert.equal(res.body.mediaDiagnostics.selectedVideoHost, 'sns-video-abc.xhscdn.com');
+  assert.equal(res.body.mediaDiagnostics.selectedVideoPathPreview, '/stream/recipe.m3u8');
+  assert.equal(res.body.mediaDiagnostics.selectedVideoUrlRanked, true);
+  assert.ok(res.body.mediaDiagnostics.rejectedVideoUrlCount >= 1);
+  assert.ok(res.body.mediaDiagnostics.rejectedVideoUrlHosts.includes('www.xiaohongshu.com'));
   assert.ok(res.body.mediaDiagnostics.transcriptLength > 0);
   assert.ok(res.body.mediaDiagnostics.framesExtracted > 0);
   assert.match(res.body.recipe.method.join('\n'), /鲜藤椒/);
@@ -1060,7 +1082,7 @@ test('/api/recipe-import-from-url 视频处理失败时使用页面文字继续�
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.recipe.name, '番茄炒蛋');
-  assert.match(res.body.mediaDiagnostics.warnings.join('\n'), /视频转录失败，仅使用页面文字生成草稿/);
+  assert.match(res.body.mediaDiagnostics.warnings.join('\n'), /已找到视频地址，但视频下载失败，仅使用页面文字生成草稿/);
   assert.match(res.body.recipe.warnings.join('\n'), /链接可提取信息较少/);
   assert.equal(aiPayloads.length, 2);
 });

@@ -532,6 +532,7 @@ const IMAGE_FIELD_PATTERN = /(?:^|\.|_)(image|images|imagelist|image_list|img|ph
 const COVER_FIELD_PATTERN = /(?:^|\.|_)(cover|coverurl|cover_url|poster)(?:$|\.|_)/i;
 const VIDEO_URL_HINT_PATTERN = /\.(?:mp4|m3u8)(?:[?#]|$)|video|stream|sns-video|vod|h264|h265/i;
 const IMAGE_URL_HINT_PATTERN = /\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)|image|cover|sns-img|photo/i;
+const STRONG_VIDEO_FIELD_PATTERN = /(?:^|\.|_)(playurl|play_url|masterurl|master_url|streamurl|stream_url|h264|h265|backupurls|backup_urls|videourl|video_url)(?:$|\.|_)/i;
 
 function normalizeMediaUrl(candidate) {
   const cleaned = decodeHtmlText(candidate)
@@ -557,10 +558,94 @@ function extractHttpUrlsFromText(text) {
   return uniqueTextList((normalized.match(MEDIA_URL_PATTERN) || []).map(normalizeMediaUrl).filter(Boolean), 80);
 }
 
+function parsePublicHttpUrl(url) {
+  const normalized = normalizeMediaUrl(url);
+  if (!normalized) return null;
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function isXiaohongshuPageUrl(url) {
+  const parsed = parsePublicHttpUrl(url);
+  if (!parsed) return false;
+  const host = parsed.hostname.toLowerCase();
+  const pathname = parsed.pathname.toLowerCase();
+  if (!host.includes('xiaohongshu.com')) return false;
+  if (pathname.includes('/discovery/item') || pathname.includes('/explore')) return true;
+  return !VIDEO_URL_HINT_PATTERN.test(`${host}${pathname}`);
+}
+
+function scoreVideoMediaUrl(url) {
+  const parsed = parsePublicHttpUrl(url);
+  if (!parsed) return -1000;
+  const host = parsed.hostname.toLowerCase();
+  const pathname = parsed.pathname.toLowerCase();
+  const full = parsed.href.toLowerCase();
+  if (host.includes('xiaohongshu.com') && (pathname.includes('/discovery/item') || pathname.includes('/explore'))) return -1000;
+  if (host.includes('xiaohongshu.com') && !VIDEO_URL_HINT_PATTERN.test(full)) return -1000;
+
+  let score = 0;
+  if (/\.mp4(?:[?#]|$)/i.test(full)) score += 100;
+  if (/\.m3u8(?:[?#]|$)/i.test(full)) score += 90;
+  if (/sns-video/i.test(full)) score += 80;
+  if (/xhscdn\.com/i.test(host)) score += 60;
+  if (/\/stream\//i.test(pathname)) score += 50;
+  if (/h264|h265/i.test(full)) score += 30;
+  if (/video|vod/i.test(full)) score += 20;
+  return score || -100;
+}
+
+function isLikelyVideoMediaUrl(url) {
+  const parsed = parsePublicHttpUrl(url);
+  if (!parsed || isXiaohongshuPageUrl(parsed.href)) return false;
+  return scoreVideoMediaUrl(parsed.href) > 0;
+}
+
+function pickBestVideoUrl(videoUrls = []) {
+  const candidates = uniqueTextList((Array.isArray(videoUrls) ? videoUrls : [])
+    .map(normalizeMediaUrl)
+    .filter(Boolean), 40)
+    .filter(isLikelyVideoMediaUrl)
+    .sort((a, b) => scoreVideoMediaUrl(b) - scoreVideoMediaUrl(a));
+  return candidates[0] || '';
+}
+
+function buildVideoUrlSelectionDiagnostics(videoUrls = [], selectedVideoUrl = '') {
+  const normalized = uniqueTextList((Array.isArray(videoUrls) ? videoUrls : [])
+    .map(normalizeMediaUrl)
+    .filter(Boolean), 40);
+  const rejected = normalized.filter(url => !isLikelyVideoMediaUrl(url));
+  const rejectedHosts = uniqueTextList(rejected.map(url => {
+    try { return new URL(url).hostname; } catch (_) { return ''; }
+  }).filter(Boolean), 8);
+  return {
+    selectedVideoUrlRanked: Boolean(selectedVideoUrl),
+    rejectedVideoUrlCount: rejected.length,
+    rejectedVideoUrlHosts: rejectedHosts
+  };
+}
+
+function mergeVideoUrlSelectionDiagnostics(primary = {}, secondary = {}) {
+  return {
+    selectedVideoUrlRanked: Boolean(primary.selectedVideoUrlRanked),
+    rejectedVideoUrlCount: Number(primary.rejectedVideoUrlCount || 0) + Number(secondary.rejectedVideoUrlCount || 0),
+    rejectedVideoUrlHosts: uniqueTextList([
+      ...(Array.isArray(primary.rejectedVideoUrlHosts) ? primary.rejectedVideoUrlHosts : []),
+      ...(Array.isArray(secondary.rejectedVideoUrlHosts) ? secondary.rejectedVideoUrlHosts : [])
+    ], 8)
+  };
+}
+
 function createMediaAccumulator() {
   const video = [];
   const image = [];
   const cover = [];
+  const rejectedVideo = [];
   const seen = {
     video: new Set(),
     image: new Set(),
@@ -579,6 +664,11 @@ function createMediaAccumulator() {
   function addUrl(rawUrl, bucket, hint = '') {
     const url = normalizeMediaUrl(rawUrl);
     if (!url || !seen[bucket] || seen[bucket].has(url)) return;
+    if (bucket === 'video' && !isLikelyVideoMediaUrl(url)) {
+      if (!rejectedVideo.includes(url)) rejectedVideo.push(url);
+      addHint(hint ? `${hint}:rejected-non-media-video` : 'rejected-non-media-video');
+      return;
+    }
     seen[bucket].add(url);
     if (bucket === 'video') video.push(url);
     if (bucket === 'image') image.push(url);
@@ -586,14 +676,17 @@ function createMediaAccumulator() {
     addHint(hint);
   }
 
-  return { video, image, cover, hints, addUrl, addHint };
+  return { video, image, cover, rejectedVideo, hints, addUrl, addHint };
 }
 
 function classifyMediaUrl(url, keyPath = '') {
   const hint = String(keyPath || '');
+  if (isXiaohongshuPageUrl(url)) return '';
   if (COVER_FIELD_PATTERN.test(hint)) return 'cover';
   if (IMAGE_FIELD_PATTERN.test(hint) && !VIDEO_FIELD_PATTERN.test(hint)) return 'image';
-  if (VIDEO_FIELD_PATTERN.test(hint) || VIDEO_URL_HINT_PATTERN.test(url)) return 'video';
+  const urlLooksVideo = isLikelyVideoMediaUrl(url);
+  const strongVideoField = STRONG_VIDEO_FIELD_PATTERN.test(hint);
+  if (urlLooksVideo && (strongVideoField || VIDEO_URL_HINT_PATTERN.test(url) || VIDEO_FIELD_PATTERN.test(hint))) return 'video';
   if (IMAGE_URL_HINT_PATTERN.test(url)) return 'image';
   return '';
 }
@@ -677,7 +770,7 @@ function extractMediaFromHtml(html, context = {}) {
   const scripts = source.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) || [];
   scripts.forEach(script => collectMediaFromScript(script, media));
 
-  media.video.sort((a, b) => Number(VIDEO_URL_HINT_PATTERN.test(b)) - Number(VIDEO_URL_HINT_PATTERN.test(a)));
+  media.video.sort((a, b) => scoreVideoMediaUrl(b) - scoreVideoMediaUrl(a));
   return {
     videoUrls: media.video.slice(0, 20),
     imageUrls: media.image.slice(0, 30),
@@ -686,6 +779,10 @@ function extractMediaFromHtml(html, context = {}) {
       hasVideo: media.video.length > 0,
       videoUrlCount: media.video.length,
       imageUrlCount: media.image.length,
+      rejectedVideoUrlCount: media.rejectedVideo.length,
+      rejectedVideoUrlHosts: uniqueTextList(media.rejectedVideo.map(url => {
+        try { return new URL(url).hostname; } catch (_) { return ''; }
+      }).filter(Boolean), 8),
       extractionHints: media.hints,
       sourceType: guessSourceTypeFromUrl(context.finalUrl || context.url || '')
     }
@@ -1399,11 +1496,15 @@ async function ocrFrameWithVisionModel(frameId, framePath) {
   };
 }
 
-async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0) {
+async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, selectionDiagnostics = {}) {
   const mediaDiagnostics = {
     hasVideo: Boolean(videoUrl),
     videoUrlCount: Number(videoUrlCount || 0),
+    selectedVideoUrlRanked: Boolean(selectionDiagnostics.selectedVideoUrlRanked),
     selectedVideoHost: '',
+    selectedVideoPathPreview: '',
+    rejectedVideoUrlCount: Number(selectionDiagnostics.rejectedVideoUrlCount || 0),
+    rejectedVideoUrlHosts: Array.isArray(selectionDiagnostics.rejectedVideoUrlHosts) ? selectionDiagnostics.rejectedVideoUrlHosts : [],
     audioExtracted: false,
     transcriptLength: 0,
     framesExtracted: 0,
@@ -1414,9 +1515,12 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0) {
   if (!videoUrl) return { transcriptText: '', ocrText: '', mediaDiagnostics };
 
   try {
-    mediaDiagnostics.selectedVideoHost = new URL(videoUrl).hostname;
+    const selected = new URL(videoUrl);
+    mediaDiagnostics.selectedVideoHost = selected.hostname;
+    mediaDiagnostics.selectedVideoPathPreview = selected.pathname.slice(0, 80);
   } catch (_) {
     mediaDiagnostics.selectedVideoHost = '';
+    mediaDiagnostics.selectedVideoPathPreview = '';
   }
 
   let downloaded = null;
@@ -1425,7 +1529,7 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0) {
   try {
     downloaded = await downloadVideoToTemp(videoUrl);
   } catch (_) {
-    mediaDiagnostics.warnings.push('视频转录失败，仅使用页面文字生成草稿。');
+    mediaDiagnostics.warnings.push('已找到视频地址，但视频下载失败，仅使用页面文字生成草稿。');
     return { transcriptText, ocrText, mediaDiagnostics };
   }
 
@@ -2575,12 +2679,23 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
 
   const pageText = String(sourcePayload.text || '').trim();
   const videoUrls = Array.isArray(sourcePayload.media?.videoUrls) ? sourcePayload.media.videoUrls : [];
-  const videoTextResult = await extractVideoRecipeTextForImport(videoUrls[0], videoUrls.length);
+  const selectedVideoUrl = pickBestVideoUrl(videoUrls);
+  const selectionDiagnostics = mergeVideoUrlSelectionDiagnostics(
+    buildVideoUrlSelectionDiagnostics(videoUrls, selectedVideoUrl),
+    sourcePayload.media?.mediaDiagnostics
+  );
+  const videoTextResult = await extractVideoRecipeTextForImport(selectedVideoUrl, videoUrls.length, selectionDiagnostics);
   const mediaDiagnostics = {
     ...videoTextResult.mediaDiagnostics,
     extractionMode: sourcePayload.extractionMode,
     pageTextLength: pageText.length
   };
+  if (!selectedVideoUrl && videoUrls.length) {
+    mediaDiagnostics.warnings = uniqueTextList([
+      ...(Array.isArray(mediaDiagnostics.warnings) ? mediaDiagnostics.warnings : []),
+      '找到的视频候选不是可下载媒体地址，已使用页面文字生成草稿。'
+    ], 8);
+  }
   const sections = [];
   appendSourceSection(sections, '页面文字', pageText);
   appendSourceSection(sections, '视频口播转录', videoTextResult.transcriptText);
