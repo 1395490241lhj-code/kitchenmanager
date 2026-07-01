@@ -1043,8 +1043,8 @@ const MEDIA_TMP_DIR = path.join(os.tmpdir(), 'kitchenmanager-media');
 const MEDIA_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
 const MEDIA_DOWNLOAD_TIMEOUT_MS = 30000;
 const MEDIA_FILE_TTL_MS = 60 * 60 * 1000;
-const MEDIA_MAX_FRAME_COUNT = 8;
-const MEDIA_MAX_FRAME_BYTES = 2 * 1024 * 1024;
+const MEDIA_MAX_FRAME_COUNT = 4;
+const MEDIA_MAX_FRAME_BYTES = 700 * 1024;
 const MEDIA_TOO_LARGE_ERROR = new Error('MEDIA_TOO_LARGE');
 const MEDIA_DOWNLOAD_ERROR = new Error('MEDIA_DOWNLOAD_FAILED');
 const MEDIA_FFMPEG_ERROR = new Error('MEDIA_FFMPEG_FAILED');
@@ -1273,10 +1273,6 @@ function buildEvenFrameTimestamps(durationSeconds, count) {
 
 async function assertMediaFrameSize(filePath) {
   const stat = await fs.promises.stat(filePath);
-  if (stat.size > MEDIA_MAX_FRAME_BYTES) {
-    await fs.promises.unlink(filePath).catch(() => {});
-    throw MEDIA_FRAME_TOO_LARGE_ERROR;
-  }
   return stat.size;
 }
 
@@ -1299,8 +1295,8 @@ async function extractFramesWithFfmpeg(videoPath, { maxFrames = MEDIA_MAX_FRAME_
         '-ss', String(timestamps[index]),
         '-i', videoPath,
         '-frames:v', '1',
-        '-vf', 'scale=720:-2',
-        '-q:v', '5',
+        '-vf', 'scale=512:-2',
+        '-q:v', '10',
         framePath
       ], { timeoutMs: 60000 });
       const bytes = await assertMediaFrameSize(framePath);
@@ -1312,9 +1308,9 @@ async function extractFramesWithFfmpeg(videoPath, { maxFrames = MEDIA_MAX_FRAME_
     await runFfmpegProcess([
       '-y',
       '-i', videoPath,
-      '-vf', 'fps=1/3,scale=720:-2',
+      '-vf', 'fps=1/3,scale=512:-2',
       '-frames:v', String(count),
-      '-q:v', '5',
+      '-q:v', '10',
       pattern
     ], { timeoutMs: 60000 });
     const entries = await fs.promises.readdir(MEDIA_TMP_DIR, { withFileTypes: true });
@@ -1577,7 +1573,16 @@ function appendSourceSection(sections, title, value) {
 async function ocrFrameWithVisionModel(frameId, framePath) {
   if (!OPENAI_API_KEY) throw new Error('MISSING_OPENAI_API_KEY');
   const frameBuffer = await fs.promises.readFile(framePath);
-  if (frameBuffer.length > MEDIA_MAX_FRAME_BYTES) throw MEDIA_FRAME_TOO_LARGE_ERROR;
+  if (frameBuffer.length > MEDIA_MAX_FRAME_BYTES) {
+    return {
+      frameId,
+      text: '',
+      confidence: 'low',
+      skipped: true,
+      reason: 'frame_too_large',
+      bytes: frameBuffer.length
+    };
+  }
   const dataUrl = `data:${getImageMimeType(framePath)};base64,${frameBuffer.toString('base64')}`;
   const visionEndpoint = resolveChatUrl(OPENAI_BASE_URL);
   const prompt = [
@@ -1673,6 +1678,7 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
     visionErrorPreview: '',
     failedFrameId: '',
     failedFrameCount: 0,
+    skippedFrameCount: 0,
     ocrFrameCount: 0,
     ocrTextLength: 0,
     warnings: []
@@ -1717,9 +1723,13 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
     copyAsrDiagnostics(mediaDiagnostics, transcript);
   } catch (err) {
     copyAsrDiagnostics(mediaDiagnostics, err);
-    mediaDiagnostics.warnings.push(mediaDiagnostics.audioExtracted
-      ? '音频已提取，但口播转录失败。'
-      : '视频音频提取失败，已继续尝试读取页面文字和画面文字。');
+    if (mediaDiagnostics.audioExtracted && Number(mediaDiagnostics.asrUpstreamStatus) === 413) {
+      mediaDiagnostics.warnings.push('音频转录请求过大，已跳过口播转录。');
+    } else {
+      mediaDiagnostics.warnings.push(mediaDiagnostics.audioExtracted
+        ? '音频已提取，但口播转录失败。'
+        : '视频音频提取失败，已继续尝试读取页面文字和画面文字。');
+    }
   }
 
   try {
@@ -1729,7 +1739,15 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
     const ocrFrames = [];
     for (const frame of frameResult.frames) {
       try {
-        ocrFrames.push(await ocrFrameWithVisionModel(frame.frameId, path.join(MEDIA_TMP_DIR, frame.frameId)));
+        const ocrFrame = await ocrFrameWithVisionModel(frame.frameId, path.join(MEDIA_TMP_DIR, frame.frameId));
+        if (ocrFrame?.skipped) {
+          mediaDiagnostics.skippedFrameCount += 1;
+          if (ocrFrame.reason === 'frame_too_large') {
+            mediaDiagnostics.warnings.push('frame_too_large_skipped：部分视频画面过大，已跳过识别。');
+          }
+          continue;
+        }
+        ocrFrames.push(ocrFrame);
       } catch (err) {
         mediaDiagnostics.failedFrameCount += 1;
         if (!mediaDiagnostics.visionUpstreamCode && !mediaDiagnostics.visionErrorPreview) {
@@ -1924,10 +1942,6 @@ app.post('/api/media/ocr-frames', async (req, res) => {
     }
     try {
       await fs.promises.access(framePath, fs.constants.R_OK);
-      const stat = await fs.promises.stat(framePath);
-      if (stat.size > MEDIA_MAX_FRAME_BYTES) {
-        return res.status(413).json({ ok: false, error: '图片帧过大，暂不支持识别。', message: '图片帧过大，暂不支持识别。' });
-      }
     } catch (err) {
       if (err && err.code === 'ENOENT') {
         return res.status(404).json({ ok: false, error: '图片帧不存在。', message: '图片帧不存在。' });
@@ -1939,14 +1953,30 @@ app.post('/api/media/ocr-frames', async (req, res) => {
 
   try {
     const frames = [];
+    let failedFrameCount = 0;
+    let firstFrameError = null;
     for (const frame of framePaths) {
-      frames.push(await ocrFrameWithVisionModel(frame.frameId, frame.framePath));
+      try {
+        frames.push(await ocrFrameWithVisionModel(frame.frameId, frame.framePath));
+      } catch (err) {
+        failedFrameCount += 1;
+        if (!firstFrameError) firstFrameError = err;
+      }
+    }
+    if (!frames.length && failedFrameCount > 0) {
+      throw firstFrameError || MEDIA_FRAME_OCR_ERROR;
     }
     const ocrText = frames
       .map(frame => String(frame.text || '').trim())
       .filter(Boolean)
       .join('\n\n');
-    return res.json({ ok: true, ocrText, frames });
+    return res.json({
+      ok: true,
+      ocrText,
+      frames,
+      failedFrameCount,
+      skippedFrameCount: frames.filter(frame => frame?.skipped).length
+    });
   } catch (err) {
     if (err === MEDIA_FRAME_TOO_LARGE_ERROR) {
       return res.status(413).json({ ok: false, error: '图片帧过大，暂不支持识别。', message: '图片帧过大，暂不支持识别。' });
