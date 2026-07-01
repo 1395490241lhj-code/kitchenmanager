@@ -173,6 +173,11 @@ function isRateLimitExceeded(status, code) {
     || numericStatus === 429;
 }
 
+function isJsonValidateFailedError(err) {
+  const info = getUpstreamAiErrorInfo(err);
+  return Number(info.status) === 400 && String(info.code || '').trim().toLowerCase() === 'json_validate_failed';
+}
+
 function getAiMessageContent(resp) {
   return resp?.data?.choices?.[0]?.message?.content || '';
 }
@@ -286,6 +291,13 @@ JSON 字段如下：
 - ingredients 必填，至少一项；seasonings 可以为空数组但建议至少列出主要调料；两个数组里每条 item / qty / unit 都必须是非空字符串。
 - tags 给 1-4 个，体现菜系/口味/类别。
 - 只输出 JSON 本身。`;
+
+const IMPORT_SIMPLE_SYSTEM_PROMPT = `你是 Kitchen Manager 的菜谱导入助手。根据 evidence 生成一个可编辑菜谱草稿。
+只输出一个 JSON 对象，不要 markdown，不要解释，不要代码块。
+字段必须是 name, tags, ingredients, seasonings, method, warnings, needsReview。
+ingredients/seasonings/method 可以不完美，但必须是合法 JSON。
+method 如果 observedActions 有内容，必须至少输出对应步骤；不要因为信息不完整就把 method 清空。
+不确定内容放 warnings。`;
 
 function decodeHtmlText(value) {
   return String(value || '')
@@ -2087,10 +2099,134 @@ const PANTRY_BLACKLIST = ['水', '油', '食用油', '盐', '味精', '鸡精', 
 
 function safeParseModelJson(raw) {
   if (raw && typeof raw === 'object') return raw;
-  const s = String(raw || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+  const s = String(raw || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/```(?:json|JSON)?/g, '')
+    .replace(/```/g, '')
+    .trim();
   const a = s.indexOf('{'), b = s.lastIndexOf('}');
   if (a < 0 || b <= a) return null;
   try { return JSON.parse(s.slice(a, b + 1)); } catch (_) { return null; }
+}
+
+async function postChatCompletion({ model, messages, temperature = 0.2, responseFormat = true, timeout = 45000 }) {
+  const payload = {
+    model,
+    messages,
+    temperature
+  };
+  if (responseFormat) payload.response_format = { type: 'json_object' };
+  return axios.post(
+    resolveChatUrl(OPENAI_BASE_URL),
+    payload,
+    {
+      timeout,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+    }
+  );
+}
+
+async function postJsonChatContentWithFallback({ model, messages, temperature = 0.2, timeout = 45000 }) {
+  try {
+    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: true, timeout });
+    return getAiMessageContent(resp);
+  } catch (err) {
+    if (!isJsonValidateFailedError(err)) throw err;
+    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: false, timeout });
+    return getAiMessageContent(resp);
+  }
+}
+
+async function repairRecipeJsonContent(rawContent) {
+  const repairPrompt = `请把下面内容修复为合法 JSON 对象。字段必须为 name, tags, ingredients, seasonings, method, warnings, needsReview。不要补充内容，只修复格式。只输出 JSON 对象，不要 markdown，不要解释。\n\n${String(rawContent || '').slice(0, 12000)}`;
+  const resp = await postChatCompletion({
+    model: OPENAI_IMPORT_MODEL,
+    messages: [
+      { role: 'system', content: 'You repair malformed recipe JSON. Return only one valid JSON object.' },
+      { role: 'user', content: repairPrompt }
+    ],
+    temperature: 0,
+    responseFormat: false,
+    timeout: 30000
+  });
+  return safeParseModelJson(getAiMessageContent(resp));
+}
+
+function getLabeledSourceSection(text, label) {
+  const source = String(text || '');
+  const re = new RegExp(`【${label}】\\n([\\s\\S]*?)(?=\\n\\n【|$)`, 'u');
+  const match = source.match(re);
+  return match ? String(match[1] || '').trim() : '';
+}
+
+function extractKnownTermsFromText(text, terms) {
+  const source = String(text || '');
+  return terms.filter(term => source.includes(term));
+}
+
+function splitRecipeActionSentences(text) {
+  const source = String(text || '').replace(/\s+/g, ' ');
+  const actionRe = /洗|切|腌|抓匀|拌匀|煎|炒|炸|烤|蒸|煮|焖|加|加入|放|倒|撒|收汁|出锅/u;
+  return uniqueTextList(
+    source
+      .split(/[。！？!?；;\n]+/u)
+      .map(part => part.trim())
+      .filter(part => part.length >= 3 && actionRe.test(part)),
+    12
+  );
+}
+
+function extractFallbackDishName(text, sourceMetadata = {}) {
+  const trusted = String(sourceMetadata.trustedTextPreview || sourceMetadata.rawTextPreview || text || '');
+  const cleaned = trusted
+    .replace(/【[^】]+】/g, ' ')
+    .replace(/页面文字|视频口播转录|视频画面文字|用户补充/g, ' ')
+    .trim();
+  const first = cleaned.split(/[。\n，,；;：:！!？?]/u).map(s => s.trim()).find(Boolean) || 'AI 导入菜谱';
+  return first.slice(0, 18) || 'AI 导入菜谱';
+}
+
+function buildFallbackEvidenceFromSource({ text = '', sourceMetadata = {} } = {}) {
+  const transcript = getLabeledSourceSection(text, '视频口播转录') || String(sourceMetadata.transcriptPreview || '');
+  const ocr = getLabeledSourceSection(text, '视频画面文字') || String(sourceMetadata.ocrPreview || '');
+  const page = getLabeledSourceSection(text, '页面文字') || String(sourceMetadata.trustedTextPreview || sourceMetadata.rawTextPreview || '');
+  if (!transcript.trim()) return null;
+  const evidenceText = [transcript, ocr, page].filter(Boolean).join('\n');
+  const mainTerms = [
+    '鸡腿', '鸡肉', '鸡胸', '鸡翅', '牛肉', '猪肉', '肉片', '肉丝', '排骨', '鱼片', '虾仁',
+    '番茄', '西红柿', '鸡蛋', '土豆', '青椒', '豆腐', '茄子', '白菜', '西兰花', '洋葱', '香菇',
+    '鲜藤椒', '藤椒', '花椒', '辣椒', '米饭', '面条', '乌冬'
+  ];
+  const seasoningTerms = [
+    '生抽', '老抽', '料酒', '盐', '糖', '白糖', '胡椒', '白胡椒', '黑胡椒', '淀粉', '小苏打',
+    '食用油', '植物油', '香油', '醋', '蚝油', '豆瓣酱', '咖喱块', '泡菜', '水', '清水', '高汤'
+  ];
+  const aromatics = extractKnownTermsFromText(evidenceText, ['鲜藤椒', '藤椒', '藤椒粉', '花椒', '蒜', '姜', '葱', '辣椒']);
+  const liquids = extractKnownTermsFromText(evidenceText, ['水', '清水', '高汤', '汤']);
+  const actions = splitRecipeActionSentences(transcript || evidenceText);
+  return {
+    dishNameCandidates: [extractFallbackDishName(page || evidenceText, sourceMetadata)],
+    observedMainIngredients: extractKnownTermsFromText(evidenceText, mainTerms),
+    observedSeasonings: extractKnownTermsFromText(evidenceText, seasoningTerms),
+    observedAromatics: aromatics,
+    observedLiquids: liquids,
+    observedActions: actions.map((action, index) => ({
+      order: index + 1,
+      action,
+      ingredients: uniqueTextList([
+        ...extractKnownTermsFromText(action, mainTerms),
+        ...extractKnownTermsFromText(action, seasoningTerms),
+        ...extractKnownTermsFromText(action, aromatics)
+      ], 12),
+      evidenceText: action,
+      confidence: transcript ? 'medium' : 'low'
+    })),
+    observedTimes: [],
+    observedTools: [],
+    uncertainItems: [],
+    missingInfo: ['AI evidence JSON 解析失败，已根据视频转录文字生成保守 evidence。'],
+    sourceConfidence: actions.length >= 3 ? 'medium' : 'low'
+  };
 }
 
 function stripStepPrefix(s) {
@@ -2884,25 +3020,27 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
     ? [{ type: 'text', text: evidenceInstruction }, { type: 'image_url', image_url: { url: imageBase64 } }]
     : evidenceInstruction;
 
-  const evidenceResp = await axios.post(
-    resolveChatUrl(OPENAI_BASE_URL),
-    {
+  let evidenceContent = '';
+  let evidence = null;
+  try {
+    evidenceContent = await postJsonChatContentWithFallback({
       model: imageBase64 ? OPENAI_VISION_MODEL : OPENAI_IMPORT_MODEL,
       messages: [
         { role: 'system', content: RECIPE_EVIDENCE_SYSTEM_PROMPT },
         { role: 'user', content: evidenceUserContent }
       ],
-      temperature: 0.2,
-      response_format: { type: 'json_object' }
-    },
-    {
-      timeout: 45000,
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
-    }
-  );
-  const evidenceContent = getAiMessageContent(evidenceResp);
-  if (!evidenceContent) throw createAiParsePipelineError(502, 'empty_response', 'AI 没有返回证据内容，请稍后重试。');
-  const evidence = safeParseModelJson(evidenceContent);
+      temperature: 0.2
+    });
+    evidence = safeParseModelJson(evidenceContent);
+  } catch (err) {
+    if (!isJsonValidateFailedError(err)) throw err;
+    const fallbackEvidence = buildFallbackEvidenceFromSource({ text, sourceMetadata });
+    if (!fallbackEvidence) throw err;
+    evidence = fallbackEvidence;
+  }
+  if (!evidence) {
+    evidence = buildFallbackEvidenceFromSource({ text, sourceMetadata });
+  }
   if (!evidence) throw createAiParsePipelineError(502, 'bad_evidence_json', 'AI 没有返回可识别的菜谱证据，请稍后重试。');
 
   const initialDiagnostics = buildSourceExtractionDiagnostics({
@@ -2929,27 +3067,28 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
     return { content: JSON.stringify(draft), recipe: draft, evidence, diagnostics, debugEvidenceSummary };
   }
 
-  const recipeInstruction = `请根据下面的 evidence JSON 和 sourceDiagnostics 生成最终菜谱 JSON。method 必须按 observedActions 顺序生成；不要新增 evidence 不支持的关键动作。若 sourceDiagnostics.sourceConfidence 为 low，只生成证据支持的 draft，并在 warnings 中提示信息不足。\n\n${JSON.stringify({ evidence, sourceDiagnostics: initialDiagnostics })}`;
-  const recipeResp = await axios.post(
-    resolveChatUrl(OPENAI_BASE_URL),
-    {
-      model: OPENAI_IMPORT_MODEL,
-      messages: [
-        { role: 'system', content: IMPORT_SYSTEM_PROMPT },
-        { role: 'user', content: recipeInstruction }
-      ],
-      temperature: 0.2,
-      response_format: { type: 'json_object' }
-    },
-    {
-      timeout: 45000,
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
-    }
-  );
-  const content = getAiMessageContent(recipeResp);
+  const useSimpleImportPrompt = normalizedSourceType === 'xiaohongshu';
+  const recipeInstruction = useSimpleImportPrompt
+    ? `根据下面 evidence 和 sourceDiagnostics 生成可编辑菜谱草稿。只输出一个 JSON 对象，不要 markdown，不要解释，不要代码块。method 必须覆盖 observedActions；不确定内容放 warnings。\n\n${JSON.stringify({ evidence, sourceDiagnostics: initialDiagnostics })}`
+    : `请根据下面的 evidence JSON 和 sourceDiagnostics 生成最终菜谱 JSON。method 必须按 observedActions 顺序生成；不要新增 evidence 不支持的关键动作。若 sourceDiagnostics.sourceConfidence 为 low，只生成证据支持的 draft，并在 warnings 中提示信息不足。\n\n${JSON.stringify({ evidence, sourceDiagnostics: initialDiagnostics })}`;
+  const content = await postJsonChatContentWithFallback({
+    model: OPENAI_IMPORT_MODEL,
+    messages: [
+      { role: 'system', content: useSimpleImportPrompt ? IMPORT_SIMPLE_SYSTEM_PROMPT : IMPORT_SYSTEM_PROMPT },
+      { role: 'user', content: recipeInstruction }
+    ],
+    temperature: 0.2
+  });
   if (!content) throw createAiParsePipelineError(502, 'empty_response', 'AI 没有返回内容，请稍后重试。');
 
-  const parsed = safeParseModelJson(content);
+  let parsed = safeParseModelJson(content);
+  if (!parsed) {
+    try {
+      parsed = await repairRecipeJsonContent(content);
+    } catch (_) {
+      parsed = null;
+    }
+  }
   if (parsed) {
     const cleaned = sanitizeRecipe(parsed, { sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics });
     const diagnostics = buildSourceExtractionDiagnostics({
@@ -2965,7 +3104,7 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
     const debugEvidenceSummary = buildDebugEvidenceSummary({ sourceText: text, evidence, diagnostics, sourceSplit });
     return { content: JSON.stringify(cleaned), recipe: cleaned, evidence, diagnostics, debugEvidenceSummary };
   }
-  return { content };
+  throw createAiParsePipelineError(422, 'recipe_json_failed', '视频文字已读取成功，但 AI 整理菜谱失败。');
 }
 
 function buildRecipeImportSourceMetadataBase({ sourcePayload, rawUrl, pageText, transcriptText, ocrText, mediaDiagnostics } = {}) {
@@ -3113,14 +3252,19 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
     return res.json({ ...draft, mediaDiagnostics });
   } catch (err) {
     const info = getUpstreamAiErrorInfo(err);
+    const importTextReadyExtra = {
+      mediaDiagnostics,
+      importTextReady: true,
+      transcriptPreview: transcriptText.slice(0, 1200),
+      ocrPreview: ocrText.slice(0, 800),
+      pageTextPreview: pageText.slice(0, 500)
+    };
+    if (err?.aiParseCode === 'recipe_json_failed') {
+      cleanupRecipeImportMediaCache();
+      return sendAiJsonError(res, 422, 'recipe_json_failed', '视频文字已读取成功，但 AI 整理菜谱失败。', importTextReadyExtra);
+    }
     const rateLimitExtra = isRateLimitExceeded(info.status, info.code)
-      ? {
-          mediaDiagnostics,
-          importTextReady: true,
-          transcriptPreview: transcriptText.slice(0, 1200),
-          ocrPreview: ocrText.slice(0, 800),
-          pageTextPreview: pageText.slice(0, 500)
-        }
+      ? importTextReadyExtra
       : { mediaDiagnostics };
     cleanupRecipeImportMediaCache();
     return sendAiParsePipelineError(res, err, 'AI 解析请求失败，请稍后重试。', rateLimitExtra);

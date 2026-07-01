@@ -77,6 +77,12 @@ function isRateLimitExceededError(error) {
     || details.upstreamStatus === 429;
 }
 
+function isRecipeJsonFailedError(error) {
+  const details = getAiErrorDetails(error);
+  const code = String(details.code || details.upstreamCode || '').trim().toLowerCase();
+  return code === 'recipe_json_failed';
+}
+
 function formatAiStatusCode(details) {
   const status = details?.status || details?.upstreamStatus || 0;
   const code = details?.code || details?.upstreamCode || '';
@@ -1078,6 +1084,12 @@ export function getReceiptAiFailureCopy(error) {
 export function getRecipeImportAiFailureCopy(error) {
   const details = getAiErrorDetails(error);
   const marker = formatAiStatusCode(details);
+  if (details.importTextReady && isRecipeJsonFailedError(error)) {
+    return {
+      title: 'AI 导入暂时不可用',
+      message: `视频文字已读取成功，但 AI 整理菜谱失败。可以稍后重试，或复制视频文字手动整理${marker ? ` ${marker}` : ''}。`
+    };
+  }
   if (isRateLimitExceededError(error)) {
     if (details.importTextReady) {
       return {
@@ -1661,7 +1673,7 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
     try {
       return await importXiaohongshuRecipeFromUrl({ url: cleanUrl, userText: pastedText });
     } catch (err) {
-      if (isRateLimitExceededError(err)) throw err;
+      if (isRateLimitExceededError(err) || isRecipeJsonFailedError(err)) throw err;
       if (!pastedText) throw err;
       return parseRecipeWith120B({
         text: pastedText,
