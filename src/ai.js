@@ -16,7 +16,19 @@ const RECEIPT_IMAGE_COMPRESSION_ATTEMPTS = [
   { maxSide: 512, quality: 0.5 }
 ];
 
-function createCloudAiError({ status = 0, code = '', upstreamStatus = 0, upstreamCode = '', detail = '', fallback = '云端服务请求失败' } = {}) {
+function createCloudAiError({
+  status = 0,
+  code = '',
+  upstreamStatus = 0,
+  upstreamCode = '',
+  detail = '',
+  fallback = '云端服务请求失败',
+  importTextReady = false,
+  mediaDiagnostics = null,
+  transcriptPreview = '',
+  ocrPreview = '',
+  pageTextPreview = ''
+} = {}) {
   const statusText = status ? String(status) : '';
   const codeText = String(code || upstreamCode || '').trim();
   const marker = statusText || codeText ? ` (${statusText}${codeText ? `/${codeText}` : ''})` : '';
@@ -26,6 +38,11 @@ function createCloudAiError({ status = 0, code = '', upstreamStatus = 0, upstrea
   if (codeText) error.code = codeText;
   if (upstreamStatus) error.upstreamStatus = Number(upstreamStatus);
   if (upstreamCode) error.upstreamCode = String(upstreamCode);
+  if (importTextReady) error.importTextReady = true;
+  if (mediaDiagnostics && typeof mediaDiagnostics === 'object') error.mediaDiagnostics = mediaDiagnostics;
+  if (transcriptPreview) error.transcriptPreview = String(transcriptPreview);
+  if (ocrPreview) error.ocrPreview = String(ocrPreview);
+  if (pageTextPreview) error.pageTextPreview = String(pageTextPreview);
   return error;
 }
 
@@ -41,7 +58,12 @@ export function getAiErrorDetails(error) {
     code,
     upstreamStatus,
     upstreamCode,
-    message: msg
+    message: msg,
+    importTextReady: Boolean(error?.importTextReady),
+    mediaDiagnostics: error?.mediaDiagnostics || null,
+    transcriptPreview: error?.transcriptPreview || '',
+    ocrPreview: error?.ocrPreview || '',
+    pageTextPreview: error?.pageTextPreview || ''
   };
 }
 
@@ -1057,6 +1079,12 @@ export function getRecipeImportAiFailureCopy(error) {
   const details = getAiErrorDetails(error);
   const marker = formatAiStatusCode(details);
   if (isRateLimitExceededError(error)) {
+    if (details.importTextReady) {
+      return {
+        title: 'AI 导入暂时不可用',
+        message: `视频文字已读取成功，但 AI 整理菜谱时触发限流。请稍后点击重试整理${marker ? ` ${marker}` : ''}。`
+      };
+    }
     return {
       title: 'AI 导入暂时不可用',
       message: `AI 服务请求过于频繁，请稍后再试${marker ? ` ${marker}` : ''}。`
@@ -1554,6 +1582,11 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType =
       upstreamStatus: data?.upstreamStatus || 0,
       upstreamCode: data?.upstreamCode || '',
       detail: data?.detail || data?.error || data?.message || 'AI 解析失败',
+      importTextReady: Boolean(data?.importTextReady),
+      mediaDiagnostics: data?.mediaDiagnostics || null,
+      transcriptPreview: data?.transcriptPreview || '',
+      ocrPreview: data?.ocrPreview || '',
+      pageTextPreview: data?.pageTextPreview || '',
       fallback: 'AI 解析失败'
     });
   }
@@ -1588,6 +1621,11 @@ async function importXiaohongshuRecipeFromUrl({ url = '', userText = '' } = {}) 
       upstreamStatus: data?.upstreamStatus || 0,
       upstreamCode: data?.upstreamCode || '',
       detail: data?.detail || data?.error || data?.message || 'AI 解析失败',
+      importTextReady: Boolean(data?.importTextReady),
+      mediaDiagnostics: data?.mediaDiagnostics || null,
+      transcriptPreview: data?.transcriptPreview || '',
+      ocrPreview: data?.ocrPreview || '',
+      pageTextPreview: data?.pageTextPreview || '',
       fallback: 'AI 解析失败'
     });
   }

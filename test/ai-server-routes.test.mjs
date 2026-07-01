@@ -1313,17 +1313,76 @@ test('/api/recipe-import-from-url 跳过过大的视频帧且不请求 Vision', 
   assert.equal(visionCalls, 0);
 });
 
-test('/api/recipe-import-from-url 最终结构化限流时返回 429 和 mediaDiagnostics', async () => {
+test('/api/recipe-import-from-url 最终结构化限流时返回中间结果并复用视频文字缓存', async () => {
+  const videoBytes = Buffer.from('fake-video');
+  const audioBytes = Buffer.from('fake-audio');
   const aiPayloads = [];
-  const { app } = loadServerWithMocks({
-    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
-    axiosGet: async () => ({
+  let asrCalls = 0;
+  let visionCalls = 0;
+  const childProcessMock = {
+    spawn(_bin, args) {
+      const child = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.kill = () => {};
+      setImmediate(() => {
+        if (args.includes('-hide_banner')) {
+          child.stderr.emit('data', 'Duration: 00:00:09.00, start: 0.000000');
+          child.emit('close', 1);
+          return;
+        }
+        const outputPath = args[args.length - 1];
+        if (/\.m4a$/i.test(outputPath)) fs.writeFileSync(outputPath, audioBytes);
+        else fs.writeFileSync(outputPath, Buffer.from('fake-jpg'));
+        child.emit('close', 0);
+      });
+      return child;
+    }
+  };
+  globalThis.fetch = async () => {
+    asrCalls += 1;
+    return {
+      ok: true,
       status: 200,
-      headers: {},
-      data: '<meta property="og:description" content="页面文字：番茄炒蛋，番茄切块，鸡蛋打散，下锅炒熟。">'
-    }),
+      async json() {
+        return { text: '鸡腿洗净擦干，加入生抽抓匀腌制。锅中煎至两面金黄。' };
+      }
+    };
+  };
+  const { app } = loadServerWithMocks({
+    childProcessMock,
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async (url, options) => {
+      if (options.responseType === 'stream') {
+        assert.equal(url, 'https://sns-video-cache.xhscdn.com/stream/cache-test.m3u8');
+        return {
+          status: 200,
+          headers: { 'content-length': String(videoBytes.length) },
+          data: Readable.from([videoBytes])
+        };
+      }
+      return {
+        status: 200,
+        headers: {},
+        data: `
+          <meta property="og:description" content="页面文字：藤椒鸡腿，鸡腿和鲜藤椒。">
+          <meta property="og:video" content="https://sns-video-cache.xhscdn.com/stream/cache-test.m3u8">
+        `
+      };
+    },
     axiosPost: async (_url, payload) => {
       aiPayloads.push(payload);
+      if (payload.model === 'meta-llama/llama-4-scout-17b-16e-instruct') {
+        visionCalls += 1;
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({ text: '字幕：加入鲜藤椒调味后出锅。', confidence: 'high' })
+              }
+            }]
+          }
+        };
+      }
       if (/菜谱证据抽取器/.test(payload.messages[0].content)) {
         assert.equal(payload.model, 'openai/gpt-oss-20b');
         return {
@@ -1331,12 +1390,13 @@ test('/api/recipe-import-from-url 最终结构化限流时返回 429 和 mediaDi
             choices: [{
               message: {
                 content: JSON.stringify({
-                  dishNameCandidates: ['番茄炒蛋'],
-                  observedMainIngredients: ['番茄', '鸡蛋'],
-                  observedSeasonings: [],
+                  dishNameCandidates: ['藤椒鸡腿'],
+                  observedMainIngredients: ['鸡腿'],
+                  observedSeasonings: ['生抽'],
+                  observedAromatics: ['鲜藤椒'],
                   observedActions: [
-                    { order: 1, action: '番茄切块', ingredients: ['番茄'], evidenceText: '番茄切块', confidence: 'medium' },
-                    { order: 2, action: '鸡蛋打散并炒熟', ingredients: ['鸡蛋'], evidenceText: '鸡蛋打散，下锅炒熟', confidence: 'medium' }
+                    { order: 1, action: '鸡腿腌制', ingredients: ['鸡腿', '生抽'], evidenceText: '加入生抽抓匀腌制', confidence: 'medium' },
+                    { order: 2, action: '加入鲜藤椒出锅', ingredients: ['鲜藤椒'], evidenceText: '加入鲜藤椒调味后出锅', confidence: 'medium' }
                   ],
                   sourceConfidence: 'medium'
                 })
@@ -1355,16 +1415,35 @@ test('/api/recipe-import-from-url 最终结构化限流时返回 429 和 mediaDi
     }
   });
 
-  const res = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/rate-limit' });
+  const res = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/rate-limit-cache' });
 
   assert.equal(res.statusCode, 429);
   assert.equal(res.body.code, 'rate_limit_exceeded');
   assert.equal(res.body.error, 'AI 服务请求过于频繁，请稍后再试。');
   assert.equal(res.body.upstreamStatus, 413);
   assert.equal(res.body.upstreamCode, 'rate_limit_exceeded');
-  assert.equal(res.body.mediaDiagnostics.hasVideo, false);
+  assert.equal(res.body.importTextReady, true);
+  assert.match(res.body.transcriptPreview, /加入生抽抓匀腌制/);
+  assert.match(res.body.ocrPreview, /鲜藤椒/);
+  assert.match(res.body.pageTextPreview, /藤椒鸡腿/);
+  assert.equal(res.body.mediaDiagnostics.hasVideo, true);
+  assert.equal(res.body.mediaDiagnostics.cacheHit, false);
+  assert.equal(res.body.mediaDiagnostics.asrOk, true);
+  assert.equal(res.body.mediaDiagnostics.ocrOk, true);
   assert.ok(res.body.mediaDiagnostics.pageTextLength > 0);
-  assert.equal(aiPayloads.length, 2);
+  assert.equal(asrCalls, 1);
+  assert.equal(visionCalls, 3);
+
+  const retry = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/rate-limit-cache' });
+
+  assert.equal(retry.statusCode, 429);
+  assert.equal(retry.body.importTextReady, true);
+  assert.equal(retry.body.mediaDiagnostics.cacheHit, true);
+  assert.equal(retry.body.mediaDiagnostics.asrOk, true);
+  assert.equal(retry.body.mediaDiagnostics.ocrOk, true);
+  assert.equal(asrCalls, 1);
+  assert.equal(visionCalls, 3);
+  assert.equal(aiPayloads.filter(payload => /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')).length, 2);
 });
 
 test('/api/recipe-import-from-url 视频处理失败时使用页面文字继续生成草稿', async () => {

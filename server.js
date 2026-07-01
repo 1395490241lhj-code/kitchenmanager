@@ -1056,6 +1056,8 @@ const MEDIA_DOWNLOAD_TIMEOUT_MS = 30000;
 const MEDIA_FILE_TTL_MS = 60 * 60 * 1000;
 const MEDIA_MAX_FRAME_COUNT = 3;
 const MEDIA_MAX_FRAME_BYTES = 700 * 1024;
+const RECIPE_IMPORT_MEDIA_CACHE_TTL_MS = 30 * 60 * 1000;
+const recipeImportMediaCache = new Map();
 const MEDIA_TOO_LARGE_ERROR = new Error('MEDIA_TOO_LARGE');
 const MEDIA_DOWNLOAD_ERROR = new Error('MEDIA_DOWNLOAD_FAILED');
 const MEDIA_FFMPEG_ERROR = new Error('MEDIA_FFMPEG_FAILED');
@@ -1095,6 +1097,52 @@ async function cleanupOldMediaFiles(now = Date.now()) {
       // 临时文件清理是 best-effort，失败不影响本次请求。
     }
   }));
+}
+
+function normalizeRecipeImportCacheUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    parsed.hash = '';
+    return parsed.href;
+  } catch (_) {
+    return raw;
+  }
+}
+
+function getVideoCacheKeyPart(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    return `${parsed.hostname}${parsed.pathname}`;
+  } catch (_) {
+    return raw.slice(0, 180);
+  }
+}
+
+function buildRecipeImportMediaCacheKey({ rawUrl = '', finalUrl = '', selectedVideoUrl = '' } = {}) {
+  const pageKey = normalizeRecipeImportCacheUrl(finalUrl || rawUrl);
+  const videoKey = getVideoCacheKeyPart(selectedVideoUrl);
+  return [pageKey, videoKey].filter(Boolean).join('|');
+}
+
+function cloneRecipeImportCacheValue(value, fallback = null) {
+  if (!value || typeof value !== 'object') return fallback;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function cleanupRecipeImportMediaCache(now = Date.now()) {
+  for (const [key, entry] of recipeImportMediaCache.entries()) {
+    if (!entry || now - Number(entry.createdAt || 0) > RECIPE_IMPORT_MEDIA_CACHE_TTL_MS) {
+      recipeImportMediaCache.delete(key);
+    }
+  }
 }
 
 function parseContentLength(headers = {}) {
@@ -2920,7 +2968,32 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
   return { content };
 }
 
+function buildRecipeImportSourceMetadataBase({ sourcePayload, rawUrl, pageText, transcriptText, ocrText, mediaDiagnostics } = {}) {
+  return {
+    url: sourcePayload?.url || rawUrl,
+    finalUrl: sourcePayload?.finalUrl || '',
+    extractionMode: sourcePayload?.extractionMode || 'link-only',
+    hasHtml: Boolean(sourcePayload?.hasHtml),
+    hasStructuredMeta: Boolean(sourcePayload?.hasStructuredMeta),
+    hasOgDescription: Boolean(sourcePayload?.hasOgDescription),
+    hasJsonLd: Boolean(sourcePayload?.hasJsonLd),
+    hasInitialState: Boolean(sourcePayload?.hasInitialState),
+    trustedTextLength: Number(sourcePayload?.trustedTextLength || String(pageText || '').length),
+    trustedTextPreview: String(sourcePayload?.trustedTextPreview || pageText || '').slice(0, 500),
+    rawTextLength: Number(sourcePayload?.rawTextLength || 0),
+    rawTextPreview: String(sourcePayload?.rawTextPreview || '').slice(0, 500),
+    transcriptPreview: String(transcriptText || '').slice(0, 800),
+    ocrPreview: String(ocrText || '').slice(0, 800),
+    warnings: uniqueTextList([
+      ...(Array.isArray(sourcePayload?.warnings) ? sourcePayload.warnings : []),
+      ...(Array.isArray(mediaDiagnostics?.warnings) ? mediaDiagnostics.warnings : [])
+    ], 16),
+    mediaDiagnostics
+  };
+}
+
 app.post('/api/recipe-import-from-url', async (req, res) => {
+  cleanupRecipeImportMediaCache();
   const rawUrl = String(req.body?.url || '').trim();
   const userText = String(req.body?.userText || '').trim();
   if (!rawUrl) return sendAiJsonError(res, 400, 'missing_url', '缺少链接。');
@@ -2943,21 +3016,66 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
     buildVideoUrlSelectionDiagnostics(videoUrls, selectedVideoUrl),
     sourcePayload.media?.mediaDiagnostics
   );
-  const videoTextResult = await extractVideoRecipeTextForImport(selectedVideoUrl, videoUrls.length, selectionDiagnostics);
-  const mediaDiagnostics = {
-    ...videoTextResult.mediaDiagnostics,
-    extractionMode: sourcePayload.extractionMode,
-    pageTextLength: pageText.length
-  };
-  if (!selectedVideoUrl && videoUrls.length) {
-    mediaDiagnostics.warnings = uniqueTextList([
-      ...(Array.isArray(mediaDiagnostics.warnings) ? mediaDiagnostics.warnings : []),
-      '找到的视频候选不是可下载媒体地址，已使用页面文字生成草稿。'
-    ], 8);
+  const cacheKey = buildRecipeImportMediaCacheKey({
+    rawUrl,
+    finalUrl: sourcePayload.finalUrl,
+    selectedVideoUrl
+  });
+  const cachedMedia = cacheKey ? recipeImportMediaCache.get(cacheKey) : null;
+  let transcriptText = '';
+  let ocrText = '';
+  let mediaDiagnostics;
+  let sourceMetadataBase;
+
+  if (cachedMedia && Date.now() - Number(cachedMedia.createdAt || 0) <= RECIPE_IMPORT_MEDIA_CACHE_TTL_MS) {
+    transcriptText = String(cachedMedia.transcriptText || '');
+    ocrText = String(cachedMedia.ocrText || '');
+    mediaDiagnostics = {
+      ...cloneRecipeImportCacheValue(cachedMedia.mediaDiagnostics, {}),
+      cacheHit: true
+    };
+    sourceMetadataBase = {
+      ...cloneRecipeImportCacheValue(cachedMedia.sourceMetadataBase, {}),
+      mediaDiagnostics
+    };
+  } else {
+    const videoTextResult = await extractVideoRecipeTextForImport(selectedVideoUrl, videoUrls.length, selectionDiagnostics);
+    transcriptText = String(videoTextResult.transcriptText || '');
+    ocrText = String(videoTextResult.ocrText || '');
+    mediaDiagnostics = {
+      ...videoTextResult.mediaDiagnostics,
+      extractionMode: sourcePayload.extractionMode,
+      pageTextLength: pageText.length,
+      cacheHit: false
+    };
+    if (!selectedVideoUrl && videoUrls.length) {
+      mediaDiagnostics.warnings = uniqueTextList([
+        ...(Array.isArray(mediaDiagnostics.warnings) ? mediaDiagnostics.warnings : []),
+        '找到的视频候选不是可下载媒体地址，已使用页面文字生成草稿。'
+      ], 8);
+    }
+    sourceMetadataBase = buildRecipeImportSourceMetadataBase({
+      sourcePayload,
+      rawUrl,
+      pageText,
+      transcriptText,
+      ocrText,
+      mediaDiagnostics
+    });
+    if (cacheKey) {
+      recipeImportMediaCache.set(cacheKey, {
+        createdAt: Date.now(),
+        pageText,
+        transcriptText,
+        ocrText,
+        mediaDiagnostics: cloneRecipeImportCacheValue(mediaDiagnostics, {}),
+        sourceMetadataBase: cloneRecipeImportCacheValue(sourceMetadataBase, {})
+      });
+    }
   }
   const limitedPageText = limitSourceSectionText(pageText, 1000);
-  const limitedTranscriptText = limitSourceSectionText(videoTextResult.transcriptText, 4000);
-  const limitedOcrText = limitSourceSectionText(videoTextResult.ocrText, 1500);
+  const limitedTranscriptText = limitSourceSectionText(transcriptText, 4000);
+  const limitedOcrText = limitSourceSectionText(ocrText, 1500);
   const limitedUserText = limitSourceSectionText(userText, 2000);
   const sections = [];
   appendSourceSection(sections, '页面文字', limitedPageText);
@@ -2966,26 +3084,14 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
   appendSourceSection(sections, '用户补充', limitedUserText);
   const sourceText = sections.join('\n\n').trim();
   if (!sourceText) {
+    cleanupRecipeImportMediaCache();
     return sendAiJsonError(res, 422, 'no_recipe_text', '没能从链接中读取到足够内容，请粘贴菜谱文字后再试。', { mediaDiagnostics });
   }
 
   const sourceMetadata = {
-    url: sourcePayload.url || rawUrl,
-    finalUrl: sourcePayload.finalUrl || '',
-    extractionMode: sourcePayload.extractionMode || 'link-only',
-    hasHtml: Boolean(sourcePayload.hasHtml),
-    hasStructuredMeta: Boolean(sourcePayload.hasStructuredMeta),
-    hasOgDescription: Boolean(sourcePayload.hasOgDescription),
-    hasJsonLd: Boolean(sourcePayload.hasJsonLd),
-    hasInitialState: Boolean(sourcePayload.hasInitialState),
-    trustedTextLength: Number(sourcePayload.trustedTextLength || pageText.length),
-    trustedTextPreview: String(sourcePayload.trustedTextPreview || pageText).slice(0, 500),
-    rawTextLength: Number(sourcePayload.rawTextLength || 0),
-    rawTextPreview: String(sourcePayload.rawTextPreview || '').slice(0, 500),
-    transcriptPreview: String(videoTextResult.transcriptText || '').slice(0, 800),
-    ocrPreview: String(videoTextResult.ocrText || '').slice(0, 800),
+    ...sourceMetadataBase,
     warnings: uniqueTextList([
-      ...(Array.isArray(sourcePayload.warnings) ? sourcePayload.warnings : []),
+      ...(Array.isArray(sourceMetadataBase?.warnings) ? sourceMetadataBase.warnings : []),
       ...(Array.isArray(mediaDiagnostics.warnings) ? mediaDiagnostics.warnings : [])
     ], 16),
     mediaDiagnostics,
@@ -3003,9 +3109,21 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
       sourceType: 'xiaohongshu',
       sourceMetadata
     });
+    cleanupRecipeImportMediaCache();
     return res.json({ ...draft, mediaDiagnostics });
   } catch (err) {
-    return sendAiParsePipelineError(res, err, 'AI 解析请求失败，请稍后重试。', { mediaDiagnostics });
+    const info = getUpstreamAiErrorInfo(err);
+    const rateLimitExtra = isRateLimitExceeded(info.status, info.code)
+      ? {
+          mediaDiagnostics,
+          importTextReady: true,
+          transcriptPreview: transcriptText.slice(0, 1200),
+          ocrPreview: ocrText.slice(0, 800),
+          pageTextPreview: pageText.slice(0, 500)
+        }
+      : { mediaDiagnostics };
+    cleanupRecipeImportMediaCache();
+    return sendAiParsePipelineError(res, err, 'AI 解析请求失败，请稍后重试。', rateLimitExtra);
   }
 });
 
