@@ -122,6 +122,23 @@ test('加入计划缺菜检测只判断有没有，不因数量不足打扰', as
   assert.equal(confirmCalled, false);
 });
 
+test('加入计划缺菜与推荐/买菜共用同一核心食材口径（菜名归一化）', () => {
+  // 菜谱写「西红柿」，缺菜应以归一化名「番茄」呈现（与推荐卡 / 买菜清单一致），
+  // 而不是菜谱原文「西红柿」；调料「盐」仍被排除。锁定统一口径，防止回退到旧的按原文取核心食材。
+  const pack = {
+    recipes: [{ id: 'xhs-egg', name: '西红柿炒蛋', method: '炒熟即可' }],
+    recipe_ingredients: {
+      'xhs-egg': [
+        { item: '西红柿', qty: 2, unit: '个' },
+        { item: '鸡蛋', qty: 2, unit: '个' },
+        { item: '盐', qty: 1, unit: '适量' }
+      ]
+    }
+  };
+  const missing = getPlanMissingItems(pack.recipes[0], pack, []);
+  assert.deepEqual(missing.map(item => item.name), ['番茄', '鸡蛋']);
+});
+
 test('用户取消后只保留今日计划，不加入买菜清单', async () => {
   const result = await addRecipeToPlanWithMissingCheck('tomato-egg-noodle', PACK, BASE_INV, {
     toast: false,

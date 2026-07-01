@@ -1,6 +1,5 @@
 import { isIngredientMatch, isInventoryAvailable, loadInventory } from '../inventory.js?v=222';
-import { addMissingRecipeIngredientsToShopping, addRecipeToPlan } from '../recommendations.js?v=222';
-import { getRecipeCoreItems } from '../utils/cooked-meal.js?v=222';
+import { addMissingRecipeIngredientsToShopping, addRecipeToPlan, getRecipeCoreIngredients } from '../recommendations.js?v=222';
 import { escapeHtml, showToast } from './status.js?v=222';
 
 function uniqueMissingItems(items = []) {
@@ -141,7 +140,10 @@ function normalizePlanPack(recipe, pack, fallbackItems = null) {
 
 function getMissingCoreItemsByPresence(recipe, pack, inv, fallbackItems = null) {
   const corePack = normalizePlanPack(recipe, pack, fallbackItems);
-  const coreItems = uniqueMissingItems(getRecipeCoreItems(recipe, corePack));
+  // 复用推荐 / 买菜同一套核心食材定义（getRecipeCoreIngredients：菜名先归一化再统一分类），
+  // 让加入计划弹窗与推荐卡的「核心食材」口径、显示名、写入买菜的 qty/unit 保持一致。
+  // 仍保持「只看有没有、不因数量不足打扰」的语义——这是刻意设计（见本目录测试），故只做存在性过滤。
+  const coreItems = uniqueMissingItems(getRecipeCoreIngredients(recipe, corePack));
   const inventory = Array.isArray(inv) ? inv : loadInventory();
   return coreItems.filter(item => {
     const name = item.item || item.name;
