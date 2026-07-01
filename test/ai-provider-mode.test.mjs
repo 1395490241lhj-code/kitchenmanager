@@ -11,6 +11,7 @@ import {
   getAiErrorDetails,
   getAiConfig,
   getReceiptAiFailureCopy,
+  getRecipeImportAiFailureCopy,
   importRecipeFromSource,
   recognizeReceipt,
   segmentSocialRecipeText,
@@ -684,6 +685,39 @@ test('菜谱导入支持小红书分享文案提取链接并保留补充文字',
   assert.deepEqual(calls, ['/api/recipe-import-from-url']);
 });
 
+test('小红书菜谱导入限流时提示稍后再试，不 fallback 成粘贴文字草稿', async () => {
+  const calls = [];
+  global.fetch = async (url) => {
+    calls.push(String(url));
+    assert.equal(url, '/api/recipe-import-from-url');
+    return {
+      ok: false,
+      status: 429,
+      json: async () => ({
+        status: 429,
+        code: 'rate_limit_exceeded',
+        upstreamStatus: 413,
+        upstreamCode: 'rate_limit_exceeded',
+        error: 'AI 服务请求过于频繁，请稍后再试。',
+        mediaDiagnostics: { hasVideo: true, audioExtracted: true, framesExtracted: 3 }
+      })
+    };
+  };
+
+  await assert.rejects(
+    importRecipeFromSource({ url: 'http://xhslink.com/a/xxxxx', text: '用户补充文字' }),
+    err => {
+      assert.equal(err.status, 429);
+      assert.equal(err.code, 'rate_limit_exceeded');
+      const copy = getRecipeImportAiFailureCopy(err);
+      assert.match(copy.message, /AI 服务请求过于频繁，请稍后再试/);
+      assert.match(copy.message, /429\/rate_limit_exceeded/);
+      return true;
+    }
+  );
+  assert.deepEqual(calls, ['/api/recipe-import-from-url']);
+});
+
 test('菜谱导入保留鲜藤椒步骤，不自动补成加水焖熟', async () => {
   const sourceMethod = '鸡腿煎至两面金黄，加入鲜藤椒、生抽、老抽、料酒、盐、糖调味，翻炒均匀后出锅。';
   global.fetch = async (url, options) => {
@@ -966,9 +1000,9 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   assert.match(server, /observedActions/);
   assert.match(server, /有"水"不等于加水焖煮/);
   assert.match(aiParsePipeline, /const evidenceResp = await axios\.post/);
-  assert.match(aiParsePipeline, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL/);
+  assert.match(aiParsePipeline, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_IMPORT_MODEL/);
   assert.match(aiParsePipeline, /const recipeResp = await axios\.post/);
-  assert.match(aiParsePipeline, /model: OPENAI_MODEL/);
+  assert.match(aiParsePipeline, /model: OPENAI_IMPORT_MODEL/);
   assert.match(aiParsePipeline, /sanitizeRecipe\(parsed, \{ sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics \}\)/);
   assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiParseRoute, /parseRecipeDraftWithAi\(\{ text, imageBase64, sourceType, sourceMetadata \}\)/);

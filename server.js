@@ -6,10 +6,10 @@
  *     跟随 302 短链（xhslink.com → 真实长链）、伪造移动端 UA、正则提取
  *     window.__INITIAL_STATE__ / og:title / description 等文案，返回纯文本 JSON。
  * - /api/ai-chat：默认 AI 代理（密钥/Base URL 来自环境变量），前端不需要本地 API Key。
- * - /api/ai-parse：后端统一呼叫 AI（文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL），
+ * - /api/ai-parse：后端统一呼叫 AI（文本菜谱导入用 OPENAI_IMPORT_MODEL，图片用 OPENAI_VISION_MODEL），
  *     返回模型 JSON 原文。
  *
- * 环境变量（Render）：PORT、OPENAI_API_KEY、OPENAI_BASE_URL、OPENAI_MODEL、OPENAI_VISION_MODEL（可选）、OPENAI_TRANSCRIBE_MODEL（可选）。
+ * 环境变量（Render）：PORT、OPENAI_API_KEY、OPENAI_BASE_URL、OPENAI_MODEL、OPENAI_IMPORT_MODEL（可选）、OPENAI_VISION_MODEL（可选）、OPENAI_TRANSCRIBE_MODEL（可选）。
  * 启动：npm install && npm start  （默认 http://localhost:3000）
  */
 const path = require('path');
@@ -49,10 +49,12 @@ app.use((err, req, res, next) => {
 
 const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1';
 
-// ── AI 解析（120B）配置：密钥与 Base URL 由 Render 环境变量提供 ──
+// ── AI 配置：密钥与 Base URL 由 Render 环境变量提供 ──
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.groq.com/openai/v1';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'openai/gpt-oss-120b';
+const OPENAI_IMPORT_MODEL = process.env.OPENAI_IMPORT_MODEL
+  || (/groq\.com/i.test(OPENAI_BASE_URL) ? 'openai/gpt-oss-20b' : OPENAI_MODEL);
 const DEFAULT_OPENAI_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || DEFAULT_OPENAI_VISION_MODEL;
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
@@ -160,6 +162,15 @@ function sendAiUpstreamError(res, err, error = 'AI 服务暂时不可用。') {
   };
   if (process.env.NODE_ENV !== 'production') payload.detail = info.detail;
   return sendAiJsonError(res, info.status, info.code, error, payload);
+}
+
+function isRateLimitExceeded(status, code) {
+  const normalizedCode = String(code || '').trim().toLowerCase();
+  const numericStatus = Number(status || 0);
+  return normalizedCode === 'rate_limit_exceeded'
+    || normalizedCode === 'rate_limited'
+    || normalizedCode === 'rate_limit'
+    || numericStatus === 429;
 }
 
 function getAiMessageContent(resp) {
@@ -1043,7 +1054,7 @@ const MEDIA_TMP_DIR = path.join(os.tmpdir(), 'kitchenmanager-media');
 const MEDIA_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
 const MEDIA_DOWNLOAD_TIMEOUT_MS = 30000;
 const MEDIA_FILE_TTL_MS = 60 * 60 * 1000;
-const MEDIA_MAX_FRAME_COUNT = 4;
+const MEDIA_MAX_FRAME_COUNT = 3;
 const MEDIA_MAX_FRAME_BYTES = 700 * 1024;
 const MEDIA_TOO_LARGE_ERROR = new Error('MEDIA_TOO_LARGE');
 const MEDIA_DOWNLOAD_ERROR = new Error('MEDIA_DOWNLOAD_FAILED');
@@ -1570,6 +1581,13 @@ function appendSourceSection(sections, title, value) {
   if (text) sections.push(`【${title}】\n${text}`);
 }
 
+function limitSourceSectionText(value, maxChars) {
+  const text = String(value || '').trim();
+  const limit = Number(maxChars || 0);
+  if (!text || !Number.isFinite(limit) || limit <= 0) return text;
+  return text.length > limit ? text.slice(0, limit) : text;
+}
+
 async function ocrFrameWithVisionModel(frameId, framePath) {
   if (!OPENAI_API_KEY) throw new Error('MISSING_OPENAI_API_KEY');
   const frameBuffer = await fs.promises.readFile(framePath);
@@ -1723,7 +1741,9 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
     copyAsrDiagnostics(mediaDiagnostics, transcript);
   } catch (err) {
     copyAsrDiagnostics(mediaDiagnostics, err);
-    if (mediaDiagnostics.audioExtracted && Number(mediaDiagnostics.asrUpstreamStatus) === 413) {
+    if (isRateLimitExceeded(mediaDiagnostics.asrUpstreamStatus, mediaDiagnostics.asrUpstreamCode)) {
+      mediaDiagnostics.warnings.push('口播转录触发限流，已跳过口播转录。');
+    } else if (mediaDiagnostics.audioExtracted && Number(mediaDiagnostics.asrUpstreamStatus) === 413) {
       mediaDiagnostics.warnings.push('音频转录请求过大，已跳过口播转录。');
     } else {
       mediaDiagnostics.warnings.push(mediaDiagnostics.audioExtracted
@@ -1752,6 +1772,9 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
         mediaDiagnostics.failedFrameCount += 1;
         if (!mediaDiagnostics.visionUpstreamCode && !mediaDiagnostics.visionErrorPreview) {
           copyVisionDiagnostics(mediaDiagnostics, err);
+        }
+        if (isRateLimitExceeded(err?.visionUpstreamStatus, err?.visionUpstreamCode)) {
+          mediaDiagnostics.warnings.push('画面文字识别触发限流，已跳过部分帧。');
         }
       }
     }
@@ -2782,11 +2805,24 @@ function createAiParsePipelineError(status, code, message) {
   return err;
 }
 
-function sendAiParsePipelineError(res, err, fallback = 'AI 解析请求失败，请稍后重试。') {
+function sendAiParsePipelineError(res, err, fallback = 'AI 解析请求失败，请稍后重试。', extra = {}) {
   if (err && err.aiParseStatus) {
-    return sendAiJsonError(res, err.aiParseStatus, err.aiParseCode || 'ai_parse_error', err.aiParseMessage || fallback);
+    return sendAiJsonError(res, err.aiParseStatus, err.aiParseCode || 'ai_parse_error', err.aiParseMessage || fallback, extra);
   }
-  return sendAiUpstreamError(res, err, fallback);
+  const info = getUpstreamAiErrorInfo(err);
+  if (isRateLimitExceeded(info.status, info.code)) {
+    return sendAiJsonError(res, 429, 'rate_limit_exceeded', 'AI 服务请求过于频繁，请稍后再试。', {
+      upstreamStatus: info.status,
+      upstreamCode: info.code,
+      ...extra
+    });
+  }
+  return sendAiJsonError(res, info.status, info.code, fallback, {
+    upstreamStatus: info.status,
+    upstreamCode: info.code,
+    ...(process.env.NODE_ENV !== 'production' ? { detail: info.detail } : {}),
+    ...extra
+  });
 }
 
 async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceType = 'manual', sourceMetadata = null } = {}) {
@@ -2803,7 +2839,7 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
   const evidenceResp = await axios.post(
     resolveChatUrl(OPENAI_BASE_URL),
     {
-      model: imageBase64 ? OPENAI_VISION_MODEL : OPENAI_MODEL,
+      model: imageBase64 ? OPENAI_VISION_MODEL : OPENAI_IMPORT_MODEL,
       messages: [
         { role: 'system', content: RECIPE_EVIDENCE_SYSTEM_PROMPT },
         { role: 'user', content: evidenceUserContent }
@@ -2849,7 +2885,7 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
   const recipeResp = await axios.post(
     resolveChatUrl(OPENAI_BASE_URL),
     {
-      model: OPENAI_MODEL,
+      model: OPENAI_IMPORT_MODEL,
       messages: [
         { role: 'system', content: IMPORT_SYSTEM_PROMPT },
         { role: 'user', content: recipeInstruction }
@@ -2919,11 +2955,15 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
       '找到的视频候选不是可下载媒体地址，已使用页面文字生成草稿。'
     ], 8);
   }
+  const limitedPageText = limitSourceSectionText(pageText, 1000);
+  const limitedTranscriptText = limitSourceSectionText(videoTextResult.transcriptText, 4000);
+  const limitedOcrText = limitSourceSectionText(videoTextResult.ocrText, 1500);
+  const limitedUserText = limitSourceSectionText(userText, 2000);
   const sections = [];
-  appendSourceSection(sections, '页面文字', pageText);
-  appendSourceSection(sections, '视频口播转录', videoTextResult.transcriptText);
-  appendSourceSection(sections, '视频画面文字', videoTextResult.ocrText);
-  appendSourceSection(sections, '用户补充', userText);
+  appendSourceSection(sections, '页面文字', limitedPageText);
+  appendSourceSection(sections, '视频口播转录', limitedTranscriptText);
+  appendSourceSection(sections, '视频画面文字', limitedOcrText);
+  appendSourceSection(sections, '用户补充', limitedUserText);
   const sourceText = sections.join('\n\n').trim();
   if (!sourceText) {
     return sendAiJsonError(res, 422, 'no_recipe_text', '没能从链接中读取到足够内容，请粘贴菜谱文字后再试。', { mediaDiagnostics });
@@ -2942,6 +2982,8 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
     trustedTextPreview: String(sourcePayload.trustedTextPreview || pageText).slice(0, 500),
     rawTextLength: Number(sourcePayload.rawTextLength || 0),
     rawTextPreview: String(sourcePayload.rawTextPreview || '').slice(0, 500),
+    transcriptPreview: String(videoTextResult.transcriptText || '').slice(0, 800),
+    ocrPreview: String(videoTextResult.ocrText || '').slice(0, 800),
     warnings: uniqueTextList([
       ...(Array.isArray(sourcePayload.warnings) ? sourcePayload.warnings : []),
       ...(Array.isArray(mediaDiagnostics.warnings) ? mediaDiagnostics.warnings : [])
@@ -2963,11 +3005,11 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
     });
     return res.json({ ...draft, mediaDiagnostics });
   } catch (err) {
-    return sendAiParsePipelineError(res, err, 'AI 解析请求失败，请稍后重试。');
+    return sendAiParsePipelineError(res, err, 'AI 解析请求失败，请稍后重试。', { mediaDiagnostics });
   }
 });
 
-// AI 解析路由：文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL，密钥来自 Render 环境变量。
+// AI 解析路由：文本菜谱导入用 OPENAI_IMPORT_MODEL，图片用 OPENAI_VISION_MODEL，密钥来自 Render 环境变量。
 app.post('/api/ai-parse', async (req, res) => {
   const text = String((req.body && req.body.text) || '').trim();
   const imageBase64 = (req.body && req.body.imageBase64) || null;

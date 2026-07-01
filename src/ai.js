@@ -45,6 +45,16 @@ export function getAiErrorDetails(error) {
   };
 }
 
+function isRateLimitExceededError(error) {
+  const details = getAiErrorDetails(error);
+  const code = String(details.code || details.upstreamCode || '').trim().toLowerCase();
+  return code === 'rate_limit_exceeded'
+    || code === 'rate_limited'
+    || code === 'rate_limit'
+    || details.status === 429
+    || details.upstreamStatus === 429;
+}
+
 function formatAiStatusCode(details) {
   const status = details?.status || details?.upstreamStatus || 0;
   const code = details?.code || details?.upstreamCode || '';
@@ -1046,6 +1056,12 @@ export function getReceiptAiFailureCopy(error) {
 export function getRecipeImportAiFailureCopy(error) {
   const details = getAiErrorDetails(error);
   const marker = formatAiStatusCode(details);
+  if (isRateLimitExceededError(error)) {
+    return {
+      title: 'AI 导入暂时不可用',
+      message: `AI 服务请求过于频繁，请稍后再试${marker ? ` ${marker}` : ''}。`
+    };
+  }
   return {
     title: 'AI 导入暂时不可用',
     message: `你可以改用粘贴文本整理，或稍后再试${marker ? ` ${marker}` : ''}。`
@@ -1516,7 +1532,7 @@ function validateImportedRecipe(input, { sourceText = '', evidence = null, diagn
   };
 }
 
-// 通过后端 /api/ai-parse 调用 AI：文本用 OPENAI_MODEL，图片用 OPENAI_VISION_MODEL。
+// 通过后端 /api/ai-parse 调用 AI：文本菜谱导入用 OPENAI_IMPORT_MODEL，图片用 OPENAI_VISION_MODEL。
 // 前端不再校验本地 API Key，未配置也能正常点击、走后端代理。
 async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType = 'manual', sourceMetadata = null } = {}) {
   let res;
@@ -1607,6 +1623,7 @@ export async function importRecipeFromSource({ url = '', file = null, text = '' 
     try {
       return await importXiaohongshuRecipeFromUrl({ url: cleanUrl, userText: pastedText });
     } catch (err) {
+      if (isRateLimitExceededError(err)) throw err;
       if (!pastedText) throw err;
       return parseRecipeWith120B({
         text: pastedText,
