@@ -27,7 +27,7 @@ test('PWA 安装模块捕获 beforeinstallprompt 并阻止浏览器默认弹窗'
 });
 
 test('今日页安装提示提供 iOS 说明和 Android 安装按钮入口', () => {
-  const home = read('src/views/home-view.js');
+  const home = read('src/views/home/home-nudges.js');
   const pwa = read('src/pwa-install.js');
 
   assert.match(home, /home-pwa-install-nudge/);

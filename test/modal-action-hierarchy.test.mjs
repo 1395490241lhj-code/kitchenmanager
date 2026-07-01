@@ -72,7 +72,7 @@ test('备份导入确认使用三按钮层级且不会静默覆盖', () => {
 });
 
 test('饭后记一下弹窗保留更新库存入口并使用统一按钮层级', () => {
-  const source = read('src/views/home-view.js');
+  const source = read('src/views/home/cooked-meal-modal.js');
 
   assert.match(source, /<span class="km-modal-title">饭后记一下<\/span>/);
   assert.match(source, /选择实际做了哪些菜，库存会按用量更新/);

@@ -10,7 +10,7 @@ function read(rel) {
 }
 
 test('首页备份提醒接入导出和稍后提醒动作', () => {
-  const home = read('src/views/home-view.js');
+  const home = read('src/views/home/home-nudges.js');
 
   assert.match(home, /shouldShowBackupNudge\(\{/);
   assert.match(home, /isDemoMode/);

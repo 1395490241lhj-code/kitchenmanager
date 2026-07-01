@@ -1,14 +1,14 @@
 import { S, todayISO } from '../storage.js?v=222';
-import { buildCatalog, getCanonicalName, buildIngredientOptions, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName, UNIT_TYPE, explodeCombinedItems } from '../ingredients.js?v=222';
-import { applyCookCalibration, computeCookDeductions, isInventoryAvailable, loadInventory, mergeInventoryEntry, remainingDays, gearInfo, GEAR_LABELS } from '../inventory.js?v=222';
+import { buildCatalog, getCanonicalName, explodeCombinedItems } from '../ingredients.js?v=222';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=222';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=222';
 import {
   addMissingRecipeIngredientsToShopping,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
-  getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, markRecipeCookedKeepPlan, processAiData
+  getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData
 } from '../recommendations.js?v=222';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=223';
-import { callAiCreativeRecipeByIngredients, callAiForCookedMeal, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=222';
+import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=222';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=223';
 import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=223';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=222';
@@ -18,19 +18,13 @@ import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../c
 import { parseFoodLines } from '../utils/food-input-parser.js?v=222';
 import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=222';
 import { splitMethodSteps } from '../utils/method-steps.js?v=222';
-import { applyReceiptPantryItems } from '../utils/receipt-import.js?v=222';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=224';
 import { createUserRecipe } from '../components/recipe-create-modal.js?v=222';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=223';
-import { buildKitchenBackup, downloadJsonFile, loadOverlay, markBackupNudgeDismissed, markKitchenBackupExported, shouldShowBackupNudge } from '../backup.js?v=223';
-import { dismissPwaInstallPrompt, getPwaInstallPromptState, promptPwaInstall } from '../pwa-install.js?v=224';
-import {
-  buildLocalCookedMealCandidates,
-  getRecipeCoreItems,
-  matchCookedMealRecipe,
-  mergeCookedMealCandidates,
-  normalizeAiCookedMealResult
-} from '../utils/cooked-meal.js?v=222';
+import { getHomeTab, setHomeTab, getTodayPlanCount } from './home/home-tab-state.js?v=224';
+import { enterDemoKitchen, isDemoKitchenMode, markDemoPlanAdded, renderDemoKitchenBanner, syncDemoStepFromTab } from './home/demo-kitchen.js?v=224';
+import { createRecordCookedCta } from './home/cooked-meal-modal.js?v=224';
+import { renderBackupNudge, renderPwaInstallNudge } from './home/home-nudges.js?v=224';
+import { writeItemsToInventory, writeReceiptPantryItems } from '../utils/inventory-write.js?v=224';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -65,7 +59,6 @@ function buildGreeting(expiringCount) {
 
 // 到期提醒不统计鸡蛋、牛奶（它们按常备品状态管理，不看保质期）。
 const EXPIRY_EXCLUDE_NAMES = new Set(['鸡蛋', '牛奶']);
-const KITCHEN_BACKUP_EXPORT_MESSAGE = '已导出厨房备份。请把文件保存到 iCloud、网盘或电脑里。';
 
 function isExpiryTracked(item) {
   return isInventoryAvailable(item) && !EXPIRY_EXCLUDE_NAMES.has(getCanonicalName(item.name || ''));
@@ -82,96 +75,6 @@ function hasUsableInventory(inv) {
   return (inv || []).some(isInventoryAvailable);
 }
 
-function getTodayPlanRowsForBackupNudge() {
-  const today = todayISO();
-  return S.load(S.keys.plan, [])
-    .filter(row => row && (row.date || today) === today && !row.isCooked);
-}
-
-function renderBackupNudge(inv, { isDemoMode = false } = {}) {
-  const shouldShow = shouldShowBackupNudge({
-    inventory: inv,
-    plan: getTodayPlanRowsForBackupNudge(),
-    shoppingItems: loadShoppingItems(),
-    overlay: loadOverlay(),
-    isDemoMode
-  });
-  if (!shouldShow) return null;
-
-  const section = document.createElement('section');
-  section.className = 'home-backup-nudge';
-  section.innerHTML = `
-    <div class="home-backup-nudge-copy">
-      <strong>已经有厨房数据了，建议导出一份备份。</strong>
-      <span>换设备或清缓存前，可以用它恢复。</span>
-    </div>
-    <div class="home-backup-nudge-actions">
-      <button type="button" class="btn ok" id="homeBackupExport">导出备份</button>
-      <button type="button" class="btn" id="homeBackupLater">稍后提醒</button>
-    </div>
-  `;
-  section.querySelector('#homeBackupExport').onclick = () => {
-    downloadJsonFile(buildKitchenBackup(), `kitchenmanager-backup-${todayISO()}.json`);
-    markKitchenBackupExported();
-    section.remove();
-    showToast(KITCHEN_BACKUP_EXPORT_MESSAGE, { tone: 'success' });
-  };
-  section.querySelector('#homeBackupLater').onclick = () => {
-    markBackupNudgeDismissed();
-    section.remove();
-    showToast('好的，7 天内不再提醒。', { tone: 'info' });
-  };
-  return section;
-}
-
-function renderPwaInstallNudge(inv, { isDemoMode = false } = {}) {
-  const state = getPwaInstallPromptState({
-    inventory: inv,
-    plan: getTodayPlanRowsForBackupNudge(),
-    isDemoMode
-  });
-  if (!state.show) return null;
-
-  const section = document.createElement('section');
-  section.className = `home-pwa-install-nudge is-${state.platform}`;
-  const icon = state.platform === 'ios' ? '↗' : '⬇';
-  section.innerHTML = `
-    <div class="home-pwa-install-icon" aria-hidden="true">${icon}</div>
-    <div class="home-pwa-install-copy">
-      <strong>${escapeHtml(state.title)}</strong>
-      <span>${escapeHtml(state.body)}</span>
-    </div>
-    <div class="home-pwa-install-actions">
-      <button type="button" class="btn ok" id="homePwaInstallPrimary">${escapeHtml(state.primaryLabel)}</button>
-      <button type="button" class="btn" id="homePwaInstallLater">${escapeHtml(state.secondaryLabel)}</button>
-    </div>
-  `;
-  const primary = section.querySelector('#homePwaInstallPrimary');
-  const later = section.querySelector('#homePwaInstallLater');
-  const closeWithDismissal = (message = '稍后再提醒你。') => {
-    dismissPwaInstallPrompt();
-    section.remove();
-    showToast(message, { tone: 'info' });
-  };
-
-  if (state.canPrompt) {
-    primary.onclick = async () => {
-      primary.disabled = true;
-      primary.textContent = '正在打开…';
-      const choice = await promptPwaInstall();
-      section.remove();
-      if (choice && choice.outcome === 'accepted') {
-        showToast('已开始安装', { tone: 'success' });
-      } else {
-        showToast('稍后再提醒你。', { tone: 'info' });
-      }
-    };
-  } else {
-    primary.onclick = () => closeWithDismissal('可以随时从 Safari 分享菜单添加。');
-  }
-  later.onclick = () => closeWithDismissal('好的，7 天内不再提醒。');
-  return section;
-}
 
 function getRecommendationUiContext() {
   return {
@@ -377,7 +280,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
     feedback.querySelector('.home-suggest-go-plan').onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      lastWxTab = 'plan';
+      setHomeTab('plan');
       if (typeof onRoute === 'function') {
         onRoute();
         return;
@@ -885,16 +788,6 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
   return section;
 }
 
-const DEMO_KITCHEN_ITEMS = [
-  { name: '鸡蛋', qty: 6, unit: '个' },
-  { name: '番茄', qty: 3, unit: '个' },
-  { name: '土豆', qty: 2, unit: '个' },
-  { name: '豆腐', qty: 1, unit: '盒' },
-  { name: '青椒', qty: 2, unit: '个' },
-  { name: '牛肉', qty: 1, unit: '份' },
-  { name: '面条', qty: 1, unit: '袋' },
-  { name: '青菜', qty: 1, unit: '把' }
-];
 
 // ── 空库存引导：先让新用户用生活化的入口完成第一步，而不是跳去别的页面。 ─────
 function renderOnboarding(pack, { onRoute = () => {} } = {}) {
@@ -921,231 +814,6 @@ function renderOnboarding(pack, { onRoute = () => {} } = {}) {
   return section;
 }
 
-const DEMO_BUSINESS_KEY_NAMES = [
-  'inventory',
-  'plan',
-  'shopping_items',
-  'staples',
-  'pantry_config',
-  'prep_done',
-  'ai_recs',
-  'local_recs',
-  'rec_time',
-  'rec_signature',
-  'recipe_usage',
-  'recipe_activity',
-  'favorite_recipes'
-];
-
-function isDemoKitchenMode() {
-  try { return localStorage.getItem(S.keys.demo_mode) === '1'; } catch (e) { return false; }
-}
-
-function getDemoStep() {
-  try { return localStorage.getItem(S.keys.demo_step) || 'recs'; } catch (e) { return 'recs'; }
-}
-
-function setDemoStep(step) {
-  if (!isDemoKitchenMode()) return;
-  try { localStorage.setItem(S.keys.demo_step, step); } catch (e) { /* ignore private mode */ }
-}
-
-function advanceDemoStep(step, { onRoute = null } = {}) {
-  if (!isDemoKitchenMode()) return;
-  setDemoStep(step);
-  if (step === 'recs') lastWxTab = 'recs';
-  if (step === 'plan' || step === 'cook') lastWxTab = 'plan';
-  if (typeof onRoute === 'function') onRoute();
-}
-
-function markDemoPlanAdded(added) {
-  if (!added || !isDemoKitchenMode()) return;
-  setDemoStep('plan');
-  refreshDemoKitchenBanner();
-}
-
-function refreshDemoKitchenBanner({ onRoute = null } = {}) {
-  const current = document.querySelector('.demo-kitchen-banner');
-  if (!current) return;
-  const route = onRoute || current.__demoOnRoute || (() => {});
-  const next = renderDemoKitchenBanner({ onRoute: route });
-  current.replaceWith(next);
-}
-
-function syncDemoStepFromTab(tabName, { onRoute = () => {} } = {}) {
-  if (!isDemoKitchenMode()) return;
-  if (tabName === 'recs') {
-    setDemoStep('recs');
-  } else if (tabName === 'plan') {
-    setDemoStep(getTodayPlanCount() > 0 ? 'cook' : 'recs');
-  } else {
-    return;
-  }
-  refreshDemoKitchenBanner({ onRoute });
-}
-
-function saveDemoKitchenSnapshot() {
-  if (isDemoKitchenMode() && localStorage.getItem(S.keys.demo_snapshot)) return;
-  const keys = {};
-  for (const name of DEMO_BUSINESS_KEY_NAMES) {
-    const key = S.keys[name];
-    if (!key) continue;
-    const value = localStorage.getItem(key);
-    keys[name] = value === null ? { exists: false } : { exists: true, value };
-  }
-  S.save(S.keys.demo_snapshot, { version: 1, createdAt: new Date().toISOString(), keys });
-}
-
-function enterDemoKitchen(pack, { onRoute = () => {} } = {}) {
-  saveDemoKitchenSnapshot();
-  localStorage.setItem(S.keys.demo_mode, '1');
-  localStorage.setItem(S.keys.demo_step, 'recs');
-  const n = writeItemsToInventory(DEMO_KITCHEN_ITEMS, pack);
-  if (n > 0) lastWxTab = 'recs';
-  onRoute();
-}
-
-function restoreDemoKitchenSnapshot(snapshot) {
-  const keys = snapshot && snapshot.keys && typeof snapshot.keys === 'object' ? snapshot.keys : null;
-  for (const name of DEMO_BUSINESS_KEY_NAMES) {
-    const key = S.keys[name];
-    if (!key) continue;
-    const record = keys ? keys[name] : null;
-    if (record && record.exists && typeof record.value === 'string') {
-      localStorage.setItem(key, record.value);
-    } else {
-      localStorage.removeItem(key);
-    }
-  }
-}
-
-function exitDemoKitchen({ onRoute = () => {} } = {}) {
-  const snapshot = S.load(S.keys.demo_snapshot, null);
-  restoreDemoKitchenSnapshot(snapshot);
-  localStorage.removeItem(S.keys.demo_mode);
-  localStorage.removeItem(S.keys.demo_snapshot);
-  localStorage.removeItem(S.keys.demo_step);
-  lastWxTab = null;
-  onRoute();
-}
-
-function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
-  const step = getDemoStep();
-  const state = {
-    intro: {
-      title: '示例体验：食材已经准备好',
-      body: '我先放了几样常见食材。你可以像真实厨房一样试用，不会影响你的设置。',
-      primary: '看看今天能做什么',
-      primaryStep: 'recs',
-      secondary: '退出示例',
-      secondaryAction: 'exit'
-    },
-    recs: {
-      title: '第 2 步：选一道今天想吃的菜',
-      body: '在下面的推荐里，点“加入今日计划”。缺的食材可以顺手放进买菜清单。',
-      primary: '查看推荐',
-      primaryStep: 'recs',
-      secondary: '退出示例',
-      secondaryAction: 'exit'
-    },
-    plan: {
-      title: '第 3 步：做完后更新库存',
-      body: '今日计划已经有菜了。做完后点“饭后记一下”，我会帮你确认用掉了哪些食材。',
-      primary: '去今日计划',
-      primaryStep: 'cook',
-      secondary: '退出示例',
-      secondaryAction: 'exit'
-    },
-    cook: {
-      title: '第 3 步：做完后更新库存',
-      body: '今日计划已经有菜了。做完后点“饭后记一下”，我会帮你确认用掉了哪些食材。',
-      primary: '我知道了',
-      primaryStep: 'done',
-      secondary: '开始我的厨房',
-      secondaryAction: 'exit'
-    },
-    done: {
-      title: '示例体验完成',
-      body: '你已经体验了推荐、今日计划和饭后更新。现在可以开始记录自己的厨房。',
-      primary: '开始我的厨房',
-      primaryAction: 'exit',
-      secondary: '继续试用',
-      secondaryStep: 'recs'
-    }
-  }[step] || {
-    title: '当前是示例体验',
-    body: '你可以随便试用推荐、计划和买菜清单。准备记录自己的厨房时，可以退出示例。',
-    primary: '查看推荐',
-    primaryStep: 'recs',
-    secondary: '退出示例',
-    secondaryAction: 'exit'
-  };
-  const banner = document.createElement('section');
-  banner.className = 'demo-kitchen-banner';
-  banner.__demoOnRoute = onRoute;
-  banner.innerHTML = `
-    <div class="demo-kitchen-copy">
-      <small>当前是示例体验</small>
-      <strong>${escapeHtml(state.title)}</strong>
-      <span>${escapeHtml(state.body)}</span>
-    </div>
-    <div class="demo-kitchen-actions">
-      <button type="button" class="demo-kitchen-primary">${escapeHtml(state.primary)}</button>
-      <button type="button" class="demo-kitchen-exit">${escapeHtml(state.secondary)}</button>
-    </div>
-  `;
-  const confirmExit = () => {
-    const ok = window.confirm('退出后会清除示例食材和示例计划，回到空厨房。你的设置不会被删除。');
-    if (!ok) return;
-    exitDemoKitchen({ onRoute });
-    showToast('已退出示例体验', { tone: 'info' });
-  };
-  banner.querySelector('.demo-kitchen-primary').onclick = () => {
-    if (state.primaryAction === 'exit') {
-      confirmExit();
-      return;
-    }
-    advanceDemoStep(state.primaryStep || 'recs', { onRoute });
-  };
-  banner.querySelector('.demo-kitchen-exit').onclick = () => {
-    if (state.secondaryAction === 'exit') {
-      confirmExit();
-      return;
-    }
-    advanceDemoStep(state.secondaryStep || 'recs', { onRoute });
-  };
-  return banner;
-}
-
-// ── 批量入库统一写入：所有模式（小票 / 文本）共用同一条数据落地路径 ──────────
-function writeItemsToInventory(items, pack) {
-  if (!Array.isArray(items) || !items.length) return 0;
-  const catalog = buildCatalog(pack);
-  const inv = loadInventory(catalog);
-  const today = todayISO();
-  let count = 0;
-  for (const it of items) {
-    const name = getCanonicalName(it.name || it.item || '');
-    if (!name) continue;
-    const qty = Number(it.qty);
-    const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
-    const unit = (it.unit && String(it.unit).trim()) || guessKitchenUnit(name) || '份';
-    const kind = isDryGoodName(name) ? 'dry' : 'raw';
-    const shelf = kind === 'dry' ? 365 : guessShelfDays(name, unit);
-    const entry = { name, qty: safeQty, unit, buyDate: today, kind, shelf, stockStatus: 'ok' };
-    if (kind === 'dry') { entry.dryPrep = getDryPrepText(name); entry.isFrozen = false; }
-    mergeInventoryEntry(inv, entry, { mode: 'add' });
-    count++;
-  }
-  return count;
-}
-
-function writeReceiptPantryItems(items, pack) {
-  if (!Array.isArray(items) || !items.length) return 0;
-  const catalog = buildCatalog(pack);
-  const inv = loadInventory(catalog);
-  return applyReceiptPantryItems(items, inv);
-}
 
 // 文本批量录入解析已抽成共享纯函数 parseFoodLines（src/utils/food-input-parser.js），
 // 与食材页「随手记几样食材」轻量录入区共用同一套「每行一个食材」解析规则。
@@ -1269,7 +937,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       statusEl.hidden = false;
       statusEl.className = 'small inline-status ok';
       statusEl.textContent = `已记录 ${n} 样食材，看看今天能做什么。`;
-      lastWxTab = 'recs';
+      setHomeTab('recs');
       setPostInventoryGuide(n);
       showToast(`已记录 ${n} 样食材，看看今天能做什么。`, { tone: 'success' });
       setTimeout(() => { close(); onRoute(); }, 600);
@@ -1281,12 +949,6 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   };
 }
 
-// “直接选食材”里的推荐排序：适合下面 / 煮螺蛳粉 / 麻辣烫等场景的快熟百搭配料优先出现。
-const IMPROMPTU_ALLOWED_REGEX = /(菜|茼蒿|菠菜|韭菜|肠|午餐肉|培根|香肠|火腿|丸|棒|饺|千层肚|菇|豆腐|豆皮|腐竹|木耳|蛋|面条|粉|年糕|水饺)/;
-
-function isImpromptuCandidate(e) {
-  return isInventoryAvailable(e) && IMPROMPTU_ALLOWED_REGEX.test(String(e.name || ''));
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  「今日」决策页：用户打开即知「今天吃什么 / 优先用掉什么 / 计划是什么 / 缺什么」。
@@ -1489,469 +1151,6 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
   return section;
 }
 
-function decorateCookedPredictions(predictions, candidates) {
-  return (predictions || []).map(prediction => {
-    const matchName = prediction.match?.name || prediction.name;
-    const candidate = (candidates || []).find(item =>
-      item && (item.matchName === matchName || item.item === matchName || getCanonicalName(item.item) === getCanonicalName(prediction.name))
-    );
-    return {
-      ...prediction,
-      reason: candidate?.reason || '需确认',
-      suggestedQty: Number.isFinite(Number(candidate?.qty)) && Number(candidate.qty) > 0
-        ? Number(candidate.qty)
-        : (prediction.recipeQty || 1)
-    };
-  });
-}
-
-function getTodayPlanRecipeRows(pack) {
-  const today = todayISO();
-  const recipes = pack.recipes || [];
-  return S.load(S.keys.plan, [])
-    .filter(row => row && (row.date || today) === today && !row.isCooked)
-    .map(row => {
-      const recipe = recipes.find(r => r.id === row.id);
-      return recipe ? { row, recipe } : null;
-    })
-    .filter(Boolean);
-}
-
-function markTodayPlanCooked(recipeId) {
-  if (!recipeId) return;
-  const today = todayISO();
-  const plans = S.load(S.keys.plan, []);
-  let changed = false;
-  for (const row of plans) {
-    if (row && row.id === recipeId && (row.date || today) === today && !row.isCooked) {
-      row.isCooked = true;
-      row.cookedAt = Date.now();
-      changed = true;
-    }
-  }
-  if (changed) S.save(S.keys.plan, plans);
-  markRecipeCookedKeepPlan(recipeId);
-}
-
-function createRecordCookedButton(pack, inv, { onRoute = () => {} } = {}) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'record-cooked-btn';
-  button.innerHTML = '<span class="record-cooked-icon">🍽️</span><span>饭后记一下</span>';
-  button.onclick = () => {
-    if (isDemoKitchenMode()) {
-      setDemoStep('cook');
-      refreshDemoKitchenBanner({ onRoute });
-    }
-    const original = button.innerHTML;
-    button.disabled = true;
-    button.classList.add('is-opening');
-    button.innerHTML = '<span class="record-cooked-icon">🍽️</span><span>打开中...</span>';
-    requestAnimationFrame(() => {
-      openCookedMealModal(pack, inv, { onRoute });
-      window.setTimeout(() => {
-        button.innerHTML = original;
-        button.disabled = false;
-        button.classList.remove('is-opening');
-      }, 180);
-    });
-  };
-  return button;
-}
-
-function createRecordCookedCta(pack, inv, { onRoute = () => {} } = {}) {
-  const cta = document.createElement('div');
-  cta.className = 'record-cooked-cta';
-  cta.innerHTML = `
-    <span class="record-cooked-cta-text">
-      <strong>做完饭了？</strong>
-      <small>顺手把用掉的食材记一下</small>
-    </span>
-  `;
-  cta.appendChild(createRecordCookedButton(pack, inv, { onRoute }));
-  return cta;
-}
-
-function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
-  const overlay = document.createElement('div');
-  overlay.className = 'km-modal-overlay';
-  const panel = document.createElement('div');
-  panel.className = 'km-modal-content cooked-meal-modal';
-  panel.innerHTML = `
-    <div class="km-modal-header">
-      <span class="km-modal-title">饭后记一下</span>
-      <button type="button" class="km-modal-close" aria-label="关闭">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-    <div class="km-modal-body cooked-meal-body">
-      <p class="km-modal-subtitle cooked-meal-intro">选择实际做了哪些菜，库存会按用量更新。</p>
-      <div class="cooked-meal-start" id="cookedMealStart"></div>
-      <textarea class="cooked-meal-textarea" id="cookedMealText" rows="4" placeholder="比如：番茄炒蛋，或者我炒了鸡腿和豆芽"></textarea>
-      <div class="small inline-status cooked-meal-status" id="cookedMealStatus" hidden></div>
-      <div class="cooked-meal-result" id="cookedMealResult"></div>
-      <div class="km-modal-actions cooked-meal-actions">
-        <button type="button" class="btn km-action-weak" id="cookedMealCancel">稍后</button>
-        <button type="button" class="btn km-action-secondary" id="cookedMealAddAction" hidden>添加食材</button>
-        <button type="button" class="btn ok km-action-primary" id="cookedMealAnalyze">生成建议</button>
-      </div>
-    </div>
-  `;
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
-
-  const textInput = panel.querySelector('#cookedMealText');
-  const startHost = panel.querySelector('#cookedMealStart');
-  const status = panel.querySelector('#cookedMealStatus');
-  const resultHost = panel.querySelector('#cookedMealResult');
-  const analyzeBtn = panel.querySelector('#cookedMealAnalyze');
-  const addActionBtn = panel.querySelector('#cookedMealAddAction');
-  const recipes = pack.recipes || [];
-  let currentRecipe = null;
-  let currentCandidates = [];
-  let currentPredictions = [];
-  let currentSourceLabel = '';
-  let currentMarkPlanId = '';
-
-  let closing = false;
-  const close = (after = () => {}) => {
-    if (closing) return;
-    closing = true;
-    panel.style.transition = 'transform 0.2s ease-in, opacity 0.2s ease-in';
-    panel.style.opacity = '0';
-    panel.style.transform = 'translate3d(0, 0, 0) scale(0.95)';
-    overlay.classList.add('closing');
-    window.setTimeout(() => {
-      overlay.remove();
-      after();
-    }, 220);
-  };
-  const showStatus = (message, tone = '') => {
-    status.hidden = false;
-    status.className = `small inline-status cooked-meal-status ${tone}`.trim();
-    status.textContent = message;
-  };
-  const clearStatus = () => {
-    status.hidden = true;
-    status.textContent = '';
-  };
-  const resetAnalyzeButton = () => {
-    analyzeBtn.textContent = '生成建议';
-    analyzeBtn.disabled = false;
-    analyzeBtn.onclick = analyze;
-    addActionBtn.hidden = true;
-  };
-
-  function renderStart() {
-    const planRows = getTodayPlanRecipeRows(pack);
-    startHost.innerHTML = `
-      <section class="cooked-meal-start-block">
-        <div class="cooked-meal-start-title">从今日计划记录</div>
-        <div class="cooked-meal-plan-list">
-          ${planRows.length
-            ? planRows.slice(0, 5).map(({ recipe }) => `
-              <button type="button" class="cooked-meal-plan-chip" data-recipe-id="${escapeOptionAttr(recipe.id)}">${escapeHtml(recipe.name)}</button>
-            `).join('')
-            : '<span class="cooked-meal-muted">今天还没有待完成的计划。</span>'}
-        </div>
-      </section>
-      <section class="cooked-meal-start-block">
-        <div class="cooked-meal-start-title">直接选食材</div>
-        <button type="button" class="wx-mini-btn cooked-meal-select-btn" id="cookedMealPickStock">直接选库存食材</button>
-      </section>
-    `;
-    startHost.querySelectorAll('.cooked-meal-plan-chip').forEach(btn => {
-      btn.onclick = () => {
-        const recipe = recipes.find(r => r.id === btn.dataset.recipeId);
-        if (recipe) useRecipeForCookedMeal(recipe, { source: '来自今日计划', markPlan: true });
-      };
-    });
-    startHost.querySelector('#cookedMealPickStock')?.addEventListener('click', () => {
-      clearStatus();
-      currentRecipe = null;
-      currentCandidates = [];
-      currentPredictions = [];
-      currentSourceLabel = '你手动选择库存食材。';
-      currentMarkPlanId = '';
-      renderInventoryPicker({ title: '直接选库存食材' });
-    });
-  }
-
-  function recomputeAndRenderConfirm({ recipe = currentRecipe, candidates = currentCandidates, sourceLabel = currentSourceLabel, markPlanId = currentMarkPlanId } = {}) {
-    const merged = mergeCookedMealCandidates(candidates);
-    const predictions = decorateCookedPredictions(computeCookDeductions(merged, inv), merged);
-    if (!predictions.length) {
-      showStatus('没判断出用到哪些食材，可以直接从库存里选。', 'bad');
-      renderInventoryPicker({ title: '直接选库存食材' });
-      resetAnalyzeButton();
-      return;
-    }
-    currentRecipe = recipe || null;
-    currentCandidates = merged;
-    currentPredictions = predictions;
-    currentSourceLabel = sourceLabel || '确认后才会更新食材。';
-    currentMarkPlanId = markPlanId || '';
-    renderConfirm();
-  }
-
-  function renderConfirm() {
-    const title = '可能用掉了这些';
-    const subtitle = currentRecipe
-      ? `按「${currentRecipe.name}」整理，你可以增删改，确认后才会更新库存。`
-      : '你可以增删改，确认后才会更新库存。';
-    const predictions = currentPredictions;
-    resultHost.innerHTML = `
-      <div class="cooked-meal-suggestion-head">
-        <strong>${escapeHtml(title)}</strong>
-        <span>${escapeHtml(subtitle)}</span>
-      </div>
-      <div class="cooked-meal-list">
-        ${predictions.map((prediction, index) => {
-          const isPiece = prediction.unitType === UNIT_TYPE.PIECE;
-          const unit = prediction.unit || prediction.match?.unit || '';
-          const current = isPiece
-            ? `当前 ${prediction.currentQty}${unit}`
-            : `当前 ${GEAR_LABELS[gearInfo(prediction.currentGear).value] || '有'}`;
-          const control = isPiece
-            ? `<input class="cooked-meal-use" type="number" min="0" step="1" value="${escapeOptionAttr(String(prediction.suggestedQty || prediction.recipeQty || 1))}"><input class="cooked-meal-unit" value="${escapeOptionAttr(unit || '份')}" aria-label="单位">`
-            : `<select class="cooked-meal-final-gear" aria-label="剩余档位">${[100, 75, 50, 25, 0].map(g => `<option value="${g}"${g === prediction.predictedGear ? ' selected' : ''}>剩余${GEAR_LABELS[g]}</option>`).join('')}</select>`;
-          return `
-            <div class="cooked-meal-row" data-index="${index}">
-              <input type="checkbox" class="cooked-meal-check" checked>
-              <span class="cooked-meal-main">
-                <strong>${escapeHtml(prediction.match?.name || prediction.name)}</strong>
-                <small>${escapeHtml(prediction.reason || '需确认')} · ${escapeHtml(current)}</small>
-              </span>
-              <span class="cooked-meal-control">${control}</span>
-              <button type="button" class="cooked-meal-remove" aria-label="移除">×</button>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `;
-    resultHost.querySelectorAll('.cooked-meal-remove').forEach(btn => {
-      btn.onclick = event => {
-        event.preventDefault();
-        event.stopPropagation();
-        const row = btn.closest('.cooked-meal-row');
-        const prediction = predictions[Number(row?.dataset.index)];
-        const key = getCanonicalName(prediction?.match?.name || prediction?.name || '');
-        currentCandidates = currentCandidates.filter(item => (getCanonicalName(item?.item || item?.name || '') !== key));
-        if (!currentCandidates.length) {
-          resultHost.innerHTML = '';
-          showStatus('确认单已清空，可以直接选择食材。', '');
-          renderInventoryPicker({ title: '直接选库存食材' });
-        } else {
-          recomputeAndRenderConfirm();
-        }
-      };
-    });
-    startHost.hidden = true;
-    analyzeBtn.textContent = '更新库存';
-    analyzeBtn.disabled = false;
-    addActionBtn.hidden = false;
-    addActionBtn.onclick = () => renderInventoryPicker({ title: '添加库存食材', append: true });
-    analyzeBtn.onclick = () => {
-      const rows = Array.from(resultHost.querySelectorAll('.cooked-meal-row'));
-      const calibrations = rows.map(row => {
-        if (!row.querySelector('.cooked-meal-check')?.checked) return null;
-        const prediction = predictions[Number(row.dataset.index)];
-        if (!prediction) return null;
-        if (prediction.unitType === UNIT_TYPE.PIECE) {
-          const useQty = Math.max(0, Math.round(Number(row.querySelector('.cooked-meal-use')?.value) || 0));
-          const unit = String(row.querySelector('.cooked-meal-unit')?.value || prediction.unit || prediction.match?.unit || '').trim();
-          if (useQty <= 0) return null;
-          if (unit && prediction.match) prediction.match.unit = unit;
-          return {
-            match: prediction.match,
-            name: prediction.name,
-            unitType: UNIT_TYPE.PIECE,
-            finalQty: Math.max(0, (Number(prediction.currentQty) || 0) - useQty)
-          };
-        }
-        return {
-          match: prediction.match,
-          name: prediction.name,
-          unitType: UNIT_TYPE.GEAR,
-          finalGear: Number(row.querySelector('.cooked-meal-final-gear')?.value ?? prediction.predictedGear)
-        };
-      }).filter(Boolean);
-      if (!calibrations.length) {
-        showToast('没有选择要更新的食材', { tone: 'warning' });
-        showStatus('至少勾选一样食材。', 'bad');
-        return;
-      }
-      const shoppingCandidates = getCookShoppingCandidates({ calibrations });
-      applyCookCalibration(inv, calibrations);
-      showToast('已更新库存', { tone: 'success' });
-      if (isDemoKitchenMode()) {
-        setDemoStep('done');
-        refreshDemoKitchenBanner({ onRoute });
-      }
-      if (currentMarkPlanId) markTodayPlanCooked(currentMarkPlanId);
-      else if (currentRecipe?.id) markRecipeCookedKeepPlan(currentRecipe.id);
-      close(() => showCookCompleteFeedback({
-        updated: true,
-        candidates: shoppingCandidates,
-        onClose: onRoute,
-        onShoppingAdded: onRoute
-      }));
-    };
-  }
-
-  function renderInventoryPicker({ title = '选择库存食材', append = false } = {}) {
-    const available = (inv || [])
-      .filter(item => item && isInventoryAvailable(item))
-      .filter(item => mergeCookedMealCandidates([{ item: item.name }]).length)
-      .sort((a, b) => Number(isImpromptuCandidate(b)) - Number(isImpromptuCandidate(a)) || String(a.name).localeCompare(String(b.name), 'zh-Hans-CN'));
-    const picker = document.createElement('div');
-    picker.className = 'cooked-meal-picker';
-    picker.innerHTML = `
-      <div class="cooked-meal-picker-head">
-        <strong>${escapeHtml(title)}</strong>
-        <input class="cooked-meal-picker-filter" type="search" placeholder="搜索库存食材">
-      </div>
-      <div class="cooked-meal-picker-list">
-        ${available.length
-          ? available.map(item => `
-            <button type="button" class="cooked-meal-stock-option${isImpromptuCandidate(item) ? ' is-suggested' : ''}" data-name="${escapeOptionAttr(item.name)}">
-              <span>${escapeHtml(item.name)}</span>
-              <small>${escapeHtml(item.qty ? `${item.qty}${item.unit || ''}` : item.unit || '')}</small>
-            </button>
-          `).join('')
-          : '<span class="cooked-meal-muted">当前没有可扣减的库存食材。</span>'}
-      </div>
-    `;
-    const host = append && currentPredictions.length ? resultHost : resultHost;
-    if (append && currentPredictions.length) {
-      host.querySelector('.cooked-meal-picker')?.remove();
-      host.appendChild(picker);
-    } else {
-      startHost.hidden = true;
-      addActionBtn.hidden = true;
-      resultHost.innerHTML = '';
-      resultHost.appendChild(picker);
-    }
-    const filter = picker.querySelector('.cooked-meal-picker-filter');
-    const refreshFilter = () => {
-      const q = getCanonicalName(filter.value.trim()) || filter.value.trim();
-      picker.querySelectorAll('.cooked-meal-stock-option').forEach(btn => {
-        const name = btn.dataset.name || '';
-        const canonical = getCanonicalName(name) || '';
-        btn.hidden = q && !name.includes(q) && !canonical.includes(q);
-      });
-    };
-    filter.oninput = refreshFilter;
-    picker.querySelectorAll('.cooked-meal-stock-option').forEach(btn => {
-      btn.onclick = () => {
-        const item = available.find(x => x.name === btn.dataset.name);
-        if (!item) return;
-        const next = {
-          item: item.name,
-          qty: 1,
-          unit: item.unit || guessKitchenUnit(item.name) || '份',
-          reason: '你手动添加',
-          matchName: item.name
-        };
-        currentCandidates = mergeCookedMealCandidates(currentCandidates, [next]);
-        recomputeAndRenderConfirm({
-          recipe: currentRecipe,
-          candidates: currentCandidates,
-          sourceLabel: currentSourceLabel || '你手动选择库存食材。',
-          markPlanId: currentMarkPlanId
-        });
-      };
-    });
-    filter.focus();
-  }
-
-  function useRecipeForCookedMeal(recipe, { source = '来自菜谱', markPlan = false } = {}) {
-    clearStatus();
-    const candidates = getRecipeCoreItems(recipe, pack).map(item => ({ ...item, reason: source }));
-    recomputeAndRenderConfirm({
-      recipe,
-      candidates,
-      sourceLabel: `${source}，确认后才会更新食材。`,
-      markPlanId: markPlan ? recipe.id : ''
-    });
-  }
-
-  async function analyze() {
-    const text = textInput.value.trim();
-    resultHost.innerHTML = '';
-    if (!text) {
-      showStatus('先写一下刚吃了什么。', 'bad');
-      textInput.focus();
-      return;
-    }
-    clearStatus();
-    analyzeBtn.disabled = true;
-    analyzeBtn.textContent = '正在分析...';
-    const recipe = matchCookedMealRecipe(text, recipes);
-    let sourceLabel = '';
-    let candidates = [];
-
-    if (recipe) {
-      candidates = getRecipeCoreItems(recipe, pack).map(item => ({ ...item, reason: '来自菜谱' }));
-      sourceLabel = '来自菜谱，确认后才会更新食材。';
-    }
-
-    let predictions = computeCookDeductions(candidates, inv);
-    if (!predictions.length) {
-      const localCandidates = buildLocalCookedMealCandidates(text, inv);
-      predictions = computeCookDeductions(localCandidates, inv);
-      if (predictions.length) {
-        candidates = localCandidates;
-        sourceLabel = '根据你刚刚提到的食材匹配库存。';
-      }
-    }
-
-    if (!predictions.length) {
-      try {
-        const aiResult = await withTimeout(callAiForCookedMeal(text, inv, recipes), 22000, 'AI 响应超时');
-        const normalized = normalizeAiCookedMealResult(aiResult, inv);
-        const aiCandidates = mergeCookedMealCandidates(normalized.candidates);
-        predictions = computeCookDeductions(aiCandidates, inv);
-        if (predictions.length) {
-          candidates = aiCandidates;
-          sourceLabel = 'AI 辅助整理，仍需你确认。';
-        }
-      } catch (err) {
-        showStatus(`${formatAiErrorMessage(err)} 已尝试用本地规则匹配。`, 'bad');
-      }
-    }
-
-    if (!predictions.length) {
-      analyzeBtn.disabled = false;
-      analyzeBtn.textContent = '生成建议';
-      if (status.hidden) showStatus('没判断出用到哪些食材，可以直接从库存里选。', 'bad');
-      renderInventoryPicker({ title: '直接选库存食材' });
-      return;
-    }
-
-    const decorated = decorateCookedPredictions(predictions, candidates);
-    clearStatus();
-    currentRecipe = recipe || null;
-    currentCandidates = mergeCookedMealCandidates(candidates);
-    currentPredictions = decorated;
-    currentSourceLabel = sourceLabel || '确认后才会更新食材。';
-    currentMarkPlanId = '';
-    renderConfirm();
-  }
-
-  analyzeBtn.onclick = analyze;
-  panel.querySelector('.km-modal-close').onclick = () => close();
-  panel.querySelector('#cookedMealCancel').onclick = () => close();
-  overlay.onclick = event => { if (event.target === overlay) close(); };
-  textInput.onkeydown = event => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') analyze();
-  };
-  renderStart();
-  requestAnimationFrame(() => overlay.classList.add('open'));
-  setTimeout(() => textInput.focus(), 80);
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  Weather-style 首页：顶部固定主状态 + 单一 glass 信息面板（tab 切换数据维度）。
@@ -1959,11 +1158,6 @@ function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
 //  全部复用既有数据与弹窗函数，不新增推荐算法 / 持久化状态 / localStorage key。
 // ══════════════════════════════════════════════════════════════════════════
 
-// 今日计划项数（只读 plan key，按 date===今天计数，不改任何计划逻辑）。
-function getTodayPlanCount() {
-  const today = todayISO();
-  return S.load(S.keys.plan, []).filter(p => p && p.date === today).length;
-}
 
 function getExpiringItemCount(inv) {
   return (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3).length;
@@ -2015,8 +1209,7 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
   return section;
 }
 
-// 当前 tab 的页内记忆（仅内存，不持久化）：范围筛选等触发整页重渲染时不丢所在 tab。
-let lastWxTab = null;
+// 页内记忆（仅内存，不持久化）；当前 tab 状态抽到 home/home-tab-state.js 与 demo 模块共享。
 let postInventoryGuide = null;
 let postInventoryPlanGuidePending = false;
 let targetRecipeQuery = '';
@@ -2225,7 +1418,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     const openShoppingNote = () => {
       showQuickShoppingNoteModal({
         onAdd: () => {
-          lastWxTab = 'shopping';
+          setHomeTab('shopping');
           onRoute();
         }
       });
@@ -2447,7 +1640,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     };
     goPlanBtn.onclick = event => {
       event.preventDefault();
-      lastWxTab = 'plan';
+      setHomeTab('plan');
       modal.close();
       window.setTimeout(() => onRoute(), 220);
     };
@@ -2543,7 +1736,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     };
     goPlanBtn.onclick = event => {
       event.preventDefault();
-      lastWxTab = 'plan';
+      setHomeTab('plan');
       modal.close();
       window.setTimeout(() => onRoute(), 220);
     };
@@ -2721,7 +1914,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     `;
     guide.querySelector('#postInventoryGuideRecs').onclick = () => {
       postInventoryGuide = null;
-      lastWxTab = 'recs';
+      setHomeTab('recs');
       switchTab('recs');
     };
     guide.querySelector('#postInventoryGuideAdd').onclick = () => {
@@ -2934,7 +2127,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   const TAB_RENDERERS = { plan: renderPlanTab, expiry: renderExpiryTab, shopping: renderShoppingTab, recs: renderRecsTab };
   const switchTab = (name) => {
     const tab = TAB_RENDERERS[name] ? name : 'plan';
-    lastWxTab = tab;
+    setHomeTab(tab);
     syncDemoStepFromTab(tab, { onRoute });
     section.querySelectorAll('.wx-tab').forEach(t => {
       const active = t.dataset.tab === tab;
@@ -2946,13 +2139,13 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   };
   section.querySelectorAll('.wx-tab').forEach(t => { t.onclick = () => switchTab(t.dataset.tab); });
 
-  // 默认 tab：优先回答“今天能做什么”；手动切过 tab 时仍尊重 lastWxTab。
+  // 默认 tab：优先回答“今天能做什么”；手动切过 tab 时仍尊重记忆的 tab（home-tab-state）。
   const defaultRecCount = getInspirationCached().length;
   const defaultPlanCount = getTodayPlanCount();
   const defaultTab = defaultRecCount > 0 ? 'recs' : (defaultPlanCount > 0 ? 'plan' : 'plan');
-  switchTab(lastWxTab || defaultTab);
+  switchTab(getHomeTab() || defaultTab);
 
-  return { el: section, refresh: () => switchTab(lastWxTab || defaultTab) };
+  return { el: section, refresh: () => switchTab(getHomeTab() || defaultTab) };
 }
 
 // 「明天备菜」提醒已融入计划组件（menu-plan.js：顶部 menu-prep-alert + 行内 menu-prep-tags），

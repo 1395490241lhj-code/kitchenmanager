@@ -10,10 +10,10 @@ function read(rel) {
 }
 
 test('饭后记一下确认成功和无选择都会显示 Toast', () => {
-  const home = read('src/views/home-view.js');
+  const cookedMeal = read('src/views/home/cooked-meal-modal.js');
 
-  assert.match(home, /showToast\('已更新库存', \{ tone: 'success' \}\)/);
-  assert.match(home, /showToast\('没有选择要更新的食材', \{ tone: 'warning' \}\)/);
+  assert.match(cookedMeal, /showToast\('已更新库存', \{ tone: 'success' \}\)/);
+  assert.match(cookedMeal, /showToast\('没有选择要更新的食材', \{ tone: 'warning' \}\)/);
 });
 
 test('购物清单高频操作接入 Toast', () => {
