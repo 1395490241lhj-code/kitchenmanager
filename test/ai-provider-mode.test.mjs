@@ -766,9 +766,14 @@ test('AI 菜谱导入 warning 单独传给编辑页，不写入 Method', () => {
   assert.doesNotMatch(ai, /appendRecipeImportWarnings/);
   assert.match(modal, /warnings: Array\.isArray\(draft\.warnings\)/);
   assert.match(modal, /diagnostics: draft\.diagnostics/);
+  assert.match(modal, /mediaDiagnostics: draft\.mediaDiagnostics/);
   assert.match(editor, /aiDraftWarnings/);
   assert.match(editor, /aiDraftDiagnostics/);
+  assert.match(editor, /aiMediaDiagnostics/);
   assert.match(editor, /提取置信度/);
+  assert.match(editor, /视频读取诊断/);
+  assert.match(editor, /口播转录/);
+  assert.match(editor, /画面文字识别/);
   assert.match(editor, /抓取原文预览/);
   assert.match(editor, /作者正文候选/);
   assert.match(editor, /清洗后菜谱文本/);

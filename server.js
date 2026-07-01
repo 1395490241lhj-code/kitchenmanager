@@ -1380,44 +1380,170 @@ function getTranscriptText(payload) {
   return String(payload.text || payload.transcript || '').trim();
 }
 
+function getEndpointHost(endpoint) {
+  try {
+    return new URL(String(endpoint || '')).hostname;
+  } catch (_) {
+    return '';
+  }
+}
+
+async function readFetchResponsePayload(response) {
+  if (!response) return { json: null, text: '' };
+  if (typeof response.text === 'function') {
+    try {
+      const text = await response.text();
+      try {
+        return { json: text ? JSON.parse(text) : null, text };
+      } catch (_) {
+        return { json: null, text };
+      }
+    } catch (_) {
+      return { json: null, text: '' };
+    }
+  }
+  if (typeof response.json === 'function') {
+    try {
+      const json = await response.json();
+      return { json, text: JSON.stringify(json || {}) };
+    } catch (_) {
+      return { json: null, text: '' };
+    }
+  }
+  return { json: null, text: '' };
+}
+
+function getUpstreamPayloadCode(payload, fallback = 'upstream_error') {
+  const data = payload && typeof payload === 'object' ? payload : null;
+  const upstreamError = data && typeof data.error === 'object' ? data.error : null;
+  const code = upstreamError?.code || upstreamError?.type || data?.code || fallback;
+  return String(code || fallback).slice(0, 80);
+}
+
+function getUpstreamPayloadMessage(payload, fallback = '上游服务请求失败。') {
+  const data = payload && typeof payload === 'object' ? payload : null;
+  const upstreamError = data && typeof data.error === 'object' ? data.error : null;
+  const message = upstreamError?.message || data?.message || (typeof payload === 'string' ? payload : '') || fallback;
+  return redactSecret(message);
+}
+
+function createMediaDiagnosticError(message, fields = {}) {
+  const err = new Error(redactSecret(message || fields.message || '媒体处理失败。'));
+  Object.assign(err, fields);
+  if (err.asrUpstreamMessage && !err.asrErrorPreview) err.asrErrorPreview = redactSecret(err.asrUpstreamMessage);
+  if (err.visionUpstreamMessage && !err.visionErrorPreview) err.visionErrorPreview = redactSecret(err.visionUpstreamMessage);
+  return err;
+}
+
+function copyAsrDiagnostics(target, source = {}) {
+  if (!target || !source) return;
+  if (source.asrEndpoint) target.asrEndpointHost = getEndpointHost(source.asrEndpoint);
+  if (source.asrEndpointHost) target.asrEndpointHost = String(source.asrEndpointHost || '');
+  if (source.asrModel) target.asrModel = String(source.asrModel || '');
+  if (source.asrUpstreamStatus !== undefined) target.asrUpstreamStatus = source.asrUpstreamStatus;
+  if (source.asrUpstreamCode) target.asrUpstreamCode = String(source.asrUpstreamCode || '').slice(0, 80);
+  if (source.asrErrorPreview || source.asrUpstreamMessage) {
+    target.asrErrorPreview = redactSecret(source.asrErrorPreview || source.asrUpstreamMessage);
+  }
+  if (source.audioBytes !== undefined) target.audioBytes = Number(source.audioBytes || 0);
+  if (source.audioMimeType) target.audioMimeType = String(source.audioMimeType || '');
+}
+
+function copyVisionDiagnostics(target, source = {}) {
+  if (!target || !source) return;
+  if (source.visionEndpoint) target.visionEndpointHost = getEndpointHost(source.visionEndpoint);
+  if (source.visionEndpointHost) target.visionEndpointHost = String(source.visionEndpointHost || '');
+  if (source.visionModel) target.visionModel = String(source.visionModel || '');
+  if (source.visionUpstreamStatus !== undefined) target.visionUpstreamStatus = source.visionUpstreamStatus;
+  if (source.visionUpstreamCode) target.visionUpstreamCode = String(source.visionUpstreamCode || '').slice(0, 80);
+  if (source.visionErrorPreview || source.visionUpstreamMessage) {
+    target.visionErrorPreview = redactSecret(source.visionErrorPreview || source.visionUpstreamMessage);
+  }
+  if (source.failedFrameId) target.failedFrameId = path.basename(String(source.failedFrameId || ''));
+}
+
 async function transcribeAudioFile(audioFilePath) {
   if (!OPENAI_API_KEY) throw new Error('MISSING_OPENAI_API_KEY');
-  if (typeof fetch !== 'function' || typeof FormData === 'undefined' || typeof Blob === 'undefined') {
-    throw MEDIA_TRANSCRIBE_ERROR;
-  }
+  const asrEndpoint = resolveAudioTranscriptionsUrl(OPENAI_BASE_URL);
+  const asrModel = OPENAI_TRANSCRIBE_MODEL;
+  const audioMimeType = getAudioMimeType(audioFilePath);
   const audioBuffer = await fs.promises.readFile(audioFilePath);
+  const audioBytes = audioBuffer.length;
+  if (typeof fetch !== 'function' || typeof FormData === 'undefined' || typeof Blob === 'undefined') {
+    throw createMediaDiagnosticError('当前 Node 环境不支持音频上传表单。', {
+      mediaKind: 'asr',
+      asrEndpoint,
+      asrModel,
+      asrUpstreamStatus: 0,
+      asrUpstreamCode: 'unsupported_form_data',
+      asrUpstreamMessage: '当前 Node 环境不支持音频上传表单。',
+      audioBytes,
+      audioMimeType
+    });
+  }
   const form = new FormData();
-  form.append('model', OPENAI_TRANSCRIBE_MODEL);
+  form.append('model', asrModel);
   form.append('response_format', 'json');
   form.append('language', 'zh');
-  form.append('file', new Blob([audioBuffer], { type: getAudioMimeType(audioFilePath) }), path.basename(audioFilePath));
+  form.append('file', new Blob([audioBuffer], { type: audioMimeType }), path.basename(audioFilePath));
 
   let response;
   try {
-    response = await fetch(resolveAudioTranscriptionsUrl(OPENAI_BASE_URL), {
+    response = await fetch(asrEndpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${OPENAI_API_KEY}`
       },
       body: form
     });
-  } catch (_) {
-    throw MEDIA_TRANSCRIBE_ERROR;
+  } catch (err) {
+    throw createMediaDiagnosticError(err?.message || '音频转录请求失败。', {
+      mediaKind: 'asr',
+      asrEndpoint,
+      asrModel,
+      asrUpstreamStatus: 0,
+      asrUpstreamCode: err?.code || 'network_error',
+      asrUpstreamMessage: err?.message || '音频转录请求失败。',
+      audioBytes,
+      audioMimeType
+    });
   }
 
-  let payload = null;
-  try {
-    payload = await response.json();
-  } catch (_) {
-    payload = null;
+  const responsePayload = await readFetchResponsePayload(response);
+  const payload = responsePayload.json || responsePayload.text || null;
+  if (!response.ok) {
+    throw createMediaDiagnosticError(getUpstreamPayloadMessage(payload, '音频转录上游服务请求失败。'), {
+      mediaKind: 'asr',
+      asrEndpoint,
+      asrModel,
+      asrUpstreamStatus: response.status,
+      asrUpstreamCode: getUpstreamPayloadCode(payload),
+      asrUpstreamMessage: getUpstreamPayloadMessage(payload, '音频转录上游服务请求失败。'),
+      audioBytes,
+      audioMimeType
+    });
   }
-  if (!response.ok) throw MEDIA_TRANSCRIBE_ERROR;
-  const transcript = getTranscriptText(payload);
-  if (!transcript) throw MEDIA_EMPTY_TRANSCRIPT_ERROR;
+  const transcript = getTranscriptText(responsePayload.json);
+  if (!transcript) {
+    throw createMediaDiagnosticError('音频转录结果为空。', {
+      mediaKind: 'asr',
+      asrEndpoint,
+      asrModel,
+      asrUpstreamStatus: 502,
+      asrUpstreamCode: 'empty_transcript',
+      asrUpstreamMessage: '音频转录结果为空。',
+      audioBytes,
+      audioMimeType
+    });
+  }
   return {
     transcript,
-    model: OPENAI_TRANSCRIBE_MODEL,
-    transcriptLength: transcript.length
+    model: asrModel,
+    transcriptLength: transcript.length,
+    asrEndpoint,
+    asrModel,
+    audioBytes,
+    audioMimeType
   };
 }
 
@@ -1453,6 +1579,7 @@ async function ocrFrameWithVisionModel(frameId, framePath) {
   const frameBuffer = await fs.promises.readFile(framePath);
   if (frameBuffer.length > MEDIA_MAX_FRAME_BYTES) throw MEDIA_FRAME_TOO_LARGE_ERROR;
   const dataUrl = `data:${getImageMimeType(framePath)};base64,${frameBuffer.toString('base64')}`;
+  const visionEndpoint = resolveChatUrl(OPENAI_BASE_URL);
   const prompt = [
     '你是 Kitchen Manager 的视频菜谱画面文字识别器。',
     '只提取画面中清晰可见、与菜谱相关的文字：食材、调料、用量、火候、时间、步骤字幕。',
@@ -1464,7 +1591,7 @@ async function ocrFrameWithVisionModel(frameId, framePath) {
   let resp;
   try {
     resp = await axios.post(
-      resolveChatUrl(OPENAI_BASE_URL),
+      visionEndpoint,
       {
         model: OPENAI_VISION_MODEL,
         messages: [
@@ -1484,10 +1611,30 @@ async function ocrFrameWithVisionModel(frameId, framePath) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
       }
     );
-  } catch (_) {
-    throw MEDIA_FRAME_OCR_ERROR;
+  } catch (err) {
+    const info = getUpstreamAiErrorInfo(err);
+    throw createMediaDiagnosticError(info.detail || '画面文字识别上游服务请求失败。', {
+      mediaKind: 'vision',
+      visionEndpoint,
+      visionModel: OPENAI_VISION_MODEL,
+      visionUpstreamStatus: info.status,
+      visionUpstreamCode: info.code,
+      visionUpstreamMessage: info.detail,
+      failedFrameId: frameId
+    });
   }
   const content = getAiMessageContent(resp);
+  if (!content) {
+    throw createMediaDiagnosticError('视觉模型返回空内容。', {
+      mediaKind: 'vision',
+      visionEndpoint,
+      visionModel: OPENAI_VISION_MODEL,
+      visionUpstreamStatus: 502,
+      visionUpstreamCode: 'empty_response',
+      visionUpstreamMessage: '视觉模型返回空内容。',
+      failedFrameId: frameId
+    });
+  }
   const result = parseFrameOcrContent(content);
   return {
     frameId,
@@ -1506,8 +1653,26 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
     rejectedVideoUrlCount: Number(selectionDiagnostics.rejectedVideoUrlCount || 0),
     rejectedVideoUrlHosts: Array.isArray(selectionDiagnostics.rejectedVideoUrlHosts) ? selectionDiagnostics.rejectedVideoUrlHosts : [],
     audioExtracted: false,
+    asrAttempted: false,
+    asrOk: false,
+    asrEndpointHost: getEndpointHost(resolveAudioTranscriptionsUrl(OPENAI_BASE_URL)),
+    asrModel: OPENAI_TRANSCRIBE_MODEL,
+    asrUpstreamStatus: null,
+    asrUpstreamCode: '',
+    asrErrorPreview: '',
+    audioBytes: 0,
+    audioMimeType: '',
     transcriptLength: 0,
     framesExtracted: 0,
+    ocrAttempted: false,
+    ocrOk: false,
+    visionEndpointHost: getEndpointHost(resolveChatUrl(OPENAI_BASE_URL)),
+    visionModel: OPENAI_VISION_MODEL,
+    visionUpstreamStatus: null,
+    visionUpstreamCode: '',
+    visionErrorPreview: '',
+    failedFrameId: '',
+    failedFrameCount: 0,
     ocrFrameCount: 0,
     ocrTextLength: 0,
     warnings: []
@@ -1537,28 +1702,56 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
     const audioPath = path.join(MEDIA_TMP_DIR, `${downloaded.id}.m4a`);
     await extractAudioWithFfmpeg(downloaded.videoPath, audioPath);
     mediaDiagnostics.audioExtracted = true;
+    mediaDiagnostics.asrAttempted = true;
+    mediaDiagnostics.audioMimeType = getAudioMimeType(audioPath);
+    try {
+      const audioStat = await fs.promises.stat(audioPath);
+      mediaDiagnostics.audioBytes = audioStat.size;
+    } catch (_) {
+      mediaDiagnostics.audioBytes = 0;
+    }
     const transcript = await transcribeAudioFile(audioPath);
     transcriptText = transcript.transcript;
     mediaDiagnostics.transcriptLength = transcript.transcriptLength;
-  } catch (_) {
-    mediaDiagnostics.warnings.push('视频口播读取失败，已继续尝试读取页面文字和画面文字。');
+    mediaDiagnostics.asrOk = true;
+    copyAsrDiagnostics(mediaDiagnostics, transcript);
+  } catch (err) {
+    copyAsrDiagnostics(mediaDiagnostics, err);
+    mediaDiagnostics.warnings.push(mediaDiagnostics.audioExtracted
+      ? '音频已提取，但口播转录失败。'
+      : '视频音频提取失败，已继续尝试读取页面文字和画面文字。');
   }
 
   try {
     const frameResult = await extractFramesWithFfmpeg(downloaded.videoPath, { maxFrames: MEDIA_MAX_FRAME_COUNT });
     mediaDiagnostics.framesExtracted = frameResult.frames.length;
+    mediaDiagnostics.ocrAttempted = frameResult.frames.length > 0;
     const ocrFrames = [];
     for (const frame of frameResult.frames) {
-      ocrFrames.push(await ocrFrameWithVisionModel(frame.frameId, path.join(MEDIA_TMP_DIR, frame.frameId)));
+      try {
+        ocrFrames.push(await ocrFrameWithVisionModel(frame.frameId, path.join(MEDIA_TMP_DIR, frame.frameId)));
+      } catch (err) {
+        mediaDiagnostics.failedFrameCount += 1;
+        if (!mediaDiagnostics.visionUpstreamCode && !mediaDiagnostics.visionErrorPreview) {
+          copyVisionDiagnostics(mediaDiagnostics, err);
+        }
+      }
     }
     mediaDiagnostics.ocrFrameCount = ocrFrames.length;
+    mediaDiagnostics.ocrOk = ocrFrames.length > 0;
     ocrText = ocrFrames
       .map(frame => String(frame.text || '').trim())
       .filter(Boolean)
       .join('\n\n');
     mediaDiagnostics.ocrTextLength = ocrText.length;
-  } catch (_) {
-    mediaDiagnostics.warnings.push('视频画面文字读取失败，已继续使用可提取的其他内容生成草稿。');
+    if (mediaDiagnostics.framesExtracted > 0 && ocrFrames.length === 0) {
+      mediaDiagnostics.warnings.push('视频抽帧成功，但画面文字识别失败。');
+    } else if (mediaDiagnostics.failedFrameCount > 0) {
+      mediaDiagnostics.warnings.push('部分视频画面文字识别失败，已保留成功识别的画面文字。');
+    }
+  } catch (err) {
+    copyVisionDiagnostics(mediaDiagnostics, err);
+    mediaDiagnostics.warnings.push('视频画面抽取失败，已继续使用可提取的其他内容生成草稿。');
   }
 
   if (!transcriptText && !ocrText) {
@@ -1781,7 +1974,7 @@ app.post('/api/media/transcribe', async (req, res) => {
     const result = await transcribeAudioFile(audioPath);
     return res.json({ ok: true, ...result });
   } catch (err) {
-    if (err === MEDIA_EMPTY_TRANSCRIPT_ERROR) {
+    if (err === MEDIA_EMPTY_TRANSCRIPT_ERROR || err?.asrUpstreamCode === 'empty_transcript') {
       return res.status(502).json({ ok: false, error: '音频转录结果为空，请稍后重试。', message: '音频转录结果为空，请稍后重试。' });
     }
     return res.status(502).json({ ok: false, error: '音频转录失败，请稍后重试。', message: '音频转录失败，请稍后重试。' });

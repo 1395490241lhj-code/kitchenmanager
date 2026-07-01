@@ -28,6 +28,7 @@ function openEditorWithAiDraft(draft) {
     ingredients: (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty ?? null, unit: i.unit ?? null })),
     warnings: Array.isArray(draft.warnings) ? draft.warnings.filter(Boolean) : [],
     diagnostics: draft.diagnostics && typeof draft.diagnostics === 'object' ? draft.diagnostics : null,
+    mediaDiagnostics: draft.mediaDiagnostics && typeof draft.mediaDiagnostics === 'object' ? draft.mediaDiagnostics : null,
     debugEvidenceSummary: draft.debugEvidenceSummary && typeof draft.debugEvidenceSummary === 'object' ? draft.debugEvidenceSummary : null,
     needsReview: Boolean(draft.needsReview),
     isAiDraft: true,

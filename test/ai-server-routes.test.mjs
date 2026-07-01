@@ -881,6 +881,7 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
   const videoBytes = Buffer.from('fake-video');
   const audioBytes = Buffer.from('fake-audio');
   const capturedAiPayloads = [];
+  let visionCallCount = 0;
   const childProcessMock = {
     spawn(_bin, args) {
       const child = new EventEmitter();
@@ -948,6 +949,15 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
     axiosPost: async (_url, payload) => {
       capturedAiPayloads.push(payload);
       if (payload.model === 'meta-llama/llama-4-scout-17b-16e-instruct') {
+        visionCallCount += 1;
+        if (visionCallCount === 1) {
+          const err = new Error('vision upstream failed test-key');
+          err.response = {
+            status: 429,
+            data: { error: { code: 'rate_limit', message: 'vision rate limited test-key' } }
+          };
+          throw err;
+        }
         return {
           data: {
             choices: [{
@@ -1017,9 +1027,145 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
   assert.ok(res.body.mediaDiagnostics.rejectedVideoUrlCount >= 1);
   assert.ok(res.body.mediaDiagnostics.rejectedVideoUrlHosts.includes('www.xiaohongshu.com'));
   assert.ok(res.body.mediaDiagnostics.transcriptLength > 0);
+  assert.equal(res.body.mediaDiagnostics.asrAttempted, true);
+  assert.equal(res.body.mediaDiagnostics.asrOk, true);
+  assert.equal(res.body.mediaDiagnostics.asrEndpointHost, 'api.groq.com');
+  assert.equal(res.body.mediaDiagnostics.asrModel, 'gpt-4o-mini-transcribe');
+  assert.equal(res.body.mediaDiagnostics.audioBytes, audioBytes.length);
+  assert.equal(res.body.mediaDiagnostics.audioMimeType, 'audio/mp4');
   assert.ok(res.body.mediaDiagnostics.framesExtracted > 0);
+  assert.equal(res.body.mediaDiagnostics.ocrAttempted, true);
+  assert.equal(res.body.mediaDiagnostics.ocrOk, true);
+  assert.equal(res.body.mediaDiagnostics.failedFrameCount, 1);
+  assert.equal(res.body.mediaDiagnostics.visionUpstreamStatus, 429);
+  assert.equal(res.body.mediaDiagnostics.visionUpstreamCode, 'rate_limit');
+  assert.doesNotMatch(res.body.mediaDiagnostics.visionErrorPreview, /test-key/);
+  assert.match(res.body.mediaDiagnostics.warnings.join('\n'), /部分视频画面文字识别失败/);
   assert.match(res.body.recipe.method.join('\n'), /鲜藤椒/);
   assert.ok(capturedAiPayloads.some(payload => payload.model === 'meta-llama/llama-4-scout-17b-16e-instruct'));
+});
+
+test('/api/recipe-import-from-url 暴露 ASR 和全帧 OCR 上游失败诊断', async () => {
+  const videoBytes = Buffer.from('fake-video');
+  const audioBytes = Buffer.from('fake-audio');
+  const childProcessMock = {
+    spawn(_bin, args) {
+      const child = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.kill = () => {};
+      setImmediate(() => {
+        if (args.includes('-hide_banner')) {
+          child.stderr.emit('data', 'Duration: 00:00:09.00, start: 0.000000');
+          child.emit('close', 1);
+          return;
+        }
+        const outputPath = args[args.length - 1];
+        if (/\.m4a$/i.test(outputPath)) fs.writeFileSync(outputPath, audioBytes);
+        else fs.writeFileSync(outputPath, Buffer.from('fake-jpg'));
+        child.emit('close', 0);
+      });
+      return child;
+    }
+  };
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 404,
+    async text() {
+      return JSON.stringify({ error: { code: 'model_not_found', message: 'ASR model missing test-key' } });
+    }
+  });
+  const { app } = loadServerWithMocks({
+    childProcessMock,
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async (url, options) => {
+      if (options.responseType === 'stream') {
+        return {
+          status: 200,
+          headers: { 'content-length': String(videoBytes.length) },
+          data: Readable.from([videoBytes])
+        };
+      }
+      return {
+        status: 200,
+        headers: {},
+        data: `
+          <meta property="og:title" content="藤椒鸡腿">
+          <meta property="og:description" content="页面文字：藤椒鸡腿，鸡腿切块。">
+          <meta property="og:video" content="https://sns-video-abc.xhscdn.com/stream/recipe.m3u8">
+        `
+      };
+    },
+    axiosPost: async (_url, payload) => {
+      if (payload.model === 'meta-llama/llama-4-scout-17b-16e-instruct') {
+        const err = new Error('vision missing test-key');
+        err.response = {
+          status: 400,
+          data: { error: { code: 'model_not_found', message: 'Vision model missing test-key' } }
+        };
+        throw err;
+      }
+      if (/菜谱证据抽取器/.test(payload.messages[0].content)) {
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  dishNameCandidates: ['藤椒鸡腿'],
+                  observedMainIngredients: ['鸡腿'],
+                  observedSeasonings: [],
+                  observedActions: [
+                    { order: 1, action: '鸡腿切块', ingredients: ['鸡腿'], evidenceText: '鸡腿切块', confidence: 'low' }
+                  ],
+                  sourceConfidence: 'low'
+                })
+              }
+            }]
+          }
+        };
+      }
+      return {
+        data: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                name: '藤椒鸡腿',
+                tags: ['AI草稿'],
+                ingredients: [{ item: '鸡腿', qty: '2', unit: '个' }],
+                seasonings: [],
+                method: ['鸡腿切块。']
+              })
+            }
+          }]
+        }
+      };
+    }
+  });
+
+  const res = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/asr-fails' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.mediaDiagnostics.audioExtracted, true);
+  assert.equal(res.body.mediaDiagnostics.asrAttempted, true);
+  assert.equal(res.body.mediaDiagnostics.asrOk, false);
+  assert.equal(res.body.mediaDiagnostics.asrEndpointHost, 'api.groq.com');
+  assert.equal(res.body.mediaDiagnostics.asrModel, 'gpt-4o-mini-transcribe');
+  assert.equal(res.body.mediaDiagnostics.asrUpstreamStatus, 404);
+  assert.equal(res.body.mediaDiagnostics.asrUpstreamCode, 'model_not_found');
+  assert.doesNotMatch(res.body.mediaDiagnostics.asrErrorPreview, /test-key/);
+  assert.equal(res.body.mediaDiagnostics.audioBytes, audioBytes.length);
+  assert.equal(res.body.mediaDiagnostics.audioMimeType, 'audio/mp4');
+  assert.ok(res.body.mediaDiagnostics.framesExtracted > 0);
+  assert.equal(res.body.mediaDiagnostics.ocrAttempted, true);
+  assert.equal(res.body.mediaDiagnostics.ocrOk, false);
+  assert.equal(res.body.mediaDiagnostics.ocrFrameCount, 0);
+  assert.equal(res.body.mediaDiagnostics.failedFrameCount, res.body.mediaDiagnostics.framesExtracted);
+  assert.equal(res.body.mediaDiagnostics.visionEndpointHost, 'api.groq.com');
+  assert.equal(res.body.mediaDiagnostics.visionModel, 'meta-llama/llama-4-scout-17b-16e-instruct');
+  assert.equal(res.body.mediaDiagnostics.visionUpstreamStatus, 400);
+  assert.equal(res.body.mediaDiagnostics.visionUpstreamCode, 'model_not_found');
+  assert.doesNotMatch(res.body.mediaDiagnostics.visionErrorPreview, /test-key/);
+  assert.match(res.body.mediaDiagnostics.warnings.join('\n'), /音频已提取，但口播转录失败/);
+  assert.match(res.body.mediaDiagnostics.warnings.join('\n'), /视频抽帧成功，但画面文字识别失败/);
 });
 
 test('/api/recipe-import-from-url 视频处理失败时使用页面文字继续生成草稿', async () => {

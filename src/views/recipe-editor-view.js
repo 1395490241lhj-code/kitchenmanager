@@ -75,6 +75,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
         seasonings: aiPendingDraft.seasonings,
         warnings: aiPendingDraft.warnings,
         diagnostics: aiPendingDraft.diagnostics,
+        mediaDiagnostics: aiPendingDraft.mediaDiagnostics,
         debugEvidenceSummary: aiPendingDraft.debugEvidenceSummary,
         needsReview: aiPendingDraft.needsReview,
         isAiDraft: true
@@ -91,6 +92,9 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     : [];
   const aiDraftDiagnostics = isAiImportDraft && aiPendingDraft.diagnostics && typeof aiPendingDraft.diagnostics === 'object'
     ? aiPendingDraft.diagnostics
+    : null;
+  const aiMediaDiagnostics = isAiImportDraft && aiPendingDraft.mediaDiagnostics && typeof aiPendingDraft.mediaDiagnostics === 'object'
+    ? aiPendingDraft.mediaDiagnostics
     : null;
   const aiDiagnosticSummary = aiDraftDiagnostics
     ? `提取置信度：${aiDraftDiagnostics.sourceConfidence || 'unknown'} · 食材 ${aiDraftDiagnostics.observedIngredientCount ?? 0} · 调料 ${aiDraftDiagnostics.observedSeasoningCount ?? 0} · 步骤 ${aiDraftDiagnostics.observedActionCount ?? 0}`
@@ -116,8 +120,23 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
       .map(seg => `${seg.type || 'unknown'}:${String(seg.text || '').slice(0, 24)}`)
       .join(' / ')
     : '';
-  const aiWarningHtml = aiDraftWarnings.length
-    ? `<div class="inline-status ai-draft-warning"><strong>这个菜谱可能需要确认：</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}${aiLinkOnlySummary ? `<div class="meta">${escapeHtml(aiLinkOnlySummary)}</div>` : ''}${aiRawTextPreview ? `<div class="meta">抓取原文预览：${escapeHtml(aiRawTextPreview)}</div>` : ''}${aiAuthorCandidatePreview ? `<div class="meta">作者正文候选：${escapeHtml(aiAuthorCandidatePreview)}</div>` : ''}${aiCleanedTextPreview ? `<div class="meta">清洗后菜谱文本：${escapeHtml(aiCleanedTextPreview)}</div>` : ''}${aiSegmentsPreview ? `<div class="meta">来源片段分类：${escapeHtml(aiSegmentsPreview)}</div>` : ''}${aiExcludedSocialPreview ? `<div class="meta">已按片段清洗来源文本，忽略疑似评论/弹幕/推荐文案。</div>` : ''}<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`
+  const aiMediaDiagnosticLines = aiMediaDiagnostics
+    ? [
+        `视频地址：${aiMediaDiagnostics.hasVideo ? '已找到' : '未找到'}`,
+        `音频提取：${aiMediaDiagnostics.audioExtracted ? '成功' : '失败'}`,
+        `口播转录：${aiMediaDiagnostics.asrOk ? '成功' : '失败'}`,
+        `抽帧：${Number(aiMediaDiagnostics.framesExtracted || 0)} 帧`,
+        `画面文字识别：${aiMediaDiagnostics.ocrOk ? '成功' : '失败'}${aiMediaDiagnostics.ocrFrameCount !== undefined ? `（成功 ${Number(aiMediaDiagnostics.ocrFrameCount || 0)} 帧）` : ''}`,
+        ...(!aiMediaDiagnostics.asrOk && (aiMediaDiagnostics.asrUpstreamStatus || aiMediaDiagnostics.asrUpstreamCode || aiMediaDiagnostics.asrErrorPreview)
+          ? [`ASR：${[aiMediaDiagnostics.asrUpstreamStatus, aiMediaDiagnostics.asrUpstreamCode, aiMediaDiagnostics.asrErrorPreview].filter(Boolean).join(' · ')}`]
+          : []),
+        ...(!aiMediaDiagnostics.ocrOk && (aiMediaDiagnostics.visionUpstreamStatus || aiMediaDiagnostics.visionUpstreamCode || aiMediaDiagnostics.visionErrorPreview)
+          ? [`Vision：${[aiMediaDiagnostics.visionUpstreamStatus, aiMediaDiagnostics.visionUpstreamCode, aiMediaDiagnostics.visionErrorPreview].filter(Boolean).join(' · ')}`]
+          : [])
+      ]
+    : [];
+  const aiWarningHtml = aiDraftWarnings.length || aiMediaDiagnosticLines.length
+    ? `<div class="inline-status ai-draft-warning"><strong>${aiDraftWarnings.length ? '这个菜谱可能需要确认：' : 'AI 导入诊断：'}</strong>${aiDiagnosticSummary ? `<div class="meta">${escapeHtml(aiDiagnosticSummary)}</div>` : ''}${aiLinkOnlySummary ? `<div class="meta">${escapeHtml(aiLinkOnlySummary)}</div>` : ''}${aiRawTextPreview ? `<div class="meta">抓取原文预览：${escapeHtml(aiRawTextPreview)}</div>` : ''}${aiAuthorCandidatePreview ? `<div class="meta">作者正文候选：${escapeHtml(aiAuthorCandidatePreview)}</div>` : ''}${aiCleanedTextPreview ? `<div class="meta">清洗后菜谱文本：${escapeHtml(aiCleanedTextPreview)}</div>` : ''}${aiSegmentsPreview ? `<div class="meta">来源片段分类：${escapeHtml(aiSegmentsPreview)}</div>` : ''}${aiMediaDiagnosticLines.length ? `<div class="meta">视频读取诊断：${escapeHtml(aiMediaDiagnosticLines.join('；'))}</div>` : ''}${aiExcludedSocialPreview ? `<div class="meta">已按片段清洗来源文本，忽略疑似评论/弹幕/推荐文案。</div>` : ''}${aiDraftWarnings.length ? `<ul>${aiDraftWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>` : ''}</div>`
     : '';
 
   const wrap = document.createElement('div'); wrap.className = 'card recipe-editor-card';
