@@ -2126,7 +2126,15 @@ async function postChatCompletion({ model, messages, temperature = 0.2, response
   );
 }
 
-async function postJsonChatContentWithFallback({ model, messages, temperature = 0.2, timeout = 45000 }) {
+async function postJsonChatContentWithFallback({ model, messages, temperature = 0.2, timeout = 45000, useJsonMode = false }) {
+  // 默认走普通 chat completion（不带 response_format）。Groq 的 json_object / json_schema 强制模式
+  // 会在模型输出不满足校验时返回 400 json_validate_failed；「视频文字 → 菜谱 JSON」这一步改为普通
+  // 输出 + safeParseModelJson 解析，从根源上规避该错误，不再依赖强制 JSON 模式。
+  if (!useJsonMode) {
+    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: false, timeout });
+    return getAiMessageContent(resp);
+  }
+  // 兜底保留：万一某处仍需强制 JSON，遇到 json_validate_failed 时自动改普通输出重试一次。
   try {
     const resp = await postChatCompletion({ model, messages, temperature, responseFormat: true, timeout });
     return getAiMessageContent(resp);
@@ -2203,7 +2211,7 @@ function buildFallbackEvidenceFromSource({ text = '', sourceMetadata = {} } = {}
   ];
   const aromatics = extractKnownTermsFromText(evidenceText, ['鲜藤椒', '藤椒', '藤椒粉', '花椒', '蒜', '姜', '葱', '辣椒']);
   const liquids = extractKnownTermsFromText(evidenceText, ['水', '清水', '高汤', '汤']);
-  const actions = splitRecipeActionSentences(transcript || evidenceText);
+  const actions = splitRecipeActionSentences([transcript, ocr].filter(Boolean).join('\n') || evidenceText);
   return {
     dishNameCandidates: [extractFallbackDishName(page || evidenceText, sourceMetadata)],
     observedMainIngredients: extractKnownTermsFromText(evidenceText, mainTerms),
@@ -2225,7 +2233,8 @@ function buildFallbackEvidenceFromSource({ text = '', sourceMetadata = {} } = {}
     observedTools: [],
     uncertainItems: [],
     missingInfo: ['AI evidence JSON 解析失败，已根据视频转录文字生成保守 evidence。'],
-    sourceConfidence: actions.length >= 3 ? 'medium' : 'low'
+    // 已经从口播转录里抽到烹饪动作句 → medium（能据此生成 method 步骤）；一句都没有才算 low。
+    sourceConfidence: actions.length ? 'medium' : 'low'
   };
 }
 
@@ -3259,7 +3268,9 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
       ocrPreview: ocrText.slice(0, 800),
       pageTextPreview: pageText.slice(0, 500)
     };
-    if (err?.aiParseCode === 'recipe_json_failed') {
+    // 安全网：final recipe 已经失败，但视频文字确实读到了。绝不把 json_validate_failed 这类
+    // 上游 400 直接透传给前端——统一降级为 422 recipe_json_failed，并带上可继续手动编辑的文字预览。
+    if (err?.aiParseCode === 'recipe_json_failed' || isJsonValidateFailedError(err)) {
       cleanupRecipeImportMediaCache();
       return sendAiJsonError(res, 422, 'recipe_json_failed', '视频文字已读取成功，但 AI 整理菜谱失败。', importTextReadyExtra);
     }
