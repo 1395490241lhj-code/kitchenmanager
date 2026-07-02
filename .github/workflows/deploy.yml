@@ -20,12 +20,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install dependencies
-        run: npm ci || npm install
+      # 纯静态站点，无构建步骤：不装 npm 依赖，避免把 node_modules 打进部署产物。
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
