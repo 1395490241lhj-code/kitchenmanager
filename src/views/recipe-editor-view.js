@@ -32,6 +32,20 @@ import {
 // 不 import，直接共用相同字符串常量就行（两个文件同源）
 const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
 
+function normalizeRecipeMethodText(method) {
+  if (Array.isArray(method)) {
+    return method
+      .map(step => String(step || '').trim())
+      .filter(Boolean)
+      .map((step, index) => {
+        const clean = step.replace(/^\s*\d+[.、)]\s*/, '').trim();
+        return `${index + 1}. ${clean}`;
+      })
+      .join('\n');
+  }
+  return String(method || '').trim();
+}
+
 export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   // 检测是否为 AI 导入草稿占位（sessionStorage 暂存模式）
   const isAiImportDraft = id === 'ai-import-draft';
@@ -88,6 +102,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     ? (aiPendingDraft.ingredients || []).map(x => ({...x}))
     : (overIng[id] ?? baseIng[id] ?? []).map(x => ({...x}));
   const isCustomRecipe = isAiImportDraft ? true : !rBase;
+  const methodText = normalizeRecipeMethodText(r.method);
   const statusInfo = getRecipeStatusInfo(r, id, isAiImportDraft ? null : rBase, isAiImportDraft ? { isAiDraft: true } : rOv);
   const isAiDraft = isAiImportDraft || statusInfo.className === 'draft';
   const aiDraftWarnings = isAiImportDraft && Array.isArray(aiPendingDraft.warnings)
@@ -176,7 +191,7 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     </table>
 
     <h3 class="editor-section-title">做法 (Method)</h3>
-    <textarea id="rMethod" rows="8" placeholder="请输入烹饪步骤..." class="editor-textarea">${escapeHtml(r.method || '')}</textarea>
+    <textarea id="rMethod" rows="8" placeholder="请输入烹饪步骤..." class="editor-textarea">${escapeHtml(methodText)}</textarea>
 
     <div class="controls editor-actions">
        <div>

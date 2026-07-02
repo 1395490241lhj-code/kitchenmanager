@@ -880,9 +880,15 @@ test('AI 菜谱导入 warning 单独传给编辑页，不写入 Method', () => {
   assert.match(modal, /warnings: Array\.isArray\(draft\.warnings\)/);
   assert.match(modal, /diagnostics: draft\.diagnostics/);
   assert.match(modal, /mediaDiagnostics: draft\.mediaDiagnostics/);
+  assert.match(modal, /function normalizeRecipeMethodText\(method\)/);
+  assert.match(modal, /Array\.isArray\(method\)/);
+  assert.match(modal, /method: normalizeRecipeMethodText\(draft\.method\)/);
   assert.match(editor, /aiDraftWarnings/);
   assert.match(editor, /aiDraftDiagnostics/);
   assert.match(editor, /aiMediaDiagnostics/);
+  assert.match(editor, /function normalizeRecipeMethodText\(method\)/);
+  assert.match(editor, /const methodText = normalizeRecipeMethodText\(r\.method\)/);
+  assert.match(editor, /escapeHtml\(methodText\)/);
   assert.match(editor, /提取置信度/);
   assert.match(editor, /视频读取诊断/);
   assert.match(editor, /口播转录/);

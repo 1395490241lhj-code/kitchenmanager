@@ -15,6 +15,20 @@ export function extractFirstHttpUrl(text) {
   return { url, remainingText };
 }
 
+export function normalizeRecipeMethodText(method) {
+  if (Array.isArray(method)) {
+    return method
+      .map(step => String(step || '').trim())
+      .filter(Boolean)
+      .map((step, index) => {
+        const clean = step.replace(/^\s*\d+[.、)]\s*/, '').trim();
+        return `${index + 1}. ${clean}`;
+      })
+      .join('\n');
+  }
+  return String(method || '').trim();
+}
+
 function openEditorWithAiDraft(draft) {
   const tags = Array.from(new Set(['AI草稿', 'AI导入', ...(Array.isArray(draft.tags) ? draft.tags : [])]));
   const seasonings = (Array.isArray(draft.seasonings) ? draft.seasonings : [])
@@ -23,7 +37,7 @@ function openEditorWithAiDraft(draft) {
   const pending = {
     name: draft.name || 'AI 导入菜谱草稿',
     tags,
-    method: draft.method || '',
+    method: normalizeRecipeMethodText(draft.method),
     seasonings,
     ingredients: (draft.ingredients || []).map(i => ({ item: i.item || '', qty: i.qty ?? null, unit: i.unit ?? null })),
     warnings: Array.isArray(draft.warnings) ? draft.warnings.filter(Boolean) : [],
