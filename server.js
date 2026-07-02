@@ -3240,12 +3240,13 @@ const FALLBACK_MAIN_INGREDIENT_WORDS = [
   '鸡腿', '鸡肉', '鸡翅', '牛肉', '猪肉', '排骨', '鱼', '虾', '土豆', '番茄', '西红柿', '鸡蛋', '豆腐', '青椒', '洋葱'
 ];
 const FALLBACK_SEASONING_WORDS = [
-  '生抽', '老抽', '料酒', '盐', '糖', '鸡精', '味精', '蚝油', '淀粉', '藤椒', '花椒', '辣椒', '葱', '姜', '蒜', '油', '水'
+  '生抽', '老抽', '料酒', '黄酒', '盐', '糖', '鸡精', '味精', '蚝油', '淀粉', '藤椒', '花椒', '辣椒', '葱', '姜', '蒜', '油', '水'
 ];
 const FALLBACK_MAIN_INGREDIENT_RE = new RegExp(FALLBACK_MAIN_INGREDIENT_WORDS.join('|'), 'u');
 const FALLBACK_SEASONING_RE = new RegExp(FALLBACK_SEASONING_WORDS.join('|'), 'u');
 const FALLBACK_TIME_HEAT_RE = /(?:\d+|[一二两三四五六七八九十半]+)\s*(?:分钟|秒|小时)|小火|中火|大火|高火|低火|火候|煎至|炒至|炸至|烤至|蒸至|煮至|焖至|炖至|金黄|焦香|熟透|入味/u;
-const FALLBACK_NOISE_RE = /看起来很好吃|真的太香了|大家有没有|我跟你说|这个真的|你们有没有发现|小时候|小红书|复制打开|打开|评论区|教程|一次性解决|不是我说|大家一定要试试|下饭神器|赶紧收藏|点赞关注|有没有同款|我妈说|太绝了|点赞|关注|收藏|主页|链接|姐妹们|家人们|真的|绝了|好吃到|赶紧|别错过/gu;
+const FALLBACK_NOISE_RE = /看起来就很好吃|看起来很好吃|真的太香了|这道菜|菜从前期处理的细节进去到|到家里怎么丝滑的运用铁锅|大家有没有|我跟你说|你问起来|如果新鲜就是|那种鸡味|就说明|这个真的|你们有没有发现|小时候|小红书|复制打开|打开|评论区|教程|一次性解决|不是我说|大家一定要试试|下饭神器|赶紧收藏|点赞关注|有没有同款|我妈说|太绝了|很容易|最好是|这个时候|否则|然后呢|的话|就不|其实|就是|点赞|关注|收藏|主页|链接|姐妹们|家人们|真的|绝了|好吃到|赶紧|别错过/gu;
+const FALLBACK_PARTICLE_RE = /[呢啊呀哈嘛哦]/gu;
 const FALLBACK_CHATTER_RE = new RegExp(FALLBACK_NOISE_RE.source, 'u');
 
 function splitTextByBoundaryWords(text, words) {
@@ -3295,6 +3296,7 @@ function splitLongFallbackStep(step) {
 function cleanFallbackStepText(sentence) {
   return stripStepPrefix(sentence)
     .replace(FALLBACK_NOISE_RE, ' ')
+    .replace(FALLBACK_PARTICLE_RE, '')
     .replace(/\s+/g, ' ')
     .replace(/^[，,。；;：:\s]+|[，,；;：:\s]+$/gu, '')
     .trim();
@@ -3373,6 +3375,87 @@ function extractCookingSegmentsFromTranscript(transcriptText, ocrText = '') {
   };
 }
 
+function finishFallbackCookingStep(text) {
+  const clean = String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[，,；;：:\s]+$/u, '')
+    .trim();
+  if (!clean) return '';
+  return /[。.!！?？]$/u.test(clean) ? clean : `${clean}。`;
+}
+
+function simplifyFallbackCookingStep(stepText) {
+  const raw = normalizeFallbackSegmentText(stepText);
+  if (!raw) return '';
+  const text = cleanFallbackStepText(raw);
+  if (!text || !FALLBACK_COOKING_ACTION_RE.test(text)) return '';
+  if (/去骨|剥骨|剔骨|剥.*骨/u.test(text)) {
+    return '鸡腿去骨，处理干净。';
+  }
+  if (/厨房纸|擦出来|水都给它擦出来|擦干|吸干/u.test(text)) {
+    return '用厨房纸擦干鸡腿表面水分。';
+  }
+  if (/(清洗|洗完|洗净|洗一下|洗)/u.test(text) && /(鸡腿|外皮)/u.test(text)) {
+    return '鸡腿清洗干净，去除表面杂质。';
+  }
+  if (/改刀/u.test(text) && /切每一块|切块/u.test(text)) {
+    return '在鸡腿肉面改刀，并切成合适大小的块。';
+  }
+  if (/改刀/u.test(text)) {
+    return '在鸡腿肉面改刀，方便腌制入味。';
+  }
+  if (/切每一块|切块/u.test(text)) {
+    return '将鸡腿切成合适大小的块。';
+  }
+  if (/(锅|热锅|下锅).*(油|倒油|烧油)|(油|倒油|烧油).*(锅|热锅|下锅)/u.test(text) && /煎/u.test(text)) {
+    return '锅中倒油烧热，放入鸡腿煎至表面定型。';
+  }
+  if (/(锅|热锅|下锅).*(油|倒油|烧油)|(油|倒油|烧油).*(锅|热锅|下锅)|倒油|烧油/u.test(text)) {
+    return '锅中倒油烧热。';
+  }
+  if (/煎/u.test(text)) {
+    return '放入鸡腿煎至表面定型。';
+  }
+  if (/(藤椒|花椒)/u.test(text) && /出锅|装盘|熟透/u.test(text)) {
+    return '加入藤椒、花椒等调味，鸡腿熟透后出锅。';
+  }
+  if (/(藤椒|花椒)/u.test(text)) {
+    return '加入藤椒、花椒等调味增香。';
+  }
+  if (/出锅|装盘/u.test(text)) {
+    return '鸡腿熟透后出锅装盘。';
+  }
+  if (/调味.*熟透|熟透.*调味/u.test(text)) {
+    return '';
+  }
+  if (/盐|黄酒|生抽|老抽|淀粉|腌|抓匀|拌匀|料酒|糖/u.test(text)) {
+    return '加入盐、黄酒、生抽、老抽、糖和淀粉等调料，抓匀腌制。';
+  }
+  if (text.length > 50) return '';
+  return finishFallbackCookingStep(text);
+}
+
+function compactFallbackSimplifiedSteps(steps) {
+  const compacted = [];
+  for (let i = 0; i < steps.length; i += 1) {
+    const current = steps[i];
+    const next = steps[i + 1] || '';
+    if (/^锅中倒油烧热。?$/.test(current) && /^放入鸡腿煎至表面定型。?$/.test(next)) {
+      compacted.push('锅中倒油烧热，放入鸡腿煎至表面定型。');
+      i += 1;
+      continue;
+    }
+    if (/^加入藤椒、花椒等调味增香。?$/.test(current) && /^鸡腿熟透后出锅装盘。?$/.test(next)) {
+      compacted.push('加入藤椒、花椒等调味，鸡腿熟透后出锅。');
+      i += 1;
+      continue;
+    }
+    if (/^调味鸡腿熟透后。?$/.test(current)) continue;
+    compacted.push(current);
+  }
+  return compacted;
+}
+
 function mergeFallbackStepFragments(fragments) {
   const merged = [];
   let current = '';
@@ -3402,7 +3485,7 @@ function mergeFallbackStepFragments(fragments) {
   return merged;
 }
 
-function splitTranscriptIntoCookingSteps(transcriptText) {
+function buildFallbackRawCookingSteps(transcriptText) {
   const extraction = extractCookingSegmentsFromTranscript(transcriptText);
   const fragments = extraction.segments
     .filter(segment => segment.type === 'cooking_action' || segment.type === 'time_heat')
@@ -3412,8 +3495,32 @@ function splitTranscriptIntoCookingSteps(transcriptText) {
       .flatMap(step => splitLongFallbackStep(step))
       .map(cleanFallbackStepText)
       .filter(step => step.length >= 4 && step.length <= 100 && FALLBACK_COOKING_ACTION_RE.test(step)),
-    8
+    16
   );
+}
+
+function buildFallbackRecipeMethodDetails(transcriptText) {
+  const rawSteps = buildFallbackRawCookingSteps(transcriptText);
+  const simplified = compactFallbackSimplifiedSteps(uniqueTextList(
+    rawSteps
+      .map(simplifyFallbackCookingStep)
+      .map(step => step.trim())
+      .filter(step => step.length >= 6 && step.length <= 55),
+    8
+  ));
+  const method = simplified.length
+    ? simplified
+    : ['已成功读取视频口播，但未能稳定提取烹饪步骤，请根据原文预览手动整理。'];
+  return {
+    method,
+    rawSteps,
+    simplifiedSteps: simplified,
+    droppedStepCount: Math.max(0, rawSteps.length - simplified.length)
+  };
+}
+
+function splitTranscriptIntoCookingSteps(transcriptText) {
+  return buildFallbackRecipeMethodDetails(transcriptText).method;
 }
 
 function isFallbackMethodNoise(sentence) {
@@ -3437,12 +3544,13 @@ function buildFallbackRecipeFromTranscript({ pageText = '', transcriptText = '',
     '土豆', '番茄', '西红柿', '鸡蛋', '豆腐', '青椒', '洋葱', '茄子', '白菜', '西兰花'
   ];
   const seasoningTerms = [
-    '鲜藤椒', '藤椒粉', '藤椒', '花椒', '辣椒', '生抽', '老抽', '料酒', '盐', '糖',
+    '鲜藤椒', '藤椒粉', '藤椒', '花椒', '辣椒', '生抽', '老抽', '料酒', '黄酒', '盐', '糖',
     '鸡精', '味精', '蚝油', '淀粉', '小苏打', '葱', '姜', '蒜', '油', '水'
   ];
   const segmentExtraction = extractCookingSegmentsFromTranscript(transcriptText || combinedText, ocrText);
   const cookingSegments = segmentExtraction.segments.filter(segment => segment.type === 'cooking_action' || segment.type === 'time_heat');
-  const method = buildFallbackRecipeMethod(segmentExtraction.cookingText || transcriptText || combinedText);
+  const methodDetails = buildFallbackRecipeMethodDetails(segmentExtraction.cookingText || transcriptText || combinedText);
+  const method = methodDetails.method;
   const droppedChatterCount = segmentExtraction.segments.filter(segment => segment.type === 'chatter').length;
   const warnings = [
     '视频文字已读取成功，但 AI 整理时触发限流。当前草稿由规则提取生成，请人工确认。'
@@ -3463,12 +3571,16 @@ function buildFallbackRecipeFromTranscript({ pageText = '', transcriptText = '',
     cookingSegmentCount: cookingSegments.length,
     droppedChatterCount,
     fallbackStepCount: method.filter(step => !/未能稳定提取/.test(step)).length,
+    fallbackRawStepCount: methodDetails.rawSteps.length,
+    fallbackSimplifiedStepCount: methodDetails.simplifiedSteps.length,
+    fallbackDroppedStepCount: methodDetails.droppedStepCount,
     cookingSegmentsPreview: cookingSegments.map(segment => ({
       text: segment.text.slice(0, 100),
       type: segment.type,
       action: segment.action,
       confidence: segment.confidence
     })).slice(0, 8),
+    fallbackSimplifiedPreview: methodDetails.simplifiedSteps.slice(0, 8),
     droppedTextPreview: segmentExtraction.droppedTextPreview
   };
   return {
