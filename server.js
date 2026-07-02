@@ -3195,19 +3195,127 @@ function buildFallbackRecipeItems(text, terms, { seasoning = false } = {}) {
   });
 }
 
+const FALLBACK_COOKING_ACTION_WORDS = [
+  '清洗', '切块', '切片', '腌制', '抓匀', '拌匀', '加入', '放入', '倒入',
+  '下锅', '起锅', '热锅', '煎至', '翻炒', '盖盖', '收汁', '出锅', '装盘',
+  '去骨', '洗', '切', '腌', '煎', '炒', '炸', '烤', '蒸', '煮', '焖', '撒', '淋'
+];
+
+const FALLBACK_TRANSITION_WORDS = [
+  '这个时候', '然后', '接着', '之后', '最后', '等到', '直到', '如果', '一会儿', '再'
+];
+
+const FALLBACK_COOKING_ACTION_RE = new RegExp(FALLBACK_COOKING_ACTION_WORDS.join('|'), 'u');
+const FALLBACK_NOISE_RE = /看起来很好吃|大家有没有|我跟你说|这个真的|你们有没有发现|小时候|小红书|复制打开|打开|评论区|教程|一次性解决|不是我说|大家一定要试试|点赞|关注|收藏|主页|链接|姐妹们|家人们|真的|绝了|好吃到|赶紧|别错过/gu;
+
+function splitTextByBoundaryWords(text, words) {
+  const source = String(text || '').trim();
+  if (!source) return [];
+  const escapedWords = words
+    .slice()
+    .sort((a, b) => b.length - a.length)
+    .map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const boundaryRe = new RegExp(escapedWords.join('|'), 'gu');
+  const matches = [...source.matchAll(boundaryRe)].map(match => match.index).filter(index => index > 0);
+  if (!matches.length) return [source];
+  const parts = [];
+  let start = 0;
+  for (const index of matches) {
+    if (index <= start) continue;
+    parts.push(source.slice(start, index));
+    start = index;
+  }
+  parts.push(source.slice(start));
+  return parts.map(part => part.trim()).filter(Boolean);
+}
+
+function countFallbackActions(text) {
+  const actionRe = new RegExp(FALLBACK_COOKING_ACTION_WORDS.join('|'), 'gu');
+  return [...String(text || '').matchAll(actionRe)].length;
+}
+
+function splitLongFallbackStep(step) {
+  const source = String(step || '').trim();
+  if (!source) return [];
+  let parts = [source];
+  if (source.length > 120) {
+    parts = parts.flatMap(part => splitTextByBoundaryWords(part, FALLBACK_TRANSITION_WORDS));
+  }
+  parts = parts.flatMap(part => {
+    if (part.length <= 80 && countFallbackActions(part) < 3) return [part];
+    return splitTextByBoundaryWords(part, FALLBACK_COOKING_ACTION_WORDS);
+  });
+  parts = parts.flatMap(part => {
+    if (part.length <= 100) return [part];
+    return splitTextByBoundaryWords(part, FALLBACK_TRANSITION_WORDS);
+  });
+  return parts;
+}
+
+function cleanFallbackStepText(sentence) {
+  return stripStepPrefix(sentence)
+    .replace(FALLBACK_NOISE_RE, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[，,。；;：:\s]+|[，,；;：:\s]+$/gu, '')
+    .trim();
+}
+
+function mergeFallbackStepFragments(fragments) {
+  const merged = [];
+  let current = '';
+  for (const raw of fragments) {
+    const part = cleanFallbackStepText(raw);
+    if (!part) continue;
+    if (!FALLBACK_COOKING_ACTION_RE.test(part)) continue;
+    if (!current) {
+      current = part;
+      continue;
+    }
+    const currentIsShort = current.length < 20;
+    const partIsTiny = part.length < 8;
+    if ((currentIsShort || partIsTiny) && (current + part).length <= 90) {
+      current += part;
+      continue;
+    }
+    merged.push(current);
+    current = part;
+  }
+  if (current) merged.push(current);
+  return merged;
+}
+
+function splitTranscriptIntoCookingSteps(transcriptText) {
+  const source = String(transcriptText || '')
+    .replace(/[“”"']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!source) return [];
+  const roughParts = source
+    .split(/[。！？!?；;\n]+/u)
+    .map(part => part.trim())
+    .filter(Boolean);
+  const fragments = roughParts.flatMap(part => splitLongFallbackStep(part));
+  return uniqueTextList(
+    mergeFallbackStepFragments(fragments)
+      .flatMap(step => splitLongFallbackStep(step))
+      .map(cleanFallbackStepText)
+      .filter(step => step.length >= 4 && step.length <= 100 && FALLBACK_COOKING_ACTION_RE.test(step)),
+    8
+  );
+}
+
 function isFallbackMethodNoise(sentence) {
-  return /点赞|关注|收藏|评论|主页|链接|教程|小红书|复制打开|姐妹们|家人们|安排|真的|绝了|好吃到|赶紧|一定要试|别错过/u.test(String(sentence || ''));
+  const cleaned = cleanFallbackStepText(sentence);
+  return !cleaned || !FALLBACK_COOKING_ACTION_RE.test(cleaned);
 }
 
 function buildFallbackRecipeMethod(transcriptText) {
-  const method = splitRecipeActionSentences(transcriptText)
-    .map(stripStepPrefix)
-    .map(sentence => sentence.replace(/\s+/g, ' ').trim())
+  const method = splitTranscriptIntoCookingSteps(transcriptText)
     .filter(sentence => sentence && !isFallbackMethodNoise(sentence))
     .slice(0, 8);
   return method.length
     ? method
-    : ['已成功读取视频口播，但未能稳定提取烹饪步骤，请根据下方原文预览手动整理。'];
+    : ['已成功读取视频口播，但未能稳定提取烹饪步骤，请根据原文预览手动整理。'];
 }
 
 function buildFallbackRecipeFromTranscript({ pageText = '', transcriptText = '', ocrText = '', sourceMetadata = {}, mediaDiagnostics = {} } = {}) {
