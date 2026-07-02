@@ -3196,17 +3196,28 @@ function buildFallbackRecipeItems(text, terms, { seasoning = false } = {}) {
 }
 
 const FALLBACK_COOKING_ACTION_WORDS = [
-  '清洗', '切块', '切片', '腌制', '抓匀', '拌匀', '加入', '放入', '倒入',
-  '下锅', '起锅', '热锅', '煎至', '翻炒', '盖盖', '收汁', '出锅', '装盘',
-  '去骨', '洗', '切', '腌', '煎', '炒', '炸', '烤', '蒸', '煮', '焖', '撒', '淋'
+  '清洗', '去皮', '去骨', '切块', '切片', '切丝', '改刀', '腌制', '抓匀', '拌匀',
+  '加入', '放入', '倒入', '下锅', '起锅', '热锅', '倒油', '烧油', '煎至', '翻炒',
+  '盖盖', '收汁', '调味', '出锅', '装盘', '洗', '切', '腌', '煎', '炒', '炸',
+  '烤', '蒸', '煮', '焖', '炖', '撒', '淋'
 ];
 
 const FALLBACK_TRANSITION_WORDS = [
-  '这个时候', '然后', '接着', '之后', '最后', '等到', '直到', '如果', '一会儿', '再'
+  '这个时候', '下一步', '然后', '接着', '之后', '最后', '等到', '直到', '如果', '一会儿', '另外', '先', '再'
 ];
 
 const FALLBACK_COOKING_ACTION_RE = new RegExp(FALLBACK_COOKING_ACTION_WORDS.join('|'), 'u');
-const FALLBACK_NOISE_RE = /看起来很好吃|大家有没有|我跟你说|这个真的|你们有没有发现|小时候|小红书|复制打开|打开|评论区|教程|一次性解决|不是我说|大家一定要试试|点赞|关注|收藏|主页|链接|姐妹们|家人们|真的|绝了|好吃到|赶紧|别错过/gu;
+const FALLBACK_MAIN_INGREDIENT_WORDS = [
+  '鸡腿', '鸡肉', '鸡翅', '牛肉', '猪肉', '排骨', '鱼', '虾', '土豆', '番茄', '西红柿', '鸡蛋', '豆腐', '青椒', '洋葱'
+];
+const FALLBACK_SEASONING_WORDS = [
+  '生抽', '老抽', '料酒', '盐', '糖', '鸡精', '味精', '蚝油', '淀粉', '藤椒', '花椒', '辣椒', '葱', '姜', '蒜', '油', '水'
+];
+const FALLBACK_MAIN_INGREDIENT_RE = new RegExp(FALLBACK_MAIN_INGREDIENT_WORDS.join('|'), 'u');
+const FALLBACK_SEASONING_RE = new RegExp(FALLBACK_SEASONING_WORDS.join('|'), 'u');
+const FALLBACK_TIME_HEAT_RE = /(?:\d+|[一二两三四五六七八九十半]+)\s*(?:分钟|秒|小时)|小火|中火|大火|高火|低火|火候|煎至|炒至|炸至|烤至|蒸至|煮至|焖至|炖至|金黄|焦香|熟透|入味/u;
+const FALLBACK_NOISE_RE = /看起来很好吃|真的太香了|大家有没有|我跟你说|这个真的|你们有没有发现|小时候|小红书|复制打开|打开|评论区|教程|一次性解决|不是我说|大家一定要试试|下饭神器|赶紧收藏|点赞关注|有没有同款|我妈说|太绝了|点赞|关注|收藏|主页|链接|姐妹们|家人们|真的|绝了|好吃到|赶紧|别错过/gu;
+const FALLBACK_CHATTER_RE = new RegExp(FALLBACK_NOISE_RE.source, 'u');
 
 function splitTextByBoundaryWords(text, words) {
   const source = String(text || '').trim();
@@ -3260,6 +3271,79 @@ function cleanFallbackStepText(sentence) {
     .trim();
 }
 
+function normalizeFallbackSegmentText(sentence) {
+  return stripStepPrefix(sentence)
+    .replace(/\s+/g, ' ')
+    .replace(/^[，,。；;：:\s]+|[，,；;：:\s]+$/gu, '')
+    .trim();
+}
+
+function splitTranscriptCandidateSegments(text) {
+  const source = String(text || '')
+    .replace(/[“”"']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!source) return [];
+  const roughParts = source
+    .split(/[。！？!?；;，,\n]+/u)
+    .map(part => part.trim())
+    .filter(Boolean);
+  return roughParts
+    .flatMap(part => (part.length > 80 ? splitTextByBoundaryWords(part, FALLBACK_TRANSITION_WORDS) : [part]))
+    .flatMap(part => (part.length > 120 ? splitTextByBoundaryWords(part, FALLBACK_COOKING_ACTION_WORDS) : [part]))
+    .flatMap(part => splitLongFallbackStep(part))
+    .map(normalizeFallbackSegmentText)
+    .filter(Boolean);
+}
+
+function classifyCookingSegment(text) {
+  const segmentText = String(text || '').trim();
+  const hasAction = FALLBACK_COOKING_ACTION_RE.test(segmentText);
+  const hasMainIngredient = FALLBACK_MAIN_INGREDIENT_RE.test(segmentText);
+  const hasSeasoning = FALLBACK_SEASONING_RE.test(segmentText);
+  const hasTimeHeat = FALLBACK_TIME_HEAT_RE.test(segmentText);
+  const hasChatter = FALLBACK_CHATTER_RE.test(segmentText);
+  if (hasChatter && !hasAction && !hasMainIngredient && !hasSeasoning && !hasTimeHeat) {
+    return { type: 'chatter', action: '', confidence: 'high' };
+  }
+  if (hasAction && (hasMainIngredient || hasSeasoning || hasTimeHeat)) {
+    const action = (segmentText.match(FALLBACK_COOKING_ACTION_RE) || [''])[0];
+    return { type: 'cooking_action', action, confidence: 'high' };
+  }
+  if (hasAction) {
+    const action = (segmentText.match(FALLBACK_COOKING_ACTION_RE) || [''])[0];
+    return { type: 'cooking_action', action, confidence: 'medium' };
+  }
+  if (hasTimeHeat) return { type: 'time_heat', action: (segmentText.match(FALLBACK_TIME_HEAT_RE) || [''])[0], confidence: 'medium' };
+  if (hasMainIngredient) return { type: 'ingredient', action: '', confidence: 'medium' };
+  if (hasSeasoning) return { type: 'seasoning', action: '', confidence: 'medium' };
+  if (hasChatter) return { type: 'chatter', action: '', confidence: 'medium' };
+  return { type: 'unknown', action: '', confidence: 'low' };
+}
+
+function extractCookingSegmentsFromTranscript(transcriptText, ocrText = '') {
+  const candidates = splitTranscriptCandidateSegments([transcriptText, ocrText].filter(Boolean).join('\n'));
+  const segments = candidates.map(text => {
+    const classification = classifyCookingSegment(text);
+    return {
+      text,
+      type: classification.type,
+      action: classification.action,
+      confidence: classification.confidence
+    };
+  });
+  const cookingSegments = segments.filter(segment => segment.type === 'cooking_action' || segment.type === 'time_heat');
+  const droppedTextPreview = segments
+    .filter(segment => segment.type === 'chatter' || segment.type === 'unknown')
+    .map(segment => segment.text.slice(0, 80))
+    .slice(0, 8);
+  return {
+    segments,
+    cookingText: cookingSegments.map(segment => segment.text).join('\n'),
+    droppedTextPreview
+  };
+}
+
 function mergeFallbackStepFragments(fragments) {
   const merged = [];
   let current = '';
@@ -3281,20 +3365,19 @@ function mergeFallbackStepFragments(fragments) {
     current = part;
   }
   if (current) merged.push(current);
+  if (merged.length > 1 && merged[merged.length - 1].length < 12) {
+    const tail = merged.pop();
+    const prev = merged.pop();
+    merged.push(`${prev}${tail}`.slice(0, 100));
+  }
   return merged;
 }
 
 function splitTranscriptIntoCookingSteps(transcriptText) {
-  const source = String(transcriptText || '')
-    .replace(/[“”"']/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!source) return [];
-  const roughParts = source
-    .split(/[。！？!?；;\n]+/u)
-    .map(part => part.trim())
-    .filter(Boolean);
-  const fragments = roughParts.flatMap(part => splitLongFallbackStep(part));
+  const extraction = extractCookingSegmentsFromTranscript(transcriptText);
+  const fragments = extraction.segments
+    .filter(segment => segment.type === 'cooking_action' || segment.type === 'time_heat')
+    .map(segment => segment.text);
   return uniqueTextList(
     mergeFallbackStepFragments(fragments)
       .flatMap(step => splitLongFallbackStep(step))
@@ -3328,12 +3411,18 @@ function buildFallbackRecipeFromTranscript({ pageText = '', transcriptText = '',
     '鲜藤椒', '藤椒粉', '藤椒', '花椒', '辣椒', '生抽', '老抽', '料酒', '盐', '糖',
     '鸡精', '味精', '蚝油', '淀粉', '小苏打', '葱', '姜', '蒜', '油', '水'
   ];
-  const method = buildFallbackRecipeMethod(transcriptText || combinedText);
+  const segmentExtraction = extractCookingSegmentsFromTranscript(transcriptText || combinedText, ocrText);
+  const cookingSegments = segmentExtraction.segments.filter(segment => segment.type === 'cooking_action' || segment.type === 'time_heat');
+  const method = buildFallbackRecipeMethod(segmentExtraction.cookingText || transcriptText || combinedText);
+  const droppedChatterCount = segmentExtraction.segments.filter(segment => segment.type === 'chatter').length;
   const warnings = [
     '视频文字已读取成功，但 AI 整理时触发限流。当前草稿由规则提取生成，请人工确认。'
   ];
   if (method.length === 1 && /未能稳定提取/.test(method[0])) {
     warnings.push('未能从口播中稳定提取明确步骤，请参考视频文字预览手动整理。');
+  }
+  if ((String(transcriptText || '').length > 120 && cookingSegments.length < 6) || droppedChatterCount > 0) {
+    warnings.push('视频口播较长，已自动过滤闲聊内容；部分步骤可能需要人工确认。');
   }
   if (!transcriptText && ocrText) {
     warnings.push('未读取到口播转录，仅根据页面文字和画面文字生成规则草稿。');
@@ -3341,6 +3430,18 @@ function buildFallbackRecipeFromTranscript({ pageText = '', transcriptText = '',
   if (Array.isArray(mediaDiagnostics?.warnings)) {
     warnings.push(...mediaDiagnostics.warnings);
   }
+  const fallbackDiagnostics = {
+    cookingSegmentCount: cookingSegments.length,
+    droppedChatterCount,
+    fallbackStepCount: method.filter(step => !/未能稳定提取/.test(step)).length,
+    cookingSegmentsPreview: cookingSegments.map(segment => ({
+      text: segment.text.slice(0, 100),
+      type: segment.type,
+      action: segment.action,
+      confidence: segment.confidence
+    })).slice(0, 8),
+    droppedTextPreview: segmentExtraction.droppedTextPreview
+  };
   return {
     name: extractFallbackRecipeName({ pageText, transcriptText, ocrText, sourceMetadata }),
     tags: ['AI草稿', '视频导入'],
@@ -3349,7 +3450,8 @@ function buildFallbackRecipeFromTranscript({ pageText = '', transcriptText = '',
     method,
     warnings: uniqueTextList(warnings, 12),
     needsReview: true,
-    sourceType: 'xiaohongshu'
+    sourceType: 'xiaohongshu',
+    diagnostics: fallbackDiagnostics
   };
 }
 
@@ -3500,7 +3602,7 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
         content: JSON.stringify(fallbackRecipe),
         recipe: fallbackRecipe,
         evidence: null,
-        diagnostics: null,
+        diagnostics: fallbackRecipe.diagnostics || null,
         debugEvidenceSummary: {
           sourceTextSnippet: String(transcriptText || ocrText || pageText || '').slice(0, 500),
           observedIngredients: fallbackRecipe.ingredients.map(item => item.item),
