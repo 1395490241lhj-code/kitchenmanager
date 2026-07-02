@@ -64,16 +64,17 @@ const RECIPE_PACK_SCORING_DATA = {
   ]
 };
 
-// 核心食材记忆化：结果只由「来源用料数组」决定。默认路径以 pack 里该菜的原始用料
-// 数组为键，fallbackItems 路径以传入数组为键；pack 重建（invalidatePackCache 换新数组）
-// 时旧键随之失效。同一次渲染里 rankRecipes / 清冰箱 / scoreRecipe 多条路径会命中同一缓存，
-// 省掉对同一道菜反复 explode + 分类。返回的数组是只读共享引用——所有调用方只遍历不修改。
+// 核心食材记忆化：结果只由「来源用料数组」决定——无论走默认路径（pack 里的原始用料）
+// 还是 fallbackItems 路径，都先 explodeCombinedItems 再分类（explode 幂等，已展开的列表
+// 原样通过），保证同一个数组键永远只对应一种计算结果，不随调用顺序漂移。
+// pack 重建（invalidatePackCache 换新数组）时旧键随之失效；同一次渲染里 rankRecipes /
+// 清冰箱 / scoreRecipe 多条路径命中同一缓存。返回数组是只读共享引用——调用方只遍历不修改。
 const _coreIngredientsCache = new WeakMap();
 
 function computeCoreIngredients(sourceItems) {
   // 统一菜谱用料口径：只保留 role === 'core' 的核心食材参与库存匹配 / 缺货 / 买菜；
   // 调料（盐/生抽/水淀粉…）与非库存项（水/高汤/汤汁/适量…）一律排除。
-  return (sourceItems || [])
+  return explodeCombinedItems(sourceItems || [])
     .map(item => {
       const name = getCanonicalName(item.item || item.name || '');
       return { ...item, item: name, name };
@@ -82,15 +83,14 @@ function computeCoreIngredients(sourceItems) {
 }
 
 export function getRecipeCoreIngredients(recipe, pack, fallbackItems = null) {
-  const rawSource = (pack.recipe_ingredients || {})[recipe.id];
-  const cacheKey = fallbackItems || rawSource;
-  if (!cacheKey || typeof cacheKey !== 'object') {
-    return computeCoreIngredients(fallbackItems || explodeCombinedItems(rawSource || []));
+  const source = fallbackItems || (pack.recipe_ingredients || {})[recipe.id];
+  if (!source || typeof source !== 'object') {
+    return computeCoreIngredients(source);
   }
-  const cached = _coreIngredientsCache.get(cacheKey);
+  const cached = _coreIngredientsCache.get(source);
   if (cached) return cached;
-  const computed = computeCoreIngredients(fallbackItems || explodeCombinedItems(rawSource || []));
-  _coreIngredientsCache.set(cacheKey, computed);
+  const computed = computeCoreIngredients(source);
+  _coreIngredientsCache.set(source, computed);
   return computed;
 }
 

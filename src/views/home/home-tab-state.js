@@ -15,8 +15,9 @@ export function setHomeTab(tab) {
   lastWxTab = tab;
 }
 
-// 今日计划项数（只读 plan key，按 date===今天计数，不改任何计划逻辑）。
+// 今日待完成计划项数（只读 plan key，不改任何计划逻辑）。
+// 口径与全站其他计划读取一致：无 date 的旧数据按今天算，已做完（isCooked）的不计入。
 export function getTodayPlanCount() {
   const today = todayISO();
-  return S.load(S.keys.plan, []).filter(p => p && p.date === today).length;
+  return S.load(S.keys.plan, []).filter(p => p && (p.date || today) === today && !p.isCooked).length;
 }
