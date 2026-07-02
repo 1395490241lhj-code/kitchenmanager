@@ -63,7 +63,19 @@ const AI_PROMPT_MAX_CHARS = 12000;
 const AI_IMAGE_MAX_BASE64_BYTES = 4 * 1024 * 1024;
 const AI_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const AI_RATE_LIMIT_MAX = 30;
+const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
 const aiRateLimitBuckets = new Map();
+let aiRateLimitLastSweepAt = 0;
+
+// 惰性回收：限流桶按 IP 建、此前从不删除，长跑实例会缓慢累积陌生 IP 的过期桶。
+// 每分钟至多整扫一次，把窗口外的桶清掉；单次扫描 O(IP 数)，挂在限流检查入口即可。
+function sweepAiRateLimitBuckets(now) {
+  if (now - aiRateLimitLastSweepAt < AI_RATE_LIMIT_SWEEP_INTERVAL_MS) return;
+  aiRateLimitLastSweepAt = now;
+  for (const [ip, bucket] of aiRateLimitBuckets) {
+    if (now - bucket.start > AI_RATE_LIMIT_WINDOW_MS) aiRateLimitBuckets.delete(ip);
+  }
+}
 
 // 把 Base URL 归一为 chat/completions 完整地址。
 function resolveChatUrl(base) {
@@ -89,6 +101,7 @@ function getClientIp(req) {
 function isAiRateLimited(req) {
   const ip = getClientIp(req);
   const now = Date.now();
+  sweepAiRateLimitBuckets(now);
   const bucket = aiRateLimitBuckets.get(ip) || { start: now, count: 0 };
   if (now - bucket.start > AI_RATE_LIMIT_WINDOW_MS) {
     bucket.start = now;
@@ -2944,6 +2957,21 @@ app.get('/api/ai-status', (req, res) => {
 });
 
 // 默认 AI 代理：前端不持有密钥；只返回模型内容和安全的错误状态，不透出密钥。
+// /api/ai-chat 的「形态保持」清洗：剥 <think> 推理块与 markdown 围栏；能解析出 JSON 时
+// 返回紧凑 JSON 文本，否则原样返回。刻意不做 sanitizeRecipe——该路由服务多种 taskType
+// （receipt / method / cooked-meal / creative-recipe / recipe-search / recommendation），
+// 各自 JSON 形态不同（如 method 必须保持带序号的字符串），结构校验由前端各 validate* 负责；
+// 强制套菜谱清洗会破坏这些形态。落库的导入链路（/api/ai-parse 等）才走 sanitizeRecipe。
+function cleanAiChatContent(content) {
+  const stripped = String(content || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*/gi, '')
+    .trim();
+  const parsed = safeParseModelJson(stripped);
+  if (parsed && typeof parsed === 'object') return JSON.stringify(parsed);
+  return stripped;
+}
+
 app.post('/api/ai-chat', async (req, res) => {
   if (isAiRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。');
   if (!OPENAI_API_KEY) return sendAiJsonError(res, 503, 'missing_api_key', 'AI 服务暂时不可用。');
@@ -2983,8 +3011,9 @@ app.post('/api/ai-chat', async (req, res) => {
     const content = resp.data && resp.data.choices && resp.data.choices[0] && resp.data.choices[0].message
       ? (resp.data.choices[0].message.content || '')
       : '';
-    if (!content) return sendAiJsonError(res, 502, 'empty_response', 'AI 服务暂时不可用。');
-    return res.json({ content });
+    const cleaned = cleanAiChatContent(content);
+    if (!cleaned) return sendAiJsonError(res, 502, 'empty_response', 'AI 服务暂时不可用。');
+    return res.json({ content: cleaned });
   } catch (err) {
     return sendAiUpstreamError(res, err);
   }

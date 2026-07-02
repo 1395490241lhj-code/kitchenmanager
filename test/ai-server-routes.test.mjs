@@ -211,6 +211,35 @@ test('/api/ai-chat 文本请求继续使用 OPENAI_MODEL', async () => {
   assert.equal(capturedPayload.model, 'openai/gpt-oss-120b');
 });
 
+test('/api/ai-chat 剥离 think 块与 markdown 围栏，返回纯 JSON content', async () => {
+  const wrapped = '<think>用户想要做法草稿，我来分析一下。</think>\n好的，JSON 如下：\n```json\n{ "method": "1. 土豆切丝\\n2. 下锅炒熟" }\n```\n以上就是做法。';
+  const { app } = loadServerWithMocks({
+    axiosPost: async () => ({ data: { choices: [{ message: { content: wrapped } }] } })
+  });
+
+  const res = await runPost(app, '/api/ai-chat', { prompt: '生成做法', taskType: 'method' });
+
+  assert.equal(res.statusCode, 200);
+  // JSON 已抽取为紧凑文本；method 保持字符串形态（不做 sanitizeRecipe 的数组化）。
+  assert.equal(res.body.content, JSON.stringify({ method: '1. 土豆切丝\n2. 下锅炒熟' }));
+
+  // 非 JSON 自由文本：仅剥 think，原样返回。
+  const { app: app2 } = loadServerWithMocks({
+    axiosPost: async () => ({ data: { choices: [{ message: { content: '<think>推理</think>好的，我明白了。' } }] } })
+  });
+  const res2 = await runPost(app2, '/api/ai-chat', { prompt: 'hi', taskType: 'general' });
+  assert.equal(res2.statusCode, 200);
+  assert.equal(res2.body.content, '好的，我明白了。');
+
+  // 只有 think、剥完为空 → 502 empty_response。
+  const { app: app3 } = loadServerWithMocks({
+    axiosPost: async () => ({ data: { choices: [{ message: { content: '<think>只有推理没有答案' } }] } })
+  });
+  const res3 = await runPost(app3, '/api/ai-chat', { prompt: 'hi', taskType: 'general' });
+  assert.equal(res3.statusCode, 502);
+  assert.equal(res3.body.code, 'empty_response');
+});
+
 test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
   const capturedPayloads = [];
   const { app } = loadServerWithMocks({

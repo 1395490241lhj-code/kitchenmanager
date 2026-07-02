@@ -1057,8 +1057,10 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   assert.match(server, /AI_PROMPT_MAX_CHARS = 12000/);
   assert.match(server, /AI_IMAGE_MAX_BASE64_BYTES = 4 \* 1024 \* 1024/);
   assert.match(server, /AI_RATE_LIMIT_MAX = 30/);
+  assert.match(server, /sweepAiRateLimitBuckets\(now\)/);
+  assert.match(server, /aiRateLimitBuckets\.delete\(ip\)/);
   assert.match(server, /x-forwarded-for/);
-  assert.match(server, /res\.json\(\{ content \}\)/);
+  assert.match(server, /res\.json\(\{ content: cleaned \}\)/);
   assert.match(server, /status: safeStatus/);
   assert.match(server, /code,/);
   assert.match(server, /request_too_large/);

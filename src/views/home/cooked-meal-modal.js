@@ -360,10 +360,9 @@ export function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
           : '<span class="cooked-meal-muted">当前没有可扣减的库存食材。</span>'}
       </div>
     `;
-    const host = append && currentPredictions.length ? resultHost : resultHost;
     if (append && currentPredictions.length) {
-      host.querySelector('.cooked-meal-picker')?.remove();
-      host.appendChild(picker);
+      resultHost.querySelector('.cooked-meal-picker')?.remove();
+      resultHost.appendChild(picker);
     } else {
       startHost.hidden = true;
       addActionBtn.hidden = true;
