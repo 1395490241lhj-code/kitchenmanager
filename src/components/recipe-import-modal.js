@@ -30,6 +30,9 @@ function openEditorWithAiDraft(draft) {
     diagnostics: draft.diagnostics && typeof draft.diagnostics === 'object' ? draft.diagnostics : null,
     mediaDiagnostics: draft.mediaDiagnostics && typeof draft.mediaDiagnostics === 'object' ? draft.mediaDiagnostics : null,
     debugEvidenceSummary: draft.debugEvidenceSummary && typeof draft.debugEvidenceSummary === 'object' ? draft.debugEvidenceSummary : null,
+    fallbackUsed: Boolean(draft.fallbackUsed),
+    fallbackReason: draft.fallbackReason || '',
+    importTextReady: Boolean(draft.importTextReady),
     needsReview: Boolean(draft.needsReview),
     isAiDraft: true,
   };

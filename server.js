@@ -3140,6 +3140,111 @@ function buildRecipeImportSourceMetadataBase({ sourcePayload, rawUrl, pageText, 
   };
 }
 
+function normalizeFallbackRecipeName(name) {
+  let text = String(name || '').trim()
+    .replace(/https?:\/\/\S+/gi, ' ')
+    .replace(/小红书|复制打开|详细版教程|详细教程|家常版|教程|做法|分享|收藏|点赞|关注/gi, ' ')
+    .replace(/[｜|#【】\[\]()（）]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return '';
+  const pieces = text.split(/[。！？!?，,；;：:\n]/u).map(s => s.trim()).filter(Boolean);
+  text = pieces.find(part => /鸡腿|鸡肉|鸡翅|牛肉|猪肉|排骨|鱼|虾|土豆|番茄|鸡蛋|豆腐|青椒|洋葱|藤椒/u.test(part)) || pieces[0] || text;
+  text = text.replace(/^[\d\s.、，,]+/, '').trim();
+  return text.length > 18 ? text.slice(0, 18) : text;
+}
+
+function extractFallbackRecipeName({ pageText = '', transcriptText = '', ocrText = '', sourceMetadata = {} } = {}) {
+  const candidates = [
+    sourceMetadata?.trustedTextPreview,
+    sourceMetadata?.rawTextPreview,
+    pageText,
+    ocrText,
+    transcriptText
+  ];
+  for (const candidate of candidates) {
+    const name = normalizeFallbackRecipeName(candidate);
+    if (name) return name;
+  }
+  return '未命名视频菜谱';
+}
+
+function getFallbackIngredientQty(text, term) {
+  const source = String(text || '');
+  const escaped = String(term || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`(?:([0-9一二两三四五六七八九十]+)\\s*(?:个|只|块|份)?\\s*${escaped}|${escaped}\\s*([0-9一二两三四五六七八九十]+)\\s*(?:个|只|块|份))`, 'u')
+  ];
+  const chineseMap = { 一: '1', 二: '2', 两: '2', 三: '3', 四: '4', 五: '5', 六: '6', 七: '7', 八: '8', 九: '9', 十: '10' };
+  for (const pattern of patterns) {
+    const match = source.match(pattern);
+    const raw = match && (match[1] || match[2]);
+    if (!raw) continue;
+    if (/^\d+$/.test(raw)) return raw;
+    if (chineseMap[raw]) return chineseMap[raw];
+  }
+  return '1';
+}
+
+function buildFallbackRecipeItems(text, terms, { seasoning = false } = {}) {
+  return uniqueTextList(terms.filter(term => String(text || '').includes(term)), 24).map(item => {
+    if (seasoning) return { item, qty: '1', unit: '适量' };
+    const qty = getFallbackIngredientQty(text, item);
+    const unit = qty !== '1' && /鸡腿|鸡翅/u.test(item) ? '只' : '份';
+    return { item, qty, unit };
+  });
+}
+
+function isFallbackMethodNoise(sentence) {
+  return /点赞|关注|收藏|评论|主页|链接|教程|小红书|复制打开|姐妹们|家人们|安排|真的|绝了|好吃到|赶紧|一定要试|别错过/u.test(String(sentence || ''));
+}
+
+function buildFallbackRecipeMethod(transcriptText) {
+  const method = splitRecipeActionSentences(transcriptText)
+    .map(stripStepPrefix)
+    .map(sentence => sentence.replace(/\s+/g, ' ').trim())
+    .filter(sentence => sentence && !isFallbackMethodNoise(sentence))
+    .slice(0, 8);
+  return method.length
+    ? method
+    : ['已成功读取视频口播，但未能稳定提取烹饪步骤，请根据下方原文预览手动整理。'];
+}
+
+function buildFallbackRecipeFromTranscript({ pageText = '', transcriptText = '', ocrText = '', sourceMetadata = {}, mediaDiagnostics = {} } = {}) {
+  const combinedText = [transcriptText, ocrText, pageText].filter(Boolean).join('\n');
+  const mainTerms = [
+    '鸡腿', '鸡肉', '鸡翅', '牛肉', '猪肉', '排骨', '鱼片', '鱼', '虾仁', '虾',
+    '土豆', '番茄', '西红柿', '鸡蛋', '豆腐', '青椒', '洋葱', '茄子', '白菜', '西兰花'
+  ];
+  const seasoningTerms = [
+    '鲜藤椒', '藤椒粉', '藤椒', '花椒', '辣椒', '生抽', '老抽', '料酒', '盐', '糖',
+    '鸡精', '味精', '蚝油', '淀粉', '小苏打', '葱', '姜', '蒜', '油', '水'
+  ];
+  const method = buildFallbackRecipeMethod(transcriptText || combinedText);
+  const warnings = [
+    '视频文字已读取成功，但 AI 整理时触发限流。当前草稿由规则提取生成，请人工确认。'
+  ];
+  if (method.length === 1 && /未能稳定提取/.test(method[0])) {
+    warnings.push('未能从口播中稳定提取明确步骤，请参考视频文字预览手动整理。');
+  }
+  if (!transcriptText && ocrText) {
+    warnings.push('未读取到口播转录，仅根据页面文字和画面文字生成规则草稿。');
+  }
+  if (Array.isArray(mediaDiagnostics?.warnings)) {
+    warnings.push(...mediaDiagnostics.warnings);
+  }
+  return {
+    name: extractFallbackRecipeName({ pageText, transcriptText, ocrText, sourceMetadata }),
+    tags: ['AI草稿', '视频导入'],
+    ingredients: buildFallbackRecipeItems(combinedText, mainTerms),
+    seasonings: buildFallbackRecipeItems(combinedText, seasoningTerms, { seasoning: true }),
+    method,
+    warnings: uniqueTextList(warnings, 12),
+    needsReview: true,
+    sourceType: 'xiaohongshu'
+  };
+}
+
 app.post('/api/recipe-import-from-url', async (req, res) => {
   cleanupRecipeImportMediaCache();
   const rawUrl = String(req.body?.url || '').trim();
@@ -3268,6 +3373,41 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
       ocrPreview: ocrText.slice(0, 800),
       pageTextPreview: pageText.slice(0, 500)
     };
+    const canUseTranscriptFallback = Boolean(String(transcriptText || ocrText || '').trim());
+    const fallbackReason = isRateLimitExceeded(info.status, info.code)
+      ? 'rate_limit_exceeded'
+      : (err?.aiParseCode === 'recipe_json_failed' || isJsonValidateFailedError(err))
+        ? 'recipe_json_failed'
+        : '';
+    if (canUseTranscriptFallback && fallbackReason) {
+      const fallbackRecipe = buildFallbackRecipeFromTranscript({
+        pageText,
+        transcriptText,
+        ocrText,
+        sourceMetadata,
+        mediaDiagnostics
+      });
+      cleanupRecipeImportMediaCache();
+      return res.json({
+        content: JSON.stringify(fallbackRecipe),
+        recipe: fallbackRecipe,
+        evidence: null,
+        diagnostics: null,
+        debugEvidenceSummary: {
+          sourceTextSnippet: String(transcriptText || ocrText || pageText || '').slice(0, 500),
+          observedIngredients: fallbackRecipe.ingredients.map(item => item.item),
+          observedSeasonings: fallbackRecipe.seasonings.map(item => item.item),
+          observedActions: fallbackRecipe.method
+        },
+        mediaDiagnostics,
+        fallbackUsed: true,
+        fallbackReason,
+        importTextReady: true,
+        transcriptPreview: transcriptText.slice(0, 1200),
+        ocrPreview: ocrText.slice(0, 800),
+        pageTextPreview: pageText.slice(0, 500)
+      });
+    }
     // 安全网：final recipe 已经失败，但视频文字确实读到了。绝不把 json_validate_failed 这类
     // 上游 400 直接透传给前端——统一降级为 422 recipe_json_failed，并带上可继续手动编辑的文字预览。
     if (err?.aiParseCode === 'recipe_json_failed' || isJsonValidateFailedError(err)) {

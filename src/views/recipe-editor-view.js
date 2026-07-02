@@ -77,6 +77,9 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
         diagnostics: aiPendingDraft.diagnostics,
         mediaDiagnostics: aiPendingDraft.mediaDiagnostics,
         debugEvidenceSummary: aiPendingDraft.debugEvidenceSummary,
+        fallbackUsed: aiPendingDraft.fallbackUsed,
+        fallbackReason: aiPendingDraft.fallbackReason,
+        importTextReady: aiPendingDraft.importTextReady,
         needsReview: aiPendingDraft.needsReview,
         isAiDraft: true
       }

@@ -1648,6 +1648,9 @@ async function importXiaohongshuRecipeFromUrl({ url = '', userText = '' } = {}) 
     sourceType: 'xiaohongshu'
   });
   if (data?.mediaDiagnostics) draft.mediaDiagnostics = data.mediaDiagnostics;
+  if (data?.fallbackUsed) draft.fallbackUsed = true;
+  if (data?.fallbackReason) draft.fallbackReason = String(data.fallbackReason);
+  if (data?.importTextReady) draft.importTextReady = true;
   return draft;
 }
 
