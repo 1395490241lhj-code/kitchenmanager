@@ -1,23 +1,23 @@
-import { S, todayISO } from '../storage.js?v=222';
-import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=222';
-import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=222';
-import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=222';
+import { S, todayISO } from '../storage.js?v=230';
+import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=230';
+import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=230';
+import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=230';
 import {
   addMissingRecipeIngredientsToShopping,
   getMissingRecipeIngredients,
   markRecipeCooked
-} from '../recommendations.js?v=222';
-import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=223';
+} from '../recommendations.js?v=230';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=230';
 import {
   callAiForMethod,
   formatAiErrorMessage,
   withTimeout
-} from '../ai.js?v=222';
-import { loadOverlay, saveOverlay } from '../backup.js?v=222';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=223';
-import { showCalibrationModal } from '../components/modal.js?v=222';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=223';
-import { splitMethodSteps } from '../utils/method-steps.js?v=222';
+} from '../ai.js?v=230';
+import { loadOverlay, saveOverlay } from '../backup.js?v=230';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=230';
+import { showCalibrationModal } from '../components/modal.js?v=230';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=230';
+import { splitMethodSteps } from '../utils/method-steps.js?v=230';
 
 // 把做法字符串渲染成 glass 分步列表（每步 escapeHtml；无步骤时返回空串，由调用方兜底）。
 function methodToListHtml(method) {

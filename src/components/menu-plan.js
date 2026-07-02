@@ -5,16 +5,16 @@
  * 管理今日 / 未来 3 天的计划菜谱（份数调整、移除）。
  * currentPlanRange 由本模块持有，并通过 getPlanRange() 暴露给购物页的「菜谱缺货」计算复用。
  */
-import { S, todayISO } from '../storage.js?v=222';
-import { explodeCombinedItems, guessKitchenUnit, getCanonicalName } from '../ingredients.js?v=222';
-import { classifyRecipeIngredient } from '../utils/recipe-sanitizer.js?v=222';
-import { analyzeRecipeInventory, markRecipeCookedKeepPlan } from '../recommendations.js?v=222';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=222';
-import { computeCookDeductions, applyCookCalibration } from '../inventory.js?v=222';
-import { getTomorrowPrepTasks } from '../utils/prep-planner.js?v=222';
-import { showCalibrationModal } from './modal.js?v=222';
-import { escapeHtml } from './status.js?v=222';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from './cook-feedback.js?v=223';
+import { S, todayISO } from '../storage.js?v=230';
+import { explodeCombinedItems, guessKitchenUnit, getCanonicalName } from '../ingredients.js?v=230';
+import { classifyRecipeIngredient } from '../utils/recipe-sanitizer.js?v=230';
+import { analyzeRecipeInventory, markRecipeCookedKeepPlan } from '../recommendations.js?v=230';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=230';
+import { computeCookDeductions, applyCookCalibration } from '../inventory.js?v=230';
+import { getTomorrowPrepTasks } from '../utils/prep-planner.js?v=230';
+import { showCalibrationModal } from './modal.js?v=230';
+import { escapeHtml } from './status.js?v=230';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from './cook-feedback.js?v=230';
 
 let currentPlanRange = 'today';
 export function getPlanRange() { return currentPlanRange; }

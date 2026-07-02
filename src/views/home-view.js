@@ -1,30 +1,30 @@
-import { S, todayISO } from '../storage.js?v=222';
-import { buildCatalog, getCanonicalName, explodeCombinedItems } from '../ingredients.js?v=222';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=222';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=222';
+import { S, todayISO } from '../storage.js?v=230';
+import { buildCatalog, getCanonicalName, explodeCombinedItems } from '../ingredients.js?v=230';
+import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=230';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=230';
 import {
   addMissingRecipeIngredientsToShopping,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData
-} from '../recommendations.js?v=222';
-import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=223';
-import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=222';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=223';
-import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=223';
-import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=222';
-import { perfMeasure } from '../utils/perf.js?v=222';
-import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=222';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=223';
-import { parseFoodLines } from '../utils/food-input-parser.js?v=222';
-import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=222';
-import { splitMethodSteps } from '../utils/method-steps.js?v=222';
-import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=224';
-import { createUserRecipe } from '../components/recipe-create-modal.js?v=222';
-import { getHomeTab, setHomeTab, getTodayPlanCount } from './home/home-tab-state.js?v=224';
-import { enterDemoKitchen, isDemoKitchenMode, markDemoPlanAdded, renderDemoKitchenBanner, syncDemoStepFromTab } from './home/demo-kitchen.js?v=224';
-import { createRecordCookedCta } from './home/cooked-meal-modal.js?v=224';
-import { renderBackupNudge, renderPwaInstallNudge } from './home/home-nudges.js?v=224';
-import { writeItemsToInventory, writeReceiptPantryItems } from '../utils/inventory-write.js?v=224';
+} from '../recommendations.js?v=230';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=230';
+import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=230';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=230';
+import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=230';
+import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=230';
+import { perfMeasure } from '../utils/perf.js?v=230';
+import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=230';
+import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=230';
+import { parseFoodLines } from '../utils/food-input-parser.js?v=230';
+import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=230';
+import { splitMethodSteps } from '../utils/method-steps.js?v=230';
+import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=230';
+import { createUserRecipe } from '../components/recipe-create-modal.js?v=230';
+import { getHomeTab, setHomeTab, getTodayPlanCount } from './home/home-tab-state.js?v=230';
+import { enterDemoKitchen, isDemoKitchenMode, markDemoPlanAdded, renderDemoKitchenBanner, syncDemoStepFromTab } from './home/demo-kitchen.js?v=230';
+import { createRecordCookedCta } from './home/cooked-meal-modal.js?v=230';
+import { renderBackupNudge, renderPwaInstallNudge } from './home/home-nudges.js?v=230';
+import { writeItemsToInventory, writeReceiptPantryItems } from '../utils/inventory-write.js?v=230';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────

@@ -1,20 +1,20 @@
 // v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
-import { el, els } from './src/dom.js?v=222';
-import { S } from './src/storage.js?v=222';
-import { applyOverlay, loadOverlay } from './src/backup.js?v=223';
-import { runLocalStorageMigrations } from './src/migrations.js?v=222';
-import { escapeHtml } from './src/components/status.js?v=223';
-import { renderShopping } from './src/views/shopping-view.js?v=222';
-import { renderInventory } from './src/views/inventory-view.js?v=223';
-import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=222';
-import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=223';
-import { renderHome } from './src/views/home-view.js?v=227';
-import { renderRecipes } from './src/views/recipes-view.js?v=223';
-import { renderSettings } from './src/views/settings-view.js?v=226';
-import { applyCompletionOverlay } from './src/recipe-completion.js?v=222';
-import { initTheme } from './src/theme.js?v=222';
-import { maybeStartOnboarding } from './src/onboarding.js?v=222';
-import { initPwaInstallPrompt } from './src/pwa-install.js?v=224';
+import { el, els } from './src/dom.js?v=230';
+import { S } from './src/storage.js?v=230';
+import { applyOverlay, loadOverlay } from './src/backup.js?v=230';
+import { runLocalStorageMigrations } from './src/migrations.js?v=230';
+import { escapeHtml } from './src/components/status.js?v=230';
+import { renderShopping } from './src/views/shopping-view.js?v=230';
+import { renderInventory } from './src/views/inventory-view.js?v=230';
+import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=230';
+import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=230';
+import { renderHome } from './src/views/home-view.js?v=230';
+import { renderRecipes } from './src/views/recipes-view.js?v=230';
+import { renderSettings } from './src/views/settings-view.js?v=230';
+import { applyCompletionOverlay } from './src/recipe-completion.js?v=230';
+import { initTheme } from './src/theme.js?v=230';
+import { maybeStartOnboarding } from './src/onboarding.js?v=230';
+import { initPwaInstallPrompt } from './src/pwa-install.js?v=230';
 
 // 尽早应用已保存的外观主题（浅色 / 深色 / 跟随系统），避免首屏闪烁。
 initTheme();

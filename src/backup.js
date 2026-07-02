@@ -1,10 +1,10 @@
-import { S } from './storage.js?v=222';
+import { S } from './storage.js?v=230';
 import {
   APP_VERSION,
   DATA_SCHEMA_VERSION,
   normalizeBackupForRestore,
   setStoredSchemaVersion
-} from './migrations.js?v=222';
+} from './migrations.js?v=230';
 
 export const BACKUP_APP_ID = 'kitchenmanager';
 export const BACKUP_FORMAT_VERSION = 1;

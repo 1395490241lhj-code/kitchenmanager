@@ -1,10 +1,10 @@
-import { CUSTOM_AI } from './config.js?v=222';
-import { S } from './storage.js?v=222';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=222';
+import { CUSTOM_AI } from './config.js?v=230';
+import { S } from './storage.js?v=230';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=230';
 import {
   classifyReceiptCandidate,
   postProcessReceiptItems
-} from './utils/receipt-import.js?v=222';
+} from './utils/receipt-import.js?v=230';
 
 const CLOUD_AI_ERROR = 'AI 暂不可用：云端服务暂时不可用。本地功能仍可正常使用。';
 const BYOK_MISSING_KEY_ERROR = 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';

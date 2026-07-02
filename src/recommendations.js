@@ -1,32 +1,32 @@
-import { S, todayISO } from './storage.js?v=222';
+import { S, todayISO } from './storage.js?v=230';
 import {
   INGREDIENT_ALIASES,
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
   isSmartIngredientMatch
-} from './ingredients.js?v=222';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=222';
+} from './ingredients.js?v=230';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=230';
 import {
   daysBetween,
   getStockCoverageAnalysis,
   remainingDays
-} from './inventory.js?v=222';
-import { addShoppingItem } from './shopping.js?v=222';
-import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=222';
-import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=222';
+} from './inventory.js?v=230';
+import { addShoppingItem } from './shopping.js?v=230';
+import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=230';
+import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=230';
 import {
   buildRecipePackMetadataIndex,
   getEnabledRecipePackIds,
   getRecipePackScoringHint
-} from './recipe-packs.js?v=223';
+} from './recipe-packs.js?v=230';
 export {
   buildGenericRecipeTemplateRecommendations,
   buildRecipeVariantRecommendations,
   buildVariantMethodDraft,
   getGenericIngredientRecipeRecommendations,
   getRecipeVariantRecommendations
-} from './utils/recipe-variants.js?v=222';
+} from './utils/recipe-variants.js?v=230';
 
 const RECIPE_PACK_SCORING_BONUS = 3;
 

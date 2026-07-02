@@ -17,7 +17,7 @@
  * 菜谱侧逻辑应优先使用本模块（classifyRecipeIngredient / splitRecipeIngredients），
  * 而不是直接调用 ingredients.isSeasoning。
  */
-import { isSeasoning, isNonStockCookingTerm } from '../ingredients.js?v=222';
+import { isSeasoning, isNonStockCookingTerm } from '../ingredients.js?v=230';
 
 // ① 核心食材保护：这些词命中时强制 core（即便兜底口径误判为调料）。
 //    含豆制品、需泡发干货、川菜核心腌渍菜、以及带「汤」字的真实食物名。
