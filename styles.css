@@ -11188,6 +11188,207 @@ html[data-theme="dark"] .today-all-rec-row {
   border-color: rgba(255,255,255,0.12);
 }
 
+/* Today tabs restored: keep useful actions visible, make the panel lighter. */
+.today-cooked-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 54px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.46);
+  box-shadow: 0 8px 20px rgba(60, 64, 67, 0.06);
+}
+
+.today-cooked-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.today-cooked-copy strong {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 820;
+}
+
+.today-cooked-copy small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.today-cooked-btn {
+  flex: 0 0 auto;
+  min-height: 36px;
+  border-radius: 999px;
+  padding: 8px 12px;
+}
+
+.wx-panel.glass-panel {
+  border-radius: 22px;
+  border-color: rgba(60, 60, 67, 0.08);
+  background: rgba(255,255,255,0.50);
+  box-shadow: 0 12px 30px rgba(60, 64, 67, 0.08);
+  overflow: hidden;
+}
+
+.wx-tabs {
+  min-height: 42px;
+  padding: 6px;
+  gap: 4px;
+  background: rgba(255,255,255,0.34);
+  border-bottom: 1px solid rgba(60, 60, 67, 0.06);
+}
+
+.wx-tab {
+  min-height: 32px;
+  border-radius: 13px;
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.wx-tab.is-active {
+  color: var(--text-main);
+  background: rgba(255,255,255,0.62);
+  border-color: rgba(60, 60, 67, 0.08);
+  box-shadow: 0 5px 14px rgba(60, 64, 67, 0.07);
+}
+
+.wx-body {
+  padding: 12px;
+}
+
+.target-recipe-search {
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.46);
+  border: 1px solid rgba(60, 60, 67, 0.07);
+  box-shadow: none;
+}
+
+.target-recipe-head {
+  margin-bottom: 8px;
+}
+
+.target-recipe-input-row {
+  gap: 8px;
+}
+
+.target-recipe-input {
+  min-height: 40px;
+  border-radius: 14px;
+}
+
+.target-recipe-btn {
+  min-height: 40px;
+  border-radius: 14px;
+}
+
+.wx-section-intro {
+  margin: 10px 0 8px;
+}
+
+.wx-section-intro h3 {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.wx-section-intro p {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.wx-rec-card {
+  margin-top: 8px;
+}
+
+.wx-rec-card .home-suggest-card {
+  min-height: 0;
+  padding: 16px;
+  border-radius: 20px;
+  box-shadow: 0 10px 22px rgba(60, 64, 67, 0.07);
+}
+
+.wx-rec-card .home-suggest-kicker {
+  margin-bottom: 8px;
+}
+
+.wx-rec-card .home-suggest-name {
+  font-size: clamp(22px, 6vw, 28px);
+  line-height: 1.12;
+}
+
+.wx-rec-card .home-suggest-reason {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.wx-rec-card .home-suggest-tags {
+  margin-top: 10px;
+  gap: 6px;
+}
+
+.wx-rec-card .home-suggest-actions {
+  margin-top: 13px;
+  gap: 8px;
+}
+
+.wx-rec-card .home-suggest-actions .btn {
+  min-height: 38px;
+  border-radius: 999px;
+  padding: 8px 13px;
+}
+
+.wx-rec-card .home-suggest-more {
+  min-width: 38px;
+  padding-inline: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.wx-actions {
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.wx-actions .wx-mini-btn {
+  min-height: 36px;
+  border-radius: 999px;
+  padding: 8px 12px;
+  box-shadow: none;
+}
+
+.record-cooked-cta {
+  min-height: 52px;
+  padding: 10px 12px;
+  border-radius: 16px;
+}
+
+html[data-theme="dark"] .today-cooked-strip,
+html[data-theme="dark"] .wx-panel.glass-panel,
+html[data-theme="dark"] .target-recipe-search {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+}
+
+html[data-theme="dark"] .wx-tabs {
+  background: rgba(255,255,255,0.05);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+
+html[data-theme="dark"] .wx-tab.is-active {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.12);
+}
+
 @media (max-width: 430px) {
   .today-view { gap: 12px; }
   .today-focus-header { min-height: 118px; padding-top: 8px; }
@@ -11197,6 +11398,11 @@ html[data-theme="dark"] .today-all-rec-row {
   .today-recipe-search { min-height: 82px; padding: 11px; border-radius: 20px; }
   .today-recipe-search-copy { margin-bottom: 8px; }
   .today-recipe-search-copy span { max-width: 58%; }
+  .wx-tabs { padding: 5px; }
+  .wx-tab { font-size: 12px; padding-inline: 6px; }
+  .wx-body { padding: 10px; }
+  .today-cooked-strip { min-height: 50px; padding: 9px 10px; }
+  .today-cooked-copy small { display: none; }
   .today-quick-btn,
   html[data-theme="light"] .today-quick-btn:not(.is-primary),
   html[data-theme="dark"] .today-quick-btn {

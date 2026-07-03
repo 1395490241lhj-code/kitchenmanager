@@ -230,7 +230,7 @@ function getSuggestTags(card, missing = []) {
 }
 
 // ── Section 1: AI 灵感面板（Hero 胶囊） ───────────────────────────────────────
-function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewVariant = null, onRoute = null } = {}) {
+function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewVariant = null, onRoute = null, onMoreRecommendation = null } = {}) {
   const el = document.createElement('article');
   el.className = `home-suggest-card tone-${card.tone || 'idea'}`;
   const variant = card.variant || (card.isVariant ? card : null);
@@ -258,14 +258,16 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
     </div>
     <div class="home-suggest-actions">
       <button type="button" class="btn ok small home-suggest-cook">加入今日计划</button>
-      ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看做法</button>' : ''}
+      ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看</button>' : ''}
       ${missing.length && card.row ? '<button type="button" class="btn small home-suggest-shopping">补到买菜</button>' : ''}
+      ${typeof onMoreRecommendation === 'function' ? '<button type="button" class="btn small home-suggest-more" aria-label="更多操作" title="更多操作">⋯</button>' : ''}
     </div>
     <div class="home-suggest-feedback" hidden></div>
   `;
   const cookBtn = el.querySelector('.home-suggest-cook');
   const shoppingBtn = el.querySelector('.home-suggest-shopping');
   const previewBtn = el.querySelector('.home-suggest-preview');
+  const moreBtn = el.querySelector('.home-suggest-more');
   const feedback = el.querySelector('.home-suggest-feedback');
   const openPreview = (event) => {
     event?.preventDefault();
@@ -321,6 +323,13 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       : '今天已经安排了这道菜。');
   };
   if (previewBtn) previewBtn.onclick = openPreview;
+  if (moreBtn) {
+    moreBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onMoreRecommendation(card);
+    };
+  }
   if (shoppingBtn) {
     shoppingBtn.onclick = (event) => {
       event.preventDefault();
@@ -1452,7 +1461,6 @@ function openTodayMoreActionsSheet(pack, inv, context, card, { onRoute = () => {
   const recipe = getFocusCardRecipe(card, pack);
   const recipeId = recipe?.id || card?.id || '';
   const hasRecipe = Boolean(recipeId && !String(recipeId).startsWith('creative-'));
-  const hasPlan = getTodayPlanItems(pack).length > 0;
   const overlay = document.createElement('div');
   overlay.className = 'km-modal-overlay open today-action-sheet-overlay';
   const panel = document.createElement('div');
@@ -1465,11 +1473,7 @@ function openTodayMoreActionsSheet(pack, inv, context, card, { onRoute = () => {
       <button type="button" class="km-modal-close" aria-label="关闭">×</button>
     </div>
     <div class="km-modal-body today-action-sheet-body">
-      <button type="button" class="today-sheet-action" data-action="next">换一道</button>
-      <button type="button" class="today-sheet-action" data-action="ai">✨ 换几道</button>
-      <button type="button" class="today-sheet-action" data-action="local">用本地推荐</button>
       <button type="button" class="today-sheet-action" data-action="all">查看全部推荐</button>
-      ${hasPlan ? '<button type="button" class="today-sheet-action" data-action="cooked">饭后记一下</button>' : ''}
       <button type="button" class="today-sheet-action" data-action="favorite"${hasRecipe ? '' : ' disabled'}>${hasRecipe && isFavoriteRecipe(recipeId) ? '取消常做' : '设为常做'}</button>
       <button type="button" class="today-sheet-action" data-action="edit"${hasRecipe ? '' : ' disabled'}>编辑</button>
       <button type="button" class="today-sheet-action is-danger" data-action="delete"${hasRecipe ? '' : ' disabled'}>删除</button>
@@ -1489,53 +1493,9 @@ function openTodayMoreActionsSheet(pack, inv, context, card, { onRoute = () => {
   panel.querySelectorAll('.today-sheet-action').forEach(btn => {
     btn.onclick = async () => {
       const action = btn.dataset.action;
-      if (action === 'next') {
-        if ((context.cards || []).length > 1) todayFocusCursor = (todayFocusCursor + 1) % context.cards.length;
-        close();
-        onRoute();
-        return;
-      }
-      if (action === 'ai') {
-        btn.disabled = true;
-        btn.textContent = '正在换几道…';
-        try {
-          const aiResult = await callCloudAI(pack, inv);
-          const aiCards = processAiData(aiResult, pack);
-          if (aiCards.length) {
-            S.save(S.keys.ai_recs, aiResult);
-            todayFocusMode = 'ai';
-            targetRecipeQuery = '';
-            todayFocusCursor = 0;
-            close();
-            onRoute();
-            return;
-          }
-          showToast('暂时没有返回可用菜谱，已保留本地推荐。', { tone: 'info' });
-        } catch (err) {
-          showToast(formatAiErrorMessage(err), { tone: 'error' });
-        } finally {
-          btn.disabled = false;
-          btn.textContent = '✨ 换几道';
-        }
-        return;
-      }
-      if (action === 'local') {
-        localStorage.removeItem(S.keys.ai_recs);
-        todayFocusMode = 'local';
-        targetRecipeQuery = '';
-        todayFocusCursor = 0;
-        close();
-        onRoute();
-        return;
-      }
       if (action === 'all') {
         close();
         openAllTodayRecommendationsSheet(pack, inv, context, { onRoute });
-        return;
-      }
-      if (action === 'cooked') {
-        close();
-        openCookedMealModal(pack, inv, { onRoute });
         return;
       }
       if (action === 'favorite' && hasRecipe) {
@@ -1619,6 +1579,21 @@ function renderTodayInlineNudge(pack, inv, state, { onRoute = () => {} } = {}) {
   `;
   node.onclick = () => openCleanFridgeHelper(pack, inv, onRoute);
   return node;
+}
+
+function renderCookedQuickStrip(pack, inv, { onRoute = () => {} } = {}) {
+  const hasPlan = getTodayPlanCount() > 0;
+  const strip = document.createElement('section');
+  strip.className = 'today-cooked-strip';
+  strip.innerHTML = `
+    <span class="today-cooked-copy">
+      <strong>${hasPlan ? '今天做完了吗？' : '做完饭了？'}</strong>
+      <small>${hasPlan ? '顺手记录一下，用掉的食材会更新。' : '顺手记录用掉的食材。'}</small>
+    </span>
+    <button type="button" class="btn small today-cooked-btn">饭后记一下</button>
+  `;
+  strip.querySelector('.today-cooked-btn').onclick = () => openCookedMealModal(pack, inv, { onRoute });
+  return strip;
 }
 
 function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
@@ -2602,11 +2577,29 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       cardWrap.querySelector('#wxRecAddFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
       cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
     } else if (mode === 'ai') {
-      showRecommendationCards(cardWrap, [cards[idx]], pack, { onRoute, onPreviewRecipe: openRecipePreviewModal, inv });
+      const item = cards[idx];
+      const aiCard = {
+        id: item?.r?.id,
+        name: item?.r?.name || 'AI 推荐',
+        matchLabel: 'AI 推荐',
+        reason: item?.reason || (Array.isArray(item?.explain) ? item.explain.join('；') : ''),
+        tone: 'idea',
+        row: item?.r ? {
+          r: item.r,
+          list: item.list || (pack.recipe_ingredients || {})[item.r.id] || [],
+          missing: item.missing || []
+        } : null
+      };
+      cardWrap.appendChild(renderSuggestCard(aiCard, pack, inv, {
+        onPreviewRecipe: openRecipePreviewModal,
+        onMoreRecommendation: focused => openTodayMoreActionsSheet(pack, inv, recsState, focused, { onRoute }),
+        onRoute
+      }));
     } else {
       cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv, {
         onPreviewRecipe: openRecipePreviewModal,
         onPreviewVariant: openRecipeVariantPreviewModal,
+        onMoreRecommendation: focused => openTodayMoreActionsSheet(pack, inv, recsState, focused, { onRoute }),
         onRoute
       }));
     }
@@ -2729,21 +2722,21 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     container.appendChild(renderDemoKitchenBanner({ onRoute }));
   }
 
-  // Calm Today layout: 顶部状态 + 单一决策主卡 + 两个快捷入口。
-  // 只调整首页第一层信息架构，不改推荐算法、不接新 API。
+  // 轻量 Today：保留原有「计划 / 到期 / 待买 / 推荐」清晰分区，
+  // 只压轻视觉和按钮层级；不改推荐算法、不接新 API。
   const inspirationCards = perfMeasure('getInspirationCards(home)', () => getInspirationCards(pack, inv));
   const summaryStats = getTodaySummaryStats(pack, inv, { inspirationCards });
-  container.appendChild(renderTodayStatusHeader({
-    ...summaryStats,
-    hasInventory: hasUsableInventory(inv)
-  }));
-  const focusContext = buildTodayFocusContext(pack, inv, { inspirationCards });
-  container.appendChild(renderTodayRecipeSearch(focusContext, { onRoute }));
-  const mainState = chooseTodayMainCard(pack, inv, { focusContext });
-  const inlineNudge = renderTodayInlineNudge(pack, inv, mainState, { onRoute });
-  if (inlineNudge) container.appendChild(inlineNudge);
-  container.appendChild(createTodayMainCard(pack, inv, mainState, { onRoute }));
-  container.appendChild(renderQuickActions(pack, inv, { onRoute }));
+  container.appendChild(renderWxStatus(summaryStats));
+  const backupNudge = renderBackupNudge(inv, { isDemoMode });
+  if (backupNudge) container.appendChild(backupNudge);
+  else {
+    const pwaNudge = renderPwaInstallNudge(inv, { isDemoMode });
+    if (pwaNudge) container.appendChild(pwaNudge);
+  }
+  container.appendChild(renderCookedQuickStrip(pack, inv, { onRoute }));
+  const panel = perfMeasure('createWeatherPanel', () => createWeatherPanel(pack, inv, { onRoute, inspirationCards }));
+  container.appendChild(panel.el);
+  container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));
 
   return container;
 }
