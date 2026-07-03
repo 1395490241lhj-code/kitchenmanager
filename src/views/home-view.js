@@ -5,7 +5,8 @@ import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=231';
 import {
   addMissingRecipeIngredientsToShopping,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
-  getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData
+  getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData,
+  isFavoriteRecipe, toggleFavoriteRecipe
 } from '../recommendations.js?v=231';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=231';
 import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=231';
@@ -22,9 +23,10 @@ import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=23
 import { createUserRecipe } from '../components/recipe-create-modal.js?v=231';
 import { getHomeTab, setHomeTab, getTodayPlanCount } from './home/home-tab-state.js?v=231';
 import { enterDemoKitchen, isDemoKitchenMode, markDemoPlanAdded, renderDemoKitchenBanner, syncDemoStepFromTab } from './home/demo-kitchen.js?v=231';
-import { createRecordCookedCta } from './home/cooked-meal-modal.js?v=231';
+import { createRecordCookedCta, openCookedMealModal } from './home/cooked-meal-modal.js?v=231';
 import { renderBackupNudge, renderPwaInstallNudge } from './home/home-nudges.js?v=231';
 import { writeItemsToInventory, writeReceiptPantryItems } from '../utils/inventory-write.js?v=231';
+import { loadOverlay, saveOverlay } from '../backup.js?v=231';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -1221,6 +1223,353 @@ function getRecipeItemsPreview(pack, recipeId, limit = 2) {
     .slice(0, limit);
 }
 
+function normalizeTodayFocusCard(card, pack) {
+  if (!card) return null;
+  const recipe = card.row?.r || card.r || card.recipe || (card.id ? (pack.recipes || []).find(r => r.id === card.id) : null);
+  const id = card.id || recipe?.id || '';
+  const list = card.row?.list || card.list || (id ? (pack.recipe_ingredients || {})[id] : []) || [];
+  return {
+    ...card,
+    id,
+    name: card.name || recipe?.name || '今日推荐',
+    row: card.row || (recipe ? { r: recipe, list, missing: card.missing || [] } : null),
+    recipe,
+    list
+  };
+}
+
+function recipeMatchToFocusCard(match, pack) {
+  const recipe = match?.r || match?.recipe || match;
+  if (!recipe?.id) return null;
+  return normalizeTodayFocusCard({
+    id: recipe.id,
+    name: recipe.name,
+    matchLabel: '找到菜谱',
+    reason: match.reason || '现有菜谱匹配，可以直接加入今天。',
+    tone: 'ready',
+    row: {
+      r: recipe,
+      list: (pack.recipe_ingredients || {})[recipe.id] || [],
+      missing: []
+    }
+  }, pack);
+}
+
+function getFocusCardRecipe(card, pack) {
+  if (!card) return null;
+  return card.row?.r || card.r || card.recipe || (card.id ? (pack.recipes || []).find(r => r.id === card.id) : null);
+}
+
+function getFocusCardRecipeItems(card, pack) {
+  const recipe = getFocusCardRecipe(card, pack);
+  if (!recipe) return [];
+  return card.row?.list || card.list || (pack.recipe_ingredients || {})[recipe.id] || [];
+}
+
+function getRecipeTimeDifficultyText(recipe) {
+  const minutes = recipe?.timeMinutes || recipe?.time_minutes || recipe?.time;
+  const difficultyMap = { easy: '简单', medium: '中等', hard: '较难' };
+  const difficulty = difficultyMap[recipe?.difficulty] || recipe?.difficulty || '';
+  const parts = [];
+  if (minutes) parts.push(String(minutes).includes('分钟') ? String(minutes) : `约 ${minutes} 分钟`);
+  if (difficulty) parts.push(difficulty);
+  return parts.join(' · ');
+}
+
+function buildTodayFocusContext(pack, inv, { inspirationCards = [] } = {}) {
+  const rawQuery = targetRecipeQuery.trim();
+  const targetDescriptors = parseTargetRecipeQuery(rawQuery, inv);
+  const targetNames = targetDescriptors.map(item => item.canonical);
+  let mode = todayFocusMode === 'ai' ? 'ai' : 'local';
+  let cards = [];
+  let nameMatches = [];
+
+  if (rawQuery) {
+    nameMatches = findRecipesByName(pack, rawQuery, {
+      context: getRecommendationUiContext(),
+      limit: 4
+    });
+    if (nameMatches.length) {
+      mode = 'search';
+      cards = nameMatches.map(item => recipeMatchToFocusCard(item, pack)).filter(Boolean);
+    } else if (targetNames.length) {
+      mode = 'target';
+      cards = findRecipesUsingIngredients(pack, inv, targetNames, {
+        context: getRecommendationUiContext(),
+        limit: 6,
+        targetDescriptors
+      }).map(item => normalizeTodayFocusCard(item, pack)).filter(Boolean);
+    } else {
+      mode = 'search-empty';
+      cards = [];
+    }
+  } else if (mode === 'ai') {
+    const savedAi = S.load(S.keys.ai_recs, null);
+    cards = savedAi ? processAiData(savedAi, pack).map(item => normalizeTodayFocusCard(item, pack)).filter(Boolean) : [];
+    if (!cards.length) mode = 'local';
+  }
+
+  if (!rawQuery && mode === 'local') {
+    cards = (inspirationCards || []).map(item => normalizeTodayFocusCard(item, pack)).filter(Boolean);
+  }
+
+  if (todayFocusCursor >= cards.length) todayFocusCursor = 0;
+  const currentCard = cards.length ? cards[todayFocusCursor] : null;
+  return {
+    rawQuery,
+    targetNames,
+    targetDescriptors,
+    nameMatches,
+    mode,
+    cards,
+    currentCard,
+    resultCount: cards.length,
+    currentIndex: cards.length ? todayFocusCursor : 0
+  };
+}
+
+function renderTodayRecipeSearch(context, { onRoute = () => {} } = {}) {
+  const section = document.createElement('section');
+  section.className = 'today-recipe-search';
+  const hasQuery = Boolean(context.rawQuery);
+  const hint = hasQuery
+    ? (context.resultCount ? `找到 ${context.resultCount} 个可用结果` : '没找到现有菜谱，可以换个菜名或食材。')
+    : '输入菜名或食材，找到后可以直接加入今天。';
+  section.innerHTML = `
+    <div class="today-recipe-search-copy">
+      <strong>想做什么？</strong>
+      <span>${escapeHtml(hint)}</span>
+    </div>
+    <div class="today-recipe-search-row">
+      <input class="today-recipe-search-input" type="text" value="${escapeOptionAttr(targetRecipeQuery)}" placeholder="比如 番茄炒蛋 / 鸡蛋 番茄">
+      <button type="button" class="btn ok today-recipe-search-btn">找菜</button>
+      ${hasQuery ? '<button type="button" class="today-recipe-search-clear" aria-label="清空搜索" title="清空搜索">×</button>' : ''}
+    </div>
+  `;
+  const input = section.querySelector('.today-recipe-search-input');
+  const apply = () => {
+    targetRecipeQuery = input.value.trim();
+    todayFocusMode = 'local';
+    todayFocusCursor = 0;
+    resetTargetCreative();
+    resetTargetDishDraft();
+    onRoute();
+  };
+  section.querySelector('.today-recipe-search-btn').onclick = apply;
+  input.onkeydown = event => {
+    if (event.key === 'Enter') apply();
+  };
+  section.querySelector('.today-recipe-search-clear')?.addEventListener('click', () => {
+    targetRecipeQuery = '';
+    todayFocusMode = 'local';
+    todayFocusCursor = 0;
+    resetTargetCreative();
+    resetTargetDishDraft();
+    onRoute();
+  });
+  return section;
+}
+
+async function addFocusCardToTodayPlan(card, pack, inv, { button = null, onRoute = () => {} } = {}) {
+  const recipe = getFocusCardRecipe(card, pack);
+  if (!recipe?.id) {
+    showToast('这道推荐需要先查看确认', { tone: 'info' });
+    return null;
+  }
+  const result = await addRecipeToPlanWithMissingCheck(recipe.id, pack, inv, {
+    recipe,
+    fallbackItems: getFocusCardRecipeItems(card, pack),
+    missing: card.row?.missing,
+    source: isDemoKitchenMode() ? 'demo' : (card.mode || 'recommendation'),
+    onPlanAdded: markDemoPlanAdded
+  });
+  if (button) brieflyConfirmButton(button, result.added ? '已加入' : '已在今天');
+  const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
+  showFirstPlanGuideToast(firstPlanGuide);
+  if (!firstPlanGuide) showToast(result.added ? '已加入今日计划' : '今天已经有这道菜', { tone: 'success' });
+  window.setTimeout(onRoute, 650);
+  return result;
+}
+
+function deleteRecipeFromOverlay(recipeId) {
+  if (!recipeId || String(recipeId).startsWith('creative-')) return false;
+  const overlay = loadOverlay();
+  overlay.deletes = overlay.deletes || {};
+  overlay.deletes[recipeId] = true;
+  if (overlay.recipes) delete overlay.recipes[recipeId];
+  if (overlay.recipe_ingredients) delete overlay.recipe_ingredients[recipeId];
+  saveOverlay(overlay);
+  window.invalidatePackCache?.();
+  return true;
+}
+
+function openAllTodayRecommendationsSheet(pack, inv, context, { onRoute = () => {} } = {}) {
+  const content = document.createElement('div');
+  content.className = 'today-all-recs-sheet';
+  const cards = (context.cards || []).slice(0, 8);
+  content.innerHTML = `
+    <div class="km-modal-body today-all-recs-body">
+      <p class="km-modal-subtitle">这里保留完整推荐列表，首页只放当前最重要的一张。</p>
+      <div class="today-all-recs-list"></div>
+    </div>
+    <div class="km-modal-actions">
+      <button type="button" class="btn km-action-weak" id="todayAllClose">关闭</button>
+    </div>
+  `;
+  const list = content.querySelector('.today-all-recs-list');
+  if (!cards.length) {
+    list.innerHTML = '<p class="today-all-recs-empty">暂无可用推荐。</p>';
+  } else {
+    cards.forEach(card => {
+      const recipe = getFocusCardRecipe(card, pack);
+      const row = document.createElement('article');
+      row.className = 'today-all-rec-row';
+      row.innerHTML = `
+        <span>
+          <strong>${escapeHtml(card.name || recipe?.name || '推荐菜')}</strong>
+          <small>${escapeHtml(card.reason || card.matchLabel || '今日推荐')}</small>
+        </span>
+        <span class="today-all-rec-actions">
+          <button type="button" class="btn small today-all-view">查看</button>
+          <button type="button" class="btn ok small today-all-plan">加入计划</button>
+        </span>
+      `;
+      row.querySelector('.today-all-view').onclick = () => {
+        if (recipe?.id) location.hash = `#recipe:${recipe.id}`;
+      };
+      row.querySelector('.today-all-plan').onclick = event => addFocusCardToTodayPlan(card, pack, inv, {
+        button: event.currentTarget,
+        onRoute
+      });
+      list.appendChild(row);
+    });
+  }
+  const modal = createHomeModal(content, '全部推荐');
+  content.querySelector('#todayAllClose').onclick = modal.close;
+}
+
+function openTodayMoreActionsSheet(pack, inv, context, card, { onRoute = () => {} } = {}) {
+  const recipe = getFocusCardRecipe(card, pack);
+  const recipeId = recipe?.id || card?.id || '';
+  const hasRecipe = Boolean(recipeId && !String(recipeId).startsWith('creative-'));
+  const hasPlan = getTodayPlanItems(pack).length > 0;
+  const overlay = document.createElement('div');
+  overlay.className = 'km-modal-overlay open today-action-sheet-overlay';
+  const panel = document.createElement('div');
+  panel.className = 'km-modal-content today-action-sheet';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+  panel.innerHTML = `
+    <div class="km-modal-header">
+      <span class="km-modal-title">更多操作</span>
+      <button type="button" class="km-modal-close" aria-label="关闭">×</button>
+    </div>
+    <div class="km-modal-body today-action-sheet-body">
+      <button type="button" class="today-sheet-action" data-action="next">换一道</button>
+      <button type="button" class="today-sheet-action" data-action="ai">✨ 换几道</button>
+      <button type="button" class="today-sheet-action" data-action="local">用本地推荐</button>
+      <button type="button" class="today-sheet-action" data-action="all">查看全部推荐</button>
+      ${hasPlan ? '<button type="button" class="today-sheet-action" data-action="cooked">饭后记一下</button>' : ''}
+      <button type="button" class="today-sheet-action" data-action="favorite"${hasRecipe ? '' : ' disabled'}>${hasRecipe && isFavoriteRecipe(recipeId) ? '取消常做' : '设为常做'}</button>
+      <button type="button" class="today-sheet-action" data-action="edit"${hasRecipe ? '' : ' disabled'}>编辑</button>
+      <button type="button" class="today-sheet-action is-danger" data-action="delete"${hasRecipe ? '' : ' disabled'}>删除</button>
+    </div>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  let deleteArmed = false;
+  const close = () => {
+    overlay.classList.add('closing');
+    window.setTimeout(() => overlay.remove(), 180);
+  };
+  panel.querySelector('.km-modal-close').onclick = close;
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay) close();
+  });
+  panel.querySelectorAll('.today-sheet-action').forEach(btn => {
+    btn.onclick = async () => {
+      const action = btn.dataset.action;
+      if (action === 'next') {
+        if ((context.cards || []).length > 1) todayFocusCursor = (todayFocusCursor + 1) % context.cards.length;
+        close();
+        onRoute();
+        return;
+      }
+      if (action === 'ai') {
+        btn.disabled = true;
+        btn.textContent = '正在换几道…';
+        try {
+          const aiResult = await callCloudAI(pack, inv);
+          const aiCards = processAiData(aiResult, pack);
+          if (aiCards.length) {
+            S.save(S.keys.ai_recs, aiResult);
+            todayFocusMode = 'ai';
+            targetRecipeQuery = '';
+            todayFocusCursor = 0;
+            close();
+            onRoute();
+            return;
+          }
+          showToast('暂时没有返回可用菜谱，已保留本地推荐。', { tone: 'info' });
+        } catch (err) {
+          showToast(formatAiErrorMessage(err), { tone: 'error' });
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '✨ 换几道';
+        }
+        return;
+      }
+      if (action === 'local') {
+        localStorage.removeItem(S.keys.ai_recs);
+        todayFocusMode = 'local';
+        targetRecipeQuery = '';
+        todayFocusCursor = 0;
+        close();
+        onRoute();
+        return;
+      }
+      if (action === 'all') {
+        close();
+        openAllTodayRecommendationsSheet(pack, inv, context, { onRoute });
+        return;
+      }
+      if (action === 'cooked') {
+        close();
+        openCookedMealModal(pack, inv, { onRoute });
+        return;
+      }
+      if (action === 'favorite' && hasRecipe) {
+        toggleFavoriteRecipe(recipeId);
+        showToast(isFavoriteRecipe(recipeId) ? '已设为常做' : '已取消常做', { tone: 'success' });
+        close();
+        onRoute();
+        return;
+      }
+      if (action === 'edit' && hasRecipe) {
+        close();
+        location.hash = `#recipe-edit:${recipeId}`;
+        return;
+      }
+      if (action === 'delete' && hasRecipe) {
+        if (!deleteArmed) {
+          deleteArmed = true;
+          btn.textContent = '确认删除';
+          window.setTimeout(() => {
+            deleteArmed = false;
+            if (btn.isConnected) btn.textContent = '删除';
+          }, 3000);
+          return;
+        }
+        if (deleteRecipeFromOverlay(recipeId)) {
+          showToast('已删除菜谱', { tone: 'success' });
+          close();
+          onRoute();
+        }
+      }
+    };
+  });
+}
+
 function renderTodayStatusHeader({ planCount, expiringCount, shoppingCount, recommendationCount, hasInventory }) {
   const section = document.createElement('section');
   section.className = 'today-focus-header';
@@ -1243,28 +1592,46 @@ function renderTodayStatusHeader({ planCount, expiringCount, shoppingCount, reco
   return section;
 }
 
-function chooseTodayMainCard(pack, inv, { inspirationCards = [] } = {}) {
+function chooseTodayMainCard(pack, inv, { focusContext = null } = {}) {
   const expiring = getExpiringItems(inv);
   const planItems = getTodayPlanItems(pack);
   const activeShopping = loadShoppingItems().filter(item => item && !item.done);
-  const recommendation = getPrimaryRecommendationCard(inspirationCards);
+  const recommendation = focusContext?.currentCard || null;
 
-  if (expiring.length) return { type: 'expiry', item: expiring[0] };
+  if (focusContext?.rawQuery && recommendation) return { type: 'recommendation', card: recommendation, focusContext };
   if (planItems.length) return { type: 'plan', item: planItems[0] };
+  if (recommendation) return { type: 'recommendation', card: recommendation, focusContext };
   if (activeShopping.length && !recommendation) return { type: 'shopping', item: activeShopping[0] };
-  if (recommendation) return { type: 'recommendation', card: recommendation };
+  if (expiring.length) return { type: 'expiry', item: expiring[0] };
   return { type: 'empty' };
+}
+
+function renderTodayInlineNudge(pack, inv, state, { onRoute = () => {} } = {}) {
+  const item = getExpiringItems(inv)[0];
+  if (!item || state?.type === 'expiry') return null;
+  const node = document.createElement('button');
+  node.type = 'button';
+  node.className = 'today-inline-nudge';
+  const days = remainingDays(item);
+  node.innerHTML = `
+    <span>⏳ ${escapeHtml(item.name)} ${escapeHtml(formatExpiryLabel(days))}，建议优先使用</span>
+    <strong>用它做菜</strong>
+  `;
+  node.onclick = () => openCleanFridgeHelper(pack, inv, onRoute);
+  return node;
 }
 
 function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
   const card = document.createElement('section');
   card.className = `today-focus-card is-${state.type || 'empty'}`;
 
-  const renderShell = ({ icon, label, badge, title, meta = '', desc, actions = '' }) => {
+  const renderShell = ({ icon, label, badge, title, meta = '', desc, actions = '', more = false }) => {
     card.innerHTML = `
       <div class="today-focus-card-head">
         <span class="today-focus-card-label">${escapeHtml(icon)} ${escapeHtml(label)}</span>
-        ${badge ? `<span class="today-focus-card-badge">${escapeHtml(badge)}</span>` : ''}
+        ${more
+          ? `<span class="today-focus-head-actions">${badge ? `<span class="today-focus-card-badge">${escapeHtml(badge)}</span>` : ''}<button type="button" class="today-focus-more" id="todayMoreActions" aria-label="更多操作">⋯</button></span>`
+          : (badge ? `<span class="today-focus-card-badge">${escapeHtml(badge)}</span>` : '')}
       </div>
       <div class="today-focus-card-body">
         <h3>${escapeHtml(title)}</h3>
@@ -1299,14 +1666,14 @@ function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
       label: '今晚计划',
       badge: '已计划',
       title: recipe.name || '今日计划',
-      meta: (recipe.tags || []).slice(0, 2).join(' · ') || '今天准备做',
-      desc: '做完后记一下，库存会自动更新。',
-      actions: '<button type="button" class="btn ok today-focus-primary" id="todayStartCook">开始做</button><button type="button" class="btn today-focus-secondary" id="todayChangeDish">换一道</button>'
+      meta: getRecipeTimeDifficultyText(recipe) || (recipe.tags || []).slice(0, 2).join(' · ') || '今天准备做',
+      desc: '做完后点饭后记一下，库存会自动更新。',
+      actions: '<button type="button" class="btn ok today-focus-primary" id="todayRecordCooked">饭后记一下</button><button type="button" class="btn today-focus-secondary" id="todayStartCook">查看</button>'
     });
+    card.querySelector('#todayRecordCooked').onclick = () => openCookedMealModal(pack, inv, { onRoute });
     card.querySelector('#todayStartCook').onclick = () => {
       if (recipe.id) location.hash = `#recipe:${recipe.id}`;
     };
-    card.querySelector('#todayChangeDish').onclick = () => { location.hash = '#recipes'; };
     return card;
   }
 
@@ -1328,35 +1695,35 @@ function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
   }
 
   if (state.type === 'recommendation') {
-    const rec = state.card;
-    const missing = Array.from(new Set((rec.missing || []).map(item => String(item || '').trim()).filter(Boolean)));
-    const items = getRecipeItemsPreview(pack, rec.id, 3);
+    const rec = normalizeTodayFocusCard(state.card, pack);
+    const recipe = getFocusCardRecipe(rec, pack);
+    const rawMissing = rec.missing || rec.row?.missing || [];
+    const missing = Array.from(new Set(rawMissing
+      .map(item => String(item?.name || item?.item || item || '').trim())
+      .filter(Boolean)));
+    const items = getRecipeItemsPreview(pack, rec.id || recipe?.id, 3);
     const badge = missing.length ? (missing.length === 1 ? '缺 1 样' : `缺 ${missing.length} 样`) : '可直接做';
     renderShell({
       icon: '✨',
       label: '今日推荐',
       badge,
-      title: rec.name,
-      meta: items.length ? items.join(' · ') : (rec.matchLabel || '今日推荐'),
+      title: rec.name || recipe?.name || '今日推荐',
+      meta: [
+        items.length ? items.join(' · ') : (rec.matchLabel || ''),
+        getRecipeTimeDifficultyText(recipe)
+      ].filter(Boolean).join(' · ') || '今日推荐',
       desc: rec.reason || (missing.length ? formatMissingSummary(missing) : '食材匹配度不错，可以先加入今日计划。'),
+      more: true,
       actions: '<button type="button" class="btn ok today-focus-primary" id="todayAddPlan">加入计划</button><button type="button" class="btn today-focus-secondary" id="todayViewRecipe">查看</button>'
     });
-    card.querySelector('#todayAddPlan').onclick = async event => {
-      const btn = event.currentTarget;
-      const result = await addRecipeToPlanWithMissingCheck(rec.id, pack, inv, {
-        recipe: rec.row?.r,
-        fallbackItems: rec.row?.list,
-        missing: rec.row?.missing,
-        source: isDemoKitchenMode() ? 'demo' : 'recommendation',
-        onPlanAdded: markDemoPlanAdded
-      });
-      brieflyConfirmButton(btn, result.added ? '已加入' : '已在今天');
-      const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
-      showFirstPlanGuideToast(firstPlanGuide);
-      if (!firstPlanGuide) showToast(result.added ? '已加入今日计划' : '今天已经有这道菜', { tone: 'success' });
-      window.setTimeout(onRoute, 650);
+    card.querySelector('#todayAddPlan').onclick = event => addFocusCardToTodayPlan(rec, pack, inv, {
+      button: event.currentTarget,
+      onRoute
+    });
+    card.querySelector('#todayViewRecipe').onclick = () => {
+      if (recipe?.id) location.hash = `#recipe:${recipe.id}`;
     };
-    card.querySelector('#todayViewRecipe').onclick = () => { location.hash = `#recipe:${rec.id}`; };
+    card.querySelector('#todayMoreActions').onclick = () => openTodayMoreActionsSheet(pack, inv, state.focusContext || { cards: [rec] }, rec, { onRoute });
     return card;
   }
 
@@ -1411,6 +1778,8 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
 let postInventoryGuide = null;
 let postInventoryPlanGuidePending = false;
 let targetRecipeQuery = '';
+let todayFocusMode = 'local';
+let todayFocusCursor = 0;
 // AI 创意做法状态（仅页面内存，不持久化）：idle / loading / error / success。
 let targetCreativeDraft = null;
 let targetCreativeStatus = 'idle';
@@ -2368,7 +2737,11 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     ...summaryStats,
     hasInventory: hasUsableInventory(inv)
   }));
-  const mainState = chooseTodayMainCard(pack, inv, { inspirationCards });
+  const focusContext = buildTodayFocusContext(pack, inv, { inspirationCards });
+  container.appendChild(renderTodayRecipeSearch(focusContext, { onRoute }));
+  const mainState = chooseTodayMainCard(pack, inv, { focusContext });
+  const inlineNudge = renderTodayInlineNudge(pack, inv, mainState, { onRoute });
+  if (inlineNudge) container.appendChild(inlineNudge);
   container.appendChild(createTodayMainCard(pack, inv, mainState, { onRoute }));
   container.appendChild(renderQuickActions(pack, inv, { onRoute }));
 

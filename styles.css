@@ -10809,6 +10809,34 @@ html[data-theme="dark"] .today-quick-btn .tq-emoji {
   text-overflow: ellipsis;
 }
 
+.today-focus-head-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+}
+
+.today-focus-head-actions .today-focus-card-badge {
+  max-width: 118px;
+}
+
+.today-focus-more {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.58);
+  color: var(--text-main);
+  font-size: 20px;
+  font-weight: 850;
+  line-height: 1;
+  box-shadow: none;
+}
+
 .today-focus-card.is-plan .today-focus-card-badge {
   color: var(--status-ok-text);
   background: var(--status-ok-bg);
@@ -10880,6 +10908,205 @@ html[data-theme="dark"] .today-quick-btn .tq-emoji {
   box-shadow: none;
 }
 
+.today-recipe-search {
+  min-height: 86px;
+  padding: 12px;
+  border: 1px solid rgba(60, 60, 67, 0.08);
+  border-radius: 22px;
+  background: rgba(255,255,255,0.54);
+  box-shadow: 0 10px 24px rgba(60, 64, 67, 0.07);
+}
+
+.today-recipe-search-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.today-recipe-search-copy strong {
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.today-recipe-search-copy span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.today-recipe-search-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.today-recipe-search-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 14px;
+  padding: 9px 36px 9px 12px;
+  background: rgba(255,255,255,0.72);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.today-recipe-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.today-recipe-search-btn {
+  min-height: 40px;
+  border-radius: 14px;
+  padding: 8px 14px;
+  font-weight: 780;
+}
+
+.today-recipe-search-clear {
+  position: absolute;
+  right: 64px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.10);
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.today-inline-nudge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--status-warn-border);
+  border-radius: 16px;
+  background: var(--status-warn-bg);
+  color: var(--text-main);
+  text-align: left;
+}
+
+.today-inline-nudge span {
+  min-width: 0;
+  color: var(--status-warn-text);
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-inline-nudge strong {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.today-action-sheet {
+  max-width: 460px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.today-action-sheet-body {
+  display: grid;
+  gap: 8px;
+}
+
+.today-sheet-action {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.54);
+  color: var(--text-main);
+  text-align: left;
+  padding: 11px 14px;
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.today-sheet-action:disabled {
+  opacity: 0.45;
+}
+
+.today-sheet-action.is-danger {
+  color: var(--danger);
+  background: var(--status-bad-bg);
+  border-color: var(--status-bad-border);
+}
+
+.today-all-recs-body {
+  padding-bottom: 0;
+}
+
+.today-all-recs-list {
+  display: grid;
+  gap: 10px;
+}
+
+.today-all-rec-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.42);
+}
+
+.today-all-rec-row span:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.today-all-rec-row strong {
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 830;
+}
+
+.today-all-rec-row small {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-all-rec-actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.today-all-recs-empty {
+  margin: 8px 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
 .today-quick {
   margin: 0;
 }
@@ -10893,10 +11120,10 @@ html[data-theme="dark"] .today-quick-row {
 .today-quick-btn,
 html[data-theme="light"] .today-quick-btn:not(.is-primary),
 html[data-theme="dark"] .today-quick-btn {
-  min-height: 92px;
+  min-height: 80px;
   justify-content: flex-start;
   gap: 11px;
-  padding: 14px;
+  padding: 12px;
   border-radius: 22px;
   text-align: left;
 }
@@ -10952,17 +11179,29 @@ html[data-theme="dark"] .today-focus-card-actions .today-focus-secondary {
   border-color: rgba(255,255,255,0.12);
 }
 
+html[data-theme="dark"] .today-focus-more,
+html[data-theme="dark"] .today-recipe-search,
+html[data-theme="dark"] .today-recipe-search-input,
+html[data-theme="dark"] .today-sheet-action,
+html[data-theme="dark"] .today-all-rec-row {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+}
+
 @media (max-width: 430px) {
   .today-view { gap: 12px; }
   .today-focus-header { min-height: 118px; padding-top: 8px; }
   .today-focus-card { min-height: 210px; padding: 18px; border-radius: 24px; }
   .today-focus-card-head { margin-bottom: 14px; }
   .today-focus-card-actions .btn { flex: 1 1 120px; padding-inline: 14px; }
+  .today-recipe-search { min-height: 82px; padding: 11px; border-radius: 20px; }
+  .today-recipe-search-copy { margin-bottom: 8px; }
+  .today-recipe-search-copy span { max-width: 58%; }
   .today-quick-btn,
   html[data-theme="light"] .today-quick-btn:not(.is-primary),
   html[data-theme="dark"] .today-quick-btn {
-    min-height: 86px;
-    padding: 12px;
+    min-height: 76px;
+    padding: 11px;
     border-radius: 20px;
   }
   .today-quick-btn .tq-emoji {
