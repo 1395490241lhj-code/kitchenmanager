@@ -14,7 +14,6 @@
  */
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const crypto = require('crypto');
 const express = require('express');
 const axios = require('axios');
@@ -30,9 +29,60 @@ try {
   ffmpegPath = '';
 }
 
+const {
+  ROOT,
+  PORT,
+  MOBILE_UA,
+  OPENAI_API_KEY,
+  OPENAI_BASE_URL,
+  OPENAI_MODEL,
+  OPENAI_IMPORT_MODEL,
+  OPENAI_VISION_MODEL,
+  OPENAI_TRANSCRIBE_MODEL,
+  AI_PROMPT_MAX_CHARS,
+  AI_IMAGE_MAX_BASE64_BYTES,
+  AI_RATE_LIMIT_WINDOW_MS,
+  AI_RATE_LIMIT_MAX,
+  IMPORT_RATE_LIMIT_MAX,
+  AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
+  MEDIA_TMP_DIR,
+  MEDIA_MAX_VIDEO_BYTES,
+  MEDIA_DOWNLOAD_TIMEOUT_MS,
+  MEDIA_FILE_TTL_MS,
+  MEDIA_MAX_FRAME_COUNT,
+  MEDIA_MAX_FRAME_BYTES,
+  RECIPE_IMPORT_MEDIA_CACHE_TTL_MS,
+  MEDIA_TOO_LARGE_ERROR,
+  MEDIA_DOWNLOAD_ERROR,
+  MEDIA_FFMPEG_ERROR,
+  MEDIA_FRAME_TOO_LARGE_ERROR,
+  MEDIA_FRAME_OCR_ERROR,
+  MEDIA_TRANSCRIBE_ERROR,
+  MEDIA_EMPTY_TRANSCRIPT_ERROR
+} = require('./src/server/config');
+const {
+  resolveChatUrl,
+  resolveAudioTranscriptionsUrl,
+  estimateBase64EncodedBytes,
+  redactSecret,
+  sendAiJsonError,
+  getUpstreamAiErrorInfo,
+  sendAiUpstreamError,
+  isRateLimitExceeded,
+  isJsonValidateFailedError,
+  getAiMessageContent,
+  postChatCompletion,
+  postJsonChatContentWithFallback,
+  repairRecipeJsonContent
+} = require('./src/server/services/ai-client');
+const {
+  safeParseJsonText,
+  extractBalancedJsonObject,
+  parseJsonParseCall,
+  safeParseModelJson
+} = require('./src/server/utils/json');
+
 const app = express();
-const ROOT = __dirname;
-const PORT = process.env.PORT || 3000;
 
 // 解析 JSON 请求体（截图 base64 较大，放宽上限）。
 app.use(express.json({ limit: '12mb' }));
@@ -69,26 +119,6 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1';
-
-// ── AI 配置：密钥与 Base URL 由 Render 环境变量提供 ──
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.groq.com/openai/v1';
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'openai/gpt-oss-120b';
-const OPENAI_IMPORT_MODEL = process.env.OPENAI_IMPORT_MODEL
-  || (/groq\.com/i.test(OPENAI_BASE_URL) ? 'openai/gpt-oss-20b' : OPENAI_MODEL);
-const DEFAULT_OPENAI_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
-const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || DEFAULT_OPENAI_VISION_MODEL;
-const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
-
-const AI_PROMPT_MAX_CHARS = 12000;
-const AI_IMAGE_MAX_BASE64_BYTES = 4 * 1024 * 1024;
-const AI_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
-const AI_RATE_LIMIT_MAX = 30;
-// 视频/链接导入整链路（抓页面 + 下载视频 + ffmpeg + ASR + OCR + 两次 LLM）远贵于单次
-// 聊天调用，单独用更严的桶；同一 URL 的重试大多命中 recipeImportMediaCache，不亏体验。
-const IMPORT_RATE_LIMIT_MAX = 10;
-const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
 const aiRateLimitBuckets = new Map();
 const importRateLimitBuckets = new Map();
 let aiRateLimitLastSweepAt = 0;
@@ -103,22 +133,6 @@ function sweepAiRateLimitBuckets(now) {
       if (now - bucket.start > AI_RATE_LIMIT_WINDOW_MS) buckets.delete(ip);
     }
   }
-}
-
-// 把 Base URL 归一为 chat/completions 完整地址。
-function resolveChatUrl(base) {
-  const b = String(base || '').trim().replace(/\/+$/, '');
-  if (/\/chat\/completions$/.test(b)) return b;
-  if (/\/v\d+$/.test(b)) return `${b}/chat/completions`;
-  return `${b}/v1/chat/completions`;
-}
-
-function resolveAudioTranscriptionsUrl(base) {
-  const b = String(base || '').trim().replace(/\/+$/, '');
-  if (/\/audio\/transcriptions$/.test(b)) return b;
-  if (/\/chat\/completions$/.test(b)) return `${b.replace(/\/chat\/completions$/, '')}/audio/transcriptions`;
-  if (/\/v\d+$/.test(b)) return `${b}/audio/transcriptions`;
-  return `${b}/v1/audio/transcriptions`;
 }
 
 function getClientIp(req) {
@@ -148,89 +162,6 @@ function isAiRateLimited(req) {
 // 导入专用桶（更严）：/api/recipe-import-from-url 单次即整条重活链路。
 function isImportRateLimited(req) {
   return isBucketRateLimited(req, importRateLimitBuckets, IMPORT_RATE_LIMIT_MAX);
-}
-
-function estimateBase64EncodedBytes(value) {
-  const raw = String(value || '');
-  if (!raw) return 0;
-  const payload = raw.includes(',') ? raw.split(',').pop() : raw;
-  const compact = payload.replace(/\s+/g, '');
-  return compact.length;
-}
-
-function redactSecret(value) {
-  let text = String(value || '');
-  if (OPENAI_API_KEY) text = text.replaceAll(OPENAI_API_KEY, '[redacted]');
-  return text.slice(0, 500);
-}
-
-function sendAiJsonError(res, status, code, error, extra = {}) {
-  const safeStatus = Number.isInteger(status) && status >= 400 && status < 600 ? status : 502;
-  return res.status(safeStatus).json({
-    error,
-    status: safeStatus,
-    code,
-    ...extra
-  });
-}
-
-function getUpstreamAiErrorInfo(err) {
-  const status = err && err.response && Number.isInteger(err.response.status)
-    ? err.response.status
-    : (err && err.code === 'ECONNABORTED' ? 504 : 502);
-  const data = err && err.response ? err.response.data : null;
-  const upstreamError = data && typeof data === 'object' ? data.error : null;
-  const code = upstreamError && typeof upstreamError === 'object' && upstreamError.code
-    ? upstreamError.code
-    : (upstreamError && typeof upstreamError === 'object' && upstreamError.type)
-      ? upstreamError.type
-      : data && typeof data === 'object' && data.code
-        ? data.code
-        : err && err.code
-          ? err.code
-          : 'upstream_error';
-  const detail = upstreamError && typeof upstreamError === 'object' && upstreamError.message
-    ? upstreamError.message
-    : data && typeof data === 'object' && data.message
-      ? data.message
-      : typeof data === 'string'
-        ? data
-        : err && err.message
-          ? err.message
-          : '上游 AI 服务请求失败。';
-  return {
-    status,
-    code: String(code || 'upstream_error').slice(0, 80),
-    detail: redactSecret(detail)
-  };
-}
-
-function sendAiUpstreamError(res, err, error = 'AI 服务暂时不可用。') {
-  const info = getUpstreamAiErrorInfo(err);
-  const payload = {
-    upstreamStatus: info.status,
-    upstreamCode: info.code
-  };
-  if (process.env.NODE_ENV !== 'production') payload.detail = info.detail;
-  return sendAiJsonError(res, info.status, info.code, error, payload);
-}
-
-function isRateLimitExceeded(status, code) {
-  const normalizedCode = String(code || '').trim().toLowerCase();
-  const numericStatus = Number(status || 0);
-  return normalizedCode === 'rate_limit_exceeded'
-    || normalizedCode === 'rate_limited'
-    || normalizedCode === 'rate_limit'
-    || numericStatus === 429;
-}
-
-function isJsonValidateFailedError(err) {
-  const info = getUpstreamAiErrorInfo(err);
-  return Number(info.status) === 400 && String(info.code || '').trim().toLowerCase() === 'json_validate_failed';
-}
-
-function getAiMessageContent(resp) {
-  return resp?.data?.choices?.[0]?.message?.content || '';
 }
 
 const RECIPE_EVIDENCE_SYSTEM_PROMPT = `你是 Kitchen Manager 的视频/网页菜谱证据抽取器。用户会给你小红书/网页菜谱文案、caption、OCR、transcript 或截图。
@@ -403,57 +334,6 @@ function extractMetaContents(html, matcher) {
     }
   }
   return uniqueTextList(output, 20);
-}
-
-function safeParseJsonText(text) {
-  try { return JSON.parse(String(text || '').trim()); } catch (_) { return null; }
-}
-
-function extractBalancedJsonObject(text, startIndex) {
-  const source = String(text || '');
-  const firstBrace = source.indexOf('{', startIndex);
-  if (firstBrace < 0) return '';
-  let depth = 0;
-  let inString = false;
-  let quote = '';
-  let escaped = false;
-  for (let i = firstBrace; i < source.length; i += 1) {
-    const ch = source[i];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (ch === '\\') {
-        escaped = true;
-      } else if (ch === quote) {
-        inString = false;
-        quote = '';
-      }
-      continue;
-    }
-    if (ch === '"' || ch === "'") {
-      inString = true;
-      quote = ch;
-      continue;
-    }
-    if (ch === '{') depth += 1;
-    if (ch === '}') {
-      depth -= 1;
-      if (depth === 0) return source.slice(firstBrace, i + 1);
-    }
-  }
-  return '';
-}
-
-function parseJsonParseCall(text) {
-  const source = String(text || '').trim();
-  const match = source.match(/^JSON\.parse\(\s*(["'])((?:\\.|(?!\1)[\s\S])*)\1\s*\)/);
-  if (!match) return null;
-  try {
-    const decodedString = JSON.parse(`${match[1]}${match[2]}${match[1]}`);
-    return safeParseJsonText(decodedString);
-  } catch (_) {
-    return null;
-  }
 }
 
 function collectInstructionText(value, output = [], depth = 0) {
@@ -1113,21 +993,7 @@ async function fetchFollowingRedirectsSafely(startUrl, maxHops = 5) {
   throw SSRF_ERROR; // 超过最大跳数
 }
 
-const MEDIA_TMP_DIR = path.join(os.tmpdir(), 'kitchenmanager-media');
-const MEDIA_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
-const MEDIA_DOWNLOAD_TIMEOUT_MS = 30000;
-const MEDIA_FILE_TTL_MS = 60 * 60 * 1000;
-const MEDIA_MAX_FRAME_COUNT = 3;
-const MEDIA_MAX_FRAME_BYTES = 700 * 1024;
-const RECIPE_IMPORT_MEDIA_CACHE_TTL_MS = 30 * 60 * 1000;
 const recipeImportMediaCache = new Map();
-const MEDIA_TOO_LARGE_ERROR = new Error('MEDIA_TOO_LARGE');
-const MEDIA_DOWNLOAD_ERROR = new Error('MEDIA_DOWNLOAD_FAILED');
-const MEDIA_FFMPEG_ERROR = new Error('MEDIA_FFMPEG_FAILED');
-const MEDIA_FRAME_TOO_LARGE_ERROR = new Error('MEDIA_FRAME_TOO_LARGE');
-const MEDIA_FRAME_OCR_ERROR = new Error('MEDIA_FRAME_OCR_FAILED');
-const MEDIA_TRANSCRIBE_ERROR = new Error('MEDIA_TRANSCRIBE_FAILED');
-const MEDIA_EMPTY_TRANSCRIPT_ERROR = new Error('MEDIA_EMPTY_TRANSCRIPT');
 
 function createPublicApiError(status, error, code = '') {
   const err = new Error(error);
@@ -2157,69 +2023,6 @@ app.post('/api/media/transcribe', async (req, res) => {
 
 // ── 终极降级兜底：把模型的 JSON 在服务端再清洗一遍，确保「常备品过滤 / qty 非空 / method 无序号前缀」三条铁律生效。──
 const PANTRY_BLACKLIST = ['水', '油', '食用油', '盐', '味精', '鸡精', '植物油', '菜籽油', '大豆油', '玉米油', '葵花籽油', '调和油', '色拉油'];
-
-function safeParseModelJson(raw) {
-  if (raw && typeof raw === 'object') return raw;
-  const s = String(raw || '')
-    .replace(/^\uFEFF/, '')
-    .replace(/```(?:json|JSON)?/g, '')
-    .replace(/```/g, '')
-    .trim();
-  const a = s.indexOf('{'), b = s.lastIndexOf('}');
-  if (a < 0 || b <= a) return null;
-  try { return JSON.parse(s.slice(a, b + 1)); } catch (_) { return null; }
-}
-
-async function postChatCompletion({ model, messages, temperature = 0.2, responseFormat = true, timeout = 45000 }) {
-  const payload = {
-    model,
-    messages,
-    temperature
-  };
-  if (responseFormat) payload.response_format = { type: 'json_object' };
-  return axios.post(
-    resolveChatUrl(OPENAI_BASE_URL),
-    payload,
-    {
-      timeout,
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
-    }
-  );
-}
-
-async function postJsonChatContentWithFallback({ model, messages, temperature = 0.2, timeout = 45000, useJsonMode = false }) {
-  // 默认走普通 chat completion（不带 response_format）。Groq 的 json_object / json_schema 强制模式
-  // 会在模型输出不满足校验时返回 400 json_validate_failed；「视频文字 → 菜谱 JSON」这一步改为普通
-  // 输出 + safeParseModelJson 解析，从根源上规避该错误，不再依赖强制 JSON 模式。
-  if (!useJsonMode) {
-    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: false, timeout });
-    return getAiMessageContent(resp);
-  }
-  // 兜底保留：万一某处仍需强制 JSON，遇到 json_validate_failed 时自动改普通输出重试一次。
-  try {
-    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: true, timeout });
-    return getAiMessageContent(resp);
-  } catch (err) {
-    if (!isJsonValidateFailedError(err)) throw err;
-    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: false, timeout });
-    return getAiMessageContent(resp);
-  }
-}
-
-async function repairRecipeJsonContent(rawContent) {
-  const repairPrompt = `请把下面内容修复为合法 JSON 对象。字段必须为 name, tags, ingredients, seasonings, method, warnings, needsReview。不要补充内容，只修复格式。只输出 JSON 对象，不要 markdown，不要解释。\n\n${String(rawContent || '').slice(0, 12000)}`;
-  const resp = await postChatCompletion({
-    model: OPENAI_IMPORT_MODEL,
-    messages: [
-      { role: 'system', content: 'You repair malformed recipe JSON. Return only one valid JSON object.' },
-      { role: 'user', content: repairPrompt }
-    ],
-    temperature: 0,
-    responseFormat: false,
-    timeout: 30000
-  });
-  return safeParseModelJson(getAiMessageContent(resp));
-}
 
 function getLabeledSourceSection(text, label) {
   const source = String(text || '');

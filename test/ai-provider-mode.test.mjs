@@ -1096,6 +1096,8 @@ test('设置页 AI 模式 radio 不继承通用输入框宽度', () => {
 
 test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   const server = read('server.js');
+  const serverConfig = read('src/server/config.js');
+  const aiClient = read('src/server/services/ai-client.js');
   const aiChatRoute = server.slice(
     server.indexOf("app.post('/api/ai-chat'"),
     server.indexOf('// AI 解析路由')
@@ -1104,12 +1106,12 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   assert.match(server, /app\.post\('\/api\/ai-chat'/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /OPENAI_VISION_MODEL/);
-  assert.match(server, /DEFAULT_OPENAI_VISION_MODEL = 'meta-llama\/llama-4-scout-17b-16e-instruct'/);
-  assert.match(server, /OPENAI_VISION_MODEL = process\.env\.OPENAI_VISION_MODEL \|\| DEFAULT_OPENAI_VISION_MODEL/);
-  assert.match(server, /AI_PROMPT_MAX_CHARS = 12000/);
-  assert.match(server, /AI_IMAGE_MAX_BASE64_BYTES = 4 \* 1024 \* 1024/);
-  assert.match(server, /AI_RATE_LIMIT_MAX = 30/);
-  assert.match(server, /IMPORT_RATE_LIMIT_MAX = 10/);
+  assert.match(serverConfig, /DEFAULT_OPENAI_VISION_MODEL = 'meta-llama\/llama-4-scout-17b-16e-instruct'/);
+  assert.match(serverConfig, /OPENAI_VISION_MODEL = process\.env\.OPENAI_VISION_MODEL \|\| DEFAULT_OPENAI_VISION_MODEL/);
+  assert.match(serverConfig, /AI_PROMPT_MAX_CHARS = 12000/);
+  assert.match(serverConfig, /AI_IMAGE_MAX_BASE64_BYTES = 4 \* 1024 \* 1024/);
+  assert.match(serverConfig, /AI_RATE_LIMIT_MAX = 30/);
+  assert.match(serverConfig, /IMPORT_RATE_LIMIT_MAX = 10/);
   assert.match(server, /sweepAiRateLimitBuckets\(now\)/);
   assert.match(server, /buckets\.delete\(ip\)/);
   assert.match(server, /x-forwarded-for/);
@@ -1122,8 +1124,8 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   const importIdx = server.indexOf("'/api/recipe-import-from-url'");
   assert.match(server.slice(importIdx, importIdx + 300), /isImportRateLimited\(req\)/);
   assert.match(server, /res\.json\(\{ content: cleaned \}\)/);
-  assert.match(server, /status: safeStatus/);
-  assert.match(server, /code,/);
+  assert.match(aiClient, /status: safeStatus/);
+  assert.match(aiClient, /code,/);
   assert.match(server, /request_too_large/);
   assert.match(server, /bad_json/);
   assert.match(aiChatRoute, /const model = imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL;/);

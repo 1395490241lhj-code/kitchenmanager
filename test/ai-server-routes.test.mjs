@@ -13,8 +13,16 @@ const Module = require('node:module');
 const originalLoad = Module._load;
 const root = process.cwd();
 const serverPath = resolve(root, 'server.js');
+const serverModulesDir = resolve(root, 'src/server') + path.sep;
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;
+
+function clearServerRequireCache() {
+  delete require.cache[serverPath];
+  for (const key of Object.keys(require.cache)) {
+    if (key.startsWith(serverModulesDir)) delete require.cache[key];
+  }
+}
 
 async function writeTempMediaFile(name, contents = 'audio') {
   const dir = path.join(os.tmpdir(), 'kitchenmanager-media');
@@ -93,7 +101,7 @@ function loadServerWithMocks({ axiosPost, axiosGet, dnsLookup, env = {}, childPr
     OPENAI_MODEL: 'openai/gpt-oss-120b',
     ...env
   };
-  delete require.cache[serverPath];
+  clearServerRequireCache();
   require(serverPath);
   return { app: expressMock.latestApp, axiosMock };
 }
@@ -125,7 +133,7 @@ afterEach(() => {
   Module._load = originalLoad;
   process.env = { ...originalEnv };
   globalThis.fetch = originalFetch;
-  delete require.cache[serverPath];
+  clearServerRequireCache();
 });
 
 test('/api/ai-status 配置完整时返回可用状态且不泄露 API Key', async () => {
@@ -801,7 +809,7 @@ test('/api/media/ocr-frames 缺少密钥或上游失败时返回友好错误', a
   assert.equal(noKey.statusCode, 503);
   assert.equal(noKey.body.message, '后端未配置 AI 密钥。');
 
-  delete require.cache[serverPath];
+  clearServerRequireCache();
   const failApp = loadServerWithMocks({
     axiosPost: async () => {
       throw new Error('vision failed');
@@ -918,7 +926,7 @@ test('/api/media/transcribe 上游失败或空 transcript 返回 502', async () 
   assert.equal(failed.statusCode, 502);
   assert.equal(failed.body.message, '音频转录失败，请稍后重试。');
 
-  delete require.cache[serverPath];
+  clearServerRequireCache();
   globalThis.fetch = async () => ({
     ok: true,
     status: 200,
