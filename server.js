@@ -47,6 +47,28 @@ app.use((err, req, res, next) => {
   return next(err);
 });
 
+// ── CORS：允许 GitHub Pages 纯静态前端跨域调用 /api ─────────────────────────
+// 前端在 github.io 上没有同源后端（见 src/config.js 的 API_BASE），会把 /api 请求
+// 直接发到本服务。白名单精确到站点来源，其余跨域来源一律不发 CORS 头（浏览器拦截）；
+// 可用环境变量 CORS_EXTRA_ORIGIN 追加一个来源（如自定义域名）。
+const CORS_ALLOWED_ORIGINS = new Set([
+  'https://1395490241lhj-code.github.io',
+  ...(process.env.CORS_EXTRA_ORIGIN ? [String(process.env.CORS_EXTRA_ORIGIN).replace(/\/+$/, '')] : [])
+]);
+
+app.use('/api', (req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && CORS_ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');
+  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
 const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1';
 
 // ── AI 配置：密钥与 Base URL 由 Render 环境变量提供 ──

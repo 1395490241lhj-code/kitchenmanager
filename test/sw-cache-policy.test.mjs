@@ -25,5 +25,5 @@ test('Service Worker 永不缓存 /api 请求', () => {
 
 test('设置页 ai-status 检测使用 no-store（HTTP 缓存层）', () => {
   const settings = read('src/views/settings-view.js');
-  assert.match(settings, /fetch\('\/api\/ai-status', \{ cache: 'no-store' \}\)/);
+  assert.match(settings, /fetch\(apiUrl\('\/api\/ai-status'\), \{ cache: 'no-store' \}\)/);
 });

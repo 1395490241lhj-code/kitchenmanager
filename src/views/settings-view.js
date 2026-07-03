@@ -1,5 +1,5 @@
 import { S, todayISO } from '../storage.js?v=230';
-import { CUSTOM_AI } from '../config.js?v=230';
+import { apiUrl, CUSTOM_AI } from '../config.js?v=230';
 import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=230';
 import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=230';
 import { getSavedTheme, saveTheme } from '../theme.js?v=230';
@@ -464,7 +464,7 @@ export function renderSettings() {
     testCloudAiBtn.disabled = true;
     testCloudAiBtn.innerHTML = '<span class="spinner"></span> 检测中';
     try {
-      const res = await fetch('/api/ai-status', { cache: 'no-store' });
+      const res = await fetch(apiUrl('/api/ai-status'), { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
       setCloudAiStatus(data);
       setInlineStatus(statusEl, data?.available ? '内置 AI 服务已配置。' : (data?.message || '内置 AI 服务暂不可用。'), data?.available ? 'ok' : 'bad');

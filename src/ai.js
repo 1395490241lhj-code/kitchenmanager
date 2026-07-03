@@ -1,4 +1,5 @@
-import { CUSTOM_AI } from './config.js?v=230';
+// apiUrl 改名导入：getAiConfig 内部有同名局部变量（BYOK 的用户自填地址），避免遮蔽。
+import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=230';
 import { S } from './storage.js?v=230';
 import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=230';
 import {
@@ -97,7 +98,7 @@ export function getAiConfig() {
   if (aiProviderMode === 'cloud') {
     return {
       mode: 'cloud',
-      apiUrl: '/api/ai-chat'
+      apiUrl: buildApiUrl('/api/ai-chat')
     };
   }
 
@@ -1478,7 +1479,7 @@ export async function callCloudAI(pack, inv) {
 async function fetchRecipeSource(url) {
   let res;
   try {
-    res = await fetch(`/api/xhs-extract?url=${encodeURIComponent(url)}`);
+    res = await fetch(buildApiUrl(`/api/xhs-extract?url=${encodeURIComponent(url)}`));
   } catch (e) {
     // 后端不可用（如纯静态托管、未启动 node server.js）
     throw new Error('链接抓取受限，请稍后重试或粘贴菜谱文字。');
@@ -1577,7 +1578,7 @@ function validateImportedRecipe(input, { sourceText = '', evidence = null, diagn
 async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType = 'manual', sourceMetadata = null } = {}) {
   let res;
   try {
-    res = await fetch('/api/ai-parse', {
+    res = await fetch(buildApiUrl('/api/ai-parse'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, imageBase64, sourceType, sourceMetadata })
@@ -1616,7 +1617,7 @@ async function parseRecipeWith120B({ text = '', imageBase64 = null, sourceType =
 async function importXiaohongshuRecipeFromUrl({ url = '', userText = '' } = {}) {
   let res;
   try {
-    res = await fetch('/api/recipe-import-from-url', {
+    res = await fetch(buildApiUrl('/api/recipe-import-from-url'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, userText })

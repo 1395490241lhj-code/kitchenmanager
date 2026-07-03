@@ -28,7 +28,7 @@ test('默认区域显示内置 AI 状态和测试按钮', () => {
   assert.ok(advancedToggle > aiSection);
   assert.match(source, /id="cloudAiStatusCard"/);
   assert.match(source, /id="testCloudAiBtn">测试 AI 服务/);
-  assert.match(source, /fetch\('\/api\/ai-status', \{ cache: 'no-store' \}\)/);
+  assert.match(source, /fetch\(apiUrl\('\/api\/ai-status'\), \{ cache: 'no-store' \}\)/);
 });
 
 test('设置页显示菜谱偏好但不接入推荐结果', () => {
