@@ -13,13 +13,14 @@ test('empty inventory home prioritizes demo kitchen, then text entry, then recip
   const home = read('src/views/home-view.js');
   const styles = read('styles.css');
 
-  assert.match(home, /今天不知道吃什么？/);
-  assert.match(home, /先用一个示例厨房体验一次：看推荐、安排今日计划、做完后更新库存。/);
+  assert.match(home, /今晚吃什么？/);
+  assert.match(home, /还没有添加食材。添加冰箱食材后，我可以帮你推荐今天吃什么。/);
   assert.match(home, /id="obDemo"/);
   assert.match(home, /开始示例体验/);
   assert.match(home, /id="obManual"/);
   assert.match(home, /记录我的食材/);
   assert.match(home, /id="obRecipes"/);
+  assert.match(home, /renderRecipeImportFeatureCard\(\)/);
   assert.doesNotMatch(home, /id="obReceipt"/);
   assert.match(home, /#obManual'\)\.onclick = \(\) => openBatchInputModal\(pack, \{ onRoute, initialTab: 'text' \}\)/);
   assert.match(read('src/views/home/demo-kitchen.js'), /if \(n > 0\) setHomeTab\('recs'\);/);

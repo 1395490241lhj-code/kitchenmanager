@@ -9,14 +9,15 @@ function read(rel) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('首页泛化时间文案使用“今天”，不默认说“今晚可以做”', () => {
+test('首页首屏用生活化“今晚吃什么”定位，不出现工程化推荐文案', () => {
   const home = read('src/views/home-view.js');
   const recommendations = read('src/recommendations.js');
   const inventoryView = read('src/views/inventory-view.js');
   const combined = `${home}\n${recommendations}\n${inventoryView}`;
 
-  assert.match(home, /今天可以做 \$\{recommendationCount\} 道菜/);
-  assert.doesNotMatch(combined, /今晚可以做|今晚推荐|今晚想吃|今晚吃什么|今晚安排|今晚能做|看今晚推荐/);
+  assert.match(home, /今晚吃什么？/);
+  assert.match(home, /冰箱里有 \$\{usableCount\} 样食材，可以推荐 \$\{recommendationCount\} 道菜/);
+  assert.doesNotMatch(combined, /执行推荐计算|库存状态模块|AI 结构化入口/);
 });
 
 test('内置数据不主动使用“韭葱”或 leek 作为食材名', () => {
