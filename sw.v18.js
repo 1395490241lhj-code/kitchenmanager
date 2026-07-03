@@ -69,6 +69,11 @@ self.addEventListener('fetch', event => {
   const url = new URL(request.url);
   if (url.origin !== location.origin) return;
 
+  // API 请求永不经过缓存：否则兜底的 cacheFirst 会把 GET /api/ai-status 永久钉死
+  // （fetch 的 cache:'no-store' 只绕 HTTP 缓存、绕不过 SW），而对 POST 调用
+  // cache.put 会抛出未处理的 rejection（Cache API 只支持 GET）。直接放行给网络。
+  if (/\/api\//.test(url.pathname)) return;
+
   if (isHtmlRequest(request)) {
     event.respondWith(networkFirst(request, './index.html').catch(() => new Response('<h1>Offline</h1>', {
       status: 200,

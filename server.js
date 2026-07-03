@@ -63,8 +63,12 @@ const AI_PROMPT_MAX_CHARS = 12000;
 const AI_IMAGE_MAX_BASE64_BYTES = 4 * 1024 * 1024;
 const AI_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const AI_RATE_LIMIT_MAX = 30;
+// 视频/链接导入整链路（抓页面 + 下载视频 + ffmpeg + ASR + OCR + 两次 LLM）远贵于单次
+// 聊天调用，单独用更严的桶；同一 URL 的重试大多命中 recipeImportMediaCache，不亏体验。
+const IMPORT_RATE_LIMIT_MAX = 10;
 const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
 const aiRateLimitBuckets = new Map();
+const importRateLimitBuckets = new Map();
 let aiRateLimitLastSweepAt = 0;
 
 // 惰性回收：限流桶按 IP 建、此前从不删除，长跑实例会缓慢累积陌生 IP 的过期桶。
@@ -72,8 +76,10 @@ let aiRateLimitLastSweepAt = 0;
 function sweepAiRateLimitBuckets(now) {
   if (now - aiRateLimitLastSweepAt < AI_RATE_LIMIT_SWEEP_INTERVAL_MS) return;
   aiRateLimitLastSweepAt = now;
-  for (const [ip, bucket] of aiRateLimitBuckets) {
-    if (now - bucket.start > AI_RATE_LIMIT_WINDOW_MS) aiRateLimitBuckets.delete(ip);
+  for (const buckets of [aiRateLimitBuckets, importRateLimitBuckets]) {
+    for (const [ip, bucket] of buckets) {
+      if (now - bucket.start > AI_RATE_LIMIT_WINDOW_MS) buckets.delete(ip);
+    }
   }
 }
 
@@ -98,18 +104,28 @@ function getClientIp(req) {
   return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
-function isAiRateLimited(req) {
+function isBucketRateLimited(req, buckets, max) {
   const ip = getClientIp(req);
   const now = Date.now();
   sweepAiRateLimitBuckets(now);
-  const bucket = aiRateLimitBuckets.get(ip) || { start: now, count: 0 };
+  const bucket = buckets.get(ip) || { start: now, count: 0 };
   if (now - bucket.start > AI_RATE_LIMIT_WINDOW_MS) {
     bucket.start = now;
     bucket.count = 0;
   }
   bucket.count += 1;
-  aiRateLimitBuckets.set(ip, bucket);
-  return bucket.count > AI_RATE_LIMIT_MAX;
+  buckets.set(ip, bucket);
+  return bucket.count > max;
+}
+
+// 共享 AI 桶：所有会打到上游模型/转录或产生外网抓取的普通接口。
+function isAiRateLimited(req) {
+  return isBucketRateLimited(req, aiRateLimitBuckets, AI_RATE_LIMIT_MAX);
+}
+
+// 导入专用桶（更严）：/api/recipe-import-from-url 单次即整条重活链路。
+function isImportRateLimited(req) {
+  return isBucketRateLimited(req, importRateLimitBuckets, IMPORT_RATE_LIMIT_MAX);
 }
 
 function estimateBase64EncodedBytes(value) {
@@ -1937,6 +1953,7 @@ async function extractRecipeSourcePayloadFromUrl(urlInput, { allowEmptyText = fa
 
 // 代理路由：抓取并返回菜谱文案。
 app.get('/api/xhs-extract', async (req, res) => {
+  if (isAiRateLimited(req)) return res.status(429).json({ error: '请求太频繁，请稍后再试。' });
   // 模糊提取：允许用户传整段小红书分享语，服务端再用同一条正则兜底捕获 URL。
   try {
     const payload = await extractRecipeSourcePayloadFromUrl(req.query.url);
@@ -1950,6 +1967,9 @@ app.get('/api/xhs-extract', async (req, res) => {
 });
 
 app.post('/api/media/extract-audio', async (req, res) => {
+  if (isAiRateLimited(req)) {
+    return res.status(429).json({ ok: false, error: '请求太频繁，请稍后再试。', message: '请求太频繁，请稍后再试。' });
+  }
   const videoUrl = String(req.body?.videoUrl || '').trim();
   if (!videoUrl) {
     return res.status(400).json({ ok: false, error: '缺少 videoUrl。', message: '缺少 videoUrl。' });
@@ -1986,6 +2006,9 @@ app.post('/api/media/extract-audio', async (req, res) => {
 });
 
 app.post('/api/media/extract-frames', async (req, res) => {
+  if (isAiRateLimited(req)) {
+    return res.status(429).json({ ok: false, error: '请求太频繁，请稍后再试。', message: '请求太频繁，请稍后再试。' });
+  }
   const videoId = String(req.body?.videoId || '').trim();
   const videoPath = resolveMediaVideoPath(videoId);
   if (!videoPath) {
@@ -2082,6 +2105,9 @@ app.post('/api/media/ocr-frames', async (req, res) => {
 });
 
 app.post('/api/media/transcribe', async (req, res) => {
+  if (isAiRateLimited(req)) {
+    return res.status(429).json({ ok: false, error: '请求太频繁，请稍后再试。', message: '请求太频繁，请稍后再试。' });
+  }
   if (!OPENAI_API_KEY) {
     return res.status(503).json({ ok: false, error: '后端未配置 AI 密钥。', message: '后端未配置 AI 密钥。' });
   }
@@ -3597,6 +3623,7 @@ function buildFallbackRecipeFromTranscript({ pageText = '', transcriptText = '',
 }
 
 app.post('/api/recipe-import-from-url', async (req, res) => {
+  if (isImportRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', '导入太频繁，请稍后再试。');
   cleanupRecipeImportMediaCache();
   const rawUrl = String(req.body?.url || '').trim();
   const userText = String(req.body?.userText || '').trim();
@@ -3775,6 +3802,7 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
 
 // AI 解析路由：文本菜谱导入用 OPENAI_IMPORT_MODEL，图片用 OPENAI_VISION_MODEL，密钥来自 Render 环境变量。
 app.post('/api/ai-parse', async (req, res) => {
+  if (isAiRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。');
   const text = String((req.body && req.body.text) || '').trim();
   const imageBase64 = (req.body && req.body.imageBase64) || null;
   const sourceMetadata = req.body && req.body.sourceMetadata && typeof req.body.sourceMetadata === 'object'

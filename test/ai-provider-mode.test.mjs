@@ -1109,9 +1109,18 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   assert.match(server, /AI_PROMPT_MAX_CHARS = 12000/);
   assert.match(server, /AI_IMAGE_MAX_BASE64_BYTES = 4 \* 1024 \* 1024/);
   assert.match(server, /AI_RATE_LIMIT_MAX = 30/);
+  assert.match(server, /IMPORT_RATE_LIMIT_MAX = 10/);
   assert.match(server, /sweepAiRateLimitBuckets\(now\)/);
-  assert.match(server, /aiRateLimitBuckets\.delete\(ip\)/);
+  assert.match(server, /buckets\.delete\(ip\)/);
   assert.match(server, /x-forwarded-for/);
+  // 昂贵接口全部挂限流：普通 AI/抓取/媒体走共享桶，整链路导入走更严的独立桶。
+  for (const route of ['xhs-extract', 'media/extract-audio', 'media/extract-frames', 'media/transcribe', 'ai-parse']) {
+    const idx = server.indexOf(`'/api/${route}'`);
+    assert.ok(idx > 0, `route ${route} exists`);
+    assert.match(server.slice(idx, idx + 300), /isAiRateLimited\(req\)/, `${route} 应挂共享限流`);
+  }
+  const importIdx = server.indexOf("'/api/recipe-import-from-url'");
+  assert.match(server.slice(importIdx, importIdx + 300), /isImportRateLimited\(req\)/);
   assert.match(server, /res\.json\(\{ content: cleaned \}\)/);
   assert.match(server, /status: safeStatus/);
   assert.match(server, /code,/);
