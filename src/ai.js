@@ -1626,7 +1626,36 @@ async function importXiaohongshuRecipeFromUrl({ url = '', userText = '' } = {}) 
   }
   let data = null;
   try { data = await res.json(); } catch (_) { /* 非 JSON 响应 */ }
+  const buildDraftFromResponse = () => {
+    const draftInput = (data && (data.recipe || data.content)) || (
+      data?.fallbackUsed
+        ? {
+            name: 'AI 导入菜谱草稿',
+            tags: ['AI草稿', '视频导入'],
+            ingredients: [],
+            seasonings: [],
+            method: ['视频文字已读取成功，但菜谱结构化结果不完整，请根据原文预览手动整理。'],
+            warnings: ['视频文字已读取成功，但 AI 整理菜谱失败。当前草稿需要人工确认。'],
+            needsReview: true
+          }
+        : ''
+    );
+    const draft = validateImportedRecipe(draftInput, {
+      evidence: data?.evidence || null,
+      diagnostics: data?.diagnostics || null,
+      debugEvidenceSummary: data?.debugEvidenceSummary || null,
+      sourceType: 'xiaohongshu'
+    });
+    if (data?.mediaDiagnostics) draft.mediaDiagnostics = data.mediaDiagnostics;
+    if (data?.fallbackUsed) draft.fallbackUsed = true;
+    if (data?.fallbackReason) draft.fallbackReason = String(data.fallbackReason);
+    if (data?.importTextReady) draft.importTextReady = true;
+    return draft;
+  };
   if (!res.ok) {
+    if (data && (data.recipe || data.content || data.fallbackUsed)) {
+      return buildDraftFromResponse();
+    }
     throw createCloudAiError({
       status: data?.status || res.status,
       code: data?.code || data?.upstreamCode || '',
@@ -1641,17 +1670,7 @@ async function importXiaohongshuRecipeFromUrl({ url = '', userText = '' } = {}) 
       fallback: 'AI 解析失败'
     });
   }
-  const draft = validateImportedRecipe((data && (data.recipe || data.content)) || '', {
-    evidence: data?.evidence || null,
-    diagnostics: data?.diagnostics || null,
-    debugEvidenceSummary: data?.debugEvidenceSummary || null,
-    sourceType: 'xiaohongshu'
-  });
-  if (data?.mediaDiagnostics) draft.mediaDiagnostics = data.mediaDiagnostics;
-  if (data?.fallbackUsed) draft.fallbackUsed = true;
-  if (data?.fallbackReason) draft.fallbackReason = String(data.fallbackReason);
-  if (data?.importTextReady) draft.importTextReady = true;
-  return draft;
+  return buildDraftFromResponse();
 }
 
 /**

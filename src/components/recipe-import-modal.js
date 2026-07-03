@@ -7,12 +7,36 @@ const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
 
 export function extractFirstHttpUrl(text) {
   const raw = String(text || '');
-  const match = raw.match(/https?:\/\/[^\s，。、,.;；]+/i);
+  const match = raw.match(/https?:\/\/[^\s，、,;；]+/i);
   if (!match) return { url: '', remainingText: raw.trim() };
   const originalUrl = match[0];
   const url = originalUrl.replace(/[，。、,.;；]+$/, '');
   const remainingText = raw.replace(originalUrl, ' ').replace(/\s+/g, ' ').trim();
   return { url, remainingText };
+}
+
+export function cleanXhsShareTextForUserSupplement(text) {
+  const raw = String(text || '');
+  let cleaned = raw
+    .replace(/https?:\/\/[^\s，、,;；]+/gi, ' ')
+    .replace(/xhslink\.com\/?\S*/gi, ' ')
+    .replace(/打开【?小红书】?/gi, ' ')
+    .replace(/这篇笔记超精彩/gi, ' ')
+    .replace(/小红书/gi, ' ')
+    .replace(/详细版教程|家常版/gi, ' ')
+    .replace(/[🔥✨🌟⭐💥💯❤❤️👍]+/gu, ' ')
+    .replace(/复制(?:打开|查看|进入)?/gi, ' ')
+    .replace(/[“”"'<>【】《》#]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  cleaned = cleaned
+    .replace(/^(?:\d+\s*)?(?:[A-Za-z0-9_-]{2,}\s*)+$/i, '')
+    .replace(/^(?:笔记|教程|分享|超精彩|打开|查看|复制|收藏|点赞|关注|完整版)+$/i, '')
+    .trim();
+
+  const hasCookingSignal = /鸡|鸭|牛|猪|肉|鱼|虾|蛋|豆腐|番茄|土豆|青椒|洋葱|藤椒|花椒|辣椒|生抽|老抽|料酒|盐|糖|腌|煎|炒|蒸|煮|焖|烤|炸|切|洗|出锅|做法|食材|调料/u.test(cleaned);
+  return hasCookingSignal ? cleaned : '';
 }
 
 export function normalizeRecipeMethodText(method) {
@@ -127,8 +151,11 @@ export function openRecipeImportModal() {
     goBtn.innerHTML = `<span class="spinner"></span> ${loadingText}`;
     setInlineStatus(status, loadingText, 'info');
     try {
+      const userText = url && isXiaohongshuUrl
+        ? cleanXhsShareTextForUserSupplement(remainingText)
+        : remainingText;
       const draft = url
-        ? await importRecipeFromSource({ url, text: remainingText, file: null })
+        ? await importRecipeFromSource({ url, text: userText, file: null })
         : await importRecipeFromSource({ text: rawInput, file: null });
       setInlineStatus(status, '解析完成，正在打开编辑器…', 'ok');
       setTimeout(() => { close(); openEditorWithAiDraft(draft); }, 500);

@@ -3724,13 +3724,13 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
       ocrPreview: ocrText.slice(0, 800),
       pageTextPreview: pageText.slice(0, 500)
     };
-    const canUseTranscriptFallback = Boolean(String(transcriptText || ocrText || '').trim());
+    const canUseSourceFallback = Boolean(String(transcriptText || ocrText || pageText || '').trim());
     const fallbackReason = isRateLimitExceeded(info.status, info.code)
       ? 'rate_limit_exceeded'
       : (err?.aiParseCode === 'recipe_json_failed' || isJsonValidateFailedError(err))
         ? 'recipe_json_failed'
         : '';
-    if (canUseTranscriptFallback && fallbackReason) {
+    if (canUseSourceFallback && fallbackReason) {
       const fallbackRecipe = buildFallbackRecipeFromTranscript({
         pageText,
         transcriptText,
