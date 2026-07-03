@@ -16,7 +16,7 @@ import { perfMeasure } from '../utils/perf.js?v=231';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=231';
 import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=231';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=231';
-import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=231';
+import { classifyRecipeIngredient, splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=231';
 import { splitMethodSteps } from '../utils/method-steps.js?v=231';
 import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=231';
 import { createUserRecipe } from '../components/recipe-create-modal.js?v=231';
@@ -1141,12 +1141,18 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
   section.className = 'today-section today-quick';
   section.innerHTML = `
     <div class="today-quick-row">
-      <button type="button" class="today-quick-btn is-primary" id="qaStock"><span class="tq-emoji">📦</span><span>记食材</span></button>
-      <button type="button" class="today-quick-btn" id="qaRecipeImport"><span class="tq-emoji">📖</span><span>导入菜谱</span></button>
+      <button type="button" class="today-quick-btn is-primary" id="qaStock">
+        <span class="tq-emoji">📦</span>
+        <span class="tq-copy"><strong>记食材</strong><small>记录冰箱食材</small></span>
+      </button>
+      <button type="button" class="today-quick-btn" id="qaRecipeImport">
+        <span class="tq-emoji">📖</span>
+        <span class="tq-copy"><strong>导入菜谱</strong><small>粘贴链接识别</small></span>
+      </button>
     </div>
   `;
   // 记食材：直接打开现有「记进厨房」弹窗（📸 拍小票识别 + ✍️ 文本批量记）。
-  section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
+  section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
   section.querySelector('#qaRecipeImport').onclick = () => openRecipeImportModal();
   return section;
 }
@@ -1172,6 +1178,198 @@ function getTodaySummaryStats(pack, inv, { inspirationCards = null } = {}) {
     shoppingCount: loadShoppingItems().filter(item => item && !item.done).length,
     recommendationCount: cards.length
   };
+}
+
+function getGreetingLabel() {
+  const h = new Date().getHours();
+  if (h < 5) return '🌙 夜深了';
+  if (h < 11) return '👋 早上好';
+  if (h < 14) return '👋 中午好';
+  if (h < 18) return '👋 下午好';
+  return '🌆 晚上好';
+}
+
+function getTodayPlanItems(pack) {
+  const today = todayISO();
+  const recipes = pack.recipes || [];
+  return S.load(S.keys.plan, [])
+    .filter(item => item && (item.date || today) === today && !item.isCooked)
+    .map(item => ({
+      ...item,
+      recipe: recipes.find(recipe => recipe.id === item.id) || null
+    }))
+    .filter(item => item.recipe);
+}
+
+function getPrimaryRecommendationCard(cards = []) {
+  return (cards || []).find(card =>
+    card && card.id && card.row?.r && !card.isVariant && !card.isGenericTemplate && !String(card.id).startsWith('creative-')
+  ) || null;
+}
+
+function formatExpiryLabel(days) {
+  if (days < 0) return `已过期 ${Math.abs(days)} 天`;
+  if (days === 0) return '今天到期';
+  if (days === 1) return '明天过期';
+  return `${days} 天后过期`;
+}
+
+function getRecipeItemsPreview(pack, recipeId, limit = 2) {
+  return explodeCombinedItems((pack.recipe_ingredients || {})[recipeId] || [])
+    .filter(item => item && item.item && classifyRecipeIngredient(item.item).role === 'core')
+    .map(item => item.item)
+    .slice(0, limit);
+}
+
+function renderTodayStatusHeader({ planCount, expiringCount, shoppingCount, recommendationCount, hasInventory }) {
+  const section = document.createElement('section');
+  section.className = 'today-focus-header';
+  const title = hasInventory
+    ? `今天可以做 ${recommendationCount} 道菜`
+    : '先记录几样食材';
+  const subtitle = hasInventory
+    ? (recommendationCount > 0 ? '先选一道加入今日计划' : '记下更多食材后，我会帮你找灵感')
+    : '添加冰箱食材后，我可以帮你推荐今天吃什么';
+  section.innerHTML = `
+    <p class="today-focus-greeting">${escapeHtml(getGreetingLabel())}</p>
+    <h2 class="today-focus-title">${escapeHtml(title)}</h2>
+    <p class="today-focus-subtitle">${escapeHtml(subtitle)}</p>
+    <div class="today-focus-stats" aria-label="今日厨房状态">
+      <span>计划 <b>${escapeHtml(String(planCount || 0))}</b></span>
+      <span>临期 <b>${escapeHtml(String(expiringCount || 0))}</b></span>
+      <span>待买 <b>${escapeHtml(String(shoppingCount || 0))}</b></span>
+    </div>
+  `;
+  return section;
+}
+
+function chooseTodayMainCard(pack, inv, { inspirationCards = [] } = {}) {
+  const expiring = getExpiringItems(inv);
+  const planItems = getTodayPlanItems(pack);
+  const activeShopping = loadShoppingItems().filter(item => item && !item.done);
+  const recommendation = getPrimaryRecommendationCard(inspirationCards);
+
+  if (expiring.length) return { type: 'expiry', item: expiring[0] };
+  if (planItems.length) return { type: 'plan', item: planItems[0] };
+  if (activeShopping.length && !recommendation) return { type: 'shopping', item: activeShopping[0] };
+  if (recommendation) return { type: 'recommendation', card: recommendation };
+  return { type: 'empty' };
+}
+
+function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
+  const card = document.createElement('section');
+  card.className = `today-focus-card is-${state.type || 'empty'}`;
+
+  const renderShell = ({ icon, label, badge, title, meta = '', desc, actions = '' }) => {
+    card.innerHTML = `
+      <div class="today-focus-card-head">
+        <span class="today-focus-card-label">${escapeHtml(icon)} ${escapeHtml(label)}</span>
+        ${badge ? `<span class="today-focus-card-badge">${escapeHtml(badge)}</span>` : ''}
+      </div>
+      <div class="today-focus-card-body">
+        <h3>${escapeHtml(title)}</h3>
+        ${meta ? `<p class="today-focus-card-meta">${escapeHtml(meta)}</p>` : ''}
+        <p class="today-focus-card-desc">${escapeHtml(desc)}</p>
+      </div>
+      <div class="today-focus-card-actions">${actions}</div>
+    `;
+  };
+
+  if (state.type === 'expiry') {
+    const item = state.item || {};
+    const days = remainingDays(item);
+    renderShell({
+      icon: '⏳',
+      label: '优先用掉',
+      badge: days <= 2 ? '2 天内到期' : formatExpiryLabel(days),
+      title: item.name || '快过期食材',
+      meta: formatExpiryLabel(days),
+      desc: `建议今天优先用掉，减少浪费。`,
+      actions: '<button type="button" class="btn ok today-focus-primary" id="todayUseIngredient">用它做菜</button><button type="button" class="btn today-focus-secondary" id="todayLater">稍后</button>'
+    });
+    card.querySelector('#todayUseIngredient').onclick = () => openCleanFridgeHelper(pack, inv, onRoute);
+    card.querySelector('#todayLater').onclick = () => showToast('稍后再看临期食材', { tone: 'info' });
+    return card;
+  }
+
+  if (state.type === 'plan') {
+    const recipe = state.item?.recipe || {};
+    renderShell({
+      icon: '🍽️',
+      label: '今晚计划',
+      badge: '已计划',
+      title: recipe.name || '今日计划',
+      meta: (recipe.tags || []).slice(0, 2).join(' · ') || '今天准备做',
+      desc: '做完后记一下，库存会自动更新。',
+      actions: '<button type="button" class="btn ok today-focus-primary" id="todayStartCook">开始做</button><button type="button" class="btn today-focus-secondary" id="todayChangeDish">换一道</button>'
+    });
+    card.querySelector('#todayStartCook').onclick = () => {
+      if (recipe.id) location.hash = `#recipe:${recipe.id}`;
+    };
+    card.querySelector('#todayChangeDish').onclick = () => { location.hash = '#recipes'; };
+    return card;
+  }
+
+  if (state.type === 'shopping') {
+    const item = state.item || {};
+    const source = item.source ? `用于「${item.source.replace(/^菜谱缺货：/, '')}」` : '买完后可以回到食材页入库。';
+    renderShell({
+      icon: '🛒',
+      label: '待买提醒',
+      badge: `待购买 ${loadShoppingItems().filter(row => row && !row.done).length} 项`,
+      title: item.name || '待买食材',
+      meta: item.qty ? `${item.qty}${item.unit || ''}` : '',
+      desc: source,
+      actions: '<button type="button" class="btn ok today-focus-primary" id="todayGoShopping">去买菜</button><button type="button" class="btn today-focus-secondary" id="todayViewShopping">查看清单</button>'
+    });
+    card.querySelector('#todayGoShopping').onclick = () => { location.hash = '#shopping'; };
+    card.querySelector('#todayViewShopping').onclick = () => showPendingShoppingModal({ onChange: onRoute });
+    return card;
+  }
+
+  if (state.type === 'recommendation') {
+    const rec = state.card;
+    const missing = Array.from(new Set((rec.missing || []).map(item => String(item || '').trim()).filter(Boolean)));
+    const items = getRecipeItemsPreview(pack, rec.id, 3);
+    const badge = missing.length ? (missing.length === 1 ? '缺 1 样' : `缺 ${missing.length} 样`) : '可直接做';
+    renderShell({
+      icon: '✨',
+      label: '今日推荐',
+      badge,
+      title: rec.name,
+      meta: items.length ? items.join(' · ') : (rec.matchLabel || '今日推荐'),
+      desc: rec.reason || (missing.length ? formatMissingSummary(missing) : '食材匹配度不错，可以先加入今日计划。'),
+      actions: '<button type="button" class="btn ok today-focus-primary" id="todayAddPlan">加入计划</button><button type="button" class="btn today-focus-secondary" id="todayViewRecipe">查看</button>'
+    });
+    card.querySelector('#todayAddPlan').onclick = async event => {
+      const btn = event.currentTarget;
+      const result = await addRecipeToPlanWithMissingCheck(rec.id, pack, inv, {
+        recipe: rec.row?.r,
+        fallbackItems: rec.row?.list,
+        missing: rec.row?.missing,
+        source: isDemoKitchenMode() ? 'demo' : 'recommendation',
+        onPlanAdded: markDemoPlanAdded
+      });
+      brieflyConfirmButton(btn, result.added ? '已加入' : '已在今天');
+      const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
+      showFirstPlanGuideToast(firstPlanGuide);
+      if (!firstPlanGuide) showToast(result.added ? '已加入今日计划' : '今天已经有这道菜', { tone: 'success' });
+      window.setTimeout(onRoute, 650);
+    };
+    card.querySelector('#todayViewRecipe').onclick = () => { location.hash = `#recipe:${rec.id}`; };
+    return card;
+  }
+
+  renderShell({
+    icon: '📦',
+    label: '先记录食材',
+    badge: '',
+    title: '还没有食材',
+    desc: '添加冰箱食材后，我可以帮你推荐今天吃什么。',
+    actions: '<button type="button" class="btn ok today-focus-primary" id="todayRecordFood">记食材</button>'
+  });
+  card.querySelector('#todayRecordFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
+  return card;
 }
 
 // 顶部固定主状态区：问候 + 决策主文案 + 一行副文案。
@@ -2162,29 +2360,17 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     container.appendChild(renderDemoKitchenBanner({ onRoute }));
   }
 
-  // 空库存 → 友好的可行动空状态（引导录入）。
-  if (!hasUsableInventory(inv)) {
-    container.appendChild(renderOnboarding(pack, { onRoute }));
-    return container;
-  }
-
-  // Weather-style 层级：① 顶部固定主状态（不随 tab 变）
-  //                    ② 单一 glass 主面板（计划/到期/待买/推荐 tab 切换；
-  //                       计划 tab 内含「今晚提前准备」提醒与行内标签）
-  //                    ③ 两个轻量胶囊快捷入口。
-  // 一次渲染只跑一遍全库本地推荐：状态区计数与主面板（默认 tab / 推荐 tab）共用同一份结果。
+  // Calm Today layout: 顶部状态 + 单一决策主卡 + 两个快捷入口。
+  // 只调整首页第一层信息架构，不改推荐算法、不接新 API。
   const inspirationCards = perfMeasure('getInspirationCards(home)', () => getInspirationCards(pack, inv));
   const summaryStats = getTodaySummaryStats(pack, inv, { inspirationCards });
-  container.appendChild(renderWxStatus(summaryStats));
-  const backupNudge = renderBackupNudge(inv, { isDemoMode });
-  if (backupNudge) container.appendChild(backupNudge);
-  else {
-    const pwaNudge = renderPwaInstallNudge(inv, { isDemoMode });
-    if (pwaNudge) container.appendChild(pwaNudge);
-  }
-  const panel = perfMeasure('createWeatherPanel', () => createWeatherPanel(pack, inv, { onRoute, inspirationCards }));
-  container.appendChild(panel.el);
-  container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));
+  container.appendChild(renderTodayStatusHeader({
+    ...summaryStats,
+    hasInventory: hasUsableInventory(inv)
+  }));
+  const mainState = chooseTodayMainCard(pack, inv, { inspirationCards });
+  container.appendChild(createTodayMainCard(pack, inv, mainState, { onRoute }));
+  container.appendChild(renderQuickActions(pack, inv, { onRoute }));
 
   return container;
 }

@@ -12,51 +12,60 @@ function read(rel) {
 test('今日页顶部状态区按计划/推荐/空状态展示清晰文案', () => {
   const home = read('src/views/home-view.js');
 
-  assert.match(home, /今天已经安排好了/);
-  assert.match(home, /准备做 \$\{planCount\} 道菜。做完后记一下，库存会自动更新。/);
+  assert.match(home, /function renderTodayStatusHeader/);
+  assert.match(home, /function getGreetingLabel/);
   assert.match(home, /今天可以做 \$\{recommendationCount\} 道菜/);
-  assert.match(home, /根据你现在的食材，先选一道加入今日计划。/);
-  assert.match(home, /今天还没决定吃什么/);
-  assert.match(home, /先记录几样食材，或者去菜谱里找灵感。/);
-  assert.match(home, /今日计划/);
+  assert.match(home, /先选一道加入今日计划/);
+  assert.match(home, /先记录几样食材/);
+  assert.match(home, /计划/);
   assert.match(home, /临期/);
   assert.match(home, /待买/);
 });
 
-test('推荐卡把加入今日计划作为主按钮，并保留缺菜检测入口', () => {
+test('首页只选择一个主卡状态，并按临期/计划/待买/推荐/空状态优先级展示', () => {
   const home = read('src/views/home-view.js');
 
-  assert.match(home, /<button type="button" class="btn ok small home-suggest-cook">加入今日计划<\/button>/);
-  assert.match(home, /home-suggest-preview/);
-  assert.match(home, /home-suggest-shopping/);
+  assert.match(home, /function chooseTodayMainCard/);
+  assert.match(home, /if \(expiring\.length\) return \{ type: 'expiry'/);
+  assert.match(home, /if \(planItems\.length\) return \{ type: 'plan'/);
+  assert.match(home, /if \(activeShopping\.length && !recommendation\) return \{ type: 'shopping'/);
+  assert.match(home, /if \(recommendation\) return \{ type: 'recommendation'/);
+  assert.match(home, /return \{ type: 'empty' \}/);
+});
+
+test('单主卡保留加入计划主操作，并仍走缺菜检测', () => {
+  const home = read('src/views/home-view.js');
+
+  assert.match(home, /function createTodayMainCard/);
+  assert.match(home, /today-focus-card/);
+  assert.match(home, /今日推荐/);
+  assert.match(home, /加入计划/);
+  assert.match(home, /查看/);
   assert.match(home, /addRecipeToPlanWithMissingCheck/);
   assert.doesNotMatch(home, /addRecipeToPlan\(/);
-});
-
-test('推荐卡缺食材展示支持只差 1 样和还缺多样', () => {
-  const home = read('src/views/home-view.js');
-
   assert.match(home, /function formatMissingSummary/);
-  assert.match(home, /只差 1 样：\$\{items\[0\]\}/);
-  assert.match(home, /还缺 \$\{items\.length\} 样：/);
-  assert.match(home, /items\.length > 3 \? '等' : ''/);
-  assert.match(home, /home-suggest-missing/);
+  assert.match(home, /missing\.length === 1 \? '缺 1 样' : `缺 \$\{missing\.length\} 样`/);
 });
 
-test('今日计划和推荐区域都有明确标题，demo banner 逻辑仍保留', () => {
+test('单主卡覆盖关键日常厨房状态，demo banner 逻辑仍保留', () => {
   const home = read('src/views/home-view.js');
 
-  assert.match(home, /renderWxSectionIntro\(\s*'今日计划'/);
-  assert.match(home, /推荐先做这几道/);
-  assert.match(home, /暂无合适推荐/);
+  assert.match(home, /优先用掉/);
+  assert.match(home, /今晚计划/);
+  assert.match(home, /待买提醒/);
+  assert.match(home, /先记录食材/);
   assert.match(home, /renderDemoKitchenBanner/);
   assert.match(home, /if \(isDemoMode\) \{\s*container\.appendChild\(renderDemoKitchenBanner/);
 });
 
-test('备份提醒和 PWA 安装提示仍在主状态之后渲染', () => {
+test('renderHome 使用顶部状态、单主卡和两个快捷入口，不再渲染多 tab 主面板', () => {
   const home = read('src/views/home-view.js');
+  const renderHome = home.slice(home.indexOf('export function renderHome'));
 
-  assert.match(home, /container\.appendChild\(renderWxStatus\(summaryStats\)\);[\s\S]*renderBackupNudge/);
-  assert.match(home, /renderBackupNudge\(inv, \{ isDemoMode \}\)/);
-  assert.match(home, /renderPwaInstallNudge\(inv, \{ isDemoMode \}\)/);
+  assert.match(renderHome, /container\.appendChild\(renderTodayStatusHeader/);
+  assert.match(renderHome, /chooseTodayMainCard/);
+  assert.match(renderHome, /createTodayMainCard/);
+  assert.match(renderHome, /renderQuickActions/);
+  assert.doesNotMatch(renderHome, /createWeatherPanel/);
+  assert.doesNotMatch(renderHome, /renderWxStatus/);
 });

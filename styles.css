@@ -10673,6 +10673,306 @@ html[data-theme="dark"] .today-quick-btn .tq-emoji {
   }
 }
 
+/* Calm Today home: one decision card, two quick actions. */
+.today-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 640px;
+  margin: 0 auto;
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+}
+
+.today-focus-header {
+  min-height: 122px;
+  padding: 12px 4px 4px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.today-focus-greeting {
+  margin: 0 0 4px;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.today-focus-title {
+  margin: 0;
+  color: var(--text-main);
+  font-size: clamp(28px, 7vw, 36px);
+  line-height: 1.08;
+  letter-spacing: 0;
+  font-weight: 850;
+}
+
+.today-focus-subtitle {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.today-focus-stats {
+  margin-top: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.today-focus-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.38);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.today-focus-stats b {
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.today-focus-card {
+  position: relative;
+  min-height: 218px;
+  padding: 20px;
+  border: 1px solid rgba(60, 60, 67, 0.09);
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.76)),
+    var(--bg-card);
+  box-shadow: 0 14px 36px rgba(60, 64, 67, 0.10), 0 2px 8px rgba(60, 64, 67, 0.04);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.today-focus-card::before {
+  content: '';
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  right: -42px;
+  top: -42px;
+  border-radius: 999px;
+  background: rgba(255, 149, 0, 0.13);
+  pointer-events: none;
+}
+
+.today-focus-card.is-expiry::before { background: rgba(255, 149, 0, 0.18); }
+.today-focus-card.is-plan::before { background: rgba(52, 199, 89, 0.16); }
+.today-focus-card.is-shopping::before { background: rgba(116, 90, 255, 0.15); }
+.today-focus-card.is-empty::before { background: rgba(0, 122, 255, 0.12); }
+
+.today-focus-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.today-focus-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.today-focus-card-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.today-focus-card-badge {
+  flex: 0 0 auto;
+  max-width: 48%;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: var(--status-warn-text);
+  background: var(--status-warn-bg);
+  border: 1px solid var(--status-warn-border);
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today-focus-card.is-plan .today-focus-card-badge {
+  color: var(--status-ok-text);
+  background: var(--status-ok-bg);
+  border-color: var(--status-ok-border);
+}
+
+.today-focus-card.is-shopping .today-focus-card-badge {
+  color: var(--status-draft-text);
+  background: var(--status-draft-bg);
+  border-color: var(--status-draft-border);
+}
+
+.today-focus-card-body {
+  flex: 1 1 auto;
+}
+
+.today-focus-card-body h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: clamp(26px, 7vw, 34px);
+  line-height: 1.12;
+  letter-spacing: 0;
+  font-weight: 860;
+}
+
+.today-focus-card-meta {
+  margin: 10px 0 0;
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 650;
+  opacity: 0.78;
+}
+
+.today-focus-card-desc {
+  margin: 10px 0 0;
+  max-width: 32em;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.today-focus-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.today-focus-card-actions .btn {
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.today-focus-card-actions .today-focus-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(0, 122, 255, 0.20);
+}
+
+.today-focus-card-actions .today-focus-secondary {
+  background: rgba(255,255,255,0.58);
+  color: var(--text-main);
+  border-color: var(--glass-edge);
+  box-shadow: none;
+}
+
+.today-quick {
+  margin: 0;
+}
+
+.today-quick-row,
+html[data-theme="light"] .today-quick-row,
+html[data-theme="dark"] .today-quick-row {
+  gap: 12px;
+}
+
+.today-quick-btn,
+html[data-theme="light"] .today-quick-btn:not(.is-primary),
+html[data-theme="dark"] .today-quick-btn {
+  min-height: 92px;
+  justify-content: flex-start;
+  gap: 11px;
+  padding: 14px;
+  border-radius: 22px;
+  text-align: left;
+}
+
+.today-quick-btn.is-primary,
+html[data-theme="light"] .today-quick-btn.is-primary {
+  color: var(--text-main);
+}
+
+.today-quick-btn .tq-emoji {
+  flex-basis: 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 14px;
+  font-size: 18px;
+}
+
+.today-quick-btn .tq-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.today-quick-btn .tq-copy strong {
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.today-quick-btn .tq-copy small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+html[data-theme="dark"] .today-focus-stats span {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+}
+
+html[data-theme="dark"] .today-focus-card {
+  background:
+    linear-gradient(180deg, rgba(42, 44, 52, 0.92), rgba(30, 32, 38, 0.82)),
+    var(--bg-card);
+  border-color: rgba(255,255,255,0.10);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.22);
+}
+
+html[data-theme="dark"] .today-focus-card-actions .today-focus-secondary {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.12);
+}
+
+@media (max-width: 430px) {
+  .today-view { gap: 12px; }
+  .today-focus-header { min-height: 118px; padding-top: 8px; }
+  .today-focus-card { min-height: 210px; padding: 18px; border-radius: 24px; }
+  .today-focus-card-head { margin-bottom: 14px; }
+  .today-focus-card-actions .btn { flex: 1 1 120px; padding-inline: 14px; }
+  .today-quick-btn,
+  html[data-theme="light"] .today-quick-btn:not(.is-primary),
+  html[data-theme="dark"] .today-quick-btn {
+    min-height: 86px;
+    padding: 12px;
+    border-radius: 20px;
+  }
+  .today-quick-btn .tq-emoji {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    border-radius: 12px;
+  }
+}
+
 /* First-run empty kitchen: show value first, then data entry. */
 .home-hero.is-onboarding .home-onboarding-actions {
   grid-template-columns: 1fr;
