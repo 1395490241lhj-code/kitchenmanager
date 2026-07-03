@@ -11,8 +11,8 @@
  *   { raw, targets: [{ raw, canonical, candidates: string[], category: string|null }] }
  * candidates 含 canonical 本身 + 类别展开词，供 recommendations 做「任一命中即算」匹配。
  */
-import { getCanonicalName, getIngredientFamilyCandidates, getIngredientFamilyKey } from '../ingredients.js?v=230';
-import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=230';
+import { getCanonicalName, getIngredientFamilyCandidates, getIngredientFamilyKey } from '../ingredients.js?v=231';
+import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=231';
 
 // 类别词对应的 category 标签（输出用，方便上层显示/调试）。
 const CATEGORY_LABEL = {

@@ -2,10 +2,10 @@ const CACHE_NAME = 'km-v106';
 const CORE = [
   './',
   './index.html',
-  './styles.css?v=230',
-  './app.js?v=230',
-  './ingredients-list-patch.v15.css?v=230',
-  './ingredients-list-patch.v15.js?v=230',
+  './styles.css?v=231',
+  './app.js?v=231',
+  './ingredients-list-patch.v15.css?v=231',
+  './ingredients-list-patch.v15.js?v=231',
   './data/sichuan-recipes.curated.json',
   './data/sichuan-recipes.json'
 ];

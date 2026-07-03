@@ -1,6 +1,6 @@
-import { isIngredientMatch, isInventoryAvailable, loadInventory } from '../inventory.js?v=230';
-import { addMissingRecipeIngredientsToShopping, addRecipeToPlan, getRecipeCoreIngredients } from '../recommendations.js?v=230';
-import { escapeHtml, showToast } from './status.js?v=230';
+import { isIngredientMatch, isInventoryAvailable, loadInventory } from '../inventory.js?v=231';
+import { addMissingRecipeIngredientsToShopping, addRecipeToPlan, getRecipeCoreIngredients } from '../recommendations.js?v=231';
+import { escapeHtml, showToast } from './status.js?v=231';
 
 function uniqueMissingItems(items = []) {
   const seen = new Set();

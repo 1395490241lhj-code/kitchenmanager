@@ -9,8 +9,8 @@
  *  - html[data-theme="..."] 覆盖核心 CSS 变量（背景、文字、卡片、输入框、状态色等）。
  *  - 偏好保存在 settings.theme（localStorage），随「整个厨房」备份一起迁移。
  */
-import { S } from './storage.js?v=230';
-import { perfEnabled, perfMark } from './utils/perf.js?v=230';
+import { S } from './storage.js?v=231';
+import { perfEnabled, perfMark } from './utils/perf.js?v=231';
 
 const VALID = new Set(['light', 'dark']);
 

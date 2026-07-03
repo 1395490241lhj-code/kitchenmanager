@@ -2,11 +2,11 @@
  * src/views/home/home-nudges.js —— 首页轻提醒（从 home-view 抽出）：
  * 备份导出提醒 + PWA 安装提示。展示条件分别由 backup.js / pwa-install.js 决定。
  */
-import { S, todayISO } from '../../storage.js?v=230';
-import { loadShoppingItems } from '../../shopping.js?v=230';
-import { escapeHtml, showToast } from '../../components/status.js?v=230';
-import { buildKitchenBackup, downloadJsonFile, loadOverlay, markBackupNudgeDismissed, markKitchenBackupExported, shouldShowBackupNudge } from '../../backup.js?v=230';
-import { dismissPwaInstallPrompt, getPwaInstallPromptState, promptPwaInstall } from '../../pwa-install.js?v=230';
+import { S, todayISO } from '../../storage.js?v=231';
+import { loadShoppingItems } from '../../shopping.js?v=231';
+import { escapeHtml, showToast } from '../../components/status.js?v=231';
+import { buildKitchenBackup, downloadJsonFile, loadOverlay, markBackupNudgeDismissed, markKitchenBackupExported, shouldShowBackupNudge } from '../../backup.js?v=231';
+import { dismissPwaInstallPrompt, getPwaInstallPromptState, promptPwaInstall } from '../../pwa-install.js?v=231';
 
 const KITCHEN_BACKUP_EXPORT_MESSAGE = '已导出厨房备份。请把文件保存到 iCloud、网盘或电脑里。';
 
