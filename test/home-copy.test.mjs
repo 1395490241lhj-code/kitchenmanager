@@ -30,8 +30,8 @@ test('首页菜谱预览区区分本地菜谱和 AI 草稿来源', () => {
   const home = read('src/views/home-view.js');
 
   assert.match(home, /本地菜谱 · 可以直接加入今日计划/);
-  assert.match(home, /AI 草稿 ·/);
-  assert.match(home, /AI 草稿，确认后才会保存/);
+  assert.match(home, /AI 新菜草稿/);
+  assert.match(home, /这还不是正式菜谱，请确认后保存。/);
 });
 
 test('首页推荐菜谱使用弹窗预览，AI 草稿不伪装成本地菜谱', () => {

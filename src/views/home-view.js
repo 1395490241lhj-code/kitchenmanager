@@ -11,7 +11,7 @@ import {
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=231';
 import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=231';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=231';
-import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/recipe-card.js?v=231';
+import { showRecommendationCards } from '../components/recipe-card.js?v=231';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=231';
 import { perfMeasure } from '../utils/perf.js?v=231';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=231';
@@ -1754,10 +1754,14 @@ let targetCreativeDraft = null;
 let targetCreativeStatus = 'idle';
 let targetCreativeError = '';
 let targetCreativeHistory = { names: [], modes: [] };
+let targetCreativeSavedRecipeId = '';
+let targetCreativeRequestId = 0;
 let targetDishDraft = null;
 let targetDishStatus = 'idle';
 let targetDishError = '';
 let targetDishQuery = '';
+let targetDishSavedRecipeId = '';
+let targetDishRequestId = 0;
 
 function setPostInventoryGuide(count) {
   postInventoryGuide = { count, createdAt: Date.now() };
@@ -1780,6 +1784,8 @@ function resetTargetCreative() {
   targetCreativeStatus = 'idle';
   targetCreativeError = '';
   targetCreativeHistory = { names: [], modes: [] };
+  targetCreativeSavedRecipeId = '';
+  targetCreativeRequestId += 1;
 }
 
 function resetTargetDishDraft() {
@@ -1787,6 +1793,8 @@ function resetTargetDishDraft() {
   targetDishStatus = 'idle';
   targetDishError = '';
   targetDishQuery = '';
+  targetDishSavedRecipeId = '';
+  targetDishRequestId += 1;
 }
 
 function rememberTargetCreativeDraft(draft) {
@@ -2208,64 +2216,48 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     };
   };
 
-  // ── AI 创意做法（指定食材模式专属）：本地结果之下、明确分层；只有点按钮才调 AI ──
-  const renderTargetCreativeBox = (targetNames, localCards) => {
-    const box = document.createElement('div');
-    box.className = 'target-recipe-ai-box';
+  const getAiDraftIngredients = (draft) => Array.isArray(draft?.ingredients) ? draft.ingredients : [];
+  const getAiDraftMethodText = (draft) => Array.isArray(draft?.method)
+    ? draft.method.join('\n')
+    : String(draft?.method || '').trim();
+  const getInlineAiLabel = (targetNames, query) => targetNames.length
+    ? targetNames.join('、')
+    : String(query || '').trim();
 
-    if ((targetCreativeStatus === 'success' || targetCreativeStatus === 'loading') && targetCreativeDraft) {
-      const modeLabel = getCreativeDishModeLabel(targetCreativeDraft.dishMode);
-      const note = document.createElement('p');
-      note.className = 'target-recipe-ai-note';
-      note.innerHTML = `
-        <span class="target-recipe-ai-mode">AI 草稿 · ${escapeHtml(modeLabel)}</span>
-        <span>用到${escapeHtml(targetNames.join('、'))} · 草稿确认后才会保存</span>
-      `;
-      box.appendChild(note);
-      const cardHost = document.createElement('div');
-      cardHost.className = 'target-recipe-ai-card';
-      // 复用现有草稿卡：查看做法（卡内直接展示）+ 保存草稿/保存并编辑/取消，绝不自动保存。
-      cardHost.appendChild(renderAiRecipeDraftCard(targetCreativeDraft));
-      box.appendChild(cardHost);
-      const again = document.createElement('div');
-      again.className = 'target-recipe-ai-actions';
-      again.innerHTML = `
-        <button type="button" class="wx-mini-btn target-recipe-ai-btn" id="targetAiAgain"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
-          ${targetCreativeStatus === 'loading' ? '正在换个方向...' : '换一种做法'}
-        </button>
-      `;
-      box.appendChild(again);
-      if (targetCreativeError) {
-        const err = document.createElement('div');
-        err.className = 'small inline-status bad';
-        err.textContent = targetCreativeError;
-        box.appendChild(err);
-      }
-    } else {
-      const actions = document.createElement('div');
-      actions.className = 'target-recipe-ai-actions';
-      actions.innerHTML = `
-        <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetAiBtn"${targetCreativeStatus === 'loading' ? ' disabled' : ''}>
-          ${targetCreativeStatus === 'loading' ? '正在换个方向...' : '让 AI 想一个做法'}
-        </button>
-      `;
-      box.appendChild(actions);
-      const hint = document.createElement('p');
-      hint.className = 'target-recipe-ai-hint';
-      hint.textContent = 'AI 草稿，确认后才会保存。';
-      box.appendChild(hint);
-      if (targetCreativeStatus === 'error' && targetCreativeError) {
-        const err = document.createElement('div');
-        err.className = 'small inline-status bad';
-        err.textContent = targetCreativeError;
-        box.appendChild(err);
-      }
+  const saveInlineAiDraft = (draft, kind, { goEdit = false } = {}) => {
+    const id = 'ai-search-' + Date.now();
+    const overlay = loadOverlay();
+    overlay.recipes = overlay.recipes || {};
+    overlay.recipe_ingredients = overlay.recipe_ingredients || {};
+    overlay.recipes[id] = {
+      name: draft.name,
+      tags: Array.from(new Set(['AI草稿', 'AI搜索', ...(draft.tags || [])])),
+      method: getAiDraftMethodText(draft),
+      isAiDraft: true
+    };
+    overlay.recipe_ingredients[id] = getAiDraftIngredients(draft).map(item => ({
+      item: item.item || item.name || item,
+      qty: item.qty || null,
+      unit: item.unit || null
+    }));
+    saveOverlay(overlay);
+    window.invalidatePackCache?.();
+    if (kind === 'creative') targetCreativeSavedRecipeId = id;
+    else targetDishSavedRecipeId = id;
+    showToast('AI 草稿已保存', { tone: 'success' });
+    if (goEdit) {
+      location.hash = `#recipe-edit:${id}`;
+      return id;
     }
+    switchTab('recs');
+    return id;
+  };
 
-    const trigger = box.querySelector('#targetAiBtn, #targetAiAgain');
-    if (trigger) trigger.onclick = async () => {
+  const generateInlineAiDraft = async ({ kind, targetNames = [], localCards = [], query = '', regenerate = false } = {}) => {
+    if (kind === 'creative') {
       if (targetCreativeStatus === 'loading') return;
       const nextMode = pickNextCreativeDishMode(targetCreativeHistory.modes, targetCreativeDraft?.dishMode || '');
+      const requestId = ++targetCreativeRequestId;
       const avoidedRecipeNames = [
         ...targetCreativeHistory.names,
         targetCreativeDraft?.name
@@ -2276,7 +2268,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       ].filter(Boolean);
       targetCreativeStatus = 'loading';
       targetCreativeError = '';
-      switchTab('recs'); // 立即反馈「正在想...」
+      targetCreativeSavedRecipeId = '';
+      if (regenerate) targetCreativeDraft = null;
+      switchTab('recs');
       try {
         const draft = await withTimeout(callAiCreativeRecipeByIngredients({
           targets: targetNames,
@@ -2286,82 +2280,184 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
           avoidedRecipeNames,
           avoidedDishModes
         }), 30000, 'AI 响应超时');
+        if (requestId !== targetCreativeRequestId) return;
         targetCreativeDraft = draft;
         rememberTargetCreativeDraft(draft);
         targetCreativeStatus = 'success';
       } catch (err) {
+        if (requestId !== targetCreativeRequestId) return;
         targetCreativeStatus = targetCreativeDraft ? 'success' : 'error';
         targetCreativeError = formatAiErrorMessage(err);
         showToast('AI 暂不可用', { tone: 'error' });
       }
       switchTab('recs');
-    };
-    return box;
+      return;
+    }
+
+    if (targetDishStatus === 'loading') return;
+    const requestId = ++targetDishRequestId;
+    targetDishStatus = 'loading';
+    targetDishError = '';
+    targetDishQuery = query;
+    targetDishSavedRecipeId = '';
+    if (regenerate) targetDishDraft = null;
+    switchTab('recs');
+    try {
+      const invNames = (inv || []).map(x => x && x.name).filter(Boolean).join('、');
+      const draft = await withTimeout(callAiSearchRecipe(query, invNames), 30000, 'AI 响应超时');
+      if (requestId !== targetDishRequestId) return;
+      targetDishDraft = draft;
+      targetDishQuery = query;
+      targetDishStatus = 'success';
+    } catch (err) {
+      if (requestId !== targetDishRequestId) return;
+      targetDishStatus = 'error';
+      targetDishError = `${formatAiErrorMessage(err)} 可以换个菜名或先按食材推荐。`;
+      showToast('AI 暂不可用', { tone: 'error' });
+    }
+    switchTab('recs');
   };
 
-  const renderDishDraftBox = (query) => {
-    const box = document.createElement('div');
-    box.className = 'target-recipe-ai-box target-recipe-dish-ai';
-    if (targetDishDraft && targetDishQuery === query) {
-      const note = document.createElement('p');
-      note.className = 'target-recipe-ai-note';
-      note.innerHTML = '<span class="target-recipe-ai-mode">AI 草稿</span><span>确认后才会保存，不会自动加入今天。</span>';
-      box.appendChild(note);
-      const cardHost = document.createElement('div');
-      cardHost.className = 'target-recipe-ai-card';
-      cardHost.appendChild(renderAiRecipeDraftCard(targetDishDraft));
-      box.appendChild(cardHost);
-    } else {
-      const empty = document.createElement('div');
-      empty.className = 'target-recipe-fallback-head';
-      empty.innerHTML = `
-        <strong>没找到现有菜谱</strong>
-        <span>可以先让 AI 生成一份可编辑草稿。</span>
-      `;
-      box.appendChild(empty);
-    }
+  const cancelInlineAiDraft = (kind) => {
+    if (kind === 'creative') resetTargetCreative();
+    else resetTargetDishDraft();
+    switchTab('recs');
+  };
 
-    const options = document.createElement('div');
-    options.className = 'target-recipe-fallback-grid';
-    options.innerHTML = `
-      <article class="target-recipe-fallback-card">
-        <span>
-          <strong>AI 生成草稿</strong>
-          <small>根据你的厨房和菜名生成一份可编辑草稿。</small>
+  const renderInlineAiEntry = ({ kind, targetNames = [], localCards = [], query = '', hasLocalCards = false } = {}) => {
+    const label = getInlineAiLabel(targetNames, query);
+    const status = kind === 'creative' ? targetCreativeStatus : targetDishStatus;
+    const error = kind === 'creative' ? targetCreativeError : targetDishError;
+    const section = document.createElement(hasLocalCards ? 'section' : 'article');
+    section.className = hasLocalCards ? 'target-recipe-ai-inline' : 'home-suggest-card target-ai-entry-card';
+    section.innerHTML = hasLocalCards
+      ? `
+        <span class="target-recipe-ai-inline-copy">
+          <strong>没有合适的？</strong>
+          <small>用“${escapeHtml(label || '这些食材')}”生成一道新菜</small>
         </span>
-        <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetDishAiBtn"${targetDishStatus === 'loading' ? ' disabled' : ''}>
-          ${targetDishStatus === 'loading' ? '正在整理草稿...' : (targetDishDraft && targetDishQuery === query ? '重新生成 AI 草稿' : '生成 AI 草稿')}
+        <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetInlineAiBtn"${status === 'loading' ? ' disabled' : ''}>
+          ${status === 'loading' ? '正在生成...' : 'AI 生成新菜'}
         </button>
-      </article>
+        ${error ? `<p class="target-recipe-ai-inline-error">${escapeHtml(error)}</p>` : ''}
+      `
+      : `
+        <div class="home-suggest-kicker">
+          <span class="home-suggest-match">没有找到本地菜谱</span>
+        </div>
+        <h3 class="home-suggest-name">AI 生成新菜</h3>
+        <p class="home-suggest-reason">可以用“${escapeHtml(label || '这些食材')}”生成一份可编辑草稿。</p>
+        <div class="home-suggest-actions">
+          <button type="button" class="btn ok small target-recipe-ai-btn" id="targetInlineAiBtn"${status === 'loading' ? ' disabled' : ''}>
+            ${status === 'loading' ? '正在生成...' : 'AI 生成新菜'}
+          </button>
+        </div>
+        ${error ? `<p class="target-recipe-ai-inline-error">${escapeHtml(error)}</p>` : ''}
+      `;
+    section.querySelector('#targetInlineAiBtn').onclick = () => generateInlineAiDraft({
+      kind,
+      targetNames,
+      localCards,
+      query
+    });
+    return section;
+  };
+
+  const renderInlineAiSavedCard = ({ kind, draft, savedRecipeId }) => {
+    const card = document.createElement('article');
+    card.className = 'home-suggest-card target-ai-draft-card is-saved';
+    card.innerHTML = `
+      <div class="home-suggest-kicker">
+        <span class="home-suggest-match">已保存为菜谱</span>
+      </div>
+      <h3 class="home-suggest-name">${escapeHtml(draft?.name || 'AI 新菜')}</h3>
+      <p class="home-suggest-reason">这道新菜已经保存，可以加入今日计划或查看菜谱。</p>
+      <div class="home-suggest-actions">
+        <button type="button" class="btn ok small" id="targetAiAddSaved">加入今日计划</button>
+        <button type="button" class="btn small" id="targetAiViewSaved">查看菜谱</button>
+      </div>
     `;
-    box.appendChild(options);
-    if (targetDishError) {
-      const err = document.createElement('div');
-      err.className = 'small inline-status bad';
-      err.textContent = targetDishError;
-      box.appendChild(err);
+    card.querySelector('#targetAiAddSaved').onclick = async event => {
+      const recipe = {
+        id: savedRecipeId,
+        name: draft?.name || 'AI 新菜',
+        tags: Array.from(new Set(['AI草稿', 'AI搜索', ...(draft?.tags || [])])),
+        method: getAiDraftMethodText(draft)
+      };
+      const result = await addRecipeToPlanWithMissingCheck(savedRecipeId, pack, inv, {
+        recipe,
+        fallbackItems: getAiDraftIngredients(draft),
+        source: isDemoKitchenMode() ? 'demo' : 'ai-draft',
+        onPlanAdded: markDemoPlanAdded
+      });
+      brieflyConfirmButton(event.currentTarget, result.added ? '已加入今天' : '已在今天');
+      const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
+      showFirstPlanGuideToast(firstPlanGuide);
+    };
+    card.querySelector('#targetAiViewSaved').onclick = () => {
+      location.hash = `#recipe:${savedRecipeId}`;
+    };
+    return card;
+  };
+
+  const renderInlineAiDraftCard = ({ kind, draft, status, error, targetNames = [], localCards = [], query = '' } = {}) => {
+    const savedRecipeId = kind === 'creative' ? targetCreativeSavedRecipeId : targetDishSavedRecipeId;
+    if (savedRecipeId && draft) return renderInlineAiSavedCard({ kind, draft, savedRecipeId });
+
+    const label = getInlineAiLabel(targetNames, query);
+    const ingredients = getAiDraftIngredients(draft).slice(0, 8);
+    const methodSteps = splitMethodSteps(getAiDraftMethodText(draft)).slice(0, 4);
+    const modeLabel = kind === 'creative' && draft?.dishMode ? ` · ${getCreativeDishModeLabel(draft.dishMode)}` : '';
+    const card = document.createElement('article');
+    card.className = `home-suggest-card target-ai-draft-card${status === 'loading' ? ' is-loading' : ''}`;
+    if (status === 'loading' && !draft) {
+      card.innerHTML = `
+        <div class="home-suggest-kicker">
+          <span class="home-suggest-match">AI 新菜草稿</span>
+          <small class="home-suggest-source">生成中</small>
+        </div>
+        <h3 class="home-suggest-name">正在生成新菜...</h3>
+        <p class="home-suggest-reason">我正在根据“${escapeHtml(label || '这些食材')}”整理一份可编辑草稿。</p>
+        <div class="home-suggest-actions">
+          <button type="button" class="btn small" id="targetAiCancel">取消</button>
+        </div>
+      `;
+      card.querySelector('#targetAiCancel').onclick = () => cancelInlineAiDraft(kind);
+      return card;
     }
 
-    const trigger = box.querySelector('#targetDishAiBtn');
-    if (trigger) trigger.onclick = async () => {
-      if (targetDishStatus === 'loading') return;
-      targetDishStatus = 'loading';
-      targetDishError = '';
-      targetDishQuery = query;
-      switchTab('recs');
-      try {
-        const invNames = (inv || []).map(x => x && x.name).filter(Boolean).join('、');
-        targetDishDraft = await withTimeout(callAiSearchRecipe(query, invNames), 30000, 'AI 响应超时');
-        targetDishQuery = query;
-        targetDishStatus = 'success';
-      } catch (err) {
-        targetDishStatus = 'error';
-        targetDishError = `${formatAiErrorMessage(err)} 可以换个菜名或先按食材推荐。`;
-        showToast('AI 暂不可用', { tone: 'error' });
-      }
-      switchTab('recs');
-    };
-    return box;
+    card.innerHTML = `
+      <div class="home-suggest-kicker">
+        <span class="home-suggest-match">AI 新菜草稿${escapeHtml(modeLabel)}</span>
+        <small class="home-suggest-source">未保存</small>
+      </div>
+      <h3 class="home-suggest-name">${escapeHtml(draft?.name || 'AI 新菜草稿')}</h3>
+      <p class="home-suggest-reason">这还不是正式菜谱，请确认后保存。</p>
+      ${ingredients.length ? `<div class="target-ai-draft-tags">${ingredients.map(item => `<span>${escapeHtml(item.item || item.name || item)}</span>`).join('')}</div>` : ''}
+      ${methodSteps.length ? `
+        <div class="target-ai-draft-method">
+          ${methodSteps.map(step => `<p>${escapeHtml(step)}</p>`).join('')}
+        </div>
+      ` : '<p class="target-ai-draft-muted">还没有生成做法预览，可以重新生成或取消。</p>'}
+      ${error ? `<p class="target-recipe-ai-inline-error">${escapeHtml(error)}</p>` : ''}
+      <div class="home-suggest-actions target-ai-draft-actions">
+        <button type="button" class="btn ok small" id="targetAiSave">保存草稿</button>
+        <button type="button" class="btn small" id="targetAiEdit">保存并编辑</button>
+        <button type="button" class="btn small" id="targetAiAgain"${status === 'loading' ? ' disabled' : ''}>${status === 'loading' ? '正在生成...' : '重新生成'}</button>
+        <button type="button" class="btn small" id="targetAiCancel">取消</button>
+      </div>
+    `;
+    card.querySelector('#targetAiSave').onclick = () => saveInlineAiDraft(draft, kind, { goEdit: false });
+    card.querySelector('#targetAiEdit').onclick = () => saveInlineAiDraft(draft, kind, { goEdit: true });
+    card.querySelector('#targetAiAgain').onclick = () => generateInlineAiDraft({
+      kind,
+      targetNames,
+      localCards,
+      query,
+      regenerate: true
+    });
+    card.querySelector('#targetAiCancel').onclick = () => cancelInlineAiDraft(kind);
+    return card;
   };
 
   const renderPostInventoryGuide = () => {
@@ -2460,20 +2556,40 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       recsState = initRecsState();
     }
     const { mode, cards, idx } = recsState;
+    const aiKind = targetNames.length ? 'creative' : 'dish';
+    const hasInlineAiState = hasSearchQuery && (
+      aiKind === 'creative'
+        ? Boolean(targetCreativeSavedRecipeId || targetCreativeDraft || targetCreativeStatus === 'loading')
+        : Boolean(targetDishQuery === rawQuery && (targetDishSavedRecipeId || targetDishDraft || targetDishStatus === 'loading'))
+    );
     body.appendChild(renderTargetRecipeSearch(targetNames, cards.length, nameMatches.length));
     const postGuide = renderPostInventoryGuide();
     if (postGuide) body.appendChild(postGuide);
 
-    if (hasSearchQuery && !targetNames.length) {
-      if (!cards.length) {
-        body.appendChild(renderDishDraftBox(rawQuery));
-        return;
-      }
-    }
-
     const cardWrap = document.createElement('div');
     cardWrap.className = 'wx-rec-card';
-    if (!cards.length && mode === 'target' && targetNames.length) {
+    if (hasInlineAiState) {
+      const draft = aiKind === 'creative' ? targetCreativeDraft : targetDishDraft;
+      const status = aiKind === 'creative' ? targetCreativeStatus : targetDishStatus;
+      const error = aiKind === 'creative' ? targetCreativeError : targetDishError;
+      cardWrap.appendChild(renderInlineAiDraftCard({
+        kind: aiKind,
+        draft,
+        status,
+        error,
+        targetNames,
+        localCards: cards,
+        query: rawQuery
+      }));
+    } else if (hasSearchQuery && !cards.length) {
+      cardWrap.appendChild(renderInlineAiEntry({
+        kind: aiKind,
+        targetNames,
+        localCards: cards,
+        query: rawQuery,
+        hasLocalCards: false
+      }));
+    } else if (!cards.length && mode === 'target' && targetNames.length) {
       cardWrap.innerHTML = `
         <div class="wx-empty wx-rec-empty">
           <strong>还没有匹配到能直接做的菜</strong>
@@ -2521,20 +2637,34 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         onRoute
       }));
     } else {
-      cardWrap.appendChild(renderSuggestCard(cards[idx], pack, inv, {
+      const suggestCard = renderSuggestCard(cards[idx], pack, inv, {
         onPreviewRecipe: openRecipePreviewModal,
         onPreviewVariant: openRecipeVariantPreviewModal,
         onMoreRecommendation: focused => openTodayMoreActionsSheet(pack, inv, recsState, focused, { onRoute }),
         onRoute
-      }));
+      });
+      if (hasSearchQuery) {
+        suggestCard.appendChild(renderInlineAiEntry({
+          kind: aiKind,
+          targetNames,
+          localCards: cards,
+          query: rawQuery,
+          hasLocalCards: true
+        }));
+      }
+      cardWrap.appendChild(suggestCard);
     }
     bindRecommendationCycling(cardWrap);
-    if (hasSearchQuery && cards.length) {
+    if (hasSearchQuery) {
       const countText = `找到 ${cards.length} 道，正在查看第 ${idx + 1} 道`;
-      if (mode === 'target' && targetNames.length) {
+      if (hasInlineAiState) {
+        body.appendChild(renderTargetSectionTitle('AI 新菜草稿', `根据“${getInlineAiLabel(targetNames, rawQuery)}”生成`));
+      } else if (cards.length && mode === 'target' && targetNames.length) {
         body.appendChild(renderTargetSectionTitle('按这些食材推荐', countText));
-      } else {
+      } else if (cards.length) {
         body.appendChild(renderTargetSectionTitle('找到的推荐', countText));
+      } else {
+        body.appendChild(renderTargetSectionTitle('没有找到本地菜谱', `可以用“${getInlineAiLabel(targetNames, rawQuery)}”生成一道新菜`));
       }
     } else if (cards.length) {
       body.appendChild(renderWxSectionIntro('推荐先做这几道', '优先显示食材更齐、能用掉临期食材的菜。'));
@@ -2554,13 +2684,12 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       body.appendChild(dots);
     }
     // AI 创意做法入口：指定食材模式专属，本地结果（或空提示）之下，分层清楚。
-    if (mode === 'target' && targetNames.length) {
-      body.appendChild(renderTargetCreativeBox(targetNames, cards));
-    }
     const aiStatus = document.createElement('div');
     aiStatus.className = 'small inline-status wx-ai-status';
     aiStatus.hidden = true;
     body.appendChild(aiStatus);
+
+    if (hasInlineAiState || (hasSearchQuery && !cards.length)) return;
 
     const foot = document.createElement('div');
     foot.className = 'wx-actions';
