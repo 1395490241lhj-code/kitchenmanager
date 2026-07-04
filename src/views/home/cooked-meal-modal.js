@@ -1,5 +1,5 @@
 /*
- * src/views/home/cooked-meal-modal.js —— 「饭后记一下」弹窗（从 home-view 抽出）。
+ * src/views/home/cooked-meal-modal.js —— 「记录消耗」弹窗（从 home-view 抽出）。
  * 三条候选来源：今日计划菜谱 / 本地文本匹配 / AI 辅助；全部经用户确认后才扣减库存。
  */
 import { S, todayISO } from '../../storage.js?v=231';
@@ -73,7 +73,7 @@ function createRecordCookedButton(pack, inv, { onRoute = () => {} } = {}) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'record-cooked-btn';
-  button.innerHTML = '<span class="record-cooked-icon">🍽️</span><span>饭后记一下</span>';
+  button.innerHTML = '<span class="record-cooked-icon">🍽️</span><span>记录消耗</span>';
   button.onclick = () => {
     if (isDemoKitchenMode()) {
       setDemoStep('cook');
@@ -100,8 +100,8 @@ export function createRecordCookedCta(pack, inv, { onRoute = () => {} } = {}) {
   cta.className = 'record-cooked-cta';
   cta.innerHTML = `
     <span class="record-cooked-cta-text">
-      <strong>做完饭了？</strong>
-      <small>顺手把用掉的食材记一下</small>
+      <strong>记录消耗</strong>
+      <small>选择这顿饭用掉的食材</small>
     </span>
   `;
   cta.appendChild(createRecordCookedButton(pack, inv, { onRoute }));
@@ -115,7 +115,7 @@ export function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
   panel.className = 'km-modal-content cooked-meal-modal';
   panel.innerHTML = `
     <div class="km-modal-header">
-      <span class="km-modal-title">饭后记一下</span>
+      <span class="km-modal-title">记录消耗</span>
       <button type="button" class="km-modal-close" aria-label="关闭">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

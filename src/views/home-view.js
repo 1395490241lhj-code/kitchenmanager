@@ -15,7 +15,7 @@ import { renderAiRecipeDraftCard, showRecommendationCards } from '../components/
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=231';
 import { perfMeasure } from '../utils/perf.js?v=231';
 import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=231';
-import { renderMenuPlan, renderPlanRangeSelect, renderCookAllButton } from '../components/menu-plan.js?v=231';
+import { renderMenuPlan, renderCookAllButton } from '../components/menu-plan.js?v=231';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=231';
 import { classifyRecipeIngredient, splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=231';
 import { splitMethodSteps } from '../utils/method-steps.js?v=231';
@@ -23,7 +23,7 @@ import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=23
 import { createUserRecipe } from '../components/recipe-create-modal.js?v=231';
 import { getHomeTab, setHomeTab, getTodayPlanCount } from './home/home-tab-state.js?v=231';
 import { enterDemoKitchen, isDemoKitchenMode, markDemoPlanAdded, renderDemoKitchenBanner, syncDemoStepFromTab } from './home/demo-kitchen.js?v=231';
-import { createRecordCookedCta, openCookedMealModal } from './home/cooked-meal-modal.js?v=231';
+import { openCookedMealModal } from './home/cooked-meal-modal.js?v=231';
 import { renderBackupNudge, renderPwaInstallNudge } from './home/home-nudges.js?v=231';
 import { writeItemsToInventory, writeReceiptPantryItems } from '../utils/inventory-write.js?v=231';
 import { loadOverlay, saveOverlay } from '../backup.js?v=231';
@@ -1117,18 +1117,15 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   const card = document.createElement('section');
   card.className = 'today-main-card';
 
-  // 头部：今日计划标题 + 动作组（✓全部做完 / 范围筛选）
+  // 头部：今日计划标题 + 轻动作组
   const head = document.createElement('div');
   head.className = 'today-section-head today-main-head';
   head.innerHTML = '<h2 class="today-section-title">📅 今日计划</h2>';
   const actions = document.createElement('div');
   actions.className = 'menu-plan-head-actions';
   actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
-  actions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
   head.appendChild(actions);
   card.appendChild(head);
-
-  card.appendChild(createRecordCookedCta(pack, inv, { onRoute }));
 
   // 上半部分：今日计划（复用 renderMenuPlan，保留进详情 / 做完 / 扣库存）
   const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
@@ -1581,21 +1578,6 @@ function renderTodayInlineNudge(pack, inv, state, { onRoute = () => {} } = {}) {
   return node;
 }
 
-function renderCookedQuickStrip(pack, inv, { onRoute = () => {} } = {}) {
-  const hasPlan = getTodayPlanCount() > 0;
-  const strip = document.createElement('section');
-  strip.className = 'today-cooked-strip';
-  strip.innerHTML = `
-    <span class="today-cooked-copy">
-      <strong>${hasPlan ? '今天做完了吗？' : '做完饭了？'}</strong>
-      <small>${hasPlan ? '顺手记录一下，用掉的食材会更新。' : '顺手记录用掉的食材。'}</small>
-    </span>
-    <button type="button" class="btn small today-cooked-btn">饭后记一下</button>
-  `;
-  strip.querySelector('.today-cooked-btn').onclick = () => openCookedMealModal(pack, inv, { onRoute });
-  return strip;
-}
-
 function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
   const card = document.createElement('section');
   card.className = `today-focus-card is-${state.type || 'empty'}`;
@@ -1642,8 +1624,8 @@ function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
       badge: '已计划',
       title: recipe.name || '今日计划',
       meta: getRecipeTimeDifficultyText(recipe) || (recipe.tags || []).slice(0, 2).join(' · ') || '今天准备做',
-      desc: '做完后点饭后记一下，库存会自动更新。',
-      actions: '<button type="button" class="btn ok today-focus-primary" id="todayRecordCooked">饭后记一下</button><button type="button" class="btn today-focus-secondary" id="todayStartCook">查看</button>'
+      desc: '做完后记录消耗，库存会自动更新。',
+      actions: '<button type="button" class="btn ok today-focus-primary" id="todayRecordCooked">记录消耗</button><button type="button" class="btn today-focus-secondary" id="todayStartCook">查看</button>'
     });
     card.querySelector('#todayRecordCooked').onclick = () => openCookedMealModal(pack, inv, { onRoute });
     card.querySelector('#todayStartCook').onclick = () => {
@@ -1724,7 +1706,7 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
   let subtitle = '先记录几样食材，或者去菜谱里找灵感。';
   if (planCount > 0) {
     title = '今天已经安排好了';
-    subtitle = `准备做 ${planCount} 道菜。做完后记一下，库存会自动更新。`;
+    subtitle = `准备做 ${planCount} 道菜。记录消耗后，库存会自动更新。`;
   } else if (recommendationCount > 0) {
     title = `今天可以做 ${recommendationCount} 道菜`;
     subtitle = '根据你现在的食材，先选一道加入今日计划。';
@@ -1773,7 +1755,7 @@ function setPostInventoryGuide(count) {
 function consumeFirstPlanGuideMessage(added) {
   if (!added || !postInventoryPlanGuidePending) return '';
   postInventoryPlanGuidePending = false;
-  return '已加入今日计划。做完后点“饭后记一下”，我会帮你更新剩余食材和待买清单。';
+  return '已加入今日计划。做完后点“记录消耗”，我会帮你更新剩余食材和待买清单。';
 }
 
 function showFirstPlanGuideToast(message) {
@@ -1899,22 +1881,19 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     return head;
   };
 
-  // ── 📅 计划：动作组（全部做完/范围）+ 饭后轻 CTA + 计划列表，全部复用现有组件 ──
+  // ── 📅 计划：轻动作组 + 计划列表，全部复用现有组件 ──
   const renderPlanTab = () => {
     const todayPlanCount = getTodayPlanCount();
     body.appendChild(renderWxSectionIntro(
       '今日计划',
       todayPlanCount > 0
-        ? `已经安排 ${todayPlanCount} 道菜。做完后顺手记一下。`
-        : '还没有安排今天吃什么。可以从下面推荐里选一道。'
+        ? `已经安排 ${todayPlanCount} 道菜。`
+        : ''
     ));
     const actions = document.createElement('div');
     actions.className = 'menu-plan-head-actions wx-plan-actions';
     actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
-    actions.appendChild(renderPlanRangeSelect({ onRoute, id: 'homePlanRangeSelect' }));
     body.appendChild(actions);
-
-    body.appendChild(createRecordCookedCta(pack, inv, { onRoute }));
 
     const planNode = renderMenuPlan(pack, { onRoute, hideHeader: true, inventory: inv });
     // 空态瘦身：一行轻提示 + 「看推荐」切 tab（原空态是纯静态节点、无事件绑定，见 menu-plan.js）。
@@ -1922,8 +1901,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     if (empty) {
       empty.innerHTML = `
         <span class="plan-empty-line">还没有安排今天吃什么</span>
-        <span class="wx-help-text">计划就是今天/明天准备吃什么。</span>
-        <button type="button" class="wx-mini-btn" id="wxGoRecs">✨ 看看推荐</button>
+        <button type="button" class="wx-mini-btn" id="wxGoRecs">看看推荐</button>
       `;
       empty.querySelector('#wxGoRecs').onclick = () => switchTab('recs');
     }
@@ -2733,7 +2711,6 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     const pwaNudge = renderPwaInstallNudge(inv, { isDemoMode });
     if (pwaNudge) container.appendChild(pwaNudge);
   }
-  container.appendChild(renderCookedQuickStrip(pack, inv, { onRoute }));
   const panel = perfMeasure('createWeatherPanel', () => createWeatherPanel(pack, inv, { onRoute, inspirationCards }));
   container.appendChild(panel.el);
   container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));

@@ -11189,44 +11189,6 @@ html[data-theme="dark"] .today-all-rec-row {
 }
 
 /* Today tabs restored: keep useful actions visible, make the panel lighter. */
-.today-cooked-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 54px;
-  padding: 10px 12px;
-  border: 1px solid var(--glass-edge);
-  border-radius: 18px;
-  background: rgba(255,255,255,0.46);
-  box-shadow: 0 8px 20px rgba(60, 64, 67, 0.06);
-}
-
-.today-cooked-copy {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.today-cooked-copy strong {
-  color: var(--text-main);
-  font-size: 14px;
-  font-weight: 820;
-}
-
-.today-cooked-copy small {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.today-cooked-btn {
-  flex: 0 0 auto;
-  min-height: 36px;
-  border-radius: 999px;
-  padding: 8px 12px;
-}
-
 .wx-panel.glass-panel {
   border-radius: 22px;
   border-color: rgba(60, 60, 67, 0.08);
@@ -11372,7 +11334,6 @@ html[data-theme="dark"] .today-all-rec-row {
   border-radius: 16px;
 }
 
-html[data-theme="dark"] .today-cooked-strip,
 html[data-theme="dark"] .wx-panel.glass-panel,
 html[data-theme="dark"] .target-recipe-search {
   background: rgba(255,255,255,0.08);
@@ -11401,8 +11362,6 @@ html[data-theme="dark"] .wx-tab.is-active {
   .wx-tabs { padding: 5px; }
   .wx-tab { font-size: 12px; padding-inline: 6px; }
   .wx-body { padding: 10px; }
-  .today-cooked-strip { min-height: 50px; padding: 9px 10px; }
-  .today-cooked-copy small { display: none; }
   .today-quick-btn,
   html[data-theme="light"] .today-quick-btn:not(.is-primary),
   html[data-theme="dark"] .today-quick-btn {

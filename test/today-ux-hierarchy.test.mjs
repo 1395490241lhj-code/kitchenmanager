@@ -80,13 +80,19 @@ test('更多菜单只收纳低频管理操作', () => {
   assert.doesNotMatch(moreSheet, /饭后记一下/);
 });
 
-test('饭后记一下保留在首页第一层和计划区域', () => {
+test('今日计划页去掉重复消耗横条和冗余筛选', () => {
   const home = read('src/views/home-view.js');
+  const renderHome = home.slice(home.indexOf('export function renderHome'));
+  const renderPlanTab = home.slice(home.indexOf('const renderPlanTab'), home.indexOf('// ── ⏳ 到期'));
 
-  assert.match(home, /function renderCookedQuickStrip/);
-  assert.match(home, /做完饭了？/);
-  assert.match(home, /饭后记一下/);
-  assert.match(home, /createRecordCookedCta/);
+  assert.doesNotMatch(renderHome, /renderCookedQuickStrip/);
+  assert.doesNotMatch(renderPlanTab, /createRecordCookedCta/);
+  assert.doesNotMatch(renderPlanTab, /renderPlanRangeSelect/);
+  assert.match(renderPlanTab, /还没有安排今天吃什么/);
+  assert.match(renderPlanTab, />看看推荐</);
+  assert.doesNotMatch(renderPlanTab, /可以从下面推荐里选一道/);
+  assert.doesNotMatch(renderPlanTab, /计划就是今天\/明天准备吃什么/);
+  assert.doesNotMatch(renderPlanTab, /饭后记一下/);
   assert.match(home, /openCookedMealModal/);
 });
 
@@ -97,12 +103,12 @@ test('demo banner 逻辑仍保留', () => {
   assert.match(home, /if \(isDemoMode\) \{\s*container\.appendChild\(renderDemoKitchenBanner/);
 });
 
-test('renderHome 使用顶部状态、饭后轻条、四 tab 面板和两个快捷入口', () => {
+test('renderHome 使用顶部状态、四 tab 面板和两个快捷入口', () => {
   const home = read('src/views/home-view.js');
   const renderHome = home.slice(home.indexOf('export function renderHome'));
 
   assert.match(renderHome, /container\.appendChild\(renderWxStatus/);
-  assert.match(renderHome, /renderCookedQuickStrip/);
+  assert.doesNotMatch(renderHome, /renderCookedQuickStrip/);
   assert.match(renderHome, /createWeatherPanel/);
   assert.match(renderHome, /renderQuickActions/);
 });

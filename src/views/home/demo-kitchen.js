@@ -147,7 +147,7 @@ export function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
     },
     plan: {
       title: '第 3 步：做完后更新库存',
-      body: '今日计划已经有菜了。做完后点“饭后记一下”，我会帮你确认用掉了哪些食材。',
+      body: '今日计划已经有菜了。做完后点“记录消耗”，我会帮你确认用掉了哪些食材。',
       primary: '去今日计划',
       primaryStep: 'cook',
       secondary: '退出示例',
@@ -155,7 +155,7 @@ export function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
     },
     cook: {
       title: '第 3 步：做完后更新库存',
-      body: '今日计划已经有菜了。做完后点“饭后记一下”，我会帮你确认用掉了哪些食材。',
+      body: '今日计划已经有菜了。做完后点“记录消耗”，我会帮你确认用掉了哪些食材。',
       primary: '我知道了',
       primaryStep: 'done',
       secondary: '开始我的厨房',

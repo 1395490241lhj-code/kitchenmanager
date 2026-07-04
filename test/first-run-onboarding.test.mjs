@@ -57,7 +57,7 @@ test('guided demo stores step state and renders reversible example guidance', ()
   assert.match(demo, /第 2 步：选一道今天想吃的菜/);
   assert.match(demo, /在下面的推荐里，点“加入今日计划”。缺的食材可以顺手放进买菜清单。/);
   assert.match(demo, /第 3 步：做完后更新库存/);
-  assert.match(demo, /今日计划已经有菜了。做完后点“饭后记一下”，我会帮你确认用掉了哪些食材。/);
+  assert.match(demo, /今日计划已经有菜了。做完后点“记录消耗”，我会帮你确认用掉了哪些食材。/);
   assert.match(demo, /示例体验完成/);
   assert.match(demo, /开始我的厨房/);
   assert.match(demo, /localStorage\.removeItem\(S\.keys\.demo_mode\)/);
@@ -132,7 +132,7 @@ test('first plan add after real entry explains the dinner-close loop without sto
   const storage = read('src/storage.js');
 
   assert.match(home, /postInventoryPlanGuidePending/);
-  assert.match(home, /已加入今日计划。做完后点“饭后记一下”，我会帮你更新剩余食材和待买清单。/);
+  assert.match(home, /已加入今日计划。做完后点“记录消耗”，我会帮你更新剩余食材和待买清单。/);
   assert.match(home, /consumeFirstPlanGuideMessage\(added\)/);
   assert.match(home, /showFirstPlanGuideToast\(firstPlanGuide\)/);
   assert.doesNotMatch(storage, /postInventoryGuide|firstInventory|realEntry/);
