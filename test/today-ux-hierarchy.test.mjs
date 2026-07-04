@@ -37,6 +37,10 @@ test('今日页主面板只保留计划和推荐两个轻量 tab', () => {
   assert.match(home, /data-tab="recs"[^>]*>✨ 推荐/);
   assert.doesNotMatch(home, /data-tab="expiry"[^>]*>⏳ 到期/);
   assert.doesNotMatch(home, /data-tab="shopping"[^>]*>🛒 待买/);
+  assert.doesNotMatch(home, /const renderExpiryTab/);
+  assert.doesNotMatch(home, /const renderShoppingTab/);
+  assert.doesNotMatch(home, /switchTab\('expiry'\)/);
+  assert.doesNotMatch(home, /switchTab\('shopping'\)/);
   assert.match(home, /const TAB_RENDERERS = \{ plan: renderPlanTab, recs: renderRecsTab \};/);
 });
 

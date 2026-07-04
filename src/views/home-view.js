@@ -14,7 +14,7 @@ import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, se
 import { showRecommendationCards } from '../components/recipe-card.js?v=231';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=231';
 import { perfMeasure } from '../utils/perf.js?v=231';
-import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showQuickShoppingNoteModal, showPendingShoppingModal } from '../components/modal.js?v=231';
+import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showPendingShoppingModal } from '../components/modal.js?v=231';
 import { renderMenuPlan, renderCookAllButton } from '../components/menu-plan.js?v=231';
 import { parseFoodLines } from '../utils/food-input-parser.js?v=231';
 import { classifyRecipeIngredient, splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=231';
@@ -994,41 +994,6 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
 //  本段只负责信息层级与 UI 组装，不重写推荐算法。
 // ══════════════════════════════════════════════════════════════════════════
 
-// ① 顶部双状态卡：到期食材 / 待购买（复用 .home-metrics 紧凑两栏；点击只弹窗、不跳转）。
-//   返回 { el, refresh }：refresh 用于弹窗里增删后实时更新卡片数字。
-function createStatusCards(inv, pack, { onRoute = () => {} } = {}) {
-  const section = document.createElement('section');
-  section.className = 'home-metrics today-status';
-
-  const render = () => {
-    const expiringAll = (inv || []).filter(it => isExpiryTracked(it) && remainingDays(it) <= 3);
-    const expCount = expiringAll.length;
-    const expiredCount = expiringAll.filter(it => remainingDays(it) < 0).length;
-    const shopCount = loadShoppingItems().filter(i => !i.done).length;
-    const expTone = expCount === 0 ? 'is-ok' : (expiredCount > 0 ? 'is-bad' : 'is-warn');
-    const expSub = expCount === 0 ? '暂无到期' : (expiredCount > 0 ? `${expiredCount} 样已过期` : '样快到期');
-    const shopSub = shopCount === 0 ? '还没记要买' : '项待买';
-
-    section.innerHTML = `
-      <button type="button" class="home-metric ${expTone}" id="statExpiring">
-        <span class="home-metric-header"><span class="home-metric-icon">⏳</span><span class="home-metric-label">到期食材</span></span>
-        <span class="home-metric-num">${expCount}</span>
-        <span class="home-metric-sub">${escapeHtml(expSub)}</span>
-      </button>
-      <button type="button" class="home-metric is-info" id="statShopping">
-        <span class="home-metric-header"><span class="home-metric-icon">🛒</span><span class="home-metric-label">待买</span></span>
-        <span class="home-metric-num">${shopCount}</span>
-        <span class="home-metric-sub">${escapeHtml(shopSub)}</span>
-      </button>
-    `;
-    section.querySelector('#statExpiring').onclick = () => openExpiryListModal(inv, pack, { onRoute, onChange: render });
-    // 待购买卡：弹出「待购买食材」列表弹窗（查看当前清单待买项，可标记完成/删除），不跳转、不改 hash。
-    section.querySelector('#statShopping').onclick = () => showPendingShoppingModal({ onChange: render });
-  };
-  render();
-  return { el: section, refresh: render };
-}
-
 // AI 智能推荐（合并进今日主卡的下半部分）：默认收起。复用 getInspirationCards /
 //   renderSuggestCard / callCloudAI，只把展示改成「紧凑折叠入口 + 摘要计数」，展开后逻辑不变。
 function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
@@ -1193,8 +1158,8 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
 
 
 // ══════════════════════════════════════════════════════════════════════════
-//  Weather-style 首页：顶部固定主状态 + 单一 glass 信息面板（tab 切换数据维度）。
-//  类比 iOS 天气：顶部城市/温度区固定不动，下方同一块面板用小图标切换不同数据。
+//  Today 首页：顶部状态负责临期 / 待买提醒；主面板只负责计划 / 推荐。
+//  临期和待买详情通过顶部弹窗查看，不再占用主面板 tab。
 //  全部复用既有数据与弹窗函数，不新增推荐算法 / 持久化状态 / localStorage key。
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -1973,73 +1938,6 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       empty.querySelector('#wxGoRecs').onclick = () => switchTab('recs');
     }
     body.appendChild(planNode);
-  };
-
-  // ── ⏳ 到期：最多 3 行（名称+剩余天数），「查看全部」沿用原到期弹窗 ──
-  const renderExpiryTab = () => {
-    const items = getExpiringItems(inv).slice(0, 3);
-    if (!items.length) {
-      body.innerHTML = '<div class="wx-empty"><strong>✅ 最近没有快到期的食材</strong><span class="wx-help-text">这里会提醒你优先吃掉快过期的食材。</span></div>';
-      return;
-    }
-    const list = document.createElement('div');
-    list.className = 'wx-list';
-    list.innerHTML = items.map(it => {
-      const d = remainingDays(it);
-      const dayText = d < 0 ? `已过期 ${Math.abs(d)} 天` : d === 0 ? '今天到期' : `还剩 ${d} 天`;
-      const tone = d < 0 ? ' is-bad' : d <= 1 ? ' is-warn' : '';
-      const qty = (+it.qty > 0) ? `<span class="wx-row-qty">${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}</span>` : '';
-      return `<div class="wx-row${tone}"><span class="wx-row-main">${escapeHtml(it.name)}${qty}</span><span class="wx-row-side">${escapeHtml(dayText)}</span></div>`;
-    }).join('');
-    body.appendChild(list);
-    const foot = document.createElement('div');
-    foot.className = 'wx-actions';
-    foot.innerHTML = '<button type="button" class="wx-mini-btn">查看全部 ›</button>';
-    foot.querySelector('button').onclick = () => openExpiryListModal(inv, pack, { onRoute, onChange: () => switchTab('expiry') });
-    body.appendChild(foot);
-  };
-
-  // ── 🛒 待买：最近 3 项（名称+数量），「查看全部」沿用原待买弹窗 ──
-  const renderShoppingTab = () => {
-    const items = loadShoppingItems().filter(i => !i.done);
-    const openShoppingNote = () => {
-      showQuickShoppingNoteModal({
-        onAdd: () => {
-          setHomeTab('shopping');
-          onRoute();
-        }
-      });
-    };
-    if (!items.length) {
-      body.innerHTML = `
-        <div class="wx-empty wx-shopping-empty">
-          <span>🧺 还没有要买的东西</span>
-          <small class="wx-help-text">缺的食材、做完要补的东西会放在这里。</small>
-          <button type="button" class="wx-mini-btn" id="wxShoppingAddEmpty">记要买</button>
-        </div>
-      `;
-      body.querySelector('#wxShoppingAddEmpty').onclick = openShoppingNote;
-      return;
-    }
-    const recent = items.slice(-3).reverse();
-    const list = document.createElement('div');
-    list.className = 'wx-list';
-    list.innerHTML = recent.map(it => {
-      const qty = it.qty ? `<span class="wx-row-qty">${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}</span>` : '';
-      const src = it.source ? `<span class="wx-row-side">${escapeHtml(it.source)}</span>` : '';
-      return `<div class="wx-row"><span class="wx-row-main">${escapeHtml(it.name)}${qty}</span>${src}</div>`;
-    }).join('');
-    body.appendChild(list);
-    const foot = document.createElement('div');
-    foot.className = 'wx-actions';
-    foot.innerHTML = `
-      <span class="wx-count-note">共 ${items.length} 项待买</span>
-      <button type="button" class="wx-mini-btn" id="wxShoppingAdd">记要买</button>
-      <button type="button" class="wx-mini-btn" id="wxShoppingAll">查看全部 ›</button>
-    `;
-    foot.querySelector('#wxShoppingAdd').onclick = openShoppingNote;
-    foot.querySelector('#wxShoppingAll').onclick = () => showPendingShoppingModal({ onChange: () => switchTab('shopping') });
-    body.appendChild(foot);
   };
 
   // ── ✨ 推荐：一次只展示 1 个主推荐（不摊开三张卡）。
