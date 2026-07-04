@@ -33,10 +33,11 @@ test('inventory-view import 格式拆开，不再出现 ;import', () => {
   assert.match(inventory, /showToast\s*\n\} from '\.\.\/components\/status\.js\?v=\d+';\nimport \{ markShoppingItemsStockedIn \} from '\.\.\/shopping\.js\?v=\d+';/);
 });
 
-test('旧 is-previewable 推荐卡样式已清理，搜索结果卡交互样式保留', () => {
+test('旧 is-previewable 和重复搜索结果列表样式已清理，推荐大卡样式保留', () => {
   const styles = read('styles.css');
 
   assert.doesNotMatch(styles, /is-previewable/);
-  assert.match(styles, /\.target-recipe-result-card:hover/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.target-recipe-result-card[\s\S]*?transition: none;/);
+  assert.doesNotMatch(styles, /\.target-recipe-result-card/);
+  assert.doesNotMatch(styles, /\.target-recipe-results/);
+  assert.match(styles, /\.wx-rec-card \.home-suggest-card/);
 });

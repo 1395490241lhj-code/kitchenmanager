@@ -1261,6 +1261,18 @@ function recipeMatchToFocusCard(match, pack) {
   }, pack);
 }
 
+function mergeTodayFocusCards(...groups) {
+  const merged = [];
+  const seen = new Set();
+  groups.flat().filter(Boolean).forEach(card => {
+    const key = card.id || card.name || JSON.stringify(card);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    merged.push(card);
+  });
+  return merged;
+}
+
 function getFocusCardRecipe(card, pack) {
   if (!card) return null;
   return card.row?.r || card.r || card.recipe || (card.id ? (pack.recipes || []).find(r => r.id === card.id) : null);
@@ -2021,72 +2033,6 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     return search;
   };
 
-  const renderRecipeNameResults = (matches) => {
-    const refreshAfterAdd = (added) => {
-      if (!added) return;
-      window.setTimeout(() => {
-        onRoute();
-      }, 650);
-    };
-    const section = document.createElement('div');
-    section.className = 'target-recipe-results';
-    section.innerHTML = `
-      <div class="target-recipe-section-title">
-        <strong>找到这些菜</strong>
-        <span>可以直接加入今天</span>
-      </div>
-      <div class="target-recipe-result-list"></div>
-    `;
-    const list = section.querySelector('.target-recipe-result-list');
-    matches.forEach(item => {
-      const card = document.createElement('article');
-      card.className = 'target-recipe-result-card';
-      card.setAttribute('role', 'button');
-      card.tabIndex = 0;
-      card.innerHTML = `
-        <span class="target-recipe-result-main">
-          <strong>${escapeHtml(item.name)}</strong>
-          <small>${escapeHtml(item.reason || '本地菜谱匹配')}</small>
-        </span>
-        <span class="target-recipe-result-actions">
-          <button type="button" class="wx-mini-btn target-recipe-view-btn">查看做法</button>
-          <button type="button" class="wx-mini-btn target-recipe-plan-btn">加入今日计划</button>
-        </span>
-      `;
-      const openPreview = () => openRecipePreviewModal(item.r || item.recipe);
-      const addBtn = card.querySelector('.target-recipe-plan-btn');
-      addBtn.onclick = async event => {
-        event.preventDefault();
-        event.stopPropagation();
-        const recipe = item.r || item.recipe;
-        const result = await addRecipeToPlanWithMissingCheck(item.id, pack, inv, {
-          recipe,
-          fallbackItems: recipe ? pack.recipe_ingredients?.[recipe.id] : null,
-          source: isDemoKitchenMode() ? 'demo' : 'search-result',
-          onPlanAdded: markDemoPlanAdded
-        });
-        brieflyConfirmButton(addBtn, result.added ? '已加入今天' : '已在今天');
-        const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
-        showFirstPlanGuideToast(firstPlanGuide);
-        refreshAfterAdd(result.added);
-      };
-      card.querySelector('.target-recipe-view-btn').onclick = event => {
-        event.preventDefault();
-        event.stopPropagation();
-        openPreview();
-      };
-      card.onclick = openPreview;
-      card.onkeydown = event => {
-        if (event.target.closest('button, a, input, select, textarea')) return;
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        openPreview();
-      };
-      list.appendChild(card);
-    });
-    return section;
-  };
-
   const renderTargetSectionTitle = (title, subtitle = '') => {
     const head = document.createElement('div');
     head.className = 'target-recipe-section-title';
@@ -2454,6 +2400,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
           limit: 4
         }))
       : [];
+    const nameCards = nameMatches.map(item => recipeMatchToFocusCard(item, pack)).filter(Boolean);
     const targetKey = targetNames.join('|');
     if (targetNames.length) {
       // 同一面板内目标没变（如点 AI 按钮 / 来回切 tab 触发的重绘）→ 复用上次结果，
@@ -2482,8 +2429,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
               ]
             });
             const seen = new Set(directCards.map(item => item.id || item.name));
-            return [
-              ...directCards,
+            return mergeTodayFocusCards(
+              nameCards,
+              directCards,
               ...variants.filter(item => {
                 const key = item.id || item.name;
                 if (!key || seen.has(key)) return false;
@@ -2496,7 +2444,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
                 seen.add(key);
                 return true;
               })
-            ].slice(0, 6);
+            ).slice(0, 6);
           })();
       const prevIdx = sameTarget ? recsState.idx : 0;
       recsState = {
@@ -2507,7 +2455,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         targets: targetNames
       };
     } else if (hasSearchQuery) {
-      recsState = { mode: 'search', cards: [], idx: 0, key: rawQuery };
+      recsState = { mode: nameCards.length ? 'search' : 'search-empty', cards: nameCards, idx: 0, key: rawQuery };
     } else if (!recsState || recsState.mode === 'target') {
       recsState = initRecsState();
     }
@@ -2515,13 +2463,12 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     body.appendChild(renderTargetRecipeSearch(targetNames, cards.length, nameMatches.length));
     const postGuide = renderPostInventoryGuide();
     if (postGuide) body.appendChild(postGuide);
-    if (nameMatches.length) {
-      body.appendChild(renderRecipeNameResults(nameMatches));
-    }
 
     if (hasSearchQuery && !targetNames.length) {
-      if (!nameMatches.length) body.appendChild(renderDishDraftBox(rawQuery));
-      return;
+      if (!cards.length) {
+        body.appendChild(renderDishDraftBox(rawQuery));
+        return;
+      }
     }
 
     const cardWrap = document.createElement('div');
@@ -2582,8 +2529,13 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       }));
     }
     bindRecommendationCycling(cardWrap);
-    if (mode === 'target' && targetNames.length) {
-      body.appendChild(renderTargetSectionTitle('按这些食材推荐', '继续从本地菜谱里找'));
+    if (hasSearchQuery && cards.length) {
+      const countText = `找到 ${cards.length} 道，正在查看第 ${idx + 1} 道`;
+      if (mode === 'target' && targetNames.length) {
+        body.appendChild(renderTargetSectionTitle('按这些食材推荐', countText));
+      } else {
+        body.appendChild(renderTargetSectionTitle('找到的推荐', countText));
+      }
     } else if (cards.length) {
       body.appendChild(renderWxSectionIntro('推荐先做这几道', '优先显示食材更齐、能用掉临期食材的菜。'));
     } else {
@@ -2614,7 +2566,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     foot.className = 'wx-actions';
     foot.innerHTML = `
       ${mode === 'ai' && cards.length ? '<button type="button" class="wx-mini-btn" id="wxRecLocal">用本地推荐</button>' : ''}
-      ${mode !== 'target' && cards.length > 1 ? '<button type="button" class="wx-mini-btn" id="wxRecNext">换一道 ›</button>' : ''}
+      ${cards.length > 1 ? '<button type="button" class="wx-mini-btn" id="wxRecNext">换一道 ›</button>' : ''}
       <button type="button" class="wx-mini-btn is-ai" id="wxRecAi">✨ 换几道</button>
     `;
     body.appendChild(foot);

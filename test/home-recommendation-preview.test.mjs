@@ -31,11 +31,14 @@ test('首页推荐卡轻点和左右滑动仍用于切换推荐', () => {
   assert.match(home, /const isCardControlTarget = \(target\) => Boolean\(target && target\.closest\('button, a, input, select, textarea, \[data-no-card-swipe\]'\)\);/);
 });
 
-test('搜索结果卡仍保持整卡点击打开预览', () => {
+test('搜索结果不再渲染独立列表，统一使用推荐大卡查看入口', () => {
   const home = read('src/views/home-view.js');
 
-  assert.match(home, /card\.onclick = openPreview;/);
-  assert.match(home, /card\.querySelector\('\.target-recipe-view-btn'\)\.onclick/);
+  assert.doesNotMatch(home, /target-recipe-view-btn/);
+  assert.doesNotMatch(home, /target-recipe-plan-btn/);
+  assert.doesNotMatch(home, /function renderRecipeNameResults/);
+  assert.match(home, /home-suggest-preview/);
+  assert.match(home, /if \(previewBtn\) previewBtn\.onclick = openPreview;/);
 });
 
 test('菜谱预览弹窗正文和 footer 分层，footer 不再作为正文内 sticky 覆盖层', () => {
