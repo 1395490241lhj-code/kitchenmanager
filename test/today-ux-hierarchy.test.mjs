@@ -15,12 +15,14 @@ test('今日页顶部状态区按计划/推荐/空状态展示清晰文案', () 
   assert.match(home, /function renderWxStatus/);
   assert.match(home, /function bindWxStatusActions/);
   assert.match(home, /今天可以做 \$\{recommendationCount\} 道菜/);
-  assert.match(home, /计划/);
   assert.match(home, /临期/);
   assert.match(home, /待买/);
   assert.match(home, /wx-stat-chevron/);
   assert.match(home, /data-status="\$\{escapeHtml\(tone\)\}"/);
-  assert.match(home, /panel\.switchTab\?\.\('plan'\)/);
+  // 顶部角标只保留「临期 / 待买」：计划入口在主面板的计划 Tab，不在顶部重复。
+  assert.match(home, /\['expiry', '临期', expiringCount\],\s*\['shopping', '待买', shoppingCount\]/);
+  assert.doesNotMatch(home, /\['plan', '计划'/);
+  assert.doesNotMatch(home, /\[data-status="plan"\]/);
   assert.match(home, /openExpiryListModal\(inv, pack/);
   assert.match(home, /showPendingShoppingModal\(\{[\s\S]*onGoShopping:/);
   assert.match(home, /bindWxStatusActions\(statusHeader, panel, pack, inv/);

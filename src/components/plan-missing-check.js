@@ -27,7 +27,7 @@ export function formatMissingNames(items, limit = 5) {
   return `${head}${names.length > limit ? '等' : ''}`;
 }
 
-export function showMissingPlanConfirm({ recipeName = '这道菜', planLabel = '今日计划', missing = [] } = {}) {
+export function showMissingPlanConfirm({ recipeName = '这道菜', planLabel = '计划', missing = [] } = {}) {
   return new Promise(resolve => {
     if (typeof document === 'undefined') {
       resolve(false);
@@ -43,7 +43,7 @@ export function showMissingPlanConfirm({ recipeName = '这道菜', planLabel = '
         <div class="km-modal-body plan-missing-body">
           <p class="km-modal-subtitle">「${escapeHtml(recipeName)}」已经加入${escapeHtml(planLabel)}。下面这些可以顺手加入买菜清单。</p>
           <div class="plan-missing-list">${uniqueMissingItems(missing).map(item => `<span>${escapeHtml(item.name || item.item)}</span>`).join('')}</div>
-          <p class="km-modal-note">取消后也会保留今日计划，可以稍后再处理。</p>
+          <p class="km-modal-note">取消后也会保留计划，可以稍后再处理。</p>
         </div>
         <div class="km-modal-actions plan-missing-actions">
           <button type="button" class="btn km-action-weak" id="planMissingSkip">暂时不用</button>
@@ -72,7 +72,7 @@ export async function addRecipeToPlanWithMissingCheck(recipeId, pack, inv, optio
     recipe = null,
     fallbackItems = null,
     missing = null,
-    planLabel = '今日计划',
+    planLabel = '计划',
     confirmMissing = showMissingPlanConfirm,
     onPlanAdded = null,
     onRoute = null,

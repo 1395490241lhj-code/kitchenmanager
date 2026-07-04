@@ -44,12 +44,12 @@ test('首页推荐菜谱使用弹窗预览，AI 草稿不伪装成本地菜谱',
   assert.match(card, /!isCreative/);
 });
 
-test('首页加入今日计划入口接入统一 Toast，且保留按钮反馈', () => {
+test('首页加入计划入口接入统一 Toast，且保留按钮反馈', () => {
   const home = read('src/views/home-view.js');
 
   assert.match(home, /showToast/);
   assert.match(home, /brieflyConfirmButton/);
   assert.match(home, /addRecipeToPlanWithMissingCheck/);
-  assert.match(home, /已加入今日计划，缺的食材已加入买菜清单/);
-  assert.match(home, /已加入今日计划，缺的食材可稍后处理/);
+  assert.match(home, /已加入计划，缺的食材已加入买菜清单/);
+  assert.match(home, /已加入计划，缺的食材可稍后处理/);
 });

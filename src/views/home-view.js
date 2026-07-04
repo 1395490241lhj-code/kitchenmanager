@@ -330,7 +330,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
     const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
     showFirstPlanGuideToast(firstPlanGuide);
     const successMessage = result.missing.length
-      ? (result.shoppingAddedCount ? '已加入今日计划，缺的食材已加入买菜清单。' : '已加入今日计划，缺的食材可稍后处理。')
+      ? (result.shoppingAddedCount ? '已加入计划，缺的食材已加入买菜清单。' : '已加入计划，缺的食材可稍后处理。')
       : '已加入今天，做完后会帮你更新食材。';
     showPlanFeedback(result.added
       ? (result.missing.length ? successMessage : (firstPlanGuide || successMessage))
@@ -382,7 +382,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   const section = document.createElement('section');
   section.className = `home-hero${extraNode ? ' is-combo' : ''}`;
 
-  const eyebrow = extraNode ? '📅 今日计划' : '🧠 今日灵感';
+  const eyebrow = extraNode ? '📅 计划' : '🧠 今日灵感';
 
   // 标题行：计划范围筛选器由外层注入，避免卡片内部再出现一层标题。
   const headEl = document.createElement('div');
@@ -835,7 +835,7 @@ function renderOnboarding(pack, { onRoute = () => {} } = {}) {
     <div class="home-hero-head">
       <span class="home-hero-eyebrow">🍳 先看今天能吃什么</span>
       <h2 class="home-hero-greeting">今天不知道吃什么？</h2>
-      <p class="home-hero-note">先用一个示例厨房体验一次：看推荐、安排今日计划、做完后更新库存。</p>
+      <p class="home-hero-note">先用一个示例厨房体验一次：看推荐、安排计划、做完后更新库存。</p>
     </div>
     <div class="home-actions-grid home-onboarding-actions">
       <button type="button" class="home-act-btn home-onboarding-demo is-primary" id="obDemo"><span class="home-act-emoji">🍳</span><span class="home-act-copy"><span>开始示例体验</span><small>先走一遍完整流程</small></span></button>
@@ -1146,7 +1146,7 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   // 头部：今日计划标题 + 轻动作组
   const head = document.createElement('div');
   head.className = 'today-section-head today-main-head';
-  head.innerHTML = '<h2 class="today-section-title">📅 今日计划</h2>';
+  head.innerHTML = '<h2 class="today-section-title">📅 计划</h2>';
   const actions = document.createElement('div');
   actions.className = 'menu-plan-head-actions';
   actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));
@@ -1430,7 +1430,7 @@ async function addFocusCardToTodayPlan(card, pack, inv, { button = null, onRoute
   if (button) brieflyConfirmButton(button, result.added ? '已加入' : '已在今天');
   const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
   showFirstPlanGuideToast(firstPlanGuide);
-  if (!firstPlanGuide) showToast(result.added ? '已加入今日计划' : '今天已经有这道菜', { tone: 'success' });
+  if (!firstPlanGuide) showToast(result.added ? '已加入计划' : '今天已经有这道菜', { tone: 'success' });
   window.setTimeout(onRoute, 650);
   return result;
 }
@@ -1660,7 +1660,7 @@ function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
       icon: '🍽️',
       label: '今晚计划',
       badge: '已计划',
-      title: recipe.name || '今日计划',
+      title: recipe.name || '计划中的菜',
       meta: getRecipeTimeDifficultyText(recipe) || (recipe.tags || []).slice(0, 2).join(' · ') || '今天准备做',
       desc: '做完后记录消耗，库存会自动更新。',
       actions: '<button type="button" class="btn ok today-focus-primary" id="todayRecordCooked">记录消耗</button><button type="button" class="btn today-focus-secondary" id="todayStartCook">查看</button>'
@@ -1749,8 +1749,9 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
     title = `今天可以做 ${recommendationCount} 道菜`;
     subtitle = '先选一道加入计划';
   }
+  // 顶部角标只保留「临期 / 待买」两个提醒位：计划入口在下方主面板的「📅 计划」Tab，
+  // 不在顶部重复（适配一周买一次菜的节奏，顶部聚焦"该处理什么"而非"今天排了什么"）。
   const stats = [
-    ['plan', '计划', planCount],
     ['expiry', '临期', expiringCount],
     ['shopping', '待买', shoppingCount]
   ];
@@ -1771,21 +1772,18 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
 }
 
 function bindWxStatusActions(statusEl, panel, pack, inv, { onRoute = () => {} } = {}) {
-  statusEl.querySelector('[data-status="plan"]')?.addEventListener('click', () => {
-    panel.switchTab?.('plan');
-  });
   statusEl.querySelector('[data-status="expiry"]')?.addEventListener('click', () => {
     openExpiryListModal(inv, pack, {
       onRoute,
       onChange: () => {
-        panel.switchTab?.('expiry');
+        panel.refresh?.();
       }
     });
   });
   statusEl.querySelector('[data-status="shopping"]')?.addEventListener('click', () => {
     showPendingShoppingModal({
       onChange: () => {
-        panel.switchTab?.('shopping');
+        panel.refresh?.();
       },
       onGoShopping: () => {
         location.hash = '#shopping';
@@ -1822,7 +1820,7 @@ function setPostInventoryGuide(count) {
 function consumeFirstPlanGuideMessage(added) {
   if (!added || !postInventoryPlanGuidePending) return '';
   postInventoryPlanGuidePending = false;
-  return '已加入今日计划。做完后点“记录消耗”，我会帮你更新剩余食材和待买清单。';
+  return '已加入计划。做完后点“记录消耗”，我会帮你更新剩余食材和待买清单。';
 }
 
 function showFirstPlanGuideToast(message) {
@@ -1954,7 +1952,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   const renderPlanTab = () => {
     const todayPlanCount = getTodayPlanCount();
     body.appendChild(renderWxSectionIntro(
-      '今日计划',
+      '计划',
       todayPlanCount > 0
         ? `已经安排 ${todayPlanCount} 道菜。`
         : ''
@@ -2142,7 +2140,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       <div class="km-modal-actions recipe-preview-actions">
         <button type="button" class="btn" id="recipePreviewClose">关闭</button>
         <button type="button" class="btn ok" id="recipePreviewPlan">加入计划</button>
-        <button type="button" class="btn recipe-preview-go-plan" id="recipePreviewGoPlan" hidden>查看今日计划</button>
+        <button type="button" class="btn recipe-preview-go-plan" id="recipePreviewGoPlan" hidden>查看计划</button>
       </div>
     `;
     const modal = createHomeModal(content, recipe.name || '菜谱预览');
@@ -2198,10 +2196,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       brieflyConfirmButton(button, result.added ? '已加入今天' : '已保存');
       if (result.missing.length) {
         showToast(result.shoppingAddedCount
-          ? '已保存并加入今日计划，缺的食材已加入买菜清单'
-          : '已保存并加入今日计划，缺的食材可稍后处理', { tone: 'success' });
+          ? '已保存并加入计划，缺的食材已加入买菜清单'
+          : '已保存并加入计划，缺的食材可稍后处理', { tone: 'success' });
       } else {
-        showToast(isGeneric ? '已保存简单做法并加入今日计划' : '已保存变化菜并加入今日计划', { tone: 'success' });
+        showToast(isGeneric ? '已保存简单做法并加入计划' : '已保存变化菜并加入计划', { tone: 'success' });
       }
       if (goPlanBtn) goPlanBtn.hidden = false;
       return newId;
@@ -2223,7 +2221,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         <section class="recipe-preview-section recipe-variant-note">
           <h4>${isGeneric ? '做法来源' : '变化关系'}</h4>
           <p>${escapeHtml(replacementsText || '根据现有食材微调。')}</p>
-          <small>${isGeneric ? '这是一份本地生成的简单做法，加入今日计划前会先保存为你的菜谱。' : '这还不是正式菜谱，加入今日计划前会先保存为你的菜谱。'}</small>
+          <small>${isGeneric ? '这是一份本地生成的简单做法，加入计划前会先保存为你的菜谱。' : '这还不是正式菜谱，加入计划前会先保存为你的菜谱。'}</small>
         </section>
         <section class="recipe-preview-section">
           <h4>核心食材</h4>
@@ -2238,7 +2236,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         <button type="button" class="btn" id="variantPreviewClose">${confirmPlan ? '取消' : '关闭'}</button>
         <button type="button" class="btn" id="variantPreviewOnly">仅查看做法</button>
         <button type="button" class="btn ok" id="variantPreviewSave">保存为菜谱并加入计划</button>
-        <button type="button" class="btn recipe-preview-go-plan" id="variantPreviewGoPlan" hidden>查看今日计划</button>
+        <button type="button" class="btn recipe-preview-go-plan" id="variantPreviewGoPlan" hidden>查看计划</button>
       </div>
     `;
     const modal = createHomeModal(content, confirmPlan ? (isGeneric ? '加入简单做法' : '加入变化菜') : variant.name || (isGeneric ? '简单做法预览' : '变化菜预览'));
@@ -2516,7 +2514,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     guide.innerHTML = `
       <div class="post-inventory-guide-copy">
         <strong>已经记下食材了</strong>
-        <span>下一步，选一道今天想吃的菜加入今日计划。</span>
+        <span>下一步，选一道今天想吃的菜加入计划。</span>
       </div>
       <div class="post-inventory-guide-actions">
         <button type="button" class="wx-mini-btn is-primary" id="postInventoryGuideRecs">看推荐</button>

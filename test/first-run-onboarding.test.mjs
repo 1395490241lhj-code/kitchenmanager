@@ -14,7 +14,7 @@ test('empty inventory home prioritizes demo kitchen, then text entry, then recip
   const styles = read('styles.css');
 
   assert.match(home, /今天不知道吃什么？/);
-  assert.match(home, /先用一个示例厨房体验一次：看推荐、安排今日计划、做完后更新库存。/);
+  assert.match(home, /先用一个示例厨房体验一次：看推荐、安排计划、做完后更新库存。/);
   assert.match(home, /id="obDemo"/);
   assert.match(home, /开始示例体验/);
   assert.match(home, /id="obManual"/);
@@ -55,9 +55,9 @@ test('guided demo stores step state and renders reversible example guidance', ()
   assert.match(demo, /S\.save\(S\.keys\.demo_snapshot/);
   assert.match(demo, /当前是示例体验/);
   assert.match(demo, /第 2 步：选一道今天想吃的菜/);
-  assert.match(demo, /在下面的推荐里，点“加入今日计划”。缺的食材可以顺手放进买菜清单。/);
+  assert.match(demo, /在下面的推荐里，点“加入计划”。缺的食材可以顺手放进买菜清单。/);
   assert.match(demo, /第 3 步：做完后更新库存/);
-  assert.match(demo, /今日计划已经有菜了。做完后点“记录消耗”，我会帮你确认用掉了哪些食材。/);
+  assert.match(demo, /计划里已经有菜了。做完后点“记录消耗”，我会帮你确认用掉了哪些食材。/);
   assert.match(demo, /示例体验完成/);
   assert.match(demo, /开始我的厨房/);
   assert.match(demo, /localStorage\.removeItem\(S\.keys\.demo_mode\)/);
@@ -95,8 +95,8 @@ test('almost recommendation cards can join today plan and still fill shopping li
   assert.match(home, /await addRecipeToPlanWithMissingCheck\(card\.id, pack, inv/);
   assert.match(home, /missing: card\.row\?\.missing/);
   assert.match(home, /addMissingRecipeIngredientsToShopping\(card\.row\.r, pack, inv, card\.row\.list\)/);
-  assert.match(home, /已加入今日计划，缺的食材已加入买菜清单。/);
-  assert.match(home, /已加入今日计划，缺的食材可稍后处理。/);
+  assert.match(home, /已加入计划，缺的食材已加入买菜清单。/);
+  assert.match(home, /已加入计划，缺的食材可稍后处理。/);
   assert.doesNotMatch(home, /card\.tone === 'almost' \? '加入买菜' : '做这道'/);
   assert.match(styles, /\.home-suggest-shopping/);
 });
@@ -109,7 +109,7 @@ test('real first inventory entry guides users into recommendations', () => {
   assert.match(home, /setPostInventoryGuide\(n\);/);
   assert.match(home, /已记录 \$\{n\} 样食材，看看今天能做什么。/);
   assert.match(home, /已经记下食材了/);
-  assert.match(home, /下一步，选一道今天想吃的菜加入今日计划。/);
+  assert.match(home, /下一步，选一道今天想吃的菜加入计划。/);
   assert.match(home, /id="postInventoryGuideRecs"/);
   assert.match(home, /id="postInventoryGuideAdd"/);
   assert.match(home, /postInventoryGuideAdd'\)\.onclick = \(\) => \{\s*openBatchInputModal\(pack, \{ onRoute, initialTab: 'text' \}\);/);
@@ -132,7 +132,7 @@ test('first plan add after real entry explains the dinner-close loop without sto
   const storage = read('src/storage.js');
 
   assert.match(home, /postInventoryPlanGuidePending/);
-  assert.match(home, /已加入今日计划。做完后点“记录消耗”，我会帮你更新剩余食材和待买清单。/);
+  assert.match(home, /已加入计划。做完后点“记录消耗”，我会帮你更新剩余食材和待买清单。/);
   assert.match(home, /consumeFirstPlanGuideMessage\(added\)/);
   assert.match(home, /showFirstPlanGuideToast\(firstPlanGuide\)/);
   assert.doesNotMatch(storage, /postInventoryGuide|firstInventory|realEntry/);

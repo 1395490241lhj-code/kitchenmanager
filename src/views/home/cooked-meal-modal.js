@@ -184,7 +184,7 @@ export function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
     const planRows = getTodayPlanRecipeRows(pack);
     startHost.innerHTML = `
       <section class="cooked-meal-start-block">
-        <div class="cooked-meal-start-title">从今日计划记录</div>
+        <div class="cooked-meal-start-title">从计划记录</div>
         <div class="cooked-meal-plan-list">
           ${planRows.length
             ? planRows.slice(0, 5).map(({ recipe }) => `
@@ -201,7 +201,7 @@ export function openCookedMealModal(pack, inv, { onRoute = () => {} } = {}) {
     startHost.querySelectorAll('.cooked-meal-plan-chip').forEach(btn => {
       btn.onclick = () => {
         const recipe = recipes.find(r => r.id === btn.dataset.recipeId);
-        if (recipe) useRecipeForCookedMeal(recipe, { source: '来自今日计划', markPlan: true });
+        if (recipe) useRecipeForCookedMeal(recipe, { source: '来自计划', markPlan: true });
       };
     });
     startHost.querySelector('#cookedMealPickStock')?.addEventListener('click', () => {
