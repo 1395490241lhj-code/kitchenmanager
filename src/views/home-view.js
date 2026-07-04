@@ -219,14 +219,21 @@ function getSuggestTags(card, missing = []) {
     const text = String(value || '').trim();
     if (text && !tags.includes(text)) tags.push(text);
   };
-  if (missing.length) add(missing.length === 1 ? '只差 1 样' : `还缺 ${missing.length} 样`);
+  if (/^用到\s*\d+\s*\/\s*\d+/.test(String(card.matchLabel || ''))) add(card.matchLabel);
+  if (missing.length) add(missing.length === 1 ? '还缺 1 样' : `还缺 ${missing.length} 样`);
   else if (card.tone === 'ready') add('食材齐');
   if (card.tone === 'priority') add('用掉临期');
   if (card.tone === 'variant') add('变化菜');
   if (card.tone === 'generic') add('快手');
-  add(card.matchLabel);
-  add('今日推荐');
-  return tags.slice(0, 4);
+  if (!tags.length && card.matchLabel && !/^只差|^还缺/.test(card.matchLabel)) add(card.matchLabel);
+  return tags.slice(0, 2);
+}
+
+function getSuggestKickerLabel(card) {
+  if (card.tone === 'priority') return '优先推荐';
+  if (card.tone === 'variant') return '变化菜';
+  if (card.tone === 'generic') return '快手灵感';
+  return '今日推荐';
 }
 
 // ── Section 1: AI 灵感面板（Hero 胶囊） ───────────────────────────────────────
@@ -239,23 +246,27 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
   const canPreview = canPreviewVariant || Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !String(card.id).startsWith('creative-'));
   const sourceText = variant?.sourceLabel ? `<small class="home-suggest-source">${escapeHtml(variant.sourceLabel)}</small>` : '';
   const missing = Array.from(new Set((card.missing || []).map(item => String(item || '').trim()).filter(Boolean)));
-  const missingSummary = missing.length
-    ? (missing.length === 1 ? '还缺 1 样' : `还缺 ${missing.length} 样`)
-    : '';
+  const targetHits = Array.from(new Set([
+    ...(card.targetHits || []),
+    ...(card.targetMatchedNames || [])
+  ].map(item => String(item || '').trim()).filter(Boolean)));
+  const missingSummary = missing.length ? (missing.length === 1 ? '还缺 1 样' : `还缺 ${missing.length} 样`) : '';
   const missingNames = missing.slice(0, 4).join('、');
-  const missingTag = missingNames
-    ? `<span class="home-suggest-missing">${escapeHtml(missingNames)}${missing.length > 4 ? '等' : ''}</span>`
-    : '';
+  const detailLines = [
+    targetHits.length ? `用到：${targetHits.slice(0, 4).join('、')}${targetHits.length > 4 ? '等' : ''}` : '',
+    missingNames ? `还缺：${missingNames}${missing.length > 4 ? '等' : ''}` : ''
+  ].filter(Boolean);
   const tags = getSuggestTags(card, missing);
   const reason = card.reason || missingSummary || (card.tone === 'ready' ? '食材基本齐，可以直接做' : '');
+  const kickerLabel = getSuggestKickerLabel(card);
   el.innerHTML = `
     <div class="home-suggest-kicker">
-      <span class="home-suggest-match">${escapeHtml(card.matchLabel || '今日推荐')}</span>
+      <span class="home-suggest-match">${escapeHtml(kickerLabel)}</span>
       ${sourceText}
     </div>
     <h3 class="home-suggest-name">${escapeHtml(card.name)}</h3>
     <p class="home-suggest-reason">${escapeHtml(reason)}</p>
-    ${missingTag}
+    ${detailLines.length ? `<div class="home-suggest-details">${detailLines.map(line => `<span>${escapeHtml(line)}</span>`).join('')}</div>` : ''}
     <div class="home-suggest-tags">
       ${tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}
     </div>
@@ -577,8 +588,8 @@ function createHomeModal(contentEl, title = '') {
 
 // ── 弹窗内容构建 ─────────────────────────────────────────────────────────────
 
-/** 「临期食材」弹窗：列出快到期 / 已过期食材，并提供做菜、标记用完、编辑入口。 */
-function buildExpiryModal(inv, pack, { onClose = () => {}, onUseIngredient = () => {}, onEditIngredient = () => {}, onViewInventory = () => {}, onChange = () => {} } = {}) {
+/** 「临期食材」弹窗：列出快到期 / 已过期食材，并提供做菜、标记用完入口。 */
+function buildExpiryModal(inv, pack, { onClose = () => {}, onUseIngredient = () => {}, onViewInventory = () => {}, onChange = () => {} } = {}) {
   const expiring = (inv || [])
     .filter(it => isExpiryTracked(it) && remainingDays(it) <= 3)
     .sort((a, b) => remainingDays(a) - remainingDays(b));
@@ -587,7 +598,7 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onUseIngredient = () 
   wrap.className = 'km-modal-body';
 
   if (!expiring.length) {
-    wrap.innerHTML = '<p class="km-modal-empty">最近没有快到期的食材</p>';
+    wrap.innerHTML = '<p class="km-modal-empty">最近没有临期食材</p>';
     const footer = document.createElement('div');
     footer.className = 'km-modal-actions';
     footer.innerHTML = '<button type="button" class="btn" id="expiryCloseBtn">关闭</button><button type="button" class="btn ok" id="expiryViewInventoryBtn">查看全部食材</button>';
@@ -613,8 +624,7 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onUseIngredient = () 
       <span class="km-expiry-days">${dayText}</span>
       <span class="km-expiry-actions">
         <button type="button" class="btn small km-expiry-use">用它做菜</button>
-        <button type="button" class="btn small km-expiry-done">已用完</button>
-        <button type="button" class="btn small km-expiry-edit">编辑</button>
+        <button type="button" class="btn small km-expiry-done">标记用完</button>
       </span>
     `;
     li.querySelector('.km-expiry-use').onclick = () => onUseIngredient(it);
@@ -627,7 +637,6 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onUseIngredient = () 
       e.currentTarget.disabled = true;
       onChange();
     };
-    li.querySelector('.km-expiry-edit').onclick = () => onEditIngredient(it);
     list.appendChild(li);
   });
   wrap.appendChild(list);
@@ -652,10 +661,6 @@ function openExpiryListModal(inv, pack, { onRoute = () => {}, onChange = () => {
       targetRecipeQuery = item?.name || '';
       setHomeTab('recs');
       onRoute();
-    },
-    onEditIngredient: () => {
-      closeFn();
-      location.hash = '#inventory';
     },
     onViewInventory: () => {
       closeFn();
@@ -1567,7 +1572,7 @@ function renderTodayStatusHeader({ planCount, expiringCount, shoppingCount, reco
     ? `今天可以做 ${recommendationCount} 道菜`
     : '先记录几样食材';
   const subtitle = hasInventory
-    ? (recommendationCount > 0 ? '先选一道加入今日计划' : '记下更多食材后，我会帮你找灵感')
+    ? (recommendationCount > 0 ? '先选一道加入计划' : '记下更多食材后，我会帮你找灵感')
     : '添加冰箱食材后，我可以帮你推荐今天吃什么';
   section.innerHTML = `
     <p class="today-focus-greeting">${escapeHtml(getGreetingLabel())}</p>
@@ -1702,7 +1707,7 @@ function createTodayMainCard(pack, inv, state, { onRoute = () => {} } = {}) {
         items.length ? items.join(' · ') : (rec.matchLabel || ''),
         getRecipeTimeDifficultyText(recipe)
       ].filter(Boolean).join(' · ') || '今日推荐',
-      desc: rec.reason || (missing.length ? formatMissingSummary(missing) : '食材匹配度不错，可以先加入今日计划。'),
+      desc: rec.reason || (missing.length ? formatMissingSummary(missing) : '食材匹配度不错，可以先加入计划。'),
       more: true,
       actions: '<button type="button" class="btn ok today-focus-primary" id="todayAddPlan">加入计划</button><button type="button" class="btn today-focus-secondary" id="todayViewRecipe">查看</button>'
     });
@@ -1742,10 +1747,10 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
     subtitle = `准备做 ${planCount} 道菜。记录消耗后，库存会自动更新。`;
   } else if (recommendationCount > 0) {
     title = `今天可以做 ${recommendationCount} 道菜`;
-    subtitle = '先选一道加入今日计划';
+    subtitle = '先选一道加入计划';
   }
   const stats = [
-    ['plan', '今日计划', planCount],
+    ['plan', '计划', planCount],
     ['expiry', '临期', expiringCount],
     ['shopping', '待买', shoppingCount]
   ];
@@ -1757,6 +1762,7 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
       ${stats.map(([tone, label, value]) => `
         <button type="button" class="wx-stat-pill is-${tone}${value ? '' : ' is-empty'}" data-status="${escapeHtml(tone)}" aria-label="查看${escapeHtml(label)}">
           <span>${escapeHtml(label)}</span><b>${escapeHtml(String(value || 0))}</b>
+          <span class="wx-stat-chevron" aria-hidden="true">›</span>
         </button>
       `).join('')}
     </div>
@@ -2110,7 +2116,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     `).join('')}</ol>`;
   };
 
-  const openRecipePreviewModal = (recipe, { sourceLabel = '本地菜谱 · 可以直接加入今日计划' } = {}) => {
+  const openRecipePreviewModal = (recipe, { sourceLabel = '本地菜谱' } = {}) => {
     if (!recipe) return;
     const items = explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
     const { foods, seasonings, nonStock } = splitRecipeIngredients(items);
@@ -2135,7 +2141,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       </div>
       <div class="km-modal-actions recipe-preview-actions">
         <button type="button" class="btn" id="recipePreviewClose">关闭</button>
-        <button type="button" class="btn ok" id="recipePreviewPlan">加入今日计划</button>
+        <button type="button" class="btn ok" id="recipePreviewPlan">加入计划</button>
         <button type="button" class="btn recipe-preview-go-plan" id="recipePreviewGoPlan" hidden>查看今日计划</button>
       </div>
     `;
@@ -2231,7 +2237,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       <div class="km-modal-actions recipe-preview-actions recipe-variant-actions">
         <button type="button" class="btn" id="variantPreviewClose">${confirmPlan ? '取消' : '关闭'}</button>
         <button type="button" class="btn" id="variantPreviewOnly">仅查看做法</button>
-        <button type="button" class="btn ok" id="variantPreviewSave">保存为菜谱并加入今日计划</button>
+        <button type="button" class="btn ok" id="variantPreviewSave">保存为菜谱并加入计划</button>
         <button type="button" class="btn recipe-preview-go-plan" id="variantPreviewGoPlan" hidden>查看今日计划</button>
       </div>
     `;
@@ -2377,10 +2383,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       ? `
         <span class="target-recipe-ai-inline-copy">
           <strong>没有合适的？</strong>
-          <small>用“${escapeHtml(label || '这些食材')}”生成一道新菜</small>
+          <small>用这些食材生成新菜</small>
         </span>
         <button type="button" class="wx-mini-btn is-ai target-recipe-ai-btn" id="targetInlineAiBtn"${status === 'loading' ? ' disabled' : ''}>
-          ${status === 'loading' ? '正在生成...' : 'AI 生成新菜'}
+          ${status === 'loading' ? '正在生成...' : 'AI 生成'}
         </button>
         ${error ? `<p class="target-recipe-ai-inline-error">${escapeHtml(error)}</p>` : ''}
       `
@@ -2389,10 +2395,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
           <span class="home-suggest-match">没有找到本地菜谱</span>
         </div>
         <h3 class="home-suggest-name">AI 生成新菜</h3>
-        <p class="home-suggest-reason">可以用“${escapeHtml(label || '这些食材')}”生成一份可编辑草稿。</p>
+        <p class="home-suggest-reason">可以用这些食材生成可编辑草稿。</p>
         <div class="home-suggest-actions">
           <button type="button" class="btn ok small target-recipe-ai-btn" id="targetInlineAiBtn"${status === 'loading' ? ' disabled' : ''}>
-            ${status === 'loading' ? '正在生成...' : 'AI 生成新菜'}
+            ${status === 'loading' ? '正在生成...' : 'AI 生成'}
           </button>
         </div>
         ${error ? `<p class="target-recipe-ai-inline-error">${escapeHtml(error)}</p>` : ''}
@@ -2472,10 +2478,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     card.innerHTML = `
       <div class="home-suggest-kicker">
         <span class="home-suggest-match">AI 新菜草稿${escapeHtml(modeLabel)}</span>
-        <small class="home-suggest-source">未保存</small>
+          <small class="home-suggest-source">未保存草稿</small>
       </div>
       <h3 class="home-suggest-name">${escapeHtml(draft?.name || 'AI 新菜草稿')}</h3>
-      <p class="home-suggest-reason">确认后保存。</p>
+      <p class="home-suggest-reason">确认后保存</p>
       ${ingredients.length ? `<div class="target-ai-draft-tags">${ingredients.map(item => `<span>${escapeHtml(item.item || item.name || item)}</span>`).join('')}</div>` : ''}
       ${methodSteps.length ? `
         <div class="target-ai-draft-method">

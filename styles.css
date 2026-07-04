@@ -3859,6 +3859,19 @@ html[data-theme="dark"] .receipt-ignored-item {
   border-radius: 999px;
   padding: 5px 9px;
 }
+.home-suggest-details {
+  display: grid;
+  gap: 3px;
+  margin-top: 1px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.home-suggest-details span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .home-suggest-tags {
   display: flex;
   flex-wrap: wrap;
@@ -5646,7 +5659,7 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 6px;
-  flex: 0 1 210px;
+  flex: 0 1 160px;
 }
 .km-expiry-actions .btn {
   flex: 0 0 auto;
@@ -5707,18 +5720,20 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 .km-pending-actions { flex: 0 0 auto; display: flex; gap: 8px; }
 .km-pending-btn {
   flex: 0 0 auto;
-  width: 32px; height: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
   border: 1px solid var(--separator);
   border-radius: 8px;
   background: var(--bg-card);
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 750;
   line-height: 1;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 .km-pending-done { color: var(--primary); }
 .km-pending-done:hover { background: var(--status-ok-bg); border-color: var(--status-ok-border); color: var(--status-ok-text); }
-.km-pending-del:hover { background: rgba(255, 59, 48, 0.12); border-color: var(--status-bad-border); }
 .km-pending-footer { margin-top: 12px; justify-content: center; }
 .km-pending-empty { text-align: center; padding: 18px 8px 6px; }
 .km-pending-empty-text { margin: 0 0 12px; color: var(--text-secondary); font-size: 14px; }
@@ -7953,6 +7968,13 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
   font-size: 13px;
   font-weight: 800;
   color: var(--text-main);
+}
+.wx-stat-chevron {
+  margin-left: -1px;
+  color: currentColor;
+  opacity: 0.48;
+  font-size: 13px;
+  line-height: 1;
 }
 .wx-stat-pill.is-empty {
   opacity: 0.62;

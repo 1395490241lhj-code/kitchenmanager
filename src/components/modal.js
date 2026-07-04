@@ -897,11 +897,6 @@ export function showPendingShoppingModal({ onChange = () => {}, onGoShopping = n
     const idSet = new Set(ids || []);
     saveShoppingItems(loadShoppingItems().map(it => idSet.has(it.id) ? mutate({ ...it }) : it));
   };
-  const deleteByIds = (ids) => {
-    const idSet = new Set(ids || []);
-    saveShoppingItems(loadShoppingItems().filter(it => !idSet.has(it.id)));
-  };
-
   // 底部 / 空态「➕ 添加待买」：切到「待买速记」快速添加弹窗，加完即时刷新本列表与外部计数。
   const openQuickAdd = () => {
     showQuickShoppingModal({ onAdd: () => { renderList(); onChange(); } });
@@ -920,7 +915,7 @@ export function showPendingShoppingModal({ onChange = () => {}, onGoShopping = n
       const empty = document.createElement('div');
       empty.className = 'km-pending-empty';
       empty.innerHTML = `
-        <p class="km-pending-empty-text">暂时没有待买食材</p>
+        <p class="km-pending-empty-text">暂无待买食材</p>
         <button type="button" class="btn ok small km-pending-add" id="pendingAddEmpty">➕ 添加要买</button>
         ${typeof onGoShopping === 'function' ? '<button type="button" class="btn small km-pending-go" id="pendingGoShoppingEmpty">去买菜清单</button>' : ''}
       `;
@@ -946,20 +941,13 @@ export function showPendingShoppingModal({ onChange = () => {}, onGoShopping = n
           ${metaParts.length ? `<span class="km-pending-meta">${escapeHtml(metaParts.join(' · '))}</span>` : ''}
         </div>
         <div class="km-pending-actions">
-          <button type="button" class="km-pending-btn km-pending-done" aria-label="标记完成" title="标记完成">✓</button>
-          <button type="button" class="km-pending-btn km-pending-del" aria-label="删除" title="删除">🗑</button>
+          <button type="button" class="km-pending-btn km-pending-done" aria-label="标记已买" title="标记已买">标记已买</button>
         </div>
       `;
       li.querySelector('.km-pending-done').onclick = () => {
         const nowIso = new Date().toISOString();
         updateByIds(item.ids, it => ({ ...it, done: true, completedAt: it.completedAt || nowIso }));
         showToast('已标记买到', { tone: 'success' });
-        renderList();
-        onChange();
-      };
-      li.querySelector('.km-pending-del').onclick = () => {
-        deleteByIds(item.ids);
-        showToast('已删除', { tone: 'info' });
         renderList();
         onChange();
       };
