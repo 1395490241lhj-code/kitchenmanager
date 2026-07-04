@@ -13,10 +13,16 @@ test('今日页顶部状态区按计划/推荐/空状态展示清晰文案', () 
   const home = read('src/views/home-view.js');
 
   assert.match(home, /function renderWxStatus/);
+  assert.match(home, /function bindWxStatusActions/);
   assert.match(home, /今天可以做 \$\{recommendationCount\} 道菜/);
   assert.match(home, /计划/);
   assert.match(home, /临期/);
   assert.match(home, /待买/);
+  assert.match(home, /data-status="\$\{escapeHtml\(tone\)\}"/);
+  assert.match(home, /panel\.switchTab\?\.\('plan'\)/);
+  assert.match(home, /openExpiryListModal\(inv, pack/);
+  assert.match(home, /showPendingShoppingModal\(\{[\s\S]*onGoShopping:/);
+  assert.match(home, /bindWxStatusActions\(statusHeader, panel, pack, inv/);
 });
 
 test('今日页保留计划/到期/待买/推荐四个轻量 tab', () => {
@@ -143,7 +149,8 @@ test('renderHome 使用顶部状态、四 tab 面板和两个快捷入口', () =
   const home = read('src/views/home-view.js');
   const renderHome = home.slice(home.indexOf('export function renderHome'));
 
-  assert.match(renderHome, /container\.appendChild\(renderWxStatus/);
+  assert.match(renderHome, /const statusHeader = renderWxStatus/);
+  assert.match(renderHome, /container\.appendChild\(statusHeader\)/);
   assert.doesNotMatch(renderHome, /renderCookedQuickStrip/);
   assert.match(renderHome, /createWeatherPanel/);
   assert.match(renderHome, /renderQuickActions/);

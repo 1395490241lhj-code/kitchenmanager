@@ -9,11 +9,11 @@ function read(rel) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('到期食材弹窗加入买菜保留局部反馈并补充 Toast', () => {
+test('临期食材弹窗支持标记已用完并补充 Toast', () => {
   const home = read('src/views/home-view.js');
 
-  assert.match(home, /li\.querySelector\('\.km-expiry-add'\)\.onclick = \(e\) => \{[\s\S]*?addShoppingItem\(it\.name/);
-  assert.match(home, /showToast\('已加入买菜清单', \{ tone: 'success' \}\);[\s\S]*?btn\.textContent = '已加入';[\s\S]*?btn\.disabled = true;[\s\S]*?onChange\(\);/);
+  assert.match(home, /li\.querySelector\('\.km-expiry-done'\)\.onclick = \(e\) => \{[\s\S]*?it\.qty = 0;[\s\S]*?it\.stockStatus = 'empty';[\s\S]*?saveInventory\(inv\);/);
+  assert.match(home, /showToast\('已标记用完', \{ tone: 'success' \}\);[\s\S]*?e\.currentTarget\.textContent = '已用完';[\s\S]*?e\.currentTarget\.disabled = true;[\s\S]*?onChange\(\);/);
 });
 
 test('库存页快速加入成功后显示 Toast，空输入不显示 success Toast', () => {

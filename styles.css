@@ -5641,7 +5641,19 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 .km-expiry-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
 .km-expiry-qty { font-size: 11px; color: var(--text-secondary); }
 .km-expiry-item .km-expiry-days { flex: 0 0 auto; margin: 0 8px; white-space: nowrap; }
-.km-expiry-add { flex: 0 0 auto; padding: 5px 10px; }
+.km-expiry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 1 210px;
+}
+.km-expiry-actions .btn {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 12px;
+}
 
 /* 购物弹窗：添加行（名称整行 + 数量/单位/加入第二行）+ 逐项删除小叉 */
 .km-shop-add { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
@@ -7926,6 +7938,16 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
   background: rgba(120, 120, 128, 0.09);
   color: var(--text-secondary);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+}
+.wx-stat-pill:hover {
+  transform: translateY(-1px);
+}
+.wx-stat-pill:active {
+  transform: translateY(0) scale(0.98);
 }
 .wx-stat-pill b {
   font-size: 13px;

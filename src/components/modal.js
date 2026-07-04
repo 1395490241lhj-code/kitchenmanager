@@ -860,14 +860,14 @@ export function showQuickShoppingNoteModal({ onAdd = () => {} } = {}) {
  * @param {Object}   [opts]
  * @param {Function} [opts.onChange] 列表发生增删/完成后回调（用于刷新首页「待购买」数字）。
  */
-export function showPendingShoppingModal({ onChange = () => {} } = {}) {
+export function showPendingShoppingModal({ onChange = () => {}, onGoShopping = null } = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'km-modal-overlay';
   const panel = document.createElement('div');
   panel.className = 'km-modal-content pending-shop-modal';
   panel.innerHTML = `
     <div class="km-modal-header">
-      <span class="km-modal-title">🛒 待买</span>
+      <span class="km-modal-title">待买清单</span>
       <button type="button" class="km-modal-close" aria-label="关闭">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -906,6 +906,10 @@ export function showPendingShoppingModal({ onChange = () => {} } = {}) {
   const openQuickAdd = () => {
     showQuickShoppingModal({ onAdd: () => { renderList(); onChange(); } });
   };
+  const goShopping = () => {
+    close();
+    if (typeof onGoShopping === 'function') onGoShopping();
+  };
 
   function renderList() {
     // 只显示真正待买：未完成项（done=false）。已完成 / 已入库均不展示。
@@ -916,10 +920,12 @@ export function showPendingShoppingModal({ onChange = () => {} } = {}) {
       const empty = document.createElement('div');
       empty.className = 'km-pending-empty';
       empty.innerHTML = `
-        <p class="km-pending-empty-text">现在没有要买的</p>
+        <p class="km-pending-empty-text">暂时没有待买食材</p>
         <button type="button" class="btn ok small km-pending-add" id="pendingAddEmpty">➕ 添加要买</button>
+        ${typeof onGoShopping === 'function' ? '<button type="button" class="btn small km-pending-go" id="pendingGoShoppingEmpty">去买菜清单</button>' : ''}
       `;
       empty.querySelector('#pendingAddEmpty').onclick = openQuickAdd;
+      empty.querySelector('#pendingGoShoppingEmpty')?.addEventListener('click', goShopping);
       body.appendChild(empty);
       return;
     }
@@ -933,7 +939,7 @@ export function showPendingShoppingModal({ onChange = () => {} } = {}) {
       const source = (item.source && item.source !== '其他') ? item.source : '';
       const metaParts = [];
       if (amount) metaParts.push(amount);
-      if (source) metaParts.push(source);
+      if (source) metaParts.push(`用于：${source.replace(/^菜谱缺货：/, '')}`);
       li.innerHTML = `
         <div class="km-pending-main">
           <span class="km-pending-name">${escapeHtml(item.name)}</span>
@@ -963,7 +969,11 @@ export function showPendingShoppingModal({ onChange = () => {} } = {}) {
 
     const footer = document.createElement('div');
     footer.className = 'km-modal-actions km-pending-footer';
-    footer.innerHTML = '<button type="button" class="btn ok small km-pending-add" id="pendingAddBtn">➕ 添加要买</button>';
+    footer.innerHTML = `
+      ${typeof onGoShopping === 'function' ? '<button type="button" class="btn small km-pending-go" id="pendingGoShoppingBtn">去买菜清单</button>' : ''}
+      <button type="button" class="btn ok small km-pending-add" id="pendingAddBtn">➕ 添加要买</button>
+    `;
+    footer.querySelector('#pendingGoShoppingBtn')?.addEventListener('click', goShopping);
     footer.querySelector('#pendingAddBtn').onclick = openQuickAdd;
     body.appendChild(footer);
   }

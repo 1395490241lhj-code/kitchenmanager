@@ -1,6 +1,6 @@
 import { S, todayISO } from '../storage.js?v=231';
 import { buildCatalog, getCanonicalName, explodeCombinedItems } from '../ingredients.js?v=231';
-import { isInventoryAvailable, loadInventory, remainingDays } from '../inventory.js?v=231';
+import { isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=231';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=231';
 import {
   addMissingRecipeIngredientsToShopping,
@@ -577,8 +577,8 @@ function createHomeModal(contentEl, title = '') {
 
 // ── 弹窗内容构建 ─────────────────────────────────────────────────────────────
 
-/** 「到期食材」弹窗：列出快到期 / 已过期食材（名称·数量单位·到期状态），支持逐项加入购物清单。 */
-function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () => {}, onChange = () => {} } = {}) {
+/** 「临期食材」弹窗：列出快到期 / 已过期食材，并提供做菜、标记用完、编辑入口。 */
+function buildExpiryModal(inv, pack, { onClose = () => {}, onUseIngredient = () => {}, onEditIngredient = () => {}, onViewInventory = () => {}, onChange = () => {} } = {}) {
   const expiring = (inv || [])
     .filter(it => isExpiryTracked(it) && remainingDays(it) <= 3)
     .sort((a, b) => remainingDays(a) - remainingDays(b));
@@ -587,11 +587,12 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () =>
   wrap.className = 'km-modal-body';
 
   if (!expiring.length) {
-    wrap.innerHTML = '<p class="km-modal-empty">✅ 最近没有快到期的食材。</p>';
+    wrap.innerHTML = '<p class="km-modal-empty">最近没有快到期的食材</p>';
     const footer = document.createElement('div');
     footer.className = 'km-modal-actions';
-    footer.innerHTML = '<button type="button" class="btn ok" id="expiryCloseBtn">关闭</button>';
+    footer.innerHTML = '<button type="button" class="btn" id="expiryCloseBtn">关闭</button><button type="button" class="btn ok" id="expiryViewInventoryBtn">查看全部食材</button>';
     footer.querySelector('#expiryCloseBtn').onclick = onClose;
+    footer.querySelector('#expiryViewInventoryBtn').onclick = onViewInventory;
     wrap.appendChild(footer);
     return wrap;
   }
@@ -602,7 +603,7 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () =>
     const d = remainingDays(it);
     const li = document.createElement('li');
     li.className = `km-expiry-item${d < 0 ? ' is-expired' : d <= 1 ? ' is-urgent' : ''}`;
-    const dayText = d < 0 ? `已过期 ${Math.abs(d)} 天` : d === 0 ? '今天到期' : `还剩 ${d} 天`;
+    const dayText = d < 0 ? `已过期 ${Math.abs(d)} 天` : d === 0 ? '今天到期' : d === 1 ? '明天到期' : `${d} 天后到期`;
     const qty = (+it.qty > 0) ? `${escapeHtml(String(it.qty))}${escapeHtml(it.unit || '')}` : '';
     li.innerHTML = `
       <span class="km-expiry-main">
@@ -610,28 +611,32 @@ function buildExpiryModal(inv, pack, { onClose = () => {}, onCleanFridge = () =>
         ${qty ? `<span class="km-expiry-qty">${qty}</span>` : ''}
       </span>
       <span class="km-expiry-days">${dayText}</span>
-      <button type="button" class="btn small km-expiry-add">加入买菜</button>
+      <span class="km-expiry-actions">
+        <button type="button" class="btn small km-expiry-use">用它做菜</button>
+        <button type="button" class="btn small km-expiry-done">已用完</button>
+        <button type="button" class="btn small km-expiry-edit">编辑</button>
+      </span>
     `;
-    li.querySelector('.km-expiry-add').onclick = (e) => {
-      addShoppingItem(it.name, (+it.qty > 0 ? it.qty : ''), it.unit || '', '临期补货');
-      showToast('已加入买菜清单', { tone: 'success' });
-      const btn = e.currentTarget;
-      btn.textContent = '已加入';
-      btn.disabled = true;
+    li.querySelector('.km-expiry-use').onclick = () => onUseIngredient(it);
+    li.querySelector('.km-expiry-done').onclick = (e) => {
+      it.qty = 0;
+      it.stockStatus = 'empty';
+      saveInventory(inv);
+      showToast('已标记用完', { tone: 'success' });
+      e.currentTarget.textContent = '已用完';
+      e.currentTarget.disabled = true;
       onChange();
     };
+    li.querySelector('.km-expiry-edit').onclick = () => onEditIngredient(it);
     list.appendChild(li);
   });
   wrap.appendChild(list);
 
   const footer = document.createElement('div');
   footer.className = 'km-modal-actions';
-  footer.innerHTML = expiring.length >= 2
-    ? '<button type="button" class="btn" id="expiryCloseBtn">关闭</button><button type="button" class="btn km-modal-ai-btn" id="expiryCleanFridgeBtn">✨ 帮我清冰箱</button>'
-    : '<button type="button" class="btn ok" id="expiryCloseBtn">关闭</button>';
+  footer.innerHTML = '<button type="button" class="btn" id="expiryCloseBtn">关闭</button><button type="button" class="btn ok" id="expiryViewInventoryBtn">查看全部食材</button>';
   footer.querySelector('#expiryCloseBtn').onclick = onClose;
-  const cleanBtn = footer.querySelector('#expiryCleanFridgeBtn');
-  if (cleanBtn) cleanBtn.onclick = onCleanFridge;
+  footer.querySelector('#expiryViewInventoryBtn').onclick = onViewInventory;
   wrap.appendChild(footer);
 
   return wrap;
@@ -642,10 +647,23 @@ function openExpiryListModal(inv, pack, { onRoute = () => {}, onChange = () => {
   let closeFn = () => {};
   const body = buildExpiryModal(inv, pack, {
     onClose: () => closeFn(),
-    onCleanFridge: () => { closeFn(); openCleanFridgeHelper(pack, inv, onRoute); },
+    onUseIngredient: (item) => {
+      closeFn();
+      targetRecipeQuery = item?.name || '';
+      setHomeTab('recs');
+      onRoute();
+    },
+    onEditIngredient: () => {
+      closeFn();
+      location.hash = '#inventory';
+    },
+    onViewInventory: () => {
+      closeFn();
+      location.hash = '#inventory';
+    },
     onChange
   });
-  const { close } = createHomeModal(body, '⏳ 到期食材');
+  const { close } = createHomeModal(body, '临期食材');
   closeFn = close;
 }
 
@@ -1737,13 +1755,37 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
     <p class="wx-sub">${escapeHtml(subtitle)}</p>
     <div class="wx-summary-stats" aria-label="今日厨房状态">
       ${stats.map(([tone, label, value]) => `
-        <span class="wx-stat-pill is-${tone}${value ? '' : ' is-empty'}">
+        <button type="button" class="wx-stat-pill is-${tone}${value ? '' : ' is-empty'}" data-status="${escapeHtml(tone)}" aria-label="查看${escapeHtml(label)}">
           <span>${escapeHtml(label)}</span><b>${escapeHtml(String(value || 0))}</b>
-        </span>
+        </button>
       `).join('')}
     </div>
   `;
   return section;
+}
+
+function bindWxStatusActions(statusEl, panel, pack, inv, { onRoute = () => {} } = {}) {
+  statusEl.querySelector('[data-status="plan"]')?.addEventListener('click', () => {
+    panel.switchTab?.('plan');
+  });
+  statusEl.querySelector('[data-status="expiry"]')?.addEventListener('click', () => {
+    openExpiryListModal(inv, pack, {
+      onRoute,
+      onChange: () => {
+        panel.switchTab?.('expiry');
+      }
+    });
+  });
+  statusEl.querySelector('[data-status="shopping"]')?.addEventListener('click', () => {
+    showPendingShoppingModal({
+      onChange: () => {
+        panel.switchTab?.('shopping');
+      },
+      onGoShopping: () => {
+        location.hash = '#shopping';
+      }
+    });
+  });
 }
 
 // 页内记忆（仅内存，不持久化）；当前 tab 状态抽到 home/home-tab-state.js 与 demo 模块共享。
@@ -2767,7 +2809,11 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   const defaultTab = defaultRecCount > 0 ? 'recs' : (defaultPlanCount > 0 ? 'plan' : 'plan');
   switchTab(getHomeTab() || defaultTab);
 
-  return { el: section, refresh: () => switchTab(getHomeTab() || defaultTab) };
+  return {
+    el: section,
+    refresh: () => switchTab(getHomeTab() || defaultTab),
+    switchTab
+  };
 }
 
 // 「明天备菜」提醒已融入计划组件（menu-plan.js：顶部 menu-prep-alert + 行内 menu-prep-tags），
@@ -2788,14 +2834,16 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
   // 只压轻视觉和按钮层级；不改推荐算法、不接新 API。
   const inspirationCards = perfMeasure('getInspirationCards(home)', () => getInspirationCards(pack, inv));
   const summaryStats = getTodaySummaryStats(pack, inv, { inspirationCards });
-  container.appendChild(renderWxStatus(summaryStats));
+  const statusHeader = renderWxStatus(summaryStats);
+  const panel = perfMeasure('createWeatherPanel', () => createWeatherPanel(pack, inv, { onRoute, inspirationCards }));
+  bindWxStatusActions(statusHeader, panel, pack, inv, { onRoute });
+  container.appendChild(statusHeader);
   const backupNudge = renderBackupNudge(inv, { isDemoMode });
   if (backupNudge) container.appendChild(backupNudge);
   else {
     const pwaNudge = renderPwaInstallNudge(inv, { isDemoMode });
     if (pwaNudge) container.appendChild(pwaNudge);
   }
-  const panel = perfMeasure('createWeatherPanel', () => createWeatherPanel(pack, inv, { onRoute, inspirationCards }));
   container.appendChild(panel.el);
   container.appendChild(renderQuickActions(pack, inv, { onRoute, refreshStatus: panel.refresh }));
 
