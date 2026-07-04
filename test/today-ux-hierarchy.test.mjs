@@ -25,14 +25,16 @@ test('今日页顶部状态区按计划/推荐/空状态展示清晰文案', () 
   assert.match(home, /bindWxStatusActions\(statusHeader, panel, pack, inv/);
 });
 
-test('今日页保留计划/到期/待买/推荐四个轻量 tab', () => {
+test('今日页主面板只保留计划和推荐两个轻量 tab', () => {
   const home = read('src/views/home-view.js');
 
   assert.match(home, /function createWeatherPanel/);
+  assert.match(home, /is-two-tab/);
   assert.match(home, /data-tab="plan"[^>]*>📅 计划/);
-  assert.match(home, /data-tab="expiry"[^>]*>⏳ 到期/);
-  assert.match(home, /data-tab="shopping"[^>]*>🛒 待买/);
   assert.match(home, /data-tab="recs"[^>]*>✨ 推荐/);
+  assert.doesNotMatch(home, /data-tab="expiry"[^>]*>⏳ 到期/);
+  assert.doesNotMatch(home, /data-tab="shopping"[^>]*>🛒 待买/);
+  assert.match(home, /const TAB_RENDERERS = \{ plan: renderPlanTab, recs: renderRecsTab \};/);
 });
 
 test('推荐 tab 第一层保留找菜输入区，并复用现有搜索推荐逻辑', () => {
@@ -125,7 +127,7 @@ test('更多菜单只收纳低频管理操作', () => {
 test('今日计划页去掉重复消耗横条和冗余筛选', () => {
   const home = read('src/views/home-view.js');
   const renderHome = home.slice(home.indexOf('export function renderHome'));
-  const renderPlanTab = home.slice(home.indexOf('const renderPlanTab'), home.indexOf('// ── ⏳ 到期'));
+  const renderPlanTab = home.slice(home.indexOf('const renderPlanTab'), home.indexOf('// ── ✨ 推荐'));
 
   assert.doesNotMatch(renderHome, /renderCookedQuickStrip/);
   assert.doesNotMatch(renderPlanTab, /createRecordCookedCta/);
@@ -145,7 +147,7 @@ test('demo banner 逻辑仍保留', () => {
   assert.match(home, /if \(isDemoMode\) \{\s*container\.appendChild\(renderDemoKitchenBanner/);
 });
 
-test('renderHome 使用顶部状态、四 tab 面板和两个快捷入口', () => {
+test('renderHome 使用顶部状态、两 tab 面板和两个快捷入口', () => {
   const home = read('src/views/home-view.js');
   const renderHome = home.slice(home.indexOf('export function renderHome'));
 

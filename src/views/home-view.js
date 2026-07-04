@@ -1164,7 +1164,7 @@ function renderMainCard(pack, inv, { onRoute = () => {} } = {}) {
   return card;
 }
 
-// ③ 快捷操作区（两个轻量入口）：记食材 + 导入菜谱。待买速记入口放进「待买」Tab。
+// ③ 快捷操作区（两个轻量入口）：记食材 + 导入菜谱。临期/待买详情从顶部状态进入。
 function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () => {} } = {}) {
   const section = document.createElement('section');
   section.className = 'today-section today-quick';
@@ -1869,7 +1869,7 @@ function parseTargetRecipeQuery(query, inv) {
   return parsed;
 }
 
-// 单一主信息面板：顶部 segmented tabs（📅计划 / ⏳到期 / 🛒待买 / ✨推荐），
+// 单一主信息面板：顶部 segmented tabs（📅计划 / ✨推荐），
 // 下方同一块 .wx-body 区域按 tab 重渲染内容——巧妙复用同一块屏幕空间。
 function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = null } = {}) {
   // 本面板生命周期内的本地推荐缓存：pack/inv 在一次渲染内不变（任何写库操作都会
@@ -1880,12 +1880,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     return inspirationCache;
   };
   const section = document.createElement('section');
-  section.className = 'wx-panel glass-panel';
+  section.className = 'wx-panel glass-panel is-two-tab';
   section.innerHTML = `
     <div class="wx-tabs" role="tablist">
       <button type="button" class="wx-tab" data-tab="plan" role="tab">📅 计划</button>
-      <button type="button" class="wx-tab" data-tab="expiry" role="tab">⏳ 到期</button>
-      <button type="button" class="wx-tab" data-tab="shopping" role="tab">🛒 待买</button>
       <button type="button" class="wx-tab" data-tab="recs" role="tab">✨ 推荐</button>
     </div>
     <div class="wx-body" role="tabpanel"></div>
@@ -2788,7 +2786,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     };
   };
 
-  const TAB_RENDERERS = { plan: renderPlanTab, expiry: renderExpiryTab, shopping: renderShoppingTab, recs: renderRecsTab };
+  const TAB_RENDERERS = { plan: renderPlanTab, recs: renderRecsTab };
   const switchTab = (name) => {
     const tab = TAB_RENDERERS[name] ? name : 'plan';
     setHomeTab(tab);
@@ -2830,7 +2828,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
     container.appendChild(renderDemoKitchenBanner({ onRoute }));
   }
 
-  // 轻量 Today：保留原有「计划 / 到期 / 待买 / 推荐」清晰分区，
+  // 轻量 Today：主面板保留「计划 / 推荐」，临期和待买由顶部状态弹窗承接，
   // 只压轻视觉和按钮层级；不改推荐算法、不接新 API。
   const inspirationCards = perfMeasure('getInspirationCards(home)', () => getInspirationCards(pack, inv));
   const summaryStats = getTodaySummaryStats(pack, inv, { inspirationCards });

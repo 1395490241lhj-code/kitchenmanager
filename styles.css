@@ -7889,7 +7889,7 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
 
 /* ══════════════════════════════════════════════════════════════════════════
  *  首页 Weather-style 单面板（v158）—— 顶部固定主状态 + 单一 glass 面板，
- *  面板顶部 segmented tabs 切换数据维度（📅计划/⏳到期/🛒待买/✨推荐）。
+ *  面板顶部 segmented tabs 切换数据维度（📅计划/✨推荐）。
  *  复用现有 glass token，不新增 design token。
  * ══════════════════════════════════════════════════════════════════════════ */
 
@@ -11140,6 +11140,16 @@ html[data-theme="dark"] .today-all-rec-row {
   background: rgba(255,255,255,0.62);
   border-color: rgba(60, 60, 67, 0.08);
   box-shadow: 0 5px 14px rgba(60, 64, 67, 0.07);
+}
+
+.wx-panel.is-two-tab .wx-tabs {
+  min-height: 38px;
+  padding: 4px;
+}
+
+.wx-panel.is-two-tab .wx-tab {
+  min-height: 30px;
+  font-size: 13px;
 }
 
 .wx-body {
