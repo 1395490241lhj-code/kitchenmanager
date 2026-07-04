@@ -89,7 +89,7 @@ test('almost recommendation cards can join today plan and still fill shopping li
   const home = read('src/views/home-view.js');
   const styles = read('styles.css');
 
-  assert.match(home, /<button type="button" class="btn ok small home-suggest-cook">加入今日计划<\/button>/);
+  assert.match(home, /<button type="button" class="btn ok small home-suggest-cook">加入计划<\/button>/);
   assert.match(home, /home-suggest-shopping/);
   assert.match(home, /补到买菜/);
   assert.match(home, /await addRecipeToPlanWithMissingCheck\(card\.id, pack, inv/);

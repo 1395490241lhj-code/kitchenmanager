@@ -25,7 +25,7 @@ test('推荐卡按钮、切换和 Toast 反馈仍保留', () => {
   assert.match(home, /home-suggest-preview/);
   assert.match(home, /查看做法/);
   assert.match(home, /home-suggest-cook/);
-  assert.match(home, /加入今日计划/);
+  assert.match(home, /加入计划/);
   assert.match(home, /home-suggest-shopping/);
   assert.match(home, /补到买菜/);
   assert.match(home, /const stepRecommendation = \(delta = 1\) =>/);

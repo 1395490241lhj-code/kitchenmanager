@@ -239,12 +239,15 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
   const canPreview = canPreviewVariant || Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !String(card.id).startsWith('creative-'));
   const sourceText = variant?.sourceLabel ? `<small class="home-suggest-source">${escapeHtml(variant.sourceLabel)}</small>` : '';
   const missing = Array.from(new Set((card.missing || []).map(item => String(item || '').trim()).filter(Boolean)));
-  const missingSummary = formatMissingSummary(missing);
-  const missingTag = missingSummary
-    ? `<span class="home-suggest-missing">${escapeHtml(missingSummary)}</span>`
+  const missingSummary = missing.length
+    ? (missing.length === 1 ? '还缺 1 样' : `还缺 ${missing.length} 样`)
+    : '';
+  const missingNames = missing.slice(0, 4).join('、');
+  const missingTag = missingNames
+    ? `<span class="home-suggest-missing">${escapeHtml(missingNames)}${missing.length > 4 ? '等' : ''}</span>`
     : '';
   const tags = getSuggestTags(card, missing);
-  const reason = missingSummary || card.reason || (card.tone === 'ready' ? '食材基本齐，可以直接做' : '');
+  const reason = card.reason || missingSummary || (card.tone === 'ready' ? '食材基本齐，可以直接做' : '');
   el.innerHTML = `
     <div class="home-suggest-kicker">
       <span class="home-suggest-match">${escapeHtml(card.matchLabel || '今日推荐')}</span>
@@ -257,7 +260,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       ${tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}
     </div>
     <div class="home-suggest-actions">
-      <button type="button" class="btn ok small home-suggest-cook">加入今日计划</button>
+      <button type="button" class="btn ok small home-suggest-cook">加入计划</button>
       ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看</button>' : ''}
       ${missing.length && card.row ? '<button type="button" class="btn small home-suggest-shopping">补到买菜</button>' : ''}
       ${typeof onMoreRecommendation === 'function' ? '<button type="button" class="btn small home-suggest-more" aria-label="更多操作" title="更多操作">⋯</button>' : ''}
@@ -1351,12 +1354,12 @@ function renderTodayRecipeSearch(context, { onRoute = () => {} } = {}) {
   section.className = 'today-recipe-search';
   const hasQuery = Boolean(context.rawQuery);
   const hint = hasQuery
-    ? (context.resultCount ? `找到 ${context.resultCount} 个可用结果` : '没找到现有菜谱，可以换个菜名或食材。')
-    : '输入菜名或食材，找到后可以直接加入今天。';
+    ? (context.resultCount ? `找到 ${context.resultCount} 道` : '未找到')
+    : '';
   section.innerHTML = `
     <div class="today-recipe-search-copy">
       <strong>想做什么？</strong>
-      <span>${escapeHtml(hint)}</span>
+      ${hint ? `<span>${escapeHtml(hint)}</span>` : ''}
     </div>
     <div class="today-recipe-search-row">
       <input class="today-recipe-search-input" type="text" value="${escapeOptionAttr(targetRecipeQuery)}" placeholder="比如 番茄炒蛋 / 鸡蛋 番茄">
@@ -1721,7 +1724,7 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
     subtitle = `准备做 ${planCount} 道菜。记录消耗后，库存会自动更新。`;
   } else if (recommendationCount > 0) {
     title = `今天可以做 ${recommendationCount} 道菜`;
-    subtitle = '根据你现在的食材，先选一道加入今日计划。';
+    subtitle = '先选一道加入今日计划';
   }
   const stats = [
     ['plan', '今日计划', planCount],
@@ -2003,19 +2006,19 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     search.className = 'target-recipe-search';
     const hint = hasQuery
       ? ([
-          nameCount ? `找到 ${nameCount} 道现有菜谱` : '',
-          targetNames.length && Number.isFinite(resultCount) ? `按食材推荐 ${resultCount} 道` : ''
-        ].filter(Boolean).join(' · ') || '没找到现有菜谱，可以让 AI 生成草稿。')
-      : '输入菜名或食材，找到后可以直接加入今天。';
+          Number.isFinite(resultCount) ? `找到 ${resultCount} 道` : '',
+          !Number.isFinite(resultCount) && nameCount ? `找到 ${nameCount} 道` : ''
+        ].filter(Boolean)[0] || '未找到')
+      : '';
     search.innerHTML = `
       <div class="target-recipe-head">
         <span>想做什么？</span>
-        <small class="target-recipe-hint">${hint}</small>
+        ${hint ? `<small class="target-recipe-hint">${escapeHtml(hint)}</small>` : ''}
       </div>
       <div class="target-recipe-input-row">
         <input class="target-recipe-input" type="text" value="${escapeOptionAttr(targetRecipeQuery)}" placeholder="比如 番茄炒蛋 / 鸡蛋 番茄">
         <button type="button" class="target-recipe-btn">找菜</button>
-        ${hasQuery ? '<button type="button" class="target-recipe-clear" aria-label="清空搜索" title="清空搜索">❌</button>' : ''}
+        ${hasQuery ? '<button type="button" class="target-recipe-clear" aria-label="清空搜索" title="清空搜索">×</button>' : ''}
       </div>
     `;
     const input = search.querySelector('.target-recipe-input');
@@ -2371,9 +2374,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         <span class="home-suggest-match">已保存为菜谱</span>
       </div>
       <h3 class="home-suggest-name">${escapeHtml(draft?.name || 'AI 新菜')}</h3>
-      <p class="home-suggest-reason">这道新菜已经保存，可以加入今日计划或查看菜谱。</p>
+      <p class="home-suggest-reason">已保存，可加入计划或查看。</p>
       <div class="home-suggest-actions">
-        <button type="button" class="btn ok small" id="targetAiAddSaved">加入今日计划</button>
+        <button type="button" class="btn ok small" id="targetAiAddSaved">加入计划</button>
         <button type="button" class="btn small" id="targetAiViewSaved">查看菜谱</button>
       </div>
     `;
@@ -2432,7 +2435,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         <small class="home-suggest-source">未保存</small>
       </div>
       <h3 class="home-suggest-name">${escapeHtml(draft?.name || 'AI 新菜草稿')}</h3>
-      <p class="home-suggest-reason">这还不是正式菜谱，请确认后保存。</p>
+      <p class="home-suggest-reason">确认后保存。</p>
       ${ingredients.length ? `<div class="target-ai-draft-tags">${ingredients.map(item => `<span>${escapeHtml(item.item || item.name || item)}</span>`).join('')}</div>` : ''}
       ${methodSteps.length ? `
         <div class="target-ai-draft-method">
@@ -2656,7 +2659,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     }
     bindRecommendationCycling(cardWrap);
     if (hasSearchQuery) {
-      const countText = `找到 ${cards.length} 道，正在查看第 ${idx + 1} 道`;
+      const countText = `第 ${idx + 1} / ${cards.length} 道`;
       if (hasInlineAiState) {
         body.appendChild(renderTargetSectionTitle('AI 新菜草稿', `根据“${getInlineAiLabel(targetNames, rawQuery)}”生成`));
       } else if (cards.length && mode === 'target' && targetNames.length) {
@@ -2667,7 +2670,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         body.appendChild(renderTargetSectionTitle('没有找到本地菜谱', `可以用“${getInlineAiLabel(targetNames, rawQuery)}”生成一道新菜`));
       }
     } else if (cards.length) {
-      body.appendChild(renderWxSectionIntro('推荐先做这几道', '优先显示食材更齐、能用掉临期食材的菜。'));
+      body.appendChild(renderWxSectionIntro('推荐', ''));
     } else {
       body.appendChild(renderWxSectionIntro('暂无合适推荐', '再记录几样食材，推荐会更准。'));
     }
