@@ -875,6 +875,40 @@ export function validateRecommendationResult(input) {
   return { local, creative };
 }
 
+export function validateWeeklyMenuPlanResult(input) {
+  const data = safeParseJson(input, '本周菜单规划结果');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('本周菜单规划结果格式不对。');
+  const meals = Array.isArray(data.meals)
+    ? data.meals.map(item => {
+      const name = String(item?.name || '').trim();
+      if (!name) return null;
+      const recipeId = String(item?.recipeId || '').trim();
+      const daySuggestion = String(item?.daySuggestion || '').trim();
+      const reason = String(item?.reason || '').trim();
+      const difficulty = String(item?.difficulty || '').trim();
+      const toTextList = value => Array.isArray(value)
+        ? value.map(x => String(x || '').trim()).filter(Boolean).slice(0, 6)
+        : [];
+      return {
+        name,
+        ...(recipeId ? { recipeId } : {}),
+        ...(daySuggestion ? { daySuggestion } : {}),
+        ...(reason ? { reason } : {}),
+        ...(difficulty ? { difficulty } : {}),
+        balanceTags: toTextList(item?.balanceTags),
+        uses: toTextList(item?.uses),
+        missing: toTextList(item?.missing)
+      };
+    }).filter(Boolean).slice(0, 6)
+    : [];
+  const shoppingSummary = Array.isArray(data.shoppingSummary)
+    ? data.shoppingSummary.map(item => String(item || '').trim()).filter(Boolean).slice(0, 12)
+    : [];
+  const notes = String(data.notes || '').trim();
+  if (!meals.length) throw new Error('本周菜单规划结果里没有可用建议。');
+  return { meals, shoppingSummary, notes };
+}
+
 function validateMethodResult(input) {
   const data = safeParseJson(input, 'AI 做法结果');
   const method = String(data?.method || '').trim();
@@ -1469,6 +1503,70 @@ export async function callCloudAI(pack, inv) {
 
   const raw = await callAiService(prompt, null, { taskType: 'recommendation' });
   return validateRecommendationResult(raw);
+}
+
+export async function callAiWeeklyMenuPlan({
+  mealsCount = 4,
+  preferences = {},
+  userRequest = '',
+  inventory = [],
+  expiringItems = [],
+  favoriteRecipes = [],
+  localCandidateRecipes = [],
+  existingPlan = []
+} = {}) {
+  const payload = {
+    mealsCount: Math.max(3, Math.min(5, Number(mealsCount) || 4)),
+    preferences: {
+      useExpiring: Boolean(preferences.useExpiring ?? preferences.expiring),
+      useInventory: Boolean(preferences.useInventory ?? preferences.inventory),
+      quickMeals: Boolean(preferences.quickMeals ?? preferences.quick),
+      lunchboxFriendly: Boolean(preferences.lunchboxFriendly ?? preferences.lunchbox)
+    },
+    userRequest: String(userRequest || '').trim().slice(0, 500),
+    inventory: (inventory || []).slice(0, 40),
+    expiringItems: (expiringItems || []).slice(0, 12),
+    favoriteRecipes: (favoriteRecipes || []).slice(0, 10),
+    localCandidateRecipes: (localCandidateRecipes || []).slice(0, 12),
+    existingPlan: (existingPlan || []).slice(0, 10)
+  };
+
+  const prompt = `你是 Kitchen Manager 的家庭厨房周菜单规划助手。请根据用户库存、临期食材、偏好和本地候选菜，规划接下来一周在家做的 ${payload.mealsCount} 顿饭。
+
+请优先从 localCandidateRecipes 中选择；如果某道建议来自候选菜，必须保留它的 recipeId。
+可以提出少量本地没有的新菜名，但不要自动创建菜谱，也不要写入计划或买菜清单。
+
+输入数据：
+${JSON.stringify(payload, null, 2)}
+
+请严格只返回 JSON 对象，不要 markdown，不要解释：
+{
+  "meals": [
+    {
+      "name": "菜名",
+      "recipeId": "optional-existing-recipe-id",
+      "daySuggestion": "周一",
+      "reason": "为什么适合本周",
+      "difficulty": "简单",
+      "balanceTags": ["蛋白质", "带饭"],
+      "uses": ["会用到的库存食材"],
+      "missing": ["需要买的核心食材"]
+    }
+  ],
+  "shoppingSummary": ["需要买的核心食材"],
+  "notes": "一句话总结"
+}
+
+规则：
+- meals 数量尽量接近 mealsCount。
+- missing 只放核心食材，不放盐、糖、油、生抽、老抽、料酒、水、葱姜蒜、适量、少许。
+- 如果用户要求不吃某类食材，必须避开。
+- 如果 useExpiring 为 true，优先安排临期食材。
+- 如果 lunchboxFriendly 为 true，至少安排适合带饭的菜。
+- 口味尽量不要重复，难度不要都太高。`;
+
+  const raw = await callAiService(prompt, null, { taskType: 'weekly-menu-plan' });
+  return validateWeeklyMenuPlanResult(raw);
 }
 
 // 智能录入解析服务：抓取与大模型调用都在后端（server.js）完成。

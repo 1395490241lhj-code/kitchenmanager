@@ -162,7 +162,7 @@ test('今日计划页去掉重复消耗横条和冗余筛选', () => {
   assert.match(home, /openCookedMealModal/);
 });
 
-test('计划 Tab 提供轻量本周菜单入口但不新增推荐后端流程', () => {
+test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', () => {
   const home = read('src/views/home-view.js');
   const styles = read('styles.css');
   const renderPlanTab = home.slice(home.indexOf('const renderPlanTab'), home.indexOf('// ── ✨ 推荐'));
@@ -173,13 +173,16 @@ test('计划 Tab 提供轻量本周菜单入口但不新增推荐后端流程', 
   assert.match(home, /function openWeeklyMenuModal/);
   assert.match(home, /function buildWeeklyMenuSuggestions/);
   assert.match(home, /function addWeeklyPlanShortagesToShopping/);
+  assert.match(home, /callAiWeeklyMenuPlan/);
   assert.match(renderPlanTab, /renderWeeklyMenuCard\(pack, inv, \{ onRoute \}\)/);
   assert.match(renderPlanTab, /renderMenuPlan\(pack, \{ onRoute, hideHeader: true, inventory: inv \}\)/);
   assert.match(home, /本周菜单/);
   assert.match(home, /规划本周/);
   assert.match(home, /补齐待买/);
   assert.match(home, /这周打算在家做几顿？/);
-  assert.match(home, /生成建议/);
+  assert.match(home, /补充要求/);
+  assert.match(home, /AI 规划本周菜单/);
+  assert.match(home, /用本地建议/);
   assert.match(home, /rankRecipesForRecommendation\(pack, inv/);
   assert.match(home, /getPlanMissingItems\(recipe, pack, inv\)/);
   assert.match(home, /本周菜单缺货/);
@@ -190,6 +193,7 @@ test('计划 Tab 提供轻量本周菜单入口但不新增推荐后端流程', 
   assert.match(styles, /\.weekly-menu-card/);
   assert.match(styles, /\.weekly-menu-sheet/);
   assert.match(styles, /\.weekly-menu-modal/);
+  assert.match(styles, /\.weekly-menu-request/);
   assert.match(styles, /\.weekly-menu-checks[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.weekly-menu-suggestion/);
 });

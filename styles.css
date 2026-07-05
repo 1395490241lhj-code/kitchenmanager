@@ -8254,6 +8254,17 @@ html[data-theme="dark"] .wx-tab.is-active {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.weekly-menu-request {
+  width: 100%;
+  min-height: 72px;
+  max-height: 112px;
+  resize: vertical;
+  border-radius: 16px;
+  padding: 11px 12px;
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.45;
+}
 .weekly-menu-generate-row {
   display: flex;
   gap: 8px;
@@ -8266,11 +8277,27 @@ html[data-theme="dark"] .wx-tab.is-active {
   gap: 10px;
   padding-top: 2px;
 }
+.weekly-menu-results-head {
+  display: grid;
+  gap: 3px;
+}
 .weekly-menu-results h4 {
   margin: 0;
   color: var(--text-main);
   font-size: 14px;
   font-weight: 850;
+}
+.weekly-menu-results-head p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.weekly-menu-error {
+  padding: 10px;
+  border: 1px solid var(--status-warn-border);
+  border-radius: 16px;
+  background: var(--status-warn-bg);
 }
 .weekly-menu-suggestion-list {
   display: grid;
@@ -8296,12 +8323,24 @@ html[data-theme="dark"] .wx-tab.is-active {
   font-size: 14px;
   font-weight: 850;
 }
+.weekly-menu-day {
+  width: fit-content;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--primary);
+  background: rgba(0, 122, 255, 0.10);
+  border: 1px solid rgba(0, 122, 255, 0.14);
+  font-weight: 800;
+}
 .weekly-menu-suggestion-main span,
 .weekly-menu-suggestion-main small,
 .weekly-menu-empty {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.35;
+}
+.weekly-menu-ai-note {
+  color: var(--status-warn-text) !important;
 }
 .weekly-menu-empty {
   margin: 0;
@@ -8315,7 +8354,12 @@ html[data-theme="dark"] .wx-tab.is-active {
 .weekly-menu-results-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
   padding-top: 2px;
+}
+.weekly-menu-results-actions .btn.ok {
+  order: -1;
 }
 @media (max-width: 420px) {
   .weekly-menu-modal {
@@ -8329,6 +8373,12 @@ html[data-theme="dark"] .wx-tab.is-active {
   }
   .weekly-menu-suggestion-actions {
     justify-content: flex-start;
+  }
+  .weekly-menu-results-actions {
+    justify-content: stretch;
+  }
+  .weekly-menu-results-actions .btn {
+    flex: 1 1 120px;
   }
 }
 .wx-panel .menu-plan-card,
