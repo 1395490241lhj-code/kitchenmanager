@@ -886,6 +886,7 @@ export function validateWeeklyMenuPlanResult(input) {
       const daySuggestion = String(item?.daySuggestion || '').trim();
       const reason = String(item?.reason || '').trim();
       const difficulty = String(item?.difficulty || '').trim();
+      const servings = Math.trunc(Number(item?.servings || 0));
       const toTextList = value => Array.isArray(value)
         ? value.map(x => String(x || '').trim()).filter(Boolean).slice(0, 6)
         : [];
@@ -893,6 +894,7 @@ export function validateWeeklyMenuPlanResult(input) {
         name,
         ...(recipeId ? { recipeId } : {}),
         ...(daySuggestion ? { daySuggestion } : {}),
+        ...(Number.isFinite(servings) && servings > 0 ? { servings } : {}),
         ...(reason ? { reason } : {}),
         ...(difficulty ? { difficulty } : {}),
         balanceTags: toTextList(item?.balanceTags),
@@ -1507,6 +1509,7 @@ export async function callCloudAI(pack, inv) {
 
 export async function callAiWeeklyMenuPlan({
   mealsCount = 4,
+  peopleCount = 2,
   preferences = {},
   userRequest = '',
   inventory = [],
@@ -1517,6 +1520,7 @@ export async function callAiWeeklyMenuPlan({
 } = {}) {
   const payload = {
     mealsCount: Math.max(1, Math.min(10, Math.trunc(Number(mealsCount) || 4))),
+    peopleCount: Math.max(1, Math.min(8, Math.trunc(Number(peopleCount) || 2))),
     preferences: {
       useExpiring: Boolean(preferences.useExpiring ?? preferences.expiring),
       useInventory: Boolean(preferences.useInventory ?? preferences.inventory),
@@ -1531,7 +1535,7 @@ export async function callAiWeeklyMenuPlan({
     existingPlan: (existingPlan || []).slice(0, 10)
   };
 
-  const prompt = `你是 Kitchen Manager 的家庭厨房周菜单规划助手。请根据用户库存、临期食材、偏好和本地候选菜，规划接下来一周在家做的 ${payload.mealsCount} 顿饭。
+  const prompt = `你是 Kitchen Manager 的家庭厨房周菜单规划助手。请根据用户库存、临期食材、偏好和本地候选菜，规划接下来一周在家做的 ${payload.mealsCount} 顿饭，服务 ${payload.peopleCount} 人。
 
 请优先从 localCandidateRecipes 中选择；如果某道建议来自候选菜，必须保留它的 recipeId。
 可以提出少量本地没有的新菜名，但不要自动创建菜谱，也不要写入计划或买菜清单。
@@ -1546,6 +1550,7 @@ ${JSON.stringify(payload, null, 2)}
       "name": "菜名",
       "recipeId": "optional-existing-recipe-id",
       "daySuggestion": "周一",
+      "servings": ${payload.peopleCount},
       "reason": "为什么适合本周",
       "difficulty": "简单",
       "balanceTags": ["蛋白质", "带饭"],
@@ -1559,11 +1564,15 @@ ${JSON.stringify(payload, null, 2)}
 
 规则：
 - meals 数量尽量接近 mealsCount。
+- servings 默认等于 peopleCount；如果适合带饭，可以设为 peopleCount + 1。
+- 每道菜按 peopleCount 人份规划，不要让每顿菜量明显过少。
 - missing 只放核心食材，不放盐、糖、油、生抽、老抽、料酒、水、葱姜蒜、适量、少许。
 - 如果用户要求不吃某类食材，必须避开。
 - 如果 useExpiring 为 true，优先安排临期食材。
 - 如果 lunchboxFriendly 为 true，至少安排适合带饭的菜。
-- 口味尽量不要重复，难度不要都太高。`;
+- 如果 lunchboxFriendly 为 true，可以安排部分菜多做 1 份。
+- 尽量兼顾蛋白质、蔬菜、主食搭配。
+- 不要安排连续多顿口味或主蛋白重复太高的菜，难度不要都太高。`;
 
   const raw = await callAiService(prompt, null, { taskType: 'weekly-menu-plan' });
   return validateWeeklyMenuPlanResult(raw);

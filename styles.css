@@ -8212,7 +8212,8 @@ html[data-theme="dark"] .wx-tab.is-active {
   font-weight: 750;
   white-space: nowrap;
 }
-.weekly-menu-meal-input {
+.weekly-menu-meal-input,
+.weekly-menu-people-input {
   width: 64px;
   min-width: 64px;
   height: 38px;
