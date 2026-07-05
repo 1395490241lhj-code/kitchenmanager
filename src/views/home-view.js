@@ -600,9 +600,20 @@ function formatWeeklySuggestionMissing(item) {
   return `还缺：${missing.join('、')}${(item.row?.missing || []).length > missing.length ? '等' : ''}`;
 }
 
-function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set()) {
+function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), { hasGenerated = false } = {}) {
+  if (!hasGenerated) {
+    return '';
+  }
   if (!suggestions.length) {
-    return '<p class="weekly-menu-empty">选择偏好后生成建议。</p>';
+    return `
+      <div class="weekly-menu-results">
+        <h4>建议本周做</h4>
+        <p class="weekly-menu-empty">暂时没有合适建议</p>
+        <div class="weekly-menu-results-actions">
+          <button type="button" class="btn weekly-menu-fill-shopping">补齐待买</button>
+        </div>
+      </div>
+    `;
   }
   return `
     <div class="weekly-menu-results">
@@ -625,6 +636,9 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set()) {
           `;
         }).join('')}
       </div>
+      <div class="weekly-menu-results-actions">
+        <button type="button" class="btn weekly-menu-fill-shopping">补齐待买</button>
+      </div>
     </div>
   `;
 }
@@ -641,6 +655,7 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
     lunchbox: false
   };
   let suggestions = [];
+  let hasGeneratedSuggestions = false;
   const addedIds = new Set(getWeeklyPlanItems(pack).map(item => item.id));
   const render = () => {
     content.innerHTML = `
@@ -661,37 +676,45 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
             ['quick', '快手菜'],
             ['lunchbox', '适合带饭']
           ].map(([key, label]) => `
-            <label class="weekly-menu-check">
+            <label class="weekly-menu-check${priorities[key] ? ' is-active' : ''}">
               <input type="checkbox" value="${key}"${priorities[key] ? ' checked' : ''}>
-              <span>${label}</span>
+              <span>${priorities[key] ? '✓ ' : ''}${label}</span>
             </label>
           `).join('')}
         </div>
       </section>
       <div class="weekly-menu-generate-row">
         <button type="button" class="btn ok weekly-menu-generate">生成建议</button>
-        <button type="button" class="btn weekly-menu-fill-shopping">补齐待买</button>
       </div>
-      ${renderWeeklyMenuSuggestions(suggestions, addedIds)}
+      ${renderWeeklyMenuSuggestions(suggestions, addedIds, { hasGenerated: hasGeneratedSuggestions })}
     `;
     content.querySelectorAll('[data-meal-count]').forEach(btn => {
       btn.onclick = () => {
         mealCount = Number(btn.dataset.mealCount) || 4;
+        hasGeneratedSuggestions = false;
+        suggestions = [];
         render();
       };
     });
     content.querySelectorAll('.weekly-menu-check input').forEach(input => {
       input.onchange = () => {
         priorities = { ...priorities, [input.value]: input.checked };
+        input.closest('.weekly-menu-check')?.classList.toggle('is-active', input.checked);
+        const label = input.closest('.weekly-menu-check')?.querySelector('span');
+        if (label) label.textContent = `${input.checked ? '✓ ' : ''}${label.textContent.replace(/^✓\s*/, '')}`;
       };
     });
     content.querySelector('.weekly-menu-generate').onclick = () => {
       suggestions = buildWeeklyMenuSuggestions(pack, inv, { mealCount, priorities });
+      hasGeneratedSuggestions = true;
       render();
     };
-    content.querySelector('.weekly-menu-fill-shopping').onclick = () => {
-      showWeeklyShoppingResult(addWeeklyPlanShortagesToShopping(pack, inv), { onRoute });
-    };
+    const fillShoppingBtn = content.querySelector('.weekly-menu-fill-shopping');
+    if (fillShoppingBtn) {
+      fillShoppingBtn.onclick = () => {
+        showWeeklyShoppingResult(addWeeklyPlanShortagesToShopping(pack, inv), { onRoute });
+      };
+    }
     content.querySelectorAll('.weekly-menu-suggestion [data-action]').forEach(btn => {
       btn.onclick = async () => {
         const row = btn.closest('.weekly-menu-suggestion');
@@ -720,6 +743,7 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
   };
   render();
   const modal = createHomeModal(content, '本周菜单');
+  modal.overlay.querySelector('.km-modal-content')?.classList.add('weekly-menu-sheet');
   closeWeeklyModal = modal.close;
 }
 

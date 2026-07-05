@@ -167,6 +167,7 @@ test('计划 Tab 提供轻量本周菜单入口但不新增推荐后端流程', 
   const styles = read('styles.css');
   const renderPlanTab = home.slice(home.indexOf('const renderPlanTab'), home.indexOf('// ── ✨ 推荐'));
   const weeklyModal = home.slice(home.indexOf('function openWeeklyMenuModal'), home.indexOf('function renderWeeklyMenuCard'));
+  const generateRowTemplate = weeklyModal.match(/<div class="weekly-menu-generate-row">([\s\S]*?)<\/div>/)?.[1] || '';
 
   assert.match(home, /function renderWeeklyMenuCard/);
   assert.match(home, /function openWeeklyMenuModal/);
@@ -183,9 +184,13 @@ test('计划 Tab 提供轻量本周菜单入口但不新增推荐后端流程', 
   assert.match(home, /getPlanMissingItems\(recipe, pack, inv\)/);
   assert.match(home, /本周菜单缺货/);
   assert.match(home, /addRecipeToPlanWithMissingCheck\(recipeId, pack, inv/);
+  assert.doesNotMatch(home, /选择偏好后生成建议/);
+  assert.doesNotMatch(generateRowTemplate, /weekly-menu-fill-shopping/);
   assert.doesNotMatch(weeklyModal, /callCloudAI/);
   assert.match(styles, /\.weekly-menu-card/);
+  assert.match(styles, /\.weekly-menu-sheet/);
   assert.match(styles, /\.weekly-menu-modal/);
+  assert.match(styles, /\.weekly-menu-checks[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.weekly-menu-suggestion/);
 });
 
