@@ -1,5 +1,5 @@
 import { S, todayISO } from '../storage.js?v=231';
-import { buildCatalog, getCanonicalName, explodeCombinedItems } from '../ingredients.js?v=231';
+import { buildCatalog, getCanonicalName, explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=231';
 import { isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=231';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=231';
 import {
@@ -8,7 +8,7 @@ import {
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData,
   isFavoriteRecipe, toggleFavoriteRecipe
 } from '../recommendations.js?v=231';
-import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=231';
+import { addRecipeToPlanWithMissingCheck, getPlanMissingItems } from '../components/plan-missing-check.js?v=231';
 import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=231';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=231';
 import { showRecommendationCards } from '../components/recipe-card.js?v=231';
@@ -584,6 +584,164 @@ function createHomeModal(contentEl, title = '') {
   });
 
   return { overlay, close };
+}
+
+function formatWeeklySuggestionMeta(item) {
+  const used = getWeeklyMatchedNames(item.row);
+  const missing = getWeeklyMissingNames(item.row);
+  if (used.length) return `用到：${used.join('、')}`;
+  if (!missing.length) return '食材基本齐';
+  return '适合加入本周菜单';
+}
+
+function formatWeeklySuggestionMissing(item) {
+  const missing = getWeeklyMissingNames(item.row);
+  if (!missing.length) return '食材基本齐';
+  return `还缺：${missing.join('、')}${(item.row?.missing || []).length > missing.length ? '等' : ''}`;
+}
+
+function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set()) {
+  if (!suggestions.length) {
+    return '<p class="weekly-menu-empty">选择偏好后生成建议。</p>';
+  }
+  return `
+    <div class="weekly-menu-results">
+      <h4>建议本周做</h4>
+      <div class="weekly-menu-suggestion-list">
+        ${suggestions.map(({ recipe, row }) => {
+          const added = addedIds.has(recipe.id);
+          return `
+            <article class="weekly-menu-suggestion" data-recipe-id="${escapeOptionAttr(recipe.id)}">
+              <div class="weekly-menu-suggestion-main">
+                <strong>${escapeHtml(recipe.name)}</strong>
+                <span>${escapeHtml(formatWeeklySuggestionMeta({ recipe, row }))}</span>
+                <small>${escapeHtml(formatWeeklySuggestionMissing({ recipe, row }))}</small>
+              </div>
+              <div class="weekly-menu-suggestion-actions">
+                <button type="button" class="btn small weekly-menu-add" data-action="add"${added ? ' disabled' : ''}>${added ? '已加入' : '加入计划'}</button>
+                <button type="button" class="btn small weekly-menu-view" data-action="view">查看</button>
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
+  const content = document.createElement('div');
+  content.className = 'km-modal-body weekly-menu-modal';
+  let closeWeeklyModal = () => {};
+  let mealCount = 4;
+  let priorities = {
+    expiring: true,
+    inventory: true,
+    quick: false,
+    lunchbox: false
+  };
+  let suggestions = [];
+  const addedIds = new Set(getWeeklyPlanItems(pack).map(item => item.id));
+  const render = () => {
+    content.innerHTML = `
+      <section class="weekly-menu-section">
+        <p class="weekly-menu-question">这周打算在家做几顿？</p>
+        <div class="weekly-menu-options" role="group" aria-label="选择本周做饭顿数">
+          ${[3, 4, 5].map(value => `
+            <button type="button" class="weekly-menu-option${mealCount === value ? ' is-active' : ''}" data-meal-count="${value}">${value} 顿</button>
+          `).join('')}
+        </div>
+      </section>
+      <section class="weekly-menu-section">
+        <p class="weekly-menu-question">优先考虑</p>
+        <div class="weekly-menu-checks">
+          ${[
+            ['expiring', '用掉临期'],
+            ['inventory', '利用现有食材'],
+            ['quick', '快手菜'],
+            ['lunchbox', '适合带饭']
+          ].map(([key, label]) => `
+            <label class="weekly-menu-check">
+              <input type="checkbox" value="${key}"${priorities[key] ? ' checked' : ''}>
+              <span>${label}</span>
+            </label>
+          `).join('')}
+        </div>
+      </section>
+      <div class="weekly-menu-generate-row">
+        <button type="button" class="btn ok weekly-menu-generate">生成建议</button>
+        <button type="button" class="btn weekly-menu-fill-shopping">补齐待买</button>
+      </div>
+      ${renderWeeklyMenuSuggestions(suggestions, addedIds)}
+    `;
+    content.querySelectorAll('[data-meal-count]').forEach(btn => {
+      btn.onclick = () => {
+        mealCount = Number(btn.dataset.mealCount) || 4;
+        render();
+      };
+    });
+    content.querySelectorAll('.weekly-menu-check input').forEach(input => {
+      input.onchange = () => {
+        priorities = { ...priorities, [input.value]: input.checked };
+      };
+    });
+    content.querySelector('.weekly-menu-generate').onclick = () => {
+      suggestions = buildWeeklyMenuSuggestions(pack, inv, { mealCount, priorities });
+      render();
+    };
+    content.querySelector('.weekly-menu-fill-shopping').onclick = () => {
+      showWeeklyShoppingResult(addWeeklyPlanShortagesToShopping(pack, inv), { onRoute });
+    };
+    content.querySelectorAll('.weekly-menu-suggestion [data-action]').forEach(btn => {
+      btn.onclick = async () => {
+        const row = btn.closest('.weekly-menu-suggestion');
+        const recipeId = row?.dataset.recipeId || '';
+        const item = suggestions.find(entry => entry.recipe.id === recipeId);
+        if (!item) return;
+        if (btn.dataset.action === 'view') {
+          closeWeeklyModal();
+          location.hash = `#recipe:${recipeId}`;
+          return;
+        }
+        btn.disabled = true;
+        const result = await addRecipeToPlanWithMissingCheck(recipeId, pack, inv, {
+          recipe: item.recipe,
+          fallbackItems: item.row?.list,
+          missing: item.row?.missing,
+          source: isDemoKitchenMode() ? 'demo' : 'weekly-menu',
+          onPlanAdded: markDemoPlanAdded
+        });
+        if (result.added) addedIds.add(recipeId);
+        brieflyConfirmButton(btn, result.added ? '已加入' : '已在计划');
+        onRoute();
+        render();
+      };
+    });
+  };
+  render();
+  const modal = createHomeModal(content, '本周菜单');
+  closeWeeklyModal = modal.close;
+}
+
+function renderWeeklyMenuCard(pack, inv, { onRoute = () => {} } = {}) {
+  const summary = getWeeklyMenuSummary(pack);
+  const card = document.createElement('section');
+  card.className = 'weekly-menu-card';
+  card.innerHTML = `
+    <div class="weekly-menu-card-copy">
+      <strong>本周菜单</strong>
+      <span>${escapeHtml(summary.label)}</span>
+    </div>
+    <div class="weekly-menu-card-actions">
+      <button type="button" class="wx-mini-btn is-primary weekly-menu-plan-btn">规划本周</button>
+      <button type="button" class="wx-mini-btn weekly-menu-shopping-btn">补齐待买</button>
+    </div>
+  `;
+  card.querySelector('.weekly-menu-plan-btn').onclick = () => openWeeklyMenuModal(pack, inv, { onRoute });
+  card.querySelector('.weekly-menu-shopping-btn').onclick = () => {
+    showWeeklyShoppingResult(addWeeklyPlanShortagesToShopping(pack, inv), { onRoute });
+  };
+  return card;
 }
 
 // ── 弹窗内容构建 ─────────────────────────────────────────────────────────────
@@ -1198,6 +1356,157 @@ function getTodayPlanItems(pack) {
       recipe: recipes.find(recipe => recipe.id === item.id) || null
     }))
     .filter(item => item.recipe);
+}
+
+function addDaysISO(baseIso, offset = 0) {
+  const base = new Date(baseIso);
+  base.setDate(base.getDate() + offset);
+  return base.toISOString().slice(0, 10);
+}
+
+function getWeeklyPlanItems(pack, { days = 7 } = {}) {
+  const today = todayISO();
+  const end = addDaysISO(today, Math.max(0, days - 1));
+  const recipes = pack.recipes || [];
+  return S.load(S.keys.plan, [])
+    .filter(item => {
+      if (!item || item.isCooked) return false;
+      const date = item.date || today;
+      return date >= today && date <= end;
+    })
+    .map(item => ({
+      ...item,
+      date: item.date || today,
+      recipe: recipes.find(recipe => recipe.id === item.id) || null
+    }))
+    .filter(item => item.recipe);
+}
+
+function getWeeklyMenuSummary(pack) {
+  const plannedCount = getWeeklyPlanItems(pack).length;
+  const targetCount = 4;
+  return {
+    plannedCount,
+    targetCount,
+    missingCount: Math.max(0, targetCount - plannedCount),
+    label: plannedCount >= targetCount
+      ? '本周已基本安排好'
+      : plannedCount === 0
+        ? '买菜前先规划几顿'
+        : `已安排 ${plannedCount} 顿 · 还缺 ${Math.max(0, targetCount - plannedCount)} 顿`
+  };
+}
+
+function getWeeklyMatchedNames(row, limit = 3) {
+  return Array.from(new Set((row?.matches || [])
+    .map(item => String(item?.inventoryItem || item?.recipeItem || '').trim())
+    .filter(Boolean)))
+    .slice(0, limit);
+}
+
+function getWeeklyMissingNames(row, limit = 3) {
+  return Array.from(new Set((row?.missing || [])
+    .map(item => String(item?.name || item?.item || '').trim())
+    .filter(Boolean)))
+    .slice(0, limit);
+}
+
+function isQuickWeeklyRecipe(recipe) {
+  const text = [
+    recipe?.name,
+    ...(recipe?.tags || []),
+    recipe?.difficulty,
+    recipe?.method
+  ].join(' ');
+  const minutes = Number(recipe?.timeMinutes || recipe?.time_minutes || recipe?.time);
+  return (Number.isFinite(minutes) && minutes <= 25) || /快手|简单|easy|quick|15|20|分钟/.test(text);
+}
+
+function isLunchboxWeeklyRecipe(recipe) {
+  const text = [
+    recipe?.name,
+    ...(recipe?.tags || []),
+    recipe?.method
+  ].join(' ');
+  return /便当|带饭|饭盒|盖饭|炒饭|焖饭|饭/.test(text);
+}
+
+function buildWeeklyMenuSuggestions(pack, inv, {
+  mealCount = 4,
+  priorities = {}
+} = {}) {
+  const plannedIds = new Set(getWeeklyPlanItems(pack).map(item => item.id));
+  const ranked = rankRecipesForRecommendation(pack, inv, {
+    ...getRecommendationUiContext(),
+    includeNoMatch: true
+  }).filter(row => row?.r && hasRecipeMethod(row.r));
+  const pool = ranked.filter(row => !plannedIds.has(row.r.id));
+  const rows = pool.length ? pool : ranked;
+  return rows
+    .map((row, index) => {
+      const recipe = row.r;
+      let score = row.score - index * 0.2;
+      if (priorities.expiring) score += (row.expiringMatches || []).length * 42;
+      if (priorities.inventory) score += (row.coverage || 0) * 24 + (row.matchCount || 0) * 4 - (row.missing || []).length * 5;
+      if (priorities.quick && isQuickWeeklyRecipe(recipe)) score += 16;
+      if (priorities.lunchbox && isLunchboxWeeklyRecipe(recipe)) score += 12;
+      if (row.isFavorite) score += 10;
+      return { recipe, row, score };
+    })
+    .sort((a, b) =>
+      b.score - a.score ||
+      (b.row.matchCount || 0) - (a.row.matchCount || 0) ||
+      (a.row.missing || []).length - (b.row.missing || []).length ||
+      a.recipe.name.localeCompare(b.recipe.name, 'zh-Hans-CN')
+    )
+    .slice(0, Math.max(3, Math.min(5, mealCount)));
+}
+
+function addWeeklyPlanShortagesToShopping(pack, inv) {
+  const existing = new Set(loadShoppingItems()
+    .filter(item => item && !item.done)
+    .map(item => getCanonicalName(item.name || ''))
+    .filter(Boolean));
+  const seen = new Set(existing);
+  let added = 0;
+  let skippedExisting = 0;
+  const planItems = getWeeklyPlanItems(pack);
+  for (const item of planItems) {
+    const recipe = item.recipe;
+    const missing = getPlanMissingItems(recipe, pack, inv);
+    for (const miss of missing) {
+      const name = String(miss.name || miss.item || '').trim();
+      const canonical = getCanonicalName(name);
+      if (!canonical) continue;
+      if (seen.has(canonical)) {
+        skippedExisting += 1;
+        continue;
+      }
+      seen.add(canonical);
+      addShoppingItem(
+        name,
+        miss.qty || '',
+        miss.unit || guessKitchenUnit(name) || '',
+        '本周菜单缺货',
+        `菜谱缺货：${recipe.name || '本周菜单'}`
+      );
+      added += 1;
+    }
+  }
+  return { added, skippedExisting, planCount: planItems.length };
+}
+
+function showWeeklyShoppingResult(result, { onRoute = () => {} } = {}) {
+  if (result.added > 0) {
+    showToast(`已补 ${result.added} 样待买`, { tone: 'success' });
+    onRoute();
+    return;
+  }
+  if (!result.planCount) {
+    showToast('先规划几顿，再补齐待买', { tone: 'info' });
+    return;
+  }
+  showToast(result.skippedExisting ? '待买清单已包含这些食材' : '本周菜单暂不缺核心食材', { tone: 'info' });
 }
 
 function getPrimaryRecommendationCard(cards = []) {
@@ -1922,6 +2231,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
         ? `已经安排 ${todayPlanCount} 道菜。`
         : ''
     ));
+    body.appendChild(renderWeeklyMenuCard(pack, inv, { onRoute }));
     const actions = document.createElement('div');
     actions.className = 'menu-plan-head-actions wx-plan-actions';
     actions.appendChild(renderCookAllButton(pack, { onRoute, inventory: inv }));

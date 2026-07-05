@@ -8133,6 +8133,147 @@ html[data-theme="dark"] .wx-tab.is-active {
 
 /* 📅 计划 tab：动作组靠右一行；内部计划卡拍扁融入面板，避免卡中卡。 */
 .wx-plan-actions { justify-content: flex-end; }
+.weekly-menu-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.08), rgba(255, 255, 255, 0.02)), var(--glass-cell-fill);
+}
+.weekly-menu-card-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.weekly-menu-card-copy strong {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 850;
+}
+.weekly-menu-card-copy span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.weekly-menu-card-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.weekly-menu-card .wx-mini-btn.is-primary {
+  color: #fff;
+  border-color: rgba(0, 122, 255, 0.25);
+  background: var(--primary);
+}
+.weekly-menu-modal {
+  display: grid;
+  gap: 14px;
+}
+.weekly-menu-section {
+  display: grid;
+  gap: 8px;
+}
+.weekly-menu-question {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 800;
+}
+.weekly-menu-options,
+.weekly-menu-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.weekly-menu-option,
+.weekly-menu-check {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid var(--separator);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+}
+.weekly-menu-option {
+  padding: 7px 13px;
+  cursor: pointer;
+}
+.weekly-menu-option.is-active {
+  color: var(--primary);
+  border-color: rgba(0, 122, 255, 0.26);
+  background: rgba(0, 122, 255, 0.10);
+}
+.weekly-menu-check {
+  gap: 6px;
+  padding: 7px 11px;
+}
+.weekly-menu-check input {
+  accent-color: var(--primary);
+}
+.weekly-menu-generate-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.weekly-menu-results {
+  display: grid;
+  gap: 10px;
+}
+.weekly-menu-results h4 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 850;
+}
+.weekly-menu-suggestion-list {
+  display: grid;
+  gap: 8px;
+}
+.weekly-menu-suggestion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 11px;
+  border: 1px solid var(--separator);
+  border-radius: 14px;
+  background: var(--bg-card);
+}
+.weekly-menu-suggestion-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.weekly-menu-suggestion-main strong {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 850;
+}
+.weekly-menu-suggestion-main span,
+.weekly-menu-suggestion-main small,
+.weekly-menu-empty {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.weekly-menu-empty {
+  margin: 0;
+}
+.weekly-menu-suggestion-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
 .wx-panel .menu-plan-card,
 .wx-panel .card.menu-plan-card {
   background: transparent;
