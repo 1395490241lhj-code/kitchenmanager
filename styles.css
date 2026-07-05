@@ -8189,10 +8189,39 @@ html[data-theme="dark"] .wx-tab.is-active {
   font-size: 14px;
   font-weight: 800;
 }
+.weekly-menu-subquestion {
+  margin: -2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
 .weekly-menu-options {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.weekly-menu-custom-meals {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 38px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.weekly-menu-meal-input {
+  width: 64px;
+  min-width: 64px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-main);
 }
 .weekly-menu-checks {
   display: grid;

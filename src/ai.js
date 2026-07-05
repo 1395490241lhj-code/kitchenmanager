@@ -899,7 +899,7 @@ export function validateWeeklyMenuPlanResult(input) {
         uses: toTextList(item?.uses),
         missing: toTextList(item?.missing)
       };
-    }).filter(Boolean).slice(0, 6)
+    }).filter(Boolean).slice(0, 10)
     : [];
   const shoppingSummary = Array.isArray(data.shoppingSummary)
     ? data.shoppingSummary.map(item => String(item || '').trim()).filter(Boolean).slice(0, 12)
@@ -1516,7 +1516,7 @@ export async function callAiWeeklyMenuPlan({
   existingPlan = []
 } = {}) {
   const payload = {
-    mealsCount: Math.max(3, Math.min(5, Number(mealsCount) || 4)),
+    mealsCount: Math.max(1, Math.min(10, Math.trunc(Number(mealsCount) || 4))),
     preferences: {
       useExpiring: Boolean(preferences.useExpiring ?? preferences.expiring),
       useInventory: Boolean(preferences.useInventory ?? preferences.inventory),

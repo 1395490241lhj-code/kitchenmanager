@@ -9,7 +9,7 @@ import {
   isFavoriteRecipe, toggleFavoriteRecipe
 } from '../recommendations.js?v=231';
 import { addRecipeToPlanWithMissingCheck, getPlanMissingItems } from '../components/plan-missing-check.js?v=231';
-import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callAiWeeklyMenuPlan, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=232';
+import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callAiWeeklyMenuPlan, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=233';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=231';
 import { showRecommendationCards } from '../components/recipe-card.js?v=231';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=231';
@@ -604,7 +604,8 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
   hasGenerated = false,
   mode = 'idle',
   plan = null,
-  error = ''
+  error = '',
+  requestedCount = 4
 } = {}) {
   if (!hasGenerated) {
     return '';
@@ -636,7 +637,7 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
   const title = mode === 'local' ? '本地建议' : 'AI 本周建议';
   const note = mode === 'local'
     ? '已用本地菜谱生成建议。'
-    : (plan?.notes || `已按 ${suggestions.length} 顿规划。`);
+    : `已按 ${normalizeWeeklyMealCount(requestedCount, 4)} 顿规划${plan?.notes ? ` · ${plan.notes}` : ''}`;
   return `
     <div class="weekly-menu-results">
       <div class="weekly-menu-results-head">
@@ -698,7 +699,21 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
   let errorMessage = '';
   let userRequest = '';
   const addedIds = new Set(getWeeklyPlanItems(pack).map(item => item.id));
+  const resetGeneratedState = () => {
+    hasGeneratedSuggestions = false;
+    suggestions = [];
+    planResult = null;
+    renderMode = 'idle';
+    errorMessage = '';
+  };
+  const readMealCountFromInput = () => {
+    const input = content.querySelector('.weekly-menu-meal-input');
+    mealCount = normalizeWeeklyMealCount(input?.value, 4);
+    if (input) input.value = String(mealCount);
+    return mealCount;
+  };
   const generateLocalSuggestions = () => {
+    readMealCountFromInput();
     const localRows = buildWeeklyMenuSuggestions(pack, inv, { mealCount, priorities });
     suggestions = createLocalWeeklyMenuEntries(localRows, mealCount);
     planResult = { notes: '已用本地推荐生成建议。' };
@@ -707,6 +722,7 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
     errorMessage = '';
   };
   const generateAiSuggestions = async () => {
+    readMealCountFromInput();
     renderMode = 'loading';
     hasGeneratedSuggestions = true;
     errorMessage = '';
@@ -731,11 +747,17 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
     content.innerHTML = `
       <section class="weekly-menu-section">
         <p class="weekly-menu-question">这周打算在家做几顿？</p>
+        <p class="weekly-menu-subquestion">快捷选择</p>
         <div class="weekly-menu-options" role="group" aria-label="选择本周做饭顿数">
           ${[3, 4, 5].map(value => `
             <button type="button" class="weekly-menu-option${mealCount === value ? ' is-active' : ''}" data-meal-count="${value}">${value} 顿</button>
           `).join('')}
         </div>
+        <label class="weekly-menu-custom-meals">
+          <span>自定义</span>
+          <input class="weekly-menu-meal-input" type="number" inputmode="numeric" min="1" max="10" step="1" value="${mealCount}" aria-label="自定义本周做饭顿数">
+          <span>顿</span>
+        </label>
       </section>
       <section class="weekly-menu-section">
         <p class="weekly-menu-question">优先考虑</p>
@@ -760,18 +782,38 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
       <div class="weekly-menu-generate-row">
         <button type="button" class="btn ok weekly-menu-generate"${renderMode === 'loading' ? ' disabled' : ''}>${renderMode === 'loading' ? '规划中…' : 'AI 规划本周菜单'}</button>
       </div>
-      ${renderWeeklyMenuSuggestions(suggestions, addedIds, { hasGenerated: hasGeneratedSuggestions, mode: renderMode, plan: planResult, error: errorMessage })}
+      ${renderWeeklyMenuSuggestions(suggestions, addedIds, { hasGenerated: hasGeneratedSuggestions, mode: renderMode, plan: planResult, error: errorMessage, requestedCount: mealCount })}
     `;
     content.querySelectorAll('[data-meal-count]').forEach(btn => {
       btn.onclick = () => {
-        mealCount = Number(btn.dataset.mealCount) || 4;
-        hasGeneratedSuggestions = false;
-        suggestions = [];
-        planResult = null;
-        renderMode = 'idle';
+        mealCount = normalizeWeeklyMealCount(btn.dataset.mealCount, 4);
+        resetGeneratedState();
         render();
       };
     });
+    const mealInput = content.querySelector('.weekly-menu-meal-input');
+    if (mealInput) {
+      mealInput.oninput = () => {
+        const raw = String(mealInput.value || '').trim();
+        const parsed = raw ? normalizeWeeklyMealCount(raw, mealCount) : mealCount;
+        mealCount = raw ? parsed : 4;
+        if (raw && Number(mealInput.value) > 10) mealInput.value = '10';
+        if (raw && Number(mealInput.value) < 1) mealInput.value = '1';
+        const shouldRender = hasGeneratedSuggestions || renderMode !== 'idle';
+        content.querySelectorAll('[data-meal-count]').forEach(btn => {
+          btn.classList.toggle('is-active', Number(btn.dataset.mealCount) === mealCount);
+        });
+        resetGeneratedState();
+        if (shouldRender) render();
+      };
+      mealInput.onblur = () => {
+        mealCount = normalizeWeeklyMealCount(mealInput.value, 4);
+        mealInput.value = String(mealCount);
+        content.querySelectorAll('[data-meal-count]').forEach(btn => {
+          btn.classList.toggle('is-active', Number(btn.dataset.mealCount) === mealCount);
+        });
+      };
+    }
     content.querySelectorAll('.weekly-menu-check input').forEach(input => {
       input.onchange = () => {
         priorities = { ...priorities, [input.value]: input.checked };
@@ -1549,6 +1591,14 @@ function getWeeklyMenuSummary(pack) {
   };
 }
 
+function normalizeWeeklyMealCount(value, fallback = 4) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return fallback;
+  const parsed = Math.trunc(Number(raw));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.min(10, parsed));
+}
+
 function getWeeklyMatchedNames(row, limit = 3) {
   return Array.from(new Set((row?.matches || [])
     .map(item => String(item?.inventoryItem || item?.recipeItem || '').trim())
@@ -1587,7 +1637,7 @@ function buildWeeklyMenuSuggestions(pack, inv, {
   mealCount = 4,
   priorities = {}
 } = {}) {
-  return getWeeklyCandidateRows(pack, inv, { mealCount, priorities, limit: Math.max(3, Math.min(5, mealCount)) });
+  return getWeeklyCandidateRows(pack, inv, { mealCount, priorities, limit: normalizeWeeklyMealCount(mealCount, 4) });
 }
 
 function getWeeklyCandidateRows(pack, inv, {
@@ -1595,6 +1645,7 @@ function getWeeklyCandidateRows(pack, inv, {
   priorities = {},
   limit = 12
 } = {}) {
+  const resultLimit = Math.max(1, Math.trunc(Number(limit) || Number(mealCount) || 4));
   const plannedIds = new Set(getWeeklyPlanItems(pack).map(item => item.id));
   const ranked = rankRecipesForRecommendation(pack, inv, {
     ...getRecommendationUiContext(),
@@ -1619,7 +1670,7 @@ function getWeeklyCandidateRows(pack, inv, {
       (a.row.missing || []).length - (b.row.missing || []).length ||
       a.recipe.name.localeCompare(b.recipe.name, 'zh-Hans-CN')
     )
-    .slice(0, Math.max(3, Math.min(limit, Math.max(limit, mealCount))));
+    .slice(0, resultLimit);
 }
 
 function getWeeklyDaySuggestion(index) {
@@ -1639,7 +1690,7 @@ function getWeeklyRecipeTags(recipe, row) {
 }
 
 function createLocalWeeklyMenuEntries(localSuggestions, mealCount = 4) {
-  return (localSuggestions || []).slice(0, Math.max(3, Math.min(5, mealCount))).map(({ recipe, row }, index) => ({
+  return (localSuggestions || []).slice(0, normalizeWeeklyMealCount(mealCount, 4)).map(({ recipe, row }, index) => ({
     source: 'local',
     recipe,
     row,
@@ -1738,7 +1789,7 @@ function getWeeklyCandidatePayload(pack, inv, mealCount, priorities) {
 
 function buildAiWeeklyMenuPlanPayload(pack, inv, { mealCount, priorities, userRequest }) {
   return {
-    mealsCount: mealCount,
+    mealsCount: normalizeWeeklyMealCount(mealCount, 4),
     preferences: {
       useExpiring: Boolean(priorities.expiring),
       useInventory: Boolean(priorities.inventory),

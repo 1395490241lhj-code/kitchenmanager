@@ -164,6 +164,7 @@ test('今日计划页去掉重复消耗横条和冗余筛选', () => {
 
 test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', () => {
   const home = read('src/views/home-view.js');
+  const ai = read('src/ai.js');
   const styles = read('styles.css');
   const renderPlanTab = home.slice(home.indexOf('const renderPlanTab'), home.indexOf('// ── ✨ 推荐'));
   const weeklyModal = home.slice(home.indexOf('function openWeeklyMenuModal'), home.indexOf('function renderWeeklyMenuCard'));
@@ -183,6 +184,12 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(home, /补充要求/);
   assert.match(home, /AI 规划本周菜单/);
   assert.match(home, /用本地建议/);
+  assert.match(home, /function normalizeWeeklyMealCount/);
+  assert.match(home, /class="weekly-menu-meal-input"/);
+  assert.match(home, /min="1" max="10" step="1"/);
+  assert.match(home, /mealsCount: normalizeWeeklyMealCount\(mealCount, 4\)/);
+  assert.match(ai, /mealsCount: Math\.max\(1, Math\.min\(10/);
+  assert.match(ai, /\.filter\(Boolean\)\.slice\(0, 10\)/);
   assert.match(home, /rankRecipesForRecommendation\(pack, inv/);
   assert.match(home, /getPlanMissingItems\(recipe, pack, inv\)/);
   assert.match(home, /本周菜单缺货/);
@@ -194,6 +201,7 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(styles, /\.weekly-menu-sheet/);
   assert.match(styles, /\.weekly-menu-modal/);
   assert.match(styles, /\.weekly-menu-request/);
+  assert.match(styles, /\.weekly-menu-meal-input/);
   assert.match(styles, /\.weekly-menu-checks[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.weekly-menu-suggestion/);
 });
