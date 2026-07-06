@@ -1333,10 +1333,10 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     receiptStatus.innerHTML = '<span class="spinner"></span> 正在识别…';
     try {
       const result = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
-      const total = ['inventory', 'pantry', 'review', 'ignored'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
+      const total = ['inventory', 'pantry', 'review'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
       if (!total) {
         receiptStatus.className = 'small inline-status bad';
-        receiptStatus.textContent = '没有识别到可处理的内容';
+        receiptStatus.textContent = '没有识别到食材';
         showToast('没有识别到可入库食材', { tone: 'warning' });
         return;
       }

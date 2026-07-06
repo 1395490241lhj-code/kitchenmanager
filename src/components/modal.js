@@ -160,16 +160,6 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
     const unit = normalized.unit;
     const qty = normalized.qty;
     const originalName = item.originalName || item.rawText || item.name;
-    const rawText = item.rawText || originalName;
-    const zhText = item.zhText || '';
-    const enText = item.enText || '';
-    const showOrig = originalName && originalName !== name;
-    const reason = item.reason || '';
-    const evidence = [
-      rawText && rawText !== originalName ? `原始：${rawText}` : '',
-      zhText ? `中文：${zhText}` : '',
-      enText ? `英文：${enText}` : ''
-    ].filter(Boolean).join(' · ');
     const index = rowIndex++;
     const target = groupKey === 'pantry' ? 'pantry' : 'inventory';
     const actionText = groupKey === 'pantry' ? '加入货架' : (groupKey === 'review' ? '可选加入' : '加入食材');
@@ -188,37 +178,19 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
           </select>
           <button type="button" class="btn bad small receipt-remove">删</button>
         </div>
-        ${showOrig ? `<div class="receipt-original-name">原文：${escapeHtml(originalName)}</div>` : ''}
-        ${evidence ? `<div class="receipt-original-name">依据：${escapeHtml(evidence)}</div>` : ''}
-        ${reason ? `<div class="receipt-original-name">提示：${escapeHtml(reason)}</div>` : ''}
         <div class="receipt-match-container"></div>
-      </div>
-    `;
-  };
-  const renderIgnoredRow = (item) => {
-    const name = item.name || item.originalName || '未命名';
-    const reason = item.reason || '不是厨房食材';
-    const rawText = item.rawText || item.originalName || '';
-    return `
-      <div class="receipt-ignored-item">
-        <strong>${escapeHtml(name)}</strong>
-        ${rawText && rawText !== name ? `<span>原文：${escapeHtml(rawText)}</span>` : ''}
-        <span>${escapeHtml(reason)}</span>
       </div>
     `;
   };
   const groupMeta = [
     { key: 'inventory', title: '食材', note: '', checked: true },
     { key: 'pantry', title: '常备', note: '', checked: true },
-    { key: 'review', title: '待确认', note: '默认不入库', checked: false },
-    { key: 'ignored', title: '已忽略', note: '', checked: false }
+    { key: 'review', title: '待确认', note: '默认不入库', checked: false }
   ];
   const rows = groupMeta.map(meta => {
     const list = groups[meta.key] || [];
     if (!list.length) return '';
-    const body = meta.key === 'ignored'
-      ? list.map(renderIgnoredRow).join('')
-      : list.map(item => renderEditableRow(item, meta.key, meta.checked)).join('');
+    const body = list.map(item => renderEditableRow(item, meta.key, meta.checked)).join('');
     return `
       <section class="receipt-confirm-group receipt-group-${meta.key}">
         <div class="receipt-group-head">

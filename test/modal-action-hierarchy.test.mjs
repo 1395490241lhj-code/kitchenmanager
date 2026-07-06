@@ -48,6 +48,21 @@ test('小票识别失败兜底保留两个可继续动作', () => {
   assert.match(inventory, /secondaryText: '重新选择图片'/);
 });
 
+test('小票确认主界面只展示结构化结果，不默认展示 OCR 原文', () => {
+  const modal = read('src/components/modal.js');
+  const styles = read('styles.css');
+
+  assert.match(modal, /<h3>识别结果/);
+  assert.match(modal, /确认入库/);
+  assert.doesNotMatch(modal, /原文：/);
+  assert.doesNotMatch(modal, /依据：/);
+  assert.doesNotMatch(modal, /提示：/);
+  assert.doesNotMatch(modal, /receipt-original-name/);
+  assert.doesNotMatch(modal, /receipt-ignored-item/);
+  assert.doesNotMatch(styles, /\.receipt-original-name/);
+  assert.doesNotMatch(styles, /\.receipt-ignored-item/);
+});
+
 test('AI 菜谱导入弹窗接入统一 modal 外壳和失败兜底', () => {
   const source = read('src/components/recipe-import-modal.js');
 

@@ -253,9 +253,9 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     }
     try {
       const result = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
-      const total = ['inventory', 'pantry', 'review', 'ignored'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
+      const total = ['inventory', 'pantry', 'review'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
       if(total === 0) {
-        if (statusEl) statusEl.innerHTML = '<span class="text-danger">没有识别到可处理的内容</span>';
+        if (statusEl) statusEl.innerHTML = '<span class="text-danger">没有识别到食材</span>';
         showToast('没有识别到可入库食材', { tone: 'warning' });
         return;
       }
