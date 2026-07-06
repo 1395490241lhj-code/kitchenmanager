@@ -15,7 +15,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 测试门禁：套件失败则不构建、不部署。
+  # 测试自带 express/axios/ffmpeg-static 的 mock（见 test/ai-server-routes.test.mjs 的
+  # Module._load 拦截），因此无需 npm install，纯 Node 即可全量运行。
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run test suite
+        run: node --test
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
