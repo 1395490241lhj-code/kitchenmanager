@@ -103,7 +103,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   normalPanel.dataset.panel = 'normal';
 
   // ── 轻量录入区：随手记几样食材（每行一个，自动猜单位走 parseFoodLines + 现有写库链路）──
-  //    新用户第一眼看到的是这块；更完整的添加入口收进工具栏「+」里的“记进厨房”窗口。
+  //    新用户第一眼看到的是这块；更完整的添加入口收进工具栏「+」里的“记食材”窗口。
   const QUICK_CHIPS = ['鸡蛋', '番茄', '土豆', '青菜', '豆腐', '牛肉', '面条', '胡萝卜'];
   const quickAdd = document.createElement('div');
   quickAdd.className = 'inventory-quick-add glass-panel';
@@ -182,7 +182,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   };
 
   // 「加入厨房」：parseFoodLines 解析 → 规范名/猜单位/猜保质期 → mergeInventoryEntry 写库
-  // （与“记进厨房”弹窗、小票识别同一条链路；单位相同累加、不同作新批次，行为不变）。
+  // （与“记食材”弹窗、小票识别同一条链路；单位相同累加、不同作新批次，行为不变）。
   quickAdd.querySelector('#quickAddBtn').onclick = () => {
     addTextInventoryItems(quickInput.value, { textarea: quickInput, statusEl: quickStatus });
   };
@@ -191,7 +191,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
 
   searchDiv.innerHTML = `
     <div class="inventory-tool-row">
-      <button type="button" class="inventory-tool-btn inventory-add-trigger is-primary" id="inventoryAddBtn" aria-label="记进厨房" title="记进厨房">
+      <button type="button" class="inventory-tool-btn inventory-add-trigger is-primary" id="inventoryAddBtn" aria-label="记食材" title="记食材">
         <span class="inventory-tool-icon">+</span>
         <span>添加</span>
       </button>
@@ -259,7 +259,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         showToast('没有识别到可入库食材', { tone: 'warning' });
         return;
       }
-      if (statusEl) statusEl.innerHTML = `识别到 ${total} 项，请确认后加入厨房`;
+      if (statusEl) statusEl.innerHTML = `识别到 ${total} 项，请确认后入库`;
       showReceiptConfirmationModal(result, ({ inventory = [], pantry = [] } = {}) => {
         const matchedIds = inventory.map(it => it.matchedShoppingItemId).filter(Boolean);
         if (matchedIds.length > 0) {
@@ -271,7 +271,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           mergeInventoryEntry(inv, { name: it.name, qty: Number(it.qty) || 1, unit, buyDate: todayISO(), kind: itemKind, shelf: itemKind === 'dry' ? 365 : guessShelfDays(it.name, unit), stockStatus:'ok', ...(itemKind === 'dry' ? {dryPrep:getDryPrepText(it.name), isFrozen:false} : {}) }, { mode: 'add' });
         }
         const pantryCount = applyReceiptPantryItems(pantry, inv);
-        if (statusEl) statusEl.innerHTML = `✅ 已加入厨房 ${inventory.length + pantryCount} 项`;
+        if (statusEl) statusEl.innerHTML = `✅ 已入库 ${inventory.length + pantryCount} 项`;
         setTimeout(() => {
           statusEl?.classList.remove('visible');
           if (statusEl) statusEl.hidden = true;
@@ -291,7 +291,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         setActionStatus(statusEl, {
           title: copy.title,
           message: copy.message,
-          primaryText: '改用文本批量记',
+          primaryText: '改用手动输入',
           secondaryText: '重新选择图片',
           onPrimary: () => {
             if (typeof actions.onText === 'function') actions.onText();
@@ -313,21 +313,20 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     overlay.innerHTML = `
       <div class="km-modal-content inventory-add-modal" role="dialog" aria-modal="true" aria-labelledby="inventoryAddTitle">
         <div class="km-modal-header">
-          <span class="km-modal-title" id="inventoryAddTitle">记进厨房</span>
+          <span class="km-modal-title" id="inventoryAddTitle">记食材</span>
           <button type="button" class="km-modal-close" aria-label="关闭">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </div>
         <div class="km-modal-body inventory-add-modal-body">
-          <div class="inventory-add-tabs" role="tablist" aria-label="记进厨房方式">
-            <button type="button" class="inventory-add-tab" data-tab="manual" role="tab">手动记食材</button>
-            <button type="button" class="inventory-add-tab" data-tab="receipt" role="tab">拍小票识别</button>
+          <div class="inventory-add-tabs" role="tablist" aria-label="记食材方式">
+            <button type="button" class="inventory-add-tab" data-tab="manual" role="tab">手动输入</button>
+            <button type="button" class="inventory-add-tab" data-tab="receipt" role="tab">拍小票</button>
           </div>
           <section class="inventory-add-pane" data-pane="manual">
             <div class="inventory-modal-card">
-              <div class="inventory-quick-title">随手记几样食材</div>
-              <p class="inventory-quick-hint">每行一个食材，数量不确定也可以只写名字。</p>
-              <textarea class="batch-text-area inventory-modal-textarea" id="inventoryModalText" rows="5" placeholder="鸡蛋 6个&#10;番茄 3个&#10;土豆&#10;豆腐 1盒"></textarea>
+              <div class="inventory-quick-title">批量输入</div>
+              <textarea class="batch-text-area inventory-modal-textarea" id="inventoryModalText" rows="5" placeholder="例如：&#10;鸡蛋 12个&#10;牛奶 1瓶&#10;青椒 2个"></textarea>
               <div class="inventory-chip-row">${QUICK_CHIPS.map(n => `<button type="button" class="inventory-chip" data-name="${escapeOptionAttr(n)}">${escapeHtml(n)}</button>`).join('')}</div>
               <div class="inventory-modal-options">
                 <button type="button" class="btn small" id="inventoryModalSample">试试常见食材</button>
@@ -340,13 +339,12 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           </section>
           <section class="inventory-add-pane" data-pane="receipt" hidden>
             <div class="inventory-modal-card inventory-receipt-card">
-              <div class="inventory-quick-title">拍小票识别</div>
-              <p class="inventory-quick-hint">选择小票图片，识别后你再确认入库。</p>
+              <div class="inventory-quick-title">上传小票</div>
               <div class="inventory-receipt-pick-card" aria-hidden="true">
                 <span class="inventory-receipt-icon">📷</span>
                 <span>
-                  <strong>选择图片后再确认</strong>
-                  <small>支持相册、拍照或文件</small>
+                  <strong>拍照 / 选择图片</strong>
+                  <small>识别后请确认再入库</small>
                 </span>
               </div>
               <input type="file" id="inventoryModalReceiptInput" accept="image/*" class="visually-hidden">
@@ -356,7 +354,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         </div>
         <div class="km-modal-actions inventory-add-modal-actions">
           <button type="button" class="btn" id="inventoryAddCancel">取消</button>
-          <button type="button" class="btn ok" id="inventoryAddPrimary">加入厨房</button>
+          <button type="button" class="btn ok" id="inventoryAddPrimary">加入库存</button>
         </div>
       </div>
     `;
@@ -386,7 +384,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         pane.hidden = !isActive;
         pane.classList.toggle('is-active', isActive);
       });
-      primaryBtn.textContent = activeTab === 'receipt' ? '选取小票图片' : '加入厨房';
+      primaryBtn.textContent = activeTab === 'receipt' ? '开始识别' : '加入库存';
       if (activeTab === 'manual') modalText?.focus();
     };
 
@@ -415,6 +413,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         modalText?.focus();
       }
     });
+    overlay.querySelector('.inventory-receipt-pick-card')?.addEventListener('click', () => receiptInput.click());
     primaryBtn.onclick = () => {
       if (activeTab === 'receipt') {
         receiptInput.click();

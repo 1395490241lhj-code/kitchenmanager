@@ -128,17 +128,17 @@ test('AI 错误格式保留 status/code，且 413 小票失败提示可操作', 
   assert.equal(details.code, 'image_too_large');
   assert.match(formatAiErrorMessage(err), /413\/image_too_large/);
   assert.match(copy.message, /图片太大/);
-  assert.match(copy.message, /文本批量记/);
+  assert.match(copy.message, /手动输入/);
 });
 
-test('小票识别失败区提供重新选择图片和改用文本批量记入口', () => {
+test('小票识别失败区提供重新选择图片和改用手动输入入口', () => {
   const home = read('src/views/home-view.js');
   const inventory = read('src/views/inventory-view.js');
 
-  assert.match(home, /primaryText: '改用文本批量记'/);
+  assert.match(home, /primaryText: '改用手动输入'/);
   assert.match(home, /secondaryText: '重新选择图片'/);
   assert.match(home, /setTab\('text'\)/);
-  assert.match(inventory, /primaryText: '改用文本批量记'/);
+  assert.match(inventory, /primaryText: '改用手动输入'/);
   assert.match(inventory, /secondaryText: '重新选择图片'/);
   assert.match(inventory, /setTab\('manual'\)/);
 });

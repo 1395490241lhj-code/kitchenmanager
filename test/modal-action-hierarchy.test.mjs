@@ -41,10 +41,10 @@ test('小票识别失败兜底保留两个可继续动作', () => {
   const home = read('src/views/home-view.js');
   const inventory = read('src/views/inventory-view.js');
 
-  assert.match(home, /primaryText: '改用文本批量记'/);
+  assert.match(home, /primaryText: '改用手动输入'/);
   assert.match(home, /secondaryText: '重新选择图片'/);
   assert.match(home, /setTab\('text'\)/);
-  assert.match(inventory, /primaryText: '改用文本批量记'/);
+  assert.match(inventory, /primaryText: '改用手动输入'/);
   assert.match(inventory, /secondaryText: '重新选择图片'/);
 });
 
@@ -123,7 +123,7 @@ test('modal action/footer 容器使用透明背景，避免浅色白块', () => 
   );
 });
 
-test('记进厨房弹窗 action 区使用透明专用背景，避免浅色白块', () => {
+test('记食材弹窗 action 区使用透明专用背景，避免浅色白块', () => {
   const home = read('src/views/home-view.js');
   const styles = read('styles.css');
 

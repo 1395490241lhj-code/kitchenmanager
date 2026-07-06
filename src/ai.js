@@ -1091,30 +1091,30 @@ export function getReceiptAiFailureCopy(error) {
   if (status === 413 || code === 'image_too_large') {
     return {
       title: '小票识别暂时不可用',
-      message: '图片太大，请换一张更清晰但文件更小的图片，或改用文本批量记。'
+      message: '图片太大，请换一张更清晰但文件更小的图片，或改用手动输入。'
     };
   }
   if (status === 404 || code === 'model_not_found') {
     return {
       title: '小票识别暂时不可用',
-      message: '图片识别模型暂不可用，请稍后再试或改用文本批量记。'
+      message: '图片识别模型暂不可用，请稍后再试或改用手动输入。'
     };
   }
   if (status === 429 || code === 'rate_limited' || code === 'rate_limit') {
     return {
       title: '小票识别暂时不可用',
-      message: '请求太频繁，请稍后再试。你也可以先改用文本批量记。'
+      message: '请求太频繁，请稍后再试。你也可以先改用手动输入。'
     };
   }
   if (status === 503 || code === 'missing_api_key') {
     return {
       title: '小票识别暂时不可用',
-      message: '内置 AI 服务尚未配置，请改用文本批量记。本地功能仍可正常使用。'
+      message: '内置 AI 服务尚未配置，请改用手动输入。本地功能仍可正常使用。'
     };
   }
   return {
     title: '小票识别暂时不可用',
-    message: '云端服务暂时不可用，本地功能仍可正常使用。你可以先改用文本批量记。'
+    message: '云端服务暂时不可用，本地功能仍可正常使用。你可以先改用手动输入。'
   };
 }
 

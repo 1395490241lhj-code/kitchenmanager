@@ -2480,11 +2480,11 @@ nav a:active { transform: scale(0.94); }
     flex: 1;
   }
   .receipt-confirm-row {
-    grid-template-columns: 1fr 74px;
+    grid-template-columns: auto minmax(0, 1fr) 62px 68px auto;
   }
   .receipt-confirm-row select,
   .receipt-confirm-row .btn {
-    grid-column: span 1;
+    grid-column: auto;
   }
   .receipt-confirm-actions {
     align-items: stretch;
@@ -2692,12 +2692,19 @@ nav a:active { transform: scale(0.94); }
   overscroll-behavior: contain;
 }
 .receipt-confirm-card {
-  width: min(680px, 100%);
+  width: min(680px, calc(100vw - 28px));
   max-height: min(760px, 90vh);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.receipt-confirm-card h3 {
+  margin: 0;
+  font-size: 18px;
 }
 .receipt-confirm-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -2706,48 +2713,55 @@ nav a:active { transform: scale(0.94); }
 }
 .receipt-confirm-group {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.45);
   border: 1px solid rgba(120, 120, 128, 0.16);
 }
 .receipt-group-head {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
 .receipt-group-head strong {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-main);
 }
 .receipt-group-head span {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.45;
 }
+.receipt-group-head span:empty {
+  display: none;
+}
 .receipt-group-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 .receipt-select-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  width: max-content;
-  max-width: 100%;
+  min-width: 0;
   font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
 }
+.receipt-select-label span {
+  white-space: nowrap;
+}
 .receipt-select-checkbox {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   accent-color: var(--primary);
 }
 .receipt-confirm-item {
   display: grid;
-  gap: 6px;
-  padding: 8px;
+  gap: 4px;
+  padding: 7px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.4);
   border: 1px solid rgba(120, 120, 128, 0.14);
@@ -2762,9 +2776,19 @@ html[data-theme="dark"] .receipt-confirm-item {
 }
 .receipt-confirm-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) 90px 96px auto;
-  gap: 8px;
+  grid-template-columns: auto minmax(140px, 1fr) 72px 78px auto;
+  gap: 6px;
   align-items: center;
+}
+.receipt-confirm-row input,
+.receipt-confirm-row select {
+  min-height: 36px;
+  padding: 7px 9px;
+  border-radius: 10px;
+}
+.receipt-confirm-row .btn {
+  min-height: 34px;
+  padding: 7px 10px;
 }
 .receipt-ignored-item {
   display: flex;
@@ -2786,17 +2810,29 @@ html[data-theme="dark"] .receipt-ignored-item {
 .receipt-original-name {
   font-size: 11px;
   color: var(--text-secondary);
-  margin-top: -2px;
-  margin-bottom: 6px;
+  margin: -1px 0 2px 28px;
   padding-left: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.receipt-add-manual {
+  align-self: flex-start;
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  background: var(--bg-input);
+  border: 1px solid var(--separator);
 }
 .receipt-confirm-actions {
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: 0;
   position: sticky;
   bottom: 0;
   z-index: 3;
-  padding-top: 12px;
+  padding-top: 10px;
   padding-bottom: max(0px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--separator);
   background: transparent;
@@ -5752,7 +5788,7 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 .batch-input-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 /* 双 Tab 切换：胶囊背景 + 主题色高亮当前 Tab */
@@ -5765,7 +5801,8 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
   border-radius: 14px;
 }
 .batch-tab {
-  padding: 9px 10px;
+  min-height: 34px;
+  padding: 7px 10px;
   font-size: 13px;
   font-weight: 700;
   color: var(--text-secondary);
@@ -5784,31 +5821,47 @@ html[data-theme="dark"] .recipe-cat-chip.is-active { background: var(--primary);
 /* Tab 内容面板 */
 .batch-tab-panel { display: flex; flex-direction: column; gap: 10px; }
 .batch-tab-panel.is-hidden { display: none; }
+.batch-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.batch-panel-head strong {
+  color: var(--text-main);
+  font-size: 15px;
+  font-weight: 800;
+}
+.batch-panel-head small {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 
 /* 📸 拍小票：点击式相机投放区 */
 .receipt-drop-zone {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 24px 14px;
-  text-align: center;
-  border: 2px dashed var(--separator);
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 64px;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px dashed var(--separator);
   border-radius: 14px;
   background: var(--bg-input);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .receipt-drop-zone:hover { background: var(--primary-soft); border-color: var(--primary); }
-.receipt-camera-icon { font-size: 32px; }
+.receipt-camera-icon { font-size: 22px; }
 .receipt-drop-zone strong { font-size: 15px; color: var(--text-main); }
 .receipt-drop-zone small { color: var(--text-secondary); font-size: 12px; }
 
 /* ✍️ 文本批量记 */
 .batch-text-area {
   width: 100%;
-  min-height: 130px;
+  min-height: 108px;
   padding: 12px;
   border-radius: 12px;
   border: 1px solid var(--separator);
@@ -8703,15 +8756,15 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
 .inventory-add-pane[hidden] { display: none; }
 .inventory-modal-card {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  padding: 14px;
   border-radius: 22px;
   background: var(--glass-bg);
   border: 1px solid var(--glass-edge);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 .inventory-modal-textarea {
-  min-height: 116px;
+  min-height: 108px;
   margin: 0;
 }
 .inventory-modal-options {
@@ -8745,29 +8798,30 @@ html[data-theme="dark"] .today-quick-btn.is-primary {
   accent-color: var(--accent);
 }
 .inventory-receipt-card {
-  gap: 14px;
+  gap: 10px;
 }
 .inventory-receipt-pick-card {
   width: 100%;
-  min-height: 76px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px;
-  border-radius: 20px;
+  padding: 12px 14px;
+  border-radius: 16px;
   border: 1px solid rgba(0, 122, 255, 0.18);
-  background: linear-gradient(135deg, rgba(0, 122, 255, 0.10), rgba(52, 199, 89, 0.06)), var(--glass-cell-fill);
+  background: var(--glass-cell-fill);
   color: var(--text-main);
   text-align: left;
+  cursor: pointer;
 }
 .inventory-receipt-icon {
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  border-radius: 15px;
+  border-radius: 13px;
   background: rgba(0, 122, 255, 0.14);
   font-size: 20px;
 }
@@ -10460,7 +10514,7 @@ html[data-theme="dark"] .batch-input-body .km-modal-actions.batch-input-actions 
     flex: none;
   }
   .receipt-confirm-row {
-    grid-template-columns: minmax(0, 1fr) 72px 78px auto;
+    grid-template-columns: auto minmax(0, 1fr) 62px 68px auto;
     gap: 6px;
   }
   .deduct-row {

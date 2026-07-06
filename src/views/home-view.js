@@ -1084,7 +1084,7 @@ function openExpiryListModal(inv, pack, { onRoute = () => {}, onChange = () => {
 }
 
 /* 旧版「批量入库」单件添加弹窗 buildBatchStockModal 已彻底删除。
-   现在所有 📦 批量入库点击都进入 openBatchInputModal（双 Tab：📸 拍小票识别 + ✍️ 文本批量记），
+   现在所有 📦 批量入库点击都进入 openBatchInputModal（双 Tab：拍小票 + 手动输入），
    入口在 renderActionHub 内点击 #actQuickInput 时触发；切勿在此处复活旧表单。 */
 
 /** 「随手记」弹窗 */
@@ -1215,7 +1215,7 @@ function renderActionHub(pack, inv, { onQuickInput = () => {}, onRoute = () => {
     }).join('');
   };
 
-  // ── 批量入库 → 全新【双 Tab 弹窗】（📸 拍小票识别 / ✍️ 文本批量记） ──
+  // ── 批量入库 → 双 Tab 弹窗（拍小票 / 手动输入） ──
   //   直接在此处调用 openBatchInputModal 是为了消灭历史 bug：
   //   早期版本曾在这里硬编码绑定到旧的「单件添加表单」(buildBatchStockModal)，
   //   会覆盖外部 onQuickInput 回调，导致点击 📦 时仍弹出旧表单。
@@ -1267,7 +1267,7 @@ function renderOnboarding(pack, { onRoute = () => {} } = {}) {
 // 与食材页「随手记几样食材」轻量录入区共用同一套「每行一个食材」解析规则。
 
 /**
- * 📦 批量入库统一弹窗：双 Tab 切换（📸 拍小票识别 / ✍️ 文本批量记），最终都走同一条写库逻辑。
+ * 记食材统一弹窗：拍小票 / 手动输入，最终都走同一条写库逻辑。
  */
 function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' } = {}) {
   // 内容只承载业务（双 Tab 切换 + 拍小票区 + 文本区 + 底部操作行），
@@ -1276,44 +1276,50 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   body.className = 'km-modal-body batch-input-body';
   body.innerHTML = `
     <div class="batch-tab-switcher" role="tablist">
-      <button type="button" class="batch-tab" data-tab="receipt" role="tab">📸 拍小票识别</button>
-      <button type="button" class="batch-tab" data-tab="text" role="tab">✍️ 文本批量记</button>
+      <button type="button" class="batch-tab" data-tab="receipt" role="tab">拍小票</button>
+      <button type="button" class="batch-tab" data-tab="text" role="tab">手动输入</button>
     </div>
 
     <div class="batch-tab-panel" id="batch-panel-receipt" role="tabpanel">
+      <div class="batch-panel-head">
+        <strong>上传小票</strong>
+        <small>识别后请确认再入库</small>
+      </div>
       <div class="receipt-drop-zone">
         <input type="file" id="batchReceiptFile" accept="image/*" class="visually-hidden">
         <span class="receipt-camera-icon" aria-hidden="true">📷</span>
-        <strong>拍小票识别</strong>
-        <small>自动识别食材并让你确认</small>
+        <strong>拍照 / 选择图片</strong>
       </div>
       <div id="batchReceiptStatus" class="small inline-status" hidden></div>
     </div>
 
     <div class="batch-tab-panel is-hidden" id="batch-panel-text" role="tabpanel">
-      <p class="meta">每行一个食材。数量不确定也可以只写名字。</p>
-      <textarea id="batchTextInput" rows="6" class="batch-text-area" placeholder="鸡蛋 6个&#10;番茄 3个&#10;土豆 2个&#10;豆腐 1盒"></textarea>
+      <div class="batch-panel-head">
+        <strong>批量输入</strong>
+      </div>
+      <textarea id="batchTextInput" rows="5" class="batch-text-area" placeholder="例如：&#10;鸡蛋 12个&#10;牛奶 1瓶&#10;青椒 2个"></textarea>
       <div id="batchTextStatus" class="small inline-status" hidden></div>
     </div>
 
     <div class="km-modal-actions batch-input-actions">
       <button type="button" class="btn" id="batchCancel">取消</button>
-      <button type="button" class="btn ok" id="batchConfirm">加入厨房</button>
+      <button type="button" class="btn ok" id="batchConfirm">加入库存</button>
     </div>
   `;
-  const { overlay, close } = createHomeModal(body, '记进厨房');
+  const { overlay, close } = createHomeModal(body, '记食材');
 
   let currentTab = (initialTab === 'text' ? 'text' : 'receipt');
   const setTab = (name) => {
     currentTab = name;
     overlay.querySelectorAll('.batch-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
     overlay.querySelectorAll('.batch-tab-panel').forEach(p => p.classList.toggle('is-hidden', p.id !== `batch-panel-${name}`));
-    // 拍小票模式：主按钮文案改为「打开相机」式提示；文本模式：恢复「确认入库」。
+    // 拍小票模式：主按钮打开图片选择；文本模式：直接加入库存。
     const confirmBtn = overlay.querySelector('#batchConfirm');
-    confirmBtn.textContent = name === 'receipt' ? '选取小票图片' : '加入厨房';
+    confirmBtn.textContent = name === 'receipt' ? '开始识别' : '加入库存';
   };
   setTab(currentTab);
   overlay.querySelectorAll('.batch-tab').forEach(t => { t.onclick = () => setTab(t.dataset.tab); });
+  overlay.querySelector('.receipt-drop-zone')?.addEventListener('click', () => receiptFileInput.click());
 
   overlay.querySelector('#batchCancel').onclick = close;
 
@@ -1350,7 +1356,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       setActionStatus(receiptStatus, {
         title: copy.title,
         message: copy.message,
-        primaryText: '改用文本批量记',
+        primaryText: '改用手动输入',
         secondaryText: '重新选择图片',
         onPrimary: () => {
           setTab('text');
@@ -1365,7 +1371,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   };
   receiptFileInput.onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
 
-  // ── 模式 B：文本批量记 ──
+  // ── 模式 B：手动输入 ──
   overlay.querySelector('#batchConfirm').onclick = () => {
     if (currentTab === 'receipt') {
       receiptFileInput.click(); // iPhone 会弹出相册 / 拍照 / 文件选择
@@ -1392,7 +1398,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     } else {
       statusEl.hidden = false;
       statusEl.className = 'small inline-status bad';
-      statusEl.textContent = '没能加入厨房：这些内容还没识别成食材。';
+      statusEl.textContent = '没能加入库存：这些内容还没识别成食材。';
     }
   };
 }
@@ -1561,7 +1567,7 @@ function renderQuickActions(pack, inv, { onRoute = () => {}, refreshStatus = () 
       </button>
     </div>
   `;
-  // 记食材：直接打开现有「记进厨房」弹窗（📸 拍小票识别 + ✍️ 文本批量记）。
+  // 记食材：直接打开现有「记食材」弹窗（拍小票 + 手动输入）。
   section.querySelector('#qaStock').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
   section.querySelector('#qaRecipeImport').onclick = () => openRecipeImportModal();
   return section;

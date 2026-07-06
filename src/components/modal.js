@@ -152,6 +152,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   overlay.className = 'modal-overlay';
   const unitOptions = ['个', '盒', '袋', '包', '瓶', '把', '份', 'g', 'ml'];
   const groups = normalizeReceiptConfirmGroups(items);
+  const recognizedCount = groups.inventory.length + groups.pantry.length + groups.review.length;
   let rowIndex = 0;
   const renderEditableRow = (item, groupKey, checked) => {
     const normalized = normalizeKitchenAmount(item.name, item.qty, item.unit, { source: 'receipt' });
@@ -175,11 +176,11 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
 
     return `
       <div class="receipt-confirm-item${checked ? '' : ' is-unselected'}" data-index="${index}" data-group="${groupKey}" data-target="${target}" data-original-name="${escapeOptionAttr(originalName)}">
-        <label class="receipt-select-label">
-          <input type="checkbox" class="receipt-select-checkbox" ${checked ? 'checked' : ''}>
-          <span>${escapeHtml(actionText)}</span>
-        </label>
         <div class="receipt-confirm-row">
+          <label class="receipt-select-label">
+            <input type="checkbox" class="receipt-select-checkbox" ${checked ? 'checked' : ''}>
+            <span>${escapeHtml(actionText)}</span>
+          </label>
           <input class="receipt-name" value="${escapeOptionAttr(name)}" placeholder="食材名">
           <input class="receipt-qty" type="number" min="0" step="0.1" value="${qty}">
           <select class="receipt-unit">
@@ -207,10 +208,10 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
     `;
   };
   const groupMeta = [
-    { key: 'inventory', title: '加入食材', note: '这些会加入厨房食材。', checked: true },
-    { key: 'pantry', title: '常备货架', note: '这些更像常备货架，不参与普通库存。', checked: true },
-    { key: 'review', title: '需要确认', note: '这些可能是水果、零食或速冻成品，默认不加入。', checked: false },
-    { key: 'ignored', title: '已忽略', note: '这些不是厨房食材，已忽略。', checked: false }
+    { key: 'inventory', title: '食材', note: '', checked: true },
+    { key: 'pantry', title: '常备', note: '', checked: true },
+    { key: 'review', title: '待确认', note: '默认不入库', checked: false },
+    { key: 'ignored', title: '已忽略', note: '', checked: false }
   ];
   const rows = groupMeta.map(meta => {
     const list = groups[meta.key] || [];
@@ -231,17 +232,42 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
 
   overlay.innerHTML = `
     <div class="card receipt-confirm-card">
-      <h3>确认识别结果</h3>
-      <p class="meta">识别结果只是草稿，确认后才会加入厨房。</p>
+      <h3>识别结果${recognizedCount ? ` · ${recognizedCount} 项` : ''}</h3>
       <div class="receipt-confirm-list">${rows}</div>
+      <button type="button" class="btn small receipt-add-manual" id="addReceiptManual">+ 手动补一项</button>
       <div class="controls receipt-confirm-actions">
         <button type="button" class="btn" id="cancelReceiptConfirm">取消</button>
-        <button type="button" class="btn ok" id="saveReceiptConfirm">加入厨房</button>
+        <button type="button" class="btn ok" id="saveReceiptConfirm">确认入库</button>
       </div>
     </div>
   `;
 
   const shoppingItems = loadShoppingItems();
+
+  const getSelectedCount = () => Array.from(overlay.querySelectorAll('.receipt-confirm-item'))
+    .filter(itemEl => itemEl.querySelector('.receipt-select-checkbox')?.checked).length;
+
+  const ensureInventoryGroup = () => {
+    let groupEl = overlay.querySelector('.receipt-group-inventory');
+    if (groupEl) return groupEl;
+    const listContainer = overlay.querySelector('.receipt-confirm-list');
+    groupEl = document.createElement('section');
+    groupEl.className = 'receipt-confirm-group receipt-group-inventory';
+    groupEl.innerHTML = `
+      <div class="receipt-group-head">
+        <strong>食材</strong>
+      </div>
+      <div class="receipt-group-list"></div>
+    `;
+    listContainer.prepend(groupEl);
+    return groupEl;
+  };
+
+  const refreshActionLabel = () => {
+    const selectedCount = getSelectedCount();
+    const saveBtn = overlay.querySelector('#saveReceiptConfirm');
+    if (saveBtn) saveBtn.textContent = selectedCount ? `确认入库 ${selectedCount} 项` : '确认入库';
+  };
 
   const refreshMatches = () => {
     overlay.querySelectorAll('.receipt-confirm-item').forEach(itemEl => {
@@ -294,6 +320,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
         `;
       }
     });
+    refreshActionLabel();
   };
 
   const close = () => overlay.remove();
@@ -303,6 +330,21 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
       refreshMatches();
     };
   });
+  overlay.querySelector('#addReceiptManual').onclick = () => {
+    const groupEl = ensureInventoryGroup();
+    const groupList = groupEl.querySelector('.receipt-group-list');
+    groupList.insertAdjacentHTML('beforeend', renderEditableRow({ name: '', qty: 1, unit: '份' }, 'inventory', true));
+    const newItem = groupList.querySelector('.receipt-confirm-item:last-child');
+    const removeBtn = newItem?.querySelector('.receipt-remove');
+    if (removeBtn) {
+      removeBtn.onclick = () => {
+        removeBtn.closest('.receipt-confirm-item')?.remove();
+        refreshMatches();
+      };
+    }
+    newItem?.querySelector('.receipt-name')?.focus();
+    refreshMatches();
+  };
   overlay.querySelector('#cancelReceiptConfirm').onclick = () => {
     close();
     if(onCancel) onCancel();

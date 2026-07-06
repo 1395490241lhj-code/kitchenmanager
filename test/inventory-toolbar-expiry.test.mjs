@@ -16,7 +16,7 @@ function read(rel) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('食材页顶部工具区把小票入口合并进“记进厨房”窗口', () => {
+test('食材页顶部工具区把小票入口合并进“记食材”窗口', () => {
   const source = read('src/views/inventory-view.js');
   const styles = read('styles.css');
 
@@ -28,11 +28,11 @@ test('食材页顶部工具区把小票入口合并进“记进厨房”窗口',
   assert.doesNotMatch(source, /id="camInput"/);
   assert.match(source, /id="inventoryAddBtn"/);
   assert.match(source, /openInventoryAddModal\('manual'\)/);
-  assert.match(source, /id="inventoryAddTitle">记进厨房</);
+  assert.match(source, /id="inventoryAddTitle">记食材</);
   assert.match(source, /class="inventory-tool-row"/);
   assert.match(source, /class="inventory-tool-btn inventory-add-trigger is-primary"/);
-  assert.match(source, />手动记食材<\/button>/);
-  assert.match(source, />拍小票识别<\/button>/);
+  assert.match(source, />手动输入<\/button>/);
+  assert.match(source, />拍小票<\/button>/);
   assert.match(source, /id="inventoryModalText"/);
   assert.match(source, /id="inventoryModalSample"/);
   assert.match(source, /id="inventoryModalFrozen"/);
