@@ -155,7 +155,16 @@ async function repairRecipeJsonContent(rawContent) {
   return safeParseModelJson(getAiMessageContent(resp));
 }
 
+function createPublicApiError(status, error, code = '') {
+  const err = new Error(error);
+  err.publicStatus = status;
+  err.publicError = error;
+  err.publicCode = code;
+  return err;
+}
+
 module.exports = {
+  createPublicApiError,
   resolveChatUrl,
   resolveAudioTranscriptionsUrl,
   estimateBase64EncodedBytes,
