@@ -147,7 +147,7 @@ function normalizeReceiptConfirmGroups(input) {
   };
 }
 
-export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
+export function showReceiptConfirmationModal(items, onConfirm, onCancel, options = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   const unitOptions = ['个', '盒', '袋', '包', '瓶', '把', '份', 'g', 'ml'];
@@ -163,6 +163,9 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
     const index = rowIndex++;
     const target = groupKey === 'pantry' ? 'pantry' : 'inventory';
     const actionText = groupKey === 'pantry' ? '加入货架' : (groupKey === 'review' ? '可选加入' : '加入食材');
+    const storageLabel = groupKey === 'pantry'
+      ? '常备'
+      : (groupKey === 'review' || item.uncertain ? '待确认' : (item.storage || '冷藏'));
 
     return `
       <div class="receipt-confirm-item${checked ? '' : ' is-unselected'}" data-index="${index}" data-group="${groupKey}" data-target="${target}" data-original-name="${escapeOptionAttr(originalName)}">
@@ -176,6 +179,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
           <select class="receipt-unit">
             ${unitOptions.map(u => `<option value="${u}"${u === unit ? ' selected' : ''}>${u}</option>`).join('')}
           </select>
+          <span class="receipt-storage-label">${escapeHtml(storageLabel)}</span>
           <button type="button" class="btn bad small receipt-remove">删</button>
         </div>
         <div class="receipt-match-container"></div>
@@ -205,9 +209,26 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
   overlay.innerHTML = `
     <div class="card receipt-confirm-card">
       <h3>识别结果${recognizedCount ? ` · ${recognizedCount} 项` : ''}</h3>
+      <div class="receipt-result-summary">
+        <span>已识别 · ${recognizedCount} 项</span>
+        <div class="receipt-result-summary-actions">
+          ${options.onPickAnother ? '<button type="button" class="btn small" id="pickAnotherReceipt">换一张</button>' : ''}
+          ${options.onRetry ? '<button type="button" class="btn small" id="retryReceipt">重新识别</button>' : ''}
+          ${options.onEnhancedRetry ? '<button type="button" class="btn small" id="retryEnhancedReceipt">增强重试</button>' : ''}
+        </div>
+      </div>
       <div class="receipt-confirm-list">${rows}</div>
-      <button type="button" class="btn small receipt-add-manual" id="addReceiptManual">+ 手动补一项</button>
+      <div class="receipt-manual-form" id="receiptManualForm" hidden>
+        <input class="receipt-manual-name" placeholder="食材名">
+        <input class="receipt-manual-qty" type="number" min="0" step="0.1" value="1" aria-label="数量">
+        <select class="receipt-manual-unit" aria-label="单位">
+          ${unitOptions.map(u => `<option value="${u}"${u === '份' ? ' selected' : ''}>${u}</option>`).join('')}
+        </select>
+        <span class="receipt-storage-label">冷藏</span>
+        <button type="button" class="btn small ok" id="confirmReceiptManual">添加</button>
+      </div>
       <div class="controls receipt-confirm-actions">
+        <button type="button" class="btn small receipt-add-manual" id="addReceiptManual">+ 手动补一项</button>
         <button type="button" class="btn" id="cancelReceiptConfirm">取消</button>
         <button type="button" class="btn ok" id="saveReceiptConfirm">确认入库</button>
       </div>
@@ -302,10 +323,37 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
       refreshMatches();
     };
   });
+  overlay.querySelector('#pickAnotherReceipt')?.addEventListener('click', () => {
+    close();
+    if (typeof options.onPickAnother === 'function') options.onPickAnother();
+  });
+  overlay.querySelector('#retryReceipt')?.addEventListener('click', () => {
+    close();
+    if (typeof options.onRetry === 'function') options.onRetry();
+  });
+  overlay.querySelector('#retryEnhancedReceipt')?.addEventListener('click', () => {
+    close();
+    if (typeof options.onEnhancedRetry === 'function') options.onEnhancedRetry();
+  });
   overlay.querySelector('#addReceiptManual').onclick = () => {
+    const manualForm = overlay.querySelector('#receiptManualForm');
+    if (manualForm) {
+      manualForm.hidden = !manualForm.hidden;
+      if (!manualForm.hidden) manualForm.querySelector('.receipt-manual-name')?.focus();
+    }
+  };
+  overlay.querySelector('#confirmReceiptManual').onclick = () => {
+    const manualForm = overlay.querySelector('#receiptManualForm');
+    const name = manualForm?.querySelector('.receipt-manual-name')?.value.trim();
+    if (!name) {
+      manualForm?.querySelector('.receipt-manual-name')?.focus();
+      return;
+    }
+    const qty = manualForm.querySelector('.receipt-manual-qty')?.value || 1;
+    const unit = manualForm.querySelector('.receipt-manual-unit')?.value || '份';
     const groupEl = ensureInventoryGroup();
     const groupList = groupEl.querySelector('.receipt-group-list');
-    groupList.insertAdjacentHTML('beforeend', renderEditableRow({ name: '', qty: 1, unit: '份' }, 'inventory', true));
+    groupList.insertAdjacentHTML('beforeend', renderEditableRow({ name, qty, unit, storage: '冷藏' }, 'inventory', true));
     const newItem = groupList.querySelector('.receipt-confirm-item:last-child');
     const removeBtn = newItem?.querySelector('.receipt-remove');
     if (removeBtn) {
@@ -314,7 +362,9 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel) {
         refreshMatches();
       };
     }
-    newItem?.querySelector('.receipt-name')?.focus();
+    manualForm.querySelector('.receipt-manual-name').value = '';
+    manualForm.querySelector('.receipt-manual-qty').value = '1';
+    manualForm.hidden = true;
     refreshMatches();
   };
   overlay.querySelector('#cancelReceiptConfirm').onclick = () => {

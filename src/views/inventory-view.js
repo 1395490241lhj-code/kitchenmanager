@@ -244,18 +244,29 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   };
   syncEditBtn();
 
-  const handleReceiptFile = async (file, inputEl, statusEl, actions = {}) => {
+  const handleReceiptFile = async (file, inputEl, statusEl, actions = {}, options = {}) => {
     if(!file) return;
     if (statusEl) {
       statusEl.classList.add('visible');
       statusEl.hidden = false;
-      statusEl.innerHTML = '<span class="spinner"></span> 识别中...';
+      statusEl.textContent = options.enhanced ? '正在用增强模式识别…' : '正在识别小票...';
     }
     try {
-      const result = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
+      const result = await withTimeout(recognizeReceipt(file, { enhanced: Boolean(options.enhanced) }), 30000, '识别超时');
       const total = ['inventory', 'pantry', 'review'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
       if(total === 0) {
-        if (statusEl) statusEl.innerHTML = '<span class="text-danger">没有识别到食材</span>';
+        if (statusEl) {
+          setActionStatus(statusEl, {
+            title: '没有识别到食材',
+            message: '可以换一张更清晰的小票，或用增强模式重试。',
+            primaryText: '用增强模式重试',
+            secondaryText: '手动输入',
+            onPrimary: () => handleReceiptFile(file, inputEl, statusEl, actions, { enhanced: true }),
+            onSecondary: () => {
+              if (typeof actions.onText === 'function') actions.onText();
+            }
+          });
+        }
         showToast('没有识别到可入库食材', { tone: 'warning' });
         return;
       }
@@ -284,6 +295,13 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           statusEl?.classList.remove('visible');
           if (statusEl) statusEl.hidden = true;
         }, 1200);
+      }, {
+        onPickAnother: () => {
+          if (typeof actions.onRetry === 'function') actions.onRetry();
+          else inputEl?.click?.();
+        },
+        onRetry: () => handleReceiptFile(file, inputEl, statusEl, actions),
+        ...(total <= 2 ? { onEnhancedRetry: () => handleReceiptFile(file, inputEl, statusEl, actions, { enhanced: true }) } : {})
       });
     } catch(err) {
       if (statusEl) {
@@ -291,14 +309,11 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         setActionStatus(statusEl, {
           title: copy.title,
           message: copy.message,
-          primaryText: '改用手动输入',
-          secondaryText: '重新选择图片',
-          onPrimary: () => {
-            if (typeof actions.onText === 'function') actions.onText();
-          },
+          primaryText: '用增强模式重试',
+          secondaryText: '手动输入',
+          onPrimary: () => handleReceiptFile(file, inputEl, statusEl, actions, { enhanced: true }),
           onSecondary: () => {
-            if (typeof actions.onRetry === 'function') actions.onRetry();
-            else inputEl?.click?.();
+            if (typeof actions.onText === 'function') actions.onText();
           }
         });
       }
@@ -339,13 +354,29 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           </section>
           <section class="inventory-add-pane" data-pane="receipt" hidden>
             <div class="inventory-modal-card inventory-receipt-card">
-              <div class="inventory-quick-title">上传小票</div>
-              <div class="inventory-receipt-pick-card" aria-hidden="true">
-                <span class="inventory-receipt-icon">📷</span>
-                <span>
-                  <strong>拍照 / 选择图片</strong>
-                  <small>识别后请确认再入库</small>
-                </span>
+              <div class="batch-panel-head">
+                <strong>上传小票</strong>
+                <small>尽量拍完整小票</small>
+              </div>
+              <div class="inventory-receipt-empty">
+                <div class="inventory-receipt-pick-card" aria-hidden="true">
+                  <span class="inventory-receipt-icon">📷</span>
+                  <span>
+                    <strong>拍照 / 选择图片</strong>
+                  </span>
+                </div>
+              </div>
+              <div class="receipt-selected-card inventory-receipt-selected" hidden>
+                <img class="receipt-preview" alt="小票预览">
+                <div class="receipt-selected-copy">
+                  <strong class="receipt-file-name">已选择图片</strong>
+                  <small>可以开始识别</small>
+                </div>
+                <button type="button" class="btn small receipt-change-btn">换一张</button>
+              </div>
+              <div class="receipt-working-card inventory-receipt-working" hidden>
+                <span class="spinner"></span>
+                <strong>正在识别小票...</strong>
               </div>
               <input type="file" id="inventoryModalReceiptInput" accept="image/*" class="visually-hidden">
               <div id="inventoryModalReceiptStatus" class="small inventory-scan-status" hidden></div>
@@ -370,7 +401,39 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     const receiptInput = overlay.querySelector('#inventoryModalReceiptInput');
     const receiptStatus = overlay.querySelector('#inventoryModalReceiptStatus');
     const primaryBtn = overlay.querySelector('#inventoryAddPrimary');
+    const receiptEmpty = overlay.querySelector('.inventory-receipt-empty');
+    const receiptSelected = overlay.querySelector('.inventory-receipt-selected');
+    const receiptWorking = overlay.querySelector('.inventory-receipt-working');
+    const receiptPreview = overlay.querySelector('.receipt-preview');
+    const receiptFileName = overlay.querySelector('.receipt-file-name');
     let activeTab = initialTab === 'receipt' ? 'receipt' : 'manual';
+    let selectedReceiptFile = null;
+    let selectedReceiptPreviewUrl = '';
+
+    const setReceiptStage = (stage) => {
+      if (receiptEmpty) receiptEmpty.hidden = stage !== 'empty';
+      if (receiptSelected) receiptSelected.hidden = stage !== 'selected';
+      if (receiptWorking) receiptWorking.hidden = stage !== 'working';
+      if (activeTab === 'receipt') {
+        primaryBtn.disabled = stage === 'working';
+        primaryBtn.textContent = stage === 'empty' ? '拍照 / 选择图片' : (stage === 'working' ? '识别中...' : '开始识别');
+      }
+    };
+
+    const selectReceiptFile = (file) => {
+      if (!file) return;
+      selectedReceiptFile = file;
+      if (selectedReceiptPreviewUrl) URL.revokeObjectURL(selectedReceiptPreviewUrl);
+      selectedReceiptPreviewUrl = URL.createObjectURL(file);
+      if (receiptPreview) receiptPreview.src = selectedReceiptPreviewUrl;
+      if (receiptFileName) receiptFileName.textContent = file.name || '已选择图片';
+      if (receiptStatus) {
+        receiptStatus.classList.remove('visible');
+        receiptStatus.hidden = true;
+        receiptStatus.textContent = '';
+      }
+      setReceiptStage('selected');
+    };
 
     const setTab = (tab) => {
       activeTab = tab === 'receipt' ? 'receipt' : 'manual';
@@ -384,7 +447,10 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
         pane.hidden = !isActive;
         pane.classList.toggle('is-active', isActive);
       });
-      primaryBtn.textContent = activeTab === 'receipt' ? '开始识别' : '加入库存';
+      primaryBtn.disabled = false;
+      primaryBtn.textContent = activeTab === 'receipt'
+        ? (selectedReceiptFile ? '开始识别' : '拍照 / 选择图片')
+        : '加入库存';
       if (activeTab === 'manual') modalText?.focus();
     };
 
@@ -406,17 +472,28 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
       modalText.value = '鸡蛋 6个\n番茄 3个\n土豆 2个\n青菜 1把';
       modalText.focus();
     };
-    receiptInput.onchange = (event) => handleReceiptFile(event.target.files?.[0], event.target, receiptStatus, {
+    receiptInput.onchange = (event) => {
+      selectReceiptFile(event.target.files?.[0]);
+      event.target.value = '';
+    };
+    const receiptActions = {
       onRetry: () => receiptInput.click(),
       onText: () => {
         setTab('manual');
         modalText?.focus();
       }
-    });
+    };
     overlay.querySelector('.inventory-receipt-pick-card')?.addEventListener('click', () => receiptInput.click());
+    overlay.querySelector('.receipt-change-btn')?.addEventListener('click', () => receiptInput.click());
     primaryBtn.onclick = () => {
       if (activeTab === 'receipt') {
-        receiptInput.click();
+        if (!selectedReceiptFile) receiptInput.click();
+        else {
+          setReceiptStage('working');
+          handleReceiptFile(selectedReceiptFile, receiptInput, receiptStatus, receiptActions).finally(() => {
+            if (document.body.contains(overlay) && activeTab === 'receipt') setReceiptStage(selectedReceiptFile ? 'selected' : 'empty');
+          });
+        }
         return;
       }
       const frozen = overlay.querySelector('#inventoryModalFrozen')?.checked;
@@ -424,6 +501,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     };
 
     setTab(activeTab);
+    setReceiptStage('empty');
   };
 
   searchDiv.querySelector('#inventoryAddBtn').onclick = () => openInventoryAddModal('manual');

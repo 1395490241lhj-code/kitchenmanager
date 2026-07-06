@@ -1283,12 +1283,26 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
     <div class="batch-tab-panel" id="batch-panel-receipt" role="tabpanel">
       <div class="batch-panel-head">
         <strong>上传小票</strong>
-        <small>识别后请确认再入库</small>
+        <small class="receipt-stage-hint">尽量拍完整小票</small>
       </div>
-      <div class="receipt-drop-zone">
-        <input type="file" id="batchReceiptFile" accept="image/*" class="visually-hidden">
-        <span class="receipt-camera-icon" aria-hidden="true">📷</span>
-        <strong>拍照 / 选择图片</strong>
+      <input type="file" id="batchReceiptFile" accept="image/*" class="visually-hidden">
+      <div class="receipt-upload-empty">
+        <div class="receipt-drop-zone">
+          <span class="receipt-camera-icon" aria-hidden="true">📷</span>
+          <strong>拍照 / 选择图片</strong>
+        </div>
+      </div>
+      <div class="receipt-selected-card" hidden>
+        <img class="receipt-preview" alt="小票预览">
+        <div class="receipt-selected-copy">
+          <strong class="receipt-file-name">已选择图片</strong>
+          <small>可以开始识别</small>
+        </div>
+        <button type="button" class="btn small receipt-change-btn">换一张</button>
+      </div>
+      <div class="receipt-working-card" hidden>
+        <span class="spinner"></span>
+        <strong>正在识别小票...</strong>
       </div>
       <div id="batchReceiptStatus" class="small inline-status" hidden></div>
     </div>
@@ -1309,72 +1323,156 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   const { overlay, close } = createHomeModal(body, '记食材');
 
   let currentTab = (initialTab === 'text' ? 'text' : 'receipt');
+  let selectedReceiptFile = null;
+  let selectedReceiptPreviewUrl = '';
   const setTab = (name) => {
     currentTab = name;
     overlay.querySelectorAll('.batch-tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
     overlay.querySelectorAll('.batch-tab-panel').forEach(p => p.classList.toggle('is-hidden', p.id !== `batch-panel-${name}`));
     // 拍小票模式：主按钮打开图片选择；文本模式：直接加入库存。
     const confirmBtn = overlay.querySelector('#batchConfirm');
-    confirmBtn.textContent = name === 'receipt' ? '开始识别' : '加入库存';
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = name === 'receipt'
+      ? (selectedReceiptFile ? '开始识别' : '拍照 / 选择图片')
+      : '加入库存';
   };
   setTab(currentTab);
   overlay.querySelectorAll('.batch-tab').forEach(t => { t.onclick = () => setTab(t.dataset.tab); });
-  overlay.querySelector('.receipt-drop-zone')?.addEventListener('click', () => receiptFileInput.click());
 
   overlay.querySelector('#batchCancel').onclick = close;
 
   // ── 模式 A：拍小票识别 ──
   const receiptFileInput = overlay.querySelector('#batchReceiptFile');
   const receiptStatus = overlay.querySelector('#batchReceiptStatus');
-  const handleReceiptFile = async (file, inputEl) => {
+  const receiptEmpty = overlay.querySelector('.receipt-upload-empty');
+  const receiptSelected = overlay.querySelector('.receipt-selected-card');
+  const receiptPreview = overlay.querySelector('.receipt-preview');
+  const receiptFileName = overlay.querySelector('.receipt-file-name');
+  const receiptWorking = overlay.querySelector('.receipt-working-card');
+
+  const setReceiptStage = (stage) => {
+    if (receiptEmpty) receiptEmpty.hidden = stage !== 'empty';
+    if (receiptSelected) receiptSelected.hidden = stage !== 'selected';
+    if (receiptWorking) receiptWorking.hidden = stage !== 'working';
+    const confirmBtn = overlay.querySelector('#batchConfirm');
+    if (currentTab === 'receipt' && confirmBtn) {
+      confirmBtn.disabled = stage === 'working';
+      confirmBtn.textContent = stage === 'empty' ? '拍照 / 选择图片' : (stage === 'working' ? '识别中...' : '开始识别');
+    }
+  };
+
+  const clearReceiptStatus = () => {
+    receiptStatus.hidden = true;
+    receiptStatus.className = 'small inline-status';
+    receiptStatus.textContent = '';
+  };
+
+  const getReceiptTotal = (result) => ['inventory', 'pantry', 'review'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
+
+  const openReceiptConfirmation = (result, file) => {
+    const total = getReceiptTotal(result);
+    const reopen = () => openBatchInputModal(pack, { onRoute, initialTab: 'receipt' });
+    const rerun = async (enhanced = false) => {
+      showToast(enhanced ? '正在用增强模式重试…' : '正在重新识别…', { tone: 'info' });
+      try {
+        const nextResult = await withTimeout(recognizeReceipt(file, { enhanced }), 30000, '识别超时');
+        const nextTotal = getReceiptTotal(nextResult);
+        if (!nextTotal) {
+          showToast('没有识别到食材', { tone: 'warning' });
+          reopen();
+          return;
+        }
+        openReceiptConfirmation(nextResult, file);
+      } catch (err) {
+        showToast(getReceiptAiFailureCopy(err).message, { tone: 'warning' });
+        reopen();
+      }
+    };
+    close();
+    showReceiptConfirmationModal(
+      result,
+      ({ inventory = [], pantry = [] } = {}) => {
+        const n = writeItemsToInventory(inventory, pack);
+        const p = writeReceiptPantryItems(pantry, pack);
+        if (n + p > 0) onRoute();
+      },
+      () => { /* 用户取消：不写库 */ },
+      {
+        onPickAnother: reopen,
+        onRetry: () => rerun(false),
+        ...(total <= 2 ? { onEnhancedRetry: () => rerun(true) } : {})
+      }
+    );
+  };
+
+  const handleReceiptFile = async (file, { enhanced = false } = {}) => {
     if (!file) return;
+    clearReceiptStatus();
+    setReceiptStage('working');
     receiptStatus.hidden = false;
     receiptStatus.className = 'small inline-status info';
-    receiptStatus.innerHTML = '<span class="spinner"></span> 正在识别…';
+    receiptStatus.textContent = enhanced ? '正在用增强模式识别…' : '正在识别小票...';
     try {
-      const result = await withTimeout(recognizeReceipt(file), 30000, '识别超时');
-      const total = ['inventory', 'pantry', 'review'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
+      const result = await withTimeout(recognizeReceipt(file, { enhanced }), 30000, '识别超时');
+      const total = getReceiptTotal(result);
       if (!total) {
+        setReceiptStage('selected');
         receiptStatus.className = 'small inline-status bad';
         receiptStatus.textContent = '没有识别到食材';
+        setActionStatus(receiptStatus, {
+          title: '没有识别到食材',
+          message: '可以换一张更清晰的小票，或用增强模式重试。',
+          primaryText: '用增强模式重试',
+          secondaryText: '手动输入',
+          onPrimary: () => handleReceiptFile(file, { enhanced: true }),
+          onSecondary: () => {
+            setTab('text');
+            overlay.querySelector('#batchTextInput')?.focus();
+          }
+        });
         showToast('没有识别到可入库食材', { tone: 'warning' });
         return;
       }
-      // 借用既有的确认弹窗渲染可编辑预览列表，确认后再写库 → 统一走 writeItemsToInventory。
-      close();
-      showReceiptConfirmationModal(
-        result,
-        ({ inventory = [], pantry = [] } = {}) => {
-          const n = writeItemsToInventory(inventory, pack);
-          const p = writeReceiptPantryItems(pantry, pack);
-          if (n + p > 0) onRoute();
-        },
-        () => { /* 用户取消：不写库 */ }
-      );
+      openReceiptConfirmation(result, file);
     } catch (err) {
+      setReceiptStage('selected');
       const copy = getReceiptAiFailureCopy(err);
       setActionStatus(receiptStatus, {
         title: copy.title,
         message: copy.message,
-        primaryText: '改用手动输入',
-        secondaryText: '重新选择图片',
-        onPrimary: () => {
+        primaryText: '用增强模式重试',
+        secondaryText: '手动输入',
+        onPrimary: () => handleReceiptFile(file, { enhanced: true }),
+        onSecondary: () => {
           setTab('text');
           overlay.querySelector('#batchTextInput')?.focus();
-        },
-        onSecondary: () => receiptFileInput.click()
+        }
       });
       showToast('小票识别暂时不可用', { tone: 'warning' });
-    } finally {
-      if (inputEl) inputEl.value = '';
     }
   };
-  receiptFileInput.onchange = (e) => handleReceiptFile(e.target.files?.[0], e.target);
+  const selectReceiptFile = (file) => {
+    if (!file) return;
+    selectedReceiptFile = file;
+    if (selectedReceiptPreviewUrl) URL.revokeObjectURL(selectedReceiptPreviewUrl);
+    selectedReceiptPreviewUrl = URL.createObjectURL(file);
+    if (receiptPreview) receiptPreview.src = selectedReceiptPreviewUrl;
+    if (receiptFileName) receiptFileName.textContent = file.name || '已选择图片';
+    clearReceiptStatus();
+    setReceiptStage('selected');
+  };
+  receiptFileInput.onchange = (e) => {
+    selectReceiptFile(e.target.files?.[0]);
+    e.target.value = '';
+  };
+  overlay.querySelector('.receipt-drop-zone')?.addEventListener('click', () => receiptFileInput.click());
+  overlay.querySelector('.receipt-change-btn')?.addEventListener('click', () => receiptFileInput.click());
 
   // ── 模式 B：手动输入 ──
   overlay.querySelector('#batchConfirm').onclick = () => {
     if (currentTab === 'receipt') {
-      receiptFileInput.click(); // iPhone 会弹出相册 / 拍照 / 文件选择
+      if (!selectedReceiptFile) receiptFileInput.click(); // iPhone 会弹出相册 / 拍照 / 文件选择
+      else handleReceiptFile(selectedReceiptFile);
       return;
     }
     const text = overlay.querySelector('#batchTextInput').value;

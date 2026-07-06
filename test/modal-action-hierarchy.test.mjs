@@ -37,15 +37,15 @@ test('AI action status 统一为次按钮在前、主按钮在后', () => {
   assert.match(source, /secondaryText[\s\S]*primaryText/);
 });
 
-test('小票识别失败兜底保留两个可继续动作', () => {
+test('小票识别失败兜底保留增强重试和手动输入动作', () => {
   const home = read('src/views/home-view.js');
   const inventory = read('src/views/inventory-view.js');
 
-  assert.match(home, /primaryText: '改用手动输入'/);
-  assert.match(home, /secondaryText: '重新选择图片'/);
+  assert.match(home, /primaryText: '用增强模式重试'/);
+  assert.match(home, /secondaryText: '手动输入'/);
   assert.match(home, /setTab\('text'\)/);
-  assert.match(inventory, /primaryText: '改用手动输入'/);
-  assert.match(inventory, /secondaryText: '重新选择图片'/);
+  assert.match(inventory, /primaryText: '用增强模式重试'/);
+  assert.match(inventory, /secondaryText: '手动输入'/);
 });
 
 test('小票确认主界面只展示结构化结果，不默认展示 OCR 原文', () => {

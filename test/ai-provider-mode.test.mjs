@@ -131,15 +131,15 @@ test('AI 错误格式保留 status/code，且 413 小票失败提示可操作', 
   assert.match(copy.message, /手动输入/);
 });
 
-test('小票识别失败区提供重新选择图片和改用手动输入入口', () => {
+test('小票识别失败区提供增强重试和手动输入入口', () => {
   const home = read('src/views/home-view.js');
   const inventory = read('src/views/inventory-view.js');
 
-  assert.match(home, /primaryText: '改用手动输入'/);
-  assert.match(home, /secondaryText: '重新选择图片'/);
+  assert.match(home, /primaryText: '用增强模式重试'/);
+  assert.match(home, /secondaryText: '手动输入'/);
   assert.match(home, /setTab\('text'\)/);
-  assert.match(inventory, /primaryText: '改用手动输入'/);
-  assert.match(inventory, /secondaryText: '重新选择图片'/);
+  assert.match(inventory, /primaryText: '用增强模式重试'/);
+  assert.match(inventory, /secondaryText: '手动输入'/);
   assert.match(inventory, /setTab\('manual'\)/);
 });
 
@@ -1027,7 +1027,7 @@ test('小票识别走同源 /api/ai-chat，不在前端携带 Authorization', as
   assert.equal(request.body.taskType, 'receipt');
   assert.match(request.body.prompt, /小票/);
   assert.match(request.body.imageBase64, /^data:image\/jpeg;base64,/);
-  assert.deepEqual(canvasAttempts[0], { width: 896, height: 504, type: 'image/jpeg', quality: 0.68 });
+  assert.deepEqual(canvasAttempts[0], { width: 1600, height: 900, type: 'image/jpeg', quality: 0.92 });
   assert.equal(out.inventory[0].name, '鸡蛋');
 });
 
@@ -1165,6 +1165,10 @@ test('小票图片会压到 Groq base64 图片限制以内的目标尺寸', () =
 
   assert.match(ai, /CLOUD_IMAGE_TARGET_BASE64_BYTES = Math\.floor\(3\.6 \* 1024 \* 1024\)/);
   assert.match(ai, /RECEIPT_IMAGE_COMPRESSION_ATTEMPTS = \[/);
-  assert.match(ai, /\{ maxSide: 512, quality: 0\.5 \}/);
+  assert.match(ai, /\{ maxSide: 2200, quality: 0\.92 \}/);
+  assert.match(ai, /RECEIPT_IMAGE_ENHANCED_ATTEMPTS = \[/);
+  assert.match(ai, /enhanceReceiptCanvas\(ctx, w, h, mode\)/);
+  assert.match(ai, /recognizeReceipt\(file, options = \{\}\)/);
+  assert.match(ai, /compressImage\(file, \{ enhanced: Boolean\(options\.enhanced\) \}\)/);
   assert.match(ai, /getDataUrlPayloadLength\(dataUrl\) <= CLOUD_IMAGE_TARGET_BASE64_BYTES/);
 });
