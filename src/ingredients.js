@@ -212,9 +212,18 @@ export const ENGLISH_INGREDIENT_ALIASES = {
   "fish fillet": "鱼片"
 };
 
+const RECEIPT_SPECIFIC_NAMES = new Set([
+  '上海青', '小白菜', '油麦菜', '菜心', '芥兰', '茼蒿', '空心菜', '大白菜', '娃娃菜',
+  '生菜', '菠菜', '韭菜', '豆苗', '豌豆尖', '油菜', '油菜苗',
+  '皇子菇', '金针菇', '杏鲍菇', '香菇', '平菇', '蟹味菇', '白玉菇',
+  '黄豆芽', '绿豆芽', '油豆腐', '鱼豆腐'
+]);
+
 export function normalizeReceiptIngredientName(name) {
   if (!name) return "";
-  let n = String(name).toLowerCase().trim();
+  const rawInput = String(name).trim();
+  if (RECEIPT_SPECIFIC_NAMES.has(rawInput)) return rawInput;
+  let n = rawInput.toLowerCase().trim();
   n = n.replace(/（.*?）|\(.*?\)/g, ' ').trim();
   n = n.replace(/-/g, ' ');
   n = n.replace(/\s+/g, ' ').trim();

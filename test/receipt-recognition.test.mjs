@@ -7,6 +7,12 @@ import {
   validateReceiptItems,
   validateReceiptResult
 } from '../src/ai.js';
+import {
+  RECEIPT_ALIAS_STORAGE_KEY,
+  learnReceiptAliasCorrection,
+  lookupReceiptUserAlias,
+  normalizeReceiptAliasKey
+} from '../src/utils/receipt-aliases.js';
 
 test('新格式 receipt JSON 可解析出 inventory / pantry / review / ignored', () => {
   const out = validateReceiptResult({
@@ -185,9 +191,34 @@ test('Freshway 小票：豆腐和鲜货进入 inventory，不被忽略', () => {
     { originalName: 'Chicken Leg 2 lb', name: 'Chicken Leg', qty: 2, unit: 'lb' }
   ]);
   assert.deepEqual(out.ignored, []);
-  assert.deepEqual(out.inventory.map(item => item.name), ['豆腐', '青菜', '豆芽', '莴笋', '鸡腿']);
+  assert.deepEqual(out.inventory.map(item => item.name), ['豆腐', '菜心', '豆芽', '莴笋', '鸡腿']);
   assert.equal(out.inventory.at(-1).qty, 2);
   assert.equal(out.inventory.at(-1).unit, '份');
+});
+
+test('小票华人超市蔬菜和菇类尽量保留具体名称，不泛化成青菜或蘑菇', () => {
+  const out = validateReceiptResult([
+    { originalName: 'Shanghai Bok Choy', name: 'Shanghai Bok Choy', qty: 1, unit: '把' },
+    { originalName: 'Bok Choy', name: 'Bok Choy', qty: 1, unit: '把' },
+    { originalName: 'Yu Choy', name: 'Yu Choy', qty: 1, unit: '把' },
+    { originalName: 'Tong Ho', name: 'Tong Ho', qty: 1, unit: '把' },
+    { originalName: 'King Oyster Mushroom', name: 'King Oyster Mushroom', qty: 1, unit: '盒' },
+    { originalName: 'Enoki Mushroom', name: 'Enoki Mushroom', qty: 1, unit: '包' },
+    { originalName: '皇子菇', name: '皇子菇', qty: 1, unit: '盒' }
+  ]);
+
+  assert.deepEqual(out.ignored, []);
+  assert.deepEqual(out.inventory.map(item => item.name), [
+    '上海青',
+    '小白菜',
+    '菜心',
+    '茼蒿',
+    '皇子菇',
+    '金针菇',
+    '皇子菇'
+  ]);
+  assert.equal(out.inventory.find(item => item.originalName === 'Bok Choy')?.uncertain, true);
+  assert.ok(!out.inventory.some(item => item.name === '青菜' || item.name === '蘑菇'));
 });
 
 test('Freshway 小票：花生进 pantry 或 review，但绝不 ignored；小鱼干花生优先 review', () => {
@@ -265,7 +296,7 @@ test('green onion / scallion / garlic 明确进入 pantry', () => {
   assert.deepEqual(out.pantry.map(item => item.name), ['葱', '葱', '蒜']);
 });
 
-test('choy / yu choy / stem lettuce / beansprout 明确进入 inventory', () => {
+test('泛称 choy 待确认，yu choy / stem lettuce / beansprout 保留具体名', () => {
   const out = validateReceiptResult([
     { originalName: 'Choy', name: 'choy', qty: 1, unit: '把' },
     { originalName: 'Yu Choy', name: 'yu choy', qty: 1, unit: '把' },
@@ -273,7 +304,35 @@ test('choy / yu choy / stem lettuce / beansprout 明确进入 inventory', () => 
     { originalName: 'Beansprout', name: 'beansprout', qty: 1, unit: '袋' }
   ]);
   assert.deepEqual(out.ignored, []);
-  assert.deepEqual(out.inventory.map(item => item.name), ['choy', '青菜', '莴笋', '豆芽']);
+  assert.deepEqual(out.inventory.map(item => item.name), ['菜心', '莴笋', '豆芽']);
+  assert.deepEqual(out.review.map(item => item.name), ['choy']);
+});
+
+test('用户纠正小票商品名后会学习 rawName 到修正名', () => {
+  const previous = globalThis.localStorage;
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem(key) { return store.has(key) ? store.get(key) : null; },
+    setItem(key, value) { store.set(key, String(value)); },
+    removeItem(key) { store.delete(key); },
+    clear() { store.clear(); }
+  };
+  try {
+    assert.equal(normalizeReceiptAliasKey('天上排骨饼 1.00'), '天上排骨饼');
+    assert.equal(learnReceiptAliasCorrection('天上排骨饼', '天上掉馅饼'), true);
+    assert.deepEqual(JSON.parse(store.get(RECEIPT_ALIAS_STORAGE_KEY)), {
+      '天上排骨饼': '天上掉馅饼'
+    });
+    assert.equal(lookupReceiptUserAlias('天上排骨饼')?.name, '天上掉馅饼');
+    const out = validateReceiptResult([
+      { originalName: '天上排骨饼', rawName: '天上排骨饼', name: '天上排骨饼', qty: 1, unit: '包' }
+    ]);
+    assert.deepEqual(out.inventory, []);
+    assert.equal(out.review[0].name, '天上掉馅饼');
+  } finally {
+    if (previous === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = previous;
+  }
 });
 
 test('boneless skin-on chicken leg 进入 inventory，称重转份', () => {
@@ -343,7 +402,7 @@ test('照片 1 Freshway 小票：真实商品名分组符合厨房规则', () =>
 
   assert.deepEqual(out.ignored, []);
   assert.deepEqual(out.inventory.map(item => item.name), [
-    '青菜',
+    '油菜苗',
     '豆腐',
     '豆芽',
     '莴笋',
@@ -362,9 +421,9 @@ test('照片 1 Freshway 小票：真实商品名分组符合厨房规则', () =>
   ]);
   assert.ok(out.inventory.every(item => !['lb', 'kg', 'g'].includes(item.unit)));
   assert.deepEqual(
-    out.inventory.filter(item => ['青菜', '豆芽', '莴笋'].includes(item.name)).map(item => [item.name, item.qty, item.unit]),
+    out.inventory.filter(item => ['油菜苗', '豆芽', '莴笋'].includes(item.name)).map(item => [item.name, item.qty, item.unit]),
     [
-      ['青菜', 1, '份'],
+      ['油菜苗', 1, '份'],
       ['豆芽', 1, '份'],
       ['莴笋', 1, '份']
     ]

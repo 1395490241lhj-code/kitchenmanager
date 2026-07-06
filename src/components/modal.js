@@ -3,6 +3,7 @@ import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.j
 import { escapeOptionAttr, escapeHtml, setInlineStatus, showToast } from './status.js?v=231';
 import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=231';
 import { loadShoppingItems, saveShoppingItems, mergeShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem, addShoppingItemsFromText } from '../shopping.js?v=231';
+import { learnReceiptAliasCorrection } from '../utils/receipt-aliases.js?v=231';
 
 // 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
 const CALIB_EMOJI = [
@@ -159,7 +160,8 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel, options
     const name = normalized.name;
     const unit = normalized.unit;
     const qty = normalized.qty;
-    const originalName = item.originalName || item.rawText || item.name;
+    const rawName = item.rawName || item.rawText || item.originalName || item.sourceName || item.name;
+    const originalName = item.originalName || item.rawText || item.rawName || item.name;
     const index = rowIndex++;
     const target = groupKey === 'pantry' ? 'pantry' : 'inventory';
     const actionText = groupKey === 'pantry' ? '加入货架' : (groupKey === 'review' ? '可选加入' : '加入食材');
@@ -168,7 +170,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel, options
       : (groupKey === 'review' || item.uncertain ? '待确认' : (item.storage || '冷藏'));
 
     return `
-      <div class="receipt-confirm-item${checked ? '' : ' is-unselected'}" data-index="${index}" data-group="${groupKey}" data-target="${target}" data-original-name="${escapeOptionAttr(originalName)}">
+      <div class="receipt-confirm-item${checked ? '' : ' is-unselected'}" data-index="${index}" data-group="${groupKey}" data-target="${target}" data-original-name="${escapeOptionAttr(originalName)}" data-raw-name="${escapeOptionAttr(rawName)}" data-initial-name="${escapeOptionAttr(name)}">
         <div class="receipt-confirm-row">
           <label class="receipt-select-label">
             <input type="checkbox" class="receipt-select-checkbox" ${checked ? 'checked' : ''}>
@@ -389,6 +391,11 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel, options
 
       const originalName = itemEl.dataset.originalName || normalized.name;
       normalized.originalName = originalName;
+      const rawName = itemEl.dataset.rawName || originalName;
+      const initialName = itemEl.dataset.initialName || '';
+      if (rawName && name && name !== initialName) {
+        learnReceiptAliasCorrection(rawName, name);
+      }
 
       const matchCheckbox = itemEl.querySelector('.receipt-match-checkbox');
       if (matchCheckbox && matchCheckbox.checked) {

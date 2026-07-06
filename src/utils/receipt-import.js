@@ -5,6 +5,10 @@ import {
   normalizeReceiptIngredientName
 } from '../ingredients.js?v=231';
 import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=231';
+import {
+  findBuiltInReceiptAlias,
+  lookupReceiptUserAlias
+} from './receipt-aliases.js?v=231';
 import { mergeInventoryEntry } from '../inventory.js?v=231';
 import {
   STAPLE_STATUS,
@@ -26,6 +30,8 @@ const RECEIPT_NON_FOOD_RULES = [
 
 const RECEIPT_PROCESSED_RULES = [
   { re: /^(汤圆|元宵)$/i, reason: '冷冻/熟制面点，默认不加入做菜食材' },
+  { re: /(馅饼|餡餅|pie)/i, reason: '成品食品，默认不加入做菜食材' },
+  { re: /(老干妈|老乾媽|维他奶|維他奶|康师傅|康師傅)/i, reason: '品牌或包装食品，需要确认' },
   { re: /(饺|餃|水饺|水餃|抄手|馄饨|餛飩|云吞|雲吞|dumpling|wonton)/i, reason: '冷冻/熟制面点，默认不加入做菜食材' },
   { re: /(粽|粽子|sticky\s*rice\s*dumpling)/i, reason: '加工主食，默认不加入做菜食材' },
   { re: /(方便面|泡面|速食面|spicy\s*seafood\s*noodle|instant\s*noodle|cup\s*noodle|ramen)/i, reason: '即食/速食，默认不加入做菜食材' },
@@ -33,7 +39,7 @@ const RECEIPT_PROCESSED_RULES = [
   { re: /(小鱼干花生|小魚乾花生|鱼干花生|魚乾花生|dried\s*anchovy\s*w\/?\s*peanut|anchovy.*peanut|peanut.*anchovy)/i, reason: '加工食品，默认不加入做菜食材' },
   { re: /(零食|薯片|饼干|餅乾|巧克力|糖果|可乐|可樂|饮料|飲料|果汁|奶茶|汽水|snack|chips|cookie|chocolate|candy|cola|soda|juice|beverage|drink)/i, reason: '零食饮料，默认不加入做菜食材' },
   { re: /(熟食|便当|便當|即食|预制菜|預製菜|烤鸡|烤雞|卤味|滷味|ready\s*to\s*eat|cooked)/i, reason: '熟食/即食食品，默认不加入做菜食材' },
-  { re: /(包子|馒头|饅頭|pizza|披萨|披薩|spring\s*roll|鸡块|雞塊|薯条|薯條|丸|鱼丸|魚丸|牛肉丸|香肠|香腸|sausage|fish\s*ball|beef\s*ball)/i, reason: '冷冻/加工食品，默认不加入做菜食材' },
+  { re: /(包子|馒头|饅頭|pizza|披萨|披薩|spring\s*roll|鸡块|雞塊|薯条|薯條|丸|鱼丸|魚丸|鱼豆腐|魚豆腐|火锅丸子|火鍋丸子|牛肉丸|香肠|香腸|sausage|fish\s*ball|fish\s*tofu|beef\s*ball)/i, reason: '冷冻/加工食品，默认不加入做菜食材' },
   { re: /(苹果|香蕉|橙子|橙|柑橘|桔子|橘子|橘|葡萄|草莓|蓝莓|梨|桃|芒果|西瓜|哈密瓜|柠檬|牛油果|猕猴桃|水果|mandarin|tangerine|orange|apple|banana|pear|grape|strawberry|blueberry|peach|mango|watermelon|lemon|avocado|kiwi)/i, reason: '水果，默认不加入做菜食材' }
 ];
 
@@ -49,9 +55,33 @@ const RECEIPT_PANTRY_RULES = [
 ];
 
 const RECEIPT_INVENTORY_RULES = [
+  { re: /(上海青)/i, name: '上海青' },
+  { re: /(小白菜)/i, name: '小白菜' },
+  { re: /(油麦菜|油麥菜)/i, name: '油麦菜' },
+  { re: /(油菜苗)/i, name: '油菜苗' },
+  { re: /(油菜)/i, name: '油菜' },
+  { re: /(菜心|青菜心)/i, name: '菜心' },
+  { re: /(芥兰|芥藍)/i, name: '芥兰' },
+  { re: /(茼蒿|皇帝菜)/i, name: '茼蒿' },
+  { re: /(空心菜|通菜|蕹菜)/i, name: '空心菜' },
+  { re: /(大白菜|黄芽白|黃芽白|绍菜|紹菜)/i, name: '大白菜' },
+  { re: /(娃娃菜)/i, name: '娃娃菜' },
+  { re: /(生菜)/i, name: '生菜' },
+  { re: /(菠菜)/i, name: '菠菜' },
+  { re: /(韭菜)/i, name: '韭菜' },
+  { re: /(豆苗|豌豆尖)/i, name: '豆苗' },
+  { re: /(皇子菇)/i, name: '皇子菇' },
+  { re: /(金针菇|金針菇)/i, name: '金针菇' },
+  { re: /(杏鲍菇|杏鮑菇)/i, name: '杏鲍菇' },
+  { re: /(香菇|冬菇|花菇)/i, name: '香菇' },
+  { re: /(平菇)/i, name: '平菇' },
+  { re: /(蟹味菇)/i, name: '蟹味菇' },
+  { re: /(白玉菇)/i, name: '白玉菇' },
+  { re: /(黄豆芽|黃豆芽)/i, name: '黄豆芽' },
+  { re: /(绿豆芽|綠豆芽)/i, name: '绿豆芽' },
+  { re: /(油豆腐|豆腐泡)/i, name: '油豆腐' },
   { re: /(板豆腐|豆腐|medium\s*firm\s*tofu|firm\s*tofu|soft\s*tofu|tofu)/i, name: '豆腐' },
-  { re: /^(choy)$/i, name: 'choy' },
-  { re: /(青菜|油菜苗|油菜|菜心|菜苗|yu\s*choy|bok\s*choy|choy sum)/i, name: '青菜' },
+  { re: /(青菜|菜苗)/i, name: '青菜' },
   { re: /(豆芽菜|豆芽|beansprout|bean\s*sprout)/i, name: '豆芽' },
   { re: /(莴笋|萵筍|stem\s*lettuce|celtuce)/i, name: '莴笋' },
   { re: /(有皮无骨鸡扒|有皮無骨雞扒|鸡腿|鸡扒|鸡肉|boneless\s*skin-on\s*chicken\s*leg|chicken\s*leg|chicken\s*thigh)/i, name: '鸡腿' },
@@ -112,12 +142,53 @@ function isClearlyDifferent(a, b) {
   return false;
 }
 
+function classifyAliasName(name, fallbackGroup = '') {
+  const raw = String(name || '').trim();
+  if (!raw) return { group: fallbackGroup || 'review', name: raw, reason: '' };
+  const review = firstRule(raw, RECEIPT_PROCESSED_RULES);
+  if (review) return { group: 'review', name: raw, reason: review.reason };
+  const pantry = firstRule(raw, RECEIPT_PANTRY_RULES);
+  if (pantry) return { group: 'pantry', name: pantry.name || getCanonicalName(normalizeReceiptIngredientName(raw) || raw), reason: pantry.reason };
+  const inventory = firstRule(raw, RECEIPT_INVENTORY_RULES);
+  if (inventory) return { group: 'inventory', name: inventory.name || raw, reason: '' };
+  const normalized = getCanonicalName(raw);
+  const role = normalized ? classifyRecipeIngredient(normalized).role : 'unknown';
+  if (role === 'seasoning') return { group: 'pantry', name: normalized, reason: '基础调味，归入常备货架' };
+  if (role === 'core') return { group: 'inventory', name: raw, reason: '' };
+  if (FOODISH_CHINESE_RE.test(raw) || FOODISH_ENGLISH_RE.test(raw)) return { group: 'review', name: raw, reason: '像食品但无法稳定归类，需要确认' };
+  return { group: fallbackGroup || 'review', name: raw, reason: '按小票别名保留原商品名' };
+}
+
 function classifyReceiptText(text, source = 'raw') {
   const raw = source === 'zh' ? normalizeChineseReceiptText(text) : String(text || '').trim();
   if (!raw) return null;
 
   const ignored = firstRule(raw, RECEIPT_NON_FOOD_RULES);
   if (ignored) return { group: 'ignored', name: raw, reason: ignored.reason, recognized: true };
+
+  const userAlias = lookupReceiptUserAlias(raw);
+  if (userAlias) {
+    const classified = classifyAliasName(userAlias.name, userAlias.group);
+    return {
+      group: classified.group,
+      name: classified.name,
+      reason: classified.reason || '按你的上次修正识别',
+      recognized: true,
+      uncertain: userAlias.uncertain === true
+    };
+  }
+
+  const builtInAlias = findBuiltInReceiptAlias(raw);
+  if (builtInAlias) {
+    const classified = classifyAliasName(builtInAlias.name, builtInAlias.group);
+    return {
+      group: classified.group,
+      name: classified.name,
+      reason: classified.reason || '按小票别名识别为具体食材',
+      recognized: true,
+      uncertain: builtInAlias.uncertain === true
+    };
+  }
 
   const review = firstRule(raw, RECEIPT_PROCESSED_RULES);
   if (review) return { group: 'review', name: raw, reason: review.reason, recognized: true };
@@ -151,8 +222,9 @@ function normalizeReceiptEvidenceItem(item, group = '') {
     return { name: item.trim(), originalName: item.trim(), rawText: item.trim(), group };
   }
   const source = item && typeof item === 'object' ? item : {};
-  const rawText = String(source.rawText || source.originalText || '').trim();
-  const originalName = String(source.originalName || source.original || rawText || source.name || source.item || source.canonicalName || '').trim();
+  const rawName = String(source.rawName || source.sourceName || '').trim();
+  const rawText = String(source.rawText || source.originalText || rawName || '').trim();
+  const originalName = String(source.originalName || source.original || rawName || rawText || source.name || source.item || source.canonicalName || '').trim();
   const canonicalName = String(source.canonicalName || source.name || source.item || '').trim();
   return {
     ...source,
@@ -197,6 +269,7 @@ export function classifyReceiptCandidate(item) {
       ...zhHit,
       reason: [...new Set(reasonParts)].join('；'),
       confidence: enHit && getCanonicalName(enHit.name) === getCanonicalName(zhHit.name) ? 'high' : 'medium',
+      uncertain: zhHit.uncertain === true,
       zhText,
       enText
     };
@@ -206,6 +279,7 @@ export function classifyReceiptCandidate(item) {
     return {
       ...preferred,
       confidence: preferred.recognized ? 'medium' : 'low',
+      uncertain: preferred.uncertain === true,
       zhText,
       enText
     };
@@ -260,9 +334,11 @@ export function postProcessReceiptItems(input) {
       canonicalName: finalName,
       originalName: normalized.originalName || normalized.rawText || finalName,
       rawText: normalized.rawText || normalized.originalName || finalName,
+      rawName: normalized.rawName || normalized.rawText || normalized.originalName || finalName,
       ...(local.zhText ? { zhText: local.zhText } : {}),
       ...(local.enText ? { enText: local.enText } : {}),
       ...(local.confidence ? { confidence: local.confidence } : {}),
+      ...(local.uncertain || normalized.uncertain ? { uncertain: true } : {}),
       ...(reasonParts.length ? { reason: [...new Set(reasonParts)].join('；') } : {})
     });
   };

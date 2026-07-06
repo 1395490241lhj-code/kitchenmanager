@@ -1368,6 +1368,12 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
   };
 
   const getReceiptTotal = (result) => ['inventory', 'pantry', 'review'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
+  const shouldOfferReceiptEnhancedRetry = (result) => {
+    const total = getReceiptTotal(result);
+    const items = ['inventory', 'pantry', 'review'].flatMap(key => Array.isArray(result?.[key]) ? result[key] : []);
+    const uncertainCount = items.filter(item => item?.uncertain === true || String(item?.confidence || '').toLowerCase() === 'low').length;
+    return total <= 2 || (total > 0 && uncertainCount >= Math.max(2, Math.ceil(total * 0.4)));
+  };
 
   const openReceiptConfirmation = (result, file) => {
     const total = getReceiptTotal(result);
@@ -1400,7 +1406,7 @@ function openBatchInputModal(pack, { onRoute = () => {}, initialTab = 'receipt' 
       {
         onPickAnother: reopen,
         onRetry: () => rerun(false),
-        ...(total <= 2 ? { onEnhancedRetry: () => rerun(true) } : {})
+        ...(shouldOfferReceiptEnhancedRetry(result) ? { onEnhancedRetry: () => rerun(true) } : {})
       }
     );
   };

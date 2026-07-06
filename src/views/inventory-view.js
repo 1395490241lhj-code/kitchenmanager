@@ -254,6 +254,9 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
     try {
       const result = await withTimeout(recognizeReceipt(file, { enhanced: Boolean(options.enhanced) }), 30000, '识别超时');
       const total = ['inventory', 'pantry', 'review'].reduce((sum, key) => sum + (result?.[key]?.length || 0), 0);
+      const receiptItems = ['inventory', 'pantry', 'review'].flatMap(key => Array.isArray(result?.[key]) ? result[key] : []);
+      const uncertainCount = receiptItems.filter(item => item?.uncertain === true || String(item?.confidence || '').toLowerCase() === 'low').length;
+      const offerEnhancedRetry = total <= 2 || (total > 0 && uncertainCount >= Math.max(2, Math.ceil(total * 0.4)));
       if(total === 0) {
         if (statusEl) {
           setActionStatus(statusEl, {
@@ -301,7 +304,7 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
           else inputEl?.click?.();
         },
         onRetry: () => handleReceiptFile(file, inputEl, statusEl, actions),
-        ...(total <= 2 ? { onEnhancedRetry: () => handleReceiptFile(file, inputEl, statusEl, actions, { enhanced: true }) } : {})
+        ...(offerEnhancedRetry ? { onEnhancedRetry: () => handleReceiptFile(file, inputEl, statusEl, actions, { enhanced: true }) } : {})
       });
     } catch(err) {
       if (statusEl) {

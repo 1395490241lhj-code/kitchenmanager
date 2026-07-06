@@ -1027,7 +1027,7 @@ test('小票识别走同源 /api/ai-chat，不在前端携带 Authorization', as
   assert.equal(request.body.taskType, 'receipt');
   assert.match(request.body.prompt, /小票/);
   assert.match(request.body.imageBase64, /^data:image\/jpeg;base64,/);
-  assert.deepEqual(canvasAttempts[0], { width: 1600, height: 900, type: 'image/jpeg', quality: 0.92 });
+  assert.deepEqual(canvasAttempts[0], { width: 1600, height: 900, type: 'image/jpeg', quality: 0.9 });
   assert.equal(out.inventory[0].name, '鸡蛋');
 });
 
@@ -1165,8 +1165,10 @@ test('小票图片会压到 Groq base64 图片限制以内的目标尺寸', () =
 
   assert.match(ai, /CLOUD_IMAGE_TARGET_BASE64_BYTES = Math\.floor\(3\.6 \* 1024 \* 1024\)/);
   assert.match(ai, /RECEIPT_IMAGE_COMPRESSION_ATTEMPTS = \[/);
-  assert.match(ai, /\{ maxSide: 2200, quality: 0\.92 \}/);
+  assert.match(ai, /\{ maxSide: 2000, quality: 0\.9 \}/);
+  assert.match(ai, /\{ maxSide: 1600, quality: 0\.88 \}/);
   assert.match(ai, /RECEIPT_IMAGE_ENHANCED_ATTEMPTS = \[/);
+  assert.match(ai, /\{ maxSide: 2200, quality: 0\.92 \}/);
   assert.match(ai, /enhanceReceiptCanvas\(ctx, w, h, mode\)/);
   assert.match(ai, /recognizeReceipt\(file, options = \{\}\)/);
   assert.match(ai, /compressImage\(file, \{ enhanced: Boolean\(options\.enhanced\) \}\)/);
