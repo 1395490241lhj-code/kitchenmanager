@@ -175,7 +175,8 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(home, /function buildWeeklyMenuSuggestions/);
   assert.match(home, /function addWeeklyPlanShortagesToShopping/);
   assert.match(home, /callAiWeeklyMenuPlan/);
-  assert.match(home, /const aiSummary = plan\?\.summary \|\| plan\?\.notes \|\| ''/);
+  // summary 优先于 notes，单独成段（详见 weekly-menu-copy.test.mjs）。
+  assert.match(home, /String\(plan\?\.summary \|\| plan\?\.notes \|\| ''\)\.trim\(\)/);
   assert.match(renderPlanTab, /renderWeeklyMenuCard\(pack, inv, \{ onRoute \}\)/);
   assert.match(renderPlanTab, /renderMenuPlan\(pack, \{ onRoute, hideHeader: true, inventory: inv \}\)/);
   assert.match(home, /本周菜单/);

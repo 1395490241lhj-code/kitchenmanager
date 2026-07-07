@@ -638,16 +638,18 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
     `;
   }
   const title = mode === 'local' ? '本地建议' : 'AI 本周建议';
-  const aiSummary = plan?.summary || plan?.notes || '';
+  // summary 优先于 notes；单独成段展示，避免挤在 meta 行里（meta 只保留 顿数/人份）。
+  const aiSummary = mode === 'local' ? '' : String(plan?.summary || plan?.notes || '').trim();
   const note = mode === 'local'
     ? `已用本地菜谱生成建议 · ${normalizeWeeklyMealCount(requestedCount, 4)} 顿 · ${normalizeWeeklyPeopleCount(peopleCount, 2)} 人份`
-    : `已按 ${normalizeWeeklyMealCount(requestedCount, 4)} 顿 · ${normalizeWeeklyPeopleCount(peopleCount, 2)} 人份规划${aiSummary ? ` · ${aiSummary}` : ''}`;
+    : `已按 ${normalizeWeeklyMealCount(requestedCount, 4)} 顿 · ${normalizeWeeklyPeopleCount(peopleCount, 2)} 人份规划`;
   return `
     <div class="weekly-menu-results">
       <div class="weekly-menu-results-head">
         <h4>${title}</h4>
         <p>${escapeHtml(note)}</p>
       </div>
+      ${aiSummary ? `<p class="weekly-menu-summary">${escapeHtml(aiSummary)}</p>` : ''}
       <div class="weekly-menu-suggestion-list">
         ${suggestions.map((entry, index) => {
           const { recipe, meal } = entry;
@@ -677,8 +679,9 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
           `;
         }).join('')}
       </div>
+      <p class="weekly-menu-hint">会先加入计划，之后可在计划里调整。</p>
       <div class="weekly-menu-results-actions">
-        <button type="button" class="btn ok weekly-menu-add-all">加入本周计划</button>
+        <button type="button" class="btn ok weekly-menu-add-all">加入计划</button>
         <button type="button" class="btn weekly-menu-fill-shopping">补齐待买</button>
         <button type="button" class="btn weekly-menu-retry">重新规划</button>
       </div>
