@@ -922,9 +922,10 @@ export function validateWeeklyMenuPlanResult(input) {
   const shoppingSummary = Array.isArray(data.shoppingSummary)
     ? data.shoppingSummary.map(item => String(item || '').trim()).filter(Boolean).slice(0, 12)
     : [];
+  const summary = String(data.summary || '').trim();
   const notes = String(data.notes || '').trim();
   if (!meals.length) throw new Error('本周菜单规划结果里没有可用建议。');
-  return { meals, shoppingSummary, notes };
+  return { summary, meals, shoppingSummary, notes };
 }
 
 function validateMethodResult(input) {
@@ -1654,6 +1655,7 @@ ${JSON.stringify(payload, null, 2)}
 
 请严格只返回 JSON 对象，不要 markdown，不要解释：
 {
+  "summary": "这周安排 4 顿，优先用掉牛肉和青椒，其中 2 顿适合带饭。",
   "meals": [
     {
       "name": "菜名",
@@ -1674,6 +1676,9 @@ ${JSON.stringify(payload, null, 2)}
 规则：
 - meals 数量尽量接近 mealsCount。
 - servings 默认等于 peopleCount；如果适合带饭，可以设为 peopleCount + 1。
+- 用户补充要求 userRequest 优先级最高。
+- 如果使用本地菜谱，必须保留对应 recipeId；如果是 AI 新建议，recipeId 留空字符串。
+- 不要编造库存中不存在的“已拥有食材”；已有食材只能来自 inventory / expiringItems。
 - 每道菜按 peopleCount 人份规划，不要让每顿菜量明显过少。
 - missing 只放核心食材，不放盐、糖、油、生抽、老抽、料酒、水、葱姜蒜、适量、少许。
 - 如果用户要求不吃某类食材，必须避开。
@@ -1681,7 +1686,9 @@ ${JSON.stringify(payload, null, 2)}
 - 如果 lunchboxFriendly 为 true，至少安排适合带饭的菜。
 - 如果 lunchboxFriendly 为 true，可以安排部分菜多做 1 份。
 - 尽量兼顾蛋白质、蔬菜、主食搭配。
-- 不要安排连续多顿口味或主蛋白重复太高的菜，难度不要都太高。`;
+- 不要安排连续多顿口味或主蛋白重复太高的菜，难度不要都太高。
+- summary 用一句话说明规划逻辑。
+- notes 可补充口味均衡、带饭、减少浪费等提醒。`;
 
   const raw = await callAiService(prompt, null, { taskType: 'weekly-menu-plan' });
   return validateWeeklyMenuPlanResult(raw);

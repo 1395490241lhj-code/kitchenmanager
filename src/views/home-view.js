@@ -637,9 +637,10 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
     `;
   }
   const title = mode === 'local' ? '本地建议' : 'AI 本周建议';
+  const aiSummary = plan?.summary || plan?.notes || '';
   const note = mode === 'local'
     ? `已用本地菜谱生成建议 · ${normalizeWeeklyMealCount(requestedCount, 4)} 顿 · ${normalizeWeeklyPeopleCount(peopleCount, 2)} 人份`
-    : `已按 ${normalizeWeeklyMealCount(requestedCount, 4)} 顿 · ${normalizeWeeklyPeopleCount(peopleCount, 2)} 人份规划${plan?.notes ? ` · ${plan.notes}` : ''}`;
+    : `已按 ${normalizeWeeklyMealCount(requestedCount, 4)} 顿 · ${normalizeWeeklyPeopleCount(peopleCount, 2)} 人份规划${aiSummary ? ` · ${aiSummary}` : ''}`;
   return `
     <div class="weekly-menu-results">
       <div class="weekly-menu-results-head">

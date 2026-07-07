@@ -175,6 +175,7 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(home, /function buildWeeklyMenuSuggestions/);
   assert.match(home, /function addWeeklyPlanShortagesToShopping/);
   assert.match(home, /callAiWeeklyMenuPlan/);
+  assert.match(home, /const aiSummary = plan\?\.summary \|\| plan\?\.notes \|\| ''/);
   assert.match(renderPlanTab, /renderWeeklyMenuCard\(pack, inv, \{ onRoute \}\)/);
   assert.match(renderPlanTab, /renderMenuPlan\(pack, \{ onRoute, hideHeader: true, inventory: inv \}\)/);
   assert.match(home, /本周菜单/);
@@ -195,6 +196,8 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(home, /updateWeeklyPlanServings\(recipeId, entry\.meal\?\.servings \|\| peopleCount\)/);
   assert.match(ai, /mealsCount: Math\.max\(1, Math\.min\(10/);
   assert.match(ai, /peopleCount: Math\.max\(1, Math\.min\(8/);
+  assert.match(ai, /"summary": "这周安排 4 顿/);
+  assert.match(ai, /summary 用一句话说明规划逻辑/);
   assert.match(ai, /servings/);
   assert.match(ai, /\.filter\(Boolean\)\.slice\(0, 10\)/);
   assert.match(home, /rankRecipesForRecommendation\(pack, inv/);

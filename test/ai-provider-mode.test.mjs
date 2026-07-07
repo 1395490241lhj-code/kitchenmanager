@@ -15,7 +15,8 @@ import {
   importRecipeFromSource,
   recognizeReceipt,
   segmentSocialRecipeText,
-  splitRecipeSourceText
+  splitRecipeSourceText,
+  validateWeeklyMenuPlanResult
 } from '../src/ai.js';
 import {
   cleanXhsShareTextForUserSupplement,
@@ -1160,6 +1161,44 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiParseRoute, /parseRecipeDraftWithAi\(\{ text, imageBase64, sourceType, sourceMetadata \}\)/);
   assert.match(aiParseRoute, /sendAiParsePipelineError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);
+});
+
+test('weekly menu AI result keeps summary, servings, local recipe ids, and new suggestions', () => {
+  const result = validateWeeklyMenuPlanResult({
+    summary: '这周安排 4 顿，优先用掉牛肉和青椒。',
+    meals: [
+      {
+        name: '番茄牛肉烩饭',
+        recipeId: 'recipe-beef-rice',
+        daySuggestion: '周一',
+        servings: 3,
+        reason: '适合两人晚餐，也能带饭',
+        difficulty: '简单',
+        balanceTags: ['蛋白质', '主食', '带饭'],
+        uses: ['牛肉'],
+        missing: ['番茄']
+      },
+      {
+        name: '芦笋鸡肉快炒',
+        recipeId: '',
+        daySuggestion: '周三',
+        servings: 2,
+        reason: 'AI 新建议',
+        difficulty: '简单',
+        balanceTags: ['快手'],
+        uses: ['芦笋'],
+        missing: ['鸡肉']
+      }
+    ],
+    shoppingSummary: ['番茄', '鸡肉'],
+    notes: '避免连续重口味。'
+  });
+
+  assert.equal(result.summary, '这周安排 4 顿，优先用掉牛肉和青椒。');
+  assert.equal(result.meals[0].recipeId, 'recipe-beef-rice');
+  assert.equal(result.meals[0].servings, 3);
+  assert.equal(result.meals[1].recipeId, undefined);
+  assert.deepEqual(result.shoppingSummary, ['番茄', '鸡肉']);
 });
 
 test('小票图片会压到 Groq base64 图片限制以内的目标尺寸', () => {
