@@ -602,6 +602,54 @@ function formatWeeklySuggestionMissing(item) {
   return `还缺：${missing.join('、')}${(item.row?.missing || []).length > missing.length ? '等' : ''}`;
 }
 
+function getWeeklyEntryRecipeId(entry) {
+  return String(entry?.meal?.recipeId || entry?.recipe?.id || '').trim();
+}
+
+function getWeeklyAiSuggestionIngredientNames(meal = {}) {
+  return Array.from(new Set([
+    ...(Array.isArray(meal.uses) ? meal.uses : []),
+    ...(Array.isArray(meal.missing) ? meal.missing : [])
+  ].map(name => String(name || '').trim()).filter(Boolean)));
+}
+
+function buildWeeklyAiSuggestionRecipeDraft(entry) {
+  const meal = entry?.meal || {};
+  const tags = new Set((Array.isArray(meal.balanceTags) ? meal.balanceTags : [])
+    .map(tag => String(tag || '').trim())
+    .filter(Boolean));
+  if (Array.from(tags).some(tag => /带饭/.test(tag))) tags.add('带饭');
+  if (/简单/.test(String(meal.difficulty || ''))) tags.add('快手');
+  tags.add('AI 本周菜单');
+  const ingredients = getWeeklyAiSuggestionIngredientNames(meal).map(name => ({
+    item: getCanonicalName(name) || name,
+    unit: ''
+  }));
+  return {
+    name: String(meal.name || entry?.recipe?.name || 'AI 本周菜单建议').trim(),
+    tags: Array.from(tags),
+    ingredients,
+    method: '按家常做法处理食材并炒熟调味。',
+    source: 'weekly-menu-ai'
+  };
+}
+
+function attachSavedWeeklyAiSuggestion(entry, newId, recipeDraft) {
+  const missingNames = Array.isArray(entry?.meal?.missing) ? entry.meal.missing : [];
+  entry.meal = entry.meal || {};
+  entry.meal.recipeId = newId;
+  entry.recipe = {
+    id: newId,
+    name: recipeDraft.name,
+    tags: recipeDraft.tags,
+    method: recipeDraft.method
+  };
+  entry.row = entry.row || {};
+  entry.row.r = entry.recipe;
+  entry.row.list = recipeDraft.ingredients;
+  entry.row.missing = missingNames.map(name => ({ name, item: name, unit: guessKitchenUnit(name) || '' }));
+}
+
 function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
   hasGenerated = false,
   mode = 'idle',
@@ -653,7 +701,7 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
       <div class="weekly-menu-suggestion-list">
         ${suggestions.map((entry, index) => {
           const { recipe, meal } = entry;
-          const recipeId = meal?.recipeId || recipe?.id || '';
+          const recipeId = getWeeklyEntryRecipeId(entry);
           const added = recipeId && addedIds.has(recipeId);
           const tags = Array.isArray(meal?.balanceTags) ? meal.balanceTags.slice(0, 3) : [];
           const servings = normalizeWeeklyServingCount(meal?.servings, peopleCount);
@@ -669,11 +717,13 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
                 ].filter(Boolean).join(' · '))}</small>
                 <small>${escapeHtml(formatWeeklySuggestionMeta(entry))}</small>
                 <small>${escapeHtml(formatWeeklySuggestionMissing(entry))}</small>
-                ${recipeId ? '' : '<small class="weekly-menu-ai-note">AI 新建议，先保存为菜谱后再加入计划</small>'}
+                ${recipeId ? '' : '<small class="weekly-menu-ai-note">AI 新建议</small>'}
               </div>
               <div class="weekly-menu-suggestion-actions">
-                <button type="button" class="btn small weekly-menu-add" data-action="add"${added ? ' disabled' : ''}>${added ? '已加入' : '加入计划'}</button>
-                ${recipeId ? '<button type="button" class="btn small weekly-menu-view" data-action="view">查看</button>' : ''}
+                ${recipeId
+                  ? `<button type="button" class="btn small weekly-menu-add" data-action="add"${added ? ' disabled' : ''}>${added ? '已加入' : '加入计划'}</button>
+                    <button type="button" class="btn small weekly-menu-view" data-action="view">查看</button>`
+                  : '<button type="button" class="btn small weekly-menu-save" data-action="save">保存为菜谱</button>'}
               </div>
             </article>
           `;
@@ -922,7 +972,7 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
         addAllBtn.disabled = true;
         let added = 0;
         for (const entry of suggestions) {
-          const recipeId = entry.meal?.recipeId || entry.recipe?.id || '';
+          const recipeId = getWeeklyEntryRecipeId(entry);
           if (!recipeId) continue;
           const result = await addRecipeToPlanWithMissingCheck(recipeId, pack, inv, {
             recipe: entry.recipe,
@@ -946,9 +996,24 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
       btn.onclick = async () => {
         const row = btn.closest('.weekly-menu-suggestion');
         const index = Number(row?.dataset.index || -1);
-        const recipeId = row?.dataset.recipeId || '';
-        const item = suggestions[index] || suggestions.find(entry => (entry.meal?.recipeId || entry.recipe?.id || '') === recipeId);
+        let recipeId = row?.dataset.recipeId || '';
+        const item = suggestions[index] || suggestions.find(entry => getWeeklyEntryRecipeId(entry) === recipeId);
         if (!item) return;
+        if (btn.dataset.action === 'save') {
+          btn.disabled = true;
+          try {
+            const recipeDraft = buildWeeklyAiSuggestionRecipeDraft(item);
+            const newId = createUserRecipe(pack, recipeDraft);
+            attachSavedWeeklyAiSuggestion(item, newId, recipeDraft);
+            showToast('已保存为菜谱', { tone: 'success' });
+            render();
+          } catch (error) {
+            btn.disabled = false;
+            showToast('保存失败，请稍后重试', { tone: 'error' });
+          }
+          return;
+        }
+        recipeId = recipeId || getWeeklyEntryRecipeId(item);
         if (!recipeId) {
           showToast('这道是 AI 新建议，先保存为菜谱后再加入计划', { tone: 'info' });
           return;

@@ -55,11 +55,11 @@ export function parseRecipeIngredientText(text) {
 /**
  * 轻量 helper：创建一条用户自定义菜谱，写入 overlay（与编辑器保存口径一致）。
  * @param {Object} base  当前数据包（用于重名校验）
- * @param {{name:string, tags?:string[], ingredients?:Array, method?:string}} data
+ * @param {{name:string, tags?:string[], ingredients?:Array, method?:string, source?:string}} data
  * @returns {string} 新菜谱 id
  * @throws {Error} 菜名为空 / 重名
  */
-export function createUserRecipe(base, { name, tags = [], ingredients = [], method = '' } = {}) {
+export function createUserRecipe(base, { name, tags = [], ingredients = [], method = '', source = '' } = {}) {
   const cleanName = String(name || '').trim();
   if (!cleanName) throw new Error('菜名不能为空。');
 
@@ -69,12 +69,15 @@ export function createUserRecipe(base, { name, tags = [], ingredients = [], meth
   if (dup) throw new Error(`已有一道菜名为「${cleanName}」，请换个菜名。`);
 
   const id = genId();
+  const cleanSource = String(source || '').trim();
   overlay.recipes = overlay.recipes || {};
-  overlay.recipes[id] = {
+  const recipeRecord = {
     name: cleanName,
     tags: tags.length ? tags : ['自定义'],
     method: String(method || '').trim()
   };
+  if (cleanSource) recipeRecord.source = cleanSource;
+  overlay.recipes[id] = recipeRecord;
   overlay.recipe_ingredients = overlay.recipe_ingredients || {};
   overlay.recipe_ingredients[id] = Array.isArray(ingredients) ? ingredients : [];
   if (overlay.deletes) delete overlay.deletes[id];

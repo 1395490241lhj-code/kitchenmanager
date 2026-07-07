@@ -205,6 +205,15 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(home, /getPlanMissingItems\(recipe, pack, inv\)/);
   assert.match(home, /本周菜单缺货/);
   assert.match(home, /addRecipeToPlanWithMissingCheck\(recipeId, pack, inv/);
+  assert.match(home, /AI 新建议/);
+  assert.match(home, /data-action="save">保存为菜谱/);
+  assert.match(home, /function buildWeeklyAiSuggestionRecipeDraft/);
+  assert.match(home, /source: 'weekly-menu-ai'/);
+  assert.match(home, /createUserRecipe\(pack, recipeDraft\)/);
+  assert.match(home, /attachSavedWeeklyAiSuggestion\(item, newId, recipeDraft\)/);
+  assert.match(home, /showToast\('已保存为菜谱'/);
+  assert.match(home, /showToast\('保存失败，请稍后重试'/);
+  assert.match(home, /entry\.meal\.recipeId = newId/);
   assert.doesNotMatch(home, /选择偏好后生成建议/);
   assert.doesNotMatch(generateRowTemplate, /weekly-menu-fill-shopping/);
   assert.doesNotMatch(weeklyModal, /callCloudAI/);

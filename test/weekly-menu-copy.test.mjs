@@ -39,3 +39,22 @@ test('第一版不按 daySuggestion 排日期：加入路径不传 date，仅用
   // 结果区有轻提示，告知稍后可在计划里调整。
   assert.match(home, /会先加入计划，之后可在计划里调整。/);
 });
+
+test('AI 新建议先保存为菜谱，保存后才允许加入计划和查看', () => {
+  const home = read('src/views/home-view.js');
+  const renderSuggestions = home.slice(
+    home.indexOf('function renderWeeklyMenuSuggestions'),
+    home.indexOf('function openWeeklyMenuModal')
+  );
+  const modal = home.slice(home.indexOf('function openWeeklyMenuModal'));
+
+  assert.match(renderSuggestions, /AI 新建议/);
+  assert.match(renderSuggestions, /data-action="save">保存为菜谱/);
+  assert.match(renderSuggestions, /recipeId[\s\S]*weekly-menu-add[\s\S]*加入计划[\s\S]*weekly-menu-view[\s\S]*查看/);
+  assert.match(modal, /btn\.dataset\.action === 'save'/);
+  assert.match(modal, /createUserRecipe\(pack, recipeDraft\)/);
+  assert.match(modal, /attachSavedWeeklyAiSuggestion\(item, newId, recipeDraft\)/);
+  assert.match(modal, /addRecipeToPlanWithMissingCheck\(recipeId, pack, inv/);
+  assert.match(home, /method: '按家常做法处理食材并炒熟调味。'/);
+  assert.match(home, /source: 'weekly-menu-ai'/);
+});
