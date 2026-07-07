@@ -9,7 +9,7 @@ import { isInventoryAvailable, remainingDays } from '../../inventory.js?v=234';
 import { addShoppingItem, loadShoppingItems } from '../../shopping.js?v=234';
 import { hasRecipeMethod, isFavoriteRecipe, rankRecipesForRecommendation } from '../../recommendations.js?v=234';
 import { classifyRecipeIngredient } from '../../utils/recipe-sanitizer.js?v=234';
-import { getPendingPlanRowsInRange, isPendingPlanRow } from '../../plan-selectors.js?v=234';
+import { getPendingPlanRowsInRange, isPlanRowOnDate } from '../../plan-selectors.js?v=234';
 import { addRecipeToPlanWithMissingCheck, getPlanMissingItems } from '../../components/plan-missing-check.js?v=234';
 import { callAiWeeklyMenuPlan, formatAiErrorMessage, withTimeout } from '../../ai.js?v=234';
 import { createUserRecipe } from '../../components/recipe-create-modal.js?v=234';
@@ -88,6 +88,7 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
   requestedCount = 4,
   peopleCount = 2
 } = {}) {
+  const today = todayISO();
   if (!hasGenerated) {
     return '';
   }
@@ -132,13 +133,16 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
         ${suggestions.map((entry, index) => {
           const { recipe, meal } = entry;
           const recipeId = getWeeklyEntryRecipeId(entry);
-          const added = recipeId && addedIds.has(recipeId);
+          const plannedDate = getWeeklyPlannedDate(meal, index, today);
+          const added = recipeId && addedIds.has(weeklyAddedKey(recipeId, plannedDate));
           const tags = Array.isArray(meal?.balanceTags) ? meal.balanceTags.slice(0, 3) : [];
           const servings = normalizeWeeklyServingCount(meal?.servings, peopleCount);
+          const dayLabel = [meal?.daySuggestion || getWeeklyDaySuggestion(index), formatWeeklyShortDate(plannedDate)]
+            .filter(Boolean).join(' ');
           return `
-            <article class="weekly-menu-suggestion" data-index="${index}" data-recipe-id="${escapeOptionAttr(recipeId)}">
+            <article class="weekly-menu-suggestion" data-index="${index}" data-recipe-id="${escapeOptionAttr(recipeId)}" data-planned-date="${escapeOptionAttr(plannedDate)}">
               <div class="weekly-menu-suggestion-main">
-                <small class="weekly-menu-day">${escapeHtml(meal?.daySuggestion || getWeeklyDaySuggestion(index))} · ${servings} 人份</small>
+                <small class="weekly-menu-day">${escapeHtml(dayLabel)} · ${servings} 人份</small>
                 <strong>${escapeHtml(meal?.name || recipe?.name || '本周菜谱')}</strong>
                 <span>${escapeHtml(meal?.reason || formatWeeklySuggestionMeta(entry))}</span>
                 <small>${escapeHtml([
@@ -187,7 +191,13 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
   let renderMode = 'idle';
   let errorMessage = '';
   let userRequest = '';
-  const addedIds = new Set(getWeeklyPlanItems(pack).map(item => item.id));
+  // 已加入去重按「recipeId|date」记，未来 7 天窗口内逐日区分——同一道菜不同日期互不影响。
+  const today0 = todayISO();
+  const addedIds = new Set(
+    getPendingPlanRowsInRange(today0, addDaysISO(today0, WEEKLY_PLAN_MAX_OFFSET))
+      .filter(row => row && row.id)
+      .map(row => weeklyAddedKey(row.id, row.date || today0))
+  );
   const resetGeneratedState = () => {
     hasGeneratedSuggestions = false;
     suggestions = [];
@@ -400,11 +410,14 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
     if (addAllBtn) {
       addAllBtn.onclick = async () => {
         addAllBtn.disabled = true;
+        const today = todayISO();
         let added = 0;
-        for (const entry of suggestions) {
+        for (const [index, entry] of suggestions.entries()) {
           const recipeId = getWeeklyEntryRecipeId(entry);
           if (!recipeId) continue;
+          const plannedDate = getWeeklyPlannedDate(entry.meal, index, today);
           const result = await addRecipeToPlanWithMissingCheck(recipeId, pack, inv, {
+            date: plannedDate,
             recipe: entry.recipe,
             fallbackItems: entry.row?.list,
             missing: entry.row?.missing,
@@ -413,8 +426,8 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
           });
           if (result.added) {
             added += 1;
-            addedIds.add(recipeId);
-            updateWeeklyPlanServings(recipeId, entry.meal?.servings || peopleCount);
+            addedIds.add(weeklyAddedKey(recipeId, plannedDate));
+            updateWeeklyPlanServings(recipeId, entry.meal?.servings || peopleCount, plannedDate);
           }
         }
         showToast(added ? `已加入 ${added} 道计划` : '可加入的菜已在计划里', { tone: added ? 'success' : 'info' });
@@ -454,7 +467,10 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
           return;
         }
         btn.disabled = true;
+        const safeIndex = index >= 0 ? index : suggestions.indexOf(item);
+        const plannedDate = row?.dataset.plannedDate || getWeeklyPlannedDate(item.meal, safeIndex, todayISO());
         const result = await addRecipeToPlanWithMissingCheck(recipeId, pack, inv, {
+          date: plannedDate,
           recipe: item.recipe,
           fallbackItems: item.row?.list,
           missing: item.row?.missing,
@@ -462,8 +478,8 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
           onPlanAdded: markDemoPlanAdded
         });
         if (result.added) {
-          addedIds.add(recipeId);
-          updateWeeklyPlanServings(recipeId, item.meal?.servings || peopleCount);
+          addedIds.add(weeklyAddedKey(recipeId, plannedDate));
+          updateWeeklyPlanServings(recipeId, item.meal?.servings || peopleCount, plannedDate);
         }
         brieflyConfirmButton(btn, result.added ? '已加入' : '已在计划');
         onRoute();
@@ -635,6 +651,53 @@ function getWeeklyCandidateRows(pack, inv, {
 
 function getWeeklyDaySuggestion(index) {
   return ['周一', '周二', '周三', '周四', '周五'][index] || '本周';
+}
+
+// 未来 7 天窗口的上限偏移（今天 = 0，最多到第 6 天）。
+const WEEKLY_PLAN_MAX_OFFSET = 6;
+
+// ISO 日期（YYYY-MM-DD）的星期几，按 UTC 计算避免时区把日期算错。0=周日…6=周六。
+function isoDayOfWeek(iso) {
+  const [y, m, d] = String(iso || '').split('-').map(Number);
+  if (!y || !m || !d) return new Date().getDay();
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+// 解析 AI 的 daySuggestion → 未来 0..6 天偏移；无法识别返回 null。
+// 「今天已过的星期」用 (目标 - 今天 + 7) % 7 折进未来 7 天内的同一天。
+function parseWeeklyDayOffset(daySuggestion, today) {
+  const text = String(daySuggestion || '');
+  if (/今天|今日/.test(text)) return 0;
+  if (/明天|明日/.test(text)) return 1;
+  if (/后天/.test(text)) return 2;
+  const map = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 0, 天: 0 };
+  const m = text.match(/(?:周|星期|礼拜)\s*([一二三四五六日天])/);
+  if (m) {
+    const targetDow = map[m[1]];
+    const offset = (targetDow - isoDayOfWeek(today) + 7) % 7;
+    return offset <= WEEKLY_PLAN_MAX_OFFSET ? offset : null;
+  }
+  return null;
+}
+
+// 第一版日期排程：把一条本周建议落到未来 7 天内的具体日期（YYYY-MM-DD）。
+// daySuggestion 能解析就用它，否则按 index 均匀铺开（index*2，封顶第 6 天）。
+export function getWeeklyPlannedDate(meal, index, today = todayISO()) {
+  const parsed = parseWeeklyDayOffset(meal?.daySuggestion, today);
+  const offset = parsed === null
+    ? Math.min(Math.max(0, Number(index) || 0) * 2, WEEKLY_PLAN_MAX_OFFSET)
+    : parsed;
+  return addDaysISO(today, offset);
+}
+
+// 简短日期 7/10（给结果卡片用，不占太多空间）。
+function formatWeeklyShortDate(iso) {
+  const [, m, d] = String(iso || '').split('-');
+  return m && d ? `${Number(m)}/${Number(d)}` : '';
+}
+
+function weeklyAddedKey(recipeId, date) {
+  return `${recipeId}|${date}`;
 }
 
 function getWeeklyRecipeDifficulty(recipe) {
@@ -812,11 +875,13 @@ function addWeeklyMenuEntriesMissingToShopping(entries, peopleCount = 2) {
   });
 }
 
-function updateWeeklyPlanServings(recipeId, servings) {
+// 只更新目标日期那条 plan row 的 servings（升级为按 date 定位，避免误改今天/别的日期）。
+export function updateWeeklyPlanServings(recipeId, servings, date = todayISO()) {
   const safeServings = normalizeWeeklyServingCount(servings, 2);
   const today = todayISO();
+  const targetDate = date || today;
   const plan = S.load(S.keys.plan, []);
-  const item = [...plan].reverse().find(entry => entry && entry.id === recipeId && isPendingPlanRow(entry, today, today));
+  const item = [...plan].reverse().find(entry => entry && entry.id === recipeId && isPlanRowOnDate(entry, targetDate, today));
   if (!item) return false;
   if (Number(item.servings || 1) === safeServings) return false;
   item.servings = safeServings;

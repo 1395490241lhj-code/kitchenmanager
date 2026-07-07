@@ -1,6 +1,6 @@
 import { S, todayISO } from '../storage.js?v=234';
 import { PLAN_COPY } from '../copy.js?v=234';
-import { getPendingPlanRowsInRange, getTodayPendingPlanRows, isPendingPlanRow } from '../plan-selectors.js?v=234';
+import { getTodayPendingPlanRows } from '../plan-selectors.js?v=234';
 import { buildCatalog, getCanonicalName, explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=234';
 import { isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=234';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=234';
@@ -10,8 +10,8 @@ import {
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData,
   isFavoriteRecipe, toggleFavoriteRecipe
 } from '../recommendations.js?v=234';
-import { addRecipeToPlanWithMissingCheck, getPlanMissingItems } from '../components/plan-missing-check.js?v=234';
-import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callAiWeeklyMenuPlan, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=234';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=234';
+import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=234';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=234';
 import { showRecommendationCards } from '../components/recipe-card.js?v=234';
 import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=234';

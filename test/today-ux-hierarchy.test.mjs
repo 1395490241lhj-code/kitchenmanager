@@ -195,7 +195,7 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(weekly, /min="1" max="8" step="1"/);
   assert.match(weekly, /mealsCount: normalizeWeeklyMealCount\(mealCount, 4\)/);
   assert.match(weekly, /peopleCount: normalizeWeeklyPeopleCount\(peopleCount, 2\)/);
-  assert.match(weekly, /updateWeeklyPlanServings\(recipeId, entry\.meal\?\.servings \|\| peopleCount\)/);
+  assert.match(weekly, /updateWeeklyPlanServings\(recipeId, entry\.meal\?\.servings \|\| peopleCount, plannedDate\)/);
   assert.match(ai, /mealsCount: Math\.max\(1, Math\.min\(10/);
   assert.match(ai, /peopleCount: Math\.max\(1, Math\.min\(8/);
   assert.match(ai, /"summary": "这周安排 4 顿/);
