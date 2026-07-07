@@ -1,4 +1,5 @@
 import { S, todayISO } from '../storage.js?v=231';
+import { PLAN_COPY } from '../copy.js?v=231';
 import { buildCatalog, getCanonicalName, explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=231';
 import { isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=231';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=231';
@@ -330,7 +331,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
     const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
     showFirstPlanGuideToast(firstPlanGuide);
     const successMessage = result.missing.length
-      ? (result.shoppingAddedCount ? '已加入计划，缺的食材已加入买菜清单。' : '已加入计划，缺的食材可稍后处理。')
+      ? (result.shoppingAddedCount ? PLAN_COPY.ADDED_WITH_SHOPPING : PLAN_COPY.ADDED_SHOPPING_LATER)
       : '已加入今天，做完后会帮你更新食材。';
     showPlanFeedback(result.added
       ? (result.missing.length ? successMessage : (firstPlanGuide || successMessage))
@@ -2290,7 +2291,7 @@ async function addFocusCardToTodayPlan(card, pack, inv, { button = null, onRoute
   if (button) brieflyConfirmButton(button, result.added ? '已加入' : '已在今天');
   const firstPlanGuide = consumeFirstPlanGuideMessage(result.added);
   showFirstPlanGuideToast(firstPlanGuide);
-  if (!firstPlanGuide) showToast(result.added ? '已加入计划' : '今天已经有这道菜', { tone: 'success' });
+  if (!firstPlanGuide) showToast(result.added ? PLAN_COPY.ADDED : PLAN_COPY.ALREADY_TODAY, { tone: 'success' });
   window.setTimeout(onRoute, 650);
   return result;
 }
@@ -2680,7 +2681,7 @@ function setPostInventoryGuide(count) {
 function consumeFirstPlanGuideMessage(added) {
   if (!added || !postInventoryPlanGuidePending) return '';
   postInventoryPlanGuidePending = false;
-  return '已加入计划。做完后点“记录消耗”，我会帮你更新剩余食材和待买清单。';
+  return PLAN_COPY.FIRST_PLAN_GUIDE;
 }
 
 function showFirstPlanGuideToast(message) {

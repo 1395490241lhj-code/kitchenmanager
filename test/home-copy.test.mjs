@@ -50,6 +50,7 @@ test('首页加入计划入口接入统一 Toast，且保留按钮反馈', () =>
   assert.match(home, /showToast/);
   assert.match(home, /brieflyConfirmButton/);
   assert.match(home, /addRecipeToPlanWithMissingCheck/);
-  assert.match(home, /已加入计划，缺的食材已加入买菜清单/);
-  assert.match(home, /已加入计划，缺的食材可稍后处理/);
+  // 接线检查：prose 收敛到 src/copy.js（见 copy-constants.test.mjs）。
+  assert.match(home, /PLAN_COPY\.ADDED_WITH_SHOPPING/);
+  assert.match(home, /PLAN_COPY\.ADDED_SHOPPING_LATER/);
 });

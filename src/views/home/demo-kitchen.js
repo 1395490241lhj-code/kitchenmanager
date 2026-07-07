@@ -3,6 +3,7 @@
  * 进入时快照真实业务数据、退出时原样恢复；步骤状态存 km_demo_step_v1，见 storage.js S.keys。
  */
 import { S } from '../../storage.js?v=231';
+import { DEMO_COPY } from '../../copy.js?v=231';
 import { escapeHtml, showToast } from '../../components/status.js?v=231';
 import { writeItemsToInventory } from '../../utils/inventory-write.js?v=231';
 import { getTodayPlanCount, setHomeTab } from './home-tab-state.js?v=231';
@@ -139,7 +140,7 @@ export function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
     },
     recs: {
       title: '第 2 步：选一道今天想吃的菜',
-      body: '在下面的推荐里，点“加入计划”。缺的食材可以顺手放进买菜清单。',
+      body: DEMO_COPY.STEP_RECS_BODY,
       primary: '查看推荐',
       primaryStep: 'recs',
       secondary: '退出示例',
@@ -147,7 +148,7 @@ export function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
     },
     plan: {
       title: '第 3 步：做完后更新库存',
-      body: '计划里已经有菜了。做完后点“记录消耗”，我会帮你确认用掉了哪些食材。',
+      body: DEMO_COPY.STEP_COOK_BODY,
       primary: '去看计划',
       primaryStep: 'cook',
       secondary: '退出示例',
@@ -155,7 +156,7 @@ export function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
     },
     cook: {
       title: '第 3 步：做完后更新库存',
-      body: '计划里已经有菜了。做完后点“记录消耗”，我会帮你确认用掉了哪些食材。',
+      body: DEMO_COPY.STEP_COOK_BODY,
       primary: '我知道了',
       primaryStep: 'done',
       secondary: '开始我的厨房',
@@ -163,7 +164,7 @@ export function renderDemoKitchenBanner({ onRoute = () => {} } = {}) {
     },
     done: {
       title: '示例体验完成',
-      body: '你已经体验了推荐、计划和饭后更新。现在可以开始记录自己的厨房。',
+      body: DEMO_COPY.DONE_BODY,
       primary: '开始我的厨房',
       primaryAction: 'exit',
       secondary: '继续试用',
