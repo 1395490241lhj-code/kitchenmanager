@@ -1,11 +1,11 @@
 // apiUrl 改名导入：getAiConfig 内部有同名局部变量（BYOK 的用户自填地址），避免遮蔽。
-import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=231';
-import { S } from './storage.js?v=231';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=231';
+import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=234';
+import { S } from './storage.js?v=234';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=234';
 import {
   classifyReceiptCandidate,
   postProcessReceiptItems
-} from './utils/receipt-import.js?v=231';
+} from './utils/receipt-import.js?v=234';
 
 const CLOUD_AI_ERROR = 'AI 暂不可用：云端服务暂时不可用。本地功能仍可正常使用。';
 const BYOK_MISSING_KEY_ERROR = 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';

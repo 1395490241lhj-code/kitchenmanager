@@ -2,21 +2,21 @@
  * src/views/home/cooked-meal-modal.js —— 「记录消耗」弹窗（从 home-view 抽出）。
  * 三条候选来源：今日计划菜谱 / 本地文本匹配 / AI 辅助；全部经用户确认后才扣减库存。
  */
-import { S, todayISO } from '../../storage.js?v=231';
-import { getCanonicalName, guessKitchenUnit, UNIT_TYPE } from '../../ingredients.js?v=231';
-import { applyCookCalibration, computeCookDeductions, gearInfo, GEAR_LABELS, isInventoryAvailable } from '../../inventory.js?v=231';
-import { markRecipeCookedKeepPlan } from '../../recommendations.js?v=231';
-import { callAiForCookedMeal, formatAiErrorMessage, withTimeout } from '../../ai.js?v=231';
-import { escapeHtml, escapeOptionAttr, showToast } from '../../components/status.js?v=231';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from '../../components/cook-feedback.js?v=231';
+import { S, todayISO } from '../../storage.js?v=234';
+import { getCanonicalName, guessKitchenUnit, UNIT_TYPE } from '../../ingredients.js?v=234';
+import { applyCookCalibration, computeCookDeductions, gearInfo, GEAR_LABELS, isInventoryAvailable } from '../../inventory.js?v=234';
+import { markRecipeCookedKeepPlan } from '../../recommendations.js?v=234';
+import { callAiForCookedMeal, formatAiErrorMessage, withTimeout } from '../../ai.js?v=234';
+import { escapeHtml, escapeOptionAttr, showToast } from '../../components/status.js?v=234';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../../components/cook-feedback.js?v=234';
 import {
   buildLocalCookedMealCandidates,
   getRecipeCoreItems,
   matchCookedMealRecipe,
   mergeCookedMealCandidates,
   normalizeAiCookedMealResult
-} from '../../utils/cooked-meal.js?v=231';
-import { isDemoKitchenMode, refreshDemoKitchenBanner, setDemoStep } from './demo-kitchen.js?v=231';
+} from '../../utils/cooked-meal.js?v=234';
+import { isDemoKitchenMode, refreshDemoKitchenBanner, setDemoStep } from './demo-kitchen.js?v=234';
 
 // “直接选食材”里的推荐排序：适合下面 / 煮螺蛳粉 / 麻辣烫等场景的快熟百搭配料优先出现。
 const IMPROMPTU_ALLOWED_REGEX = /(菜|茼蒿|菠菜|韭菜|肠|午餐肉|培根|香肠|火腿|丸|棒|饺|千层肚|菇|豆腐|豆皮|腐竹|木耳|蛋|面条|粉|年糕|水饺)/;

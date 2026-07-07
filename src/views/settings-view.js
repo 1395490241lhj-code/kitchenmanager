@@ -1,9 +1,9 @@
-import { S, todayISO } from '../storage.js?v=231';
-import { apiUrl, CUSTOM_AI } from '../config.js?v=231';
-import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=231';
-import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=231';
-import { getSavedTheme, saveTheme } from '../theme.js?v=231';
-import { createRecipePackSettingsPatch, getDefaultEnabledRecipePackIds, getEnabledRecipePackIds, getRecipePacks } from '../recipe-packs.js?v=231';
+import { S, todayISO } from '../storage.js?v=234';
+import { apiUrl, CUSTOM_AI } from '../config.js?v=234';
+import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=234';
+import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=234';
+import { getSavedTheme, saveTheme } from '../theme.js?v=234';
+import { createRecipePackSettingsPatch, getDefaultEnabledRecipePackIds, getEnabledRecipePackIds, getRecipePacks } from '../recipe-packs.js?v=234';
 
 // 渐进式展现：「高级与数据设置」面板的展开状态，记忆在模块作用域（同次会话内保持）。
 let advancedOpen = false;

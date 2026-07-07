@@ -591,7 +591,7 @@ export function normalizeKitchenAmount(name, qty, unit, options = {}) {
   return { name: n, qty: Math.round(q * 100) / 100, unit: u };
 }
 
-import { perfMeasure as __perfMeasure } from './utils/perf.js?v=231';
+import { perfMeasure as __perfMeasure } from './utils/perf.js?v=234';
 export function buildCatalog(pack) {
   return __perfMeasure('buildCatalog', () => buildCatalogImpl(pack));
 }

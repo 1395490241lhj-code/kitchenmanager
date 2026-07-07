@@ -14,8 +14,14 @@
  * 说明：
  * - `?v=` 仅用于缓存失效，服务器会忽略它并照常返回文件，所以把所有引用刷成同一个
  *   数字是安全的；代价只是一次性的全量缓存刷新（发布时本来就需要）。
- * - 只改 `?v=<数字>` 形式的查询参数；不会动 sw.v18.js / ingredients-list-patch.v15.js
+ * - 同时把 sw.v18.js 的 CACHE_NAME 同步为 km-v<版本号>，让 SW 预缓存随发布一起失效，
+ *   不再依赖人肉记忆单独升级。
+ * - 只改 `?v=<数字>` 查询参数与 CACHE_NAME；不会动 sw.v18.js / ingredients-list-patch.v15.js
  *   这类“文件名里的版本”，也不会动 app.js 里运行时读取的 URL 参数（默认 '23' 的数据包版本）。
+ *
+ * ⚠️ 版本一致性由 test/version-consistency.test.mjs 把守：全仓 ?v= 必须唯一、
+ *    CACHE_NAME 必须等于 km-v<该值>、src 的 ESM 相对导入必须带 ?v=。
+ *    同一文件不同 ?v= 会让浏览器加载两份模块实例（状态分叉），严禁手动单点改版本。
  */
 
 const fs = require('fs');
@@ -78,6 +84,15 @@ function main() {
       changedRefs += hits;
       console.log(`  ${path.relative(ROOT, file)} (${hits})`);
     }
+  }
+
+  // SW 预缓存版本随发布同步：CACHE_NAME 改名会让 activate 阶段清掉旧缓存。
+  const swPath = path.join(ROOT, 'sw.v18.js');
+  const swBefore = fs.readFileSync(swPath, 'utf8');
+  const swAfter = swBefore.replace(/const CACHE_NAME = 'km-v\d+';/, `const CACHE_NAME = 'km-v${version}';`);
+  if (swAfter !== swBefore) {
+    fs.writeFileSync(swPath, swAfter);
+    console.log(`  sw.v18.js CACHE_NAME → km-v${version}`);
   }
 
   console.log(`\n✓ 已将 ${changedRefs} 处 ?v= 引用统一为 v=${version}（${changedFiles} 个文件）。`);
