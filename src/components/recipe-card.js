@@ -10,6 +10,7 @@ import {
   calculateStockStatus
 } from '../recommendations.js?v=234';
 import { loadInventory } from '../inventory.js?v=234';
+import { isPlanRowOnDate } from '../plan-selectors.js?v=234';
 import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=234';
 import {
   callAiSearchRecipe,
@@ -301,7 +302,7 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
     // 关键：只有「今天已加入且尚未做完」才锁为「已加入」；一旦今天已做完(isCooked)，
     // 按钮彻底释放回默认的「加入清单」，让用户可重新排程（明后天）。
     const today = todayISO();
-    const todayRow = (S.load(S.keys.plan, [])).find(x => x.id === r.id && (x.date || today) === today);
+    const todayRow = (S.load(S.keys.plan, [])).find(x => x.id === r.id && isPlanRowOnDate(x, today, today));
     const isCookedToday = !!(todayRow && todayRow.isCooked);
     const isPlannedToday = !!todayRow && !isCookedToday; // 已加入今天且尚未做 → 锁「已加入」
     const favoriteBtn = document.createElement('button'); favoriteBtn.type = 'button';
@@ -321,7 +322,7 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
       event.preventDefault();
       event.stopPropagation();
       const p = S.load(S.keys.plan, []);
-      const row = p.find(x => x.id === r.id && (x.date || today) === today);
+      const row = p.find(x => x.id === r.id && isPlanRowOnDate(x, today, today));
       if (row && !row.isCooked) {
         // 已加入未做 → 再次点击取消今天的排程（仅针对今天，不动明后天）。
         S.save(S.keys.plan, p.filter(x => x !== row));

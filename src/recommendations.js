@@ -15,6 +15,7 @@ import {
 import { addShoppingItem } from './shopping.js?v=234';
 import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=234';
 import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=234';
+import { isPlanRowOnDate } from './plan-selectors.js?v=234';
 import {
   buildRecipePackMetadataIndex,
   getEnabledRecipePackIds,
@@ -712,8 +713,9 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
   dayAfter.setDate(baseDate.getDate() + 2);
   const dayAfterISO = dayAfter.toISOString().slice(0, 10);
 
-  const isPlannedToday = (context.plan || []).some(item => item && item.id === recipe.id && (item.date || today) === today);
-  const isPlannedFuture = (context.plan || []).some(item => item && item.id === recipe.id && (item.date === tomorrowISO || item.date === dayAfterISO));
+  const isPlannedToday = (context.plan || []).some(item => item && item.id === recipe.id && isPlanRowOnDate(item, today, today));
+  const isPlannedFuture = (context.plan || []).some(item => item && item.id === recipe.id
+    && (isPlanRowOnDate(item, tomorrowISO, today) || isPlanRowOnDate(item, dayAfterISO, today)));
   const isPlanned = isPlannedToday || isPlannedFuture;
 
   const recentDays = daysSince(activity.cookedAt, today);
@@ -1004,7 +1006,7 @@ export function addRecipeToPlan(id, date = null) {
   const plan = S.load(S.keys.plan, []);
   const today = todayISO();
   const targetDate = date || today;
-  if (plan.find(x => x.id === id && (x.date || today) === targetDate)) return false;
+  if (plan.find(x => x.id === id && isPlanRowOnDate(x, targetDate, today))) return false;
   plan.push({ id, servings: 1, date: targetDate });
   S.save(S.keys.plan, plan);
   markRecipePlanned(id);

@@ -7,13 +7,12 @@ import { loadShoppingItems } from '../../shopping.js?v=234';
 import { escapeHtml, showToast } from '../../components/status.js?v=234';
 import { buildKitchenBackup, downloadJsonFile, loadOverlay, markBackupNudgeDismissed, markKitchenBackupExported, shouldShowBackupNudge } from '../../backup.js?v=234';
 import { dismissPwaInstallPrompt, getPwaInstallPromptState, promptPwaInstall } from '../../pwa-install.js?v=234';
+import { getTodayPendingPlanRows } from '../../plan-selectors.js?v=234';
 
 const KITCHEN_BACKUP_EXPORT_MESSAGE = '已导出厨房备份。请把文件保存到 iCloud、网盘或电脑里。';
 
 function getTodayPlanRowsForBackupNudge() {
-  const today = todayISO();
-  return S.load(S.keys.plan, [])
-    .filter(row => row && (row.date || today) === today && !row.isCooked);
+  return getTodayPendingPlanRows();
 }
 
 export function renderBackupNudge(inv, { isDemoMode = false } = {}) {

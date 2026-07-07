@@ -18,6 +18,7 @@ import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from
 import { showCalibrationModal } from '../components/modal.js?v=234';
 import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=234';
 import { splitMethodSteps } from '../utils/method-steps.js?v=234';
+import { isPlanRowOnDate } from '../plan-selectors.js?v=234';
 
 // 把做法字符串渲染成 glass 分步列表（每步 escapeHtml；无步骤时返回空串，由调用方兜底）。
 function methodToListHtml(method) {
@@ -78,7 +79,7 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   dayAfter.setDate(baseDate.getDate() + 2);
   const dayAfterISO = dayAfter.toISOString().slice(0, 10);
 
-  const isPlannedToday = plan.some(item => item.id === id && (item.date || today) === today);
+  const isPlannedToday = plan.some(item => item.id === id && isPlanRowOnDate(item, today, today));
   const isPlannedTomorrow = plan.some(item => item.id === id && item.date === tomorrowISO);
   const isPlannedDayAfter = plan.some(item => item.id === id && item.date === dayAfterISO);
   const isPlanned = isPlannedToday || isPlannedTomorrow || isPlannedDayAfter;

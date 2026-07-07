@@ -15,6 +15,7 @@ import { getTomorrowPrepTasks } from '../utils/prep-planner.js?v=234';
 import { showCalibrationModal } from './modal.js?v=234';
 import { escapeHtml } from './status.js?v=234';
 import { getCookShoppingCandidates, showCookCompleteFeedback } from './cook-feedback.js?v=234';
+import { isPendingPlanRow, isPlanRowOnDate } from '../plan-selectors.js?v=234';
 
 let currentPlanRange = 'today';
 export function getPlanRange() { return currentPlanRange; }
@@ -179,7 +180,7 @@ function markPlansCooked(targets) {
   const plans = S.load(S.keys.plan, []);
   let changed = false;
   for (const t of targets) {
-    const row = plans.find(x => x.id === t.id && (x.date || today) === (t.date || today));
+    const row = plans.find(x => x.id === t.id && isPlanRowOnDate(x, t.date || today, today));
     if (row && !row.isCooked) {
       row.isCooked = true;
       row.cookedAt = Date.now(); // 数值毫秒时间戳：供首页「48h 自隐藏」直接做差值
@@ -236,10 +237,10 @@ export function renderCookAllButton(pack, { onRoute = () => {}, inventory = [] }
   btn.className = 'menu-plan-cookall';
   btn.textContent = '✓ 全部做完';
   const hasTodo = S.load(S.keys.plan, []).some(p =>
-    (p.date || today) === today && !p.isCooked && (pack.recipes || []).some(r => r.id === p.id));
+    isPendingPlanRow(p, today, today) && (pack.recipes || []).some(r => r.id === p.id));
   if (!hasTodo) btn.style.display = 'none';
   btn.onclick = () => {
-    const targets = S.load(S.keys.plan, []).filter(p => (p.date || today) === today && !p.isCooked);
+    const targets = S.load(S.keys.plan, []).filter(p => isPendingPlanRow(p, today, today));
     cookPlans(targets, pack, inventory, { onRoute, title: `今日 ${targets.length} 道菜` });
   };
   return btn;
@@ -403,7 +404,7 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
       if (servingsInput) {
         servingsInput.onchange = event => {
           const plans = S.load(S.keys.plan, []);
-          const target = plans.find(x => x.id === item.id && (x.date || today) === (item.date || today));
+          const target = plans.find(x => x.id === item.id && isPlanRowOnDate(x, item.date || today, today));
           if (target) {
             target.servings = +event.target.value || 1;
             S.save(S.keys.plan, plans);
@@ -417,7 +418,7 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
       }
       row.querySelector('.menu-remove-btn').onclick = () => {
         const plans = S.load(S.keys.plan, []);
-        const index = plans.findIndex(x => x.id === item.id && (x.date || today) === (item.date || today));
+        const index = plans.findIndex(x => x.id === item.id && isPlanRowOnDate(x, item.date || today, today));
         if (index >= 0) {
           plans.splice(index, 1);
           S.save(S.keys.plan, plans);

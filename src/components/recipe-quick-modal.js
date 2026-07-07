@@ -23,6 +23,7 @@ import {
 import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=234';
 import { loadOverlay } from '../backup.js?v=234';
 import { escapeHtml } from './status.js?v=234';
+import { isPlanRowOnDate } from '../plan-selectors.js?v=234';
 
 const CLOSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
@@ -65,7 +66,7 @@ export function showRecipeQuickModal(recipe, pack, inv = null, { onRoute = () =>
   const ownedFoods = (foods.length ? foods : items).filter(f => !missingNames.has(f.item));
 
   const today = todayISO();
-  const plannedToday = (S.load(S.keys.plan, [])).some(x => x.id === id && (x.date || today) === today);
+  const plannedToday = (S.load(S.keys.plan, [])).some(x => x.id === id && isPlanRowOnDate(x, today, today));
 
   const tags = (r.tags || []).slice(0, 4);
   const methodText = String(r.method || '').trim();

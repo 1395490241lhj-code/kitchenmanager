@@ -1,5 +1,6 @@
 import { S, todayISO } from '../storage.js?v=234';
 import { PLAN_COPY } from '../copy.js?v=234';
+import { getPendingPlanRowsInRange, getTodayPendingPlanRows, isPendingPlanRow } from '../plan-selectors.js?v=234';
 import { buildCatalog, getCanonicalName, explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=234';
 import { isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=234';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=234';
@@ -1712,10 +1713,8 @@ function getGreetingLabel() {
 }
 
 function getTodayPlanItems(pack) {
-  const today = todayISO();
   const recipes = pack.recipes || [];
-  return S.load(S.keys.plan, [])
-    .filter(item => item && (item.date || today) === today && !item.isCooked)
+  return getTodayPendingPlanRows()
     .map(item => ({
       ...item,
       recipe: recipes.find(recipe => recipe.id === item.id) || null
@@ -1733,12 +1732,7 @@ function getWeeklyPlanItems(pack, { days = 7 } = {}) {
   const today = todayISO();
   const end = addDaysISO(today, Math.max(0, days - 1));
   const recipes = pack.recipes || [];
-  return S.load(S.keys.plan, [])
-    .filter(item => {
-      if (!item || item.isCooked) return false;
-      const date = item.date || today;
-      return date >= today && date <= end;
-    })
+  return getPendingPlanRowsInRange(today, end, today)
     .map(item => ({
       ...item,
       date: item.date || today,
@@ -2042,7 +2036,7 @@ function updateWeeklyPlanServings(recipeId, servings) {
   const safeServings = normalizeWeeklyServingCount(servings, 2);
   const today = todayISO();
   const plan = S.load(S.keys.plan, []);
-  const item = [...plan].reverse().find(entry => entry && entry.id === recipeId && (entry.date || today) === today && !entry.isCooked);
+  const item = [...plan].reverse().find(entry => entry && entry.id === recipeId && isPendingPlanRow(entry, today, today));
   if (!item) return false;
   if (Number(item.servings || 1) === safeServings) return false;
   item.servings = safeServings;

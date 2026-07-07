@@ -17,6 +17,7 @@ import {
   normalizeAiCookedMealResult
 } from '../../utils/cooked-meal.js?v=234';
 import { isDemoKitchenMode, refreshDemoKitchenBanner, setDemoStep } from './demo-kitchen.js?v=234';
+import { getTodayPendingPlanRows, isPendingPlanRow } from '../../plan-selectors.js?v=234';
 
 // “直接选食材”里的推荐排序：适合下面 / 煮螺蛳粉 / 麻辣烫等场景的快熟百搭配料优先出现。
 const IMPROMPTU_ALLOWED_REGEX = /(菜|茼蒿|菠菜|韭菜|肠|午餐肉|培根|香肠|火腿|丸|棒|饺|千层肚|菇|豆腐|豆皮|腐竹|木耳|蛋|面条|粉|年糕|水饺)/;
@@ -42,10 +43,8 @@ function decorateCookedPredictions(predictions, candidates) {
 }
 
 function getTodayPlanRecipeRows(pack) {
-  const today = todayISO();
   const recipes = pack.recipes || [];
-  return S.load(S.keys.plan, [])
-    .filter(row => row && (row.date || today) === today && !row.isCooked)
+  return getTodayPendingPlanRows()
     .map(row => {
       const recipe = recipes.find(r => r.id === row.id);
       return recipe ? { row, recipe } : null;
@@ -59,7 +58,7 @@ function markTodayPlanCooked(recipeId) {
   const plans = S.load(S.keys.plan, []);
   let changed = false;
   for (const row of plans) {
-    if (row && row.id === recipeId && (row.date || today) === today && !row.isCooked) {
+    if (row && row.id === recipeId && isPendingPlanRow(row, today, today)) {
       row.isCooked = true;
       row.cookedAt = Date.now();
       changed = true;
