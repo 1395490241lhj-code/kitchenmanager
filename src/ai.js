@@ -1248,10 +1248,20 @@ export async function recognizeReceipt(file, options = {}) {
   - "gai lan" / "kailan" -> "芥兰"
   - "tong ho" / "chrysanthemum greens" -> "茼蒿"
   - "napa cabbage" -> "大白菜"
+  - "water spinach" / "ong choy" -> "空心菜"
+  - "pea shoots" -> "豆苗"
+  - "celtuce" / "stem lettuce" -> "莴笋"
+  - "garlic chive" / "chinese chive" -> "韭菜"
   - "enoki" -> "金针菇"
   - "king oyster mushroom" -> "杏鲍菇"
   - "shiitake" -> "香菇"
   - "oyster mushroom" -> "平菇"
+  - "tofu puff" / "fried tofu" -> "油豆腐"
+  - "firm tofu" / "soft tofu" / "medium firm tofu" -> "豆腐"
+  - "fish tofu" -> "鱼豆腐"；这是加工食品，放入 review
+  - "soybean sprout" -> "黄豆芽"
+  - "mung bean sprout" -> "绿豆芽"
+  - "bean sprout" -> "豆芽"；不确定黄豆芽/绿豆芽时设置 uncertain: true
 - 只有当原商品名本身非常泛化，例如 "GREENS" / "VEGETABLE" / "LEAFY VEG" / "CHINESE VEG"，才可以输出“青菜/蔬菜/绿叶菜”，并设置 uncertain: true。
 - 如果无法确定具体食材，不要乱猜；保留原商品名并设置 uncertain: true。
 - 品牌名、熟食、成品食品、包装食品不要强行拆成基础食材。例如“天上掉馅饼、老干妈、维他奶、康师傅、速冻饺子、鱼豆腐、油豆腐、火锅丸子”应尽量保留商品名或具体商品名；不确定时放入 review 并设置 uncertain: true。
@@ -1281,6 +1291,10 @@ export async function recognizeReceipt(file, options = {}) {
     - "gai lan" / "kailan" -> "芥兰"
     - "tong ho" -> "茼蒿"
     - "napa cabbage" / "chinese cabbage" -> "大白菜"
+    - "water spinach" / "ong choy" -> "空心菜"
+    - "pea shoots" -> "豆苗"
+    - "celtuce" / "stem lettuce" -> "莴笋"
+    - "garlic chive" / "chinese chive" -> "韭菜"
     - "scallion" / "green onion" -> "葱"
     - "cilantro" / "coriander" -> "香菜"
     - "eggplant" -> "茄子"

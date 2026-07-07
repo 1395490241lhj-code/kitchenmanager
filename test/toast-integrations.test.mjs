@@ -34,7 +34,8 @@ test('小票确认导入成功和空结果都有 Toast', () => {
   const home = read('src/views/home-view.js');
   const inventory = read('src/views/inventory-view.js');
 
-  assert.match(modal, /showToast\(selectedCount \? '小票已导入' : '没有识别到可入库食材'/);
+  assert.match(modal, /小票已导入/);
+  assert.match(modal, /已记住，下次会自动识别/);
   assert.match(home, /showToast\('没有识别到可入库食材', \{ tone: 'warning' \}\)/);
   assert.match(inventory, /showToast\('没有识别到可入库食材', \{ tone: 'warning' \}\)/);
 });

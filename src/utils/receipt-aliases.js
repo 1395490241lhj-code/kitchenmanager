@@ -12,17 +12,18 @@ const BUILT_IN_RECEIPT_ALIASES = [
   { re: /芥兰|芥藍|gai\s*lan|kai\s*lan|kailan|chinese\s+broccoli/i, name: '芥兰', group: 'inventory' },
   { re: /茼蒿|皇帝菜|tong\s*ho|garland\s+chrysanthemum|chrysanthemum\s+greens?/i, name: '茼蒿', group: 'inventory' },
   { re: /大白菜|napa\s+cabbage|chinese\s+cabbage/i, name: '大白菜', group: 'inventory' },
+  { re: /\bnapa\b/i, name: '大白菜', group: 'inventory', uncertain: true },
   { re: /娃娃菜|baby\s+napa/i, name: '娃娃菜', group: 'inventory' },
   { re: /油麦菜|油麥菜|you\s*mai\s*cai|youmai\s*cai/i, name: '油麦菜', group: 'inventory' },
   { re: /空心菜|通菜|蕹菜|ong\s*choy|water\s+spinach/i, name: '空心菜', group: 'inventory' },
   { re: /莴笋|萵筍|stem\s+lettuce|celtuce/i, name: '莴笋', group: 'inventory' },
   { re: /生菜|lettuce/i, name: '生菜', group: 'inventory' },
   { re: /菠菜|spinach/i, name: '菠菜', group: 'inventory' },
-  { re: /韭菜|chinese\s+chive/i, name: '韭菜', group: 'inventory' },
+  { re: /韭菜|garlic\s+chives?|chinese\s+chives?/i, name: '韭菜', group: 'inventory' },
   { re: /豆苗|pea\s+shoots?/i, name: '豆苗', group: 'inventory' },
   { re: /黄豆芽|黃豆芽|soybean\s+sprouts?/i, name: '黄豆芽', group: 'inventory' },
   { re: /绿豆芽|綠豆芽|mung\s+bean\s+sprouts?/i, name: '绿豆芽', group: 'inventory' },
-  { re: /豆芽菜|豆芽|bean\s*sprouts?|beansprouts?/i, name: '豆芽', group: 'inventory' },
+  { re: /豆芽菜|豆芽|bean\s*sprouts?|beansprouts?/i, name: '豆芽', group: 'inventory', uncertain: true },
   { re: /皇子菇|king\s+oyster\s+mushrooms?|eryngii\s+mushrooms?/i, name: '皇子菇', group: 'inventory' },
   { re: /金针菇|金針菇|enoki(?:\s+mushrooms?)?/i, name: '金针菇', group: 'inventory' },
   { re: /杏鲍菇|杏鮑菇/i, name: '杏鲍菇', group: 'inventory' },
@@ -30,8 +31,9 @@ const BUILT_IN_RECEIPT_ALIASES = [
   { re: /平菇|oyster\s+mushrooms?/i, name: '平菇', group: 'inventory' },
   { re: /蟹味菇|shimeji|beech\s+mushrooms?/i, name: '蟹味菇', group: 'inventory' },
   { re: /白玉菇|white\s+beech\s+mushrooms?|white\s+shimeji/i, name: '白玉菇', group: 'inventory' },
-  { re: /油豆腐|tofu\s+puffs?/i, name: '油豆腐', group: 'inventory' },
+  { re: /油豆腐|tofu\s+puffs?|fried\s+tofu/i, name: '油豆腐', group: 'inventory' },
   { re: /鱼豆腐|魚豆腐|fish\s+tofu/i, name: '鱼豆腐', group: 'review' },
+  { re: /(?:medium\s+firm|firm|soft)\s+tofu|\btofu\b/i, name: '豆腐', group: 'inventory' },
   { re: /\bgreens\b|\bvegetables?\b|leafy\s+veg|chinese\s+veg/i, name: '青菜', group: 'inventory', uncertain: true }
 ];
 
@@ -124,11 +126,20 @@ export function lookupReceiptUserAlias(rawName) {
   return null;
 }
 
-export function learnReceiptAliasCorrection(rawName, correctedName) {
+export function shouldLearnReceiptAliasCorrection(rawName, correctedName, previousName = '') {
   const key = normalizeReceiptAliasKey(rawName);
   const value = String(correctedName || '').trim();
+  const previous = String(previousName || '').trim();
   if (!isUsefulAliasKey(key) || !value) return false;
+  if (previous && value === previous) return false;
   if (normalizeReceiptAliasKey(value) === key) return false;
+  return true;
+}
+
+export function learnReceiptAliasCorrection(rawName, correctedName) {
+  const value = String(correctedName || '').trim();
+  if (!shouldLearnReceiptAliasCorrection(rawName, value)) return false;
+  const key = normalizeReceiptAliasKey(rawName);
   const aliases = loadReceiptUserAliases();
   aliases[key] = value;
   const entries = Object.entries(aliases).filter(([, name]) => String(name || '').trim());

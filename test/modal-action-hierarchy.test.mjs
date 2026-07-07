@@ -63,6 +63,15 @@ test('小票确认主界面只展示结构化结果，不默认展示 OCR 原文
   assert.doesNotMatch(styles, /\.receipt-ignored-item/);
 });
 
+test('小票确认编辑名称才学习 alias，并清除待确认提示', () => {
+  const modal = read('src/components/modal.js');
+
+  assert.match(modal, /shouldLearnReceiptAliasCorrection\(rawName, name, initialName\)/);
+  assert.match(modal, /learnReceiptAliasCorrection\(rawName, name\)/);
+  assert.match(modal, /itemEl\.dataset\.uncertain = 'false'/);
+  assert.match(modal, /已记住，下次会自动识别/);
+});
+
 test('AI 菜谱导入弹窗接入统一 modal 外壳和失败兜底', () => {
   const source = read('src/components/recipe-import-modal.js');
 

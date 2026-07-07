@@ -169,10 +169,11 @@ function classifyReceiptText(text, source = 'raw') {
   const userAlias = lookupReceiptUserAlias(raw);
   if (userAlias) {
     const classified = classifyAliasName(userAlias.name, userAlias.group);
+    const reason = ['按你的上次修正识别', classified.reason].filter(Boolean).join('；');
     return {
       group: classified.group,
       name: classified.name,
-      reason: classified.reason || '按你的上次修正识别',
+      reason,
       recognized: true,
       uncertain: userAlias.uncertain === true
     };

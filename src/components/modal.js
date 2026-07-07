@@ -3,7 +3,7 @@ import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.j
 import { escapeOptionAttr, escapeHtml, setInlineStatus, showToast } from './status.js?v=234';
 import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=234';
 import { loadShoppingItems, saveShoppingItems, mergeShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem, addShoppingItemsFromText } from '../shopping.js?v=234';
-import { learnReceiptAliasCorrection } from '../utils/receipt-aliases.js?v=234';
+import { learnReceiptAliasCorrection, shouldLearnReceiptAliasCorrection } from '../utils/receipt-aliases.js?v=234';
 
 // 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
 const CALIB_EMOJI = [
@@ -170,7 +170,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel, options
       : (groupKey === 'review' || item.uncertain ? '待确认' : (item.storage || '冷藏'));
 
     return `
-      <div class="receipt-confirm-item${checked ? '' : ' is-unselected'}" data-index="${index}" data-group="${groupKey}" data-target="${target}" data-original-name="${escapeOptionAttr(originalName)}" data-raw-name="${escapeOptionAttr(rawName)}" data-initial-name="${escapeOptionAttr(name)}">
+      <div class="receipt-confirm-item${checked ? '' : ' is-unselected'}" data-index="${index}" data-group="${groupKey}" data-target="${target}" data-original-name="${escapeOptionAttr(originalName)}" data-raw-name="${escapeOptionAttr(rawName)}" data-initial-name="${escapeOptionAttr(name)}" data-uncertain="${item.uncertain ? 'true' : 'false'}">
         <div class="receipt-confirm-row">
           <label class="receipt-select-label">
             <input type="checkbox" class="receipt-select-checkbox" ${checked ? 'checked' : ''}>
@@ -267,6 +267,15 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel, options
   const refreshMatches = () => {
     overlay.querySelectorAll('.receipt-confirm-item').forEach(itemEl => {
       itemEl.classList.toggle('is-unselected', !itemEl.querySelector('.receipt-select-checkbox')?.checked);
+      const currentName = itemEl.querySelector('.receipt-name')?.value.trim() || '';
+      const initialName = itemEl.dataset.initialName || '';
+      if (itemEl.dataset.uncertain === 'true' && currentName && currentName !== initialName) {
+        itemEl.dataset.uncertain = 'false';
+        const storageLabel = itemEl.querySelector('.receipt-storage-label');
+        if (storageLabel?.textContent?.trim() === '待确认') {
+          storageLabel.textContent = itemEl.dataset.target === 'pantry' ? '常备' : '冷藏';
+        }
+      }
       const matchContainer = itemEl.querySelector('.receipt-match-container');
       if (!matchContainer) return;
       if (itemEl.dataset.target === 'pantry') {
@@ -375,6 +384,7 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel, options
   };
   overlay.querySelector('#saveReceiptConfirm').onclick = () => {
     const payload = { inventory: [], pantry: [] };
+    let learnedAliasCount = 0;
     Array.from(overlay.querySelectorAll('.receipt-confirm-item')).forEach(itemEl => {
       if (!itemEl.querySelector('.receipt-select-checkbox')?.checked) return;
       const nameEl = itemEl.querySelector('.receipt-name');
@@ -393,8 +403,12 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel, options
       normalized.originalName = originalName;
       const rawName = itemEl.dataset.rawName || originalName;
       const initialName = itemEl.dataset.initialName || '';
-      if (rawName && name && name !== initialName) {
-        learnReceiptAliasCorrection(rawName, name);
+      if (shouldLearnReceiptAliasCorrection(rawName, name, initialName)) {
+        const learned = learnReceiptAliasCorrection(rawName, name);
+        if (learned) {
+          learnedAliasCount++;
+          normalized.reason = '按你的修正识别';
+        }
       }
 
       const matchCheckbox = itemEl.querySelector('.receipt-match-checkbox');
@@ -408,7 +422,9 @@ export function showReceiptConfirmationModal(items, onConfirm, onCancel, options
     close();
     onConfirm(payload);
     const selectedCount = payload.inventory.length + payload.pantry.length;
-    showToast(selectedCount ? '小票已导入' : '没有识别到可入库食材', {
+    showToast(selectedCount
+      ? (learnedAliasCount ? '小票已导入；已记住，下次会自动识别' : '小票已导入')
+      : '没有识别到可入库食材', {
       tone: selectedCount ? 'success' : 'warning'
     });
   };
