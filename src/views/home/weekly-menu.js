@@ -133,7 +133,8 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
         ${suggestions.map((entry, index) => {
           const { recipe, meal } = entry;
           const recipeId = getWeeklyEntryRecipeId(entry);
-          const plannedDate = getWeeklyPlannedDate(meal, index, today);
+          // entry.plannedDate 记住用户在「计划到」里的手动选择，重渲染（如加入后）不丢。
+          const plannedDate = entry.plannedDate || getWeeklyPlannedDate(meal, index, today);
           const added = recipeId && addedIds.has(weeklyAddedKey(recipeId, plannedDate));
           const tags = Array.isArray(meal?.balanceTags) ? meal.balanceTags.slice(0, 3) : [];
           const servings = normalizeWeeklyServingCount(meal?.servings, peopleCount);
@@ -152,6 +153,9 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
                 <small>${escapeHtml(formatWeeklySuggestionMeta(entry))}</small>
                 <small>${escapeHtml(formatWeeklySuggestionMissing(entry))}</small>
                 ${recipeId ? '' : '<small class="weekly-menu-ai-note">AI 新建议</small>'}
+                <label class="weekly-menu-date-field">计划到
+                  <select class="weekly-menu-date" aria-label="计划日期">${buildWeeklyDateOptions(plannedDate, today)}</select>
+                </label>
               </div>
               <div class="weekly-menu-suggestion-actions">
                 ${recipeId
@@ -415,7 +419,7 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
         for (const [index, entry] of suggestions.entries()) {
           const recipeId = getWeeklyEntryRecipeId(entry);
           if (!recipeId) continue;
-          const plannedDate = getWeeklyPlannedDate(entry.meal, index, today);
+          const plannedDate = entry.plannedDate || getWeeklyPlannedDate(entry.meal, index, today);
           const result = await addRecipeToPlanWithMissingCheck(recipeId, pack, inv, {
             date: plannedDate,
             recipe: entry.recipe,
@@ -435,6 +439,26 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
         render();
       };
     }
+    // 「计划到」下拉：改日期只更新内存里的 entry.plannedDate + DOM data-planned-date，
+    // 并按 recipeId|新日期 刷新加入按钮状态；不写 plan（只有点加入才写）。
+    content.querySelectorAll('.weekly-menu-suggestion .weekly-menu-date').forEach(select => {
+      select.onchange = () => {
+        const article = select.closest('.weekly-menu-suggestion');
+        const index = Number(article?.dataset.index ?? -1);
+        const entry = suggestions[index];
+        if (!entry) return;
+        const nextDate = select.value;
+        entry.plannedDate = nextDate;
+        if (article) article.dataset.plannedDate = nextDate;
+        const recipeId = article?.dataset.recipeId || '';
+        const addBtn = article?.querySelector('.weekly-menu-add');
+        if (recipeId && addBtn) {
+          const isAdded = addedIds.has(weeklyAddedKey(recipeId, nextDate));
+          addBtn.disabled = isAdded;
+          addBtn.textContent = isAdded ? '已加入' : '加入计划';
+        }
+      };
+    });
     content.querySelectorAll('.weekly-menu-suggestion [data-action]').forEach(btn => {
       btn.onclick = async () => {
         const row = btn.closest('.weekly-menu-suggestion');
@@ -468,7 +492,7 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
         }
         btn.disabled = true;
         const safeIndex = index >= 0 ? index : suggestions.indexOf(item);
-        const plannedDate = row?.dataset.plannedDate || getWeeklyPlannedDate(item.meal, safeIndex, todayISO());
+        const plannedDate = item.plannedDate || row?.dataset.plannedDate || getWeeklyPlannedDate(item.meal, safeIndex, todayISO());
         const result = await addRecipeToPlanWithMissingCheck(recipeId, pack, inv, {
           date: plannedDate,
           recipe: item.recipe,
@@ -694,6 +718,28 @@ export function getWeeklyPlannedDate(meal, index, today = todayISO()) {
 function formatWeeklyShortDate(iso) {
   const [, m, d] = String(iso || '').split('-');
   return m && d ? `${Number(m)}/${Number(d)}` : '';
+}
+
+const WEEKLY_WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+// 「计划到」下拉的选项文案：今天/明天/后天，其余用周几；都带简短日期，如「周五 7/10」。
+function weeklyDateOptionLabel(iso, offset) {
+  const rel = offset === 0 ? '今天'
+    : offset === 1 ? '明天'
+      : offset === 2 ? '后天'
+        : WEEKLY_WEEKDAY_LABELS[isoDayOfWeek(iso)] || '本周';
+  return `${rel} ${formatWeeklyShortDate(iso)}`;
+}
+
+// 未来 7 天（含今天）选项，选中 selectedDate。
+function buildWeeklyDateOptions(selectedDate, today) {
+  let html = '';
+  for (let offset = 0; offset <= WEEKLY_PLAN_MAX_OFFSET; offset++) {
+    const iso = addDaysISO(today, offset);
+    const selected = iso === selectedDate ? ' selected' : '';
+    html += `<option value="${escapeOptionAttr(iso)}"${selected}>${escapeHtml(weeklyDateOptionLabel(iso, offset))}</option>`;
+  }
+  return html;
 }
 
 function weeklyAddedKey(recipeId, date) {

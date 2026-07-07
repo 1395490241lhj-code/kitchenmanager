@@ -8517,6 +8517,23 @@ html[data-theme="dark"] .wx-tab.is-active {
   border: 1px solid rgba(0, 122, 255, 0.14);
   font-weight: 800;
 }
+/* 「计划到」日期选择器：轻量一行，不抢主信息。 */
+.weekly-menu-date-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.weekly-menu-date {
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+  background: var(--card-bg, #fff);
+  color: var(--text-main);
+  font-size: 12px;
+}
 .weekly-menu-suggestion-main span,
 .weekly-menu-suggestion-main small,
 .weekly-menu-empty {
