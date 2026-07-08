@@ -183,7 +183,12 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(weekly, /本周菜单/);
   assert.match(weekly, /规划本周/);
   assert.match(weekly, /补齐待买/);
-  assert.match(weekly, /这周打算在家做几顿？/);
+  // 输入态改紧凑：问题文案精简，加一句短说明，快捷选择/自定义并排。
+  assert.match(weekly, /class="weekly-menu-question">做几顿</);
+  assert.match(weekly, /class="weekly-menu-question">几个人</);
+  assert.match(weekly, /class="weekly-menu-intro">根据库存、临期和偏好，先规划几顿。/);
+  assert.match(weekly, /class="weekly-menu-field-row"/);
+  assert.doesNotMatch(weekly, /快捷选择/);
   assert.match(weekly, /补充要求/);
   assert.match(weekly, /AI 规划本周菜单/);
   assert.match(weekly, /用本地建议/);
@@ -227,7 +232,10 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(styles, /\.weekly-menu-request/);
   assert.match(styles, /\.weekly-menu-meal-input/);
   assert.match(styles, /\.weekly-menu-people-input/);
-  assert.match(styles, /\.weekly-menu-checks[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  // 偏好 chip 改为自动换行的 flex，不再是两列大胶囊；顿数/人数按钮更轻。
+  assert.match(styles, /\.weekly-menu-checks \{[\s\S]*?flex-wrap: wrap/);
+  assert.doesNotMatch(styles, /\.weekly-menu-checks[\s\S]{0,120}grid-template-columns: repeat\(2/);
+  assert.match(styles, /\.weekly-menu-option \{[\s\S]*?font-size: 15px/);
   assert.match(styles, /\.weekly-menu-suggestion/);
 });
 

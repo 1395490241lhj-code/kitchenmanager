@@ -8318,24 +8318,32 @@ html[data-theme="dark"] .wx-tab.is-active {
 }
 .weekly-menu-modal {
   display: grid;
-  gap: 16px;
-  padding: 16px 22px 20px;
+  gap: 12px;
+  padding: 14px 20px 18px;
+}
+/* 标题下的一句短说明。 */
+.weekly-menu-intro {
+  margin: -2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.4;
 }
 .weekly-menu-section {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 .weekly-menu-question {
   margin: 0;
   color: var(--text-main);
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 800;
 }
-.weekly-menu-subquestion {
-  margin: -2px 0 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
+/* 快捷按钮与自定义输入并排一行；空间不够时自定义换行，间距保持紧凑。 */
+.weekly-menu-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 .weekly-menu-options {
   display: flex;
@@ -8366,9 +8374,10 @@ html[data-theme="dark"] .wx-tab.is-active {
   font-weight: 800;
   color: var(--text-main);
 }
+/* 偏好 chip：单行自动换行的小 chip，不做两列大胶囊。 */
 .weekly-menu-checks {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .weekly-menu-option,
@@ -8376,8 +8385,6 @@ html[data-theme="dark"] .wx-tab.is-active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  height: 38px;
   width: auto;
   min-width: 0;
   border: 1px solid var(--separator);
@@ -8385,29 +8392,37 @@ html[data-theme="dark"] .wx-tab.is-active {
   background: var(--bg-card);
   color: var(--text-main);
   font: inherit;
-  font-size: 13px;
-  font-weight: 750;
   line-height: 1;
   text-align: center;
   white-space: nowrap;
   writing-mode: horizontal-tb;
   text-orientation: mixed;
 }
+/* 顿数 / 人数：轻量胶囊，比主按钮薄。 */
 .weekly-menu-option {
   flex: 0 0 auto;
-  padding: 0 15px;
+  height: 40px;
+  padding: 0 18px;
+  font-size: 15px;
+  font-weight: 700;
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
 }
+/* 选中态：浅蓝底 + 蓝字，明显轻于底部主按钮。 */
 .weekly-menu-option.is-active {
-  color: #fff;
-  border-color: rgba(0, 122, 255, 0.34);
-  background: var(--primary);
+  color: var(--primary);
+  border-color: rgba(0, 122, 255, 0.30);
+  background: rgba(0, 122, 255, 0.10);
+  font-weight: 800;
 }
+/* 偏好 chip 比顿数/人数按钮更小更轻。 */
 .weekly-menu-check {
-  gap: 6px;
+  min-height: 32px;
+  gap: 5px;
   padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   user-select: none;
 }
@@ -8566,9 +8581,6 @@ html[data-theme="dark"] .wx-tab.is-active {
 @media (max-width: 420px) {
   .weekly-menu-modal {
     padding: 14px 16px 18px;
-  }
-  .weekly-menu-checks {
-    grid-template-columns: 1fr;
   }
   .weekly-menu-suggestion {
     grid-template-columns: 1fr;
