@@ -138,30 +138,29 @@ function renderWeeklyMenuSuggestions(suggestions, addedIds = new Set(), {
           const added = recipeId && addedIds.has(weeklyAddedKey(recipeId, plannedDate));
           const tags = Array.isArray(meal?.balanceTags) ? meal.balanceTags.slice(0, 3) : [];
           const servings = normalizeWeeklyServingCount(meal?.servings, peopleCount);
-          const dayLabel = [meal?.daySuggestion || getWeeklyDaySuggestion(index), formatWeeklyShortDate(plannedDate)]
-            .filter(Boolean).join(' ');
           return `
             <article class="weekly-menu-suggestion" data-index="${index}" data-recipe-id="${escapeOptionAttr(recipeId)}" data-planned-date="${escapeOptionAttr(plannedDate)}">
               <div class="weekly-menu-suggestion-main">
-                <small class="weekly-menu-day">${escapeHtml(dayLabel)} · ${servings} 人份</small>
-                <strong>${escapeHtml(meal?.name || recipe?.name || '本周菜谱')}</strong>
-                <span>${escapeHtml(meal?.reason || formatWeeklySuggestionMeta(entry))}</span>
-                <small>${escapeHtml([
+                <strong class="weekly-menu-name">${escapeHtml(meal?.name || recipe?.name || '本周菜谱')}${recipeId ? '' : '<span class="weekly-menu-ai-note">AI 新建议</span>'}</strong>
+                <small class="weekly-menu-meta">${escapeHtml([
+                  `${servings} 人份`,
                   meal?.difficulty || getWeeklyRecipeDifficulty(recipe),
-                  tags.join(' · ')
+                  ...tags.slice(0, 2)
                 ].filter(Boolean).join(' · '))}</small>
-                <small>${escapeHtml(formatWeeklySuggestionMeta(entry))}</small>
-                <small>${escapeHtml(formatWeeklySuggestionMissing(entry))}</small>
-                ${recipeId ? '' : '<small class="weekly-menu-ai-note">AI 新建议</small>'}
+                ${meal?.reason ? `<span class="weekly-menu-reason">${escapeHtml(meal.reason)}</span>` : ''}
+                <small class="weekly-menu-uses">${escapeHtml(formatWeeklySuggestionMeta(entry))}</small>
+                <small class="weekly-menu-shortage">${escapeHtml(formatWeeklySuggestionMissing(entry))}</small>
+              </div>
+              <div class="weekly-menu-suggestion-actions">
                 <label class="weekly-menu-date-field">计划到
                   <select class="weekly-menu-date" aria-label="计划日期">${buildWeeklyDateOptions(plannedDate, today)}</select>
                 </label>
-              </div>
-              <div class="weekly-menu-suggestion-actions">
-                ${recipeId
-                  ? `<button type="button" class="btn small weekly-menu-add" data-action="add"${added ? ' disabled' : ''}>${added ? '已加入' : '加入计划'}</button>
-                    <button type="button" class="btn small weekly-menu-view" data-action="view">查看</button>`
-                  : '<button type="button" class="btn small weekly-menu-save" data-action="save">保存为菜谱</button>'}
+                <div class="weekly-menu-action-buttons">
+                  ${recipeId
+                    ? `<button type="button" class="btn small weekly-menu-add" data-action="add"${added ? ' disabled' : ''}>${added ? '已加入' : '加入计划'}</button>
+                      <button type="button" class="btn small weekly-menu-view" data-action="view">查看</button>`
+                    : '<button type="button" class="btn small weekly-menu-save" data-action="save">保存为菜谱</button>'}
+                </div>
               </div>
             </article>
           `;
