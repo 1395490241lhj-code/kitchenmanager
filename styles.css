@@ -8339,21 +8339,22 @@ html[data-theme="dark"] .wx-tab.is-active {
   font-weight: 800;
 }
 /* 快捷按钮与自定义输入并排一行；空间不够时自定义换行，间距保持紧凑。 */
-.weekly-menu-field-row {
+/* 快捷按钮组与「自定义」输入同一行；空间不够时整体换行，保持紧凑。 */
+.weekly-menu-choice-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px 12px;
 }
 .weekly-menu-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
-.weekly-menu-custom-meals {
+.weekly-menu-custom-inline {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: fit-content;
   max-width: 100%;
   min-height: 38px;
@@ -8593,6 +8594,12 @@ html[data-theme="dark"] .wx-tab.is-active {
   }
   .weekly-menu-results-actions .btn {
     flex: 1 1 120px;
+  }
+}
+/* 窄屏：快捷按钮换行后，「自定义」输入顶部对齐、不被压窄。 */
+@media (max-width: 520px) {
+  .weekly-menu-choice-row {
+    align-items: flex-start;
   }
 }
 .wx-panel .menu-plan-card,

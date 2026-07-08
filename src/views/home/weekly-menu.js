@@ -259,13 +259,13 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
       <p class="weekly-menu-intro">根据库存、临期和偏好，先规划几顿。</p>
       <section class="weekly-menu-section">
         <p class="weekly-menu-question">做几顿</p>
-        <div class="weekly-menu-field-row">
+        <div class="weekly-menu-choice-row">
           <div class="weekly-menu-options" role="group" aria-label="选择本周做饭顿数">
             ${[3, 4, 5].map(value => `
               <button type="button" class="weekly-menu-option${mealCount === value ? ' is-active' : ''}" data-meal-count="${value}">${value} 顿</button>
             `).join('')}
           </div>
-          <label class="weekly-menu-custom-meals">
+          <label class="weekly-menu-custom-inline">
             <span>自定义</span>
             <input class="weekly-menu-meal-input" type="number" inputmode="numeric" min="1" max="10" step="1" value="${mealCount}" aria-label="自定义本周做饭顿数">
             <span>顿</span>
@@ -274,13 +274,13 @@ function openWeeklyMenuModal(pack, inv, { onRoute = () => {} } = {}) {
       </section>
       <section class="weekly-menu-section">
         <p class="weekly-menu-question">几个人</p>
-        <div class="weekly-menu-field-row">
+        <div class="weekly-menu-choice-row">
           <div class="weekly-menu-options" role="group" aria-label="选择用餐人数">
             ${[1, 2, 3, 4].map(value => `
               <button type="button" class="weekly-menu-option${peopleCount === value ? ' is-active' : ''}" data-people-count="${value}">${value} 人</button>
             `).join('')}
           </div>
-          <label class="weekly-menu-custom-meals weekly-menu-custom-people">
+          <label class="weekly-menu-custom-inline">
             <span>自定义</span>
             <input class="weekly-menu-people-input" type="number" inputmode="numeric" min="1" max="8" step="1" value="${peopleCount}" aria-label="自定义用餐人数">
             <span>人</span>

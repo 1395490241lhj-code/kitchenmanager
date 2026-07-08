@@ -187,7 +187,10 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(weekly, /class="weekly-menu-question">做几顿</);
   assert.match(weekly, /class="weekly-menu-question">几个人</);
   assert.match(weekly, /class="weekly-menu-intro">根据库存、临期和偏好，先规划几顿。/);
-  assert.match(weekly, /class="weekly-menu-field-row"/);
+  // 快捷按钮与「自定义」输入在同一行（choice-row）。
+  assert.match(weekly, /class="weekly-menu-choice-row"/);
+  assert.match(weekly, /class="weekly-menu-custom-inline"/);
+  assert.doesNotMatch(weekly, /weekly-menu-field-row/);
   assert.doesNotMatch(weekly, /快捷选择/);
   assert.match(weekly, /补充要求/);
   assert.match(weekly, /AI 规划本周菜单/);
