@@ -860,6 +860,84 @@ export function validateRecipeResult(input) {
   };
 }
 
+// ── AI 创意菜"黑暗料理"过滤 ─────────────────────────────────────────────────
+// 今日推荐里的 creative 草稿有时会为了用完库存把食材硬凑进一道菜（比如
+// "茭笋青椒瘦肉炒蛋"），不像真实家常菜。这里做本地后处理过滤，不依赖 prompt
+// 100% 听话——模型偶发的堆砌菜名/食材组合也拦得住。
+const CREATIVE_MEAT_SEAFOOD_WORDS = [
+  '鸡腿', '鸡肉', '鸡胸', '鸡翅', '鸡丁', '牛肉', '猪肉', '羊肉', '鸭肉', '鸭腿',
+  '肉丝', '肉片', '肉末', '瘦肉', '五花肉', '里脊', '排骨', '培根', '香肠', '腊肉',
+  '火腿', '鱼片', '鱼块', '虾仁', '基围虾', '鱿鱼', '蟹', '肉', '鱼', '虾'
+];
+const CREATIVE_EGG_WORDS = ['鸡蛋', '鸭蛋', '蛋液', '蛋清', '蛋黄', '蛋'];
+const CREATIVE_VEGETABLE_WORDS = [
+  '青椒', '茭笋', '土豆', '马铃薯', '西红柿', '番茄', '茄子', '白菜', '菠菜', '韭菜',
+  '黄瓜', '萝卜', '胡萝卜', '冬瓜', '南瓜', '丝瓜', '芹菜', '蒜苗', '木耳', '香菇',
+  '蘑菇', '金针菇', '豆芽', '西兰花', '菜花', '洋葱', '莴笋', '芦笋', '四季豆',
+  '豇豆', '油菜', '生菜', '苦瓜', '荷兰豆', '豆角', '莲藕', '山药'
+];
+// 不寻常的"肉直接配蛋"组合（非经典搭配，容易是硬凑）；虾仁炒蛋、滑蛋牛肉等经典搭配不在此列。
+const CREATIVE_UNUSUAL_MEAT_EGG_PATTERN = /(瘦肉|牛肉|猪肉|羊肉|鸡腿|排骨|鸭肉)炒蛋/;
+const CREATIVE_COOKING_VERB_PATTERN = /炒|炖|煮|拌|饭|面/;
+// 经典菜名固定搭配天然会有较多"核心食材"（如木须肉=肉+蛋+木耳+黄瓜），不应被下面的规则误杀。
+const CREATIVE_WHITELISTED_DISH_NAMES = new Set([
+  '番茄炒蛋', '西红柿炒蛋', '青椒炒蛋', '韭菜炒蛋', '虾仁炒蛋',
+  '肉末蒸蛋', '滑蛋牛肉', '木须肉', '木樨肉', '蛋炒饭'
+]);
+
+function classifyCreativeFoodWord(text) {
+  const value = String(text || '');
+  if (CREATIVE_EGG_WORDS.some(w => value.includes(w))) return 'egg';
+  if (CREATIVE_MEAT_SEAFOOD_WORDS.some(w => value.includes(w))) return 'meat';
+  if (CREATIVE_VEGETABLE_WORDS.some(w => value.includes(w))) return 'vegetable';
+  return 'other';
+}
+
+// 菜名里堆了几个"食材概念"：蔬菜按不同词各算一个，肉/蛋各封顶算 1 个
+// （避免"鸡蛋"同时命中"鸡蛋"和"蛋"两个词条被重复计数）。
+function countCreativeNameFoodConcepts(name) {
+  const text = String(name || '');
+  const vegetableHits = new Set(CREATIVE_VEGETABLE_WORDS.filter(w => text.includes(w)));
+  const hasMeat = CREATIVE_MEAT_SEAFOOD_WORDS.some(w => text.includes(w));
+  const hasEgg = CREATIVE_EGG_WORDS.some(w => text.includes(w));
+  return vegetableHits.size + (hasMeat ? 1 : 0) + (hasEgg ? 1 : 0);
+}
+
+/**
+ * 判断 AI creative 草稿是否是"库存食材硬凑"的可疑组合（黑暗料理）。
+ * 命中任一规则即视为可疑：
+ *   1. 核心食材（classifyRecipeIngredient 判定 role==='core'，去重后）≥4 个；
+ *   2. 核心食材里同时含「肉/鱼虾」+「蛋」+ 2 种及以上蔬菜；
+ *   3. 菜名里堆了 ≥4 个食材概念，且带炒/炖/煮/拌/饭/面等烹饪动词；
+ *   4. 菜名匹配「瘦肉/牛肉/猪肉/羊肉/鸡腿/排骨/鸭肉 + 炒蛋」这类不寻常肉蛋组合。
+ * 经典家常菜名（番茄炒蛋、木须肉…）直接放行，不套用以上规则。
+ */
+export function isSuspiciousAiCreativeDish(draft) {
+  const name = String(draft?.name || '').trim();
+  if (!name) return false;
+  if (CREATIVE_WHITELISTED_DISH_NAMES.has(name)) return false;
+
+  const ingredientNames = (Array.isArray(draft?.ingredients) ? draft.ingredients : [])
+    .map(it => String(it?.item || it?.name || '').trim())
+    .filter(Boolean);
+  const coreNames = [...new Set(
+    ingredientNames.filter(n => classifyRecipeIngredient(n).role === 'core')
+  )];
+  if (coreNames.length >= 4) return true;
+
+  const categories = coreNames.map(classifyCreativeFoodWord);
+  const hasMeatOrSeafood = categories.includes('meat');
+  const hasEgg = categories.includes('egg');
+  const vegetableCount = categories.filter(c => c === 'vegetable').length;
+  if (hasMeatOrSeafood && hasEgg && vegetableCount >= 2) return true;
+
+  if (countCreativeNameFoodConcepts(name) >= 4 && CREATIVE_COOKING_VERB_PATTERN.test(name)) return true;
+
+  if (CREATIVE_UNUSUAL_MEAT_EGG_PATTERN.test(name)) return true;
+
+  return false;
+}
+
 export function validateRecommendationResult(input) {
   const data = safeParseJson(input, '推荐结果');
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('推荐结果格式不对。');
@@ -876,7 +954,8 @@ export function validateRecommendationResult(input) {
     const name = String(data.creative.name || '').trim();
     const reason = String(data.creative.reason || 'AI 草稿').trim();
     const ingredients = normalizeAiIngredients(data.creative.ingredients);
-    if (name && ingredients.length) {
+    // 硬凑的"黑暗料理"草稿直接丢弃：不展示、不进入详情页；local 推荐不受影响。
+    if (name && ingredients.length && !isSuspiciousAiCreativeDish({ name, ingredients })) {
       creative = {
         name,
         reason,
@@ -1611,7 +1690,18 @@ export async function callCloudAI(pack, inv) {
 - creative.ingredients 必须是数组，只列核心主材。
 - creative 是 AI 草稿，不是最终菜谱。
 - 严禁用葱姜蒜、香菜、调料替代肉菜蛋豆等主材。
-- 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。${antiFatigueRule}`;
+- 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。
+
+【creative 必须是一道真实存在的家常菜，不是库存食材大杂烩】这条优先级最高：
+- 不要为了用完库存把所有食材硬拼成一道菜（例如"茭笋青椒瘦肉炒蛋"这种把 4 种主材堆进一道菜的做法是错误示范）。
+- creative.name 最多体现 2 个核心主材，经典固定搭配菜名（如"番茄炒蛋""木须肉"）除外。
+- creative.ingredients 最多列 3 个核心主材。
+- 如果已经用了一种肉/鱼虾类作为主蛋白，不要再顺手加鸡蛋，除非是"滑蛋牛肉""虾仁炒蛋"这类本身就是经典固定搭配的菜。
+- 不要生成"两种蔬菜 + 一种肉 + 鸡蛋"这类四种核心食材混搭的菜。
+- 如果库存组合本来就不适合凑成一道正常的菜，creative 可以返回 null，不要硬编。
+- 更推荐把库存拆成两道正常菜（分别放进 local 或各自的 creative 思路里），而不是塞进一道菜。
+- 参考真实中式家常菜命名方式，例如：青椒肉丝、茭笋炒肉、茭笋炒蛋、青椒炒蛋。
+- 避免这类堆砌菜名：茭笋青椒瘦肉炒蛋、青椒牛肉炒蛋、西兰花鸡腿炒蛋、番茄土豆牛肉炒蛋、菌菇青菜猪肉鸡蛋炒饭。${antiFatigueRule}`;
 
   const raw = await callAiService(prompt, null, { taskType: 'recommendation' });
   return validateRecommendationResult(raw);
