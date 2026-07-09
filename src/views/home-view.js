@@ -1906,12 +1906,15 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   `;
   const body = section.querySelector('.wx-body');
 
-  // 推荐 tab 状态（仅内存）：local=本地灵感卡 / ai=云端草稿；idx=「换一道」游标。
+  // 推荐 tab 状态（仅内存）：local=本地灵感卡 / ai=云端草稿 / ai-empty=AI 结果被过滤后为空；idx=「换一道」游标。
   let recsState = null;
   const initRecsState = () => {
     const savedAi = S.load(S.keys.ai_recs, null);
     const aiCards = savedAi ? processAiData(savedAi, pack) : [];
     if (aiCards.length) return { mode: 'ai', cards: aiCards, idx: 0 };
+    // savedAi 存在但 processAiData 过滤后没有可展示项（黑暗料理/不喜欢过滤命中）：
+    // 不要默默换回本地推荐，用户会看不出发生了什么——给一个明确的兜底空状态。
+    if (savedAi) return { mode: 'ai-empty', cards: [], idx: 0 };
     return { mode: 'local', cards: getInspirationCached(), idx: 0 };
   };
   const stepRecommendation = (delta = 1) => {
@@ -1919,6 +1922,28 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     const total = recsState.cards.length;
     recsState.idx = (recsState.idx + delta + total) % total;
     switchTab('recs');
+  };
+  // 「AI 换一批」共用触发逻辑：推荐 tab 底部按钮、ai-empty 兜底空状态里的「换一批」都走这里，
+  // 过滤后为空时统一进入 mode:'ai-empty'（而不是静默换回本地推荐或留一句不起眼的提示）。
+  const triggerAiRefresh = async (btn) => {
+    if (!btn || btn.getAttribute('disabled')) return;
+    btn.setAttribute('disabled', 'true');
+    const original = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span> 思考中…';
+    const safety = setTimeout(() => { btn.innerHTML = original; btn.removeAttribute('disabled'); }, 30000);
+    try {
+      const aiResult = await callCloudAI(pack, inv);
+      clearTimeout(safety);
+      const aiCards = processAiData(aiResult, pack);
+      S.save(S.keys.ai_recs, aiResult);
+      recsState = aiCards.length ? { mode: 'ai', cards: aiCards, idx: 0 } : { mode: 'ai-empty', cards: [], idx: 0 };
+      switchTab('recs');
+    } catch (err) {
+      clearTimeout(safety);
+      showToast(formatAiErrorMessage(err) || 'AI 暂不可用', { tone: 'error' });
+    } finally {
+      btn.innerHTML = original; btn.removeAttribute('disabled');
+    }
   };
   const isCardControlTarget = (target) => Boolean(target && target.closest('button, a, input, select, textarea, [data-no-card-swipe]'));
   const bindRecommendationCycling = (cardWrap) => {
@@ -2596,6 +2621,27 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       `;
       cardWrap.querySelector('#wxRecAddFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
       cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
+    } else if (mode === 'ai-empty') {
+      // AI 推荐经 validateRecommendationResult/processAiData 过滤（黑暗料理/用户不喜欢）后一个都不剩：
+      // 不留空白、不写「暂无推荐」，给出明确的兜底操作，而不是悄悄换回本地推荐。
+      cardWrap.innerHTML = `
+        <div class="wx-empty wx-rec-empty wx-rec-ai-empty">
+          <strong>暂时没有合适的 AI 推荐</strong>
+          <span>可能是最近做过、已标记不喜欢，或当前库存组合不适合硬凑。</span>
+          <div class="wx-actions wx-empty-actions">
+            <button type="button" class="wx-mini-btn is-ai" id="wxRecEmptyRefresh">换一批</button>
+            <button type="button" class="wx-mini-btn" id="wxRecEmptyLocal">看本地推荐</button>
+            <button type="button" class="wx-mini-btn" id="wxRecEmptyPlan">规划本周菜单</button>
+          </div>
+        </div>
+      `;
+      cardWrap.querySelector('#wxRecEmptyRefresh').onclick = e => triggerAiRefresh(e.currentTarget);
+      cardWrap.querySelector('#wxRecEmptyLocal').onclick = () => {
+        localStorage.removeItem(S.keys.ai_recs);
+        recsState = { mode: 'local', cards: getInspirationCached(), idx: 0 };
+        switchTab('recs');
+      };
+      cardWrap.querySelector('#wxRecEmptyPlan').onclick = () => switchTab('plan');
     } else if (!cards.length) {
       cardWrap.innerHTML = `
         <div class="wx-empty wx-rec-empty">
@@ -2661,7 +2707,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       }
     } else if (cards.length) {
       body.appendChild(renderWxSectionIntro('推荐', ''));
-    } else {
+    } else if (mode !== 'ai-empty') {
       body.appendChild(renderWxSectionIntro('暂无合适推荐', '再记录几样食材，推荐会更准。'));
     }
     body.appendChild(cardWrap);
@@ -2676,13 +2722,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       `;
       body.appendChild(dots);
     }
-    // AI 创意做法入口：指定食材模式专属，本地结果（或空提示）之下，分层清楚。
-    const aiStatus = document.createElement('div');
-    aiStatus.className = 'small inline-status wx-ai-status';
-    aiStatus.hidden = true;
-    body.appendChild(aiStatus);
-
-    if (hasInlineAiState || (hasSearchQuery && !cards.length)) return;
+    if (hasInlineAiState || (hasSearchQuery && !cards.length) || mode === 'ai-empty') return;
 
     const foot = document.createElement('div');
     foot.className = 'wx-actions';
@@ -2708,32 +2748,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     };
     const aiTrigger = foot.querySelector('#wxRecAi');
     if (!aiTrigger) return;
-    aiTrigger.onclick = async (e) => {
-      const aiBtn = e.currentTarget;
-      if (aiBtn.getAttribute('disabled')) return;
-      aiBtn.setAttribute('disabled', 'true');
-      const original = aiBtn.textContent;
-      aiBtn.innerHTML = '<span class="spinner"></span> 思考中…';
-      const safety = setTimeout(() => { aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled'); }, 30000);
-      try {
-        const aiResult = await callCloudAI(pack, inv);
-        clearTimeout(safety);
-        const aiCards = processAiData(aiResult, pack);
-        if (aiCards.length > 0) {
-          S.save(S.keys.ai_recs, aiResult);
-          recsState = { mode: 'ai', cards: aiCards, idx: 0 };
-          switchTab('recs');
-          return;
-        }
-        setInlineStatus(aiStatus, '暂时没有返回可用菜谱，已保留本地推荐。', 'info');
-      } catch (err) {
-        clearTimeout(safety);
-        setInlineStatus(aiStatus, formatAiErrorMessage(err), 'bad');
-        showToast('AI 暂不可用', { tone: 'error' });
-      } finally {
-        aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled');
-      }
-    };
+    aiTrigger.onclick = e => triggerAiRefresh(e.currentTarget);
   };
 
   const TAB_RENDERERS = { plan: renderPlanTab, recs: renderRecsTab };
