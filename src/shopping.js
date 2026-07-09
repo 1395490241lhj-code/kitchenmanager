@@ -1,5 +1,5 @@
-import { S, todayISO } from './storage.js?v=234';
-import { perfCount } from './utils/perf.js?v=234';
+import { S, todayISO } from './storage.js?v=235';
+import { perfCount } from './utils/perf.js?v=235';
 import {
   getCanonicalName,
   getDryPrepText,
@@ -8,7 +8,7 @@ import {
   isDryGoodName,
   normalizeReceiptIngredientName,
   normalizeKitchenAmount
-} from './ingredients.js?v=234';
+} from './ingredients.js?v=235';
 
 export function genId(){
   return 'u-' + Math.random().toString(36).slice(2,8) + '-' + Date.now().toString(36).slice(-4);

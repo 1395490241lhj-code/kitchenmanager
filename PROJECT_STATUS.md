@@ -81,6 +81,7 @@ These areas need extra caution:
 - Link/video extraction may be incomplete or unreliable.
 - AI-generated recipe data must remain reviewable draft data.
 - Media and URL handling must preserve SSRF/rate-limit/error handling safeguards.
+- Temporary `creative-*` AI recommendation ids are display-only. They must be saved as a unique overlay recipe before entering a plan or becoming editable.
 
 ### PWA cache/versioning
 

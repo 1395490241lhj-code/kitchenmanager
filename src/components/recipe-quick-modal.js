@@ -9,21 +9,21 @@
  *  - 复用 .km-modal-overlay / .km-modal-content 既有玻璃质感 + 动画（与待买速记等弹窗一致）。
  *  - 关闭弹窗不触发列表重渲染，保证搜索 / 分类 / 滚动状态不丢。
  */
-import { S, todayISO } from '../storage.js?v=234';
-import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=234';
-import { splitIngredients } from '../utils/recipe-sanitizer.js?v=234';
-import { loadInventory } from '../inventory.js?v=234';
+import { S, todayISO } from '../storage.js?v=235';
+import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=235';
+import { splitIngredients } from '../utils/recipe-sanitizer.js?v=235';
+import { loadInventory } from '../inventory.js?v=235';
 import {
   calculateStockStatus,
   getMissingRecipeIngredients,
   addMissingRecipeIngredientsToShopping,
   isFavoriteRecipe,
   toggleFavoriteRecipe,
-} from '../recommendations.js?v=234';
-import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=234';
-import { loadOverlay } from '../backup.js?v=234';
-import { escapeHtml } from './status.js?v=234';
-import { isPlanRowOnDate } from '../plan-selectors.js?v=234';
+} from '../recommendations.js?v=235';
+import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=235';
+import { loadOverlay } from '../backup.js?v=235';
+import { escapeHtml } from './status.js?v=235';
+import { isPlanRowOnDate } from '../plan-selectors.js?v=235';
 
 const CLOSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
@@ -53,7 +53,8 @@ export function showRecipeQuickModal(recipe, pack, inv = null, { onRoute = () =>
 
   // 合并 overlay（自定义菜谱 / AI 草稿的做法可能只在 overlay 里），不改原对象。
   const overlay = loadOverlay();
-  const ovRecipe = (overlay.recipes || {})[id];
+  // creative-* 是一次性推荐占位，不读取旧 overlay，避免新推荐串到旧草稿做法。
+  const ovRecipe = isCreative ? null : (overlay.recipes || {})[id];
   const r = ovRecipe ? { ...recipe, ...ovRecipe, method: ovRecipe.method || recipe.method || '' } : recipe;
 
   const inventory = inv || loadInventory(buildCatalog(pack));
@@ -107,9 +108,9 @@ export function showRecipeQuickModal(recipe, pack, inv = null, { onRoute = () =>
       <div class="rqm-feedback" id="rqmFeedback" hidden></div>
     </div>
     <div class="km-modal-actions rqm-actions">
-      <button type="button" class="btn ok rqm-primary" id="rqmPlan" ${plannedToday ? 'disabled' : ''}>${plannedToday ? '今天已计划' : '加入今日计划'}</button>
+      ${!isCreative ? `<button type="button" class="btn ok rqm-primary" id="rqmPlan" ${plannedToday ? 'disabled' : ''}>${plannedToday ? '今天已计划' : '加入今日计划'}</button>` : ''}
       <button type="button" class="btn" id="rqmAddMissing" ${missing.length ? '' : 'disabled'}>${missing.length ? '缺的加入买菜' : '食材已齐'}</button>
-      <button type="button" class="btn" id="rqmFull">查看完整菜谱</button>
+      <button type="button" class="btn" id="rqmFull">${isCreative ? '补做法' : '查看完整菜谱'}</button>
       ${!isCreative ? `<button type="button" class="btn rqm-edit" id="rqmEdit">编辑</button>` : ''}
     </div>
   `;

@@ -7,7 +7,7 @@
  *
  * 只存菜名 + 原因 + 时间戳，最多 100 条，超出删最旧的。
  */
-import { S } from '../storage.js?v=234';
+import { S } from '../storage.js?v=235';
 
 const MAX_DISLIKED = 100;
 

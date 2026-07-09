@@ -74,3 +74,17 @@ Keep entries concise. Use this file for what changed, not for long design discus
 ### Notes
 
 - Xiaohongshu import, receipt recognition, weekly-menu planning/date scheduling, the `plan` data structure, `server.js`, and the dislike-feedback recording logic (`src/utils/ai-disliked-recipes.js`) were not touched.
+
+---
+
+## 2026-07-09 (3)
+
+### Fixed
+
+- Prevented temporary `creative-*` AI recommendation ids from entering the saved meal plan.
+- Creative recommendation cards and quick detail now direct users to complete/save the draft instead of offering a direct plan action.
+- Saving a `creative-ai-temp` method draft now creates a unique user recipe with its own ingredients and routes to that new recipe, avoiding reuse of the temporary id or stale overlay methods.
+
+### Notes
+
+- Existing plan, weekly-menu AI suggestions, Xiaohongshu import, receipt recognition, and the recipe-generation prompt were not changed.

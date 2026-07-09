@@ -1,4 +1,4 @@
-import { S, todayISO } from './storage.js?v=234';
+import { S, todayISO } from './storage.js?v=235';
 import {
   UNIT_TYPE,
   getCanonicalName,
@@ -9,8 +9,8 @@ import {
   guessShelfDays,
   isDryGoodName,
   isSmartIngredientMatch
-} from './ingredients.js?v=234';
-import { isSeasoningName } from './utils/recipe-sanitizer.js?v=234';
+} from './ingredients.js?v=235';
+import { isSeasoningName } from './utils/recipe-sanitizer.js?v=235';
 
 export const FROZEN_DEFAULT_SHELF_DAYS = 30;
 

@@ -1,38 +1,38 @@
-import { S, todayISO } from '../storage.js?v=234';
-import { PLAN_COPY } from '../copy.js?v=234';
-import { getTodayPendingPlanRows } from '../plan-selectors.js?v=234';
-import { buildCatalog, getCanonicalName, explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=234';
-import { isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=234';
-import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=234';
+import { S, todayISO } from '../storage.js?v=235';
+import { PLAN_COPY } from '../copy.js?v=235';
+import { getTodayPendingPlanRows } from '../plan-selectors.js?v=235';
+import { buildCatalog, getCanonicalName, explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=235';
+import { isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=235';
+import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=235';
 import {
   addMissingRecipeIngredientsToShopping,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData,
   isFavoriteRecipe, toggleFavoriteRecipe
-} from '../recommendations.js?v=234';
-import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=234';
-import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=234';
-import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=234';
-import { showRecommendationCards } from '../components/recipe-card.js?v=234';
-import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=234';
-import { perfMeasure } from '../utils/perf.js?v=234';
-import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showPendingShoppingModal } from '../components/modal.js?v=234';
-import { renderMenuPlan, renderCookAllButton } from '../components/menu-plan.js?v=234';
-import { parseFoodLines } from '../utils/food-input-parser.js?v=234';
-import { classifyRecipeIngredient, splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=234';
-import { splitMethodSteps } from '../utils/method-steps.js?v=234';
-import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=234';
-import { createUserRecipe } from '../components/recipe-create-modal.js?v=234';
-import { getHomeTab, setHomeTab, getTodayPlanCount } from './home/home-tab-state.js?v=234';
-import { enterDemoKitchen, isDemoKitchenMode, markDemoPlanAdded, renderDemoKitchenBanner, syncDemoStepFromTab } from './home/demo-kitchen.js?v=234';
-import { openCookedMealModal } from './home/cooked-meal-modal.js?v=234';
-import { renderBackupNudge, renderPwaInstallNudge } from './home/home-nudges.js?v=234';
-import { writeItemsToInventory, writeReceiptPantryItems } from '../utils/inventory-write.js?v=234';
-import { loadOverlay, saveOverlay } from '../backup.js?v=234';
-import { createHomeModal } from './home/home-modal.js?v=234';
-import { getExpiringItems, getRecommendationUiContext, isExpiryTracked } from './home/home-data.js?v=234';
-import { renderWeeklyMenuCard } from './home/weekly-menu.js?v=234';
-import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=234';
+} from '../recommendations.js?v=235';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=235';
+import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=235';
+import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=235';
+import { showRecommendationCards } from '../components/recipe-card.js?v=235';
+import { parseTargetIngredients } from '../utils/ingredient-intent.js?v=235';
+import { perfMeasure } from '../utils/perf.js?v=235';
+import { showCleanFridgeModal, showReceiptConfirmationModal, showQuickShoppingModal, showPendingShoppingModal } from '../components/modal.js?v=235';
+import { renderMenuPlan, renderCookAllButton } from '../components/menu-plan.js?v=235';
+import { parseFoodLines } from '../utils/food-input-parser.js?v=235';
+import { classifyRecipeIngredient, splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=235';
+import { splitMethodSteps } from '../utils/method-steps.js?v=235';
+import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=235';
+import { createUserRecipe } from '../components/recipe-create-modal.js?v=235';
+import { getHomeTab, setHomeTab, getTodayPlanCount } from './home/home-tab-state.js?v=235';
+import { enterDemoKitchen, isDemoKitchenMode, markDemoPlanAdded, renderDemoKitchenBanner, syncDemoStepFromTab } from './home/demo-kitchen.js?v=235';
+import { openCookedMealModal } from './home/cooked-meal-modal.js?v=235';
+import { renderBackupNudge, renderPwaInstallNudge } from './home/home-nudges.js?v=235';
+import { writeItemsToInventory, writeReceiptPantryItems } from '../utils/inventory-write.js?v=235';
+import { loadOverlay, saveOverlay } from '../backup.js?v=235';
+import { createHomeModal } from './home/home-modal.js?v=235';
+import { getExpiringItems, getRecommendationUiContext, isExpiryTracked } from './home/home-data.js?v=235';
+import { renderWeeklyMenuCard } from './home/weekly-menu.js?v=235';
+import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=235';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -223,9 +223,10 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
   const el = document.createElement('article');
   el.className = `home-suggest-card tone-${card.tone || 'idea'}`;
   const variant = card.variant || (card.isVariant ? card : null);
+  const isTemporaryCreative = String(card.id).startsWith('creative-');
   const previewRecipe = card.row?.r || card.r || card.recipe || null;
   const canPreviewVariant = Boolean(variant && typeof onPreviewVariant === 'function');
-  const canPreview = canPreviewVariant || Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !String(card.id).startsWith('creative-'));
+  const canPreview = canPreviewVariant || Boolean(card.id && previewRecipe && typeof onPreviewRecipe === 'function' && !isTemporaryCreative);
   const sourceText = variant?.sourceLabel ? `<small class="home-suggest-source">${escapeHtml(variant.sourceLabel)}</small>` : '';
   const missing = Array.from(new Set((card.missing || []).map(item => String(item || '').trim()).filter(Boolean)));
   const targetHits = Array.from(new Set([
@@ -253,7 +254,9 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       ${tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}
     </div>
     <div class="home-suggest-actions">
-      <button type="button" class="btn ok small home-suggest-cook">加入计划</button>
+      ${isTemporaryCreative
+        ? '<button type="button" class="btn ok small home-suggest-creative-detail">补做法</button>'
+        : '<button type="button" class="btn ok small home-suggest-cook">加入计划</button>'}
       ${canPreview ? '<button type="button" class="btn small home-suggest-preview">查看</button>' : ''}
       ${missing.length && card.row ? '<button type="button" class="btn small home-suggest-shopping">补到买菜</button>' : ''}
       ${typeof onMoreRecommendation === 'function' ? '<button type="button" class="btn small home-suggest-more" aria-label="更多操作" title="更多操作">⋯</button>' : ''}
@@ -261,6 +264,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
     <div class="home-suggest-feedback" hidden></div>
   `;
   const cookBtn = el.querySelector('.home-suggest-cook');
+  const creativeDetailBtn = el.querySelector('.home-suggest-creative-detail');
   const shoppingBtn = el.querySelector('.home-suggest-shopping');
   const previewBtn = el.querySelector('.home-suggest-preview');
   const moreBtn = el.querySelector('.home-suggest-more');
@@ -293,7 +297,7 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       }
     };
   };
-  cookBtn.onclick = async (event) => {
+  if (cookBtn) cookBtn.onclick = async (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (variant) {
@@ -318,6 +322,13 @@ function renderSuggestCard(card, pack, inv, { onPreviewRecipe = null, onPreviewV
       ? (result.missing.length ? successMessage : (firstPlanGuide || successMessage))
       : '今天已经安排了这道菜。');
   };
+  if (creativeDetailBtn) {
+    creativeDetailBtn.onclick = event => {
+      event.preventDefault();
+      event.stopPropagation();
+      location.hash = `#recipe:${card.id}`;
+    };
+  }
   if (previewBtn) previewBtn.onclick = openPreview;
   if (moreBtn) {
     moreBtn.onclick = (event) => {

@@ -1,4 +1,4 @@
-import { S } from './storage.js?v=234';
+import { S } from './storage.js?v=235';
 
 export const PWA_INSTALL_DISMISS_DAYS = 7;
 

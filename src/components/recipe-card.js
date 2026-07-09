@@ -1,33 +1,33 @@
-import { S, todayISO } from '../storage.js?v=234';
+import { S, todayISO } from '../storage.js?v=235';
 import {
   explodeCombinedItems
-} from '../ingredients.js?v=234';
-import { splitIngredients } from '../utils/recipe-sanitizer.js?v=234';
+} from '../ingredients.js?v=235';
+import { splitIngredients } from '../utils/recipe-sanitizer.js?v=235';
 import {
   hasRecipeMethod,
   isFavoriteRecipe,
   toggleFavoriteRecipe,
   calculateStockStatus
-} from '../recommendations.js?v=234';
-import { loadInventory } from '../inventory.js?v=234';
-import { isPlanRowOnDate } from '../plan-selectors.js?v=234';
-import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=234';
+} from '../recommendations.js?v=235';
+import { loadInventory } from '../inventory.js?v=235';
+import { isPlanRowOnDate } from '../plan-selectors.js?v=235';
+import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=235';
 import {
   callAiSearchRecipe,
   formatAiErrorMessage
-} from '../ai.js?v=234';
+} from '../ai.js?v=235';
 import {
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=234';
+} from '../backup.js?v=235';
 import {
   escapeHtml,
   escapeOptionAttr,
   setInlineStatus,
   showToast
-} from './status.js?v=234';
-import { showRecipeQuickModal } from './recipe-quick-modal.js?v=234';
-import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=234';
+} from './status.js?v=235';
+import { showRecipeQuickModal } from './recipe-quick-modal.js?v=235';
+import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=235';
 
 const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
 

@@ -15,7 +15,7 @@ function read(rel) {
 test('本周菜单已模块化：home-view 导入 weekly-menu，模块导出 renderWeeklyMenuCard', () => {
   const home = read('src/views/home-view.js');
   const weekly = read('src/views/home/weekly-menu.js');
-  assert.match(home, /import \{ renderWeeklyMenuCard \} from '\.\/home\/weekly-menu\.js\?v=234'/);
+  assert.match(home, /import \{ renderWeeklyMenuCard \} from '\.\/home\/weekly-menu\.js\?v=\d+'/);
   assert.match(home, /renderWeeklyMenuCard\(pack, inv, \{ onRoute \}\)/);
   assert.match(weekly, /export function renderWeeklyMenuCard\(pack, inv, \{ onRoute/);
   // 核心函数确实迁入了 weekly 模块。

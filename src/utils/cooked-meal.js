@@ -10,9 +10,9 @@ import {
   getIngredientFamilyCandidates,
   guessKitchenUnit,
   isSmartIngredientMatch
-} from '../ingredients.js?v=234';
-import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=234';
-import { isInventoryAvailable } from '../inventory.js?v=234';
+} from '../ingredients.js?v=235';
+import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=235';
+import { isInventoryAvailable } from '../inventory.js?v=235';
 
 function compactText(text) {
   return String(text || '')

@@ -9,7 +9,7 @@
  *   - 「待做」= 属于该日期 且 未标记 isCooked。
  * 写入/变更计划仍由各业务模块负责，这里只做读取与判定。
  */
-import { S, todayISO } from './storage.js?v=234';
+import { S, todayISO } from './storage.js?v=235';
 
 // row 是否归属某个日期（默认今天）。无 date 的旧数据视为今天。
 export function isPlanRowOnDate(row, date = todayISO(), today = todayISO()) {

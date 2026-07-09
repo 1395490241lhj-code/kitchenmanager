@@ -1,16 +1,16 @@
-import { els } from '../dom.js?v=234';
-import { genId } from '../shopping.js?v=234';
+import { els } from '../dom.js?v=235';
+import { genId } from '../shopping.js?v=235';
 import {
   buildCatalog,
   buildIngredientOptions,
   getCanonicalName,
   guessKitchenUnit
-} from '../ingredients.js?v=234';
+} from '../ingredients.js?v=235';
 import {
   applyOverlay,
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=234';
+} from '../backup.js?v=235';
 import {
   escapeHtml,
   escapeOptionAttr,
@@ -19,7 +19,7 @@ import {
   setInlineStatus,
   setSelectValueWithOption,
   showToast
-} from '../components/status.js?v=234';
+} from '../components/status.js?v=235';
 
 /**
  * @param {string} id
@@ -49,6 +49,13 @@ function normalizeRecipeMethodText(method) {
 export function renderRecipeEditor(id, base, { replaceView = null } = {}){
   // 检测是否为 AI 导入草稿占位（sessionStorage 暂存模式）
   const isAiImportDraft = id === 'ai-import-draft';
+  const isTemporaryCreative = String(id || '').startsWith('creative-');
+  if (isTemporaryCreative) {
+    const blocked = document.createElement('div');
+    blocked.className = 'card editor-not-found';
+    blocked.innerHTML = `<h2>AI 草稿需先保存</h2><p class="meta">先补全做法并保存为独立菜谱，再继续编辑或加入计划。</p><a class="btn" href="#recipe:${encodeURIComponent(id)}">返回 AI 草稿</a>`;
+    return blocked;
+  }
   let aiPendingDraft = null;
   if (isAiImportDraft) {
     try {

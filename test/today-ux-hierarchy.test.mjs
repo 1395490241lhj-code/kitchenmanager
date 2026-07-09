@@ -169,7 +169,7 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   const renderPlanTab = home.slice(home.indexOf('const renderPlanTab'), home.indexOf('// ── ✨ 推荐'));
 
   // 本周菜单已拆到独立模块：home-view 只保留 import + 计划 Tab 里的调用。
-  assert.match(home, /import \{ renderWeeklyMenuCard \} from '\.\/home\/weekly-menu\.js\?v=234'/);
+  assert.match(home, /import \{ renderWeeklyMenuCard \} from '\.\/home\/weekly-menu\.js\?v=\d+'/);
   assert.match(renderPlanTab, /renderWeeklyMenuCard\(pack, inv, \{ onRoute \}\)/);
   assert.match(renderPlanTab, /renderMenuPlan\(pack, \{ onRoute, hideHeader: true, inventory: inv \}\)/);
 

@@ -1,34 +1,34 @@
-import { S, todayISO } from './storage.js?v=234';
+import { S, todayISO } from './storage.js?v=235';
 import {
   INGREDIENT_ALIASES,
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
   isSmartIngredientMatch
-} from './ingredients.js?v=234';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=234';
+} from './ingredients.js?v=235';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=235';
 import {
   daysBetween,
   getStockCoverageAnalysis,
   remainingDays
-} from './inventory.js?v=234';
-import { addShoppingItem } from './shopping.js?v=234';
-import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=234';
-import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=234';
-import { isPlanRowOnDate } from './plan-selectors.js?v=234';
-import { isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=234';
+} from './inventory.js?v=235';
+import { addShoppingItem } from './shopping.js?v=235';
+import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=235';
+import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=235';
+import { isPlanRowOnDate } from './plan-selectors.js?v=235';
+import { isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=235';
 import {
   buildRecipePackMetadataIndex,
   getEnabledRecipePackIds,
   getRecipePackScoringHint
-} from './recipe-packs.js?v=234';
+} from './recipe-packs.js?v=235';
 export {
   buildGenericRecipeTemplateRecommendations,
   buildRecipeVariantRecommendations,
   buildVariantMethodDraft,
   getGenericIngredientRecipeRecommendations,
   getRecipeVariantRecommendations
-} from './utils/recipe-variants.js?v=234';
+} from './utils/recipe-variants.js?v=235';
 
 const RECIPE_PACK_SCORING_BONUS = 3;
 
@@ -1004,6 +1004,8 @@ export function markRecipePlanned(id) {
 }
 
 export function addRecipeToPlan(id, date = null) {
+  // creative-* 只用于当前一次 AI 推荐展示，不能成为持久计划项。
+  if (!id || String(id).startsWith('creative-')) return false;
   const plan = S.load(S.keys.plan, []);
   const today = todayISO();
   const targetDate = date || today;

@@ -2,7 +2,7 @@
  * src/views/home/home-modal.js —— 首页统一模态外壳（毛玻璃遮罩 + 圆角面板 + X 关闭 + 入场动画）。
  * 从 home-view 抽出为共享 helper：home-view 各弹窗与 weekly-menu 都从这里取，避免循环依赖。
  */
-import { escapeHtml } from '../../components/status.js?v=234';
+import { escapeHtml } from '../../components/status.js?v=235';
 
 export function createHomeModal(contentEl, title = '') {
   // 统一模态外壳骨架（背景毛玻璃 + 圆角面板 + 右上角 X + 入场动画）。
