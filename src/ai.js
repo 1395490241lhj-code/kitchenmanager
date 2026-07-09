@@ -2,6 +2,7 @@
 import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=234';
 import { S } from './storage.js?v=234';
 import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=234';
+import { splitMethodSteps } from './utils/method-steps.js?v=234';
 import {
   classifyReceiptCandidate,
   postProcessReceiptItems
@@ -1426,6 +1427,99 @@ export async function callAiForMethod(recipeName, ingredients) {
 
   const raw = await callAiService(prompt, null, { taskType: 'method' });
   return validateMethodResult(raw);
+}
+
+// ── AI 草稿详情页：根据现有菜名 + 核心食材补全一份靠谱的做法 ──────────────────
+// 用于 recipe-detail-view「AI 生成草稿」按钮：不同于 callAiForMethod（只返回一段
+// 文本做法），这里连同 ingredients 一起校验，并复用 isSuspiciousAiCreativeDish
+// 拦截"黑暗料理"回流（比如把"茭笋炒肉"越生成越离谱变成"茭笋青椒瘦肉炒蛋"）。
+
+function createDraftQualityError(message) {
+  const err = new Error(message);
+  err.isDraftQualityIssue = true;
+  return err;
+}
+
+// 只接受 AI 返回里名字能对上原始核心食材的条目（用来补全 qty/unit）；
+// 原始食材缺失时原样保留，AI 新提的食材名一律丢弃——绝不引入新的核心主材。
+function mergeCompleteDraftIngredients(originalIngredients, aiIngredients) {
+  const aiByName = new Map();
+  for (const it of aiIngredients) {
+    const key = String(it?.item || '').trim();
+    if (key && !aiByName.has(key)) aiByName.set(key, it);
+  }
+  return originalIngredients.map(orig => {
+    const match = aiByName.get(orig.item);
+    if (!match) return orig;
+    return {
+      item: orig.item,
+      qty: String(match.qty || orig.qty || '').trim(),
+      unit: String(match.unit || orig.unit || '').trim()
+    };
+  });
+}
+
+export function validateCompleteDraftRecipeResult(raw, { name, ingredients }) {
+  const data = safeParseJson(raw, 'AI 草稿补全结果');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('AI 草稿补全结果不是对象。');
+  }
+  const method = String(data.method || '').trim();
+  if (!method) throw new Error('AI 草稿补全结果缺少 method 字段。');
+  if (splitMethodSteps(method).length < 3) {
+    throw createDraftQualityError('AI 生成的做法步骤太少，请重试。');
+  }
+
+  // name 始终用调用方传入的原名——不读取/信任 AI 返回的 name，从根上保证「不换菜」。
+  const aiIngredients = normalizeAiIngredients(data.ingredients);
+  const mergedIngredients = ingredients.length
+    ? mergeCompleteDraftIngredients(ingredients, aiIngredients)
+    : aiIngredients.filter(it => classifyRecipeIngredient(it.item).role === 'core');
+
+  const draft = { name, ingredients: mergedIngredients, method };
+  if (isSuspiciousAiCreativeDish(draft)) {
+    throw createDraftQualityError('AI 生成的草稿不够合理，请重试。');
+  }
+  return draft;
+}
+
+/**
+ * 为已确定的菜名 + 核心食材补全一份详细做法（AI 草稿详情页用）。
+ * @param {{ name: string, ingredients: Array<{item,qty,unit}> }} draft
+ * @returns {Promise<{ name, ingredients, method }>}
+ */
+export async function callAiCompleteDraftRecipe({ name, ingredients = [] } = {}) {
+  const cleanName = String(name || '').trim();
+  if (!cleanName) throw new Error('缺少菜名，无法生成做法草稿。');
+  const originalIngredients = normalizeAiIngredients(ingredients);
+  const ingStr = originalIngredients.map(it => it.item).filter(Boolean).join('、');
+
+  const prompt = `你是一位精通中式家常菜的资深大厨。请为已经确定的菜品【${cleanName}】生成一份详细、可执行的“可编辑草稿做法”。
+
+已知核心食材（不要新增、不要替换、不要减少）：${ingStr || '（未提供，可按菜名合理补充 1-2 个常见核心食材）'}
+
+请严格返回 JSON，不要 markdown，不要解释：
+{
+  "name": "${cleanName}",
+  "ingredients": [
+    {"item": "核心食材1", "qty": "", "unit": ""}
+  ],
+  "method": "1. 第一步...\\n2. 第二步...\\n3. 第三步..."
+}
+
+硬性规则：
+1. 必须保持原菜名【${cleanName}】不变，不要改成另一道菜。
+2. ingredients 必须以已知核心食材为主，不要新增核心主材（可以补全数量/单位）。
+3. 可以在 method 文字里补充常规调料：盐、生抽、老抽、料酒、淀粉、胡椒、食用油、葱姜蒜；调料不要写进 ingredients 数组。
+4. method 至少 3 步，每步具体可执行，不要写"适量翻炒即可"这类空泛表述。
+5. 如果食材包含肉类：必须先说明切片/切丝/切块，必须包含简单腌制（如料酒、生抽、淀粉抓匀），必须说明先炒肉/滑散肉再处理其他食材。
+6. 如果食材包含鸡蛋：必须说明打散，以及先炒蛋盛出或后加入的顺序。
+7. 如果是炒菜：步骤要体现热锅下油、食材下锅顺序、调味、出锅。
+8. 不要把已知食材之外的食材硬凑进这道菜，不要生成"多种蔬菜+肉+蛋"的堆砌菜。
+9. 只输出 JSON 本身，不要 markdown 代码块。`;
+
+  const raw = await callAiService(prompt, null, { taskType: 'method' });
+  return validateCompleteDraftRecipeResult(raw, { name: cleanName, ingredients: originalIngredients });
 }
 
 export async function callAiForCookedMeal(text, inventory = [], recipes = []) {

@@ -52,7 +52,10 @@ test('菜谱保存、AI 草稿保存和 AI 不可用接入 Toast', () => {
   assert.match(recipeCard, /showToast\('AI 草稿已保存', \{ tone: 'success' \}\)/);
   assert.match(recipeCard, /showToast\('AI 暂不可用', \{ tone: 'error' \}\)/);
   assert.match(importModal, /showToast\('AI 暂不可用', \{ tone: 'error' \}\)/);
-  assert.match(detail, /showToast\('AI 暂不可用', \{ tone: 'error' \}\)/);
+  // AI 草稿详情页「AI 生成草稿」：网络/超时等失败保留原草稿，提示可稍后再试；
+  // 黑暗料理/步骤过少这类内容质量问题走单独的提示文案（见 callAiCompleteDraftRecipe）。
+  assert.match(detail, /showToast\('AI 暂时不可用，可以稍后再试', \{ tone: 'error' \}\)/);
+  assert.match(detail, /showToast\(e\.message \|\| 'AI 生成的草稿不够合理，请重试', \{ tone: 'error' \}\)/);
 });
 
 test('备份导入导出接入 Toast，错误处理仍保留 inline status', () => {

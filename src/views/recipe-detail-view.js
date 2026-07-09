@@ -9,8 +9,7 @@ import {
 } from '../recommendations.js?v=234';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=234';
 import {
-  callAiForMethod,
-  formatAiErrorMessage,
+  callAiCompleteDraftRecipe,
   withTimeout
 } from '../ai.js?v=234';
 import { loadOverlay, saveOverlay } from '../backup.js?v=234';
@@ -241,11 +240,18 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
 
   const methodArea = div.querySelector('#methodArea');
   const showMissingMethod = () => { methodArea.innerHTML = missingMethodContent; bindGenerateMethodButton(); };
-  const showMethodDraft = (text) => {
+  // draft = { name, ingredients, method }（来自 callAiCompleteDraftRecipe）。
+  const showMethodDraft = (draft) => {
+    const { method, ingredients: draftIngredients } = draft;
+    const ingredientsLine = Array.isArray(draftIngredients) && draftIngredients.length
+      ? `<div class="small ai-draft-ingredients">食材：${draftIngredients.map(it => escapeHtml(it.item)).join('、')}</div>`
+      : '';
     methodArea.innerHTML = `
       <div class="ai-draft-card">
         <div class="ai-draft-title">AI 生成草稿</div>
-        <div class="method-text">${escapeHtml(text)}</div>
+        ${ingredientsLine}
+        <div class="method-text">${escapeHtml(method)}</div>
+        <div class="small ok ai-draft-hint">已生成草稿，请确认后保存</div>
         <div class="controls ai-draft-actions">
           <button type="button" class="btn ok" id="saveAiMethodBtn">保存到菜谱</button>
           <button type="button" class="btn" id="regenerateAiMethodBtn">重新生成</button>
@@ -253,12 +259,19 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
         </div>
       </div>
     `;
+    // 用户点击保存才写入菜谱库：method 一定写入；ingredients 只在补全出了内容时才一并写入
+    // （对齐 recipe-create-modal.js 的 overlay.recipes + overlay.recipe_ingredients 写法）。
     methodArea.querySelector('#saveAiMethodBtn').onclick = () => {
       const currentOverlay = loadOverlay();
       currentOverlay.recipes = currentOverlay.recipes || {};
-      currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id] || {}), method: text };
-      saveOverlay(currentOverlay); window.invalidatePackCache?.(); r.method = text;
-      methodArea.innerHTML = `${methodToListHtml(text) || `<div class="method-text">${escapeHtml(text)}</div>`}<div class="small ok method-saved-note">已保存到菜谱</div>`;
+      currentOverlay.recipes[id] = { ...(currentOverlay.recipes[id] || {}), method };
+      if (Array.isArray(draftIngredients) && draftIngredients.length) {
+        currentOverlay.recipe_ingredients = currentOverlay.recipe_ingredients || {};
+        currentOverlay.recipe_ingredients[id] = draftIngredients;
+      }
+      saveOverlay(currentOverlay); window.invalidatePackCache?.(); r.method = method;
+      methodArea.innerHTML = `${methodToListHtml(method) || `<div class="method-text">${escapeHtml(method)}</div>`}<div class="small ok method-saved-note">已保存到菜谱</div>`;
+      showToast('已保存到菜谱', { tone: 'success' });
     };
     methodArea.querySelector('#regenerateAiMethodBtn').onclick = e => generateMethodDraft(e.currentTarget);
     methodArea.querySelector('#cancelAiMethodBtn').onclick = () => showMissingMethod();
@@ -270,18 +283,32 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
     const resetLabel = genBtn.id === 'regenerateAiMethodBtn' ? '重新生成' : '✨ AI 生成草稿';
     genBtn.setAttribute('disabled', 'true');
     genBtn.innerHTML = '<span class="spinner"></span> 生成中...';
+    // 只把核心食材喂给 AI（调料不参与），且不新增核心主材——由 callAiCompleteDraftRecipe 内部保证。
+    const coreIngredients = foodItems.map(it => ({ item: it.item, qty: it.qty || '', unit: it.unit || '' }));
     const maxRetries = 1; let attempt = 0; let success = false;
     while (attempt <= maxRetries && !success) {
       try {
         attempt++;
-        const text = await withTimeout(callAiForMethod(r.name, items), 30000, 'AI 生成超时');
-        success = true; showMethodDraft(text);
+        const draft = await withTimeout(
+          callAiCompleteDraftRecipe({ name: r.name, ingredients: coreIngredients }),
+          30000,
+          'AI 生成超时'
+        );
+        success = true;
+        showMethodDraft(draft);
+        showToast('已生成草稿，请确认后保存', { tone: 'success' });
       } catch (e) {
         console.warn(`Attempt ${attempt} failed:`, e);
+        // 黑暗料理/步骤过少这类内容质量问题：不自动重试，交给用户自己决定要不要再点一次；
+        // 且不覆盖 methodArea——失败时保留原草稿（首次生成则保留原本的"暂无详细做法"提示）。
+        if (e && e.isDraftQualityIssue) {
+          showToast(e.message || 'AI 生成的草稿不够合理，请重试', { tone: 'error' });
+          genBtn.innerHTML = resetLabel; genBtn.removeAttribute('disabled');
+          return;
+        }
         if (attempt > maxRetries) {
-          showToast('AI 暂不可用', { tone: 'error' });
-          methodArea.innerHTML = `${missingMethodContent}<div class="ai-empty-note">${escapeHtml(formatAiErrorMessage(e))} 你仍然可以点"编辑 / 录入"手动补做法。</div>`;
-          bindGenerateMethodButton(); genBtn.innerHTML = resetLabel; genBtn.removeAttribute('disabled');
+          showToast('AI 暂时不可用，可以稍后再试', { tone: 'error' });
+          genBtn.innerHTML = resetLabel; genBtn.removeAttribute('disabled');
         } else {
           genBtn.innerHTML = `<span class="spinner"></span> 正在重试 (${attempt}/${maxRetries})...`;
           await new Promise(r => setTimeout(r, 1000));
