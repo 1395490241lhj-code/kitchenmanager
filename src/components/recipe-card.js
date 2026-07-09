@@ -27,6 +27,7 @@ import {
   showToast
 } from './status.js?v=234';
 import { showRecipeQuickModal } from './recipe-quick-modal.js?v=234';
+import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=234';
 
 const TRASH_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
 
@@ -364,6 +365,22 @@ export function recipeCard(r, list, extraInfo = null, opts = {}) {
     if (delWrap) {
       card.querySelector('.recipe-card-action-row').appendChild(delWrap);
     }
+  }
+  // AI creative 推荐的轻量反馈入口：点击后记本地 disliked 名单、隐藏这张卡片，
+  // 不改动菜谱库/plan（creative-ai-temp 本来就不是正式菜谱）。
+  if (isCreative && extraInfo && extraInfo.isAi) {
+    const dislikeBtn = document.createElement('button');
+    dislikeBtn.type = 'button';
+    dislikeBtn.className = 'btn small ai-dislike-btn';
+    dislikeBtn.textContent = '不合理/不喜欢';
+    dislikeBtn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      markAiRecipeDisliked(r.name);
+      card.remove();
+      showToast('已记住，之后会少推荐这类菜', { tone: 'info' });
+    };
+    card.querySelector('.controls').appendChild(dislikeBtn);
   }
   return card;
 }

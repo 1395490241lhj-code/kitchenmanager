@@ -34,6 +34,7 @@ export const S = {
     staples: 'km_v1_staples',
     pantry_config: 'km_v1_pantry_config',
     prep_done: 'km_v1_prep_done',
+    ai_disliked_recipes: 'km_v1_ai_disliked_recipes',
     demo_mode: 'km_demo_mode',
     demo_snapshot: 'km_demo_snapshot_v1',
     demo_step: 'km_demo_step_v1',

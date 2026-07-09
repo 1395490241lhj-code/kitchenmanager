@@ -16,6 +16,7 @@ import { addShoppingItem } from './shopping.js?v=234';
 import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=234';
 import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=234';
 import { isPlanRowOnDate } from './plan-selectors.js?v=234';
+import { isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=234';
 import {
   buildRecipePackMetadataIndex,
   getEnabledRecipePackIds,
@@ -1098,13 +1099,16 @@ export function processAiData(aiResult, pack) {
 
   if (aiResult.local && Array.isArray(aiResult.local)) {
     aiResult.local.forEach(l => {
+      if (isAiRecipeDisliked(l.name)) return;
       let found = (pack.recipes || []).find(r => r.name === l.name);
       if (!found) found = (pack.recipes || []).find(r => r.name.includes(l.name) || l.name.includes(r.name));
       if (found) cards.push({ r: found, reason: l.reason, isAi: true });
     });
   }
 
-  if (aiResult.creative) {
+  // 已保存过的 aiResult 可能是在用户点「不喜欢/不合理」之前生成的，这里再兜底过滤一次
+  // creative，避免刷新页面后已 disliked 的菜名又从 localStorage 里冒出来。
+  if (aiResult.creative && !isAiRecipeDisliked(aiResult.creative.name)) {
     const rawIngredients = typeof aiResult.creative.ingredients === 'string'
       ? aiResult.creative.ingredients.split(/[，、;；]/).map(item => item.trim()).filter(Boolean)
       : aiResult.creative.ingredients;

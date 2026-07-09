@@ -12,6 +12,7 @@ import {
   callAiCompleteDraftRecipe,
   withTimeout
 } from '../ai.js?v=234';
+import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=234';
 import { loadOverlay, saveOverlay } from '../backup.js?v=234';
 import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=234';
 import { showCalibrationModal } from '../components/modal.js?v=234';
@@ -132,7 +133,21 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   const foodBlock = `<div class="block"><h4>🥬 食材清单 Ingredients</h4><div class="ing-compact-container">${foodItems.length ? foodItems.map(it => pillHtml(it)).join('') : '<span class="meta">这道菜没有明确需要管理的食材。</span>'}</div></div>`;
   const seasoningBlock = seasoningItems.length ? `<div class="block ingredient-seasoning-block"><h4>🧂 调料清单 Seasonings <span class="meta seasoning-note">仅做菜谱参考，不参与食材余量</span></h4><div class="ing-compact-container">${seasoningItems.map(it => pillHtml(it, 'seasoning-pill')).join('')}</div></div>` : '';
 
-  div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a></div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已安排在菜单计划' : '先加入菜单计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可更新食材，用完的也能顺手加入买菜。</p></div><div class="recipe-action-buttons"><div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; width: 100%;"><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planToday" ${isPlannedToday ? 'disabled' : ''}>${isPlannedToday ? '今天已计划' : '计划今天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planTomorrow" ${isPlannedTomorrow ? 'disabled' : ''}>${isPlannedTomorrow ? '明天已计划' : '计划明天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planDayAfter" ${isPlannedDayAfter ? 'disabled' : ''}>${isPlannedDayAfter ? '后天已计划' : '计划后天'}</button></div><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入买菜' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div>${foodBlock}${seasoningBlock}<section class="block method-glass glass-panel"><h4 class="method-glass-title">制作方法 Method</h4><div id="methodArea">${methodContent}</div></section>`;
+  const aiDislikeBtnHtml = (r.isCreative || r.isAiDraft)
+    ? `<button type="button" class="btn bad" id="dislikeAiRecipeBtn">不合理/不喜欢</button>`
+    : '';
+  div.innerHTML = `<div class="detail-nav-bar"><button type="button" class="btn" onclick="history.back()">← 返回</button><a class="btn" href="#recipe-edit:${r.id}">✎ 编辑 / 录入</a>${aiDislikeBtnHtml}</div><h2 class="detail-title">${escapeHtml(r.name)}</h2><div class="tags meta detail-tags">${(r.tags||[]).map(escapeHtml).join(' / ')}</div><div class="recipe-meta-strip">${detailMeta.map(text => `<span>${escapeHtml(text)}</span>`).join('')}</div><div class="recipe-action-panel"><div class="recipe-action-copy"><span>下一步</span><strong>${escapeHtml(isPlanned ? '已安排在菜单计划' : '先加入菜单计划')}</strong><p>${escapeHtml(missingSummary)}。做完后可更新食材，用完的也能顺手加入买菜。</p></div><div class="recipe-action-buttons"><div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; width: 100%;"><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planToday" ${isPlannedToday ? 'disabled' : ''}>${isPlannedToday ? '今天已计划' : '计划今天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planTomorrow" ${isPlannedTomorrow ? 'disabled' : ''}>${isPlannedTomorrow ? '明天已计划' : '计划明天'}</button><button type="button" class="btn ok small" style="flex: 1; min-width: 90px;" id="planDayAfter" ${isPlannedDayAfter ? 'disabled' : ''}>${isPlannedDayAfter ? '后天已计划' : '计划后天'}</button></div><button type="button" class="btn" id="detailAddMissing">${missingIngredients.length ? '缺少食材加入买菜' : '食材已齐'}</button><button type="button" class="btn favorite-btn" id="detailMarkCooked">标记为已做完</button></div><div class="recipe-action-feedback" id="recipeActionFeedback" hidden></div></div>${foodBlock}${seasoningBlock}<section class="block method-glass glass-panel"><h4 class="method-glass-title">制作方法 Method</h4><div id="methodArea">${methodContent}</div></section>`;
+
+  // 「不合理/不喜欢」只处理 AI 草稿（isCreative/isAiDraft）：记本地 disliked 名单后返回上一页，
+  // 不碰 overlay.recipes / 正式菜谱库。
+  const dislikeBtn = div.querySelector('#dislikeAiRecipeBtn');
+  if (dislikeBtn) {
+    dislikeBtn.onclick = () => {
+      markAiRecipeDisliked(r.name);
+      showToast('已记住，之后会少推荐这类菜', { tone: 'info' });
+      history.back();
+    };
+  }
 
   const actionFeedback = div.querySelector('#recipeActionFeedback');
   const showActionFeedback = (text, { actionLabel = '', onAction = null, autoHide = true } = {}) => {

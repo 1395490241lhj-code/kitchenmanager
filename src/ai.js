@@ -7,6 +7,7 @@ import {
   classifyReceiptCandidate,
   postProcessReceiptItems
 } from './utils/receipt-import.js?v=234';
+import { getDislikedAiRecipeNames, isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=234';
 
 const CLOUD_AI_ERROR = 'AI 暂不可用：云端服务暂时不可用。本地功能仍可正常使用。';
 const BYOK_MISSING_KEY_ERROR = 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
@@ -947,7 +948,7 @@ export function validateRecommendationResult(input) {
     ? data.local.map(item => ({
       name: String(item?.name || '').trim(),
       reason: String(item?.reason || '今日推荐').trim()
-    })).filter(item => item.name)
+    })).filter(item => item.name && !isAiRecipeDisliked(item.name))
     : [];
 
   let creative = null;
@@ -955,8 +956,9 @@ export function validateRecommendationResult(input) {
     const name = String(data.creative.name || '').trim();
     const reason = String(data.creative.reason || 'AI 草稿').trim();
     const ingredients = normalizeAiIngredients(data.creative.ingredients);
-    // 硬凑的"黑暗料理"草稿直接丢弃：不展示、不进入详情页；local 推荐不受影响。
-    if (name && ingredients.length && !isSuspiciousAiCreativeDish({ name, ingredients })) {
+    // 硬凑的"黑暗料理"草稿、或用户之前标记过「不喜欢/不合理」的菜名，直接丢弃：
+    // 不展示、不进入详情页；local 推荐不受影响。
+    if (name && ingredients.length && !isSuspiciousAiCreativeDish({ name, ingredients }) && !isAiRecipeDisliked(name)) {
       creative = {
         name,
         reason,
@@ -1761,6 +1763,12 @@ export async function callCloudAI(pack, inv) {
     ? `\n- 【重要反疲劳规则】：以下菜谱由于用户近期或频繁烹饪，本次推荐中请极力避开或大幅降低其出现概率，请多推荐其他冷门、未尝试或不常做的食材搭配：[${topFrequent.join('、')}]`
     : '';
 
+  // 【用户主动反馈】读取用户标记过「不喜欢/不合理」的菜名，提示 AI 避免重复推荐相同或高度相似的菜。
+  const dislikedNames = getDislikedAiRecipeNames();
+  const dislikedRule = dislikedNames.length
+    ? `\n- 用户之前标记过这些菜不喜欢或不合理，请避免推荐相同或高度相似的菜：[${dislikedNames.join('、')}]`
+    : '';
+
   const prompt = `你是一位严谨的中式家庭厨房助手。请根据冰箱库存：【${invNames}】规划今日菜单。
 
 请严格返回 JSON，不要 markdown，不要解释：
@@ -1795,7 +1803,7 @@ export async function callCloudAI(pack, inv) {
 - 如果库存组合本来就不适合凑成一道正常的菜，creative 可以返回 null，不要硬编。
 - 更推荐把库存拆成两道正常菜（分别放进 local 或各自的 creative 思路里），而不是塞进一道菜。
 - 参考真实中式家常菜命名方式，例如：青椒肉丝、茭笋炒肉、茭笋炒蛋、青椒炒蛋。
-- 避免这类堆砌菜名：茭笋青椒瘦肉炒蛋、青椒牛肉炒蛋、西兰花鸡腿炒蛋、番茄土豆牛肉炒蛋、菌菇青菜猪肉鸡蛋炒饭。${antiFatigueRule}`;
+- 避免这类堆砌菜名：茭笋青椒瘦肉炒蛋、青椒牛肉炒蛋、西兰花鸡腿炒蛋、番茄土豆牛肉炒蛋、菌菇青菜猪肉鸡蛋炒饭。${antiFatigueRule}${dislikedRule}`;
 
   const raw = await callAiService(prompt, null, { taskType: 'recommendation' });
   return validateRecommendationResult(raw);

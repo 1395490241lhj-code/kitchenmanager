@@ -32,6 +32,7 @@ import { loadOverlay, saveOverlay } from '../backup.js?v=234';
 import { createHomeModal } from './home/home-modal.js?v=234';
 import { getExpiringItems, getRecommendationUiContext, isExpiryTracked } from './home/home-data.js?v=234';
 import { renderWeeklyMenuCard } from './home/weekly-menu.js?v=234';
+import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=234';
 
 /*
  * ──────────────────────────────────────────────────────────────────────────
@@ -1497,6 +1498,9 @@ function openTodayMoreActionsSheet(pack, inv, context, card, { onRoute = () => {
   const recipe = getFocusCardRecipe(card, pack);
   const recipeId = recipe?.id || card?.id || '';
   const hasRecipe = Boolean(recipeId && !String(recipeId).startsWith('creative-'));
+  // AI creative 草稿（推荐卡里唯一一个非正式菜谱的 id）：给「不合理/不喜欢」反馈入口。
+  const isAiCreative = String(recipeId).startsWith('creative-');
+  const dislikeName = card?.name || recipe?.name || '';
   const overlay = document.createElement('div');
   overlay.className = 'km-modal-overlay open today-action-sheet-overlay';
   const panel = document.createElement('div');
@@ -1513,6 +1517,7 @@ function openTodayMoreActionsSheet(pack, inv, context, card, { onRoute = () => {
       <button type="button" class="today-sheet-action" data-action="favorite"${hasRecipe ? '' : ' disabled'}>${hasRecipe && isFavoriteRecipe(recipeId) ? '取消常做' : '设为常做'}</button>
       <button type="button" class="today-sheet-action" data-action="edit"${hasRecipe ? '' : ' disabled'}>编辑</button>
       <button type="button" class="today-sheet-action is-danger" data-action="delete"${hasRecipe ? '' : ' disabled'}>删除</button>
+      ${isAiCreative && dislikeName ? '<button type="button" class="today-sheet-action is-danger" data-action="dislike">不合理/不喜欢</button>' : ''}
     </div>
   `;
   overlay.appendChild(panel);
@@ -1561,6 +1566,12 @@ function openTodayMoreActionsSheet(pack, inv, context, card, { onRoute = () => {
           close();
           onRoute();
         }
+      }
+      if (action === 'dislike' && isAiCreative && dislikeName) {
+        markAiRecipeDisliked(dislikeName);
+        showToast('已记住，之后会少推荐这类菜', { tone: 'info' });
+        close();
+        onRoute();
       }
     };
   });
