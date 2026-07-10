@@ -1,4 +1,4 @@
-import { S, todayISO } from './storage.js?v=235';
+import { S, mustSave, todayISO } from './storage.js?v=235';
 import {
   UNIT_TYPE,
   getCanonicalName,
@@ -201,7 +201,8 @@ export function loadInventory(catalog){
   return inv;
 }
 
-export function saveInventory(inv){ S.save(S.keys.inventory, inv); }
+// 写入失败（配额满/隐私模式限制等）时抛错，而不是静默返回，避免调用方以为已经存进去了。
+export function saveInventory(inv){ return mustSave(S.keys.inventory, inv); }
 export function daysBetween(a,b){ return Math.floor((new Date(b)-new Date(a))/86400000); }
 export function remainingDays(e){ const age=daysBetween(e.buyDate||todayISO(), todayISO()); const shelf = (e.shelf === undefined || e.shelf === null || e.shelf === '') ? 7 : +e.shelf; return shelf-age; }
 

@@ -23,6 +23,10 @@ export function addDaysISO(iso, days = 0) {
   return todayISO(date);
 }
 
+// 统一的存储写入失败提示：给用户看的文案只有这一处，所有「关键路径」失败都复用它，
+// 不要在各处各写各的措辞。
+export const STORAGE_WRITE_FAILED_MESSAGE = '保存失败，浏览器存储空间可能不足。请先导出备份或清理空间后重试。';
+
 export const S = {
   save(k, v) {
     try {
@@ -68,3 +72,18 @@ export const S = {
     pwa_install_done: 'km_pwa_install_done'
   }
 };
+
+// 关键用户数据路径专用：S.save() 失败时静默返回 false，大量调用方从不检查这个返回值，
+// 结果是 UI 照常显示"已保存"，刷新后数据却没了。mustSave 在失败时直接抛错（带
+// .code='STORAGE_WRITE_FAILED'），调用方 try/catch 后就不会误显示成功提示。
+// 只在「关键路径」（inventory/plan/shopping_items/settings/overlay/备份导入）接入，
+// 不做全仓机械替换——非关键的缓存类写入继续用 S.save() 的 boolean 返回值。
+export function mustSave(key, value, message = STORAGE_WRITE_FAILED_MESSAGE) {
+  const ok = S.save(key, value);
+  if (!ok) {
+    const error = new Error(message);
+    error.code = 'STORAGE_WRITE_FAILED';
+    throw error;
+  }
+  return true;
+}

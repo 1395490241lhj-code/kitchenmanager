@@ -1,4 +1,4 @@
-import { S, todayISO } from './storage.js?v=235';
+import { S, mustSave, todayISO } from './storage.js?v=235';
 import { perfCount } from './utils/perf.js?v=235';
 import {
   getCanonicalName,
@@ -187,6 +187,10 @@ export function loadShoppingItems() {
     isNormalizing = true;
     try {
       saveShoppingItems(cleanedItems);
+    } catch (e) {
+      // 这里是「读取顺便回写归一化结果」的机会性自愈，不是用户主动发起的保存动作——
+      // 存储写入失败时不该让一次普通的读取跟着崩，留到用户下次真正保存时再报错即可。
+      console.error('loadShoppingItems 自愈写入失败', e);
     } finally {
       isNormalizing = false;
     }
@@ -195,9 +199,10 @@ export function loadShoppingItems() {
   return cleanedItems;
 }
 
+// 写入失败（配额满/隐私模式限制等）时抛错，而不是静默返回，避免调用方以为已经存进去了。
 export function saveShoppingItems(items) {
   perfCount('saveShoppingItems');
-  return S.save(S.keys.shopping_items, items.filter(item => item && item.name));
+  return mustSave(S.keys.shopping_items, items.filter(item => item && item.name));
 }
 
 export function mergeShoppingItems(items) {

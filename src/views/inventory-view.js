@@ -1,4 +1,4 @@
-import { todayISO } from '../storage.js?v=235';
+import { STORAGE_WRITE_FAILED_MESSAGE, todayISO } from '../storage.js?v=235';
 import {
   UNIT_TYPE,
   buildCatalog,
@@ -134,24 +134,34 @@ export function renderInventory(pack, options = {}){ const catalog=buildCatalog(
   const addTextInventoryItems = (text, { textarea = null, statusEl = quickStatus, frozen = false } = {}) => {
     const parsed = parseFoodLines(text);
     let count = 0;
-    for (const it of parsed) {
-      const name = getCanonicalName(it.name || '');
-      if (!name) continue;
-      const qty = Number(it.qty);
-      const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
-      const unit = (it.unit && String(it.unit).trim()) || guessKitchenUnit(name) || '份';
-      const kind = isDryGoodName(name) ? 'dry' : 'raw';
-      const isFrozen = kind === 'raw' && frozen;
-      const shelf = kind === 'dry' ? 365 : (isFrozen ? FROZEN_DEFAULT_SHELF_DAYS : guessShelfDays(name, unit));
-      const entry = { name, qty: safeQty, unit, buyDate: todayISO(), kind, shelf, stockStatus: 'ok' };
-      if (kind === 'dry') {
-        entry.dryPrep = getDryPrepText(name);
-        entry.isFrozen = false;
-      } else if (isFrozen) {
-        entry.isFrozen = true;
+    try {
+      for (const it of parsed) {
+        const name = getCanonicalName(it.name || '');
+        if (!name) continue;
+        const qty = Number(it.qty);
+        const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
+        const unit = (it.unit && String(it.unit).trim()) || guessKitchenUnit(name) || '份';
+        const kind = isDryGoodName(name) ? 'dry' : 'raw';
+        const isFrozen = kind === 'raw' && frozen;
+        const shelf = kind === 'dry' ? 365 : (isFrozen ? FROZEN_DEFAULT_SHELF_DAYS : guessShelfDays(name, unit));
+        const entry = { name, qty: safeQty, unit, buyDate: todayISO(), kind, shelf, stockStatus: 'ok' };
+        if (kind === 'dry') {
+          entry.dryPrep = getDryPrepText(name);
+          entry.isFrozen = false;
+        } else if (isFrozen) {
+          entry.isFrozen = true;
+        }
+        mergeInventoryEntry(inv, entry, { mode: 'add' });
+        count++;
       }
-      mergeInventoryEntry(inv, entry, { mode: 'add' });
-      count++;
+    } catch (err) {
+      if (err && err.code === 'STORAGE_WRITE_FAILED') {
+        showInlineStatus(statusEl, STORAGE_WRITE_FAILED_MESSAGE, 'bad');
+        showToast(STORAGE_WRITE_FAILED_MESSAGE, { tone: 'error' });
+        renderTable();
+        return count;
+      }
+      throw err;
     }
     if (!count) {
       showInlineStatus(statusEl, '先写一两样食材吧。', 'info');

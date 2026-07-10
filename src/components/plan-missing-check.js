@@ -1,5 +1,6 @@
 import { isIngredientMatch, isInventoryAvailable, loadInventory } from '../inventory.js?v=235';
 import { addMissingRecipeIngredientsToShopping, addRecipeToPlan, getRecipeCoreIngredients } from '../recommendations.js?v=235';
+import { STORAGE_WRITE_FAILED_MESSAGE } from '../storage.js?v=235';
 import { escapeHtml, showToast } from './status.js?v=235';
 
 function uniqueMissingItems(items = []) {
@@ -80,7 +81,16 @@ export async function addRecipeToPlanWithMissingCheck(recipeId, pack, inv, optio
     toast = true
   } = options;
 
-  const added = addRecipeToPlan(recipeId, date);
+  let added;
+  try {
+    added = addRecipeToPlan(recipeId, date);
+  } catch (err) {
+    if (err && err.code === 'STORAGE_WRITE_FAILED') {
+      if (toast) showToast(STORAGE_WRITE_FAILED_MESSAGE, { tone: 'error' });
+      return { added: false, recipe: null, missing: [], shoppingAddedCount: 0, confirmedShopping: false, source };
+    }
+    throw err;
+  }
   const planPack = normalizePlanPack(recipe, pack, fallbackItems);
   const planInv = Array.isArray(inv) ? inv : loadInventory();
   const targetRecipe = recipe || (planPack?.recipes || []).find(r => r.id === recipeId) || null;

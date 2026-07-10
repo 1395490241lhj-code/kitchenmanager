@@ -1,4 +1,4 @@
-import { todayISO } from '../storage.js?v=235';
+import { STORAGE_WRITE_FAILED_MESSAGE, todayISO } from '../storage.js?v=235';
 import {
   buildCatalog,
   guessKitchenUnit,
@@ -279,7 +279,15 @@ export function renderShopping(pack, { onRoute = () => {} } = {}){
   const addQuickItem = () => {
     const name = quickInput.value.trim();
     if (!name) { setInlineStatus(status, '请输入要买的东西。', 'bad'); return; }
-    addShoppingItem(name, '', '', '手动', '');
+    try {
+      addShoppingItem(name, '', '', '手动', '');
+    } catch (err) {
+      if (err && err.code === 'STORAGE_WRITE_FAILED') {
+        showToast(STORAGE_WRITE_FAILED_MESSAGE, { tone: 'error' });
+        return;
+      }
+      throw err;
+    }
     showToast('已加入买菜清单', { tone: 'success' });
     onRoute();
   };

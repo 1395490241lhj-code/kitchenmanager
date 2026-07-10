@@ -10,6 +10,7 @@
 import { genId } from '../shopping.js?v=235';
 import { getCanonicalName } from '../ingredients.js?v=235';
 import { applyOverlay, loadOverlay, saveOverlay } from '../backup.js?v=235';
+import { STORAGE_WRITE_FAILED_MESSAGE } from '../storage.js?v=235';
 import { escapeHtml, showToast } from './status.js?v=235';
 
 const CLOSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
@@ -163,6 +164,11 @@ export function showRecipeCreateModal(base, { onSaved = () => {} } = {}) {
       showToast('已保存菜谱', { tone: 'success' });
       setTimeout(() => { close(); onSaved(id); }, 450);
     } catch (err) {
+      if (err && err.code === 'STORAGE_WRITE_FAILED') {
+        showStatus(STORAGE_WRITE_FAILED_MESSAGE, false);
+        showToast(STORAGE_WRITE_FAILED_MESSAGE, { tone: 'error' });
+        return;
+      }
       showStatus(err && err.message ? err.message : '保存失败，请重试。', false);
     }
   };

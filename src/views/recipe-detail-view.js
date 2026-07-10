@@ -1,4 +1,4 @@
-import { S, todayISO, addDaysISO } from '../storage.js?v=235';
+import { S, STORAGE_WRITE_FAILED_MESSAGE, todayISO, addDaysISO } from '../storage.js?v=235';
 import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=235';
 import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=235';
 import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=235';
@@ -304,7 +304,13 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
         currentOverlay.recipe_ingredients = currentOverlay.recipe_ingredients || {};
         currentOverlay.recipe_ingredients[id] = draftIngredients;
       }
-      saveOverlay(currentOverlay); window.invalidatePackCache?.(); r.method = method;
+      try {
+        saveOverlay(currentOverlay);
+      } catch (err) {
+        showToast(err?.code === 'STORAGE_WRITE_FAILED' ? STORAGE_WRITE_FAILED_MESSAGE : (err?.message || '保存失败，请稍后重试'), { tone: 'error' });
+        return;
+      }
+      window.invalidatePackCache?.(); r.method = method;
       methodArea.innerHTML = `${methodToListHtml(method) || `<div class="method-text">${escapeHtml(method)}</div>`}<div class="small ok method-saved-note">已保存到菜谱</div>`;
       showToast('已保存到菜谱', { tone: 'success' });
     };

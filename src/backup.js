@@ -1,4 +1,4 @@
-import { S } from './storage.js?v=235';
+import { S, STORAGE_WRITE_FAILED_MESSAGE, mustSave } from './storage.js?v=235';
 import {
   APP_VERSION,
   DATA_SCHEMA_VERSION,
@@ -339,7 +339,7 @@ export function loadOverlay() {
 }
 
 export function saveOverlay(overlay) {
-  if (!S.save(S.keys.overlay, overlay)) throw new Error('菜谱补丁写入失败，浏览器存储空间可能不足');
+  mustSave(S.keys.overlay, overlay);
 }
 
 export function getKitchenBackupKeyEntries() {
@@ -512,11 +512,13 @@ function restoreBackupEntries(entries) {
     for (const [key, value] of serialized) localStorage.setItem(key, value);
     setStoredSchemaVersion(DATA_SCHEMA_VERSION);
   } catch (error) {
+    // 任一 key 写入失败都要整体回滚：不留半恢复状态，恢复到导入前的快照。
     for (const [key, value] of snapshot.entries()) {
       if (value === null) localStorage.removeItem(key);
       else localStorage.setItem(key, value);
     }
-    throw new Error(`导入失败，当前厨房数据没有被覆盖：${error.message || error}`);
+    console.error('importKitchenBackup 写入失败，已回滚', error);
+    throw new Error(`导入失败，当前厨房数据没有被覆盖。${STORAGE_WRITE_FAILED_MESSAGE}`);
   }
 }
 

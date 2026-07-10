@@ -1,4 +1,5 @@
 import { els } from '../dom.js?v=235';
+import { STORAGE_WRITE_FAILED_MESSAGE } from '../storage.js?v=235';
 import { genId } from '../shopping.js?v=235';
 import {
   buildCatalog,
@@ -370,7 +371,13 @@ export function renderRecipeEditor(id, base, { replaceView = null } = {}){
     overlay.recipe_ingredients = overlay.recipe_ingredients || {};
     overlay.recipe_ingredients[realId] = arr;
     if(overlay.deletes) delete overlay.deletes[realId];
-    saveOverlay(overlay);
+    try {
+      saveOverlay(overlay);
+    } catch (err) {
+      showEditorStatus(STORAGE_WRITE_FAILED_MESSAGE, 'bad');
+      showToast(STORAGE_WRITE_FAILED_MESSAGE, { tone: 'error' });
+      return;
+    }
     if (isAiImportDraft) {
       try { sessionStorage.removeItem(AI_DRAFT_SESSION_KEY); } catch(_) {}
     }

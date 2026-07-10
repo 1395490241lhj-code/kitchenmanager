@@ -1,4 +1,4 @@
-import { S, todayISO, addDaysISO } from './storage.js?v=235';
+import { S, mustSave, todayISO, addDaysISO } from './storage.js?v=235';
 import {
   INGREDIENT_ALIASES,
   explodeCombinedItems,
@@ -998,6 +998,9 @@ export function markRecipePlanned(id) {
   saveRecipeActivity(activity);
 }
 
+// 写入失败（配额满/隐私模式限制等）时抛错（.code='STORAGE_WRITE_FAILED'），而不是
+// 静默丢弃这次加入计划的操作——调用方 addRecipeToPlanWithMissingCheck 会据此
+// 不显示"已加入"成功提示。
 export function addRecipeToPlan(id, date = null) {
   // creative-* 只用于当前一次 AI 推荐展示，不能成为持久计划项。
   if (!id || String(id).startsWith('creative-')) return false;
@@ -1006,7 +1009,7 @@ export function addRecipeToPlan(id, date = null) {
   const targetDate = date || today;
   if (plan.find(x => x.id === id && isPlanRowOnDate(x, targetDate, today))) return false;
   plan.push({ id, servings: 1, date: targetDate });
-  S.save(S.keys.plan, plan);
+  mustSave(S.keys.plan, plan);
   markRecipePlanned(id);
   return true;
 }

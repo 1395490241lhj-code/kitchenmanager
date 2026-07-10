@@ -185,3 +185,28 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 - Added 10 tests to `test/backup.test.mjs` covering export/import round-trips for both keys, the underlying storage key staying `km_v1_receipt_aliases`, real `isAiRecipeDisliked()`/`lookupReceiptUserAlias()` hits after restore, rejection of non-object structures, sanitization of malformed entries, oversized-map truncation, and old backups that predate these keys still importing cleanly.
 - Xiaohongshu import, AI prompts, weekly-menu logic, the `plan` data structure, `server.js`, the migration schema version, and UI were not touched — this was a backup-scope-only change plus its tests.
+
+---
+
+## 2026-07-09 (10)
+
+### Added
+
+- `mustSave(key, value, message)` in `src/storage.js`: wraps `S.save()` and throws an `Error` with `.code = 'STORAGE_WRITE_FAILED'` when the write fails (quota exceeded, private-mode restrictions, etc.), instead of the silent `false` that most callers never checked. Also added the single shared user-facing message, `STORAGE_WRITE_FAILED_MESSAGE`.
+
+### Fixed
+
+`S.save()` returning `false` on failure was widely ignored, so a failed write still showed a success toast — the data would then disappear on refresh. Wired `mustSave` into the six key user-data paths named in this pass, without a codebase-wide mechanical replacement:
+
+- **inventory**: `saveInventory()` now throws on failure; `inventory-view.js`'s batch "记食材" flow catches it and shows the unified failure message instead of "已加入 N 样食材".
+- **plan**: `addRecipeToPlan()` now throws on failure; `addRecipeToPlanWithMissingCheck()` catches it, returns `{ added: false, ... }`, and shows the unified message instead of "已加入{计划}" (and never reaches the missing-ingredient confirm dialog on a storage failure).
+- **shopping_items**: `saveShoppingItems()` now throws on failure (its one internal opportunistic self-heal call inside `loadShoppingItems()` catches and logs instead of propagating, since that's not a user-initiated save); `shopping-view.js`'s quick-add flow catches the explicit save and shows the unified message instead of "已加入买菜清单".
+- **settings**: the BYOK API key/URL/model save button in `settings-view.js` now uses `mustSave` and shows the unified message instead of "已保存，刷新后生效" on failure.
+- **overlay / user recipes**: `saveOverlay()` now uses `mustSave` (was already throwing, message aligned). Wired explicit handling into the three most-used save points: `recipe-editor-view.js`'s main save button, `recipe-create-modal.js`'s create-recipe modal (already had a catch block; added the specific storage-failure message), and `recipe-detail-view.js`'s "保存到菜谱" for AI-generated methods.
+- **backup import**: `restoreBackupEntries()` already validated everything and rolled back the full snapshot on any mid-import failure — no behavior change needed there, only aligned its error message to reference the same unified text.
+
+### Notes
+
+- Added `test/storage-write-failures.test.mjs` (17 tests) using a real `localStorage.setItem` throwing `DOMException('Quota exceeded', 'QuotaExceededError')`: `S.save`/`mustSave` behavior, each of the six save paths throwing/not-silently-succeeding, source-level checks that each UI entry point's success toast sits after (and is skipped by) the failure branch, the backup-import rollback, and that normal (non-failing) writes are unaffected.
+- Deliberately did not touch every scattered `S.save(S.keys.plan, ...)` / inventory / overlay call site (e.g. plan removal on "标记做完", servings edits, the other ~7 `saveOverlay` callers) — only the primary user-facing save-and-confirm flow per category, per "first phase, no codebase-wide mechanical replacement." Non-critical caches (`local_recs`, `ai_recs`, `rec_time`, etc.) were intentionally left on the old silent `S.save()` boolean.
+- AI prompts, the Xiaohongshu import flow structure, weekly-menu business structure, the `plan` data structure, `server.js`, and broad UI layout were not touched.

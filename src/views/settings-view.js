@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=235';
+import { S, STORAGE_WRITE_FAILED_MESSAGE, mustSave, todayISO } from '../storage.js?v=235';
 import { apiUrl, CUSTOM_AI } from '../config.js?v=235';
 import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=235';
 import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=235';
@@ -513,8 +513,14 @@ export function renderSettings() {
       apiKey: div.querySelector('#sKey').value.trim(),
       model: div.querySelector('#sModel').value.trim()
     };
-    S.save(S.keys.settings, newS);
     const statusEl = div.querySelector('#settingsStatus');
+    try {
+      mustSave(S.keys.settings, newS);
+    } catch (err) {
+      setInlineStatus(statusEl, STORAGE_WRITE_FAILED_MESSAGE, 'bad');
+      showToast(STORAGE_WRITE_FAILED_MESSAGE, { tone: 'error' });
+      return;
+    }
     setInlineStatus(statusEl, '已保存，刷新后生效。', 'ok');
     setTimeout(() => location.reload(), 1200);
   };
