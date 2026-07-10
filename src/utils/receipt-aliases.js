@@ -1,4 +1,8 @@
-export const RECEIPT_ALIAS_STORAGE_KEY = 'km_v1_receipt_aliases';
+import { S } from '../storage.js?v=235';
+
+// 底层字符串必须保持 'km_v1_receipt_aliases' 不变（现有用户数据不换 key），
+// 统一通过 S.keys.receipt_aliases 引用，好让 backup.js 把它纳入完整备份。
+export const RECEIPT_ALIAS_STORAGE_KEY = S.keys.receipt_aliases;
 
 const MAX_USER_RECEIPT_ALIASES = 200;
 const NON_PRODUCT_ALIAS_RE = /^(?:tax|hst|gst|pst|subtotal|sub\s*total|total|card|cash|visa|mastercard|payment|change|member|coupon|discount|deposit|bag|shopping\s*bag|container|fee|receipt|terminal|lane)$/i;

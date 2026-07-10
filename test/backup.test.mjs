@@ -16,6 +16,12 @@ import {
   shouldShowBackupNudge,
   validateKitchenBackup
 } from '../src/backup.js';
+import { isAiRecipeDisliked, markAiRecipeDisliked } from '../src/utils/ai-disliked-recipes.js';
+import {
+  RECEIPT_ALIAS_STORAGE_KEY,
+  lookupReceiptUserAlias,
+  normalizeReceiptAliasKey
+} from '../src/utils/receipt-aliases.js';
 
 beforeEach(() => {
   installLocalStorageStub();
@@ -356,4 +362,134 @@ test('导入后 build pack / applyOverlay 不报错（含合法 overlay.recipe_i
     assert.equal(pack.recipes.find(r => r.id === 'r1')?.name, '自定义菜');
     assert.deepEqual(pack.recipe_ingredients.r1, [{ item: '盐', qty: '', unit: '' }]);
   });
+});
+
+// ── 完整备份范围：AI 不喜欢/不合理记录 + 小票用户别名 ────────────────────────
+
+test('exportKitchenBackup 包含 ai_disliked_recipes', () => {
+  S.save(S.keys.ai_disliked_recipes, {
+    茭笋青椒瘦肉炒蛋: { name: '茭笋青椒瘦肉炒蛋', reason: '用户标记不喜欢', ts: 123 }
+  });
+  const backup = exportKitchenBackup();
+  const allowed = new Set(getKitchenBackupKeyEntries().map(([, key]) => key));
+  assert.ok(allowed.has(S.keys.ai_disliked_recipes));
+  assert.deepEqual(backup.keys[S.keys.ai_disliked_recipes], {
+    茭笋青椒瘦肉炒蛋: { name: '茭笋青椒瘦肉炒蛋', reason: '用户标记不喜欢', ts: 123 }
+  });
+});
+
+test('exportKitchenBackup 包含 receipt_aliases', () => {
+  S.save(S.keys.receipt_aliases, { 'broccoli florets': '西兰花' });
+  const backup = exportKitchenBackup();
+  const allowed = new Set(getKitchenBackupKeyEntries().map(([, key]) => key));
+  assert.ok(allowed.has(S.keys.receipt_aliases));
+  assert.deepEqual(backup.keys[S.keys.receipt_aliases], { 'broccoli florets': '西兰花' });
+});
+
+test('导入后 ai_disliked_recipes 和 receipt_aliases 两类数据恢复', () => {
+  importKitchenBackup(validBackup({
+    [S.keys.ai_disliked_recipes]: {
+      茭笋青椒瘦肉炒蛋: { name: '茭笋青椒瘦肉炒蛋', reason: '用户标记不喜欢', ts: 111 }
+    },
+    [S.keys.receipt_aliases]: { 'broccoli florets': '西兰花' }
+  }));
+
+  assert.deepEqual(S.load(S.keys.ai_disliked_recipes, {}), {
+    茭笋青椒瘦肉炒蛋: { name: '茭笋青椒瘦肉炒蛋', reason: '用户标记不喜欢', ts: 111 }
+  });
+  assert.deepEqual(S.load(S.keys.receipt_aliases, {}), { 'broccoli florets': '西兰花' });
+});
+
+test('receipt aliases 使用的底层 key 仍是 km_v1_receipt_aliases（现有用户数据不换 key）', () => {
+  assert.equal(S.keys.receipt_aliases, 'km_v1_receipt_aliases');
+  assert.equal(RECEIPT_ALIAS_STORAGE_KEY, 'km_v1_receipt_aliases');
+});
+
+test('AI dislike 恢复后 isAiRecipeDisliked() 正常命中', () => {
+  assert.equal(isAiRecipeDisliked('茭笋青椒瘦肉炒蛋'), false);
+  importKitchenBackup(validBackup({
+    [S.keys.ai_disliked_recipes]: {
+      茭笋青椒瘦肉炒蛋: { name: '茭笋青椒瘦肉炒蛋', reason: '用户标记不喜欢', ts: 111 }
+    }
+  }));
+  assert.equal(isAiRecipeDisliked('茭笋青椒瘦肉炒蛋'), true);
+  assert.equal(isAiRecipeDisliked('没标记过的菜'), false);
+});
+
+test('receipt alias 恢复后纠正映射正常命中', () => {
+  const rawName = 'Broccoli Florets 300g';
+  const key = normalizeReceiptAliasKey(rawName);
+  assert.equal(lookupReceiptUserAlias(rawName), null);
+
+  importKitchenBackup(validBackup({
+    [S.keys.receipt_aliases]: { [key]: '西兰花' }
+  }));
+
+  const hit = lookupReceiptUserAlias(rawName);
+  assert.equal(hit?.name, '西兰花');
+  assert.equal(hit?.source, 'user');
+});
+
+test('validateKitchenBackup 拒绝非对象结构的 ai_disliked_recipes / receipt_aliases', () => {
+  assert.throws(
+    () => validateKitchenBackup(validBackup({ [S.keys.ai_disliked_recipes]: ['not', 'an', 'object'] })),
+    /ai_disliked_recipes/
+  );
+  assert.throws(
+    () => validateKitchenBackup(validBackup({ [S.keys.receipt_aliases]: 'not-an-object' })),
+    /receipt_aliases/
+  );
+});
+
+test('导入后非法 alias / dislike 条目不会污染 localStorage', () => {
+  importKitchenBackup(validBackup({
+    [S.keys.ai_disliked_recipes]: {
+      '': { name: '', reason: '空菜名不该保留' }, // 没有可识别菜名，应被丢弃
+      有效菜名: { name: '有效菜名', reason: 123, ts: 'not-a-number' } // reason/ts 非法类型需安全归一，不能整条丢
+    },
+    [S.keys.receipt_aliases]: {
+      '': '空 key 不该保留',
+      有效key: 123, // value 不是字符串，应丢弃
+      另一个key: '   ' // 纯空格 trim 后为空，应丢弃
+    }
+  }));
+
+  const dislikes = S.load(S.keys.ai_disliked_recipes, {});
+  assert.equal(Object.hasOwn(dislikes, ''), false);
+  assert.equal(dislikes.有效菜名.name, '有效菜名');
+  assert.equal(typeof dislikes.有效菜名.reason, 'string');
+  assert.equal(typeof dislikes.有效菜名.ts, 'number');
+
+  const aliases = S.load(S.keys.receipt_aliases, {});
+  assert.deepEqual(aliases, {});
+});
+
+test('validateKitchenBackup 超大 ai_disliked_recipes / receipt_aliases 会被截断到上限', () => {
+  const hugeDislikes = {};
+  for (let i = 0; i < 150; i++) {
+    hugeDislikes[`菜${i}`] = { name: `菜${i}`, reason: 'x', ts: i };
+  }
+  const hugeAliases = {};
+  for (let i = 0; i < 600; i++) hugeAliases[`key${i}`] = `value${i}`;
+
+  const out = validateKitchenBackup(validBackup({
+    [S.keys.ai_disliked_recipes]: hugeDislikes,
+    [S.keys.receipt_aliases]: hugeAliases
+  }));
+
+  assert.equal(Object.keys(out.keys[S.keys.ai_disliked_recipes]).length, 100);
+  assert.equal(Object.keys(out.keys[S.keys.receipt_aliases]).length, 500);
+  // 保留时间戳较新的 dislike 条目（淘汰策略与 markAiRecipeDisliked 一致）。
+  assert.equal(out.keys[S.keys.ai_disliked_recipes].菜149.ts, 149);
+  assert.equal(Object.hasOwn(out.keys[S.keys.ai_disliked_recipes], '菜0'), false);
+});
+
+test('现有旧备份不包含 ai_disliked_recipes / receipt_aliases 时仍可正常导入', () => {
+  assert.doesNotThrow(() => importKitchenBackup(validBackup({
+    [S.keys.inventory]: [{ name: '番茄', qty: 1, unit: '个' }]
+  })));
+  assert.deepEqual(S.load(S.keys.inventory, []), [{ name: '番茄', qty: 1, unit: '个' }]);
+  // 没在备份里的 key 不应该被凭空写入。
+  assert.equal(localStorage.getItem(S.keys.ai_disliked_recipes), null);
+  assert.equal(localStorage.getItem(S.keys.receipt_aliases), null);
 });

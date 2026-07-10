@@ -12,6 +12,19 @@ export const BACKUP_FORMAT_VERSION = 1;
 export const BACKUP_NUDGE_DISMISS_DAYS = 7;
 export const BACKUP_RECENT_EXPORT_DAYS = 30;
 
+// ── 备份范围的三类数据 ───────────────────────────────────────────────────────
+// 1. 用户持久数据（必须备份，丢了没法重建）：
+//    inventory / plan / shopping_items / favorite_recipes / settings /
+//    staples / pantry_config / overlay（用户菜谱补丁）/ ai_disliked_recipes
+//    （AI「不喜欢/不合理」反馈）/ receipt_aliases（小票识别学到的别名纠正）。
+// 2. 可重建缓存（不必备份，重新生成即可，纳入备份只是图省事）：
+//    ai_recs / local_recs / rec_time / rec_signature（今日推荐缓存 + 签名）；
+//    recipe_usage / recipe_activity（烹饪频次统计，丢了会重新累积，不影响可用性）；
+//    prep_done（明日备菜勾选状态，跨天即失效）。
+// 3. 设备级 UI 状态（按现有策略处理，不进备份 —— 这些只对「这台设备/这次会话」
+//    有意义，换设备恢复备份时不应该被覆盖）：
+//    demo_mode / demo_snapshot / demo_step / backup_nudge_dismissed_at /
+//    backup_last_exported_at / pwa_install_dismissed_at / pwa_install_done。
 const BACKUP_KEY_NAMES = [
   'inventory',
   'plan',
@@ -27,7 +40,9 @@ const BACKUP_KEY_NAMES = [
   'local_recs',
   'ai_recs',
   'rec_time',
-  'rec_signature'
+  'rec_signature',
+  'ai_disliked_recipes',
+  'receipt_aliases'
 ];
 
 const BACKUP_DEFAULTS = {
@@ -45,7 +60,9 @@ const BACKUP_DEFAULTS = {
   local_recs: null,
   ai_recs: null,
   rec_time: 0,
-  rec_signature: null
+  rec_signature: null,
+  ai_disliked_recipes: {},
+  receipt_aliases: {}
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -189,6 +206,40 @@ function normalizeBackupOverlay(value) {
     recipe_ingredients,
     deletes
   };
+}
+
+const BACKUP_MAX_AI_DISLIKED_RECIPES = 100; // 与 src/utils/ai-disliked-recipes.js 的运行时上限一致
+const BACKUP_MAX_RECEIPT_ALIASES = 500;
+
+function normalizeBackupAiDislikedRecipes(value) {
+  if (value === undefined || value === null) return {};
+  if (!isPlainObject(value)) throw new Error('备份里的 ai_disliked_recipes 格式不对（不是普通对象）');
+  const entries = [];
+  for (const [key, raw] of Object.entries(value)) {
+    const name = safeStringOr(key, '').trim();
+    if (!name) continue; // 每一项必须至少有可识别菜名，否则丢弃这一项
+    const record = isPlainObject(raw) ? raw : {};
+    const reason = safeStringOr(record.reason, '用户标记不喜欢');
+    const ts = (typeof record.ts === 'number' && Number.isFinite(record.ts)) ? record.ts : Date.now();
+    entries.push([name, { name, reason, ts }]);
+  }
+  // 最多保留 100 条：与 markAiRecipeDisliked 的淘汰策略一致，优先保留时间戳较新的。
+  entries.sort((a, b) => a[1].ts - b[1].ts);
+  return Object.fromEntries(entries.slice(-BACKUP_MAX_AI_DISLIKED_RECIPES));
+}
+
+function normalizeBackupReceiptAliases(value) {
+  if (value === undefined || value === null) return {};
+  if (!isPlainObject(value)) throw new Error('备份里的 receipt_aliases 格式不对（不是普通对象）');
+  const entries = [];
+  for (const [rawKey, rawValue] of Object.entries(value)) {
+    const key = rawKey.trim();
+    if (!key || typeof rawValue !== 'string') continue; // key/value 都必须是非空字符串
+    const val = rawValue.trim();
+    if (!val) continue;
+    entries.push([key, val]);
+  }
+  return Object.fromEntries(entries.slice(0, BACKUP_MAX_RECEIPT_ALIASES));
 }
 
 function readTimestamp(key) {
@@ -421,7 +472,9 @@ export function validateKitchenBackup(input) {
     [S.keys.plan]: normalizeBackupPlan,
     [S.keys.shopping_items]: normalizeBackupShoppingItems,
     [S.keys.settings]: normalizeBackupSettings,
-    [S.keys.overlay]: normalizeBackupOverlay
+    [S.keys.overlay]: normalizeBackupOverlay,
+    [S.keys.ai_disliked_recipes]: normalizeBackupAiDislikedRecipes,
+    [S.keys.receipt_aliases]: normalizeBackupReceiptAliases
   };
   const keys = {};
   for (const [key, value] of Object.entries(payload.keys)) {

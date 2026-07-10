@@ -166,3 +166,22 @@ Keep entries concise. Use this file for what changed, not for long design discus
 ### Notes
 
 - `server.js` was not touched (no large-scale refactor); only `src/server/services/rate-limit.js` and its tests changed. Concurrency pool / temp-directory quota work is explicitly out of scope for this change.
+
+---
+
+## 2026-07-09 (9)
+
+### Added
+
+- The full kitchen backup now covers two previously-missing pieces of user-persistent data: `ai_disliked_recipes` (the "不合理/不喜欢" AI-recommendation feedback list) and `receipt_aliases` (product-name corrections the user taught the receipt scanner). Both were real user data that used to be silently lost on backup/restore.
+
+### Fixed
+
+- `src/utils/receipt-aliases.js` no longer hard-codes its own `'km_v1_receipt_aliases'` string; it now reads `S.keys.receipt_aliases` (added to `src/storage.js`, same literal value, so no existing user data changes key).
+- Added structural validators to `src/backup.js` for both new keys, following the same "container-shape errors reject the whole backup, item-level issues are sanitized" policy as the rest of the backup importer: `ai_disliked_recipes` must be a plain object, each entry needs a non-empty dish-name key, `reason`/`ts` are safely coerced, and the import caps at 100 entries (same as the runtime limit in `ai-disliked-recipes.js`, keeping the newest by `ts`). `receipt_aliases` must be a plain object with non-empty, trimmed string keys and values, capped at 500 entries.
+- Documented the backup key list in `src/backup.js` as three categories (user-persistent data that must be backed up, rebuildable caches that don't need to be, device-local UI state that's intentionally excluded) so future additions land in the right bucket without re-deriving the reasoning.
+
+### Notes
+
+- Added 10 tests to `test/backup.test.mjs` covering export/import round-trips for both keys, the underlying storage key staying `km_v1_receipt_aliases`, real `isAiRecipeDisliked()`/`lookupReceiptUserAlias()` hits after restore, rejection of non-object structures, sanitization of malformed entries, oversized-map truncation, and old backups that predate these keys still importing cleanly.
+- Xiaohongshu import, AI prompts, weekly-menu logic, the `plan` data structure, `server.js`, the migration schema version, and UI were not touched — this was a backup-scope-only change plus its tests.
