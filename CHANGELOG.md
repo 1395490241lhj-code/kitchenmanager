@@ -267,3 +267,21 @@ Render Web Service's public entry point is Render's own edge proxy — the Node 
 
 - No route branch, navigation link, page layout, AI/import flow, receipt recognition, `plan` data structure, or `server.js` behavior changed.
 - The app still does not add a redirect for former `#inventory` home bookmarks; this pass records the current product behavior and does not create compatibility behavior.
+
+---
+
+## 2026-07-10 (3)
+
+### Changed
+
+- Weekly menu planning now distinguishes meal batches from dishes per meal. The modal defaults to two dishes per meal, and both AI and local fallback plans target `mealCount × dishesPerMeal` dishes, capped at 12.
+- AI results carry a transient `mealIndex` / `mealLabel`, are rendered in meal groups, and synchronize the planned date within a group. Joining the plan still writes one independent recipe row per dish; the `plan` schema was not changed.
+- Updated the weekly-menu prompt to request balanced home-style pairings, discourage duplicate heavy/protein dishes in one meal, and prefer reheatable dishes with appropriate servings for lunchbox plans.
+
+### Added
+
+- Added behavior tests for the 3 meals × 2 dishes path, grouped dates, synchronized date changes, per-dish plan mappings, local fallback, invalid `mealIndex` recovery, the 12-dish cap, and lunchbox prompt rules.
+
+### Notes
+
+- Xiaohongshu import, receipt recognition, today recommendations, AI draft details, shopping data, and the server structure were not changed.

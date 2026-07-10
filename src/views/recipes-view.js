@@ -1,11 +1,11 @@
-import { S } from '../storage.js?v=235';
-import { hasRecipeMethod, calculateStockStatus, loadFavoriteRecipeIds, loadRecipeActivity } from '../recommendations.js?v=235';
-import { recipeCard } from '../components/recipe-card.js?v=235';
-import { buildCatalog } from '../ingredients.js?v=235';
-import { loadInventory } from '../inventory.js?v=235';
-import { RECIPE_CATEGORIES, searchRecipes, matchesCategory } from '../recipe-search.js?v=235';
-import { showRecipeCreateModal } from '../components/recipe-create-modal.js?v=235';
-import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=235';
+import { S } from '../storage.js?v=236';
+import { hasRecipeMethod, calculateStockStatus, loadFavoriteRecipeIds, loadRecipeActivity } from '../recommendations.js?v=236';
+import { recipeCard } from '../components/recipe-card.js?v=236';
+import { buildCatalog } from '../ingredients.js?v=236';
+import { loadInventory } from '../inventory.js?v=236';
+import { RECIPE_CATEGORIES, searchRecipes, matchesCategory } from '../recipe-search.js?v=236';
+import { showRecipeCreateModal } from '../components/recipe-create-modal.js?v=236';
+import { openRecipeImportModal } from '../components/recipe-import-modal.js?v=236';
 
 function mergeOverlayPreservingCurrent(currentOverlay, incomingOverlay) {
   const current = currentOverlay || {};

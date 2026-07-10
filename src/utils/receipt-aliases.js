@@ -1,4 +1,4 @@
-import { S } from '../storage.js?v=235';
+import { S } from '../storage.js?v=236';
 
 // 底层字符串必须保持 'km_v1_receipt_aliases' 不变（现有用户数据不换 key），
 // 统一通过 S.keys.receipt_aliases 引用，好让 backup.js 把它纳入完整备份。

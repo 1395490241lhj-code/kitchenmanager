@@ -2,10 +2,10 @@
  * src/utils/inventory-write.js —— 批量入库统一写入（从 home-view 抽出的共享数据落地路径）。
  * 所有批量录入模式（示例厨房 / 拍小票 / 文本批量记）共用这一条写库逻辑，纯数据、无 DOM。
  */
-import { todayISO } from '../storage.js?v=235';
-import { buildCatalog, getCanonicalName, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=235';
-import { loadInventory, mergeInventoryEntry } from '../inventory.js?v=235';
-import { applyReceiptPantryItems } from './receipt-import.js?v=235';
+import { todayISO } from '../storage.js?v=236';
+import { buildCatalog, getCanonicalName, getDryPrepText, guessKitchenUnit, guessShelfDays, isDryGoodName } from '../ingredients.js?v=236';
+import { loadInventory, mergeInventoryEntry } from '../inventory.js?v=236';
+import { applyReceiptPantryItems } from './receipt-import.js?v=236';
 
 // ── 批量入库统一写入：所有模式（小票 / 文本）共用同一条数据落地路径 ──────────
 export function writeItemsToInventory(items, pack) {

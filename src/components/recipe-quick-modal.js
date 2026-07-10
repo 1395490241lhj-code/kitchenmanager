@@ -9,21 +9,21 @@
  *  - 复用 .km-modal-overlay / .km-modal-content 既有玻璃质感 + 动画（与待买速记等弹窗一致）。
  *  - 关闭弹窗不触发列表重渲染，保证搜索 / 分类 / 滚动状态不丢。
  */
-import { S, todayISO } from '../storage.js?v=235';
-import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=235';
-import { splitIngredients } from '../utils/recipe-sanitizer.js?v=235';
-import { loadInventory } from '../inventory.js?v=235';
+import { S, todayISO } from '../storage.js?v=236';
+import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=236';
+import { splitIngredients } from '../utils/recipe-sanitizer.js?v=236';
+import { loadInventory } from '../inventory.js?v=236';
 import {
   calculateStockStatus,
   getMissingRecipeIngredients,
   addMissingRecipeIngredientsToShopping,
   isFavoriteRecipe,
   toggleFavoriteRecipe,
-} from '../recommendations.js?v=235';
-import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=235';
-import { loadOverlay } from '../backup.js?v=235';
-import { escapeHtml } from './status.js?v=235';
-import { isPlanRowOnDate } from '../plan-selectors.js?v=235';
+} from '../recommendations.js?v=236';
+import { addRecipeToPlanWithMissingCheck } from './plan-missing-check.js?v=236';
+import { loadOverlay } from '../backup.js?v=236';
+import { escapeHtml } from './status.js?v=236';
+import { isPlanRowOnDate } from '../plan-selectors.js?v=236';
 
 const CLOSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 

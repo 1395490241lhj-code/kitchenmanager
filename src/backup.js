@@ -1,11 +1,11 @@
-import { S, STORAGE_WRITE_FAILED_MESSAGE, mustSave } from './storage.js?v=235';
+import { S, STORAGE_WRITE_FAILED_MESSAGE, mustSave } from './storage.js?v=236';
 import {
   APP_VERSION,
   DATA_SCHEMA_VERSION,
   normalizeBackupForRestore,
   setStoredSchemaVersion
-} from './migrations.js?v=235';
-import { genId } from './shopping.js?v=235';
+} from './migrations.js?v=236';
+import { genId } from './shopping.js?v=236';
 
 export const BACKUP_APP_ID = 'kitchenmanager';
 export const BACKUP_FORMAT_VERSION = 1;

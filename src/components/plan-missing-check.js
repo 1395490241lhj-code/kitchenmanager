@@ -1,7 +1,7 @@
-import { isIngredientMatch, isInventoryAvailable, loadInventory } from '../inventory.js?v=235';
-import { addMissingRecipeIngredientsToShopping, addRecipeToPlan, getRecipeCoreIngredients } from '../recommendations.js?v=235';
-import { STORAGE_WRITE_FAILED_MESSAGE } from '../storage.js?v=235';
-import { escapeHtml, showToast } from './status.js?v=235';
+import { isIngredientMatch, isInventoryAvailable, loadInventory } from '../inventory.js?v=236';
+import { addMissingRecipeIngredientsToShopping, addRecipeToPlan, getRecipeCoreIngredients } from '../recommendations.js?v=236';
+import { STORAGE_WRITE_FAILED_MESSAGE } from '../storage.js?v=236';
+import { escapeHtml, showToast } from './status.js?v=236';
 
 function uniqueMissingItems(items = []) {
   const seen = new Set();

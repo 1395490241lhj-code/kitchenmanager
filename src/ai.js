@@ -1,13 +1,13 @@
 // apiUrl 改名导入：getAiConfig 内部有同名局部变量（BYOK 的用户自填地址），避免遮蔽。
-import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=235';
-import { S } from './storage.js?v=235';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=235';
-import { splitMethodSteps } from './utils/method-steps.js?v=235';
+import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=236';
+import { S } from './storage.js?v=236';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=236';
+import { splitMethodSteps } from './utils/method-steps.js?v=236';
 import {
   classifyReceiptCandidate,
   postProcessReceiptItems
-} from './utils/receipt-import.js?v=235';
-import { getDislikedAiRecipeNames, isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=235';
+} from './utils/receipt-import.js?v=236';
+import { getDislikedAiRecipeNames, isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=236';
 
 const CLOUD_AI_ERROR = 'AI 暂不可用：云端服务暂时不可用。本地功能仍可正常使用。';
 const BYOK_MISSING_KEY_ERROR = 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';
@@ -973,15 +973,55 @@ export function validateRecommendationResult(input) {
   return { local, creative };
 }
 
-export function validateWeeklyMenuPlanResult(input) {
+const WEEKLY_MENU_MAX_DISHES = 12;
+
+function normalizeWeeklyMenuMealCount(value, fallback = 4) {
+  const parsed = Math.trunc(Number(value));
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.min(10, parsed));
+}
+
+function normalizeWeeklyMenuDishesPerMeal(value, fallback = 2) {
+  const parsed = Math.trunc(Number(value));
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.max(1, Math.min(3, parsed));
+}
+
+function getWeeklyMenuTargetDishCount(mealCount, dishesPerMeal) {
+  return Math.min(WEEKLY_MENU_MAX_DISHES, mealCount * dishesPerMeal);
+}
+
+// 缺失或越界的 mealIndex 不应让整份 AI 结果失效。优先把每顿排上一道，
+// 再依序补第二/第三道，既保留「顿」语义，也能安全承接旧的扁平返回。
+function getFallbackWeeklyMealIndex(index, mealCount, targetDishCount) {
+  const safeIndex = Math.max(0, Number(index) || 0);
+  const firstPassCount = Math.min(mealCount, targetDishCount);
+  return safeIndex < firstPassCount
+    ? safeIndex + 1
+    : (safeIndex % mealCount) + 1;
+}
+
+export function validateWeeklyMenuPlanResult(input, { mealCount = 4, dishesPerMeal = 2 } = {}) {
   const data = safeParseJson(input, '本周菜单规划结果');
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('本周菜单规划结果格式不对。');
+  const safeMealCount = normalizeWeeklyMenuMealCount(mealCount, 4);
+  const safeDishesPerMeal = normalizeWeeklyMenuDishesPerMeal(dishesPerMeal, 2);
+  const targetDishCount = getWeeklyMenuTargetDishCount(safeMealCount, safeDishesPerMeal);
+  let acceptedIndex = 0;
+  const daySuggestionByMeal = new Map();
   const meals = Array.isArray(data.meals)
     ? data.meals.map(item => {
       const name = String(item?.name || '').trim();
       if (!name) return null;
       const recipeId = String(item?.recipeId || '').trim();
-      const daySuggestion = String(item?.daySuggestion || '').trim();
+      const requestedMealIndex = Math.trunc(Number(item?.mealIndex));
+      const mealIndex = Number.isInteger(requestedMealIndex) && requestedMealIndex >= 1 && requestedMealIndex <= safeMealCount
+        ? requestedMealIndex
+        : getFallbackWeeklyMealIndex(acceptedIndex, safeMealCount, targetDishCount);
+      acceptedIndex += 1;
+      const suggestedDay = String(item?.daySuggestion || '').trim();
+      const daySuggestion = daySuggestionByMeal.get(mealIndex) || suggestedDay;
+      if (daySuggestion) daySuggestionByMeal.set(mealIndex, daySuggestion);
       const reason = String(item?.reason || '').trim();
       const difficulty = String(item?.difficulty || '').trim();
       const servings = Math.trunc(Number(item?.servings || 0));
@@ -990,6 +1030,8 @@ export function validateWeeklyMenuPlanResult(input) {
         : [];
       return {
         name,
+        mealIndex,
+        mealLabel: `第${mealIndex}顿`,
         ...(recipeId ? { recipeId } : {}),
         ...(daySuggestion ? { daySuggestion } : {}),
         ...(Number.isFinite(servings) && servings > 0 ? { servings } : {}),
@@ -999,15 +1041,37 @@ export function validateWeeklyMenuPlanResult(input) {
         uses: toTextList(item?.uses),
         missing: toTextList(item?.missing)
       };
-    }).filter(Boolean).slice(0, 10)
+    }).filter(Boolean).slice(0, WEEKLY_MENU_MAX_DISHES)
     : [];
+  // 模型偶尔会把目标菜数都标成「第 1 顿」。在菜数足够覆盖所有批次时，
+  // 安全地按返回顺序重新分顿，让 UI 不会回退成「一顿一道/一顿全塞」的旧语义。
+  if (meals.length >= safeMealCount && new Set(meals.map(meal => meal.mealIndex)).size < safeMealCount) {
+    meals.forEach((meal, index) => {
+      const mealIndex = getFallbackWeeklyMealIndex(index, safeMealCount, targetDishCount);
+      meal.mealIndex = mealIndex;
+      meal.mealLabel = `第${mealIndex}顿`;
+    });
+    const normalizedDayByMeal = new Map();
+    meals.forEach(meal => {
+      const daySuggestion = normalizedDayByMeal.get(meal.mealIndex) || meal.daySuggestion;
+      if (daySuggestion) normalizedDayByMeal.set(meal.mealIndex, daySuggestion);
+      if (daySuggestion) meal.daySuggestion = daySuggestion;
+    });
+  }
   const shoppingSummary = Array.isArray(data.shoppingSummary)
     ? data.shoppingSummary.map(item => String(item || '').trim()).filter(Boolean).slice(0, 12)
     : [];
   const summary = String(data.summary || '').trim();
   const notes = String(data.notes || '').trim();
   if (!meals.length) throw new Error('本周菜单规划结果里没有可用建议。');
-  return { summary, meals, shoppingSummary, notes };
+  return {
+    summary,
+    meals,
+    shoppingSummary,
+    notes,
+    expectedDishCount: targetDishCount,
+    isIncomplete: meals.length < targetDishCount
+  };
 }
 
 function validateMethodResult(input) {
@@ -1811,6 +1875,8 @@ export async function callCloudAI(pack, inv) {
 
 export async function callAiWeeklyMenuPlan({
   mealsCount = 4,
+  dishesPerMeal = 2,
+  dishesPerMealLocked = false,
   peopleCount = 2,
   preferences = {},
   userRequest = '',
@@ -1822,6 +1888,8 @@ export async function callAiWeeklyMenuPlan({
 } = {}) {
   const payload = {
     mealsCount: Math.max(1, Math.min(10, Math.trunc(Number(mealsCount) || 4))),
+    dishesPerMeal: Math.max(1, Math.min(3, Math.trunc(Number(dishesPerMeal) || 2))),
+    dishesPerMealLocked: Boolean(dishesPerMealLocked),
     peopleCount: Math.max(1, Math.min(8, Math.trunc(Number(peopleCount) || 2))),
     preferences: {
       useExpiring: Boolean(preferences.useExpiring ?? preferences.expiring),
@@ -1836,8 +1904,22 @@ export async function callAiWeeklyMenuPlan({
     localCandidateRecipes: (localCandidateRecipes || []).slice(0, 12),
     existingPlan: (existingPlan || []).slice(0, 10)
   };
+  payload.targetDishCount = Math.min(WEEKLY_MENU_MAX_DISHES, payload.mealsCount * payload.dishesPerMeal);
 
-  const prompt = `你是 Kitchen Manager 的家庭厨房周菜单规划助手。请根据用户库存、临期食材、偏好和本地候选菜，规划接下来一周在家做的 ${payload.mealsCount} 顿饭，服务 ${payload.peopleCount} 人。
+  const raw = await callAiService(buildAiWeeklyMenuPlanPrompt(payload), null, { taskType: 'weekly-menu-plan' });
+  return validateWeeklyMenuPlanResult(raw, {
+    mealCount: payload.mealsCount,
+    dishesPerMeal: payload.dishesPerMeal
+  });
+}
+
+export function buildAiWeeklyMenuPlanPrompt(payload) {
+  const lunchboxDishRule = payload.preferences.lunchboxFriendly && !payload.dishesPerMealLocked && payload.dishesPerMeal === 2
+    ? '界面默认每顿 2 道；因为适合带饭，你可以在确实有助于搭配时安排 2–3 道，但不要为了凑数硬加菜。'
+    : '用户已明确选择每顿菜数，请以 dishesPerMeal 为准；菜不够时宁可少一道，也不要硬凑。';
+  return `你是 Kitchen Manager 的家庭厨房周菜单规划助手。请根据用户库存、临期食材、偏好和本地候选菜，规划接下来一周在家做的 ${payload.mealsCount} 顿饭，服务 ${payload.peopleCount} 人。
+
+这里的「一顿」是一次烹饪/用餐批次，不是一道菜。必须规划 ${payload.mealsCount} 个用餐批次；每个批次通常有 ${payload.dishesPerMeal} 道菜，目标总菜数约 ${payload.targetDishCount} 道，最多 12 道。
 
 请优先从 localCandidateRecipes 中选择；如果某道建议来自候选菜，必须保留它的 recipeId。
 可以提出少量本地没有的新菜名，但不要自动创建菜谱，也不要写入计划或买菜清单。
@@ -1850,6 +1932,8 @@ ${JSON.stringify(payload, null, 2)}
   "summary": "这周安排 4 顿，优先用掉牛肉和青椒，其中 2 顿适合带饭。",
   "meals": [
     {
+      "mealIndex": 1,
+      "mealLabel": "第1顿",
       "name": "菜名",
       "recipeId": "optional-existing-recipe-id",
       "daySuggestion": "周一",
@@ -1866,24 +1950,23 @@ ${JSON.stringify(payload, null, 2)}
 }
 
 规则：
-- meals 数量尽量接近 mealsCount。
-- servings 默认等于 peopleCount；如果适合带饭，可以设为 peopleCount + 1。
+- meals 必须覆盖 1 到 ${payload.mealsCount} 的 mealIndex；同一 mealIndex 的 daySuggestion 必须完全一致，且该组通常有 ${payload.dishesPerMeal} 道菜。
+- 总菜数以 ${payload.targetDishCount} 道为目标，但不要为了凑数量制造不合理组合；库存或搭配不足时可少一道。
+- 同一顿的菜要互相搭配，尽量一荤一素或主菜 + 素菜，必要时可有蛋类/豆制品；不要把不相关库存硬塞进同一道菜。
+- 同一顿避免两道都重油重辣、都纯肉、或主要食材高度重复。
+- servings 要覆盖正餐人数；带饭时要同时考虑正餐和带饭人数，通常可设为 peopleCount + 1 或更合理的份数。
 - 用户补充要求 userRequest 优先级最高。
 - 如果使用本地菜谱，必须保留对应 recipeId；如果是 AI 新建议，recipeId 留空字符串。
 - 不要编造库存中不存在的“已拥有食材”；已有食材只能来自 inventory / expiringItems。
-- 每道菜按 peopleCount 人份规划，不要让每顿菜量明显过少。
 - missing 只放核心食材，不放盐、糖、油、生抽、老抽、料酒、水、葱姜蒜、适量、少许。
 - 如果用户要求不吃某类食材，必须避开。
 - 如果 useExpiring 为 true，优先安排临期食材。
-- 如果 lunchboxFriendly 为 true，至少安排适合带饭的菜。
-- 如果 lunchboxFriendly 为 true，可以安排部分菜多做 1 份。
-- 尽量兼顾蛋白质、蔬菜、主食搭配。
+- 如果 lunchboxFriendly 为 true，优先耐放、复热后口感稳定的菜；少推荐凉拌、生食或容易出水的菜。
+- ${lunchboxDishRule}
+- 不要求用完所有库存；优先使用临期和现有库存，但每道菜都必须是正常家常菜。
 - 不要安排连续多顿口味或主蛋白重复太高的菜，难度不要都太高。
 - summary 用一句话说明规划逻辑。
 - notes 可补充口味均衡、带饭、减少浪费等提醒。`;
-
-  const raw = await callAiService(prompt, null, { taskType: 'weekly-menu-plan' });
-  return validateWeeklyMenuPlanResult(raw);
 }
 
 // 智能录入解析服务：抓取与大模型调用都在后端（server.js）完成。

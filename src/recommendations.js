@@ -1,34 +1,34 @@
-import { S, mustSave, todayISO, addDaysISO } from './storage.js?v=235';
+import { S, mustSave, todayISO, addDaysISO } from './storage.js?v=236';
 import {
   INGREDIENT_ALIASES,
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
   isSmartIngredientMatch
-} from './ingredients.js?v=235';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=235';
+} from './ingredients.js?v=236';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=236';
 import {
   daysBetween,
   getStockCoverageAnalysis,
   remainingDays
-} from './inventory.js?v=235';
-import { addShoppingItem } from './shopping.js?v=235';
-import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=235';
-import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=235';
-import { isPlanRowOnDate } from './plan-selectors.js?v=235';
-import { isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=235';
+} from './inventory.js?v=236';
+import { addShoppingItem } from './shopping.js?v=236';
+import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=236';
+import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=236';
+import { isPlanRowOnDate } from './plan-selectors.js?v=236';
+import { isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=236';
 import {
   buildRecipePackMetadataIndex,
   getEnabledRecipePackIds,
   getRecipePackScoringHint
-} from './recipe-packs.js?v=235';
+} from './recipe-packs.js?v=236';
 export {
   buildGenericRecipeTemplateRecommendations,
   buildRecipeVariantRecommendations,
   buildVariantMethodDraft,
   getGenericIngredientRecipeRecommendations,
   getRecipeVariantRecommendations
-} from './utils/recipe-variants.js?v=235';
+} from './utils/recipe-variants.js?v=236';
 
 const RECIPE_PACK_SCORING_BONUS = 3;
 

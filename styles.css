@@ -8364,6 +8364,7 @@ html[data-theme="dark"] .wx-tab.is-active {
   white-space: nowrap;
 }
 .weekly-menu-meal-input,
+.weekly-menu-dishes-input,
 .weekly-menu-people-input {
   width: 64px;
   min-width: 64px;
@@ -8488,6 +8489,16 @@ html[data-theme="dark"] .wx-tab.is-active {
   font-size: 12.5px;
   line-height: 1.5;
 }
+.weekly-menu-incomplete {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--status-warn-border);
+  border-radius: 12px;
+  background: var(--status-warn-bg);
+  color: var(--status-warn-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .weekly-menu-hint {
   margin: 0;
   color: var(--text-secondary);
@@ -8503,6 +8514,26 @@ html[data-theme="dark"] .wx-tab.is-active {
 .weekly-menu-suggestion-list {
   display: grid;
   gap: 8px;
+}
+.weekly-menu-meal-groups {
+  display: grid;
+  gap: 12px;
+}
+.weekly-menu-meal-group {
+  display: grid;
+  gap: 7px;
+}
+.weekly-menu-meal-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+.weekly-menu-meal-heading h5 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 850;
 }
 /* 结果卡：单列堆叠——主信息在上，操作区（计划到 + 按钮）在下。 */
 .weekly-menu-suggestion {

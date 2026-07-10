@@ -1,6 +1,6 @@
-import { getCanonicalName, guessKitchenUnit } from '../ingredients.js?v=235';
-import { addShoppingItem } from '../shopping.js?v=235';
-import { escapeHtml, showToast } from './status.js?v=235';
+import { getCanonicalName, guessKitchenUnit } from '../ingredients.js?v=236';
+import { addShoppingItem } from '../shopping.js?v=236';
+import { escapeHtml, showToast } from './status.js?v=236';
 
 function normalizeName(name) {
   return getCanonicalName(name || '') || String(name || '').trim();

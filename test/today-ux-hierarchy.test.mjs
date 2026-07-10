@@ -183,10 +183,11 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(weekly, /本周菜单/);
   assert.match(weekly, /规划本周/);
   assert.match(weekly, /补齐待买/);
-  // 输入态改紧凑：问题文案精简，加一句短说明，快捷选择/自定义并排。
+  // 输入态明确区分顿数与每顿菜数，快捷选择/自定义并排。
   assert.match(weekly, /class="weekly-menu-question">做几顿</);
+  assert.match(weekly, /class="weekly-menu-question">每顿几道菜</);
   assert.match(weekly, /class="weekly-menu-question">几个人</);
-  assert.match(weekly, /class="weekly-menu-intro">根据库存、临期和偏好，先规划几顿。/);
+  assert.match(weekly, /“做几顿”是用餐批次；“每顿几道菜”决定每个批次的搭配。/);
   // 快捷按钮与「自定义」输入在同一行（choice-row）。
   assert.match(weekly, /class="weekly-menu-choice-row"/);
   assert.match(weekly, /class="weekly-menu-custom-inline"/);
@@ -196,20 +197,25 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(weekly, /AI 规划本周菜单/);
   assert.match(weekly, /用本地建议/);
   assert.match(weekly, /function normalizeWeeklyMealCount/);
+  assert.match(weekly, /function normalizeWeeklyDishesPerMeal/);
   assert.match(weekly, /function normalizeWeeklyPeopleCount/);
   assert.match(weekly, /class="weekly-menu-meal-input"/);
+  assert.match(weekly, /class="weekly-menu-dishes-input"/);
   assert.match(weekly, /class="weekly-menu-people-input"/);
   assert.match(weekly, /min="1" max="10" step="1"/);
   assert.match(weekly, /min="1" max="8" step="1"/);
-  assert.match(weekly, /mealsCount: normalizeWeeklyMealCount\(mealCount, 4\)/);
+  assert.match(weekly, /mealsCount: safeMealCount/);
+  assert.match(weekly, /dishesPerMeal: safeDishesPerMeal/);
+  assert.match(weekly, /targetDishCount: getWeeklyTargetDishCount\(safeMealCount, safeDishesPerMeal\)/);
   assert.match(weekly, /peopleCount: normalizeWeeklyPeopleCount\(peopleCount, 2\)/);
   assert.match(weekly, /updateWeeklyPlanServings\(recipeId, entry\.meal\?\.servings \|\| peopleCount, plannedDate\)/);
   assert.match(ai, /mealsCount: Math\.max\(1, Math\.min\(10/);
+  assert.match(ai, /dishesPerMeal: Math\.max\(1, Math\.min\(3/);
   assert.match(ai, /peopleCount: Math\.max\(1, Math\.min\(8/);
   assert.match(ai, /"summary": "这周安排 4 顿/);
   assert.match(ai, /summary 用一句话说明规划逻辑/);
   assert.match(ai, /servings/);
-  assert.match(ai, /\.filter\(Boolean\)\.slice\(0, 10\)/);
+  assert.match(ai, /\.filter\(Boolean\)\.slice\(0, WEEKLY_MENU_MAX_DISHES\)/);
   assert.match(weekly, /rankRecipesForRecommendation\(pack, inv/);
   assert.match(weekly, /getPlanMissingItems\(recipe, pack, inv\)/);
   assert.match(weekly, /本周菜单缺货/);
@@ -234,6 +240,7 @@ test('计划 Tab 提供 AI 优先本周菜单入口且不新增后端接口', ()
   assert.match(styles, /\.weekly-menu-modal/);
   assert.match(styles, /\.weekly-menu-request/);
   assert.match(styles, /\.weekly-menu-meal-input/);
+  assert.match(styles, /\.weekly-menu-dishes-input/);
   assert.match(styles, /\.weekly-menu-people-input/);
   // 偏好 chip 改为自动换行的 flex，不再是两列大胶囊；顿数/人数按钮更轻。
   assert.match(styles, /\.weekly-menu-checks \{[\s\S]*?flex-wrap: wrap/);

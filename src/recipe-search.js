@@ -11,7 +11,7 @@
  *
  * 同义词 / 分类表都集中在本文件顶部，便于后续维护。
  */
-import { getCanonicalName, isSeasoning, explodeCombinedItems } from './ingredients.js?v=235';
+import { getCanonicalName, isSeasoning, explodeCombinedItems } from './ingredients.js?v=236';
 
 // ── 蛋白质大类：用「分组匹配」做同义词扩展（可广义命中同类食材）──────────────
 //   每组第一个元素为「单字锚点」（鸡/猪/牛/鱼/蛋），用于单字查询精确归类。

@@ -1,17 +1,17 @@
-import { els } from '../dom.js?v=235';
-import { STORAGE_WRITE_FAILED_MESSAGE } from '../storage.js?v=235';
-import { genId } from '../shopping.js?v=235';
+import { els } from '../dom.js?v=236';
+import { STORAGE_WRITE_FAILED_MESSAGE } from '../storage.js?v=236';
+import { genId } from '../shopping.js?v=236';
 import {
   buildCatalog,
   buildIngredientOptions,
   getCanonicalName,
   guessKitchenUnit
-} from '../ingredients.js?v=235';
+} from '../ingredients.js?v=236';
 import {
   applyOverlay,
   loadOverlay,
   saveOverlay
-} from '../backup.js?v=235';
+} from '../backup.js?v=236';
 import {
   escapeHtml,
   escapeOptionAttr,
@@ -20,7 +20,7 @@ import {
   setInlineStatus,
   setSelectValueWithOption,
   showToast
-} from '../components/status.js?v=235';
+} from '../components/status.js?v=236';
 
 /**
  * @param {string} id

@@ -36,6 +36,7 @@ Current observed structure:
 - Docs already present: `README.md`, `PROJECT_GUIDE.md`, `PROJECT_GUIDE.zh.md`, `PROJECT_WORKFLOW.md`, `docs/*`.
 - CI/deployment: `.github/workflows/deploy.yml`.
 - Current stable routes: empty hash redirects to `#today`; `#today` is the kitchen home, `#inventory` is food inventory, `#shopping` is shopping, `#recipes` is the recipe library, and `#settings` is settings.
+- Weekly menu distinguishes meal batches from dishes: `mealCount` is the number of meals, `dishesPerMeal` is the target dishes per meal, and `mealIndex` only groups transient suggestions. `plan` remains one independent recipe row per dish.
 
 Current package facts:
 
