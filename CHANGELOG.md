@@ -136,3 +136,18 @@ Keep entries concise. Use this file for what changed, not for long design discus
 ### Notes
 
 - Xiaohongshu import, receipt recognition, AI recommendation logic, weekly-menu logic, the `plan` data structure, `server.js`, and migration logic (`src/migrations.js`) were not changed.
+
+---
+
+## 2026-07-09 (7)
+
+### Fixed
+
+- `sw-register.v18.js` used to hard-code `caches.keys().filter(key => key !== 'km-v18').map(caches.delete)` on every page load. Since `sw.v18.js`'s `CACHE_NAME` moves forward with every release via `scripts/stamp-version.js` (currently `km-v235`), that stale `'km-v18'` string meant the register script was deleting the *current*, just-precached cache on startup, making offline precaching unreliable.
+- Removed the cache-deletion logic from `sw-register.v18.js` entirely. The register script now only unregisters stale Service Worker *registrations* (script URL not matching `sw.v18.js`) and handles `register`/`updatefound`/reload-prompt duties. Cache cleanup is now solely owned by `sw.v18.js`'s `activate` handler, which already correctly deletes every cache except its own (dynamic) `CACHE_NAME`.
+- Added two `test/version-consistency.test.mjs` guards: `sw-register.v18.js` must not contain a hard-coded `'km-v18'` string, and must not call `caches.keys()`/`caches.delete()` at all.
+
+### Notes
+
+- `sw.v18.js`'s `activate` handler was not changed — it already owned cache cleanup correctly.
+- No business code, AI, Xiaohongshu import, receipt recognition, weekly-menu, or `plan` data structure logic was touched.

@@ -55,6 +55,22 @@ test('SW 的 CACHE_NAME 与 ?v= 版本同步（由 stamp 脚本统一管理）',
   );
 });
 
+test('sw-register.v18.js 不包含固定 km-v18 缓存保留逻辑（会随升版误删当前缓存）', () => {
+  const register = readFileSync(join(root, 'sw-register.v18.js'), 'utf8');
+  // 背景：sw.v18.js 的 CACHE_NAME 会随 scripts/stamp-version.js 升版（当前 km-v235），
+  // 但 sw-register.v18.js 曾经写死只保留 'km-v18'，导致每次启动都会把当前缓存当成
+  // 旧缓存删掉，离线预缓存不可靠。这里锁死：注册脚本里不能再出现这个写死的字符串。
+  assert.doesNotMatch(register, /'km-v18'/, "sw-register.v18.js 不应再写死保留 'km-v18'");
+});
+
+test('sw-register.v18.js 不调用 caches.keys()/caches.delete() 删除业务缓存', () => {
+  const register = readFileSync(join(root, 'sw-register.v18.js'), 'utf8');
+  // 缓存清理职责完全交给 sw.v18.js 的 activate 事件（它按当前 CACHE_NAME 动态清理），
+  // 注册脚本只应负责注册 / updatefound / reload 提示等注册相关职责，不能再碰 Cache API。
+  assert.doesNotMatch(register, /caches\.keys\(\)/, 'sw-register.v18.js 不应调用 caches.keys()');
+  assert.doesNotMatch(register, /caches\.delete\(/, 'sw-register.v18.js 不应调用 caches.delete()');
+});
+
 test('src 的 ESM 相对导入必须带 ?v=（漏带会绕开缓存刷新）', () => {
   const offenders = [];
   for (const file of files) {
