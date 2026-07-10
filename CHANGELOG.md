@@ -120,3 +120,19 @@ Keep entries concise. Use this file for what changed, not for long design discus
 ### Notes
 
 - `plan`'s data structure, today's-recommendation logic, weekly-menu business logic, Xiaohongshu import, receipt recognition, backup logic, and `server.js` were not changed — only the migration functions and their tests.
+
+---
+
+## 2026-07-09 (6)
+
+### Fixed
+
+- `validateKitchenBackup()` (`src/backup.js`) used to only check top-level key names and JSON-serializability, not each key's internal shape. A syntactically valid backup with e.g. `overlay.recipe_ingredients.r1 = {}` (an object instead of an array) could pass validation and then crash `applyOverlay()` at `list.slice()`, breaking app startup after import.
+- Added per-key structural validators/normalizers for `inventory`, `plan`, `shopping_items`, `settings`, and `overlay`: container-level shape errors (not an array/object, wrong nested shapes like `overlay.recipes.<id>` not being an object or `overlay.recipe_ingredients.<id>` not being an array) now throw and reject the whole backup with zero writes; item-level issues (missing identifying field, non-scalar `qty`/`unit`/`shelf`/`kind`/`storage` pollution, missing/invalid `id`) are sanitized per-item without failing the rest of the array. Oversized arrays (>5000 items) are rejected outright.
+- Applied the same normalizers to the legacy (pre-`app`-field) backup import path (`keysFromLegacyData`) so old-format backup files get the same protection.
+- `importKitchenBackup()` already validated fully before writing and rolled back on partial write failure — this change makes that "validate everything, write only after full success" guarantee also cover internal key structure, not just top-level shape.
+- Added 10 tests in `test/backup.test.mjs` covering the `overlay.recipe_ingredients` crash reproduction, zero-write-on-rejection, non-array `inventory`/`plan`/`shopping_items`, invalid `settings` type, non-object `overlay.recipes` entries, oversized-array rejection, a still-importable valid backup, and a post-import `applyOverlay()` smoke test.
+
+### Notes
+
+- Xiaohongshu import, receipt recognition, AI recommendation logic, weekly-menu logic, the `plan` data structure, `server.js`, and migration logic (`src/migrations.js`) were not changed.

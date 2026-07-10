@@ -1,14 +1,16 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { installLocalStorageStub, resetLocalStorage } from './helpers/localstorage-stub.mjs';
+import { installLocalStorageStub, resetLocalStorage, dump } from './helpers/localstorage-stub.mjs';
 import { S } from '../src/storage.js';
 import { DATA_SCHEMA_VERSION } from '../src/migrations.js';
 import {
   BACKUP_APP_ID,
+  applyOverlay,
   exportKitchenBackup,
   getKitchenBackupKeyEntries,
   importKitchenBackup,
+  loadOverlay,
   markBackupNudgeDismissed,
   markKitchenBackupExported,
   shouldShowBackupNudge,
@@ -239,4 +241,119 @@ test('importKitchenBackup 写入中途失败会回滚，不留下半导入数据
 
   assert.deepEqual(S.load(S.keys.inventory, []), [{ name: '旧土豆', qty: 1 }]);
   assert.deepEqual(S.load(S.keys.plan, []), []);
+});
+
+// ── 备份内部结构校验：合法 JSON 但形状不对必须拒绝，零写入 ─────────────────────
+
+test('validateKitchenBackup 拒绝 overlay.recipe_ingredients.r1 不是数组（背景描述的崩溃根因）', () => {
+  assert.throws(
+    () => validateKitchenBackup(validBackup({
+      [S.keys.overlay]: { recipes: {}, recipe_ingredients: { r1: {} }, deletes: {} }
+    })),
+    /recipe_ingredients/
+  );
+});
+
+test('importKitchenBackup 拒绝后 localStorage 原数据不变', () => {
+  S.save(S.keys.overlay, { version: 1, recipes: { old: { name: '旧菜' } }, recipe_ingredients: { old: [{ item: '盐' }] }, deletes: {} });
+  S.save(S.keys.inventory, [{ name: '旧土豆', qty: 1 }]);
+  const before = dump();
+
+  assert.throws(() => importKitchenBackup(validBackup({
+    [S.keys.inventory]: [{ name: '新番茄', qty: 3 }],
+    [S.keys.overlay]: { recipes: {}, recipe_ingredients: { r1: {} }, deletes: {} }
+  })));
+
+  assert.deepEqual(S.load(S.keys.inventory, []), [{ name: '旧土豆', qty: 1 }]);
+  assert.deepEqual(S.load(S.keys.overlay, {}), {
+    version: 1, recipes: { old: { name: '旧菜' } }, recipe_ingredients: { old: [{ item: '盐' }] }, deletes: {}
+  });
+  assert.deepEqual(dump(), before); // 整个 localStorage 一个字节都没变
+});
+
+test('validateKitchenBackup 拒绝 inventory 不是数组', () => {
+  assert.throws(
+    () => validateKitchenBackup(validBackup({ [S.keys.inventory]: { r1: {} } })),
+    /inventory/
+  );
+});
+
+test('validateKitchenBackup 拒绝 plan 不是数组', () => {
+  assert.throws(
+    () => validateKitchenBackup(validBackup({ [S.keys.plan]: { r1: {} } })),
+    /plan/
+  );
+});
+
+test('validateKitchenBackup 拒绝 shopping_items 不是数组', () => {
+  assert.throws(
+    () => validateKitchenBackup(validBackup({ [S.keys.shopping_items]: { r1: {} } })),
+    /shopping_items/
+  );
+});
+
+test('validateKitchenBackup 拒绝 settings 是数组或非法类型', () => {
+  assert.throws(
+    () => validateKitchenBackup(validBackup({ [S.keys.settings]: ['not', 'an', 'object'] })),
+    /settings/
+  );
+  assert.throws(
+    () => validateKitchenBackup(validBackup({ [S.keys.settings]: 'nope' })),
+    /settings/
+  );
+});
+
+test('validateKitchenBackup 拒绝 overlay.recipes.r1 不是对象', () => {
+  assert.throws(
+    () => validateKitchenBackup(validBackup({
+      [S.keys.overlay]: { recipes: { r1: 'not-an-object' }, recipe_ingredients: {}, deletes: {} }
+    })),
+    /overlay\.recipes/
+  );
+});
+
+test('validateKitchenBackup 超大数组拒绝导入，避免卡死', () => {
+  const hugeInventory = Array.from({ length: 6000 }, (_, i) => ({ name: `食材${i}`, qty: 1 }));
+  assert.throws(
+    () => validateKitchenBackup(validBackup({ [S.keys.inventory]: hugeInventory })),
+    /数据量异常/
+  );
+});
+
+test('validateKitchenBackup 合法备份仍可导入', () => {
+  const backup = validBackup({
+    [S.keys.inventory]: [{ name: '苹果', qty: 2, unit: '个' }],
+    [S.keys.plan]: [{ id: 'r1', servings: 2, date: '2026-07-09', isCooked: true, cookedAt: '2026-07-09T18:00:00.000Z' }],
+    [S.keys.shopping_items]: [{ name: '土豆', qty: 1, unit: '个' }],
+    [S.keys.settings]: { theme: 'dark' },
+    [S.keys.overlay]: { recipes: { r1: { name: '自定义菜' } }, recipe_ingredients: { r1: [{ item: '盐' }] }, deletes: {} }
+  });
+
+  const out = validateKitchenBackup(backup);
+  assert.equal(out.keys[S.keys.inventory][0].name, '苹果');
+  assert.equal(out.keys[S.keys.plan][0].isCooked, true);
+  assert.equal(out.keys[S.keys.shopping_items][0].name, '土豆');
+  assert.equal(out.keys[S.keys.settings].theme, 'dark');
+  assert.deepEqual(out.keys[S.keys.overlay].recipe_ingredients.r1, [{ item: '盐' }]);
+
+  assert.doesNotThrow(() => importKitchenBackup(backup));
+  assert.equal(S.load(S.keys.inventory, [])[0].name, '苹果');
+});
+
+test('导入后 build pack / applyOverlay 不报错（含合法 overlay.recipe_ingredients 数组）', () => {
+  importKitchenBackup(validBackup({
+    [S.keys.overlay]: {
+      recipes: { r1: { name: '自定义菜', tags: [] } },
+      recipe_ingredients: { r1: [{ item: '盐', qty: '', unit: '' }] },
+      deletes: {}
+    }
+  }));
+
+  const overlay = loadOverlay();
+  const base = { recipes: [], recipe_ingredients: {} };
+  assert.doesNotThrow(() => {
+    const pack = applyOverlay(base, overlay);
+    assert.equal(pack.recipes.find(r => r.id === 'r1')?.name, '自定义菜');
+    assert.deepEqual(pack.recipe_ingredients.r1, [{ item: '盐', qty: '', unit: '' }]);
+  });
 });

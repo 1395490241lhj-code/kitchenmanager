@@ -5,6 +5,7 @@ import {
   normalizeBackupForRestore,
   setStoredSchemaVersion
 } from './migrations.js?v=235';
+import { genId } from './shopping.js?v=235';
 
 export const BACKUP_APP_ID = 'kitchenmanager';
 export const BACKUP_FORMAT_VERSION = 1;
@@ -53,6 +54,142 @@ const clone = value => JSON.parse(JSON.stringify(value ?? null));
 
 const isPlainObject = value =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+
+// ── 备份导入结构校验 ─────────────────────────────────────────────────────────
+// validateKitchenBackup 原来只检查顶层 key 名和 JSON 可序列化性，没验证每个 key 的
+// 内部结构——合法 JSON 但形状不对（例如 overlay.recipe_ingredients.r1 是 {} 而不是
+// 数组）能通过校验，之后 applyOverlay 里 list.slice 崩溃，导致应用启动失败。
+// 这里给 inventory / plan / shopping_items / settings / overlay 各建一个运行时
+// 校验 + 归一函数：容器形状错了直接抛错拒绝整份备份（零写入）；数组内的单项错误
+// 只做安全归一/丢弃单项，不影响可用的部分。
+
+const BACKUP_MAX_ARRAY_LENGTH = 5000; // 单个 key 允许的最大数组长度，避免超大数组卡死
+
+const isSafeScalar = value =>
+  value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+
+function safeStringOr(value, fallback = '') {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+}
+
+// 深拷贝并剥离函数 / undefined / Symbol 等无法安全序列化的内容；真正的循环引用等
+// 无法安全表示的结构直接抛错，交给调用方拒绝整份备份。
+function safeCloneJson(value) {
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    throw new Error('备份内容包含无法安全读取的数据');
+  }
+}
+
+function normalizeBackupInventory(value) {
+  if (!Array.isArray(value)) throw new Error('备份里的 inventory 格式不对（不是数组）');
+  if (value.length > BACKUP_MAX_ARRAY_LENGTH) throw new Error('备份里的 inventory 数据量异常，已拒绝导入');
+  const items = [];
+  for (const raw of value) {
+    if (!isPlainObject(raw)) continue; // 至少是对象，否则跳过这一项
+    const name = safeStringOr(raw.name ?? raw.item, '').trim();
+    if (!name) continue; // name/item 归一不出字符串就丢弃这一项
+    const clean = safeCloneJson(raw);
+    const overrides = { name };
+    // qty/unit/shelf/kind/storage 只做安全归一：不是函数/嵌套对象等"奇怪值"就原样保留，
+    // 否则替换成安全默认值，不允许它们污染进 localStorage。
+    if ('qty' in raw) overrides.qty = isSafeScalar(raw.qty) ? raw.qty : '';
+    if ('unit' in raw) overrides.unit = safeStringOr(raw.unit, '');
+    if ('shelf' in raw) overrides.shelf = isSafeScalar(raw.shelf) ? raw.shelf : '';
+    if ('kind' in raw) overrides.kind = safeStringOr(raw.kind, '');
+    if ('storage' in raw) overrides.storage = safeStringOr(raw.storage, '');
+    items.push({ ...clean, ...overrides });
+  }
+  return items;
+}
+
+function normalizeBackupPlan(value) {
+  if (!Array.isArray(value)) throw new Error('备份里的 plan 格式不对（不是数组）');
+  if (value.length > BACKUP_MAX_ARRAY_LENGTH) throw new Error('备份里的 plan 数据量异常，已拒绝导入');
+  const items = [];
+  for (const raw of value) {
+    if (!isPlainObject(raw)) continue; // 每项必须是对象，否则跳过
+    const id = safeStringOr(raw.id, '').trim();
+    const name = safeStringOr(raw.name, '').trim();
+    if (!id && !name) continue; // id 或 name 至少一个存在，否则这一项没法定位对应的菜
+    const clean = safeCloneJson(raw);
+    const overrides = {};
+    if (id) overrides.id = id;
+    if (name) overrides.name = name;
+    // servings/date/isCooked/cookedAt 保留但归一：只在原本存在时才归一类型，不凭空造字段。
+    if ('servings' in raw) overrides.servings = isSafeScalar(raw.servings) ? raw.servings : 1;
+    if ('date' in raw) overrides.date = typeof raw.date === 'string' ? raw.date : '';
+    if ('isCooked' in raw) overrides.isCooked = !!raw.isCooked;
+    if ('cookedAt' in raw) overrides.cookedAt = safeStringOr(raw.cookedAt, null);
+    items.push({ ...clean, ...overrides });
+  }
+  return items;
+}
+
+function normalizeBackupShoppingItems(value) {
+  if (!Array.isArray(value)) throw new Error('备份里的 shopping_items 格式不对（不是数组）');
+  if (value.length > BACKUP_MAX_ARRAY_LENGTH) throw new Error('备份里的 shopping_items 数据量异常，已拒绝导入');
+  const items = [];
+  for (const raw of value) {
+    if (!isPlainObject(raw)) continue; // 每项必须是对象，否则跳过
+    const name = safeStringOr(raw.name, '').trim();
+    if (!name) continue; // name 必须存在
+    const clean = safeCloneJson(raw);
+    // id 缺失可以补；类型不对（不是字符串）也当缺失处理，重新生成一个稳定 id。
+    const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : genId();
+    items.push({ ...clean, name, id });
+  }
+  return items;
+}
+
+function normalizeBackupSettings(value) {
+  if (value === undefined || value === null) return {};
+  if (!isPlainObject(value)) throw new Error('备份里的 settings 格式不对（不是普通对象）');
+  // 只允许可序列化的 primitive / plain object / array：JSON 往返会自动剥离函数、
+  // undefined、Symbol 等；真正无法安全表示的内容（如循环引用）会在这里被拒绝。
+  return safeCloneJson(value);
+}
+
+function normalizeBackupOverlay(value) {
+  if (value === undefined || value === null) return emptyOverlay();
+  if (!isPlainObject(value)) throw new Error('备份里的 overlay 格式不对（不是普通对象）');
+
+  if (value.recipes !== undefined && !isPlainObject(value.recipes)) {
+    throw new Error('备份里的 overlay.recipes 格式不对（不是对象）');
+  }
+  const recipes = {};
+  for (const [id, record] of Object.entries(value.recipes || {})) {
+    if (!isPlainObject(record)) throw new Error(`备份里的 overlay.recipes.${id} 格式不对（不是对象）`);
+    recipes[id] = safeCloneJson(record);
+  }
+
+  if (value.recipe_ingredients !== undefined && !isPlainObject(value.recipe_ingredients)) {
+    throw new Error('备份里的 overlay.recipe_ingredients 格式不对（不是对象）');
+  }
+  const recipe_ingredients = {};
+  for (const [id, list] of Object.entries(value.recipe_ingredients || {})) {
+    // 这里就是背景描述的崩溃根因：value 必须是数组，否则后续 applyOverlay 里
+    // list.slice() 会直接抛异常，导致应用启动失败——所以在导入这一步就拒绝。
+    if (!Array.isArray(list)) throw new Error(`备份里的 overlay.recipe_ingredients.${id} 格式不对（不是数组）`);
+    if (list.length > BACKUP_MAX_ARRAY_LENGTH) throw new Error('备份里的 overlay.recipe_ingredients 数据量异常，已拒绝导入');
+    recipe_ingredients[id] = safeCloneJson(list);
+  }
+
+  if (value.deletes !== undefined && !isPlainObject(value.deletes)) {
+    throw new Error('备份里的 overlay.deletes 格式不对（不是对象）');
+  }
+  const deletes = safeCloneJson(value.deletes || {});
+
+  return {
+    version: isSafeScalar(value.version) ? value.version : 1,
+    recipes,
+    recipe_ingredients,
+    deletes
+  };
+}
 
 function readTimestamp(key) {
   try {
@@ -215,17 +352,19 @@ function keysFromLegacyData(data = {}) {
   const setIfPresent = (name, value) => {
     if (value !== undefined && S.keys[name]) keys[S.keys[name]] = value;
   };
-  setIfPresent('inventory', Array.isArray(data.inventory) ? data.inventory : []);
-  setIfPresent('plan', Array.isArray(data.plan) ? data.plan : []);
-  setIfPresent('shopping_items', Array.isArray(data.shopping_items) ? data.shopping_items : []);
+  // 旧版备份的容器形状本来就宽松兼容（不是数组就当空数组），这里保留这个宽容度；
+  // 但数组内部单项 / overlay 的结构校验统一复用新的归一函数，堵住同一个崩溃根因。
+  setIfPresent('inventory', normalizeBackupInventory(Array.isArray(data.inventory) ? data.inventory : []));
+  setIfPresent('plan', normalizeBackupPlan(Array.isArray(data.plan) ? data.plan : []));
+  setIfPresent('shopping_items', normalizeBackupShoppingItems(Array.isArray(data.shopping_items) ? data.shopping_items : []));
   setIfPresent('favorite_recipes', Array.isArray(data.favorite_recipes) ? data.favorite_recipes : []);
   setIfPresent('recipe_usage', isPlainObject(data.recipe_usage) ? data.recipe_usage : {});
   setIfPresent('recipe_activity', isPlainObject(data.recipe_activity) ? data.recipe_activity : {});
-  setIfPresent('settings', scrubSettingsForBackup(data.settings));
+  setIfPresent('settings', scrubSettingsForBackup(normalizeBackupSettings(data.settings)));
   setIfPresent('staples', isPlainObject(data.staples) ? data.staples : {});
   setIfPresent('pantry_config', isPlainObject(data.pantry_config) ? data.pantry_config : {});
   setIfPresent('prep_done', isPlainObject(data.prep_done) ? data.prep_done : {});
-  setIfPresent('overlay', isPlainObject(data.overlay) ? data.overlay : emptyOverlay());
+  setIfPresent('overlay', normalizeBackupOverlay(data.overlay));
   setIfPresent('local_recs', data.local_recs ?? null);
   setIfPresent('ai_recs', data.ai_recs ?? null);
   setIfPresent('rec_time', data.rec_time ?? 0);
@@ -276,9 +415,22 @@ export function validateKitchenBackup(input) {
   }
 
   const allowedKeys = new Set(getKitchenBackupKeyEntries().map(([, key]) => key));
+  // 有专门结构校验/归一函数的 key：容器/内部形状错了直接抛错，拒绝整份备份（零写入）。
+  const keyNormalizers = {
+    [S.keys.inventory]: normalizeBackupInventory,
+    [S.keys.plan]: normalizeBackupPlan,
+    [S.keys.shopping_items]: normalizeBackupShoppingItems,
+    [S.keys.settings]: normalizeBackupSettings,
+    [S.keys.overlay]: normalizeBackupOverlay
+  };
   const keys = {};
   for (const [key, value] of Object.entries(payload.keys)) {
     if (!allowedKeys.has(key)) continue;
+    const normalize = keyNormalizers[key];
+    if (normalize) {
+      keys[key] = normalize(value); // 内部已按需抛错，异常直接向上传播、不写入任何内容
+      continue;
+    }
     let serialized;
     try {
       serialized = JSON.stringify(value);
