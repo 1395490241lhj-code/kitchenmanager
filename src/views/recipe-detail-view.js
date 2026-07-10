@@ -1,4 +1,4 @@
-import { S, todayISO } from '../storage.js?v=235';
+import { S, todayISO, addDaysISO } from '../storage.js?v=235';
 import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=235';
 import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=235';
 import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=235';
@@ -74,13 +74,8 @@ export function renderRecipeDetail(id, pack, { onRoute } = {}) {
   const missingIngredients = getMissingRecipeIngredients(r, pack, inv, items);
   const plan = S.load(S.keys.plan, []);
   const today = todayISO();
-  const baseDate = new Date(today);
-  const tomorrow = new Date(baseDate);
-  tomorrow.setDate(baseDate.getDate() + 1);
-  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
-  const dayAfter = new Date(baseDate);
-  dayAfter.setDate(baseDate.getDate() + 2);
-  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
+  const tomorrowISO = addDaysISO(today, 1);
+  const dayAfterISO = addDaysISO(today, 2);
 
   const isPlannedToday = plan.some(item => item.id === id && isPlanRowOnDate(item, today, today));
   const isPlannedTomorrow = plan.some(item => item.id === id && item.date === tomorrowISO);

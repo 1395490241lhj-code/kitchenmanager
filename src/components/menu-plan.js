@@ -5,7 +5,7 @@
  * 管理今日 / 未来 3 天的计划菜谱（份数调整、移除）。
  * currentPlanRange 由本模块持有，并通过 getPlanRange() 暴露给购物页的「菜谱缺货」计算复用。
  */
-import { S, todayISO } from '../storage.js?v=235';
+import { S, todayISO, addDaysISO } from '../storage.js?v=235';
 import { explodeCombinedItems, guessKitchenUnit, getCanonicalName } from '../ingredients.js?v=235';
 import { classifyRecipeIngredient } from '../utils/recipe-sanitizer.js?v=235';
 import { analyzeRecipeInventory, markRecipeCookedKeepPlan } from '../recommendations.js?v=235';
@@ -262,11 +262,8 @@ export function renderMenuPlan(pack, { onRoute = () => {}, hideHeader = false, i
   }
 
   const today = todayISO();
-  const baseDate = new Date(today);
-  const tomorrow = new Date(baseDate); tomorrow.setDate(baseDate.getDate() + 1);
-  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
-  const dayAfter = new Date(baseDate); dayAfter.setDate(baseDate.getDate() + 2);
-  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
+  const tomorrowISO = addDaysISO(today, 1);
+  const dayAfterISO = addDaysISO(today, 2);
 
   const getDayLabel = (dateStr) => {
     const d = dateStr || today;

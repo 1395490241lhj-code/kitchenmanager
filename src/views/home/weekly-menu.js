@@ -3,7 +3,7 @@
  * 入口 renderWeeklyMenuCard；做几顿/几人/补充要求 → AI 规划（本地建议兜底）→ 结果展示 →
  * 加入计划 / 补齐待买 / AI 新建议保存为菜谱。第一版不按 daySuggestion 写 date，不改 plan 结构。
  */
-import { S, todayISO } from '../../storage.js?v=235';
+import { S, todayISO, addDaysISO } from '../../storage.js?v=235';
 import { getCanonicalName, guessKitchenUnit } from '../../ingredients.js?v=235';
 import { isInventoryAvailable, remainingDays } from '../../inventory.js?v=235';
 import { addShoppingItem, loadShoppingItems } from '../../shopping.js?v=235';
@@ -543,12 +543,6 @@ export function renderWeeklyMenuCard(pack, inv, { onRoute = () => {} } = {}) {
 // ── 弹窗内容构建 ─────────────────────────────────────────────────────────────
 
 /** 「临期食材」弹窗：列出快到期 / 已过期食材，并提供做菜、标记用完入口。 */
-
-function addDaysISO(baseIso, offset = 0) {
-  const base = new Date(baseIso);
-  base.setDate(base.getDate() + offset);
-  return base.toISOString().slice(0, 10);
-}
 
 function getWeeklyPlanItems(pack, { days = 7 } = {}) {
   const today = todayISO();

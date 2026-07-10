@@ -1,4 +1,4 @@
-import { S, todayISO } from './storage.js?v=235';
+import { S, todayISO, addDaysISO } from './storage.js?v=235';
 import {
   INGREDIENT_ALIASES,
   explodeCombinedItems,
@@ -706,13 +706,8 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
   const hasMethod = hasRecipeMethod(recipe);
   const isFavorite = favoriteIds.has(recipe.id);
 
-  const baseDate = new Date(today);
-  const tomorrow = new Date(baseDate);
-  tomorrow.setDate(baseDate.getDate() + 1);
-  const tomorrowISO = tomorrow.toISOString().slice(0, 10);
-  const dayAfter = new Date(baseDate);
-  dayAfter.setDate(baseDate.getDate() + 2);
-  const dayAfterISO = dayAfter.toISOString().slice(0, 10);
+  const tomorrowISO = addDaysISO(today, 1);
+  const dayAfterISO = addDaysISO(today, 2);
 
   const isPlannedToday = (context.plan || []).some(item => item && item.id === recipe.id && isPlanRowOnDate(item, today, today));
   const isPlannedFuture = (context.plan || []).some(item => item && item.id === recipe.id
