@@ -578,6 +578,36 @@ git log --oneline -5
 
 用户本机也运行同样命令。比较路径和 commit。如果路径不同，不要盲目提交。
 
+### 12.9 Render Trust Proxy / Rate Limit IP 识别
+
+背景：Render Web Service 的公网入口是 Render 自己的边缘代理，Node 进程收到的
+`req.socket.remoteAddress` 永远是 Render 代理的地址，不是终端用户的真实 IP。
+如果不显式配置 Express 的 `trust proxy`，后端 `getClientIp()`（见
+`src/server/services/rate-limit.js`）解析出的 `req.ip` 在生产环境上对所有用户
+都是同一个值，AI / 导入的按 IP 限流会退化成事实上的全局限流。
+
+配置方式：Render Dashboard → Environment，添加：
+
+```text
+TRUST_PROXY_HOPS=1
+```
+
+- 标准 Render Web Service、**没有**额外 CDN（Cloudflare 等）挡在 Render 前面时，
+  设为 `1`（只信任 Render 自己这一层代理）。
+- 环境变量解析集中在 `src/server/config.js` 的 `parseTrustProxyHops()`：只接受
+  正整数字符串，未设置 / 空字符串 / `'0'` 都归一为 `0`（不信任任何代理，是本地
+  开发的默认值）；`'true'`、负数、小数（如 `'2.5'`）、任意非纯数字字符串一律视
+  为非法输入，安全回退为 `0`，并在启动日志打印一次 warning（不含用户 IP）。
+- **绝不能设置为 `true`**：那等价于信任整条转发链，客户端可以在自己的请求里随
+  意伪造 `X-Forwarded-For` 的最左侧字段，把限流按 IP 隔离的效果完全绕开。
+- 如果以后在 Render 前面又加了 Cloudflare 之类的 CDN/反代，**不要直接把
+  `TRUST_PROXY_HOPS` 猜成 `2`**——必须先实测确认真实的代理跳数（例如临时打印一
+  次请求的 `X-Forwarded-For` 段数，或查 Cloudflare/该 CDN 的官方接入文档），再
+  调整这个环境变量，不然要么信任不够（限流仍然共享桶），要么信任过头（限流被
+  绕过）。
+- 改完 `TRUST_PROXY_HOPS` 后需要重新部署后端才会生效（跟改 AI 相关环境变量一
+  样）。
+
 ## 13. Multi-device Data Sync Rules
 
 - 当前项目是 local-first PWA，不提供账号系统或自动云同步。

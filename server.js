@@ -38,6 +38,8 @@ const {
   AI_RATE_LIMIT_MAX,
   IMPORT_RATE_LIMIT_MAX,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
+  TRUST_PROXY_HOPS,
+  TRUST_PROXY_HOPS_INVALID_RAW,
   MEDIA_TMP_DIR,
   MEDIA_MAX_VIDEO_BYTES,
   MEDIA_DOWNLOAD_TIMEOUT_MS,
@@ -112,6 +114,22 @@ const {
 } = require('./src/server/utils/text');
 
 const app = express();
+
+// ── Trust proxy hops：只信任具体跳数，绝不用 true ───────────────────────────
+// Render Web Service 的公网入口是 Render 自己的边缘代理，不配置这个的话 req.ip
+// 在生产环境上等于代理地址，所有用户会共享同一个 rate-limit 桶（见 config.js 顶部
+// TRUST_PROXY_HOPS 的注释）。TRUST_PROXY_HOPS_INVALID_RAW 非空说明环境变量给了
+// 非法值（如 'true'/负数/小数），已在 config.js 里安全回退成 0，这里只负责打印
+// 一次性 warning，不包含任何用户数据。
+if (TRUST_PROXY_HOPS_INVALID_RAW !== null) {
+  console.warn(`[server] TRUST_PROXY_HOPS 值不合法（收到 "${TRUST_PROXY_HOPS_INVALID_RAW}"），已回退为 0（不信任代理）。只接受正整数，例如 TRUST_PROXY_HOPS=1。`);
+}
+if (Number.isInteger(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
+  app.set('trust proxy', TRUST_PROXY_HOPS);
+  console.log(`[server] trust proxy hops: ${TRUST_PROXY_HOPS}`);
+} else {
+  console.log('[server] trust proxy disabled');
+}
 
 // 解析 JSON 请求体（截图 base64 较大，放宽上限）。
 app.use(express.json({ limit: '12mb' }));

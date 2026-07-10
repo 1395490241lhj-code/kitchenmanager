@@ -228,3 +228,24 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - Added `test/workflow-config.test.mjs` (8 tests): a dependency-free block-indentation/no-tab sanity check on the workflow YAML, plus source assertions for the triggers, the Node matrix, the exact `test`-job step order, the `build`/`deploy` gating and `needs` chain, and that no `run:` command is duplicated within the `test` job (matrix-driven repetition across Node versions is expected and out of scope for that check).
 - `package.json`/`package-lock.json` were not touched — all required commands were either already-existing npm scripts (`test`, `validate:recipe-packs`, `validate:recipe-pack-data`) or plain `npm` CLI invocations (`npm ci`, `npm audit`), so no new scripts were necessary.
 - No business code was touched; this was a CI-configuration-only change.
+
+---
+
+## 2026-07-10
+
+### Added
+
+- `src/server/config.js`: `parseTrustProxyHops()` + `TRUST_PROXY_HOPS`/`TRUST_PROXY_HOPS_INVALID_RAW`, parsing the `TRUST_PROXY_HOPS` env var. Only positive-integer strings (`'1'`, `'2'`, ...) are accepted; unset/empty/`'0'` normalize to `0` (the local-dev default, not an error); `'true'`, negative numbers, decimals (`'2.5'`), and any other non-digit string are treated as invalid and safely fall back to `0`.
+- `server.js`: right after `const app = express()`, reads those two values and calls `app.set('trust proxy', TRUST_PROXY_HOPS)` only when it's a positive integer; otherwise trust proxy stays off. Logs a one-line status (`[server] trust proxy hops: 1` or `[server] trust proxy disabled`) and, when the env var was invalid, a one-line warning naming the bad raw value — never a user IP or the `X-Forwarded-For` header contents.
+
+### Fixed
+
+Render Web Service's public entry point is Render's own edge proxy — the Node process's `req.socket.remoteAddress` is always that proxy, never the end user. Without `trust proxy` configured, `getClientIp()` (`req.ip || req.socket.remoteAddress`) resolved to the same proxy address for every visitor in production, so the AI/import rate limiters were bucketing effectively all users together instead of per-visitor. `TRUST_PROXY_HOPS=1` on Render now makes Express resolve `req.ip` to the real client address forwarded by that one trusted hop, while still ignoring any additional `X-Forwarded-For` entries a client prepends on their own.
+
+`src/server/services/rate-limit.js`'s `getClientIp()` was intentionally left unchanged (`req.ip || req.socket?.remoteAddress || 'unknown'`) — it already delegates entirely to Express's own trust-proxy-aware IP resolution and never reads `X-Forwarded-For` by hand.
+
+### Notes
+
+- Added `test/trust-proxy.test.mjs` (17 tests), including real integration tests that start an actual `express()` app on an ephemeral port and hit it with Node's built-in `http` client: `TRUST_PROXY_HOPS` string-parsing edge cases (`'true'`/`'2.5'`/`'-1'`/`'1'`/whitespace); `req.ip` resolution under `trust proxy = 1` with no `X-Forwarded-For`, a single forwarded IP, and a client-forged prefix (`"1.2.3.4, 203.0.113.10"` must resolve to `203.0.113.10`, never `1.2.3.4`); `req.ip` staying pinned to the socket address when trust proxy is `0`; real rate-limit bucket assignment showing the same trusted client landing in one bucket regardless of forged prefixes, and different clients landing in different buckets; and source guards against `app.set('trust proxy', true)`, hand-rolled `X-Forwarded-For` reads, and env-var parsing scattered outside `config.js`.
+- Documented `TRUST_PROXY_HOPS=1` in `PROJECT_WORKFLOW.md` (new §12.9), including the explicit warning not to guess `2` if a CDN is ever added in front of Render without first verifying the real hop count, and that `true` must never be used.
+- Rate-limit thresholds, media pipeline, AI prompts, the Xiaohongshu import flow, the frontend, and the `plan` data structure were not touched — this was a trust-proxy-configuration-only change plus its tests and docs.
