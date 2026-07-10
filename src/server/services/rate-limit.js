@@ -25,9 +25,14 @@ function sweepAiRateLimitBuckets(now) {
   }
 }
 
+// 限流 key 只能用连接层已验证的地址，不能直接信任客户端可伪造的 X-Forwarded-For——
+// 非浏览器客户端可以给每个请求带不同的 X-Forwarded-For 绕开限流。
+// req.ip 由 Express 根据 `trust proxy` 配置解析：项目当前没有配置 trust proxy，
+// 所以 req.ip 就等于连接的真实 remoteAddress，不会读取未验证的请求头。
+// 之后如果要在受信任的反向代理后面部署，应显式配置 app.set('trust proxy', ...)，
+// 而不是在这里手工解析 header。
 function getClientIp(req) {
-  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
 function isBucketRateLimited(req, buckets, max) {

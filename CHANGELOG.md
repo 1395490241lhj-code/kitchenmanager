@@ -151,3 +151,18 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 - `sw.v18.js`'s `activate` handler was not changed — it already owned cache cleanup correctly.
 - No business code, AI, Xiaohongshu import, receipt recognition, weekly-menu, or `plan` data structure logic was touched.
+
+---
+
+## 2026-07-09 (8)
+
+### Fixed
+
+- `getClientIp()` (`src/server/services/rate-limit.js`) used to trust the client-supplied `X-Forwarded-For` header first, before falling back to `req.ip`/`req.socket.remoteAddress`. Since the app has no `trust proxy` configuration, a non-browser client could send a different `X-Forwarded-For` value on every request and get a fresh rate-limit bucket every time, bypassing the AI/media/import rate limits entirely.
+- `getClientIp()` now only uses `req.ip || req.socket?.remoteAddress || 'unknown'` — no header parsing. `req.ip` is Express's own resolution of the connection address (governed by `trust proxy`, currently unset, so it equals the real socket address). If the app is ever deployed behind a trusted reverse proxy, that should be enabled via an explicit `app.set('trust proxy', ...)` call, not by hand-parsing headers in the rate limiter.
+- Added `test/rate-limit-client-ip.test.mjs` (6 tests): `getClientIp` ignores `X-Forwarded-For` and falls back correctly when `req.ip` is absent; two requests with the same `remoteAddress` but different `X-Forwarded-For` land in the same rate-limit bucket; different `remoteAddress` values land in different buckets.
+- Updated a stale `ai-provider-mode.test.mjs` assertion that had locked in the old header-trusting behavior.
+
+### Notes
+
+- `server.js` was not touched (no large-scale refactor); only `src/server/services/rate-limit.js` and its tests changed. Concurrency pool / temp-directory quota work is explicitly out of scope for this change.

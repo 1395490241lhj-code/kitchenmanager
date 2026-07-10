@@ -1117,7 +1117,9 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   const rateLimit = read('src/server/services/rate-limit.js');
   assert.match(rateLimit, /sweepAiRateLimitBuckets\(now\)/);
   assert.match(rateLimit, /buckets\.delete\(ip\)/);
-  assert.match(rateLimit, /x-forwarded-for/);
+  // 限流 key 不能直接信任客户端可伪造的请求头；只能用连接层已验证的地址。
+  assert.doesNotMatch(rateLimit, /req\.headers\[['"]x-forwarded-for['"]\]/);
+  assert.match(rateLimit, /function getClientIp\(req\) \{\s*\n\s*return req\.ip \|\| req\.socket\?\.remoteAddress \|\| 'unknown';/);
   // 昂贵接口全部挂限流：普通 AI/抓取/媒体走共享桶，整链路导入走更严的独立桶。
   for (const route of ['xhs-extract', 'media/extract-audio', 'media/extract-frames', 'media/transcribe', 'ai-parse']) {
     const idx = server.indexOf(`'/api/${route}'`);
