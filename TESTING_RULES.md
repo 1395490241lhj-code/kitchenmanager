@@ -133,7 +133,7 @@ Use the relevant sections for the changed area.
 
 Check:
 
-- Page loads at `#inventory` or default route.
+- Default route redirects to `#today`, and `#today` loads the kitchen home page.
 - Today plan displays correctly.
 - Recommendation preview does not crash.
 - Empty/demo/real-data states are understandable.

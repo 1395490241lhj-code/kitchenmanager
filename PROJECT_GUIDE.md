@@ -78,15 +78,17 @@ Routes are hash-based and handled in `app.js`.
 
 Current route map:
 
-- `#inventory`: visible page "厨房"; this is the home dashboard. Keep this old hash for compatibility.
-- `#shopping`: visible page "库存管理"; contains three segmented panels:
-  - shopping items
-  - staples/pantry shelf
-  - full inventory
+- Empty hash: redirects to `#today`; it does not render a view directly.
+- `#today`: visible page "今日"; the kitchen home dashboard.
+- `#inventory`: visible page "食材"; the dedicated inventory page with fresh-food and pantry sections.
+- `#shopping`: visible page "买菜"; the shopping list and stock-in confirmation flow.
 - `#recipes`: visible page "菜谱"; search, filters, AI import, manual recipe creation.
 - `#settings`: visible page "设置"; theme, recipe library mode, AI settings, backups, cache clearing.
 - `#recipe:id`: recipe detail page.
 - `#recipe-edit:id`: recipe editor page.
+
+The bottom dock has five entries: `#today`, `#inventory`, `#shopping`, `#recipes`, and `#settings`.
+The current meanings are stable: `#today` is home, `#inventory` is food inventory, and `#shopping` is shopping. Do not exchange them without product confirmation. The current app does not add a redirect for former `#inventory` home bookmarks; do not introduce one as a documentation-only change.
 
 Important current files:
 
@@ -123,31 +125,26 @@ Do not implement this all at once. Use it as direction for small changes.
 
 Recommended navigation:
 
-- `#inventory` / "厨房": dashboard only.
+- `#today` / "今日": dashboard only.
   - Today plan
   - urgent/expiring items
   - can-cook-now
   - almost-can-cook
   - quick add / receipt / backup entry
 
-- `#shopping` / "采购":
+- `#inventory` / "食材":
+  - full inventory
+  - add/edit inventory
+  - receipt recognition
+  - low/out-of-stock maintenance
+  - pantry shelf and staple management
+
+- `#shopping` / "买菜":
   - active shopping list
   - grouped by source
   - bought items
   - stock-in confirmation
   - copy/share
-
-- `#stock` or existing `#shopping` segmented panel / "库存":
-  - full inventory
-  - add/edit inventory
-  - receipt recognition
-  - low/out-of-stock maintenance
-
-- `#pantry` or existing segmented panel / "常备":
-  - pantry shelf
-  - custom pantry management
-  - staple status
-  - dry goods, egg/milk, seasonings
 
 - `#recipes` / "菜谱":
   - search and filter
@@ -162,7 +159,7 @@ Recommended navigation:
   - backup/restore
   - cache reset
 
-Migration rule: if routes are renamed later, keep old hashes as aliases for at least one release cycle. Never break `#inventory`, `#shopping`, `#recipes`, `#settings`, `#recipe:id`, or `#recipe-edit:id` links.
+Future route changes require a product decision and an explicit compatibility plan. Do not exchange the current meanings of `#today`, `#inventory`, `#shopping`, `#recipes`, or `#settings` without that approval.
 
 ## 5. Current Data Structures And localStorage Keys
 
@@ -502,4 +499,3 @@ Final response to user:
 - Mention risks or limitations.
 - Provide browser verification steps.
 - If tests could not be run, say why.
-

@@ -145,8 +145,9 @@ function renderInventoryTab(pack, onRoute) {
 
 /*
 Current route map:
+- empty hash: redirects to #today.
 - #today: today dashboard, rendered by the existing home view.
-- #inventory: inventory tab. This preserves the old hash as a valid deep link.
+- #inventory: dedicated food inventory tab.
 - #shopping: shopping list.
 - #recipes: recipe list.
 - #settings: "Me" tab, currently rendered by the settings view.

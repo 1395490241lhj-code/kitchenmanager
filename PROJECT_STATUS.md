@@ -1,6 +1,6 @@
 # PROJECT_STATUS.md
 
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 This file tracks the current project state for humans and AI coding agents. Update it after meaningful progress.
 
@@ -35,6 +35,7 @@ Current observed structure:
 - Tests: `test/*`.
 - Docs already present: `README.md`, `PROJECT_GUIDE.md`, `PROJECT_GUIDE.zh.md`, `PROJECT_WORKFLOW.md`, `docs/*`.
 - CI/deployment: `.github/workflows/deploy.yml`.
+- Current stable routes: empty hash redirects to `#today`; `#today` is the kitchen home, `#inventory` is food inventory, `#shopping` is shopping, `#recipes` is the recipe library, and `#settings` is settings.
 
 Current package facts:
 
@@ -92,6 +93,7 @@ These areas need extra caution:
 
 - The project is intentionally no-framework and no-build.
 - Avoid gradually introducing framework-like patterns, duplicated domain logic, or Tailwind-style classes that do not work in this project.
+- Keep route documentation, comments, and tests aligned with the stable five-entry navigation; do not swap the meanings of `#today`, `#inventory`, and `#shopping` without product confirmation.
 
 ---
 

@@ -43,22 +43,24 @@
 
 | Hash | 视图函数（文件） | 说明 |
 | --- | --- | --- |
-| `#inventory`（默认/空） | `renderHome` (`views/home-view.js`) | 厨房首页：紧急指标 + 今日计划 + AI 灵感 + 极速操作 |
-| `#shopping` | `renderShopping` (`views/shopping-view.js`) | 「食材管理」三分段：购物项 / 常备货架 / 完整库存（内嵌 `renderInventory`） |
+| 空 hash | 重定向到 `#today` | 默认入口，不直接渲染页面 |
+| `#today` | `renderHome` (`views/home-view.js`) | 今天 / 厨房首页：今日计划、推荐、快速操作 |
+| `#inventory` | `renderInventoryTab` (`app.js` → `views/inventory-view.js`) | 独立食材库存页，包含新鲜食材与家里常备分段 |
+| `#shopping` | `renderShopping` (`views/shopping-view.js`) | 买菜清单：待买、已买和入库确认 |
 | `#recipes` | `renderRecipes` (`views/recipes-view.js`) | 菜谱列表 |
 | `#recipe:id` | `renderRecipeDetail` (`views/recipe-detail-view.js`) | 菜谱详情（食材/调料双清单 + 做法 + 计划/做完按钮） |
 | `#recipe-edit:id` | `renderRecipeEditor` (`views/recipe-editor-view.js`) | 菜谱编辑器（含 AI 草稿、导入） |
 | `#settings` | `renderSettings` (`views/settings-view.js`) | 设置：主题、AI Key、菜谱库模式、备份、重置 |
 
-**底部导航 Dock**（`index.html`）：厨房(`#inventory`) / 食材管理(`#shopping`) / 菜谱(`#recipes`) / 设置(`#settings`)。
+**底部导航 Dock**（`index.html`）：今日(`#today`) / 食材(`#inventory`) / 买菜(`#shopping`) / 菜谱(`#recipes`) / 我的(`#settings`)。
 
-> 历史包袱：首页 hash 是 `#inventory`（非 `#home`），而库存清单在 `#shopping` 的「完整库存」分段内（由 `renderInventory` 渲染）。**不要为了「语义更顺」去改这两个 hash**——会破坏现有书签/PWA 入口。
+> 当前稳定语义为 `#today` 首页、`#inventory` 食材、`#shopping` 买菜；未经产品确认，不要再次交换这些含义。当前实现没有为旧的「`#inventory` 首页」书签新增兼容跳转，后续也不要自行补加行为。
 
 ---
 
 ## 4. 推荐的未来页面结构（演进方向，不是立即重构）
 
-- **保留四个底部 Tab**（厨房 / 食材管理 / 菜谱 / 设置），这是 iOS 化的天然 TabBar。
+- **保留五个底部 Tab**（今日 / 食材 / 买菜 / 菜谱 / 我的），这是当前稳定的移动端导航结构。
 - 逐步把「今日计划」「即兴烹饪」「AI 灵感」收敛为首页内的稳定区块组件，便于将来抽成原生页面。
 - iOS 化时：用 Capacitor / WKWebView 包壳作过渡；**`localStorage` 不可作为长期持久层**（WKWebView 可能清空），需引入持久存储 + 用 `backup.js` 的导出结构作迁移桥。
 - 新页面/新区块一律走「`renderX(pack, { onRoute }) → DOM 节点`」模式，禁止引入第二套渲染范式（不要混入框架）。

@@ -249,3 +249,21 @@ Render Web Service's public entry point is Render's own edge proxy — the Node 
 - Added `test/trust-proxy.test.mjs` (17 tests), including real integration tests that start an actual `express()` app on an ephemeral port and hit it with Node's built-in `http` client: `TRUST_PROXY_HOPS` string-parsing edge cases (`'true'`/`'2.5'`/`'-1'`/`'1'`/whitespace); `req.ip` resolution under `trust proxy = 1` with no `X-Forwarded-For`, a single forwarded IP, and a client-forged prefix (`"1.2.3.4, 203.0.113.10"` must resolve to `203.0.113.10`, never `1.2.3.4`); `req.ip` staying pinned to the socket address when trust proxy is `0`; real rate-limit bucket assignment showing the same trusted client landing in one bucket regardless of forged prefixes, and different clients landing in different buckets; and source guards against `app.set('trust proxy', true)`, hand-rolled `X-Forwarded-For` reads, and env-var parsing scattered outside `config.js`.
 - Documented `TRUST_PROXY_HOPS=1` in `PROJECT_WORKFLOW.md` (new §12.9), including the explicit warning not to guess `2` if a CDN is ever added in front of Render without first verifying the real hop count, and that `true` must never be used.
 - Rate-limit thresholds, media pipeline, AI prompts, the Xiaohongshu import flow, the frontend, and the `plan` data structure were not touched — this was a trust-proxy-configuration-only change plus its tests and docs.
+
+---
+
+## 2026-07-10 (2)
+
+### Changed
+
+- Aligned the Chinese and English project guides, route comments, status document, and manual test checklist with the current navigation contract: empty hash redirects to `#today`; `#today` is the kitchen home; `#inventory` is food inventory; and `#shopping` is the shopping list.
+- Replaced outdated four-tab and "shopping contains full inventory" descriptions with the current five-entry dock: 今日 / 食材 / 买菜 / 菜谱 / 我的.
+
+### Added
+
+- Added a route-behavior test that executes the current `app.js` `onRoute()` body in a controlled harness and verifies empty-hash redirect, view selection, and dock active-state semantics.
+
+### Notes
+
+- No route branch, navigation link, page layout, AI/import flow, receipt recognition, `plan` data structure, or `server.js` behavior changed.
+- The app still does not add a redirect for former `#inventory` home bookmarks; this pass records the current product behavior and does not create compatibility behavior.
