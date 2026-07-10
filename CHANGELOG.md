@@ -106,3 +106,17 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - `src/migrations.js`'s internal `migTodayISO()` was intentionally left untouched — migrations are frozen snapshots of past behavior by design.
 - `src/utils/prep-planner.js`'s `nextDateISO()` and `src/inventory.js`'s `daysBetween()` were left untouched: both already compute correctly (pure-UTC arithmetic on date-only strings is self-consistent and DST-safe) and are not part of this bug family.
 - Xiaohongshu import, receipt recognition, AI recommendation logic, weekly-menu business logic, the `plan` data structure, `server.js`, backup logic, and migrations logic were not changed.
+
+---
+
+## 2026-07-09 (5)
+
+### Fixed
+
+- The v4 `plan` migration (`src/migrations.js`) used to rebuild each plan row as `{ id, servings, date }`, silently dropping `isCooked`, `cookedAt`, ad-hoc-cook `name`, and any other field. It now spreads the original item first (`{ ...item, id, servings, date }`) and only overrides the three fields it's meant to normalize.
+- Applied the same "spread, don't rebuild" fix to the v2 inventory (`migNormalizeInventoryItem`) and shopping (`migNormalizeShoppingItem`) migrations, which had the identical bug: inventory items would lose `gear`/`unitType`/`opened`/`outOfStockAt`, and shopping items would lose `completedAt`/`remark`, on any migration running from a pre-v2 schema version.
+- Updated a `migrations.test.mjs` assertion that had locked in the old (buggy) field-dropping behavior for plan rows; added dedicated tests for completed-plan-row preservation, ad-hoc-cook `name` preservation, unknown-field preservation, that id/servings/date normalization still works, and equivalent coverage for the inventory/shopping v2 fixes.
+
+### Notes
+
+- `plan`'s data structure, today's-recommendation logic, weekly-menu business logic, Xiaohongshu import, receipt recognition, backup logic, and `server.js` were not changed — only the migration functions and their tests.

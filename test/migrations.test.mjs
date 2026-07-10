@@ -62,12 +62,13 @@ test('runLocalStorageMigrations 从旧形态迁移到当前版本并写入 schem
   assert.equal(typeof shop[0].id, 'string');
   assert.ok(shop[0].id.length > 0);
 
-  // 计划项归一为 { id, servings, date }，servings 转数字、丢弃多余字段
+  // 计划项归一 id/servings/date（servings 转数字），但保留其余原有字段（如 extra）。
   const plan = S.load(S.keys.plan, []);
   assert.equal(plan.length, 1);
-  assert.deepEqual(Object.keys(plan[0]).sort(), ['date', 'id', 'servings']);
   assert.equal(plan[0].servings, 2);
   assert.equal(plan[0].id, 'r1');
+  assert.equal(plan[0].date, '2026-06-01');
+  assert.equal(plan[0].extra, 'x');
 
   // 无关 key 不被删除；已有数据保留
   assert.equal(globalThis.localStorage.getItem('zzz_unrelated'), 'keepme');
@@ -75,6 +76,126 @@ test('runLocalStorageMigrations 从旧形态迁移到当前版本并写入 schem
 
   // 迁移结果是合法 JSON（能被 S.load 解析成对象/数组）
   assert.ok(Array.isArray(shop) && Array.isArray(plan));
+});
+
+// ── v4 plan migration：保留原对象字段，只归一 id/servings/date ──
+test('v4 plan migration：已完成计划项保留 isCooked / cookedAt', () => {
+  S.save(S.keys.plan, [{
+    id: 'r1',
+    servings: 2,
+    date: '2026-07-09',
+    isCooked: true,
+    cookedAt: '2026-07-09T18:00:00.000Z'
+  }]);
+
+  runLocalStorageMigrations();
+
+  const plan = S.load(S.keys.plan, []);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].id, 'r1');
+  assert.equal(plan[0].servings, 2);
+  assert.equal(plan[0].date, '2026-07-09');
+  assert.equal(plan[0].isCooked, true);
+  assert.equal(plan[0].cookedAt, '2026-07-09T18:00:00.000Z');
+});
+
+test('v4 plan migration：即兴烹饪计划项保留 name', () => {
+  S.save(S.keys.plan, [{
+    id: 'adhoc-123',
+    name: '临时煎蛋',
+    servings: 1,
+    date: '2026-07-09'
+  }]);
+
+  runLocalStorageMigrations();
+
+  const plan = S.load(S.keys.plan, []);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].id, 'adhoc-123');
+  assert.equal(plan[0].name, '临时煎蛋');
+  assert.equal(plan[0].servings, 1);
+  assert.equal(plan[0].date, '2026-07-09');
+});
+
+test('v4 plan migration：未知扩展字段保留（source / note）', () => {
+  S.save(S.keys.plan, [{
+    id: 'r2',
+    servings: 1,
+    date: '2026-07-09',
+    source: 'weekly-menu',
+    note: 'test'
+  }]);
+
+  runLocalStorageMigrations();
+
+  const plan = S.load(S.keys.plan, []);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].source, 'weekly-menu');
+  assert.equal(plan[0].note, 'test');
+});
+
+test('v4 plan migration：id / servings / date 仍然被正常归一化', () => {
+  S.save(S.keys.plan, [
+    { id: 'r3', servings: '3', isCooked: false }, // servings 字符串需转数字；date 缺失需补今天
+    { id: 'r4', servings: 0, date: '2026-07-01' }, // servings 非正数需回退为 1
+    'not-an-object' // 非对象项应被丢弃
+  ]);
+
+  const res = runLocalStorageMigrations();
+  assert.equal(res.changed, true);
+
+  const plan = S.load(S.keys.plan, []);
+  assert.equal(plan.length, 2);
+  assert.equal(plan[0].servings, 3);
+  assert.match(plan[0].date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(plan[0].isCooked, false);
+  assert.equal(plan[1].servings, 1);
+  assert.equal(plan[1].date, '2026-07-01');
+});
+
+// ── v2 复查：inventory / shopping migration 同样不应误删未知字段 ──
+test('v2 inventory migration：保留 gear / opened / outOfStockAt 等未来字段', () => {
+  S.save(S.keys.inventory, [{
+    id: 'i1',
+    name: '苹果',
+    qty: 3,
+    unit: '个',
+    gear: 2,
+    unitType: 'GEAR',
+    opened: true,
+    outOfStockAt: '2026-07-01T00:00:00.000Z'
+  }]);
+
+  runLocalStorageMigrations();
+
+  const inv = S.load(S.keys.inventory, []);
+  assert.equal(inv.length, 1);
+  assert.equal(inv[0].name, '苹果');
+  assert.equal(inv[0].gear, 2);
+  assert.equal(inv[0].unitType, 'GEAR');
+  assert.equal(inv[0].opened, true);
+  assert.equal(inv[0].outOfStockAt, '2026-07-01T00:00:00.000Z');
+});
+
+test('v2 shopping migration：保留 completedAt / remark 等字段', () => {
+  S.save(S.keys.shopping_items, [{
+    id: 's1',
+    name: '土豆',
+    qty: 2,
+    unit: '个',
+    done: true,
+    stockedIn: true,
+    completedAt: '2026-07-09T12:00:00.000Z',
+    remark: '菜谱缺货'
+  }]);
+
+  runLocalStorageMigrations();
+
+  const shop = S.load(S.keys.shopping_items, []);
+  assert.equal(shop.length, 1);
+  assert.equal(shop[0].name, '土豆');
+  assert.equal(shop[0].completedAt, '2026-07-09T12:00:00.000Z');
+  assert.equal(shop[0].remark, '菜谱缺货');
 });
 
 test('runLocalStorageMigrations 重复运行幂等', () => {

@@ -88,6 +88,7 @@ function migNormalizeInventoryItem(item) {
   const buyDate = /^\d{4}-\d{2}-\d{2}$/.test(String(item.buyDate || '')) ? item.buyDate : migTodayISO();
 
   const result = {
+    ...item,
     id: item.id || migGenId(),
     name,
     qty,
@@ -120,6 +121,7 @@ function migNormalizeShoppingItem(item) {
   const source = (!rawSource || rawSource === '鎵嬪姩' || rawSource.length > 30) ? '手动' : rawSource;
 
   return {
+    ...item,
     id: item.id || migGenId(),
     name,
     qty: item.qty ?? '',
@@ -310,7 +312,9 @@ const DATA_MIGRATIONS = {
         const id = item.id;
         const servings = Number(item.servings) || 1;
         const date = item.date || today;
-        const newItem = { id, servings, date };
+        // 保留原对象的其余字段（isCooked / cookedAt / 即兴烹饪 name / 未来扩展字段），
+        // 只覆盖这次 migration 明确要归一化的 id / servings / date。
+        const newItem = { ...item, id, servings, date };
         if (item.date !== date || item.servings !== servings) {
           changed = true;
         }
