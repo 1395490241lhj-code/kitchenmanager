@@ -168,11 +168,27 @@ export function ensureStockItem(inv, config, kind = 'raw', status = 'empty') {
   return item;
 }
 
+// shelf 缺失判定：只有 undefined / null / 空字符串（含纯空格）才算缺失。
+// 0 是合法的保质期天数（当天到期），JS 里 0 是 falsy，不能用 `!i.shelf` 判断缺失，
+// 否则用户明确保存的 shelf=0 刷新页面会被悄悄改成默认值。
+export function isMissingShelfValue(value) {
+  return value === undefined
+    || value === null
+    || (typeof value === 'string' && value.trim() === '');
+}
+
+// 缺失才用 fallback；否则数字化：'0'/合法数字字符串转 Number，非法字符串才回退 fallback。
+export function normalizeShelfValue(value, fallback) {
+  if (isMissingShelfValue(value)) return fallback;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 export function loadInventory(catalog){
   const inv=S.load(S.keys.inventory,[]);
   for(const i of inv){
     if(!i.unit){i.unit=(catalog.find(c=>c.name===i.name)?.unit)||'g'}
-    if(!i.shelf){i.shelf=(catalog.find(c=>c.name===i.name)?.shelf)||7}
+    i.shelf = normalizeShelfValue(i.shelf, (catalog.find(c=>c.name===i.name)?.shelf)||7);
     if(!i.stockStatus){i.stockStatus='ok'}
     if(isDryGoodName(i.name)){
       i.kind = 'dry';
