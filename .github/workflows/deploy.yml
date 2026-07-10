@@ -3,6 +3,8 @@ name: Deploy static content to Pages
 on:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -11,27 +13,45 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  # 按 ref 分组：PR 校验跑和 main 部署跑不共用同一个并发组，
+  # 避免 PR 的 push 取消掉正在进行的 main 部署（反之亦然）。
+  group: "pages-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
-  # 测试门禁：套件失败则不构建、不部署。
-  # 测试自带 express/axios/ffmpeg-static 的 mock（见 test/ai-server-routes.test.mjs 的
-  # Module._load 拦截），因此无需 npm install，纯 Node 即可全量运行。
+  # 完整校验门禁：Node 18 / 22 双跑 npm ci → 测试 → 菜谱包校验 → 生产依赖高危审计。
+  # 任一 Node 版本、任一步骤失败，都不构建、不部署（build/deploy 都 needs 这个 job）。
+  # package.json engines 声明 node >=18，axios/express/ffmpeg-static 也都兼容 18，
+  # 因此矩阵保留 18，不自行收窄兼容目标。
   test:
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['18', '22']
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node.js
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
       - name: Run test suite
-        run: node --test
+        run: npm test
+      - name: Validate recipe pack samples
+        run: npm run validate:recipe-packs
+      - name: Validate recipe pack data
+        run: npm run validate:recipe-pack-data
+      - name: Audit production dependencies (high severity fails the job)
+        run: npm audit --omit=dev --audit-level=high
 
   build:
     needs: test
+    # 只有 main 的 push（或手动 workflow_dispatch）才构建部署产物；PR 校验到 test 为止。
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -44,6 +64,7 @@ jobs:
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

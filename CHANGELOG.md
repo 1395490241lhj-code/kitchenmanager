@@ -210,3 +210,21 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - Added `test/storage-write-failures.test.mjs` (17 tests) using a real `localStorage.setItem` throwing `DOMException('Quota exceeded', 'QuotaExceededError')`: `S.save`/`mustSave` behavior, each of the six save paths throwing/not-silently-succeeding, source-level checks that each UI entry point's success toast sits after (and is skipped by) the failure branch, the backup-import rollback, and that normal (non-failing) writes are unaffected.
 - Deliberately did not touch every scattered `S.save(S.keys.plan, ...)` / inventory / overlay call site (e.g. plan removal on "标记做完", servings edits, the other ~7 `saveOverlay` callers) — only the primary user-facing save-and-confirm flow per category, per "first phase, no codebase-wide mechanical replacement." Non-critical caches (`local_recs`, `ai_recs`, `rec_time`, etc.) were intentionally left on the old silent `S.save()` boolean.
 - AI prompts, the Xiaohongshu import flow structure, weekly-menu business structure, the `plan` data structure, `server.js`, and broad UI layout were not touched.
+
+---
+
+## 2026-07-09 (11)
+
+### Changed
+
+- `.github/workflows/deploy.yml`'s `test` job now runs the full validation suite instead of just `node --test`: `npm ci` → `npm test` → `npm run validate:recipe-packs` → `npm run validate:recipe-pack-data` → `npm audit --omit=dev --audit-level=high`, on a Node `['18', '22']` matrix (`fail-fast: false` so both results are visible). Node 18 stays in the matrix because `package.json`'s `engines.node` is `>=18` and all three production dependencies (axios, express, ffmpeg-static) declare Node 18 compatibility — nothing here narrows that.
+- Added a `pull_request` trigger (targeting `main`) alongside the existing `push`/`workflow_dispatch` triggers, so PRs get the same validation gate before merge.
+- `build` and `deploy` now both carry `if: github.event_name != 'pull_request'`, so PR runs stop at the `test` job and never build or deploy the Pages artifact; `push`/`workflow_dispatch` keep deploying as before via the existing `needs` chain (`build` needs `test`, `deploy` needs `build`).
+- Scoped the `concurrency` group to `pages-${{ github.ref }}` (was a single fixed `"pages"` group) so a PR run and an in-progress `main` deploy no longer cancel each other.
+- Added `cache: 'npm'` to `actions/setup-node` for the `test` job's dependency install.
+
+### Notes
+
+- Added `test/workflow-config.test.mjs` (8 tests): a dependency-free block-indentation/no-tab sanity check on the workflow YAML, plus source assertions for the triggers, the Node matrix, the exact `test`-job step order, the `build`/`deploy` gating and `needs` chain, and that no `run:` command is duplicated within the `test` job (matrix-driven repetition across Node versions is expected and out of scope for that check).
+- `package.json`/`package-lock.json` were not touched — all required commands were either already-existing npm scripts (`test`, `validate:recipe-packs`, `validate:recipe-pack-data`) or plain `npm` CLI invocations (`npm ci`, `npm audit`), so no new scripts were necessary.
+- No business code was touched; this was a CI-configuration-only change.
