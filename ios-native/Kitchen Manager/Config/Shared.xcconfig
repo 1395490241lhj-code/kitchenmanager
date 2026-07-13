@@ -1,0 +1,6 @@
+// Committed defaults. Local.xcconfig is optional, ignored by Git, and generated
+// from the developer's environment by `npm run configure:ios-auth`.
+SUPABASE_URL =
+SUPABASE_PUBLISHABLE_KEY =
+
+#include? "Local.xcconfig"

@@ -10,6 +10,7 @@ desktop.ini
 .idea/
 xcuserdata/
 *.xcuserstate
+ios-native/Kitchen Manager/Config/Local.xcconfig
 
 # Node (only if tooling is added later)
 node_modules/

@@ -4,6 +4,7 @@ import SwiftUI
 struct KitchenManagerApp: App {
     @StateObject private var recipeStore: RecipeStore
     @StateObject private var kitchenStore: KitchenStore
+    @StateObject private var authStore: AuthStore
     @StateObject private var navigationStore = AppNavigationStore()
     @StateObject private var recommendationStore = HomeRecommendationStore()
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
@@ -25,6 +26,7 @@ struct KitchenManagerApp: App {
                 , weeklyPlanPersistence: persistence.weeklyPlan
             )
         )
+        _authStore = StateObject(wrappedValue: AuthenticationAssembly.make())
     }
 
     var body: some Scene {
@@ -34,6 +36,7 @@ struct KitchenManagerApp: App {
                 .environmentObject(kitchenStore)
                 .environmentObject(navigationStore)
                 .environmentObject(recommendationStore)
+                .environmentObject(authStore)
                 .preferredColorScheme((AppAppearance(rawValue: appearanceRawValue) ?? .system).colorScheme)
         }
     }
@@ -43,6 +46,7 @@ struct ContentView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
     @EnvironmentObject private var kitchenStore: KitchenStore
+    @EnvironmentObject private var authStore: AuthStore
     @State private var inventoryPath = NavigationPath()
 
     var body: some View {
@@ -87,6 +91,7 @@ struct ContentView: View {
         .tint(AppTheme.primary)
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
+            await authStore.start()
             if recipeStore.remoteRecipes.isEmpty {
                 await recipeStore.loadRecipes()
             }
@@ -116,4 +121,5 @@ struct ContentView: View {
         .environmentObject(KitchenStore())
         .environmentObject(AppNavigationStore())
         .environmentObject(HomeRecommendationStore())
+        .environmentObject(AuthStore.guestPreview())
 }

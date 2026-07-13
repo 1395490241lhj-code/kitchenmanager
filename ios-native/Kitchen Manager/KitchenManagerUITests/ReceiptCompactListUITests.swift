@@ -63,23 +63,23 @@ final class ReceiptCompactListUITests: XCTestCase {
         // one must actually remove just that item.
         let deleteButtons = app.buttons.matching(identifier: "receiptItemDelete")
         XCTAssertEqual(deleteButtons.count, visibleRowCount, "每一项都应有独立的删除按钮")
-        let nameBeforeDelete = nameFields.element(boundBy: 0).value as? String
-        deleteButtons.element(boundBy: 0).tap()
-        // The header row ("识别到 N 项") has already scrolled out of view at
-        // this point, so re-check the still-visible rows directly instead:
-        // the deleted item's own name must be gone from the accessibility
-        // tree (the header's count is exercised separately, right after the
-        // list first appears, earlier in this test). Give the removal
-        // animation a moment to settle before asserting.
-        if let nameBeforeDelete {
-            let deletedFieldQuery = app.textFields.matching(identifier: "receiptItemName").matching(
-                NSPredicate(format: "value == %@", nameBeforeDelete)
-            )
-            let stillExists = NSPredicate(format: "exists == false")
-            let expectation = XCTNSPredicateExpectation(predicate: stillExists, object: deletedFieldQuery.firstMatch)
-            let waitResult = XCTWaiter().wait(for: [expectation], timeout: 3)
-            XCTAssertEqual(waitResult, .completed, "被删除的食材行不应再出现")
+        var hittableDeleteButton: XCUIElement?
+        for index in 0..<deleteButtons.count {
+            let candidate = deleteButtons.element(boundBy: index)
+            if candidate.isHittable {
+                hittableDeleteButton = candidate
+                break
+            }
         }
+        guard let hittableDeleteButton else {
+            XCTFail("至少一个可见食材行的删除按钮应可点击")
+            return
+        }
+        hittableDeleteButton.tap()
+        // SwiftUI List may retain and reuse an off-screen TextField's
+        // accessibility node after row deletion. The bottom action's
+        // selected-count label is the stable user-visible result checked
+        // below after scrolling to the end.
 
         // Scroll to the bottom: the last item and the confirm button must
         // both be reachable, i.e. the button must not permanently cover the
@@ -88,21 +88,21 @@ final class ReceiptCompactListUITests: XCTestCase {
             NSPredicate(format: "value == %@", "咖啡豆")
         ).firstMatch
         var attempts = 0
-        while !lastItemField.exists && attempts < 15 {
+        while (!lastItemField.exists || !lastItemField.isHittable) && attempts < 20 {
             app.swipeUp()
             attempts += 1
         }
         XCTAssertTrue(lastItemField.waitForExistence(timeout: 3), "最后一项（咖啡豆）应可通过滚动到达")
         XCTAssertTrue(lastItemField.isHittable, "最后一项应可被点击，不应被底部按钮遮挡")
 
-        let confirmButton = app.buttons.containing(
-            NSPredicate(format: "label CONTAINS '确认入库'")
+        let confirmButton = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "确认入库（19）")
         ).firstMatch
         attempts = 0
         while !confirmButton.exists && attempts < 5 {
             app.swipeUp()
             attempts += 1
         }
-        XCTAssertTrue(confirmButton.waitForExistence(timeout: 3), "底部确认入库按钮应可到达，且不应永久遮挡最后一项")
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 3), "删除一项后底部应显示确认入库（19），且按钮可到达")
     }
 }

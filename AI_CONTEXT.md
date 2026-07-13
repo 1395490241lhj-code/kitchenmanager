@@ -74,7 +74,7 @@ Kitchen Manager currently uses:
 - `data/*` for recipe libraries and recipe completion overlays.
 - `test/*` for Node built-in test runner tests.
 - `scripts/*` for validation, curation, and version/cache stamping utilities.
-- `supabase/*` plus `src/server/auth/*` for the Phase 0 identity foundation. A linked development project has passed migration/object checks, real two-user Auth/JWKS, `/api/me`, bidirectional RLS, and Guest-boundary smoke tests; client login and kitchen business-data sync are not implemented.
+- `supabase/*` plus `src/server/auth/*` for the verified Phase 0/0.5 identity foundation. The native iOS app now has Phase 1 Guest-first Supabase email/password identity, Keychain session restoration, and `/api/me` account loading. Real development sign-in/restoration/sign-out are verified; the current Render deployment still returns 404 for `/api/me` and must be brought to repository Phase 0 parity before live profile loading can pass. Authentication remains separate from `KitchenStore` and SwiftData business persistence: no kitchen data sync, upload, merge, account-scoped container switch, household invitation, or OAuth flow is implemented.
 
 There is no frontend build pipeline. The browser runs the files directly.
 

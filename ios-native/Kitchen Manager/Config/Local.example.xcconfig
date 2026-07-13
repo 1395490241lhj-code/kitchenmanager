@@ -1,0 +1,4 @@
+// Copy to Local.xcconfig or run `npm run configure:ios-auth`.
+// `$()` keeps `//` from being parsed as an xcconfig comment.
+SUPABASE_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
+SUPABASE_PUBLISHABLE_KEY = YOUR_PUBLISHABLE_KEY

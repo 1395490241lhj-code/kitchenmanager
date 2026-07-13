@@ -10,12 +10,16 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ### Added
 
+- Added the native iOS Guest-first account foundation with official `supabase-swift`, Keychain-backed session persistence, email/password registration and login, launch restoration, auth-state observation, sign-out, and native Guest/authenticated account screens.
+- Added the iOS `/api/me` account client, recoverable profile/household loading, safe xcconfig generation, ignored local public configuration, mock auth/account tests, security baseline checks, and `docs/IOS_AUTH_PHASE1_SETUP.md`.
 - Added project-scoped Supabase CLI tooling plus `verify:auth-phase0`, read-only `verify:auth-db`, and `smoke:auth` commands for non-production project metadata/JWKS validation, database-object integrity, real two-user Auth, `/api/me`, bidirectional RLS, Guest-boundary, and optional rate-limit smoke checks without storing credentials.
 - Added pgTAP database-object assertions for the identity tables, RLS flags, key indexes, unique Auth trigger, and exact policy counts.
 - Added `docs/AUTH_SYNC_PHASE0_5_VALIDATION.md` with repeatable remote linking, migration, test-user, Express, RLS/JWKS, smoke, security, rollback, and optional CI instructions. The linked development deployment now passes migration/object verification and repeated live two-user smoke; Docker pgTAP and optional rate-limit saturation remain explicitly unexecuted.
 
 ### Changed
 
+- Preserved the existing native SwiftData container and all Guest behavior across login, session restoration, `/api/me` failure, and logout. Phase 1 adds identity only; no kitchen business data is uploaded, merged, cleared, or synchronized.
+- Added a committed placeholder-only iOS Info.plist so xcconfig public Auth values are actually expanded into the built app, and stabilized account logout navigation plus the existing receipt UI test's interaction with virtualized List rows.
 - Extended the environment template with development-only smoke variables and an explicit non-production guard; hardened URL/config/staged smoke diagnostics and server port-conflict reporting without exposing upstream bodies or credentials. Current Guest APIs, SwiftData models, business schemas, and client UI remain unchanged.
 
 ## 2026-07-12

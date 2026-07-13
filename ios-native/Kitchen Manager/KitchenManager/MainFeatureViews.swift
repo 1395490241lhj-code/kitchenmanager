@@ -425,6 +425,7 @@ struct SettingsView: View {
     @AppStorage("stapleRestockNotificationsEnabled") private var stapleNotificationsEnabled = false
     @EnvironmentObject private var store: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
+    @EnvironmentObject private var authStore: AuthStore
     @State private var isShowingPermissionDeniedAlert = false
     @State private var isShowingClearDataAlert = false
 
@@ -437,6 +438,34 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("账号") {
+                switch authStore.status {
+                case .guest:
+                    NavigationLink {
+                        AuthEntryView()
+                    } label: {
+                        LabeledContent("游客模式", value: "登录或创建账号")
+                    }
+                    Text("无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if let message = authStore.errorMessage {
+                        Text(message).font(.caption).foregroundStyle(.secondary)
+                    }
+                case .signedIn(let user):
+                    NavigationLink {
+                        AccountView()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(user.email ?? "已登录账号")
+                            Text("管理账号与家庭")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
             Section("外观") {
                 Picker("显示模式", selection: appearance) {
                     ForEach(AppAppearance.allCases) { option in
