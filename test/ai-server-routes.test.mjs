@@ -321,6 +321,8 @@ test('/api/xhs-extract 优先使用 og/meta 结构化字段，不让 body 评论
     <meta property="og:title" content="藤椒鸡腿详细版教程">
     <meta property="og:description" content="作者正文：鸡腿洗净擦干，加入生抽、老抽、料酒抓匀腌制。">
     <meta name="description" content="普通简介：铁锅煎至两面焦香。">
+    <meta name="author" content="厨房小梁">
+    <link rel="canonical" href="https://www.xiaohongshu.com/explore/canonical-note?xsec_token=abc">
   </head><body>
     段老师这题我会 腌的时候放一丢丢小苏打 双椒鸡拌面 视频号为啥不要了
   </body></html>`;
@@ -335,6 +337,9 @@ test('/api/xhs-extract 优先使用 og/meta 结构化字段，不让 body 评论
   assert.equal(res.body.extractionMode, 'meta');
   assert.equal(res.body.hasStructuredMeta, true);
   assert.equal(res.body.hasOgDescription, true);
+  assert.equal(res.body.sourceTitle, '藤椒鸡腿详细版教程');
+  assert.equal(res.body.sourceAuthor, '厨房小梁');
+  assert.match(res.body.canonicalUrl, /xiaohongshu\.com\/explore\/canonical-note/);
   assert.match(res.body.text, /藤椒鸡腿详细版教程/);
   assert.match(res.body.text, /鸡腿洗净擦干/);
   assert.doesNotMatch(res.body.text, /小苏打|双椒鸡拌面|视频号为啥不要了|段老师/);
@@ -1086,6 +1091,9 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
     }
   });
 
+  const mediaDir = path.join(os.tmpdir(), 'kitchenmanager-media');
+  await fs.promises.mkdir(mediaDir, { recursive: true });
+  const filesBefore = new Set(await fs.promises.readdir(mediaDir));
   const res = await runPost(app, '/api/recipe-import-from-url', {
     url: 'http://xhslink.com/o/example',
     userText: longUserText
@@ -1116,6 +1124,8 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
   assert.match(res.body.mediaDiagnostics.warnings.join('\n'), /部分视频画面文字识别失败/);
   assert.match(res.body.recipe.method.join('\n'), /鲜藤椒/);
   assert.ok(capturedAiPayloads.some(payload => payload.model === 'meta-llama/llama-4-scout-17b-16e-instruct'));
+  const filesAfter = await fs.promises.readdir(mediaDir);
+  assert.deepEqual(filesAfter.filter(name => !filesBefore.has(name)), [], '组合导入结束后应立即删除本次临时媒体文件');
 });
 
 test('/api/recipe-import-from-url 遇到 ASR/OCR 上游 413 仍返回草稿和诊断', async () => {

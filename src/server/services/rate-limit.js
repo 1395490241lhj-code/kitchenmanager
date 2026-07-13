@@ -3,6 +3,7 @@
  * 从 server.js 拆出，正文逐字搬移；依赖按符号自动接线。
  */
 const {
+  AUTH_ME_RATE_LIMIT_MAX,
   AI_RATE_LIMIT_MAX,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
   AI_RATE_LIMIT_WINDOW_MS,
@@ -11,6 +12,7 @@ const {
 
 const aiRateLimitBuckets = new Map();
 const importRateLimitBuckets = new Map();
+const authMeRateLimitBuckets = new Map();
 let aiRateLimitLastSweepAt = 0;
 
 // 惰性回收：限流桶按 IP 建、此前从不删除，长跑实例会缓慢累积陌生 IP 的过期桶。
@@ -18,7 +20,7 @@ let aiRateLimitLastSweepAt = 0;
 function sweepAiRateLimitBuckets(now) {
   if (now - aiRateLimitLastSweepAt < AI_RATE_LIMIT_SWEEP_INTERVAL_MS) return;
   aiRateLimitLastSweepAt = now;
-  for (const buckets of [aiRateLimitBuckets, importRateLimitBuckets]) {
+  for (const buckets of [aiRateLimitBuckets, importRateLimitBuckets, authMeRateLimitBuckets]) {
     for (const [ip, bucket] of buckets) {
       if (now - bucket.start > AI_RATE_LIMIT_WINDOW_MS) buckets.delete(ip);
     }
@@ -59,12 +61,25 @@ function isImportRateLimited(req) {
   return isBucketRateLimited(req, importRateLimitBuckets, IMPORT_RATE_LIMIT_MAX);
 }
 
+// /api/me is cheap but authenticated and internet-facing. Key by the verified
+// subject plus connection-derived IP; never by a client supplied userId.
+function isAuthMeRateLimited(req) {
+  const userId = req.auth?.userId || 'unauthenticated';
+  const scopedRequest = {
+    ip: `${userId}:${getClientIp(req)}`,
+    socket: req.socket
+  };
+  return isBucketRateLimited(scopedRequest, authMeRateLimitBuckets, AUTH_ME_RATE_LIMIT_MAX);
+}
+
 module.exports = {
   aiRateLimitBuckets,
+  authMeRateLimitBuckets,
   aiRateLimitLastSweepAt,
   getClientIp,
   importRateLimitBuckets,
   isAiRateLimited,
+  isAuthMeRateLimited,
   isBucketRateLimited,
   isImportRateLimited,
   sweepAiRateLimitBuckets

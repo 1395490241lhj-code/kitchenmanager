@@ -6,6 +6,141 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-13
+
+### Added
+
+- Added project-scoped Supabase CLI tooling plus `verify:auth-phase0`, read-only `verify:auth-db`, and `smoke:auth` commands for non-production project metadata/JWKS validation, database-object integrity, real two-user Auth, `/api/me`, bidirectional RLS, Guest-boundary, and optional rate-limit smoke checks without storing credentials.
+- Added pgTAP database-object assertions for the identity tables, RLS flags, key indexes, unique Auth trigger, and exact policy counts.
+- Added `docs/AUTH_SYNC_PHASE0_5_VALIDATION.md` with repeatable remote linking, migration, test-user, Express, RLS/JWKS, smoke, security, rollback, and optional CI instructions. The linked development deployment now passes migration/object verification and repeated live two-user smoke; Docker pgTAP and optional rate-limit saturation remain explicitly unexecuted.
+
+### Changed
+
+- Extended the environment template with development-only smoke variables and an explicit non-production guard; hardened URL/config/staged smoke diagnostics and server port-conflict reporting without exposing upstream bodies or credentials. Current Guest APIs, SwiftData models, business schemas, and client UI remain unchanged.
+
+## 2026-07-12
+
+### Added
+
+- Added Phase 0 Supabase scaffolding with local CLI configuration, an idempotent Auth trigger for profiles/personal households/owner membership, RLS-protected identity tables, pgTAP isolation checks, and an environment template that separates public project configuration from the server-only service-role key.
+- Added Express Supabase JWT/JWKS authentication middleware using `jose`, optional-auth and role guards, user/IP-scoped `/api/me` limiting, a user-JWT/RLS-backed account data source, and protected `GET /api/me` profile/household output.
+- Added isolated JWT, rotation, authorization, account response, SQL structure, Guest compatibility, and error-sanitization tests plus `docs/AUTH_SYNC_PHASE0_SETUP.md`.
+
+- Added `docs/AUTH_SYNC_ARCHITECTURE.md`, a repository-wide audit and proposed Guest-first account/sync architecture covering the current PWA, Express backend, native SwiftData app, managed-auth comparison, household ownership, cloud schema, incremental protocol, per-module conflicts, first-login merge, logout isolation, security boundaries, and PWA/iOS contract sharing.
+- Added `docs/AUTH_SYNC_ROADMAP.md`, an implementation and test plan from auth/vendor decisions through backend identity, iOS login, cloud models, bootstrap, incremental sync, PWA adoption, and future household sharing.
+
+- Added a dedicated SwiftData `InventoryRecord` that mirrors every current native `InventoryItem` field while leaving the existing Codable business model and backup JSON unchanged.
+- Added injected SwiftData inventory persistence with disk-backed production storage, isolated in-memory test storage, and CRUD/bulk-replacement operations.
+- Added an idempotent migration from `native_km_inventory_v1`, guarded by `native_km_inventory_swiftdata_migration_v1`; existing SwiftData UUIDs win, missing legacy UUIDs are added, verification precedes completion, and legacy JSON is retained.
+- Added fourteen SwiftData inventory tests covering field round-trips, CRUD, UUID semantics, restart loading, migration success/failure/idempotency, partial prepopulation, backup restore, and clearing.
+- Added a SwiftData `ShoppingItemRecord`, injected shopping-list persistence, and an idempotent migration from `native_km_shopping_v1` guarded by `native_km_shopping_swiftdata_migration_v1`; legacy JSON remains available for rollback.
+- Added seventeen shopping persistence tests covering all business fields, UUID/order semantics, migration and failure paths, Store restart behavior, batch writes, stock-in rollback, backup restore, and complete local-data clearing.
+- Added a SwiftData `TodayPlanRecord`, injected today-plan persistence, and an idempotent migration from `native_km_plans_v1` guarded by `native_km_today_plan_swiftdata_migration_v1`; the original plan JSON remains available as an upgrade fallback.
+- Added seventeen today-plan persistence tests covering field round-trips, stable order, UUID semantics, migration success/failure/idempotency, Store restart behavior, batch insertion, shopping generation/import, inventory consumption, backup rollback, and complete local-data clearing.
+- Added a SwiftData `ConsumptionRecordEntity`, injected consumption persistence, and an idempotent migration from `native_km_consumption_records_v1` guarded by `native_km_consumption_swiftdata_migration_v1`; existing JSON remains an upgrade fallback.
+- Added twelve consumption persistence tests covering record/item field round-trips, CRUD, stable order, migration success/failure/idempotency, Store restart, undo idempotency, cooking/undo write-failure rollback, backup restore, and clearing.
+- Added SwiftData weekly-plan persistence with a Codable full-plan snapshot and idempotent migration from `native_km_weekly_plan_v1` behind `native_km_weekly_plan_swiftdata_migration_v1`.
+- Added two weekly-plan persistence tests for complete AI-plan snapshot CRUD and legacy JSON migration idempotency.
+- Added three five-module SwiftData consistency tests covering stale migration-marker recovery, clear-all restart safety, and complete backup restoration across independent contexts.
+- Added `UserRecipeRecord` and `RecipePreferenceRecord` to the existing shared native SwiftData container, keeping full recipe payloads lossless while allowing favorite/frequent preferences to exist independently for local or remote recipe IDs.
+- Added an idempotent three-key recipe-store migration behind `native_km_recipe_store_swiftdata_migration_v1`, including SwiftData-wins merging, retained legacy fallback, empty-table self-healing, verification before completion, and corrupt-payload isolation.
+- Added twelve recipe persistence tests covering migration, restart, CRUD, independent preferences, partial prepopulation, stale-marker recovery, clear/no-resurrection, corrupt-record isolation, migration failure, and existing duplicate rules.
+- Added `ManualEntryExpiryUITests` and `ReceiptCompactListUITests` to `KitchenManagerUITests`, exercising the real running manual-entry and receipt-confirmation screens through debug-only launch-argument seed hooks (`UITEST_SEED_RECEIPT_ITEMS`, mirroring the existing `UITEST_SEED_INVENTORY` pattern).
+
+### Changed
+
+- API CORS preflight now permits the `Authorization` header required by the single protected `/api/me` endpoint; no existing endpoint was changed to require authentication.
+- Replaced stale native SwiftUI source-shape assertions with semantic baseline checks for consumer Settings sections, inventory expiry assignment, callback-driven inventory navigation, shared Home status sheets, pantry settings, and persist-before-publish stock-in/consumption transactions. The navigation and persistence checks are also tied to their existing XCTest/XCUITest regression coverage; no production behavior changed.
+
+- Rewrote `InventoryExpirySuggestion` so every ordinary ingredient — including dry goods, condiments, and other shelf-stable foods — now gets a real, finite suggested expiry date; only `常备`-categorized items still suggest no date, and an unrecognized name now defaults to a conservative 7 days instead of `nil`.
+- `KitchenStore.mergeOrAppendInventoryItem` now falls back to a 7-day default expiry for non-staple items whose name is somehow still unmatched, so a normal add can never silently persist a `nil` `expiryDate`.
+- Replaced the receipt confirmation list's one-`Section`-per-item layout (`ReceiptDraftSection`) with a single shared `Section` containing a compact two-line `ReceiptIngredientCompactRow` per item (~78-96pt tall instead of ~200pt+), fitting several more items per screen without changing the top-level receipt/manual chrome.
+- Removed the manual-entry and receipt "设置保质期"/"启用保质期" toggle entirely; both flows now always show a plain `保质期` `DatePicker` with a short auto-suggestion caption, and `ManualInventoryDraft` tracks `hasUserEditedExpiry` (set only by a genuine `DatePicker` interaction) so further name edits never overwrite a date the user already chose.
+
+- `KitchenStore.inventory` now persists through SwiftData while keeping its published-array API and notification behavior. Shopping, plans, weekly menus, consumption records, and recipes continue using their existing persistence paths.
+- Native backup restore writes inventory to SwiftData before publishing restored state; clearing local data also deletes SwiftData inventory.
+- `KitchenStore.shopping` now persists through SwiftData without changing the existing `KitchenShoppingItem` business model or backup format. Recipe/week-plan generation writes one final batch snapshot, while add/edit/toggle/delete/clear operations remain immediately observable.
+- Shopping stock-in now persists inventory and shopping changes before publishing either array and rolls inventory back if shopping persistence fails, avoiding an in-memory half-applied operation.
+- `KitchenStore.plans` now persists through SwiftData without changing `MealPlanItem`, the version-1 backup payload, or current recipe-ID resolution semantics. Adding a whole generated day publishes and writes one deduplicated final snapshot.
+- Backup restore and local-data clearing now coordinate inventory, shopping, and today-plan persistence with best-effort rollback before publishing new in-memory state. Weekly plans and consumption records intentionally remain in UserDefaults.
+- `KitchenStore.consumptionRecords` now persists through SwiftData without changing the record business model or backup JSON. Cooking deduction and undo persist local inventory/record snapshots before publishing; if consumption persistence fails, inventory persistence is restored best-effort and the in-memory operation is not applied.
+- Backup restore and local-data clearing now include consumption records. Weekly plans, user recipes, favorites, frequent recipes, and settings intentionally remain on their existing persistence paths.
+- Inventory, shopping, today-plan, consumption, and weekly-plan migrations now re-check retained legacy JSON when a completion marker exists but the corresponding SwiftData table is unexpectedly empty.
+- Weekly-plan migration and save failures now expose the same user-facing notice/debug diagnostics as the other migrated modules instead of being silently ignored.
+- `RecipeStore` now persists user recipes, favorites, and frequent-recipe flags through injected SwiftData repositories while retaining its existing observable API, remote/local merge ordering, library-mode setting, and save/import call sites. Preference writes and recipe snapshots are persisted before published state changes; clear failures restore the prior snapshot best-effort.
+- The production app now injects recipe persistence from the same `KitchenPersistenceBundle` used by inventory, shopping, today plans, consumption history, and weekly plans. The existing version-1 kitchen backup shape remains unchanged and therefore still does not export user recipes or recipe preferences.
+
+## 2026-07-11
+
+### Added
+
+- Refined native recipe classification into “食材” and “调料与辅料”: bean flour, starches, oils, sauces, spices, cooking liquids, and clearly auxiliary aromatics now share the existing `seasonings` field, while ambiguous flour and aromatics remain conservative.
+- Added per-item editor controls to move, edit, add, or delete recipe items between the two classifications without creating a second recipe model.
+- Added a native Home recipe-import option sheet with internal `NavigationStack` routes for link, image, AI, and manual creation.
+- Added explicit native recipe creation routes for manual, link, image, and AI entry points; a focused medium shopping-item form; and a Home quick-record sheet using the existing receipt/manual flow.
+- Added first-class `seasonings` support to native recipes with legacy classification, separate detail/editor sections, and an opt-in “包含调料” shopping-generation setting that defaults off.
+- Added PWA-aligned status and quantity tracking modes to the existing native staple inventory source, including inline state cycling and quantity adjustment.
+- Added native curated/full recipe-library selection, fallback loading, search/filter menus, inventory match badges, favorites, frequent recipes, edit overrides, reset, and user-recipe deletion.
+- Added the native “常备货架” workflow with threshold-aware stock states, existing-inventory selection, presets, add/edit/detail views, filtering, single and batch restock actions, and optional transition-based local notifications.
+- Added backward-compatible staple settings to native inventory records, including minimum quantity, default restock quantity, auto-suggestion, category, and notes.
+- Added native JSON kitchen backup export/import covering inventory staple rules, plans, shopping, weekly menus, and consumption history.
+- Added a unique native `HomeRecommendationStore` and `AIRecommendationService` for the SwiftUI home screen.
+- Added relevance-ranked local recipe search across title, tags, ingredients, difficulty, cooking time, and supported preference phrases.
+- Added native paged recommendation cards, synchronized custom page indicators, keyboard search submission, cancellable AI supplementation, and full AI batch replacement through the existing `/api/ai-chat` route.
+- Completed the native link-import flow: Render-backed page extraction, AI structuring, editable recipe preview, validation, and saving into the recipe library.
+- Added Codable local persistence for native user recipes, stored separately from remotely loaded recipes and restored on app launch.
+- Added the complete native “AI 做菜” workflow: inventory selection, servings, flavor/cuisine/time/exclusion inputs, Render-backed generation, editable confirmation, regeneration, save, plan, and combined actions.
+- Added a shared native recipe-draft editor and mapping layer used by both link import and AI generation.
+- Added a shared native `AIChatService`, reused by home recommendations and full recipe generation instead of duplicating the `/api/ai-chat` client.
+- Added native receipt capture and import: deferred camera authorization, photo-library selection, image preview/replacement/removal, orientation normalization, 2000px/3.6MB JPEG processing, cancellable vision recognition, editable confidence-aware drafts, optional expiry dates, and selected-item batch import.
+- Added a Chinese camera usage description and simulator-safe camera availability handling.
+- Added canonical/original URL, source platform, import time, source title, and optional author metadata to native user recipes, with backward-compatible optional decoding and source-based duplicate detection.
+- Added six-stage native link-import progress, full-share-text URL detection, retry actions, and user-facing error categories for invalid/login-blocked pages, video, ASR, OCR, rate-limit, and AI-structure failures.
+
+### Changed
+
+- Tightened native inventory lifecycle cards to a denser 145–210pt adaptive grid without fixed card height, while preserving quantity, one expiry phrase, and the compact progress rail.
+- Inventory detail navigation now uses one value-based `UUID` destination per tab stack, avoiding collection-built detail destinations; the detail form also exposes an explicit, user-controlled expiry-date section.
+- Home “临期食材” and “待买清单” now share one material-backed grouped `List` sheet container, including the same navigation style and drag-dismiss behavior.
+- The native Inventory tab now uses a PWA-aligned adaptive card grid for fresh foods: lifecycle color surfaces, one clear expiry phrase, compact four-point expiry progress, urgency sorting, VoiceOver labels, and a confirmed destructive swipe action replace plain rows.
+- Added backward-compatible `createdAt` support for new native inventory batches. Its expiry progress falls back to `updatedAt` for older records and remains deliberately unknown when neither exists.
+- Native pantry rows now show a distinct stock-to-minimum progress line for quantity-tracked staples; it is not conflated with fresh-food expiry progress.
+- The native inventory “+” menu now contains only normal food entry and staple entry; receipt recognition remains available inside the shared recording flow.
+- Native manual batch entry now uses the shared `IngredientParser`, including compact Chinese suffixes such as “韭菜花一份” and comma/Chinese-comma/dunhao/newline separation without splitting product names containing digits.
+- Added one conservative native `InventoryExpirySuggestion` path in `KitchenStore.addInventory`: fresh produce, meat, seafood, dairy, eggs, tofu, fruit, and frozen foods receive category-specific defaults only when no explicit date exists; staples and shelf-stable goods remain undated.
+- Receipt confirmation now preserves a recognized expiry date when available and otherwise pre-fills the same suggested date for user review.
+- Home “记食材” and “导入菜谱” now both use the shared `HomeSheet` presentation. Link-import success closes that sheet and returns lightweight Home feedback without forcing a tab switch.
+- Updated native AI generation, image import, recommendation, and server import prompts to explicitly place 豆粉、淀粉、生粉、水淀粉 and related cooking auxiliaries in `seasonings`.
+- Simplified the native Settings form to appearance, recipe library, reminders, data, and About. AI/provider placeholders are removed from the release UI; developer context is conditionally compiled under `#if DEBUG`.
+- Native user recipe overlays now take precedence over remote recipes with the same id and survive recipe-library switching; removing a remote override restores the base recipe.
+- Native inventory consumption, manual/receipt/shopping stock-in, and restore operations now automatically recalculate pantry-staple status and restock suggestions through the existing `KitchenStore`.
+- Native shopping insertion now merges normalized matching ingredients when units match or can be converted, while preserving incompatible-unit rows separately and identifying pantry-staple sources with user-facing copy.
+- The native home recommendation area now keeps search/request state outside the view and preserves the existing batch when AI requests fail.
+- Adding a recommendation to today's plan now gives lightweight haptic/toast feedback and visibly prevents duplicate additions.
+- The native system `TabView` now uses iOS 27's `.tabBarMinimizeBehavior(.onScrollDown)` so the Liquid Glass tab bar minimizes and restores with system-recognized scrolling.
+- The native “我的” root page now uses `Form`; the other tab roots retain their system `ScrollView` or `List` containers.
+- `RecipeStore` now exposes separate remote and user recipe collections while preserving the existing merged `recipes` interface used by the app.
+- Today-plan insertion now accepts an optional serving count while preserving existing callers and duplicate prevention.
+- Saved generated recipes display seasonings and tips in dedicated sections without changing the remote recipe payload format.
+- Extended `AIChatService` to carry an optional compressed image while continuing to use the existing Render proxy, so no API key or second AI client is added to the iOS app.
+- Inventory batch import now normalizes common aliases/units, merges compatible name/unit/expiry batches without overwriting an existing expiry date, keeps differing expiry batches separate, persists through the existing `KitchenStore`, and shows a native success notice after returning to the Inventory tab.
+- Replaced the native receipt placeholder and wired both Home and Inventory entry points to the same `RecordFoodSheet`; recognized pantry items now appear in the existing staples section.
+- Switched the native link importer from the older `/api/xhs-extract` plus `/api/ai-parse` sequence to the existing complete `/api/recipe-import-from-url` pipeline, preserving the existing service type and recipe editor.
+- Page extraction now returns canonical URL plus available source title/author metadata and distinguishes login-gated pages.
+- Complete page text with continuous cooking steps now takes precedence and skips redundant video processing; sparse pages continue through video download, ASR, and frame OCR fallbacks.
+- Recipe import now preserves missing quantities/units as empty values rather than inventing amounts; method numbering cleanup and ingredient/seasoning separation remain server-enforced.
+- Combined video import now immediately removes its downloaded video, extracted audio, and OCR frames after text extraction; the short-lived retry cache contains text/diagnostics only.
+
+### Removed
+
+- Removed the native home recommendation “换一道” button, its hand-written drag gesture, and the unused all-recommendations destination.
+
+### Verification
+
+- Built successfully with Xcode 27 beta for the iPhone 17 Pro simulator and launched the resulting app.
+
+---
+
 ## 2026-07-08
 
 ### Added
@@ -285,3 +420,23 @@ Render Web Service's public entry point is Render's own edge proxy — the Node 
 ### Notes
 
 - Xiaohongshu import, receipt recognition, today recommendations, AI draft details, shopping data, and the server structure were not changed.
+# 2026-07-10 — Native iOS prototype
+
+### Added
+
+- Added a standalone SwiftUI Xcode project in `ios-native/Kitchen Manager`.
+- Added native home, recipe list/detail, manual recipe entry, link import, recipe API service, and shared recipe store scaffolding.
+
+### Fixed
+
+- Removed duplicate Swift declarations from `ContentView.swift` by separating models, services, and views into their dedicated files.
+- Restored a clean Xcode build with zero compiler issues.
+- Aligned the native app's five-tab navigation with the PWA (`Today / Inventory / Shopping / Recipes / Settings`).
+- Moved recipe creation/import behind the Recipes toolbar and added native Inventory, Shopping, and Settings page shells.
+- Rebuilt the native Today page around the PWA's current status-header plus Plan/Recommendations panel design.
+- Added native sheets for expiry, pending shopping, food entry, recipe preview, all recommendations, recommendation actions, cooking calibration, weekly menu planning, and recipe import.
+- Added a shared, locally persisted native kitchen store and wired Today, Inventory, Shopping, and Settings to the same inventory/plan/shopping state.
+- Reworked the native Today screen as a close SwiftUI reproduction of the deployed PWA mobile home: matching cold-gray gradient, typography hierarchy, compact status pills, custom capsule tabs, search block, white recommendation card, recipe dots/cycling, and two quick-action cards.
+- Added `AppTheme.swift` using the PWA's real light/dark design tokens instead of treating system green as the global app color.
+- Replaced the visible system tab bar with a SwiftUI floating glass dock while retaining native `TabView` selection and the stable five-tab order.
+- Changed the home recommendation “View” action to navigate to the existing native `RecipeDetailView`; existing recipe loading, list/detail, link import, and AI parsing services remain intact.

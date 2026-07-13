@@ -55,7 +55,7 @@ test('server.js 为 /api 提供精确来源的 CORS 与预检响应', () => {
   assert.match(server, /app\.use\('\/api', /);
   assert.match(server, /Access-Control-Allow-Origin', origin\)/);
   assert.match(server, /Access-Control-Allow-Methods', 'GET,POST,OPTIONS'\)/);
-  assert.match(server, /Access-Control-Allow-Headers', 'Content-Type'\)/);
+  assert.match(server, /Access-Control-Allow-Headers', 'Content-Type, Authorization'\)/);
   assert.match(server, /req\.method === 'OPTIONS'\) return res\.status\(204\)\.end\(\)/);
   // 白名单外不回显任意 Origin（禁止通配）。
   assert.doesNotMatch(server, /Access-Control-Allow-Origin', '\*'/);

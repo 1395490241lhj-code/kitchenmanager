@@ -8,6 +8,8 @@ desktop.ini
 # Editor / IDE
 .vscode/
 .idea/
+xcuserdata/
+*.xcuserstate
 
 # Node (only if tooling is added later)
 node_modules/
@@ -16,6 +18,10 @@ npm-debug.log*
 # Local env / secrets
 .env
 .env.local
+.env.*
+!.env.example
+supabase/.temp/
+supabase/.branches/
 
 # Logs
 *.log

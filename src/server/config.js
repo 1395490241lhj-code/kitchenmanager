@@ -20,7 +20,20 @@ const AI_IMAGE_MAX_BASE64_BYTES = 4 * 1024 * 1024;
 const AI_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const AI_RATE_LIMIT_MAX = 30;
 const IMPORT_RATE_LIMIT_MAX = 10;
+const AUTH_ME_RATE_LIMIT_MAX = 60;
 const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
+
+// Supabase public project configuration. SERVICE_ROLE is deliberately not
+// consumed by the normal /api/me path: that request is forwarded with the
+// verified user's JWT so PostgREST still applies RLS.
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL
+  || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
+const SUPABASE_JWT_ISSUER = process.env.SUPABASE_JWT_ISSUER
+  || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : '');
+const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE || 'authenticated';
 
 const MEDIA_TMP_DIR = path.join(os.tmpdir(), 'kitchenmanager-media');
 const MEDIA_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
@@ -83,7 +96,14 @@ module.exports = {
   AI_RATE_LIMIT_WINDOW_MS,
   AI_RATE_LIMIT_MAX,
   IMPORT_RATE_LIMIT_MAX,
+  AUTH_ME_RATE_LIMIT_MAX,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_JWKS_URL,
+  SUPABASE_JWT_ISSUER,
+  SUPABASE_JWT_AUDIENCE,
   TRUST_PROXY_HOPS,
   TRUST_PROXY_HOPS_INVALID_RAW,
   parseTrustProxyHops,

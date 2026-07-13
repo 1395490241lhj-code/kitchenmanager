@@ -74,6 +74,7 @@ Kitchen Manager currently uses:
 - `data/*` for recipe libraries and recipe completion overlays.
 - `test/*` for Node built-in test runner tests.
 - `scripts/*` for validation, curation, and version/cache stamping utilities.
+- `supabase/*` plus `src/server/auth/*` for the Phase 0 identity foundation. A linked development project has passed migration/object checks, real two-user Auth/JWKS, `/api/me`, bidirectional RLS, and Guest-boundary smoke tests; client login and kitchen business-data sync are not implemented.
 
 There is no frontend build pipeline. The browser runs the files directly.
 
@@ -205,8 +206,8 @@ Do not pursue these without explicit approval:
 - TypeScript migration.
 - Tailwind migration.
 - Backend database introduction.
-- User account/authentication system.
-- Cloud sync.
+- Client account/login UI or expansion of the verified server-side Phase 0/0.5 authentication foundation.
+- Kitchen business-data cloud sync.
 - Full native iOS rewrite.
 - Replacing localStorage data model.
 - Changing the core navigation model.

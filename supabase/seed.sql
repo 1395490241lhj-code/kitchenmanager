@@ -1,0 +1,3 @@
+-- Phase 0 intentionally has no shared seed users or credentials.
+-- Local Auth users should be created through Supabase Auth so the same
+-- profile/household trigger runs as it does in production.

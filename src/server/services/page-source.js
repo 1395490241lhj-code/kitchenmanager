@@ -78,6 +78,24 @@ function extractMetaContents(html, matcher) {
   return uniqueTextList(output, 20);
 }
 
+function extractCanonicalUrl(html, finalUrl = '') {
+  const tags = String(html || '').match(/<link\b[^>]*>/gi) || [];
+  for (const tag of tags) {
+    const rel = getHtmlAttr(tag, 'rel').toLowerCase();
+    if (!rel.split(/\s+/).includes('canonical')) continue;
+    const href = getHtmlAttr(tag, 'href');
+    if (!href) continue;
+    try {
+      const parsed = new URL(href, finalUrl || undefined);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        parsed.hash = '';
+        return parsed.href;
+      }
+    } catch (_) {}
+  }
+  return finalUrl;
+}
+
 function collectInstructionText(value, output = [], depth = 0) {
   if (value == null || depth > 8 || output.length >= 60) return output;
   if (typeof value === 'string') {
@@ -498,6 +516,11 @@ function extractRecipeSourceFromHtml(html, { url = '', finalUrl = '' } = {}) {
   const visibleText = extractVisibleText(html);
   const visibleSplit = splitRecipeSourceText(visibleText);
   const visibleTextPreview = visibleText.slice(0, 500);
+  const sourceTitle = ogTitle || twitterTitle || titleText;
+  const sourceAuthor = extractMetaContent(
+    html,
+    ({ property, name }) => property === 'article:author' || name === 'author'
+  );
   const metaModeText = getStructuredRecipeText([
     ogTitle,
     ogDescription,
@@ -571,6 +594,8 @@ function extractRecipeSourceFromHtml(html, { url = '', finalUrl = '' } = {}) {
     jsonLdText,
     initialStateText,
     authorCaptionText: split.authorCandidateText,
+    sourceTitle,
+    sourceAuthor,
     visibleTextPreview,
     rawText,
     trustedText,
@@ -799,7 +824,10 @@ function buildRecipeSourcePayload({ startUrl, fetched, html, source, media, allo
   return {
     text,
     finalUrl: fetched.finalUrl,
+    canonicalUrl: extractCanonicalUrl(html, fetched.finalUrl),
     url: startUrl.href,
+    sourceTitle: source.sourceTitle || '',
+    sourceAuthor: source.sourceAuthor || '',
     extractionMode: source.extractionMode,
     hasHtml: source.hasHtml,
     hasStructuredMeta: source.hasStructuredMeta,
@@ -837,6 +865,9 @@ async function extractRecipeSourcePayloadFromUrl(urlInput, { allowEmptyText = fa
   }
 
   const html = String(fetched.resp.data || '');
+  if (/(?:请先登录|登录后查看|扫码登录|login\s+required)/i.test(html) && !/__INITIAL_STATE__/.test(html)) {
+    throw createPublicApiError(401, '该内容需要登录后才能访问。', 'login_required');
+  }
   if (/验证码|滑块验证|滑动验证|安全验证|captcha/i.test(html) && !/__INITIAL_STATE__/.test(html)) {
     throw createPublicApiError(502, '链接被平台验证拦截，当前只能解析公开页面文字。', 'blocked_by_captcha');
   }

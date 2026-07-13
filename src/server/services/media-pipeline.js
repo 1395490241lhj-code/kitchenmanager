@@ -81,6 +81,12 @@ async function cleanupOldMediaFiles(now = Date.now()) {
   }));
 }
 
+async function cleanupMediaFiles(filePaths = []) {
+  await Promise.all([...new Set(filePaths.filter(Boolean))].map(filePath =>
+    fs.promises.unlink(filePath).catch(() => {})
+  ));
+}
+
 function normalizeRecipeImportCacheUrl(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -694,6 +700,8 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
     selectedVideoPathPreview: '',
     rejectedVideoUrlCount: Number(selectionDiagnostics.rejectedVideoUrlCount || 0),
     rejectedVideoUrlHosts: Array.isArray(selectionDiagnostics.rejectedVideoUrlHosts) ? selectionDiagnostics.rejectedVideoUrlHosts : [],
+    videoDownloadOk: false,
+    videoDownloadCode: '',
     audioExtracted: false,
     asrAttempted: false,
     asrOk: false,
@@ -732,17 +740,27 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
   }
 
   let downloaded = null;
+  const temporaryFiles = [];
   let transcriptText = '';
   let ocrText = '';
   try {
     downloaded = await downloadVideoToTemp(videoUrl);
-  } catch (_) {
-    mediaDiagnostics.warnings.push('已找到视频地址，但视频下载失败，仅使用页面文字生成草稿。');
+    temporaryFiles.push(downloaded.videoPath);
+    mediaDiagnostics.videoDownloadOk = true;
+  } catch (err) {
+    mediaDiagnostics.videoDownloadOk = false;
+    mediaDiagnostics.videoDownloadCode = err === MEDIA_TOO_LARGE_ERROR
+      ? 'video_too_large'
+      : err === SSRF_ERROR ? 'blocked_video_url' : 'video_download_failed';
+    mediaDiagnostics.warnings.push(err === MEDIA_TOO_LARGE_ERROR
+      ? '视频文件过大，已仅使用页面文字生成草稿。'
+      : '已找到视频地址，但视频下载失败，仅使用页面文字生成草稿。');
     return { transcriptText, ocrText, mediaDiagnostics };
   }
 
   try {
     const audioPath = path.join(MEDIA_TMP_DIR, `${downloaded.id}.m4a`);
+    temporaryFiles.push(audioPath);
     await extractAudioWithFfmpeg(downloaded.videoPath, audioPath);
     mediaDiagnostics.audioExtracted = true;
     mediaDiagnostics.asrAttempted = true;
@@ -773,6 +791,7 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
 
   try {
     const frameResult = await extractFramesWithFfmpeg(downloaded.videoPath, { maxFrames: MEDIA_MAX_FRAME_COUNT });
+    temporaryFiles.push(...frameResult.frames.map(frame => path.join(MEDIA_TMP_DIR, frame.frameId)));
     mediaDiagnostics.framesExtracted = frameResult.frames.length;
     mediaDiagnostics.ocrAttempted = frameResult.frames.length > 0;
     const ocrFrames = [];
@@ -818,6 +837,7 @@ async function extractVideoRecipeTextForImport(videoUrl, videoUrlCount = 0, sele
     mediaDiagnostics.warnings.push('视频转录失败，仅使用页面文字生成草稿。');
   }
   mediaDiagnostics.warnings = uniqueTextList(mediaDiagnostics.warnings, 8);
+  await cleanupMediaFiles(temporaryFiles);
   return { transcriptText, ocrText, mediaDiagnostics };
 }
 
@@ -827,6 +847,7 @@ module.exports = {
   buildRecipeImportMediaCacheKey,
   clampMediaFrameCount,
   cleanupOldMediaFiles,
+  cleanupMediaFiles,
   cleanupRecipeImportMediaCache,
   cloneRecipeImportCacheValue,
   copyAsrDiagnostics,
