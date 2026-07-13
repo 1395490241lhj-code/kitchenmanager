@@ -117,7 +117,24 @@ curl -i http://127.0.0.1:3000/api/me \
 
 若在尚无业务数据、尚无客户端登录的 Phase 0 环境必须完全回滚：先备份数据库，再新增一条 forward migration，按顺序删除 Auth trigger、RLS policies/helper functions、`household_members`、`households`、`profiles`。不要直接手工编辑生产 migration history。进入业务同步阶段后禁止使用这种破坏性回滚。
 
-## 9. 尚未实现
+## 9. 故障排查案例：Render `/api/me` 持续 401/无法解析 JWKS 域名
+
+**真实根因（已确认并修复）**：Render 上配置的 Supabase project reference 拼写错误——`njlvxmfrsvfjpfeeqtu`（错误，`ee` 换位）vs. `njlvxmfrsvfjpfqeetqu`（正确）。这个拼写错误同时体现在 `SUPABASE_URL`、`SUPABASE_JWKS_URL`、`SUPABASE_JWT_ISSUER` 三个环境变量里，导致：
+
+- Render 无法解析那个（不存在的）JWKS 域名，日志显示 `ENOTFOUND`；
+- 即使域名能解析，`SUPABASE_JWT_ISSUER` 也会指向一个错误的项目，导致 issuer 校验必然失败。
+
+排查过程中曾怀疑是 Render 控制台粘贴环境变量带入的尾随空格/换行（`jose` 的 `jwtVerify` 对 issuer/audience 做的是精确字符串比较，不像 URL 会被自动裁剪首尾空白），也曾怀疑是纯粹的 DNS/出网故障并为此设计过一版本地 JWKS 快照 fallback；两者都不是本次的真实原因，相关 fallback 代码已在确认根因后移除，避免维护不必要的复杂度。**修正两台环境的 project reference 拼写后，Render 端真实 smoke（`node scripts/auth-smoke.mjs` 指向 Render）已完整通过，iOS 账号页也已能正常读取 profile/household。**
+
+排查这次事故时保留下来的、确实有价值的防御性改动：
+
+- `src/server/config.js` 对所有 Supabase 相关环境变量统一 `trim`，并识别拒绝「首尾包含引号」「协议重复粘贴两次」「非 HTTPS 的 JWKS URL（非 localhost）」「`SUPABASE_JWT_ISSUER` 与 `SUPABASE_URL` 不同源」这几类会导致静默失败的配置事故，在启动日志中给出脱敏的、明确指向具体环境变量的报错，而不是让 `/api/me` 只返回一个通用的 `401 invalid_token`。
+- `src/server/auth/jwt.js` 在 JWT 验证失败时，向服务端日志（不面向客户端）输出脱敏诊断：失败阶段（issuer 不匹配/audience 不匹配/kid 不存在/签名无效/JWKS 网络错误等）、`alg`、`kid` 的短哈希指纹、issuer/audience（token 内的与配置的都记录，二者都不是密钥）、JWKS 域名——绝不记录 Authorization header、完整 JWT 或任何密钥。
+- 远程 JWKS 端点本身连不上/超时（`ENOTFOUND`/`EAI_AGAIN`/`ETIMEDOUT`/`ECONNRESET`/请求超时/非 200 响应）时，`/api/me` 现在返回 `503 auth_temporarily_unavailable`，而不是被误判成 `401 invalid_token`——这类失败意味着"无法判断 token 是否有效"，不等于"这个 token 无效"。
+
+对应测试见 `test/auth-jwt-diagnostics.test.mjs`。
+
+## 10. 尚未实现
 
 - PWA/iOS 登录、OAuth、Apple/Google UI。
 - iOS Keychain token store、refresh、logout 和每账号 SwiftData container。

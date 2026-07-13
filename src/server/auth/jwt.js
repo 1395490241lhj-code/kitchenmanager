@@ -1,18 +1,10 @@
 const crypto = require('crypto');
-const {
-  createRemoteJWKSet,
-  createLocalJWKSet,
-  jwtVerify,
-  errors: joseErrors,
-  decodeProtectedHeader,
-  decodeJwt
-} = require('jose');
+const { createRemoteJWKSet, jwtVerify, errors: joseErrors, decodeProtectedHeader, decodeJwt } = require('jose');
 const {
   SUPABASE_JWKS_URL,
   SUPABASE_JWT_AUDIENCE,
   SUPABASE_JWT_ISSUER,
-  SUPABASE_AUTH_CONFIG_ERRORS,
-  SUPABASE_JWKS_JSON
+  SUPABASE_AUTH_CONFIG_ERRORS
 } = require('../config');
 
 const ALLOWED_ALGORITHMS = ['ES256', 'RS256'];
@@ -57,9 +49,6 @@ function classifyVerificationFailure(error) {
   if (error instanceof joseErrors.JWTInvalid || error instanceof joseErrors.JWSInvalid) {
     return { stage: 'malformed_token', jwksFetched: null, kidFound: null };
   }
-  if (error?.code === 'ERR_CRYPTO_INVALID_JWK' || error instanceof joseErrors.JWKInvalid || error instanceof joseErrors.JWKSInvalid) {
-    return { stage: 'jwks_key_material_invalid', jwksFetched: true, kidFound: null };
-  }
   // createRemoteJWKSet 在网络层失败时抛的是普通 Node 系统错误
   // （ECONNREFUSED/ENOTFOUND/ETIMEDOUT…），不是 jose 的错误类型。
   if (/^E[A-Z]+$/.test(error?.code || '')) {
@@ -75,30 +64,16 @@ function classifyVerificationFailure(error) {
 
 const JWKS_NETWORK_FAILURE_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNRESET']);
 
-// 只有这些"确实连不上/连不稳"的失败才值得尝试本地 fallback；一次成功拿到
-// JWKS 之后的签名/issuer/audience/kid 判定都是确定性答案，不应该、也不需要
-// 再去问本地 fallback 一遍。
-//
-// 两种"超时"都算：raw Node 的 ETIMEDOUT（连接层面超时，例如连去一个黑洞
-// IP）和 jose 自己内部请求计时器触发的 JWKSTimeout/ERR_JWKS_TIMEOUT（fetch
-// 发出去了但在 timeoutDuration 内没等到响应）。
+// 这些"确实连不上/连不稳"的失败必须变成 503（我们真的无法判断 token 是否有
+// 效），而不是被泛化成 401（听起来像是"这个 token 无效"，其实完全是另一回
+// 事）。两种"超时"都算：raw Node 的 ETIMEDOUT（连接层面超时）和 jose 自己
+// 内部请求计时器触发的 JWKSTimeout/ERR_JWKS_TIMEOUT（fetch 发出去了但在
+// timeoutDuration 内没等到响应）。
 function isRemoteJwksNetworkFailure(error) {
   if (JWKS_NETWORK_FAILURE_CODES.has(error?.code)) return true;
   if (error instanceof joseErrors.JWKSTimeout) return true;
   if (error?.code === 'ERR_JOSE_GENERIC' && /Expected 200 OK/.test(error?.message || '')) return true;
   return false;
-}
-
-// createLocalJWKSet() only validates the overall JWKS *shape* eagerly
-// (JWKSInvalid, e.g. a missing/non-array `keys`); a structurally fine but
-// cryptographically bogus individual key (garbage x/y coordinates) only
-// fails lazily, inside jwtVerify, as a Node crypto TypeError. Either way this
-// is "the fallback config itself is broken", not "this token is invalid" —
-// it must surface as 503, never as a definitive 401.
-function isLocalJwksBroken(error) {
-  return error?.code === 'ERR_CRYPTO_INVALID_JWK'
-    || error instanceof joseErrors.JWKInvalid
-    || error instanceof joseErrors.JWKSInvalid;
 }
 
 // 防御性脱敏：即便理论上 jose 的错误 message 不会包含 token 原文，也在打印前
@@ -120,7 +95,7 @@ function safeJwksHostname(jwksUrl) {
   try { return new URL(jwksUrl).hostname; } catch { return jwksUrl ? '(invalid)' : '(not configured)'; }
 }
 
-function logVerificationFailure({ logger, error, token, jwksUrl, issuer, audience, usedFallback = false, localJwksKeyCount = null }) {
+function logVerificationFailure({ logger, error, token, jwksUrl, issuer, audience }) {
   let header = null;
   let payload = null;
   try { header = decodeProtectedHeader(token); } catch { /* not a decodable JWT, nothing to add */ }
@@ -128,7 +103,7 @@ function logVerificationFailure({ logger, error, token, jwksUrl, issuer, audienc
   const { stage, jwksFetched, kidFound } = classifyVerificationFailure(error);
   try {
     logger.warn('[auth/jwt] verification failed', {
-      stage: usedFallback ? `fallback_${stage}` : stage,
+      stage,
       errorName: error?.name || 'Error',
       errorCode: error?.code || null,
       errorMessage: redactErrorMessage(error),
@@ -140,9 +115,7 @@ function logVerificationFailure({ logger, error, token, jwksUrl, issuer, audienc
       configuredAudience: audience || null,
       jwksHost: safeJwksHostname(jwksUrl),
       jwksFetched,
-      kidFound,
-      usedFallback,
-      localJwksKeyCount
+      kidFound
     });
   } catch { /* logging must never break the auth response path */ }
 }
@@ -169,119 +142,48 @@ function createSupabaseTokenVerifier({
   // 只有真正读取 process.env 的那个生产单例（见下方 verifySupabaseAccessToken）
   // 会显式传入 SUPABASE_AUTH_CONFIG_ERRORS；测试/其他调用方显式构造自己的
   // jwksUrl/issuer/audience 时默认不受这份数组影响。
-  configErrors = [],
-  // 远程 JWKS 端点不可达（DNS/超时/连接被重置/临时 5xx）时的最后手段：一份
-  // 事先手动获取好、内嵌进环境变量的 JWKS JSON。只在识别出的网络类错误时才
-  // 会用它重新验证同一个 JWT——不会绕过签名/issuer/audience 校验，也不会在
-  // 远程已经给出确定答案（签名无效/kid 不存在/过期等）时去问它。
-  localJwksJson = SUPABASE_JWKS_JSON
+  configErrors = []
 } = {}) {
-  let remoteKeySet;
-  let localKeySet;
-  if (localJwksJson) {
-    try {
-      localKeySet = createLocalJWKSet(localJwksJson);
-    } catch (error) {
-      logger.warn('[auth/jwt] local JWKS fallback is configured but invalid, fallback disabled', {
-        errorCode: error?.code || null,
-        errorName: error?.name || null
-      });
-    }
-  }
-  const localJwksKeyCount = Array.isArray(localJwksJson?.keys) ? localJwksJson.keys.length : null;
-
-  async function verifyWithKeySet(token, keySet) {
-    const { payload, protectedHeader } = await jwtVerify(token, keySet, {
-      issuer,
-      audience,
-      algorithms: ALLOWED_ALGORITHMS
-    });
-    if (!UUID_PATTERN.test(payload.sub || '')) {
-      const error = new Error('JWT subject is missing or invalid');
-      error.code = 'invalid_subject';
-      throw error;
-    }
-    return {
-      userId: payload.sub,
-      email: typeof payload.email === 'string' ? payload.email : null,
-      role: typeof payload.role === 'string' ? payload.role : null,
-      sessionId: typeof payload.session_id === 'string' ? payload.session_id : null,
-      algorithm: protectedHeader.alg
-    };
-  }
+  let keySet;
 
   return async function verifySupabaseAccessToken(token) {
-    if (!issuer || !audience || (configErrors && configErrors.length > 0)) {
+    if (!jwksUrl || !issuer || !audience || (configErrors && configErrors.length > 0)) {
       const error = new Error('Supabase authentication is not configured');
       error.code = 'auth_not_configured';
       throw error;
     }
-    if (!jwksUrl && !localKeySet) {
-      const error = new Error('Supabase authentication is not configured');
-      error.code = 'auth_not_configured';
-      throw error;
-    }
-
-    let remoteError = null;
-    if (jwksUrl) {
-      if (!remoteKeySet) {
-        remoteKeySet = createRemoteJWKSet(new URL(jwksUrl), { cooldownDuration, cacheMaxAge, timeoutDuration });
-      }
-      try {
-        return await verifyWithKeySet(token, remoteKeySet);
-      } catch (error) {
-        remoteError = error;
-        const eligibleForFallback = Boolean(localKeySet) && isRemoteJwksNetworkFailure(error);
-        if (!eligibleForFallback) {
-          logVerificationFailure({ logger, error, token, jwksUrl, issuer, audience, usedFallback: false });
-          if (isRemoteJwksNetworkFailure(error) && !localKeySet) {
-            // 网络类失败，且没有配置本地 fallback：真的无法判断 token 是否
-            // 有效，不能当成"这个 token 无效"，也不能悄悄放行。
-            const wrapped = new Error('Supabase JWKS endpoint is unreachable and no local fallback is configured');
-            wrapped.code = 'auth_temporarily_unavailable';
-            wrapped.cause = error;
-            throw wrapped;
-          }
-          throw error;
-        }
-        // 网络类失败 + 本地 fallback 可用 → 继续往下走 fallback 分支。
-      }
-    }
-
-    if (remoteError) {
-      logger.warn('[auth/jwt] remote JWKS unavailable, attempting local fallback', {
-        errorCode: remoteError.code || null,
-        errorName: remoteError.name || null,
-        jwksHost: safeJwksHostname(jwksUrl),
-        localJwksKeyCount
-      });
+    if (!keySet) {
+      keySet = createRemoteJWKSet(new URL(jwksUrl), { cooldownDuration, cacheMaxAge, timeoutDuration });
     }
     try {
-      const claims = await verifyWithKeySet(token, localKeySet);
-      logger.warn('[auth/jwt] verified using local JWKS fallback', {
-        stage: 'fallback_success',
-        alg: claims.algorithm,
+      const { payload, protectedHeader } = await jwtVerify(token, keySet, {
         issuer,
         audience,
-        usedFallback: true,
-        localJwksKeyCount
+        algorithms: ALLOWED_ALGORITHMS
       });
-      return claims;
-    } catch (fallbackError) {
-      logVerificationFailure({
-        logger, error: fallbackError, token, jwksUrl, issuer, audience,
-        usedFallback: true, localJwksKeyCount
-      });
-      if (isLocalJwksBroken(fallbackError)) {
-        // 本地 fallback 的 key 材料本身有问题（结构过了 config.js 的校验，
-        // 但实际密钥点位非法）——这是配置问题，不是"这个 token 无效"，不能
-        // 当成 401。
-        const wrapped = new Error('Local JWKS fallback key material is invalid');
+      if (!UUID_PATTERN.test(payload.sub || '')) {
+        const error = new Error('JWT subject is missing or invalid');
+        error.code = 'invalid_subject';
+        throw error;
+      }
+      return {
+        userId: payload.sub,
+        email: typeof payload.email === 'string' ? payload.email : null,
+        role: typeof payload.role === 'string' ? payload.role : null,
+        sessionId: typeof payload.session_id === 'string' ? payload.session_id : null,
+        algorithm: protectedHeader.alg
+      };
+    } catch (error) {
+      logVerificationFailure({ logger, error, token, jwksUrl, issuer, audience });
+      if (isRemoteJwksNetworkFailure(error)) {
+        // 远程 JWKS 端点连不上/连不稳/超时：我们真的无法判断 token 是否有
+        // 效，不能当成"这个 token 无效"，也不能悄悄放行。
+        const wrapped = new Error('Supabase JWKS endpoint is temporarily unreachable');
         wrapped.code = 'auth_temporarily_unavailable';
-        wrapped.cause = fallbackError;
+        wrapped.cause = error;
         throw wrapped;
       }
-      throw fallbackError;
+      throw error;
     }
   };
 }

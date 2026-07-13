@@ -146,16 +146,13 @@ if (Number.isInteger(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
 {
   const authConfig = describeSupabaseAuthConfig();
   console.log(
-    `[server] supabase auth config: host=${authConfig.supabaseHost} jwks=${authConfig.jwksHost}${authConfig.jwksPath} issuer=${authConfig.issuer} audience=${authConfig.audience} algorithms=${ALLOWED_ALGORITHMS.join(',')} node=${authConfig.nodeVersion} localJwksFallback=${authConfig.localJwksConfigured ? `configured(${authConfig.localJwksKeyCount} keys)` : 'not configured'}`
+    `[server] supabase auth config: host=${authConfig.supabaseHost} jwks=${authConfig.jwksHost}${authConfig.jwksPath} issuer=${authConfig.issuer} audience=${authConfig.audience} algorithms=${ALLOWED_ALGORITHMS.join(',')} node=${authConfig.nodeVersion}`
   );
   if (SUPABASE_AUTH_CONFIG_ERRORS.length > 0) {
     for (const message of SUPABASE_AUTH_CONFIG_ERRORS) {
       console.warn(`[server] supabase auth config problem: ${message}`);
     }
     console.warn('[server] /api/me 将返回 503 auth_unavailable，直到以上配置问题被修复。');
-  }
-  if (authConfig.localJwksError) {
-    console.warn(`[server] SUPABASE_JWKS_JSON fallback problem (fallback disabled, primary auth unaffected): ${authConfig.localJwksError}`);
   }
 }
 

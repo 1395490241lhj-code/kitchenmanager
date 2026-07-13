@@ -127,65 +127,6 @@ if (SUPABASE_URL && SUPABASE_JWT_ISSUER) {
   } catch { /* 不合法的那一个已经在上面报告过了 */ }
 }
 
-// ── 本地 JWKS fallback（SUPABASE_JWKS_JSON）───────────────────────────────
-// 背景：Render 出现过整台机器解析不了 Supabase JWKS 域名（DNS ENOTFOUND）的
-// 情况——这与 issuer/audience 格式完全无关，纯粹是出网/DNS 故障，会让所有登录
-// 请求同时失效。这里允许运维把 Supabase JWKS 端点当时返回的 JSON（只是一组
-// 公开验证公钥，不是密钥）粘贴进这个环境变量，作为远程 JWKS 不可达时的最后手
-// 段；jwt.js 只在识别出的网络类错误时才会用它重新验证同一个 JWT，不会绕过签
-// 名/issuer/audience 校验。
-//
-// 这里的校验问题不计入 SUPABASE_AUTH_CONFIG_ERRORS：fallback 未配置或配置
-// 损坏，不应该连带把本来工作正常的远程 JWKS 路径也一起禁用，只是意味着"没有
-// 备份"。
-const PRIVATE_JWK_FIELDS = ['d', 'p', 'q', 'dp', 'dq', 'qi'];
-
-function validateJwksJsonValue(rawValue) {
-  const raw = (rawValue === undefined || rawValue === null) ? '' : String(rawValue).trim();
-  if (!raw) return { jwks: null, keyCount: 0, error: null };
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { jwks: null, keyCount: 0, error: 'SUPABASE_JWKS_JSON 不是合法的 JSON' };
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { jwks: null, keyCount: 0, error: 'SUPABASE_JWKS_JSON 必须是一个 JSON 对象' };
-  }
-  if (!Array.isArray(parsed.keys) || parsed.keys.length === 0) {
-    return { jwks: null, keyCount: 0, error: 'SUPABASE_JWKS_JSON 必须包含非空的 keys 数组' };
-  }
-  let hasEs256P256Key = false;
-  for (const key of parsed.keys) {
-    if (!key || typeof key !== 'object' || Array.isArray(key)) {
-      return { jwks: null, keyCount: 0, error: 'SUPABASE_JWKS_JSON 的 keys 中存在非法的 key 条目' };
-    }
-    if (typeof key.kid !== 'string' || !key.kid) {
-      return { jwks: null, keyCount: 0, error: 'SUPABASE_JWKS_JSON 的 keys 中存在缺少 kid 的 key' };
-    }
-    for (const field of PRIVATE_JWK_FIELDS) {
-      if (field in key) {
-        return { jwks: null, keyCount: 0, error: `SUPABASE_JWKS_JSON 包含私钥字段 "${field}"，只能提供公钥（JWKS 应只有公开验证信息）` };
-      }
-    }
-    if (key.alg === 'ES256' && key.kty === 'EC' && key.crv === 'P-256') {
-      hasEs256P256Key = true;
-    }
-  }
-  if (!hasEs256P256Key) {
-    return { jwks: null, keyCount: 0, error: 'SUPABASE_JWKS_JSON 中必须至少包含一个 alg=ES256、kty=EC、crv=P-256 的 key' };
-  }
-  return { jwks: parsed, keyCount: parsed.keys.length, error: null };
-}
-
-const jwksJsonResult = validateJwksJsonValue(process.env.SUPABASE_JWKS_JSON);
-// 对象或 null；jwt.js 只在这个字段非空时才会尝试构建本地 fallback key set。
-const SUPABASE_JWKS_JSON = jwksJsonResult.jwks;
-const SUPABASE_JWKS_JSON_KEY_COUNT = jwksJsonResult.keyCount;
-// 字符串或 null；只是"配了但配错了"的脱敏原因，绝不包含 JSON 内容本身。
-const SUPABASE_JWKS_JSON_ERROR = jwksJsonResult.error;
-
 function safeHostname(url) {
   if (!url) return '(not configured)';
   try { return new URL(url).hostname || '(unknown)'; } catch { return '(invalid)'; }
@@ -196,8 +137,8 @@ function safePathname(url) {
   try { return new URL(url).pathname || '/'; } catch { return ''; }
 }
 
-// 启动日志用：只暴露 host/path/数量这些非密钥信息，绝不暴露完整 URL、JSON 或
-// 任何 key 内容。
+// 启动日志用：只暴露 host/path 这些非密钥信息，绝不暴露完整 URL 或任何 key
+// 内容。
 function describeSupabaseAuthConfig() {
   return {
     supabaseHost: safeHostname(SUPABASE_URL),
@@ -205,10 +146,7 @@ function describeSupabaseAuthConfig() {
     jwksPath: safePathname(SUPABASE_JWKS_URL),
     issuer: SUPABASE_JWT_ISSUER || '(not configured)',
     audience: SUPABASE_JWT_AUDIENCE || '(not configured)',
-    nodeVersion: process.version,
-    localJwksConfigured: Boolean(SUPABASE_JWKS_JSON),
-    localJwksKeyCount: SUPABASE_JWKS_JSON_KEY_COUNT,
-    localJwksError: SUPABASE_JWKS_JSON_ERROR
+    nodeVersion: process.version
   };
 }
 
@@ -284,13 +222,9 @@ module.exports = {
   SUPABASE_JWT_ISSUER,
   SUPABASE_JWT_AUDIENCE,
   SUPABASE_AUTH_CONFIG_ERRORS,
-  SUPABASE_JWKS_JSON,
-  SUPABASE_JWKS_JSON_KEY_COUNT,
-  SUPABASE_JWKS_JSON_ERROR,
   describeSupabaseAuthConfig,
   sanitizeSupabaseEnvValue,
   sanitizeSupabaseUrlValue,
-  validateJwksJsonValue,
   TRUST_PROXY_HOPS,
   TRUST_PROXY_HOPS_INVALID_RAW,
   parseTrustProxyHops,
