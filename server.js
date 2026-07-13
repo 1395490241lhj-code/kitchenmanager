@@ -38,6 +38,8 @@ const {
   AI_RATE_LIMIT_MAX,
   IMPORT_RATE_LIMIT_MAX,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
+  SUPABASE_AUTH_CONFIG_ERRORS,
+  describeSupabaseAuthConfig,
   TRUST_PROXY_HOPS,
   TRUST_PROXY_HOPS_INVALID_RAW,
   MEDIA_TMP_DIR,
@@ -114,7 +116,7 @@ const {
   limitSourceSectionText,
   uniqueTextList
 } = require('./src/server/utils/text');
-const { authenticateRequest, createRequireAuthRole } = require('./src/server/auth/jwt');
+const { authenticateRequest, createRequireAuthRole, ALLOWED_ALGORITHMS } = require('./src/server/auth/jwt');
 const { createMeHandler } = require('./src/server/auth/me-route');
 
 const app = express();
@@ -133,6 +135,25 @@ if (Number.isInteger(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
   console.log(`[server] trust proxy hops: ${TRUST_PROXY_HOPS}`);
 } else {
   console.log('[server] trust proxy disabled');
+}
+
+// ── Supabase auth 启动期脱敏配置检查 ────────────────────────────────────────
+// 只打印 host/path/issuer/audience/Node 版本/算法这些非密钥信息，绝不打印任何
+// key。SUPABASE_AUTH_CONFIG_ERRORS 非空时（trim 后仍带引号、协议重复、非
+// HTTPS、issuer 与 SUPABASE_URL 不同源等），/api/me 会稳定返回 503
+// auth_unavailable 而不是用一个错误的值去尝试验证 —— 这里把原因打印出来，
+// 免得下一次只能对着一个通用的 401 invalid_token 排查。
+{
+  const authConfig = describeSupabaseAuthConfig();
+  console.log(
+    `[server] supabase auth config: host=${authConfig.supabaseHost} jwks=${authConfig.jwksHost}${authConfig.jwksPath} issuer=${authConfig.issuer} audience=${authConfig.audience} algorithms=${ALLOWED_ALGORITHMS.join(',')} node=${authConfig.nodeVersion}`
+  );
+  if (SUPABASE_AUTH_CONFIG_ERRORS.length > 0) {
+    for (const message of SUPABASE_AUTH_CONFIG_ERRORS) {
+      console.warn(`[server] supabase auth config problem: ${message}`);
+    }
+    console.warn('[server] /api/me 将返回 503 auth_unavailable，直到以上配置问题被修复。');
+  }
 }
 
 // 解析 JSON 请求体（截图 base64 较大，放宽上限）。

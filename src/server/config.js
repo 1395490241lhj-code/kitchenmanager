@@ -23,17 +23,133 @@ const IMPORT_RATE_LIMIT_MAX = 10;
 const AUTH_ME_RATE_LIMIT_MAX = 60;
 const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
 
+// ── Supabase 环境变量清洗 ─────────────────────────────────────────────────
+// 背景：Render 上真实出现过「本地能通过、Render 上 /api/me 一律 401
+// invalid_token」的问题，根因是 issuer/audience 在 jose 的 jwtVerify 里是
+// 精确字符串比较（不像 URL 会被 WHATWG URL 解析器自动裁掉首尾空白），Render
+// 控制台粘贴环境变量时混入的尾随空格/换行会让 SUPABASE_JWT_ISSUER 变成
+// "https://xxx.supabase.co/auth/v1\n"，而真实 token 的 payload.iss 永远没有
+// 这个换行，于是每一次验证都必然失败，且失败信息完全通用（invalid_token），
+// 现场排查非常困难。这里统一 trim，并额外识别「首尾包着引号」「协议重复粘贴
+// 两次」这类同样会导致静默失败的粘贴事故，作为明确的启动期配置错误上报，而不
+// 是继续悄悄用一个错误的值尝试验证。
+function stripWrappingQuotes(value) {
+  if (value.length < 2) return { value, wasQuoted: false };
+  const first = value[0];
+  const last = value[value.length - 1];
+  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+    return { value: value.slice(1, -1), wasQuoted: true };
+  }
+  return { value, wasQuoted: false };
+}
+
+function hasDuplicateProtocol(value) {
+  const separatorIndex = value.indexOf('://');
+  return separatorIndex >= 0 && value.slice(separatorIndex + 3).includes('://');
+}
+
+// 只 trim + 识别引号/重复协议，不做 URL 校验；用于 anon key / service-role
+// key / audience 这类「不是 URL，但同样参与精确比较」的值。
+function sanitizeSupabaseEnvValue(name, rawValue) {
+  const raw = (rawValue === undefined || rawValue === null) ? '' : String(rawValue);
+  const trimmed = raw.trim();
+  if (!trimmed) return { value: '', error: null };
+  const { value: unquoted, wasQuoted } = stripWrappingQuotes(trimmed);
+  if (wasQuoted) {
+    return {
+      value: trimmed,
+      error: `${name} 的值首尾包含引号字符，请在环境变量里去掉首尾的 " 或 '（值本身不应该包含引号）`
+    };
+  }
+  if (hasDuplicateProtocol(unquoted)) {
+    return { value: unquoted, error: `${name} 包含重复的协议前缀（例如粘贴了两次 https://），请检查该环境变量的值` };
+  }
+  return { value: unquoted, error: null };
+}
+
+// 在上面的基础上再校验 URL 形状：必须是绝对 http/https URL，且生产环境（非
+// localhost/127.0.0.1）必须是 HTTPS，用于 SUPABASE_URL / SUPABASE_JWKS_URL /
+// SUPABASE_JWT_ISSUER 这三个本质是 URL 的值。
+function sanitizeSupabaseUrlValue(name, rawValue) {
+  const { value, error } = sanitizeSupabaseEnvValue(name, rawValue);
+  if (error || !value) return { value, error };
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return { value, error: `${name} 不是合法的绝对 URL` };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { value, error: `${name} 协议必须是 http 或 https` };
+  }
+  const isLocalHost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+  if (parsed.protocol !== 'https:' && !isLocalHost) {
+    return { value, error: `${name} 必须使用 HTTPS（本地 127.0.0.1/localhost 除外）` };
+  }
+  return { value: value.replace(/\/+$/, ''), error: null };
+}
+
+const SUPABASE_AUTH_CONFIG_ERRORS = [];
+function collect(name, result) {
+  if (result.error) SUPABASE_AUTH_CONFIG_ERRORS.push(result.error);
+  return result.value;
+}
+
 // Supabase public project configuration. SERVICE_ROLE is deliberately not
 // consumed by the normal /api/me path: that request is forwarded with the
 // verified user's JWT so PostgREST still applies RLS.
-const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL
-  || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
-const SUPABASE_JWT_ISSUER = process.env.SUPABASE_JWT_ISSUER
-  || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : '');
-const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE || 'authenticated';
+const SUPABASE_URL = collect('SUPABASE_URL', sanitizeSupabaseUrlValue('SUPABASE_URL', process.env.SUPABASE_URL));
+const SUPABASE_ANON_KEY = collect('SUPABASE_ANON_KEY', sanitizeSupabaseEnvValue('SUPABASE_ANON_KEY', process.env.SUPABASE_ANON_KEY));
+const SUPABASE_SERVICE_ROLE_KEY = collect(
+  'SUPABASE_SERVICE_ROLE_KEY',
+  sanitizeSupabaseEnvValue('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY)
+);
+const SUPABASE_JWKS_URL = collect('SUPABASE_JWKS_URL', sanitizeSupabaseUrlValue(
+  'SUPABASE_JWKS_URL',
+  process.env.SUPABASE_JWKS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '')
+));
+const SUPABASE_JWT_ISSUER = collect('SUPABASE_JWT_ISSUER', sanitizeSupabaseUrlValue(
+  'SUPABASE_JWT_ISSUER',
+  process.env.SUPABASE_JWT_ISSUER || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : '')
+));
+const SUPABASE_JWT_AUDIENCE = collect(
+  'SUPABASE_JWT_AUDIENCE',
+  sanitizeSupabaseEnvValue('SUPABASE_JWT_AUDIENCE', process.env.SUPABASE_JWT_AUDIENCE || 'authenticated')
+);
+
+// issuer 与 SUPABASE_URL 指向的项目是否一致（同源）。两者都能各自合法解析成
+// URL 时才检查——各自的格式错误已经在上面各自报告过了。
+if (SUPABASE_URL && SUPABASE_JWT_ISSUER) {
+  try {
+    if (new URL(SUPABASE_JWT_ISSUER).origin !== new URL(SUPABASE_URL).origin) {
+      SUPABASE_AUTH_CONFIG_ERRORS.push('SUPABASE_JWT_ISSUER 与 SUPABASE_URL 指向的 Supabase 项目不一致（origin 不同）');
+    }
+  } catch { /* 不合法的那一个已经在上面报告过了 */ }
+}
+
+function safeHostname(url) {
+  if (!url) return '(not configured)';
+  try { return new URL(url).hostname || '(unknown)'; } catch { return '(invalid)'; }
+}
+
+function safePathname(url) {
+  if (!url) return '';
+  try { return new URL(url).pathname || '/'; } catch { return ''; }
+}
+
+// 启动日志用：只暴露 host/path，不暴露完整 URL 或任何 key。
+function describeSupabaseAuthConfig() {
+  return {
+    supabaseHost: safeHostname(SUPABASE_URL),
+    jwksHost: safeHostname(SUPABASE_JWKS_URL),
+    jwksPath: safePathname(SUPABASE_JWKS_URL),
+    issuer: SUPABASE_JWT_ISSUER || '(not configured)',
+    audience: SUPABASE_JWT_AUDIENCE || '(not configured)',
+    nodeVersion: process.version
+  };
+}
+
+Object.freeze(SUPABASE_AUTH_CONFIG_ERRORS);
 
 const MEDIA_TMP_DIR = path.join(os.tmpdir(), 'kitchenmanager-media');
 const MEDIA_MAX_VIDEO_BYTES = 80 * 1024 * 1024;
@@ -104,6 +220,10 @@ module.exports = {
   SUPABASE_JWKS_URL,
   SUPABASE_JWT_ISSUER,
   SUPABASE_JWT_AUDIENCE,
+  SUPABASE_AUTH_CONFIG_ERRORS,
+  describeSupabaseAuthConfig,
+  sanitizeSupabaseEnvValue,
+  sanitizeSupabaseUrlValue,
   TRUST_PROXY_HOPS,
   TRUST_PROXY_HOPS_INVALID_RAW,
   parseTrustProxyHops,
