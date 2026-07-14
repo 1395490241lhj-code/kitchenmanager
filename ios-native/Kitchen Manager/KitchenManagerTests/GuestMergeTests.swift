@@ -1545,14 +1545,26 @@ final class GuestMergeTests: XCTestCase {
             persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
             transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) }
         )
+        // Give the export something real to leak, so the assertions below
+        // are actually exercising redaction rather than passing vacuously.
+        let secretlyNamedItem = InventoryItem(name: "秘密食材-用户不该看到这个名字", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [secretlyNamedItem], userId: userA, householdId: householdA)
+        let stagedMutationId = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: secretlyNamedItem.id)?.mutationId
+
         let snapshot = await controller.diagnosticsSnapshot(
             kitchenStore: kitchen, userId: userA, householdId: householdA,
             environmentName: "development", appBuild: "1.0-test"
         )
         let json = String(data: snapshot.redactedJSON(), encoding: .utf8) ?? ""
-        for forbidden in [userA.uuidString, householdA.uuidString, "@", "token", "password", "Authorization"] {
-            XCTAssertFalse(json.contains(forbidden), "diagnostics export must never contain \(forbidden)")
+        var forbidden = [
+            userA.uuidString, householdA.uuidString, secretlyNamedItem.id.uuidString,
+            secretlyNamedItem.name, "@", "token", "password", "Authorization", "authorization", "refreshToken",
+        ]
+        if let stagedMutationId { forbidden.append(stagedMutationId.uuidString) }
+        for value in forbidden {
+            XCTAssertFalse(json.contains(value), "diagnostics export must never contain \(value)")
         }
+        XCTAssertEqual(snapshot.pendingCount, 1, "sanity check: the staged mutation this test relies on for leak-testing actually exists")
     }
 
     func testManualSyncRepeatedTapsExecuteOnlyOnce() async throws {
