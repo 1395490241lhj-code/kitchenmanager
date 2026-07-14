@@ -116,7 +116,8 @@ nonisolated enum InventoryMergePlanner {
             sourceCount: localItems.count,
             candidates: candidates,
             skippedItemIds: candidates.filter { $0.action == .skip && $0.conflictReason == nil }.map(\.localItemId),
-            planHash: planHash(sessionId: sessionId, householdId: householdId, localItems: localItems)
+            planHash: planHash(sessionId: sessionId, householdId: householdId, localItems: localItems),
+            knownRemoteItemCount: knownRemoteItems.count
         )
     }
 

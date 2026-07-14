@@ -76,9 +76,9 @@ struct AccountView: View {
     @EnvironmentObject private var guestMergeController: GuestMergeController
     @State private var isConfirmingSignOut = false
 
-    private var defaultHouseholdId: UUID? {
-        authStore.account?.households.first(where: { $0.role == "owner" })?.id
-            ?? authStore.account?.households.first?.id
+    private var defaultHousehold: AccountHousehold? {
+        authStore.account?.households.first(where: { $0.role == "owner" })
+            ?? authStore.account?.households.first
     }
 
     var body: some View {
@@ -104,13 +104,15 @@ struct AccountView: View {
                     }
                 }
 
-                if let userId = authStore.currentUserID, let householdId = defaultHouseholdId {
+                if let userId = authStore.currentUserID, let household = defaultHousehold {
                     GuestMergePromptView(
                         controller: guestMergeController,
                         userId: userId,
-                        householdId: householdId,
+                        householdId: household.id,
+                        householdName: household.name,
                         kitchenStore: kitchenStore
                     )
+                    InventorySyncStatusView(controller: guestMergeController, householdId: household.id)
                 }
 
                 Section {

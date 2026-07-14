@@ -172,3 +172,14 @@ Phase 2B-1 在不修改本文件第 1–11 节所述任何后端契约、schema 
 - 详见 `docs/GUEST_MERGE_PHASE2B.md`（设计与状态机）与 `docs/INVENTORY_MERGE_CONTRACT.md`（匹配规则、上传/回滚契约）。
 
 本阶段（2B-1）仍未执行任何真实 hosted Guest merge；真实测试账号验证留待 Phase 2B-2。
+
+## 13. Phase 2B-3：正式 Guest Merge UI 与手动同步（新增，本节起）
+
+Phase 2B-3 在不新增任何后端 endpoint、不修改任何既有同步语义的前提下，把 Phase 2B-1/2B-2 已验证的合并引擎接入正式 App UI：
+
+- 新增第二个独立开关 `INVENTORY_MERGE_UI_ENABLED`（默认 `NO`）——只控制合并/同步 UI 是否显示，与控制网络能力的 `INVENTORY_SYNC_ENABLED` 完全独立；两者都为默认关闭，缺一不会显示 UI 或获得写入能力。
+- `InventoryMergeConflictChoice` 新增第四个选项 `skip`（"稍后处理"）：语义与未处理完全一致（不上传、不覆盖），仅记录用户已看过。
+- 新增 `GuestMergeController.syncNow(authStore:householdId:)`——除 `confirmMerge`/`rollback` 外唯一的 `SyncCoordinator.runOnce` 生产调用点，仅由用户主动点击"立即同步库存"触发，作用域仍只限 `inventory_item`。
+- 明确决定但本阶段未接入：合并完成后，普通 Inventory CRUD 是否应自动生成 PendingMutation。保守策略已写入 `docs/INVENTORY_SYNC_PHASE2B3.md`，但接入 `KitchenStore` 现有写入路径需要引入 Auth/Sync 依赖，属于更大的架构改动，本阶段刻意推迟。
+- App 启动、登录、后台任务、timer 仍不触发任何同步——由 Node 语义护栏测试确认整个文件中 `runOnce` 只出现在 `confirmMerge`/`rollback`/`syncNow` 三处。
+- 详见 `docs/INVENTORY_SYNC_PHASE2B3.md`。

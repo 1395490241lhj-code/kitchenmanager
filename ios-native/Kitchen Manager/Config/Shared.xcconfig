@@ -8,6 +8,10 @@ SYNC_SMOKE_ENVIRONMENT =
 // Phase 2B: independent gate for the Guest inventory merge feature. Does not
 // enable or depend on SYNC_ENABLED; both default NO in every configuration.
 INVENTORY_SYNC_ENABLED = NO
+// Phase 2B-3: independent gate for whether the merge/sync UI is even shown.
+// Separate from INVENTORY_SYNC_ENABLED (the network capability) so each can
+// be controlled independently; both default NO everywhere.
+INVENTORY_MERGE_UI_ENABLED = NO
 // Phase 2B-2: a second, independent one-off smoke guard, mirroring
 // SYNC_SMOKE_ENABLED — never a product feature flag, always NO in every
 // committed configuration and every Release build.

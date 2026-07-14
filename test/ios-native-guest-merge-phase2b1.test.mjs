@@ -15,6 +15,7 @@ const info = read('KitchenManager/Info.plist');
 const sharedConfig = read('Config/Shared.xcconfig');
 const exampleConfig = read('Config/Local.example.xcconfig');
 const syncCoordinator = read('KitchenManager/Synchronization/SyncCoordinator.swift');
+const mainFeatureViews = read('KitchenManager/MainFeatureViews.swift');
 
 test('Phase 2B keeps INVENTORY_SYNC_ENABLED disabled by default, independent of SYNC_ENABLED', () => {
   for (const value of [sharedConfig, exampleConfig]) {
@@ -194,4 +195,100 @@ test('Phase 2B-2.5: default switches remain NO — no new flag was introduced fo
   for (const value of [sharedConfig, exampleConfig]) {
     assert.match(value, /INVENTORY_SYNC_ENABLED\s*=\s*NO/);
   }
+});
+
+// Phase 2B-3: formal merge/sync UI, gated by a second independent flag,
+// still with zero automatic network activity anywhere.
+
+test('Phase 2B-3: INVENTORY_MERGE_UI_ENABLED is a second, independent flag, disabled by default everywhere', () => {
+  for (const value of [sharedConfig, exampleConfig]) {
+    assert.match(value, /INVENTORY_MERGE_UI_ENABLED\s*=\s*NO/);
+  }
+  assert.match(info, /KM_INVENTORY_MERGE_UI_ENABLED/);
+  assert.match(models, /struct InventoryMergeUIConfiguration/);
+  assert.match(models, /KM_INVENTORY_MERGE_UI_ENABLED/);
+});
+
+test('Phase 2B-3: no automatic runOnce anywhere in the UI/app-lifecycle files — every call site is user-initiated', () => {
+  // The only production (non-Debug) call sites are confirmMerge, rollback,
+  // and the new syncNow — all three require an explicit user tap through
+  // GuestMergeViews.swift; none of them are reachable from App startup,
+  // sign-in, a timer, or a background task.
+  assert.doesNotMatch(content, /\.onAppear[\s\S]{0,200}runOnce/);
+  assert.doesNotMatch(authStore, /runOnce/);
+  assert.doesNotMatch(mainFeatureViews, /runOnce/);
+  const runOnceSites = [...controller.matchAll(/coordinator\.runOnce/g)];
+  assert.equal(runOnceSites.length, 3, 'expected exactly confirmMerge, rollback, and syncNow to call runOnce — any more/fewer is a scope change that needs review');
+});
+
+test('Phase 2B-3: signing in never triggers a sync/merge call, only refreshes account/household profile data', () => {
+  const signInSection = authStore.slice(authStore.indexOf('func signIn'), authStore.indexOf('func signIn') + 1500);
+  assert.doesNotMatch(signInSection, /runOnce|confirmMerge|syncNow|GuestMergeController/);
+});
+
+test('Phase 2B-3: App launch never triggers a sync/merge call', () => {
+  const contentViewMinusDebug = content.replace(/#if DEBUG[\s\S]*?#endif/g, '');
+  assert.doesNotMatch(contentViewMinusDebug, /runOnce|confirmMerge\(|\.syncNow\(/);
+});
+
+test('Phase 2B-3: merge preview still never creates a PendingMutation (unchanged from Phase 2B-1)', () => {
+  const previewSection = controller.slice(controller.indexOf('func preparePreview'), controller.indexOf('func resolveConflict'));
+  assert.doesNotMatch(previewSection, /stageUpsert|stageDelete|runOnce|PendingMutation/);
+});
+
+test('Phase 2B-3: syncNow only ever scopes to the inventory_item entity type, and only via the existing SyncCoordinator/adapter', () => {
+  const syncNowSection = controller.slice(controller.indexOf('func syncNow'), controller.indexOf('func pendingInventoryCount'));
+  assert.match(syncNowSection, /SyncCoordinator\(configuration: SyncConfiguration\(isEnabled: true\), persistence: persistence, transport: transport\)/);
+  assert.doesNotMatch(syncNowSection, /SyncEntityType\.(shoppingItem|todayPlan|weeklyMealPlan|weeklyMealPlanItem|userRecipe|recipeFavorite|frequentRecipe)/);
+  assert.doesNotMatch(syncNowSection, /KM_SYNC_ENABLED|SyncConfiguration\.load/);
+});
+
+test('Phase 2B-3: syncNow refuses without the network flag and without a signed-in user, mirroring confirmMerge/rollback', () => {
+  const syncNowSection = controller.slice(controller.indexOf('func syncNow'), controller.indexOf('func pendingInventoryCount'));
+  assert.match(syncNowSection, /guard isFeatureEnabled else/);
+  assert.match(syncNowSection, /guard let userId = authStore\.currentUserID else/);
+});
+
+test('Phase 2B-3: no service-role key, no raw token access from any View, and the manual sync UI never prints technical error text', () => {
+  assert.doesNotMatch(views, /service_role|SERVICE_ROLE|currentAccessToken/);
+  assert.doesNotMatch(views, /print\(|debugPrint\(/);
+  assert.match(controller, /userFacingSyncError/, 'syncNow must map SyncError to plain user-facing copy, never the raw error');
+});
+
+test('Phase 2B-3: same-id keepBoth identity-fork semantics are preserved (no regression from the new skip choice)', () => {
+  assert.match(models, /case skip$/m);
+  const applyingChoiceSection = models.slice(models.indexOf('func applyingChoice'));
+  assert.match(applyingChoiceSection, /case \.skip:\s*\n\s*copy\.action = \.skip\s*\n\s*copy\.forkedLocalItemId = nil/);
+  assert.match(applyingChoiceSection, /remoteItemId == localItemId\)\s*\?\s*\(forkedLocalItemId \?\? UUID\(\)\)\s*:\s*nil/);
+});
+
+test('Phase 2B-3: Shopping/Today Plan/Weekly Plan/Recipe entity types never appear anywhere in the merge/sync UI or controller', () => {
+  const forbidden = /SyncEntityType\.(shoppingItem|todayPlan|weeklyMealPlan|weeklyMealPlanItem|userRecipe|recipeFavorite|frequentRecipe)/;
+  assert.doesNotMatch(controller, forbidden);
+  assert.doesNotMatch(views, forbidden);
+  assert.doesNotMatch(planner, forbidden);
+});
+
+test('Phase 2B-3: manual sync button and keepBoth-fork notice expose stable accessibility identifiers for UI testing', () => {
+  assert.match(views, /accessibilityIdentifier\("inventorySyncNowButton"\)/);
+  assert.match(views, /accessibilityIdentifier\("guestMergeKeepBothForkNotice/);
+  assert.match(views, /accessibilityIdentifier\("guestMergeConflictPicker/);
+});
+
+test('Phase 2B-3: manual sync and conflict-resolution controls declare at least 44pt touch targets', () => {
+  const syncSection = views.slice(views.indexOf('struct InventorySyncStatusView'), views.indexOf('struct InventoryMergeFlowView'));
+  assert.match(syncSection, /minHeight: 44/);
+});
+
+test('Phase 2B-3: the conflict picker offers all four documented choices (keepLocal/keepRemote/keepBoth/skip)', () => {
+  const conflictViewSection = views.slice(views.indexOf('struct InventoryMergeConflictView'), views.indexOf('struct InventoryMergeProgressView'));
+  assert.match(conflictViewSection, /InventoryMergeConflictChoice\.keepLocal/);
+  assert.match(conflictViewSection, /InventoryMergeConflictChoice\.keepRemote/);
+  assert.match(conflictViewSection, /InventoryMergeConflictChoice\.keepBoth/);
+  assert.match(conflictViewSection, /InventoryMergeConflictChoice\.skip/);
+});
+
+test('Phase 2B-3: the preview screen never displays a raw UUID, mutation id, cursor, token, or household internal id', () => {
+  const previewSection = views.slice(views.indexOf('struct InventoryMergePreviewView'), views.indexOf('struct InventoryMergeConflictView'));
+  assert.doesNotMatch(previewSection, /\.uuidString|mutationId|cursor|accessToken|householdId\.uuidString/);
 });

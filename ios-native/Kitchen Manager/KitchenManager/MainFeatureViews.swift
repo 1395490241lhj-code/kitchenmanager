@@ -452,7 +452,7 @@ struct SettingsView: View {
                     } label: {
                         LabeledContent("游客模式", value: "登录或创建账号")
                     }
-                    Text("无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备。")
+                    Text("无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     if let message = authStore.errorMessage {

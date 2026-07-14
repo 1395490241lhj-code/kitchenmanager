@@ -186,13 +186,28 @@ original remote entity) and the fork (mapped to the newly created one). The
 different-id ambiguous-duplicate case is completely unaffected — its own id
 is already distinct, so `forkedLocalItemId` stays `nil` there.
 
+## Phase 2B-3: formal UI and manual sync
+
+The prompt/preview/conflict/progress/result screens described above are now
+a real product surface, gated by a second, independent flag
+(`INVENTORY_MERGE_UI_ENABLED`, default `NO`) alongside `INVENTORY_SYNC_ENABLED`
+(the network capability) — the UI never shows unless both are on. A fourth
+conflict choice, `.skip` ("稍后处理"), and a manual "立即同步库存" entry
+(`GuestMergeController.syncNow`, the only production `runOnce` call site
+besides `confirmMerge`/`rollback`) were added. Full details:
+`docs/INVENTORY_SYNC_PHASE2B3.md`.
+
 ## Not yet implemented
 
 - Shopping, Today Plan, Weekly Plan, or Recipe merge (out of scope for all of
   Phase 2B).
-- Background sync, Realtime, or household invitation.
-- A global "enable Inventory sync for everyone" switch — `INVENTORY_SYNC_ENABLED`
-  stays an explicit, developer/operator-controlled flag.
+- Automatic/background sync, Realtime, or household invitation.
+- CRUD-to-sync wiring for ordinary (non-merge) inventory edits after a merge
+  completes — policy decided in Phase 2B-3, implementation deferred (see
+  `docs/INVENTORY_SYNC_PHASE2B3.md`).
+- A global "enable Inventory sync for everyone" switch — both
+  `INVENTORY_SYNC_ENABLED` and `INVENTORY_MERGE_UI_ENABLED` stay explicit,
+  developer/operator-controlled flags, `NO` in every committed configuration.
 
 ## Testing
 

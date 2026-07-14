@@ -37,10 +37,18 @@ final class GuestMergeController: ObservableObject {
     @Published private(set) var session: GuestMergeSession?
     @Published private(set) var isBusy = false
     @Published private(set) var lastErrorMessage: String?
+    /// Manual-sync-only state (section 十二/十三) — entirely separate from
+    /// the merge session's own `isBusy`/`lastErrorMessage`, since a manual
+    /// sync can run independently of any merge session (e.g. after a merge
+    /// has already completed).
+    @Published private(set) var isSyncing = false
+    @Published private(set) var lastSyncOutcome: SyncRunOutcome?
+    @Published private(set) var lastSyncErrorMessage: String?
 
     private let persistence: any SyncPersistenceProtocol
     private let transportFactory: @MainActor (any SyncAccessTokenProviding) -> any SyncTransport
     private let configuration: InventoryMergeConfiguration
+    private let uiConfiguration: InventoryMergeUIConfiguration
     /// How long a completed session's own newly-created records may still be
     /// rolled back.
     private let rollbackWindow: TimeInterval
@@ -48,6 +56,7 @@ final class GuestMergeController: ObservableObject {
     init(
         persistence: any SyncPersistenceProtocol,
         configuration: InventoryMergeConfiguration = .load(),
+        uiConfiguration: InventoryMergeUIConfiguration = .load(),
         transportFactory: @escaping @MainActor (any SyncAccessTokenProviding) -> any SyncTransport = { provider in
             ExpressSyncTransport(tokenProvider: provider)
         },
@@ -55,11 +64,15 @@ final class GuestMergeController: ObservableObject {
     ) {
         self.persistence = persistence
         self.configuration = configuration
+        self.uiConfiguration = uiConfiguration
         self.transportFactory = transportFactory
         self.rollbackWindow = rollbackWindow
     }
 
     var isFeatureEnabled: Bool { configuration.isEnabled }
+    /// Whether the merge/sync UI should be shown at all — independent of
+    /// `isFeatureEnabled` (the network capability). Both default `NO`.
+    var isUIEnabled: Bool { uiConfiguration.isEnabled }
     var plan: InventoryMergePlan? { session?.plan }
 
     // MARK: Detection (read-only, in-memory, no network)
@@ -455,6 +468,65 @@ final class GuestMergeController: ObservableObject {
             try? await persistence.saveGuestMergeSession(current)
             session = current
             lastErrorMessage = "回滚失败，可稍后重试。"
+        }
+    }
+
+    // MARK: Manual sync (explicit, user-initiated only — never automatic)
+
+    /// The only way `SyncCoordinator.runOnce` is ever invoked outside of
+    /// `confirmMerge`/`rollback` — always in direct response to the user
+    /// tapping "立即同步库存". Never called from App startup, sign-in, a
+    /// timer, or a background task. Scoped to `.inventoryItem` only, exactly
+    /// like every other entry point in this file.
+    func syncNow(authStore: AuthStore, householdId: UUID) async {
+        guard isFeatureEnabled else {
+            lastSyncErrorMessage = "库存同步尚未开启。"
+            return
+        }
+        guard let userId = authStore.currentUserID else {
+            lastSyncErrorMessage = "请先登录后再同步。"
+            return
+        }
+        guard !isSyncing else { return }
+
+        isSyncing = true
+        lastSyncErrorMessage = nil
+        defer { isSyncing = false }
+
+        let scope = SyncScope(type: .household, id: householdId)
+        let provider = AuthStoreCredentialProvider(authStore: authStore)
+        let transport = transportFactory(provider)
+        let coordinator = SyncCoordinator(configuration: SyncConfiguration(isEnabled: true), persistence: persistence, transport: transport)
+        let authentication = SyncAuthenticationContext(userID: userId, isAuthenticated: true)
+        let outcome = await coordinator.runOnce(authentication: authentication, scopes: [scope])
+        lastSyncOutcome = outcome
+        if case .failed(let error) = outcome {
+            lastSyncErrorMessage = Self.userFacingSyncError(error)
+        } else if case .paused(let error) = outcome {
+            lastSyncErrorMessage = Self.userFacingSyncError(error)
+        }
+    }
+
+    /// How many inventory mutations are currently staged and not yet
+    /// resolved for this household — used only for the status label ("待同步
+    /// X 项"), never to decide whether to sync automatically.
+    func pendingInventoryCount(householdId: UUID) async -> Int {
+        let scope = SyncScope(type: .household, id: householdId)
+        return (try? await persistence.pendingMutations(scope: scope, maxAttempts: .max).count) ?? 0
+    }
+
+    /// Maps a technical `SyncError` to plain, user-facing copy — never the
+    /// raw error description, an HTTP status, or any transport detail.
+    private static func userFacingSyncError(_ error: SyncError) -> String {
+        switch error {
+        case .notAuthenticated: "需要重新登录。"
+        case .forbidden, .unauthorized: "需要重新登录。"
+        case .payloadTooLarge: "本次同步内容过大，请稍后重试。"
+        case .conflict: "有冲突条目待处理。"
+        case .backendUnavailable: "服务暂时不可用，请稍后重试。"
+        case .decoding, .invalidCursor, .invalidConfiguration, .unsupportedEntity, .persistence: "同步失败，可稍后重试。"
+        case .disabled: "库存同步尚未开启。"
+        case .transport: "当前网络不可用，请稍后重试。"
         }
     }
 }

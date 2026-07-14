@@ -78,6 +78,7 @@ A conflict only becomes upload-eligible after an explicit
 | `keepLocal` | `update` if same id, else `create` (never takes over a different id's remote record) |
 | `keepRemote` | `keepRemote` (never uploaded) |
 | `keepBoth` | `create` — using `candidate.localItemId` if the match was different-id (already distinct); using a freshly allocated `forkedLocalItemId` if the match was same-id (Phase 2B-2.5 — see below), never the original id |
+| `skip` (Phase 2B-3) | `skip` — behaviorally identical to leaving the conflict unresolved (never uploaded), except `userChoice` is recorded so it drops out of the "still needs a decision" list |
 
 ### Same-id `keepBoth` identity fork (Phase 2B-2.5)
 
@@ -225,3 +226,16 @@ call, rather than freezing a token value up front. Consequences:
 No error message surfaced to the UI includes a JWT, `Authorization` header,
 publishable key, or raw SQL detail — the existing `SyncError.errorDescription`
 messages are reused as-is.
+
+## Manual sync (Phase 2B-3)
+
+`GuestMergeController.syncNow(authStore:householdId:)` is the only production
+call site of `SyncCoordinator.runOnce` besides `confirmMerge`/`rollback` —
+always in direct response to a user tapping "立即同步库存", never automatic.
+Same guard clauses (`isFeatureEnabled`, `authStore.currentUserID`), same
+`.inventoryItem`-only scope, same locally-scoped
+`SyncConfiguration(isEnabled: true)`. Errors are mapped through
+`userFacingSyncError(_:)` to plain copy, never the raw `SyncError`.
+`pendingInventoryCount(householdId:)` is a read-only count used only for a
+status label, never to decide whether to sync automatically. Full detail:
+`docs/INVENTORY_SYNC_PHASE2B3.md`.

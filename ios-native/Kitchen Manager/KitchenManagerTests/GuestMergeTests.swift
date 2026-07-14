@@ -948,6 +948,128 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertFalse(controller.isFeatureEnabled, "default bundle has no KM_INVENTORY_SYNC_ENABLED key, so the feature must stay off")
     }
 
+    // MARK: - Phase 2B-3: INVENTORY_MERGE_UI_ENABLED (independent of INVENTORY_SYNC_ENABLED)
+
+    func testInventoryMergeUIEnabledDefaultsToFalseWhenInfoPlistKeyIsAbsent() {
+        XCTAssertFalse(InventoryMergeUIConfiguration().isEnabled)
+        XCTAssertFalse(InventoryMergeUIConfiguration.load().isEnabled, "default bundle has no KM_INVENTORY_MERGE_UI_ENABLED key, so the UI must stay hidden")
+    }
+
+    func testIsUIEnabledReflectsInjectedUIConfigurationIndependentlyOfNetworkFlag() throws {
+        let (_, persistence) = try makePersistence()
+        let uiOnlyController = GuestMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: false),
+            uiConfiguration: InventoryMergeUIConfiguration(isEnabled: true)
+        )
+        XCTAssertTrue(uiOnlyController.isUIEnabled)
+        XCTAssertFalse(uiOnlyController.isFeatureEnabled, "the UI flag must never itself grant network capability")
+
+        let networkOnlyController = GuestMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            uiConfiguration: InventoryMergeUIConfiguration(isEnabled: false)
+        )
+        XCTAssertFalse(networkOnlyController.isUIEnabled)
+        XCTAssertTrue(networkOnlyController.isFeatureEnabled, "the network flag must never itself force the UI to show")
+    }
+
+    // MARK: - Phase 2B-3: skip conflict choice (never uploads, never forks)
+
+    func testSkipChoicePersistsAndNeverUploadsOrForks() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        let candidateBefore = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
+        XCTAssertEqual(candidateBefore.conflictReason, .quantityMismatch)
+
+        await controller.resolveConflict(candidateId: sharedId, choice: .skip)
+        let resolved = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
+        XCTAssertEqual(resolved.action, .skip)
+        XCTAssertNil(resolved.forkedLocalItemId)
+        XCTAssertFalse(resolved.needsDecision, "an explicit skip resolves the conflict — it must not keep nagging the user")
+        XCTAssertFalse(controller.plan?.readyToUpload.contains(where: { $0.localItemId == sharedId }) ?? true)
+
+        // Restart: the skip choice must persist, not silently reset.
+        let controllerAfterRestart = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controllerAfterRestart.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        XCTAssertEqual(controllerAfterRestart.plan?.candidates.first(where: { $0.localItemId == sharedId })?.userChoice, .skip)
+    }
+
+    // MARK: - Phase 2B-3: manual sync (never automatic)
+
+    func testSyncNowRefusesWhenFeatureDisabled() async throws {
+        let (_, persistence) = try makePersistence()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: false),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) }
+        )
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+        XCTAssertNil(controller.lastSyncOutcome, "must never run the coordinator when the network flag is off")
+        XCTAssertNotNil(controller.lastSyncErrorMessage)
+    }
+
+    func testSyncNowRefusesWhenSignedOut() async throws {
+        let (_, persistence) = try makePersistence()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) }
+        )
+        let authStore = await signedInAuthStore(userID: userA)
+        await authStore.signOut()
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+        XCTAssertNil(controller.lastSyncOutcome)
+        XCTAssertNotNil(controller.lastSyncErrorMessage)
+    }
+
+    func testSyncNowRunsCoordinatorOnceWhenEnabledAndSignedIn() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.inventory = [InventoryItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        // Stage one mutation directly (mirrors what a completed merge would
+        // have left pending), independent of any merge session.
+        let adapter = InventorySyncAdapter(persistence: persistence)
+        _ = try await adapter.stageUpsert(item: kitchen.inventory[0], scope: SyncScope(type: .household, id: householdA))
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+
+        XCTAssertEqual(controller.lastSyncOutcome, .completed)
+        let appliedCount = await transport.appliedCount()
+        XCTAssertEqual(appliedCount, 1)
+    }
+
+    func testPendingInventoryCountReflectsCurrentlyStagedMutations() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.inventory = [InventoryItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)]
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) }
+        )
+        let before = await controller.pendingInventoryCount(householdId: householdA)
+        XCTAssertEqual(before, 0)
+
+        let adapter = InventorySyncAdapter(persistence: persistence)
+        _ = try await adapter.stageUpsert(item: kitchen.inventory[0], scope: SyncScope(type: .household, id: householdA))
+        let after = await controller.pendingInventoryCount(householdId: householdA)
+        XCTAssertEqual(after, 1)
+    }
+
     // MARK: - Helpers
 
     private func makePersistence() throws -> (ModelContainer, SwiftDataSyncPersistence) {

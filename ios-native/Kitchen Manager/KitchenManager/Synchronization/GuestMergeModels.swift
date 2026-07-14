@@ -49,6 +49,30 @@ nonisolated struct InventoryMergeConfiguration: Equatable, Sendable {
     }
 }
 
+/// Phase 2B-3: a second, independent gate controlling only whether the merge
+/// prompt/preview/conflict/result UI is shown at all. `INVENTORY_SYNC_ENABLED`
+/// remains the *network capability* gate (confirmMerge/rollback/syncNow
+/// refuse without it); this flag is purely presentational, so UI rollout and
+/// network-capability rollout can be staged independently. Default `NO`
+/// everywhere; never set from a remote response.
+nonisolated struct InventoryMergeUIConfiguration: Equatable, Sendable {
+    let isEnabled: Bool
+
+    init(isEnabled: Bool = false) {
+        self.isEnabled = isEnabled
+    }
+
+    static func load(from bundle: Bundle = .main) -> InventoryMergeUIConfiguration {
+        guard let rawValue = bundle.object(forInfoDictionaryKey: "KM_INVENTORY_MERGE_UI_ENABLED") else {
+            return InventoryMergeUIConfiguration()
+        }
+        let normalized = String(describing: rawValue)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return InventoryMergeUIConfiguration(isEnabled: ["1", "true", "yes"].contains(normalized))
+    }
+}
+
 // MARK: - Merge session state machine
 
 nonisolated enum GuestMergeSessionStatus: String, Codable, Sendable {
@@ -264,6 +288,13 @@ nonisolated enum InventoryMergeConflictChoice: String, Codable, Sendable {
     case keepLocal
     case keepRemote
     case keepBoth
+    /// Explicitly deferred: the user has looked at this conflict and chosen
+    /// not to act on it right now. Behaviorally identical to leaving it
+    /// unresolved (never uploaded, never overwrites anything) — the only
+    /// difference is that a choice is recorded (`needsDecision` becomes
+    /// `false`), so it drops out of the "还需处理" list instead of nagging
+    /// the user every time they reopen the conflict screen.
+    case skip
 }
 
 nonisolated struct InventoryMergeCandidate: Identifiable, Codable, Equatable, Sendable {
@@ -329,6 +360,9 @@ nonisolated struct InventoryMergeCandidate: Identifiable, Codable, Equatable, Se
         case .keepBoth:
             copy.action = .create
             copy.forkedLocalItemId = (remoteItemId == localItemId) ? (forkedLocalItemId ?? UUID()) : nil
+        case .skip:
+            copy.action = .skip
+            copy.forkedLocalItemId = nil
         }
         return copy
     }
@@ -342,11 +376,23 @@ nonisolated struct InventoryMergePlan: Codable, Equatable, Sendable {
     var candidates: [InventoryMergeCandidate]
     let skippedItemIds: [UUID]
     let planHash: String
+    /// How many distinct remote inventory entities the pre-merge read knew
+    /// about when this plan was generated — `0` when no `remoteTransport`
+    /// was supplied (the ordinary in-app preview path). Display-only; never
+    /// used for matching.
+    let knownRemoteItemCount: Int
 
     var creates: [InventoryMergeCandidate] { candidates.filter { $0.action == .create && !$0.needsDecision } }
     var updates: [InventoryMergeCandidate] { candidates.filter { $0.action == .update && !$0.needsDecision } }
     var conflicts: [InventoryMergeCandidate] { candidates.filter { $0.needsDecision } }
     var readyToUpload: [InventoryMergeCandidate] {
         candidates.filter { ($0.action == .create || $0.action == .update || $0.action == .keepBoth) && !$0.needsDecision }
+    }
+    var exactMatches: [InventoryMergeCandidate] { candidates.filter { $0.action == .skip && $0.conflictReason == nil } }
+    var quantityConflicts: [InventoryMergeCandidate] { candidates.filter { $0.conflictReason == .quantityMismatch } }
+    var expiryConflicts: [InventoryMergeCandidate] { candidates.filter { $0.conflictReason == .expiryMismatch } }
+    var metadataConflicts: [InventoryMergeCandidate] { candidates.filter { $0.conflictReason == .metadataMismatch } }
+    var ambiguousConflicts: [InventoryMergeCandidate] {
+        candidates.filter { $0.conflictReason == .ambiguousDuplicate || $0.conflictReason == .multipleRemoteCandidates }
     }
 }
