@@ -43,6 +43,29 @@ protocol SyncPersistenceProtocol: Actor {
     /// `activeGuestMergeSession` first when creating a *new* session so at
     /// most one active session per (user, household, entityType) ever exists.
     func saveGuestMergeSession(_ session: GuestMergeSession) throws
+
+    // MARK: Phase 2B-4: inventory sync enrollment + CRUD mutation staging
+
+    func enrollment(userId: UUID, householdId: UUID) throws -> InventorySyncEnrollment?
+    func saveEnrollment(_ enrollment: InventorySyncEnrollment) throws
+    /// The current pending mutation for this entity, if any — at most one is
+    /// ever kept per entity (coalesced), so this is a single lookup, not a list.
+    func pendingMutationForEntity(entityType: SyncEntityType, entityId: UUID) throws -> PendingMutation?
+    /// Stages (or coalesces into an existing pending mutation for the same
+    /// entity) a CRUD-originated mutation — writes only `SyncMetadataRecord`
+    /// + `PendingMutationRecord` in one transaction, deliberately never
+    /// touching `InventoryRecord` itself (the caller's own
+    /// `InventoryPersistenceProtocol` write already wrote it through its own
+    /// `ModelContext`; writing it again here would race two contexts against
+    /// the same row). See `docs/INVENTORY_MUTATION_COALESCING.md` for the
+    /// full coalescing rule table.
+    func stageInventoryMutation(
+        entityId: UUID,
+        scope: SyncScope,
+        operation: SyncOperation,
+        payloadData: Data,
+        now: Date
+    ) throws -> InventoryMutationStagingOutcome
 }
 
 @ModelActor
@@ -305,6 +328,150 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
         try commit()
     }
 
+    func enrollment(userId: UUID, householdId: UUID) throws -> InventorySyncEnrollment? {
+        let key = InventorySyncEnrollment.uniqueKey(userId: userId, householdId: householdId)
+        var descriptor = FetchDescriptor<InventorySyncEnrollmentRecord>(predicate: #Predicate { $0.uniqueKey == key })
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first?.value
+    }
+
+    func saveEnrollment(_ enrollment: InventorySyncEnrollment) throws {
+        let key = enrollment.uniqueKey
+        var descriptor = FetchDescriptor<InventorySyncEnrollmentRecord>(predicate: #Predicate { $0.uniqueKey == key })
+        descriptor.fetchLimit = 1
+        if let record = try modelContext.fetch(descriptor).first {
+            record.update(from: enrollment)
+        } else {
+            modelContext.insert(InventorySyncEnrollmentRecord(enrollment: enrollment))
+        }
+        try commit()
+    }
+
+    func pendingMutationForEntity(entityType: SyncEntityType, entityId: UUID) throws -> PendingMutation? {
+        try fetchPendingMutationRecord(entityType: entityType, entityId: entityId)?.value
+    }
+
+    func stageInventoryMutation(
+        entityId: UUID,
+        scope: SyncScope,
+        operation: SyncOperation,
+        payloadData: Data,
+        now: Date
+    ) throws -> InventoryMutationStagingOutcome {
+        let existingMetadataRecord = try fetchMetadataRecord(entityType: .inventoryItem, entityId: entityId)
+        let existingMetadata = existingMetadataRecord?.value
+        let existingPendingRecord = try fetchPendingMutationRecord(entityType: .inventoryItem, entityId: entityId)
+
+        if let existingPendingRecord, let existingOperation = SyncOperation(rawValue: existingPendingRecord.operationRawValue) {
+            switch (existingOperation, operation) {
+            case (.upsert, .upsert):
+                // create+update or update+update: replace the payload in
+                // place, keep the same mutationId and the same baseVersion
+                // (the version this mutation was originally staged against
+                // must never shift just because the local value changed
+                // again before the next sync).
+                existingPendingRecord.payloadData = payloadData
+                existingPendingRecord.clientUpdatedAt = now
+                existingPendingRecord.statusRawValue = PendingMutationStatus.pending.rawValue
+                existingPendingRecord.lastErrorCode = nil
+                try commit()
+                return .staged(mutationId: existingPendingRecord.mutationId)
+
+            case (.upsert, .delete):
+                if existingMetadata?.remoteVersion == nil {
+                    // create+delete: never sent remotely, so there is
+                    // nothing to tell the server — cancel entirely rather
+                    // than staging a pointless create-then-delete pair.
+                    modelContext.delete(existingPendingRecord)
+                    if let existingMetadataRecord { modelContext.delete(existingMetadataRecord) }
+                    try commit()
+                    return .cancelled
+                }
+                // update+delete: merge into a single delete intent using the
+                // real, already-known remote version — never send the
+                // superseded update first.
+                existingPendingRecord.operationRawValue = SyncOperation.delete.rawValue
+                existingPendingRecord.payloadData = Data("{}".utf8)
+                existingPendingRecord.clientUpdatedAt = now
+                existingPendingRecord.statusRawValue = PendingMutationStatus.pending.rawValue
+                existingPendingRecord.lastErrorCode = nil
+                if let existingMetadataRecord {
+                    existingMetadataRecord.syncStateRawValue = EntitySyncState.pendingDelete.rawValue
+                    existingMetadataRecord.deletedAt = now
+                    existingMetadataRecord.updatedAt = now
+                }
+                try commit()
+                return .staged(mutationId: existingPendingRecord.mutationId)
+
+            case (.delete, .upsert):
+                // Resurrecting a pending delete via an ordinary update is
+                // refused by `InventorySyncEligibility` before this is ever
+                // reached — this is a defensive guard, not a normal path.
+                throw SyncError.persistence
+
+            case (.delete, .delete):
+                // Duplicate delete request for the same entity — already
+                // staged, nothing further to do.
+                return .staged(mutationId: existingPendingRecord.mutationId)
+            }
+        }
+
+        // No existing pending mutation for this entity: stage a fresh one.
+        let baseVersion = existingMetadata?.remoteVersion ?? .zero
+        let newMutationId = UUID()
+        let newState: EntitySyncState = operation == .delete ? .pendingDelete : (existingMetadata == nil ? .pendingCreate : .pendingUpdate)
+        let metadata = SyncMetadata(
+            entityType: .inventoryItem,
+            entityId: entityId,
+            scope: scope,
+            remoteVersion: existingMetadata?.remoteVersion,
+            state: newState,
+            lastSyncedAt: existingMetadata?.lastSyncedAt,
+            lastErrorCode: nil,
+            lastErrorAt: nil,
+            deletedAt: operation == .delete ? now : nil,
+            updatedAt: now
+        )
+        let mutation = PendingMutation(
+            mutationId: newMutationId,
+            entityType: .inventoryItem,
+            entityId: entityId,
+            scope: scope,
+            operation: operation,
+            baseVersion: baseVersion,
+            payloadData: payloadData,
+            clientUpdatedAt: now,
+            createdAt: now,
+            attemptCount: 0,
+            lastAttemptAt: nil,
+            lastErrorCode: nil,
+            status: .pending
+        )
+        try upsertMetadata(metadata)
+        modelContext.insert(PendingMutationRecord(mutation: mutation))
+        try commit()
+        return .staged(mutationId: newMutationId)
+    }
+
+    private func fetchMetadataRecord(entityType: SyncEntityType, entityId: UUID) throws -> SyncMetadataRecord? {
+        let key = metadataKey(entityType: entityType, entityId: entityId)
+        var descriptor = FetchDescriptor<SyncMetadataRecord>(predicate: #Predicate { $0.uniqueKey == key })
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
+    }
+
+    private func fetchPendingMutationRecord(entityType: SyncEntityType, entityId: UUID) throws -> PendingMutationRecord? {
+        let entityTypeRaw = entityType.rawValue
+        var descriptor = FetchDescriptor<PendingMutationRecord>(
+            predicate: #Predicate {
+                $0.entityId == entityId && $0.entityTypeRawValue == entityTypeRaw
+                    && ($0.statusRawValue == "pending" || $0.statusRawValue == "failed")
+            }
+        )
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
+    }
+
     private func metadataKey(entityType: SyncEntityType, entityId: UUID) -> String {
         "\(entityType.rawValue):\(entityId.uuidString.lowercased())"
     }
@@ -370,4 +537,8 @@ actor FailingSyncPersistence: SyncPersistenceProtocol {
     func activeGuestMergeSession(userId: UUID, householdId: UUID, entityType: SyncEntityType) throws -> GuestMergeSession? { throw SyncError.persistence }
     func guestMergeSession(id: UUID) throws -> GuestMergeSession? { throw SyncError.persistence }
     func saveGuestMergeSession(_ session: GuestMergeSession) throws { throw SyncError.persistence }
+    func enrollment(userId: UUID, householdId: UUID) throws -> InventorySyncEnrollment? { throw SyncError.persistence }
+    func saveEnrollment(_ enrollment: InventorySyncEnrollment) throws { throw SyncError.persistence }
+    func pendingMutationForEntity(entityType: SyncEntityType, entityId: UUID) throws -> PendingMutation? { throw SyncError.persistence }
+    func stageInventoryMutation(entityId: UUID, scope: SyncScope, operation: SyncOperation, payloadData: Data, now: Date) throws -> InventoryMutationStagingOutcome { throw SyncError.persistence }
 }

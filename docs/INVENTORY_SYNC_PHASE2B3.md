@@ -105,29 +105,16 @@ path remain untouched — a Node test confirms `runOnce` never appears in
 `ContentView.swift` (outside `#if DEBUG`), `AuthStore.swift`, or
 `MainFeatureViews.swift`.
 
-## CRUD-to-sync boundary — decision made, wiring deferred
+## CRUD-to-sync boundary — implemented in Phase 2B-4
 
-Section 十四 of the Phase 2B-3 brief asked for a decision on whether ordinary
-Inventory CRUD (add/edit/delete outside the merge flow) should start
-generating `PendingMutation`s once a device has completed a merge. The
-conservative policy specified there (stage only when the entity already has
-local `SyncMetadata` in `.synced` state, the merge is complete, and
-`INVENTORY_SYNC_ENABLED` is on) is the correct target design, but **wiring it
-into `KitchenStore`'s actual CRUD methods (`addInventory`, `importInventory`,
-`deleteInventory`, and in-place quantity/expiry edits) is deliberately
-deferred to a future phase**, not implemented here. Reasoning: `KitchenStore`
-today has zero dependency on `AuthStore`/sync/household-scope state — this is
-an intentional, load-bearing architectural boundary (documented since Phase
-1: "Authentication has no dependency on `KitchenStore`... so login and logout
-do not upload, clear, merge, or switch local kitchen data"). Threading
-persistence/auth/household context into every inventory write path to satisfy
-the conservative policy is a real, non-trivial architecture change with wide
-blast radius, and rushing it risked exactly the outcome section 十四
-explicitly warns against ("不要把所有现有库存写入路径一次性改成默认联网"). Until that
-follow-up phase, "立即同步库存" only pushes/pulls whatever the merge itself
-already staged (`readyToUpload`) plus anything already pending from a prior
-attempt — ordinary post-merge inventory edits remain purely local and do not
-generate a `PendingMutation`, which is the safe, unsurprising default.
+This was deferred here in Phase 2B-3 and implemented in Phase 2B-4: ordinary
+Inventory CRUD now stages a `PendingMutation` when the item is eligible
+(enrolled workspace, flag on, signed in, item already has household-scoped
+`SyncMetadata` or is a fresh create). `KitchenStore` itself still has zero
+compile-time dependency on Auth/Sync — the wiring is a single optional
+closure (`KitchenStore.onInventoryChanged`), set once in the app's
+composition root. See `docs/INVENTORY_CRUD_SYNC_PHASE2B4.md` for the full
+design (enrollment, eligibility, coalescing, transaction boundary).
 
 ## Account isolation (unchanged, re-verified)
 
@@ -173,8 +160,6 @@ user on each call. `GuestMergeTests.testUserAAndUserBSessionsAreFullyIsolated`
 - Realtime.
 - Shopping / Today Plan / Weekly Plan / Recipe sync or merge.
 - Household invitation.
-- CRUD-to-sync wiring for ordinary (non-merge) inventory edits (see above —
-  policy decided, implementation deferred).
 - Public/production enablement of either feature flag — both remain `NO` in
   every committed and Release configuration; enabling them for real users is
   an explicit, separate release decision outside this phase's scope.

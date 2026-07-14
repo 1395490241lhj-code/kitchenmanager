@@ -44,6 +44,10 @@ final class GuestMergeController: ObservableObject {
     @Published private(set) var isSyncing = false
     @Published private(set) var lastSyncOutcome: SyncRunOutcome?
     @Published private(set) var lastSyncErrorMessage: String?
+    /// Phase 2B-4: set when an ordinary CRUD edit was blocked from staging
+    /// (conflict or pending-delete) — display-only, never blocks the local
+    /// edit itself (which has already happened by the time this is set).
+    @Published private(set) var inventoryMutationBlockedMessage: String?
 
     private let persistence: any SyncPersistenceProtocol
     private let transportFactory: @MainActor (any SyncAccessTokenProviding) -> any SyncTransport
@@ -395,6 +399,15 @@ final class GuestMergeController: ObservableObject {
                 current.status = .completed
                 current.completedAt = Date()
                 current.rollbackAvailableUntil = Date().addingTimeInterval(rollbackWindow)
+                // Phase 2B-4: a completed merge is exactly what moves this
+                // (user, household) workspace from notEnrolled/mergeRequired
+                // into enrolled — ordinary CRUD may now stage mutations for
+                // items with their own household-scoped SyncMetadata.
+                try? await persistence.saveEnrollment(InventorySyncEnrollment(
+                    userId: userId, householdId: current.householdId, status: .enrolled,
+                    enrolledAt: Date(), mergeSessionId: current.id,
+                    schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+                ))
             } else if failed > 0 {
                 current.status = .failed
             } else {
@@ -527,6 +540,90 @@ final class GuestMergeController: ObservableObject {
         case .decoding, .invalidCursor, .invalidConfiguration, .unsupportedEntity, .persistence: "同步失败，可稍后重试。"
         case .disabled: "库存同步尚未开启。"
         case .transport: "当前网络不可用，请稍后重试。"
+        }
+    }
+
+    // MARK: Phase 2B-4: synced-scope CRUD mutation staging (local-only; never touches the network)
+
+    /// Current enrollment status for this (user, household) — `.notEnrolled`
+    /// whenever `userId`/`householdId` is nil or no enrollment row exists
+    /// yet. Used only for UI status text; never itself decides eligibility
+    /// (that's `InventorySyncEligibility`, evaluated fresh per item).
+    func enrollmentStatus(userId: UUID?, householdId: UUID?) async -> InventorySyncEnrollmentStatus {
+        guard let userId, let householdId else { return .notEnrolled }
+        let enrollment = try? await persistence.enrollment(userId: userId, householdId: householdId)
+        return (enrollment.flatMap { $0 })?.status ?? .notEnrolled
+    }
+
+    /// The single hook point for "ordinary inventory content changed" —
+    /// wired once, in the app's composition root, from
+    /// `KitchenStore.onInventoryChanged`. Diffs `old` vs `new` by id and
+    /// stages a mutation for each added/changed/removed item that is
+    /// currently eligible (see `InventorySyncEligibility`); Guest-only or
+    /// not-yet-enrolled items are silently skipped, exactly as before Phase
+    /// 2B-4 — this never fails loudly and never touches the network itself.
+    func handleInventoryDidChange(old: [InventoryItem], new: [InventoryItem], userId: UUID?, householdId: UUID?) async {
+        guard isFeatureEnabled, let userId, let householdId else { return }
+        let oldById = Dictionary(uniqueKeysWithValues: old.map { ($0.id, $0) })
+        let newById = Dictionary(uniqueKeysWithValues: new.map { ($0.id, $0) })
+        guard oldById != newById else { return }
+
+        let enrollment = try? await persistence.enrollment(userId: userId, householdId: householdId)
+        let flatEnrollment = enrollment.flatMap { $0 }
+        let scope = SyncScope(type: .household, id: householdId)
+        let adapter = InventorySyncAdapter(persistence: persistence)
+
+        for (id, newItem) in newById {
+            let intent: InventoryMutationIntent = oldById[id] == nil ? .create : .update
+            if intent == .update, oldById[id] == newItem { continue }
+            await stageMutationIfEligible(
+                entityId: id, item: newItem, operation: .upsert, intent: intent,
+                userId: userId, householdId: householdId, enrollment: flatEnrollment, scope: scope, adapter: adapter
+            )
+        }
+        for id in oldById.keys where newById[id] == nil {
+            await stageMutationIfEligible(
+                entityId: id, item: nil, operation: .delete, intent: .delete,
+                userId: userId, householdId: householdId, enrollment: flatEnrollment, scope: scope, adapter: adapter
+            )
+        }
+    }
+
+    private func stageMutationIfEligible(
+        entityId: UUID,
+        item: InventoryItem?,
+        operation: SyncOperation,
+        intent: InventoryMutationIntent,
+        userId: UUID,
+        householdId: UUID,
+        enrollment: InventorySyncEnrollment?,
+        scope: SyncScope,
+        adapter: InventorySyncAdapter
+    ) async {
+        let existingMetadata = try? await persistence.metadata(entityType: .inventoryItem, entityId: entityId)
+        let flatMetadata = existingMetadata.flatMap { $0 }
+        let result = InventorySyncEligibility.evaluate(
+            isFeatureEnabled: isFeatureEnabled, userId: userId, householdId: householdId,
+            enrollment: enrollment, existingMetadata: flatMetadata, intent: intent
+        )
+        switch result {
+        case .eligible:
+            let payloadData: Data
+            if let item {
+                guard let encoded = try? adapter.encodedPayload(for: item) else { return }
+                payloadData = encoded
+            } else {
+                payloadData = Data("{}".utf8)
+            }
+            _ = try? await persistence.stageInventoryMutation(
+                entityId: entityId, scope: scope, operation: operation, payloadData: payloadData, now: Date()
+            )
+        case .blockedByConflict:
+            inventoryMutationBlockedMessage = "该库存存在同步冲突，请先在同步状态中处理后再修改。"
+        case .blockedByPendingDelete:
+            inventoryMutationBlockedMessage = "该库存正在等待删除同步，暂不支持编辑。"
+        case .localOnly:
+            break
         }
     }
 }

@@ -239,6 +239,13 @@ nonisolated struct InventorySyncAdapter: Sendable {
         )
     }
 
+    /// Phase 2B-4: reused by `GuestMergeController`'s CRUD-originated staging
+    /// so both paths encode the exact same fields the same way — never a
+    /// second, drifting payload-building implementation.
+    func encodedPayload(for item: InventoryItem) throws -> Data {
+        try JSONEncoder().encode(payload(for: item))
+    }
+
     private func payload(for item: InventoryItem) -> [String: SyncJSONValue] {
         var value: [String: SyncJSONValue] = [
             "name": .string(item.name),

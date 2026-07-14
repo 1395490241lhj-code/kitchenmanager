@@ -21,19 +21,35 @@ struct KitchenManagerApp: App {
                 recipePreferencePersistence: persistence.recipePreferences
             )
         )
-        _kitchenStore = StateObject(
-            wrappedValue: KitchenStore(
-                inventoryPersistence: persistence.inventory,
-                shoppingListPersistence: persistence.shoppingList,
-                todayPlanPersistence: persistence.todayPlan,
-                consumptionPersistence: persistence.consumption
-                , weeklyPlanPersistence: persistence.weeklyPlan
-            )
+        let kitchenStoreInstance = KitchenStore(
+            inventoryPersistence: persistence.inventory,
+            shoppingListPersistence: persistence.shoppingList,
+            todayPlanPersistence: persistence.todayPlan,
+            consumptionPersistence: persistence.consumption,
+            weeklyPlanPersistence: persistence.weeklyPlan
         )
-        _authStore = StateObject(wrappedValue: AuthenticationAssembly.make())
-        _guestMergeController = StateObject(
-            wrappedValue: GuestMergeController(persistence: persistence.sync)
-        )
+        let authStoreInstance = AuthenticationAssembly.make()
+        let guestMergeControllerInstance = GuestMergeController(persistence: persistence.sync)
+
+        // Phase 2B-4: the only place `KitchenStore` is told anything about
+        // sync — a plain closure capturing weak references, reading the
+        // *current* signed-in user/household fresh on every inventory
+        // change (never a frozen snapshot). `KitchenStore` itself never
+        // imports Auth/Sync types; this stays entirely in the composition
+        // root. Never touches the network — only stages a local mutation.
+        kitchenStoreInstance.onInventoryChanged = { [weak guestMergeControllerInstance, weak authStoreInstance] old, new in
+            guard let guestMergeControllerInstance else { return }
+            let userId = authStoreInstance?.currentUserID
+            let householdId = authStoreInstance?.account?.households.first(where: { $0.role == "owner" })?.id
+                ?? authStoreInstance?.account?.households.first?.id
+            Task { @MainActor in
+                await guestMergeControllerInstance.handleInventoryDidChange(old: old, new: new, userId: userId, householdId: householdId)
+            }
+        }
+
+        _kitchenStore = StateObject(wrappedValue: kitchenStoreInstance)
+        _authStore = StateObject(wrappedValue: authStoreInstance)
+        _guestMergeController = StateObject(wrappedValue: guestMergeControllerInstance)
         #if DEBUG
         _syncSmokeController = StateObject(
             wrappedValue: SyncSmokeController(persistence: persistence.sync)

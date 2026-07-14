@@ -346,8 +346,24 @@ final class KitchenStore: ObservableObject {
             persistInventoryIfNeeded()
             Self.rescheduleNotificationsIfEnabled(for: inventory)
             PantryRestockNotificationScheduler.sync(for: inventory)
+            // Phase 2B-4: a single, generic hook for "ordinary inventory
+            // content changed" — deliberately not called during startup load
+            // or any of the explicit suppressed-publish paths (consumption,
+            // backup restore, shopping stock-in, clear-all), which are a
+            // different, out-of-scope kind of bulk change, not a discrete
+            // user CRUD edit. KitchenStore itself stays unaware of what (if
+            // anything) is wired to this closure — no Auth/Sync import here.
+            if !isLoading, !suppressInventoryPersistence {
+                onInventoryChanged?(oldValue, inventory)
+            }
         }
     }
+    /// Phase 2B-4: optional, injected by the app's composition root
+    /// (`ContentView.swift`) to let a sync-aware coordinator observe
+    /// ordinary inventory edits without `KitchenStore` importing anything
+    /// about Auth/Sync itself. Never required — nil is exactly today's
+    /// (Phase ≤2B-3) behavior.
+    var onInventoryChanged: (([InventoryItem], [InventoryItem]) -> Void)?
     @Published var plans: [MealPlanItem] = [] { didSet { persistPlansIfNeeded() } }
     @Published var shoppingItems: [KitchenShoppingItem] = [] { didSet { persistShoppingIfNeeded() } }
     @Published var weeklyPlan: WeeklyMealPlan? { didSet { persistWeeklyPlanIfNeeded() } }

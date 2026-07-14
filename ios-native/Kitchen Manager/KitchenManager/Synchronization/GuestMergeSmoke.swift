@@ -584,6 +584,130 @@ final class GuestMergeSmokeRunner {
         }
     }
 
+    /// Phase 2B-4: a minimal, dedicated hosted smoke for the synced-scope
+    /// CRUD mutation staging path only — never the full Phase 2B-2 matrix
+    /// nor the Phase 2B-2.5 fork check. Verifies, against the real backend:
+    /// an enrolled create stages and applies at baseVersion 0; a local
+    /// update stages and applies, advancing the remote version; a local
+    /// delete stages and applies as a soft-delete tombstone; a duplicate
+    /// manual sync afterward is a harmless no-op; and a Guest-only control
+    /// item is never staged or uploaded at all. Cleans up the marker before
+    /// returning.
+    func runInventoryCrudSyncMinimalSmoke(authStoreA: AuthStore) async throws -> Bool {
+        guard smokeConfiguration.isSmokeEnabled else { throw GuestMergeSmokeError.smokeDisabled }
+        guard smokeConfiguration.isDevelopmentBuild else { throw GuestMergeSmokeError.nonDevelopmentBuild }
+        guard smokeConfiguration.isDevelopmentEnvironment, APIEnvironment.current == .development else {
+            throw GuestMergeSmokeError.nonDevelopmentEnvironment
+        }
+        guard smokeConfiguration.isMergeFeatureEnabled else { throw GuestMergeSmokeError.mergeFeatureDisabled }
+        guard let userIdA = authStoreA.currentUserID else { throw GuestMergeSmokeError.notAuthenticated }
+
+        let providerA = AuthStoreSyncTokenProvider(authStore: authStoreA)
+        let transportA = transportFactory(providerA)
+        let bootstrap = try await transportA.bootstrap()
+        guard let householdId = bootstrap.defaultHouseholdId else { throw GuestMergeSmokeError.missingDefaultHousehold }
+        let scope = SyncScope(type: .household, id: householdId)
+        let marker = String(UUID().uuidString.prefix(8)).lowercased()
+
+        let container = try ModelContainer(
+            for: InventoryRecord.self, ShoppingItemRecord.self, TodayPlanRecord.self,
+            ConsumptionRecordEntity.self, WeeklyPlanRecord.self,
+            SyncMetadataRecord.self, PendingMutationRecord.self, SyncCursorRecord.self,
+            GuestMergeSessionRecord.self, InventorySyncEnrollmentRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let persistence = SwiftDataSyncPersistence(modelContainer: container)
+        var cleanupIds: Set<UUID> = []
+        do {
+            let kitchenStore = KitchenStore(
+                userDefaults: UserDefaults(suiteName: "inventory-crud-smoke-\(marker)")!,
+                inventoryPersistence: SwiftDataInventoryPersistence(container: container),
+                shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
+                todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
+                consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
+                weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
+            )
+            try await persistence.saveEnrollment(InventorySyncEnrollment(
+                userId: userIdA, householdId: householdId, status: .enrolled, enrolledAt: Date(),
+                mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+            ))
+            let controller = GuestMergeController(
+                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
+            )
+
+            // 1-2: enrolled create stages a pending mutation at baseVersion 0.
+            let markerName = "__inventory_crud_smoke_\(marker)"
+            kitchenStore.importInventory([InventoryImportItem(name: markerName, quantity: 2, unit: "个", expiryDate: nil)])
+            guard let markerItem = kitchenStore.inventory.first(where: { $0.name == markerName }) else {
+                throw GuestMergeSmokeError.validationFailed("marker item was not created locally")
+            }
+            cleanupIds.insert(markerItem.id)
+            await controller.handleInventoryDidChange(old: [], new: [markerItem], userId: userIdA, householdId: householdId)
+            let createMutation = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: markerItem.id)
+            guard createMutation?.operation == .upsert, createMutation?.baseVersion?.rawValue == "0" else {
+                throw GuestMergeSmokeError.validationFailed("create did not stage at baseVersion 0")
+            }
+
+            // 3-4: manual sync applies the real create.
+            await controller.syncNow(authStore: authStoreA, householdId: householdId)
+            guard controller.lastSyncOutcome == .completed else {
+                throw GuestMergeSmokeError.validationFailed("manual sync after create did not complete")
+            }
+            let afterCreateMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: markerItem.id)
+            guard afterCreateMetadata?.state == .synced, afterCreateMetadata?.remoteVersion?.rawValue == "1" else {
+                throw GuestMergeSmokeError.validationFailed("create did not apply as expected remotely")
+            }
+
+            // 5-7: local update, manual sync, remote version increases.
+            var updatedItem = markerItem
+            updatedItem.quantity = 5
+            kitchenStore.inventory = [updatedItem]
+            await controller.handleInventoryDidChange(old: [markerItem], new: [updatedItem], userId: userIdA, householdId: householdId)
+            await controller.syncNow(authStore: authStoreA, householdId: householdId)
+            guard controller.lastSyncOutcome == .completed else {
+                throw GuestMergeSmokeError.validationFailed("manual sync after update did not complete")
+            }
+            let afterUpdateMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: markerItem.id)
+            guard afterUpdateMetadata?.state == .synced, afterUpdateMetadata?.remoteVersion?.rawValue == "2" else {
+                throw GuestMergeSmokeError.validationFailed("update did not advance the remote version as expected")
+            }
+
+            // 8-10: local delete, manual sync, remote soft-delete tombstone.
+            kitchenStore.inventory = []
+            await controller.handleInventoryDidChange(old: [updatedItem], new: [], userId: userIdA, householdId: householdId)
+            await controller.syncNow(authStore: authStoreA, householdId: householdId)
+            guard controller.lastSyncOutcome == .completed else {
+                throw GuestMergeSmokeError.validationFailed("manual sync after delete did not complete")
+            }
+            let afterDeleteMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: markerItem.id)
+            guard afterDeleteMetadata?.state == .synced, afterDeleteMetadata?.deletedAt != nil else {
+                throw GuestMergeSmokeError.validationFailed("delete did not apply as a soft-delete tombstone")
+            }
+
+            // 11: duplicate manual sync afterward is a harmless idempotent no-op.
+            await controller.syncNow(authStore: authStoreA, householdId: householdId)
+            guard controller.lastSyncOutcome == .completed else {
+                throw GuestMergeSmokeError.validationFailed("duplicate manual sync was not a harmless no-op")
+            }
+
+            // 13: a Guest-only control item (never passed through
+            // handleInventoryDidChange) must never be staged or uploaded.
+            let controlItem = InventoryItem(name: "__inventory_crud_smoke_\(marker)_control", quantity: 1, unit: "个", expiryDate: nil)
+            kitchenStore.inventory = [controlItem]
+            let controlMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: controlItem.id)
+            guard controlMetadata == nil else {
+                throw GuestMergeSmokeError.validationFailed("Guest-only control item must never have been staged")
+            }
+
+            // 12: zero marker residue on the real backend.
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            return true
+        } catch {
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            throw error
+        }
+    }
+
     /// Best-effort — never throws itself. Soft-deletes every tracked marker
     /// id via the same authorized sync boundary used throughout the run (no
     /// service-role key, no physical delete); ids that were never actually

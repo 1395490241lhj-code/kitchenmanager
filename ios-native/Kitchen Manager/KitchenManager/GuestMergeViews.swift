@@ -78,6 +78,7 @@ struct InventorySyncStatusView: View {
     @EnvironmentObject private var authStore: AuthStore
     let householdId: UUID?
     @State private var pendingCount: Int?
+    @State private var enrollmentStatus: InventorySyncEnrollmentStatus = .notEnrolled
 
     var body: some View {
         Section {
@@ -87,6 +88,9 @@ struct InventorySyncStatusView: View {
             }
             if let error = controller.lastSyncErrorMessage {
                 Text(error).foregroundStyle(.red).font(.footnote)
+            }
+            if let blocked = controller.inventoryMutationBlockedMessage {
+                Text(blocked).foregroundStyle(.orange).font(.footnote)
             }
             if canSyncNow {
                 Button {
@@ -112,7 +116,10 @@ struct InventorySyncStatusView: View {
         } footer: {
             Text("只同步库存；购物清单、计划和菜谱不受影响。不会自动同步——只有点击“立即同步库存”才会联网。")
         }
-        .task { await refreshPendingCount() }
+        .task {
+            await refreshPendingCount()
+            await refreshEnrollmentStatus()
+        }
     }
 
     private var canSyncNow: Bool {
@@ -123,13 +130,14 @@ struct InventorySyncStatusView: View {
         if !controller.isFeatureEnabled { return "尚未开启" }
         if authStore.currentUserID == nil { return "尚未登录" }
         if householdId == nil { return "没有可同步的家庭" }
+        if enrollmentStatus == .notEnrolled || enrollmentStatus == .mergeRequired { return "尚未完成合并" }
         if controller.isSyncing { return "正在同步" }
         switch controller.lastSyncOutcome {
         case .completed: return "已同步"
         case .paused(let error) where error == .notAuthenticated: return "需要重新登录"
         case .paused: return "暂时离线"
-        case .failed: return "同步遇到问题"
-        case .disabled, .none: return (pendingCount ?? 0) > 0 ? "待同步 \(pendingCount ?? 0) 项" : "已就绪"
+        case .failed: return "同步遇到问题，可重试"
+        case .disabled, .none: return (pendingCount ?? 0) > 0 ? "待同步 \(pendingCount ?? 0) 项" : "已同步"
         case .alreadyRunning: return "正在同步"
         }
     }
@@ -140,6 +148,14 @@ struct InventorySyncStatusView: View {
             return
         }
         pendingCount = await controller.pendingInventoryCount(householdId: householdId)
+    }
+
+    private func refreshEnrollmentStatus() async {
+        guard let userId = authStore.currentUserID, let householdId else {
+            enrollmentStatus = .notEnrolled
+            return
+        }
+        enrollmentStatus = await controller.enrollmentStatus(userId: userId, householdId: householdId)
     }
 }
 

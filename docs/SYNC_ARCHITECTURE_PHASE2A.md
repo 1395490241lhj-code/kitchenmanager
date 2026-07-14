@@ -183,3 +183,16 @@ Phase 2B-3 在不新增任何后端 endpoint、不修改任何既有同步语义
 - 明确决定但本阶段未接入：合并完成后，普通 Inventory CRUD 是否应自动生成 PendingMutation。保守策略已写入 `docs/INVENTORY_SYNC_PHASE2B3.md`，但接入 `KitchenStore` 现有写入路径需要引入 Auth/Sync 依赖，属于更大的架构改动，本阶段刻意推迟。
 - App 启动、登录、后台任务、timer 仍不触发任何同步——由 Node 语义护栏测试确认整个文件中 `runOnce` 只出现在 `confirmMerge`/`rollback`/`syncNow` 三处。
 - 详见 `docs/INVENTORY_SYNC_PHASE2B3.md`。
+
+## 14. Phase 2B-4：Inventory CRUD 同步边界与手动同步闭环（新增，本节起）
+
+Phase 2B-4 在不新增后端 endpoint、不修改现有同步语义的前提下，把 Phase 2B-3 推迟的 CRUD-to-sync 决定落地：
+
+- 新增 `InventorySyncEnrollment`（按 `userId + householdId` 持久化，`notEnrolled/mergeRequired/enrolled/paused/revoked`）——只有 `GuestMergeController.confirmMerge` 的成功分支会把状态推进到 `enrolled`（Node 测试确认全文件里只有一处 `status: .enrolled`）。
+- 新增集中式 `InventorySyncEligibility.evaluate(...)`——唯一判断"这次 CRUD 是否应该入队"的地方，不在 View 或各 CRUD 方法里分散复制判断逻辑。
+- `KitchenStore` 只新增一个可选、通用的 `onInventoryChanged` 闭包（词汇表仅 `[InventoryItem]`，不 import 任何 Auth/Sync 类型）；实际接线只发生在 `ContentView.swift` 的组合根（App `init()`）一处，读取当时最新的登录用户/家庭。
+- 新增 `SwiftDataSyncPersistence.stageInventoryMutation(...)`——单一原子事务写 `SyncMetadataRecord` + 合并（coalesced）后的 `PendingMutationRecord`，刻意不写 `InventoryRecord`（`KitchenStore` 自己的 `InventoryPersistenceProtocol` 已经用它自己的 `ModelContext` 写过了，避免双 context 竞争）。合并规则详见 `docs/INVENTORY_MUTATION_COALESCING.md`。
+- Delete 使用 tombstone（`SyncMetadata.state = .pendingDelete` + `deletedAt`），从不物理删除远端记录；create+delete（从未发送过）会整体取消，不产生任何远端写入。
+- 手动同步闭环（`syncNow`）保持不变，仍是除 `confirmMerge`/`rollback` 外唯一的 `runOnce` 调用点；新增的 CRUD 入队的 mutation 会被同一套既有、与来源无关的 push/pull 逻辑正常拾取，无需改动 `SyncCoordinator`。
+- 已执行一次最小 development hosted smoke（`__inventory_crud_smoke_<marker>` 标记，create/update/delete 全部通过手动同步验证，含幂等重试与 Guest-only 对照项从未上传），完成后 marker 0 残留，安全开关恢复 `NO`。
+- 详见 `docs/INVENTORY_CRUD_SYNC_PHASE2B4.md` 与 `docs/INVENTORY_MUTATION_COALESCING.md`。

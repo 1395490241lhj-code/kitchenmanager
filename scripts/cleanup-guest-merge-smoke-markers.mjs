@@ -1,5 +1,5 @@
 // One-off cleanup: soft-deletes any inventory_item in TEST_USER_A's default
-// household whose name starts with the Guest-merge-smoke marker prefix, via
+// household whose name starts with a known smoke marker prefix, via
 // the authorized user-level sync API (no service-role key, no physical
 // delete) — used when a hosted Guest merge smoke run is interrupted before
 // its own session rollback runs, so orphaned marker rows don't linger.
@@ -8,7 +8,10 @@ import { randomUUID } from 'node:crypto';
 import { ensureDevelopmentTarget, validateHttpUrl } from './verify-supabase-phase0.mjs';
 import { redact } from './sync-smoke.mjs';
 
-const MARKER_PREFIX = '__guest_merge_smoke_';
+// Phase 2B-2/2.5 use `__guest_merge_smoke_`; Phase 2B-4's CRUD-sync-staging
+// minimal smoke uses its own `__inventory_crud_smoke_` prefix — both are
+// swept here so an interrupted run of either never leaves orphaned rows.
+const MARKER_PREFIXES = ['__guest_merge_smoke_', '__inventory_crud_smoke_'];
 
 function required(env, name) {
   const value = String(env[name] || '').trim();
@@ -69,7 +72,7 @@ async function main() {
     for (const change of page.body?.changes || []) {
       if (change.operation === 'delete') { marked.delete(change.entityId); continue; }
       const name = change.data?.name || '';
-      if (name.startsWith(MARKER_PREFIX)) {
+      if (MARKER_PREFIXES.some(prefix => name.startsWith(prefix))) {
         marked.set(change.entityId, change.version);
       } else {
         marked.delete(change.entityId);

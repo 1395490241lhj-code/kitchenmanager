@@ -239,3 +239,15 @@ Same guard clauses (`isFeatureEnabled`, `authStore.currentUserID`), same
 `pendingInventoryCount(householdId:)` is a read-only count used only for a
 status label, never to decide whether to sync automatically. Full detail:
 `docs/INVENTORY_SYNC_PHASE2B3.md`.
+
+## Ordinary CRUD mutation staging (Phase 2B-4)
+
+Once a `(userId, householdId)` workspace is `.enrolled` (a Guest merge
+completed — see `docs/INVENTORY_CRUD_SYNC_PHASE2B4.md`), ordinary Inventory
+create/update/delete outside the merge flow also stage `PendingMutation`s,
+through the exact same `SyncMetadataRecord`/`PendingMutationRecord` schema
+and the exact same `syncNow` transport path described above — no new
+network capability, no new entity type. `InventorySyncEligibility` is the
+single centralized gate (feature flag, signed-in, household match,
+enrollment, existing metadata scope/state); coalescing rules (at most one
+pending mutation per entity) are in `docs/INVENTORY_MUTATION_COALESCING.md`.

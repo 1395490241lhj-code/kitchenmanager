@@ -16,6 +16,11 @@ const sharedConfig = read('Config/Shared.xcconfig');
 const exampleConfig = read('Config/Local.example.xcconfig');
 const syncCoordinator = read('KitchenManager/Synchronization/SyncCoordinator.swift');
 const mainFeatureViews = read('KitchenManager/MainFeatureViews.swift');
+const kitchenStore = read('KitchenManager/KitchenStore.swift');
+const syncPersistence = read('KitchenManager/Synchronization/SyncPersistence.swift');
+const eligibility = read('KitchenManager/Synchronization/InventorySyncEligibility.swift');
+const enrollment = read('KitchenManager/Synchronization/InventorySyncEnrollment.swift');
+const inventorySyncAdapter = read('KitchenManager/Synchronization/InventorySyncAdapter.swift');
 
 test('Phase 2B keeps INVENTORY_SYNC_ENABLED disabled by default, independent of SYNC_ENABLED', () => {
   for (const value of [sharedConfig, exampleConfig]) {
@@ -291,4 +296,97 @@ test('Phase 2B-3: the conflict picker offers all four documented choices (keepLo
 test('Phase 2B-3: the preview screen never displays a raw UUID, mutation id, cursor, token, or household internal id', () => {
   const previewSection = views.slice(views.indexOf('struct InventoryMergePreviewView'), views.indexOf('struct InventoryMergeConflictView'));
   assert.doesNotMatch(previewSection, /\.uuidString|mutationId|cursor|accessToken|householdId\.uuidString/);
+});
+
+// Phase 2B-4: synced-scope Inventory CRUD mutation staging — still zero
+// automatic network activity anywhere; only a manual sync sends anything.
+
+test('Phase 2B-4: KitchenStore never calls the network or the sync coordinator directly — only exposes a generic, optional change hook', () => {
+  assert.doesNotMatch(kitchenStore, /runOnce|URLSession|SyncCoordinator|APIClient|AuthStore/);
+  assert.match(kitchenStore, /var onInventoryChanged: \(\(\[InventoryItem\], \[InventoryItem\]\) -> Void\)\?/);
+});
+
+test('Phase 2B-4: the composition root (ContentView) is the only place KitchenStore is told about sync, and it never fires runOnce directly', () => {
+  assert.match(content, /onInventoryChanged = /);
+  assert.doesNotMatch(content.replace(/#if DEBUG[\s\S]*?#endif/g, ''), /runOnce/);
+});
+
+test('Phase 2B-4: repository/persistence writes never call runOnce — still exactly 3 call sites total in GuestMergeController (confirmMerge, rollback, syncNow)', () => {
+  assert.doesNotMatch(syncPersistence, /runOnce/);
+  const runOnceSites = [...controller.matchAll(/coordinator\.runOnce/g)];
+  assert.equal(runOnceSites.length, 3);
+});
+
+test('Phase 2B-4: InventorySyncEligibility is the single centralized policy — Guest-only/not-enrolled always resolves to localOnly, never duplicated inline elsewhere', () => {
+  assert.match(eligibility, /enum InventorySyncEligibility/);
+  assert.match(eligibility, /case localOnly\(reason: LocalOnlyReason\)/);
+  assert.match(eligibility, /guard let enrollment, enrollment\.householdId == householdId, enrollment\.status\.allowsMutationStaging else/);
+  // The decision must not be re-implemented inline in the controller or the
+  // views — both must call into InventorySyncEligibility.evaluate, not
+  // reimplement the flag/enrollment/metadata checks themselves.
+  assert.match(controller, /InventorySyncEligibility\.evaluate/);
+  assert.doesNotMatch(views, /InventorySyncEligibility/);
+});
+
+test('Phase 2B-4: enrollment only becomes .enrolled inside confirmMerge\'s completed branch, never anywhere else', () => {
+  const enrolledSites = [...controller.matchAll(/status: \.enrolled/g)];
+  assert.equal(enrolledSites.length, 1, 'exactly one place may transition enrollment to .enrolled');
+  const completedSection = controller.slice(controller.indexOf('current.status = .completed'), controller.indexOf('} else if failed > 0'));
+  assert.match(completedSection, /saveEnrollment/);
+});
+
+test('Phase 2B-4: create/update/delete coalescing rules exist and cover create+update, create+delete cancel, update+update, update+delete, and duplicate-delete', () => {
+  assert.match(syncPersistence, /case \(\.upsert, \.upsert\):/);
+  assert.match(syncPersistence, /case \(\.upsert, \.delete\):/);
+  assert.match(syncPersistence, /case \(\.delete, \.upsert\):/);
+  assert.match(syncPersistence, /case \(\.delete, \.delete\):/);
+  assert.match(syncPersistence, /cancel entirely/);
+  assert.match(syncPersistence, /merge into a single delete intent/i);
+});
+
+test('Phase 2B-4: delete always stages a tombstone (deletedAt + pendingDelete), never a physical remote delete request from the client', () => {
+  assert.match(syncPersistence, /EntitySyncState\.pendingDelete/);
+  assert.doesNotMatch(syncPersistence, /DELETE FROM|deleteAllRemote|physically/i);
+});
+
+test('Phase 2B-4: CRUD staging is scoped to inventory_item only — no other entity type ever appears in the eligibility/staging path', () => {
+  const forbidden = /SyncEntityType\.(shoppingItem|todayPlan|weeklyMealPlan|weeklyMealPlanItem|userRecipe|recipeFavorite|frequentRecipe)/;
+  assert.doesNotMatch(eligibility, forbidden);
+  assert.doesNotMatch(enrollment, forbidden);
+  const handleChangeSection = controller.slice(controller.indexOf('func handleInventoryDidChange'));
+  assert.match(handleChangeSection, /entityType: \.inventoryItem/);
+});
+
+test('Phase 2B-4: eligibility requires the metadata scope to match the current household — cross-household/account metadata is never treated as existing', () => {
+  assert.match(eligibility, /metadata\.scope\.type == \.household && metadata\.scope\.id == householdId/);
+});
+
+test('Phase 2B-4: enrollment defaults to NO staging everywhere — INVENTORY_SYNC_ENABLED stays the required gate, and no ignored-flag dependency exists in ordinary tests', () => {
+  for (const value of [sharedConfig, exampleConfig]) {
+    assert.match(value, /INVENTORY_SYNC_ENABLED\s*=\s*NO/);
+  }
+  assert.doesNotMatch(eligibility, /Local\.xcconfig|ProcessInfo/);
+});
+
+test('Phase 2B-4: no service-role key, and no View reads a token or calls the staging/eligibility APIs directly', () => {
+  assert.doesNotMatch(kitchenStore, /service_role|SERVICE_ROLE/);
+  assert.doesNotMatch(views, /service_role|SERVICE_ROLE|currentAccessToken|stageInventoryMutation|InventorySyncEligibility/);
+});
+
+test('Phase 2B-4: Shopping/Today Plan/Weekly Plan/Recipe/Favorites/Frequent are never wired into the inventory change hook or eligibility policy', () => {
+  const forbidden = /Shopping|TodayPlan|WeeklyPlan|Recipe|Favorite|Frequent/;
+  assert.doesNotMatch(eligibility, forbidden);
+  assert.doesNotMatch(enrollment, forbidden);
+});
+
+test('Phase 2B-4: no Timer, background task, or Realtime path triggers automatic sync anywhere in the new files', () => {
+  const forbidden = /Timer\(|BGTaskScheduler|DispatchSourceTimer|RealtimeChannel|\.schedule\(/;
+  for (const file of [kitchenStore, controller, syncPersistence, eligibility, enrollment, content]) {
+    assert.doesNotMatch(file, forbidden);
+  }
+});
+
+test('Phase 2B-4: the payload encoder is shared (InventorySyncAdapter.encodedPayload), never a second drifting implementation', () => {
+  assert.match(inventorySyncAdapter, /func encodedPayload\(for item: InventoryItem\) throws -> Data/);
+  assert.match(controller, /adapter\.encodedPayload\(for: item\)/);
 });

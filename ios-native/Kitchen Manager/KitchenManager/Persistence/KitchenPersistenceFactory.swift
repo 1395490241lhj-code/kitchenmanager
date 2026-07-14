@@ -38,6 +38,7 @@ enum KitchenPersistenceFactory {
                 PendingMutationRecord.self,
                 SyncCursorRecord.self,
                 GuestMergeSessionRecord.self,
+                InventorySyncEnrollmentRecord.self,
                 configurations: configuration
             )
             return KitchenPersistenceBundle(
