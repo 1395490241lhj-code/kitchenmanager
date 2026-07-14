@@ -401,10 +401,12 @@ struct RecordFoodSheet: View {
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         Label("换一张", systemImage: "photo")
                     }
+                    .buttonStyle(.borderless)
                     Spacer()
                     Button("删除", systemImage: "trash", role: .destructive) {
                         receiptStore.removeImage()
                     }
+                    .buttonStyle(.borderless)
                 }
             } else {
                 ContentUnavailableView(
@@ -414,11 +416,12 @@ struct RecordFoodSheet: View {
                 )
                 HStack {
                     Button("拍照", systemImage: "camera") { requestCamera() }
-                        .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
+                        .buttonStyle(.borderless)
                     Spacer()
                     PhotosPicker(selection: $photoItem, matching: .images) {
                         Label("从相册选择", systemImage: "photo.on.rectangle")
                     }
+                    .buttonStyle(.borderless)
                 }
             }
 
@@ -575,6 +578,10 @@ struct RecordFoodSheet: View {
     }
 
     private func requestCamera() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            receiptStore.errorMessage = "当前设备无法使用相机。"
+            return
+        }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             isShowingCamera = true
