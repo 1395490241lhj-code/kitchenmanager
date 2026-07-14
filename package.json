@@ -10,6 +10,8 @@
     "verify:auth-phase0": "node scripts/verify-supabase-phase0.mjs",
     "verify:auth-db": "npx supabase db query --linked --file supabase/tests/auth_household_remote_verify.sql",
     "smoke:auth": "node scripts/auth-smoke.mjs",
+    "verify:sync-db": "npx supabase db query --linked --file supabase/tests/sync_business_remote_verify.sql",
+    "smoke:sync": "node scripts/sync-smoke.mjs",
     "validate:recipe-packs": "node scripts/validate-recipe-pack-samples.js",
     "validate:recipe-pack-data": "node scripts/validate-recipe-packs.js"
   },

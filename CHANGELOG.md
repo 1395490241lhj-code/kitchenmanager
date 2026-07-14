@@ -10,6 +10,13 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ### Added
 
+- Added the local-only Phase 2A cloud business-schema draft for household inventory, shopping, today plans, consumption records, normalized weekly plans, and user recipes; personal favorites/frequent recipes; a monotonic RLS-protected change feed; and a mutation idempotency ledger.
+- Added the Phase 2A-2 authenticated sync API (`bootstrap`, incremental `changes`, and batched `mutations`), strict entity validation, BIGINT-safe cursors/versions, deterministic legacy UUID mapping, and a user-JWT Supabase RPC repository that never uses service-role credentials.
+- Added an undeployed allowlisted atomic mutation RPC with per-user idempotency locking, optimistic `baseVersion` conflicts, soft-delete tombstones, trigger-owned audit/version fields, and same-transaction change snapshots, plus API/schema/pgTAP contract tests and `docs/SYNC_API_CONTRACT.md`.
+- Added Phase 2A schema/ownership/model-mapping documentation plus Node semantic and pgTAP object checks. No client SyncEngine is enabled.
+- Deployed the reviewed Phase 2A business/sync migration to development Supabase, added a redacted two-user hosted smoke runner and remote object verifier, and validated RLS isolation, closed direct DML, atomic mutation/idempotency/conflicts/tombstones, all entity families, change pagination, and local Express sync endpoints.
+- Split the sync contract into explicit household and user scopes with an independent cursor per `(scopeType, scopeId)`, preventing one household's global sequence progress from skipping personal or another household's changes.
+- Added `docs/SYNC_PHASE2A_VALIDATION.md` with the real deployment, pgTAP fallback, security gates, repeatable commands, and remaining disabled client-sync boundary.
 - Added the native iOS Guest-first account foundation with official `supabase-swift`, Keychain-backed session persistence, email/password registration and login, launch restoration, auth-state observation, sign-out, and native Guest/authenticated account screens.
 - Added the iOS `/api/me` account client, recoverable profile/household loading, safe xcconfig generation, ignored local public configuration, mock auth/account tests, security baseline checks, and `docs/IOS_AUTH_PHASE1_SETUP.md`.
 - Added project-scoped Supabase CLI tooling plus `verify:auth-phase0`, read-only `verify:auth-db`, and `smoke:auth` commands for non-production project metadata/JWKS validation, database-object integrity, real two-user Auth, `/api/me`, bidirectional RLS, Guest-boundary, and optional rate-limit smoke checks without storing credentials.

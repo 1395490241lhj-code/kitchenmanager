@@ -118,6 +118,7 @@ const {
 } = require('./src/server/utils/text');
 const { authenticateRequest, createRequireAuthRole, ALLOWED_ALGORITHMS } = require('./src/server/auth/jwt');
 const { createMeHandler } = require('./src/server/auth/me-route');
+const { registerSyncRoutes } = require('./src/server/sync/routes');
 
 const app = express();
 
@@ -209,6 +210,11 @@ app.get(
   limitAuthMe,
   createMeHandler()
 );
+
+// Phase 2A sync foundation. These routes remain inert for Guest requests and
+// use the verified user JWT with Supabase RPC; business tables never receive
+// direct authenticated INSERT/UPDATE/DELETE grants.
+registerSyncRoutes(app);
 
 
 const RECIPE_EVIDENCE_SYSTEM_PROMPT = `你是 Kitchen Manager 的视频/网页菜谱证据抽取器。用户会给你小红书/网页菜谱文案、caption、OCR、transcript 或截图。
