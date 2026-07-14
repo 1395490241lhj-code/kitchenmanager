@@ -36,7 +36,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		000000000000000000000613 /* Exceptions for KitchenManager folder in KitchenManager target */ = {
+		000000000000000000000613 /* Exceptions for "KitchenManager" folder in "KitchenManager" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -49,7 +49,7 @@
 		000000000000000000000010 /* KitchenManager */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				000000000000000000000613 /* Exceptions for KitchenManager folder in KitchenManager target */,
+				000000000000000000000613 /* Exceptions for "KitchenManager" folder in "KitchenManager" target */,
 			);
 			path = KitchenManager;
 			sourceTree = "<group>";

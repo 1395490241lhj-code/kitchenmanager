@@ -31,6 +31,18 @@ protocol SyncPersistenceProtocol: Actor {
         metadata: SyncMetadata
     ) throws
     func inventoryItem(id: UUID) throws -> InventoryItem?
+
+    // MARK: Phase 2B-1 Guest merge sessions
+
+    /// The current *active* (non-terminal) session for this key, if any.
+    /// Terminal sessions (completed/cancelled/rolledBack) are not returned
+    /// here even though they remain queryable by id for history.
+    func activeGuestMergeSession(userId: UUID, householdId: UUID, entityType: SyncEntityType) throws -> GuestMergeSession?
+    func guestMergeSession(id: UUID) throws -> GuestMergeSession?
+    /// Inserts or updates by `id`. Callers are responsible for checking
+    /// `activeGuestMergeSession` first when creating a *new* session so at
+    /// most one active session per (user, household, entityType) ever exists.
+    func saveGuestMergeSession(_ session: GuestMergeSession) throws
 }
 
 @ModelActor
@@ -260,6 +272,39 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
         return try modelContext.fetch(descriptor).first?.inventoryItem
     }
 
+    func activeGuestMergeSession(userId: UUID, householdId: UUID, entityType: SyncEntityType) throws -> GuestMergeSession? {
+        let key = GuestMergeSession.uniqueKey(userId: userId, householdId: householdId, entityType: entityType)
+        let descriptor = FetchDescriptor<GuestMergeSessionRecord>(
+            predicate: #Predicate { $0.sessionKey == key },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        for record in try modelContext.fetch(descriptor) {
+            guard let value = record.value else { continue }
+            if value.status.isActive { return value }
+        }
+        return nil
+    }
+
+    func guestMergeSession(id: UUID) throws -> GuestMergeSession? {
+        var descriptor = FetchDescriptor<GuestMergeSessionRecord>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        guard let record = try modelContext.fetch(descriptor).first else { return nil }
+        guard let value = record.value else { throw SyncError.persistence }
+        return value
+    }
+
+    func saveGuestMergeSession(_ session: GuestMergeSession) throws {
+        let id = session.id
+        var descriptor = FetchDescriptor<GuestMergeSessionRecord>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        if let record = try modelContext.fetch(descriptor).first {
+            record.update(from: session)
+        } else {
+            modelContext.insert(GuestMergeSessionRecord(session: session))
+        }
+        try commit()
+    }
+
     private func metadataKey(entityType: SyncEntityType, entityId: UUID) -> String {
         "\(entityType.rawValue):\(entityId.uuidString.lowercased())"
     }
@@ -322,4 +367,7 @@ actor FailingSyncPersistence: SyncPersistenceProtocol {
     func commitInventoryAndSync(item: InventoryItem?, removeInventory: Bool, metadata: SyncMetadata, mutation: PendingMutation) throws { throw SyncError.persistence }
     func applyRemoteInventory(item: InventoryItem?, removeInventory: Bool, metadata: SyncMetadata) throws { throw SyncError.persistence }
     func inventoryItem(id: UUID) throws -> InventoryItem? { throw SyncError.persistence }
+    func activeGuestMergeSession(userId: UUID, householdId: UUID, entityType: SyncEntityType) throws -> GuestMergeSession? { throw SyncError.persistence }
+    func guestMergeSession(id: UUID) throws -> GuestMergeSession? { throw SyncError.persistence }
+    func saveGuestMergeSession(_ session: GuestMergeSession) throws { throw SyncError.persistence }
 }

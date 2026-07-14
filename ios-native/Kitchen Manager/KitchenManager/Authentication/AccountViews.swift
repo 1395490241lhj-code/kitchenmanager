@@ -71,7 +71,15 @@ struct AuthEntryView: View {
 struct AccountView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authStore: AuthStore
+    @EnvironmentObject private var kitchenStore: KitchenStore
+    @EnvironmentObject private var recipeStore: RecipeStore
+    @EnvironmentObject private var guestMergeController: GuestMergeController
     @State private var isConfirmingSignOut = false
+
+    private var defaultHouseholdId: UUID? {
+        authStore.account?.households.first(where: { $0.role == "owner" })?.id
+            ?? authStore.account?.households.first?.id
+    }
 
     var body: some View {
         Form {
@@ -96,6 +104,15 @@ struct AccountView: View {
                     }
                 }
 
+                if let userId = authStore.currentUserID, let householdId = defaultHouseholdId {
+                    GuestMergePromptView(
+                        controller: guestMergeController,
+                        userId: userId,
+                        householdId: householdId,
+                        kitchenStore: kitchenStore
+                    )
+                }
+
                 Section {
                     Button("退出登录", role: .destructive) { isConfirmingSignOut = true }
                 } footer: {
@@ -113,6 +130,9 @@ struct AccountView: View {
         }
         .onChange(of: authStore.status) { _, status in
             if status == .guest { dismiss() }
+        }
+        .task {
+            guestMergeController.detect(kitchenStore: kitchenStore, recipeStore: recipeStore)
         }
     }
 }

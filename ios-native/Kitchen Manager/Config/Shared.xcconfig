@@ -5,5 +5,8 @@ SUPABASE_PUBLISHABLE_KEY =
 SYNC_ENABLED = NO
 SYNC_SMOKE_ENABLED = NO
 SYNC_SMOKE_ENVIRONMENT =
+// Phase 2B: independent gate for the Guest inventory merge feature. Does not
+// enable or depend on SYNC_ENABLED; both default NO in every configuration.
+INVENTORY_SYNC_ENABLED = NO
 
 #include? "Local.xcconfig"

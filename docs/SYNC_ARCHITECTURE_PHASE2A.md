@@ -160,3 +160,15 @@ PWA 必须在启用同步前增加独立 metadata store（IndexedDB 优先评估
 未执行：production 部署、iOS/PWA sync client、首次上传、自动同步、Guest merge、冲突 UI。
 
 Phase 2A-3 已完成 disabled-by-default 的 iOS DTO/metadata/pending/cursor、transport/coordinator 和 inventory POC。下一步只有在人工确认后才能进入 Phase 2A-4；仍不得自动上传 Guest 数据或启用 hosted 写入。
+
+## 12. Phase 2B-1：Guest Inventory 合并（新增，本节起）
+
+Phase 2B-1 在不修改本文件第 1–11 节所述任何后端契约、schema 或核心同步语义的前提下，新增一层"用户主动确认后合并"的本地编排：
+
+- 只针对 `inventory_item` 一种 entity，不涉及 shopping/plan/recipe。
+- 新增独立开关 `INVENTORY_SYNC_ENABLED`（默认 `NO`，与 `SYNC_ENABLED` 互相独立，互不启用）。
+- 合并前生成纯本地、可重新校验（hash）的 `InventoryMergePlan`，用户逐条确认冲突后才允许上传；上传/回滚仍复用既有 `SyncCoordinator` / `InventorySyncAdapter` / `ExpressSyncTransport`，未新增第二套上传客户端，也未新增后端 endpoint。
+- 合并状态（`GuestMergeSession`）落在与 `SyncMetadata`/`PendingMutation` 相同的 `@ModelActor` 单一 `ModelContext` 事务边界内，绑定 `(userId, householdId, entityType)`，不会跨用户/跨设备共享。
+- 详见 `docs/GUEST_MERGE_PHASE2B.md`（设计与状态机）与 `docs/INVENTORY_MERGE_CONTRACT.md`（匹配规则、上传/回滚契约）。
+
+本阶段（2B-1）仍未执行任何真实 hosted Guest merge；真实测试账号验证留待 Phase 2B-2。

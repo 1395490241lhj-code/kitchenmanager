@@ -147,6 +147,17 @@ final class AuthStore: ObservableObject {
     /// refresh, or log its access token.
     func developmentSyncSmokeSession() -> AuthSession? { session }
     #endif
+
+    /// Read only by the Guest inventory merge flow (Phase 2B), itself gated
+    /// off by default via `INVENTORY_SYNC_ENABLED`. The session remains in
+    /// Keychain-owned auth storage; this does not persist, refresh, or log
+    /// the token.
+    var currentUserID: UUID? {
+        if case .signedIn(let user) = status { return user.id }
+        return nil
+    }
+
+    func currentAccessToken() -> String? { session?.accessToken }
 }
 
 extension AuthStore {

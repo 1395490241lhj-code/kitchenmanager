@@ -6,6 +6,12 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-14
+
+### Added
+
+- Added Phase 2B-1: a user-initiated, explicitly-confirmed Guest inventory merge. Read-only Guest data detection (`GuestDatasetDetector`), a persisted `GuestMergeSession` state machine bound to `(userId, householdId, inventory_item)`, pure local matching/plan generation (`InventoryMergePlanner`) with content-addressed plan-hash re-validation, explicit per-conflict user choice with partial-commit support, and upload/rollback entirely through the existing `SyncCoordinator`/`InventorySyncAdapter`/`ExpressSyncTransport` — no second upload client. Adds an independent `INVENTORY_SYNC_ENABLED` flag (default `NO` in every configuration, including Release) that never enables or depends on `SYNC_ENABLED`. Only inventory is ever staged or rolled back; Shopping/Today Plan/Weekly Plan/Recipes are counted for display only and never touched. This round is mock/UI-tested only — no real hosted Guest merge, test account, or remote write was performed. See `docs/GUEST_MERGE_PHASE2B.md` and `docs/INVENTORY_MERGE_CONTRACT.md`.
+
 ## 2026-07-13
 
 ### Added

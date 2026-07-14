@@ -6,3 +6,5 @@ SYNC_ENABLED = NO
 SYNC_SMOKE_ENABLED = NO
 // Required in addition to both flags for a one-off development smoke.
 SYNC_SMOKE_ENVIRONMENT = development
+// Phase 2B: independent gate for the Guest inventory merge feature.
+INVENTORY_SYNC_ENABLED = NO
