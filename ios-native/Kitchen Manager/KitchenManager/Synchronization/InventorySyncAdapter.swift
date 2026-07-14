@@ -138,6 +138,35 @@ nonisolated struct InventorySyncAdapter: Sendable {
         return mutationId
     }
 
+    /// Pure, read-only decode of a pulled change into a
+    /// `RemoteInventorySnapshotItem` — never writes local persistence. Used by
+    /// the Guest merge pre-merge read (`GuestMergeController`) to learn what
+    /// already exists remotely before generating a plan, without touching
+    /// local `SyncMetadata`/`InventoryRecord` at all. Returns `nil` for a
+    /// tombstone (delete), since a deleted remote record is not a match
+    /// candidate.
+    @MainActor
+    func decodeRemoteInventorySnapshot(_ change: SyncChangeEnvelope) throws -> RemoteInventorySnapshotItem? {
+        guard change.entityType == .inventoryItem else { throw SyncError.unsupportedEntity }
+        guard change.operation != .delete else { return nil }
+        let item = try decodeInventory(change)
+        return RemoteInventorySnapshotItem(
+            id: item.id,
+            name: item.name,
+            unit: item.unit,
+            quantity: item.quantity,
+            expiryDate: item.expiryDate,
+            isStaple: item.isStaple,
+            stapleCategory: item.stapleCategory,
+            lowStockThreshold: item.lowStockThreshold,
+            defaultRestockQuantity: item.defaultRestockQuantity,
+            autoSuggestRestock: item.autoSuggestRestock,
+            stapleTrackingMode: item.stapleTrackingMode,
+            stapleAvailabilityStatus: item.stapleAvailabilityStatus,
+            remoteVersion: change.version
+        )
+    }
+
     func applyRemote(_ change: SyncChangeEnvelope, scope: SyncScope) async throws -> InventoryRemoteApplyOutcome {
         guard change.entityType == .inventoryItem else { throw SyncError.unsupportedEntity }
         let existing = try await persistence.metadata(entityType: .inventoryItem, entityId: change.entityId)

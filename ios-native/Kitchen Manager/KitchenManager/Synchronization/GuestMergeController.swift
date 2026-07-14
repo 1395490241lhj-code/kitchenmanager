@@ -74,13 +74,27 @@ final class GuestMergeController: ObservableObject {
     /// starts a fresh preview when none exists. Regenerates the plan when the
     /// current local inventory no longer matches the session's stored plan
     /// hash (i.e. the user edited inventory since the last preview).
-    func preparePreview(userId: UUID, householdId: UUID, kitchenStore: KitchenStore) async {
+    ///
+    /// `remoteTransport`, when supplied, is used for exactly one read-only
+    /// pre-merge fetch (`SyncTransport.fetchChanges`, a GET) so matching can
+    /// see what already exists remotely — this never writes a mutation,
+    /// never advances the persisted pull cursor, and is never called by the
+    /// ordinary in-app preview flow (which always passes `nil`, preserving
+    /// its existing zero-network-call behavior exactly). Omitted, it defaults
+    /// to `nil` and `knownRemoteItems` stays empty, matching prior behavior.
+    func preparePreview(
+        userId: UUID,
+        householdId: UUID,
+        kitchenStore: KitchenStore,
+        remoteTransport: (any SyncTransport)? = nil
+    ) async {
         guard isFeatureEnabled else { return }
         isBusy = true
         lastErrorMessage = nil
         defer { isBusy = false }
         do {
             let localItems = kitchenStore.inventory
+            let knownRemoteItems = try await fetchKnownRemoteItems(householdId: householdId, transport: remoteTransport)
             if var existing = try await persistence.activeGuestMergeSession(
                 userId: userId, householdId: householdId, entityType: .inventoryItem
             ) {
@@ -90,7 +104,7 @@ final class GuestMergeController: ObservableObject {
                     // Local data changed since this plan was generated and no
                     // upload has started yet — regenerate rather than upload
                     // a stale plan.
-                    existing = regeneratedPreview(session: existing, localItems: localItems)
+                    existing = regeneratedPreview(session: existing, localItems: localItems, knownRemoteItems: knownRemoteItems)
                     try await persistence.saveGuestMergeSession(existing)
                 }
                 session = existing
@@ -98,7 +112,7 @@ final class GuestMergeController: ObservableObject {
             }
 
             guard !localItems.isEmpty else { return }
-            let newSession = freshPreview(userId: userId, householdId: householdId, localItems: localItems)
+            let newSession = freshPreview(userId: userId, householdId: householdId, localItems: localItems, knownRemoteItems: knownRemoteItems)
             try await persistence.saveGuestMergeSession(newSession)
             session = newSession
         } catch {
@@ -106,11 +120,48 @@ final class GuestMergeController: ObservableObject {
         }
     }
 
-    private func freshPreview(userId: UUID, householdId: UUID, localItems: [InventoryItem]) -> GuestMergeSession {
+    /// Never writes anything — a GET-only pull used purely to build in-memory
+    /// match candidates. Deliberately does not call `persistence.advanceCursor`,
+    /// so it cannot interfere with `SyncCoordinator`'s own persisted pull
+    /// cursor bookkeeping used later during the real upload/pull.
+    private func fetchKnownRemoteItems(
+        householdId: UUID,
+        transport: (any SyncTransport)?
+    ) async throws -> [RemoteInventorySnapshotItem] {
+        guard let transport else { return [] }
+        let scope = SyncScope(type: .household, id: householdId)
+        let adapter = InventorySyncAdapter(persistence: persistence)
+        var cursor = SyncCursorValue.zero
+        var results: [UUID: RemoteInventorySnapshotItem] = [:]
+        var hasMore = true
+        var pagesFetched = 0
+        let maxPages = 50
+        while hasMore && pagesFetched < maxPages {
+            let response = try await transport.fetchChanges(scope: scope, after: cursor, limit: 100)
+            guard response.scope == scope else { break }
+            for change in response.changes where change.entityType == .inventoryItem {
+                if change.operation == .delete {
+                    results.removeValue(forKey: change.entityId)
+                } else if let snapshot = try await adapter.decodeRemoteInventorySnapshot(change) {
+                    results[change.entityId] = snapshot
+                }
+            }
+            cursor = response.cursor
+            hasMore = response.hasMore
+            pagesFetched += 1
+            if hasMore, response.changes.isEmpty { break }
+        }
+        return Array(results.values)
+    }
+
+    private func freshPreview(
+        userId: UUID, householdId: UUID, localItems: [InventoryItem], knownRemoteItems: [RemoteInventorySnapshotItem]
+    ) -> GuestMergeSession {
         let sessionId = UUID()
         let now = Date()
         let plan = InventoryMergePlanner.makePlan(
-            sessionId: sessionId, householdId: householdId, localItems: localItems, generatedAt: now
+            sessionId: sessionId, householdId: householdId, localItems: localItems,
+            knownRemoteItems: knownRemoteItems, generatedAt: now
         )
         return GuestMergeSession(
             id: sessionId,
@@ -136,10 +187,13 @@ final class GuestMergeController: ObservableObject {
         )
     }
 
-    private func regeneratedPreview(session existing: GuestMergeSession, localItems: [InventoryItem]) -> GuestMergeSession {
+    private func regeneratedPreview(
+        session existing: GuestMergeSession, localItems: [InventoryItem], knownRemoteItems: [RemoteInventorySnapshotItem]
+    ) -> GuestMergeSession {
         var updated = existing
         let plan = InventoryMergePlanner.makePlan(
-            sessionId: existing.id, householdId: existing.householdId, localItems: localItems, generatedAt: Date()
+            sessionId: existing.id, householdId: existing.householdId, localItems: localItems,
+            knownRemoteItems: knownRemoteItems, generatedAt: Date()
         )
         updated.plan = plan
         updated.localSnapshot = snapshot(of: localItems)
@@ -226,6 +280,32 @@ final class GuestMergeController: ObservableObject {
 
             for candidate in toUpload {
                 guard let localItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }
+                // An `.update` candidate matched a remote record this device
+                // never uploaded itself (learned about only via the
+                // pre-merge read) — there is no local SyncMetadata for it
+                // yet, so InventorySyncAdapter.stageUpsert would otherwise
+                // compute baseVersion as 0 and the server would correctly
+                // reject it as a stale-version conflict. Seed the known
+                // remote version first, but only when this device doesn't
+                // already have its own (possibly more current) local record
+                // of it — never overwrite an existing local sync state.
+                if candidate.action == .update, let remoteVersion = candidate.remoteVersion {
+                    let existingMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: candidate.localItemId)
+                    if existingMetadata == nil {
+                        try await persistence.saveMetadata(SyncMetadata(
+                            entityType: .inventoryItem,
+                            entityId: candidate.localItemId,
+                            scope: scope,
+                            remoteVersion: remoteVersion,
+                            state: .synced,
+                            lastSyncedAt: nil,
+                            lastErrorCode: nil,
+                            lastErrorAt: nil,
+                            deletedAt: nil,
+                            updatedAt: Date()
+                        ))
+                    }
+                }
                 _ = try await adapter.stageUpsert(item: localItem, scope: scope)
             }
 

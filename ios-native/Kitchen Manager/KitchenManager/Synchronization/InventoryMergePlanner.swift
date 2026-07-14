@@ -28,6 +28,11 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
     let autoSuggestRestock: Bool
     let stapleTrackingMode: StapleTrackingMode
     let stapleAvailabilityStatus: StapleAvailabilityStatus
+    /// The remote record's current version. Defaults to `.zero` for tests
+    /// that don't care about upload staging; a real pre-merge read always
+    /// supplies the entity's true remote version so `confirmMerge` can seed
+    /// the correct baseVersion for an `.update`.
+    let remoteVersion: SyncCursorValue
 
     init(
         id: UUID,
@@ -41,7 +46,8 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
         defaultRestockQuantity: Double? = nil,
         autoSuggestRestock: Bool = false,
         stapleTrackingMode: StapleTrackingMode = .quantity,
-        stapleAvailabilityStatus: StapleAvailabilityStatus = .available
+        stapleAvailabilityStatus: StapleAvailabilityStatus = .available,
+        remoteVersion: SyncCursorValue = .zero
     ) {
         self.id = id
         self.name = name
@@ -55,6 +61,7 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
         self.autoSuggestRestock = autoSuggestRestock
         self.stapleTrackingMode = stapleTrackingMode
         self.stapleAvailabilityStatus = stapleAvailabilityStatus
+        self.remoteVersion = remoteVersion
     }
 }
 
@@ -149,7 +156,7 @@ nonisolated enum InventoryMergePlanner {
             return InventoryMergeCandidate(
                 localItemId: local.id, name: local.name, unit: local.unit,
                 localQuantity: local.quantity, localExpiryDate: local.expiryDate,
-                remoteItemId: nil, remoteQuantity: nil, remoteExpiryDate: nil,
+                remoteItemId: nil, remoteQuantity: nil, remoteExpiryDate: nil, remoteVersion: nil,
                 action: .create, conflictReason: nil, userChoice: nil
             )
         case 1:
@@ -160,7 +167,7 @@ nonisolated enum InventoryMergePlanner {
             return InventoryMergeCandidate(
                 localItemId: local.id, name: local.name, unit: local.unit,
                 localQuantity: local.quantity, localExpiryDate: local.expiryDate,
-                remoteItemId: nil, remoteQuantity: nil, remoteExpiryDate: nil,
+                remoteItemId: nil, remoteQuantity: nil, remoteExpiryDate: nil, remoteVersion: nil,
                 action: .skip, conflictReason: .multipleRemoteCandidates, userChoice: nil
             )
         }
@@ -197,6 +204,7 @@ nonisolated enum InventoryMergePlanner {
                 localItemId: local.id, name: local.name, unit: local.unit,
                 localQuantity: local.quantity, localExpiryDate: local.expiryDate,
                 remoteItemId: remote.id, remoteQuantity: remote.quantity, remoteExpiryDate: remote.expiryDate,
+                remoteVersion: remote.remoteVersion,
                 action: action, conflictReason: reason, userChoice: nil
             )
         }

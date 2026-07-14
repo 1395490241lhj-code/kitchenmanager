@@ -8,3 +8,6 @@ SYNC_SMOKE_ENABLED = NO
 SYNC_SMOKE_ENVIRONMENT = development
 // Phase 2B: independent gate for the Guest inventory merge feature.
 INVENTORY_SYNC_ENABLED = NO
+// Phase 2B-2: independent one-off Guest merge smoke guard, mirroring
+// SYNC_SMOKE_ENABLED. Requires SYNC_SMOKE_ENVIRONMENT = development too.
+GUEST_MERGE_SMOKE_ENABLED = NO

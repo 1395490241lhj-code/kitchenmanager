@@ -32,6 +32,8 @@
 	<string>$(SYNC_SMOKE_ENVIRONMENT)</string>
 	<key>KM_INVENTORY_SYNC_ENABLED</key>
 	<string>$(INVENTORY_SYNC_ENABLED)</string>
+	<key>KM_GUEST_MERGE_SMOKE_ENABLED</key>
+	<string>$(GUEST_MERGE_SMOKE_ENABLED)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>

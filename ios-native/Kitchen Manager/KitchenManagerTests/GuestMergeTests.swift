@@ -316,6 +316,137 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertNotNil(controller.lastErrorMessage)
     }
 
+    // MARK: - Pre-merge remote read (Phase 2B-2: knownRemoteItems is no longer always empty)
+
+    func testPreparePreviewWithoutRemoteTransportNeverCallsIt() async throws {
+        // Ordinary in-app preview never passes a transport — this proves the
+        // omitted-parameter default preserves the exact prior zero-network
+        // behavior (a FailingMergeTransport would throw on any call at all,
+        // so success here means it was never touched).
+        let (kitchen, persistence) = try makeSharedStores()
+        let controller = GuestMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in FailingMergeTransport() }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        XCTAssertEqual(controller.session?.status, .previewReady)
+        XCTAssertNil(controller.lastErrorMessage)
+    }
+
+    func testPreparePreviewWithRemoteTransportDetectsConflictAgainstAPreviouslyUnknownRemoteRecord() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        // Same id as the remote record seeded below, different quantity —
+        // this device knows the item locally but has never synced it itself.
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(
+            id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1"
+        )
+        let controller = GuestMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+
+        let candidate = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
+        XCTAssertEqual(candidate.conflictReason, .quantityMismatch, "the pre-merge read must let identity resolve by stable id even though this device never uploaded it itself")
+        XCTAssertEqual(candidate.remoteVersion?.rawValue, "5", "the candidate must carry the real remote version so confirmMerge can seed the correct baseVersion")
+    }
+
+    func testConfirmMergeSeedsBaseVersionFromThePreMergeReadSoAKnownRemoteUpdateApplies() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        // This is the exact bug scenario: the remote record already exists at
+        // version "5", but this device has no local SyncMetadata for it.
+        // Without seeding, InventorySyncAdapter.stageUpsert would send
+        // baseVersion "0" and the (real) server would reject the update as a
+        // stale-version conflict — simulated here by `seedExistingRemote`.
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        await transport.seedExistingRemote(id: sharedId, staleBaseVersion: "5")
+
+        let controller = GuestMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        let candidate = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
+        XCTAssertEqual(candidate.conflictReason, .quantityMismatch)
+        XCTAssertEqual(candidate.remoteVersion?.rawValue, "5")
+
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        let resolvedCandidate = controller.plan?.candidates.first(where: { $0.localItemId == sharedId })
+        XCTAssertEqual(resolvedCandidate?.action, .update)
+        XCTAssertEqual(resolvedCandidate?.remoteVersion?.rawValue, "5")
+
+        // The pre-merge read was a one-time snapshot used only to build the
+        // plan; clear it so the coordinator's own real pull phase below
+        // (triggered by confirmMerge) doesn't re-fetch this same synthetic
+        // entry and misapply it over the upload result — see
+        // `clearRemoteChanges()`'s doc comment for why this mock-only step
+        // is needed (a real backend's pull and pre-merge read are the same
+        // consistent data source, so this has no product-code analog).
+        await transport.clearRemoteChanges()
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        // Without the baseVersion-seeding fix this would land in `.conflict`
+        // (or `.failed`), because the server would reject baseVersion "0"
+        // against its real version "5". With the fix, the correct baseVersion
+        // is seeded first and the update actually applies.
+        XCTAssertEqual(controller.session?.status, .completed, "the known remote version must be seeded so the update is accepted, not rejected as a stale-version conflict")
+        XCTAssertEqual(controller.session?.uploadedItemCount, 1)
+        let metadata = try await persistence.metadata(entityType: .inventoryItem, entityId: sharedId)
+        XCTAssertEqual(metadata?.state, .synced)
+        let sentBaseVersion = await transport.lastReceivedBaseVersion(for: sharedId)
+        XCTAssertEqual(sentBaseVersion, "5", "must send the real seeded remote version on the wire, never the stale local-unknown 0")
+    }
+
+    func testConfirmMergeNeverOverwritesAlreadyKnownLocalMetadataWithASnapshotTimeVersion() async throws {
+        // If this device already has its OWN local SyncMetadata for the
+        // entity (e.g. a previous partial run already synced it), confirmMerge
+        // must trust that local state rather than blindly re-seeding a
+        // possibly-stale snapshot-time version over it.
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+
+        try await persistence.saveMetadata(SyncMetadata(
+            entityType: .inventoryItem, entityId: sharedId,
+            scope: SyncScope(type: .household, id: householdA),
+            remoteVersion: try SyncCursorValue("9"), state: .synced,
+            lastSyncedAt: Date(), lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+        ))
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        await transport.clearRemoteChanges()
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .completed)
+        let metadata = try await persistence.metadata(entityType: .inventoryItem, entityId: sharedId)
+        XCTAssertEqual(metadata?.state, .synced)
+        let sentBaseVersion = await transport.lastReceivedBaseVersion(for: sharedId)
+        XCTAssertEqual(sentBaseVersion, "9", "must send the device's own already-known version 9 on the wire, never regress to the older snapshot-time version 5")
+    }
+
     func testSnapshotIsCappedButPlanStillCoversEveryLocalItemBeyondTheCap() async throws {
         let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
         let extraItems = (0..<(GuestMergeSession.maxSnapshotItems + 50)).map {
@@ -656,6 +787,52 @@ private actor SimulatedMergeTransport: SyncTransport {
         seededVersion[id] = staleBaseVersion
     }
 
+    /// Populates what `fetchChanges` (the pre-merge read) returns, simulating
+    /// an inventory_item this device never uploaded itself but that already
+    /// exists remotely (e.g. from another device, or a prior test phase).
+    func seedRemoteChange(
+        id: UUID, name: String, unit: String, quantity: Double, expiryDate: Date? = nil,
+        isStaple: Bool = false, stapleCategory: String? = nil, lowStockThreshold: Double? = nil,
+        version: String, sequence: String
+    ) {
+        var data: [String: SyncJSONValue] = [
+            "name": .string(name),
+            "quantity": .number(quantity),
+            "unit": .string(unit),
+            "isStaple": .bool(isStaple)
+        ]
+        if let expiryDate {
+            data["expiryDate"] = .string(Self.iso8601.string(from: expiryDate))
+        }
+        if let stapleCategory {
+            data["stapleCategory"] = .string(stapleCategory)
+        }
+        if let lowStockThreshold {
+            data["lowStockThreshold"] = .number(lowStockThreshold)
+        }
+        changes.append(SyncChangeEnvelope(
+            sequence: try! SyncCursorValue(sequence), entityType: .inventoryItem, entityId: id,
+            operation: .upsert, version: try! SyncCursorValue(version), changedAt: Date(), data: data
+        ))
+    }
+
+    /// Drops synthetic pre-seeded remote changes used only for the one-time
+    /// pre-merge read. Without this, `SyncCoordinator`'s own later pull phase
+    /// (run for real during `confirmMerge`) would re-fetch the same stale
+    /// synthetic entry and misapply it over the just-uploaded result — a
+    /// mock-only artifact of reusing disconnected fake sequence/version
+    /// numbers, not something a real backend would ever do (a real server's
+    /// pull and pre-merge read are the same consistent data source).
+    func clearRemoteChanges() {
+        changes.removeAll()
+    }
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
     func appliedCount() -> Int { appliedIds.count }
     func isSoftDeleted(_ id: UUID) -> Bool { deletedIds.contains(id) }
 
@@ -680,9 +857,17 @@ private actor SimulatedMergeTransport: SyncTransport {
         )
     }
 
+    private var receivedBaseVersions: [UUID: String] = [:]
+
+    /// Exposes exactly what `baseVersion` the client actually sent on the
+    /// wire for a given entity, so tests can prove the seeded/preserved
+    /// version was used rather than inferring it indirectly from outcomes.
+    func lastReceivedBaseVersion(for entityId: UUID) -> String? { receivedBaseVersions[entityId] }
+
     func sendMutations(scope: SyncScope, mutations requests: [SyncMutation]) async throws -> SyncMutationBatchResponse {
         var results: [SyncMutationResult] = []
         for request in requests {
+            receivedBaseVersions[request.entityId] = request.baseVersion?.rawValue
             // A seeded entity simulates a remote record the client didn't
             // know about racing this create — the client's baseVersion (from
             // a fresh InventorySyncAdapter.stageUpsert on an item with no
@@ -698,9 +883,19 @@ private actor SimulatedMergeTransport: SyncTransport {
             }
             version += 1
             sequence += 1
+            // Real optimistic-concurrency versioning is per-entity
+            // (new version = accepted baseVersion + 1), never a
+            // cross-entity shared counter — this matters once a test seeds
+            // an entity's remote version above 0 (via `seedRemoteChange`),
+            // since a shared counter would otherwise return a *lower*
+            // version than the entity already has, which the persistence
+            // layer's own optimistic-concurrency guard correctly refuses to
+            // apply (a real server never regresses a version like that).
+            let acceptedBaseVersion = Int(request.baseVersion?.rawValue ?? "0") ?? 0
+            let entityVersion = acceptedBaseVersion + 1
             let result = SyncMutationResult(
                 mutationId: request.mutationId, entityId: request.entityId,
-                status: .applied, version: try SyncCursorValue(String(version)),
+                status: .applied, version: try SyncCursorValue(String(entityVersion)),
                 sequence: try SyncCursorValue(String(sequence)), errorCode: nil,
                 originalStatus: nil, serverRecord: nil
             )

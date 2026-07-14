@@ -114,11 +114,17 @@ id/quantity/unit/expiry) and re-validated against current local inventory
 before any resume; editing Guest inventory after a preview was generated
 invalidates it and a fresh plan is produced.
 
-**Known 2B-1 limitation, by design**: `knownRemoteItems` (what the planner
-already believes exists remotely) defaults to empty, since this phase
-deliberately does not perform a real hosted bootstrap/pull to populate it
-(see "Not yet implemented" below). Every Guest item is therefore planned as
-`create` until Phase 2B-2 wires a real pre-merge read.
+**Phase 2B-1 limitation, resolved in Phase 2B-2**: `knownRemoteItems` (what
+the planner already believes exists remotely) defaulted to empty in Phase
+2B-1, since that phase deliberately did not perform a real hosted
+bootstrap/pull to populate it — every Guest item was therefore always
+planned as `create`. Phase 2B-2 added an optional `remoteTransport` parameter
+to `GuestMergeController.preparePreview` (default `nil`, so ordinary in-app
+preview stays exactly as before — zero network calls) that, when supplied,
+performs one read-only `SyncTransport.fetchChanges` pull (a GET, no writes,
+no persisted cursor advance) to populate `knownRemoteItems` before the plan
+is generated. See `docs/GUEST_MERGE_PHASE2B2_VALIDATION.md` for the real
+hosted validation of the resulting conflict detection.
 
 ## Merge session lifecycle
 
@@ -152,11 +158,15 @@ data — local inventory is never deleted by rollback.
 
 ## Not yet implemented
 
-- A real hosted pre-merge read to populate `knownRemoteItems` (Phase 2B-2).
-- Executing a real Guest merge against a real test account/hosted backend
-  (Phase 2B-2 — this round is mock/UI-tested and disabled by default only).
+- `InventoryMergeConflictChoice.keepBoth` on a **same-id** conflict does not
+  allocate a new id — staging it would target an entity id that already
+  exists remotely at a non-zero version, which the server should correctly
+  reject rather than produce an independent second record. `keepBoth` is
+  only well-defined today for the **different-id** (ambiguous-duplicate)
+  case. Confirmed during Phase 2B-2 hosted validation; not fixed there — see
+  `docs/GUEST_MERGE_PHASE2B2_VALIDATION.md`.
 - Shopping, Today Plan, Weekly Plan, or Recipe merge (out of scope for all of
-  Phase 2B-1).
+  Phase 2B).
 - Background sync, Realtime, or household invitation.
 - A global "enable Inventory sync for everyone" switch — `INVENTORY_SYNC_ENABLED`
   stays an explicit, developer/operator-controlled flag.

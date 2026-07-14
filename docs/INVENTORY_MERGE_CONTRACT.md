@@ -106,6 +106,32 @@ than crashing or fabricating data, and a `nil` plan makes `confirmMerge`
 refuse to upload anything (it guards on `let plan = current.plan else {
 return }`).
 
+## Pre-merge remote read (Phase 2B-2)
+
+`GuestMergeController.preparePreview(userId:householdId:kitchenStore:remoteTransport:)`
+takes an optional `remoteTransport` (default `nil`). Ordinary in-app preview
+never supplies one, so `knownRemoteItems` stays empty and behavior is
+unchanged from Phase 2B-1. When supplied (only by the Debug-only hosted smoke
+harness today), a private `fetchKnownRemoteItems` performs one read-only
+`SyncTransport.fetchChanges` pull for the household's `inventory_item`
+entities (a GET; no `sync_mutations`/`sync_changes` write; no persisted pull
+cursor advance), decodes each into a `RemoteInventorySnapshotItem` (via
+`InventorySyncAdapter.decodeRemoteInventorySnapshot`, including the entity's
+real `remoteVersion`), and passes the result to `InventoryMergePlanner.makePlan`.
+This is a read, not a write, so it does not violate "preview performs zero
+network writes."
+
+`RemoteInventorySnapshotItem` and `InventoryMergeCandidate` both carry this
+`remoteVersion`. `confirmMerge` uses it to seed local `SyncMetadata`
+(`state: .synced`) before staging a same-id `.update` candidate whose
+existence this device only just learned about — without this, a Guest
+device merging into an already-populated household would send `baseVersion
+0` for an entity that already exists remotely at a later version, and the
+server would correctly (but unhelpfully) reject it as a stale-version
+conflict. The seed only fills in a previously-unknown local value: if this
+device already has its own local `SyncMetadata` for that entity, it is never
+overwritten with a possibly-stale snapshot-time version.
+
 ## Upload
 
 1. For each candidate in `plan.readyToUpload`, call

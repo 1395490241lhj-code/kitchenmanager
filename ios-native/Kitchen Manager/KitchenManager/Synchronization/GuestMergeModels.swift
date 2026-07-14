@@ -276,6 +276,15 @@ nonisolated struct InventoryMergeCandidate: Identifiable, Codable, Equatable, Se
     let remoteItemId: UUID?
     let remoteQuantity: Double?
     let remoteExpiryDate: Date?
+    /// The remote record's version at the time the plan was generated — `nil`
+    /// unless `remoteItemId` is a single, definite match (never set for
+    /// `.multipleRemoteCandidates`, where no single remote id is known).
+    /// Used by `GuestMergeController.confirmMerge` to seed the local
+    /// `SyncMetadata` baseVersion before staging an `.update`, since a Guest
+    /// device merging into an already-populated household has no local sync
+    /// history for an entity it only just learned about via the pre-merge
+    /// remote read.
+    let remoteVersion: SyncCursorValue?
     var action: InventoryMergeAction
     var conflictReason: InventoryMergeConflictReason?
     var userChoice: InventoryMergeConflictChoice?
