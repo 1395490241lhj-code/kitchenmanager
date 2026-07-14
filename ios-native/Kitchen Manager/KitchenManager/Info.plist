@@ -24,6 +24,8 @@
 	<string>$(SUPABASE_PUBLISHABLE_KEY)</string>
 	<key>KM_SUPABASE_URL</key>
 	<string>$(SUPABASE_URL)</string>
+	<key>KM_SYNC_ENABLED</key>
+	<string>$(SYNC_ENABLED)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>

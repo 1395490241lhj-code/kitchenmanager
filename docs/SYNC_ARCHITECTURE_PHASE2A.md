@@ -1,6 +1,6 @@
 # Phase 2A 同步协议基础设计
 
-状态：**Phase 2A-2.5 development 后端基础已真实验证；客户端同步仍为 disabled**
+状态：**Phase 2A-2.5 development 后端已验证；Phase 2A-3 iOS 基础已实现但仍默认 disabled**
 日期：2026-07-13
 
 ## 1. 保持 Guest-first
@@ -122,21 +122,25 @@ RLS 是最后防线，不代替 API 校验；CORS 不是认证机制；service-r
 
 ## 9. iOS 边界
 
-未来新增独立层（本阶段不创建代码）：
+Phase 2A-3 已新增独立层：
 
 ```text
-SyncEngine actor
-├── SyncAPIClient
-├── SyncMetadataRepository (independent ModelContext)
-├── PendingMutationRepository
-├── SyncCursorRepository
-└── domain adapters (Inventory/Shopping/Plan/...)
+SyncCoordinator actor (only explicit runOnce)
+├── ExpressSyncTransport (existing APIClient)
+├── SwiftDataSyncPersistence (independent ModelContext)
+│   ├── SyncMetadataRecord
+│   ├── PendingMutationRecord
+│   └── SyncCursorRecord (per scope)
+└── InventorySyncAdapter (POC only)
 ```
 
 - UI `@MainActor` store 不直接执行网络合并。
 - actor 不跨线程传递 `ModelContext` 或 @Model 实例；只传 Sendable DTO/value。
 - 一批 change 的业务写入与 cursor 推进必须有可恢复边界。
-- 不能把 cloud version、pending/error 状态直接塞进现有七个业务 @Model。
+- cloud version、pending/error 状态没有塞进现有七个业务 @Model。
+- feature flag、示例配置和 Release 默认均为 false；App/AuthStore/KitchenStore 没有自动调用点。
+- inventory POC 的本地业务变化、metadata 和 pending mutation 使用同一个 context + 单次 save；普通库存 CRUD 未接入。
+- 详见 `docs/IOS_SYNC_PHASE2A3.md`。
 
 ## 10. PWA 边界
 
@@ -155,4 +159,4 @@ PWA 必须在启用同步前增加独立 metadata store（IndexedDB 优先评估
 
 未执行：production 部署、iOS/PWA sync client、首次上传、自动同步、Guest merge、冲突 UI。
 
-下一步只有在人工确认后，才进入 Phase 2A-3：新增 disabled-by-default 的 iOS sync DTO/metadata/pending/cursor 边界和 inventory proof-of-concept adapter；不得自动上传 Guest 数据。
+Phase 2A-3 已完成 disabled-by-default 的 iOS DTO/metadata/pending/cursor、transport/coordinator 和 inventory POC。下一步只有在人工确认后才能进入 Phase 2A-4；仍不得自动上传 Guest 数据或启用 hosted 写入。

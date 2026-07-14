@@ -10,6 +10,7 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ### Added
 
+- Added the disabled-by-default iOS Phase 2A-3 sync foundation with contract DTOs, BIGINT-safe cursor strings, separate SwiftData metadata/pending/per-scope cursor records, APIClient-backed transport, an explicit actor coordinator, and an inventory-only atomic adapter POC. No App/Auth/repository automatic sync hook is enabled.
 - Added the local-only Phase 2A cloud business-schema draft for household inventory, shopping, today plans, consumption records, normalized weekly plans, and user recipes; personal favorites/frequent recipes; a monotonic RLS-protected change feed; and a mutation idempotency ledger.
 - Added the Phase 2A-2 authenticated sync API (`bootstrap`, incremental `changes`, and batched `mutations`), strict entity validation, BIGINT-safe cursors/versions, deterministic legacy UUID mapping, and a user-JWT Supabase RPC repository that never uses service-role credentials.
 - Added an undeployed allowlisted atomic mutation RPC with per-user idempotency locking, optimistic `baseVersion` conflicts, soft-delete tombstones, trigger-owned audit/version fields, and same-transaction change snapshots, plus API/schema/pgTAP contract tests and `docs/SYNC_API_CONTRACT.md`.

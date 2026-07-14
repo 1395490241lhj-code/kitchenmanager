@@ -74,7 +74,8 @@ Kitchen Manager currently uses:
 - `data/*` for recipe libraries and recipe completion overlays.
 - `test/*` for Node built-in test runner tests.
 - `scripts/*` for validation, curation, and version/cache stamping utilities.
-- `supabase/*`, `src/server/auth/*`, and `src/server/sync/*` for identity and the Phase 2A synchronization foundation. Migration `20260713000200` is deployed and live-verified on development only. The contract uses independent household/user scope cursors, an allowlisted atomic mutation RPC, idempotency ledger, version conflicts, soft-delete tombstones, and snapshot-backed change feed. No production migration or iOS/PWA SyncEngine, upload, merge, account-scoped container switch, invitation, or OAuth flow is implemented.
+- `supabase/*`, `src/server/auth/*`, and `src/server/sync/*` for identity and the Phase 2A synchronization foundation. Migration `20260713000200` is deployed and live-verified on development only. The contract uses independent household/user scope cursors, an allowlisted atomic mutation RPC, idempotency ledger, version conflicts, soft-delete tombstones, and snapshot-backed change feed. No production migration, enabled iOS/PWA automatic sync, upload, merge, account-scoped container switch, invitation, or OAuth flow is implemented.
+- Native iOS now contains a Phase 2A-3 sync boundary under `KitchenManager/Synchronization`: DTOs, separate SwiftData metadata/pending/cursor records, transport, disabled coordinator, and inventory POC. `SYNC_ENABLED` is committed as `NO`; there is no App startup, login, timer, background, Guest scan/upload, or hosted-write call site. Treat `runOnce` as test/future explicit infrastructure, not an enabled product feature.
 
 There is no frontend build pipeline. The browser runs the files directly.
 

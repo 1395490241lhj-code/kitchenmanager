@@ -2,5 +2,6 @@
 // from the developer's environment by `npm run configure:ios-auth`.
 SUPABASE_URL =
 SUPABASE_PUBLISHABLE_KEY =
+SYNC_ENABLED = NO
 
 #include? "Local.xcconfig"

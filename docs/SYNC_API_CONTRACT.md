@@ -1,6 +1,6 @@
 # Phase 2A 同步 API Contract
 
-状态：**Phase 2A-2.5 已部署并在 development Supabase 真实验证；客户端同步仍未启用**
+状态：**Phase 2A-2.5 development 后端已验证；Phase 2A-3 iOS client boundary 已实现但默认禁用**
 Schema version：`1`
 
 所有 endpoint 都要求 `Authorization: Bearer <Supabase access token>`。Express 先验证 JWT，再以 publishable/anon key + 同一用户 JWT 调用固定 Supabase RPC。服务端不接受客户端 `userId` 作为身份依据，也不使用 service-role key。
@@ -163,6 +163,7 @@ mutation 响应的 `cursor` 只是本批 applied/duplicate 结果中的最大 se
 ## 7. 部署与尚未启用
 
 - development 已应用 `20260713000200`，并完成真实 Auth/RLS、RPC、mutation、cursor、实体 mapper 与本地 Express smoke。production 未部署。
-- iOS/PWA SyncEngine、pending queue、cursor store。
+- iOS 已有 disabled-by-default 的 DTO、pending queue、per-scope cursor、transport/coordinator 和 inventory POC；没有 App/Auth 自动调用点。
+- PWA SyncEngine 与其他 iOS domain adapter。
 - Guest bootstrap/merge、冲突 UI、自动或后台同步。
 - household 邀请、Realtime。
