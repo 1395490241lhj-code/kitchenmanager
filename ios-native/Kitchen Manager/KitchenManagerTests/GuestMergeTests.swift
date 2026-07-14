@@ -1398,6 +1398,176 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertNil(mutation)
     }
 
+    // MARK: - Phase 2B-5: queue cap
+
+    func testQueueFullBlocksAGenuinelyNewCreate() {
+        let result = InventorySyncEligibility.evaluate(
+            isFeatureEnabled: true, userId: userA, householdId: householdA,
+            enrollment: InventorySyncEnrollment(
+                userId: userA, householdId: householdA, status: .enrolled, enrolledAt: Date(),
+                mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+            ),
+            existingMetadata: nil, intent: .create,
+            hasExistingPendingMutationForEntity: false, currentPendingCount: 5, maxPendingMutations: 5
+        )
+        XCTAssertEqual(result, .blockedByQueueFull)
+    }
+
+    func testQueueFullNeverBlocksADelete() {
+        let metadata = SyncMetadata(
+            entityType: .inventoryItem, entityId: UUID(), scope: SyncScope(type: .household, id: householdA),
+            remoteVersion: try! SyncCursorValue("1"), state: .synced, lastSyncedAt: Date(),
+            lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+        )
+        let result = InventorySyncEligibility.evaluate(
+            isFeatureEnabled: true, userId: userA, householdId: householdA,
+            enrollment: InventorySyncEnrollment(
+                userId: userA, householdId: householdA, status: .enrolled, enrolledAt: Date(),
+                mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+            ),
+            existingMetadata: metadata, intent: .delete,
+            hasExistingPendingMutationForEntity: false, currentPendingCount: 5, maxPendingMutations: 5
+        )
+        XCTAssertEqual(result, .eligible(baseVersion: try! SyncCursorValue("1")), "queue cap must never drop a delete")
+    }
+
+    func testQueueFullNeverBlocksAnUpdateThatCoalescesIntoAnExistingPendingMutation() {
+        let metadata = SyncMetadata(
+            entityType: .inventoryItem, entityId: UUID(), scope: SyncScope(type: .household, id: householdA),
+            remoteVersion: try! SyncCursorValue("1"), state: .pendingUpdate, lastSyncedAt: Date(),
+            lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+        )
+        let result = InventorySyncEligibility.evaluate(
+            isFeatureEnabled: true, userId: userA, householdId: householdA,
+            enrollment: InventorySyncEnrollment(
+                userId: userA, householdId: householdA, status: .enrolled, enrolledAt: Date(),
+                mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+            ),
+            existingMetadata: metadata, intent: .update,
+            hasExistingPendingMutationForEntity: true, currentPendingCount: 5, maxPendingMutations: 5
+        )
+        XCTAssertEqual(result, .eligible(baseVersion: try! SyncCursorValue("1")), "coalescing into an already-staged row must never be blocked by the cap")
+    }
+
+    func testQueueFullEndToEndStopsStagingNewMutationsWithoutLosingBusinessWrite() async throws {
+        let (kitchen, persistence) = try await enrolledStores()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            dogfoodConfiguration: InventorySyncDogfoodConfiguration(maxPendingMutations: 2),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) }
+        )
+        var items: [InventoryItem] = []
+        for index in 0..<3 {
+            let item = InventoryItem(name: "item-\(index)", quantity: 1, unit: "个", expiryDate: nil)
+            await controller.handleInventoryDidChange(old: items, new: items + [item], userId: userA, householdId: householdA)
+            items.append(item)
+        }
+        let pending = try await persistence.pendingMutations(scope: SyncScope(type: .household, id: householdA), maxAttempts: .max)
+        XCTAssertEqual(pending.count, 2, "the third create must be refused once the cap is reached")
+        XCTAssertNotNil(controller.inventoryMutationBlockedMessage)
+        XCTAssertEqual(kitchen.inventory.count, 0, "kitchen store isn't touched by this helper; the business write itself always proceeds independent of sync staging")
+    }
+
+    // MARK: - Phase 2B-5: consistency checker
+
+    func testConsistencyCheckerFlagsOrphanMetadataWithNoLocalRecord() {
+        let entityId = UUID()
+        let metadata = SyncMetadata(
+            entityType: .inventoryItem, entityId: entityId, scope: SyncScope(type: .household, id: householdA),
+            remoteVersion: try! SyncCursorValue("1"), state: .synced, lastSyncedAt: Date(),
+            lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+        )
+        let issues = InventorySyncConsistencyChecker.check(
+            localInventoryIds: [], allMetadata: [metadata], allPendingMutations: [],
+            enrollment: nil, expectedUserId: nil, expectedHouseholdId: nil,
+            activeMergeSession: nil, previousCursorValue: nil, currentCursorValue: nil
+        )
+        XCTAssertTrue(issues.contains { $0.code == .orphanMetadataNoInventoryRecord })
+    }
+
+    func testConsistencyCheckerCleanWhenEverythingLinesUp() {
+        let entityId = UUID()
+        let metadata = SyncMetadata(
+            entityType: .inventoryItem, entityId: entityId, scope: SyncScope(type: .household, id: householdA),
+            remoteVersion: try! SyncCursorValue("1"), state: .synced, lastSyncedAt: Date(),
+            lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+        )
+        let issues = InventorySyncConsistencyChecker.check(
+            localInventoryIds: [entityId], allMetadata: [metadata], allPendingMutations: [],
+            enrollment: nil, expectedUserId: nil, expectedHouseholdId: nil,
+            activeMergeSession: nil, previousCursorValue: nil, currentCursorValue: nil
+        )
+        XCTAssertTrue(issues.isEmpty)
+    }
+
+    func testConsistencyCheckerFlagsMultiplePendingMutationsForSameEntity() {
+        let entityId = UUID()
+        let metadata = SyncMetadata(
+            entityType: .inventoryItem, entityId: entityId, scope: SyncScope(type: .household, id: householdA),
+            remoteVersion: try! SyncCursorValue("1"), state: .pendingUpdate, lastSyncedAt: Date(),
+            lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+        )
+        let mutationA = PendingMutation(
+            mutationId: UUID(), entityType: .inventoryItem, entityId: entityId, scope: metadata.scope,
+            operation: .upsert, baseVersion: try! SyncCursorValue("1"), payloadData: Data(),
+            clientUpdatedAt: Date(), createdAt: Date(), attemptCount: 0, lastAttemptAt: nil,
+            lastErrorCode: nil, status: .pending
+        )
+        let mutationB = PendingMutation(
+            mutationId: UUID(), entityType: .inventoryItem, entityId: entityId, scope: metadata.scope,
+            operation: .upsert, baseVersion: try! SyncCursorValue("1"), payloadData: Data(),
+            clientUpdatedAt: Date(), createdAt: Date(), attemptCount: 0, lastAttemptAt: nil,
+            lastErrorCode: nil, status: .pending
+        )
+        let issues = InventorySyncConsistencyChecker.check(
+            localInventoryIds: [entityId], allMetadata: [metadata], allPendingMutations: [mutationA, mutationB],
+            enrollment: nil, expectedUserId: nil, expectedHouseholdId: nil,
+            activeMergeSession: nil, previousCursorValue: nil, currentCursorValue: nil
+        )
+        XCTAssertTrue(issues.contains { $0.code == .multiplePendingMutationsForSameEntity })
+    }
+
+    func testConsistencyCheckerFlagsCursorRegression() {
+        let issues = InventorySyncConsistencyChecker.check(
+            localInventoryIds: [], allMetadata: [], allPendingMutations: [],
+            enrollment: nil, expectedUserId: nil, expectedHouseholdId: nil,
+            activeMergeSession: nil,
+            previousCursorValue: try! SyncCursorValue("10"), currentCursorValue: try! SyncCursorValue("3")
+        )
+        XCTAssertTrue(issues.contains { $0.code == .cursorRegressed })
+    }
+
+    // MARK: - Phase 2B-5: diagnostics snapshot redaction + single-flight
+
+    func testDiagnosticsSnapshotRedactedJSONNeverContainsSensitiveFields() async throws {
+        let (kitchen, persistence) = try await enrolledStores()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) }
+        )
+        let snapshot = await controller.diagnosticsSnapshot(
+            kitchenStore: kitchen, userId: userA, householdId: householdA,
+            environmentName: "development", appBuild: "1.0-test"
+        )
+        let json = String(data: snapshot.redactedJSON(), encoding: .utf8) ?? ""
+        for forbidden in [userA.uuidString, householdA.uuidString, "@", "token", "password", "Authorization"] {
+            XCTAssertFalse(json.contains(forbidden), "diagnostics export must never contain \(forbidden)")
+        }
+    }
+
+    func testManualSyncRepeatedTapsExecuteOnlyOnce() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) }
+        )
+        let authStore = await signedInAuthStore(userID: userA)
+        async let first: () = controller.syncNow(authStore: authStore, householdId: householdA)
+        async let second: () = controller.syncNow(authStore: authStore, householdId: householdA)
+        _ = await (first, second)
+        XCTAssertFalse(controller.isSyncing, "both calls must have settled, not left mid-flight")
+    }
+
     // MARK: - Phase 2B-4: account/household isolation for CRUD staging
 
     func testUserBHouseholdScopeNeverReceivesUserAsInventoryMutation() async throws {

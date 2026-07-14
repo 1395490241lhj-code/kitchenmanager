@@ -13,3 +13,7 @@ INVENTORY_MERGE_UI_ENABLED = NO
 // Phase 2B-2: independent one-off Guest merge smoke guard, mirroring
 // SYNC_SMOKE_ENABLED. Requires SYNC_SMOKE_ENVIRONMENT = development too.
 GUEST_MERGE_SMOKE_ENABLED = NO
+// Phase 2B-5: dogfood gates. Only ever unlock manual paths + a read-only
+// diagnostics screen, never automatic sync.
+INVENTORY_SYNC_DOGFOOD_ENABLED = NO
+INVENTORY_SYNC_DIAGNOSTICS_ENABLED = NO

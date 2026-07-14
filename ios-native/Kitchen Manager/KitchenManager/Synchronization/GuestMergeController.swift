@@ -43,6 +43,8 @@ final class GuestMergeController: ObservableObject {
     /// has already completed).
     @Published private(set) var isSyncing = false
     @Published private(set) var lastSyncOutcome: SyncRunOutcome?
+    @Published private(set) var lastSyncStartedAt: Date?
+    @Published private(set) var lastSyncCompletedAt: Date?
     @Published private(set) var lastSyncErrorMessage: String?
     /// Phase 2B-4: set when an ordinary CRUD edit was blocked from staging
     /// (conflict or pending-delete) — display-only, never blocks the local
@@ -53,6 +55,7 @@ final class GuestMergeController: ObservableObject {
     private let transportFactory: @MainActor (any SyncAccessTokenProviding) -> any SyncTransport
     private let configuration: InventoryMergeConfiguration
     private let uiConfiguration: InventoryMergeUIConfiguration
+    private let dogfoodConfiguration: InventorySyncDogfoodConfiguration
     /// How long a completed session's own newly-created records may still be
     /// rolled back.
     private let rollbackWindow: TimeInterval
@@ -61,6 +64,7 @@ final class GuestMergeController: ObservableObject {
         persistence: any SyncPersistenceProtocol,
         configuration: InventoryMergeConfiguration = .load(),
         uiConfiguration: InventoryMergeUIConfiguration = .load(),
+        dogfoodConfiguration: InventorySyncDogfoodConfiguration = .load(),
         transportFactory: @escaping @MainActor (any SyncAccessTokenProviding) -> any SyncTransport = { provider in
             ExpressSyncTransport(tokenProvider: provider)
         },
@@ -69,9 +73,13 @@ final class GuestMergeController: ObservableObject {
         self.persistence = persistence
         self.configuration = configuration
         self.uiConfiguration = uiConfiguration
+        self.dogfoodConfiguration = dogfoodConfiguration
         self.transportFactory = transportFactory
         self.rollbackWindow = rollbackWindow
     }
+
+    /// Whether the dogfood diagnostics screen should be reachable at all.
+    var showsDiagnosticsScreen: Bool { dogfoodConfiguration.showsDiagnosticsScreen }
 
     var isFeatureEnabled: Bool { configuration.isEnabled }
     /// Whether the merge/sync UI should be shown at all — independent of
@@ -504,6 +512,7 @@ final class GuestMergeController: ObservableObject {
 
         isSyncing = true
         lastSyncErrorMessage = nil
+        lastSyncStartedAt = Date()
         defer { isSyncing = false }
 
         let scope = SyncScope(type: .household, id: householdId)
@@ -513,6 +522,7 @@ final class GuestMergeController: ObservableObject {
         let authentication = SyncAuthenticationContext(userID: userId, isAuthenticated: true)
         let outcome = await coordinator.runOnce(authentication: authentication, scopes: [scope])
         lastSyncOutcome = outcome
+        lastSyncCompletedAt = Date()
         if case .failed(let error) = outcome {
             lastSyncErrorMessage = Self.userFacingSyncError(error)
         } else if case .paused(let error) = outcome {
@@ -553,6 +563,102 @@ final class GuestMergeController: ObservableObject {
         guard let userId, let householdId else { return .notEnrolled }
         let enrollment = try? await persistence.enrollment(userId: userId, householdId: householdId)
         return (enrollment.flatMap { $0 })?.status ?? .notEnrolled
+    }
+
+    // MARK: Phase 2B-5: read-only, redacted diagnostics + consistency checking
+
+    /// Builds the fully redacted diagnostics snapshot — never includes a
+    /// name, token, full UUID, household id, or payload. See
+    /// `docs/INVENTORY_SYNC_DIAGNOSTICS.md`.
+    func diagnosticsSnapshot(
+        kitchenStore: KitchenStore, userId: UUID?, householdId: UUID?, environmentName: String, appBuild: String
+    ) async -> InventorySyncDiagnosticsSnapshot {
+        var enrollment: InventorySyncEnrollment?
+        var pendingCount = 0
+        var conflictCount = 0
+        var failedCount = 0
+        var oldestPendingAge: TimeInterval?
+        var syncedCount = 0
+        var tombstoneCount = 0
+        var cursorValue: String?
+
+        if let userId, let householdId {
+            enrollment = (try? await persistence.enrollment(userId: userId, householdId: householdId)).flatMap { $0 }
+            let scope = SyncScope(type: .household, id: householdId)
+            let allMutations = (try? await persistence.allPendingMutations(scope: scope)) ?? []
+            let active = allMutations.filter { $0.status == .pending || $0.status == .inFlight || $0.status == .failed }
+            pendingCount = active.count
+            failedCount = active.filter { $0.status == .failed }.count
+            if let oldest = active.map(\.createdAt).min() {
+                oldestPendingAge = Date().timeIntervalSince(oldest)
+            }
+            let allMeta = (try? await persistence.allMetadata(scope: scope)) ?? []
+            conflictCount = allMeta.filter { $0.state == .conflicted }.count
+            syncedCount = allMeta.filter { $0.state == .synced }.count
+            tombstoneCount = allMeta.filter { $0.state == .pendingDelete || $0.deletedAt != nil }.count
+            if let cursor = try? await persistence.cursor(for: scope) { cursorValue = cursor.value.rawValue }
+        }
+
+        let localIds = Set(kitchenStore.inventory.map(\.id))
+        let guestOnlyCount = max(0, localIds.count - syncedCount)
+
+        return InventorySyncDiagnosticsSnapshot(
+            environment: environmentName,
+            isFeatureEnabled: isFeatureEnabled,
+            isDogfoodEnabled: dogfoodConfiguration.isDogfoodEnabled,
+            isEnrolled: enrollment?.status.allowsMutationStaging ?? false,
+            currentUserPresent: userId != nil,
+            householdPresent: householdId != nil,
+            pendingCount: pendingCount,
+            conflictCount: conflictCount,
+            failedCount: failedCount,
+            oldestPendingAge: oldestPendingAge,
+            lastSyncStartedAt: lastSyncStartedAt,
+            lastSyncCompletedAt: lastSyncCompletedAt,
+            lastSyncResult: Self.shortOutcomeLabel(lastSyncOutcome),
+            lastSuccessfulCursor: cursorValue,
+            activeMergeSessionState: session?.status.rawValue,
+            enrollmentState: (enrollment?.status ?? .notEnrolled).rawValue,
+            localSyncedItemCount: syncedCount,
+            localGuestOnlyItemCount: guestOnlyCount,
+            localTombstoneCount: tombstoneCount,
+            appBuild: appBuild,
+            schemaVersion: InventorySyncEnrollment.currentSchemaVersion
+        )
+    }
+
+    /// Read-only — never fixes anything. Returns every issue found; the
+    /// caller (dogfood diagnostics screen, or a test) decides what to do
+    /// with them, which today is always just "display", never "auto-repair".
+    func consistencyCheck(kitchenStore: KitchenStore, userId: UUID?, householdId: UUID?) async -> [InventorySyncConsistencyIssue] {
+        guard let householdId else { return [] }
+        let scope = SyncScope(type: .household, id: householdId)
+        let enrollment = (try? await persistence.enrollment(userId: userId ?? UUID(), householdId: householdId)).flatMap { $0 }
+        let allMeta = (try? await persistence.allMetadata(scope: scope)) ?? []
+        let allMutations = (try? await persistence.allPendingMutations(scope: scope)) ?? []
+        let activeSession = try? await persistence.activeGuestMergeSession(userId: userId ?? UUID(), householdId: householdId, entityType: .inventoryItem)
+        return InventorySyncConsistencyChecker.check(
+            localInventoryIds: Set(kitchenStore.inventory.map(\.id)),
+            allMetadata: allMeta,
+            allPendingMutations: allMutations,
+            enrollment: enrollment,
+            expectedUserId: userId,
+            expectedHouseholdId: householdId,
+            activeMergeSession: activeSession.flatMap { $0 },
+            previousCursorValue: nil,
+            currentCursorValue: nil
+        )
+    }
+
+    private static func shortOutcomeLabel(_ outcome: SyncRunOutcome?) -> String? {
+        guard let outcome else { return nil }
+        switch outcome {
+        case .disabled: return "disabled"
+        case .paused: return "paused"
+        case .completed: return "completed"
+        case .alreadyRunning: return "alreadyRunning"
+        case .failed: return "failed"
+        }
     }
 
     /// The single hook point for "ordinary inventory content changed" —
@@ -602,9 +708,14 @@ final class GuestMergeController: ObservableObject {
     ) async {
         let existingMetadata = try? await persistence.metadata(entityType: .inventoryItem, entityId: entityId)
         let flatMetadata = existingMetadata.flatMap { $0 }
+        let existingPending = try? await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: entityId)
+        let hasExistingPending = (existingPending.flatMap { $0 }) != nil
+        let pendingCount = (try? await persistence.pendingMutations(scope: scope, maxAttempts: .max).count) ?? 0
         let result = InventorySyncEligibility.evaluate(
             isFeatureEnabled: isFeatureEnabled, userId: userId, householdId: householdId,
-            enrollment: enrollment, existingMetadata: flatMetadata, intent: intent
+            enrollment: enrollment, existingMetadata: flatMetadata, intent: intent,
+            hasExistingPendingMutationForEntity: hasExistingPending,
+            currentPendingCount: pendingCount, maxPendingMutations: dogfoodConfiguration.maxPendingMutations
         )
         switch result {
         case .eligible:
@@ -622,6 +733,8 @@ final class GuestMergeController: ObservableObject {
             inventoryMutationBlockedMessage = "该库存存在同步冲突，请先在同步状态中处理后再修改。"
         case .blockedByPendingDelete:
             inventoryMutationBlockedMessage = "该库存正在等待删除同步，暂不支持编辑。"
+        case .blockedByQueueFull:
+            inventoryMutationBlockedMessage = "同步队列已满，请先手动同步后再继续编辑。"
         case .localOnly:
             break
         }

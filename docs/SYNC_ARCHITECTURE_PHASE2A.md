@@ -3,6 +3,10 @@
 状态：**Phase 2A-2.5 development 后端已验证；Phase 2A-3 iOS 基础已实现但仍默认 disabled**
 日期：2026-07-13
 
+> Phase 2B-5 对基于本设计构建的 Inventory Sync 做了发布就绪审查与 dogfood 护栏建设，
+> 结论为 No-Go（尚不具备生产启用条件）。见 `docs/INVENTORY_SYNC_RELEASE_READINESS_PHASE2B5.md`
+> 与 `docs/INVENTORY_SYNC_GO_NO_GO.md`。本文档描述的协议基础本身未变更。
+
 ## 1. 保持 Guest-first
 
 - 未登录用户继续只读写现有 SwiftData/localStorage。

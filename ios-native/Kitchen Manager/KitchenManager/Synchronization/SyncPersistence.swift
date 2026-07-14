@@ -66,6 +66,17 @@ protocol SyncPersistenceProtocol: Actor {
         payloadData: Data,
         now: Date
     ) throws -> InventoryMutationStagingOutcome
+
+    // MARK: Phase 2B-5: read-only diagnostics/consistency-checker queries
+
+    /// Every `SyncMetadata` row for this scope, regardless of state —
+    /// diagnostics/consistency-checking only; never used to decide sync
+    /// eligibility (that always does a targeted single-entity lookup).
+    func allMetadata(scope: SyncScope) throws -> [SyncMetadata]
+    /// Every `PendingMutation` row for this scope, regardless of status
+    /// (including already-`applied`/`rejected` ones `pendingMutations(scope:maxAttempts:)`
+    /// excludes) — diagnostics/consistency-checking only.
+    func allPendingMutations(scope: SyncScope) throws -> [PendingMutation]
 }
 
 @ModelActor
@@ -351,6 +362,24 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
         try fetchPendingMutationRecord(entityType: entityType, entityId: entityId)?.value
     }
 
+    func allMetadata(scope: SyncScope) throws -> [SyncMetadata] {
+        let scopeTypeRaw = scope.type.rawValue
+        let scopeId = scope.id
+        let descriptor = FetchDescriptor<SyncMetadataRecord>(
+            predicate: #Predicate { $0.scopeTypeRawValue == scopeTypeRaw && $0.scopeId == scopeId }
+        )
+        return try modelContext.fetch(descriptor).compactMap(\.value)
+    }
+
+    func allPendingMutations(scope: SyncScope) throws -> [PendingMutation] {
+        let scopeTypeRaw = scope.type.rawValue
+        let scopeId = scope.id
+        let descriptor = FetchDescriptor<PendingMutationRecord>(
+            predicate: #Predicate { $0.scopeTypeRawValue == scopeTypeRaw && $0.scopeId == scopeId }
+        )
+        return try modelContext.fetch(descriptor).compactMap(\.value)
+    }
+
     func stageInventoryMutation(
         entityId: UUID,
         scope: SyncScope,
@@ -541,4 +570,6 @@ actor FailingSyncPersistence: SyncPersistenceProtocol {
     func saveEnrollment(_ enrollment: InventorySyncEnrollment) throws { throw SyncError.persistence }
     func pendingMutationForEntity(entityType: SyncEntityType, entityId: UUID) throws -> PendingMutation? { throw SyncError.persistence }
     func stageInventoryMutation(entityId: UUID, scope: SyncScope, operation: SyncOperation, payloadData: Data, now: Date) throws -> InventoryMutationStagingOutcome { throw SyncError.persistence }
+    func allMetadata(scope: SyncScope) throws -> [SyncMetadata] { throw SyncError.persistence }
+    func allPendingMutations(scope: SyncScope) throws -> [PendingMutation] { throw SyncError.persistence }
 }

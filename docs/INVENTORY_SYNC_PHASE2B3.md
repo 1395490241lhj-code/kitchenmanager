@@ -1,5 +1,10 @@
 # Inventory Sync Phase 2B-3 — Formal Guest Merge UI and Manual Sync
 
+> Phase 2B-5 added a dogfood-gated read-only diagnostics screen alongside
+> the manual-sync UI described below, plus a release-readiness audit — see
+> `docs/INVENTORY_SYNC_RELEASE_READINESS_PHASE2B5.md` and
+> `docs/INVENTORY_SYNC_GO_NO_GO.md` (current conclusion: No-Go).
+
 ## Scope
 
 Phase 2B-3 turns the Phase 2B-1/2B-2 Guest inventory merge engine (already

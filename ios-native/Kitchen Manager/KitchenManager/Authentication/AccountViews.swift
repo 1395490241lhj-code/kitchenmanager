@@ -120,6 +120,11 @@ struct AccountView: View {
                 } footer: {
                     Text("退出登录不会删除本机的库存、计划、购物清单或菜谱。")
                 }
+
+                InventorySyncDiagnosticsEntryView(
+                    controller: guestMergeController, kitchenStore: kitchenStore,
+                    userId: authStore.currentUserID, householdId: defaultHousehold?.id
+                )
             }
         }
         .navigationTitle("账号")

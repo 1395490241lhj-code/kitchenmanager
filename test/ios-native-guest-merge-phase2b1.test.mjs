@@ -21,6 +21,10 @@ const syncPersistence = read('KitchenManager/Synchronization/SyncPersistence.swi
 const eligibility = read('KitchenManager/Synchronization/InventorySyncEligibility.swift');
 const enrollment = read('KitchenManager/Synchronization/InventorySyncEnrollment.swift');
 const inventorySyncAdapter = read('KitchenManager/Synchronization/InventorySyncAdapter.swift');
+const dogfoodConfig = read('KitchenManager/Synchronization/InventorySyncDogfoodConfiguration.swift');
+const diagnostics = read('KitchenManager/Synchronization/InventorySyncDiagnostics.swift');
+const consistencyChecker = read('KitchenManager/Synchronization/InventorySyncConsistencyChecker.swift');
+const diagnosticsView = read('KitchenManager/Synchronization/InventorySyncDiagnosticsView.swift');
 
 test('Phase 2B keeps INVENTORY_SYNC_ENABLED disabled by default, independent of SYNC_ENABLED', () => {
   for (const value of [sharedConfig, exampleConfig]) {
@@ -389,4 +393,66 @@ test('Phase 2B-4: no Timer, background task, or Realtime path triggers automatic
 test('Phase 2B-4: the payload encoder is shared (InventorySyncAdapter.encodedPayload), never a second drifting implementation', () => {
   assert.match(inventorySyncAdapter, /func encodedPayload\(for item: InventoryItem\) throws -> Data/);
   assert.match(controller, /adapter\.encodedPayload\(for: item\)/);
+});
+
+test('Phase 2B-5: both new dogfood flags default NO in every committed configuration', () => {
+  for (const value of [sharedConfig, exampleConfig]) {
+    assert.match(value, /INVENTORY_SYNC_DOGFOOD_ENABLED\s*=\s*NO/);
+    assert.match(value, /INVENTORY_SYNC_DIAGNOSTICS_ENABLED\s*=\s*NO/);
+  }
+  assert.match(info, /KM_INVENTORY_SYNC_DOGFOOD_ENABLED/);
+  assert.match(info, /KM_INVENTORY_SYNC_DIAGNOSTICS_ENABLED/);
+});
+
+test('Phase 2B-5: existing flags remain NO (dogfood work never flips a prior default)', () => {
+  for (const value of [sharedConfig, exampleConfig]) {
+    assert.match(value, /INVENTORY_SYNC_ENABLED\s*=\s*NO/);
+    assert.match(value, /INVENTORY_MERGE_UI_ENABLED\s*=\s*NO/);
+    assert.match(value, /GUEST_MERGE_SMOKE_ENABLED\s*=\s*NO/);
+    assert.match(value, /SYNC_ENABLED\s*=\s*NO/);
+    assert.match(value, /SYNC_SMOKE_ENABLED\s*=\s*NO/);
+  }
+});
+
+test('Phase 2B-5: the diagnostics snapshot struct never declares an email/password/token/full-UUID field, and its redactedJSON dictionary keys are exactly the declared fields', () => {
+  const structBody = diagnostics.slice(diagnostics.indexOf('struct InventorySyncDiagnosticsSnapshot'), diagnostics.indexOf('func redactedJSON'));
+  const forbiddenFieldNames = /let (email|password|jwt|refreshToken|authorization|entityId|householdId|mutationId|itemName|payload)\b/i;
+  assert.doesNotMatch(structBody, forbiddenFieldNames);
+  const jsonBody = diagnostics.slice(diagnostics.indexOf('let payload: [String: Any]'), diagnostics.indexOf('return (try? JSONSerialization'));
+  const forbiddenJSONKeys = /"(email|password|jwt|refreshToken|authorization|entityId|householdId|mutationId|itemName)"/i;
+  assert.doesNotMatch(jsonBody, forbiddenJSONKeys);
+});
+
+test('Phase 2B-5: the consistency checker is a pure, read-only function — it never calls a persistence save/write method', () => {
+  const forbidden = /saveMetadata|saveEnrollment|stageInventoryMutation|deleteMetadata|save\(|try context\.save/;
+  assert.doesNotMatch(consistencyChecker, forbidden);
+  assert.match(consistencyChecker, /static func check\(/);
+});
+
+test('Phase 2B-5: the queue cap never blocks a delete and never blocks coalescing into an already-staged mutation', () => {
+  assert.match(eligibility, /intent != \.delete, currentPendingCount >= maxPendingMutations/);
+  assert.match(eligibility, /!hasExistingPendingMutationForEntity/);
+});
+
+test('Phase 2B-5: recovery/consistency code never physically deletes remote data or uses a service-role key', () => {
+  for (const file of [consistencyChecker, diagnostics, dogfoodConfig, diagnosticsView]) {
+    assert.doesNotMatch(file, /service_role|SERVICE_ROLE|DELETE FROM|physically delete/i);
+  }
+});
+
+test('Phase 2B-5: the diagnostics screen offers no delete/clear/force-overwrite action, and is gated by showsDiagnosticsScreen', () => {
+  assert.doesNotMatch(diagnosticsView, /clear all|forceOverwrite|remoteVersion =|deleteDatabase|force remoteVersion/i);
+  assert.match(diagnosticsView, /showsDiagnosticsScreen/);
+});
+
+test('Phase 2B-5: dogfood enabling never implies automatic sync — no Timer/BGTaskScheduler/Realtime appears in any new Phase 2B-5 file', () => {
+  const forbidden = /Timer\(|BGTaskScheduler|DispatchSourceTimer|RealtimeChannel|\.schedule\(/;
+  for (const file of [dogfoodConfig, diagnostics, consistencyChecker, diagnosticsView]) {
+    assert.doesNotMatch(file, forbidden);
+  }
+});
+
+test('Phase 2B-5: Local.xcconfig remains ignored by git', () => {
+  const gitignore = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8');
+  assert.match(gitignore, /Local\.xcconfig/);
 });

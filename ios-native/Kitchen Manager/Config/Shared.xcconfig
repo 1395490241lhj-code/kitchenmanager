@@ -16,5 +16,11 @@ INVENTORY_MERGE_UI_ENABLED = NO
 // SYNC_SMOKE_ENABLED — never a product feature flag, always NO in every
 // committed configuration and every Release build.
 GUEST_MERGE_SMOKE_ENABLED = NO
+// Phase 2B-5: dogfood gates. Independent of every flag above — dogfood only
+// ever unlocks *manual* paths and a read-only diagnostics screen, never
+// automatic sync. Both NO in every committed configuration and every
+// Release build; never settable from a remote response.
+INVENTORY_SYNC_DOGFOOD_ENABLED = NO
+INVENTORY_SYNC_DIAGNOSTICS_ENABLED = NO
 
 #include? "Local.xcconfig"

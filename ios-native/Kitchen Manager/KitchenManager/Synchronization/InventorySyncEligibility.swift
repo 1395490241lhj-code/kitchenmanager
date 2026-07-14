@@ -25,6 +25,12 @@ nonisolated enum InventorySyncEligibilityResult: Equatable, Sendable {
     /// The entity already has a pending delete staged — refuse to silently
     /// resurrect it via an ordinary update (section 十: forbidden this phase).
     case blockedByPendingDelete
+    /// Phase 2B-5: the pending-mutation queue for this scope is already at
+    /// its configured cap, and this would be a genuinely *new* pending
+    /// mutation (not a coalesce into an already-queued one) — refused so the
+    /// queue can never grow unbounded. Never applies to a `.delete` (never
+    /// dropped) or to any mutation that would coalesce into an existing row.
+    case blockedByQueueFull
 
     nonisolated enum LocalOnlyReason: Equatable, Sendable {
         case featureDisabled
@@ -53,7 +59,10 @@ nonisolated enum InventorySyncEligibility {
         householdId: UUID?,
         enrollment: InventorySyncEnrollment?,
         existingMetadata: SyncMetadata?,
-        intent: InventoryMutationIntent
+        intent: InventoryMutationIntent,
+        hasExistingPendingMutationForEntity: Bool = false,
+        currentPendingCount: Int = 0,
+        maxPendingMutations: Int = InventorySyncDogfoodConfiguration.defaultMaxPendingMutations
     ) -> InventorySyncEligibilityResult {
         guard isFeatureEnabled else { return .localOnly(reason: .featureDisabled) }
         guard userId != nil else { return .localOnly(reason: .notSignedIn) }
@@ -73,6 +82,14 @@ nonisolated enum InventorySyncEligibility {
         if let scopedMetadata {
             if scopedMetadata.state == .conflicted { return .blockedByConflict }
             if scopedMetadata.state == .pendingDelete, intent != .delete { return .blockedByPendingDelete }
+        }
+
+        // Queue cap: only ever blocks a genuinely *new* pending mutation
+        // (nothing already staged for this entity) and never a delete —
+        // deletes must never be dropped, and coalescing into an existing
+        // row never grows the queue, so it's always allowed through.
+        if !hasExistingPendingMutationForEntity, intent != .delete, currentPendingCount >= maxPendingMutations {
+            return .blockedByQueueFull
         }
 
         switch intent {

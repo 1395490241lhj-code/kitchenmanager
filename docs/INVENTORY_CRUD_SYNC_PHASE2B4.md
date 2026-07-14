@@ -1,5 +1,10 @@
 # Inventory CRUD Sync Boundary (Phase 2B-4)
 
+> Phase 2B-5 added a queue cap (`InventorySyncEligibility.blockedByQueueFull`)
+> on top of the eligibility policy documented below, plus a release-readiness
+> audit and dogfood safeguards — see `docs/INVENTORY_SYNC_RELEASE_READINESS_PHASE2B5.md`
+> and `docs/INVENTORY_SYNC_GO_NO_GO.md` (current conclusion: No-Go).
+
 ## Scope
 
 Phase 2B-4 wires ordinary Inventory create/update/delete to the existing
