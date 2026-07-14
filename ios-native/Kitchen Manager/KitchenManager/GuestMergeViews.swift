@@ -81,13 +81,13 @@ struct InventoryMergeFlowView: View {
             } else if let session = controller.session {
                 switch session.status {
                 case .detected, .previewReady, .awaitingConfirmation, .failed, .cancelled:
-                    InventoryMergePreviewView(controller: controller, userId: userId, onDismiss: { dismiss() })
+                    InventoryMergePreviewView(controller: controller, onDismiss: { dismiss() })
                 case .conflict:
                     InventoryMergeConflictView(controller: controller)
                 case .preparing, .uploading, .rollbackPending:
                     InventoryMergeProgressView(message: "正在合并库存…")
                 case .completed, .rolledBack:
-                    InventoryMergeResultView(controller: controller, userId: userId)
+                    InventoryMergeResultView(controller: controller)
                 }
             } else {
                 ContentUnavailableView("没有可合并的库存", systemImage: "shippingbox")
@@ -107,7 +107,6 @@ struct InventoryMergeFlowView: View {
 struct InventoryMergePreviewView: View {
     @ObservedObject var controller: GuestMergeController
     @EnvironmentObject private var authStore: AuthStore
-    let userId: UUID
     let onDismiss: () -> Void
     @State private var isShowingCancelConfirmation = false
 
@@ -137,7 +136,7 @@ struct InventoryMergePreviewView: View {
             Section {
                 Button {
                     Task {
-                        await controller.confirmMerge(userId: userId, accessToken: authStore.currentAccessToken())
+                        await controller.confirmMerge(authStore: authStore)
                     }
                 } label: {
                     Text("确认合并库存")
@@ -235,7 +234,6 @@ struct InventoryMergeProgressView: View {
 struct InventoryMergeResultView: View {
     @ObservedObject var controller: GuestMergeController
     @EnvironmentObject private var authStore: AuthStore
-    let userId: UUID
     @State private var isShowingRollbackConfirmation = false
 
     var body: some View {
@@ -263,7 +261,7 @@ struct InventoryMergeResultView: View {
         .navigationTitle("合并结果")
         .alert("回滚本次新增记录？", isPresented: $isShowingRollbackConfirmation) {
             Button("回滚", role: .destructive) {
-                Task { await controller.rollback(userId: userId, accessToken: authStore.currentAccessToken()) }
+                Task { await controller.rollback(authStore: authStore) }
             }
             Button("取消", role: .cancel) {}
         } message: {

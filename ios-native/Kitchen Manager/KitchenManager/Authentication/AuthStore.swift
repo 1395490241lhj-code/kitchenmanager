@@ -148,15 +148,22 @@ final class AuthStore: ObservableObject {
     func developmentSyncSmokeSession() -> AuthSession? { session }
     #endif
 
-    /// Read only by the Guest inventory merge flow (Phase 2B), itself gated
-    /// off by default via `INVENTORY_SYNC_ENABLED`. The session remains in
-    /// Keychain-owned auth storage; this does not persist, refresh, or log
-    /// the token.
+    /// Safe for any caller, including `View`s — this is the signed-in user's
+    /// id, not a credential.
     var currentUserID: UUID? {
         if case .signedIn(let user) = status { return user.id }
         return nil
     }
 
+    /// The signed-in user's current access token. **Must only ever be called
+    /// by `AuthStoreCredentialProvider`** (see
+    /// `Synchronization/GuestMergeController.swift`) or an equivalent
+    /// `SyncAccessTokenProviding` bridge that attaches it directly to one
+    /// outgoing request — never by a SwiftUI `View`, never stored on any
+    /// `@Published`/`Sendable` model, never persisted, refreshed, or logged.
+    /// (`test/ios-native-guest-merge-phase2b1.test.mjs` enforces that no View
+    /// file in this target calls this directly.) The session itself remains
+    /// in Keychain-owned auth storage.
     func currentAccessToken() -> String? { session?.accessToken }
 }
 

@@ -51,8 +51,15 @@ Extended (additively) rather than modified:
   `guestMergeSession(id:)`, `saveGuestMergeSession` — same `@ModelActor`
   single-`ModelContext` transaction boundary already used for
   `commitInventoryAndSync`.
-- `AuthStore` gained `currentUserID` and `currentAccessToken()` — read-only,
-  never persisted/logged, used only by this feature.
+- `AuthStore` gained `currentUserID` (safe for any caller, including `View`s)
+  and `currentAccessToken()` (documented and enforced as callable only by the
+  private `AuthStoreCredentialProvider` inside `GuestMergeController.swift` —
+  never by a `View`, never persisted/logged, never stored on any
+  `@Published`/`Sendable`/SwiftData/`UserDefaults` value). `confirmMerge` and
+  `rollback` take the live `AuthStore` reference itself (never a raw token
+  string); the provider re-queries the token fresh on every network call, so
+  the very next call after a sign-out mid-run returns `nil` and stops further
+  uploads/deletes instead of using a stale token.
 - `KitchenPersistenceFactory` registers the new `GuestMergeSessionRecord`
   model in the **same, single** `ModelContainer` used everywhere else — the
   Guest/signed-in `ModelContainer` is never switched.
@@ -64,22 +71,37 @@ The iOS `InventoryItem` already has a stable `UUID` (confirmed in
 generates a second id. There is no "legacy no-UUID" inventory case to handle
 on iOS (unlike the PWA's string ids).
 
-Matching key: `normalizedName + unit` (lowercased, trimmed), plus exact-value
-comparison of `quantity` and `expiryDate`. The current `InventoryRecord` model
-has no `location`, general `category`, or `opened` field, so those suggested
-matching dimensions do not apply to this model; this is a deliberate,
-documented scope reduction rather than an oversight.
+Matching key: `normalizedName + unit` (lowercased, trimmed) **only**.
+`quantity` is a mutable business value compared *after* identity is resolved,
+never part of the identity/matching key — a quantity difference alone must
+never let a candidate escape into `create`. `expiryDate` participates in
+identity as a compatibility check (`ExpiryIdentity`): both absent, or both
+present and equal, is "compatible"; anything else (one absent/one present, or
+both present and different) is "incompatible" and is never silently resolved.
+`isStaple`/staple category/threshold/restock/tracking-mode/availability are
+"metadata" fields — tracked so a same-id metadata-only difference surfaces as
+its own conflict (never silently overwritten by an upload), but likewise
+never part of the matching key. The current `InventoryRecord` model has no
+`location` or general `category`/`opened` field, so those suggested matching
+dimensions do not apply to this model; this is a deliberate, documented scope
+reduction rather than an oversight.
 
-Rules (implemented in `InventoryMergePlanner`):
+Rules (implemented in `InventoryMergePlanner`, classification order matters —
+same id is a certain identity; different id + same key is only a possible
+duplicate, so its identity stays uncertain regardless of which fields match):
 
-1. Same stable id already known remotely + same values → `skip` (no-op).
-2. Same stable id, different `quantity` or `expiryDate` → `conflict`
-   (`quantityMismatch` / `expiryMismatch`).
-3. No remote match for the business key → `create`.
-4. Exactly one remote match under a *different* id, same business key →
-   `conflict` (`ambiguousDuplicate`) — never silently treated as the same
-   record, even if values are equal.
-5. More than one remote match for the same business key → `conflict`
+1. Same stable id, compatible expiry, same `quantity`, same metadata →
+   `skip` (no-op).
+2. Same stable id, incompatible expiry → `conflict` (`expiryMismatch`).
+3. Same stable id, compatible expiry, different `quantity` → `conflict`
+   (`quantityMismatch`).
+4. Same stable id, compatible expiry/quantity, different metadata field →
+   `conflict` (`metadataMismatch`).
+5. No remote match for the business key → `create`.
+6. Exactly one remote match under a *different* id, same business key →
+   `conflict` (`ambiguousDuplicate`), regardless of whether expiry/quantity
+   happen to match — never silently treated as the same record.
+7. More than one remote match for the same business key → `conflict`
    (`multipleRemoteCandidates`) — never auto-selected.
 
 Conflicts require an explicit `InventoryMergeConflictChoice`

@@ -1,11 +1,28 @@
 import Foundation
 import Combine
 
-/// Read-only wrapper around a signed-in user's access token, built once per
-/// controller so the transport never touches `AuthStore` internals directly.
-private struct AccessTokenReader: SyncAccessTokenProviding {
-    let read: @Sendable () -> String?
-    func accessToken() async -> String? { read() }
+/// Bridges `AuthStore`'s live session to `SyncTransport` — a SwiftUI `View`
+/// never sees a token value at all; it only ever passes the already-injected
+/// `AuthStore` reference it already holds for sign-out. This re-queries
+/// `AuthStore` fresh on every single call rather than freezing a token value
+/// at construction time, so a sign-out that happens while a multi-request
+/// upload/pull is still in flight immediately and permanently starves any
+/// further request in that same run (the very next `accessToken()` call
+/// returns `nil`, and `ExpressSyncTransport` then throws
+/// `.notAuthenticated` instead of sending anything). Holds only a `weak`
+/// reference, so it cannot itself extend `AuthStore`'s lifetime or be
+/// mistaken for an owner of session state.
+@MainActor
+private final class AuthStoreCredentialProvider: SyncAccessTokenProviding {
+    private weak var authStore: AuthStore?
+
+    init(authStore: AuthStore) {
+        self.authStore = authStore
+    }
+
+    func accessToken() async -> String? {
+        await authStore?.currentAccessToken()
+    }
 }
 
 /// Orchestrates Guest Inventory detection → preview → explicit confirmation →
@@ -178,12 +195,14 @@ final class GuestMergeController: ObservableObject {
     /// supported by design). Constructs its own `SyncConfiguration(isEnabled:
     /// true)` scoped to this call only, mirroring the Phase 2A-4 smoke
     /// runner's pattern; the global `SYNC_ENABLED` flag file is never read or
-    /// modified by this path.
-    func confirmMerge(userId: UUID, accessToken: String?) async {
+    /// modified by this path. Takes the live `AuthStore` reference (never a
+    /// raw token) so the caller — always a View — never needs to see or hold
+    /// a token value.
+    func confirmMerge(authStore: AuthStore) async {
         guard isFeatureEnabled else { return }
         guard var current = session, let plan = current.plan else { return }
         guard current.status == .previewReady || current.status == .awaitingConfirmation || current.status == .conflict else { return }
-        guard let accessToken, !accessToken.isEmpty else {
+        guard let userId = authStore.currentUserID else {
             lastErrorMessage = "请先登录后再确认合并。"
             return
         }
@@ -211,7 +230,7 @@ final class GuestMergeController: ObservableObject {
             }
 
             let configuration = SyncConfiguration(isEnabled: true)
-            let provider = AccessTokenReader { accessToken }
+            let provider = AuthStoreCredentialProvider(authStore: authStore)
             let transport = transportFactory(provider)
             let coordinator = SyncCoordinator(configuration: configuration, persistence: persistence, transport: transport)
             let authentication = SyncAuthenticationContext(userID: userId, isAuthenticated: true)
@@ -281,15 +300,16 @@ final class GuestMergeController: ObservableObject {
     /// Soft-deletes only the remote records this session itself created.
     /// Never touches pre-existing remote records or conflicts the user chose
     /// to keep-remote. Idempotent: safe to call again if a prior attempt
-    /// partially failed.
-    func rollback(userId: UUID, accessToken: String?) async {
+    /// partially failed. Takes the live `AuthStore` reference (never a raw
+    /// token), same as `confirmMerge`.
+    func rollback(authStore: AuthStore) async {
         guard var current = session else { return }
         guard current.status == .completed || current.status == .rollbackPending else { return }
         if let deadline = current.rollbackAvailableUntil, Date() > deadline {
             lastErrorMessage = "回滚窗口已过期。"
             return
         }
-        guard let accessToken, !accessToken.isEmpty else {
+        guard let userId = authStore.currentUserID else {
             lastErrorMessage = "请先登录后再回滚。"
             return
         }
@@ -309,7 +329,7 @@ final class GuestMergeController: ObservableObject {
                 _ = try await adapter.stageDelete(entityId: entityId, scope: scope)
             }
             let configuration = SyncConfiguration(isEnabled: true)
-            let provider = AccessTokenReader { accessToken }
+            let provider = AuthStoreCredentialProvider(authStore: authStore)
             let transport = transportFactory(provider)
             let coordinator = SyncCoordinator(configuration: configuration, persistence: persistence, transport: transport)
             let authentication = SyncAuthenticationContext(userID: userId, isAuthenticated: true)

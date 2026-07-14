@@ -85,7 +85,11 @@ test('the Guest merge prompt is wired into the account page, gated by the featur
   assert.match(views, /controller\.isFeatureEnabled/);
   const normalAppCode = content.replace(/#if DEBUG[\s\S]*?#endif/g, '');
   assert.doesNotMatch(normalAppCode, /GuestMergeController\(\)\.(?:confirmMerge|preparePreview)/);
-  assert.doesNotMatch(authStore, /guestMergeController|confirmMerge/i);
+  // AuthStore's own code (excluding doc comments, which legitimately *refer*
+  // to GuestMergeController/confirmMerge while documenting the access-token
+  // safety contract) must never itself call into the Guest merge feature.
+  const authStoreCodeLines = authStore.split('\n').filter(line => !line.trim().startsWith('//') && !line.trim().startsWith('///'));
+  assert.doesNotMatch(authStoreCodeLines.join('\n'), /guestMergeController|confirmMerge/i);
 });
 
 test('the merge flow never logs or embeds tokens, passwords, or full JWTs', () => {
@@ -110,4 +114,34 @@ test('Guest inventory detection is read-only: no SwiftData/network calls in the 
 
 test('touch targets for merge actions are declared at least 44pt', () => {
   assert.match(views, /minHeight: 44/);
+});
+
+test('no View ever calls AuthStore.currentAccessToken() directly — only AuthStoreCredentialProvider may', () => {
+  assert.doesNotMatch(views, /currentAccessToken/);
+  assert.doesNotMatch(accountViews, /currentAccessToken/);
+  assert.doesNotMatch(content, /currentAccessToken/);
+  // GuestMergeController itself must route every token read through the one
+  // provider type, never call the accessor directly from confirmMerge/rollback.
+  const confirmSection = controller.slice(controller.indexOf('func confirmMerge'), controller.indexOf('func rollback'));
+  const rollbackSection = controller.slice(controller.indexOf('func rollback'));
+  assert.doesNotMatch(confirmSection, /currentAccessToken/);
+  assert.doesNotMatch(rollbackSection, /currentAccessToken/);
+  assert.match(controller, /final class AuthStoreCredentialProvider: SyncAccessTokenProviding/);
+  assert.match(controller, /await authStore\?\.currentAccessToken\(\)/);
+});
+
+test('confirmMerge/rollback take a live AuthStore reference, never a raw access token string parameter', () => {
+  assert.match(controller, /func confirmMerge\(authStore: AuthStore\) async/);
+  assert.match(controller, /func rollback\(authStore: AuthStore\) async/);
+  assert.doesNotMatch(controller, /func confirmMerge\([^)]*accessToken/);
+  assert.doesNotMatch(controller, /func rollback\([^)]*accessToken/);
+});
+
+test('AuthStoreCredentialProvider holds only a weak AuthStore reference and re-queries the token fresh each call', () => {
+  const providerSection = controller.slice(
+    controller.indexOf('private final class AuthStoreCredentialProvider'),
+    controller.indexOf('final class GuestMergeController')
+  );
+  assert.match(providerSection, /weak var authStore: AuthStore\?/);
+  assert.doesNotMatch(providerSection, /var\s+\w*[Tt]oken\w*\s*:/, 'the provider must never cache a token value on a stored property');
 });

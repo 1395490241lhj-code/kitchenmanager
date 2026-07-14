@@ -238,8 +238,24 @@ nonisolated enum InventoryMergeAction: String, Codable, Sendable {
 }
 
 nonisolated enum InventoryMergeConflictReason: String, Codable, Sendable {
+    /// Identity matched (same stable id, or a single same-key candidate with
+    /// a compatible expiry situation); only the mutable `quantity` differs.
+    /// `quantity` is a business value compared *after* matching — it is
+    /// never part of the identity/matching key itself, so a quantity
+    /// difference alone must never cause a candidate to escape into
+    /// `.create`.
     case quantityMismatch
+    /// Same stable id, but `expiryDate` differs — a real conflict on the
+    /// same tracked entity.
     case expiryMismatch
+    /// Same stable id, quantity and expiry both match, but some other
+    /// tracked field (`isStaple`, staple category/threshold/restock/tracking
+    /// mode/availability) differs. Never silently overwritten by an upload.
+    case metadataMismatch
+    /// A different id shares the same business key (normalizedName + unit),
+    /// and the expiry situation is not clearly compatible (one side has an
+    /// expiry and the other doesn't, or the dates differ) — this looks like
+    /// a different batch, not the same record; never auto-merged.
     case ambiguousDuplicate
     case multipleRemoteCandidates
 }

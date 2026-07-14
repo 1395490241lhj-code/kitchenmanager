@@ -8,12 +8,71 @@ import CryptoKit
 /// ("nothing has ever synced yet"), and every local Guest item is then
 /// planned as `create`. Wiring a real pre-merge bootstrap/pull to populate
 /// this with genuinely-remote-but-locally-unknown items is Phase 2B-2 work.
+///
+/// `quantity` and `expiryDate` are compared *after* identity matching to
+/// classify a conflict — neither is part of the matching key itself. The
+/// remaining fields are "metadata": tracked so a same-id difference is
+/// surfaced as an explicit `metadataMismatch` conflict rather than silently
+/// overwritten by an upload, but never used to decide whether two items are
+/// the same candidate.
 nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
     let id: UUID
     let name: String
     let unit: String
     let quantity: Double
     let expiryDate: Date?
+    let isStaple: Bool
+    let stapleCategory: String?
+    let lowStockThreshold: Double?
+    let defaultRestockQuantity: Double?
+    let autoSuggestRestock: Bool
+    let stapleTrackingMode: StapleTrackingMode
+    let stapleAvailabilityStatus: StapleAvailabilityStatus
+
+    init(
+        id: UUID,
+        name: String,
+        unit: String,
+        quantity: Double,
+        expiryDate: Date?,
+        isStaple: Bool = false,
+        stapleCategory: String? = nil,
+        lowStockThreshold: Double? = nil,
+        defaultRestockQuantity: Double? = nil,
+        autoSuggestRestock: Bool = false,
+        stapleTrackingMode: StapleTrackingMode = .quantity,
+        stapleAvailabilityStatus: StapleAvailabilityStatus = .available
+    ) {
+        self.id = id
+        self.name = name
+        self.unit = unit
+        self.quantity = quantity
+        self.expiryDate = expiryDate
+        self.isStaple = isStaple
+        self.stapleCategory = stapleCategory
+        self.lowStockThreshold = lowStockThreshold
+        self.defaultRestockQuantity = defaultRestockQuantity
+        self.autoSuggestRestock = autoSuggestRestock
+        self.stapleTrackingMode = stapleTrackingMode
+        self.stapleAvailabilityStatus = stapleAvailabilityStatus
+    }
+}
+
+/// Whether two (possibly absent) expiry dates represent a compatible batch
+/// for matching purposes. Two different-but-present dates, or one present
+/// and one absent, are never treated as compatible — that looks like a
+/// different physical batch, not the same record re-counted.
+private enum ExpiryIdentity {
+    case compatible
+    case incompatible
+
+    static func classify(_ lhs: Date?, _ rhs: Date?) -> ExpiryIdentity {
+        switch (lhs, rhs) {
+        case (nil, nil): return .compatible
+        case (let l?, let r?): return l == r ? .compatible : .incompatible
+        default: return .incompatible
+        }
+    }
 }
 
 /// Pure, local-only, side-effect-free matching and plan generation. No
@@ -107,34 +166,71 @@ nonisolated enum InventoryMergePlanner {
         }
     }
 
-    /// `ambiguous` distinguishes "same stable id, different values" (a real
-    /// update candidate) from "different id, same business key" (a possible
-    /// duplicate that must never be silently treated as the same record).
+    /// `ambiguous` distinguishes "same stable id" (a real, certain identity —
+    /// only its mutable fields are in question) from "different id, same
+    /// business key" (a possible duplicate whose *identity itself* is
+    /// uncertain, so it must never be silently treated as the same record no
+    /// matter how many fields happen to match).
+    ///
+    /// Classification order matters and is deliberate:
+    /// 1. Same id + incompatible expiry -> `expiryMismatch` (certain identity,
+    ///    real conflict on a mutable field).
+    /// 2. Different id + incompatible expiry -> `ambiguousDuplicate` (looks
+    ///    like a different batch under a different id; identity itself is in
+    ///    question, so this is never narrowed down to "just an expiry issue").
+    /// 3. Compatible expiry, but different id -> `ambiguousDuplicate`
+    ///    (identity is still uncertain even though the values line up).
+    /// 4. Compatible expiry, same id, quantity differs -> `quantityMismatch`.
+    ///    `quantity` is never part of the matching key, so a quantity
+    ///    difference alone must never let a candidate escape into `.create`.
+    /// 5. Compatible expiry, same id, quantity/expiry both match, but a
+    ///    metadata field differs -> `metadataMismatch` (never silently
+    ///    overwritten by an upload).
+    /// 6. Everything matches, same id -> `skip`, no conflict (true no-op).
     private static func resolved(
         local: InventoryItem,
         remote: RemoteInventorySnapshotItem,
         ambiguous: Bool
     ) -> InventoryMergeCandidate {
-        let sameValues = local.quantity == remote.quantity && local.expiryDate == remote.expiryDate
-        if sameValues {
-            return InventoryMergeCandidate(
+        func candidate(action: InventoryMergeAction, reason: InventoryMergeConflictReason?) -> InventoryMergeCandidate {
+            InventoryMergeCandidate(
                 localItemId: local.id, name: local.name, unit: local.unit,
                 localQuantity: local.quantity, localExpiryDate: local.expiryDate,
                 remoteItemId: remote.id, remoteQuantity: remote.quantity, remoteExpiryDate: remote.expiryDate,
-                action: .skip,
-                conflictReason: ambiguous ? .ambiguousDuplicate : nil,
-                userChoice: nil
+                action: action, conflictReason: reason, userChoice: nil
             )
         }
-        let reason: InventoryMergeConflictReason = ambiguous
-            ? .ambiguousDuplicate
-            : (local.quantity != remote.quantity ? .quantityMismatch : .expiryMismatch)
-        return InventoryMergeCandidate(
-            localItemId: local.id, name: local.name, unit: local.unit,
-            localQuantity: local.quantity, localExpiryDate: local.expiryDate,
-            remoteItemId: remote.id, remoteQuantity: remote.quantity, remoteExpiryDate: remote.expiryDate,
-            action: .skip, conflictReason: reason, userChoice: nil
-        )
+
+        let expiryIdentity = ExpiryIdentity.classify(local.expiryDate, remote.expiryDate)
+        guard expiryIdentity == .compatible else {
+            // A different-id match with an incompatible expiry looks like a
+            // different batch; a same-id match with an incompatible expiry
+            // is a certain, real conflict on that one entity's mutable field.
+            return candidate(action: .skip, reason: ambiguous ? .ambiguousDuplicate : .expiryMismatch)
+        }
+        if ambiguous {
+            // Identity itself is uncertain (different id, same business
+            // key) — never narrowed down to a specific field-level reason,
+            // regardless of which fields happen to match or differ.
+            return candidate(action: .skip, reason: .ambiguousDuplicate)
+        }
+        if local.quantity != remote.quantity {
+            return candidate(action: .skip, reason: .quantityMismatch)
+        }
+        if hasMetadataMismatch(local: local, remote: remote) {
+            return candidate(action: .skip, reason: .metadataMismatch)
+        }
+        return candidate(action: .skip, reason: nil)
+    }
+
+    private static func hasMetadataMismatch(local: InventoryItem, remote: RemoteInventorySnapshotItem) -> Bool {
+        local.isStaple != remote.isStaple
+            || local.stapleCategory != remote.stapleCategory
+            || local.lowStockThreshold != remote.lowStockThreshold
+            || local.defaultRestockQuantity != remote.defaultRestockQuantity
+            || local.autoSuggestRestock != remote.autoSuggestRestock
+            || local.stapleTrackingMode != remote.stapleTrackingMode
+            || local.stapleAvailabilityStatus != remote.stapleAvailabilityStatus
     }
 }
 
