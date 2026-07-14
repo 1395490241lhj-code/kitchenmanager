@@ -1,5 +1,13 @@
 # Inventory Sync Release Readiness (Phase 2B-5)
 
+> **Phase 2B-6 update**: every "Known gap" this document lists below except
+> physical-device validation has since been closed — fault injection,
+> performance/scale sanity checks, the production config audit, and a real
+> hosted development dogfood run are all done. See
+> `docs/INVENTORY_SYNC_PHASE2B6_VALIDATION.md` and the updated
+> `docs/INVENTORY_SYNC_GO_NO_GO.md` (now "Dogfood Go / Production No-Go",
+> pending only physical-device validation).
+
 ## Scope
 
 Phase 2B-5 is **not** a feature phase. It audits Inventory Sync

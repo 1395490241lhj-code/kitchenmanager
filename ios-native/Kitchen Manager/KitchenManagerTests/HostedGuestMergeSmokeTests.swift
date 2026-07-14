@@ -113,6 +113,29 @@ final class HostedGuestMergeSmokeTests: XCTestCase {
         await authStoreA.signOut()
     }
 
+    /// Phase 2B-6: a minimal, dedicated hosted development dogfood check —
+    /// create/sync/update/sync/offline-stage/reconnect+sync/simulated
+    /// restart/duplicate-safe retry/delete/sync/tombstone/diagnostics/
+    /// consistency-checker-clean. Does not repeat the Phase 2B-2/2B-3 merge
+    /// preview matrix or the Phase 2B-4 CRUD matrix. Gated by the exact same
+    /// flags/credentials as the other hosted tests in this file.
+    func testControlledDevelopmentInventoryDogfoodSmoke() async throws {
+        let emailA = environment("TEST_USER_A_EMAIL")
+        let passwordA = environment("TEST_USER_A_PASSWORD")
+        let authStoreA = AuthStore(
+            authService: SupabaseAuthService(configuration: try AuthConfiguration.load()),
+            accountService: UnavailableAccountService()
+        )
+        let signedInA = await authStoreA.signIn(email: emailA, password: passwordA)
+        XCTAssertTrue(signedInA, "development test account A sign-in failed")
+
+        let runner = GuestMergeSmokeRunner(smokeConfiguration: .load())
+        let passed = try await runner.runInventoryDogfoodMinimalSmoke(authStoreA: authStoreA)
+        XCTAssertTrue(passed)
+
+        await authStoreA.signOut()
+    }
+
     private func environment(_ name: String) -> String {
         ProcessInfo.processInfo.environment[name] ?? ""
     }

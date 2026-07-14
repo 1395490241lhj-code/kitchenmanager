@@ -34,17 +34,16 @@ delete" assertions (extended, not weakened, this phase).
 
 ## Named drill scenarios (section 十六)
 
-| Scenario | Expected behavior | Verified this phase |
+| Scenario | Expected behavior | Verified |
 |----------|--------------------|-----------------------|
-| A. Local pending retained, server applied | Retry returns a duplicate-safe result; local cleans up correctly | Covered indirectly by existing Phase 2B-3/4 transport-failure tests; no new dedicated drill test added this phase |
-| B. Local save failed, server applied | Next retry doesn't duplicate; metadata recoverable | Same as above — not newly re-verified this phase |
-| C. Conflict | Never auto-overwrites; user can re-choose | Covered by existing `resolveConflict` tests |
-| D. Logout | Pending retained; no next batch sent | Covered by existing sign-out tests |
-| E. App-kill | `mutationId`/fork id persist (both are SwiftData-backed, not in-memory) | Structural guarantee from Phase 2B-1 through 2B-4; not re-run as a literal process-kill test this phase |
-| F. Rollback | Only this session's own created records are removed; originals untouched | Covered by existing `GuestMergeController.rollback` tests |
+| A. Local pending retained, server applied | Retry returns a duplicate-safe result; local cleans up correctly | **Phase 2B-6**: `testPushAppliedThenClientTimeoutIsDuplicateSafeOnRetry` — a real fault-injected timeout after genuine server-side apply, retry resolves the same mutationId, no duplicate |
+| B. Local save failed, server applied | Next retry doesn't duplicate; metadata recoverable | **Phase 2B-6**: `testPullSucceedsButLocalSaveFailureNeverAdvancesCursor` covers the pull-side analogue (cursor never advances on local save failure); the push-side analogue is scenario A above |
+| C. Conflict | Never auto-overwrites; user can re-choose | Covered by existing `resolveConflict` tests (Phase 2B-1 through 2B-3), not re-run fresh this phase |
+| D. Logout | Pending retained; no next batch sent | **Phase 2B-6**: `testLogoutBeforeSyncNeverStartsARun`, plus existing Phase 2B-3 sign-out tests |
+| E. App-kill | `mutationId`/fork id persist (both are SwiftData-backed, not in-memory) | **Phase 2B-6**: `testAppKillBeforePendingCleanupIsRecoveredAndDuplicateSafeOnNextLaunch` — a mutation left `.inFlight` by a simulated kill is picked up and resolved by a fresh persistence actor over the same container, without duplicating |
+| F. Rollback | Only this session's own created records are removed; originals untouched | Covered by existing `GuestMergeController.rollback` tests, not re-run fresh this phase |
 
-Scenarios A, B, and E are **not** independently re-verified with a new
-targeted test this phase — they rely on structural guarantees already
-established and tested in Phases 2B-3/2B-4. Closing this gap (a dedicated
-app-kill/duplicate-retry drill test) is listed as an open item in
-[`INVENTORY_SYNC_GO_NO_GO.md`](INVENTORY_SYNC_GO_NO_GO.md).
+Scenarios A, B, and E — the ones Phase 2B-5 flagged as only structurally
+implied — now have dedicated Phase 2B-6 tests. C and F still rely on their
+existing Phase 2B-1 through 2B-3 coverage (unmodified and still passing),
+not a freshly-added test this phase.

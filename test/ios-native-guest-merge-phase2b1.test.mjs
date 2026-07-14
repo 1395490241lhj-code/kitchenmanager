@@ -456,3 +456,69 @@ test('Phase 2B-5: Local.xcconfig remains ignored by git', () => {
   const gitignore = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8');
   assert.match(gitignore, /Local\.xcconfig/);
 });
+
+test('Phase 2B-6: fault-injection code exists only in the test target, never under KitchenManager/ (the app target)', () => {
+  for (const file of [kitchenStore, controller, syncPersistence, eligibility, enrollment, dogfoodConfig, diagnostics, consistencyChecker, diagnosticsView, content, views]) {
+    assert.doesNotMatch(file, /InventorySyncFaultInjectingTransport|InventorySyncFault\b/);
+  }
+});
+
+test('Phase 2B-6: all flags remain default NO after fault-injection/dogfood-smoke work', () => {
+  for (const value of [sharedConfig, exampleConfig]) {
+    assert.match(value, /SYNC_ENABLED\s*=\s*NO/);
+    assert.match(value, /INVENTORY_SYNC_ENABLED\s*=\s*NO/);
+    assert.match(value, /INVENTORY_MERGE_UI_ENABLED\s*=\s*NO/);
+    assert.match(value, /GUEST_MERGE_SMOKE_ENABLED\s*=\s*NO/);
+    assert.match(value, /INVENTORY_SYNC_DOGFOOD_ENABLED\s*=\s*NO/);
+    assert.match(value, /INVENTORY_SYNC_DIAGNOSTICS_ENABLED\s*=\s*NO/);
+  }
+});
+
+test('Phase 2B-6: no automatic sync, timer, background task, or Realtime path exists anywhere in the sync layer', () => {
+  const forbidden = /Timer\(|BGTaskScheduler|DispatchSourceTimer|RealtimeChannel|\.schedule\(/;
+  for (const file of [kitchenStore, controller, syncPersistence, eligibility, enrollment, dogfoodConfig, diagnostics, consistencyChecker, diagnosticsView]) {
+    assert.doesNotMatch(file, forbidden);
+  }
+});
+
+test('Phase 2B-6: no production business-logic file outside GuestMergeController/the Debug-only smoke runners calls runOnce', () => {
+  // KitchenStore, the eligibility/enrollment policy, the dogfood
+  // config/diagnostics/consistency-checker types, and the diagnostics View
+  // must never call runOnce directly — the only production call site is
+  // GuestMergeController (manual "立即同步库存"/retry), plus the pre-existing
+  // Debug-only smoke runners (GuestMergeSmoke.swift/SyncSmoke.swift), which
+  // are gated by their own smoke flags and covered by their own guards.
+  for (const file of [kitchenStore, eligibility, enrollment, dogfoodConfig, diagnostics, consistencyChecker, diagnosticsView, content]) {
+    assert.doesNotMatch(file, /\.runOnce\(/);
+  }
+  assert.match(controller, /\.runOnce\(/);
+});
+
+test('Phase 2B-6: no service-role key and no access token read directly by any View', () => {
+  for (const file of [diagnosticsView, views, accountViews, mainFeatureViews]) {
+    assert.doesNotMatch(file, /service_role|SERVICE_ROLE|currentAccessToken/);
+  }
+});
+
+test('Phase 2B-6: the new hosted dogfood smoke marker prefix is distinct and swept by the cleanup script', () => {
+  assert.match(read('KitchenManager/Synchronization/GuestMergeSmoke.swift'), /__inventory_dogfood_/);
+  const cleanupScript = readFileSync(new URL('../scripts/cleanup-guest-merge-smoke-markers.mjs', import.meta.url), 'utf8');
+  assert.match(cleanupScript, /__inventory_dogfood_/);
+});
+
+test('Phase 2B-6: the consistency checker remains read-only after this phase\'s changes', () => {
+  assert.doesNotMatch(consistencyChecker, /saveMetadata|saveEnrollment|stageInventoryMutation|deleteMetadata|try context\.save/);
+});
+
+test('Phase 2B-6: recovery/fault-handling code never physically deletes remote data', () => {
+  for (const file of [controller, syncPersistence, consistencyChecker]) {
+    assert.doesNotMatch(file, /DELETE FROM|physically delete|deleteAllRemote/i);
+  }
+});
+
+test('Phase 2B-6: Shopping/Today Plan/Weekly Plan/Recipe/Favorites/Frequent remain unwired from the sync/dogfood layer', () => {
+  const forbidden = /Shopping|TodayPlan|WeeklyPlan|Recipe|Favorite|Frequent/;
+  for (const file of [eligibility, enrollment, dogfoodConfig, diagnostics, consistencyChecker]) {
+    assert.doesNotMatch(file, forbidden);
+  }
+});

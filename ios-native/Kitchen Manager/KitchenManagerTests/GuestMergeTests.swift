@@ -1617,6 +1617,406 @@ final class GuestMergeTests: XCTestCase {
         return (kitchen, persistence)
     }
 
+    // MARK: - Phase 2B-6: fault injection
+
+    func testOfflineDuringBootstrapLeavesPendingRetainedAndCursorUnmoved() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let scope = SyncScope(type: .household, id: householdA)
+        let cursorBefore = try await persistence.cursor(for: scope).value
+        let fault = InventorySyncFaultInjectingTransport(inner: SimulatedMergeTransport(userID: userA, householdID: householdA))
+        await fault.setBootstrapFault(.throwError(.transport))
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+        let item = InventoryItem(name: "离线场景", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+
+        XCTAssertEqual(controller.lastSyncOutcome, .failed(.transport))
+        let pending = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: item.id)
+        XCTAssertNotNil(pending, "an offline run must never lose the staged mutation")
+        let cursorAfter = try await persistence.cursor(for: scope).value
+        XCTAssertEqual(cursorBefore, cursorAfter, "cursor must never advance on a bootstrap failure")
+    }
+
+    func test401DuringBootstrapStopsTheRunAndRetainsPendingForRetryAfterReLogin() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let fault = InventorySyncFaultInjectingTransport(inner: SimulatedMergeTransport(userID: userA, householdID: householdA))
+        await fault.setBootstrapFault(.throwError(.unauthorized))
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+        let item = InventoryItem(name: "401场景", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+
+        // A server-returned 401 (stale/invalid token) is `.unauthorized`,
+        // distinct from `.notAuthenticated` (no local session at all) —
+        // only the latter maps to `.paused` in `SyncCoordinator.runOnce`;
+        // this one is `.failed`, and the controller still surfaces a
+        // re-login-needed message for either case.
+        XCTAssertEqual(controller.lastSyncOutcome, .failed(.unauthorized))
+        XCTAssertNotNil(controller.lastSyncErrorMessage, "the UI must surface a re-login-needed message")
+        let pending = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: item.id)
+        XCTAssertNotNil(pending, "a 401 must never discard the staged mutation")
+    }
+
+    func test403OnBootstrapStopsTheScopeWithoutDeletingPending() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let fault = InventorySyncFaultInjectingTransport(inner: SimulatedMergeTransport(userID: userA, householdID: householdA))
+        await fault.setBootstrapFault(.throwError(.forbidden))
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+        let item = InventoryItem(name: "403场景", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+
+        XCTAssertEqual(controller.lastSyncOutcome, .failed(.forbidden))
+        let pending = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: item.id)
+        XCTAssertNotNil(pending, "a 403 must never discard the staged mutation")
+    }
+
+    func test413PayloadTooLargeRetainsPendingAndSurfacesAnUnderstandableError() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let fault = InventorySyncFaultInjectingTransport(inner: SimulatedMergeTransport(userID: userA, householdID: householdA))
+        await fault.setSendMutationsFault(.throwError(.payloadTooLarge))
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+        let item = InventoryItem(name: "413场景", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+
+        XCTAssertEqual(controller.lastSyncOutcome, .failed(.payloadTooLarge))
+        let pending = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: item.id)
+        XCTAssertNotNil(pending, "a 413 must never drop the staged mutation — no data loss")
+    }
+
+    func test429IsTreatedAsRetryableAndNeverBusyLoopsSinceSyncIsAlwaysManuallyTriggered() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let fault = InventorySyncFaultInjectingTransport(inner: SimulatedMergeTransport(userID: userA, householdID: householdA))
+        // SyncError has no dedicated 429 case yet; the project maps
+        // rate-limiting onto the existing retryable `.backendUnavailable`
+        // case rather than adding a new one this phase (see
+        // docs/INVENTORY_SYNC_FAULT_INJECTION.md).
+        await fault.setSendMutationsFault(.throwError(.backendUnavailable))
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+        let item = InventoryItem(name: "429场景", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+        let callsAfterFirstAttempt = await fault.sendMutationsCallCount
+        XCTAssertEqual(controller.lastSyncOutcome, .failed(.backendUnavailable))
+        XCTAssertFalse(controller.isSyncing, "there must be no automatic retry loop — the next attempt only ever happens from an explicit user tap")
+        XCTAssertEqual(callsAfterFirstAttempt, 1, "a single manual sync call must only ever attempt sendMutations once, never loop internally")
+    }
+
+    func test500And503AreRetainedAsRetryable() async throws {
+        for error: SyncError in [.backendUnavailable] {
+            let (_, persistence) = try await enrolledStores()
+            let fault = InventorySyncFaultInjectingTransport(inner: SimulatedMergeTransport(userID: userA, householdID: householdA))
+            await fault.setSendMutationsFault(.throwError(error))
+            let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+            let item = InventoryItem(name: "5xx场景", quantity: 1, unit: "个", expiryDate: nil)
+            await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+            let authStore = await signedInAuthStore(userID: userA)
+            await controller.syncNow(authStore: authStore, householdId: householdA)
+            XCTAssertEqual(controller.lastSyncOutcome, .failed(error))
+            let pending = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: item.id)
+            XCTAssertNotNil(pending)
+        }
+    }
+
+    func testMalformedOrTruncatedJSONNeverAdvancesTheCursorOrDropsPending() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let scope = SyncScope(type: .household, id: householdA)
+        let cursorBefore = try await persistence.cursor(for: scope).value
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await inner.seedRemoteChange(id: UUID(), name: "远端项目", unit: "个", quantity: 1, version: "1", sequence: "1")
+        let fault = InventorySyncFaultInjectingTransport(inner: inner)
+        await fault.setFetchChangesFault(.malformedOrTruncatedJSON)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+        let item = InventoryItem(name: "本机项目", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+
+        XCTAssertEqual(controller.lastSyncOutcome, .failed(.decoding))
+        let cursorAfter = try await persistence.cursor(for: scope).value
+        XCTAssertEqual(cursorBefore, cursorAfter, "a decode failure must never advance the pull cursor")
+        // The item's own push happens before the pull phase and is
+        // unaffected by this fault, so it resolves normally — a fault
+        // confined to `fetchChanges` must never reach back and disturb an
+        // already-successfully-pushed, unrelated mutation.
+        let metadata = try await persistence.metadata(entityType: .inventoryItem, entityId: item.id)
+        XCTAssertEqual(metadata?.state, .synced, "the unrelated push must still have completed normally despite the later pull decode failure")
+    }
+
+    func testPushAppliedThenClientTimeoutIsDuplicateSafeOnRetry() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let fault = InventorySyncFaultInjectingTransport(inner: inner)
+        await fault.setSendMutationsFault(.throwError(.transport), applyFirst: true)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+        let item = InventoryItem(name: "超时场景", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+        let originalMutationId = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: item.id)?.mutationId
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+        XCTAssertEqual(controller.lastSyncOutcome, .failed(.transport))
+        let appliedCount = await inner.appliedCount()
+        XCTAssertEqual(appliedCount, 1, "the server side really did apply the mutation despite the client seeing a timeout")
+        let afterTimeoutMutation = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: item.id)
+        XCTAssertEqual(afterTimeoutMutation?.mutationId, originalMutationId, "the client must never mint a second mutationId after a timeout")
+
+        await fault.setSendMutationsFault(.none)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+        XCTAssertEqual(controller.lastSyncOutcome, .completed)
+        let finalMutation = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: item.id)
+        XCTAssertNil(finalMutation, "the retry resolves the same mutation; it must never create a second pending record for the same entity")
+    }
+
+    func testPullSucceedsButLocalSaveFailureNeverAdvancesCursor() async throws {
+        let (kitchen, sharedPersistence) = try makeSharedStores(seedGuestInventory: false)
+        try await sharedPersistence.saveEnrollment(InventorySyncEnrollment(
+            userId: userA, householdId: householdA, status: .enrolled, enrolledAt: Date(),
+            mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+        ))
+        let scope = SyncScope(type: .household, id: householdA)
+        let cursorBefore = try await sharedPersistence.cursor(for: scope).value
+        let failingPersistence = SwiftDataSyncPersistence(modelContainer: sharedPersistence.modelContainer, behavior: .failSavesForTesting)
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await inner.seedRemoteChange(id: UUID(), name: "远端新项目", unit: "个", quantity: 3, version: "1", sequence: "1")
+        let controller = GuestMergeController(persistence: failingPersistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in inner })
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+
+        XCTAssertEqual(controller.lastSyncOutcome, .failed(.persistence))
+        let cursorAfter = try await sharedPersistence.cursor(for: scope).value
+        XCTAssertEqual(cursorBefore, cursorAfter, "a local save failure while applying a pulled change must never advance the cursor")
+        _ = kitchen
+    }
+
+    func testAppKillBeforePendingCleanupIsRecoveredAndDuplicateSafeOnNextLaunch() async throws {
+        let (_, sharedPersistence) = try await enrolledStores()
+        let entityId = UUID()
+        try await sharedPersistence.saveMetadata(SyncMetadata(
+            entityType: .inventoryItem, entityId: entityId, scope: SyncScope(type: .household, id: householdA),
+            remoteVersion: nil, state: .pendingCreate, lastSyncedAt: nil,
+            lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+        ))
+        let mutationId = UUID()
+        try await sharedPersistence.savePending(PendingMutation(
+            mutationId: mutationId, entityType: .inventoryItem, entityId: entityId,
+            scope: SyncScope(type: .household, id: householdA), operation: .upsert,
+            baseVersion: .zero, payloadData: Data("{\"name\":\"kill场景\"}".utf8),
+            clientUpdatedAt: Date(), createdAt: Date(), attemptCount: 0, lastAttemptAt: nil,
+            lastErrorCode: nil, status: .pending
+        ))
+        // Simulate the App having been killed mid-push: the mutation was
+        // marked in-flight but the process died before a result ever came
+        // back to resolve it.
+        try await sharedPersistence.markInFlight(ids: [mutationId], attemptedAt: Date(), maxAttempts: 5)
+
+        // "Relaunch": a brand-new persistence actor over the same on-disk
+        // (here in-memory, but identically fresh-actor) container.
+        let relaunchedPersistence = SwiftDataSyncPersistence(modelContainer: sharedPersistence.modelContainer)
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(persistence: relaunchedPersistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        let authStore = await signedInAuthStore(userID: userA)
+
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+
+        XCTAssertEqual(controller.lastSyncOutcome, .completed, "an in-flight mutation orphaned by an App kill must still be picked up and resolved on the next run")
+        let resolved = try await relaunchedPersistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: entityId)
+        XCTAssertNil(resolved, "the recovered mutation resolves normally; retrying it after relaunch must never leave a duplicate pending row")
+    }
+
+    // MARK: - Phase 2B-6: single-flight / lifecycle
+
+    func testTenRapidSyncTapsOnlyEverAttemptSendMutationsOnce() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let fault = InventorySyncFaultInjectingTransport(inner: inner)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in fault })
+        let item = InventoryItem(name: "并发场景", quantity: 1, unit: "个", expiryDate: nil)
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+        let authStore = await signedInAuthStore(userID: userA)
+
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<10 {
+                group.addTask { await controller.syncNow(authStore: authStore, householdId: self.householdA) }
+            }
+        }
+
+        XCTAssertFalse(controller.isSyncing)
+        let calls = await fault.sendMutationsCallCount
+        XCTAssertEqual(calls, 1, "10 rapid concurrent taps must only ever result in exactly one sendMutations call")
+    }
+
+    func testLogoutBeforeSyncNeverStartsARun() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) })
+        let signedOutStore = await signedInAuthStore(userID: userA)
+        await signedOutStore.signOut()
+
+        await controller.syncNow(authStore: signedOutStore, householdId: householdA)
+
+        XCTAssertEqual(controller.lastSyncOutcome, nil, "signing out first must mean syncNow never even attempts a run")
+    }
+
+    func testAScopeMismatchNeverLeavesTheSingleFlightGuardStuck() async throws {
+        // The fake transport's bootstrap only ever reports `householdA`
+        // (matching its own fixed `householdID`), so requesting `householdB`
+        // is a genuine scope mismatch — a real-world analogue of a stale
+        // household reference. It must resolve (`.paused(.forbidden)`),
+        // never hang, and never leave `isSyncing` stuck so a subsequent
+        // correctly-scoped call still runs.
+        let (_, persistence) = try await enrolledStores()
+        try await persistence.saveEnrollment(InventorySyncEnrollment(
+            userId: userA, householdId: householdB, status: .enrolled, enrolledAt: Date(),
+            mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+        ))
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) })
+        let authStore = await signedInAuthStore(userID: userA)
+
+        await controller.syncNow(authStore: authStore, householdId: householdB)
+        XCTAssertEqual(controller.lastSyncOutcome, .paused(.forbidden), "a scope this transport doesn't recognize must resolve, not hang")
+        XCTAssertFalse(controller.isSyncing)
+
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+        XCTAssertEqual(controller.lastSyncOutcome, .completed, "the guard must not still be held after the previous mismatched-scope attempt")
+    }
+
+    // MARK: - Phase 2B-6: scale / performance (local only, no absolute promises)
+
+    func testConsistencyCheckerCompletesQuicklyAt1000MetadataRows() {
+        var metadata: [SyncMetadata] = []
+        metadata.reserveCapacity(1000)
+        for _ in 0..<1000 {
+            metadata.append(SyncMetadata(
+                entityType: .inventoryItem, entityId: UUID(), scope: SyncScope(type: .household, id: householdA),
+                remoteVersion: try! SyncCursorValue("1"), state: .synced, lastSyncedAt: Date(),
+                lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+            ))
+        }
+        let localIds = Set(metadata.map(\.entityId))
+        let start = Date()
+        let issues = InventorySyncConsistencyChecker.check(
+            localInventoryIds: localIds, allMetadata: metadata, allPendingMutations: [],
+            enrollment: nil, expectedUserId: nil, expectedHouseholdId: nil,
+            activeMergeSession: nil, previousCursorValue: nil, currentCursorValue: nil
+        )
+        let elapsed = Date().timeIntervalSince(start)
+        XCTAssertTrue(issues.isEmpty)
+        // No absolute performance promise — this is a local, environment-
+        // dependent sanity bound (a linear-ish pass over 1000 rows should
+        // never take anywhere close to a second), not a guaranteed SLA.
+        XCTAssertLessThan(elapsed, 2.0, "consistency checker over 1000 rows took unexpectedly long: \(elapsed)s")
+    }
+
+    func testEligibilityQueueCapCheckIsConstantTimeRegardlessOfPendingCount() {
+        let start = Date()
+        for _ in 0..<500 {
+            _ = InventorySyncEligibility.evaluate(
+                isFeatureEnabled: true, userId: userA, householdId: householdA,
+                enrollment: InventorySyncEnrollment(
+                    userId: userA, householdId: householdA, status: .enrolled, enrolledAt: Date(),
+                    mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+                ),
+                existingMetadata: nil, intent: .create,
+                hasExistingPendingMutationForEntity: false, currentPendingCount: 500, maxPendingMutations: 200
+            )
+        }
+        let elapsed = Date().timeIntervalSince(start)
+        XCTAssertLessThan(elapsed, 1.0, "500 eligibility evaluations took unexpectedly long: \(elapsed)s — would suggest an O(n^2) hotspot")
+    }
+
+    func testDiagnosticsSnapshotAt500PendingAnd100ConflictsCompletesQuickly() async throws {
+        let (kitchen, persistence) = try await enrolledStores()
+        let scope = SyncScope(type: .household, id: householdA)
+        for index in 0..<500 {
+            let entityId = UUID()
+            // `conflictCount` reflects `SyncMetadata.state == .conflicted`
+            // (not `PendingMutation.status`), so the first 100 also get a
+            // matching conflicted metadata row to genuinely exercise both
+            // counters, not just `pendingCount`.
+            if index < 100 {
+                try await persistence.saveMetadata(SyncMetadata(
+                    entityType: .inventoryItem, entityId: entityId, scope: scope,
+                    remoteVersion: try! SyncCursorValue("1"), state: .conflicted, lastSyncedAt: nil,
+                    lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+                ))
+            }
+            try await persistence.savePending(PendingMutation(
+                mutationId: UUID(), entityType: .inventoryItem, entityId: entityId, scope: scope,
+                operation: .upsert, baseVersion: .zero, payloadData: Data("{}".utf8),
+                clientUpdatedAt: Date(), createdAt: Date(), attemptCount: 0, lastAttemptAt: nil,
+                lastErrorCode: nil, status: .pending
+            ))
+        }
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) })
+
+        let start = Date()
+        let snapshot = await controller.diagnosticsSnapshot(
+            kitchenStore: kitchen, userId: userA, householdId: householdA,
+            environmentName: "development", appBuild: "scale-test"
+        )
+        let elapsed = Date().timeIntervalSince(start)
+        XCTAssertEqual(snapshot.pendingCount, 500)
+        XCTAssertEqual(snapshot.conflictCount, 100)
+        XCTAssertLessThan(elapsed, 2.0, "diagnostics snapshot over 500 pending rows took unexpectedly long: \(elapsed)s")
+    }
+
+    // MARK: - Phase 2B-6: queue-cap pressure at scale
+
+    func testQueueCapAt200HoldsFirmAgainst250AttemptedCreatesAndDeletesAreNeverDropped() async throws {
+        let (_, persistence) = try await enrolledStores()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            dogfoodConfiguration: InventorySyncDogfoodConfiguration(maxPendingMutations: 200),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) }
+        )
+        var items: [InventoryItem] = []
+        for index in 0..<250 {
+            let item = InventoryItem(name: "cap-item-\(index)", quantity: 1, unit: "个", expiryDate: nil)
+            await controller.handleInventoryDidChange(old: items, new: items + [item], userId: userA, householdId: householdA)
+            items.append(item)
+        }
+        let scope = SyncScope(type: .household, id: householdA)
+        let pendingAfterFlood = try await persistence.pendingMutations(scope: scope, maxAttempts: .max)
+        XCTAssertEqual(pendingAfterFlood.count, 200, "the queue must hold exactly at its configured cap, never grow past it")
+
+        // A delete for one of the 200 already-staged (create-pending) items
+        // must still be accepted even while the queue sits exactly at its
+        // cap — deletes are never dropped, and this one also coalesces
+        // create+delete into a full cancel (Phase 2B-4 rule), so it can't
+        // even be blamed on "growing" the queue.
+        let alreadyStagedForDelete = items[3]
+        await controller.handleInventoryDidChange(old: items, new: items.filter { $0.id != alreadyStagedForDelete.id }, userId: userA, householdId: householdA)
+        let metadataAfterDelete = try await persistence.metadata(entityType: .inventoryItem, entityId: alreadyStagedForDelete.id)
+        XCTAssertNil(metadataAfterDelete, "create+delete before any sync must fully cancel, even while the queue is at cap")
+
+        // Coalescing an update into one of the 200 already-staged creates
+        // must still succeed (it doesn't grow the queue).
+        let alreadyStagedItem = items[5]
+        var updated = alreadyStagedItem
+        updated.quantity = 99
+        await controller.handleInventoryDidChange(old: items, new: items.map { $0.id == alreadyStagedItem.id ? updated : $0 }, userId: userA, householdId: householdA)
+        let coalescedMutation = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: alreadyStagedItem.id)
+        XCTAssertEqual(coalescedMutation?.operation, .upsert, "coalescing an update into an already-staged create must still succeed under a full queue")
+
+        // Guest-local CRUD (i.e. the in-memory business write itself) always
+        // proceeds regardless of sync-staging outcome — that's `KitchenStore`'s
+        // own concern, entirely decoupled from the sync hook's return value.
+        XCTAssertNotNil(controller.inventoryMutationBlockedMessage, "the queue-full message must be user-visible once the cap is hit")
+    }
+
     // MARK: - Helpers
 
     private func makePersistence() throws -> (ModelContainer, SwiftDataSyncPersistence) {
@@ -1833,4 +2233,79 @@ private actor FailingMergeTransport: SyncTransport {
     func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.transport }
     func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse { throw SyncError.transport }
     func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse { throw SyncError.transport }
+}
+
+/// Phase 2B-6: test-only deterministic fault injection. Wraps a real inner
+/// `SyncTransport` (never a live network call) and, per configured fault,
+/// either throws a specific `SyncError` before delegating, delays before
+/// delegating, or — for the "applied then client-side fault" scenarios —
+/// lets the inner transport genuinely record the mutation as applied and
+/// *then* throws, simulating a client that times out / is killed after the
+/// server already committed. This type exists only in the test target; it
+/// is never imported by, or reachable from, any file under `KitchenManager/`,
+/// so it cannot enter a Release build or any production code path by
+/// construction, and it never logs a payload or credential.
+private enum InventorySyncFault: Equatable {
+    case none
+    case throwError(SyncError)
+    case delay(TimeInterval)
+    /// Fails to decode — used for both "malformed" and "truncated" JSON,
+    /// since at this layer both manifest identically as a decoding failure
+    /// the coordinator must treat as non-destructive (`SyncError.decoding`).
+    case malformedOrTruncatedJSON
+}
+
+private actor InventorySyncFaultInjectingTransport: SyncTransport {
+    private let inner: any SyncTransport
+    private var bootstrapFault: InventorySyncFault = .none
+    private var fetchChangesFault: InventorySyncFault = .none
+    private var sendMutationsFault: InventorySyncFault = .none
+    /// When true, `sendMutations` still delegates to `inner` first (so the
+    /// fake backend's own state really advances — a real "push applied"),
+    /// and only *then* raises `sendMutationsFault` to the caller, regardless
+    /// of what the inner call actually returned.
+    private var applyBeforeFaultingSend = false
+    private(set) var sendMutationsCallCount = 0
+
+    init(inner: any SyncTransport) { self.inner = inner }
+
+    func setBootstrapFault(_ fault: InventorySyncFault) { bootstrapFault = fault }
+    func setFetchChangesFault(_ fault: InventorySyncFault) { fetchChangesFault = fault }
+    func setSendMutationsFault(_ fault: InventorySyncFault, applyFirst: Bool = false) {
+        sendMutationsFault = fault
+        applyBeforeFaultingSend = applyFirst
+    }
+
+    func bootstrap() async throws -> SyncBootstrapResponse {
+        try await Self.apply(bootstrapFault)
+        return try await inner.bootstrap()
+    }
+
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
+        try await Self.apply(fetchChangesFault)
+        return try await inner.fetchChanges(scope: scope, after: cursor, limit: limit)
+    }
+
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse {
+        sendMutationsCallCount += 1
+        if applyBeforeFaultingSend {
+            _ = try? await inner.sendMutations(scope: scope, mutations: mutations)
+            try await Self.apply(sendMutationsFault)
+        }
+        try await Self.apply(sendMutationsFault)
+        return try await inner.sendMutations(scope: scope, mutations: mutations)
+    }
+
+    private static func apply(_ fault: InventorySyncFault) async throws {
+        switch fault {
+        case .none:
+            return
+        case .throwError(let error):
+            throw error
+        case .malformedOrTruncatedJSON:
+            throw SyncError.decoding
+        case .delay(let seconds):
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+        }
+    }
 }

@@ -9,9 +9,10 @@ import { ensureDevelopmentTarget, validateHttpUrl } from './verify-supabase-phas
 import { redact } from './sync-smoke.mjs';
 
 // Phase 2B-2/2.5 use `__guest_merge_smoke_`; Phase 2B-4's CRUD-sync-staging
-// minimal smoke uses its own `__inventory_crud_smoke_` prefix — both are
-// swept here so an interrupted run of either never leaves orphaned rows.
-const MARKER_PREFIXES = ['__guest_merge_smoke_', '__inventory_crud_smoke_'];
+// minimal smoke uses its own `__inventory_crud_smoke_` prefix; Phase 2B-6's
+// hosted dogfood smoke uses `__inventory_dogfood_` — all three are swept
+// here so an interrupted run of any of them never leaves orphaned rows.
+const MARKER_PREFIXES = ['__guest_merge_smoke_', '__inventory_crud_smoke_', '__inventory_dogfood_'];
 
 function required(env, name) {
   const value = String(env[name] || '').trim();

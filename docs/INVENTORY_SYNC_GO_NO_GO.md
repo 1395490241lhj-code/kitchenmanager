@@ -1,87 +1,85 @@
-# Inventory Sync Go / No-Go (Phase 2B-5)
+# Inventory Sync Go / No-Go (updated Phase 2B-6)
 
-## Status summary (updated during Phase 2B-5 final verification)
+## Status summary
 
 **Implemented:**
-- Diagnostics snapshot (`InventorySyncDiagnosticsSnapshot`)
-- Redacted diagnostics export (`redactedJSON()`)
+- Diagnostics snapshot (`InventorySyncDiagnosticsSnapshot`), redacted export
 - Consistency checker (`InventorySyncConsistencyChecker`, 14 read-only checks)
 - Pending-mutation queue cap (`InventorySyncEligibility.blockedByQueueFull`)
 - Dogfood configuration (`InventorySyncDogfoodConfiguration`, both flags default `NO`)
+- Test-only fault-injection transport (`InventorySyncFaultInjectingTransport`, Phase 2B-6)
 - Go/No-Go decision framework (this document)
 
-**Validated:**
-- Simulator XCTest: `GuestMergeTests` 82/82, full iOS Unit 550/550 (3 safe skips), full iOS UI 5/5 (1 safe skip)
+**Simulator validated:**
+- `GuestMergeTests` 99/99 (was 82; +17 this phase — fault injection, single-flight/lifecycle, scale, queue-cap-at-scale)
+- Full iOS Unit 568/568 (3 safe skips; was 550)
+- Full iOS UI 5/5 (1 safe skip; unchanged)
 - Debug build (simulator): 0 errors
-- Release build (simulator destination): 0 errors; compiled Release `Info.plist` confirmed every `KM_*` sync/dogfood/smoke flag is `NO`
-- Local automated tests: Node 845/845, `npm audit --omit=dev --audit-level=high` 0 vulnerabilities, `git diff --check` clean
-- `npm run smoke:sync`: **PASS**, run against the local Express server + real development Supabase project (root cause of the earlier failure was simply that the local Express server wasn't running — not a code or data defect; see the dedicated section below)
+- Release build (simulator destination): 0 errors
+- A real unsigned Archive built and inspected: compiled `Info.plist` confirms all 8 sync/dogfood/smoke flags `NO`; binary `strings` scan found zero test credentials, emails, or smoke markers; no `.xcconfig` content inside the bundle
+- Fault injection: offline, 401, 403, 413, 429 (mapped to `.backendUnavailable`), 500/503, malformed/truncated JSON, push-applied+client-timeout, pull-succeeded+local-save-failure, app-killed-before-cleanup — all confirmed pending-retaining, cursor-safe, duplicate-safe
+- Single-flight confirmed under real concurrency (`withTaskGroup`, 10 concurrent taps → exactly 1 `sendMutations` call)
+- Queue-cap holds firm at 250 attempted creates against a 200 cap; deletes and coalescing still succeed under a full queue
+- Scale/performance sanity checks at 1000 metadata rows / 500 pending mutations / 100 conflicts — no O(n²) hotspot found (see `docs/INVENTORY_SYNC_SCALE_RESULTS.md`)
+- Node: 854/854, `npm audit --omit=dev --audit-level=high` 0 vulnerabilities, `git diff --check` clean
 
-**Pending:**
-- Physical-device dogfood validation
-- Hosted (multi-device / longer-duration) dogfood smoke
-- Weak-network / error-injection testing
-- Performance/scale testing at 500–1000 items
-- Production configuration audit
+**Hosted development validated:**
+- `npm run smoke:sync`: PASS (local Express + real development Supabase project)
+- Hosted development dogfood smoke: **PASS** — real Render deployment + real development Supabase project, marker-isolated (`__inventory_dogfood_<id>`), full create/sync/update/sync/offline-stage/reconnect+sync/simulated-restart/duplicate-safe-retry/delete/sync/tombstone/diagnostics-clean/consistency-clean/cleanup flow, zero marker residue confirmed
 
-**Current decision: No-Go**
+**Production audited (read-only, no write):**
+- Production config audit complete — see `docs/INVENTORY_SYNC_PRODUCTION_CONFIG_AUDIT.md`. No Blocker found; 2 pre-existing evidence gaps carried forward (sync-migration-parity re-verification, no min-app-version enforcement mechanism)
 
-## Conclusion: **No-Go** for production enablement
+**Physical device validated:** **No.** Not attempted — no physical device
+attached to this environment. Checklist prepared:
+`docs/INVENTORY_SYNC_PHYSICAL_DEVICE_CHECKLIST.md`.
 
-Inventory Sync now has a dedicated dogfood gate, a read-only diagnostics
-screen, a read-only consistency checker, and a bounded pending-mutation
-queue — all safe-off by default. It is **not** ready for any production
-cohort (not even Stage 3) because several required validations from the
-Phase 2B-5 spec were not performed this phase.
+**Production enabled:** No. No flag was changed from its committed default.
+
+**Current decision: Dogfood Go / Production No-Go**
+
+## Conclusion
+
+Inventory Sync has now cleared every evidence gap this environment can
+close: fault injection, single-flight under real concurrency, scale
+sanity, queue-cap pressure, a real hosted development dogfood pass, and a
+clean read-only production-config/archive audit. The only remaining gate is
+physical-device validation, which is structurally impossible to fabricate
+here and is not claimed as done. That makes **"Dogfood Go"** — a small,
+manually-executed, development-backend, flags-off-by-default dogfood
+following `docs/INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md` Stage 1/2 is
+reasonable — while **production enablement (Stage 3+) remains No-Go** until
+the physical-device checklist is actually run and passes.
 
 ## Go criteria status
 
 | Criterion | Status |
 |-----------|--------|
-| 0 release blockers | ✅ met (all identified Blockers fixed) |
-| Full test pass | ✅ met — Node 845/845, 550/550 iOS Unit (3 safe skips), 5/5 iOS UI (1 safe skip), 82/82 `GuestMergeTests`, 0 regressions against the pre-2B-5 baseline (Node 836, iOS Unit 540, UI 5) |
-| `npm run smoke:sync` | ✅ met — PASS once the local Express server was started (see root-cause note below); this is a local development-environment contract check, not a physical-device or production validation |
-| Physical-device dogfood pass | ❌ not performed — simulator only |
-| Weak-network recovery pass | ❌ not performed — no fault-injection transport built this phase |
-| App-kill recovery pass | ❌ not independently re-verified this phase (relies on structural guarantee, not a fresh test) |
-| Account isolation pass | ✅ met — existing + Phase 2B-5 tests confirm |
-| Household isolation pass | ✅ met |
-| Zero secret leak | ✅ met for the new diagnostics/export surface (test-enforced); full production-log audit not performed |
-| Consistency checker no critical issues | ✅ checker built and tested; not yet run against any real dogfood data set |
-| Rollback drill pass | ⚠️ partially — conflict/logout/rollback drills covered by existing tests; local-save-failed and app-kill drills not freshly re-verified |
-| Production config audit pass | ❌ not performed this phase |
-| Feature flags default off | ✅ met — verified via `git diff`, all new/existing flags remain `NO` |
-| Clear rollback playbook exists | ✅ met — see `INVENTORY_SYNC_ROLLBACK_PLAYBOOK.md` |
+| 0 release blockers | ✅ met |
+| Full tests pass | ✅ met — Node 854/854, iOS Unit 568/568 (4 safe skips), UI 5/5 (1 safe skip), `GuestMergeTests` 99/99, 0 regressions against the Phase 2B-5 baseline |
+| Hosted development dogfood pass | ✅ met — see above |
+| Physical-device dogfood pass | ❌ not performed — no device available in this environment |
+| Weak-network recovery pass | ✅ met — 11 fault-injection scenarios, all pending-retaining/cursor-safe/duplicate-safe |
+| App-kill recovery pass | ✅ met — simulated relaunch test confirms recovery without duplication |
+| Account/household isolation pass | ✅ met |
+| Scale tests no blocker | ✅ met — no O(n²) hotspot found; see scale results doc |
+| Production config audit pass | ✅ met — no Blocker; 2 non-blocking evidence gaps noted |
+| Archive safety pass | ✅ met — real unsigned archive inspected, clean |
+| Consistency checker clean | ✅ met — 0 issues at the end of the hosted dogfood run |
+| Rollback drill pass | ✅ met — see `docs/INVENTORY_SYNC_PHASE2B6_VALIDATION.md` drill table (drills C, sub-parts of J not freshly re-exercised this phase, relying on existing Phase 2B-3/2B-4 tests) |
+| All flags default NO | ✅ met |
+| Zero secret leak | ✅ met — test-enforced diagnostics redaction + archive binary scan |
+| Rollback playbook executable | ✅ met — exercised for real during hosted dogfood cleanup |
 
-## `npm run smoke:sync` root cause (resolved)
+## No-Go blocker for production (Stage 3+)
 
-The script targets two things: the real development Supabase project directly
-(via `SUPABASE_URL`/keys from the gitignored `.env.development.local`), and
-the local Express sync API at `EXPRESS_API_BASE` (default
-`http://127.0.0.1:3000`, i.e. `node server.js` — **not** the hosted Render
-deployment). The first `fetch failed` run happened because no local Express
-process was running. Starting `node server.js` locally with the development
-environment variables sourced, then re-running `npm run smoke:sync`,
-produced a clean **PASS** across all four of its checks (auth/RLS isolation,
-CRUD/conflict/idempotency/feed/pagination, representative entity families,
-and the real Express sync contract). No production endpoint, service-role
-key, or bulk write was involved — the script only exercises the existing
-authorized development-environment contract it always has.
+1. **Physical-device validation** (`docs/INVENTORY_SYNC_PHYSICAL_DEVICE_CHECKLIST.md`, 30 steps) — the only remaining gap. Until it passes, the correct status to report anywhere is exactly: **"simulator + hosted-development dogfood passed, physical-device validation pending"** — never "production ready" or "production enabled."
 
-## No-Go blockers to close before reconsidering
-
-1. Physical-device validation (section 十三, 25 scenarios).
-2. Weak-network/error-injection test suite (section 十四).
-3. Production config audit (section 十八) — read-only review of Supabase/Render URLs, RLS, Release Info.plist, secret injection, service-role absence.
-4. Performance/scale tests at 500–1000 items / 200–500 pending mutations (section 十七).
-5. Hosted development-environment dogfood smoke (section 二十四).
-6. A dedicated app-kill / duplicate-retry-safe drill test (currently only structurally implied, not freshly exercised).
-
-None of the above being incomplete implies any known defect — it means the
-required *evidence* for a Go decision has not yet been collected. Until it
-is, the correct status to report anywhere (docs, standups, PR descriptions)
-is exactly: **"simulator dogfood passed, physical-device validation
-pending"** — never "production ready."
+Two carried-forward, non-blocking evidence gaps (not new this phase, not
+data-loss/security defects): sync-foundation migration parity was not
+independently re-verified with pgTAP; no minimum-app-version enforcement
+mechanism exists yet (matters once a rollout exceeds a small controlled
+cohort, not for a dogfood-scale cohort).
 
 ## What must never change without a new explicit review
 
@@ -89,4 +87,6 @@ pending"** — never "production ready."
 `INVENTORY_SYNC_DOGFOOD_ENABLED`, `INVENTORY_SYNC_DIAGNOSTICS_ENABLED`,
 `GUEST_MERGE_SMOKE_ENABLED`, `SYNC_ENABLED`, `SYNC_SMOKE_ENABLED` must all
 remain `NO` in every committed configuration and every Release build until
-a future phase produces a Go conclusion here.
+a future phase produces a Production Go conclusion here — and even then,
+only for the specific rollout stage that decision covers (see
+`docs/INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md`'s staged criteria).

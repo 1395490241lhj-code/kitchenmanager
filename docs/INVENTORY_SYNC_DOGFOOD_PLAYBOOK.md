@@ -40,26 +40,30 @@ telemetry pipeline was introduced this phase.
 
 ## Hosted development-environment dogfood smoke
 
-**Status this phase: not run.** The smoke sequence (create → sync → update
-→ sync → offline stage → reconnect+sync → forced restart → duplicate-safe
+**Status: PASS (Phase 2B-6).** The full sequence (create → sync → update →
+sync → offline stage → reconnect+sync → simulated restart → duplicate-safe
 recovery → delete → sync → tombstone → diagnostics snapshot →
-consistency-checker-clean → zero marker residue) is designed and ready to
-run using the existing `GuestMergeSmokeRunner` pattern extended with a new
-`__inventory_dogfood_` marker prefix, but was not executed this phase given
-the scope already covered (queue cap, diagnostics, consistency checker,
-tests). Running it is the next concrete step before any Stage 1 rollout.
-
-If run, it must: use the development backend only; require explicit
-`INVENTORY_SYNC_DOGFOOD_ENABLED`/`INVENTORY_SYNC_DIAGNOSTICS_ENABLED` in
-`Local.xcconfig` (never committed); restore all flags to `NO` afterward;
-soft-delete (never physically delete) every marker row; extend
-`scripts/cleanup-guest-merge-smoke-markers.mjs`'s `MARKER_PREFIXES` with
-`__inventory_dogfood_` for a sweep pass; never print an account id, UUID,
-token, or password to any log.
+consistency-checker-clean → zero marker residue) ran for real against the
+development Supabase project and the real Render deployment, using marker
+prefix `__inventory_dogfood_<id>` via
+`GuestMergeSmokeRunner.runInventoryDogfoodMinimalSmoke` /
+`HostedGuestMergeSmokeTests.testControlledDevelopmentInventoryDogfoodSmoke`.
+Ran with the development backend only; `INVENTORY_SYNC_DOGFOOD_ENABLED`/
+`INVENTORY_SYNC_DIAGNOSTICS_ENABLED`/`INVENTORY_SYNC_ENABLED`/
+`GUEST_MERGE_SMOKE_ENABLED` were set to `YES` only in the gitignored
+`Local.xcconfig` for the duration of the run and restored to `NO`
+immediately after. Every marker row was soft-deleted (never physically
+deleted); `scripts/cleanup-guest-merge-smoke-markers.mjs`'s
+`MARKER_PREFIXES` now includes `__inventory_dogfood_` and a post-run sweep
+confirmed zero residual rows. No account id, UUID, token, or password was
+printed to any log. See `docs/INVENTORY_SYNC_PHASE2B6_VALIDATION.md`.
 
 ## Physical-device validation
 
-**Status this phase: simulator dogfood passed, physical-device validation
-pending.** This exact wording must be used in any future doc/report until a
-physical device actually completes the 25-scenario checklist from section
-十三 of the Phase 2B-5 spec.
+**Status: simulator + hosted-development dogfood passed, physical-device
+validation pending.** This exact wording must be used in any future
+doc/report until a physical device actually completes the 30-step checklist
+in `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_CHECKLIST.md`. No physical device
+was attached to the environment Phase 2B-6 ran in, so this step could not
+be executed or faked — the checklist is ready for whoever has device
+access next.
