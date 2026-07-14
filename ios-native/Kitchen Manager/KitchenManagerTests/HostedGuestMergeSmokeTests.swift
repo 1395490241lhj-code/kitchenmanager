@@ -71,6 +71,27 @@ final class HostedGuestMergeSmokeTests: XCTestCase {
         await authStoreA.signOut()
     }
 
+    /// Phase 2B-2.5: a minimal, dedicated hosted check for the same-id
+    /// `keepBoth` identity-fork fix only — does not repeat the full Phase
+    /// 2B-2 18-point matrix (that is `testControlledDevelopmentGuestMergeSmoke`
+    /// above). Gated by the exact same flags/credentials.
+    func testControlledDevelopmentSameIdKeepBothIdentityFork() async throws {
+        let emailA = environment("TEST_USER_A_EMAIL")
+        let passwordA = environment("TEST_USER_A_PASSWORD")
+        let authStoreA = AuthStore(
+            authService: SupabaseAuthService(configuration: try AuthConfiguration.load()),
+            accountService: UnavailableAccountService()
+        )
+        let signedInA = await authStoreA.signIn(email: emailA, password: passwordA)
+        XCTAssertTrue(signedInA, "development test account A sign-in failed")
+
+        let runner = GuestMergeSmokeRunner(smokeConfiguration: .load())
+        let passed = try await runner.runIdentityForkMinimalSmoke(authStoreA: authStoreA)
+        XCTAssertTrue(passed)
+
+        await authStoreA.signOut()
+    }
+
     private func environment(_ name: String) -> String {
         ProcessInfo.processInfo.environment[name] ?? ""
     }

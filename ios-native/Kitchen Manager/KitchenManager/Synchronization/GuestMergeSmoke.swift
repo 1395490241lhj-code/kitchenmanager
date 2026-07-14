@@ -471,6 +471,119 @@ final class GuestMergeSmokeRunner {
         return report
     }
 
+    /// Phase 2B-2.5: a minimal, dedicated hosted smoke for the same-id
+    /// `keepBoth` identity-fork fix only — never the full Phase 2B-2 18-point
+    /// matrix. Verifies, against the real backend: a same-id conflict
+    /// resolved as `keepBoth` creates a genuinely independent second remote
+    /// record (a fresh id, baseVersion 0), leaves the original untouched,
+    /// and that `rollback` only soft-deletes the fork. Cleans up both the
+    /// fork and the baseline marker itself before returning.
+    func runIdentityForkMinimalSmoke(authStoreA: AuthStore) async throws -> Bool {
+        guard smokeConfiguration.isSmokeEnabled else { throw GuestMergeSmokeError.smokeDisabled }
+        guard smokeConfiguration.isDevelopmentBuild else { throw GuestMergeSmokeError.nonDevelopmentBuild }
+        guard smokeConfiguration.isDevelopmentEnvironment, APIEnvironment.current == .development else {
+            throw GuestMergeSmokeError.nonDevelopmentEnvironment
+        }
+        guard smokeConfiguration.isMergeFeatureEnabled else { throw GuestMergeSmokeError.mergeFeatureDisabled }
+        guard let userIdA = authStoreA.currentUserID else { throw GuestMergeSmokeError.notAuthenticated }
+
+        let providerA = AuthStoreSyncTokenProvider(authStore: authStoreA)
+        let transportA = transportFactory(providerA)
+        let bootstrap = try await transportA.bootstrap()
+        guard let householdId = bootstrap.defaultHouseholdId else { throw GuestMergeSmokeError.missingDefaultHousehold }
+        let scope = SyncScope(type: .household, id: householdId)
+        let marker = String(UUID().uuidString.prefix(8)).lowercased()
+        let sharedId = UUID()
+
+        var cleanupIds: Set<UUID> = [sharedId]
+        let container = try ModelContainer(
+            for: InventoryRecord.self, ShoppingItemRecord.self, TodayPlanRecord.self,
+            ConsumptionRecordEntity.self, WeeklyPlanRecord.self,
+            SyncMetadataRecord.self, PendingMutationRecord.self, SyncCursorRecord.self, GuestMergeSessionRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        // Declared before the `do` so the failure path below can reuse the
+        // exact same persistence — a fresh throwaway container would have no
+        // knowledge of this run's already-staged SyncMetadata, causing a
+        // cleanup delete to (incorrectly) compute baseVersion 0 against a
+        // real, already-versioned remote record.
+        let persistence = SwiftDataSyncPersistence(modelContainer: container)
+        do {
+            let kitchenStore = KitchenStore(
+                userDefaults: UserDefaults(suiteName: "guest-merge-fork-smoke-\(marker)")!,
+                inventoryPersistence: SwiftDataInventoryPersistence(container: container),
+                shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
+                todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
+                consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
+                weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
+            )
+
+            // Baseline: establish a real, already-existing remote counterpart
+            // under `sharedId` (as if from another device), then this run's
+            // own local copy conflicts on quantity under the *same* id.
+            kitchenStore.inventory = [InventoryItem(id: sharedId, name: "__guest_merge_smoke_\(marker)_fork", quantity: 2, unit: "个", expiryDate: nil)]
+            let baselineController = GuestMergeController(
+                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
+            )
+            await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore)
+            await baselineController.confirmMerge(authStore: authStoreA)
+            guard baselineController.session?.status == .completed else {
+                throw GuestMergeSmokeError.validationFailed("baseline seeding did not complete")
+            }
+
+            kitchenStore.inventory = [InventoryItem(id: sharedId, name: "__guest_merge_smoke_\(marker)_fork", quantity: 5, unit: "个", expiryDate: nil)]
+            let controller = GuestMergeController(
+                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
+            )
+            await controller.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, remoteTransport: transportA)
+            guard controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.conflictReason == .quantityMismatch else {
+                throw GuestMergeSmokeError.validationFailed("expected quantity conflict against the real baseline")
+            }
+
+            await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
+            guard let forkedId = controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId else {
+                throw GuestMergeSmokeError.validationFailed("keepBoth did not allocate a forked id")
+            }
+            guard forkedId != sharedId else { throw GuestMergeSmokeError.validationFailed("forked id must differ from the original") }
+            cleanupIds.insert(forkedId)
+
+            await controller.confirmMerge(authStore: authStoreA)
+            guard controller.session?.status == .completed else {
+                throw GuestMergeSmokeError.validationFailed("confirm did not complete: \(String(describing: controller.session?.status))")
+            }
+            guard controller.session?.createdEntityIds == [forkedId] else {
+                throw GuestMergeSmokeError.validationFailed("createdEntityIds must contain only the forked id")
+            }
+
+            // Confirm on the real backend: both the original and the forked
+            // record now exist, under two different, specific ids (never a
+            // raw count, which the household's other real data could affect).
+            let remoteSnapshot = try await fetchRemoteInventorySnapshot(transport: transportA, scope: scope)
+            guard remoteSnapshot[sharedId] != nil else {
+                throw GuestMergeSmokeError.validationFailed("the original entity must still exist remotely, untouched")
+            }
+            guard remoteSnapshot[forkedId] != nil else {
+                throw GuestMergeSmokeError.validationFailed("the forked entity must exist remotely as an independent record")
+            }
+
+            await controller.rollback(authStore: authStoreA)
+            guard controller.session?.status == .rolledBack else {
+                throw GuestMergeSmokeError.validationFailed("rollback did not complete")
+            }
+
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            return true
+        } catch {
+            // Reuse the same persistence the failed attempt already staged
+            // into — it already knows the correct remote version for
+            // anything genuinely created so far, which a fresh throwaway
+            // container would not (and would therefore compute a wrong,
+            // rejected baseVersion 0 for the cleanup delete).
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            throw error
+        }
+    }
+
     /// Best-effort — never throws itself. Soft-deletes every tracked marker
     /// id via the same authorized sync boundary used throughout the run (no
     /// service-role key, no physical delete); ids that were never actually
@@ -490,21 +603,28 @@ final class GuestMergeSmokeRunner {
     }
 
     private func fetchRemoteInventoryCount(transport: any SyncTransport, scope: SyncScope) async throws -> Int {
+        try await fetchRemoteInventorySnapshot(transport: transport, scope: scope).count
+    }
+
+    /// Present entity ids only (deleted/tombstoned ids are absent) — used to
+    /// check specific ids exist, never as a raw count comparison (which
+    /// other real data in the same household could affect).
+    private func fetchRemoteInventorySnapshot(transport: any SyncTransport, scope: SyncScope) async throws -> [UUID: SyncCursorValue] {
         var cursor = SyncCursorValue.zero
-        var ids: Set<UUID> = []
+        var versions: [UUID: SyncCursorValue] = [:]
         var hasMore = true
         var pages = 0
         while hasMore && pages < 50 {
             let response = try await transport.fetchChanges(scope: scope, after: cursor, limit: 100)
             for change in response.changes where change.entityType == .inventoryItem {
-                if change.operation == .delete { ids.remove(change.entityId) } else { ids.insert(change.entityId) }
+                if change.operation == .delete { versions.removeValue(forKey: change.entityId) } else { versions[change.entityId] = change.version }
             }
             cursor = response.cursor
             hasMore = response.hasMore
             pages += 1
             if hasMore, response.changes.isEmpty { break }
         }
-        return ids.count
+        return versions
     }
 }
 

@@ -145,3 +145,53 @@ test('AuthStoreCredentialProvider holds only a weak AuthStore reference and re-q
   assert.match(providerSection, /weak var authStore: AuthStore\?/);
   assert.doesNotMatch(providerSection, /var\s+\w*[Tt]oken\w*\s*:/, 'the provider must never cache a token value on a stored property');
 });
+
+test('Phase 2B-2.5: same-id keepBoth forks a new UUID rather than re-using the existing remote entity id', () => {
+  assert.match(models, /var forkedLocalItemId: UUID\?/);
+  const applyingChoiceSection = models.slice(models.indexOf('func applyingChoice'));
+  assert.match(applyingChoiceSection, /forkedLocalItemId\s*=\s*\(remoteItemId == localItemId\)\s*\?\s*\(forkedLocalItemId \?\? UUID\(\)\)\s*:\s*nil/);
+});
+
+test('Phase 2B-2.5: the same-id keepBoth fork is always created at baseVersion 0, never inheriting the original entity\'s remote version', () => {
+  const forkSection = controller.slice(controller.indexOf('if let forkedId = candidate.forkedLocalItemId'), controller.indexOf('guard let localItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }'));
+  assert.match(forkSection, /forkedItem\.id = forkedId/);
+  // The fork must go through a plain stageUpsert on a never-before-seen id
+  // (no seeded/known remoteVersion attached to it), which is what makes
+  // InventorySyncAdapter.stageUpsert compute baseVersion as 0.
+  assert.doesNotMatch(forkSection, /remoteVersion: candidate\.remoteVersion/);
+});
+
+test('Phase 2B-2.5: the original entity id is never simultaneously staged as keepRemote/no-op and create for the same candidate', () => {
+  const stagingLoop = controller.slice(controller.indexOf('for candidate in toUpload'), controller.indexOf('let configuration = SyncConfiguration(isEnabled: true)'));
+  // The fork branch must `continue` immediately after staging the forked
+  // id, so control never falls through into staging `candidate.localItemId`
+  // (the original, certain remote entity) for the very same candidate.
+  const forkBranch = stagingLoop.slice(stagingLoop.indexOf('if let forkedId = candidate.forkedLocalItemId'), stagingLoop.indexOf('guard let localItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }'));
+  assert.match(forkBranch, /continue\s*\n\s*\}/, 'the fork branch must continue, never fall through to staging the original id too');
+});
+
+test('Phase 2B-2.5: rollback only ever references entity ids recorded in createdEntityIds (the fork), never the original candidate id directly', () => {
+  const rollbackSection = controller.slice(controller.indexOf('func rollback'));
+  assert.match(rollbackSection, /for entityId in current\.createdEntityIds/);
+  assert.doesNotMatch(rollbackSection, /candidate\.localItemId/);
+  // The read-back loop after upload must record the forked id (not the
+  // original localItemId) into createdEntityIds for a forked candidate.
+  const readBackSection = controller.slice(controller.indexOf('var uploaded = 0'), controller.indexOf('current.uploadedItemCount = uploaded'));
+  assert.match(readBackSection, /let entityIdToCheck = candidate\.forkedLocalItemId \?\? candidate\.localItemId/);
+  assert.match(readBackSection, /newCreatedIds\.append\(entityIdToCheck\)/);
+});
+
+test('Phase 2B-2.5: the different-id ambiguous-duplicate keepBoth path is unaffected — only same-id conflicts fork', () => {
+  const applyingChoiceSection = models.slice(models.indexOf('func applyingChoice'));
+  // The ternary keys the fork strictly off `remoteItemId == localItemId`;
+  // a different-id match (`remoteItemId != localItemId`) always resolves to
+  // `nil`, i.e. no fork, keeping its pre-existing `.create`-with-its-own-id
+  // behavior exactly as before.
+  assert.match(applyingChoiceSection, /remoteItemId == localItemId\)\s*\?\s*\(forkedLocalItemId \?\? UUID\(\)\)\s*:\s*nil/);
+});
+
+test('Phase 2B-2.5: default switches remain NO — no new flag was introduced for the identity-fork fix itself', () => {
+  for (const value of [sharedConfig, exampleConfig]) {
+    assert.match(value, /INVENTORY_SYNC_ENABLED\s*=\s*NO/);
+  }
+});

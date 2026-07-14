@@ -71,34 +71,90 @@ test-harness mistakes, not product bugs, and are recorded here for context:
    to query `guestMergeSession(id:)`, which remains valid for terminal
    sessions as history.
 
-## A confirmed follow-up (not fixed in this round)
+## Phase 2B-2.5: same-id `keepBoth` identity fork (fixed)
 
-Designing the real dataset surfaced that `InventoryMergeCandidate.applyingChoice(.keepBoth)`
-on a **same-id** conflict sets `action = .create` but does not allocate a new
-id — staging it would target an entity id that already exists remotely at a
-non-zero version, which the server should correctly reject as a stale-version
-conflict rather than produce an independent second record. `keepBoth` is only
-well-defined today for the **different-id** (ambiguous-duplicate) case, where
-the candidate's own id is already distinct. This round's smoke dataset uses
-`keepLocal`/`keepRemote` for same-id conflicts (the sensible choices when
-identity is certain) and reserves `keepBoth` for the ambiguous case, so the
-gap was not exercised. Fixing `keepBoth` to allocate a genuinely new id for a
-same-id candidate is real, additional Phase 2B-work, out of scope for this
-validation round, and not touched here.
+The original Phase 2B-2 round confirmed but deliberately did not fix a gap:
+`InventoryMergeCandidate.applyingChoice(.keepBoth)` on a **same-id** conflict
+(`remoteItemId == localItemId`) set `action = .create` without allocating a
+new id. Staging it would have targeted an entity id that already exists
+remotely at a non-zero version — the server would correctly reject it as a
+stale-version conflict (never a create, never an update, never a genuinely
+new independent record), so the user's "keep both" intent could never
+actually be satisfied for a same-id conflict.
+
+**Audit of the original behavior** (traced through the real code, not just
+asserted): `resolved()` in `InventoryMergePlanner.swift` always sets
+`action: .skip` for every classification — `.create`/`.update` only ever
+arise via `applyingChoice`, never from matching itself. For same-id
+`keepBoth`, `applyingChoice` set `action = .create` while leaving
+`localItemId`/`remoteItemId` untouched (both equal to the existing entity's
+real id). In `GuestMergeController.confirmMerge`'s staging loop, this
+candidate's local item was passed as-is to `InventorySyncAdapter.stageUpsert`,
+which computes `baseVersion` from local `SyncMetadata` — nil for a Guest
+device merging for the first time, so `baseVersion` came out `0`. Sent
+against a real, already-versioned remote entity, the server's optimistic-
+concurrency check would answer `conflict` (`stale_version`), never `applied`.
+So same-id `keepBoth` always eventually resolved to **conflict** — not
+create, not update, not rejected — leaving the item stuck, unresolvable
+through the merge UI.
+
+**Fix — identity fork, no new SwiftData model.** The simplest, transactionally
+safe option (over a separate `InventoryIdentityFork` record type) was chosen:
+`InventoryMergeCandidate` gained a `var forkedLocalItemId: UUID? = nil` field,
+already `Codable` and already persisted as part of `GuestMergeSession.plan` —
+no new table, no new persistence API, reusing the exact same restart-safe
+JSON-encoded plan storage Phase 2B-1 already built. `applyingChoice(.keepBoth)`
+now sets `forkedLocalItemId = (remoteItemId == localItemId) ? (forkedLocalItemId ?? UUID()) : nil`
+— generated once, reused verbatim on every subsequent call (the `?? UUID()`
+only fires the very first time; every later call, including after an App
+restart re-decodes the exact same persisted candidate, sees its own
+already-set value and keeps it). The different-id ambiguous-duplicate case is
+completely unaffected — its own id was already distinct, so it stays `nil`
+and keeps its pre-existing `.create`-with-its-own-id behavior.
+
+`confirmMerge`'s staging loop now checks `candidate.forkedLocalItemId` first:
+if set, it copies the local item's values under the forked id (`forkedItem.id
+= forkedId`) and stages *that* as a plain create (guarded so a retry never
+re-stages an already-created fork) — the original entity id is never touched
+at all for this candidate, a true no-op exactly like `keepRemote`. The
+read-back loop that populates `createdEntityIds` (used by `rollback`) was
+updated to key off `forkedLocalItemId` when present, so rollback only ever
+soft-deletes the fork, never the original.
+
+**Local semantics**: the original local Guest `InventoryRecord` is never
+mutated or deleted — `InventoryRecord.id` (the primary key) is never changed.
+The forked item is a genuinely new, independent local record (created via the
+same `stageUpsert` → `commitInventoryAndSync` path that already writes
+`InventoryRecord`), so after `keepBoth`, the local inventory list shows two
+distinct records: the original (still mapped to the original, untouched
+remote entity) and the fork (mapped to the new remote entity it created).
+
+**Verified idempotent and restart-safe**: repeated `resolveConflict`/
+`confirmMerge` calls never mint a second fork id or a second mutation
+(guarded on existing local `SyncMetadata` for the forked id); the forked id
+survives a simulated App restart (persisted in the plan); rollback only
+soft-deletes the fork and leaves the original remote record and the original
+local Guest record untouched; the different-id ambiguous-duplicate path is
+provably unaffected (dedicated regression test).
 
 ## Safety boundary
 
 `GuestMergeSmokeRunner` and `GuestMergeSmokeConfiguration` are compiled only
 for Debug builds (`#if DEBUG`). The runner has no App-startup, login, timer,
 or background hook — it is only ever invoked by the Debug-only
-`HostedGuestMergeSmokeTests.testControlledDevelopmentGuestMergeSmoke`, which
-itself `XCTSkip`s unless both smoke flags and two real test-account
-credential pairs are explicitly supplied via an ignored environment file. A
-thrown error at any stage triggers a best-effort soft-delete sweep of every
-marker id the run has created so far before rethrowing, so an interrupted run
-does not require manual cleanup; a one-off `scripts/cleanup-guest-merge-smoke-markers.mjs`
-(authorized user-level API only, no service-role key, no physical delete) is
-also available for recovering from an already-interrupted prior run.
+`HostedGuestMergeSmokeTests.testControlledDevelopmentGuestMergeSmoke` (the
+full 18-point matrix) or `testControlledDevelopmentSameIdKeepBothIdentityFork`
+(the Phase 2B-2.5 minimal fork-only check, added via a new
+`GuestMergeSmokeRunner.runIdentityForkMinimalSmoke` method — deliberately not
+a repeat of the full matrix), both of which `XCTSkip` unless both smoke flags
+and (for the full matrix) two, or (for the fork-only check) one, real
+test-account credential(s) are explicitly supplied via an ignored environment
+file. A thrown error at any stage triggers a best-effort soft-delete sweep of
+every marker id the run has created so far before rethrowing, so an
+interrupted run does not require manual cleanup; a one-off
+`scripts/cleanup-guest-merge-smoke-markers.mjs` (authorized user-level API
+only, no service-role key, no physical delete) is also available for
+recovering from an already-interrupted prior run.
 
 ## Validation status — 2026-07-14
 
@@ -157,3 +213,32 @@ also available for recovering from an already-interrupted prior run.
   vulnerabilities; `git diff --check` clean.
 - No real hosted Guest merge was left in a live/pending state; no test
   account was created; no automatic sync was enabled; nothing was pushed.
+
+## Validation status — 2026-07-14 (Phase 2B-2.5, same-id keepBoth identity fork)
+
+- 8 new offline `GuestMergeTests` cases (forking/baseVersion-0/expiry+metadata
+  variants/repeated-confirm idempotency/restart-survival/rollback-scoped-to-
+  fork/keepLocal+keepRemote-never-fork/different-id-ambiguous-regression) plus
+  a strengthened pre-existing test, all passing; 6 new Node semantic-guard
+  assertions (fork allocation, baseVersion-0 wiring, no simultaneous
+  keepRemote+create on the original id, rollback references only
+  `createdEntityIds`, different-id path unaffected, no new flag needed for
+  this fix) — Node 808/808, iOS Unit 515/515 (2 safe skips) + UI 4 (1 safe
+  skip), 0 failures.
+- Minimal real hosted smoke (`testControlledDevelopmentSameIdKeepBothIdentityFork`,
+  never a repeat of the full Phase 2B-2 matrix): seeded one real baseline
+  remote marker record, created a same-id local conflict, resolved it via
+  `keepBoth`, and confirmed on the real backend that both the original
+  (untouched, its own real id) and the forked record (a distinct real id,
+  created at baseVersion 0) exist simultaneously. Rollback then soft-deleted
+  only the forked record; the original was cleaned up afterward via the
+  existing best-effort marker sweep. Passed on the first real attempt.
+  `scripts/cleanup-guest-merge-smoke-markers.mjs` confirmed zero remaining
+  marker rows both before and after.
+- Safety flags restored to `NO` in the ignored `Local.xcconfig` afterward.
+- Final regression with flags restored: Node 808/808; iOS Unit 515/515 (2
+  safe skips — both `HostedGuestMergeSmokeTests` methods) + UI 4 (1 safe
+  skip), 0 failures; `ReceiptCompactListUITests` passed; Debug build 0
+  errors, no new warnings; `npm run smoke:sync` passed; `npm audit` 0
+  vulnerabilities; `git diff --check` clean; no secret values in any diff.
+- Still not entering Phase 2B-3; nothing pushed.

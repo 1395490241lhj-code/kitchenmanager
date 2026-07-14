@@ -174,7 +174,7 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(plan.candidates.first?.conflictReason, .metadataMismatch, "isStaple/threshold differences must not be silently overwritten by an upload")
     }
 
-    func testKeepBothIsTheOnlyChoiceThatCreatesASecondRecordForASameIdConflict() {
+    func testKeepBothIsTheOnlyChoiceThatCreatesASecondRecordForASameIdConflict() throws {
         // Same stable id on both sides (a certain, definite identity, not an
         // ambiguous different-id match) with a quantity conflict: keepLocal
         // and keepRemote must resolve in-place (never fabricate a second
@@ -186,8 +186,40 @@ final class GuestMergeTests: XCTestCase {
         )
         let candidate = try! XCTUnwrap(plan.candidates.first)
         XCTAssertEqual(candidate.applyingChoice(.keepRemote).action, .keepRemote)
+        XCTAssertNil(candidate.applyingChoice(.keepRemote).forkedLocalItemId)
         XCTAssertEqual(candidate.applyingChoice(.keepLocal).action, .update, "same id: keepLocal updates the existing remote record in place")
-        XCTAssertEqual(candidate.applyingChoice(.keepBoth).action, .create, "only keepBoth is allowed to produce a second record")
+        XCTAssertNil(candidate.applyingChoice(.keepLocal).forkedLocalItemId, "keepLocal never forks — it updates the certain, existing remote record")
+
+        let forked = candidate.applyingChoice(.keepBoth)
+        XCTAssertEqual(forked.action, .create, "only keepBoth is allowed to produce a second record")
+        let forkedId = try XCTUnwrap(forked.forkedLocalItemId, "same-id keepBoth must allocate a fresh id — the original remote entity already exists and must never be re-targeted by a create")
+        XCTAssertNotEqual(forkedId, candidate.localItemId)
+        XCTAssertNotEqual(forkedId, candidate.remoteItemId)
+
+        // Re-choosing keepBoth again (e.g. the user reopens the picker and
+        // taps the same option, or `resolveConflict` is called again before
+        // confirming) must reuse the exact same forked id, never mint a
+        // second one.
+        let forkedAgain = forked.applyingChoice(.keepBoth)
+        XCTAssertEqual(forkedAgain.forkedLocalItemId, forkedId)
+    }
+
+    func testDifferentIdAmbiguousKeepBothNeverForksAndKeepsUsingItsOwnId() {
+        // Regression check: the identity-fork fix must only ever apply to a
+        // *same-id* conflict. A different-id ambiguous-duplicate match
+        // already has its own distinct id, so `keepBoth` there is already
+        // correct as `.create` using that id — this must be completely
+        // unaffected by the same-id fork fix.
+        let local = InventoryItem(name: "番茄", quantity: 2, unit: "个", expiryDate: nil)
+        let plan = InventoryMergePlanner.makePlan(
+            sessionId: UUID(), householdId: householdA, localItems: [local],
+            knownRemoteItems: [RemoteInventorySnapshotItem(id: UUID(), name: "番茄", unit: "个", quantity: 3, expiryDate: nil)]
+        )
+        let candidate = try! XCTUnwrap(plan.candidates.first)
+        XCTAssertEqual(candidate.conflictReason, .ambiguousDuplicate)
+        let resolved = candidate.applyingChoice(.keepBoth)
+        XCTAssertEqual(resolved.action, .create)
+        XCTAssertNil(resolved.forkedLocalItemId, "a different-id ambiguous match must never allocate a fork — its own id is already distinct")
     }
 
     func testPlanHashIsStableForIdenticalInputAndChangesWhenLocalDataChanges() {
@@ -445,6 +477,208 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(metadata?.state, .synced)
         let sentBaseVersion = await transport.lastReceivedBaseVersion(for: sharedId)
         XCTAssertEqual(sentBaseVersion, "9", "must send the device's own already-known version 9 on the wire, never regress to the older snapshot-time version 5")
+    }
+
+    // MARK: - Same-id keepBoth identity fork (Phase 2B-2.5)
+
+    func testSameIdKeepBothForksAndCreatesUnderBaseVersionZero() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        let candidateBefore = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
+        XCTAssertEqual(candidateBefore.conflictReason, .quantityMismatch)
+
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
+        let resolvedCandidate = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
+        let forkedId = try XCTUnwrap(resolvedCandidate.forkedLocalItemId)
+        XCTAssertNotEqual(forkedId, sharedId)
+        await transport.clearRemoteChanges()
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .completed)
+        // The original entity is a true no-op — never touched by this candidate.
+        let originalMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: sharedId)
+        XCTAssertNil(originalMetadata)
+        // The fork is a genuinely new remote record created at baseVersion 0.
+        let forkedMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: forkedId)
+        XCTAssertEqual(forkedMetadata?.state, .synced)
+        let sentBaseVersion = await transport.lastReceivedBaseVersion(for: forkedId)
+        XCTAssertEqual(sentBaseVersion, "0", "the fork must always be created fresh, never inherit the original entity's remote version")
+        XCTAssertEqual(controller.session?.createdEntityIds, [forkedId])
+        // The forked item is also a genuine, independent local record.
+        let forkedLocalItem = try await persistence.inventoryItem(id: forkedId)
+        XCTAssertEqual(forkedLocalItem?.name, "苹果")
+        let originalLocalItem = try await persistence.inventoryItem(id: sharedId)
+        XCTAssertNotNil(originalLocalItem, "the original local Guest record must never be removed")
+    }
+
+    func testSameIdKeepBothForkWorksForExpiryAndMetadataConflictsToo() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let expirySharedId = UUID()
+        let metadataSharedId = UUID()
+        kitchen.inventory = [
+            InventoryItem(id: expirySharedId, name: "牛奶", quantity: 1, unit: "盒", expiryDate: Date()),
+            InventoryItem(id: metadataSharedId, name: "大米", quantity: 5, unit: "袋", expiryDate: nil, isStaple: true, lowStockThreshold: 2)
+        ]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: expirySharedId, name: "牛奶", unit: "盒", quantity: 1, version: "3", sequence: "1")
+        await transport.seedRemoteChange(id: metadataSharedId, name: "大米", unit: "袋", quantity: 5, version: "4", sequence: "2")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        XCTAssertEqual(controller.plan?.candidates.first(where: { $0.localItemId == expirySharedId })?.conflictReason, .expiryMismatch)
+        XCTAssertEqual(controller.plan?.candidates.first(where: { $0.localItemId == metadataSharedId })?.conflictReason, .metadataMismatch)
+
+        await controller.resolveConflict(candidateId: expirySharedId, choice: .keepBoth)
+        await controller.resolveConflict(candidateId: metadataSharedId, choice: .keepBoth)
+        let expiryForkId = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == expirySharedId })?.forkedLocalItemId)
+        let metadataForkId = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == metadataSharedId })?.forkedLocalItemId)
+        XCTAssertNotEqual(expiryForkId, expirySharedId)
+        XCTAssertNotEqual(metadataForkId, metadataSharedId)
+        await transport.clearRemoteChanges()
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .completed)
+        XCTAssertEqual(Set(controller.session?.createdEntityIds ?? []), Set([expiryForkId, metadataForkId]))
+        let expiryOriginalMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: expirySharedId)
+        let metadataOriginalMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: metadataSharedId)
+        XCTAssertNil(expiryOriginalMetadata)
+        XCTAssertNil(metadataOriginalMetadata)
+    }
+
+    func testSameIdKeepBothRepeatedConfirmNeverCreatesASecondForkOrMutation() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
+        let forkedId = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId)
+        await transport.clearRemoteChanges()
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        let appliedCountAfterFirstConfirm = await transport.appliedCount()
+        XCTAssertEqual(appliedCountAfterFirstConfirm, 1)
+
+        // Re-confirming an already-`.completed` session is already a guarded
+        // no-op (`confirmMerge`'s status guard) — resolving the same
+        // conflict choice again and re-confirming must still never mint a
+        // second fork id or a second mutation for it.
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
+        XCTAssertEqual(controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId, forkedId)
+        await controller.confirmMerge(authStore: authStore)
+        let appliedCountAfterSecondConfirm = await transport.appliedCount()
+        XCTAssertEqual(appliedCountAfterSecondConfirm, 1, "re-confirming must never re-stage or duplicate the already-created fork")
+    }
+
+    func testSameIdKeepBothForkedIdSurvivesSimulatedRestart() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controllerBeforeRestart = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controllerBeforeRestart.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controllerBeforeRestart.resolveConflict(candidateId: sharedId, choice: .keepBoth)
+        let forkedId = try XCTUnwrap(controllerBeforeRestart.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId)
+
+        let controllerAfterRestart = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controllerAfterRestart.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        XCTAssertEqual(
+            controllerAfterRestart.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId,
+            forkedId, "the forked id must survive an App restart, never be regenerated"
+        )
+    }
+
+    func testSameIdKeepBothRollbackOnlyRemovesForkAndKeepsOriginal() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
+        let forkedId = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId)
+        await transport.clearRemoteChanges()
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+
+        await controller.rollback(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let forkedIsSoftDeleted = await transport.isSoftDeleted(forkedId)
+        XCTAssertTrue(forkedIsSoftDeleted)
+        // The original remote entity (same id as this device's local Guest
+        // item) was never touched by this session at all, so it was never a
+        // candidate for rollback either.
+        let originalLocalItem = try await persistence.inventoryItem(id: sharedId)
+        XCTAssertNotNil(originalLocalItem, "the original local Guest record must never be deleted by rollback")
+    }
+
+    func testSameIdKeepLocalNeverForksAndKeepRemoteNeverStagesAnything() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let keepLocalId = UUID()
+        let keepRemoteId = UUID()
+        kitchen.inventory = [
+            InventoryItem(id: keepLocalId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil),
+            InventoryItem(id: keepRemoteId, name: "香蕉", quantity: 1, unit: "根", expiryDate: nil)
+        ]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: keepLocalId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        await transport.seedRemoteChange(id: keepRemoteId, name: "香蕉", unit: "根", quantity: 2, version: "2", sequence: "2")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: keepLocalId, choice: .keepLocal)
+        await controller.resolveConflict(candidateId: keepRemoteId, choice: .keepRemote)
+        XCTAssertNil(controller.plan?.candidates.first(where: { $0.localItemId == keepLocalId })?.forkedLocalItemId)
+        XCTAssertNil(controller.plan?.candidates.first(where: { $0.localItemId == keepRemoteId })?.forkedLocalItemId)
+        await transport.clearRemoteChanges()
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .completed)
+        // keepLocal: the original id was updated using the seeded remote version.
+        let keepLocalBaseVersion = await transport.lastReceivedBaseVersion(for: keepLocalId)
+        XCTAssertEqual(keepLocalBaseVersion, "5")
+        // keepRemote: nothing was ever staged for this candidate at all.
+        let keepRemoteBaseVersion = await transport.lastReceivedBaseVersion(for: keepRemoteId)
+        XCTAssertNil(keepRemoteBaseVersion)
     }
 
     func testSnapshotIsCappedButPlanStillCoversEveryLocalItemBeyondTheCap() async throws {

@@ -77,7 +77,33 @@ A conflict only becomes upload-eligible after an explicit
 | --- | --- |
 | `keepLocal` | `update` if same id, else `create` (never takes over a different id's remote record) |
 | `keepRemote` | `keepRemote` (never uploaded) |
-| `keepBoth` | `create` (always a new remote record) |
+| `keepBoth` | `create` — using `candidate.localItemId` if the match was different-id (already distinct); using a freshly allocated `forkedLocalItemId` if the match was same-id (Phase 2B-2.5 — see below), never the original id |
+
+### Same-id `keepBoth` identity fork (Phase 2B-2.5)
+
+A same-id match means the remote entity's identity is certain, so `keepBoth`
+cannot mean "create using that same id" — it already exists remotely at a
+real, non-zero version, and a create attempt against it would (correctly)
+be rejected as a stale-version conflict, never producing an actual second
+record. `InventoryMergeCandidate.forkedLocalItemId: UUID?` — part of the
+already-persisted `plan`, no separate SwiftData model — holds a fresh id,
+allocated once by `applyingChoice(.keepBoth)` (`forkedLocalItemId ?? UUID()`)
+and reused verbatim on every later call (repeated choice, repeated confirm,
+or after an App restart re-decodes the same persisted candidate).
+
+`confirmMerge`'s staging loop checks `forkedLocalItemId` first: when set, it
+copies the local item's values under the forked id and stages that as a
+plain create at `baseVersion` 0 (guarded on the forked id's own local
+`SyncMetadata` being absent, so a retry never re-stages an already-created
+fork) — `candidate.localItemId` (the original, certain entity) is never
+touched by this candidate at all, a true no-op exactly like `keepRemote`.
+`createdEntityIds` (and therefore `rollback`) key off the forked id, not the
+original, so rollback only ever soft-deletes the fork. The local inventory
+ends up with two independent `InventoryRecord`s: the original (its id never
+mutated, still mapped to the original remote entity) and the fork (mapped to
+the newly created one). Different-id ambiguous-duplicate `keepBoth` is
+unaffected — its own id is already distinct, so `forkedLocalItemId` stays
+`nil` there and it keeps using `candidate.localItemId` as before.
 
 ## Plan hash
 

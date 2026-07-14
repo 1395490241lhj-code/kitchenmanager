@@ -288,26 +288,47 @@ nonisolated struct InventoryMergeCandidate: Identifiable, Codable, Equatable, Se
     var action: InventoryMergeAction
     var conflictReason: InventoryMergeConflictReason?
     var userChoice: InventoryMergeConflictChoice?
+    /// Set only by `keepBoth` on a **same-id** conflict (`remoteItemId ==
+    /// localItemId`) — the existing remote entity is certain, so "keep both"
+    /// cannot mean "create using the same id" (that would collide with a
+    /// real, already-versioned remote row). This is the fresh, stable id the
+    /// local copy is forked under instead; `GuestMergeController.confirmMerge`
+    /// stages a `create` for *this* id, never `localItemId`, and never
+    /// touches the original remote record. Generated once by
+    /// `applyingChoice` and reused verbatim on every subsequent call (repeat
+    /// confirmation, retry, or restart) — never regenerated. For the
+    /// different-id ambiguous-duplicate case, `keepBoth`'s existing
+    /// `.create` behavior (using the candidate's own already-distinct id) is
+    /// unchanged and this stays `nil`.
+    var forkedLocalItemId: UUID? = nil
 
     /// A conflict that still needs an explicit user decision before it can
     /// be included in an upload batch.
     var needsDecision: Bool { conflictReason != nil && userChoice == nil }
 
     /// Explicit, user-driven resolution — never automatic. `keepRemote` never
-    /// uploads local's conflicting value; `keepBoth` always creates a new
-    /// remote record rather than overwriting the other match; `keepLocal`
-    /// updates the same remote record only when the match was the same
-    /// stable id (never takes over an ambiguous different-id match).
+    /// uploads local's conflicting value; `keepLocal` updates the same
+    /// remote record only when the match was the same stable id (never
+    /// takes over an ambiguous different-id match). `keepBoth` always
+    /// produces an independent second record: for a different-id ambiguous
+    /// match, the candidate's own id is already distinct, so `.create`
+    /// using it is already correct; for a **same-id** match, the existing
+    /// remote entity is certain and must never be re-targeted by a create,
+    /// so a fresh `forkedLocalItemId` is allocated (once) and `.create`
+    /// applies to that id instead.
     func applyingChoice(_ choice: InventoryMergeConflictChoice) -> InventoryMergeCandidate {
         var copy = self
         copy.userChoice = choice
         switch choice {
         case .keepLocal:
             copy.action = (remoteItemId == localItemId) ? .update : .create
+            copy.forkedLocalItemId = nil
         case .keepRemote:
             copy.action = .keepRemote
+            copy.forkedLocalItemId = nil
         case .keepBoth:
             copy.action = .create
+            copy.forkedLocalItemId = (remoteItemId == localItemId) ? (forkedLocalItemId ?? UUID()) : nil
         }
         return copy
     }

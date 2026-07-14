@@ -109,6 +109,13 @@ Conflicts require an explicit `InventoryMergeConflictChoice`
 Partial commit is supported: `InventoryMergePlan.readyToUpload` uploads only
 candidates that don't need a decision, leaving unresolved conflicts pending.
 
+`keepBoth` on a **same-id** conflict (identity certain) allocates a fresh,
+stable `forkedLocalItemId` (Phase 2B-2.5) rather than re-using the existing
+entity's id — see "Same-id `keepBoth` identity fork" below. On a
+**different-id** ambiguous match, the candidate's own id is already
+distinct, so `keepBoth` there is already correct as `.create` using that id,
+unaffected by the fork mechanism.
+
 The plan is content-addressed (`planHash`, SHA-256 over sorted item
 id/quantity/unit/expiry) and re-validated against current local inventory
 before any resume; editing Guest inventory after a preview was generated
@@ -156,15 +163,31 @@ an already-`rolledBack` session is a no-op). It never touches a pre-existing
 remote record, a record the user chose `keepRemote` for, or any local Guest
 data — local inventory is never deleted by rollback.
 
+## Same-id `keepBoth` identity fork (Phase 2B-2.5)
+
+A same-id conflict means the remote entity's identity is *certain* — staging
+a `create` for that same id would collide with a real, already-versioned
+remote row. `InventoryMergeCandidate.forkedLocalItemId` (`UUID?`, part of the
+already-persisted `plan`, no new SwiftData model) holds a fresh id allocated
+once by `applyingChoice(.keepBoth)` and reused verbatim on every later call
+— an App restart, a repeated conflict-choice selection, or a repeated
+`confirmMerge` call all see the same already-set value, never regenerate it.
+
+`confirmMerge` checks `forkedLocalItemId` first: when set, it copies the
+local item's values under the forked id and stages that as a plain create
+(`baseVersion` 0, guarded so a retry never re-stages an already-created
+fork) — the original entity id is never touched by this candidate at all,
+exactly like `keepRemote`. `createdEntityIds` (and therefore `rollback`)
+key off the forked id, never the original, so rollback only ever removes
+the fork; the original remote record and the original local Guest
+`InventoryRecord` (its id, never mutated) are untouched. The local inventory
+ends up with two independent records: the original (still mapped to the
+original remote entity) and the fork (mapped to the newly created one). The
+different-id ambiguous-duplicate case is completely unaffected — its own id
+is already distinct, so `forkedLocalItemId` stays `nil` there.
+
 ## Not yet implemented
 
-- `InventoryMergeConflictChoice.keepBoth` on a **same-id** conflict does not
-  allocate a new id — staging it would target an entity id that already
-  exists remotely at a non-zero version, which the server should correctly
-  reject rather than produce an independent second record. `keepBoth` is
-  only well-defined today for the **different-id** (ambiguous-duplicate)
-  case. Confirmed during Phase 2B-2 hosted validation; not fixed there — see
-  `docs/GUEST_MERGE_PHASE2B2_VALIDATION.md`.
 - Shopping, Today Plan, Weekly Plan, or Recipe merge (out of scope for all of
   Phase 2B).
 - Background sync, Realtime, or household invitation.

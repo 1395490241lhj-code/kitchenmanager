@@ -279,6 +279,26 @@ final class GuestMergeController: ObservableObject {
             try await persistence.saveGuestMergeSession(current)
 
             for candidate in toUpload {
+                if let forkedId = candidate.forkedLocalItemId {
+                    // Same-id `keepBoth`: the existing remote entity
+                    // (`candidate.localItemId`) is certain and is never
+                    // touched here (a true no-op for it, like `keepRemote`).
+                    // Instead, stage a genuinely new local record — a copy
+                    // of the local values under the fresh, stable forked id
+                    // — and create *that* remotely. Guarded so a retry/
+                    // re-confirm never re-stages (and never re-mints a
+                    // mutationId for) an already-in-flight or already-synced
+                    // fork; the coordinator's own pending-mutation retry
+                    // logic handles anything still unresolved.
+                    guard try await persistence.metadata(entityType: .inventoryItem, entityId: forkedId) == nil else { continue }
+                    guard let originalItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }
+                    var forkedItem = originalItem
+                    forkedItem.id = forkedId
+                    forkedItem.createdAt = Date()
+                    forkedItem.updatedAt = Date()
+                    _ = try await adapter.stageUpsert(item: forkedItem, scope: scope)
+                    continue
+                }
                 guard let localItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }
                 // An `.update` candidate matched a remote record this device
                 // never uploaded itself (learned about only via the
@@ -332,12 +352,16 @@ final class GuestMergeController: ObservableObject {
             for index in plan.candidates.indices {
                 let candidate = plan.candidates[index]
                 guard toUpload.contains(where: { $0.localItemId == candidate.localItemId }) else { continue }
-                guard let metadata = try await persistence.metadata(entityType: .inventoryItem, entityId: candidate.localItemId) else { continue }
+                // A same-id `keepBoth` fork's outcome lives under
+                // `forkedLocalItemId`, not `localItemId` — the original
+                // entity id is never staged for this candidate at all.
+                let entityIdToCheck = candidate.forkedLocalItemId ?? candidate.localItemId
+                guard let metadata = try await persistence.metadata(entityType: .inventoryItem, entityId: entityIdToCheck) else { continue }
                 switch metadata.state {
                 case .synced:
                     uploaded += 1
-                    if candidate.action == .create, !newCreatedIds.contains(candidate.localItemId) {
-                        newCreatedIds.append(candidate.localItemId)
+                    if candidate.action == .create, !newCreatedIds.contains(entityIdToCheck) {
+                        newCreatedIds.append(entityIdToCheck)
                     }
                 case .conflicted:
                     conflicted += 1
