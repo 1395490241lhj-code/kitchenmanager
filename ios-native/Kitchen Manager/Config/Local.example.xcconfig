@@ -3,3 +3,6 @@
 SUPABASE_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
 SUPABASE_PUBLISHABLE_KEY = YOUR_PUBLISHABLE_KEY
 SYNC_ENABLED = NO
+SYNC_SMOKE_ENABLED = NO
+// Required in addition to both flags for a one-off development smoke.
+SYNC_SMOKE_ENVIRONMENT = development

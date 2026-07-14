@@ -26,6 +26,10 @@
 	<string>$(SUPABASE_URL)</string>
 	<key>KM_SYNC_ENABLED</key>
 	<string>$(SYNC_ENABLED)</string>
+	<key>KM_SYNC_SMOKE_ENABLED</key>
+	<string>$(SYNC_SMOKE_ENABLED)</string>
+	<key>KM_SYNC_SMOKE_ENVIRONMENT</key>
+	<string>$(SYNC_SMOKE_ENVIRONMENT)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>

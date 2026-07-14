@@ -625,8 +625,11 @@ private struct ReceiptIngredientCompactRow: View {
                     onDelete()
                 } label: {
                     Image(systemName: "trash")
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .padding(.vertical, -13)
                 .accessibilityIdentifier("receiptItemDelete")
             }
 

@@ -32,7 +32,10 @@ actor SyncCoordinator {
 
     /// Explicit test/manual boundary only. Phase 2A-3 deliberately has no call
     /// site in App startup, AuthStore, background tasks, or inventory screens.
-    func runOnce(authentication: SyncAuthenticationContext?) async -> SyncRunOutcome {
+    func runOnce(
+        authentication: SyncAuthenticationContext?,
+        scopes requestedScopes: Set<SyncScope>? = nil
+    ) async -> SyncRunOutcome {
         guard configuration.isEnabled else {
             runState = .disabled
             return .disabled
@@ -52,12 +55,24 @@ actor SyncCoordinator {
                   bootstrap.user.id == authentication.userID else {
                 throw SyncError.invalidConfiguration
             }
-            guard !bootstrap.syncScopes.isEmpty else {
+            let availableScopes = bootstrap.syncScopes
+            guard !availableScopes.isEmpty else {
                 runState = .paused
                 return .paused(.forbidden)
             }
 
-            for descriptor in bootstrap.syncScopes {
+            let selectedScopes: [SyncScopeDescriptor]
+            if let requestedScopes {
+                selectedScopes = availableScopes.filter { requestedScopes.contains($0.scope) }
+                guard selectedScopes.count == requestedScopes.count else {
+                    runState = .paused
+                    return .paused(.forbidden)
+                }
+            } else {
+                selectedScopes = availableScopes
+            }
+
+            for descriptor in selectedScopes {
                 try await push(scope: descriptor.scope)
                 try await pull(scope: descriptor.scope)
             }

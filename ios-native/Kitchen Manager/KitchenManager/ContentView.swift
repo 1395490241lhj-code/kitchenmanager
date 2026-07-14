@@ -5,6 +5,9 @@ struct KitchenManagerApp: App {
     @StateObject private var recipeStore: RecipeStore
     @StateObject private var kitchenStore: KitchenStore
     @StateObject private var authStore: AuthStore
+    #if DEBUG
+    @StateObject private var syncSmokeController: SyncSmokeController
+    #endif
     @StateObject private var navigationStore = AppNavigationStore()
     @StateObject private var recommendationStore = HomeRecommendationStore()
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
@@ -27,6 +30,11 @@ struct KitchenManagerApp: App {
             )
         )
         _authStore = StateObject(wrappedValue: AuthenticationAssembly.make())
+        #if DEBUG
+        _syncSmokeController = StateObject(
+            wrappedValue: SyncSmokeController(persistence: persistence.sync)
+        )
+        #endif
     }
 
     var body: some Scene {
@@ -37,6 +45,9 @@ struct KitchenManagerApp: App {
                 .environmentObject(navigationStore)
                 .environmentObject(recommendationStore)
                 .environmentObject(authStore)
+                #if DEBUG
+                .environmentObject(syncSmokeController)
+                #endif
                 .preferredColorScheme((AppAppearance(rawValue: appearanceRawValue) ?? .system).colorScheme)
         }
     }
@@ -122,4 +133,9 @@ struct ContentView: View {
         .environmentObject(AppNavigationStore())
         .environmentObject(HomeRecommendationStore())
         .environmentObject(AuthStore.guestPreview())
+        #if DEBUG
+        .environmentObject(SyncSmokeController(
+            persistence: KitchenPersistenceFactory.isolatedInMemory().sync
+        ))
+        #endif
 }

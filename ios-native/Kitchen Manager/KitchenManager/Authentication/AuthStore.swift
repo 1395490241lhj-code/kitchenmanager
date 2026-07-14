@@ -140,6 +140,13 @@ final class AuthStore: ObservableObject {
         (error as? AuthenticationError)?.localizedDescription
             ?? AuthenticationError.unavailable.localizedDescription
     }
+
+    #if DEBUG
+    /// Read only by the explicitly confirmed development sync smoke. The
+    /// session remains in Keychain-owned auth storage; this does not persist,
+    /// refresh, or log its access token.
+    func developmentSyncSmokeSession() -> AuthSession? { session }
+    #endif
 }
 
 extension AuthStore {

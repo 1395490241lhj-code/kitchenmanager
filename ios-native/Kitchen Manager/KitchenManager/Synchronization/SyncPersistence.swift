@@ -11,7 +11,9 @@ protocol SyncPersistenceProtocol: Actor {
     func saveMetadata(_ metadata: SyncMetadata) throws
     func deleteMetadata(entityType: SyncEntityType, entityId: UUID) throws
     func pendingMutations(scope: SyncScope, maxAttempts: Int) throws -> [PendingMutation]
+    func pendingMutation(id: UUID) throws -> PendingMutation?
     func savePending(_ mutation: PendingMutation) throws
+    func discardPendingMutation(id: UUID) throws
     func markInFlight(ids: [UUID], attemptedAt: Date, maxAttempts: Int) throws
     func resolvePending(_ result: SyncMutationResult, resolvedAt: Date) throws
     func markPendingFailed(ids: [UUID], code: String, attemptedAt: Date, maxAttempts: Int) throws
@@ -80,6 +82,14 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
         }
     }
 
+    func pendingMutation(id: UUID) throws -> PendingMutation? {
+        var descriptor = FetchDescriptor<PendingMutationRecord>(predicate: #Predicate { $0.mutationId == id })
+        descriptor.fetchLimit = 1
+        guard let record = try modelContext.fetch(descriptor).first else { return nil }
+        guard let value = record.value else { throw SyncError.persistence }
+        return value
+    }
+
     func savePending(_ mutation: PendingMutation) throws {
         let id = mutation.mutationId
         var descriptor = FetchDescriptor<PendingMutationRecord>(predicate: #Predicate { $0.mutationId == id })
@@ -87,6 +97,19 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
         guard try modelContext.fetch(descriptor).isEmpty else { return }
         modelContext.insert(PendingMutationRecord(mutation: mutation))
         try commit()
+    }
+
+    /// Removes one explicitly identified pending mutation. It is deliberately
+    /// never used by ordinary inventory flows; Phase 2A-4 uses it only after
+    /// recording a development-smoke conflict so the same marked record can be
+    /// soft-deleted with the server's current version.
+    func discardPendingMutation(id: UUID) throws {
+        var descriptor = FetchDescriptor<PendingMutationRecord>(predicate: #Predicate { $0.mutationId == id })
+        descriptor.fetchLimit = 1
+        if let record = try modelContext.fetch(descriptor).first {
+            modelContext.delete(record)
+            try commit()
+        }
     }
 
     func markInFlight(ids: [UUID], attemptedAt: Date, maxAttempts: Int) throws {
@@ -288,7 +311,9 @@ actor FailingSyncPersistence: SyncPersistenceProtocol {
     func saveMetadata(_ metadata: SyncMetadata) throws { throw SyncError.persistence }
     func deleteMetadata(entityType: SyncEntityType, entityId: UUID) throws { throw SyncError.persistence }
     func pendingMutations(scope: SyncScope, maxAttempts: Int) throws -> [PendingMutation] { throw SyncError.persistence }
+    func pendingMutation(id: UUID) throws -> PendingMutation? { throw SyncError.persistence }
     func savePending(_ mutation: PendingMutation) throws { throw SyncError.persistence }
+    func discardPendingMutation(id: UUID) throws { throw SyncError.persistence }
     func markInFlight(ids: [UUID], attemptedAt: Date, maxAttempts: Int) throws { throw SyncError.persistence }
     func resolvePending(_ result: SyncMutationResult, resolvedAt: Date) throws { throw SyncError.persistence }
     func markPendingFailed(ids: [UUID], code: String, attemptedAt: Date, maxAttempts: Int) throws { throw SyncError.persistence }

@@ -53,6 +53,48 @@ nonisolated struct InventorySyncAdapter: Sendable {
         return mutationId
     }
 
+    #if DEBUG
+    /// Development-smoke-only path for exercising the server's optimistic
+    /// conflict response. It is not compiled into Release and has no ordinary
+    /// inventory UI caller.
+    func stageSmokeUpsert(
+        item: InventoryItem,
+        scope: SyncScope,
+        staleBaseVersion: SyncCursorValue,
+        now: Date = Date(),
+        mutationId: UUID = UUID()
+    ) async throws -> UUID {
+        let existing = try await persistence.metadata(entityType: .inventoryItem, entityId: item.id)
+        let metadata = SyncMetadata(
+            entityType: .inventoryItem,
+            entityId: item.id,
+            scope: scope,
+            remoteVersion: existing?.remoteVersion,
+            state: .pendingUpdate,
+            lastSyncedAt: existing?.lastSyncedAt,
+            lastErrorCode: nil,
+            lastErrorAt: nil,
+            deletedAt: nil,
+            updatedAt: now
+        )
+        let mutation = try pendingMutation(
+            id: mutationId,
+            item: item,
+            scope: scope,
+            operation: .upsert,
+            baseVersion: staleBaseVersion,
+            now: now
+        )
+        try await persistence.commitInventoryAndSync(
+            item: item,
+            removeInventory: false,
+            metadata: metadata,
+            mutation: mutation
+        )
+        return mutationId
+    }
+    #endif
+
     func stageDelete(
         entityId: UUID,
         scope: SyncScope,

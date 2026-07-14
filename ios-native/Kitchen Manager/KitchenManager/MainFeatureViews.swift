@@ -426,8 +426,14 @@ struct SettingsView: View {
     @EnvironmentObject private var store: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var authStore: AuthStore
+    #if DEBUG
+    @EnvironmentObject private var syncSmokeController: SyncSmokeController
+    #endif
     @State private var isShowingPermissionDeniedAlert = false
     @State private var isShowingClearDataAlert = false
+    #if DEBUG
+    @State private var isShowingSyncSmokeConfirmation = false
+    #endif
 
     private var appearance: Binding<AppAppearance> {
         Binding(
@@ -539,10 +545,23 @@ struct SettingsView: View {
             }
 
             #if DEBUG
-            Section("开发者") {
-                Text("当前使用内置 AI 与 Render 后端；技术配置不在正式版本显示。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+            if syncSmokeController.isAvailable {
+                Section("开发者") {
+                    Text("当前使用内置 AI 与 Render 后端；技术配置不在正式版本显示。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Button("Run Sync Smoke") { isShowingSyncSmokeConfirmation = true }
+                        .disabled(syncSmokeController.isRunning)
+                    if syncSmokeController.isRunning {
+                        ProgressView("Running development sync smoke…")
+                    }
+                    if let message = syncSmokeController.statusMessage {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("sync-smoke-status")
+                    }
+                }
             }
             #endif
         }
@@ -566,6 +585,22 @@ struct SettingsView: View {
         } message: {
             Text("这会删除本机的库存、常备设置、计划、买菜清单、用户菜谱、收藏和常做记录，无法撤销。远端菜谱库不会被删除。")
         }
+        #if DEBUG
+        .alert("Run Sync Smoke?", isPresented: $isShowingSyncSmokeConfirmation) {
+            Button("Run", role: .destructive) {
+                Task {
+                    await syncSmokeController.run(
+                        authStore: authStore,
+                        kitchenStore: store,
+                        recipeStore: recipeStore
+                    )
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will create development test data in Supabase")
+        }
+        #endif
     }
 
     private func handleNotificationsToggle(_ newValue: Bool) {

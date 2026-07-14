@@ -9,7 +9,7 @@ import Foundation
 /// diverge would risk silently pointing debug builds at a dead address.
 /// If a real staging backend is ever stood up, only this one place needs
 /// to change.
-nonisolated enum APIEnvironment: Sendable {
+nonisolated enum APIEnvironment: Sendable, Equatable {
     case production
     case development
 

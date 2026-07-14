@@ -218,6 +218,9 @@ function rpcShape(entityType, entityId, operation, baseVersion, data, mutationId
 }
 
 async function assertRepresentativeEntities(config, session, household, personal, cleanup) {
+  const before = await bootstrap(config, session);
+  const householdCursor = householdScope(before).cursor;
+  const personalCursor = personalScope(before, session.userId).cursor;
   const now = new Date().toISOString();
   const today = now.slice(0, 10);
   const weeklyId = randomUUID();
@@ -236,8 +239,8 @@ async function assertRepresentativeEntities(config, session, household, personal
     const result = await apply(config, session, scope, rpcShape(entityType, entityId, 'upsert', 0, data));
     cleanup.set(entityId, { entityType, version: Number(result.version), scope });
   }
-  const householdFeed = await pull(config, session, household, 0, 100, null);
-  const personalFeed = await pull(config, session, personal, 0, 100, null);
+  const householdFeed = await pull(config, session, household, householdCursor, 100, null);
+  const personalFeed = await pull(config, session, personal, personalCursor, 100, null);
   const personalIds = new Set(entries.filter(([scope]) => scope.type === 'user').map(([, , id]) => id));
   assert.ok(!householdFeed.changes.some(item => personalIds.has(item.entityId)), 'household cursor leaked personal changes');
   assert.ok(personalFeed.changes.filter(item => personalIds.has(item.entityId)).length >= 2);
@@ -270,6 +273,7 @@ async function assertExpressContract(config, a, b, scope, forbiddenScope) {
   assert.equal(missing.response.status, 401);
   const bootstrapResult = await expressRequest(config, a, '/api/sync/bootstrap');
   assert.equal(bootstrapResult.response.status, 200);
+  const expressCursor = householdScope(bootstrapResult.body).cursor;
   const bootstrapB = await expressRequest(config, b, '/api/sync/bootstrap');
   assert.equal(bootstrapB.response.status, 200);
   const forbidden = await expressRequest(
@@ -292,7 +296,7 @@ async function assertExpressContract(config, a, b, scope, forbiddenScope) {
   const version = created.body.results[0].version;
   const pulled = await expressRequest(
     config, a,
-    `/api/sync/changes?scopeType=household&scopeId=${scope.id}&cursor=0&limit=100&entityTypes=inventory_item`
+    `/api/sync/changes?scopeType=household&scopeId=${scope.id}&cursor=${expressCursor}&limit=100&entityTypes=inventory_item`
   );
   assert.equal(pulled.response.status, 200);
   assert.ok(pulled.body?.changes?.some(item => item.entityId === entityId));

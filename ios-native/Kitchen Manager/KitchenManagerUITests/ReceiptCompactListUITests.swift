@@ -66,7 +66,12 @@ final class ReceiptCompactListUITests: XCTestCase {
         var hittableDeleteButton: XCUIElement?
         for index in 0..<deleteButtons.count {
             let candidate = deleteButtons.element(boundBy: index)
-            if candidate.isHittable {
+            // Xcode 27 can report a recycled row under the navigation/status
+            // area as hittable even though a synthesized tap is intercepted.
+            // Exercise a control fully inside the visible content viewport.
+            let frame = candidate.frame
+            let isInsideContent = frame.minY >= 100 && frame.maxY <= app.frame.maxY - 100
+            if candidate.isHittable && isInsideContent {
                 hittableDeleteButton = candidate
                 break
             }
