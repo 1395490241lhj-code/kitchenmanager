@@ -923,6 +923,95 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(controller.session?.status, .rolledBack)
     }
 
+    /// Reproduction for the Phase 2B-9 physical-device finding: the real
+    /// device's audit ledger showed Rollback reporting `.rolledBack` while
+    /// the server never received a `delete` mutation at all. Root cause:
+    /// `activeGuestMergeSession` treated `.completed` as terminal, so if the
+    /// controller is re-created (App relaunch, or the merge screen
+    /// re-entered) any time between a successful merge and the user tapping
+    /// Rollback, `preparePreview` couldn't find the just-completed session as
+    /// "active" and silently started over from a fresh preview — orphaning
+    /// the original session's `createdEntityIds`/`rollbackAvailableUntil`.
+    /// `activeGuestMergeSession` now also keeps surfacing a `.completed`
+    /// session while it is still within its rollback window.
+    func testRollbackAfterControllerRelaunchStillDeletesSessionCreatedRecord() async throws {
+        let (kitchen, sharedPersistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controllerA = GuestMergeController(persistence: sharedPersistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        await controllerA.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controllerA.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controllerA.session?.status, .completed)
+        let sessionId = try XCTUnwrap(controllerA.session?.id)
+        let itemId = try XCTUnwrap(controllerA.session?.createdEntityIds.first)
+
+        // Simulate an App relaunch between the merge completing and the user
+        // tapping Rollback: a brand-new persistence actor over the same
+        // on-disk container, and a brand-new controller instance — exactly
+        // what a fresh `InventoryMergePromptView`/result screen would do.
+        let relaunchedPersistence = SwiftDataSyncPersistence(modelContainer: sharedPersistence.modelContainer)
+        let controllerB = GuestMergeController(persistence: relaunchedPersistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        await controllerB.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        XCTAssertEqual(controllerB.session?.id, sessionId, "the completed, still-rollback-eligible session must survive a relaunch's preparePreview, not be silently replaced")
+        XCTAssertEqual(controllerB.session?.createdEntityIds, [itemId])
+
+        await controllerB.rollback(authStore: authStore)
+
+        XCTAssertEqual(controllerB.session?.status, .rolledBack)
+        let deletedRemotely = await transport.isSoftDeleted(itemId)
+        XCTAssertTrue(deletedRemotely, "rollback must never report .rolledBack unless the entity this session created was actually soft-deleted remotely")
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == itemId }, "local Guest data must never be deleted by a rollback")
+    }
+
+    /// Same defect, no relaunch required: a second `preparePreview` call on
+    /// the *same* live controller (e.g. the inventory tab re-checking for
+    /// guest data on `.onAppear`) after a completed merge must not orphan the
+    /// completed, still-rollback-eligible session.
+    func testSecondPreparePreviewAfterCompletedMergeKeepsSessionRollbackEligible() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        let completedSessionId = try XCTUnwrap(controller.session?.id)
+        XCTAssertEqual(controller.session?.status, .completed)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+
+        // Re-entering the same screen (or the inventory tab re-checking for
+        // guest data) calls preparePreview again — same controller, same
+        // persistence, no relaunch.
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        XCTAssertEqual(controller.session?.id, completedSessionId, "a routine preparePreview re-check must not replace a completed, still-rollback-eligible session")
+        XCTAssertEqual(controller.session?.status, .completed)
+        XCTAssertEqual(controller.session?.createdEntityIds, [itemId])
+
+        await controller.rollback(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let deletedRemotely = await transport.isSoftDeleted(itemId)
+        XCTAssertTrue(deletedRemotely, "rollback must never report .rolledBack unless the entity this session created was actually soft-deleted remotely")
+    }
+
+    /// A session whose rollback window has already expired must NOT keep
+    /// blocking a fresh preview — only a still-eligible `.completed` session
+    /// is preserved across a `preparePreview` re-check.
+    func testPreparePreviewStartsFreshOnceRollbackWindowHasExpired() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        var completed = try XCTUnwrap(controller.session)
+        completed.rollbackAvailableUntil = Date().addingTimeInterval(-1)
+        try await persistence.saveGuestMergeSession(completed)
+
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+
+        XCTAssertNotEqual(controller.session?.id, completed.id, "once the rollback window has expired, a routine preview re-check may start a fresh session")
+    }
+
     // MARK: - Guest data boundary
 
     func testMergeDoesNotTouchShoppingPlansOrRecipes() async throws {
