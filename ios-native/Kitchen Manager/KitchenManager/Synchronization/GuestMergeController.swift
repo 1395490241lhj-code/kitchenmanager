@@ -578,8 +578,22 @@ final class GuestMergeController: ObservableObject {
         let scope = SyncScope(type: .household, id: current.householdId)
         let adapter = InventorySyncAdapter(persistence: persistence)
         do {
+            // A prior rollback attempt on this same session can have already
+            // soft-deleted some entities while others failed (conflict,
+            // rejected, transport error) — re-staging an already-deleted
+            // entity is never a correctness problem server-side (the RPC
+            // rejects it as `already_deleted`), but it would overwrite this
+            // entity's own local `SyncMetadata` back to `.pendingDelete`,
+            // making it indistinguishable from a genuine failure by any
+            // check that runs afterward. Skip entities this session has
+            // already confirmed deleted, so only genuinely outstanding
+            // entities are staged and verified on a retry.
+            var entityIdsToVerify: [UUID] = []
             for entityId in current.createdEntityIds {
+                let existing = try await persistence.metadata(entityType: .inventoryItem, entityId: entityId)
+                if existing?.state == .synced, existing?.deletedAt != nil { continue }
                 _ = try await adapter.stageDelete(entityId: entityId, scope: scope)
+                entityIdsToVerify.append(entityId)
             }
             let configuration = SyncConfiguration(isEnabled: true)
             let provider = AuthStoreCredentialProvider(authStore: authStore)
@@ -598,10 +612,22 @@ final class GuestMergeController: ObservableObject {
             // trip finished without a transport error — an individual delete
             // can still have come back `conflict`/`rejected` and been
             // resolved without throwing (SyncCoordinator.push ->
-            // resolvePending). Confirm every staged delete actually cleared
-            // its pending mutation before ever reporting `.rolledBack`.
-            for entityId in current.createdEntityIds {
-                if try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: entityId) != nil {
+            // resolvePending). `pendingMutationForEntity` is the wrong tool
+            // here: its underlying query only matches a `pending`/`failed`
+            // status record, so a `conflict`/`rejected` result (which
+            // `resolvePending` leaves in place with exactly one of those two
+            // statuses, never deleting it) would silently read back as "no
+            // pending mutation left" — a false success. Only a genuinely
+            // *applied* delete moves this entity's own `SyncMetadata` to
+            // `.synced` with `deletedAt` set (`resolvePending`'s `.applied`
+            // case); `.conflict` leaves it `.conflicted`, `.rejected` leaves
+            // it exactly as `stageDelete` set it (`.pendingDelete`) — neither
+            // is ever `.synced`. Confirm every entity staged this attempt
+            // reached that state before ever reporting `.rolledBack`.
+            for entityId in entityIdsToVerify {
+                let resultingMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: entityId)
+                let deleteApplied = resultingMetadata?.state == .synced && resultingMetadata?.deletedAt != nil
+                if !deleteApplied {
                     current.status = .completed // remains rollback-eligible; retry later
                     current.lastErrorCode = "rollback_delete_not_applied"
                     try await persistence.saveGuestMergeSession(current)
