@@ -17,9 +17,18 @@ final class ReceiptCompactListUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_RECEIPT_ITEMS"]
         app.launch()
 
-        let recordFoodButton = app.staticTexts["记食材"]
-        XCTAssertTrue(recordFoodButton.waitForExistence(timeout: 5))
-        recordFoodButton.tap()
+        // Receipt scanning lives behind the header "+" ("导入与添加") button —
+        // tap it via its stable accessibility identifier (not the Chinese
+        // label, which the product copy has changed more than once), then
+        // the "扫描购物小票" row via its own stable identifier, which opens
+        // `RecordFoodSheet(initialMode: .receipt)` exactly as before.
+        let smartImportButton = app.buttons["home.import.add.button"]
+        XCTAssertTrue(smartImportButton.waitForExistence(timeout: 5))
+        smartImportButton.tap()
+
+        let receiptRow = app.buttons["home.import.food.receipt"]
+        XCTAssertTrue(receiptRow.waitForExistence(timeout: 5))
+        receiptRow.tap()
 
         // The seeded image-less placeholder section still renders above the
         // items list, and Form/List (UITableView-backed) only realizes

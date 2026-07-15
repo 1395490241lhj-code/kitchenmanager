@@ -35,6 +35,11 @@ enum AppTheme {
     static let success = adaptive(light: 0x34C759, dark: 0x30D158)
     static let warning = adaptive(light: 0xFF9500, dark: 0xFFB340)
     static let shopping = adaptive(light: 0x14B8A6, dark: 0x2DD4BF)
+    /// The single brand accent used by the redesigned Home screen (primary CTA, the
+    /// header "+" smart-import entry, brand marks). Deliberately separate from
+    /// `primary` (still blue) rather than re-tinting the whole app, since the Home
+    /// redesign's brief scopes the green accent to Home only.
+    static let brand = adaptive(light: 0x2F6F4E, dark: 0x4E9970)
     static let textPrimary = adaptive(light: 0x1D1D1F, dark: 0xF5F5F7)
     static let textSecondary = adaptive(light: 0x6E6E73, dark: 0xC7C7CC)
     static let surface = adaptive(light: 0xFFFFFF, dark: 0x1C1C1E)

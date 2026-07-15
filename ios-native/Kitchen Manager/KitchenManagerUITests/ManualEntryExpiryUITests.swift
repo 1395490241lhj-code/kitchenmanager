@@ -14,13 +14,18 @@ final class ManualEntryExpiryUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // QuickActionButton renders title+subtitle as sibling Texts inside one
-        // Button, so the button's combined accessibility label isn't an exact
-        // "记食材" match — tap the title text itself, which XCUITest resolves
-        // to its enclosing tappable Button.
-        let recordFoodButton = app.staticTexts["记食材"]
-        XCTAssertTrue(recordFoodButton.waitForExistence(timeout: 5))
-        recordFoodButton.tap()
+        // Manual ingredient entry lives behind the header "+" ("导入与添加")
+        // button — tap it via its stable accessibility identifier (not the
+        // Chinese label, which the product copy has changed more than once),
+        // then the "手动添加食材" row via its own stable identifier, both of
+        // which open `RecordFoodSheet` exactly as before.
+        let smartImportButton = app.buttons["home.import.add.button"]
+        XCTAssertTrue(smartImportButton.waitForExistence(timeout: 5))
+        smartImportButton.tap()
+
+        let manualIngredientRow = app.buttons["home.import.food.manual"]
+        XCTAssertTrue(manualIngredientRow.waitForExistence(timeout: 5))
+        manualIngredientRow.tap()
 
         let manualSegment = app.segmentedControls.buttons["手动输入"]
         XCTAssertTrue(manualSegment.waitForExistence(timeout: 5))
