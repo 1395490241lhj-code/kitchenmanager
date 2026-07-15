@@ -41,4 +41,49 @@ final class InventoryNavigationUITests: XCTestCase {
             )
         }
     }
+
+    /// Regression test for a real device-found crash (Phase 2B-7): deleting
+    /// an inventory item from its own detail screen, after that screen has
+    /// already created a Toggle binding (which captures the item's array
+    /// index at that render pass), used to crash with an array
+    /// index-out-of-range once the array shrank — a stale binding closure
+    /// invoked once more during the dismiss transition. Toggling "设为常备
+    /// 食材" first reproduces the exact vulnerable binding the crash log
+    /// pointed at; deleting immediately after must not crash the app.
+    func testDeletingInventoryItemAfterTogglingStapleDoesNotCrash() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_INVENTORY"]
+        app.launch()
+
+        let inventoryTab = app.tabBars.buttons["食材"]
+        XCTAssertTrue(inventoryTab.waitForExistence(timeout: 5))
+        inventoryTab.tap()
+
+        let card = app.staticTexts["豆腐"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        card.tap()
+
+        let detailTitle = app.navigationBars.staticTexts["豆腐"].firstMatch
+        XCTAssertTrue(detailTitle.waitForExistence(timeout: 3))
+
+        let stapleToggle = app.switches["设为常备食材"].firstMatch
+        XCTAssertTrue(stapleToggle.waitForExistence(timeout: 3))
+        stapleToggle.tap()
+
+        let deleteButton = app.buttons["删除库存"].firstMatch
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 3))
+        deleteButton.tap()
+
+        let confirmButton = app.alerts.buttons["删除"].firstMatch
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 3))
+        confirmButton.tap()
+
+        // The crash under test happens (or doesn't) during the dismiss
+        // transition right after this tap — successfully landing back on a
+        // responsive inventory list is the actual assertion that matters.
+        let listTitle = app.navigationBars.staticTexts["食材"].firstMatch
+        XCTAssertTrue(listTitle.waitForExistence(timeout: 5), "删除后未安全返回食材列表（App 可能已崩溃）")
+        XCTAssertTrue(app.state == .runningForeground, "App 在删除库存后不再前台运行")
+        XCTAssertFalse(app.staticTexts["豆腐"].firstMatch.exists, "已删除的食材不应再出现在列表中")
+    }
 }

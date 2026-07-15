@@ -112,9 +112,123 @@ require a person with the device in hand.
 - No system-initiated app termination (jetsam/OOM) was observed during the
   brief session this phase ran.
 
-## Conclusion
+## Conclusion (automated portion)
 
 Every automatable, non-destructive, real-hardware validation this
 environment could perform, passed. The genuinely human-gesture-dependent
 steps (UI taps, Airplane Mode toggle, screen lock, Instruments profiling)
-remain open and are listed as BLOCKED above, not claimed as passed.
+remained open and were listed as BLOCKED above at that point — since
+closed by the manual round below.
+
+---
+
+## Manual, human-driven verification round (Phase 2B-7 continuation)
+
+Everything below was actually tapped through on the physical device by the
+device's operator, one step at a time, with each result reported back and
+recorded here honestly (PASS/FAIL only for what was actually observed).
+Device: same iPhone 17 Pro / iOS 27.0. Backend: development only (same
+Render deployment / development Supabase project as the automated round).
+Test identities used throughout: `TEST_USER_A` / `TEST_USER_B` (email/
+password never shared with or recorded by the assistant). Marker prefix:
+`__inventory_device_dogfood_<id>`.
+
+**Safety note carried forward**: the device's local inventory is not
+partitioned per signed-in account — Guest merge operates on whatever is in
+local storage regardless of which account is signed in. Before the merge
+confirm step, the operator was explicitly asked whether they were fine with
+their real local inventory being uploaded to the `TEST_USER_A` household on
+the *development* project (not production) for this test; they explicitly
+opted to proceed.
+
+| Step | Item | Result |
+|---|---|---|
+| 1 | Check current sign-in state | Already signed out (Guest state) |
+| 2 | Sign in with TEST_USER_A | **PASS** |
+| — | Guest-merge prompt appears after sign-in | **PASS** — appeared |
+| 3 | "稍后处理" (skip), then leave/return to "我的" | **PASS** — prompt reappeared/still reachable, skip is not permanent |
+| 4 | Open merge preview (read-only) | **PASS** — opened, showed item/household summary, no write |
+| — | Conflict indicator on preview | **None found** — 0 conflicts (first-time merge for this account/household), so the **Conflict UI could not be exercised this round** (nothing to show) — this is a coverage gap from having no pre-existing remote data, not a failure |
+| 5 | Explicit confirm merge | **PASS** — completed without error, after explicit operator consent given the real-inventory-upload implication above |
+| 6 | Create marker item `__inventory_device_dogfood_a1b2c3` | **PASS** |
+| 7 | Manual sync (create) | **PASS** |
+| 8 | Update marker item, manual sync | **PASS** |
+| 9 | Delete marker item, manual sync | **PASS** |
+| 10 | Airplane Mode on, offline create | **PASS** — pending item stayed local, sync showed an offline-style error |
+| 11 | Airplane Mode off, reconnect, manual sync | **PASS** — completed, no duplicate |
+| 12 | Wi-Fi off / cellular sync, Wi-Fi back on | **PASS** |
+| 13 | Background app immediately after tapping sync | **PASS** — no crash, resumed to a sane state, no runaway duplicate sync observed |
+| 14 | Lock screen / unlock | **PASS** — resumed normally |
+| 15 | Force-quit with a pending item, relaunch, sync | **PASS** — item survived the kill, synced with no duplicate |
+| 16 | User A logout, User B login | **PASS** |
+| 17 | User B does not inherit User A's synced state | **PASS** — User B correctly showed "尚未完成合并" (fresh/unmerged), not User A's "已同步" |
+| 18 | User B cannot see/sync User A's specific pending mutation | **PASS** — no leak observed |
+| 19 | User A logout → re-login, state recovers | **PASS** — "已同步" status correctly restored |
+| 20 | Open diagnostics screen | **PASS** — showed only counts/statuses; confirmed no email/password/raw ID/item name visible |
+| 21 | Consistency check + export preview | **PASS** — exported JSON reviewed directly: only `activeMergeSessionState`, `appBuild`, `conflictCount`, `currentUserPresent`, `enrollmentState`, `environment`, `failedCount`, `householdPresent`, `isDogfoodEnabled`, `isEnrolled`, `isFeatureEnabled`, `lastSuccessfulCursor` (plain sequence number), `lastSyncCompletedAt`/`lastSyncStartedAt` (timestamps), `lastSyncResult`, `localGuestOnlyItemCount`, `localSyncedItemCount`, `localTombstoneCount`, `oldestPendingAgeSeconds`, `pendingCount`, `schemaVersion` — no email/password/token/full UUID/household ID/mutation ID/item name present |
+| 22 | Rollback | **NOT EXERCISED (PENDING)** — a stale/cached preview screen was encountered while looking for a rollback entry point; rather than risk tapping "确认合并库存"/"取消本次合并" against ambiguous state, the operator backed out without acting, and the currently-signed-in account was confirmed still correctly "已同步" (i.e., nothing was harmed). Rollback was not otherwise reachable in this round and remains untested end-to-end on device. |
+| 23 (1st attempt) | Delete 3 remaining marker items, sync | **FAIL — real crash found** (see below) |
+| — | *(fix applied, verified on simulator, redeployed to device)* | |
+| 23 (retry) | Delete 3 remaining marker items, sync | **PASS** — no crash |
+| 24 | Sign out of test account | **PASS** |
+| — | Zero marker residue (server-side check) | **PASS** — `scripts/cleanup-guest-merge-smoke-markers.mjs` found 0 rows across all 4 known marker prefixes (including the new `__inventory_device_dogfood_` prefix, added this phase) |
+| — | Flags restored to `NO`, rebuilt, reinstalled | **PASS** — verified via `plutil` on the reinstalled binary's compiled `Info.plist`: all 8 flags `NO` |
+| 25 | Final app state check | **PASS** — Guest sign-in prompt shown (test account cleanly signed out), diagnostics entry gone, no crash on launch |
+
+### Real bug found and fixed during this round
+
+**Step 23's first attempt crashed the app twice** while deleting inventory
+items. Crash logs were pulled directly from the device
+(`devicectl device info files --domain-type systemCrashLogs` +
+`devicectl device copy from`) and both showed an identical cause:
+
+- **Signal**: `EXC_BREAKPOINT`/`SIGTRAP` — a Swift array
+  index-out-of-range trap (`Array._checkSubscript` → `_assertionFailure`).
+- **Location**: `InventoryItemDetailView.body.getter`, inside a `Toggle`
+  binding's `get`/`set` closure (`ToggleState.stateFor` → `Binding.readValue()`).
+- **Root cause**: `InventoryItemDetailView` (`KitchenManager/PantryStaples.swift`)
+  computed `index` once per `body` evaluation and then had every field's
+  `Binding` close over that specific `Int` value (e.g.
+  `store.inventory[index].expiryDate`). Tapping "删除库存" removes the item
+  from `store.inventory` and calls `dismiss()` in the same action — but
+  SwiftUI can still invoke an already-created Toggle binding's closure once
+  more during the dismiss transition, and by then the captured `index` was
+  out of range for the now-shorter array.
+- **This is a pre-existing product bug, unrelated to sync/dogfood** — it is
+  reachable any time a user deletes an inventory item from its own detail
+  screen after that screen has rendered a `Toggle` (e.g. "设置保质期" or
+  "设为常备食材"), independent of any account/sync state.
+- **Fix**: every field binding on that screen now resolves the item fresh
+  by `itemID` at get/set time (a small generic `binding(_:default:)` helper
+  plus two hand-written `Binding`s for the expiry `Toggle`/`DatePicker` and
+  the staple `Toggle`), instead of trusting a captured array index. A
+  post-delete invocation of any of these closures is now a safe no-op
+  instead of a crash.
+- **Regression test added**: `KitchenManagerUITests/InventoryNavigationUITests.swift`
+  — `testDeletingInventoryItemAfterTogglingStapleDoesNotCrash` reproduces
+  the exact sequence (open detail, toggle "设为常备食材", delete, confirm)
+  and asserts the app is still running in the foreground afterward. Passed
+  on simulator after the fix; the fixed build was then reinstalled on the
+  physical device and Step 23 was retried there for real — passed, no
+  crash.
+- **Scope of the redo**: only Step 23 was retried after the fix, per this
+  phase's "不重跑无关步骤" instruction — no earlier step was repeated.
+
+## Conclusion
+
+All manually-executed, human-driven physical-device steps in this round
+passed, with two carve-outs honestly reported as not fully covered rather
+than guessed at:
+- **Conflict UI**: not exercised this round — the account had no
+  pre-existing remote data to conflict with, so no conflict screen ever
+  appeared. Conflict-resolution *logic* remains covered by existing
+  automated tests (including on-device via `GuestMergeTests`), but the
+  on-screen conflict UI itself was never visually confirmed this round.
+- **Rollback**: not exercised this round (see Step 22) — deliberately
+  skipped rather than risk acting on ambiguous UI state.
+
+One real, previously-unknown product bug was found, root-caused from real
+device crash logs, fixed, covered by a new regression test, and re-verified
+on the same physical device. No default flag was left enabled; the
+operator's real account/data was never touched; the test account was
+cleanly signed out; marker residue is zero.

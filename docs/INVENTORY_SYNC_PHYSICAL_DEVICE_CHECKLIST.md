@@ -1,16 +1,29 @@
 # Inventory Sync Physical-Device Dogfood Checklist (Phase 2B-6, executed Phase 2B-7)
 
-> **Phase 2B-7 update**: a physical iPhone 17 Pro (iOS 27.0) became
-> available and ran the automatable/business-logic portion of this
-> checklist for real — see `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`
-> for the full results table and `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md`
-> for the updated conclusion (**Dogfood Go / Production No-Go**). The
-> human-gesture steps below (tapping through UI, toggling Airplane Mode,
-> locking the screen) still require a person with the device in hand —
-> this environment has no touch/tap-injection tool for a physical device.
-> Status wording to use anywhere: **"automated + hosted-dogfood physical-
-> device validation passed; human-gesture UI/network-toggle steps still
-> pending."**
+> **Phase 2B-7 update (automated round)**: a physical iPhone 17 Pro (iOS
+> 27.0) became available and ran the automatable/business-logic portion of
+> this checklist for real.
+>
+> **Phase 2B-7 update (manual round)**: the device's operator then
+> personally tapped through nearly the entire human-facing checklist —
+> login, Guest-merge prompt/skip/recovery/preview, explicit confirm,
+> CRUD + manual sync, offline/reconnect, Wi-Fi/cellular switch,
+> background/foreground, lock/unlock, force-quit/restart, User A/B
+> isolation, diagnostics + export redaction, and cleanup — reporting each
+> step's result back individually. **Conflict UI** (no conflict occurred
+> to trigger it) and **rollback** (deliberately skipped to avoid acting on
+> ambiguous UI state) are the only two items still not exercised. A real,
+> previously-unknown crash bug was found, fixed, and re-verified on-device
+> during this round (an inventory-delete crash unrelated to sync — see
+> `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`).
+>
+> See `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md` for the full,
+> step-by-step results table and `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md`
+> for the updated conclusion (**Dogfood Go / Production No-Go** — the gap
+> is now only Conflict UI + Rollback, not physical-device validation as a
+> whole). Status wording to use anywhere: **"physical-device checklist
+> passed except Conflict UI and Rollback, not exercised; one real crash
+> bug found and fixed during this round."**
 
 ## Preconditions
 

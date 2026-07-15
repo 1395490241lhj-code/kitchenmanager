@@ -277,23 +277,43 @@ struct InventoryItemDetailView: View {
 
     private var index: Int? { store.inventory.firstIndex(where: { $0.id == itemID }) }
 
+    /// Every field binding below resolves the current index fresh at
+    /// get/set time via `itemID`, rather than closing over the `Int` this
+    /// render pass happened to find — a Toggle/TextField/Picker binding
+    /// created during one `body` evaluation can still be invoked once more
+    /// by SwiftUI while this view is transitioning out (e.g. right after
+    /// "删除库存" shrinks `store.inventory`), and a binding that captured a
+    /// stale index would then subscript a now-too-short array and crash.
+    /// Resolving fresh here means a post-delete invocation just becomes a
+    /// harmless no-op (get returns `defaultValue`, set does nothing).
+    private func binding<Value>(_ keyPath: WritableKeyPath<InventoryItem, Value>, default defaultValue: Value) -> Binding<Value> {
+        Binding(
+            get: { store.inventory.first(where: { $0.id == itemID })?[keyPath: keyPath] ?? defaultValue },
+            set: { newValue in
+                guard let idx = store.inventory.firstIndex(where: { $0.id == itemID }) else { return }
+                store.inventory[idx][keyPath: keyPath] = newValue
+            }
+        )
+    }
+
     var body: some View {
         Form {
             if let index {
                 Section("库存") {
-                    TextField("名称", text: $store.inventory[index].name)
-                    TextField("当前数量", value: $store.inventory[index].quantity, format: .number)
+                    TextField("名称", text: binding(\.name, default: ""))
+                    TextField("当前数量", value: binding(\.quantity, default: 0), format: .number)
                         .keyboardType(.decimalPad)
-                    TextField("单位", text: $store.inventory[index].unit)
+                    TextField("单位", text: binding(\.unit, default: ""))
                 }
                 if !store.inventory[index].isStaple {
                     Section("保质期") {
                         Toggle("设置保质期", isOn: Binding(
-                            get: { store.inventory[index].expiryDate != nil },
+                            get: { store.inventory.first(where: { $0.id == itemID })?.expiryDate != nil },
                             set: { isEnabled in
-                                store.inventory[index].expiryDate = isEnabled
+                                guard let idx = store.inventory.firstIndex(where: { $0.id == itemID }) else { return }
+                                store.inventory[idx].expiryDate = isEnabled
                                     ? InventoryExpirySuggestion.suggestedExpiryDate(
-                                        for: store.inventory[index].name
+                                        for: store.inventory[idx].name
                                     ) ?? Date()
                                     : nil
                             }
@@ -302,8 +322,11 @@ struct InventoryItemDetailView: View {
                             DatePicker(
                                 "到期日期",
                                 selection: Binding(
-                                    get: { expiryDate },
-                                    set: { store.inventory[index].expiryDate = $0 }
+                                    get: { store.inventory.first(where: { $0.id == itemID })?.expiryDate ?? expiryDate },
+                                    set: { newValue in
+                                        guard let idx = store.inventory.firstIndex(where: { $0.id == itemID }) else { return }
+                                        store.inventory[idx].expiryDate = newValue
+                                    }
                                 ),
                                 displayedComponents: .date
                             )
@@ -317,32 +340,33 @@ struct InventoryItemDetailView: View {
                 }
                 Section("常备货架") {
                     Toggle("设为常备食材", isOn: Binding(
-                        get: { store.inventory[index].isStaple },
+                        get: { store.inventory.first(where: { $0.id == itemID })?.isStaple ?? false },
                         set: { enabled in
                             if enabled {
-                                store.inventory[index].isStaple = true
+                                guard let idx = store.inventory.firstIndex(where: { $0.id == itemID }) else { return }
+                                store.inventory[idx].isStaple = true
                             } else {
                                 store.cancelStaple(itemID)
                             }
                         }
                     ))
                     if store.inventory[index].isStaple {
-                        Picker("跟踪方式", selection: $store.inventory[index].stapleTrackingMode) {
+                        Picker("跟踪方式", selection: binding(\.stapleTrackingMode, default: .quantity)) {
                             ForEach(StapleTrackingMode.allCases) { Text($0.title).tag($0) }
                         }
                         if store.inventory[index].stapleTrackingMode == .quantity {
-                            TextField("最低库存", value: $store.inventory[index].lowStockThreshold, format: .number)
+                            TextField("最低库存", value: binding(\.lowStockThreshold, default: nil), format: .number)
                                 .keyboardType(.decimalPad)
                         } else {
-                            Picker("当前状态", selection: $store.inventory[index].stapleAvailabilityStatus) {
+                            Picker("当前状态", selection: binding(\.stapleAvailabilityStatus, default: .available)) {
                                 ForEach(StapleAvailabilityStatus.allCases) { Text($0.title).tag($0) }
                             }
                         }
-                        TextField("默认补货数量", value: $store.inventory[index].defaultRestockQuantity, format: .number)
+                        TextField("默认补货数量", value: binding(\.defaultRestockQuantity, default: nil), format: .number)
                             .keyboardType(.decimalPad)
-                        Toggle("自动生成补货建议", isOn: $store.inventory[index].autoSuggestRestock)
-                        TextField("分类（可选）", text: optionalText($store.inventory[index].stapleCategory))
-                        TextField("备注（可选）", text: optionalText($store.inventory[index].stapleNote), axis: .vertical)
+                        Toggle("自动生成补货建议", isOn: binding(\.autoSuggestRestock, default: false))
+                        TextField("分类（可选）", text: optionalText(binding(\.stapleCategory, default: nil)))
+                        TextField("备注（可选）", text: optionalText(binding(\.stapleNote, default: nil)), axis: .vertical)
                         LabeledContent("当前状态", value: store.inventory[index].stapleStatus.label)
                     }
                 }
