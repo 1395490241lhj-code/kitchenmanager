@@ -1046,6 +1046,11 @@ final class GuestMergeTests: XCTestCase {
         // that was previously a permanent dead end.
         XCTAssertEqual(controller.session?.status, .conflict)
         XCTAssertEqual(controller.session?.uploadedItemCount, 1)
+        let appliedCountBeforeResolve = await transport.appliedCount()
+        XCTAssertEqual(appliedCountBeforeResolve, 1)
+        let scope = SyncScope(type: .household, id: householdA)
+        let pendingBeforeResolve = try await persistence.pendingMutations(scope: scope, maxAttempts: 5)
+        XCTAssertTrue(pendingBeforeResolve.isEmpty)
 
         await controller.resolveConflict(candidateId: ambiguousId, choice: .skip)
 
@@ -1057,6 +1062,65 @@ final class GuestMergeTests: XCTestCase {
         let resolved = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == ambiguousId }))
         XCTAssertEqual(resolved.action, .skip)
         XCTAssertFalse(controller.plan?.readyToUpload.contains(where: { $0.localItemId == ambiguousId }) ?? true)
+
+        // `resolveConflict` itself must never auto-trigger a confirm/upload —
+        // it only ever persists a choice and (per this fix) the session's
+        // status. Neither the transport's applied-mutation count nor the
+        // local pending-mutation ledger may change as a side effect of
+        // resolving.
+        let appliedCountAfterResolve = await transport.appliedCount()
+        XCTAssertEqual(appliedCountAfterResolve, appliedCountBeforeResolve, "resolveConflict must never call sendMutations itself")
+        let pendingAfterResolve = try await persistence.pendingMutations(scope: scope, maxAttempts: 5)
+        XCTAssertTrue(pendingAfterResolve.isEmpty, "resolveConflict must never stage a PendingMutation")
+
+        // Re-entering the flow (simulating "close and reopen the sheet", the
+        // exact real-device symptom this bug produced) must land back on the
+        // ordinary preview — never regenerate a fresh empty conflict form,
+        // never get stuck again, and must remember the resolved choice.
+        let controllerAfterReopen = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controllerAfterReopen.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        XCTAssertEqual(controllerAfterReopen.session?.status, .previewReady, "re-opening the merge flow must never land back on a stuck .conflict screen")
+        XCTAssertEqual(controllerAfterReopen.plan?.candidates.first(where: { $0.localItemId == ambiguousId })?.userChoice, .skip)
+    }
+
+    /// The same recovery as
+    /// `testResolvingTheLastConflictReturnsToPreviewReadyNotStuckOnConflict`,
+    /// but with `.keepRemote` instead of `.skip` — proving the status
+    /// transition generalizes across choices (it only ever checks
+    /// `plan.conflicts.isEmpty`, never which action a candidate resolved to),
+    /// matching the choice actually exercised during physical-device
+    /// revalidation (`keepLocal`, an equally action-bearing choice).
+    func testResolvingTheLastConflictWithKeepRemoteAlsoReturnsToPreviewReady() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let ambiguousId = UUID()
+        let createId = UUID()
+        kitchen.inventory = [
+            InventoryItem(id: ambiguousId, name: "苹果", quantity: 5, unit: "个", expiryDate: nil),
+            InventoryItem(id: createId, name: "香蕉", quantity: 1, unit: "根", expiryDate: nil)
+        ]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: UUID(), name: "苹果", unit: "个", quantity: 2, version: "1", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .conflict)
+        let appliedCountBeforeResolve = await transport.appliedCount()
+
+        await controller.resolveConflict(candidateId: ambiguousId, choice: .keepRemote)
+
+        XCTAssertEqual(controller.session?.status, .previewReady)
+        let resolved = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == ambiguousId }))
+        XCTAssertEqual(resolved.action, .keepRemote)
+        XCTAssertFalse(controller.plan?.readyToUpload.contains(where: { $0.localItemId == ambiguousId }) ?? true, "keepRemote never stages anything for the candidate it applies to")
+        let appliedCountAfterResolve = await transport.appliedCount()
+        XCTAssertEqual(appliedCountAfterResolve, appliedCountBeforeResolve, "resolveConflict must never call sendMutations itself, regardless of the choice")
     }
 
     // MARK: - Phase 2B-3: manual sync (never automatic)
