@@ -10,12 +10,19 @@
 > CRUD + manual sync, offline/reconnect, Wi-Fi/cellular switch,
 > background/foreground, lock/unlock, force-quit/restart, User A/B
 > isolation, diagnostics + export redaction, and cleanup — reporting each
-> step's result back individually. **Conflict UI** (no conflict occurred
-> to trigger it) and **rollback** (deliberately skipped to avoid acting on
-> ambiguous UI state) are the only two items still not exercised. A real,
-> previously-unknown crash bug was found, fixed, and re-verified on-device
-> during this round (an inventory-delete crash unrelated to sync — see
-> `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`).
+> step's result back individually. A real, previously-unknown crash bug was
+> found, fixed, and re-verified on-device during this round (an
+> inventory-delete crash unrelated to sync).
+>
+> **Phase 2B-7 update (final round)**: a dedicated attempt at the last two
+> items found that **Conflict UI is architecturally unreachable from the
+> shipped app** (the production preview never performs the pre-merge
+> remote read needed to detect a conflict, by deliberate prior design —
+> confirmed both by source and by a real seeded-item experiment), and
+> **Rollback remains untested** — two separate attempts were both stopped
+> on ambiguous session state rather than guessed at. See
+> `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s "Conflict UI and
+> Rollback attempt" section for the full account.
 >
 > See `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md` for the full,
 > step-by-step results table and `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md`

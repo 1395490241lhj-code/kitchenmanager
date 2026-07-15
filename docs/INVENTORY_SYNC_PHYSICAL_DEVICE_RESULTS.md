@@ -232,3 +232,91 @@ device crash logs, fixed, covered by a new regression test, and re-verified
 on the same physical device. No default flag was left enabled; the
 operator's real account/data was never touched; the test account was
 cleanly signed out; marker residue is zero.
+
+---
+
+## Conflict UI and Rollback attempt (Phase 2B-7, final round)
+
+This round attempted to close the last two open items. Both remain
+**BLOCKED / NOT EXERCISED** — for real, specific, documented reasons, not
+guessed at.
+
+### Conflict UI — **BLOCKED (confirmed architectural gap, not a bug)**
+
+A controlled ambiguous-duplicate scenario was set up: one marker item
+(`__inventory_device_conflict_q1`, quantity 2) was seeded directly into
+`TEST_USER_B`'s development-project household via the authenticated
+user-level `/api/sync/mutations` API (no service-role), and a matching
+local item (same name/unit, quantity 5) was created on-device by the
+operator, then the real "查看并合并" preview was opened.
+
+**Finding**: the preview showed "家庭云端库存 0条" despite the seeded item
+genuinely existing remotely. Reading `GuestMergeController.preparePreview`'s
+own source and doc comment confirmed this is **deliberate, documented,
+existing behavior from an earlier phase**: the parameter that performs a
+pre-merge remote read (`remoteTransport`) defaults to `nil` and, per the
+comment directly above it, is "never called by the ordinary in-app preview
+flow (which always passes `nil`, preserving its existing zero-network-call
+behavior exactly)." This means the entire quantity/expiry/metadata-mismatch
+and ambiguous-duplicate conflict-detection logic in
+`InventoryMergePlanner` — despite being thoroughly unit-tested — is
+**structurally unreachable from the real, shipped app**, regardless of what
+data exists remotely or locally. This was empirically confirmed, not just
+read from source: the seeded remote item was invisible to the real preview.
+
+Per the operator's decision, the merge was confirmed anyway to observe
+actual behavior. Two things followed:
+1. No conflict prompt appeared (consistent with the finding above).
+2. The confirm's actual effect was less than expected — a read-only
+   follow-up check of the household found the seeded item completely
+   unchanged (still quantity 2, version 1 — no duplicate created, no
+   update applied), and only "已合并 1条" was reported for a session whose
+   preview had predicted 3 new items. The remote household also contained
+   two entirely unrelated, unexplained items that predate this session
+   entirely (not matching any marker prefix, and not something this round
+   created) — most likely leftover data from an earlier phase's hosted
+   smoke-test runs under this same development test account, never fully
+   investigated further given the "stop when state is unclear" rule.
+
+**This is reported as a real, specific architectural finding for a future
+phase to address** (either wire a real pre-merge check into the production
+preview, or accept and document that conflict detection only ever
+happens — if at all — via a later sync-time version check, not during
+Guest merge) — not as a crash, not as data loss, and not exercised as
+"PASS."
+
+### Rollback — **NOT EXERCISED (stopped on ambiguous state, per instruction)**
+
+Given the confirm's outcome above was itself unclear (predicted-vs-actual
+mismatch, unexplained pre-existing items in the same household), rollback
+was **not attempted** on this session — proceeding would mean acting
+against a state this document cannot fully account for, which is exactly
+the "如果出现...状态不明确，立即停止" scenario this phase's instructions
+call for. No rollback UI screen was tapped.
+
+### Cleanup performed this round
+
+- The one item this round's script seeded (`__inventory_device_conflict_q1`)
+  was soft-deleted by exact name match via the same authenticated API,
+  verified applied (1/1). The two unrelated, pre-existing items in that
+  household were deliberately left untouched, since this round did not
+  create them and could not establish what they were without further,
+  out-of-scope investigation.
+- The local device counterpart of the marker item was deleted by the
+  operator and the test account (`TEST_USER_B`) was signed out.
+- All dogfood/sync flags were restored to `NO` in the gitignored
+  `Local.xcconfig`; a fresh Debug build was produced and its compiled
+  `Info.plist` was verified via `plutil` to show all 8 flags `NO`; that
+  build was reinstalled on the device (same on-disk database, real account
+  data preserved). Final app launch confirmed: Guest sign-in prompt,
+  diagnostics entry gone, no crash.
+
+### Conclusion for this round
+
+Neither Conflict UI nor Rollback can be marked PASS. Conflict UI is now a
+well-understood, specifically-diagnosed BLOCKED item (an architectural gap,
+not a device/tooling limitation like the earlier BLOCKED items). Rollback
+remains genuinely untested on a physical device — twice now, ambiguous
+session state has interrupted the attempt before reaching it. The
+**Dogfood Go / Production No-Go** conclusion is unchanged; see
+`docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md` for the updated criteria table.

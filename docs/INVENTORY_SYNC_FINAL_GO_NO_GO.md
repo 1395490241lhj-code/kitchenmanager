@@ -21,21 +21,36 @@ still open rather than verified.
 
 ## Why this isn't a full Production Go
 
-Two checklist items remain genuinely unverified on-screen:
+Two checklist items remain unverified on-screen — one is now a specifically
+diagnosed architectural finding, the other remains genuinely untested:
 
-1. **Conflict UI** — the test account had no pre-existing remote data, so
-   preview always showed 0 conflicts; the on-screen conflict-resolution
-   screen was never actually rendered or tapped through this round. The
-   underlying conflict *logic* (all 4 conflict reasons/choices, including
-   same-id fork) is covered extensively by automated tests — including
-   running for real on this same physical device — but the visual UI layer
-   itself is unconfirmed.
-2. **Rollback** — a stale/cached preview screen was encountered while
-   looking for a rollback entry point; the operator correctly backed out
-   without tapping either "确认合并库存" or "取消本次合并" rather than risk
-   acting on ambiguous state. Rollback logic is covered by automated tests
-   (including on-device), but the on-screen rollback flow was not
-   exercised.
+1. **Conflict UI — confirmed architecturally unreachable, not just
+   "no conflict occurred."** A second attempt this phase deliberately
+   engineered an ambiguous-duplicate scenario (a real remote item seeded
+   via the authenticated API, a matching local item created on-device).
+   The real preview still showed zero cloud items and zero conflicts —
+   because `GuestMergeController.preparePreview`'s own source confirms the
+   ordinary in-app preview never performs the pre-merge remote read needed
+   to detect this at all (`remoteTransport` defaults to `nil` and is,
+   per its own doc comment, "never called by the ordinary in-app preview
+   flow"). This is deliberate, pre-existing, documented behavior from an
+   earlier phase, not a bug introduced here — but it means the
+   thoroughly-unit-tested conflict-detection logic in
+   `InventoryMergePlanner` is **structurally unreachable from the shipped
+   app** regardless of what data exists. See
+   `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md` for the full
+   investigation, including an observed predicted-vs-actual mismatch during
+   the confirm that followed (which was not further chased down, per the
+   stop-on-ambiguity rule).
+2. **Rollback** — two separate attempts across two sessions were both
+   interrupted before reaching the on-screen rollback flow: first by a
+   stale/cached preview screen, second by the confirm-outcome ambiguity
+   from the Conflict-UI investigation above (an unclear predicted-vs-actual
+   merge result, plus unexplained pre-existing items in the test
+   household). Both times, the operator/assistant correctly stopped rather
+   than act on unclear state. Rollback logic remains covered by automated
+   tests (including on-device), but the on-screen rollback flow itself is
+   still untested on a physical device.
 
 Everything else in the human-facing checklist — including the step that
 initially crashed — was tapped through for real and passed.
@@ -44,14 +59,14 @@ initially crashed — was tapped through for real and passed.
 
 | Criterion | Status |
 |---|---|
-| 真机全流程通过 (full physical-device flow, including UI taps) | ⚠️ **Nearly met** — every human-tap step passed except Conflict UI (no conflict occurred to show it) and Rollback (deliberately not attempted this round) |
+| 真机全流程通过 (full physical-device flow, including UI taps) | ⚠️ **Nearly met** — every human-tap step passed except Conflict UI (confirmed architecturally unreachable via the shipped preview) and Rollback (two attempts both stopped on ambiguous state, per the stop-on-uncertainty rule) |
 | 断网恢复通过 (offline recovery) | ✅ **met** — Airplane Mode on/off, offline create, reconnect + sync, all tapped through for real and passed |
 | Wi-Fi/cellular 切换通过 | ✅ **met** — tapped through for real, passed |
 | 前后台/锁屏恢复通过 | ✅ **met** — backgrounding mid-sync, lock/unlock, all tapped through for real, passed |
 | App kill 恢复通过 | ✅ met — a real force-quit with a pending item, relaunch, and sync, tapped through for real and passed (in addition to the earlier `devicectl`-level kill and the simulated in-flight-mutation test) |
 | account isolation 通过 | ✅ **met** — User A/B switch tapped through for real: User B correctly showed unmerged state, no leak of User A's synced status; User A's state correctly recovered after re-login |
-| conflict UI 通过 | ❌ **not exercised** — no conflict occurred to display; not a failure, an untested gap |
-| rollback 通过 | ❌ **not exercised** — deliberately skipped this round rather than act on ambiguous state |
+| conflict UI 通过 | ❌ **BLOCKED — confirmed architectural gap** — the production preview never performs the pre-merge remote read needed to detect any conflict, by deliberate prior design; empirically confirmed with a real seeded remote item that stayed invisible to preview |
+| rollback 通过 | ❌ **NOT EXERCISED** — two separate attempts both stopped on ambiguous/unclear session state rather than proceed |
 | diagnostics 脱敏 | ✅ **met** — the operator opened the real diagnostics screen and reviewed the actual export JSON directly: confirmed only counts/statuses/timestamps, no email/password/token/full UUID/household ID/mutation ID/item name |
 | consistency checker clean | ✅ met — reported clean during the automated round; not independently re-checked via a fresh on-screen tap this round beyond opening the diagnostics screen |
 | hosted dogfood 通过 | ✅ met (unchanged from the automated round) |
@@ -79,13 +94,19 @@ re-verified for real on the same physical device. See
 
 ## What would change this to Production Go
 
-Exercise the two remaining items for real: (a) trigger a genuine conflict
-(e.g. edit the same marker item from two signed-in sessions before
-syncing) and tap through the actual conflict-resolution screen, and (b)
-exercise rollback from a clean, unambiguous state right after a merge
-completes. Neither is expected to behave differently from the
-already-passing logic underneath — but that expectation isn't a
-substitute for observing it.
+1. **Conflict UI** — this one now requires a product/architecture decision,
+   not just another test attempt: either wire a real pre-merge remote read
+   into the production preview call site (`GuestMergeViews.swift`'s call to
+   `preparePreview`), or make a deliberate, documented decision that Guest
+   merge in production is intentionally optimistic (no pre-check) and that
+   conflicts are meant to be caught some other way (e.g., a later
+   sync-time version check) — then verify that path instead. Simply
+   "trying again" won't reach the conflict screen, since the gap is
+   structural, not incidental.
+2. **Rollback** — needs a clean, unambiguous merge session (ideally on a
+   fresh test account with no leftover data from earlier phases) taken all
+   the way through confirm with a verified, predictable outcome, then
+   rollback exercised immediately after.
 
 ## What would change this to No-Go
 
@@ -98,7 +119,9 @@ anything other than clean during a real human-driven run.
 ## Status wording to use anywhere this is referenced
 
 **"Dogfood Go / Production No-Go — the full human-driven physical-device
-checklist passed except Conflict UI and Rollback, which were not
-exercised (not failed); one real crash bug was found, fixed, and
-re-verified on-device during this round."** Never shorten this to
-"physical device fully validated" or "production ready."
+checklist passed except Conflict UI (confirmed architecturally unreachable
+from the shipped preview, a specific finding for a future phase, not a
+crash) and Rollback (still untested on a physical device after two
+attempts both correctly stopped on ambiguous state); one real crash bug
+(inventory-delete) was found, fixed, and re-verified on-device."** Never
+shorten this to "physical device fully validated" or "production ready."
