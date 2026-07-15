@@ -1009,6 +1009,56 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(controllerAfterRestart.plan?.candidates.first(where: { $0.localItemId == sharedId })?.userChoice, .skip)
     }
 
+    /// Phase 2B-8C: a physical-device revalidation of the now-reachable
+    /// Conflict UI surfaced a real dead end — `confirmMerge` uploads any
+    /// non-conflict candidates, leaves the session in `.conflict` when one
+    /// remains unresolved, and *nothing* ever moved the session back out of
+    /// `.conflict` once every remaining candidate got a choice.
+    /// `InventoryMergeConflictView` has no confirm/continue action of its
+    /// own, and `InventoryMergeFlowView` only routes to the preview screen
+    /// (which has the confirm button) for other statuses — so a user who
+    /// resolved their last conflict (via any of the four choices, including
+    /// `.skip`) was permanently stuck looking at an now-empty conflict form.
+    /// This regression proves `resolveConflict` now hands control back to
+    /// the ordinary preview flow once nothing here still needs a decision.
+    func testResolvingTheLastConflictReturnsToPreviewReadyNotStuckOnConflict() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let ambiguousId = UUID()
+        let createId = UUID()
+        kitchen.inventory = [
+            InventoryItem(id: ambiguousId, name: "苹果", quantity: 5, unit: "个", expiryDate: nil),
+            InventoryItem(id: createId, name: "香蕉", quantity: 1, unit: "根", expiryDate: nil)
+        ]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: UUID(), name: "苹果", unit: "个", quantity: 2, version: "1", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        XCTAssertEqual(controller.plan?.candidates.first(where: { $0.localItemId == ambiguousId })?.conflictReason, .ambiguousDuplicate)
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        // The non-conflict create ("香蕉") uploads; the ambiguous one is left
+        // pending, so the session lands in `.conflict` — exactly the state
+        // that was previously a permanent dead end.
+        XCTAssertEqual(controller.session?.status, .conflict)
+        XCTAssertEqual(controller.session?.uploadedItemCount, 1)
+
+        await controller.resolveConflict(candidateId: ambiguousId, choice: .skip)
+
+        XCTAssertEqual(
+            controller.session?.status, .previewReady,
+            "resolving the last remaining conflict must hand control back to the ordinary preview flow, never leave the session stuck on .conflict with no way to confirm again"
+        )
+        // The skip choice itself must still be exactly as safe as before this fix.
+        let resolved = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == ambiguousId }))
+        XCTAssertEqual(resolved.action, .skip)
+        XCTAssertFalse(controller.plan?.readyToUpload.contains(where: { $0.localItemId == ambiguousId }) ?? true)
+    }
+
     // MARK: - Phase 2B-3: manual sync (never automatic)
 
     func testSyncNowRefusesWhenFeatureDisabled() async throws {

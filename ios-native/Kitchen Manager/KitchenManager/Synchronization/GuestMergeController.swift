@@ -309,6 +309,22 @@ final class GuestMergeController: ObservableObject {
         current.plan = plan
         current.conflictCount = plan.conflicts.count
         current.updatedAt = Date()
+        // A session only ever reaches `.conflict` after a real confirm left
+        // some candidates unresolved (see `confirmMerge`'s post-upload
+        // branch) — and nothing else ever moves it back out of `.conflict`.
+        // `InventoryMergeConflictView` has no confirm/continue action of its
+        // own, and `InventoryMergeFlowView` only ever routes to the preview
+        // screen (which does have the confirm button) for a different set of
+        // statuses — so without this, resolving every remaining conflict
+        // (via any of the four choices, including `.skip`) left the user
+        // permanently stuck on an now-empty conflict form with no way back
+        // to confirm. Once nothing here still needs a decision, hand control
+        // back to the ordinary preview flow so the user can finish through
+        // its existing confirm button (and everything it already validates:
+        // stale-fingerprint revalidation, zero-write guarantees, etc.).
+        if current.status == .conflict, plan.conflicts.isEmpty {
+            current.status = .previewReady
+        }
         do {
             try await persistence.saveGuestMergeSession(current)
             session = current

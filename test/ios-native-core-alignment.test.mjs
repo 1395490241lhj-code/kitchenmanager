@@ -13,7 +13,6 @@ const pantry = read("PantryStaples.swift");
 const kitchen = read("KitchenStore.swift");
 const service = read("RecipeService.swift");
 const editor = read("RecipeDraftEditor.swift");
-const importOptions = read("RecipeImportOptionsView.swift");
 const generator = read("AIRecipeGenerator.swift");
 const imageImport = read("RecipeImageImport.swift");
 const server = read("../../../server.js");
@@ -34,10 +33,18 @@ test("shopping add button opens a focused medium form", () => {
 });
 
 test("home record-food action opens the existing flow instead of switching tabs", () => {
-  const quickAction = home.slice(home.indexOf('title: "记食材"'), home.indexOf('title: "导入菜谱"'));
-  assert.match(quickAction, /activeSheet = \.recordFood/);
-  assert.doesNotMatch(quickAction, /selectedTab/);
-  assert.match(home, /case \.recordFood:[\s\S]*RecordFoodSheet\(\)/);
+  // Phase 2B-8 Home redesign: the old "记食材" quick-action button was
+  // replaced by the header "+" ("导入与添加") button opening `SmartImportSheet`,
+  // whose "手动添加食材"/"扫描购物小票" rows open the same `RecordFoodSheet`
+  // as before — never a tab switch.
+  assert.match(home, /Button\(action: onOpenSmartImport\)/);
+  assert.match(home, /\.accessibilityIdentifier\("home\.import\.add\.button"\)/);
+  const manualFoodActionStart = home.indexOf('childSheet = .manualIngredient');
+  const manualFoodAction = home.slice(manualFoodActionStart, home.indexOf('title: "手动添加食材"') + 100);
+  assert.match(manualFoodAction, /childSheet = \.manualIngredient/);
+  assert.doesNotMatch(manualFoodAction, /selectedTab/);
+  assert.match(home, /case \.manualIngredient:\s*RecordFoodSheet\(initialMode: \.manual\)/);
+  assert.match(home, /case \.receipt:\s*RecordFoodSheet\(initialMode: \.receipt\)/);
 });
 
 test("recipe seasonings are a real backward-compatible field", () => {
@@ -64,13 +71,21 @@ test("recipe editor supports user-controlled moves between ingredient buckets", 
   assert.match(editor, /Button\("删除"/);
 });
 
-test("home quick actions share HomeSheet and route inside one sheet navigation stack", () => {
-  assert.match(home, /case importRecipe/);
-  const importAction = home.slice(home.indexOf('title: "导入菜谱"'), home.indexOf('}', home.indexOf('title: "导入菜谱"')) + 1);
-  assert.match(importAction, /activeSheet = \.importRecipe/);
-  assert.doesNotMatch(home, /isShowingImportRecipe/);
-  assert.match(importOptions, /NavigationStack\(path: \$path\)/);
-  assert.match(importOptions, /\.navigationDestination\(for: RecipeImportRoute\.self\)/);
+test("home quick actions share one sheet navigation stack for recipe import", () => {
+  // Phase 2B-8 Home redesign: recipe import options ("从小红书导入菜谱"/
+  // "手动创建菜谱") no longer route through the standalone
+  // `RecipeImportOptionsView` — they're now `NavigationLink`s inside
+  // `SmartImportSheet`'s own `NavigationStack`, sharing one sheet with the
+  // food-entry rows rather than presenting a second sheet.
+  assert.match(home, /enum SmartImportRoute: Hashable/);
+  assert.match(home, /case xiaohongshu/);
+  assert.match(home, /case manualRecipe/);
+  assert.match(home, /struct SmartImportSheet: View/);
+  assert.match(home, /NavigationStack\(path: \$path\)/);
+  assert.match(home, /\.navigationDestination\(for: SmartImportRoute\.self\)/);
+  assert.match(home, /NavigationLink\(value: SmartImportRoute\.xiaohongshu\)/);
+  assert.match(home, /NavigationLink\(value: SmartImportRoute\.manualRecipe\)/);
+  assert.doesNotMatch(home, /RecipeImportOptionsView\(/);
 });
 
 test("all recipe generation and import prompts require auxiliary materials in seasonings", () => {
