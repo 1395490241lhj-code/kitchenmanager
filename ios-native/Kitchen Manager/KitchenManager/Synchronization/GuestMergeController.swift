@@ -167,7 +167,7 @@ final class GuestMergeController: ObservableObject {
             for change in response.changes where change.entityType == .inventoryItem {
                 if change.operation == .delete {
                     results.removeValue(forKey: change.entityId)
-                } else if let snapshot = try await adapter.decodeRemoteInventorySnapshot(change) {
+                } else if let snapshot = try adapter.decodeRemoteInventorySnapshot(change) {
                     results[change.entityId] = snapshot
                 }
             }

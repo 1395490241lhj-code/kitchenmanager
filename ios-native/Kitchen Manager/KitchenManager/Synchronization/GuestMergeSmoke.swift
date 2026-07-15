@@ -153,7 +153,7 @@ final class GuestMergeSmokeRunner {
         }
         let scope = SyncScope(type: .household, id: householdId)
 
-        var report = GuestMergeSmokeReport()
+        let report = GuestMergeSmokeReport()
         let marker = String(UUID().uuidString.prefix(8)).lowercased()
         func markedName(_ suffix: String) -> String { "__guest_merge_smoke_\(marker)_\(suffix)" }
 

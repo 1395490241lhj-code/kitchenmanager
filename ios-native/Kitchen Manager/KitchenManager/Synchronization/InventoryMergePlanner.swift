@@ -69,7 +69,7 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
 /// for matching purposes. Two different-but-present dates, or one present
 /// and one absent, are never treated as compatible — that looks like a
 /// different physical batch, not the same record re-counted.
-private enum ExpiryIdentity {
+private nonisolated enum ExpiryIdentity: Equatable {
     case compatible
     case incompatible
 
