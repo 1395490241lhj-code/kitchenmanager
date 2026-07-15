@@ -993,6 +993,143 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertTrue(deletedRemotely, "rollback must never report .rolledBack unless the entity this session created was actually soft-deleted remotely")
     }
 
+    /// A multi-entity session where one delete succeeds and another conflicts
+    /// must never report `.rolledBack` for the whole session — this is the
+    /// per-mutation verification the Phase 2B-9 fix added, exercised here
+    /// with a genuinely mixed outcome (not just a fully-successful or
+    /// fully-failed batch).
+    func testRollbackDoesNotReportSuccessWhenOneOfTwoEntitiesConflicts() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([
+            InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil),
+            InventoryImportItem(name: "牛奶", quantity: 1, unit: "盒", expiryDate: nil)
+        ])
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in inner })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        let createdIds = try XCTUnwrap(controller.session?.createdEntityIds)
+        XCTAssertEqual(createdIds.count, 2, "both imported items must have been created remotely by this session")
+        let conflictingId = try XCTUnwrap(createdIds.first)
+        let succeedingId = try XCTUnwrap(createdIds.last)
+
+        let conflicting = ConflictInjectingTransport(inner: inner, conflictEntityId: conflictingId)
+        let conflictController = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in conflicting })
+        await conflictController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        XCTAssertEqual(conflictController.session?.id, controller.session?.id, "must reuse the same still-rollback-eligible session, not a fresh one")
+
+        await conflictController.rollback(authStore: authStore)
+
+        XCTAssertEqual(conflictController.session?.status, .completed, "a partial failure must revert to .completed (rollback-eligible for retry), never .rolledBack")
+        let succeedingDeleted = await inner.isSoftDeleted(succeedingId)
+        XCTAssertTrue(succeedingDeleted, "the entity whose delete genuinely succeeded must still be soft-deleted remotely")
+        let conflictingDeleted = await inner.isSoftDeleted(conflictingId)
+        XCTAssertFalse(conflictingDeleted, "the entity whose delete conflicted must remain live remotely")
+    }
+
+    /// A retry after a partial failure must not re-stage a delete for the
+    /// entity that already succeeded — doing so would send a redundant
+    /// delete the server correctly rejects as `already_deleted`, and a naive
+    /// "any pending mutation left over" check would then misreport the
+    /// already-successful entity as a fresh failure, permanently blocking
+    /// `.rolledBack` on every subsequent retry.
+    func testRollbackRetryDoesNotReStageAnAlreadyDeletedEntityAndStillCompletes() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([
+            InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil),
+            InventoryImportItem(name: "牛奶", quantity: 1, unit: "盒", expiryDate: nil)
+        ])
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in inner })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        let createdIds = try XCTUnwrap(controller.session?.createdEntityIds)
+        XCTAssertEqual(createdIds.count, 2)
+        let conflictingId = try XCTUnwrap(createdIds.first)
+        let succeedingId = try XCTUnwrap(createdIds.last)
+
+        // First rollback attempt: one entity conflicts, the other succeeds —
+        // reverts to .completed per the test above.
+        let conflicting = ConflictInjectingTransport(inner: inner, conflictEntityId: conflictingId)
+        let firstAttempt = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in conflicting })
+        await firstAttempt.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        await firstAttempt.rollback(authStore: authStore)
+        XCTAssertEqual(firstAttempt.session?.status, .completed)
+
+        // The already-deleted entity's delete was sent once, at baseVersion
+        // "1" (its remoteVersion right after the original create). Capture
+        // that now so a retry that wrongly re-stages it (at its new,
+        // post-delete remoteVersion) is distinguishable from a retry that
+        // correctly leaves it untouched.
+        let baseVersionAfterFirstAttempt = await inner.lastReceivedBaseVersion(for: succeedingId)
+        XCTAssertEqual(baseVersionAfterFirstAttempt, "1")
+
+        // Retry against a transport with no injected conflict — the
+        // previously-succeeded entity must not be re-sent at all.
+        let retryController = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in inner })
+        await retryController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        await retryController.rollback(authStore: authStore)
+
+        XCTAssertEqual(retryController.session?.status, .rolledBack, "once the previously-conflicting entity's delete succeeds, the whole session must complete rollback")
+        let conflictingDeleted = await inner.isSoftDeleted(conflictingId)
+        XCTAssertTrue(conflictingDeleted)
+        let succeedingDeleted = await inner.isSoftDeleted(succeedingId)
+        XCTAssertTrue(succeedingDeleted)
+        let baseVersionAfterRetry = await inner.lastReceivedBaseVersion(for: succeedingId)
+        XCTAssertEqual(baseVersionAfterRetry, baseVersionAfterFirstAttempt, "an already-deleted entity must not be re-staged/re-sent on retry")
+    }
+
+    /// Same as the conflict case above, but for a server `rejected` status
+    /// (e.g. `already_deleted`, `not_found`) rather than `conflict` — the
+    /// verification logic keys off the entity's resulting `SyncMetadata`
+    /// state, not the specific `SyncMutationStatus`, so both must be caught
+    /// identically.
+    func testRollbackDoesNotReportSuccessWhenAnEntityIsRejected() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)])
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in inner })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+
+        let rejecting = ConflictInjectingTransport(inner: inner, conflictEntityId: itemId, status: .rejected)
+        let rejectController = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in rejecting })
+        await rejectController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+
+        await rejectController.rollback(authStore: authStore)
+
+        XCTAssertEqual(rejectController.session?.status, .completed, "a rejected delete must never be reported as .rolledBack")
+        let deletedRemotely = await inner.isSoftDeleted(itemId)
+        XCTAssertFalse(deletedRemotely, "the rejected entity must remain live remotely")
+    }
+
+    /// Once a session genuinely reaches `.rolledBack`, a routine preview
+    /// re-check must be free to start a brand-new session for any newly
+    /// created local Guest data — `.rolledBack` is a true terminal state,
+    /// unlike `.completed`, and must never itself block future merges.
+    func testFreshPreviewAfterRolledBackStartsANewSessionNotBlockedForever() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        await controller.rollback(authStore: authStore)
+        let rolledBackSessionId = try XCTUnwrap(controller.session?.id)
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+
+        kitchen.importInventory([InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)])
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+
+        XCTAssertNotEqual(controller.session?.id, rolledBackSessionId, "a rolledBack session must never keep blocking a fresh preview for new local Guest data")
+        XCTAssertNotEqual(controller.session?.status, .rolledBack)
+    }
+
     /// A session whose rollback window has already expired must NOT keep
     /// blocking a fresh preview — only a still-eligible `.completed` session
     /// is preserved across a `preparePreview` re-check.
@@ -2739,6 +2876,43 @@ private actor SimulatedMergeTransport: SyncTransport {
             results.append(result)
         }
         return SyncMutationBatchResponse(results: results, cursor: try SyncCursorValue(String(sequence)))
+    }
+}
+
+/// Wraps a real transport but forces one specific entity's mutation to come
+/// back `.conflict`/`.rejected` instead of ever reaching `inner` — every
+/// other mutation in the same batch is passed through untouched. Used to
+/// test that a multi-entity Rollback never reports whole-session success
+/// when only some of its entities' deletes actually applied.
+private actor ConflictInjectingTransport: SyncTransport {
+    private let inner: any SyncTransport
+    private let conflictEntityId: UUID
+    private let status: SyncMutationStatus
+
+    init(inner: any SyncTransport, conflictEntityId: UUID, status: SyncMutationStatus = .conflict) {
+        self.inner = inner
+        self.conflictEntityId = conflictEntityId
+        self.status = status
+    }
+
+    func bootstrap() async throws -> SyncBootstrapResponse { try await inner.bootstrap() }
+
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
+        try await inner.fetchChanges(scope: scope, after: cursor, limit: limit)
+    }
+
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse {
+        let passthrough = mutations.filter { $0.entityId != conflictEntityId }
+        let response = try await inner.sendMutations(scope: scope, mutations: passthrough)
+        var results = response.results
+        if let conflicting = mutations.first(where: { $0.entityId == conflictEntityId }) {
+            results.append(SyncMutationResult(
+                mutationId: conflicting.mutationId, entityId: conflicting.entityId,
+                status: status, version: conflicting.baseVersion, sequence: nil,
+                errorCode: status == .rejected ? "already_deleted" : "stale_version", originalStatus: nil, serverRecord: nil
+            ))
+        }
+        return SyncMutationBatchResponse(results: results, cursor: response.cursor)
     }
 }
 
