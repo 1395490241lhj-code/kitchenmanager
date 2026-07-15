@@ -381,6 +381,18 @@ nonisolated struct InventoryMergePlan: Codable, Equatable, Sendable {
     /// was supplied (the ordinary in-app preview path). Display-only; never
     /// used for matching.
     let knownRemoteItemCount: Int
+    /// A canonical, order-independent fingerprint of the remote snapshot
+    /// this plan was matched against — `nil` for plans generated with no
+    /// remote read at all (matches prior/offline behavior). Any relevant
+    /// remote change (create/update/delete/version bump) changes this hash;
+    /// re-fetching the identical remote state reproduces it exactly. Used
+    /// by `confirmMerge` to detect remote drift since preview — contains no
+    /// token, email, or household-internal identifier beyond entity ids
+    /// already local to this device's own plan.
+    let remoteSnapshotHash: String?
+    /// When the remote snapshot behind `remoteSnapshotHash` was fetched —
+    /// `nil` when `remoteSnapshotHash` is `nil`.
+    let remoteSnapshotFetchedAt: Date?
 
     var creates: [InventoryMergeCandidate] { candidates.filter { $0.action == .create && !$0.needsDecision } }
     var updates: [InventoryMergeCandidate] { candidates.filter { $0.action == .update && !$0.needsDecision } }

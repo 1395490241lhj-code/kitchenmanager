@@ -522,3 +522,89 @@ test('Phase 2B-6: Shopping/Today Plan/Weekly Plan/Recipe/Favorites/Frequent rema
     assert.doesNotMatch(file, forbidden);
   }
 });
+
+// MARK: - Phase 2B-8: production remote preview, stale-preview safety gate, Conflict UI reachability
+
+test('Phase 2B-8: the production preview call site passes an authenticated transport, never a nil/no-op one', () => {
+  // GuestMergePromptView.task must call the authStore-taking overload, not
+  // the raw remoteTransport-defaults-to-nil entry point directly — this is
+  // the actual release-blocker fix: the shipped app must perform a real
+  // pre-merge remote read, not silently keep knownRemoteItems empty.
+  assert.match(views, /controller\.preparePreview\(\s*userId: userId, householdId: householdId, kitchenStore: kitchenStore, authStore: authStore\s*\)/);
+  assert.match(controller, /func preparePreview\(\s*userId: UUID,\s*householdId: UUID,\s*kitchenStore: KitchenStore,\s*authStore: AuthStore\s*\) async/);
+});
+
+test('Phase 2B-8: the production preview overload builds its transport via the existing AuthStoreCredentialProvider/transportFactory pattern, not a new mechanism', () => {
+  const overloadStart = controller.indexOf('func preparePreview(\n        userId: UUID,\n        householdId: UUID,\n        kitchenStore: KitchenStore,\n        authStore: AuthStore');
+  assert.notEqual(overloadStart, -1, 'the authStore-taking preparePreview overload must exist');
+  const overloadBody = controller.slice(overloadStart, overloadStart + 400);
+  assert.match(overloadBody, /AuthStoreCredentialProvider\(authStore: authStore\)/);
+  assert.match(overloadBody, /transportFactory\(provider\)/);
+});
+
+test('Phase 2B-8: GuestMergePromptView never reads a token directly — only ever passes its own AuthStore reference', () => {
+  assert.doesNotMatch(views, /currentAccessToken|Authorization"|Bearer /);
+  assert.match(views, /@EnvironmentObject private var authStore: AuthStore/);
+});
+
+test('Phase 2B-8: a preview fetch failure can never be silently reported as an empty/successful cloud state', () => {
+  assert.match(controller, /previewFetchFailureMessage/);
+  // The remote-fetch try/catch must be isolated from the rest of
+  // preparePreview's body — a caught error must return immediately, never
+  // fall through to constructing/saving a session with an empty
+  // knownRemoteItems array as if the read had legitimately found nothing.
+  const previewStart = controller.indexOf('func preparePreview(\n        userId: UUID,\n        householdId: UUID,\n        kitchenStore: KitchenStore,\n        remoteTransport');
+  const previewEnd = controller.indexOf('func preparePreview(\n        userId: UUID,\n        householdId: UUID,\n        kitchenStore: KitchenStore,\n        authStore: AuthStore');
+  const body = controller.slice(previewStart, previewEnd);
+  assert.match(body, /catch \{[\s\S]*?previewFetchFailureMessage = Self\.userFacingSyncError/);
+  assert.match(body, /return\s*\}/);
+});
+
+test('Phase 2B-8: fetchKnownRemoteItems throws (never silently truncates/breaks) on scope mismatch or exceeding the page cap', () => {
+  assert.doesNotMatch(controller, /guard response\.scope == scope else \{ break \}/);
+  assert.match(controller, /guard response\.scope == scope else \{ throw/);
+  assert.match(controller, /guard !hasMore else \{ throw/);
+});
+
+test('Phase 2B-8: a remote snapshot fingerprint concept exists and folds into the plan hash', () => {
+  assert.match(models, /let remoteSnapshotHash: String\?/);
+  assert.match(models, /let remoteSnapshotFetchedAt: Date\?/);
+  assert.match(planner, /static func remoteSnapshotHash\(/);
+  assert.match(planner, /func planHash\([^)]*remoteSnapshotHash: String\?/s);
+});
+
+test('Phase 2B-8: confirmMerge revalidates the remote fingerprint before staging any mutation, and rejects a stale plan', () => {
+  const confirmStart = controller.indexOf('func confirmMerge(authStore: AuthStore) async {');
+  const stageStart = controller.indexOf('for candidate in toUpload');
+  assert.ok(confirmStart >= 0 && stageStart > confirmStart, 'confirmMerge must exist and stage candidates after its own body starts');
+  const preStageBody = controller.slice(confirmStart, stageStart);
+  assert.match(preStageBody, /fetchKnownRemoteItems\(householdId: current\.householdId, transport: transport\)/);
+  assert.match(preStageBody, /InventoryMergePlanner\.remoteSnapshotHash\(currentRemoteItems\)/);
+  assert.match(preStageBody, /家庭库存已变化，请重新预览/);
+  // The revalidation must run before any actual stage/upload call (bare
+  // mentions of these names in comments are fine — only real calls matter).
+  assert.doesNotMatch(preStageBody, /adapter\.stageUpsert|adapter\.stageDelete|transport\.sendMutations|\.runOnce\(/);
+});
+
+test('Phase 2B-8: the silent-duplicate release-blocker regression test exists', () => {
+  const guestMergeTests = readFileSync(
+    new URL('../ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeTests.swift', import.meta.url),
+    'utf8'
+  );
+  assert.match(guestMergeTests, /func testProductionPreviewDoesNotSilentlyCreateBusinessEquivalentRemoteItem\(\)/);
+});
+
+test('Phase 2B-8: all feature flags remain default NO, and no new flag was introduced for this fix', () => {
+  for (const value of [sharedConfig, exampleConfig]) {
+    assert.match(value, /SYNC_ENABLED\s*=\s*NO/);
+    assert.match(value, /INVENTORY_SYNC_ENABLED\s*=\s*NO/);
+    assert.match(value, /INVENTORY_MERGE_UI_ENABLED\s*=\s*NO/);
+  }
+});
+
+test('Phase 2B-8: no service-role key, no automatic sync trigger, and Shopping/Plan/Recipe remain unwired by this fix', () => {
+  assert.doesNotMatch(controller, /service_role|SERVICE_ROLE/i);
+  assert.doesNotMatch(controller, /Timer\(|BGTaskScheduler|Realtime/);
+  const newProductionSurface = controller.slice(controller.indexOf('func preparePreview'), controller.indexOf('func resolveConflict'));
+  assert.doesNotMatch(newProductionSurface, /Shopping|TodayPlan|WeeklyPlan|Recipe|Favorite|Frequent/);
+});

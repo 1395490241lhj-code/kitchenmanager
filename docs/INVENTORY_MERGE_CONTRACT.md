@@ -111,17 +111,34 @@ unaffected — its own id is already distinct, so `forkedLocalItemId` stays
 ```
 planHash = sha256(
   sessionId + householdId +
-  join(sorted_by_id(localItems).map(item => "\(id):\(quantity):\(unit):\(expiry ?? "nil")"))
+  join(sorted_by_id(localItems).map(item => "\(id):\(quantity):\(unit):\(expiry ?? "nil")")) +
+  "remote:" + (remoteSnapshotHash ?? "none")
 )
 ```
 
 Recomputed and compared before resuming a persisted session; a mismatch means
-local inventory changed since the plan was generated and the plan must be
-regenerated, never silently reused or uploaded stale. The hash is built from
-a manually sorted-and-joined string (not a JSON serialization), so key
-ordering is not a source of instability by construction; input ordering of
-`localItems` also does not affect the result, since items are sorted by id
-before hashing.
+local inventory (or, since Phase 2B-8, remote inventory) changed since the
+plan was generated and the plan must be regenerated, never silently reused
+or uploaded stale. The hash is built from a manually sorted-and-joined
+string (not a JSON serialization), so key ordering is not a source of
+instability by construction; input ordering of `localItems` also does not
+affect the result, since items are sorted by id before hashing.
+
+**Remote snapshot fingerprint (Phase 2B-8).** `InventoryMergePlan` carries
+`remoteSnapshotHash: String?`/`remoteSnapshotFetchedAt: Date?`, populated
+only when a real remote read happened (`nil` for the offline/no-transport
+path, preserving prior behavior exactly).
+`InventoryMergePlanner.remoteSnapshotHash(_:)` computes a canonical,
+order-independent SHA256 digest over every `RemoteInventorySnapshotItem`
+field relevant to matching/conflict detection, including `remoteVersion` —
+sorted by entity id so fetch/page order never affects the result. This is
+folded into `planHash` above, so `isPlanStillValid(_:against:currentRemoteItems:)`
+detects remote drift (a version bump, a create, a delete) through the exact
+same mechanism that already detected local drift — no second code path to
+keep in sync. `confirmMerge` re-fetches and re-hashes the remote snapshot
+immediately before staging any mutation and rejects the confirm (reverting
+the session to `previewReady`) if the fingerprint no longer matches what
+preview saw.
 
 `GuestMergeSession.localSnapshot` (used only for this drift check, not for
 matching) is capped at `GuestMergeSession.maxSnapshotItems` (500) to bound the
@@ -133,20 +150,29 @@ than crashing or fabricating data, and a `nil` plan makes `confirmMerge`
 refuse to upload anything (it guards on `let plan = current.plan else {
 return }`).
 
-## Pre-merge remote read (Phase 2B-2)
+## Pre-merge remote read (Phase 2B-2; wired into production in Phase 2B-8)
 
 `GuestMergeController.preparePreview(userId:householdId:kitchenStore:remoteTransport:)`
-takes an optional `remoteTransport` (default `nil`). Ordinary in-app preview
-never supplies one, so `knownRemoteItems` stays empty and behavior is
-unchanged from Phase 2B-1. When supplied (only by the Debug-only hosted smoke
-harness today), a private `fetchKnownRemoteItems` performs one read-only
-`SyncTransport.fetchChanges` pull for the household's `inventory_item`
-entities (a GET; no `sync_mutations`/`sync_changes` write; no persisted pull
-cursor advance), decodes each into a `RemoteInventorySnapshotItem` (via
+takes an optional `remoteTransport` (default `nil`, still zero-network when
+omitted). Since Phase 2B-8, the production call site
+(`GuestMergePromptView`'s `.task`) calls a second overload,
+`preparePreview(userId:householdId:kitchenStore:authStore:)`, which builds a
+real transport via the existing `AuthStoreCredentialProvider`/
+`transportFactory` pattern and always supplies it — so `knownRemoteItems`
+now reflects real household state in the shipped app, not just in the
+Debug-only hosted smoke harness. A private `fetchKnownRemoteItems` performs
+one read-only `SyncTransport.fetchChanges` pull for the household's
+`inventory_item` entities (a GET; no `sync_mutations`/`sync_changes` write;
+no persisted pull cursor advance), decodes each into a
+`RemoteInventorySnapshotItem` (via
 `InventorySyncAdapter.decodeRemoteInventorySnapshot`, including the entity's
 real `remoteVersion`), and passes the result to `InventoryMergePlanner.makePlan`.
 This is a read, not a write, so it does not violate "preview performs zero
-network writes."
+network writes." A scope mismatch or exceeding the hardcoded `maxPages` (50)
+cap while more data remains now `throw`s rather than silently returning a
+partial/wrong snapshot; any thrown error surfaces as
+`GuestMergeController.previewFetchFailureMessage` and blocks preview
+entirely — it can never be displayed as "0 known remote items."
 
 `RemoteInventorySnapshotItem` and `InventoryMergeCandidate` both carry this
 `remoteVersion`. `confirmMerge` uses it to seed local `SyncMetadata`

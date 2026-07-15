@@ -1,8 +1,10 @@
 # Inventory Merge Remote Preview — Fix Design (Phase 2B-7B)
 
-**Status: design only. No product code has been changed to implement
-this. This document exists so a future phase can implement, review, and
-test this deliberately, rather than under time pressure.**
+**Status: implemented in Phase 2B-8.** See
+`docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md` for what was
+actually built, validated, and deferred. This document is kept as the
+original design record; the sections below describe the problem and
+proposed fix as understood at design time.
 
 ## Problem statement
 

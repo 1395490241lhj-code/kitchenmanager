@@ -37,6 +37,14 @@ final class GuestMergeController: ObservableObject {
     @Published private(set) var session: GuestMergeSession?
     @Published private(set) var isBusy = false
     @Published private(set) var lastErrorMessage: String?
+    /// Set only when the production preview's read-only remote fetch itself
+    /// fails (network/auth/decode/scope/pagination) — kept separate from
+    /// `lastErrorMessage` so an unrelated sync error elsewhere can never
+    /// bleed into (or be masked by) this specific state, and so the View can
+    /// render an explicit "could not read household inventory" state that
+    /// takes precedence over both the empty-state and any stale session.
+    /// Cleared at the start of every `preparePreview` call.
+    @Published private(set) var previewFetchFailureMessage: String?
     /// Manual-sync-only state (section 十二/十三) — entirely separate from
     /// the merge session's own `isBusy`/`lastErrorMessage`, since a manual
     /// sync can run independently of any merge session (e.g. after a merge
@@ -116,20 +124,45 @@ final class GuestMergeController: ObservableObject {
         guard isFeatureEnabled else { return }
         isBusy = true
         lastErrorMessage = nil
+        previewFetchFailureMessage = nil
         defer { isBusy = false }
+
+        let localItems = kitchenStore.inventory
+        let knownRemoteItems: [RemoteInventorySnapshotItem]
+        let remoteSnapshotFetchedAt: Date?
         do {
-            let localItems = kitchenStore.inventory
-            let knownRemoteItems = try await fetchKnownRemoteItems(householdId: householdId, transport: remoteTransport)
+            knownRemoteItems = try await fetchKnownRemoteItems(householdId: householdId, transport: remoteTransport)
+            // Only a real transport performed a real remote read — a `nil`
+            // transport (the offline/no-network-call path) must keep
+            // producing a plan with no remote fingerprint at all, exactly as
+            // before, rather than fabricating a fetch timestamp for a fetch
+            // that never happened.
+            remoteSnapshotFetchedAt = remoteTransport != nil ? Date() : nil
+        } catch {
+            // A failed remote read must never be indistinguishable from "the
+            // household has nothing yet" — surface a dedicated failure state
+            // and stop here without touching `session` at all, so neither a
+            // stale existing session nor a fresh empty-cloud plan is ever
+            // shown in its place.
+            let syncError = (error as? SyncError) ?? .transport
+            previewFetchFailureMessage = Self.userFacingSyncError(syncError)
+            return
+        }
+
+        do {
             if var existing = try await persistence.activeGuestMergeSession(
                 userId: userId, householdId: householdId, entityType: .inventoryItem
             ) {
                 if let existingPlan = existing.plan,
-                   !InventoryMergePlanner.isPlanStillValid(existingPlan, against: localItems),
+                   !InventoryMergePlanner.isPlanStillValid(existingPlan, against: localItems, currentRemoteItems: knownRemoteItems),
                    existing.status == .detected || existing.status == .previewReady || existing.status == .awaitingConfirmation {
                     // Local data changed since this plan was generated and no
                     // upload has started yet — regenerate rather than upload
                     // a stale plan.
-                    existing = regeneratedPreview(session: existing, localItems: localItems, knownRemoteItems: knownRemoteItems)
+                    existing = regeneratedPreview(
+                        session: existing, localItems: localItems, knownRemoteItems: knownRemoteItems,
+                        remoteSnapshotFetchedAt: remoteSnapshotFetchedAt
+                    )
                     try await persistence.saveGuestMergeSession(existing)
                 }
                 session = existing
@@ -137,12 +170,32 @@ final class GuestMergeController: ObservableObject {
             }
 
             guard !localItems.isEmpty else { return }
-            let newSession = freshPreview(userId: userId, householdId: householdId, localItems: localItems, knownRemoteItems: knownRemoteItems)
+            let newSession = freshPreview(
+                userId: userId, householdId: householdId, localItems: localItems, knownRemoteItems: knownRemoteItems,
+                remoteSnapshotFetchedAt: remoteSnapshotFetchedAt
+            )
             try await persistence.saveGuestMergeSession(newSession)
             session = newSession
         } catch {
             lastErrorMessage = "无法生成合并预览，请稍后重试。"
         }
+    }
+
+    /// Production entry point — the sole call site is `GuestMergePromptView`.
+    /// The View passes its already-injected `AuthStore` reference (never a
+    /// token); this constructs the same credential-provider/transport
+    /// pattern `confirmMerge`/`syncNow` already use, so the pre-merge read
+    /// this phase wires in is authenticated exactly like every other network
+    /// call in this file, and the View gains no new token-handling path.
+    func preparePreview(
+        userId: UUID,
+        householdId: UUID,
+        kitchenStore: KitchenStore,
+        authStore: AuthStore
+    ) async {
+        let provider = AuthStoreCredentialProvider(authStore: authStore)
+        let transport = transportFactory(provider)
+        await preparePreview(userId: userId, householdId: householdId, kitchenStore: kitchenStore, remoteTransport: transport)
     }
 
     /// Never writes anything — a GET-only pull used purely to build in-memory
@@ -163,7 +216,12 @@ final class GuestMergeController: ObservableObject {
         let maxPages = 50
         while hasMore && pagesFetched < maxPages {
             let response = try await transport.fetchChanges(scope: scope, after: cursor, limit: 100)
-            guard response.scope == scope else { break }
+            // A scope mismatch means the response cannot be trusted at all —
+            // silently `break`ing here previously let the fetch return
+            // whatever partial results had already accumulated as if they
+            // were a complete, valid snapshot. Preview must never mistake
+            // "cannot trust this response" for "household has nothing yet".
+            guard response.scope == scope else { throw SyncError.decoding }
             for change in response.changes where change.entityType == .inventoryItem {
                 if change.operation == .delete {
                     results.removeValue(forKey: change.entityId)
@@ -176,17 +234,23 @@ final class GuestMergeController: ObservableObject {
             pagesFetched += 1
             if hasMore, response.changes.isEmpty { break }
         }
+        // Exiting the loop with `hasMore` still true means the household has
+        // more remote data than `maxPages` could cover — the accumulated
+        // `results` is a truncated, incomplete snapshot and must never be
+        // returned as if it were the full remote state.
+        guard !hasMore else { throw SyncError.invalidCursor }
         return Array(results.values)
     }
 
     private func freshPreview(
-        userId: UUID, householdId: UUID, localItems: [InventoryItem], knownRemoteItems: [RemoteInventorySnapshotItem]
+        userId: UUID, householdId: UUID, localItems: [InventoryItem], knownRemoteItems: [RemoteInventorySnapshotItem],
+        remoteSnapshotFetchedAt: Date? = nil
     ) -> GuestMergeSession {
         let sessionId = UUID()
         let now = Date()
         let plan = InventoryMergePlanner.makePlan(
             sessionId: sessionId, householdId: householdId, localItems: localItems,
-            knownRemoteItems: knownRemoteItems, generatedAt: now
+            knownRemoteItems: knownRemoteItems, remoteSnapshotFetchedAt: remoteSnapshotFetchedAt, generatedAt: now
         )
         return GuestMergeSession(
             id: sessionId,
@@ -213,12 +277,13 @@ final class GuestMergeController: ObservableObject {
     }
 
     private func regeneratedPreview(
-        session existing: GuestMergeSession, localItems: [InventoryItem], knownRemoteItems: [RemoteInventorySnapshotItem]
+        session existing: GuestMergeSession, localItems: [InventoryItem], knownRemoteItems: [RemoteInventorySnapshotItem],
+        remoteSnapshotFetchedAt: Date? = nil
     ) -> GuestMergeSession {
         var updated = existing
         let plan = InventoryMergePlanner.makePlan(
             sessionId: existing.id, householdId: existing.householdId, localItems: localItems,
-            knownRemoteItems: knownRemoteItems, generatedAt: Date()
+            knownRemoteItems: knownRemoteItems, remoteSnapshotFetchedAt: remoteSnapshotFetchedAt, generatedAt: Date()
         )
         updated.plan = plan
         updated.localSnapshot = snapshot(of: localItems)
@@ -289,6 +354,40 @@ final class GuestMergeController: ObservableObject {
         isBusy = true
         lastErrorMessage = nil
         defer { isBusy = false }
+
+        // Session-owner / identity guard — never let one account confirm a
+        // session that was generated under a different identity.
+        guard current.userId == userId else {
+            lastErrorMessage = "会话与当前账号不匹配，请重新查看合并预览。"
+            return
+        }
+
+        let provider = AuthStoreCredentialProvider(authStore: authStore)
+        let transport = transportFactory(provider)
+
+        // Re-verify the remote state right before writing anything — a plan
+        // built minutes or hours earlier may no longer reflect reality.
+        // Reject rather than silently recompute-and-continue: the whole
+        // point of this gate is that stale-remote-data must never reach
+        // `stageUpsert`.
+        if let previewHash = plan.remoteSnapshotHash {
+            let currentRemoteItems: [RemoteInventorySnapshotItem]
+            do {
+                currentRemoteItems = try await fetchKnownRemoteItems(householdId: current.householdId, transport: transport)
+            } catch {
+                lastErrorMessage = "无法确认家庭库存最新状态，请重试。"
+                return
+            }
+            let currentHash = InventoryMergePlanner.remoteSnapshotHash(currentRemoteItems)
+            guard currentHash == previewHash else {
+                current.status = .previewReady
+                current.updatedAt = Date()
+                try? await persistence.saveGuestMergeSession(current)
+                session = current
+                lastErrorMessage = "家庭库存已变化，请重新预览。"
+                return
+            }
+        }
 
         current.status = .preparing
         current.confirmedAt = current.confirmedAt ?? Date()

@@ -418,15 +418,15 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(resolvedCandidate?.action, .update)
         XCTAssertEqual(resolvedCandidate?.remoteVersion?.rawValue, "5")
 
-        // The pre-merge read was a one-time snapshot used only to build the
-        // plan; clear it so the coordinator's own real pull phase below
-        // (triggered by confirmMerge) doesn't re-fetch this same synthetic
-        // entry and misapply it over the upload result — see
-        // `clearRemoteChanges()`'s doc comment for why this mock-only step
-        // is needed (a real backend's pull and pre-merge read are the same
-        // consistent data source, so this has no product-code analog).
-        await transport.clearRemoteChanges()
-
+        // No explicit clear needed here: `SimulatedMergeTransport.sendMutations`
+        // itself drops a seeded synthetic entry once the corresponding
+        // mutation is actually applied, so the coordinator's own real pull
+        // phase below (triggered by confirmMerge) sees fresh state, not a
+        // stale synthetic re-application — mirroring how a real backend's
+        // pull and pre-merge read are the same consistent data source. This
+        // also means Phase 2B-8's own pre-upload remote-fingerprint
+        // revalidation (which runs before the push) still sees the exact
+        // remote state preview saw, and never falsely rejects this as stale.
         let authStore = await signedInAuthStore(userID: userA)
         await controller.confirmMerge(authStore: authStore)
 
@@ -467,7 +467,6 @@ final class GuestMergeTests: XCTestCase {
         )
         await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
         await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
-        await transport.clearRemoteChanges()
 
         let authStore = await signedInAuthStore(userID: userA)
         await controller.confirmMerge(authStore: authStore)
@@ -500,15 +499,19 @@ final class GuestMergeTests: XCTestCase {
         let resolvedCandidate = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
         let forkedId = try XCTUnwrap(resolvedCandidate.forkedLocalItemId)
         XCTAssertNotEqual(forkedId, sharedId)
-        await transport.clearRemoteChanges()
 
         let authStore = await signedInAuthStore(userID: userA)
         await controller.confirmMerge(authStore: authStore)
 
         XCTAssertEqual(controller.session?.status, .completed)
-        // The original entity is a true no-op — never touched by this candidate.
+        // The original entity is never staged/uploaded by this candidate (a
+        // true no-op for the *upload* side) — but confirmMerge's own real
+        // pull phase still legitimately observes the pre-existing remote
+        // record (exactly as it would on a real backend) and learns its
+        // SyncMetadata, rather than uploading or overwriting anything.
         let originalMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: sharedId)
-        XCTAssertNil(originalMetadata)
+        XCTAssertEqual(originalMetadata?.state, .synced)
+        XCTAssertEqual(originalMetadata?.remoteVersion?.rawValue, "5")
         // The fork is a genuinely new remote record created at baseVersion 0.
         let forkedMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: forkedId)
         XCTAssertEqual(forkedMetadata?.state, .synced)
@@ -547,17 +550,20 @@ final class GuestMergeTests: XCTestCase {
         let metadataForkId = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == metadataSharedId })?.forkedLocalItemId)
         XCTAssertNotEqual(expiryForkId, expirySharedId)
         XCTAssertNotEqual(metadataForkId, metadataSharedId)
-        await transport.clearRemoteChanges()
 
         let authStore = await signedInAuthStore(userID: userA)
         await controller.confirmMerge(authStore: authStore)
 
         XCTAssertEqual(controller.session?.status, .completed)
         XCTAssertEqual(Set(controller.session?.createdEntityIds ?? []), Set([expiryForkId, metadataForkId]))
+        // Neither original entity was staged/uploaded by its candidate (a
+        // true no-op for the *upload* side) — but confirmMerge's own real
+        // pull phase still legitimately observes each pre-existing remote
+        // record, exactly as a real backend's pull would.
         let expiryOriginalMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: expirySharedId)
         let metadataOriginalMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: metadataSharedId)
-        XCTAssertNil(expiryOriginalMetadata)
-        XCTAssertNil(metadataOriginalMetadata)
+        XCTAssertEqual(expiryOriginalMetadata?.state, .synced)
+        XCTAssertEqual(metadataOriginalMetadata?.state, .synced)
     }
 
     func testSameIdKeepBothRepeatedConfirmNeverCreatesASecondForkOrMutation() async throws {
@@ -573,7 +579,6 @@ final class GuestMergeTests: XCTestCase {
         await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
         await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
         let forkedId = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId)
-        await transport.clearRemoteChanges()
 
         let authStore = await signedInAuthStore(userID: userA)
         await controller.confirmMerge(authStore: authStore)
@@ -630,7 +635,6 @@ final class GuestMergeTests: XCTestCase {
         await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
         await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
         let forkedId = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId)
-        await transport.clearRemoteChanges()
 
         let authStore = await signedInAuthStore(userID: userA)
         await controller.confirmMerge(authStore: authStore)
@@ -667,7 +671,6 @@ final class GuestMergeTests: XCTestCase {
         await controller.resolveConflict(candidateId: keepRemoteId, choice: .keepRemote)
         XCTAssertNil(controller.plan?.candidates.first(where: { $0.localItemId == keepLocalId })?.forkedLocalItemId)
         XCTAssertNil(controller.plan?.candidates.first(where: { $0.localItemId == keepRemoteId })?.forkedLocalItemId)
-        await transport.clearRemoteChanges()
 
         let authStore = await signedInAuthStore(userID: userA)
         await controller.confirmMerge(authStore: authStore)
@@ -2017,6 +2020,321 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertNotNil(controller.inventoryMutationBlockedMessage, "the queue-full message must be user-visible once the cap is hit")
     }
 
+    // MARK: - Phase 2B-8: production preview remote read, fingerprint, stale-confirm gate
+
+    func testProductionPreviewOverloadConstructsANonNilTransportAndReadsRemoteState() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: UUID(), name: "牛奶", unit: "盒", quantity: 1, version: "1", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        let authStore = await signedInAuthStore(userID: userA)
+        kitchen.importInventory([InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)])
+
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+
+        XCTAssertEqual(controller.plan?.knownRemoteItemCount, 1, "the production entry point must perform a real remote read, not default to an empty transport")
+        XCTAssertNil(controller.previewFetchFailureMessage)
+    }
+
+    func testProductionPreviewNeverReadsATokenDirectlyFromTheView() async throws {
+        // Structural guard: the production overload only ever takes an
+        // `AuthStore` reference (never a raw token parameter) — this is
+        // enforced by the type system, so a successful compile+call here is
+        // itself the assertion that no token value crosses this boundary.
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        let authStore = await signedInAuthStore(userID: userA, token: "should-never-be-read-directly")
+        kitchen.importInventory([InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)])
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        XCTAssertNotNil(controller.session)
+    }
+
+    func testScopeMismatchDuringPreviewFetchBlocksPreviewRatherThanReturningPartialResults() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in ScopeMismatchTransport() }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: ScopeMismatchTransport())
+        XCTAssertNil(controller.session, "a scope mismatch must never be silently treated as a valid, if partial, remote snapshot")
+        XCTAssertNotNil(controller.previewFetchFailureMessage)
+    }
+
+    func testPaginationExceedingTheMaxPageCapBlocksPreviewRatherThanReturningATruncatedSnapshot() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in NeverEndingPaginationTransport() }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: NeverEndingPaginationTransport())
+        XCTAssertNil(controller.session, "hitting the max-page cap while more remote data remains must never silently return a truncated snapshot as if it were complete")
+        XCTAssertNotNil(controller.previewFetchFailureMessage)
+    }
+
+    func test401DuringPreviewFetchBlocksPreviewAndNeverShowsZeroCloudItemsAsSuccess() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let faulting = InventorySyncFaultInjectingTransport(inner: inner)
+        await faulting.setFetchChangesFault(.throwError(.unauthorized))
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in faulting }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: faulting)
+        XCTAssertNil(controller.session)
+        XCTAssertNotNil(controller.previewFetchFailureMessage)
+        XCTAssertNotEqual(controller.previewFetchFailureMessage, "0", "a 401 must never be presented as an empty-but-successful household")
+    }
+
+    func testOfflineDuringPreviewFetchBlocksPreview() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in FailingMergeTransport() }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: FailingMergeTransport())
+        XCTAssertNil(controller.session)
+        XCTAssertNotNil(controller.previewFetchFailureMessage)
+    }
+
+    func testMalformedOrUndecodableRemoteResponseBlocksPreview() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let faulting = InventorySyncFaultInjectingTransport(inner: inner)
+        await faulting.setFetchChangesFault(.malformedOrTruncatedJSON)
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in faulting }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: faulting)
+        XCTAssertNil(controller.session)
+        XCTAssertNotNil(controller.previewFetchFailureMessage)
+    }
+
+    func testAPreviewFetchFailureNeverTouchesAnExistingSessionOrFallsBackToAnEmptyCloudState() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)])
+        let goodTransport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in goodTransport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: goodTransport)
+        let sessionIdBefore = try XCTUnwrap(controller.session?.id)
+
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: FailingMergeTransport())
+        XCTAssertEqual(controller.session?.id, sessionIdBefore, "a subsequent failed refresh must never replace, clear, or degrade the previously valid session")
+        XCTAssertNotNil(controller.previewFetchFailureMessage)
+    }
+
+    func testPreviewFetchPerformsZeroMutationsAndNeverAdvancesThePersistedPullCursor() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)])
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: UUID(), name: "牛奶", unit: "盒", quantity: 1, version: "1", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+
+        let scope = SyncScope(type: .household, id: householdA)
+        let pending = try await persistence.pendingMutations(scope: scope, maxAttempts: 5)
+        XCTAssertTrue(pending.isEmpty, "preview must never stage a mutation as a side effect of the pre-merge read")
+        let cursor = try await persistence.cursor(for: scope)
+        XCTAssertEqual(cursor.value, .zero, "preview must never advance the persisted pull cursor SyncCoordinator relies on")
+    }
+
+    // MARK: - Phase 2B-8: remote snapshot fingerprint
+
+    func testRemoteSnapshotHashIsDeterministicAndOrderIndependent() {
+        let itemA = RemoteInventorySnapshotItem(id: UUID(), name: "苹果", unit: "个", quantity: 2, expiryDate: nil)
+        let itemB = RemoteInventorySnapshotItem(id: UUID(), name: "牛奶", unit: "盒", quantity: 1, expiryDate: Date())
+        let forward = InventoryMergePlanner.remoteSnapshotHash([itemA, itemB])
+        let reversed = InventoryMergePlanner.remoteSnapshotHash([itemB, itemA])
+        XCTAssertEqual(forward, reversed, "the remote fingerprint must not depend on fetch/page order")
+        XCTAssertEqual(forward, InventoryMergePlanner.remoteSnapshotHash([itemA, itemB]), "re-hashing an identical snapshot must reproduce the exact same fingerprint")
+    }
+
+    func testRemoteSnapshotHashChangesWhenRemoteVersionChanges() throws {
+        let id = UUID()
+        let itemAtV1 = RemoteInventorySnapshotItem(id: id, name: "苹果", unit: "个", quantity: 2, expiryDate: nil, remoteVersion: try SyncCursorValue("1"))
+        let itemAtV2 = RemoteInventorySnapshotItem(id: id, name: "苹果", unit: "个", quantity: 2, expiryDate: nil, remoteVersion: try SyncCursorValue("2"))
+        let before = InventoryMergePlanner.remoteSnapshotHash([itemAtV1])
+        let after = InventoryMergePlanner.remoteSnapshotHash([itemAtV2])
+        XCTAssertNotEqual(before, after, "a remote version bump alone must change the fingerprint, even with identical business fields")
+    }
+
+    func testRemoteSnapshotHashChangesWhenARemoteItemIsCreatedOrDeleted() {
+        let existing = RemoteInventorySnapshotItem(id: UUID(), name: "苹果", unit: "个", quantity: 2, expiryDate: nil)
+        let created = RemoteInventorySnapshotItem(id: UUID(), name: "牛奶", unit: "盒", quantity: 1, expiryDate: nil)
+        let before = InventoryMergePlanner.remoteSnapshotHash([existing])
+        let afterCreate = InventoryMergePlanner.remoteSnapshotHash([existing, created])
+        XCTAssertNotEqual(before, afterCreate, "a new remote item must change the fingerprint")
+        let afterDelete = InventoryMergePlanner.remoteSnapshotHash([])
+        XCTAssertNotEqual(before, afterDelete, "a remote item disappearing (delete/tombstone) must change the fingerprint")
+    }
+
+    func testPlanCarriesARemoteSnapshotHashOnlyWhenARealRemoteReadHappened() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let noTransportController = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in FailingMergeTransport() }
+        )
+        await noTransportController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        XCTAssertNil(noTransportController.plan?.remoteSnapshotHash, "the offline/no-transport path must keep producing a plan with no remote fingerprint at all, exactly as before")
+
+        let (kitchen2, persistence2) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userB, householdID: householdB)
+        let realController = GuestMergeController(
+            persistence: persistence2, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await realController.preparePreview(userId: userB, householdId: householdB, kitchenStore: kitchen2, remoteTransport: transport)
+        XCTAssertNotNil(realController.plan?.remoteSnapshotHash, "a real remote read must always populate a fingerprint, even when the household has zero known remote items")
+    }
+
+    // MARK: - Phase 2B-8: remote drift invalidates the plan and blocks a stale confirm
+
+    func testRemoteDataChangingAfterPreviewInvalidatesThePlanViaIsPlanStillValid() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        let plan = try XCTUnwrap(controller.plan)
+        XCTAssertTrue(InventoryMergePlanner.isPlanStillValid(plan, against: kitchen.inventory, currentRemoteItems: []))
+
+        let driftedRemote = [RemoteInventorySnapshotItem(id: UUID(), name: "新增远端条目", unit: "个", quantity: 1, expiryDate: nil)]
+        XCTAssertFalse(
+            InventoryMergePlanner.isPlanStillValid(plan, against: kitchen.inventory, currentRemoteItems: driftedRemote),
+            "a remote-side change since preview must invalidate the plan, exactly like a local-side change already does"
+        )
+    }
+
+    func testConfirmMergeRejectsAStaleRemoteFingerprintAndStagesNoMutationAtAll() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)])
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        XCTAssertEqual(controller.session?.status, .previewReady)
+
+        // Simulate remote drift between preview and confirm: another device
+        // creates a business-equivalent remote item after this device's
+        // preview already ran.
+        await transport.seedRemoteChange(id: UUID(), name: "牛奶", unit: "盒", quantity: 1, version: "1", sequence: "1")
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .previewReady, "a stale confirm must revert to previewReady, never proceed to upload")
+        XCTAssertNotNil(controller.lastErrorMessage)
+        let scope = SyncScope(type: .household, id: householdA)
+        let pending = try await persistence.pendingMutations(scope: scope, maxAttempts: 5)
+        XCTAssertTrue(pending.isEmpty, "a stale confirm must never stage a single PendingMutation")
+        let applied = await transport.appliedCount()
+        XCTAssertEqual(applied, 0, "a stale confirm must never call sendMutations at all")
+    }
+
+    func testConfirmMergeSucceedsWhenRemoteStateIsUnchangedSinceThePreMergeRead() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil)])
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed, "an unchanged remote fingerprint must never block a legitimate confirm")
+    }
+
+    // MARK: - Phase 2B-8: account/household isolation for the remote read, restart recovery
+
+    func testPreMergeRemoteReadNeverCrossesHouseholdScope() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transportForA = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transportForA.seedRemoteChange(id: UUID(), name: "A的远端物品", unit: "个", quantity: 1, version: "1", sequence: "1")
+        let controllerA = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transportForA }
+        )
+        await controllerA.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transportForA)
+        XCTAssertEqual(controllerA.plan?.knownRemoteItemCount, 1)
+
+        let transportForB = SimulatedMergeTransport(userID: userB, householdID: householdB)
+        let controllerB = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transportForB }
+        )
+        await controllerB.preparePreview(userId: userB, householdId: householdB, kitchenStore: kitchen, remoteTransport: transportForB)
+        XCTAssertEqual(controllerB.plan?.knownRemoteItemCount, 0, "household B must never see household A's pre-merge remote read results")
+    }
+
+    func testRemoteSnapshotFingerprintSurvivesASimulatedAppRestart() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controllerBeforeRestart = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controllerBeforeRestart.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        let hashBeforeRestart = try XCTUnwrap(controllerBeforeRestart.plan?.remoteSnapshotHash)
+
+        let controllerAfterRestart = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controllerAfterRestart.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        XCTAssertEqual(controllerAfterRestart.plan?.remoteSnapshotHash, hashBeforeRestart, "the persisted plan's remote fingerprint must survive a restart unchanged when nothing has actually happened to re-derive it")
+    }
+
+    // MARK: - Phase 2B-8: silent-duplicate regression (release blocker)
+
+    func testProductionPreviewDoesNotSilentlyCreateBusinessEquivalentRemoteItem() async throws {
+        // The exact release-blocker scenario: two independent devices each
+        // create a business-equivalent item ("牛奶"/"盒") under different
+        // ids before either has merged. With the production remote read now
+        // wired in, this must surface as an ambiguous-duplicate conflict —
+        // never a silent `.create` that would produce a duplicate remote row.
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([InventoryImportItem(name: "牛奶", quantity: 1, unit: "盒", expiryDate: nil)])
+        let localId = kitchen.inventory.first!.id
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: UUID(), name: "牛奶", unit: "盒", quantity: 1, version: "1", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+
+        let candidate = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == localId }))
+        XCTAssertEqual(candidate.conflictReason, .ambiguousDuplicate, "a different-id, same-business-key remote match must never be silently created")
+        XCTAssertTrue(candidate.needsDecision)
+        XCTAssertFalse(controller.plan?.readyToUpload.contains(where: { $0.localItemId == localId }) ?? true, "an unresolved ambiguous duplicate must never be part of what confirm is allowed to upload")
+
+        await controller.confirmMerge(authStore: authStore)
+
+        let appliedCount = await transport.appliedCount()
+        XCTAssertEqual(appliedCount, 0, "confirming with an unresolved ambiguous duplicate must never create a second, duplicate remote row for the same business item")
+    }
+
     // MARK: - Helpers
 
     private func makePersistence() throws -> (ModelContainer, SwiftDataSyncPersistence) {
@@ -2204,6 +2522,17 @@ private actor SimulatedMergeTransport: SyncTransport {
             )
             appliedIds.append(request.entityId)
             if request.operation == .delete { deletedIds.insert(request.entityId) }
+            // A real backend's next pull reflects the mutation that was just
+            // applied, never the stale pre-seeded synthetic entry this mock
+            // used only to simulate "a remote record this device didn't
+            // upload itself" during the pre-merge read. Dropping it here
+            // (rather than requiring every caller to remember a separate
+            // `clearRemoteChanges()` step) keeps this mock's pull-after-push
+            // behavior consistent with what `confirmMerge`'s own
+            // pre-upload remote-fingerprint revalidation already observed
+            // during preview — a real backend never drifts out from under
+            // its own just-applied write.
+            changes.removeAll { $0.entityId == request.entityId }
             results.append(result)
         }
         return SyncMutationBatchResponse(results: results, cursor: try SyncCursorValue(String(sequence)))
@@ -2232,6 +2561,39 @@ private final class FakeGuestMergeAuthService: AuthService {
 private actor FailingMergeTransport: SyncTransport {
     func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.transport }
     func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse { throw SyncError.transport }
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse { throw SyncError.transport }
+}
+
+/// Simulates a malformed/untrustworthy backend response where the returned
+/// scope doesn't match what was requested — this must never be silently
+/// treated as "the household has nothing yet" (see
+/// `GuestMergeController.fetchKnownRemoteItems`'s scope-mismatch guard).
+private actor ScopeMismatchTransport: SyncTransport {
+    func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.transport }
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
+        SyncChangesResponse(scopeType: scope.type, scopeId: UUID(), cursor: cursor, hasMore: false, changes: [])
+    }
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse { throw SyncError.transport }
+}
+
+/// Simulates a household with more remote data than the pre-merge read's
+/// hardcoded `maxPages` cap can cover — always reports `hasMore: true` with
+/// a genuinely non-empty page, so the read loop always exhausts the page cap
+/// instead of ever completing naturally. Used to prove the pagination-cap
+/// path throws rather than silently returning a truncated snapshot.
+private actor NeverEndingPaginationTransport: SyncTransport {
+    func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.transport }
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
+        let nextSequence = (Int(cursor.rawValue) ?? 0) + 1
+        let change = SyncChangeEnvelope(
+            sequence: try SyncCursorValue(String(nextSequence)), entityType: .inventoryItem, entityId: UUID(),
+            operation: .upsert, version: try SyncCursorValue("1"), changedAt: Date(),
+            data: ["name": .string("远端条目\(nextSequence)"), "quantity": .number(1), "unit": .string("个"), "isStaple": .bool(false)]
+        )
+        return SyncChangesResponse(
+            scopeType: scope.type, scopeId: scope.id, cursor: try SyncCursorValue(String(nextSequence)), hasMore: true, changes: [change]
+        )
+    }
     func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse { throw SyncError.transport }
 }
 

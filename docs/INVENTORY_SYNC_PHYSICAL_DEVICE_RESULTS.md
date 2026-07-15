@@ -1,5 +1,13 @@
 # Inventory Sync Physical-Device Results (Phase 2B-7)
 
+> **Phase 2B-8 update**: the Conflict-UI release blocker this round
+> discovered (structurally zero-network production preview) is now fixed in
+> code and simulator-validated — see
+> `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md`. The
+> Conflict UI and Rollback findings recorded below are historical
+> observations against the **pre-fix** build and have not yet been
+> re-verified on a physical device against the fixed code.
+
 ## Device / environment
 
 - Device model: iPhone 17 Pro

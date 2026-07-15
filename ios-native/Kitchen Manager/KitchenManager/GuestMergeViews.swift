@@ -12,6 +12,7 @@ struct GuestMergePromptView: View {
     let householdId: UUID
     let householdName: String
     let kitchenStore: KitchenStore
+    @EnvironmentObject private var authStore: AuthStore
     @State private var isShowingSheet = false
 
     var body: some View {
@@ -52,7 +53,7 @@ struct GuestMergePromptView: View {
                 }
             }
             .task {
-                await controller.preparePreview(userId: userId, householdId: householdId, kitchenStore: kitchenStore)
+                await controller.preparePreview(userId: userId, householdId: householdId, kitchenStore: kitchenStore, authStore: authStore)
             }
         }
     }
@@ -169,11 +170,24 @@ struct InventoryMergeFlowView: View {
     let householdId: UUID
     let householdName: String
     let kitchenStore: KitchenStore
+    @EnvironmentObject private var authStore: AuthStore
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Group {
-            if controller.isBusy && controller.session == nil {
+            // A failed remote read takes precedence over everything else —
+            // including an existing session — since neither "no mergeable
+            // inventory" nor a possibly-stale prior plan may safely be shown
+            // in its place; the household's real cloud state is unknown.
+            if let fetchFailure = controller.previewFetchFailureMessage {
+                InventoryMergePreviewFetchFailureView(message: fetchFailure) {
+                    Task {
+                        await controller.preparePreview(
+                            userId: userId, householdId: householdId, kitchenStore: kitchenStore, authStore: authStore
+                        )
+                    }
+                }
+            } else if controller.isBusy && controller.session == nil {
                 InventoryMergeProgressView(message: "正在准备合并预览…")
             } else if let session = controller.session {
                 switch session.status {
@@ -206,6 +220,28 @@ struct InventoryMergeFlowView: View {
         case .uploading: "正在合并库存…"
         case .rollbackPending: "正在回滚新增记录…"
         default: "正在处理…"
+        }
+    }
+}
+
+/// Shown instead of any plan/empty-state when the production preview's
+/// read-only remote fetch itself failed — never displays raw HTTP status,
+/// UUIDs, tokens, or internal error text, only the plain-language copy
+/// already produced by `GuestMergeController.userFacingSyncError`. Confirm
+/// is entirely unreachable from here; the only action is retrying preview.
+struct InventoryMergePreviewFetchFailureView: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("无法读取家庭库存", systemImage: "wifi.exclamationmark")
+        } description: {
+            Text(message)
+        } actions: {
+            Button("重试") { onRetry() }
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("guestMergeRetryPreviewButton")
         }
     }
 }

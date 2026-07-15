@@ -97,6 +97,7 @@ nonisolated enum InventoryMergePlanner {
         householdId: UUID,
         localItems: [InventoryItem],
         knownRemoteItems: [RemoteInventorySnapshotItem] = [],
+        remoteSnapshotFetchedAt: Date? = nil,
         generatedAt: Date = Date()
     ) -> InventoryMergePlan {
         let remoteById = Dictionary(uniqueKeysWithValues: knownRemoteItems.map { ($0.id, $0) })
@@ -108,6 +109,16 @@ nonisolated enum InventoryMergePlanner {
         let candidates = localItems.map { local in
             candidate(for: local, remoteById: remoteById, remoteByKey: remoteByKey)
         }
+        // `nil` (never `[]`'s hash) distinguishes "no remote read was ever
+        // attempted" (offline/smoke-disabled path, matches prior behavior)
+        // from "a remote read genuinely found zero items" — both an empty
+        // household and "preview never checked" would otherwise hash
+        // identically, which would defeat the whole point of this
+        // fingerprint (detecting that a remote check never happened is not
+        // this fingerprint's job — `knownRemoteItemCount` already reports
+        // that; this fingerprint only needs to detect drift once a read did
+        // happen).
+        let remoteHash = remoteSnapshotFetchedAt != nil ? remoteSnapshotHash(knownRemoteItems) : nil
 
         return InventoryMergePlan(
             sessionId: sessionId,
@@ -116,25 +127,77 @@ nonisolated enum InventoryMergePlanner {
             sourceCount: localItems.count,
             candidates: candidates,
             skippedItemIds: candidates.filter { $0.action == .skip && $0.conflictReason == nil }.map(\.localItemId),
-            planHash: planHash(sessionId: sessionId, householdId: householdId, localItems: localItems),
-            knownRemoteItemCount: knownRemoteItems.count
+            planHash: planHash(sessionId: sessionId, householdId: householdId, localItems: localItems, remoteSnapshotHash: remoteHash),
+            knownRemoteItemCount: knownRemoteItems.count,
+            remoteSnapshotHash: remoteHash,
+            remoteSnapshotFetchedAt: remoteHash != nil ? remoteSnapshotFetchedAt : nil
         )
     }
 
     /// Re-derives the plan's source fingerprint from the current local items
-    /// and compares it against the stored hash. A mismatch means local data
-    /// changed since the plan was generated, so callers must regenerate
-    /// (never silently reuse) the plan before executing it.
-    static func isPlanStillValid(_ plan: InventoryMergePlan, against currentLocalItems: [InventoryItem]) -> Bool {
-        planHash(sessionId: plan.sessionId, householdId: plan.householdId, localItems: currentLocalItems) == plan.planHash
+    /// (and, when the plan was built against a real remote read, the current
+    /// remote snapshot too) and compares it against the stored hash. A
+    /// mismatch means local data — or remote data — changed since the plan
+    /// was generated, so callers must regenerate (never silently reuse) the
+    /// plan before executing it.
+    static func isPlanStillValid(
+        _ plan: InventoryMergePlan,
+        against currentLocalItems: [InventoryItem],
+        currentRemoteItems: [RemoteInventorySnapshotItem]? = nil
+    ) -> Bool {
+        let currentRemoteHash = plan.remoteSnapshotHash != nil ? currentRemoteItems.map(remoteSnapshotHash) : nil
+        return planHash(
+            sessionId: plan.sessionId, householdId: plan.householdId, localItems: currentLocalItems,
+            remoteSnapshotHash: currentRemoteHash
+        ) == plan.planHash
     }
 
-    static func planHash(sessionId: UUID, householdId: UUID, localItems: [InventoryItem]) -> String {
+    /// A canonical, order-independent fingerprint of a remote inventory
+    /// snapshot: sorted by entity id so fetch/page order never affects the
+    /// result, covering every field relevant to matching/conflict detection
+    /// (including `remoteVersion`, so a version bump alone changes the
+    /// hash even if the visible business fields didn't change). Contains no
+    /// token, email, or raw household id in its *output* — only used
+    /// internally as an opaque digest.
+    static func remoteSnapshotHash(_ items: [RemoteInventorySnapshotItem]) -> String {
+        var components: [String] = []
+        for item in items.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+            let expiry: String = item.expiryDate.map { String($0.timeIntervalSince1970) } ?? "nil"
+            let category: String = item.stapleCategory ?? "nil"
+            let threshold: String = item.lowStockThreshold.map { String($0) } ?? "nil"
+            let restockQuantity: String = item.defaultRestockQuantity.map { String($0) } ?? "nil"
+            var fields: [String] = []
+            fields.append(item.id.uuidString.lowercased())
+            fields.append(item.name)
+            fields.append(item.unit)
+            fields.append(String(item.quantity))
+            fields.append(expiry)
+            fields.append(String(item.isStaple))
+            fields.append(category)
+            fields.append(threshold)
+            fields.append(restockQuantity)
+            fields.append(String(item.autoSuggestRestock))
+            fields.append(item.stapleTrackingMode.rawValue)
+            fields.append(item.stapleAvailabilityStatus.rawValue)
+            fields.append(item.remoteVersion.rawValue)
+            components.append(fields.joined(separator: ":"))
+        }
+        let digest = SHA256.hash(data: Data(components.joined(separator: "|").utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func planHash(sessionId: UUID, householdId: UUID, localItems: [InventoryItem], remoteSnapshotHash: String? = nil) -> String {
         var components: [String] = [sessionId.uuidString.lowercased(), householdId.uuidString.lowercased()]
         for item in localItems.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
             let expiry = item.expiryDate.map { String($0.timeIntervalSince1970) } ?? "nil"
             components.append("\(item.id.uuidString.lowercased()):\(item.quantity):\(item.unit):\(expiry)")
         }
+        // Folding the remote fingerprint in here (rather than only storing it
+        // alongside) means any remote drift — a version bump, a create, a
+        // delete — invalidates the plan through the exact same
+        // `isPlanStillValid` check local drift already used, with no second
+        // code path to keep in sync.
+        components.append("remote:\(remoteSnapshotHash ?? "none")")
         let digest = SHA256.hash(data: Data(components.joined(separator: "|").utf8))
         return digest.map { String(format: "%02x", $0) }.joined()
     }
