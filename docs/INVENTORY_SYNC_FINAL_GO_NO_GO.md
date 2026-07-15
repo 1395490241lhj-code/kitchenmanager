@@ -1,4 +1,16 @@
-# Inventory Sync Final Go / No-Go (Phase 2B-7, updated after manual round)
+# Inventory Sync Final Go / No-Go (Phase 2B-7, updated after manual round; Conflict UI severity elevated in Phase 2B-7B)
+
+> **Phase 2B-7B correction**: Conflict UI is reclassified from
+> "architectural gap, not exercised" to a **confirmed production release
+> blocker** — see `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md` for
+> the root cause and fix design. Separately, a read-only reconciliation
+> found that an earlier claim ("this round's confirm inadvertently
+> uploaded 2 real personal inventory items") is not supported by the
+> change-feed evidence and has been retracted in
+> `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md` — those items already
+> existed before this round's confirm; their origin remains unknown.
+> Rollback is now stated as **UNSAFE TO ROLLBACK**, not merely "not
+> exercised."
 
 ## Conclusion: **Dogfood Go / Production No-Go**
 
@@ -65,14 +77,14 @@ initially crashed — was tapped through for real and passed.
 | 前后台/锁屏恢复通过 | ✅ **met** — backgrounding mid-sync, lock/unlock, all tapped through for real, passed |
 | App kill 恢复通过 | ✅ met — a real force-quit with a pending item, relaunch, and sync, tapped through for real and passed (in addition to the earlier `devicectl`-level kill and the simulated in-flight-mutation test) |
 | account isolation 通过 | ✅ **met** — User A/B switch tapped through for real: User B correctly showed unmerged state, no leak of User A's synced status; User A's state correctly recovered after re-login |
-| conflict UI 通过 | ❌ **BLOCKED — confirmed architectural gap** — the production preview never performs the pre-merge remote read needed to detect any conflict, by deliberate prior design; empirically confirmed with a real seeded remote item that stayed invisible to preview |
-| rollback 通过 | ❌ **NOT EXERCISED** — two separate attempts both stopped on ambiguous/unclear session state rather than proceed |
+| conflict UI 通过 | ❌ **RELEASE BLOCKER** — the production preview never performs the pre-merge remote read needed to detect any conflict, by deliberate prior design, and the server has no business-key deduplication, meaning a silent duplicate can occur; empirically confirmed with a real seeded remote item that stayed invisible to preview. See `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md` |
+| rollback 通过 | ❌ **UNSAFE TO ROLLBACK** — not merely untested; this session's `createdEntityIds` cannot be proven from available read-only evidence, so rollback scope cannot be safely confirmed |
 | diagnostics 脱敏 | ✅ **met** — the operator opened the real diagnostics screen and reviewed the actual export JSON directly: confirmed only counts/statuses/timestamps, no email/password/token/full UUID/household ID/mutation ID/item name |
 | consistency checker clean | ✅ met — reported clean during the automated round; not independently re-checked via a fresh on-screen tap this round beyond opening the diagnostics screen |
 | hosted dogfood 通过 | ✅ met (unchanged from the automated round) |
 | archive safety 通过 | ✅ met (Phase 2B-6, unchanged) |
 | production config audit 通过 | ✅ met (Phase 2B-6, unchanged) |
-| 0 release blocker | ✅ met — the one real bug found (inventory-delete crash) was fixed, regression-tested, and re-verified on-device before this phase closed |
+| 0 release blocker | ❌ **1 open release blocker** — Conflict UI's structural unreachability + no server-side business-key dedup = confirmed silent-duplicate risk (see above). The inventory-delete crash found in the prior round was fixed, regression-tested, and re-verified — that one is closed. |
 | 所有默认 flags 仍为 NO | ✅ met — the device was rebuilt and reinstalled with flags `NO`, verified via `plutil` on the compiled `Info.plist` |
 | marker 0 残留 | ✅ met — `scripts/cleanup-guest-merge-smoke-markers.mjs` (now also covering the `__inventory_device_dogfood_` prefix) found 0 rows |
 
@@ -102,7 +114,9 @@ re-verified for real on the same physical device. See
    conflicts are meant to be caught some other way (e.g., a later
    sync-time version check) — then verify that path instead. Simply
    "trying again" won't reach the conflict screen, since the gap is
-   structural, not incidental.
+   structural, not incidental. See `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md`
+   for the full proposed design and required test plan (design only —
+   not implemented).
 2. **Rollback** — needs a clean, unambiguous merge session (ideally on a
    fresh test account with no leftover data from earlier phases) taken all
    the way through confirm with a verified, predictable outcome, then
@@ -118,10 +132,13 @@ anything other than clean during a real human-driven run.
 
 ## Status wording to use anywhere this is referenced
 
-**"Dogfood Go / Production No-Go — the full human-driven physical-device
-checklist passed except Conflict UI (confirmed architecturally unreachable
-from the shipped preview, a specific finding for a future phase, not a
-crash) and Rollback (still untested on a physical device after two
-attempts both correctly stopped on ambiguous state); one real crash bug
-(inventory-delete) was found, fixed, and re-verified on-device."** Never
-shorten this to "physical device fully validated" or "production ready."
+**"Dogfood Go / Production No-Go — Conflict UI is a confirmed production
+release blocker (preview is structurally zero-network by design, and the
+server has no business-key deduplication, so a silent duplicate is
+possible — see `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md`);
+Rollback remains untested and is currently unsafe to attempt on the
+existing session; one real crash bug (inventory-delete) was found, fixed,
+and re-verified on-device."** Never shorten this to "physical device fully
+validated" or "production ready," and never cite the retracted "2 real
+personal items uploaded" claim — see the correction in
+`docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`.

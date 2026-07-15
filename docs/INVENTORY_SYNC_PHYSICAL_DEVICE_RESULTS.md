@@ -237,11 +237,29 @@ cleanly signed out; marker residue is zero.
 
 ## Conflict UI and Rollback attempt (Phase 2B-7, final round)
 
-This round attempted to close the last two open items. Both remain
-**BLOCKED / NOT EXERCISED** — for real, specific, documented reasons, not
-guessed at.
+> **Correction (Phase 2B-7B, later read-only reconciliation)**: this
+> section's original real-time write below states that confirming the
+> merge caused "2 real personal inventory items" to be uploaded as part of
+> this round. **That specific claim is not supported by the evidence and
+> is retracted.** A subsequent reconciliation against the *full* remote
+> change feed (not just a current-state snapshot) found both items already
+> existed in that household well before this round's confirm — the feed
+> records no create/update for them during this round's confirm window at
+> all. Their true origin remains unknown; it is not re-guessed here. The
+> original text below is preserved as the honest real-time record of what
+> was observed and concluded *at the time*, per this project's practice of
+> keeping the audit trail intact rather than silently rewriting it — but it
+> must not be cited as evidence that this round uploaded real personal
+> data. See `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md` for the
+> related fix design.
 
-### Conflict UI — **BLOCKED (confirmed architectural gap, not a bug)**
+This round attempted to close the last two open items. Conflict UI is now
+classified as a **confirmed production release blocker** (elevated from
+"architectural gap" — see below); Rollback remains **NOT EXERCISED /
+UNSAFE TO ROLLBACK** given this session's `createdEntityIds` cannot be
+proven from available evidence.
+
+### Conflict UI — **RELEASE BLOCKER (structurally unreachable in production; silent-duplicate risk), not merely "not exercised"**
 
 A controlled ambiguous-duplicate scenario was set up: one marker item
 (`__inventory_device_conflict_q1`, quantity 2) was seeded directly into
@@ -278,18 +296,36 @@ actual behavior. Two things followed:
    smoke-test runs under this same development test account, never fully
    investigated further given the "stop when state is unclear" rule.
 
-**This is reported as a real, specific architectural finding for a future
-phase to address** (either wire a real pre-merge check into the production
-preview, or accept and document that conflict detection only ever
-happens — if at all — via a later sync-time version check, not during
-Guest merge) — not as a crash, not as data loss, and not exercised as
-"PASS."
+**Release-blocker classification (Phase 2B-7B)**: the server enforces
+optimistic concurrency per-`entityId` only — it has no business-key
+(name+unit) deduplication. Since preview never learns of pre-existing
+remote data, a local `create` for a business-equivalent item with a
+different id will succeed unconditionally, with no conflict ever
+surfaced. This is a genuine **silent-duplicate risk** in production, not
+merely an academic gap — see `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md`
+for the fix design (not implemented this round). The fix is either (a)
+wire a real, read-only pre-merge check into the production preview, or
+(b) make and document a deliberate decision that Guest merge is
+intentionally optimistic and verify some other conflict-detection path
+instead — either way, this is not a crash and not proven data loss, but it
+is a production release blocker as currently shipped, not a "not yet
+exercised" test item.
 
-### Rollback — **NOT EXERCISED (stopped on ambiguous state, per instruction)**
+**"预计新增3条 → 已合并1条" remains unresolved.** The available read-only
+evidence (the marker item's own remote copy, unchanged through the
+confirm) cannot identify which write, if any, the reported "已合并1条"
+corresponds to. This was not chased further without local-device
+session/metadata access, which does not exist in this environment.
+
+### Rollback — **UNSAFE TO ROLLBACK (not exercised — not because rollback logic is suspected broken)**
 
 Given the confirm's outcome above was itself unclear (predicted-vs-actual
 mismatch, unexplained pre-existing items in the same household), rollback
-was **not attempted** on this session — proceeding would mean acting
+was **not attempted** on this session. This is not "rollback logic looks
+risky" — it is that this session's `createdEntityIds` cannot be proven
+from the read-only evidence available (no local-device session/metadata
+access exists in this environment), so the scope of what a rollback would
+actually affect cannot be safely confirmed. Proceeding would mean acting
 against a state this document cannot fully account for, which is exactly
 the "如果出现...状态不明确，立即停止" scenario this phase's instructions
 call for. No rollback UI screen was tapped.
@@ -313,10 +349,13 @@ call for. No rollback UI screen was tapped.
 
 ### Conclusion for this round
 
-Neither Conflict UI nor Rollback can be marked PASS. Conflict UI is now a
-well-understood, specifically-diagnosed BLOCKED item (an architectural gap,
-not a device/tooling limitation like the earlier BLOCKED items). Rollback
-remains genuinely untested on a physical device — twice now, ambiguous
-session state has interrupted the attempt before reaching it. The
-**Dogfood Go / Production No-Go** conclusion is unchanged; see
-`docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md` for the updated criteria table.
+Neither Conflict UI nor Rollback can be marked PASS. **Conflict UI is now a
+confirmed production release blocker** — not just an architectural gap or
+a device/tooling limitation like the earlier BLOCKED items — because the
+combination of "preview never checks remote state" and "server has no
+business-key deduplication" is a real silent-duplicate risk. **Rollback is
+UNSAFE TO ROLLBACK**, not merely untested — twice now, ambiguous session
+state has interrupted the attempt before this session's actual scope could
+be proven. The **Dogfood Go / Production No-Go** conclusion is unchanged;
+see `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md` for the updated criteria table
+and `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md` for the fix design.
