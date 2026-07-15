@@ -42,6 +42,24 @@
 > `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s "Phase 2B-8C" section
 > for the full account.
 
+> **Phase 2B-9 update**: the formal, deliberate Rollback validation flagged
+> above as the only remaining open item was attempted this round and
+> **FAILED** — the on-screen "已回滚本次新增的记录。" success message was
+> false. A read-only query against the server's own `sync_mutations` audit
+> ledger proved no `delete` operation was ever sent for the entity; it
+> remained live remotely with only its version bumped by an unrelated
+> upsert. Root cause (confirmed via two offline reproduction tests, no
+> device/network involved): `activeGuestMergeSession` treated a `.completed`
+> session as terminal/inactive, so a routine `preparePreview` re-check —
+> with no app relaunch required — could silently replace the completed
+> session and orphan its `createdEntityIds`/`rollbackAvailableUntil`, and
+> `rollback()` never verified the staged delete actually applied before
+> reporting success. **Both are now fixed in code and regression-tested**
+> (see `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s "Phase 2B-9"
+> section for the full account). Physical-device re-validation of Rollback
+> against the fixed code is still required before this item can be marked
+> PASS — this round only fixed and offline-verified the bug.
+
 ## Conclusion: **Dogfood Go / Production No-Go**
 
 A real iPhone 17 Pro (iOS 27.0) ran the full automated test suite
@@ -108,7 +126,7 @@ initially crashed — was tapped through for real and passed.
 | App kill 恢复通过 | ✅ met — a real force-quit with a pending item, relaunch, and sync, tapped through for real and passed (in addition to the earlier `devicectl`-level kill and the simulated in-flight-mutation test) |
 | account isolation 通过 | ✅ **met** — User A/B switch tapped through for real: User B correctly showed unmerged state, no leak of User A's synced status; User A's state correctly recovered after re-login |
 | conflict UI 通过 | ✅ **met (Phase 2B-8C)** — fixed in code (Phase 2B-8), hosted-validated, and now confirmed for real on a physical device: remote count, conflict reachability, correct local/household values, all four choices, and no internal-ID leakage. A second dead-end bug (found during this same physical-device round) is also fixed. See `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s "Phase 2B-8C" section |
-| rollback 通过 | ❌ **UNSAFE TO ROLLBACK** — not merely untested; this session's `createdEntityIds` cannot be proven from available read-only evidence, so rollback scope cannot be safely confirmed |
+| rollback 通过 | ❌ **FAIL (Phase 2B-9)** — formally attempted on a clean physical-device session and failed: the on-screen "已回滚" success was false, no `delete` mutation ever reached the server. Root cause confirmed and fixed in code (`activeGuestMergeSession` orphaning a completed session; `rollback()` not verifying the staged delete actually applied) and covered by offline regression tests. Physical-device re-validation against the fix is still required |
 | diagnostics 脱敏 | ✅ **met** — the operator opened the real diagnostics screen and reviewed the actual export JSON directly: confirmed only counts/statuses/timestamps, no email/password/token/full UUID/household ID/mutation ID/item name |
 | consistency checker clean | ✅ met — reported clean during the automated round; not independently re-checked via a fresh on-screen tap this round beyond opening the diagnostics screen |
 | hosted dogfood 通过 | ✅ met (unchanged from the automated round) |
@@ -147,10 +165,14 @@ re-verified for real on the same physical device. See
    structural, not incidental. See `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md`
    for the full proposed design and required test plan (design only —
    not implemented).
-2. **Rollback** — needs a clean, unambiguous merge session (ideally on a
-   fresh test account with no leftover data from earlier phases) taken all
-   the way through confirm with a verified, predictable outcome, then
-   rollback exercised immediately after.
+2. **Rollback** — the underlying bug (session orphaned by a routine
+   `preparePreview` re-check; success reported without verifying the delete
+   actually applied) is now fixed in code and offline-regression-tested
+   (Phase 2B-9). What remains: re-run the same clean, isolated
+   physical-device Rollback validation against the fixed build and confirm
+   PASS for real — predicted-vs-actual `createdEntityIds`, remote
+   soft-delete, local Guest retention, and idempotency all verified on
+   hardware, not just offline.
 
 ## What would change this to No-Go
 
@@ -170,14 +192,17 @@ physical-device-validated for real (Phase 2B-8/2B-8C) — see
 `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md` and
 `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s Phase 2B-8C section. A
 second dead-end bug (post-conflict resolution) was found and fixed during
-that physical-device round. Formal, deliberate Rollback validation is the
-only item still open before Production Go — an unplanned, single,
-out-of-protocol Rollback was incidentally exercised during Phase 2B-8C with
-an apparently clean outcome, but this does not substitute for that formal
-test. Rollback remains unsafe to attempt on the older, separate
-pre-2B-8 session referenced elsewhere in this document. One real crash bug
-(inventory-delete) was found, fixed, and re-verified on-device in an
-earlier round."** Never shorten this to "physical device fully validated"
+that physical-device round. Formal, deliberate Rollback validation was
+attempted in Phase 2B-9 and **FAILED**: the on-screen success message was
+false, and no delete mutation ever reached the server — root-caused to a
+completed session being silently orphaned by a routine preview re-check,
+plus Rollback never verifying its staged delete actually applied. Both are
+now fixed in code and covered by offline regression tests, but
+physical-device re-validation against the fix is still required before
+Rollback can be marked PASS. Rollback remains unsafe to attempt on the
+older, separate pre-2B-8 session referenced elsewhere in this document. One
+real crash bug (inventory-delete) was found, fixed, and re-verified
+on-device in an earlier round."** Never shorten this to "physical device fully validated"
 or "production ready," and never cite the retracted "2 real personal items
 uploaded" claim — see the correction in
 `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`.

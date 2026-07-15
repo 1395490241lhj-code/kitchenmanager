@@ -495,3 +495,96 @@ outside the planned protocol, with an apparently clean outcome — but this
 does not close the still-open, formal Rollback validation requirement.
 Conclusion remains **Dogfood Go / Production No-Go**; see
 `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md` for the updated criteria table.
+
+## Phase 2B-9: formal clean-session Rollback validation — FAIL, product bug found and fixed
+
+The formal, deliberate Rollback validation this document flagged as still
+pending above was attempted this round on a fresh physical-device session
+with a brand-new, isolated marker (`__inventory_device_rollback_final_<id>`,
+quantity 3, unit "个"). The pre-confirm and pre-rollback read-only audits
+both passed (clean baseline, exactly one planned create, zero conflicts,
+`createdEntityIds` count 1 before rollback). The operator tapped "回滚"; the
+UI showed a confirmation dialog and then "已回滚本次新增的记录。" with the
+Rollback button gone — outwardly a clean pass.
+
+A read-only re-query immediately after found the marker entity **still
+live** remotely (not soft-deleted), its `version` bumped 1→2 with quantity
+unchanged. A deeper query against the server's own `sync_mutations` audit
+ledger (authenticated `select`, RLS-scoped to the test account's own rows —
+no service-role access, no writes) showed the actual mutation history for
+that exact entity:
+
+```
+operation=upsert status=applied baseVersion=0 resultVersion=1   (the merge/create)
+operation=upsert status=applied baseVersion=1 resultVersion=2   (the "Rollback" tap)
+```
+
+**No `delete` operation was ever sent to the server for this entity.** Every
+client-side layer that constructs and transmits the delete mutation
+(`InventorySyncAdapter.stageDelete`, `PendingMutation.asMutation()`,
+`SyncOperation`, `ExpressSyncTransport.sendMutations`, the Express
+repository, the Postgres RPC's delete branch) was read and confirmed correct
+in isolation — the defect was never in how a delete mutation is encoded or
+applied once staged.
+
+### Root cause (confirmed via two offline reproduction tests, no device/network involved)
+
+`GuestMergeSessionStatus.isTerminal` classifies `.completed` as terminal,
+and `SyncPersistence.activeGuestMergeSession` used that flag to decide
+whether a session counts as the current one. Any subsequent call to
+`GuestMergeController.preparePreview` for the same (user, household) — which
+is exactly what a routine "check for guest data" re-entry does, **with no
+app relaunch required** — could no longer find the just-completed session
+as active, and silently started a brand-new, disconnected session,
+discarding the original session's `createdEntityIds` and
+`rollbackAvailableUntil` entirely. Rollback then either silently no-op'd
+against the new session (no error surfaced to the user) or, if a session
+happened to still satisfy `rollback()`'s status guard, could report success
+without ever having staged a delete for the entity the user actually meant
+to roll back.
+
+Reproduced offline in `KitchenManagerTests/GuestMergeTests.swift`:
+`testRollbackAfterControllerRelaunchStillDeletesSessionCreatedRecord` and
+`testSecondPreparePreviewAfterCompletedMergeKeepsSessionRollbackEligible`
+(the latter needs no relaunch at all — a second `preparePreview` call on the
+same live controller reproduces it). A third test,
+`testPreparePreviewStartsFreshOnceRollbackWindowHasExpired`, confirms the
+fix does not block a fresh preview once the rollback window has genuinely
+expired.
+
+### Fix (product bug — see commit history for the exact diff)
+
+1. `SyncPersistence.activeGuestMergeSession` now also treats a `.completed`
+   session as "active" while it is still within its `rollbackAvailableUntil`
+   window, so a routine `preparePreview` re-check reuses the existing
+   session instead of silently replacing it.
+2. `GuestMergeController.rollback` no longer trusts `SyncCoordinator.runOnce`'s
+   aggregate `.completed` outcome as proof that the staged delete(s) actually
+   applied — that outcome only means the push/pull network round trip
+   finished without a transport error, and an individual mutation can still
+   come back `conflict`/`rejected` and be resolved without throwing. Rollback
+   now re-checks that every entity it staged a delete for no longer has a
+   pending mutation before ever reporting `.rolledBack`, surfacing
+   "回滚未完全生效，请重试。" instead of a false success otherwise.
+
+### Regression after the fix
+
+All four affected/added `GuestMergeTests` pass; the full `GuestMergeTests`
+suite (123 tests, baseline 120 + 3 new) passes with 0 failures; the full iOS
+unit test suite passes (588 passed, 0 failed, 5 skipped — baseline 585, no
+shrinkage); the full iOS UI suite passes serially (5 passed, 1 skipped, 0
+failed — baseline 6); Node (864/864), Debug and Release clean builds,
+`npm audit --omit=dev --audit-level=high` (0 vulnerabilities), and
+`git diff --check` all pass clean.
+
+### What this round did NOT re-attempt
+
+The physical-device Rollback tap that surfaced this bug was not repeated
+against the fixed code this round — that is the next formal validation step
+before Rollback can be marked PASS. This round's marker
+(`__inventory_device_rollback_final_<id>`) remains live remotely (it was
+never actually rolled back); it must be cleaned up in a follow-up session
+before or during the next physical-device validation round. Conclusion
+remains **Dogfood Go / Production No-Go** — this round changes it from
+"formal Rollback validation pending" to "a confirmed Rollback bug found and
+fixed, physical-device re-validation still required."

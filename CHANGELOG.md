@@ -6,6 +6,12 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-15
+
+### Fixed
+
+- Fixed a real Rollback bug found during Phase 2B-9's formal, deliberate physical-device Rollback validation. The on-screen "已回滚本次新增的记录。" success message was false: a read-only query against the server's own `sync_mutations` audit ledger proved no `delete` mutation was ever sent for the entity, which remained live remotely. Root cause (confirmed via two offline reproduction tests, zero device/network involved): `SyncPersistence.activeGuestMergeSession` treated a `.completed` `GuestMergeSession` as terminal/inactive, so any routine `preparePreview` re-check for the same (user, household) — no app relaunch required — silently replaced the completed session, discarding its `createdEntityIds`/`rollbackAvailableUntil`; separately, `GuestMergeController.rollback` trusted `SyncCoordinator.runOnce`'s aggregate `.completed` outcome (only proof the push/pull round trip finished without a transport error) as proof every staged delete actually applied. Fixed both: `activeGuestMergeSession` now also surfaces a `.completed` session while it remains within its rollback window, and `rollback()` now re-checks that every entity it staged a delete for has no remaining pending mutation before ever reporting `.rolledBack`. Added 3 new `GuestMergeTests` cases (123/123, up from 120). Full regression: iOS Unit 588/588 (up from 585), UI 6/6 serial (1 safe skip), Node 864/864, Debug/Release clean builds 0 errors. Physical-device re-validation of Rollback against the fixed code, and cleanup of this round's still-live physical-device marker, remain outstanding. See `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s "Phase 2B-9" section and the updated `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md`. All flags remain `NO`; nothing pushed.
+
 ## 2026-07-14
 
 ### Added
