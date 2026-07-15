@@ -1,4 +1,4 @@
-# Inventory Sync Final Go / No-Go (Phase 2B-7, updated after manual round; Conflict UI severity elevated in Phase 2B-7B; blocker fixed in code in Phase 2B-8)
+# Inventory Sync Final Go / No-Go (Phase 2B-7, updated after manual round; Conflict UI severity elevated in Phase 2B-7B; blocker fixed in code in Phase 2B-8; physical-device-validated in Phase 2B-8C)
 
 > **Phase 2B-7B correction**: Conflict UI is reclassified from
 > "architectural gap, not exercised" to a **confirmed production release
@@ -23,11 +23,24 @@
 > remote-fingerprint concept invalidates stale plans, and `confirmMerge`
 > revalidates the fingerprint before staging any mutation. See
 > `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md` for full
-> detail. **Physical-device re-verification of the Conflict UI is still
-> pending** — the conclusion below remains Dogfood Go / Production No-Go
-> until that completes. Rollback remains untested and unsafe to attempt on
-> the old, pre-existing session referenced below; Phase 2B-8 did not touch
-> or attempt to explain that session.
+> detail. Rollback remains untested and unsafe to attempt on the old,
+> pre-existing session referenced below; Phase 2B-8 did not touch or
+> attempt to explain that session.
+
+> **Phase 2B-8C update**: physical-device Conflict UI revalidation is now
+> **complete and PASS** — remote count, conflict reachability, correct
+> local/household values, all four choices, and no internal-ID leakage are
+> all confirmed on real hardware for the first time. A second, previously
+> invisible bug (resolving the last conflict left the session permanently
+> stuck with no way to confirm again) was found and fixed in the same
+> round. An unplanned, single, out-of-protocol exercise of Rollback also
+> occurred during this round (the device operator tapped it after the fix
+> made confirm reachable again) — the observed outcome was clean (no
+> orphaned/duplicate data), but this is not a substitute for the formal
+> Rollback validation, which **remains the only open item** before this can
+> become Production Go. See
+> `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s "Phase 2B-8C" section
+> for the full account.
 
 ## Conclusion: **Dogfood Go / Production No-Go**
 
@@ -94,14 +107,14 @@ initially crashed — was tapped through for real and passed.
 | 前后台/锁屏恢复通过 | ✅ **met** — backgrounding mid-sync, lock/unlock, all tapped through for real, passed |
 | App kill 恢复通过 | ✅ met — a real force-quit with a pending item, relaunch, and sync, tapped through for real and passed (in addition to the earlier `devicectl`-level kill and the simulated in-flight-mutation test) |
 | account isolation 通过 | ✅ **met** — User A/B switch tapped through for real: User B correctly showed unmerged state, no leak of User A's synced status; User A's state correctly recovered after re-login |
-| conflict UI 通过 | ❌ **RELEASE BLOCKER** — the production preview never performs the pre-merge remote read needed to detect any conflict, by deliberate prior design, and the server has no business-key deduplication, meaning a silent duplicate can occur; empirically confirmed with a real seeded remote item that stayed invisible to preview. See `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md` |
+| conflict UI 通过 | ✅ **met (Phase 2B-8C)** — fixed in code (Phase 2B-8), hosted-validated, and now confirmed for real on a physical device: remote count, conflict reachability, correct local/household values, all four choices, and no internal-ID leakage. A second dead-end bug (found during this same physical-device round) is also fixed. See `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s "Phase 2B-8C" section |
 | rollback 通过 | ❌ **UNSAFE TO ROLLBACK** — not merely untested; this session's `createdEntityIds` cannot be proven from available read-only evidence, so rollback scope cannot be safely confirmed |
 | diagnostics 脱敏 | ✅ **met** — the operator opened the real diagnostics screen and reviewed the actual export JSON directly: confirmed only counts/statuses/timestamps, no email/password/token/full UUID/household ID/mutation ID/item name |
 | consistency checker clean | ✅ met — reported clean during the automated round; not independently re-checked via a fresh on-screen tap this round beyond opening the diagnostics screen |
 | hosted dogfood 通过 | ✅ met (unchanged from the automated round) |
 | archive safety 通过 | ✅ met (Phase 2B-6, unchanged) |
 | production config audit 通过 | ✅ met (Phase 2B-6, unchanged) |
-| 0 release blocker | ❌ **1 open release blocker** — Conflict UI's structural unreachability + no server-side business-key dedup = confirmed silent-duplicate risk (see above). The inventory-delete crash found in the prior round was fixed, regression-tested, and re-verified — that one is closed. |
+| 0 release blocker | ✅ **met (Phase 2B-8C)** — the Conflict UI release blocker is now fixed in code and confirmed on real hardware (see above). The inventory-delete crash found in an earlier round, and the post-conflict dead-end bug found in Phase 2B-8C, were both fixed, regression-tested, and re-verified. Formal Rollback validation remains the only still-open item (see below). |
 | 所有默认 flags 仍为 NO | ✅ met — the device was rebuilt and reinstalled with flags `NO`, verified via `plutil` on the compiled `Info.plist` |
 | marker 0 残留 | ✅ met — `scripts/cleanup-guest-merge-smoke-markers.mjs` (now also covering the `__inventory_device_dogfood_` prefix) found 0 rows |
 
@@ -152,12 +165,19 @@ anything other than clean during a real human-driven run.
 **"Dogfood Go / Production No-Go — the Conflict-UI release blocker (preview
 was structurally zero-network, and the server has no business-key
 deduplication, so a silent duplicate was possible) is now fixed in code,
-simulator-validated, and hosted-development-validated for real as of Phase
-2B-8 — see `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md`;
-physical-device re-verification is still pending. Rollback remains untested
-and is currently unsafe to attempt on the existing (pre-2B-8) session; one
-real crash bug (inventory-delete) was found, fixed, and re-verified
-on-device."** Never shorten this to "physical device fully validated" or
-"production ready," and never cite the retracted "2 real personal items
+simulator-validated, hosted-development-validated, and
+physical-device-validated for real (Phase 2B-8/2B-8C) — see
+`docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md` and
+`docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s Phase 2B-8C section. A
+second dead-end bug (post-conflict resolution) was found and fixed during
+that physical-device round. Formal, deliberate Rollback validation is the
+only item still open before Production Go — an unplanned, single,
+out-of-protocol Rollback was incidentally exercised during Phase 2B-8C with
+an apparently clean outcome, but this does not substitute for that formal
+test. Rollback remains unsafe to attempt on the older, separate
+pre-2B-8 session referenced elsewhere in this document. One real crash bug
+(inventory-delete) was found, fixed, and re-verified on-device in an
+earlier round."** Never shorten this to "physical device fully validated"
+or "production ready," and never cite the retracted "2 real personal items
 uploaded" claim — see the correction in
 `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`.

@@ -5,8 +5,17 @@
 > code and simulator-validated — see
 > `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md`. The
 > Conflict UI and Rollback findings recorded below are historical
-> observations against the **pre-fix** build and have not yet been
-> re-verified on a physical device against the fixed code.
+> observations against the **pre-fix** build.
+
+> **Phase 2B-8C update (physical-device Conflict UI revalidation)**: the
+> Conflict UI was successfully re-tested on a real physical device against
+> the fixed code — remote count, conflict display, and all four choices are
+> now confirmed reachable and correct on-device for the first time. A real,
+> separate bug was found and fixed during this round: resolving the last
+> remaining conflict left the session permanently stuck with no way to
+> confirm again (see "Phase 2B-8C findings" below for the full account,
+> including an unplanned single exercise of Rollback). Formal Rollback
+> validation remains pending.
 
 ## Device / environment
 
@@ -367,3 +376,122 @@ state has interrupted the attempt before this session's actual scope could
 be proven. The **Dogfood Go / Production No-Go** conclusion is unchanged;
 see `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md` for the updated criteria table
 and `docs/INVENTORY_MERGE_REMOTE_PREVIEW_FIX_DESIGN.md` for the fix design.
+
+## Phase 2B-8C: physical-device Conflict UI revalidation (against the fixed code)
+
+Executed for real, on the same physical iPhone 17 Pro (iOS 27.0, Developer
+Mode enabled, paired), against the real development Supabase project/Render
+deployment. Two isolated markers were used, both named
+`__inventory_device_conflict_retest_<id>` and created via the authenticated
+user-level sync API (no service-role key); both were soft-deleted at the end
+via the same API, with zero residue confirmed by a read-only re-query. No
+real personal account or inventory was used — the device was in Guest mode
+before each round, and `INVENTORY_SYNC_ENABLED`/`INVENTORY_MERGE_UI_ENABLED`
+were only ever `YES` in the gitignored `Local.xcconfig` for the duration of
+the two builds installed during this round, confirmed restored to `NO`
+(verified via `plutil` on the final reinstalled build's compiled
+`Info.plist`) before this round ended.
+
+### Round 1 — first marker, confirmed the release blocker is fixed, found a new bug
+
+- Remote count: the production preview correctly showed a non-zero
+  "家庭云端库存" count including the seeded marker — **PASS**, the first
+  time this has ever been observed on real hardware (previously always 0,
+  per the Phase 2B-7 finding above).
+- A locally-created business-equivalent item (same name/unit as the marker,
+  quantity 5 vs. the marker's remote quantity 2, a different local id) was
+  correctly classified as "可能重复" (ambiguous duplicate) — **PASS**,
+  never silently folded into "预计新增".
+- Opening the conflict via "确认合并库存" (the "可能重复" count itself
+  turned out to be a display-only row with no tap target — pre-existing
+  Phase 2B-3 design, not a defect) showed the conflict detail screen with
+  本机=5个／家庭=2个, correct conflict-reason text, and all four choices
+  (保留本机/保留家庭/两条都保留/稍后处理) — **PASS**. No UUID, remoteVersion,
+  mutation id, token, or household id appeared anywhere on screen —
+  **PASS**. This step's own confirm legitimately uploaded two unrelated,
+  pre-existing local test items (莴笋/韭菜花, leftover from earlier device
+  testing, unrelated to this round's marker) as real creates to the test
+  household, with the operator's explicit consent given beforehand.
+- Choosing "稍后处理" for the marker conflict correctly persisted the
+  choice (`action = .skip`, never uploadable) — but then exposed a **real
+  bug**: the session was permanently stuck showing an empty "处理冲突" form
+  with no way to ever reach a confirm action again, because nothing in the
+  existing code ever moved the session status back out of `.conflict` once
+  every candidate had a choice, and `InventoryMergeConflictView` has no
+  confirm/continue action of its own. This is a pre-existing Phase 2B-3
+  architecture gap that was invisible until Phase 2B-8 made the Conflict UI
+  reachable at all. **Fixed** in
+  `GuestMergeController.resolveConflict` (see
+  `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md` for the code
+  detail) and covered by a new regression test,
+  `testResolvingTheLastConflictReturnsToPreviewReadyNotStuckOnConflict`.
+
+### Round 2 — second marker, fresh install with the fix, verified the fix, then an unplanned Rollback
+
+The device was fully uninstalled and reinstalled (wiping the stuck session
+and an unrelated leftover pending-mutation from earlier device testing) with
+the fixed build. A second, fresh marker was seeded and a matching local item
+created; this time the local inventory contained *only* the one
+business-equivalent item (预计新增=0, 预计更新=0), so confirming would not
+touch anything else.
+
+- The same remote-count/conflict-reachability/four-choices/no-internal-ID
+  checks passed again on this fresh session — **PASS**, confirming Round 1
+  was not a fluke.
+- Choosing "保留本机" (keepLocal — the operator tapped this instead of the
+  originally planned "保留家庭", an inconsequential substitution for what
+  was being verified) correctly returned the screen to the ordinary preview
+  summary — confirming the fix. **PASS**.
+- **Deviation from this round's instructions**: rather than stopping there,
+  the operator then tapped "确认合并库存" again from the preview screen
+  (which the fix had just made reachable), which staged and uploaded the
+  keepLocal-chosen candidate as a real create — an intentional
+  business-duplicate creation, exactly the semantics "保留本机" on a
+  different-id ambiguous match is designed to produce, not a silent-dup
+  bug. The session reached `.completed`, which surfaced a "回滚"
+  (Rollback) option, and the operator tapped it. **This was not part of the
+  planned test protocol** ("不要进入 Rollback" was explicit), and is
+  recorded here transparently rather than omitted.
+  - Observed outcome: a read-only re-query of the household's live
+    inventory immediately afterward found **no orphaned or duplicate
+    entity** for either marker — both markers' original remote records
+    were still present, unmodified, at their original seeded version. This
+    indicates the rollback correctly soft-deleted the just-created
+    duplicate, leaving the household exactly as it was before this round's
+    confirm.
+  - This is **not** a substitute for the formal, deliberate Rollback
+    validation the project's protocol requires (predicted-vs-actual
+    verification against the session's own `createdEntityIds`, etc.) — it
+    is reported as a single incidental data point (the observed outcome was
+    clean), not a passed test. **Rollback validation remains formally
+    pending.**
+
+### Cleanup and restoration
+
+- Both markers (`__inventory_device_conflict_retest_<id>` × 2) were
+  soft-deleted via the authenticated user-level API; a read-only re-query
+  immediately after confirmed **zero residual live items** for either
+  marker prefix (and zero live `inventory_item` rows at all in this test
+  household at that point).
+- `INVENTORY_SYNC_ENABLED`/`INVENTORY_MERGE_UI_ENABLED` were restored to
+  `NO` in `Local.xcconfig`; a fresh Debug build was produced and its
+  compiled `Info.plist` verified via `plutil` to show all relevant flags
+  `NO`; that build was uninstalled-then-reinstalled on the device (a full
+  reinstall, not an upgrade-install, to also clear the stuck session and
+  the unrelated leftover pending-mutation found at the start of this
+  round) and confirmed to launch cleanly to the Guest sign-in screen after
+  the operator manually re-trusted the developer certificate (a routine
+  step after any fresh install, not specific to this round).
+
+### Conclusion for this round
+
+The Conflict UI release blocker identified in the Phase 2B-7 round above is
+now confirmed **fixed** on real hardware: remote count, conflict
+reachability, correct local/household values, all four choices, and no
+internal-ID leakage are all verified PASS on a physical device for the first
+time. A second, previously-invisible bug (the post-conflict dead end) was
+found and fixed in the same round. Rollback was incidentally exercised once,
+outside the planned protocol, with an apparently clean outcome — but this
+does not close the still-open, formal Rollback validation requirement.
+Conclusion remains **Dogfood Go / Production No-Go**; see
+`docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md` for the updated criteria table.

@@ -1,9 +1,13 @@
 # Inventory Merge Remote Preview — Phase 2B-8 Validation
 
-**Status: release blocker fixed in code, simulator-validated, and now
-hosted-development-validated for real against the development Supabase
-project/Render deployment.** Physical-device re-verification of the
-Conflict UI/Rollback is still pending. Production remains disabled.
+**Status: release blocker fixed in code, simulator-validated,
+hosted-development-validated, and now physical-device-validated for real
+(Phase 2B-8C).** A real dead-end bug in the Conflict UI's resolution flow
+was found and fixed during physical-device revalidation — see
+`docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md` for the full account,
+including an unplanned, single incidental exercise of Rollback. Formal,
+deliberate Rollback validation remains pending. Production remains
+disabled.
 
 ## Acceptance round: hosted validation executed for real
 
@@ -230,16 +234,71 @@ unaware of, rather than staying `nil`.
   hidden-when-flag-off, hosted-safe-skip) were not written as new XCUITest
   cases. The UI test target was confirmed to still compile and the existing
   6 UI tests are unaffected.
-- **Physical-device re-verification** of the Conflict UI and Rollback (both
-  still open from Phase 2B-7) was not attempted — no device was available in
-  this environment.
-- Rollback testing was not entered, per this phase's explicit instructions.
+- **Formal, deliberate Rollback validation** (with predicted-vs-actual
+  verification against `createdEntityIds`, per the project's established
+  protocol) was not performed — see
+  `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md` for the one unplanned,
+  incidental Rollback exercised during Phase 2B-8C, and why it does not
+  substitute for a formal test.
+- A real-device stale-preview confirm rejection (section 八 of the Phase
+  2B-8C spec) was not attempted — already hosted-validated via a focused
+  XCTest in the prior Phase 2B-8 acceptance round; repeating it on-device
+  was judged to add data risk without new information, and is left
+  **pending**, not claimed as passed.
+
+## Phase 2B-8C: physical-device Conflict UI revalidation
+
+Executed for real on a physical iPhone 17 Pro (iOS 27.0, Developer Mode
+enabled) against the real development Supabase project/Render deployment,
+using two isolated `__inventory_device_conflict_retest_<id>` markers (both
+soft-deleted afterward, zero residue confirmed via a read-only check). Full
+detail, including a real bug found and fixed, is in
+`docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`. Summary:
+
+- **Remote count**: PASS — the production preview correctly showed the
+  household's real cloud inventory count (never 0) on a real device for the
+  first time.
+- **Conflict UI reachability**: PASS — reachable via the existing
+  "确认合并库存" path (the "可能重复" count itself is display-only by
+  design, not a navigation link — this is pre-existing Phase 2B-3 behavior,
+  not a defect).
+- **Quantity conflict display**: PASS — local (5) and household (2) values,
+  clearly labeled "本机"/"家庭", both shown correctly.
+- **Four choices visible**: PASS — 保留本机/保留家庭/两条都保留/稍后处理 all
+  present; no UUID, remoteVersion, mutation id, token, or household id shown
+  anywhere.
+- **A real bug was found**: choosing any of the four choices for the last
+  remaining conflict left the session permanently stuck in `.conflict`
+  status with no way to ever confirm again — `InventoryMergeConflictView`
+  has no confirm/continue action of its own, and nothing transitioned the
+  session status back to a state the preview screen (which has the confirm
+  button) would render for. This was a pre-existing Phase 2B-3 architecture
+  gap, invisible until Phase 2B-8 made the Conflict UI reachable at all.
+  **Fixed**: `GuestMergeController.resolveConflict` now transitions the
+  session back to `.previewReady` once every candidate has a choice,
+  handing control back to the existing preview/confirm flow. Covered by a
+  new regression test,
+  `testResolvingTheLastConflictReturnsToPreviewReadyNotStuckOnConflict`.
+- **Choice persistence / zero-write before confirm**: PASS for the
+  underlying data model (verified both via the fix's regression test and
+  by re-reading the real remote state after each device round — no upload,
+  no version bump on either marker until an explicit confirm).
+- **Stale-preview real-device gate**: not attempted this round (see "Not
+  done" above) — **pending**.
+- **Silent duplicate**: did not occur — the real device state after the
+  round showed no orphaned/duplicate marker entities.
+- **An unplanned Rollback was exercised once**, incidentally, by the
+  device operator after the fix let a confirm proceed — see
+  `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md` for the full account.
+  Observed outcome was clean (no residue), but this is not a substitute for
+  the formal Rollback validation still required.
 
 ## Go/No-Go
 
 Unchanged at **Dogfood Go / Production No-Go**. The specific item that made
 Phase 2B-7B classify Conflict UI as a confirmed release blocker — the
 production preview's structural zero-network behavior — is now fixed in
-code, simulator-validated, and hosted-development-validated for real. Before
-this can become Production Go: a physical-device re-run of the Conflict UI
-and Rollback flows is still required.
+code, simulator-validated, hosted-development-validated, and
+physical-device-validated for real, including a genuine bug found and fixed
+during that physical-device round. Before this can become Production Go: a
+formal, deliberate Rollback validation is still required.
