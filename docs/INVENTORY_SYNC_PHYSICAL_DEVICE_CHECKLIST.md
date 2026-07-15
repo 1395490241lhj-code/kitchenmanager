@@ -1,11 +1,16 @@
-# Inventory Sync Physical-Device Dogfood Checklist (Phase 2B-6)
+# Inventory Sync Physical-Device Dogfood Checklist (Phase 2B-6, executed Phase 2B-7)
 
-**Status: not executed this phase.** This automated environment has no
-physical iOS device attached — only the iPhone 17 Pro / iOS 27.0 simulator.
-Per the Phase 2B-6 instructions, no result is fabricated here; this document
-is the concrete, ready-to-execute checklist for whoever runs it on a real
-device. Until it is completed, every report referencing this phase must say
-exactly: **"simulator dogfood passed, physical-device validation pending."**
+> **Phase 2B-7 update**: a physical iPhone 17 Pro (iOS 27.0) became
+> available and ran the automatable/business-logic portion of this
+> checklist for real — see `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`
+> for the full results table and `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md`
+> for the updated conclusion (**Dogfood Go / Production No-Go**). The
+> human-gesture steps below (tapping through UI, toggling Airplane Mode,
+> locking the screen) still require a person with the device in hand —
+> this environment has no touch/tap-injection tool for a physical device.
+> Status wording to use anywhere: **"automated + hosted-dogfood physical-
+> device validation passed; human-gesture UI/network-toggle steps still
+> pending."**
 
 ## Preconditions
 

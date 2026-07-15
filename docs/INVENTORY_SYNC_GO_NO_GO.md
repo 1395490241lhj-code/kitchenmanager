@@ -1,4 +1,14 @@
-# Inventory Sync Go / No-Go (updated Phase 2B-6)
+# Inventory Sync Go / No-Go (updated Phase 2B-6; superseded by Phase 2B-7)
+
+> **This document is superseded by `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md`**,
+> which reflects Phase 2B-7's real physical-device validation (a real
+> iPhone 17 Pro ran the full automated + hosted-dogfood suite for real, plus
+> a genuine OS-level app-kill/relaunch). The conclusion below ("Dogfood Go /
+> Production No-Go, pending physical-device validation") is now refined by
+> that document to: still Dogfood Go / Production No-Go, but the remaining
+> gap is narrower — only the human-gesture UI/network-toggle layer, not
+> physical-device validation as a whole. Keep this file as the Phase 2B-6
+> historical record; use the Phase 2B-7 doc for the current status.
 
 ## Status summary
 

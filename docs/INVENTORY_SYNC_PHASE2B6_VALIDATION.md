@@ -1,5 +1,13 @@
 # Inventory Sync Phase 2B-6 Validation
 
+> **Phase 2B-7 update**: the "physical-device dogfood — pending" section
+> below has since been partially closed — a real iPhone 17 Pro ran the
+> automated/business-logic and hosted-dogfood portions of physical-device
+> validation for real. See `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`
+> and `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md` for the current status
+> (still Dogfood Go / Production No-Go, narrowed to the human-gesture UI
+> layer only).
+
 ## Scope
 
 Phase 2B-6 closes as many of Phase 2B-5's evidence gaps as this environment
