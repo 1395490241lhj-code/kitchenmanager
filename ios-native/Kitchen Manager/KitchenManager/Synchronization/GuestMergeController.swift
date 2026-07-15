@@ -594,6 +594,22 @@ final class GuestMergeController: ObservableObject {
                 session = current
                 return
             }
+            // `runOnce`'s `.completed` outcome only means the push/pull round
+            // trip finished without a transport error — an individual delete
+            // can still have come back `conflict`/`rejected` and been
+            // resolved without throwing (SyncCoordinator.push ->
+            // resolvePending). Confirm every staged delete actually cleared
+            // its pending mutation before ever reporting `.rolledBack`.
+            for entityId in current.createdEntityIds {
+                if try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: entityId) != nil {
+                    current.status = .completed // remains rollback-eligible; retry later
+                    current.lastErrorCode = "rollback_delete_not_applied"
+                    try await persistence.saveGuestMergeSession(current)
+                    session = current
+                    lastErrorMessage = "回滚未完全生效，请重试。"
+                    return
+                }
+            }
             current.status = .rolledBack
             current.updatedAt = Date()
             try await persistence.saveGuestMergeSession(current)

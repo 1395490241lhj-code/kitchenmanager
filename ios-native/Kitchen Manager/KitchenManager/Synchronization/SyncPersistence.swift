@@ -312,9 +312,20 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
             predicate: #Predicate { $0.sessionKey == key },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
+        let now = Date()
         for record in try modelContext.fetch(descriptor) {
             guard let value = record.value else { continue }
             if value.status.isActive { return value }
+            // `.completed` is terminal for the one-active-session rule, but a
+            // session still within its rollback window must keep being
+            // surfaced here too — otherwise a routine `preparePreview` re-check
+            // (e.g. the inventory tab's own guest-data check, with no App
+            // relaunch involved) silently starts a brand-new, disconnected
+            // session and orphans `createdEntityIds`/`rollbackAvailableUntil`,
+            // making Rollback a silent no-op.
+            if value.status == .completed, let deadline = value.rollbackAvailableUntil, now <= deadline {
+                return value
+            }
         }
         return nil
     }
