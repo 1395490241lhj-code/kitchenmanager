@@ -85,5 +85,28 @@ final class InventoryNavigationUITests: XCTestCase {
         XCTAssertTrue(listTitle.waitForExistence(timeout: 5), "删除后未安全返回食材列表（App 可能已崩溃）")
         XCTAssertTrue(app.state == .runningForeground, "App 在删除库存后不再前台运行")
         XCTAssertFalse(app.staticTexts["豆腐"].firstMatch.exists, "已删除的食材不应再出现在列表中")
+
+        // The bug's fix moved every field from an index-captured binding to
+        // an id-resolved one — the regression this specifically guards
+        // against is a *different* item silently inheriting the deleted
+        // item's old array position and getting corrupted. Assert every
+        // other seeded item is still present, and that one of them still
+        // opens to its own, correct, untouched detail screen.
+        for remainingName in ["莴笋", "土豆", "韭菜花"] {
+            XCTAssertTrue(
+                app.staticTexts[remainingName].firstMatch.waitForExistence(timeout: 3),
+                "删除豆腐后，\(remainingName) 也不应受影响"
+            )
+        }
+        let untouchedCard = app.staticTexts["莴笋"].firstMatch
+        untouchedCard.tap()
+        let untouchedDetailTitle = app.navigationBars.staticTexts["莴笋"].firstMatch
+        XCTAssertTrue(
+            untouchedDetailTitle.waitForExistence(timeout: 3),
+            "删除豆腐后，莴笋的详情页标题不再是莴笋（可能被之前豆腐的绑定/索引串位污染）"
+        )
+        let untouchedQuantityField = app.textFields["当前数量"].firstMatch
+        XCTAssertTrue(untouchedQuantityField.waitForExistence(timeout: 3))
+        XCTAssertEqual(untouchedQuantityField.value as? String, "1", "莴笋的数量不应因删除豆腐而改变")
     }
 }
