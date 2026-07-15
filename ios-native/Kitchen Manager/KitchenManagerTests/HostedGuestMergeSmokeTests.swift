@@ -136,6 +136,30 @@ final class HostedGuestMergeSmokeTests: XCTestCase {
         await authStoreA.signOut()
     }
 
+    /// Phase 2B-8: a minimal, dedicated hosted check for the production
+    /// remote-preview wiring itself (the release-blocker fix) — remote count
+    /// display, conflict reachability, zero-write preview, the stale-preview
+    /// confirm gate, and a fresh-preview recovery, all through the exact
+    /// `GuestMergeController.preparePreview(userId:householdId:kitchenStore:authStore:)`
+    /// production overload. Gated by the exact same flags/credentials as the
+    /// other hosted tests in this file.
+    func testControlledDevelopmentProductionRemotePreviewSafety() async throws {
+        let emailA = environment("TEST_USER_A_EMAIL")
+        let passwordA = environment("TEST_USER_A_PASSWORD")
+        let authStoreA = AuthStore(
+            authService: SupabaseAuthService(configuration: try AuthConfiguration.load()),
+            accountService: UnavailableAccountService()
+        )
+        let signedInA = await authStoreA.signIn(email: emailA, password: passwordA)
+        XCTAssertTrue(signedInA, "development test account A sign-in failed")
+
+        let runner = GuestMergeSmokeRunner(smokeConfiguration: .load())
+        let passed = try await runner.runProductionRemotePreviewMinimalSmoke(authStoreA: authStoreA)
+        XCTAssertTrue(passed)
+
+        await authStoreA.signOut()
+    }
+
     private func environment(_ name: String) -> String {
         ProcessInfo.processInfo.environment[name] ?? ""
     }

@@ -13,16 +13,21 @@
 > exercised."
 
 > **Phase 2B-8 update**: the release blocker described below is now **fixed
-> in code and simulator-validated** — the production preview performs a
-> real authenticated remote read, a remote-fingerprint concept invalidates
-> stale plans, and `confirmMerge` revalidates the fingerprint before staging
-> any mutation. See `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md`
-> for full detail. **Hosted development validation and physical-device
-> re-verification of the Conflict UI are still pending** — the conclusion
-> below remains Dogfood Go / Production No-Go until those complete. Rollback
-> remains untested and unsafe to attempt on the old, pre-existing session
-> referenced below; Phase 2B-8 did not touch or attempt to explain that
-> session.
+> in code, simulator-validated, and hosted-development-validated for real**
+> — the production preview performs a real authenticated remote read
+> (verified end-to-end against the real development Supabase project/Render
+> deployment through the actual `GuestMergeController.preparePreview(...
+> authStore:)` production call chain: non-zero remote count, conflict
+> reachability, zero-write preview, stale-preview rejection, fresh-preview
+> recovery, and clean marker teardown all confirmed for real), a
+> remote-fingerprint concept invalidates stale plans, and `confirmMerge`
+> revalidates the fingerprint before staging any mutation. See
+> `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md` for full
+> detail. **Physical-device re-verification of the Conflict UI is still
+> pending** — the conclusion below remains Dogfood Go / Production No-Go
+> until that completes. Rollback remains untested and unsafe to attempt on
+> the old, pre-existing session referenced below; Phase 2B-8 did not touch
+> or attempt to explain that session.
 
 ## Conclusion: **Dogfood Go / Production No-Go**
 
@@ -146,13 +151,13 @@ anything other than clean during a real human-driven run.
 
 **"Dogfood Go / Production No-Go — the Conflict-UI release blocker (preview
 was structurally zero-network, and the server has no business-key
-deduplication, so a silent duplicate was possible) is now fixed in code and
-simulator-validated as of Phase 2B-8 — see
-`docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md`; hosted
-development validation and physical-device re-verification are still
-pending. Rollback remains untested and is currently unsafe to attempt on
-the existing (pre-2B-8) session; one real crash bug (inventory-delete) was
-found, fixed, and re-verified on-device."** Never shorten this to "physical
-device fully validated" or "production ready," and never cite the retracted
-"2 real personal items uploaded" claim — see the correction in
+deduplication, so a silent duplicate was possible) is now fixed in code,
+simulator-validated, and hosted-development-validated for real as of Phase
+2B-8 — see `docs/INVENTORY_MERGE_REMOTE_PREVIEW_PHASE2B8_VALIDATION.md`;
+physical-device re-verification is still pending. Rollback remains untested
+and is currently unsafe to attempt on the existing (pre-2B-8) session; one
+real crash bug (inventory-delete) was found, fixed, and re-verified
+on-device."** Never shorten this to "physical device fully validated" or
+"production ready," and never cite the retracted "2 real personal items
+uploaded" claim — see the correction in
 `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`.

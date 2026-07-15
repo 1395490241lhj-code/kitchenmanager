@@ -868,6 +868,174 @@ final class GuestMergeSmokeRunner {
         }
     }
 
+    /// Phase 2B-8: a minimal, dedicated hosted check for the production
+    /// remote-preview wiring itself — the exact release-blocker fix. Unlike
+    /// every other smoke above, this exercises `GuestMergeController`'s new
+    /// `preparePreview(userId:householdId:kitchenStore:authStore:)` overload
+    /// directly (the same call `GuestMergePromptView` makes in the shipped
+    /// app) with the real default `transportFactory` — never the
+    /// `remoteTransport:`-parameter overload, and never a bespoke
+    /// `InventoryMergePlanner` construction — so this proves the actual
+    /// production call chain, not just the underlying engine (already
+    /// hosted-validated in Phase 2B-2). Does not repeat that full matrix.
+    /// Uses only the `__inventory_remote_preview_<marker>` prefix; cleans up
+    /// (soft-delete, never a physical remote delete) before returning
+    /// either way.
+    func runProductionRemotePreviewMinimalSmoke(authStoreA: AuthStore) async throws -> Bool {
+        guard smokeConfiguration.isSmokeEnabled else { throw GuestMergeSmokeError.smokeDisabled }
+        guard smokeConfiguration.isDevelopmentBuild else { throw GuestMergeSmokeError.nonDevelopmentBuild }
+        guard smokeConfiguration.isDevelopmentEnvironment, APIEnvironment.current == .development else {
+            throw GuestMergeSmokeError.nonDevelopmentEnvironment
+        }
+        guard smokeConfiguration.isMergeFeatureEnabled else { throw GuestMergeSmokeError.mergeFeatureDisabled }
+        guard let userIdA = authStoreA.currentUserID else { throw GuestMergeSmokeError.notAuthenticated }
+
+        let providerA = AuthStoreSyncTokenProvider(authStore: authStoreA)
+        let transportA = transportFactory(providerA)
+        let bootstrap = try await transportA.bootstrap()
+        guard let householdId = bootstrap.defaultHouseholdId else { throw GuestMergeSmokeError.missingDefaultHousehold }
+        let scope = SyncScope(type: .household, id: householdId)
+        let marker = String(UUID().uuidString.prefix(8)).lowercased()
+        let markerName = "__inventory_remote_preview_\(marker)"
+
+        let container = try ModelContainer(
+            for: InventoryRecord.self, ShoppingItemRecord.self, TodayPlanRecord.self,
+            ConsumptionRecordEntity.self, WeeklyPlanRecord.self,
+            SyncMetadataRecord.self, PendingMutationRecord.self, SyncCursorRecord.self,
+            GuestMergeSessionRecord.self, InventorySyncEnrollmentRecord.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let persistence = SwiftDataSyncPersistence(modelContainer: container)
+        var cleanupIds: Set<UUID> = []
+        do {
+            let kitchenStore = KitchenStore(
+                userDefaults: UserDefaults(suiteName: "inventory-remote-preview-smoke-\(marker)")!,
+                inventoryPersistence: SwiftDataInventoryPersistence(container: container),
+                shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
+                todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
+                consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
+                weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
+            )
+
+            // 1 (section 四 A): seed exactly one pre-existing remote marker
+            // via the real, authorized production merge-upload path itself
+            // (never a raw HTTP call) — as if an unrelated first device
+            // already merged this one business item into the household.
+            let baselineId = UUID()
+            cleanupIds.insert(baselineId)
+            kitchenStore.inventory = [InventoryItem(id: baselineId, name: markerName, quantity: 2, unit: "个", expiryDate: nil)]
+            let baselineController = GuestMergeController(
+                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
+            )
+            await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore)
+            await baselineController.confirmMerge(authStore: authStoreA)
+            guard baselineController.session?.status == .completed else {
+                throw GuestMergeSmokeError.validationFailed("baseline marker seeding did not complete")
+            }
+
+            // 2: a second, independent local dataset — as if a different
+            // device is opening the merge screen for the first time, with an
+            // unrelated new item plus a business-equivalent duplicate of the
+            // baseline marker (different id, different quantity).
+            let unrelatedId = UUID()
+            let duplicateId = UUID()
+            cleanupIds.formUnion([unrelatedId, duplicateId])
+            kitchenStore.inventory = [
+                InventoryItem(id: unrelatedId, name: "\(markerName)_unrelated", quantity: 1, unit: "个", expiryDate: nil),
+                InventoryItem(id: duplicateId, name: markerName, quantity: 9, unit: "个", expiryDate: nil)
+            ]
+
+            let mutationsBeforePreview = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+            let remoteBeforePreview = try await fetchRemoteInventorySnapshot(transport: transportA, scope: scope)
+
+            // 3 (section 五): the exact production overload — the same call
+            // `GuestMergePromptView` makes — with the real default transport
+            // factory, never a smoke-only construction of a plan.
+            let controller = GuestMergeController(
+                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
+            )
+            await controller.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, authStore: authStoreA)
+
+            // 4 (section 四 A): remote count must reflect reality, never 0.
+            guard let plan = controller.plan, plan.knownRemoteItemCount >= 1 else {
+                throw GuestMergeSmokeError.validationFailed("production preview overload did not report a non-zero remote count")
+            }
+            guard controller.previewFetchFailureMessage == nil else {
+                throw GuestMergeSmokeError.validationFailed("production preview overload unexpectedly reported a fetch failure")
+            }
+
+            // 5 (section 四 B): the business-equivalent duplicate must
+            // surface as a conflict, never a silent create.
+            guard let duplicateCandidate = plan.candidates.first(where: { $0.localItemId == duplicateId }) else {
+                throw GuestMergeSmokeError.validationFailed("duplicate candidate missing from the real plan")
+            }
+            guard duplicateCandidate.conflictReason == .ambiguousDuplicate, duplicateCandidate.needsDecision else {
+                throw GuestMergeSmokeError.validationFailed("business-equivalent remote duplicate was not flagged as a conflict")
+            }
+
+            // 6 (section 四 C): preview must still perform zero network writes.
+            let mutationsAfterPreview = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+            let remoteAfterPreview = try await fetchRemoteInventorySnapshot(transport: transportA, scope: scope)
+            guard mutationsAfterPreview == mutationsBeforePreview, remoteAfterPreview == remoteBeforePreview else {
+                throw GuestMergeSmokeError.validationFailed("production preview overload performed a network write")
+            }
+
+            // 7 (section 四 D): simulate another device updating the
+            // baseline marker's remote record between preview and confirm,
+            // using the exact same authorized upload path `confirmMerge`
+            // itself uses (never a raw HTTP call, no service-role key).
+            let adapter = InventorySyncAdapter(persistence: persistence)
+            let updatedBaselineItem = InventoryItem(id: baselineId, name: markerName, quantity: 7, unit: "个", expiryDate: nil)
+            _ = try await adapter.stageUpsert(item: updatedBaselineItem, scope: scope)
+            let updateCoordinator = SyncCoordinator(configuration: SyncConfiguration(isEnabled: true), persistence: persistence, transport: transportA)
+            let updateOutcome = await updateCoordinator.runOnce(
+                authentication: SyncAuthenticationContext(userID: userIdA, isAuthenticated: true), scopes: [scope]
+            )
+            guard updateOutcome == .completed else {
+                throw GuestMergeSmokeError.validationFailed("simulated another-device update did not complete")
+            }
+
+            // 8 (section 四 D): confirming against the now-stale plan must be
+            // rejected — zero mutations staged, session reverted.
+            let mutationsBeforeStaleConfirm = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+            await controller.confirmMerge(authStore: authStoreA)
+            guard controller.session?.status == .previewReady else {
+                throw GuestMergeSmokeError.validationFailed("stale confirm did not revert the session to previewReady")
+            }
+            guard controller.lastErrorMessage == "家庭库存已变化，请重新预览。" else {
+                throw GuestMergeSmokeError.validationFailed("stale confirm did not surface the expected message")
+            }
+            let mutationsAfterStaleConfirm = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+            guard mutationsAfterStaleConfirm == mutationsBeforeStaleConfirm else {
+                throw GuestMergeSmokeError.validationFailed("stale confirm staged a mutation")
+            }
+
+            // 9 (section 四 E): a fresh preview must still show the conflict;
+            // resolving it with a safe, non-uploading choice (`keepRemote`)
+            // and confirming again must now succeed.
+            await controller.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, authStore: authStoreA)
+            guard let freshPlan = controller.plan,
+                  let freshCandidate = freshPlan.candidates.first(where: { $0.localItemId == duplicateId }) else {
+                throw GuestMergeSmokeError.validationFailed("fresh preview did not regenerate a plan")
+            }
+            guard freshCandidate.conflictReason == .ambiguousDuplicate else {
+                throw GuestMergeSmokeError.validationFailed("fresh preview lost the conflict")
+            }
+            await controller.resolveConflict(candidateId: duplicateId, choice: .keepRemote)
+            await controller.confirmMerge(authStore: authStoreA)
+            guard controller.session?.status == .completed else {
+                throw GuestMergeSmokeError.validationFailed("fresh preview confirm with a resolved-safe choice did not complete")
+            }
+
+            // 10 (section 四 F): zero marker residue on the real backend.
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            return true
+        } catch {
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            throw error
+        }
+    }
+
     /// Best-effort — never throws itself. Soft-deletes every tracked marker
     /// id via the same authorized sync boundary used throughout the run (no
     /// service-role key, no physical delete); ids that were never actually

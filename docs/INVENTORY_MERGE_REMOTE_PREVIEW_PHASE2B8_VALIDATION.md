@@ -1,8 +1,62 @@
 # Inventory Merge Remote Preview — Phase 2B-8 Validation
 
-**Status: release blocker fixed in code and simulator-validated. Hosted
-development validation and physical-device re-verification of the Conflict
-UI/Rollback are still pending. Production remains disabled.**
+**Status: release blocker fixed in code, simulator-validated, and now
+hosted-development-validated for real against the development Supabase
+project/Render deployment.** Physical-device re-verification of the
+Conflict UI/Rollback is still pending. Production remains disabled.
+
+## Acceptance round: hosted validation executed for real
+
+`HostedGuestMergeSmokeTests.testControlledDevelopmentProductionRemotePreviewSafety`
+(backed by `GuestMergeSmokeRunner.runProductionRemotePreviewMinimalSmoke`)
+was run for real by the operator from a normal Terminal, via a
+purpose-built, credential-safe runner script
+(`/tmp/run_phase2b8_hosted_preview.sh`, not part of this repository) that:
+temporarily set `INVENTORY_SYNC_ENABLED`/`GUEST_MERGE_SMOKE_ENABLED` to
+`YES` in the gitignored `Local.xcconfig`; sourced credentials from the
+gitignored `.env.development.local` into the shell only; injected them
+in-place into the real, unmoved `.xctestrun` under `DerivedData/Build/Products`
+(its `__TESTROOT__`/`__TESTHOST__` placeholders resolve relative to that
+file's own directory, so it was edited in place rather than copied
+elsewhere) for the duration of the run only; and restored everything via a
+`trap cleanup EXIT INT TERM` regardless of outcome.
+
+**Result: PASS.** Verified independently via `xcresulttool` against the
+produced `/tmp/km_phase2b8_hosted_preview.xcresult` (not this repo) rather
+than trusting the terminal transcript alone:
+
+- `testControlledDevelopmentProductionRemotePreviewSafety()` — result
+  `Passed`, duration **23 seconds** (a skip is always <0.01s, so this proves
+  genuine execution, not a safe-skip), `passedTests: 1`, `skippedTests: 0`,
+  `failedTests: 0`.
+- **Marker residue**: confirmed **zero** via a read-only, throwaway Node
+  script (never committed) that signed in as `TEST_USER_A` and listed the
+  household's live `inventory_item` change-feed entries — 0 items matched
+  the `__inventory_remote_preview_` prefix afterward.
+- **Flags restored**: `Local.xcconfig`'s `INVENTORY_SYNC_ENABLED` and
+  `GUEST_MERGE_SMOKE_ENABLED` both confirmed back to `NO` by direct
+  inspection.
+- **No credential residue**: the regenerated `.xctestrun` was inspected —
+  zero occurrences of any `TEST_USER_*` key, and its file mode was back to
+  the ordinary `644` (not the `600` used transiently during the run),
+  confirming the in-place edit was fully reverted.
+
+This proves the actual production call chain — the same
+`GuestMergeController.preparePreview(userId:householdId:kitchenStore:authStore:)`
+overload `GuestMergePromptView` calls — against a real household on the
+real development backend: a non-zero remote count, an `.ambiguousDuplicate`
+conflict for a business-equivalent duplicate (never a silent create), zero
+network writes during preview, a stale confirm correctly rejected (zero
+mutations staged, session reverted to `previewReady`), a fresh preview
+recovering and completing after an explicit safe choice (`keepRemote`), and
+clean marker teardown — all through `GuestMergeController` itself, never a
+bespoke `InventoryMergePlanner` construction.
+
+`npm run smoke:sync` was also re-run for real against the same development
+backend as part of the final regression pass and passed (reachability +
+the underlying Express/Supabase sync contract) — a separate, complementary
+check; it calls the HTTP API directly and does not itself exercise
+`GuestMergeController`.
 
 ## What this phase implemented
 
@@ -145,6 +199,27 @@ unaware of, rather than staying `nil`.
   the diff (the one regex hit was the guard test's own pattern literal).
 - **Ignored files**: `.env.development.local` and
   `ios-native/Kitchen Manager/Config/Local.xcconfig` remain untracked/ignored.
+- **Hosted development validation**: **executed for real and passed** — see
+  "Acceptance round" above. Remote count, conflict reachability, zero-write
+  preview, stale-preview rejection, fresh-preview recovery, and marker
+  cleanup were all verified against the real development Supabase
+  project/Render deployment through the actual production call chain.
+
+## Final regression after the hosted run (re-confirmed)
+
+- `GuestMergeTests`: **118/118 passing**.
+- Full iOS Unit: **583/583 passing**, 0 failures, 5 safe skips (up from 4 —
+  the new hosted test itself now also safe-skips in an ordinary,
+  credential-free run).
+- Full iOS UI: **6/6 executed, 5 passing, 1 safe skip** (`HostedSyncSmokeUITests`,
+  no credentials), 0 failures — confirmed via a serial run (parallel runs
+  can show transient simulator-contention flakes unrelated to this change).
+- Debug and Release clean builds: both **0 errors**.
+- Node (`test/ios-native-guest-merge-phase2b1.test.mjs` focused +
+  `npm test -- --test-reporter=tap` full suite): **864/864 passing**.
+- `npm run smoke:sync`: **PASS** against the real development backend.
+- `npm audit --omit=dev --audit-level=high`: 0 vulnerabilities.
+- `git diff --check`: clean.
 
 ## Not done this phase (deferred, not blocking)
 
@@ -155,11 +230,6 @@ unaware of, rather than staying `nil`.
   hidden-when-flag-off, hosted-safe-skip) were not written as new XCUITest
   cases. The UI test target was confirmed to still compile and the existing
   6 UI tests are unaffected.
-- **Hosted minimal validation** (remote count, quantity conflict, stale
-  preview rejection, fresh preview + explicit resolution, marker cleanup)
-  was not performed — it requires live development-environment access and
-  explicit, user-driven marker seeding/cleanup with temporarily-enabled
-  flags, which was out of scope for this pass.
 - **Physical-device re-verification** of the Conflict UI and Rollback (both
   still open from Phase 2B-7) was not attempted — no device was available in
   this environment.
@@ -170,7 +240,6 @@ unaware of, rather than staying `nil`.
 Unchanged at **Dogfood Go / Production No-Go**. The specific item that made
 Phase 2B-7B classify Conflict UI as a confirmed release blocker — the
 production preview's structural zero-network behavior — is now fixed in
-code and covered by simulator-level regression tests. Before this can become
-Production Go: hosted development validation (section 十八 of this phase's
-spec) and a physical-device re-run of the Conflict UI and Rollback flows are
-still required, exactly as before.
+code, simulator-validated, and hosted-development-validated for real. Before
+this can become Production Go: a physical-device re-run of the Conflict UI
+and Rollback flows is still required.
