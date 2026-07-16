@@ -484,6 +484,13 @@ struct InventoryMergeResultView: View {
                 if session.status == .rolledBack {
                     Text("已回滚本次新增的记录。").foregroundStyle(.secondary)
                 }
+                if let lastErrorMessage = controller.lastErrorMessage {
+                    Section {
+                        Text(lastErrorMessage)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("guestMergeRollbackErrorMessage")
+                    }
+                }
             }
         }
         .navigationTitle("合并结果")
