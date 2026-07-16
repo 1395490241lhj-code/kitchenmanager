@@ -65,7 +65,7 @@ select is(
       '44444444-4444-4444-8444-444444444441'::uuid,
       'inventory_item', '55555555-5555-4555-8555-555555555551'::uuid,
       'upsert', 0, current_setting('pgtap.fixed_client_updated_at')::timestamptz,
-      '{"name":"鸡蛋","normalizedName":"鸡蛋"}'::jsonb
+      '{"name":"鸡蛋","normalized_name":"鸡蛋"}'::jsonb
     ) ->> 'status')
   ),
   'applied',
@@ -81,7 +81,7 @@ select is(
       '44444444-4444-4444-8444-444444444441'::uuid,
       'inventory_item', '55555555-5555-4555-8555-555555555551'::uuid,
       'upsert', 0, current_setting('pgtap.fixed_client_updated_at')::timestamptz,
-      '{"name":"鸡蛋","normalizedName":"鸡蛋"}'::jsonb
+      '{"name":"鸡蛋","normalized_name":"鸡蛋"}'::jsonb
     ) ->> 'status')
   ),
   'duplicate',
@@ -96,7 +96,7 @@ select is(
       '44444444-4444-4444-8444-444444444442'::uuid,
       'inventory_item', '55555555-5555-4555-8555-555555555551'::uuid,
       'upsert', 0, now(),
-      '{"name":"鸡蛋(更新)","normalizedName":"鸡蛋"}'::jsonb
+      '{"name":"鸡蛋(更新)","normalized_name":"鸡蛋"}'::jsonb
     ) ->> 'status')
   ),
   'conflict',
@@ -124,7 +124,7 @@ select throws_ok(
       'household', %L::uuid,
       '44444444-4444-4444-8444-444444444444'::uuid,
       'inventory_item', '55555555-5555-4555-8555-555555555553'::uuid,
-      'upsert', 0, now(), '{"name":"偷偷写入","normalizedName":"偷偷写入"}'::jsonb
+      'upsert', 0, now(), '{"name":"偷偷写入","normalized_name":"偷偷写入"}'::jsonb
     )$$,
     current_setting('pgtap.household_b')
   ),
@@ -230,7 +230,7 @@ select throws_ok(
     $$select public.apply_sync_mutation(
       'user', %L::uuid, '44444444-4444-4444-8444-444444444447'::uuid,
       'recipe_favorite', '55555555-5555-4555-8555-555555555555'::uuid,
-      'upsert', 0, now(), '{"recipeId":"r1"}'::jsonb
+      'upsert', 0, now(), '{"recipe_id":"r1"}'::jsonb
     )$$,
     '33333333-3333-4333-8333-333333333332'
   ),
@@ -318,7 +318,7 @@ select is(
       'household', current_setting('pgtap.household_a')::uuid,
       '44444444-4444-4444-8444-444444444448'::uuid,
       'inventory_item', '55555555-5555-4555-8555-555555555556'::uuid,
-      'upsert', 0, now(), '{"name":"待回滚","normalizedName":"待回滚"}'::jsonb
+      'upsert', 0, now(), '{"name":"待回滚","normalized_name":"待回滚"}'::jsonb
     ) ->> 'status')
   ),
   'applied',
@@ -356,21 +356,25 @@ select lives_ok(
   'user B, once granted membership, can read household A''s inventory without error'
 );
 
--- 25: the owner (user A) revokes user B's membership.
+-- 25: the owner (user A) revokes user B's membership. A data-modifying WITH
+-- cannot be embedded as a subquery inside is(...)'s first argument ("WITH
+-- clause containing a data-modifying statement must be at the top level")
+-- — run the DELETE as its own statement and capture the affected row count
+-- via GET DIAGNOSTICS instead (same fix as auth_household_rls_test.sql).
 select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333331', true);
-select is(
-  (
-    with removed as (
-      delete from public.household_members
-      where household_id = current_setting('pgtap.household_a')::uuid
-        and user_id = '33333333-3333-4333-8333-333333333332'::uuid
-        and role <> 'owner'
-      returning 1
-    ) select count(*) from removed
-  ),
-  1::bigint,
-  'the owner can remove a non-owner membership'
-);
+do $$
+declare
+  affected int;
+begin
+  delete from public.household_members
+  where household_id = current_setting('pgtap.household_a')::uuid
+    and user_id = '33333333-3333-4333-8333-333333333332'::uuid
+    and role <> 'owner';
+  get diagnostics affected = row_count;
+  perform set_config('pgtap.rows_removed', affected::text, false);
+end;
+$$;
+select is(current_setting('pgtap.rows_removed')::int, 1, 'the owner can remove a non-owner membership');
 
 -- 26: immediately after removal (same session, no re-login/new JWT needed),
 -- user B loses access to household A's change feed — access is re-checked

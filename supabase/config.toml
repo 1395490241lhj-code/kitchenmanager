@@ -28,3 +28,12 @@ additional_redirect_urls = []
 jwt_expiry = 3600
 enable_signup = true
 enable_anonymous_sign_ins = false
+
+# Phase 2C-4: disabled for local development. The default `vector`/
+# `logflare` analytics/log-routing containers try to bind-mount the host
+# Docker socket in a way that is incompatible with Colima's VM filesystem
+# (`mkdir .../docker.sock: operation not supported`) — a known Colima
+# limitation, not a schema/migration defect. Analytics/log-routing has no
+# bearing on migration replay, pgTAP, or RLS validation.
+[analytics]
+enabled = false

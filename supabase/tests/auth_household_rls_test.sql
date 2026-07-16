@@ -29,32 +29,41 @@ select is((select count(*) from public.household_members), 2::bigint, 'user A ca
 
 select set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);
 select is((select count(*) from public.profiles), 1::bigint, 'user B reads only own profile');
-select is(
-  (
-    with changed as (
-      update public.households
-      set name = 'member must not rename'
-      where created_by = '11111111-1111-4111-8111-111111111111'
-      returning 1
-    ) select count(*) from changed
-  ),
-  0::bigint,
-  'ordinary member cannot perform owner household update'
-);
+
+-- A data-modifying WITH (WITH ... UPDATE ... RETURNING ... SELECT ...) is
+-- only valid as its own top-level statement in Postgres — it cannot be
+-- embedded as a subquery expression inside is(...)'s first argument
+-- ("WITH clause containing a data-modifying statement must be at the top
+-- level"). Run the UPDATE as its own statement and capture the affected
+-- row count via GET DIAGNOSTICS instead; RLS silently filters out rows the
+-- current role can't see for UPDATE (0 rows affected, no exception), so
+-- this preserves the exact same assertion.
+do $$
+declare
+  affected int;
+begin
+  update public.households
+  set name = 'member must not rename'
+  where created_by = '11111111-1111-4111-8111-111111111111';
+  get diagnostics affected = row_count;
+  perform set_config('pgtap.rows_updated', affected::text, false);
+end;
+$$;
+select is(current_setting('pgtap.rows_updated')::int, 0, 'ordinary member cannot perform owner household update');
 
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', true);
-select is(
-  (
-    with changed as (
-      update public.households
-      set name = 'Alice Kitchen'
-      where created_by = '11111111-1111-4111-8111-111111111111'
-      returning 1
-    ) select count(*) from changed
-  ),
-  1::bigint,
-  'owner can rename own household'
-);
+do $$
+declare
+  affected int;
+begin
+  update public.households
+  set name = 'Alice Kitchen'
+  where created_by = '11111111-1111-4111-8111-111111111111';
+  get diagnostics affected = row_count;
+  perform set_config('pgtap.rows_updated', affected::text, false);
+end;
+$$;
+select is(current_setting('pgtap.rows_updated')::int, 1, 'owner can rename own household');
 
 select * from finish();
 rollback;

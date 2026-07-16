@@ -244,7 +244,7 @@ test('database object pgTAP checks tables, RLS, indexes, trigger uniqueness, and
 
 test('remote object verifier checks constraints, all triggers/policies, and personal-household integrity', async () => {
   const source = await readFile(
-    new URL('../supabase/tests/auth_household_remote_verify.sql', import.meta.url),
+    new URL('../supabase/remote-verify/auth_household_remote_verify.sql', import.meta.url),
     'utf8'
   );
   assert.match(source, /profiles_set_updated_at/);
