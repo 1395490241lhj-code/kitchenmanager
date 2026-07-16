@@ -143,6 +143,18 @@ backend deploy would be rolled back (e.g., Render's own rollback-to-previous-
 deploy feature, pinned to a specific git commit) — this runbook cannot
 specify a procedure for infrastructure this repository does not describe.
 
+> **Phase 2C-3 update**: the topology decision (`docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md`)
+> means that once a separate production Supabase project exists, "roll back
+> the backend" and "roll back the database" become two genuinely
+> independent actions on two different projects — a bad backend deploy no
+> longer risks the dev project's data, and vice versa. Today, with one
+> shared project, they remain coupled. `ensureDevelopmentTarget` (the
+> existing fail-closed environment guard in every write-capable script) and
+> the new iOS `APIEnvironment.isSafeForCurrentBuildConfiguration` guard
+> reduce, but do not eliminate, the risk of a script or build accidentally
+> targeting the wrong project once a second one exists — both should be
+> extended to assert the *specific* expected project once that happens.
+
 ## How to pause a migration
 
 No migration is currently mid-flight, and none should ever be applied

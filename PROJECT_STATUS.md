@@ -15,8 +15,7 @@ history, device-validation narratives, and bug investigations belong in
 - All sync/merge/dogfood/diagnostic/smoke feature flags remain `NO` in
   every committed configuration and every Release build.
 - **Not Production Enabled** — no production cohort, no production Supabase
-  project decision, no production monitoring, and no distribution pipeline
-  exist yet.
+  project, no production monitoring, and no distribution pipeline exist yet.
 
 ## Completed
 
@@ -44,6 +43,11 @@ history, device-validation narratives, and bug investigations belong in
   metrics, `/health` and `/ready`), all offline-tested and validated against
   a locally-run instance of the code pointed at the real development
   Supabase project.
+- Production Supabase topology decision: separate dev+prod project
+  recommended; shared project accepted for Stage 1 only (no production
+  project created). Migration history and schema/RLS/RPC shape re-verified
+  read-only against the development project; environment-misconnection
+  safety guards added on both iOS and backend.
 
 ## Remaining rollout conditions
 
@@ -52,10 +56,12 @@ history, device-validation narratives, and bug investigations belong in
    been sent anywhere.
 2. Production monitoring/alerting is not live — alert rules are documented,
    no provider/dashboard is connected, nothing pages anyone.
-3. No production Supabase project decision has been made (dev and today's
-   "production" share one project).
-4. pgTAP / remote-parity re-verification for the sync-foundation migration
-   remains undone.
+3. No production Supabase project exists yet — the topology decision is
+   made (separate dev+prod recommended), but provisioning it requires
+   explicit future approval and must happen before Stage 2.
+4. Local Docker-based pgTAP execution remains undone (environment
+   limitation — no Docker available). Remote schema/RLS parity and real
+   A/B behavioral isolation are otherwise re-confirmed against dev.
 5. No TestFlight/App Store Connect distribution pipeline exists.
 6. The sync rate limiter needs a shared/multi-instance store (Redis/Upstash
    or equivalent) before GA — today's in-memory store is Stage-1-only.
@@ -65,10 +71,11 @@ history, device-validation narratives, and bug investigations belong in
 
 ## Next recommended phase
 
-Decide the production Supabase project question and close the pgTAP/
-migration-parity gap — both are prerequisites, independent of further
-engineering work, before any real crash-reporting SDK or shared rate-limit
-store is worth configuring. Only after those, build the TestFlight pipeline
-and wire a real crash-reporting/alerting provider. Feature expansion to
-additional synchronized entities should not jump ahead of this operational
-readiness work.
+Provision the separate production Supabase project (topology already
+decided) and close the local Docker-based pgTAP execution gap — both are
+prerequisites, independent of further engineering work, before any real
+crash-reporting SDK or shared rate-limit store is worth configuring. Only
+after those, build the TestFlight pipeline and wire a real
+crash-reporting/alerting provider. Feature expansion to additional
+synchronized entities should not jump ahead of this operational readiness
+work.

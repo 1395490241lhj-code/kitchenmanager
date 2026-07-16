@@ -81,6 +81,9 @@ Prefer focused changes with explicit tests. Do not combine a behavior fix, archi
 - RLS and direct-DML restrictions
 - allowlisted atomic sync RPC
 - idempotency, optimistic concurrency, tombstones, and change feed
+- one project today, serving both dev and (nominal) production; a separate
+  production project is decided but not yet provisioned — see
+  `PROJECT_STATUS.md` and `docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md`
 
 ## 4. Core user journeys to protect
 
@@ -132,6 +135,7 @@ Therefore use precise language:
 - A locally-run instance of the backend code, pointed at the real development Supabase project, is a valid **hosted-development validation** — it is never equivalent to validating the actually **deployed** Render service, and must not be described as such.
 - Crash reporting is an implemented **abstraction** with a no-op default provider and a selected future provider (not yet integrated) — never describe it as “crash reporting is live” or “monitoring is active.” Basic backend observability (structured logging, request id, metrics, `/health`/`/ready`) is implemented and development-validated; no alert provider or dashboard is connected, and the sync rate limiter's in-memory store is explicitly Stage-1/single-instance only, not multi-instance-safe.
 - “Production Go Candidate” is an engineering judgment about feature correctness and operational readiness gaps; it is not “Production Enabled” and must never be conflated with it.
+- A schema/RLS check re-verified against the **development** Supabase project (the only project that exists) is not the same as verifying a production database — no production project exists to verify. A topology *decision* (e.g. separate dev+prod recommended) is not the same as a project being *created* or *configured*.
 
 Read `PROJECT_STATUS.md` for the current list of remaining conditions.
 

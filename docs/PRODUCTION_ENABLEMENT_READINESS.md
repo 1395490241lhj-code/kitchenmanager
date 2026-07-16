@@ -26,6 +26,19 @@ is reproduced below.
 > pgTAP/migration re-verification, a TestFlight/App Store pipeline, and a
 > shared/multi-instance rate-limit store before GA (carried forward from
 > Phase 2C-1's documented Stage-1-only limitation).
+>
+> **Phase 2C-3 update**: the production Supabase topology question has a
+> **decision** (separate dev+prod project recommended, shared project
+> accepted for Stage 1 only — see `docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md`),
+> but **no production project has been created**. Migration/RLS remote
+> parity was **re-verified against the development project** (read-only —
+> see `docs/DATABASE_MIGRATION_PARITY.md` and
+> `docs/RLS_SECURITY_VERIFICATION.md`); local pgTAP execution remains
+> **BLOCKED** (Docker unavailable, real CLI errors captured). New iOS/backend
+> environment-safety guards were added. Three items remain: a real crash
+> provider/alert provider configuration, a TestFlight/App Store pipeline,
+> and a shared/multi-instance rate limiter before GA. See
+> `docs/PHASE2C3_VALIDATION.md`.
 
 ## Context
 
@@ -46,7 +59,7 @@ itself to be correct. It is not.
 | Item | Status | Detail |
 |---|---|---|
 | Production API base URL | ⚠️ **Shared with dev** | `APIEnvironment.swift` resolves both `.production` and `.development` to the same literal Render URL (`kitchenmanager-b8px.onrender.com`) — deliberate, documented, not a bug, but means there is currently no environment isolation between "production" and "development" traffic at the backend-URL level. |
-| Supabase production project | ❌ **Does not exist** | Exactly one Supabase project is in use anywhere in this codebase's configuration (dev credentials in `.env.development.local` and the gitignored iOS `Local.xcconfig` reference the same host). No second, genuinely-production Supabase project has ever been created. `.env.example` only has a placeholder (`YOUR_PROJECT_REF`). |
+| Supabase production project | ⚠️ **Decision made, not created (Phase 2C-3)** | Exactly one Supabase project is in use anywhere in this codebase's configuration (dev credentials in `.env.development.local` and the gitignored iOS `Local.xcconfig` reference the same host). No second, genuinely-production Supabase project exists. Topology decision: separate dev+prod project recommended, shared project accepted for Stage 1 only. See `docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md`. `.env.example` only has a placeholder (`YOUR_PROJECT_REF`). |
 | JWT/JWKS | ✅ met | Asymmetric verification via `jose`'s `createRemoteJWKSet` (`src/server/auth/jwt.js`), issuer/audience/JWKS URL all environment-derived (`src/server/config.js`), with a same-origin cross-check between issuer and `SUPABASE_URL`. No hardcoded secret. |
 | Redirect URL / bundle ID | N/A | Bundle ID `com.lianghongjing.kitchenmanager`; no OAuth redirect URL exists because no OAuth flow is implemented yet (unchanged from earlier phases). |
 | Keychain access group / entitlements | ⚠️ **No entitlements file exists** | No `.entitlements` file anywhere in the iOS project — no explicit keychain-access-group, associated-domains, or push-notification configuration. The app relies entirely on Xcode's implicit default entitlement. Not a defect for today's feature set, but worth an explicit decision before any capability (e.g. push notifications, universal links) is ever added. |
@@ -73,9 +86,9 @@ itself to be correct. It is not.
 | Mutation ledger | ✅ met | `sync_mutations` — used directly and repeatedly this round as the ground-truth evidence source for Rollback validation; confirmed idempotency ledger (mutationId+userId primary key), status transitions (`applied`/`conflict`/`rejected`/`duplicate`) all behave as documented. |
 | Rollback metadata | ✅ met | `rollbackAvailableUntil`, `createdEntityIds` — both exercised and their edge cases (window expiry, session recovery) understood and fixed this round. |
 | Tombstone | ✅ met | Soft-delete only (`deleted_at`), never a physical delete, confirmed via the trigger logic (`private.write_household_sync_change`) and directly observed in the raw change feed this round. |
-| pgTAP / migration re-verification | ❌ **Not done** | Docker-based pgTAP has never been executed for either migration in any phase to date (Docker unavailable in every environment this project has run in so far). This remains an **open evidence gap**, carried forward unchanged.
+| pgTAP / migration re-verification | ⚠️ **Remote parity re-verified; local pgTAP still blocked (Phase 2C-3)** | `npx supabase migration list` confirms local==remote for both migrations, zero drift. Both `*_remote_verify.sql` read-only checks pass against the real dev project. A new `sync_business_rls_test.sql` pgTAP file (27 assertions) was written this phase, adding the sync/business behavioral RLS coverage the auth-side test already had — but Docker-based local pgTAP execution has never been executed for any migration in any phase to date (Docker unavailable in every environment this project has run in so far; real CLI errors captured this phase, not assumed). This remains an **open evidence gap** for the *local pgTAP execution* specifically — remote schema/RLS shape and real behavioral A/B isolation are otherwise now re-confirmed. See `docs/DATABASE_MIGRATION_PARITY.md` and `docs/RLS_SECURITY_VERIFICATION.md`.
 
-**Because pgTAP/migration re-verification for the sync-foundation migration remains undone, Production Go Candidate status must stay conditional on this point** — it is not a newly discovered defect, but it is a real, unresolved verification gap that should be closed (or explicitly risk-accepted by a human decision-maker) before a broad rollout, per the user's own instruction for this review.
+**Because Docker-based local pgTAP execution for the sync-foundation migration remains undone, Production Go Candidate status must stay conditional on this point** — it is not a newly discovered defect, but it is a real, unresolved verification gap that should be closed (or explicitly risk-accepted by a human decision-maker) before a broad rollout, per the user's own instruction for this review. Remote-verified schema/RLS shape and real A/B-isolation smoke evidence (Phase 2C-3) substantially narrow this gap without closing it.
 
 ## 3. Client/version compatibility
 
@@ -108,7 +121,7 @@ This means "staged production enablement" in this codebase can only mean **stage
 | App Store build | ❌ Does not exist — no signed distribution build has ever been produced. |
 | TestFlight canary | ❌ Does not exist — no App Store Connect app record, no TestFlight group. |
 | Backend deploy | ⚠️ Managed outside this repo (Render dashboard) — no in-repo deploy verification step. |
-| Migration verification | ⚠️ Partial — see §2 (first migration parity-verified, second is not; pgTAP never run). |
+| Migration verification | ⚠️ Remote parity for both migrations re-confirmed (Phase 2C-3); local Docker-based pgTAP still never run — see §2 and `docs/DATABASE_MIGRATION_PARITY.md`. |
 | Smoke tests | ✅ exists and passes — `npm run smoke:sync`, hosted `HostedGuestMergeSmokeTests`, full offline `GuestMergeTests` suite (127/127 as of Phase 2B-9B). |
 | Rollback rehearsal | ⚠️ Documented (`docs/PRODUCTION_ROLLBACK_RUNBOOK.md`), drills A–F automated-test-verified, but never rehearsed against a real deployed cohort (none exists). |
 | Incident owner | ❌ Not designated — no on-call rotation or named owner exists for this project. |
@@ -127,10 +140,12 @@ sideloaded, developer-supervised cohorts.
 **B. PRODUCTION GO CANDIDATE WITH CONDITIONS**
 
 Not A: real, concrete operational gaps exist (no separate production Supabase
-project, no App Store/TestFlight pipeline, pgTAP/migration-parity gap for
-the sync migration, no shared/multi-instance rate-limit store, and — while
-crash-reporting/monitoring/rate-limiting/min-version-enforcement are all now
-*implemented* — none of them is production-configured, and no real
+project — though the topology decision itself is now made, see Phase 2C-3 —
+no App Store/TestFlight pipeline, local Docker-based pgTAP execution still
+never run (remote parity is now re-confirmed), no shared/multi-instance
+rate-limit store, and — while crash-reporting/monitoring/rate-limiting/
+min-version-enforcement/topology-decision are all now *implemented or
+decided* — none of them is production-configured, and no real
 crash-reporting SDK or alert provider is wired up yet). None of these are
 correctness defects in the feature itself — Rollback, Conflict UI, and the
 remote-preview blocker are all genuinely fixed and physical-device-verified
@@ -150,11 +165,13 @@ further progress.
 
 ### Conditions that must be met before advancing past Stage 1 (internal test accounts only)
 
-1. A decision (not necessarily a new Supabase project) on whether Stage 2+
-   cohorts may share the current Supabase project, or whether a genuinely
-   separate production project must be provisioned first — this is a
-   product/business decision, not a code change, and this review does not
-   make it.
+1. ~~A decision on Supabase project topology.~~ **Decided (Phase 2C-3)** —
+   separate dev+prod project recommended; shared project accepted for
+   Stage 1 only. A genuinely separate production project **must be
+   provisioned before Stage 2** (any cohort beyond the two known internal
+   test accounts). See `docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md`. This review
+   does not create that project — that remains a future, explicitly
+   approved action.
 2. ~~Rate limiting extended to `/api/sync/*` routes.~~ **Done (Phase 2C-1)**
    — implemented, offline- and hosted-development-validated. See
    `docs/SYNC_API_RATE_LIMITING.md`. Not yet production-configured (no
@@ -170,8 +187,11 @@ further progress.
    SDK/DSN is **not yet integrated**; a manual crash-log-pull process is
    still what exists in practice until that integration happens. See
    `docs/CRASH_REPORTING.md`.
-5. pgTAP or an equivalent remote-parity re-verification for the
-   sync-foundation migration specifically.
+5. ~~pgTAP or an equivalent remote-parity re-verification.~~ **Remote parity
+   done (Phase 2C-3)** — migration history, schema/RLS/RPC shape, and real
+   A/B behavioral isolation all re-confirmed against the dev project. Local
+   Docker-based pgTAP execution specifically remains undone (environment
+   limitation, not a code gap) — see `docs/DATABASE_MIGRATION_PARITY.md`.
 
 ### Conditions before Stage 3+ (broader dogfood / GA)
 

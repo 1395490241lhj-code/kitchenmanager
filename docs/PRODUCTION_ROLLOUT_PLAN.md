@@ -21,6 +21,17 @@ server-toggleable flag, never automatic.
 > unconditionally, regardless of any flag) for the version gate to ever see
 > anything but a 426.
 
+> **Phase 2C-3 update**: Stage 1 (below) may continue on the current, single
+> Supabase project — this is now an explicit, documented decision, not an
+> unexamined default (see `docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md`). A
+> genuinely separate production Supabase project **must be provisioned
+> before Stage 2** (any cohort beyond the two known internal test
+> accounts) — this plan's Stage 2+ sections assume that project exists by
+> the time they're reached, since none has been created yet. TestFlight (or
+> sideloading) should keep targeting the dev project through Stage 1/2;
+> only an eventual App Store build should ever target the separate
+> production project.
+
 ## Stage 0 — Baseline (current state)
 
 - **Flags**: all `NO` (`INVENTORY_SYNC_ENABLED`, `INVENTORY_MERGE_UI_ENABLED`,

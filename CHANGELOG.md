@@ -6,6 +6,20 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16 (Phase 2C-3: production Supabase topology decision + migration/RLS remote-parity re-verification)
+
+### Decided
+
+- Audited the current Supabase topology: exactly one project exists, used identically by iOS `.production`/`.development`, the Express backend, and every test/smoke script; no separate production project exists. Compared three topology options (shared project; separate dev+prod; dev+staging+prod) against data isolation, migration risk, smoke-marker pollution, cost, and operational complexity. **Decision: separate dev+prod project recommended as the target topology; shared project explicitly accepted, but only as a bounded, temporary Stage-1-only exception.** A production project must be provisioned before Stage 2 (any cohort beyond the two known internal test accounts) — none was created this phase. See `docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md`.
+
+### Added
+
+- Added `src/server/utils/migration-manifest.js` — a pure, dependency-free check that the migration filename manifest has stable ascending ordering, no duplicate version prefixes, and no malformed filenames (8 new Node tests). Added `APIEnvironment.isSafeForCurrentBuildConfiguration`/`.label` (iOS) — a Release build now has a real guard against ever resolving to a loopback address, plus a safe non-secret environment label for diagnostics (5 new iOS tests). Re-verified (did not need to change) the existing `ensureDevelopmentTarget` fail-closed guard already present in `auth-smoke.mjs`/`sync-smoke.mjs`/`cleanup-guest-merge-smoke-markers.mjs`. Added `supabase/tests/sync_business_rls_test.sql` (27-assertion pgTAP behavioral test covering cross-household/cross-user RLS isolation, mutation idempotency, stale-version conflict, tombstone-on-delete, change-feed recording, cursor monotonicity, rollback-shaped delete, and anon privilege absence for the sync/business schema) — written this phase but **not executed** (Docker unavailable in this environment; the identical, real CLI error was captured and documented, not assumed).
+
+### Validated
+
+- Re-ran `npx supabase migration list` (read-only, no Docker required): both migrations confirmed applied with local==remote, zero drift. Re-ran both `supabase/tests/*_remote_verify.sql` read-only checks against the real development project: schema/RLS/trigger/policy/RPC shape all match exactly (9 policies/3 triggers for auth-household; 11 policies/18 triggers/3 RPCs for sync-business). Re-ran `scripts/auth-smoke.mjs` and `scripts/sync-smoke.mjs` fresh against the real dev project: real Auth/JWKS, `/api/me`, user isolation, direct-DML denial, A/B isolation, and the full create/update/conflict/delete/idempotency/feed/pagination mutation lifecycle all **PASS**. All security conclusions in `docs/RLS_SECURITY_VERIFICATION.md` are based on `authenticated`/`anon` role behavior only — no service-role query was used to assert any security conclusion. Full regression: Node 947/947 (up from 939), iOS Unit 625/625 (up from 621; `GuestMergeTests` 138/138, unchanged), iOS UI 8/8 (unchanged), Debug/Release clean builds, `npm audit --omit=dev --audit-level=high` clean. See `docs/DATABASE_MIGRATION_PARITY.md`, `docs/RLS_SECURITY_VERIFICATION.md`, and `docs/PHASE2C3_VALIDATION.md`. No production Supabase project was created; no production migration was executed; nothing pushed.
+
 ## 2026-07-16 (Phase 2C-2: crash reporting abstraction + basic backend monitoring)
 
 ### Added
