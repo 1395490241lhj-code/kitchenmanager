@@ -1027,6 +1027,7 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertTrue(succeedingDeleted, "the entity whose delete genuinely succeeded must still be soft-deleted remotely")
         let conflictingDeleted = await inner.isSoftDeleted(conflictingId)
         XCTAssertFalse(conflictingDeleted, "the entity whose delete conflicted must remain live remotely")
+        XCTAssertNotNil(conflictController.lastErrorMessage, "a failed rollback must surface a user-facing message — InventoryMergeResultView renders exactly this so the failure is never silent")
     }
 
     /// A retry after a partial failure must not re-stage a delete for the
