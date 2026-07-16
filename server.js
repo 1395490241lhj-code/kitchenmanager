@@ -119,8 +119,34 @@ const {
 const { authenticateRequest, createRequireAuthRole, ALLOWED_ALGORITHMS } = require('./src/server/auth/jwt');
 const { createMeHandler } = require('./src/server/auth/me-route');
 const { registerSyncRoutes } = require('./src/server/sync/routes');
+const { loadVersionEnforcementConfig } = require('./src/server/sync/version-gate');
+const { createLogger } = require('./src/server/observability/logger');
+const { createMetricsRegistry } = require('./src/server/observability/metrics');
+const { createRequestIdMiddleware } = require('./src/server/observability/request-id');
+const { createRequestLoggingMiddleware } = require('./src/server/observability/http-logging');
+const { createHealthHandler, createReadyHandler } = require('./src/server/observability/health');
+const {
+  SUPABASE_URL,
+  SUPABASE_JWKS_URL,
+  SYNC_READ_RATE_LIMIT_MAX,
+  SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS,
+  SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX
+} = require('./src/server/config');
 
 const app = express();
+
+// ── Phase 2C-2 observability ─────────────────────────────────────────────
+// Structured JSON logger + in-process metrics registry, both no-dependency
+// (see docs/BACKEND_OBSERVABILITY.md). `SYNC_RELEASE_VERSION` is an optional,
+// non-sensitive build/version tag (e.g. a git short SHA) — never a secret,
+// safe to log and to return from /health /ready.
+const OBSERVABILITY_ENVIRONMENT = process.env.NODE_ENV || 'development';
+const OBSERVABILITY_RELEASE = process.env.SYNC_RELEASE_VERSION || 'unknown';
+const observabilityLogger = createLogger({
+  environment: OBSERVABILITY_ENVIRONMENT,
+  release: OBSERVABILITY_RELEASE
+});
+const observabilityMetrics = createMetricsRegistry();
 
 // ── Trust proxy hops：只信任具体跳数，绝不用 true ───────────────────────────
 // Render Web Service 的公网入口是 Render 自己的边缘代理，不配置这个的话 req.ip
@@ -170,6 +196,14 @@ app.use((err, req, res, next) => {
   return next(err);
 });
 
+// ── Phase 2C-2 request correlation id + structured access log ───────────────
+// Applied globally (not just /api/sync/*) so every response — including a
+// 401/403/404 — carries an `X-Request-ID` and produces exactly one
+// structured `http_request` log line. Placed before CORS/routes so it
+// covers every request this process serves.
+app.use(createRequestIdMiddleware());
+app.use(createRequestLoggingMiddleware({ logger: observabilityLogger, metrics: observabilityMetrics }));
+
 // ── CORS：允许 GitHub Pages 纯静态前端跨域调用 /api ─────────────────────────
 // 前端在 github.io 上没有同源后端（见 src/config.js 的 API_BASE），会把 /api 请求
 // 直接发到本服务。白名单精确到站点来源，其余跨域来源一律不发 CORS 头（浏览器拦截）；
@@ -211,10 +245,60 @@ app.get(
   createMeHandler()
 );
 
+// ── Phase 2C-2 health / ready ────────────────────────────────────────────
+// /health: process-alive only, no DB/network access, must always be fast.
+// /ready: named config/connectivity checks; 503 the moment any one fails.
+// Response bodies never contain a URL, key, project ref, or stack trace —
+// only booleans keyed by check name (see src/server/observability/health.js).
+app.get('/health', createHealthHandler({ environment: OBSERVABILITY_ENVIRONMENT, release: OBSERVABILITY_RELEASE }));
+app.get('/ready', createReadyHandler({
+  environment: OBSERVABILITY_ENVIRONMENT,
+  release: OBSERVABILITY_RELEASE,
+  checks: [
+    {
+      name: 'auth_config',
+      run: async () => Array.isArray(SUPABASE_AUTH_CONFIG_ERRORS) && SUPABASE_AUTH_CONFIG_ERRORS.length === 0
+    },
+    {
+      name: 'version_gate_config',
+      run: async () => {
+        const config = loadVersionEnforcementConfig();
+        return !config.enabled || !config.misconfigured;
+      }
+    },
+    {
+      name: 'rate_limiter_config',
+      run: async () => Number.isInteger(SYNC_READ_RATE_LIMIT_MAX) && SYNC_READ_RATE_LIMIT_MAX > 0
+        && Number.isInteger(SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS) && SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS > 0
+        && Number.isInteger(SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX) && SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX > 0
+    },
+    {
+      name: 'supabase_connectivity',
+      run: async () => {
+        if (!SUPABASE_URL || !SUPABASE_JWKS_URL) return false;
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 2000);
+          try {
+            const response = await fetch(SUPABASE_JWKS_URL, { method: 'GET', signal: controller.signal });
+            return response.ok;
+          } finally {
+            clearTimeout(timeout);
+          }
+        } catch {
+          return false;
+        }
+      }
+    }
+  ]
+}));
+
 // Phase 2A sync foundation. These routes remain inert for Guest requests and
 // use the verified user JWT with Supabase RPC; business tables never receive
 // direct authenticated INSERT/UPDATE/DELETE grants.
-registerSyncRoutes(app);
+registerSyncRoutes(app, {
+  observability: { metrics: observabilityMetrics, logger: observabilityLogger }
+});
 
 
 const RECIPE_EVIDENCE_SYSTEM_PROMPT = `你是 Kitchen Manager 的视频/网页菜谱证据抽取器。用户会给你小红书/网页菜谱文案、caption、OCR、transcript 或截图。

@@ -27,23 +27,72 @@ function sendSyncError(res, error, logger = console) {
   });
 }
 
-function createSyncHandlers({ service = createSyncService(), logger = console } = {}) {
+// Phase 2C-2: `observability` is optional ({ metrics, logger }, both
+// duck-typed with the same shape as src/server/observability/*). When
+// omitted, handlers behave exactly as before Phase 2C-2 — this keeps every
+// existing direct construction of createSyncHandlers()/registerSyncRoutes()
+// (including Phase 2A/2C-1 tests) unaffected.
+//
+// Metrics only ever carry a route/status/result-shaped label, never a raw
+// userId/email/token — see docs/BACKEND_OBSERVABILITY.md.
+function createSyncHandlers({ service = createSyncService(), logger = console, observability = {} } = {}) {
+  const { metrics } = observability;
+  const nowProvider = observability.nowProvider || Date.now;
+
+  function recordRequestOutcome({ routeCategory, latencyMetric, start, success }) {
+    const durationMs = nowProvider() - start;
+    metrics?.increment('sync_request_total', 1, { route: routeCategory });
+    metrics?.increment(success ? 'sync_request_success' : 'sync_request_failure', 1, { route: routeCategory });
+    metrics?.observe(latencyMetric, durationMs, { route: routeCategory });
+  }
+
+  function recordMutationResults(results) {
+    if (!Array.isArray(results)) return;
+    metrics?.increment('sync_mutation_operations', results.length);
+    for (const result of results) {
+      if (result?.status === 'applied') metrics?.increment('sync_mutation_applied');
+      else if (result?.status === 'conflict') metrics?.increment('sync_mutation_conflict');
+      else if (result?.status === 'rejected') metrics?.increment('sync_mutation_rejected');
+      else if (result?.status === 'duplicate') metrics?.increment('sync_mutation_duplicate');
+    }
+  }
+
   return {
     bootstrap: async (req, res) => {
-      try { return res.json(await service.bootstrap({ auth: req.auth })); }
-      catch (error) { return sendSyncError(res, error, logger); }
+      const start = nowProvider();
+      try {
+        const result = await service.bootstrap({ auth: req.auth });
+        recordRequestOutcome({ routeCategory: 'bootstrap', latencyMetric: 'sync_read_latency', start, success: true });
+        return res.json(result);
+      } catch (error) {
+        recordRequestOutcome({ routeCategory: 'bootstrap', latencyMetric: 'sync_read_latency', start, success: false });
+        return sendSyncError(res, error, logger);
+      }
     },
     changes: async (req, res) => {
+      const start = nowProvider();
       try {
         const input = validateChangesQuery(req.query || {});
-        return res.json(await service.pullChanges({ auth: req.auth, input }));
-      } catch (error) { return sendSyncError(res, error, logger); }
+        const result = await service.pullChanges({ auth: req.auth, input });
+        recordRequestOutcome({ routeCategory: 'changes', latencyMetric: 'sync_read_latency', start, success: true });
+        return res.json(result);
+      } catch (error) {
+        recordRequestOutcome({ routeCategory: 'changes', latencyMetric: 'sync_read_latency', start, success: false });
+        return sendSyncError(res, error, logger);
+      }
     },
     mutations: async (req, res) => {
+      const start = nowProvider();
       try {
         const input = validateMutationsRequest(req.body);
-        return res.json(await service.applyMutations({ auth: req.auth, input }));
-      } catch (error) { return sendSyncError(res, error, logger); }
+        const result = await service.applyMutations({ auth: req.auth, input });
+        recordRequestOutcome({ routeCategory: 'mutations', latencyMetric: 'sync_write_latency', start, success: true });
+        recordMutationResults(result?.results);
+        return res.json(result);
+      } catch (error) {
+        recordRequestOutcome({ routeCategory: 'mutations', latencyMetric: 'sync_write_latency', start, success: false });
+        return sendSyncError(res, error, logger);
+      }
     }
   };
 }
@@ -84,13 +133,16 @@ function registerSyncRoutes(app, options = {}) {
   const handlers = createSyncHandlers(options);
   const auth = options.authenticate || authenticateRequest;
   const role = options.requireRole || createRequireAuthRole(['authenticated']);
-  const versionGate = options.versionGate || createVersionGateMiddleware();
+  const { metrics, logger: structuredLogger } = options.observability || {};
+  const versionGate = options.versionGate || createVersionGateMiddleware({ metrics, logger: structuredLogger });
 
   const readStore = options.readRateLimitStore || createMemoryWindowStore();
   const readRateLimiter = options.readRateLimiter || createReadRateLimiter({
     store: readStore,
     windowMs: SYNC_READ_RATE_LIMIT_WINDOW_MS,
-    maxRequests: SYNC_READ_RATE_LIMIT_MAX
+    maxRequests: SYNC_READ_RATE_LIMIT_MAX,
+    metrics,
+    logger: structuredLogger
   });
 
   const mutationStore = options.mutationRateLimitStore || createMemoryWindowStore();
@@ -99,7 +151,9 @@ function registerSyncRoutes(app, options = {}) {
     requestWindowMs: SYNC_MUTATION_RATE_LIMIT_WINDOW_MS,
     maxRequests: SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS,
     operationWindowMs: SYNC_MUTATION_OPERATION_RATE_LIMIT_WINDOW_MS,
-    maxOperations: SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX
+    maxOperations: SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX,
+    metrics,
+    logger: structuredLogger
   });
 
   app.get('/api/sync/bootstrap', chain(auth, role, versionGate, readRateLimiter, handlers.bootstrap));

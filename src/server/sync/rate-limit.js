@@ -40,7 +40,15 @@ function createMemoryWindowStore() {
   };
 }
 
-function sendRateLimited(res, retryAfterSeconds) {
+function sendRateLimited(res, retryAfterSeconds, { req, metrics, logger, routeCategory } = {}) {
+  metrics?.increment('sync_rate_limited', 1, { route: req?.path });
+  logger?.log('sync_rate_limited', {
+    requestId: req?.requestId,
+    route: req?.path,
+    routeCategory,
+    retryAfterSeconds,
+    resultCode: 'SYNC_RATE_LIMITED'
+  });
   res.set('Retry-After', String(retryAfterSeconds));
   return res.status(429).json({
     error: 'rate_limited',
@@ -53,11 +61,17 @@ function sendRateLimited(res, retryAfterSeconds) {
 // Keys by `userId + route path` so bootstrap/changes each get their own
 // budget — a burst of `changes` pagination pages can never starve a later
 // `bootstrap` call, and vice versa.
+//
+// `metrics`/`logger` (Phase 2C-2) are optional; only emitted on the 429
+// path, and only with route/requestId/retryAfterSeconds — never the bucket
+// key or userId itself.
 function createReadRateLimiter({
   store = createMemoryWindowStore(),
   windowMs = 5 * 60 * 1000,
   maxRequests = 120,
-  nowProvider = Date.now
+  nowProvider = Date.now,
+  metrics,
+  logger
 } = {}) {
   return function readRateLimiter(req, res, next) {
     const userId = req.auth?.userId;
@@ -65,7 +79,9 @@ function createReadRateLimiter({
     const routeKey = req.route?.path || req.path;
     const key = `read:${userId}:${routeKey}`;
     const { count, retryAfterSeconds } = store.consume(key, windowMs, nowProvider());
-    if (count > maxRequests) return sendRateLimited(res, retryAfterSeconds);
+    if (count > maxRequests) {
+      return sendRateLimited(res, retryAfterSeconds, { req, metrics, logger, routeCategory: 'read' });
+    }
     return next();
   };
 }
@@ -80,7 +96,9 @@ function createMutationRateLimiter({
   maxRequests = 40,
   operationWindowMs = 5 * 60 * 1000,
   maxOperations = 500,
-  nowProvider = Date.now
+  nowProvider = Date.now,
+  metrics,
+  logger
 } = {}) {
   return function mutationRateLimiter(req, res, next) {
     const userId = req.auth?.userId;
@@ -89,12 +107,16 @@ function createMutationRateLimiter({
 
     const requestKey = `mutreq:${userId}`;
     const requestResult = store.consume(requestKey, requestWindowMs, now);
-    if (requestResult.count > maxRequests) return sendRateLimited(res, requestResult.retryAfterSeconds);
+    if (requestResult.count > maxRequests) {
+      return sendRateLimited(res, requestResult.retryAfterSeconds, { req, metrics, logger, routeCategory: 'mutation' });
+    }
 
     const operationCount = Array.isArray(req.body?.mutations) ? req.body.mutations.length : 0;
     const operationKey = `mutops:${userId}`;
     const operationResult = store.consumeBy(operationKey, operationWindowMs, operationCount, now);
-    if (operationResult.count > maxOperations) return sendRateLimited(res, operationResult.retryAfterSeconds);
+    if (operationResult.count > maxOperations) {
+      return sendRateLimited(res, operationResult.retryAfterSeconds, { req, metrics, logger, routeCategory: 'mutation' });
+    }
 
     return next();
   };

@@ -98,7 +98,13 @@ function sendMisconfigured(res) {
   });
 }
 
-function sendUpgradeRequired(res, config) {
+function sendUpgradeRequired(res, config, { req, metrics, logger } = {}) {
+  metrics?.increment('sync_upgrade_required', 1, { route: req?.path });
+  logger?.log('sync_upgrade_required', {
+    requestId: req?.requestId,
+    route: req?.path,
+    resultCode: 'CLIENT_UPGRADE_REQUIRED'
+  });
   return res.status(426).json({
     error: 'client_upgrade_required',
     code: 'CLIENT_UPGRADE_REQUIRED',
@@ -111,7 +117,12 @@ function sendUpgradeRequired(res, config) {
 // `loadConfig` is re-invoked on every request (not cached at module load)
 // so an operator can change the env var and redeploy without any other code
 // change — matches every other flag in this codebase.
-function createVersionGateMiddleware({ loadConfig = loadVersionEnforcementConfig } = {}) {
+//
+// `metrics`/`logger` (Phase 2C-2) are optional and only ever used to emit a
+// stable-named counter/log line on a 426 rejection — never fields that
+// identify the requesting user (no email/token/full UUID; `req.requestId` is
+// a random correlation id, not an identity).
+function createVersionGateMiddleware({ loadConfig = loadVersionEnforcementConfig, metrics, logger } = {}) {
   return function versionGate(req, res, next) {
     const config = loadConfig();
     if (!config.enabled) return next();
@@ -124,12 +135,12 @@ function createVersionGateMiddleware({ loadConfig = loadVersionEnforcementConfig
     const headersPresent = versionRaw !== undefined && buildRaw !== undefined && schemaRaw !== undefined;
     const headersValid = headersPresent && clientVersion !== null && clientBuild !== null && clientSchema !== null;
 
-    if (!headersValid) return sendUpgradeRequired(res, config);
+    if (!headersValid) return sendUpgradeRequired(res, config, { req, metrics, logger });
 
     const meetsMinimum = compareSemVer(clientVersion, config.minVersion) >= 0
       && clientBuild >= config.minBuild
       && clientSchema >= config.minSchema;
-    if (!meetsMinimum) return sendUpgradeRequired(res, config);
+    if (!meetsMinimum) return sendUpgradeRequired(res, config, { req, metrics, logger });
 
     return next();
   };
