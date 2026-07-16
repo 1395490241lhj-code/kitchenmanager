@@ -1,241 +1,201 @@
 # CODING_RULES.md
 
-This file defines coding rules for Kitchen Manager. It complements `PROJECT_GUIDE.zh.md`, `PROJECT_GUIDE.md`, and `PROJECT_WORKFLOW.md`.
-
-If this file conflicts with actual code or `PROJECT_GUIDE.zh.md`, inspect the code and follow the more project-specific source.
-
----
-
-## 1. Core Principles
-
-- Keep changes small, safe, and reversible.
-- Prefer clear code over clever abstractions.
-- Preserve existing behavior unless the task explicitly asks for a change.
-- Do not refactor unrelated files.
-- Do not introduce large dependencies for small tasks.
-- Do not rewrite the app architecture.
-- Always protect user data.
-- Always protect the core loop: inventory -> recommendation -> plan -> shopping -> cook -> inventory update -> backup.
-
----
-
-## 2. Stack Rules
-
-This project is intentionally:
-
-- Plain HTML.
-- Plain CSS.
-- Native browser JavaScript ES modules.
-- No frontend framework.
-- No build step.
-- No TypeScript.
-- No Tailwind runtime.
-- No bundler.
-- Node/Express only for static hosting and API/AI/proxy functions.
-
-Do not add any of the following without explicit approval:
-
-- React, Vue, Svelte, Angular.
-- Vite, Webpack, Rollup, Parcel, Babel.
-- TypeScript migration.
-- Tailwind CSS runtime or CSS framework.
-- State management framework.
-- Database.
-- Cloud sync or login system.
-
----
-
-## 3. Architecture Rules
-
-### Domain logic
-
-Domain/business logic belongs in `src/*.js` or `src/server/**`, not directly inside DOM rendering code.
-
-Examples:
-
-- Storage: `src/storage.js`.
-- Ingredient normalization/classification: `src/ingredients.js` and related utilities.
-- Inventory behavior: `src/inventory.js`.
-- Recommendation behavior: `src/recommendations.js`.
-- Shopping behavior: `src/shopping.js`.
-- Staples behavior: `src/staples.js`.
-- AI client/frontend logic: `src/ai.js`.
-- Server-side AI/page/media logic: `server.js` and `src/server/**`.
-
-### Views
-
-Page-level rendering belongs in `src/views/*`.
-
-View files should:
-
-- Render DOM.
-- Bind UI events.
-- Call domain/component functions.
-- Save through domain/storage helpers.
-- Trigger rerender through the existing routing flow.
-
-View files should not duplicate ingredient classification, inventory deduction, recommendation scoring, or shopping merge rules.
-
-### Components
-
-Reusable UI flows belong in `src/components/*`.
-
-Examples include modal shells, recipe cards, plan/missing checks, pantry shelf, cook feedback, and status/toast helpers.
-
-### Server
-
-Server-side behavior belongs in `server.js` and `src/server/**`.
-
-Keep server responsibilities separated:
-
-- Config in `src/server/config.js`.
-- AI HTTP/client helpers in `src/server/services/ai-client.js`.
-- Page/link extraction in `src/server/services/page-source.js`.
-- Media processing in `src/server/services/media-pipeline.js`.
-- Rate limits and SSRF protection in their existing service files.
-- JSON/text utilities in `src/server/utils/*`.
-
----
-
-## 4. Storage and Data Safety Rules
-
-The only general localStorage entry point is `src/storage.js`.
-
-Rules:
-
-- Use `S.load` and `S.save`.
-- Use `S.keys.*`.
-- Do not write raw `localStorage.getItem('km_...')` or `localStorage.setItem('km_...')` in feature code.
-- Do not rename storage keys without a migration.
-- Do not clear or overwrite user data as a quick fix.
-- User recipe edits should go through overlay behavior, not base recipe JSON rewrites.
-- New persisted fields must be reviewed for backup/export/restore.
-- Schema-breaking changes require migration logic and tests.
-
-Special warning:
-
-- If adding fields to shopping items, check the loader/normalizer/rebuild logic so new fields persist after refresh.
-
----
-
-## 5. Recipe and Ingredient Rules
-
-Recipes should preserve the project distinction between:
-
-- Core ingredients that affect inventory and shopping decisions.
-- Seasonings/staples that usually should not create noisy shopping requirements unless explicitly requested.
-
-Do not duplicate seasoning detection logic in random views. Reuse existing classifier/helpers.
-
-User recipe changes should be safe and reversible:
-
-- Base recipe data files are source data.
-- User changes belong in overlay/customization storage.
-- Reset behavior should still be able to return to base + completion overlay state.
-
----
-
-## 6. AI Feature Rules
-
-AI output is always draft data.
-
-Rules:
-
-- Validate AI output before saving or displaying as structured data.
-- Keep uncertainty/warnings visible.
-- Do not invent full recipe steps from weak source evidence.
-- Do not auto-change inventory from AI output.
-- Receipt recognition must go through user confirmation before writing inventory.
-- Recipe import must allow review/edit before save.
-- Failed AI calls should show useful fallback paths.
-- Static mode without `/api/*` should degrade gracefully.
-- Server-side prompts, extraction, media handling, and JSON parsing should stay testable.
-
-Secrets:
-
-- Do not hardcode real API Keys.
-- Do not commit `.env` with secrets.
-- Do not log API Keys.
-- Do not include API Keys in backup exports.
-- Use environment variables such as `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, and specialized model variables already used by the project.
-
----
-
-## 7. Security Rules
-
-- Escape dynamic content before inserting into `innerHTML`.
-- Use existing escaping helpers where available.
-- Attribute values need attribute-safe escaping.
-- Preserve SSRF protection for URL/page/media extraction.
-- Preserve rate limits for AI/import endpoints.
-- Preserve CORS restrictions unless the deployment requirement is explicit and reviewed.
-- Do not expose server-only secrets to frontend code.
-
----
-
-## 8. UI and CSS Rules
-
-The UI is mobile-first and should work at about 390px width.
-
-Rules:
-
-- Prefer existing design tokens in `:root`.
-- Prefer semantic kebab-case CSS class names.
-- Use `.is-*` for state classes.
-- Do not paste Tailwind utility class strings into HTML.
-- If a design request uses Tailwind-like wording, translate it into project CSS tokens/classes.
-- New UI must be usable in light and dark themes.
-- Avoid large visual redesigns for small behavior tasks.
-- Inline/local edits are preferred where they reduce modal friction.
-- Touch targets should be comfortable on mobile.
-
----
-
-## 9. PWA and Cache Rules
-
-When changing frontend JS/CSS imported by the browser:
-
-- Follow the version/cache stamping rules in `PROJECT_GUIDE.zh.md`.
-- Prefer the existing script `node scripts/stamp-version.js` rather than manually editing many `?v=` values.
-- For deployment cache problems, consider whether `sw.v18.js` `CACHE_NAME` also needs updating.
-- Do not change Service Worker strategy casually.
-
----
-
-## 10. Testing Rules While Coding
-
-- Add or update tests for changed business logic.
-- Prefer targeted tests first, then full `npm test` when practical.
-- For docs-only changes, tests should still pass, but no new test is usually needed.
-- For UI-only changes, run relevant tests and do manual mobile checks.
-- For storage changes, test refresh/persistence/backup behavior.
-- For AI/server changes, test success, malformed output, upstream failure, and rate/error handling where possible.
-
-See `TESTING_RULES.md` for command-level expectations.
-
----
-
-## 11. Dependency Rules
-
-Before adding a dependency, explain:
-
-1. Why the dependency is necessary.
-2. Why existing code cannot solve the problem.
-3. Whether it affects GitHub Pages static deployment.
-4. Whether it affects `npm test` or CI.
-5. Whether it increases browser bundle/runtime risk.
-
-Do not add browser dependencies casually because this project has no bundler.
-
----
-
-## 12. Final Delivery Rules
-
-Every code change must end with:
-
-- Summary of what changed.
-- Exact changed files.
-- Tests run and results.
-- Manual checks performed.
-- Risks/TODOs.
-- Whether `PROJECT_STATUS.md` and `CHANGELOG.md` were updated.
+These rules apply to Kitchen Manager across Web/PWA, native iOS, Express, Supabase, authentication, and synchronization.
+
+## 1. General principles
+
+- Protect user data before optimizing convenience.
+- Keep changes focused, reversible, and reviewable.
+- Preserve Guest-mode local usability.
+- Prefer existing contracts and helpers over duplicate logic.
+- Keep UI, domain, persistence, transport, and database responsibilities separated.
+- Do not refactor unrelated files or change architecture as a side effect.
+- A safe, visible failure is better than a fake success.
+- Tests and documentation must describe the behavior that actually exists.
+
+## 2. Existing technology is allowed; unapproved expansion is not
+
+Current architecture includes:
+
+- plain HTML/CSS/native JavaScript PWA
+- Node/Express/Axios/JOSE/ffmpeg-static
+- SwiftUI/SwiftData/Keychain/supabase-swift
+- Supabase Auth/Postgres/RLS and sync RPC
+
+Do not use obsolete rules to remove or reject existing database, login, sync, or native iOS code.
+
+Still require explicit approval for:
+
+- React/Vue/Svelte/Angular, TypeScript, Vite/Webpack/Rollup, Tailwind runtime, or another PWA architecture migration
+- a wholesale iOS architecture/persistence/auth rewrite
+- a second database or bypass of the current Express/Supabase contract
+- automatic/startup/background/Realtime sync
+- synchronizing additional entity families
+- broad UI redesigns or major folder moves
+- heavy dependencies for small tasks
+
+## 3. PWA rules
+
+### Structure
+
+- `app.js` initializes, migrates, loads packs, routes, and composes views.
+- `src/views/*` renders pages and binds page-level events.
+- `src/components/*` owns reusable UI flows.
+- domain/service logic belongs in focused modules such as inventory, ingredients, recommendations, shopping, staples, AI, backup, and migrations.
+- do not duplicate business rules inside DOM handlers.
+
+### Storage and data
+
+- use `S.load`, `S.save`, and `S.keys` from `src/storage.js`;
+- do not add raw `localStorage.getItem/setItem('km_...')` in feature code;
+- do not rename keys or break shapes without migration and tests;
+- migration failure must not clear user data;
+- review backup/export/restore for every persisted field;
+- keep API keys/tokens out of backups;
+- keep user recipe edits in Overlay, not base recipe JSON;
+- inspect fixed-field loaders when adding shopping fields so refresh does not drop them.
+
+### DOM and security
+
+- escape dynamic HTML and attribute values with existing helpers;
+- avoid string-building untrusted URLs or event handlers;
+- do not expose server secrets in frontend config;
+- retain useful inline error/fallback states.
+
+### UI and cache
+
+- design for about 390px first;
+- support light/dark themes and touch interaction;
+- reuse existing CSS tokens and semantic classes;
+- translate Tailwind-like design descriptions into project CSS rather than pasting utility strings;
+- after browser-imported JS/CSS changes, use the version-stamping workflow;
+- change Service Worker strategy/cache names only when justified.
+
+## 4. Native iOS rules
+
+### Swift and SwiftUI
+
+- keep Views declarative and free of network tokens/persistence secrets;
+- resolve mutable collection elements by stable id instead of long-lived captured indices;
+- keep business rules in testable models, stores, controllers, services, or pure helpers;
+- use `@MainActor` where UI-observable state and persistence architecture require it;
+- treat Sendable/concurrency warnings as design feedback, not noise to suppress casually;
+- preserve accessibility labels, Dynamic Type, dark mode, safe areas, and reasonable hit targets;
+- confirm destructive actions and surface actionable errors.
+
+### SwiftData and local persistence
+
+- use the repository's shared schema/factory and in-memory test containers;
+- keep business/backup models and persistence records mapped explicitly;
+- update every current field when adding/changing a model;
+- make migrations idempotent and verify before writing completion markers;
+- retain legacy fallback/self-healing behavior unless an explicit migration plan changes it;
+- explicit clear-all must clear both active persistence and retained fallback so data cannot reappear;
+- audit multiple `ModelContext` writes for ordering, transaction, and rollback risk;
+- do not silently change backup-version scope when moving a module to SwiftData.
+
+### Authentication
+
+- store sessions in Keychain through the existing auth service;
+- never store access/refresh tokens in SwiftData, UserDefaults, Views, published models, diagnostics, or logs;
+- acquire a fresh token per request from the live auth state where current code requires it;
+- sign-out must starve later requests rather than reuse a captured token;
+- account failure must not block local Guest features;
+- login/logout must not auto-upload, clear, or switch local kitchen data.
+
+## 5. Server rules
+
+- keep `server.js` as composition/entry rather than a dumping ground;
+- keep config, auth, sync, AI/media, extraction, rate limits, and utilities in focused modules;
+- validate body size, item count, types, identifiers, URLs, and upstream output;
+- keep timeouts and graceful failure paths;
+- preserve SSRF protection and redirect/address checks;
+- preserve CORS/security assumptions unless deployment requirements are explicit;
+- return stable safe error codes; avoid leaking internal stacks, credentials, Authorization, prompts, images, or database details;
+- production logs must be redacted and low-sensitivity.
+
+## 6. Supabase and migration rules
+
+- migrations under `supabase/migrations` are the versioned source of truth;
+- prefer additive, idempotent changes and explicit constraints/indexes;
+- inspect grants, RLS policies, triggers, functions, and rollback/recovery implications together;
+- direct client DML to protected business tables remains denied;
+- never use a service-role key in the PWA or iOS app;
+- do not apply a migration or target a hosted project without explicit environment confirmation;
+- add SQL/remote verification for security- or contract-relevant changes.
+
+## 7. Sync protocol rules
+
+### Identity and scope
+
+- derive user identity from the verified JWT subject;
+- reject client attempts to forge user identity;
+- keep household and user scopes independent;
+- validate membership, entity type, operation, payload, and scope on every write.
+
+### Mutation contract
+
+- preserve mutation id, entity id, base version, operation, scope, and payload semantics;
+- retries must be idempotent;
+- conflicts/rejections must remain visible and retry-safe;
+- deletes are tombstones/soft deletes under the current contract;
+- cursor values remain arbitrary-precision strings;
+- do not advance a cursor past unapplied local state or delete pending work before authoritative success.
+
+### Local staging
+
+- stage SyncMetadata and PendingMutation through the centralized persistence API;
+- preserve current create/update/delete coalescing rules;
+- never lose deletes because of queue limits;
+- avoid staging duplicate operations when an entity is already confirmed deleted;
+- keep conflict resolution separate from network application when the contract defines a review step.
+
+### Guest merge and rollback
+
+- preview must be read-only and authenticated when remote data is required;
+- no automatic conflict resolution;
+- keepLocal, keepRemote, keepBoth, and skip retain their documented semantics;
+- same-id keepBoth uses a persisted stable fork id;
+- plan hash/revalidation must prevent stale confirmation;
+- rollback targets only entities created by that merge session and must verify per-entity authoritative state before reporting success.
+
+### Feature gates
+
+- committed defaults for sync/merge/smoke/dogfood/diagnostics remain `NO` unless an approved rollout task changes them;
+- Release configuration must not accidentally inherit local test flags;
+- no startup/login/timer/background/Realtime hook without explicit approval;
+- restore local ignored flags after smoke/device tests and verify the compiled configuration when relevant.
+
+## 8. AI feature rules
+
+- AI output is draft data;
+- use existing structured validation and sanitization;
+- preserve source uncertainty and warnings;
+- never auto-update inventory from AI output;
+- require review before recipe save or receipt stock-in;
+- keep manual/text/local fallbacks available;
+- avoid sending broad kitchen data when a narrower prompt/input is sufficient;
+- never hardcode, commit, log, or export real API keys.
+
+## 9. Dependency rules
+
+Before adding a dependency, document:
+
+1. the concrete need;
+2. why the platform or existing code is insufficient;
+3. runtime/build/binary-size impact;
+4. PWA static deployment impact;
+5. iOS package/signing impact where applicable;
+6. security and maintenance implications;
+7. tests and rollback/removal plan.
+
+Keep `package-lock.json` consistent with npm changes. Do not mix package managers.
+
+## 10. Test and delivery rules
+
+- add a focused regression test for a confirmed bug when practical;
+- run the matrix in `TESTING_RULES.md` for every affected subsystem;
+- do not shrink a suite or delete coverage merely to make CI pass;
+- distinguish local, simulator, hosted-development, physical-device, and production evidence;
+- report exact commands, results, skipped tests, flags, environment, remote writes, cleanup, and untested areas;
+- update `PROJECT_STATUS.md` only when current state changes and `CHANGELOG.md` when a notable change occurs.

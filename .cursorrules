@@ -1,44 +1,13 @@
-Follow the shared project instructions before making changes:
+Use `AGENTS.md` as the single source of repository instructions for Cursor.
 
-- AGENTS.md
-- PROJECT_GUIDE.zh.md
-- PROJECT_WORKFLOW.md
-- PROJECT_STATUS.md
-- AI_CONTEXT.md
-- CODING_RULES.md
-- TESTING_RULES.md
-- CHANGELOG.md
+Required start:
+- Read `AGENTS.md`.
+- Read `PROJECT_STATUS.md`.
+- Follow the task-specific reading route in `AGENTS.md`.
+- Inspect the affected implementation and tests before editing.
 
-Project summary:
+Do not duplicate or infer project facts from this file. Kitchen Manager currently includes a native-JS PWA, a SwiftUI/SwiftData iOS app, an Express backend, and Supabase auth/sync infrastructure. Sync-related features remain gated off by default unless an approved task explicitly changes that state.
 
-KitchenManager is a local-first kitchen management PWA using native HTML/CSS/JavaScript, Express backend services, localStorage data persistence, PWA caching, and AI-assisted receipt/media/recipe features.
+Follow `CODING_RULES.md`, `TESTING_RULES.md`, and `PROJECT_WORKFLOW.md`. Keep changes focused, preserve user data and Guest-mode behavior, protect secrets and environment boundaries, and report exact validation.
 
-Cursor must treat the repository documentation as the source of truth.
-
-Core rules:
-
-- Inspect the actual code before changing anything.
-- Keep changes small, focused, and testable.
-- Do not rewrite unrelated code.
-- Do not introduce a frontend framework unless explicitly requested.
-- Do not change the project architecture without explicit approval.
-- Do not change localStorage keys or data shapes without checking migration impact.
-- Do not change Service Worker or PWA cache behavior casually.
-- Do not hardcode API keys, tokens, credentials, or secrets.
-- Do not introduce new dependencies unless clearly necessary.
-- Do not create fake integrations or placeholder behavior that appears functional.
-- Do not make broad UI redesigns for small feature requests.
-- Follow CODING_RULES.md and TESTING_RULES.md.
-
-Testing expectations:
-
-- Run npm test when relevant.
-- Run npm start when local behavior needs manual verification.
-- If changing recipe pack logic, run the relevant recipe validation command documented in package.json or project docs.
-- Report exactly what was tested and what was not tested.
-
-After meaningful changes:
-
-- Update PROJECT_STATUS.md if project progress changed.
-- Update CHANGELOG.md for important changes.
-- Explain changed files, testing, risks, and TODOs.
+Do not commit, push, deploy, apply migrations, enable flags, or perform hosted writes unless explicitly requested.

@@ -1,501 +1,85 @@
-# Kitchen Manager Project Guide
+# Kitchen Manager Project Guide — English Companion
 
-This guide is the operating contract for future AI-assisted development on Kitchen Manager. It is intentionally specific to this repository. Read it before changing code.
+> This is the concise English companion to `PROJECT_GUIDE.zh.md`. The Chinese guide is the canonical detailed architecture and constraint document. This file must not introduce rules that do not exist there.
 
-## 1. Project Positioning
+Last reorganized: 2026-07-16.
 
-Kitchen Manager is a local-first household kitchen management PWA. It helps one person or a small household move through this loop:
+## 1. Architecture summary
 
-1. Record what is in the kitchen.
-2. See what should be used soon.
-3. Decide what to cook today.
-4. Add missing ingredients to a shopping list.
+Kitchen Manager is a Guest-first, Local-first, dual-client kitchen product:
+
+- Web/PWA: plain HTML, CSS, native JavaScript ES modules, Service Worker, and browser `localStorage`.
+- Native iOS: SwiftUI, SwiftData, Keychain, and `supabase-swift`.
+- Server: Node/Express for static hosting, AI/extraction/media work, authentication, and sync APIs.
+- Cloud foundation: Supabase Auth/Postgres/RLS and an allowlisted sync RPC in the linked development environment.
+
+Account and inventory-sync code exists and has extensive controlled validation. Committed sync-related flags remain safe-off by default, and the project is not broadly production-enabled. Read `PROJECT_STATUS.md` for the current release posture.
+
+## 2. Core product loop
+
+Protect this flow after every change:
+
+1. Record or import inventory.
+2. See expiry, availability, and recipe suggestions.
+3. Add meals to today/weekly planning.
+4. Add missing core ingredients to shopping.
 5. Confirm purchased items into inventory.
-6. Mark recipes as cooked and update usage history.
-7. Back up or restore the whole kitchen.
+6. Confirm cooking and inventory deductions.
+7. Back up and restore local data.
+8. Optionally sign in without harming Guest data.
+9. Where explicitly enabled, preview/confirm inventory merge, resolve conflicts, manually sync, and use scoped rollback.
 
-The current implementation is plain HTML/CSS/JavaScript with browser-native ES modules, plus a small Express server. There is no frontend framework, no bundler, and no build step.
+## 3. Subsystem boundaries
 
-Primary product principles:
+### PWA
 
-- Local-first: core user data lives in `localStorage`.
-- Low-friction daily use: the app should answer "what should I do next in my kitchen?"
-- AI is a helper, not an authority: AI output must be treated as a draft and validated before entering user data.
-- Mobile-first: the app must remain comfortable at 390px iPhone width.
-- Incremental evolution: do not rewrite the project or change many surfaces in one task.
+- Keep the no-framework/no-bundler architecture.
+- Views render and bind events; domain modules own matching, scoring, parsing, deductions, and merging.
+- Access `localStorage` through `src/storage.js` and `S.keys`.
+- Storage-shape changes require migration and backup/restore review.
+- User recipe edits go through Overlay; base recipe data stays read-only.
+- Preserve hash-route meanings and Service Worker/cache strategy unless explicitly approved.
 
-## 2. Core User Paths
+### Native iOS
 
-Keep these paths working after every change:
+- Keep SwiftUI Views free of tokens and persistence secrets.
+- Keep business/backup models and SwiftData records separated according to the existing architecture.
+- Use injected stores, services, persistence protocols, and the composition root.
+- Preserve idempotent migration and retained-legacy/self-healing behavior.
+- Sign-in/sign-out must not silently upload, clear, or reassign Guest kitchen data.
 
-1. New user path:
-   - Open app.
-   - See onboarding or empty state.
-   - Add food manually, via receipt recognition, or by importing a backup.
+### Server and database
 
-2. Daily kitchen path:
-   - Open "厨房" home dashboard.
-   - See today plan, urgent expiring items, ready recipes, almost-ready recipes.
-   - Add a recipe to today's plan.
-   - Add missing ingredients to the shopping list.
+- Keep configuration, auth, sync, AI/media, and utility responsibilities separated.
+- Preserve JWT/JWKS verification, RLS, direct-DML denial, request limits, SSRF protection, redaction, and route protection order.
+- Database migrations must be reviewable, additive where practical, idempotent, and accompanied by verification.
 
-3. Inventory path:
-   - Go to "库存管理".
-   - Add a raw item or dry good.
-   - Edit quantity, unit, purchase date, shelf life, frozen state, and stock state.
-   - Delete or mark item empty without breaking recommendations.
+### Sync
 
-4. Pantry path:
-   - Go to "库存管理 -> 常备货架".
-   - Toggle staple availability.
-   - Manage custom shelf items.
-   - Missing staples should join the shopping list.
+- Identity comes from the verified JWT, never a client-supplied user id.
+- Preserve household/user scope separation.
+- Preserve mutation idempotency, base-version conflicts, string cursor semantics, soft-delete tombstones, and pending-mutation state transitions.
+- Guest merge is read-only preview first, explicit confirmation second.
+- Do not add automatic/startup/background/Realtime sync or expand synced entities without explicit product and safety approval.
+- Keep all sync/merge/smoke/dogfood/diagnostic flags off by default.
 
-5. Shopping path:
-   - Add manual shopping items.
-   - See grouped shopping items by source.
-   - Mark bought.
-   - Confirm bought items into inventory before writing inventory records.
-   - Copy a readable list for WeChat/Notes.
+## 4. Safety language
 
-6. Recipe path:
-   - Search recipes by name, tag, or ingredient.
-   - Open recipe detail.
-   - Add to today's plan.
-   - Add missing ingredients to shopping list.
-   - Mark cooked without aggressively deleting inventory unless a confirmation/calibration flow is used.
-   - Edit system recipes via overlay, not by mutating base data.
+Use precise statements:
 
-7. Backup path:
-   - Export full kitchen backup.
-   - Import full kitchen backup.
-   - Import old inventory-only backup.
-   - Bad JSON must show a clear error and must not clear data.
+- “Implemented and validated in the development environment; default off” is acceptable when true.
+- “Production enabled,” “fully launched,” or “all data syncs” is not acceptable unless configuration and rollout evidence prove it.
+- An old phase report proves a past run, not the current modified working tree.
 
-## 3. Current Page Structure
+## 5. Where to read next
 
-Routes are hash-based and handled in `app.js`.
+- Current state: `PROJECT_STATUS.md`
+- AI task routing: `AGENTS.md`
+- Detailed architecture: `PROJECT_GUIDE.zh.md`
+- Coding constraints: `CODING_RULES.md`
+- Verification matrix: `TESTING_RULES.md`
+- Task lifecycle: `PROJECT_WORKFLOW.md`
+- Stable product intent: `AI_CONTEXT.md`
+- Historical evidence: `CHANGELOG.md` and relevant files under `docs/`
 
-Current route map:
-
-- Empty hash: redirects to `#today`; it does not render a view directly.
-- `#today`: visible page "今日"; the kitchen home dashboard.
-- `#inventory`: visible page "食材"; the dedicated inventory page with fresh-food and pantry sections.
-- `#shopping`: visible page "买菜"; the shopping list and stock-in confirmation flow.
-- `#recipes`: visible page "菜谱"; search, filters, AI import, manual recipe creation.
-- `#settings`: visible page "设置"; theme, recipe library mode, AI settings, backups, cache clearing.
-- `#recipe:id`: recipe detail page.
-- `#recipe-edit:id`: recipe editor page.
-
-The bottom dock has five entries: `#today`, `#inventory`, `#shopping`, `#recipes`, and `#settings`.
-The current meanings are stable: `#today` is home, `#inventory` is food inventory, and `#shopping` is shopping. Do not exchange them without product confirmation. The current app does not add a redirect for former `#inventory` home bookmarks; do not introduce one as a documentation-only change.
-
-Important current files:
-
-- `app.js`: initialization, migrations, recipe-pack loading, route composition, global error display.
-- `src/views/home-view.js`: kitchen dashboard, quick actions, today's plan integration, AI inspiration, receipt entry.
-- `src/views/shopping-view.js`: shopping list, segmented inventory management page, pantry management modals.
-- `src/views/inventory-view.js`: full inventory add/edit grid and receipt scanning entry.
-- `src/views/recipes-view.js`: recipe list/search and AI recipe import flow.
-- `src/views/recipe-detail-view.js`: recipe detail actions, cooking completion, inventory deduction confirmation.
-- `src/views/recipe-editor-view.js`: recipe editing, AI draft conversion, overlay save.
-- `src/views/settings-view.js`: settings, backup/restore, theme.
-
-Current component/service split:
-
-- `src/components/modal.js`: reusable modals for inventory edit, receipt confirmation, cook calibration, clean-fridge modal.
-- `src/components/menu-plan.js`: today's plan UI and shortage modal.
-- `src/components/recipe-card.js`: recipe cards and search result cards.
-- `src/components/pantry-shelf.js`: egg/milk/dry-good pantry shelf tiles.
-- `src/components/status.js`: escaping, inline status, small UI helpers.
-- `src/storage.js`: localStorage keys and safe load/save.
-- `src/migrations.js`: schema version and migration helpers.
-- `src/ingredients.js`: ingredient aliases, units, dry-good definitions, canonical names.
-- `src/inventory.js`: inventory matching, stock state, shelf life, merging, deductions.
-- `src/shopping.js`: shopping item normalization, grouping, merging, copy text, conversion to inventory.
-- `src/recommendations.js`: local recommendation scoring, shortages, plan/cooked records.
-- `src/staples.js`: pantry/staple state and custom shelf config.
-- `src/ai.js`: AI calls, JSON parsing, validation, receipt/recipe import helpers.
-- `src/backup.js`: overlay and kitchen backup import/export.
-- `server.js`: Express static server plus AI/link proxy endpoints.
-
-## 4. Recommended Future Page Structure
-
-Do not implement this all at once. Use it as direction for small changes.
-
-Recommended navigation:
-
-- `#today` / "今日": dashboard only.
-  - Today plan
-  - urgent/expiring items
-  - can-cook-now
-  - almost-can-cook
-  - quick add / receipt / backup entry
-
-- `#inventory` / "食材":
-  - full inventory
-  - add/edit inventory
-  - receipt recognition
-  - low/out-of-stock maintenance
-  - pantry shelf and staple management
-
-- `#shopping` / "买菜":
-  - active shopping list
-  - grouped by source
-  - bought items
-  - stock-in confirmation
-  - copy/share
-
-- `#recipes` / "菜谱":
-  - search and filter
-  - recipe cards
-  - import AI draft
-  - manual recipe creation
-
-- `#settings` / "设置":
-  - theme
-  - recipe library mode
-  - AI config
-  - backup/restore
-  - cache reset
-
-Future route changes require a product decision and an explicit compatibility plan. Do not exchange the current meanings of `#today`, `#inventory`, `#shopping`, `#recipes`, or `#settings` without that approval.
-
-## 5. Current Data Structures And localStorage Keys
-
-All keys are centralized in `src/storage.js`. Use `S.keys.<name>`, not string literals.
-
-Current keys:
-
-- `km_schema_version`: data schema version.
-- `km_v19_inventory`: inventory array.
-- `km_v19_plan`: today's/future plan array.
-- `km_v19_overlay`: user recipe overlay.
-- `km_v23_settings`: settings, including AI endpoint/model/key and theme preferences.
-- `km_v48_ai_recs`: AI recommendation cache.
-- `km_v97_local_recs`: local recommendation cache.
-- `km_v97_rec_time`: recommendation timestamp cache.
-- `km_v97_rec_signature`: recommendation cache signature.
-- `km_v80_favorite_recipes`: favorite/common recipe ids.
-- `km_v95_recipe_usage`: legacy/usage recipe records.
-- `km_v2_recipe_activity`: planned/cooked activity records.
-- `km_v87_shopping_items`: shopping list rows.
-- `km_v1_staples`: staple availability state.
-- `km_v1_pantry_config`: custom pantry shelf config.
-
-Important structures:
-
-- Inventory item (no `id` field; matched by `name` + `kind`):
-  - `name`, `qty`, `unit`, `buyDate`, `kind`, `shelf`, `stockStatus`, `isFrozen`
-  - dry goods may include `dryPrep`
-  - gear-based items may include `gear`, `unitType` (`'GEAR'` | `'PIECE'`)
-  - out-of-stock cleanup uses `outOfStockAt` (ms epoch | null), which drives 7-day self-evaporation + ghost-sink
-  - ad-hoc cooking may add `cookedCount`, `lastCookedAt` (ingredient-level anti-fatigue)
-  - `loadInventory()` patches defaults but PRESERVES unknown fields, so inventory items are safe to extend.
-
-- Shopping item:
-  - `id`, `name`, `qty`, `unit`, `source`, `done`, `stockedIn`, `stockedInAt`, `remark`
-  - FOOTGUN: `shopping.loadShoppingItems()` REBUILDS every row from a FIXED field set. Any new shopping
-    field MUST also be added to that rebuild block, or it is silently dropped on the next reload (this exact
-    bug ate `remark` once). This is asymmetric with inventory, which preserves unknown fields.
-
-- Plan item:
-  - `id`, `servings`, `date`
-
-- Recipe overlay:
-  - `{ version, recipes, recipe_ingredients, deletes }`
-  - user edits must go here, not into `data/*.json`.
-
-- Pantry config:
-  - `hidden`: hidden default pantry entries
-  - `overrides`: renamed/regrouped default entries
-  - `custom`: user-created pantry entries
-
-Data rules:
-
-- Any new persistent field must be documented here and wired through backup/restore.
-- Any new localStorage key must be added to `S.keys`.
-- Any breaking structure change must increase `DATA_SCHEMA_VERSION` and add a migration in `src/migrations.js`.
-- Migrations must never clear data on failure.
-- Import/restore must be all-or-nothing where possible. If partial restore is unavoidable, show a clear warning.
-
-Known watch points:
-
-- When touching backup/restore, make sure custom pantry config (`km_v1_pantry_config`) is included alongside `km_v1_staples`.
-- When adding a field to shopping items, also add it to the rebuild block inside `loadShoppingItems()` (see the footgun above), otherwise it will not survive a reload.
-
-## 6. Frontend Module Rules
-
-Keep the current native ES module architecture.
-
-Allowed:
-
-- Plain JavaScript modules.
-- DOM APIs.
-- Existing helper modules.
-- Small focused modules in `src/`.
-- Small focused components in `src/components/`.
-- Small focused views in `src/views/`.
-
-Not allowed without explicit approval:
-
-- React, Vue, Svelte, Solid, Angular, or any frontend framework.
-- Bundlers/build tools such as Vite/Webpack/Rollup.
-- TypeScript migration.
-- CSS frameworks or external UI libraries.
-- Large dependency additions.
-
-Layering rules:
-
-- `app.js` should only initialize, load packs, run migrations, handle routes, and compose views.
-- `src/views/*` may assemble DOM and bind page-level events.
-- `src/components/*` should render reusable UI blocks and accept callbacks.
-- `src/inventory.js`, `src/shopping.js`, `src/recommendations.js`, `src/staples.js`, `src/ingredients.js`, `src/backup.js`, and `src/ai.js` should contain business logic or service logic.
-- Pure scoring, matching, parsing, normalization, and conversion logic should not live inside DOM event handlers.
-- If a view grows further, extract pure helpers first, then reusable components. Do not split a file and redesign UI in the same change unless explicitly requested.
-
-Import/version rules:
-
-- The project uses `?v=<number>` cache busting on modules and static assets.
-- After changing JS/CSS that is imported by the browser, run `node scripts/stamp-version.js` or update relevant versions consistently.
-- For a release that must also invalidate the Service Worker cache, additionally bump `CACHE_NAME` in `sw.v18.js` (the `?v=` stamp alone does not rename the SW cache).
-- Do not hand-edit many version query params unless the task is tiny and the scope is obvious.
-
-## 7. UI Design Rules
-
-Design goal:
-
-- Calm, Apple-inspired, high-readability, mobile-first, local utility app.
-- It should feel like a daily kitchen dashboard, not a marketing landing page.
-
-General UI:
-
-- Primary action: use `.btn.ok`.
-- Normal action: use `.btn`.
-- Dangerous/delete action: use `.btn.bad`.
-- AI action: use `.btn.ai` or an existing AI-specific class.
-- Avoid adding new button styles when existing hierarchy fits.
-- Use page-level cards and full-width sections sparingly. Do not create nested cards.
-- Preserve the floating liquid-glass dock navigation.
-- Preserve dark mode.
-
-Mobile rules:
-
-- Always inspect 390px width mentally and, when possible, in browser.
-- Text in buttons/cards must not overflow. Use `truncate`, `min-width: 0`, wrapping, or shorter labels.
-- Do not rely on hover-only interactions.
-- Tap targets should usually be at least 36px high; dense micro chips are allowed only for pantry-style matrix controls.
-- Bottom content needs enough padding so the floating nav does not cover it.
-
-Home page rules:
-
-- Home must answer "what should I do now?"
-- Keep the priority order:
-  - today's plan / suggestion
-  - urgent expiring items
-  - can cook now
-  - almost can cook
-  - secondary utilities
-- Do not push full inventory tables into the first viewport.
-
-Inventory rules:
-
-- Full inventory can be dense, but must remain readable on mobile.
-- Editing should be explicit via edit/manage mode.
-- Destructive actions need confirmation or clearly reversible behavior.
-
-Shopping rules:
-
-- Group by source.
-- Merge same-name same-unit active items visually.
-- "Stock in" must ask for confirmation/editable fields before writing inventory.
-
-Recipe rules:
-
-- Recipe cards should show action hierarchy without squeezing title text.
-- Recipe details should have clear next actions.
-- AI drafts must show draft status until saved by the user.
-
-## 8. CSS Naming And Design Token Rules
-
-Use existing `styles.css` tokens first.
-
-Core tokens:
-
-- Colors: `--primary`, `--accent`, `--warning`, `--danger`
-- Text: `--text-main`, `--text-secondary`
-- Surfaces: `--bg-card`, `--bg-input`, `--separator`
-- Glass: `--glass-fill`, `--glass-fill-strong`, `--glass-stroke`, `--glass-edge`
-- Surface cells: `--surface-cell`, `--surface-cell-border`
-- Status: `--status-ok-*`, `--status-warn-*`, `--status-bad-*`, `--status-info-*`, `--status-draft-*`
-- Shadows: `--shadow-sm`, `--shadow-card`, `--shadow-float`, `--shadow-hero`, `--shadow-nav`
-- Radius: `--radius-s`, `--radius-m`, `--radius-l`, `--radius-nav`
-
-Naming rules:
-
-- Prefer feature-scoped prefixes:
-  - `home-*`
-  - `shopping-*`
-  - `inventory-*` or `inv-*`
-  - `recipe-*`
-  - `settings-*`
-  - `km-modal-*`
-  - `staple-*`
-  - `menu-*`
-- Do not introduce generic class names such as `.panel2`, `.new-card`, `.blue-button`.
-- If adding a reusable component, use a `km-*` prefix.
-- For state, use `is-*` classes, for example `is-active`, `is-hidden`, `is-managing`, `is-collapsed`.
-- Prefer CSS variables over hard-coded colors.
-- If a new hard-coded color is unavoidable, check light and dark mode contrast.
-
-Modal rules:
-
-- Prefer `.km-modal-overlay` and `.km-modal-content` for new liquid-glass modals.
-- Avoid creating another modal shell unless the old `.modal-overlay` component is being intentionally migrated.
-- Closing animations must only transition `transform` and `opacity`; do not use `transition: all`.
-
-Responsive rules:
-
-- Use existing media-query style in `styles.css`.
-- Avoid viewport-width font scaling.
-- Use stable dimensions for grids, chips, toolbars, and controls.
-
-## 9. Data Safety And Privacy Principles
-
-User kitchen data is personal. Treat it like private data.
-
-Rules:
-
-- Do not delete or rename existing localStorage keys unless there is an explicit migration and user-safe fallback.
-- Do not write directly into base recipe data files for user edits.
-- Do not store API keys in exported backups.
-- Do not log API keys or image base64 to console.
-- Do not send inventory, recipes, receipt images, or personal notes to external services except when the user explicitly invokes an AI/import feature.
-- AI feature failures must not block local workflows.
-- Backup import errors must show user-visible errors and must not silently fail.
-- Any new data key must be included in:
-  - `src/storage.js`
-  - `src/migrations.js` if structure needs migration
-  - `src/backup.js` export/restore
-  - this guide
-
-## 10. AI Feature Boundaries
-
-AI can:
-
-- Recognize receipt images into draft inventory items.
-- Parse recipe links/text/screenshots into editable recipe drafts.
-- Generate method drafts for recipes.
-- Suggest recipe ideas based on inventory.
-- Help clean fridge by proposing recipes from expiring items.
-
-AI must not:
-
-- Directly overwrite inventory without user confirmation.
-- Directly overwrite existing recipes without showing/editing draft state.
-- Delete user data.
-- Be the only path to complete a core task.
-- Break local fallback behavior.
-
-Validation requirements:
-
-- Use `safeParseJson` for AI JSON.
-- Validate recipes with `validateRecipeResult` or import-specific validation.
-- Validate recommendations with `validateRecommendationResult`.
-- Validate receipts with `validateReceiptItems`.
-- Normalize ingredients with `normalizeAiIngredients`.
-- If AI returns invalid JSON, show inline status and keep manual paths usable.
-
-Server-side AI:
-
-- `server.js` provides:
-  - `GET /api/xhs-extract`
-  - `POST /api/ai-parse`
-- Server env vars:
-  - `PORT`
-  - `OPENAI_API_KEY`
-  - `OPENAI_BASE_URL`
-  - `OPENAI_MODEL`
-- Do not expose server API keys to the frontend.
-
-## 11. Forbidden Actions
-
-Do not:
-
-- Rewrite the project from scratch.
-- Replace native JS with a frontend framework.
-- Change many pages in one task unless the user explicitly asks.
-- Remove existing functionality without a migration plan.
-- Modify `data/sichuan-recipes*.json` for user-level edits.
-- Break old hash routes.
-- Add new localStorage keys outside `S.keys`.
-- Store API keys in exported backups.
-- Use `alert()` for new flows unless the change is deliberately tiny and no inline status/modal exists.
-- Add UI that only works on desktop.
-- Add unvalidated AI output into business data.
-- Make destructive git operations such as reset/checkout unless explicitly requested.
-- Manually clear user localStorage in app code.
-- Use broad CSS overrides that affect unrelated pages.
-- Hide errors silently.
-
-## 12. Development Checklists
-
-Before coding:
-
-- Confirm the exact user request and scope.
-- Run `git status --short`.
-- Read the directly related files and their call chain.
-- Identify whether the change touches:
-  - localStorage data
-  - backup/restore
-  - migrations
-  - AI validation
-  - route/hash behavior
-  - mobile layout
-  - PWA cache/versioning
-- If there is data-loss risk, explain the risk before editing.
-- Choose the smallest safe change.
-
-During coding:
-
-- Keep edits scoped to the requested theme.
-- Prefer existing helpers and CSS tokens.
-- Keep business logic in service modules when possible.
-- Escape user-visible dynamic HTML with `escapeHtml` / `escapeOptionAttr`.
-- Use callbacks instead of importing route functions into low-level modules.
-- Preserve old data structures unless a migration is part of the task.
-- Avoid nested cards and duplicate modal shells.
-
-After coding:
-
-- Run syntax checks for touched JS files, for example:
-  - `node --check app.js`
-  - `node --check src/views/<changed-view>.js`
-  - `node --check src/<changed-service>.js`
-- Run `git diff --check`.
-- If JS/CSS was changed, ensure cache-busting versions are updated consistently, preferably with `node scripts/stamp-version.js`.
-- If data structures changed, test old data loading and backup import/export paths.
-- If UI changed, manually test 390px mobile layout when possible.
-- If AI changed, test missing API key and invalid JSON paths.
-- If shopping/inventory changed, test:
-  - add item
-  - edit quantity/status
-  - delete/empty item
-  - add to shopping list
-  - mark bought
-  - confirm stock-in
-- If recipe changed, test:
-  - search
-  - detail
-  - add to plan
-  - edit/save overlay
-  - AI draft save if relevant
-
-Final response to user:
-
-- Say what changed.
-- List files changed.
-- Explain why the change was made.
-- Mention risks or limitations.
-- Provide browser verification steps.
-- If tests could not be run, say why.
+When this file conflicts with code or the canonical Chinese guide, verify the code and update this companion rather than creating a second source of truth.

@@ -1,200 +1,137 @@
 # Kitchen Manager / 厨房管理
 
-[![Local-First](https://img.shields.io/badge/Local--First-LocalStorage-success?style=flat-square)](#数据与隐私说明)
-[![PWA-Ready](https://img.shields.io/badge/PWA-Offline--Ready-blue?style=flat-square)](#pwa--缓存说明)
-[![License](https://img.shields.io/badge/License-MIT-orange?style=flat-square)](#)
+> Guest-first、Local-first 的家庭厨房管理产品，包含 Web/PWA、原生 iOS、Express 服务端和 Supabase 账号/同步基础设施。
 
-**Kitchen Manager（厨房管理）** 是一款**本地优先（Local-First）**的家庭厨房库存、菜谱和购物清单工具。它旨在帮助您清晰地掌控厨房食材，合理规划每日膳食，减少食物浪费，并提供顺畅的烹饪体验。
+## 项目现状
 
----
+Kitchen Manager 已不再只是一个浏览器原型。当前仓库包含四个彼此协作、但可独立退化的部分：
 
-## 📖 一句话简介
-**本地优先的家庭厨房库存、菜谱和购物清单管理工具，数据完全保存在您的本地浏览器中，支持 AI 辅助菜谱和智能小票识别。**
-
----
-
-## ✨ 核心功能
-
-*   📦 **库存管理**
-    *   管理家中各种食材库存（如：猪五花肉、鸡蛋、土豆、西红柿等）。
-    *   支持设置食材数量、单位、过期时间/过期天数。
-    *   支持库存增减，实时响应。
-*   ⏳ **快到期提醒**
-    *   自动计算并高亮显示快过期或已过期的食材。
-    *   首页提供清晰醒目的到期红色/橙色提示，帮助您及时消耗库存，避免食物浪费。
-*   🍳 **根据库存推荐菜谱**
-    *   基于当前的可用库存，算法自动匹配并推荐可以做的菜谱。
-    *   分为**完全匹配**（库存全部覆盖）和**少食材匹配**（缺少数个核心食材，推荐购买）。
-*   📅 **今日计划（膳食规划）**
-    *   支持添加计划烹饪的菜谱。
-    *   今日计划与购物清单联动：如果今日计划中的菜谱缺少核心食材，会自动提示在购物清单中补齐。
-    *   支持调整计划的份数（如：1人份、2人份、多份），系统会自动按比例计算所需食材量。
-*   🛒 **购物清单**
-    *   自动收集**菜谱缺货**（今日计划中缺少的非调味料核心食材）与**常备品检查**（常备货架缺货）的购物项目。
-    *   **智能调味品过滤**：默认仅计算肉类、蔬菜、豆腐等核心食材，自动过滤盐、糖、酱油等调味料，避免清单过长。提供“包含调味料”开关（默认关闭）。
-    *   支持手动添加自定义购物项。
-    *   购买完成后，一键“全部入库”将买好的食材添加到库存中。
-*   🥛 **常备货架**
-    *   存放鸡蛋、牛奶、盐、糖、酱油等日常消耗、无需按单次菜谱购买的常备品/干货。
-    *   支持快捷状态切换（有货/缺货，或对于鸡蛋等支持数量增减）。
-    *   状态改变后实时刷新首页统计与菜谱推荐。
-*   📝 **菜谱编辑**
-    *   内置强大的菜谱编辑器，支持修改系统自带的菜谱或新增自定义菜谱。
-    *   编辑器完全融合了补全包数据，打开编辑页时可见完整的做法和食材。
-    *   支持“重置菜谱”，可以回滚到“基础数据+补全包”的默认状态。
-*   🧩 **recipe-completion-overlay 菜谱补全**
-    *   基础菜谱补全包（`data/recipe-completion-overlay.json`），提供缺失做法（method）和更细颗粒度的食材列表（ingredients）。
-    *   智能合并算法：按 id 补全做法、按 id 补全细化食材，若 id 不存在但菜名存在，则自动回填原菜谱的缺失做法和食材。
-    *   合并优先级：**用户自定义修改（localStorage） > 补全包 > 基础数据（sichuan-recipes.json）**，绝不覆盖用户自定义修改，保证可回滚。
-*   🤖 **AI 辅助功能（草稿推荐 / 做法草稿 / 小票识别）**
-    *   **AI 做法草稿**：输入菜名即可一键通过 AI 生成精细化的做法和用料草稿，可在编辑器内修改并一键保存。
-    *   **小票/收据识别**：支持从摄像头实时拍照或从系统相册（iOS/Android/PC）选择小票图片，通过 AI 提取购买的食材并一键导入库存。
-*   💾 **本地备份和恢复**
-    *   完整支持将全部库存、设置、自定义菜谱导出为 `.json` 格式的备份文件，并在其他设备上进行恢复。
-    *   **隐私保护**：导出的备份文件中默认不包含 API Key，防止泄露。
-
----
-
-## 🍱 菜谱库模式（精简 / 完整）
-
-应用支持两套菜谱库，可在「设置 → 菜谱库」中随时切换，切换后页面会自动刷新：
-
-| 模式 | 读取文件 | 说明 |
+| 部分 | 当前技术 | 当前角色 |
 | --- | --- | --- |
-| **精简日常菜谱库**（默认） | `data/sichuan-recipes.curated.json` | 聚焦日常家常菜，移除了宴席化/罕见食材/老式工艺菜，并强制收录麻婆豆腐、番茄炒蛋等家庭高频菜 |
-| **完整原始菜谱库** | `data/sichuan-recipes.json` | 完整保留原始《大众川菜》全部菜谱 |
+| Web / PWA | 原生 HTML、CSS、JavaScript ES Modules、Service Worker、`localStorage` | 可独立使用的本地优先厨房应用；也是静态部署版本 |
+| 原生 iOS | SwiftUI、SwiftData、Keychain、官方 `supabase-swift` | 原生移动客户端；本地厨房功能完整度持续提高 |
+| Express 服务端 | Node.js、Express、Axios、JOSE | 静态托管、AI/链接处理、认证探针和同步 API |
+| Supabase | Auth、Postgres、RLS、迁移、受控 RPC | 开发环境中的账号、家庭作用域和增量同步基础 |
 
-- 切换由设置项 `recipeLibraryMode` 控制（`"curated"` / `"full"`），保存在 `localStorage` 的设置中。
-- 无论哪种模式，**用户自定义菜谱与修改（localStorage overlay）始终最高优先级**，`recipe-completion-overlay` 补全也照常套用。
-- 若精简库文件加载失败，会**自动回退到完整库**并在控制台 `console.warn`，不会白屏。
-- 精简库的生成、移出与待补全清单见 `data/recipe-curation-summary.md`，由 `scripts/curate-recipes.js` 复现。
-- `data/reference/dazhong-chuancai.pdf` 仅为本地参考资料，**不是运行时依赖**，不需要随部署上传。
+**重要状态：** PWA 和 iOS 的本地功能可以在 Guest 模式下使用。账号和库存同步能力已经完成开发环境、模拟器和真机验证，但相关同步/合并/诊断开关在仓库默认配置中仍为 `NO`；它们不是已经全面上线的生产功能。当前工程判断是“Production Go Candidate with conditions”，不是“Production Enabled”。详见 `PROJECT_STATUS.md` 和 `docs/PRODUCTION_ENABLEMENT_READINESS.md`。
 
----
+## 核心产品能力
 
-## 🔒 数据与隐私说明
+- 食材库存、临期状态和常备品管理
+- 今日计划、周计划、菜谱浏览与编辑
+- 根据库存生成可做/差少量食材的推荐
+- 缺货食材进入购物清单，购买后确认入库
+- 做菜后由用户确认库存扣减
+- 小票识别、菜谱草稿和链接/文本导入
+- 本地备份、恢复和用户菜谱 Overlay
+- 原生 iOS 本地持久化、账号登录和受控库存同步基础
 
-1.  **数据本地存储**
-    *   项目所有的库存数据、自定义修改的菜谱、今日计划等，全部保存在您浏览器的 `localStorage` 中。
-    *   核心存储键（与代码 `src/storage.js` 保持完全一致）：
-        *   `km_schema_version`：Schema 版本号
-        *   `km_v19_inventory`：库存数据
-        *   `km_v19_plan`：今日计划（膳食规划）
-        *   `km_v19_overlay`：用户自定义菜谱补丁（Overlay）
-        *   `km_v23_settings`：设置参数（包括 API 地址、模型，不含 API Key）
-        *   `km_v48_ai_recs`：AI 推荐缓存
-        *   `km_v97_local_recs`：本地推荐缓存
-        *   `km_v97_rec_time`：推荐时间戳缓存
-        *   `km_v97_rec_signature`：推荐缓存签名
-        *   `km_v80_favorite_recipes`：收藏菜谱列表
-        *   `km_v95_recipe_usage`：菜谱烹饪次数统计
-        *   `km_v87_shopping_items`：购物清单列表
-        *   `km_v1_staples`：常备品双态状态（充足 / 不足）与库存时间
-2.  **不修改原始数据**
-    *   所有的用户修改都以 Overlay（补丁）的形式应用，**不会直接修改或重写**仓库里的 `data/sichuan-recipes.json` 等原始文件，因此您可以随时在“设置”中安全重置，回到系统初始状态。
-3.  **补全包机制**
-    *   `recipe-completion-overlay` 在内存中加载并合并到基础数据，不会写入您的 `localStorage`，从而保证了用户自定义修改的最高优先级。
+Kitchen Manager 不是企业库存 ERP。产品应保持低摩擦、可信、移动端优先，并优先保护“库存 → 推荐/计划 → 买菜 → 做菜 → 更新库存”闭环。
 
----
+## 目录概览
 
-## 🤖 AI 设置说明
+```text
+.
+├── index.html / app.js / styles.css     # Web/PWA 入口
+├── src/                                 # PWA 领域、视图、组件与服务端模块
+├── data/                                # 菜谱库和补全数据
+├── server.js                            # Express 入口
+├── supabase/                            # 数据库迁移、配置与数据库验证
+├── ios-native/Kitchen Manager/          # 原生 SwiftUI 工程
+├── test/                                # Node 内置测试运行器测试
+├── scripts/                             # 校验、配置、Smoke 与维护脚本
+├── docs/                                # 架构、阶段、验证和生产准备文档
+└── AGENTS.md                            # 所有 AI 编码代理的唯一总入口
+```
 
-本项目包含 AI 做法草稿生成、小票图片识别等辅助能力。默认使用同源后端内置 AI 服务；高级用户也可以在“设置 → 高级与数据设置 → AI 模型配置”中切换为“使用自己的 API Key”。
+## 运行 Web / PWA
 
-> [!IMPORTANT]
-> 1. **仓库不内置任何真实 API Key**：后端服务通过环境变量读取 `OPENAI_API_KEY`，前端代码和测试不会写入真实 Key。
-> 2. **默认内置服务**：小票图片、菜名和你主动提交的文本会发送到本项目后端，再转发给配置的 AI 服务；库存、计划、买菜等厨房数据仍保存在本地浏览器。
-> 3. **可选 BYOK 高级模式**：如果选择“使用自己的 API Key”，浏览器会按你填写的 API 地址 / 模型 / Key 直接请求兼容 OpenAI 协议的服务。
-> 4. **备份默认不包含 Key**：使用“导出备份”下载的 JSON 备份文件中默认不包含您的 API Key，但在另一台设备导入后需要重新输入 API Key。
-> 5. **部署环境变量**：内置服务需要配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`，如需单独视觉模型可配置 `OPENAI_VISION_MODEL`。
+要求：Node.js 18 或更高版本、npm。
 
----
+```bash
+npm install
+npm start
+```
 
-## 🚀 运行与部署
+默认访问：`http://localhost:3000`
 
-### 本地运行方式
+`npm start` 使用 Express 提供静态文件和 `/api/*` 能力。仅查看静态前端时，也可以使用：
 
-前端是**纯静态的 HTML / JavaScript / CSS**，无构建步骤。另提供一个**轻量 Node 全栈服务器**（`server.js`），用于静态托管 + 小红书链接抓取代理。
+```bash
+python -m http.server 8000
+```
 
-1.  **全栈模式（推荐，支持「AI 一键导入菜谱」的链接抓取）**
-    ```bash
-    npm install
-    npm start          # 默认 http://localhost:3000
-    ```
-    *   `server.js` 用 Express 托管整个前端，并提供 `GET /api/xhs-extract?url=...` 与 `POST /api/ai-chat` 代理：服务端跟随 302 短链、伪造移动端 UA、解析 `window.__INITIAL_STATE__` 提取菜谱文案，并用环境变量里的 AI Key 调用模型，实现链接导入和默认 AI 能力闭环。
+纯静态模式没有 Express API；AI、抓取、认证和同步相关能力必须明确降级，不能假装可用。
 
-2.  **纯静态模式（只浏览，不需要链接抓取）**
-    *   `python -m http.server 8000`，访问 `http://localhost:8000`；
-    *   或 VS Code 右键 `index.html` → `Open with Live Server`。
-    *   此模式下 `/api/xhs-extract`、`/api/ai-chat` 不存在，AI 能力需要改用“使用自己的 API Key（高级）”模式，或部署 Node 服务端。
+## 打开原生 iOS 工程
 
-> [!NOTE]
-> 虽然直接双击双击打开 `index.html` 也可以浏览基础页面，但由于浏览器的安全限制（CORS、Origin限制），直接用 `file://` 协议运行时，**AI 接口调用、PWA 缓存、某些图片选取**可能会受限。强烈建议使用上述本地静态服务器运行。
+工程路径：
 
-### 部署方式
+```text
+ios-native/Kitchen Manager/Kitchen Manager.xcodeproj
+```
 
-您可以将本项目直接托管到任何静态网页托管平台上：
-*   **GitHub Pages**：直接将代码推送至 GitHub 仓库，并在仓库的 Settings -> Pages 中开启服务。
-*   **Vercel** / **Netlify** / **Cloudflare Pages**：直接导入 GitHub 仓库即可一键完成部署。
+首次配置开发环境时：
 
----
+```bash
+npm install
+npm run configure:ios-auth
+```
 
-## 📶 PWA / 缓存说明
+该命令只负责本地配置辅助。真实凭据必须保存在被 Git 忽略的本地配置中，不能提交到仓库。
 
-本项目注册了 Service Worker 以支持离线缓存（PWA），使得应用在无网络环境下也能正常访问库存和菜谱。
+## 常用验证命令
 
-如果您部署了新版本或修改了底层代码，但浏览器仍然显示旧的页面，可以通过以下方式清除缓存或强制加载最新资源：
-1.  **强制刷新**：
-    *   Windows: `Ctrl + F5`
-    *   macOS: `Cmd + Shift + R`
-2.  **内置重置页**：
-    *   在浏览器中直接打开 `http://YOUR-DOMAIN/sw-reset.html` （本地为 `http://localhost:8000/sw-reset.html`），该页面会自动注销当前的 Service Worker 并清理所有相关的浏览器缓存，随后自动重新加载。
-3.  **静态资源版本号（Cache Busting）**：
-    *   项目在 `index.html`、`404.html`、`sw.v18.js` 以及 `src/` 下的 ES module import 中，都用版本号查询参数（例如 `?v=158`）来强制浏览器跳过本地强缓存、拉取最新文件。
-    *   这些版本号分散在几十处，手动逐个修改极易遗漏。**发布新版本时，请勿手动逐个修改**，直接运行内置脚本一次性统一：
-        ```bash
-        node scripts/stamp-version.js 159   # 指定新版本号
-        node scripts/stamp-version.js       # 不带参数 = 在当前最大值上自动 +1
-        ```
-    *   脚本只替换 `?v=<数字>` 形式的查询参数，不会改动文件名里的版本（如 `sw.v18.js`），也不会动运行时读取的数据包版本，安全可重复执行。
+```bash
+npm test
+npm audit --omit=dev --audit-level=high
+npm run validate:recipe-packs
+npm run validate:recipe-pack-data
+```
 
----
+认证和同步相关命令只应在明确连接到允许使用的开发环境时运行：
 
-## 🧪 手动测试清单
+```bash
+npm run verify:auth-phase0
+npm run verify:auth-db
+npm run smoke:auth
+npm run verify:sync-db
+npm run smoke:sync
+```
 
-在发布新修改或日常维护时，可以参考以下清单手动测试各项功能是否正常：
+原生 iOS 的构建、Unit/UI 测试和 Hosted Smoke 规则见 `TESTING_RULES.md`。不要只因为 `npm test` 通过就声称整个双客户端项目已完成全量回归。
 
-1.  **本地运行测试**
-    *   [ ] 使用 `python -m http.server` 运行，通过 `http://localhost:8000` 打开页面，确保没有任何 JS 报错。
-2.  **常备货架与状态刷新**
-    *   [ ] 在首页下方的“常备货架”中，调整“鸡蛋”的数量，或点击“牛奶”将其在“有货”与“缺货”状态间切换。
-    *   [ ] 验证：点击后首页顶部的统计数据（如“缺货数”）与下方的菜谱推荐列表应**立即实时刷新**，没有延迟或无响应。
-3.  **菜谱编辑与合并**
-    *   [ ] 进入一个系统菜谱（如“回锅肉”），点击“编辑”。
-    *   [ ] 验证：编辑器中能够完整展示来自 `recipe-completion-overlay.json` 补全包的“步骤/做法”和“细化食材”。
-    *   [ ] 修改某些步骤并保存，确认详情页显示您修改后的内容。
-    *   [ ] 进入“设置”页面，点击“重置系统菜谱”，返回菜谱详情，确认菜谱已回滚到“基础数据+补全包”的默认精细化状态，而不是无做法的空白状态。
-4.  **今日计划与购物清单过滤**
-    *   [ ] 将带有丰富配料的川菜（如“麻婆豆腐”或“水煮肉片”）加入“今日计划”。
-    *   [ ] 打开“购物清单”页面。
-    *   [ ] 验证：“菜谱缺货”栏中只显示肉、豆腐等核心食材，**默认不显示**盐、酱油、花椒、料酒等调味料。
-    *   [ ] 切换购物清单页面的“包含调味料”开关，确认调味品可以如预期显示/隐藏。
-    *   [ ] 点击“全部入库”，确认对应食材已正确加进“库存”列表。
-5.  **AI 与设置测试**
-    *   [ ] 进入“设置”页面，确认默认选中“使用内置 AI 服务（推荐）”，API Key 等高级字段默认不显示。
-    *   [ ] 如需自带 Key，切换到“使用自己的 API Key（高级）”后填写 API Key，在“AI 草稿”页面输入一个任意菜名，确认能调用大模型生成做法草稿。
-    *   [ ] 导入小票测试：在“库存”页面点击“导入小票”，在 PC 端选择小票图片，或在 iOS 设备上通过文件浏览器/相册选择图片，确认可以调用 OCR 提取食材并一键导入。
-6.  **备份安全性测试**
-    *   [ ] 配置完 API Key 后，点击“导出备份”下载备份 JSON。
-    *   [ ] 用文本编辑器打开该 JSON，搜索 `apiKey`，确认该字段**为空或已被删除**，确保备份安全。
-    *   [ ] 清空浏览器缓存后，导入该备份，确认库存、自定义菜谱和今日计划都能完全恢复。
+## 数据与隐私边界
 
----
+- Guest 模式下，厨房数据优先保存在当前设备。
+- PWA 通过 `src/storage.js` 和 `S.keys` 访问 `localStorage`。
+- iOS 通过 SwiftData 持久化厨房业务记录，通过 Keychain 保存认证会话。
+- AI 输出始终是草稿；小票、菜谱和库存变更必须经过校验与用户确认。
+- 用户菜谱编辑写入 Overlay，不直接改写基础菜谱数据。
+- 备份默认不得包含 API Key、访问令牌或其他秘密。
+- 同步写入必须走受控服务端/RPC 合约，不允许客户端绕过 RLS 直接写业务表。
 
-## 🗺️ Roadmap / 路线图
+## 文档入口
 
-*   [ ] **多设备自动同步**：支持通过 WebDAV（如坚果云）或第三方云端存储实现多设备间自动双向同步，解决本地 LocalStorage 的多端限制。
-*   [ ] **智能食材图片识别**：支持直接拍摄冰箱冷藏室或食材柜照片，AI 自动提取食材列表、估计剩余量并推荐保质期。
-*   [ ] **膳食营养与卡路里统计**：根据今日计划中菜谱的食材和分量，自动分析并展示今日摄入的宏量营养素（蛋白质、碳水、脂肪、热量）。
-*   [ ] **保质期智能预测**：结合温度、季节以及食材本身的历史变质周期，自动提供更精准的变质风险预测。
-*   [ ] **社区菜谱分享**：支持将您的特色菜谱一键生成为精美卡片图或可分享的 JSON 片段，方便与亲友交流。
+- `AGENTS.md`：AI 代理总入口和按任务阅读路由
+- `PROJECT_STATUS.md`：唯一的当前项目状态快照
+- `PROJECT_GUIDE.zh.md`：详细、权威的中文架构与约束指南
+- `PROJECT_GUIDE.md`：英文伴随版，不承载独有规则
+- `CODING_RULES.md`：跨 PWA、iOS、Server、Sync 的编码规则
+- `TESTING_RULES.md`：按改动类型选择验证的方法
+- `PROJECT_WORKFLOW.md`：一次开发任务从检查到交付的流程
+- `AI_CONTEXT.md`：稳定的产品语境和 AI 决策边界
+- `CHANGELOG.md`：历史变更摘要
+- `docs/`：专题设计、阶段记录、验证证据和生产准备材料
+
+发生冲突时，以实际代码、配置、迁移和测试为准；不要依赖聊天记忆替代仓库事实。
+
+## 部署说明
+
+- 静态 PWA 可由 GitHub Pages 等静态平台托管。
+- Express 后端当前部署流程主要在托管平台外部配置，仓库内没有完整的后端 Infrastructure-as-Code。
+- 当前开发与“production”配置仍存在环境隔离不足等发布条件；不得把开发环境验证描述为正式生产上线。
+
+## License
+
+MIT

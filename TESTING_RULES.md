@@ -1,86 +1,79 @@
 # TESTING_RULES.md
 
-This file defines how to verify changes in Kitchen Manager.
+A task is complete only when the changed behavior has appropriate evidence. Kitchen Manager is a multi-surface repository; `npm test` alone is not a full-project regression.
 
-A task is not complete just because code was edited. It should pass the appropriate automated and manual checks.
+## 1. Evidence categories
 
----
+Always distinguish:
 
-## 1. Main Commands
+- static/syntax/compiler check
+- focused unit/regression test
+- full Node suite
+- iOS Unit suite
+- iOS UI suite
+- manual browser/simulator check
+- hosted-development smoke
+- physical-device check
+- production deployment/rollout evidence
 
-Use the commands supported by this repository:
+Passing one category does not imply another.
+
+## 2. Baseline commands
+
+From repository root:
 
 ```bash
 npm install
+npm test
+git diff --check
+npm audit --omit=dev --audit-level=high
+```
+
+Useful focused Node command:
+
+```bash
+node --test test/<relevant-file>.test.mjs
+```
+
+Start the local server when runtime behavior is affected:
+
+```bash
 npm start
-npm test
-npm run validate:recipe-packs
-npm run validate:recipe-pack-data
 ```
 
-Current meanings:
+Default local URL: `http://localhost:3000`.
 
-- `npm start` runs `node server.js`.
-- `npm test` runs `node --test`.
-- `npm run validate:recipe-packs` validates recipe pack samples.
-- `npm run validate:recipe-pack-data` validates recipe pack data.
+## 3. Test selection matrix
 
-There is no frontend build command because the app is a no-build static ES module PWA.
+### Documentation-only
 
----
+Required:
 
-## 2. Minimum Completion Criteria
+- verify claims against current code/config/tests;
+- validate JSON or config files that were edited;
+- run `git diff --check`.
 
-A task can be considered complete only when:
+Run `npm test` when documentation is parsed/guarded by tests or when broad rule changes may affect semantic guard tests. Do not claim application behavior was manually verified if only Markdown changed.
 
-1. The requested behavior is implemented.
-2. Relevant automated tests pass or failures are clearly explained.
-3. The app can still start locally when runtime behavior is affected.
-4. The related user flow is manually checked when UI behavior is affected.
-5. No obvious browser console errors are introduced.
-6. User data safety is preserved.
-7. API Keys/secrets are not exposed.
-8. Relevant docs are updated when project behavior or rules change.
-
----
-
-## 3. Test Selection Guide
-
-### Docs-only change
+### PWA domain logic
 
 Run:
 
 ```bash
+node --test test/<focused-test>.mjs
 npm test
 ```
 
-If not run, explain why. No manual app test is usually required.
+When persistence changes, also test:
 
-### Pure domain logic change
+- old data loading
+- refresh persistence
+- migration failure safety
+- backup export/import
+- API key/token exclusion
+- shopping fixed-field normalization when applicable
 
-Run:
-
-```bash
-npm test
-```
-
-Also run targeted tests while developing when useful:
-
-```bash
-node --test test/<relevant-test-file>.mjs
-```
-
-### Recipe data or recipe pack change
-
-Run:
-
-```bash
-npm test
-npm run validate:recipe-packs
-npm run validate:recipe-pack-data
-```
-
-### Server/API/AI change
+### PWA UI/CSS
 
 Run:
 
@@ -89,215 +82,282 @@ npm test
 npm start
 ```
 
-Then manually test the relevant API-backed feature through the app if possible.
+Manual checks:
 
-### Frontend JS/CSS/UI change
+- affected path at about 390px width
+- light and dark theme
+- no horizontal overflow
+- usable touch targets
+- empty/error/loading/offline state
+- browser console
+- hard refresh and persistence where relevant
+- bottom dock/safe content spacing
 
-Run:
-
-```bash
-npm test
-npm start
-```
-
-Then open:
-
-```text
-http://localhost:3000
-```
-
-Manual check on a mobile-sized viewport around 390px width.
-
-### PWA/cache-related change
-
-Run:
-
-```bash
-npm test
-```
-
-Then manually check:
-
-- Initial page load.
-- Hard refresh.
-- `sw-reset.html` behavior if relevant.
-- Whether version stamping or Service Worker cache name change is needed.
-
----
-
-## 4. Manual Regression Checklist
-
-Use the relevant sections for the changed area.
-
-### Kitchen home / today page
-
-Check:
-
-- Default route redirects to `#today`, and `#today` loads the kitchen home page.
-- Today plan displays correctly.
-- Recommendation preview does not crash.
-- Empty/demo/real-data states are understandable.
-- Main quick actions are visible on mobile.
-
-### Inventory
-
-Check:
-
-- Add inventory item.
-- Edit quantity/status where supported.
-- Out-of-stock/low-stock state still behaves.
-- Expiry indicators still display.
-- Refresh page and confirm data persists.
-- No raw `localStorage` key drift.
-
-### Shopping list
-
-Check:
-
-- Manual item add/edit/done behavior.
-- Missing ingredients can be added from recipe/plan flow.
-- Purchased items can be stocked in.
-- Any newly added shopping item field survives refresh.
-- Seasonings are not added noisily unless intended.
-
-### Recipe library and recipe detail
-
-Check:
-
-- Recipe list loads.
-- Recipe detail loads.
-- Ingredients and seasonings are separated correctly.
-- Add to today plan still works.
-- Missing ingredient flow still works.
-
-### Recipe editor / overlay
-
-Check:
-
-- Existing recipe can be edited.
-- Custom recipe can be saved where supported.
-- Reset still returns to base + completion overlay behavior.
-- User edits do not overwrite base data files.
-- Refresh preserves overlay changes.
-
-### Today plan / cooking completion
-
-Check:
-
-- Add recipe to today plan.
-- Missing core ingredients prompt works.
-- Cooking completion opens the confirmation/calibration flow.
-- Inventory deduction only happens after user confirmation.
-- Completed items render correctly.
-
-### Staples / pantry shelf
-
-Check:
-
-- Toggle stocked/low/empty behavior.
-- Changes affect recommendation/shopping state if intended.
-- Refresh preserves state.
-
-### AI recipe drafting/import
-
-Check:
-
-- Loading state appears.
-- Success response is reviewable.
-- Invalid/malformed AI output does not crash the app.
-- Warnings/uncertainty are visible.
-- Failed API call gives a useful fallback.
-- No API Key appears in logs or UI unintentionally.
-
-### Receipt/image recognition
-
-Check:
-
-- Image selection works.
-- Recognition result requires confirmation before inventory write.
-- Failure offers a fallback path such as retry or text entry.
-
-### Link/Xiaohongshu/media import
-
-Check:
-
-- Invalid link fails gracefully.
-- Short/weak extraction is marked uncertain.
-- No fake complete recipe is created from insufficient source data.
-- Server error response is understandable.
-- SSRF/rate-limit behavior is not bypassed.
-
-### Backup and restore
-
-Check:
-
-- Export works.
-- Backup does not include API Key.
-- Import asks for confirmation.
-- Import/restore does not silently destroy existing data.
-- New persisted fields are included when appropriate.
-
-### Theme and mobile UI
-
-Check:
-
-- Light theme.
-- Dark theme.
-- 390px mobile viewport.
-- No horizontal overflow.
-- Tap targets are usable.
-- New CSS uses tokens or has dark-mode coverage.
-
----
-
-## 5. CI / Deployment Expectations
-
-The GitHub Pages workflow runs the test suite before deployment. A test failure should block deployment.
-
-Agents should not weaken CI just to make a change pass.
-
-Do not remove tests unless they are demonstrably obsolete and the reason is documented.
-
----
-
-## 6. Version and Cache Check
-
-When frontend files are changed, especially imported JS/CSS:
-
-1. Check whether cache-busting query params need updating.
-2. Prefer:
+If browser-imported JS/CSS changed, review and normally run:
 
 ```bash
 node scripts/stamp-version.js
 ```
 
-3. If Service Worker cache needs invalidation, review `sw.v18.js` `CACHE_NAME`.
-4. Mention cache/version actions in the final report.
+Review Service Worker cache-name changes separately; do not bump it automatically for every edit.
 
----
+### Recipe data/packs
 
-## 7. Final Report Template
+Run:
 
-Use this format at the end of a task:
-
-```text
-Summary:
-- ...
-
-Changed files:
-- ...
-
-Testing:
-- npm test: pass/fail/not run
-- npm start: checked/not checked
-- Manual checks: ...
-
-Risks / TODOs:
-- ...
-
-Documentation updated:
-- PROJECT_STATUS.md: yes/no
-- CHANGELOG.md: yes/no
+```bash
+npm test
+npm run validate:recipe-packs
+npm run validate:recipe-pack-data
 ```
 
-If a command fails, include the exact command and a short error summary.
+### Server / API / AI / extraction / media
+
+Run:
+
+```bash
+node --test test/<focused-test>.mjs
+npm test
+npm start
+```
+
+Cover as applicable:
+
+- success
+- malformed/oversized input
+- upstream timeout/failure
+- invalid AI JSON
+- redacted errors/logs
+- SSRF and redirect protection
+- rate-limit behavior
+- static-mode/local fallback
+
+### Auth / `/api/me`
+
+Local/offline tests first, then only against the approved linked development environment:
+
+```bash
+npm run verify:auth-phase0
+npm run verify:auth-db
+npm run smoke:auth
+```
+
+Record the exact environment and whether any hosted data was created. Never run against an assumed production environment.
+
+### Sync server/database contract
+
+Run focused Node tests and the full Node suite. When the task changes migration/RLS/RPC/route contract and hosted verification is authorized:
+
+```bash
+npm run verify:sync-db
+npm run smoke:sync
+```
+
+Also verify:
+
+- direct DML remains denied
+- user/household isolation
+- idempotent retry
+- version conflict
+- tombstone/change feed
+- cursor pagination and scope separation
+- payload and operation allowlist
+- version gate and rate limiter order
+- no mutation ledger row for pre-handler rejection
+
+A remote verification command is evidence for the linked project only. State whether pgTAP/local Docker was available rather than implying it ran.
+
+## 4. Native iOS commands
+
+Project:
+
+```text
+ios-native/Kitchen Manager/Kitchen Manager.xcodeproj
+```
+
+Scheme:
+
+```text
+KitchenManager
+```
+
+List available simulator destinations first:
+
+```bash
+xcrun simctl list devices available
+```
+
+Example clean Debug build:
+
+```bash
+xcodebuild \
+  -project "ios-native/Kitchen Manager/Kitchen Manager.xcodeproj" \
+  -scheme KitchenManager \
+  -configuration Debug \
+  -destination 'platform=iOS Simulator,name=<available simulator>' \
+  clean build
+```
+
+Example serial full test run:
+
+```bash
+xcodebuild \
+  -project "ios-native/Kitchen Manager/Kitchen Manager.xcodeproj" \
+  -scheme KitchenManager \
+  -destination 'platform=iOS Simulator,name=<available simulator>' \
+  -parallel-testing-enabled NO \
+  test
+```
+
+Use `-only-testing:` for focused development runs, for example:
+
+```bash
+xcodebuild \
+  -project "ios-native/Kitchen Manager/Kitchen Manager.xcodeproj" \
+  -scheme KitchenManager \
+  -destination 'platform=iOS Simulator,name=<available simulator>' \
+  -parallel-testing-enabled NO \
+  -only-testing:KitchenManagerTests/<TestClass> \
+  test
+```
+
+Do not hardcode a simulator/runtime that is not installed. Report the actual destination and whether tests were serial or parallel.
+
+## 5. iOS test selection
+
+### Swift pure logic/model change
+
+- focused XCTest class
+- full `KitchenManagerTests` when shared behavior changed
+- Node semantic guards if they inspect the Swift source/contract
+
+### SwiftData record/persistence/migration change
+
+Test:
+
+- fresh empty store
+- legacy migration
+- repeated/idempotent migration
+- restart/reload
+- same-name/different-id duplicate behavior where relevant
+- field-complete round trip
+- clear-all and retained-legacy interaction
+- backup restore
+- in-memory and production schema parity
+- failure/rollback or self-heal semantics
+
+Then run the full iOS Unit suite.
+
+### SwiftUI change
+
+- focused XCUITest/regression if the behavior is automation-relevant
+- full UI suite for navigation/shared component changes
+- manual simulator check for layout, dark mode, Dynamic Type, VoiceOver labels, hit targets, destructive confirmation, and error states
+
+### Auth/Keychain/network change
+
+Test:
+
+- missing configuration
+- sign-up/sign-in/sign-out
+- session restore
+- expired/missing credential
+- logout during an in-flight or multi-step flow
+- no token in View/SwiftData/UserDefaults/logs
+- Guest local functionality after auth failure
+
+### Sync/Guest Merge change
+
+At minimum cover the affected invariants among:
+
+- bootstrap/pull/push ordering
+- pending retention on failure
+- cursor safety
+- idempotency and duplicate retry
+- conflict/rejected state
+- mutation coalescing
+- queue limits
+- remote preview read-only behavior
+- plan drift/hash invalidation
+- keepLocal/keepRemote/keepBoth/skip
+- stable same-id fork
+- per-entity rollback verification
+- feature flags off by default
+- no View token access
+- no Guest data scan/upload without explicit confirmation
+- no automatic sync call site added
+
+Run the full iOS Unit suite and the relevant UI suite after focused tests.
+
+## 6. Hosted iOS smoke rules
+
+Hosted smoke tests are not ordinary unit tests. Run them only when:
+
+- the task actually changes the hosted contract or a previously verified core semantic;
+- explicit development credentials/configuration are available;
+- the exact Supabase/Render environment is confirmed;
+- flags are enabled only in ignored local configuration;
+- the harness uses isolated in-memory/local data and uniquely marked remote records;
+- cleanup is scoped and verified.
+
+After the run:
+
+- restore every flag to `NO` or its previous value;
+- verify committed/example/Release defaults;
+- verify zero marker residue or document exact residual entity ids;
+- do not print credentials or tokens;
+- distinguish a runtime `XCTSkip` caused by missing credentials from an excluded/compiled-out test.
+
+Do not repeat an expensive hosted lifecycle merely because documentation changed. Re-run when the changed code invalidates the earlier evidence.
+
+## 7. Physical-device rules
+
+Use a physical device only when real hardware behavior matters, such as:
+
+- Keychain/app lifecycle
+- network transitions
+- lock/background/kill/relaunch
+- real touch flow
+- camera/photo/file integration
+- crash reproduction
+- performance/memory instrumentation
+
+Before using a personal device:
+
+- identify whether the installed app contains real user data;
+- prefer an isolated XCTest sandbox for destructive/data-writing checks;
+- require explicit human confirmation before uploading local data;
+- verify flags in the compiled app;
+- restore/reinstall a safe-off build after dogfood tests;
+- use exact-entity cleanup rather than broad name/prefix deletion when provenance is uncertain.
+
+If tooling cannot perform a human gesture or system toggle, report it as blocked; do not claim it passed.
+
+## 8. Secrets, config, and artifacts
+
+Before delivery, inspect for:
+
+- `.env*` and `Local.xcconfig`
+- test emails/passwords
+- API keys, service-role keys, PATs, JWTs, access/refresh tokens
+- Authorization headers
+- full household/user/mutation ids in diagnostics or logs
+- DerivedData, `.xcresult`, screenshots, crash logs, temporary exports
+- feature flags accidentally set to `YES`
+
+Do not paste secret values into reports. It is acceptable to report that a value was present in an ignored local file and not committed.
+
+## 9. Completion criteria
+
+A task is complete when:
+
+1. requested behavior is implemented;
+2. relevant focused tests pass;
+3. broader regression appropriate to the risk passes or is explicitly deferred;
+4. manual flow is checked when UI/runtime behavior changed;
+5. data, secrets, flags, and environment boundaries are safe;
+6. remote writes and cleanup are fully reported;
+7. docs are updated in the correct owner file;
+8. unrun or blocked checks are named honestly.
+
+Use exact commands and results in the final report. Never write “full regression passed” without listing which Node/iOS/UI/hosted/device suites actually ran.
