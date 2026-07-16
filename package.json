@@ -13,7 +13,10 @@
     "verify:sync-db": "npx supabase db query --linked --file supabase/remote-verify/sync_business_remote_verify.sql",
     "smoke:sync": "node scripts/sync-smoke.mjs",
     "validate:recipe-packs": "node scripts/validate-recipe-pack-samples.js",
-    "validate:recipe-pack-data": "node scripts/validate-recipe-packs.js"
+    "validate:recipe-pack-data": "node scripts/validate-recipe-packs.js",
+    "ios:release:check": "node scripts/validate-ios-release.mjs",
+    "ios:release:bump-build": "node scripts/bump-ios-build.mjs",
+    "ios:archive:guard": "node scripts/ios-archive-guard.mjs"
   },
   "engines": {
     "node": ">=18"
