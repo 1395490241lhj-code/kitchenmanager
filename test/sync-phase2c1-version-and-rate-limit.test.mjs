@@ -575,10 +575,14 @@ test('semantic guard: every /api/sync/* route wires versionGate before its rate 
 });
 
 test('semantic guard: versionGate is applied strictly before the rate limiter in every chain (order matters)', () => {
+  // Phase 2D-2 added accountDeletionGuard into the chain, strictly between
+  // role and versionGate (an account mid-deletion must be frozen out of
+  // sync before the version/rate-limit checks even run) — update this
+  // pattern deliberately if that position ever changes, not by relaxing it.
   for (const pattern of [
-    /app\.get\('\/api\/sync\/bootstrap',\s*chain\(auth,\s*role,\s*versionGate,\s*readRateLimiter/,
-    /app\.get\('\/api\/sync\/changes',\s*chain\(auth,\s*role,\s*versionGate,\s*readRateLimiter/,
-    /app\.post\('\/api\/sync\/mutations',\s*chain\(auth,\s*role,\s*versionGate,\s*mutationRateLimiter/
+    /app\.get\('\/api\/sync\/bootstrap',\s*chain\(auth,\s*role,\s*accountDeletionGuard,\s*versionGate,\s*readRateLimiter/,
+    /app\.get\('\/api\/sync\/changes',\s*chain\(auth,\s*role,\s*accountDeletionGuard,\s*versionGate,\s*readRateLimiter/,
+    /app\.post\('\/api\/sync\/mutations',\s*chain\(auth,\s*role,\s*accountDeletionGuard,\s*versionGate,\s*mutationRateLimiter/
   ]) {
     assert.ok(pattern.test(routesSource), `expected ${pattern} to match routes.js`);
   }
