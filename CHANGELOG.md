@@ -6,6 +6,17 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16
+
+### Fixed
+
+- Fixed a second, deeper bug found during code review of the Phase 2B-9 Rollback fix, before any physical re-validation: `rollback()`'s per-mutation verification (`pendingMutationForEntity(...) != nil`) silently missed `conflict`/`rejected` results, since that query only matches a `pending`/`failed` status row — a genuine partial rollback failure could still have been reported as `.rolledBack`. Replaced with a check of the entity's own resulting `SyncMetadata` state (`.synced` with `deletedAt` set only after a genuinely applied delete). Also fixed a related retry gap: re-staging a delete for an entity a prior attempt already confirmed deleted overwrote that entity's metadata back to `.pendingDelete`, making a harmless `already_deleted` rejection indistinguishable from a fresh failure on every retry — fixed by skipping re-staging of any entity already reflecting a successful delete. Added 4 new `GuestMergeTests` (127/127, up from 123). Full regression: iOS Unit 592/592, UI 6/6 serial, Node 864/864.
+- Fixed a genuinely silent UI gap found while re-validating Rollback on a physical device: `InventoryMergeResultView` never displayed `GuestMergeController.lastErrorMessage`, so a safely-failed rollback retry produced no visible feedback at all. The view now shows this message in a dedicated section when present.
+
+### Validated
+
+- Phase 2B-9B formally re-validated physical-device Rollback on a genuinely fresh session and it **PASSED**: the actual Rollback network request was independently verified via the server's own `sync_mutations` ledger to target the correct, newly-created entity and apply a real `delete` (change-feed shows `operation=delete` with `deletedAt` populated). Local Guest data was retained, unrelated remote data was unchanged, and flags were restored to `NO`. Getting to that fresh session required an exact-entity-ID cleanup of the old, still-live Phase 2B-9 marker (read-only-gated, never a prefix sweep) and a full device uninstall/reinstall, since the old session's still-valid 24h rollback window kept getting recovered by the Phase 2B-9 fix (correct in isolation) and the account's permanent local `.enrolled` flag routed a new local item through ordinary CRUD sync instead of Guest merge — both documented as real findings, neither a correctness bug. Conclusion upgraded to **Production Go Candidate** (from Dogfood Go / Production No-Go) — not Production Enabled. See `docs/INVENTORY_SYNC_PHYSICAL_DEVICE_RESULTS.md`'s "Phase 2B-9B" section and the updated `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md`. All flags remain `NO`; nothing pushed.
+
 ## 2026-07-15
 
 ### Fixed

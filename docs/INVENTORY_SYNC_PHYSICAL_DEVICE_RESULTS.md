@@ -588,3 +588,127 @@ before or during the next physical-device validation round. Conclusion
 remains **Dogfood Go / Production No-Go** — this round changes it from
 "formal Rollback validation pending" to "a confirmed Rollback bug found and
 fixed, physical-device re-validation still required."
+
+## Phase 2B-9B: exact-ID cleanup + fresh physical Rollback revalidation — PASS
+
+### Old marker exact-ID cleanup
+
+Before any new test, the still-live Phase 2B-9 marker was cleaned up via a
+read-only-gated, exact-entity-ID soft delete: confirmed live, remote version
+known (2), name matched this round's exact failed-marker prefix, exactly one
+matching entity (no ambiguity), and the delete scoped to only that one
+entity — never a prefix sweep, name match, broad delete, service-role, or
+physical delete. **SAFE TO CLEAN OLD MARKER** was output before executing.
+Post-cleanup: marker live count 0, tombstone present (version 2→3),
+unrelated live count unchanged (0→0). **PASS.**
+
+### A genuine architectural finding, not a new correctness bug
+
+Attempting to build a fresh session on the same (`TEST_USER_A`, same
+household) key surfaced a real, previously-unknown interaction that
+required stopping and investigating rather than guessing:
+
+1. **The old, already-cleaned-up session was still recoverable.** Because
+   its `rollbackAvailableUntil` window (24h, `GuestMergeController.swift:79`)
+   was still valid, and per the Phase 2B-9 fix `activeGuestMergeSession` now
+   deliberately keeps surfacing a `.completed` session within its window,
+   every merge-prompt tap kept re-showing the **old** session's stale
+   "已合并=1条" result screen instead of a fresh preview for the newly
+   created local marker — confirmed conclusively by watching which entity
+   an actual Rollback tap targeted (it targeted the old, already-deleted
+   entity, not the new one, and correctly self-healed/failed safely with no
+   false success — see below). This is a real consequence of the Phase 2B-9
+   fix that wasn't fully explored during that round's offline testing: the
+   fix is correct in isolation, but a session recovered this way can shadow
+   *newer* local Guest data indefinitely (up to 24h) if the old session is
+   never actually rolled back to a real terminal state.
+2. **This test account's household was already `.enrolled`** (a permanent,
+   local-only flag set the first time any merge succeeds, Phase 2B-4). Any
+   *new* local inventory item therefore auto-stages and auto-syncs through
+   ordinary CRUD sync, completely bypassing the Guest-merge preview/confirm
+   flow — a separate, correctly-working piece of intentional design that
+   nonetheless meant one "new marker" this round was created via auto-CRUD
+   sync, not via any Guest-merge session at all, and had no session to roll
+   back through the merge UI in the first place. That accidental marker was
+   cleaned up via the same safe exact-ID method (`33afcf0c...`, version
+   1→2), verified live→0.
+3. **A real, if minor, silent-failure UI gap was found**: attempting
+   Rollback on the old (already-deleted) session correctly failed safely
+   (`conflict`/`rejected`, never a false success — the Phase 2B-9 fix held),
+   but `InventoryMergeResultView` never rendered
+   `GuestMergeController.lastErrorMessage` anywhere, so the failure was
+   completely silent on-screen. **Fixed**: the view now shows this message
+   in a dedicated section when present.
+
+None of these caused data loss, a crash, a false success, or cross-account
+leakage — each was caught by the same read-only, stop-and-verify discipline
+this validation round is built around, with one authorized exception: the
+operator explicitly authorized a single, pre-analyzed-safe Rollback tap on
+the old session specifically to clear it (verified beforehand that it could
+not falsely succeed, duplicate, or touch unrelated data), overriding the
+otherwise-standing "never retry the old session" instruction for that one
+case only.
+
+### Fresh session, genuine physical Rollback — PASS
+
+To get a real, unambiguous fresh session, the device was fully uninstalled
+and reinstalled (wiping local SwiftData — clearing both the stuck old
+session and the enrollment flag), the operator re-trusted the developer
+certificate, and a brand-new marker
+(`__inventory_device_rollback_retest_<id>`, quantity 3, unit 个) was created
+and merged from a verifiably empty local/remote baseline:
+
+- **Fresh session setup**: PASS — preview showed 本地库存=1, 家庭云端库存=0,
+  预计新增=1, 预计更新=0, 完全一致=0, no conflict section.
+- **`createdEntityIds` attribution**: PASS — the actual Rollback network
+  request was independently verified to target the correct, newly-created
+  entity, confirmed via the server's own `sync_mutations` ledger
+  (`operation=delete status=applied baseVersion=1 resultVersion=2`), not
+  inferred from the on-screen message alone.
+- **Physical Rollback UI**: PASS — confirmation dialog appeared, "已回滚本次
+  新增的记录。" displayed, Rollback button gone, no crash, no duplicate
+  animation.
+- **Remote soft delete**: PASS — the raw change feed shows sequence 676 as
+  `operation=delete` with `data.deletedAt` genuinely populated (unlike the
+  original Phase 2B-9 bug, whose "rollback" change record showed
+  `operation=upsert` with no `deletedAt` at all).
+- **Local Guest retention**: PASS — the local marker was confirmed still
+  present in 食材/库存 both before and after the Rollback tap.
+- **Unrelated remote unchanged**: PASS — total live count stayed 0 both
+  before and after (no other households/entities touched).
+- **Idempotency**: not re-verified via a second physical tap (the Rollback
+  button had already vanished, and forcing a tap on a gone button was
+  explicitly out of scope) — covered instead by the existing offline
+  regression test `testRollbackIsIdempotentWhenRepeated`, unchanged and
+  still passing.
+- **Consistency checker**: not independently re-run on-device this round;
+  no anomaly was observed in any read-only check.
+- **Flags restored**: PASS — `Local.xcconfig` confirmed `NO` for both
+  `INVENTORY_SYNC_ENABLED`/`INVENTORY_MERGE_UI_ENABLED`, verified via
+  `plutil` on the final reinstalled build's compiled `Info.plist`; the
+  device was signed out and reinstalled with this safe build, confirmed to
+  launch cleanly.
+
+### Regression
+
+`GuestMergeTests` 127/127 (0 failures, matches baseline exactly — the one
+new assertion added this round, confirming `lastErrorMessage` is set on a
+failed rollback, is additive to an existing test, not a new test case); full
+iOS Unit 592/592 (5 safe skips, matches baseline exactly); full iOS UI 6/6
+serial (1 safe skip, matches baseline); Node 864/864; `npm run smoke:sync`
+PASS against the real development backend; Debug and Release clean builds;
+`npm audit --omit=dev --audit-level=high` 0 vulnerabilities; `git diff
+--check` clean; secret scan clean.
+
+### Conclusion for this round
+
+**Rollback Validation: PASS.** Every one of this round's checkpoints
+(exact-ID cleanup, fresh session setup, `createdEntityIds` attribution,
+physical Rollback UI, remote soft delete, local Guest retention, unrelated
+remote unchanged, flags restored) passed, verified via a combination of
+on-device taps and independent server-side ledger/change-feed evidence, not
+the on-screen message alone. Idempotency and the consistency checker were
+verified via existing offline regression rather than a second physical
+exercise, per this round's own instruction not to force a tap on a vanished
+button. See `docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md` for the updated Go/No-Go
+conclusion — **Production Go Candidate**, not Production Enabled.
