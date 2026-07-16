@@ -23,6 +23,18 @@ const IMPORT_RATE_LIMIT_MAX = 10;
 const AUTH_ME_RATE_LIMIT_MAX = 60;
 const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
 
+// Phase 2C-1: /api/sync/* only. These are a documented starting point (see
+// docs/SYNC_API_RATE_LIMITING.md), not empirically tuned against real
+// production traffic, since no production cohort exists yet. Hardcoded
+// (like the AI limits above) rather than env-configurable — the storage
+// backend is what's designed to be swappable, not these thresholds.
+const SYNC_READ_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const SYNC_READ_RATE_LIMIT_MAX = 120;
+const SYNC_MUTATION_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS = 40;
+const SYNC_MUTATION_OPERATION_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX = 500;
+
 // ── Supabase 环境变量清洗 ─────────────────────────────────────────────────
 // 背景：Render 上真实出现过「本地能通过、Render 上 /api/me 一律 401
 // invalid_token」的问题，根因是 issuer/audience 在 jose 的 jwtVerify 里是
@@ -215,6 +227,12 @@ module.exports = {
   IMPORT_RATE_LIMIT_MAX,
   AUTH_ME_RATE_LIMIT_MAX,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
+  SYNC_READ_RATE_LIMIT_WINDOW_MS,
+  SYNC_READ_RATE_LIMIT_MAX,
+  SYNC_MUTATION_RATE_LIMIT_WINDOW_MS,
+  SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS,
+  SYNC_MUTATION_OPERATION_RATE_LIMIT_WINDOW_MS,
+  SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX,
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY,

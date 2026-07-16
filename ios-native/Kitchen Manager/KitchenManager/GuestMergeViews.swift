@@ -109,8 +109,14 @@ struct InventorySyncStatusView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .buttonStyle(.bordered)
-                .disabled(controller.isSyncing)
+                .disabled(controller.isSyncing || controller.clientUpgradeRequired)
                 .accessibilityIdentifier("inventorySyncNowButton")
+            }
+            if let retryAfter = controller.rateLimitedRetryAfter, retryAfter > Date() {
+                Text("同步请求过于频繁，请稍后再试。")
+                    .foregroundStyle(.orange)
+                    .font(.footnote)
+                    .accessibilityIdentifier("inventorySyncRateLimitedMessage")
             }
         } header: {
             Text("库存同步")
@@ -130,6 +136,7 @@ struct InventorySyncStatusView: View {
     private var statusText: String {
         if !controller.isFeatureEnabled { return "尚未开启" }
         if authStore.currentUserID == nil { return "尚未登录" }
+        if controller.clientUpgradeRequired { return "需要更新 App" }
         if householdId == nil { return "没有可同步的家庭" }
         if enrollmentStatus == .notEnrolled || enrollmentStatus == .mergeRequired { return "尚未完成合并" }
         if controller.isSyncing { return "正在同步" }
@@ -265,6 +272,15 @@ struct InventoryMergePreviewView: View {
             if let error = failureMessage {
                 Section { Text(error).foregroundStyle(.red) }
             }
+            if controller.clientUpgradeRequired {
+                Section {
+                    Text("当前版本过旧，更新后才能继续使用家庭同步。")
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("guestMergeUpgradeRequiredMessage")
+                } footer: {
+                    Text("本机库存不受影响，可以继续离线使用；确认合并需要先更新 App。")
+                }
+            }
             Section("预计结果") {
                 LabeledContent("合并目标", value: householdName)
                 LabeledContent("本地库存", value: "\(plan?.sourceCount ?? 0) 条")
@@ -308,7 +324,7 @@ struct InventoryMergePreviewView: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(controller.isBusy || plan == nil)
+                .disabled(controller.isBusy || plan == nil || controller.clientUpgradeRequired)
                 .accessibilityIdentifier("guestMergeConfirmButton")
 
                 if let plan, !plan.conflicts.isEmpty {
@@ -476,9 +492,12 @@ struct InventoryMergeResultView: View {
                     Section {
                         Button("回滚本次新增记录", role: .destructive) { isShowingRollbackConfirmation = true }
                             .frame(maxWidth: .infinity, minHeight: 44)
+                            .disabled(controller.isBusy || controller.clientUpgradeRequired)
                             .accessibilityIdentifier("guestMergeRollbackButton")
                     } footer: {
-                        Text("只回滚本次新增的记录，不影响合并前已存在的家庭库存或本机库存。")
+                        Text(controller.clientUpgradeRequired
+                            ? "当前版本过旧，更新 App 后才能回滚。"
+                            : "只回滚本次新增的记录，不影响合并前已存在的家庭库存或本机库存。")
                     }
                 }
                 if session.status == .rolledBack {

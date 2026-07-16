@@ -58,6 +58,20 @@ final class GuestMergeController: ObservableObject {
     /// (conflict or pending-delete) — display-only, never blocks the local
     /// edit itself (which has already happened by the time this is set).
     @Published private(set) var inventoryMutationBlockedMessage: String?
+    /// Phase 2C-1: set whenever any sync call returns 426 (this app build is
+    /// below the server's configured minimum). Never cleared automatically —
+    /// only a fresh call that itself succeeds (or fails for a different
+    /// reason) resets it, so the UI can render a persistent "需要更新" state
+    /// rather than a one-shot popup. A View drives its confirm/rollback
+    /// button visibility from this flag; local-only (Guest) usage is
+    /// entirely unaffected, since this only ever gets set from inside a
+    /// network call these buttons themselves would have triggered.
+    @Published private(set) var clientUpgradeRequired = false
+    /// Phase 2C-1: set whenever any sync call returns 429; the value is the
+    /// server's own `Retry-After` translated into an absolute deadline (or a
+    /// conservative fallback if the server didn't include one), so a View
+    /// can show "请在 X 秒后重试" without re-deriving the interval itself.
+    @Published private(set) var rateLimitedRetryAfter: Date?
 
     private let persistence: any SyncPersistenceProtocol
     private let transportFactory: @MainActor (any SyncAccessTokenProviding) -> any SyncTransport
@@ -125,6 +139,8 @@ final class GuestMergeController: ObservableObject {
         isBusy = true
         lastErrorMessage = nil
         previewFetchFailureMessage = nil
+        clientUpgradeRequired = false
+        rateLimitedRetryAfter = nil
         defer { isBusy = false }
 
         let localItems = kitchenStore.inventory
@@ -146,6 +162,7 @@ final class GuestMergeController: ObservableObject {
             // shown in its place.
             let syncError = (error as? SyncError) ?? .transport
             previewFetchFailureMessage = Self.userFacingSyncError(syncError)
+            noteSyncOutcomeForVersionAndRateLimitDisplay(syncError)
             return
         }
 
@@ -362,6 +379,14 @@ final class GuestMergeController: ObservableObject {
         guard isFeatureEnabled else { return }
         guard var current = session, let plan = current.plan else { return }
         guard current.status == .previewReady || current.status == .awaitingConfirmation || current.status == .conflict else { return }
+        // Captured before any network attempt: if this attempt fails purely
+        // because of client-version/rate-limit (not a genuine upload
+        // failure), the session is restored to exactly this status rather
+        // than `.failed` — `confirmMerge`'s own guard above only ever
+        // accepts these three statuses, so landing on `.failed` would make
+        // the very next retry (after the user updates the app, or once the
+        // rate-limit window passes) a permanent no-op.
+        let statusBeforeAttempt = current.status
         guard let userId = authStore.currentUserID else {
             lastErrorMessage = "请先登录后再确认合并。"
             return
@@ -369,6 +394,8 @@ final class GuestMergeController: ObservableObject {
 
         isBusy = true
         lastErrorMessage = nil
+        clientUpgradeRequired = false
+        rateLimitedRetryAfter = nil
         defer { isBusy = false }
 
         // Session-owner / identity guard — never let one account confirm a
@@ -477,7 +504,22 @@ final class GuestMergeController: ObservableObject {
             let outcome = await coordinator.runOnce(authentication: authentication, scopes: [scope])
 
             guard outcome == .completed else {
-                current.status = .failed
+                var recognizedSyncError: SyncError?
+                if case .failed(let syncError) = outcome { recognizedSyncError = syncError }
+                if case .paused(let syncError) = outcome { recognizedSyncError = syncError }
+                if let recognizedSyncError {
+                    noteSyncOutcomeForVersionAndRateLimitDisplay(recognizedSyncError)
+                    lastErrorMessage = Self.userFacingSyncError(recognizedSyncError)
+                }
+                switch recognizedSyncError {
+                case .clientUpgradeRequired, .clientSchemaUnsupported, .rateLimited:
+                    // Never a genuine upload failure — restore the
+                    // pre-attempt status so the next retry's own guard
+                    // still accepts it.
+                    current.status = statusBeforeAttempt
+                default:
+                    current.status = .failed
+                }
                 current.lastErrorCode = String(describing: outcome)
                 current.updatedAt = Date()
                 try await persistence.saveGuestMergeSession(current)
@@ -539,12 +581,13 @@ final class GuestMergeController: ObservableObject {
             try await persistence.saveGuestMergeSession(current)
             session = current
         } catch {
+            if let syncError = error as? SyncError { noteSyncOutcomeForVersionAndRateLimitDisplay(syncError) }
             current.status = .failed
             current.lastErrorCode = "transport"
             current.updatedAt = Date()
             try? await persistence.saveGuestMergeSession(current)
             session = current
-            lastErrorMessage = "合并上传失败，可稍后重试。"
+            lastErrorMessage = (error as? SyncError).map(Self.userFacingSyncError) ?? "合并上传失败，可稍后重试。"
         }
     }
 
@@ -569,6 +612,8 @@ final class GuestMergeController: ObservableObject {
 
         isBusy = true
         lastErrorMessage = nil
+        clientUpgradeRequired = false
+        rateLimitedRetryAfter = nil
         defer { isBusy = false }
 
         current.status = .rollbackPending
@@ -602,6 +647,13 @@ final class GuestMergeController: ObservableObject {
             let authentication = SyncAuthenticationContext(userID: userId, isAuthenticated: true)
             let outcome = await coordinator.runOnce(authentication: authentication, scopes: [scope])
             guard outcome == .completed else {
+                if case .failed(let syncError) = outcome {
+                    noteSyncOutcomeForVersionAndRateLimitDisplay(syncError)
+                    lastErrorMessage = Self.userFacingSyncError(syncError)
+                } else if case .paused(let syncError) = outcome {
+                    noteSyncOutcomeForVersionAndRateLimitDisplay(syncError)
+                    lastErrorMessage = Self.userFacingSyncError(syncError)
+                }
                 current.status = .completed // remains rollback-eligible; retry later
                 current.lastErrorCode = String(describing: outcome)
                 try await persistence.saveGuestMergeSession(current)
@@ -641,11 +693,12 @@ final class GuestMergeController: ObservableObject {
             try await persistence.saveGuestMergeSession(current)
             session = current
         } catch {
+            if let syncError = error as? SyncError { noteSyncOutcomeForVersionAndRateLimitDisplay(syncError) }
             current.status = .completed
             current.lastErrorCode = "transport"
             try? await persistence.saveGuestMergeSession(current)
             session = current
-            lastErrorMessage = "回滚失败，可稍后重试。"
+            lastErrorMessage = (error as? SyncError).map(Self.userFacingSyncError) ?? "回滚失败，可稍后重试。"
         }
     }
 
@@ -669,6 +722,8 @@ final class GuestMergeController: ObservableObject {
 
         isSyncing = true
         lastSyncErrorMessage = nil
+        clientUpgradeRequired = false
+        rateLimitedRetryAfter = nil
         lastSyncStartedAt = Date()
         defer { isSyncing = false }
 
@@ -682,8 +737,10 @@ final class GuestMergeController: ObservableObject {
         lastSyncCompletedAt = Date()
         if case .failed(let error) = outcome {
             lastSyncErrorMessage = Self.userFacingSyncError(error)
+            noteSyncOutcomeForVersionAndRateLimitDisplay(error)
         } else if case .paused(let error) = outcome {
             lastSyncErrorMessage = Self.userFacingSyncError(error)
+            noteSyncOutcomeForVersionAndRateLimitDisplay(error)
         }
     }
 
@@ -693,6 +750,23 @@ final class GuestMergeController: ObservableObject {
     func pendingInventoryCount(householdId: UUID) async -> Int {
         let scope = SyncScope(type: .household, id: householdId)
         return (try? await persistence.pendingMutations(scope: scope, maxAttempts: .max).count) ?? 0
+    }
+
+    /// Updates the two Phase 2C-1 display flags from whatever error a sync
+    /// call just threw/returned — called in addition to (never instead of)
+    /// each call site's existing session-state handling, so this never
+    /// changes what a session's own status/pending-mutation state does.
+    /// Never touches `session`, `createdEntityIds`, or any SwiftData record;
+    /// purely a display-state update.
+    private func noteSyncOutcomeForVersionAndRateLimitDisplay(_ error: SyncError) {
+        switch error {
+        case .clientUpgradeRequired, .clientSchemaUnsupported:
+            clientUpgradeRequired = true
+        case .rateLimited(let retryAfterSeconds):
+            rateLimitedRetryAfter = Date().addingTimeInterval(retryAfterSeconds ?? 30)
+        default:
+            break
+        }
     }
 
     /// Maps a technical `SyncError` to plain, user-facing copy — never the
@@ -707,6 +781,8 @@ final class GuestMergeController: ObservableObject {
         case .decoding, .invalidCursor, .invalidConfiguration, .unsupportedEntity, .persistence: "同步失败，可稍后重试。"
         case .disabled: "库存同步尚未开启。"
         case .transport: "当前网络不可用，请稍后重试。"
+        case .clientUpgradeRequired, .clientSchemaUnsupported: "当前版本过旧，更新后才能继续使用家庭同步。"
+        case .rateLimited: "同步请求过于频繁，请稍后再试。"
         }
     }
 

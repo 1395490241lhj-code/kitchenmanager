@@ -263,6 +263,18 @@ nonisolated enum SyncError: LocalizedError, Equatable, Sendable {
     case decoding
     case unsupportedEntity
     case persistence
+    /// Server returned 426 `CLIENT_UPGRADE_REQUIRED` — this app build is
+    /// below the server's configured minimum version/build/schema. Never
+    /// thrown locally without a real server response; the client never
+    /// self-diagnoses this from its own bundle version alone (the server is
+    /// the sole authority per Phase 2C-1's design).
+    case clientUpgradeRequired(minimumVersion: String?, minimumBuild: Int?)
+    /// Reserved for a future local schema-version mismatch detected from
+    /// `SyncBootstrapResponse.schemaVersion` / `InventorySyncEnrollment`
+    /// rather than from an HTTP status — no call site throws this yet.
+    case clientSchemaUnsupported
+    /// Server returned 429 `SYNC_RATE_LIMITED`.
+    case rateLimited(retryAfterSeconds: TimeInterval?)
 
     var errorDescription: String? {
         switch self {
@@ -279,6 +291,9 @@ nonisolated enum SyncError: LocalizedError, Equatable, Sendable {
         case .decoding: "同步数据无法识别。"
         case .unsupportedEntity: "当前版本暂不支持这种同步数据。"
         case .persistence: "同步状态暂时无法保存。"
+        case .clientUpgradeRequired: "当前版本过旧，更新后才能继续使用家庭同步。"
+        case .clientSchemaUnsupported: "当前版本过旧，更新后才能继续使用家庭同步。"
+        case .rateLimited: "同步请求过于频繁，请稍后再试。"
         }
     }
 }

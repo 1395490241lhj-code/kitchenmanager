@@ -10,6 +10,11 @@ nonisolated struct APIErrorResponse: Decodable, Sendable {
     let error: String?
     let message: String?
     let detail: String?
+    /// Only ever present on a 426 (`CLIENT_UPGRADE_REQUIRED`) response.
+    let minimumVersion: String?
+    let minimumBuild: Int?
+    /// Only ever present on a 429 (`SYNC_RATE_LIMITED`) response.
+    let retryAfterSeconds: Int?
 
     /// First non-empty human-readable field, in the order services have
     /// historically preferred (`error` before `message` before `detail`).

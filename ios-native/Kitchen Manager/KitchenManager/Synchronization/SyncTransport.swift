@@ -20,7 +20,7 @@ actor ExpressSyncTransport: SyncTransport {
     }
 
     func bootstrap() async throws -> SyncBootstrapResponse {
-        try await send(.get(path: "api/sync/bootstrap", headers: try await authorizationHeaders()), as: SyncBootstrapResponse.self)
+        try await send(.get(path: "api/sync/bootstrap", headers: try await requestHeaders()), as: SyncBootstrapResponse.self)
     }
 
     func fetchChanges(
@@ -37,7 +37,7 @@ actor ExpressSyncTransport: SyncTransport {
                 URLQueryItem(name: "limit", value: String(limit)),
                 URLQueryItem(name: "entityTypes", value: SyncEntityType.inventoryItem.rawValue)
             ],
-            headers: try await authorizationHeaders()
+            headers: try await requestHeaders()
         )
         return try await send(endpoint, as: SyncChangesResponse.self)
     }
@@ -46,18 +46,27 @@ actor ExpressSyncTransport: SyncTransport {
         let request = SyncMutationBatchRequest(scope: scope, mutations: mutations)
         let endpoint = try APIEndpoint.json(
             path: "api/sync/mutations",
-            headers: try await authorizationHeaders(),
+            headers: try await requestHeaders(),
             body: request,
             encoder: SyncCoding.encoder()
         )
         return try await send(endpoint, as: SyncMutationBatchResponse.self)
     }
 
-    private func authorizationHeaders() async throws -> [String: String] {
+    /// Authorization + the Phase 2C-1 client-version headers, combined so
+    /// every one of the three sync calls above carries both consistently —
+    /// no View, AuthStore, or SwiftData model ever sees or stores these
+    /// values; they exist only for the duration of building this one
+    /// request's headers.
+    private func requestHeaders() async throws -> [String: String] {
         guard let token = await tokenProvider.accessToken(), !token.isEmpty else {
             throw SyncError.notAuthenticated
         }
-        return ["Authorization": "Bearer \(token)"]
+        var headers = ["Authorization": "Bearer \(token)"]
+        for (field, value) in SyncClientVersionHeaders.current.headerFields {
+            headers[field] = value
+        }
+        return headers
     }
 
     private func send<Response: Decodable & Sendable>(
@@ -82,12 +91,25 @@ actor ExpressSyncTransport: SyncTransport {
         case .unauthorized: return .unauthorized
         case .forbidden: return .forbidden
         case .decodingFailed: return .decoding
-        case .server(let status, _), .httpStatus(let status):
+        case .server(let status, let payload):
             switch status {
             case 401: return .unauthorized
             case 403: return .forbidden
             case 409: return .conflict
             case 413: return .payloadTooLarge
+            case 426: return .clientUpgradeRequired(minimumVersion: payload?.minimumVersion, minimumBuild: payload?.minimumBuild)
+            case 429: return .rateLimited(retryAfterSeconds: payload?.retryAfterSeconds.map(TimeInterval.init))
+            case 503: return .backendUnavailable
+            default: return .transport
+            }
+        case .httpStatus(let status):
+            switch status {
+            case 401: return .unauthorized
+            case 403: return .forbidden
+            case 409: return .conflict
+            case 413: return .payloadTooLarge
+            case 426: return .clientUpgradeRequired(minimumVersion: nil, minimumBuild: nil)
+            case 429: return .rateLimited(retryAfterSeconds: nil)
             case 503: return .backendUnavailable
             default: return .transport
             }
