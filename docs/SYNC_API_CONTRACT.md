@@ -5,6 +5,13 @@ Schema version：`1`
 
 所有 endpoint 都要求 `Authorization: Bearer <Supabase access token>`。Express 先验证 JWT，再以 publishable/anon key + 同一用户 JWT 调用固定 Supabase RPC。服务端不接受客户端 `userId` 作为身份依据，也不使用 service-role key。
 
+> **Phase 2C-1（本节起新增）**：所有 `/api/sync/*` 请求现在还统一携带四个版本
+> header（`X-Kitchen-App-Platform`/`X-Kitchen-App-Version`/`X-Kitchen-App-Build`/
+> `X-Kitchen-Client-Schema`），并在 `auth → role` 之后新增
+> `versionGate → rateLimiter` 两层中间件——默认均不生效（`SYNC_VERSION_ENFORCEMENT_ENABLED`
+> 默认 `false`；rate limiter 无独立开关，只有阈值可配置）。详见
+> `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md` 与 `docs/SYNC_API_RATE_LIMITING.md`。
+
 ## 1. 通用约定
 
 - JSON 字段使用 camelCase；repository 在调用 RPC 前映射为数据库 snake_case。
@@ -151,6 +158,12 @@ mutation 响应的 `cursor` 只是本批 applied/duplicate 结果中的最大 se
 | 无权访问指定 household/user scope | 403 |
 | 单条 conflict/rejected/duplicate | 200，见单项 status |
 | Supabase/RPC 暂时不可用 | 503 |
+| 客户端版本低于配置的最低要求，或版本 header 缺失/格式错误（enforcement 开启时） | 426，`{"error":"client_upgrade_required","code":"CLIENT_UPGRADE_REQUIRED","message":"...","minimumVersion":"x.y.z","minimumBuild":n}` |
+| enforcement 已开启但最低版本配置本身缺失/格式错误 | 503，`{"error":"sync_version_enforcement_misconfigured","code":"SYNC_VERSION_ENFORCEMENT_MISCONFIGURED","message":"..."}` |
+| 超出 rate limit（按 JWT subject + route/scope 计） | 429，`{"error":"rate_limited","code":"SYNC_RATE_LIMITED","message":"...","retryAfterSeconds":n}`，附 `Retry-After` header |
+
+426/429/503（版本相关）均在到达 handler 之前被拒绝，因此永远不会写入
+`sync_mutations` ledger 或 change feed。
 
 ## 6. 稳定 ID
 

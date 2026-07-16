@@ -5,6 +5,20 @@ real production incident (none has occurred — no production cohort exists
 yet). It consolidates and extends `docs/INVENTORY_SYNC_ROLLBACK_PLAYBOOK.md`
 with the specific procedures a real incident would require.
 
+> **Phase 2C-1 update**: two new server-side env vars now exist,
+> `SYNC_VERSION_ENFORCEMENT_ENABLED` and the `/api/sync/*` rate limiter
+> (always active — it has no separate on/off flag, only its thresholds are
+> configured). If the version gate or rate limiter itself needs to be
+> disabled during an incident (e.g. a misconfigured minimum version
+> accidentally locking out every real client), that is a **backend
+> environment-variable change and restart**, not a client-side rollback —
+> set `SYNC_VERSION_ENFORCEMENT_ENABLED=false` (or correct the
+> `MIN_IOS_*` values) and restart the Express process. This is a different
+> action from the client-side flag rollback below, and — like the rest of
+> this document's "how to roll back the backend" gap — has no documented
+> deploy-and-restart procedure in this repo yet, since Render deployment is
+> managed entirely outside it (see `docs/PRODUCTION_ENABLEMENT_READINESS.md`).
+
 ## Who approves a rollback
 
 A rollback decision (disabling a flag for a cohort, or halting a rollout

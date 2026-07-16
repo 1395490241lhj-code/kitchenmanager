@@ -6,6 +6,22 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16 (Phase 2C-1: minimum-app-version enforcement + sync rate limiting)
+
+### Added
+
+- Added minimum-app-version enforcement for `/api/sync/*`: `src/server/sync/version-gate.js` (`SYNC_VERSION_ENFORCEMENT_ENABLED`, default off, plus `MIN_IOS_APP_VERSION`/`MIN_IOS_BUILD`/`MIN_IOS_CLIENT_SCHEMA`, numeric SemVer/integer comparison, fails closed with a 503 if enabled but misconfigured) and iOS-side version headers (`X-Kitchen-App-Platform`/`X-Kitchen-App-Version`/`X-Kitchen-App-Build`/`X-Kitchen-Client-Schema`, sent by `ExpressSyncTransport` on every sync request, via new `SyncClientVersionHeaders`). New `SyncError.clientUpgradeRequired`/`.clientSchemaUnsupported`; `GuestMergeController.clientUpgradeRequired` disables/hides confirm and rollback without touching local Guest data. See `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`.
+- Added `/api/sync/*` rate limiting: `src/server/sync/rate-limit.js`, a read limiter (bootstrap/changes, 120 req/5min/user) and a mutation limiter (mutations, 40 requests + 500 operations/5min/user), both keyed only by the stable JWT subject + route/scope, in-memory store (documented as not multi-instance-safe yet). New `SyncError.rateLimited`; `GuestMergeController.rateLimitedRetryAfter` surfaces the wait time without disabling rollback. See `docs/SYNC_API_RATE_LIMITING.md`.
+- Both are wired into `registerSyncRoutes` as `auth → role → versionGate → rateLimiter → handler`, so a rejected request never reaches the handler or writes a ledger row.
+
+### Fixed
+
+- Fixed a retryability bug found during implementation: `confirmMerge`'s guard only accepts `.previewReady`/`.awaitingConfirmation`/`.conflict`, but the existing generic failure path moved any failed attempt to `.failed` — a version/rate-limit failure would have permanently blocked every future retry. Now restores the pre-attempt status instead of `.failed` specifically for these two error types.
+
+### Tested
+
+- Added 47 Node tests (`test/sync-phase2c1-version-and-rate-limit.test.mjs`) and 10 iOS tests (`SyncTransportTests`, `GuestMergeTests`, 1 UI test). Full regression: GuestMergeTests 132/132, iOS Unit 601/601, iOS UI 7/7, Node 911/911 — all up from baseline, none shrank. Hosted-development validation ran against a locally-run instance of the new code (not the deployed Render service, since nothing was pushed) pointed at the real development Supabase project: version-enforcement disabled/enabled/old-version/missing-headers, and the real 120-request rate limit tripping at request 121, all confirmed for real; zero test data was ever created (every write attempt was correctly rejected before reaching the RPC). See `docs/PHASE2C1_VALIDATION.md`. Neither feature is production-configured or production-enabled. All flags remain `NO`; nothing pushed.
+
 ## 2026-07-16 (Production Enablement Readiness Review)
 
 ### Documented

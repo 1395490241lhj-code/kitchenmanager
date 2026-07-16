@@ -5,6 +5,15 @@ changed, no production backend was switched to, and nothing was pushed as
 part of this review. No secret value, token, or full production credential
 is reproduced below.
 
+> **Phase 2C-1 update**: two of the six rollout blockers below are now
+> **implemented, offline-validated, and hosted-development-validated**:
+> minimum-app-version enforcement and `/api/sync/*` rate limiting. Neither
+> is production-configured or production-enabled. See
+> `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`, `docs/SYNC_API_RATE_LIMITING.md`,
+> and `docs/PHASE2C1_VALIDATION.md`. Four blockers remain: crash
+> reporting/monitoring, the production Supabase project decision,
+> pgTAP/migration re-verification, and a TestFlight/App Store pipeline.
+
 ## Context
 
 By the end of Phase 2B-9B, every previously-open *feature-correctness*
@@ -31,7 +40,7 @@ itself to be correct. It is not.
 | Info.plist | ✅ met | All 8 `KM_*` flags flow through `Config/Shared.xcconfig` (committed, defaults `NO`) → optional `Local.xcconfig` (gitignored, per-developer) → `Info.plist`. Verified in a real unsigned Archive (Phase 2B-6): all flags `NO`, zero test credentials/markers in the compiled binary. |
 | Secrets injection | ✅ met, with one gap | iOS: `Local.xcconfig`, gitignored, generated from `Config/Local.example.xcconfig` via `npm run configure:ios-auth`. Node: `.env.*` gitignored except `.env.example`. **Gap**: no `.env.production` template exists, and no evidence of how Render's own dashboard environment variables are provisioned or audited — that provisioning happens entirely outside this repo. |
 | Render/hosting deploy config | ⚠️ **No infrastructure-as-code** | `.github/workflows/deploy.yml` deploys only the static PWA to **GitHub Pages** — it has no reference to Render, Supabase, or any backend secret at all. There is no `render.yaml`/`Procfile` in the repo. The Express backend's deployment to Render is managed entirely through Render's own dashboard/git-connect, invisible to and unaudited by this repository. |
-| Rate limits | ⚠️ **Sync routes unprotected** | `src/server/services/rate-limit.js` rate-limits AI/import/`/api/me` (30, 10, 60 per window respectively, all hardcoded, not env-configurable) — but **no rate limit exists on `/api/sync/bootstrap`, `/api/sync/changes`, or `/api/sync/mutations`** at all. |
+| Rate limits | ✅ **Sync routes now protected (Phase 2C-1)** | `src/server/sync/rate-limit.js` adds a read limiter (bootstrap/changes, 120 req/5min/user) and a mutation limiter (mutations, 40 req + 500 operations per 5min/user), keyed only by JWT subject + route — implemented, offline- and hosted-development-validated. In-memory store only (not multi-instance-safe yet — documented Stage 1 limitation). See `docs/SYNC_API_RATE_LIMITING.md`. AI/import/`/api/me` limits unchanged. |
 | Timeout/retry | ⚠️ **Timeout only, no retry** | iOS `APIClient` sets a 60s default timeout, no automatic retry (errors surface directly to the caller, which may retry manually via `syncNow`). Server-to-Supabase calls in `account-data.js` have **no timeout and no retry**; other outbound HTTP (AI/media) does set timeouts, still no retry logic anywhere. |
 | Logging/redaction | ✅ met | Plain `console.log`, no request/response body logging, JWT/Bearer redaction on auth failures (`jwt.js`), error codes only (not messages) logged outside `NODE_ENV=production` in `me-route.js`. |
 | Crash reporting | ❌ **None exists** | No Sentry/Crashlytics/Bugsnag/App Center/any crash-reporting SDK anywhere in the repo, iOS or Node. |
@@ -59,12 +68,12 @@ itself to be correct. It is not.
 
 | Item | Status |
 |---|---|
-| Min app version enforcement | ❌ **Does not exist** — no version gate anywhere in `server.js`, no forced-update check in the iOS app. **This is a production rollout condition**, not optional: without it, there is no way to force an old client off an incompatible sync contract once a breaking schema/contract change ever ships. |
+| Min app version enforcement | ✅ **Implemented (Phase 2C-1)** — `src/server/sync/version-gate.js` gates all three `/api/sync/*` routes behind `SYNC_VERSION_ENFORCEMENT_ENABLED` (default off) + `MIN_IOS_APP_VERSION`/`MIN_IOS_BUILD`/`MIN_IOS_CLIENT_SCHEMA`, with the iOS client sending version headers on every sync request. Offline- and hosted-development-validated. **Not yet production-configured** — no minimum values have been decided for a real rollout. See `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`. |
 | Backend backward compatibility | ⚠️ Untested, low risk today | Since dev and prod share one backend (see §1), there is no version-skew scenario to test yet — but this also means the *first* time a real skew scenario exists (e.g. a schema change ships to backend before all clients update), there is no tooling in place to detect or gate it. |
 | Old client behavior | Not tested | No test exercises "old client, new backend contract." |
 | Schema evolution | Partial | `schemaVersion` field exists for future detection; no automated enforcement. |
 | Feature flag compatibility | ✅ met | Every gate (`INVENTORY_SYNC_ENABLED`, `INVENTORY_MERGE_UI_ENABLED`, dogfood, diagnostics) is independent, all default `NO`, and rolling one back never requires a server-side change (`docs/INVENTORY_SYNC_ROLLBACK_PLAYBOOK.md`). |
-| Unsupported client rejection | ❌ Not implemented | Same gap as min-app-version — the server accepts requests from any client build. |
+| Unsupported client rejection | ✅ **Implemented (Phase 2C-1)** — the version gate above returns 426 to any client below the configured minimum, or sending missing/malformed version headers, whenever enforcement is enabled. |
 | Rollback strategy | ✅ met | See `docs/PRODUCTION_ROLLBACK_RUNBOOK.md` (new, this review). |
 | Phased rollout support | ⚠️ Manual only | No remote-config/percentage-rollout mechanism exists. Every stage in `docs/PRODUCTION_ROLLOUT_PLAN.md` (new, this review) is a build-configuration change for a specific device/cohort — never a server-toggleable flag. |
 
@@ -131,8 +140,15 @@ further progress.
    separate production project must be provisioned first — this is a
    product/business decision, not a code change, and this review does not
    make it.
-2. Rate limiting extended to `/api/sync/*` routes.
-3. Minimum-app-version enforcement implemented (client + server).
+2. ~~Rate limiting extended to `/api/sync/*` routes.~~ **Done (Phase 2C-1)**
+   — implemented, offline- and hosted-development-validated. See
+   `docs/SYNC_API_RATE_LIMITING.md`. Not yet production-configured (no
+   shared/multi-instance store decision made — in-memory only).
+3. ~~Minimum-app-version enforcement implemented (client + server).~~
+   **Done (Phase 2C-1)** — implemented, offline- and
+   hosted-development-validated. See
+   `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`. Not yet production-configured
+   (no actual minimum version/build/schema values have been decided).
 4. At minimum a lightweight crash-reporting integration (even a manual
    crash-log-pull process is not sufficient once devices aren't in the
    operator's own hand).

@@ -11,6 +11,16 @@ in this codebase. Every stage below is a `Local.xcconfig`/build-configuration
 change applied to a specific, known set of devices — never a
 server-toggleable flag, never automatic.
 
+> **Phase 2C-1 update**: `SYNC_VERSION_ENFORCEMENT_ENABLED` +
+> `MIN_IOS_APP_VERSION`/`MIN_IOS_BUILD`/`MIN_IOS_CLIENT_SCHEMA`, and the
+> `/api/sync/*` rate limiter, are now implemented and validated (see
+> `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`/`docs/SYNC_API_RATE_LIMITING.md`).
+> Both are backend-side env vars, not client build flags — they can be
+> turned on for Stage 1 without a new iOS build, though the client itself
+> must already be sending the version headers (true as of this phase,
+> unconditionally, regardless of any flag) for the version gate to ever see
+> anything but a 426.
+
 ## Stage 0 — Baseline (current state)
 
 - **Flags**: all `NO` (`INVENTORY_SYNC_ENABLED`, `INVENTORY_MERGE_UI_ENABLED`,
@@ -117,6 +127,8 @@ manually reading the per-device diagnostics screen.
 | Orphaned session count (sessions stuck `.completed` past their rollback window, never rolled back or expired cleanly) | any > 0 sustained > 24h | Warning |
 | Pending mutation age (oldest `PendingMutation` per user) | > 1h | Warning; > 24h | Critical |
 | Backend 4xx rate | > 5% of sync requests | Warning |
+| 426 (upgrade-required) rate | any sustained rate > 0 once a real minimum is configured | Warning — indicates real users on an outdated build, not necessarily a bug |
+| 429 (rate-limited) rate | any sustained rate > 0 | Warning — the Phase 2C-1 thresholds (120 read / 5min, 40 mutation requests + 500 operations / 5min, per user) are a starting point; a real, legitimate user tripping them repeatedly means the threshold itself needs revisiting, not that the user is malicious |
 | Backend 5xx rate | > 1% of sync requests | Critical |
 | Latency (p95, sync mutation round trip) | > 2s | Warning; > 5s | Critical |
 | Crash rate | any sustained increase over baseline | Critical (no crash reporting exists yet — this row cannot be measured until one is integrated) |
