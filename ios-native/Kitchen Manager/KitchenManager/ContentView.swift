@@ -6,6 +6,7 @@ struct KitchenManagerApp: App {
     @StateObject private var kitchenStore: KitchenStore
     @StateObject private var authStore: AuthStore
     @StateObject private var guestMergeController: GuestMergeController
+    @StateObject private var accountDeletionController: AccountDeletionController
     #if DEBUG
     @StateObject private var syncSmokeController: SyncSmokeController
     #endif
@@ -50,6 +51,7 @@ struct KitchenManagerApp: App {
         _kitchenStore = StateObject(wrappedValue: kitchenStoreInstance)
         _authStore = StateObject(wrappedValue: authStoreInstance)
         _guestMergeController = StateObject(wrappedValue: guestMergeControllerInstance)
+        _accountDeletionController = StateObject(wrappedValue: AccountDeletionController(persistence: persistence.sync))
         #if DEBUG
         _syncSmokeController = StateObject(
             wrappedValue: SyncSmokeController(persistence: persistence.sync)
@@ -66,6 +68,7 @@ struct KitchenManagerApp: App {
                 .environmentObject(recommendationStore)
                 .environmentObject(authStore)
                 .environmentObject(guestMergeController)
+                .environmentObject(accountDeletionController)
                 #if DEBUG
                 .environmentObject(syncSmokeController)
                 #endif
@@ -155,6 +158,9 @@ struct ContentView: View {
         .environmentObject(HomeRecommendationStore())
         .environmentObject(AuthStore.guestPreview())
         .environmentObject(GuestMergeController(
+            persistence: KitchenPersistenceFactory.isolatedInMemory().sync
+        ))
+        .environmentObject(AccountDeletionController(
             persistence: KitchenPersistenceFactory.isolatedInMemory().sync
         ))
         #if DEBUG

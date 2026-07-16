@@ -74,6 +74,7 @@ struct AccountView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var guestMergeController: GuestMergeController
+    @EnvironmentObject private var accountDeletionController: AccountDeletionController
     @State private var isConfirmingSignOut = false
 
     private var defaultHousehold: AccountHousehold? {
@@ -119,6 +120,14 @@ struct AccountView: View {
                     Button("退出登录", role: .destructive) { isConfirmingSignOut = true }
                 } footer: {
                     Text("退出登录不会删除本机的库存、计划、购物清单或菜谱。")
+                }
+
+                Section {
+                    NavigationLink("删除账号") {
+                        AccountDeletionView(controller: accountDeletionController)
+                    }
+                } footer: {
+                    Text("永久删除你的登录身份，与退出登录不同。")
                 }
 
                 InventorySyncDiagnosticsEntryView(

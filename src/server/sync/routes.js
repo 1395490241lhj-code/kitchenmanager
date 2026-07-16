@@ -133,6 +133,11 @@ function registerSyncRoutes(app, options = {}) {
   const handlers = createSyncHandlers(options);
   const auth = options.authenticate || authenticateRequest;
   const role = options.requireRole || createRequireAuthRole(['authenticated']);
+  // Phase 2D-2: freezes /api/sync/* for a user whose account deletion is
+  // underway (see src/server/account/deletion-sync-guard.js). Defaults to a
+  // no-op passthrough so every existing caller/test of this module is
+  // unaffected unless it opts in.
+  const accountDeletionGuard = options.accountDeletionGuard || ((req, res, next) => next());
   const { metrics, logger: structuredLogger } = options.observability || {};
   const versionGate = options.versionGate || createVersionGateMiddleware({ metrics, logger: structuredLogger });
 
@@ -156,9 +161,9 @@ function registerSyncRoutes(app, options = {}) {
     logger: structuredLogger
   });
 
-  app.get('/api/sync/bootstrap', chain(auth, role, versionGate, readRateLimiter, handlers.bootstrap));
-  app.get('/api/sync/changes', chain(auth, role, versionGate, readRateLimiter, handlers.changes));
-  app.post('/api/sync/mutations', chain(auth, role, versionGate, mutationRateLimiter, handlers.mutations));
+  app.get('/api/sync/bootstrap', chain(auth, role, accountDeletionGuard, versionGate, readRateLimiter, handlers.bootstrap));
+  app.get('/api/sync/changes', chain(auth, role, accountDeletionGuard, versionGate, readRateLimiter, handlers.changes));
+  app.post('/api/sync/mutations', chain(auth, role, accountDeletionGuard, versionGate, mutationRateLimiter, handlers.mutations));
   return handlers;
 }
 

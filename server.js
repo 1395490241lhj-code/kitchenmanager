@@ -119,6 +119,8 @@ const {
 const { authenticateRequest, createRequireAuthRole, ALLOWED_ALGORITHMS } = require('./src/server/auth/jwt');
 const { createMeHandler } = require('./src/server/auth/me-route');
 const { registerSyncRoutes } = require('./src/server/sync/routes');
+const { registerAccountDeletionRoutes } = require('./src/server/account/deletion-routes');
+const { createAccountDeletionSyncGuard } = require('./src/server/account/deletion-sync-guard');
 const { loadVersionEnforcementConfig } = require('./src/server/sync/version-gate');
 const { createLogger } = require('./src/server/observability/logger');
 const { createMetricsRegistry } = require('./src/server/observability/metrics');
@@ -297,7 +299,17 @@ app.get('/ready', createReadyHandler({
 // use the verified user JWT with Supabase RPC; business tables never receive
 // direct authenticated INSERT/UPDATE/DELETE grants.
 registerSyncRoutes(app, {
-  observability: { metrics: observabilityMetrics, logger: observabilityLogger }
+  observability: { metrics: observabilityMetrics, logger: observabilityLogger },
+  accountDeletionGuard: createAccountDeletionSyncGuard()
+});
+
+// Phase 2D-2: account deletion + household ownership transfer. Same
+// auth/role middleware and rate-limit pattern as /api/me and /api/sync/*;
+// see docs/ACCOUNT_DELETION_DESIGN.md for the full saga this implements.
+registerAccountDeletionRoutes(app, {
+  authenticate: authenticateRequest,
+  requireRole: createRequireAuthRole(['authenticated']),
+  logger: observabilityLogger
 });
 
 

@@ -77,6 +77,14 @@ protocol SyncPersistenceProtocol: Actor {
     /// (including already-`applied`/`rejected` ones `pendingMutations(scope:maxAttempts:)`
     /// excludes) — diagnostics/consistency-checking only.
     func allPendingMutations(scope: SyncScope) throws -> [PendingMutation]
+
+    /// Phase 2D-2: wipes every sync-bookkeeping row (metadata, pending
+    /// mutations, cursors, guest-merge/rollback sessions, enrollment) after a
+    /// successful account deletion — never partial, so a killed app cannot
+    /// resurrect a stale pending mutation against data that no longer exists
+    /// server-side. Does not touch domain business data (inventory, recipes,
+    /// etc.); callers pair this with `KitchenStore.clearAllLocalData()`.
+    func clearAllSyncState() throws
 }
 
 @ModelActor
@@ -391,6 +399,15 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
         return try modelContext.fetch(descriptor).compactMap(\.value)
     }
 
+    func clearAllSyncState() throws {
+        for record in try modelContext.fetch(FetchDescriptor<SyncMetadataRecord>()) { modelContext.delete(record) }
+        for record in try modelContext.fetch(FetchDescriptor<PendingMutationRecord>()) { modelContext.delete(record) }
+        for record in try modelContext.fetch(FetchDescriptor<SyncCursorRecord>()) { modelContext.delete(record) }
+        for record in try modelContext.fetch(FetchDescriptor<GuestMergeSessionRecord>()) { modelContext.delete(record) }
+        for record in try modelContext.fetch(FetchDescriptor<InventorySyncEnrollmentRecord>()) { modelContext.delete(record) }
+        try commit()
+    }
+
     func stageInventoryMutation(
         entityId: UUID,
         scope: SyncScope,
@@ -583,4 +600,5 @@ actor FailingSyncPersistence: SyncPersistenceProtocol {
     func stageInventoryMutation(entityId: UUID, scope: SyncScope, operation: SyncOperation, payloadData: Data, now: Date) throws -> InventoryMutationStagingOutcome { throw SyncError.persistence }
     func allMetadata(scope: SyncScope) throws -> [SyncMetadata] { throw SyncError.persistence }
     func allPendingMutations(scope: SyncScope) throws -> [PendingMutation] { throw SyncError.persistence }
+    func clearAllSyncState() throws { throw SyncError.persistence }
 }
