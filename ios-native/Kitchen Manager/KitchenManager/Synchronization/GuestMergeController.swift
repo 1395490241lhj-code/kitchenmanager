@@ -81,6 +81,10 @@ final class GuestMergeController: ObservableObject {
     /// How long a completed session's own newly-created records may still be
     /// rolled back.
     private let rollbackWindow: TimeInterval
+    /// Phase 2C-2: operational breadcrumbs only (see
+    /// docs/CRASH_REPORTING.md) — never business content. Defaults to the
+    /// safe no-op provider; tests inject a fake to assert on emitted events.
+    private let crashReporter: any CrashReporting
 
     init(
         persistence: any SyncPersistenceProtocol,
@@ -90,7 +94,8 @@ final class GuestMergeController: ObservableObject {
         transportFactory: @escaping @MainActor (any SyncAccessTokenProviding) -> any SyncTransport = { provider in
             ExpressSyncTransport(tokenProvider: provider)
         },
-        rollbackWindow: TimeInterval = 24 * 60 * 60
+        rollbackWindow: TimeInterval = 24 * 60 * 60,
+        crashReporter: any CrashReporting = CrashReportingFactory.makeProvider()
     ) {
         self.persistence = persistence
         self.configuration = configuration
@@ -98,6 +103,7 @@ final class GuestMergeController: ObservableObject {
         self.dogfoodConfiguration = dogfoodConfiguration
         self.transportFactory = transportFactory
         self.rollbackWindow = rollbackWindow
+        self.crashReporter = crashReporter
     }
 
     /// Whether the dogfood diagnostics screen should be reachable at all.
@@ -141,6 +147,7 @@ final class GuestMergeController: ObservableObject {
         previewFetchFailureMessage = nil
         clientUpgradeRequired = false
         rateLimitedRetryAfter = nil
+        crashReporter.addBreadcrumb(.mergePreviewStarted, metadata: [:])
         defer { isBusy = false }
 
         let localItems = kitchenStore.inventory
@@ -163,6 +170,7 @@ final class GuestMergeController: ObservableObject {
             let syncError = (error as? SyncError) ?? .transport
             previewFetchFailureMessage = Self.userFacingSyncError(syncError)
             noteSyncOutcomeForVersionAndRateLimitDisplay(syncError)
+            crashReporter.addBreadcrumb(.mergePreviewFailed, metadata: ["errorCode": syncError.crashReportingCode])
             return
         }
 
@@ -195,6 +203,7 @@ final class GuestMergeController: ObservableObject {
             session = newSession
         } catch {
             lastErrorMessage = "无法生成合并预览，请稍后重试。"
+            crashReporter.addBreadcrumb(.mergePreviewFailed, metadata: ["errorCode": "persistence_failure"])
         }
     }
 
@@ -396,6 +405,7 @@ final class GuestMergeController: ObservableObject {
         lastErrorMessage = nil
         clientUpgradeRequired = false
         rateLimitedRetryAfter = nil
+        crashReporter.addBreadcrumb(.mergeConfirmStarted, metadata: [:])
         defer { isBusy = false }
 
         // Session-owner / identity guard — never let one account confirm a
@@ -510,7 +520,9 @@ final class GuestMergeController: ObservableObject {
                 if let recognizedSyncError {
                     noteSyncOutcomeForVersionAndRateLimitDisplay(recognizedSyncError)
                     lastErrorMessage = Self.userFacingSyncError(recognizedSyncError)
+                    crashReporter.captureNonFatal(recognizedSyncError, context: ["routeCategory": "merge_confirm"])
                 }
+                crashReporter.addBreadcrumb(.mergeConfirmFailed, metadata: ["errorCode": recognizedSyncError?.crashReportingCode ?? String(describing: outcome)])
                 switch recognizedSyncError {
                 case .clientUpgradeRequired, .clientSchemaUnsupported, .rateLimited:
                     // Never a genuine upload failure — restore the
@@ -573,8 +585,10 @@ final class GuestMergeController: ObservableObject {
                     enrolledAt: Date(), mergeSessionId: current.id,
                     schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
                 ))
+                crashReporter.addBreadcrumb(.mergeConfirmCompleted, metadata: ["mutationCountBucket": CrashReportingMetadata.countBucket(uploaded)])
             } else if failed > 0 {
                 current.status = .failed
+                crashReporter.addBreadcrumb(.mergeConfirmFailed, metadata: ["errorCode": "partial_failure"])
             } else {
                 current.status = .conflict
             }
@@ -588,6 +602,8 @@ final class GuestMergeController: ObservableObject {
             try? await persistence.saveGuestMergeSession(current)
             session = current
             lastErrorMessage = (error as? SyncError).map(Self.userFacingSyncError) ?? "合并上传失败，可稍后重试。"
+            crashReporter.captureNonFatal(error, context: ["routeCategory": "merge_confirm"])
+            crashReporter.addBreadcrumb(.mergeConfirmFailed, metadata: ["errorCode": (error as? SyncError)?.crashReportingCode ?? "unknown_error"])
         }
     }
 
@@ -614,6 +630,7 @@ final class GuestMergeController: ObservableObject {
         lastErrorMessage = nil
         clientUpgradeRequired = false
         rateLimitedRetryAfter = nil
+        crashReporter.addBreadcrumb(.rollbackStarted, metadata: [:])
         defer { isBusy = false }
 
         current.status = .rollbackPending
@@ -658,6 +675,7 @@ final class GuestMergeController: ObservableObject {
                 current.lastErrorCode = String(describing: outcome)
                 try await persistence.saveGuestMergeSession(current)
                 session = current
+                crashReporter.addBreadcrumb(.rollbackFailed, metadata: ["errorCode": String(describing: outcome)])
                 return
             }
             // `runOnce`'s `.completed` outcome only means the push/pull round
@@ -692,6 +710,7 @@ final class GuestMergeController: ObservableObject {
             current.updatedAt = Date()
             try await persistence.saveGuestMergeSession(current)
             session = current
+            crashReporter.addBreadcrumb(.rollbackCompleted, metadata: [:])
         } catch {
             if let syncError = error as? SyncError { noteSyncOutcomeForVersionAndRateLimitDisplay(syncError) }
             current.status = .completed
@@ -699,6 +718,8 @@ final class GuestMergeController: ObservableObject {
             try? await persistence.saveGuestMergeSession(current)
             session = current
             lastErrorMessage = (error as? SyncError).map(Self.userFacingSyncError) ?? "回滚失败，可稍后重试。"
+            crashReporter.captureNonFatal(error, context: ["routeCategory": "rollback"])
+            crashReporter.addBreadcrumb(.rollbackFailed, metadata: ["errorCode": (error as? SyncError)?.crashReportingCode ?? "unknown_error"])
         }
     }
 
@@ -725,6 +746,7 @@ final class GuestMergeController: ObservableObject {
         clientUpgradeRequired = false
         rateLimitedRetryAfter = nil
         lastSyncStartedAt = Date()
+        crashReporter.addBreadcrumb(.syncStarted, metadata: [:])
         defer { isSyncing = false }
 
         let scope = SyncScope(type: .household, id: householdId)
@@ -738,9 +760,13 @@ final class GuestMergeController: ObservableObject {
         if case .failed(let error) = outcome {
             lastSyncErrorMessage = Self.userFacingSyncError(error)
             noteSyncOutcomeForVersionAndRateLimitDisplay(error)
+            crashReporter.addBreadcrumb(.syncFailed, metadata: ["errorCode": error.crashReportingCode])
         } else if case .paused(let error) = outcome {
             lastSyncErrorMessage = Self.userFacingSyncError(error)
             noteSyncOutcomeForVersionAndRateLimitDisplay(error)
+            crashReporter.addBreadcrumb(.syncFailed, metadata: ["errorCode": error.crashReportingCode])
+        } else if outcome == .completed {
+            crashReporter.addBreadcrumb(.syncCompleted, metadata: [:])
         }
     }
 
@@ -762,8 +788,10 @@ final class GuestMergeController: ObservableObject {
         switch error {
         case .clientUpgradeRequired, .clientSchemaUnsupported:
             clientUpgradeRequired = true
+            crashReporter.addBreadcrumb(.syncUpgradeRequired, metadata: ["errorCode": "CLIENT_UPGRADE_REQUIRED"])
         case .rateLimited(let retryAfterSeconds):
             rateLimitedRetryAfter = Date().addingTimeInterval(retryAfterSeconds ?? 30)
+            crashReporter.addBreadcrumb(.syncRateLimited, metadata: ["errorCode": "SYNC_RATE_LIMITED"])
         default:
             break
         }

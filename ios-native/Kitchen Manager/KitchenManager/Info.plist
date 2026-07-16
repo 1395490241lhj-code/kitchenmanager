@@ -40,6 +40,14 @@
 	<string>$(INVENTORY_SYNC_DOGFOOD_ENABLED)</string>
 	<key>KM_INVENTORY_SYNC_DIAGNOSTICS_ENABLED</key>
 	<string>$(INVENTORY_SYNC_DIAGNOSTICS_ENABLED)</string>
+	<key>KM_CRASH_REPORTING_ENABLED</key>
+	<string>$(CRASH_REPORTING_ENABLED)</string>
+	<key>KM_CRASH_REPORTING_DSN</key>
+	<string>$(CRASH_REPORTING_DSN)</string>
+	<key>KM_CRASH_REPORTING_ENVIRONMENT</key>
+	<string>$(CRASH_REPORTING_ENVIRONMENT)</string>
+	<key>KM_CRASH_REPORTING_SAMPLE_RATE</key>
+	<string>$(CRASH_REPORTING_SAMPLE_RATE)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>

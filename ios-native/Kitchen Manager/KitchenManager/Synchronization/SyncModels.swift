@@ -297,3 +297,30 @@ nonisolated enum SyncError: LocalizedError, Equatable, Sendable {
         }
     }
 }
+
+// Phase 2C-2: a stable, non-localized code for crash-reporting breadcrumbs —
+// never the (Chinese, user-facing) `errorDescription` string, so reporting
+// never depends on presentation copy and never risks a future
+// interpolated/localized string carrying unexpected content.
+extension SyncError: CrashReportableError {
+    var crashReportingCode: String {
+        switch self {
+        case .disabled: "disabled"
+        case .notAuthenticated: "not_authenticated"
+        case .invalidConfiguration: "invalid_configuration"
+        case .transport: "transport"
+        case .unauthorized: "unauthorized"
+        case .forbidden: "forbidden"
+        case .payloadTooLarge: "payload_too_large"
+        case .conflict: "conflict"
+        case .backendUnavailable: "backend_unavailable"
+        case .invalidCursor: "invalid_cursor"
+        case .decoding: "decoding"
+        case .unsupportedEntity: "unsupported_entity"
+        case .persistence: "persistence"
+        case .clientUpgradeRequired: "client_upgrade_required"
+        case .clientSchemaUnsupported: "client_schema_unsupported"
+        case .rateLimited: "rate_limited"
+        }
+    }
+}

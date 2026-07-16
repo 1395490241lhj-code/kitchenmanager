@@ -17,3 +17,9 @@ GUEST_MERGE_SMOKE_ENABLED = NO
 // diagnostics screen, never automatic sync.
 INVENTORY_SYNC_DOGFOOD_ENABLED = NO
 INVENTORY_SYNC_DIAGNOSTICS_ENABLED = NO
+// Phase 2C-2: crash reporting abstraction only — see docs/CRASH_REPORTING.md.
+// Leave disabled/empty unless you have your own internal-only DSN.
+CRASH_REPORTING_ENABLED = NO
+CRASH_REPORTING_DSN =
+CRASH_REPORTING_ENVIRONMENT =
+CRASH_REPORTING_SAMPLE_RATE = 0
