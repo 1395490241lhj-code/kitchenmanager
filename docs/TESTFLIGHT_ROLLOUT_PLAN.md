@@ -97,6 +97,14 @@ imminent.
 None of the above is executed, simulated, or worked around by this phase —
 each requires the account holder's direct action.
 
+> **Phase 2D-2 update**: account deletion (an App Store Review Guideline
+> 5.1.1(v) requirement for External TestFlight/App Store) is now
+> implemented and locally validated — see
+> `docs/ACCOUNT_DELETION_DESIGN.md` and `docs/PHASE2D2_VALIDATION.md`.
+> Real reauthentication and hosted/production validation remain open;
+> Internal TestFlight is unaffected by either gap (see
+> `docs/APP_STORE_REVIEW_CHECKLIST.md` §3 item 2).
+
 ## 4. What "done" looks like for Internal TestFlight (not yet reached)
 
 Internal TestFlight can be considered actually live only once: the App

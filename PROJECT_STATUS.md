@@ -62,6 +62,13 @@ history, device-validation narratives, and bug investigations belong in
   `docs/TESTFLIGHT_ROLLOUT_PLAN.md`, `docs/PHASE2D1_VALIDATION.md`. A
   missing app icon remains a real, unresolved blocker for any real
   archive/upload.
+- Account deletion implemented and locally validated (Docker-based
+  Supabase): server-side identity deletion with household-ownership
+  transfer/resolution, business-data anonymization, and an iOS
+  Settings/Account/Delete Account flow. Real reauthentication (a
+  short-lived nonce fallback is used instead) and hosted/production
+  validation remain open. See `docs/ACCOUNT_DELETION_DESIGN.md`,
+  `docs/ACCOUNT_DATA_LIFECYCLE.md`, `docs/PHASE2D2_VALIDATION.md`.
 
 ## Remaining rollout conditions
 
@@ -87,6 +94,11 @@ history, device-validation narratives, and bug investigations belong in
 7. A consent/opt-out UI and privacy-label decision for crash reporting is
    not yet designed — deferred until a real provider is chosen, since the
    no-op provider sends nothing.
+8. Account deletion (App Store Guideline 5.1.1(v)) is implemented and
+   locally validated, but not hosted/production-validated, and uses a
+   short-lived-nonce fallback rather than real reauthentication — both
+   required before External TestFlight/App Store submission. See
+   `docs/ACCOUNT_DELETION_DESIGN.md` §11.
 
 ## Next recommended phase
 

@@ -74,6 +74,19 @@ is reproduced below.
 > Apple Developer/App Store Connect account-level prerequisites
 > (`docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3) are new, explicitly identified
 > blockers before Internal TestFlight can actually begin.
+>
+> **Phase 2D-2 update**: account deletion is now **implemented and
+> locally validated (Docker-based Supabase), not hosted/production
+> validated**. A new migration relaxes specific audit-column FKs to
+> `ON DELETE SET NULL`, adds an `account_deletion_requests` ledger, and
+> adds privileged SQL functions for preview/cleanup/ownership-transfer/
+> finalize; new Express routes and an iOS Settings/Account/Delete Account
+> flow call them. Real reauthentication is **not** implemented (a
+> short-lived nonce fallback is used instead); validation against the
+> real hosted development Supabase project was **not** performed (no
+> `SUPABASE_SERVICE_ROLE_KEY` configured in this environment) — see
+> `docs/ACCOUNT_DELETION_DESIGN.md` and `docs/PHASE2D2_VALIDATION.md`.
+> No production Supabase project was created or touched.
 
 ## Context
 

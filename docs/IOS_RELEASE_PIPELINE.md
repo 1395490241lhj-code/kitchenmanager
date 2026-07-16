@@ -1,4 +1,10 @@
-# iOS Release Pipeline (Phase 2D-1)
+# iOS Release Pipeline (Phase 2D-1, updated Phase 2D-2)
+
+> **Phase 2D-2 update**: account deletion (an App Store review
+> requirement) is now implemented and locally validated — see
+> `docs/ACCOUNT_DELETION_DESIGN.md`. This does not change anything in
+> this document's environment matrix, build configuration, versioning, or
+> CI design below.
 
 Status: **environment matrix and build-configuration policy designed;
 version/build-number tooling implemented and tested; CI workflow added

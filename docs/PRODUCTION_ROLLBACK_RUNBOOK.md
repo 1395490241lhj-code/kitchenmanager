@@ -40,6 +40,14 @@ with the specific procedures a real incident would require.
 > role in an actual rollback decision. No TestFlight build has ever been
 > uploaded, so no rollback has ever been needed or rehearsed.
 
+> **Phase 2D-2 update**: account deletion is additive (new routes, new
+> SQL functions, no changes to `apply_sync_mutation`/`pull_sync_changes`/
+> `get_sync_bootstrap`) — see `docs/ACCOUNT_DELETION_RUNBOOK.md` for the
+> feature-specific rollback steps (disable the new routes; the relaxed
+> foreign keys the new migration introduces are strictly safer than
+> before and don't need reverting even if the feature is disabled). No
+> rollback has been needed or rehearsed for this feature yet.
+
 ## Who approves a rollback
 
 A rollback decision (disabling a flag for a cohort, or halting a rollout

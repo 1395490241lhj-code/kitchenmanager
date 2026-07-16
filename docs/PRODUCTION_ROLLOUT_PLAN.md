@@ -50,6 +50,13 @@ server-toggleable flag, never automatic.
 > Nothing in this stage mechanism changes: Internal TestFlight is still
 > gated by the same `Local.xcconfig`/build-configuration flags, never a
 > server-toggleable rollout.
+>
+> **Phase 2D-2 update**: account deletion is now implemented and locally
+> validated (see `docs/ACCOUNT_DELETION_DESIGN.md`). This doesn't change
+> any stage's flag/cohort mechanics — deleting one's own account is an
+> authenticated user action available regardless of rollout stage, not a
+> rollout-gated feature itself. Real reauthentication and hosted/production
+> validation remain open (see `docs/PHASE2D2_VALIDATION.md`).
 
 ## Stage 0 — Baseline (current state)
 

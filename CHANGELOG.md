@@ -6,6 +6,29 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16 (Phase 2D-2: account deletion + data lifecycle safety)
+
+### Added
+
+- Added `supabase/migrations/20260716000100_account_deletion_lifecycle.sql`: relaxes `households`/business-table `created_by`/`updated_by` and `sync_changes.changed_by` foreign keys from `ON DELETE RESTRICT` to `ON DELETE SET NULL` (a profile could otherwise never be deleted while any row still attributed to it); adds an `account_deletion_requests` ledger table (RLS: select-own only, all writes through privileged functions) tracking a two-step saga status (`requested` → `business_data_cleaned` → `auth_deletion_pending`/`completed`); adds `get_account_deletion_preview`, `request_account_deletion`, `transfer_household_ownership`, `list_household_members_for_transfer` (user-JWT-callable), and `mark_account_deletion_finalized` (service_role-only).
+- Added `src/server/account/{deletion-repository,deletion-routes,deletion-sync-guard,errors}.js` and wired `POST /api/account/delete/{preview,confirm}`, `POST /api/account/{list-transfer-candidates,transfer-ownership}` into `server.js`, plus a dedicated rate limiter and a sync-freeze middleware (`accountDeletionGuard`, added to the existing `/api/sync/*` chain in `src/server/sync/routes.js` — the large existing `apply_sync_mutation`/`pull_sync_changes`/`get_sync_bootstrap` SQL functions were deliberately left untouched).
+- Added iOS `Authentication/AccountDeletion{Models,Service,Controller,View}.swift` — a real Settings/Account/Delete Account flow (preview, ownership-transfer blocker UI, typed "DELETE" confirmation, destructive-role button) wired into `AccountViews.swift`/`ContentView.swift`. Added `SyncPersistenceProtocol.clearAllSyncState()` to wipe sync bookkeeping (metadata/pending-mutations/cursors/guest-merge-sessions/enrollment) on a successful deletion, paired with the pre-existing `KitchenStore.clearAllLocalData()` and `AuthStore.signOut()`.
+- Added `docs/ACCOUNT_DELETION_DESIGN.md`, `docs/ACCOUNT_DATA_LIFECYCLE.md`, `docs/ACCOUNT_DELETION_RUNBOOK.md`, `docs/PHASE2D2_VALIDATION.md`.
+
+### Fixed
+
+- Found and fixed a real anonymization bug during development: the first draft rewrote live foreign-key columns to a shared placeholder UUID, which violated the FK constraint (no `profiles` row exists with that id — `ON DELETE SET NULL` only governs the referenced row's deletion, not a live non-null value). Fixed by using real SQL `NULL` for live columns, reserving the placeholder for the non-FK-constrained `sync_changes.record_data` JSONB snapshot only.
+- Found and fixed a second real bug: the anonymization `UPDATE`s on business tables fired existing user-mutation triggers (`_prepare_sync`/`_write_change`), which re-checked the calling JWT's own (already-removed) household membership and would have silently re-attributed the anonymized rows back to the actor. Fixed by temporarily disabling/re-enabling exactly those triggers around the anonymization statements.
+- Found and fixed a real, pre-existing gap in the shared iOS `APIErrorResponse` decoder: it assumed a flat error JSON shape, but this codebase's own `/api/me` and `/api/sync/*` routes return a nested `{error: {code, message}}` shape — meaning `payload?.code` silently came back `nil` for those endpoints too before this phase (never caught because every existing caller only branched on HTTP status). Fixed with a decoder that tries the nested shape first, falling back to the flat shape used by `version-gate.js`/`rate-limit.js`'s 426/429 responses.
+
+### Validated
+
+- Two independent local `supabase db reset` + `supabase test db` rounds: **131/131 pgTAP assertions pass** (96 pre-existing + 35 new in `supabase/tests/account_deletion_test.sql`), `supabase db diff` reports no schema changes, residue checks show 0 rows both rounds. Two `db lint` findings are confirmed static-analyzer false positives (one pre-existing from Phase 2C-4, one new — both verified false by actually running the code, not assumed).
+- Full saga exercised end-to-end against a local Docker-based Supabase instance with disposable test users (never the shared dev-project fixtures other phases' smoke scripts depend on): ownership blocker, ownership transfer, confirm-after-transfer with real anonymization verified, sole-owner household auto-deletion, idempotent duplicate confirm, in-progress/stale-preview rejections, service-role-only finalize gating, and a real `auth.users` deletion cascading cleanly with zero residue.
+- Node: 995/995 passing (974 baseline + 21 new), `npm audit` clean. iOS: 653 Unit tests (636 baseline + 17 new, `GuestMergeTests` 138/138 unchanged), UI tests unchanged (8/9), Debug/Release builds green, archive guard shows the same two pre-existing real findings (no app icon; workspace-not-clean during active development).
+- **Not validated**: the real hosted development Supabase project (no `SUPABASE_SERVICE_ROLE_KEY` configured in this environment) or any production project (none exists). Real reauthentication was not implemented — a short-lived, single-use nonce is used as the Stage-1 fallback instead, documented explicitly as not equivalent to real reauth.
+- No production Supabase project was created; no production backend was switched to; no real user account was used or deleted; production not enabled. All flags remain `NO`; nothing pushed.
+
 ## 2026-07-16 (Phase 2D-1: TestFlight / App Store release pipeline readiness)
 
 ### Fixed

@@ -63,10 +63,11 @@ questionnaire in App Store Connect, not from this document.
 > sync review is needed, a demo account will be provided at that time —
 > see "Demo account requirement" below.
 
-**Before this draft can actually be submitted**, the account-deletion gap
-in §"Account / data deletion" below must be resolved one way or the other
-— see `docs/APP_STORE_REVIEW_CHECKLIST.md` §3 item 2. This draft must not
-be sent to App Review while that gap remains unconfirmed and undisclosed.
+**Before this draft can actually be submitted**, the remaining
+account-deletion gaps in §"Account / data deletion" below (real
+reauthentication, hosted/production validation) must be resolved — see
+`docs/APP_STORE_REVIEW_CHECKLIST.md` §3 item 2. This draft must not be
+sent to App Review while those gaps remain unresolved and undisclosed.
 
 ## Demo account requirement
 
@@ -101,12 +102,16 @@ compliance for artwork that doesn't exist yet (see the app icon blocker in
 
 The app supports Guest mode with fully local data (deletable by the user
 uninstalling the app or clearing local data — no account involved). For
-signed-in users, an in-account or in-app data-deletion path is **not yet
-confirmed to exist** in the current codebase — this must be verified
-against the actual account/settings UI before claiming compliance with
-Apple's account-deletion requirement (App Store Review Guideline 5.1.1(v)).
-This is flagged as an open item for `docs/APP_STORE_REVIEW_CHECKLIST.md`,
-not resolved by this document.
+signed-in users, Settings/Account/Delete Account (Phase 2D-2) performs a
+real, immediate server-side identity deletion — see
+`docs/ACCOUNT_DELETION_DESIGN.md` for the full design and
+`docs/PHASE2D2_VALIDATION.md` for what's been validated so far. **Not yet
+resolved before submission**: real reauthentication (a short-lived nonce
+is used instead of password/OAuth reauth) and validation against the
+real hosted/production Supabase project (only local Docker-based Supabase
+has been exercised end-to-end). Both are tracked in
+`docs/APP_STORE_REVIEW_CHECKLIST.md` §3 item 2, not resolved by this
+document.
 
 ## App Privacy answers (draft — see also §"Privacy Manifest / App Privacy" in `docs/IOS_SIGNING_AND_ARCHIVE.md`)
 

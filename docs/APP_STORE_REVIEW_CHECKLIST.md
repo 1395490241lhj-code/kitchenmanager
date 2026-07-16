@@ -1,4 +1,4 @@
-# App Store Review Checklist (Phase 2D-1)
+# App Store Review Checklist (Phase 2D-1, updated Phase 2D-2)
 
 Status: **checklist and screenshot/device plan only — no screenshot has
 been captured, no App Store Connect record exists, nothing has been
@@ -81,10 +81,15 @@ inaccurate UI.
 - [ ] Export compliance answered.
 - [ ] Demo account provided **only if** App Review specifically requests
       sign-in/sync testing.
-- [ ] Account/data-deletion path confirmed to exist for signed-in users
-      (flagged open in `docs/APP_STORE_METADATA_TEMPLATE.md` — App Store
-      Review Guideline 5.1.1(v)); if it does not exist, this must be built
-      before submission, not glossed over.
+- [x] Account/data-deletion path implemented and locally validated
+      (Phase 2D-2 — see `docs/ACCOUNT_DELETION_DESIGN.md`,
+      `docs/PHASE2D2_VALIDATION.md`). Real reauthentication is **not**
+      implemented (a short-lived nonce fallback is used instead — see
+      `docs/ACCOUNT_DELETION_DESIGN.md` §9/§11) and validation against
+      the real hosted/production Supabase project has **not** been done —
+      both remain required before External TestFlight/App Store
+      submission (Guideline 5.1.1(v) requires the deletion to actually
+      work in the shipped, reviewed build, not just locally).
 - [ ] No debug menu, diagnostics screen, or dogfood/smoke flag reachable
       in the Release build (`scripts/ios-archive-guard.mjs` enforces the
       config-level part of this).
@@ -99,18 +104,19 @@ inaccurate UI.
 
 1. **Missing app icon** — an automatic rejection if submitted as-is; must
    be resolved with real, user-approved artwork before any real archive.
-2. **Account-deletion path unconfirmed** — if signed-in accounts exist
-   but there's no user-facing way to delete an account/data, this is a
-   real, specific rejection risk under Guideline 5.1.1(v) and should be
-   verified against the actual Settings/Account UI before submission.
-   **Until this is confirmed one way or the other, neither External
-   TestFlight nor App Store submission should begin** — a
-   sign-out/local-data-clear action must never be described or documented
-   as "account deletion"; only an actual server-side account/data removal
-   counts. Internal TestFlight is not blocked by this (it isn't reviewed
-   under the same guideline and stays within the known internal cohort),
-   but any future Review Notes submitted to Apple must disclose this gap
-   honestly rather than omit it.
+2. **Account-deletion path implemented, not fully production-ready** —
+   Settings/Account/Delete Account now exists and performs a real
+   server-side identity deletion (Phase 2D-2), distinct from sign-out or
+   local-data-clear. Remaining before External TestFlight/App Store
+   submission: real reauthentication (a nonce fallback is used today, not
+   password/OAuth reauth — see `docs/ACCOUNT_DELETION_DESIGN.md` §9),
+   and validation against the real hosted/production Supabase project
+   (only local Docker-based Supabase has been exercised — see
+   `docs/PHASE2D2_VALIDATION.md`). Internal TestFlight is not blocked by
+   either gap (Internal Testing isn't reviewed under Guideline 5.1.1(v)
+   and stays within the known internal cohort), but any future Review
+   Notes submitted to Apple must disclose both gaps honestly rather than
+   omit them.
 3. **Shared dev backend for Internal TestFlight** — not an App Review
    risk per se (Internal Testing isn't reviewed the same way), but a
    sync-related bug in a shared dev environment could surface as tester
