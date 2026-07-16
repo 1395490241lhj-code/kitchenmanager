@@ -84,6 +84,10 @@ Prefer focused changes with explicit tests. Do not combine a behavior fix, archi
 - one project today, serving both dev and (nominal) production; a separate
   production project is decided but not yet provisioned — see
   `PROJECT_STATUS.md` and `docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md`
+- migrations are both locally replayable (Docker/`supabase db reset`) and
+  remote-parity-checked against the dev project; local pgTAP passing does
+  not by itself mean a production database has ever been validated — see
+  `docs/LOCAL_SUPABASE_VALIDATION.md`
 
 ## 4. Core user journeys to protect
 

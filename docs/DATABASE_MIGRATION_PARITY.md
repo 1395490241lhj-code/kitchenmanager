@@ -1,8 +1,18 @@
-# Database Migration Parity (Phase 2C-3)
+# Database Migration Parity (Phase 2C-3 / 2C-4)
 
-Status: **migrations validated against the development project (read-only);
-not applied to any production project (none exists); local pgTAP execution
-remains BLOCKED (no Docker/local Postgres available in this environment).**
+Status: **migrations validated against the development project (read-only)
+and, as of Phase 2C-4, locally replayed from empty (2 independent rounds,
+both PASS) with a clean local schema diff; not applied to any production
+project (none exists).**
+
+> **Phase 2C-4 update**: the local-pgTAP/local-replay BLOCKED status below
+> is resolved for local execution — Docker (via Colima) became available,
+> `supabase db reset` and `supabase test db` both now run and pass. See
+> `docs/LOCAL_SUPABASE_VALIDATION.md` and `docs/PHASE2C4_VALIDATION.md` for
+> full results, including two test-file bugs found and fixed (never a
+> schema/RLS/RPC defect) and a Colima-specific `[analytics] enabled = false`
+> config.toml addition. The historical §3 text below is retained for the
+> record of what was true as of Phase 2C-3.
 
 ## 1. Migration inventory (redacted — no project ref/URL/key below)
 
@@ -57,9 +67,17 @@ half-applied schema.
 
 ## 3. Local replay / shadow-database validation
 
-**BLOCKED** — this environment has no Docker daemon and no local Postgres.
-Attempted this phase and captured the real failure, rather than assuming or
-faking a result:
+> **Resolved in Phase 2C-4**: Docker (via Colima) is now available on this
+> machine. `npx supabase db reset` (local replay from empty) and
+> `npx supabase db diff` (local schema vs. migration-defined schema, no
+> `--linked`) both ran successfully — 2 independent rounds, both clean, "No
+> schema changes found". See `docs/LOCAL_SUPABASE_VALIDATION.md` for full
+> results. The text immediately below describes the Phase 2C-3 BLOCKED
+> state and is retained for the historical record.
+
+**BLOCKED as of Phase 2C-3** — that environment had no Docker daemon and no
+local Postgres. Attempted that phase and captured the real failure, rather
+than assuming or faking a result:
 
 ```
 $ npx supabase test db
@@ -82,7 +100,7 @@ instead and are real, executed evidence:
 
 - `npx supabase migration list` (see §2 item 3) — read-only, remote API
   only.
-- `npx supabase db query --linked --file supabase/tests/auth_household_remote_verify.sql`
+- `npx supabase db query --linked --file supabase/remote-verify/auth_household_remote_verify.sql`
   and the equivalent `sync_business_remote_verify.sql` — read-only SQL
   assertions executed directly against the real dev database (see
   `docs/RLS_SECURITY_VERIFICATION.md` for results).
@@ -99,8 +117,8 @@ an open item, not silently skipped.
 
 ## 4. Remote dev parity (read-only, executed this phase)
 
-Both `supabase/tests/auth_household_remote_verify.sql` and
-`supabase/tests/sync_business_remote_verify.sql` were executed against the
+Both `supabase/remote-verify/auth_household_remote_verify.sql` and
+`supabase/remote-verify/sync_business_remote_verify.sql` were executed against the
 real development project via `supabase db query --linked` and returned
 their success markers with no exception raised:
 

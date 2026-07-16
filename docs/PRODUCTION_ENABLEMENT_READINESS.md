@@ -39,6 +39,20 @@ is reproduced below.
 > provider/alert provider configuration, a TestFlight/App Store pipeline,
 > and a shared/multi-instance rate limiter before GA. See
 > `docs/PHASE2C3_VALIDATION.md`.
+>
+> **Phase 2C-4 update**: the local pgTAP/local-replay BLOCKED status above
+> is now **resolved** — Docker (via Colima) became available on this
+> machine. Local migration replay from empty and local pgTAP execution both
+> ran, 2 independent rounds each, both fully clean: **96/96 pgTAP
+> assertions pass, 0 failed**, and a local schema diff reports zero drift.
+> Two test-file bugs (never a schema/RLS/RPC defect) were found and fixed
+> along the way. No production project was created, no production migration
+> was applied, and the development project was touched read-only only. See
+> `docs/LOCAL_SUPABASE_VALIDATION.md` and `docs/PHASE2C4_VALIDATION.md`.
+> Three items remain unchanged: a real crash/alert provider configuration,
+> a TestFlight/App Store pipeline, and a shared/multi-instance rate limiter
+> before GA — plus the still-open production Supabase project decision's
+> *provisioning* step (the decision itself was made in Phase 2C-3).
 
 ## Context
 
@@ -86,9 +100,9 @@ itself to be correct. It is not.
 | Mutation ledger | ✅ met | `sync_mutations` — used directly and repeatedly this round as the ground-truth evidence source for Rollback validation; confirmed idempotency ledger (mutationId+userId primary key), status transitions (`applied`/`conflict`/`rejected`/`duplicate`) all behave as documented. |
 | Rollback metadata | ✅ met | `rollbackAvailableUntil`, `createdEntityIds` — both exercised and their edge cases (window expiry, session recovery) understood and fixed this round. |
 | Tombstone | ✅ met | Soft-delete only (`deleted_at`), never a physical delete, confirmed via the trigger logic (`private.write_household_sync_change`) and directly observed in the raw change feed this round. |
-| pgTAP / migration re-verification | ⚠️ **Remote parity re-verified; local pgTAP still blocked (Phase 2C-3)** | `npx supabase migration list` confirms local==remote for both migrations, zero drift. Both `*_remote_verify.sql` read-only checks pass against the real dev project. A new `sync_business_rls_test.sql` pgTAP file (30 assertions) was written this phase, adding the sync/business behavioral RLS coverage the auth-side test already had — but Docker-based local pgTAP execution has never been executed for any migration in any phase to date (Docker unavailable in every environment this project has run in so far; real CLI errors captured this phase, not assumed). This remains an **open evidence gap** for the *local pgTAP execution* specifically — remote schema/RLS shape and real behavioral A/B isolation are otherwise now re-confirmed. See `docs/DATABASE_MIGRATION_PARITY.md` and `docs/RLS_SECURITY_VERIFICATION.md`.
+| pgTAP / migration re-verification | ✅ **Local pgTAP executed and passing (Phase 2C-4)** | `npx supabase migration list` confirms local==remote for both migrations, zero drift. Both `*_remote_verify.sql` read-only checks pass against the real dev project. Local Docker-based pgTAP execution — the long-standing gap since Phase 0.5 — is now closed: all 4 pgTAP files (96 assertions total) pass, 2 independent rounds, identical results, on a local Colima-backed Postgres. Two test-file bugs (never a schema/RLS/RPC defect) were found and fixed. Local schema diff also confirms zero drift between the migration files and the applied schema. See `docs/LOCAL_SUPABASE_VALIDATION.md` and `docs/PHASE2C4_VALIDATION.md`.
 
-**Because Docker-based local pgTAP execution for the sync-foundation migration remains undone, Production Go Candidate status must stay conditional on this point** — it is not a newly discovered defect, but it is a real, unresolved verification gap that should be closed (or explicitly risk-accepted by a human decision-maker) before a broad rollout, per the user's own instruction for this review. Remote-verified schema/RLS shape and real A/B-isolation smoke evidence (Phase 2C-3) substantially narrow this gap without closing it.
+**Local Docker-based pgTAP execution and local migration replay are now closed** — this specific evidence gap, open since Phase 0.5, is resolved. What remains open is unrelated to this gap: no production Supabase project exists yet (§ below), so this local/dev-only validation cannot yet be repeated against a production database.
 
 ## 3. Client/version compatibility
 
@@ -121,7 +135,7 @@ This means "staged production enablement" in this codebase can only mean **stage
 | App Store build | ❌ Does not exist — no signed distribution build has ever been produced. |
 | TestFlight canary | ❌ Does not exist — no App Store Connect app record, no TestFlight group. |
 | Backend deploy | ⚠️ Managed outside this repo (Render dashboard) — no in-repo deploy verification step. |
-| Migration verification | ⚠️ Remote parity for both migrations re-confirmed (Phase 2C-3); local Docker-based pgTAP still never run — see §2 and `docs/DATABASE_MIGRATION_PARITY.md`. |
+| Migration verification | ✅ Remote parity re-confirmed (Phase 2C-3) and local Docker-based pgTAP now executed and passing, 2 rounds (Phase 2C-4) — see §2 and `docs/DATABASE_MIGRATION_PARITY.md`. |
 | Smoke tests | ✅ exists and passes — `npm run smoke:sync`, hosted `HostedGuestMergeSmokeTests`, full offline `GuestMergeTests` suite (127/127 as of Phase 2B-9B). |
 | Rollback rehearsal | ⚠️ Documented (`docs/PRODUCTION_ROLLBACK_RUNBOOK.md`), drills A–F automated-test-verified, but never rehearsed against a real deployed cohort (none exists). |
 | Incident owner | ❌ Not designated — no on-call rotation or named owner exists for this project. |
@@ -141,12 +155,12 @@ sideloaded, developer-supervised cohorts.
 
 Not A: real, concrete operational gaps exist (no separate production Supabase
 project — though the topology decision itself is now made, see Phase 2C-3 —
-no App Store/TestFlight pipeline, local Docker-based pgTAP execution still
-never run (remote parity is now re-confirmed), no shared/multi-instance
-rate-limit store, and — while crash-reporting/monitoring/rate-limiting/
-min-version-enforcement/topology-decision are all now *implemented or
-decided* — none of them is production-configured, and no real
-crash-reporting SDK or alert provider is wired up yet). None of these are
+no App Store/TestFlight pipeline, no shared/multi-instance rate-limit store,
+and — while crash-reporting/monitoring/rate-limiting/min-version-enforcement/
+topology-decision/local-pgTAP-execution are all now *implemented, decided,
+or executed* — none of the production-facing pieces is production-
+configured, and no real crash-reporting SDK or alert provider is wired up
+yet). None of these are
 correctness defects in the feature itself — Rollback, Conflict UI, and the
 remote-preview blocker are all genuinely fixed and physical-device-verified
 — but enabling any flag for real, uncontrolled production users today would
@@ -187,11 +201,14 @@ further progress.
    SDK/DSN is **not yet integrated**; a manual crash-log-pull process is
    still what exists in practice until that integration happens. See
    `docs/CRASH_REPORTING.md`.
-5. ~~pgTAP or an equivalent remote-parity re-verification.~~ **Remote parity
-   done (Phase 2C-3)** — migration history, schema/RLS/RPC shape, and real
-   A/B behavioral isolation all re-confirmed against the dev project. Local
-   Docker-based pgTAP execution specifically remains undone (environment
-   limitation, not a code gap) — see `docs/DATABASE_MIGRATION_PARITY.md`.
+5. ~~pgTAP or an equivalent remote-parity re-verification.~~ **Done (Phase
+   2C-3 remote parity; Phase 2C-4 local pgTAP execution)** — migration
+   history, schema/RLS/RPC shape, and real A/B behavioral isolation all
+   re-confirmed against the dev project (2C-3); local Docker-based pgTAP
+   execution, the remaining piece of this condition, is now closed too —
+   96/96 assertions pass, 2 independent rounds, local schema diff clean
+   (2C-4). See `docs/DATABASE_MIGRATION_PARITY.md` and
+   `docs/LOCAL_SUPABASE_VALIDATION.md`.
 
 ### Conditions before Stage 3+ (broader dogfood / GA)
 

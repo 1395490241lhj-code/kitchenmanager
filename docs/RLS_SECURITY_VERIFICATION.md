@@ -1,10 +1,17 @@
-# RLS Security Verification (Phase 2C-3)
+# RLS Security Verification (Phase 2C-3 / 2C-4)
 
 Status: **RLS behaviorally validated against the development project via
-authenticated application-layer smoke tests; a new local pgTAP behavioral
-test file exists but is unexecuted (Docker unavailable — see
-`docs/DATABASE_MIGRATION_PARITY.md`); RLS has not been validated against any
-production project (none exists).**
+authenticated application-layer smoke tests, and — as of Phase 2C-4 —
+locally pgTAP-executed (2 rounds, 96/96 assertions passed, 0 failed). RLS
+has not been validated against any production project (none exists).**
+
+> **Phase 2C-4 update**: the pgTAP behavioral test described in §4 below has
+> now actually been executed (twice, identically) against a local Docker/
+> Colima-backed Postgres — not just written. Two bugs in the test itself
+> (never in schema/RLS/RPC) were found and fixed to get a clean run. See
+> `docs/LOCAL_SUPABASE_VALIDATION.md` and `docs/PHASE2C4_VALIDATION.md` for
+> full results. §4's original "written, not executed" framing below
+> describes the Phase 2C-3 state and is retained for the historical record.
 
 ## 1. Why this document separates roles carefully
 
@@ -92,7 +99,16 @@ suite already covers offline (`src/server/auth/jwt.js`'s own extensive
 signature/issuer/audience/algorithm tests), and a live household-switch
 mid-session scenario.
 
-## 4. New pgTAP behavioral test (written, execution BLOCKED)
+## 4. pgTAP behavioral test — now executed (Phase 2C-4)
+
+> Executed, Phase 2C-4: 30/30 assertions pass, 2 independent rounds,
+> identical results. Two bugs in the test file itself were found and fixed
+> (camelCase-vs-snake_case JSON keys against `apply_sync_mutation`'s
+> column-name contract, and a `WITH`-clause-containing-a-data-modifying-
+> statement Postgres syntax error) — neither was a schema/RLS/RPC defect.
+> See `docs/LOCAL_SUPABASE_VALIDATION.md` §6 and
+> `docs/PHASE2C4_VALIDATION.md`. The paragraph below describes the file as
+> originally written in Phase 2C-3, before execution was possible.
 
 `supabase/tests/sync_business_rls_test.sql` (new this phase, 30 assertions)
 adds direct-SQL, Docker-local coverage of the same invariants as defense in

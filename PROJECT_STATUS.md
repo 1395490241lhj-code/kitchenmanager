@@ -48,6 +48,9 @@ history, device-validation narratives, and bug investigations belong in
   project created). Migration history and schema/RLS/RPC shape re-verified
   read-only against the development project; environment-misconnection
   safety guards added on both iOS and backend.
+- Local Docker-based migration replay and pgTAP execution now pass (2
+  independent rounds, 96/96 assertions, zero schema drift) — closes a
+  verification gap open since Phase 0.5. No production project involved.
 
 ## Remaining rollout conditions
 
@@ -59,9 +62,9 @@ history, device-validation narratives, and bug investigations belong in
 3. No production Supabase project exists yet — the topology decision is
    made (separate dev+prod recommended), but provisioning it requires
    explicit future approval and must happen before Stage 2.
-4. Local Docker-based pgTAP execution remains undone (environment
-   limitation — no Docker available). Remote schema/RLS parity and real
-   A/B behavioral isolation are otherwise re-confirmed against dev.
+4. ~~Local Docker-based pgTAP execution~~ — done; all pgTAP passes locally
+   and against dev-project read-only checks. Remaining: nothing local left
+   to close for this item.
 5. No TestFlight/App Store Connect distribution pipeline exists.
 6. The sync rate limiter needs a shared/multi-instance store (Redis/Upstash
    or equivalent) before GA — today's in-memory store is Stage-1-only.
@@ -72,10 +75,10 @@ history, device-validation narratives, and bug investigations belong in
 ## Next recommended phase
 
 Provision the separate production Supabase project (topology already
-decided) and close the local Docker-based pgTAP execution gap — both are
-prerequisites, independent of further engineering work, before any real
-crash-reporting SDK or shared rate-limit store is worth configuring. Only
-after those, build the TestFlight pipeline and wire a real
+decided; local migration/pgTAP validation now proven repeatable) — this is
+the remaining prerequisite, independent of further engineering work, before
+any real crash-reporting SDK or shared rate-limit store is worth
+configuring. Only after that, build the TestFlight pipeline and wire a real
 crash-reporting/alerting provider. Feature expansion to additional
 synchronized entities should not jump ahead of this operational readiness
 work.

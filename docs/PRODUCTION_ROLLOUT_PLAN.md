@@ -32,6 +32,14 @@ server-toggleable flag, never automatic.
 > only an eventual App Store build should ever target the separate
 > production project.
 
+> **Phase 2C-4 update**: local Docker-based migration replay and pgTAP
+> execution — previously blocked in every environment this project had run
+> in — now succeed (2 independent rounds, 96/96 pgTAP assertions, zero
+> schema drift) via Colima. This closes a verification gap but does not
+> change any stage's flag/cohort mechanics below; it strengthens confidence
+> for the eventual production-project migration replay once that project
+> is provisioned. See `docs/LOCAL_SUPABASE_VALIDATION.md`.
+
 ## Stage 0 — Baseline (current state)
 
 - **Flags**: all `NO` (`INVENTORY_SYNC_ENABLED`, `INVENTORY_MERGE_UI_ENABLED`,

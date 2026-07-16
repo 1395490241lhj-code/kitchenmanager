@@ -6,6 +6,18 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16 (Phase 2C-4: local Supabase migration replay + pgTAP execution)
+
+### Fixed
+
+- Fixed two real bugs found only because local pgTAP could finally run (Docker/Colima now available on this machine, closing a gap open since Phase 0.5): `supabase/tests/auth_household_rls_test.sql` (pre-existing) had a Postgres syntax defect — a data-modifying `WITH` embedded as a subquery expression inside `is(...)`'s argument, which Postgres rejects ("WITH clause containing a data-modifying statement must be at the top level"); fixed by running the UPDATE as its own statement and capturing the affected-row count via `GET DIAGNOSTICS`. `supabase/tests/sync_business_rls_test.sql` (written in Phase 2C-3) called `apply_sync_mutation` with camelCase JSON keys (`normalizedName`, `recipeId`) instead of the RPC's actual snake_case column-name contract (`normalized_name`, `recipe_id`), plus the same WITH-clause defect in one assertion — fixed both. Neither bug was a schema/RLS/RPC defect; the real client→Express→RPC path already worked correctly, confirmed by the pre-existing `sync-smoke.mjs`. No new migration was needed.
+- Fixed a tooling/organization issue: `auth_household_remote_verify.sql`/`sync_business_remote_verify.sql` are plain `DO $$ RAISE EXCEPTION $$` scripts for `--linked` read-only checks, not pgTAP files, but lived in the pgTAP-scanned `supabase/tests/` directory, causing `supabase test db` to misreport them as failing ("No plan found"). Moved both to a new `supabase/remote-verify/` directory; updated the two `package.json` scripts and one Node test referencing their paths.
+- Added `[analytics] enabled = false` to `supabase/config.toml` — a Colima-specific limitation (the `vector`/`logflare` containers' Docker-socket bind-mount is incompatible with Colima's VM filesystem) prevented `supabase start` from succeeding at all; analytics/log-routing has no bearing on migration/pgTAP/RLS validation. Local-dev CLI config only, never a remote/production setting.
+
+### Validated
+
+- Ran local migration replay (`supabase db reset`, from empty) and local pgTAP execution (`supabase test db`) for the first time in this repository's history, in 2 fully independent rounds (fresh reset each time): both rounds identical — migrations apply cleanly in order, and **96/96 pgTAP assertions pass, 0 failed, 0 skipped**, across all 4 pgTAP files (12 + 10 + 44 + 30). `supabase db diff` (local schema vs. migration-defined schema) reports "No schema changes found" both times — zero drift. `supabase db lint` reports one finding, assessed as a static-analyzer false positive (can't correlate `table_name` with `scope_kind` in `apply_sync_mutation`'s dynamic SQL — confirmed correct at runtime by 96/96 pgTAP pass and pre-existing hosted smoke evidence), not treated as a defect. Residue check after both rounds: zero rows in every checked table. Read-only remote re-check (migration list + both remote-verify scripts) reconfirmed unchanged parity against the real development project; nothing was written to it. Full regression: Node 948/948, iOS Unit 635 unique cases/0 failed (`GuestMergeTests` 138/138, `APIEnvironmentTests` 10/10), iOS UI 8/8, Debug/Release clean builds, `npm audit --omit=dev --audit-level=high` clean. See `docs/LOCAL_SUPABASE_VALIDATION.md` and `docs/PHASE2C4_VALIDATION.md`. No production Supabase project was created; no production migration was applied; production not enabled. All flags remain `NO`; nothing pushed.
+
 ## 2026-07-16 (Phase 2C-3: production Supabase topology decision + migration/RLS remote-parity re-verification)
 
 ### Decided

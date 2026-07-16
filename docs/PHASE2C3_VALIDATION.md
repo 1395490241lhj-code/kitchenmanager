@@ -65,7 +65,7 @@ Cannot connect to the Docker daemon at unix:///var/run/docker.sock.
 
 ## 6. Remote dev parity (read-only, executed)
 
-`npx supabase db query --linked --file supabase/tests/auth_household_remote_verify.sql`
+`npx supabase db query --linked --file supabase/remote-verify/auth_household_remote_verify.sql`
 and the equivalent `sync_business_remote_verify.sql` both executed cleanly
 against the real dev project with no exception raised:
 
