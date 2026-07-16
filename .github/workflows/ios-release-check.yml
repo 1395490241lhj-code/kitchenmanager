@@ -1,0 +1,98 @@
+name: iOS release pipeline validation
+
+# Scope for this workflow, deliberately narrow (Phase 2D-1):
+#   - Pure Node checks run on every push/PR that touches iOS release files.
+#   - A manual, macOS-runner job builds/archives the app WITHOUT signing
+#     and WITHOUT uploading anywhere, to verify the pipeline stays green.
+# This workflow never uploads to TestFlight/App Store Connect and never
+# requires any Apple Developer secret. There is no automatic-upload job.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "ios-native/**"
+      - "scripts/ios-release-support.mjs"
+      - "scripts/validate-ios-release.mjs"
+      - "scripts/bump-ios-build.mjs"
+      - "scripts/ios-archive-guard.mjs"
+      - "test/phase2d1-ios-release-*.test.mjs"
+      - ".github/workflows/ios-release-check.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "ios-native/**"
+      - "scripts/ios-release-support.mjs"
+      - "scripts/validate-ios-release.mjs"
+      - "scripts/bump-ios-build.mjs"
+      - "scripts/ios-archive-guard.mjs"
+      - "test/phase2d1-ios-release-*.test.mjs"
+      - ".github/workflows/ios-release-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Pure Node checks: no macOS runner needed, no secrets, cheap on every push/PR.
+  release-config-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate iOS version/build number
+        run: npm run ios:release:check
+      - name: Run pre-archive safety guard
+        run: npm run ios:archive:guard
+      - name: Run Phase 2D-1 release-tooling tests
+        run: node --test test/phase2d1-ios-release-support.test.mjs test/phase2d1-ios-release-scripts.test.mjs
+
+  # Manual-only: builds and produces an UNSIGNED archive structure to prove
+  # the pipeline still works end-to-end. Never signs, never uploads, needs
+  # no Apple secret. Triggered by workflow_dispatch only, not on every push,
+  # since it requires a macOS runner.
+  unsigned-archive-validation:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: "ios-native/Kitchen Manager"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: List schemes (confirms the shared scheme resolves on a fresh checkout)
+        run: xcodebuild -list -project "Kitchen Manager.xcodeproj"
+      - name: Debug build (iOS Simulator destination)
+        run: |
+          xcodebuild build \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator"
+      - name: Release build (iOS Simulator destination)
+        run: |
+          xcodebuild build \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -configuration Release \
+            -destination "generic/platform=iOS Simulator"
+      - name: Unsigned Release archive (Generic iOS Device, no signing, no upload)
+        run: |
+          xcodebuild archive \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/KitchenManager-unsigned.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Inspect archive Info.plist (structure only, no upload)
+        run: |
+          /usr/libexec/PlistBuddy -c "Print" \
+            "$RUNNER_TEMP/KitchenManager-unsigned.xcarchive/Info.plist"
