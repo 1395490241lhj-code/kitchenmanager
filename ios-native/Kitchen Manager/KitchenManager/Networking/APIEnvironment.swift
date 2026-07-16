@@ -46,13 +46,36 @@ nonisolated enum APIEnvironment: Sendable, Equatable {
     /// shipped build. When a genuinely separate production host exists
     /// (see docs/SUPABASE_ENVIRONMENT_TOPOLOGY.md), extend this to also
     /// reject a Release build whose host isn't the known production host.
+    ///
+    /// Known, accepted asymmetry: this does **not** reject a Debug build
+    /// pointed at a hypothetical "production" host, because `.production`
+    /// and `.development` deliberately resolve to the identical real host
+    /// today (see the type's own doc comment) — rejecting "production" in
+    /// Debug would also reject the only real backend Debug builds use.
+    /// There is also no override mechanism of any kind in this type today
+    /// (no env var, no launch argument), so there is nothing for a Release
+    /// build to leak from — once a genuinely separate production host and
+    /// an override mechanism both exist, this guard must be revisited to
+    /// also gate that direction.
     var isSafeForCurrentBuildConfiguration: Bool {
-        let host = baseURL.host ?? ""
-        let isLoopback = host == "127.0.0.1" || host == "localhost"
         #if DEBUG
         return true
         #else
-        return !isLoopback
+        return !Self.isLoopbackHost(baseURL.host ?? "")
         #endif
+    }
+
+    /// Extracted as a standalone, directly-testable pure function — normalizes
+    /// case and a trailing root-DNS dot ("LOCALHOST.", "localhost.") before
+    /// comparing against the known loopback host set, so neither bypasses the
+    /// guard. `isSafeForCurrentBuildConfiguration` cannot be exercised with a
+    /// synthetic host directly (both enum cases share one hardcoded real
+    /// host), so tests call this function with arbitrary strings instead.
+    static func isLoopbackHost(_ host: String) -> Bool {
+        let normalized = host
+            .lowercased()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        let loopbackHosts: Set<String> = ["127.0.0.1", "localhost", "::1", "0.0.0.0"]
+        return loopbackHosts.contains(normalized)
     }
 }

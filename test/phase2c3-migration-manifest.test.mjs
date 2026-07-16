@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -81,4 +82,25 @@ test('migration manifest: an unreadable directory fails closed with a descriptiv
   const result = loadMigrationManifest(path.join(ROOT, 'supabase', 'migrations-that-do-not-exist'));
   assert.equal(result.valid, false);
   assert.ok(result.errors[0].includes('cannot read migrations directory'));
+});
+
+// ── 4. loadMigrationManifest must not depend on filesystem enumeration order ──
+
+test('migration manifest: loadMigrationManifest is valid regardless of the order files were written to disk', () => {
+  // fs.readdirSync's enumeration order is filesystem/OS-dependent and not
+  // guaranteed to match creation or lexicographic order. Writing the newer
+  // migration first (so a naive implementation trusting raw readdirSync
+  // order would see it "out of order") must still validate cleanly, since
+  // loadMigrationManifest sorts before checking.
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'km-migration-manifest-test-'));
+  try {
+    fs.writeFileSync(path.join(tempDir, '20260713000200_sync_business_foundation.sql'), '-- second\n');
+    fs.writeFileSync(path.join(tempDir, '20260713000100_auth_household_foundation.sql'), '-- first\n');
+    const result = loadMigrationManifest(tempDir);
+    assert.equal(result.valid, true, JSON.stringify(result.errors));
+    assert.equal(result.entries[0].version, '20260713000100');
+    assert.equal(result.entries[1].version, '20260713000200');
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });

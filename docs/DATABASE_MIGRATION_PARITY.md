@@ -34,8 +34,11 @@ half-applied schema.
    no separate checksum store exists in this repository beyond
    `supabase migration list`'s own local/remote timestamp comparison, which
    matched exactly).
-6. **No checksum/timestamp drift**: `supabase migration list`'s local and
-   remote timestamps for both migrations are identical.
+6. **No applied-timestamp drift**: `supabase migration list`'s local and
+   remote timestamps for both migrations are identical. This is a
+   version/timestamp-history comparison only — no content-level schema
+   checksum/diff was computed (that would require `supabase db diff`,
+   which is blocked; see §3).
 7. **No temporary SQL files**: `supabase/.temp/` is gitignored and contains
    only Supabase CLI's own local link-state files (project ref, pooler URL,
    CLI/Postgres/GoTrue version markers) — no ad hoc SQL dumps.

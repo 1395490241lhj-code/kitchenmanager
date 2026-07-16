@@ -82,7 +82,7 @@ against the real dev project with no exception raised:
   `sync_business_objects_test.sql` (44 assertions, object/RLS/privilege
   shape) — all written and previously documented; **not re-executed this
   phase** (same Docker-unavailable blocker).
-- New this phase: `sync_business_rls_test.sql` (27 assertions) — behavioral
+- New this phase: `sync_business_rls_test.sql` (30 assertions) — behavioral
   RLS/idempotency/conflict/tombstone/change-feed/rollback coverage for the
   sync business schema, the one gap the auth-side test didn't cover. See
   `docs/RLS_SECURITY_VERIFICATION.md` §4 for exactly what it checks.
@@ -137,21 +137,53 @@ this phase's fresh, real execution of two of them (§9).
 
 ## 12. Node tests
 
-New: `test/phase2c3-migration-manifest.test.mjs` (8 tests — manifest
+New: `test/phase2c3-migration-manifest.test.mjs` (9 tests — manifest
 ordering, duplicate-version rejection, malformed-filename rejection,
 filename pattern shape, the real repository manifest's current validity, an
-unreadable-directory failure mode). Full suite: **947/947 passed** (up from
-the Phase 2C-2 baseline of 939).
+unreadable-directory failure mode, and — added during final review — a
+regression test proving `loadMigrationManifest` doesn't depend on
+filesystem enumeration order). Full suite: **948/948 passed** (up from the
+Phase 2C-2 baseline of 939).
 
 ## 13. iOS tests
 
-New: `APIEnvironmentTests.swift` (5 tests — Debug resolves to development,
+New: `APIEnvironmentTests.swift` (10 tests — Debug resolves to development,
 safe non-secret label, Debug-always-safe, both cases share one HTTPS host
-today, neither resolves to loopback today). Full iOS Unit suite: **625/625
-passed** (up from the Phase 2C-2 baseline of 621; `GuestMergeTests` alone:
-**138/138**, unchanged — no regression). iOS UI suite: **8/8 passed**
-(unchanged — no new UI tests were needed this phase). Debug and Release
-clean builds: **0 errors**.
+today, neither resolves to loopback today, and — added during final review
+— 5 tests for `isLoopbackHost`'s case/trailing-dot/IPv6/`.local` edge
+cases). Full iOS Unit suite: **631/631 passed** (up from the Phase 2C-2
+baseline of 621; `GuestMergeTests` alone: **138/138**, unchanged — no
+regression). iOS UI suite: **8/8 passed** (unchanged — no new UI tests were
+needed this phase). Debug and Release clean builds: **0 errors**.
+
+## 13b. Findings from a final pre-push review pass
+
+A review pass before push found three real issues (test-quality and one
+implementation gap), all fixed and re-verified this same round — the counts
+in §12/§13 above already include the fixes.
+
+- **`isSafeForCurrentBuildConfiguration`'s loopback check had real bypasses**:
+  case-sensitivity ("LOCALHOST"), a trailing root-DNS dot ("localhost."),
+  and IPv6 loopback ("::1") were not covered. Fixed by extracting a
+  standalone, normalized, directly-testable `APIEnvironment.isLoopbackHost(_:)`
+  function; added 5 tests covering exactly these cases.
+- **`loadMigrationManifest`'s "already in order" check depended on
+  `fs.readdirSync`'s incidental, OS-dependent enumeration order**, which is
+  not a meaningful signal and could have produced a false failure on a
+  different filesystem/CI runner even with nothing actually wrong. Fixed by
+  sorting filenames before validating; added a regression test that writes
+  migration files to a temp directory in reverse order and confirms the
+  loader still reports them valid.
+- **The original `sync_business_rls_test.sql`'s final assertion (household
+  membership removal) never actually added a second household member
+  before "removing" one** — the delete matched zero rows, so the assertion
+  was vacuously true and didn't test what its own comment claimed. Fixed by
+  granting user B membership in household A first (via an ordinary
+  owner-acting-as-themselves INSERT, already permitted by the existing
+  `household_members_insert_for_managers` policy — no elevated role
+  needed), confirming B can then read the household, then removing the
+  membership and confirming both the RPC and direct-table read paths
+  immediately lose access. Assertion count increased from 27 to 30.
 
 ## 14. Security checks
 

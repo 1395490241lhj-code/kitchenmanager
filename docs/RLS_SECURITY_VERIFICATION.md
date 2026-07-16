@@ -94,7 +94,7 @@ mid-session scenario.
 
 ## 4. New pgTAP behavioral test (written, execution BLOCKED)
 
-`supabase/tests/sync_business_rls_test.sql` (new this phase, 27 assertions)
+`supabase/tests/sync_business_rls_test.sql` (new this phase, 30 assertions)
 adds direct-SQL, Docker-local coverage of the same invariants as defense in
 depth — independent of the Express layer, using local role-switching
 (`set local role authenticated` + `request.jwt.claim.sub`, the same pattern

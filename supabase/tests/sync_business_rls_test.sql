@@ -13,7 +13,7 @@
 -- direct-SQL, Docker-local coverage of the same invariants as defense in
 -- depth, independent of the Express layer.
 begin;
-select plan(27);
+select plan(30);
 
 -- Two households (auto-created by the handle_new_auth_user trigger), two
 -- users, no cross-membership — A and B must never see each other's data.
@@ -337,16 +337,61 @@ select is(
   'a rollback-shaped delete (undoing a just-created row) applies via the same RPC path'
 );
 
--- 24: household membership removal immediately revokes read access — a
--- former member can no longer see the household's inventory.
-delete from public.household_members
-where household_id = current_setting('pgtap.household_a')::uuid
-  and user_id = '33333333-3333-4333-8333-333333333331'::uuid
-  and role <> 'owner';
+-- 24-27: household membership removal immediately revokes read access. This
+-- requires an actual second member to exist first — household A otherwise
+-- only ever has its owner (user A) as a member, so "removing a membership"
+-- would be a no-op without first adding one. The current jwt claim is
+-- already user A (the owner, reset just above for the rollback scenario),
+-- so this INSERT is an ordinary owner-invites-a-member action — no elevated
+-- role is needed (`household_members_insert_for_managers` already permits
+-- it for an owner acting as themselves).
+insert into public.household_members (household_id, user_id, role)
+values (current_setting('pgtap.household_a')::uuid, '33333333-3333-4333-8333-333333333332'::uuid, 'member');
+
+-- 24: with membership granted, user B can now read household A's inventory
+-- (still reachable without error — the row count itself is incidental).
+select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333332', true);
+select lives_ok(
+  format($$select count(*) from public.inventory_items where household_id = %L::uuid$$, current_setting('pgtap.household_a')),
+  'user B, once granted membership, can read household A''s inventory without error'
+);
+
+-- 25: the owner (user A) revokes user B's membership.
+select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333331', true);
 select is(
-  (select count(*) from public.household_members where household_id = current_setting('pgtap.household_a')::uuid),
+  (
+    with removed as (
+      delete from public.household_members
+      where household_id = current_setting('pgtap.household_a')::uuid
+        and user_id = '33333333-3333-4333-8333-333333333332'::uuid
+        and role <> 'owner'
+      returning 1
+    ) select count(*) from removed
+  ),
   1::bigint,
-  'removing a non-owner membership leaves only the owner behind (setup for the next check would apply to a second member; owner-only households have nothing further to revoke here)'
+  'the owner can remove a non-owner membership'
+);
+
+-- 26: immediately after removal (same session, no re-login/new JWT needed),
+-- user B loses access to household A's change feed — access is re-checked
+-- on every call via a live membership query, never cached.
+select set_config('request.jwt.claim.sub', '33333333-3333-4333-8333-333333333332', true);
+select throws_ok(
+  format(
+    $$select public.pull_sync_changes('household', %L::uuid, 0, 100, null)$$,
+    current_setting('pgtap.household_a')
+  ),
+  '42501',
+  null,
+  'a former member immediately loses access to the change feed once membership is removed'
+);
+
+-- 27: user B likewise loses the ability to see household A's inventory
+-- directly (RLS re-evaluates membership per query, not just per RPC call).
+select is(
+  (select count(*) from public.inventory_items where household_id = current_setting('pgtap.household_a')::uuid),
+  0::bigint,
+  'a former member immediately loses direct read access to the household''s inventory too'
 );
 
 select * from finish();

@@ -52,6 +52,12 @@ function loadMigrationManifest(migrationsDir) {
   } catch (error) {
     return { valid: false, errors: [`cannot read migrations directory: ${error.message}`], entries: [] };
   }
+  // `readdirSync` order is filesystem/OS-dependent and carries no meaning —
+  // sorting first means parseMigrationManifest's "already in ascending
+  // order" check reflects the migration versions themselves, not incidental
+  // directory-iteration order that could differ across machines/CI without
+  // anything actually being wrong.
+  filenames.sort();
   return parseMigrationManifest(filenames);
 }
 

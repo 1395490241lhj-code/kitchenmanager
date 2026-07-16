@@ -46,4 +46,35 @@ final class APIEnvironmentTests: XCTestCase {
             XCTAssertNotEqual(host, "localhost")
         }
     }
+
+    // MARK: - isLoopbackHost edge cases (found during final review)
+
+    func testLoopbackHostDetectionCoversAllKnownLoopbackForms() {
+        for host in ["127.0.0.1", "localhost", "::1", "0.0.0.0"] {
+            XCTAssertTrue(APIEnvironment.isLoopbackHost(host), "\(host) must be treated as loopback")
+        }
+    }
+
+    func testLoopbackHostDetectionIsNotBypassedByUppercase() {
+        XCTAssertTrue(APIEnvironment.isLoopbackHost("LOCALHOST"))
+        XCTAssertTrue(APIEnvironment.isLoopbackHost("LocalHost"))
+    }
+
+    func testLoopbackHostDetectionIsNotBypassedByATrailingRootDot() {
+        XCTAssertTrue(APIEnvironment.isLoopbackHost("localhost."))
+        XCTAssertTrue(APIEnvironment.isLoopbackHost("127.0.0.1."))
+    }
+
+    func testLoopbackHostDetectionNeverFlagsARealProductionHostname() {
+        XCTAssertFalse(APIEnvironment.isLoopbackHost("kitchenmanager-b8px.onrender.com"))
+        XCTAssertFalse(APIEnvironment.isLoopbackHost("api.kitchenmanager.example.com"))
+        XCTAssertFalse(APIEnvironment.isLoopbackHost(""))
+    }
+
+    func testLoopbackHostDetectionDoesNotFlagAMDNSDotLocalHostname() {
+        // `.local` (mDNS) is a real network hostname, not loopback — this
+        // guard intentionally only covers true loopback addresses, not every
+        // address that merely sounds "local".
+        XCTAssertFalse(APIEnvironment.isLoopbackHost("my-mac.local"))
+    }
 }
