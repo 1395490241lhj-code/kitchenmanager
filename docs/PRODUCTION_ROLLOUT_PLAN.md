@@ -40,6 +40,17 @@ server-toggleable flag, never automatic.
 > for the eventual production-project migration replay once that project
 > is provisioned. See `docs/LOCAL_SUPABASE_VALIDATION.md`.
 
+> **Phase 2D-1 update**: a TestFlight/App Store release pipeline is now
+> designed and locally validated — this confirms, rather than changes, the
+> Phase 2C-3 decision above: Internal TestFlight may continue targeting
+> the current dev project, and only an eventual App Store build should
+> target a separate production project (not yet provisioned). See
+> `docs/IOS_RELEASE_PIPELINE.md` §1 for the full environment matrix and
+> `docs/TESTFLIGHT_ROLLOUT_PLAN.md` for the Internal/External distinction.
+> Nothing in this stage mechanism changes: Internal TestFlight is still
+> gated by the same `Local.xcconfig`/build-configuration flags, never a
+> server-toggleable rollout.
+
 ## Stage 0 — Baseline (current state)
 
 - **Flags**: all `NO` (`INVENTORY_SYNC_ENABLED`, `INVENTORY_MERGE_UI_ENABLED`,

@@ -51,6 +51,17 @@ history, device-validation narratives, and bug investigations belong in
 - Local Docker-based migration replay and pgTAP execution now pass (2
   independent rounds, 96/96 assertions, zero schema drift) — closes a
   verification gap open since Phase 0.5. No production project involved.
+- iOS release pipeline designed and locally validated: shared Xcode
+  scheme, unintended macOS/visionOS platform footprint removed, version/
+  build-number tooling, pre-archive safety guard, `PrivacyInfo.xcprivacy`,
+  App Store metadata/review/TestFlight-workflow templates, and a manual
+  CI validation workflow. A real Release archive was built and signed
+  locally (development-class signing) — not a distribution-class signed
+  archive, no App Store Connect app record exists, nothing was uploaded.
+  See `docs/IOS_RELEASE_PIPELINE.md`, `docs/IOS_SIGNING_AND_ARCHIVE.md`,
+  `docs/TESTFLIGHT_ROLLOUT_PLAN.md`, `docs/PHASE2D1_VALIDATION.md`. A
+  missing app icon remains a real, unresolved blocker for any real
+  archive/upload.
 
 ## Remaining rollout conditions
 
@@ -65,7 +76,12 @@ history, device-validation narratives, and bug investigations belong in
 4. ~~Local Docker-based pgTAP execution~~ — done; all pgTAP passes locally
    and against dev-project read-only checks. Remaining: nothing local left
    to close for this item.
-5. No TestFlight/App Store Connect distribution pipeline exists.
+5. ~~No TestFlight/App Store Connect distribution pipeline exists~~ — the
+   pipeline is now designed and locally validated (see "Completed"
+   above); remaining before real distribution: a real app icon, an App
+   Store Connect app record, a distribution-class signed archive, and the
+   account-level Apple Developer/App Store Connect prerequisites listed
+   in `docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3.
 6. The sync rate limiter needs a shared/multi-instance store (Redis/Upstash
    or equivalent) before GA — today's in-memory store is Stage-1-only.
 7. A consent/opt-out UI and privacy-label decision for crash reporting is
@@ -78,7 +94,9 @@ Provision the separate production Supabase project (topology already
 decided; local migration/pgTAP validation now proven repeatable) — this is
 the remaining prerequisite, independent of further engineering work, before
 any real crash-reporting SDK or shared rate-limit store is worth
-configuring. Only after that, build the TestFlight pipeline and wire a real
-crash-reporting/alerting provider. Feature expansion to additional
-synchronized entities should not jump ahead of this operational readiness
-work.
+configuring. In parallel, the user can complete the manual Apple Developer/
+App Store Connect prerequisites (`docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3) and
+supply a real app icon — both are required before Internal TestFlight can
+actually start, independent of the Supabase provisioning work. Feature
+expansion to additional synchronized entities should not jump ahead of
+this operational readiness work.

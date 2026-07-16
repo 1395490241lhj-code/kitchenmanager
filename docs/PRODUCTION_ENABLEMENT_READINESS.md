@@ -53,6 +53,27 @@ is reproduced below.
 > a TestFlight/App Store pipeline, and a shared/multi-instance rate limiter
 > before GA — plus the still-open production Supabase project decision's
 > *provisioning* step (the decision itself was made in Phase 2C-3).
+>
+> **Phase 2D-1 update**: the TestFlight/App Store pipeline item is now
+> **designed and locally validated, not live**. A shared Xcode scheme now
+> exists (none did before); an unintended macOS/visionOS platform
+> footprint on the main app target was found and removed; version/build-
+> number tooling, a pre-archive safety guard, `PrivacyInfo.xcprivacy`, App
+> Store metadata/review/screenshot-plan templates, a TestFlight rollout
+> plan, and a manual (`workflow_dispatch`-only) CI validation workflow were
+> added. A real Release archive was built and **signed locally** — but
+> with development-class signing (`get-task-allow = true` in the embedded
+> entitlements), not the distribution-class signing App Store/TestFlight
+> uploads require. No App Store Connect app record exists, no build was
+> uploaded, no production flag changed. See
+> `docs/IOS_RELEASE_PIPELINE.md`, `docs/IOS_SIGNING_AND_ARCHIVE.md`,
+> `docs/TESTFLIGHT_ROLLOUT_PLAN.md`, and `docs/PHASE2D1_VALIDATION.md`.
+> Two items remain unchanged: a real crash/alert provider configuration and
+> a shared/multi-instance rate limiter before GA — plus the production
+> Supabase project's provisioning step. A real app icon and the manual
+> Apple Developer/App Store Connect account-level prerequisites
+> (`docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3) are new, explicitly identified
+> blockers before Internal TestFlight can actually begin.
 
 ## Context
 

@@ -31,6 +31,15 @@ with the specific procedures a real incident would require.
 > subsystem should need — both are read-only observability, not a gate on
 > any user-facing behavior.
 
+> **Phase 2D-1 update**: a TestFlight build rollback is an App Store
+> Connect action (distribute the previous good build number to the
+> testing group), not a code change in this repository — see
+> `docs/TESTFLIGHT_ROLLOUT_PLAN.md` §2 "Crash feedback / rollback". The
+> new `ios-native/Kitchen Manager/Config/release-build-ledger.json` only
+> prevents a build number from being *reused or regressed*; it plays no
+> role in an actual rollback decision. No TestFlight build has ever been
+> uploaded, so no rollback has ever been needed or rehearsed.
+
 ## Who approves a rollback
 
 A rollback decision (disabling a flag for a cohort, or halting a rollout

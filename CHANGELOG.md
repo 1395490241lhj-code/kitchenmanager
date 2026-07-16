@@ -6,6 +6,29 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16 (Phase 2D-1: TestFlight / App Store release pipeline readiness)
+
+### Fixed
+
+- Found and removed an unintended macOS/visionOS platform footprint on the main app target: `SUPPORTED_PLATFORMS` included `macosx xros xrsimulator`, `TARGETED_DEVICE_FAMILY` included visionOS idiom `7`, and three macOS-only/unused build settings (`ENABLE_APP_SANDBOX`, `ENABLE_USER_SELECTED_FILES`, `REGISTER_APP_GROUPS`) were present — leftover Xcode multiplatform-template defaults never pruned, with no supporting code, tests, or product documentation. Narrowed to iPhone/iPad-only (`iphoneos iphonesimulator`, device family `1,2`); confirmed via `xcodebuild` that `platform=macOS` ("My Mac") is now correctly reported incompatible with the scheme.
+- Fixed a real cross-line regex bug in the new `ios-archive-guard.mjs`: an xcconfig-value reader used `\s*` around `=`, which also matches newlines, so an empty-valued key immediately followed by another key on the next line captured that next line's content as its own value. Replaced with a same-line-only `[ \t]*` pattern; added a regression test.
+
+### Added
+
+- Created a real shared Xcode scheme (`KitchenManager.xcscheme`) — none existed anywhere in the repository before (not even a user-level one); all prior phases' builds relied on Xcode's implicit, never-persisted scheme auto-generation.
+- Added `PrivacyInfo.xcprivacy`, declaring only confirmed real API usage (`UserDefaults`, Required-Reason category), no tracking, no collected data types.
+- Added iOS release version/build-number tooling: `scripts/ios-release-support.mjs`, `scripts/validate-ios-release.mjs` (`npm run ios:release:check`), `scripts/bump-ios-build.mjs` (`npm run ios:release:bump-build`, dry-run supported), and a tracked `release-build-ledger.json` preventing build-number reuse/regression.
+- Added `scripts/ios-archive-guard.mjs` (`npm run ios:archive:guard`) — pre-archive safety checks (workspace clean, safe-default flags, no service-role/real secrets in committed config, shared scheme present, bundle id/version/build valid, app icon present, launch screen/privacy descriptions present, signing configured).
+- Added a manual (`workflow_dispatch`-only) GitHub Actions workflow, `.github/workflows/ios-release-check.yml`: Node release-config checks run on every push/PR touching iOS release files; a macOS-runner job builds Debug/Release and produces an **unsigned** archive on manual trigger only. No Apple secret is required or configured; no upload job exists.
+- Added documentation: `docs/IOS_RELEASE_PIPELINE.md` (environment matrix, build-configuration policy, version/build strategy, CI design), `docs/IOS_SIGNING_AND_ARCHIVE.md` (redacted audit, signing/provisioning status, archive results), `docs/TESTFLIGHT_ROLLOUT_PLAN.md` (Internal/External policy, workflow, manual prerequisites), `docs/APP_STORE_METADATA_TEMPLATE.md`, `docs/APP_STORE_REVIEW_CHECKLIST.md` (screenshot/device plan included), `docs/PHASE2D1_VALIDATION.md`.
+
+### Validated
+
+- A real Release archive (`Generic iOS Device`, Automatic Signing) was built and **signed locally** — Automatic Signing resolved a real signing identity/provisioning profile already present on this machine/account. The embedded entitlements show `get-task-allow = true`, meaning this was **development-class signing, not distribution-class** — whether a distribution (App Store/TestFlight) signed archive can be produced was not tested (no App Store Connect app record exists yet). The archive was built in a scratch location outside the repository and deleted after inspection; it was never committed. No upload of any kind was attempted.
+- Archive contents inspected: correct `CFBundleIdentifier`/`CFBundleShortVersionString`/`CFBundleVersion`, `UIDeviceFamily = [1,2]`, `PrivacyInfo.xcprivacy` present, minimal entitlements, and no real backend URL/service-role/DSN string found in the built bundle.
+- Full regression: Node 969/969 (including 21 new Phase 2D-1 tests), `npm audit --omit=dev --audit-level=high` clean; iOS Unit 636/641 (5 skipped, 0 failed, includes `APIEnvironmentTests`), iOS UI 8/9 (1 skipped, 0 failed, serial), Debug and Release builds green for both Simulator and Generic iOS Device. See `docs/PHASE2D1_VALIDATION.md`.
+- No production Supabase project was created; no production backend was switched to; no real Apple/App Store Connect credential was used or stored; no App Store Connect app record was created; no build was uploaded; production not enabled. All flags remain `NO`; nothing pushed.
+
 ## 2026-07-16 (Phase 2C-4: local Supabase migration replay + pgTAP execution)
 
 ### Fixed
