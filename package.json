@@ -2,7 +2,7 @@
   "name": "kitchenmanager",
   "version": "1.0.0",
   "private": true,
-  "description": "Kitchen Manager / 厨房管理 —— 本地优先的家庭厨房库存、菜谱与购物清单工具（全栈一体化：Express 静态托管 + 小红书抓取代理）。",
+  "description": "Kitchen Manager / 厨房管理 —— Guest-first、Local-first 的双客户端家庭厨房管理产品：原生 JavaScript PWA、SwiftUI/SwiftData iOS、Express 服务端与 Supabase 账号/库存同步基础。",
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
