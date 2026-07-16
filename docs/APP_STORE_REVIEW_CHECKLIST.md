@@ -103,6 +103,14 @@ inaccurate UI.
    but there's no user-facing way to delete an account/data, this is a
    real, specific rejection risk under Guideline 5.1.1(v) and should be
    verified against the actual Settings/Account UI before submission.
+   **Until this is confirmed one way or the other, neither External
+   TestFlight nor App Store submission should begin** — a
+   sign-out/local-data-clear action must never be described or documented
+   as "account deletion"; only an actual server-side account/data removal
+   counts. Internal TestFlight is not blocked by this (it isn't reviewed
+   under the same guideline and stays within the known internal cohort),
+   but any future Review Notes submitted to Apple must disclose this gap
+   honestly rather than omit it.
 3. **Shared dev backend for Internal TestFlight** — not an App Review
    risk per se (Internal Testing isn't reviewed the same way), but a
    sync-related bug in a shared dev environment could surface as tester

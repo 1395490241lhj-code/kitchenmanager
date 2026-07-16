@@ -63,6 +63,11 @@ questionnaire in App Store Connect, not from this document.
 > sync review is needed, a demo account will be provided at that time —
 > see "Demo account requirement" below.
 
+**Before this draft can actually be submitted**, the account-deletion gap
+in §"Account / data deletion" below must be resolved one way or the other
+— see `docs/APP_STORE_REVIEW_CHECKLIST.md` §3 item 2. This draft must not
+be sent to App Review while that gap remains unconfirmed and undisclosed.
+
 ## Demo account requirement
 
 - **Not required for Guest-mode review** — every core feature (inventory,
