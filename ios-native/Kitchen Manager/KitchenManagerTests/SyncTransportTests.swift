@@ -80,6 +80,82 @@ final class SyncTransportTests: NetworkTestCase {
         }
     }
 
+    // MARK: - Phase 2C-1: client-version headers, 426, 429
+
+    func testEveryRequestCarriesTheClientVersionHeaders() async throws {
+        MockURLProtocol.install { _ in .init(statusCode: 200, data: Data(self.bootstrapJSON.utf8)) }
+        let transport = ExpressSyncTransport(client: apiClient, tokenProvider: FixedSyncTokenProvider(token: "token"))
+        _ = try await transport.bootstrap()
+        let request = try XCTUnwrap(MockURLProtocol.capturedRequests().first)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Kitchen-App-Platform"), "ios")
+        XCTAssertNotNil(request.value(forHTTPHeaderField: "X-Kitchen-App-Version"))
+        XCTAssertNotNil(request.value(forHTTPHeaderField: "X-Kitchen-App-Build"))
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Kitchen-Client-Schema"), String(InventorySyncEnrollment.currentSchemaVersion))
+    }
+
+    func testVersionHeadersAreIdenticalAcrossBootstrapChangesAndMutations() async throws {
+        let mutationID = UUID(), entityID = UUID()
+        MockURLProtocol.install { request in
+            if request.url?.path == "/api/sync/bootstrap" {
+                return .init(statusCode: 200, data: Data(self.bootstrapJSON.utf8))
+            }
+            if request.url?.path == "/api/sync/changes" {
+                return .init(statusCode: 200, data: Data(#"{"scopeType":"household","scopeId":"\#(self.scope.id)","cursor":"0","hasMore":false,"changes":[]}"#.utf8))
+            }
+            return .init(statusCode: 200, data: Data(#"{"results":[{"mutationId":"\#(mutationID)","entityId":"\#(entityID)","status":"applied","version":"1","sequence":"1","errorCode":null,"originalStatus":null,"serverRecord":null}],"cursor":"1"}"#.utf8))
+        }
+        let transport = ExpressSyncTransport(client: apiClient, tokenProvider: FixedSyncTokenProvider(token: "token"))
+        _ = try await transport.bootstrap()
+        _ = try await transport.fetchChanges(scope: scope, after: .zero, limit: 10)
+        _ = try await transport.sendMutations(scope: scope, mutations: [SyncMutation(
+            mutationId: mutationID, entityType: .inventoryItem, entityId: entityID,
+            operation: .upsert, baseVersion: .zero, clientUpdatedAt: Date(), data: ["name": .string("鸡蛋")]
+        )])
+        let requests = MockURLProtocol.capturedRequests()
+        XCTAssertEqual(requests.count, 3)
+        let versionValues = Set(requests.map { $0.value(forHTTPHeaderField: "X-Kitchen-App-Version") })
+        XCTAssertEqual(versionValues.count, 1, "all three sync calls must send the identical version header value")
+    }
+
+    func test426MapsToClientUpgradeRequiredAndCarriesMinimumVersionBuild() async {
+        MockURLProtocol.install { _ in .init(
+            statusCode: 426,
+            data: Data(#"{"error":"client_upgrade_required","code":"CLIENT_UPGRADE_REQUIRED","message":"A newer app version is required.","minimumVersion":"9.0.0","minimumBuild":42}"#.utf8)
+        ) }
+        let transport = ExpressSyncTransport(client: apiClient, tokenProvider: FixedSyncTokenProvider(token: "token"))
+        do {
+            _ = try await transport.bootstrap()
+            XCTFail("expected clientUpgradeRequired")
+        } catch let error as SyncError {
+            guard case .clientUpgradeRequired(let minimumVersion, let minimumBuild) = error else {
+                return XCTFail("expected .clientUpgradeRequired, got \(error)")
+            }
+            XCTAssertEqual(minimumVersion, "9.0.0")
+            XCTAssertEqual(minimumBuild, 42)
+        } catch {
+            XCTFail("expected SyncError, got \(error)")
+        }
+    }
+
+    func test429MapsToRateLimitedAndCarriesRetryAfterSeconds() async {
+        MockURLProtocol.install { _ in .init(
+            statusCode: 429,
+            data: Data(#"{"error":"rate_limited","code":"SYNC_RATE_LIMITED","message":"Too many requests.","retryAfterSeconds":17}"#.utf8)
+        ) }
+        let transport = ExpressSyncTransport(client: apiClient, tokenProvider: FixedSyncTokenProvider(token: "token"))
+        do {
+            _ = try await transport.bootstrap()
+            XCTFail("expected rateLimited")
+        } catch let error as SyncError {
+            guard case .rateLimited(let retryAfterSeconds) = error else {
+                return XCTFail("expected .rateLimited, got \(error)")
+            }
+            XCTAssertEqual(retryAfterSeconds, 17)
+        } catch {
+            XCTFail("expected SyncError, got \(error)")
+        }
+    }
+
     private var bootstrapJSON: String {
         """
         {"schemaVersion":1,"user":{"id":"\(userID)","email":"cook@example.com"},

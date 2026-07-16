@@ -1150,6 +1150,100 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertNotEqual(controller.session?.id, completed.id, "once the rollback window has expired, a routine preview re-check may start a fresh session")
     }
 
+    // MARK: - Phase 2C-1: minimum-version enforcement / rate-limit client handling
+
+    /// 4/8/9/11/12/18/19: a 426 from confirmMerge must disable the confirm
+    /// path (via `clientUpgradeRequired`), keep the local Guest marker,
+    /// never mark anything failed/rejected in a way that discards it, and
+    /// never touch `session`/`createdEntityIds` beyond the ordinary retry
+    /// path that already existed for any transport error.
+    func testConfirmMergeUpgradeRequiredSetsFlagAndPreservesLocalData() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in UpgradeRequiredMergeTransport() })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        let localItemId = try XCTUnwrap(kitchen.inventory.first?.id)
+
+        XCTAssertFalse(controller.clientUpgradeRequired)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertTrue(controller.clientUpgradeRequired, "a 426 must set the upgrade-required display flag")
+        XCTAssertEqual(controller.lastErrorMessage, "当前版本过旧，更新后才能继续使用家庭同步。")
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == localItemId }, "local Guest data must never be touched by an upgrade-required failure")
+        XCTAssertEqual(controller.session?.createdEntityIds, [], "nothing was ever actually created remotely")
+    }
+
+    /// 6: a fresh preparePreview call resets the upgrade-required flag, so a
+    /// later successful attempt (after the user updates the app) is not
+    /// permanently stuck showing "需要更新".
+    func testUpgradeRequiredFlagClearsOnANewPreparePreviewAttempt() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let failingController = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in UpgradeRequiredMergeTransport() })
+        await failingController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await failingController.confirmMerge(authStore: authStore)
+        XCTAssertTrue(failingController.clientUpgradeRequired)
+
+        // Simulate "the user updated the app" — a fresh preview attempt this
+        // time succeeds (SimulatedMergeTransport, no upgrade-required error).
+        let succeedingController = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) })
+        await succeedingController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        XCTAssertFalse(succeedingController.clientUpgradeRequired, "a fresh session/controller must not carry over a stale upgrade-required flag")
+    }
+
+    /// 7: a merge preview failure from an upgrade-required remote fetch must
+    /// never be displayed as if the household had 0 cloud items — it must
+    /// show the dedicated failure state instead (existing Phase 2B-8
+    /// machinery, exercised here specifically with a 426).
+    func testMergePreviewUpgradeRequiredNeverShowsRemoteCountZero() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in UpgradeRequiredMergeTransport() })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: UpgradeRequiredMergeTransport())
+
+        XCTAssertNotNil(controller.previewFetchFailureMessage, "an upgrade-required remote read must surface the dedicated failure state")
+        XCTAssertNil(controller.plan, "no plan — and therefore no '家庭云端库存 0 条' — may ever be shown for a failed remote read")
+        XCTAssertTrue(controller.clientUpgradeRequired)
+    }
+
+    /// 10/13: a 429 from rollback must not falsely report `.rolledBack`, must
+    /// keep the session retryable (`.completed`, not a terminal status), and
+    /// must record a retry-after deadline the UI can show — without ever
+    /// disabling the rollback button (unlike upgrade-required).
+    func testRollbackRateLimitedStaysRetryableAndRecordsRetryAfter() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+
+        let rateLimitedController = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in RateLimitedMergeTransport() })
+        await rateLimitedController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        await rateLimitedController.rollback(authStore: authStore)
+
+        XCTAssertEqual(rateLimitedController.session?.status, .completed, "rate-limited rollback must remain retryable, never falsely rolledBack")
+        XCTAssertNotNil(rateLimitedController.rateLimitedRetryAfter)
+        XCTAssertFalse(rateLimitedController.clientUpgradeRequired, "rate limiting is unrelated to version compatibility — must not also disable the rollback button")
+    }
+
+    /// 12/14: neither an upgrade-required nor a rate-limited failure ever
+    /// stages a duplicate mutation — `createdEntityIds` reflects only what
+    /// genuinely applied, and a later successful retry does not re-create.
+    func testUpgradeRequiredAndRateLimitedNeverProduceADuplicateCreate() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let failingController = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in UpgradeRequiredMergeTransport() })
+        await failingController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await failingController.confirmMerge(authStore: authStore)
+        XCTAssertEqual(failingController.session?.createdEntityIds, [])
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let retryController = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        await retryController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        await retryController.confirmMerge(authStore: authStore)
+        XCTAssertEqual(retryController.session?.createdEntityIds.count, 1, "the retry after the app is updated must create exactly once, not a duplicate on top of a phantom prior create")
+    }
+
     // MARK: - Guest data boundary
 
     func testMergeDoesNotTouchShoppingPlansOrRecipes() async throws {
@@ -2940,6 +3034,22 @@ private actor FailingMergeTransport: SyncTransport {
     func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.transport }
     func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse { throw SyncError.transport }
     func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse { throw SyncError.transport }
+}
+
+/// Phase 2C-1: simulates every sync call failing with the server's 426 —
+/// used to test the controller's upgrade-required display/disable behavior
+/// without any real network involved.
+private actor UpgradeRequiredMergeTransport: SyncTransport {
+    func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.clientUpgradeRequired(minimumVersion: "9.0.0", minimumBuild: 42) }
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse { throw SyncError.clientUpgradeRequired(minimumVersion: "9.0.0", minimumBuild: 42) }
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse { throw SyncError.clientUpgradeRequired(minimumVersion: "9.0.0", minimumBuild: 42) }
+}
+
+/// Phase 2C-1: simulates every sync call failing with the server's 429.
+private actor RateLimitedMergeTransport: SyncTransport {
+    func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.rateLimited(retryAfterSeconds: 5) }
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse { throw SyncError.rateLimited(retryAfterSeconds: 5) }
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse { throw SyncError.rateLimited(retryAfterSeconds: 5) }
 }
 
 /// Simulates a malformed/untrustworthy backend response where the returned
