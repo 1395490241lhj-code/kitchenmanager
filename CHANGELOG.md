@@ -6,7 +6,13 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
-## 2026-07-16
+## 2026-07-16 (Production Enablement Readiness Review)
+
+### Documented
+
+- Added `docs/PRODUCTION_ENABLEMENT_READINESS.md`, `docs/PRODUCTION_ROLLOUT_PLAN.md`, and `docs/PRODUCTION_ROLLBACK_RUNBOOK.md` after a read-only review of production-enablement readiness. Feature-correctness is fully closed (Conflict UI, Rollback, remote-preview blocker), but the surrounding operational infrastructure is not: no separate production Supabase project exists (dev and "production" share one project/backend by deliberate earlier design), no rate limiting on any `/api/sync/*` route, no crash-reporting/monitoring/alerting anywhere, no minimum-app-version enforcement, no App Store Connect/TestFlight pipeline, pgTAP/remote-parity re-verification for the sync migration still undone, no `.entitlements` file, and no infrastructure-as-code for the Render backend deploy. Judgment: **Production Go Candidate WITH CONDITIONS** — every gap is independently addressable and none implicates the sync engine's correctness. Refined the existing dogfood-playbook rollout sketch into a 5-stage plan (Stage 0 all-off through Stage 4 GA) with explicit flag/user-scope/monitoring/stop-condition/rollback/cleanup per stage, a suggested monitoring-metric/threshold table, and a consolidated disaster-recovery runbook. No flag enabled, no production config changed, no production backend switched to, nothing pushed.
+
+## 2026-07-16 (Phase 2B-9B)
 
 ### Fixed
 
