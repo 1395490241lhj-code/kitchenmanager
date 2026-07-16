@@ -3,6 +3,7 @@ import test from 'node:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
@@ -10,10 +11,48 @@ const require = createRequire(import.meta.url);
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const { validateIOSRelease } = require('../scripts/validate-ios-release.mjs');
 const { bumpIOSBuild } = require('../scripts/bump-ios-build.mjs');
-const { runAllChecks, readXcconfigValue } = require('../scripts/ios-archive-guard.mjs');
+const { runAllChecks, readXcconfigValue, checkAppIconPresence } = require('../scripts/ios-archive-guard.mjs');
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'km-ios-release-scripts-test-'));
+}
+
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+function pngChunk(type, data) {
+  const typeBuf = Buffer.from(type, 'ascii');
+  const lengthBuf = Buffer.alloc(4);
+  lengthBuf.writeUInt32BE(data.length, 0);
+  const crcBuf = Buffer.alloc(4);
+  crcBuf.writeUInt32BE(zlib.crc32(Buffer.concat([typeBuf, data])), 0);
+  return Buffer.concat([lengthBuf, typeBuf, data, crcBuf]);
+}
+
+// Writes a real, valid, decodable grayscale PNG at the given pixel
+// dimensions — used to test the app-icon guard's dimension check without
+// depending on any real icon artwork existing in the repository.
+function writeTestPng(filePath, width, height) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr.writeUInt8(8, 8); // bit depth
+  ihdr.writeUInt8(0, 9); // color type: grayscale
+  ihdr.writeUInt8(0, 10); // compression
+  ihdr.writeUInt8(0, 11); // filter
+  ihdr.writeUInt8(0, 12); // interlace
+
+  const rowSize = 1 + width; // filter byte + gray samples
+  const raw = Buffer.alloc(rowSize * height, 128);
+  for (let y = 0; y < height; y++) raw[y * rowSize] = 0; // filter type 0 per row
+  const idatData = zlib.deflateSync(raw);
+
+  const png = Buffer.concat([
+    PNG_SIGNATURE,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', idatData),
+    pngChunk('IEND', Buffer.alloc(0))
+  ]);
+  fs.writeFileSync(filePath, png);
 }
 
 function writePbxproj(dir, { marketingVersion = '1.0.0', buildNumber = '1' } = {}) {
@@ -118,6 +157,52 @@ test('readXcconfigValue does not leak the next line\'s content for an empty valu
 test('readXcconfigValue trims same-line whitespace and returns null for a missing key', () => {
   assert.equal(readXcconfigValue('FOO   =   bar  \n', 'FOO'), 'bar');
   assert.equal(readXcconfigValue('FOO = bar\n', 'MISSING'), null);
+});
+
+test('checkAppIconPresence fails when no .appiconset directory exists at all', () => {
+  const dir = makeTempDir();
+  const result = checkAppIconPresence(dir);
+  assert.equal(result.ok, false);
+  assert.match(result.detail, /no AppIcon\.appiconset found at all/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('checkAppIconPresence fails when the appiconset only contains a trivial placeholder image (regression: a 1x1 PNG must not bypass this guard)', () => {
+  const dir = makeTempDir();
+  const iconDir = path.join(dir, 'Assets.xcassets', 'AppIcon.appiconset');
+  fs.mkdirSync(iconDir, { recursive: true });
+  fs.writeFileSync(path.join(iconDir, 'Contents.json'), '{}');
+  writeTestPng(path.join(iconDir, 'icon-1x1.png'), 1, 1);
+  const result = checkAppIconPresence(dir);
+  assert.equal(result.ok, false, result.detail);
+  assert.match(result.detail, /contains no image at least/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('checkAppIconPresence fails when the appiconset directory exists but has zero image files (Contents.json alone is not enough)', () => {
+  const dir = makeTempDir();
+  const iconDir = path.join(dir, 'Assets.xcassets', 'AppIcon.appiconset');
+  fs.mkdirSync(iconDir, { recursive: true });
+  fs.writeFileSync(path.join(iconDir, 'Contents.json'), '{}');
+  const result = checkAppIconPresence(dir);
+  assert.equal(result.ok, false, result.detail);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('checkAppIconPresence passes when a real, non-trivially-sized PNG icon exists', () => {
+  const dir = makeTempDir();
+  const iconDir = path.join(dir, 'Assets.xcassets', 'AppIcon.appiconset');
+  fs.mkdirSync(iconDir, { recursive: true });
+  fs.writeFileSync(path.join(iconDir, 'Contents.json'), '{}');
+  writeTestPng(path.join(iconDir, 'icon-1024.png'), 1024, 1024);
+  const result = checkAppIconPresence(dir);
+  assert.equal(result.ok, true, result.detail);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('checkAppIconPresence on the real repository currently fails (no asset catalog exists yet — a real, un-fabricated blocker)', () => {
+  const result = checkAppIconPresence();
+  assert.equal(result.ok, false);
 });
 
 test('runAllChecks on the real repository currently passes every check except the two genuinely-pending ones', () => {

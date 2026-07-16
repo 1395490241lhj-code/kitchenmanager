@@ -108,9 +108,26 @@ function checkVersionAndBuild() {
   };
 }
 
-function checkAppIconPresence() {
+// A minimum pixel size for at least one real icon image — rejects a
+// trivial 1x1/16x16 placeholder or an accidentally-empty PNG without
+// requiring full pixel-content analysis (whether an icon is a plain
+// solid color is a design/App-Review judgment, not something this
+// mechanical guard tries to detect).
+const MIN_APP_ICON_DIMENSION = 512;
+
+function pngDimensions(filePath) {
+  try {
+    const output = execSync(`sips -g pixelWidth -g pixelHeight ${JSON.stringify(filePath)}`, { encoding: 'utf8' });
+    const width = Number((output.match(/pixelWidth:\s*(\d+)/) || [])[1]);
+    const height = Number((output.match(/pixelHeight:\s*(\d+)/) || [])[1]);
+    return { width, height };
+  } catch {
+    return { width: 0, height: 0 };
+  }
+}
+
+function checkAppIconPresence(assetsRoot = path.join(IOS_ROOT, 'KitchenManager')) {
   const appIconDirs = [];
-  const assetsRoot = path.join(IOS_ROOT, 'KitchenManager');
   function walk(dir) {
     if (!fs.existsSync(dir)) return;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -122,10 +139,26 @@ function checkAppIconPresence() {
     }
   }
   walk(assetsRoot);
-  const hasAnyIconFile = appIconDirs.some((dir) => fs.readdirSync(dir).some((name) => /\.(png|svg)$/i.test(name)));
+
+  if (appIconDirs.length === 0) {
+    return { ok: false, detail: 'no AppIcon.appiconset found at all (no Assets.xcassets/asset catalog exists yet) — a real App Store archive requires a 1024x1024 app icon; this is a known, documented pending item (see docs/IOS_SIGNING_AND_ARCHIVE.md), not fixed by this script' };
+  }
+
+  const svgFiles = appIconDirs.flatMap((dir) => fs.readdirSync(dir).filter((name) => /\.svg$/i.test(name)).map((name) => path.join(dir, name)));
+  const hasNonTrivialSvg = svgFiles.some((file) => fs.statSync(file).size > 256);
+
+  const pngFiles = appIconDirs.flatMap((dir) => fs.readdirSync(dir).filter((name) => /\.png$/i.test(name)).map((name) => path.join(dir, name)));
+  const hasRealSizedPng = pngFiles.some((file) => {
+    const { width, height } = pngDimensions(file);
+    return width >= MIN_APP_ICON_DIMENSION && height >= MIN_APP_ICON_DIMENSION;
+  });
+
+  const ok = hasRealSizedPng || hasNonTrivialSvg;
   return {
-    ok: hasAnyIconFile,
-    detail: hasAnyIconFile ? 'an AppIcon asset with image content exists' : 'no AppIcon.appiconset with real image content found — a real App Store archive requires a 1024x1024 app icon; this is a known, documented pending item (see docs/IOS_SIGNING_AND_ARCHIVE.md), not fixed by this script'
+    ok,
+    detail: ok
+      ? 'an AppIcon asset with real, non-trivial image content exists'
+      : `an AppIcon.appiconset exists but contains no image at least ${MIN_APP_ICON_DIMENSION}x${MIN_APP_ICON_DIMENSION}px (found ${pngFiles.length} PNG(s), ${svgFiles.length} SVG(s)) — a trivial/placeholder/empty image does not satisfy this check; this is a known, documented pending item (see docs/IOS_SIGNING_AND_ARCHIVE.md), not fixed by this script`
   };
 }
 
@@ -181,4 +214,4 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
   main();
 }
 
-export { runAllChecks, readXcconfigValue };
+export { runAllChecks, readXcconfigValue, checkAppIconPresence, pngDimensions, MIN_APP_ICON_DIMENSION };
