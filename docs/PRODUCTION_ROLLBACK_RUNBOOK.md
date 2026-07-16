@@ -19,6 +19,18 @@ with the specific procedures a real incident would require.
 > deploy-and-restart procedure in this repo yet, since Render deployment is
 > managed entirely outside it (see `docs/PRODUCTION_ENABLEMENT_READINESS.md`).
 
+> **Phase 2C-2 update**: `/health` and `/ready` now exist
+> (`docs/BACKEND_OBSERVABILITY.md`). A `/ready` 503 during an incident means
+> at least one of `auth_config`/`version_gate_config`/`rate_limiter_config`/
+> `supabase_connectivity` is failing — check the response's `checks` object
+> (booleans only, no secret) to narrow down which, rather than guessing.
+> Crash reporting is still abstraction-only (`NoOpCrashReporter`; see
+> `docs/CRASH_REPORTING.md`) — there is no real crash-reporting SDK to
+> disable during an incident, since none is integrated yet. Disabling the
+> new structured logging or metrics is never a rollback action this
+> subsystem should need — both are read-only observability, not a gate on
+> any user-facing behavior.
+
 ## Who approves a rollback
 
 A rollback decision (disabling a flag for a cohort, or halting a rollout

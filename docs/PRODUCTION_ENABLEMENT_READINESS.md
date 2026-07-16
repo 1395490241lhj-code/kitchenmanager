@@ -13,6 +13,19 @@ is reproduced below.
 > and `docs/PHASE2C1_VALIDATION.md`. Four blockers remain: crash
 > reporting/monitoring, the production Supabase project decision,
 > pgTAP/migration re-verification, and a TestFlight/App Store pipeline.
+>
+> **Phase 2C-2 update**: crash-reporting/monitoring is now **implemented
+> (abstraction + no-op provider; a real provider is selected — Sentry — but
+> not integrated) and offline/hosted-development-validated**: structured
+> backend logging, request correlation ids, in-process sync metrics,
+> `/health`/`/ready`, and documented Stage-1 alert rules. Not
+> production-configured (no real DSN, no alert provider, no dashboard). See
+> `docs/CRASH_REPORTING.md`, `docs/BACKEND_OBSERVABILITY.md`,
+> `docs/MONITORING_ALERTING_STAGE1.md`, and `docs/PHASE2C2_VALIDATION.md`.
+> Four items remain: the production Supabase project decision,
+> pgTAP/migration re-verification, a TestFlight/App Store pipeline, and a
+> shared/multi-instance rate-limit store before GA (carried forward from
+> Phase 2C-1's documented Stage-1-only limitation).
 
 ## Context
 
@@ -42,10 +55,10 @@ itself to be correct. It is not.
 | Render/hosting deploy config | ⚠️ **No infrastructure-as-code** | `.github/workflows/deploy.yml` deploys only the static PWA to **GitHub Pages** — it has no reference to Render, Supabase, or any backend secret at all. There is no `render.yaml`/`Procfile` in the repo. The Express backend's deployment to Render is managed entirely through Render's own dashboard/git-connect, invisible to and unaudited by this repository. |
 | Rate limits | ✅ **Sync routes now protected (Phase 2C-1)** | `src/server/sync/rate-limit.js` adds a read limiter (bootstrap/changes, 120 req/5min/user) and a mutation limiter (mutations, 40 req + 500 operations per 5min/user), keyed only by JWT subject + route — implemented, offline- and hosted-development-validated. In-memory store only (not multi-instance-safe yet — documented Stage 1 limitation). See `docs/SYNC_API_RATE_LIMITING.md`. AI/import/`/api/me` limits unchanged. |
 | Timeout/retry | ⚠️ **Timeout only, no retry** | iOS `APIClient` sets a 60s default timeout, no automatic retry (errors surface directly to the caller, which may retry manually via `syncNow`). Server-to-Supabase calls in `account-data.js` have **no timeout and no retry**; other outbound HTTP (AI/media) does set timeouts, still no retry logic anywhere. |
-| Logging/redaction | ✅ met | Plain `console.log`, no request/response body logging, JWT/Bearer redaction on auth failures (`jwt.js`), error codes only (not messages) logged outside `NODE_ENV=production` in `me-route.js`. |
-| Crash reporting | ❌ **None exists** | No Sentry/Crashlytics/Bugsnag/App Center/any crash-reporting SDK anywhere in the repo, iOS or Node. |
-| Monitoring | ❌ **None exists** | No APM, no metrics pipeline, no dashboard. The only "monitoring" surface today is `InventorySyncDiagnosticsSnapshot` — a **per-device, on-demand, local-only** read-only screen (pendingCount/conflictCount/failedCount/oldestPendingAge/lastSyncResult/enrollmentState/localTombstoneCount, etc.), not a fleet-wide aggregation. |
-| Alerting | ❌ **None exists** | No PagerDuty/Opsgenie/Slack-webhook or any other alerting integration anywhere. |
+| Logging/redaction | ✅ **Structured (Phase 2C-2)** | `src/server/observability/logger.js` now emits allowlisted JSON lines (`http_request`, `sync_upgrade_required`, `sync_rate_limited`) with a global request-correlation id (`X-Request-ID`); no request/response body, Authorization header, email, token, full user id, or household id is ever on the allowlist. Offline- and hosted-development-validated (real log capture grepped clean). See `docs/BACKEND_OBSERVABILITY.md`. |
+| Crash reporting | ⚠️ **Abstraction only (Phase 2C-2)** | `KitchenManager/Observability/CrashReporting.swift` — a provider-agnostic protocol, event/metadata allowlists, and `NoOpCrashReporter` (the only shipped provider), wired into `GuestMergeController`. Sentry is the selected future provider (see comparison in `docs/CRASH_REPORTING.md`) but **no SDK has been integrated** — `CRASH_REPORTING_ENABLED = NO` everywhere, no real DSN exists. |
+| Monitoring | ⚠️ **In-process metrics only (Phase 2C-2)** | `src/server/observability/metrics.js` — named counters/observations (`sync_request_total/success/failure`, `sync_rate_limited`, `sync_upgrade_required`, `sync_mutation_*`, `backend_5xx`, latency), plus `/health`/`/ready`. No metrics backend/dashboard exists; these are queryable via Render's raw log search today. See `docs/BACKEND_OBSERVABILITY.md`. `InventorySyncDiagnosticsSnapshot` remains the only per-device (not fleet-wide) surface. |
+| Alerting | ⚠️ **Rules defined, not wired (Phase 2C-2)** | `docs/MONITORING_ALERTING_STAGE1.md` defines P1/P2/P3 rules (source/threshold/window/owner/response/rollback-trigger) computable from the metrics/logs above. No PagerDuty/Opsgenie/Slack-webhook or any alert provider is actually connected; no alert has ever fired. |
 
 ## 2. Database & migration readiness
 
@@ -99,7 +112,7 @@ This means "staged production enablement" in this codebase can only mean **stage
 | Smoke tests | ✅ exists and passes — `npm run smoke:sync`, hosted `HostedGuestMergeSmokeTests`, full offline `GuestMergeTests` suite (127/127 as of Phase 2B-9B). |
 | Rollback rehearsal | ⚠️ Documented (`docs/PRODUCTION_ROLLBACK_RUNBOOK.md`), drills A–F automated-test-verified, but never rehearsed against a real deployed cohort (none exists). |
 | Incident owner | ❌ Not designated — no on-call rotation or named owner exists for this project. |
-| Monitoring dashboard | ❌ Does not exist — see §1. |
+| Monitoring dashboard | ⚠️ Rules defined (`docs/MONITORING_ALERTING_STAGE1.md`), no dashboard/alert-provider connected — see §1. |
 | Support communication plan | ❌ Does not exist — no user-facing status page, no support-ticket triage process referencing this feature. |
 | Go/No-Go approval | Documented process exists (`docs/INVENTORY_SYNC_FINAL_GO_NO_GO.md`'s explicit sign-off convention), but only ever exercised for engineering conclusions, not a real business/release decision. |
 
@@ -114,9 +127,11 @@ sideloaded, developer-supervised cohorts.
 **B. PRODUCTION GO CANDIDATE WITH CONDITIONS**
 
 Not A: real, concrete operational gaps exist (no separate production Supabase
-project, no crash reporting/monitoring/alerting, no rate limiting on sync
-routes, no min-app-version enforcement, no App Store/TestFlight pipeline,
-pgTAP/migration-parity gap for the sync migration). None of these are
+project, no App Store/TestFlight pipeline, pgTAP/migration-parity gap for
+the sync migration, no shared/multi-instance rate-limit store, and — while
+crash-reporting/monitoring/rate-limiting/min-version-enforcement are all now
+*implemented* — none of them is production-configured, and no real
+crash-reporting SDK or alert provider is wired up yet). None of these are
 correctness defects in the feature itself — Rollback, Conflict UI, and the
 remote-preview blocker are all genuinely fixed and physical-device-verified
 — but enabling any flag for real, uncontrolled production users today would
@@ -149,19 +164,28 @@ further progress.
    hosted-development-validated. See
    `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`. Not yet production-configured
    (no actual minimum version/build/schema values have been decided).
-4. At minimum a lightweight crash-reporting integration (even a manual
-   crash-log-pull process is not sufficient once devices aren't in the
-   operator's own hand).
+4. ~~At minimum a lightweight crash-reporting integration.~~ **Abstraction
+   done (Phase 2C-2)** — `NoOpCrashReporter` is wired into every
+   merge/rollback/sync flow and a provider (Sentry) is selected, but a real
+   SDK/DSN is **not yet integrated**; a manual crash-log-pull process is
+   still what exists in practice until that integration happens. See
+   `docs/CRASH_REPORTING.md`.
 5. pgTAP or an equivalent remote-parity re-verification for the
    sync-foundation migration specifically.
 
 ### Conditions before Stage 3+ (broader dogfood / GA)
 
 6. Real monitoring/alerting on at least: sync success rate, mutation
-   failure rate, backend 4xx/5xx rate, and crash rate (see
-   `docs/PRODUCTION_ROLLOUT_PLAN.md` for suggested thresholds).
+   failure rate, backend 4xx/5xx rate, and crash rate. **Rules defined
+   (Phase 2C-2)** in `docs/MONITORING_ALERTING_STAGE1.md`; **no alert
+   provider is wired up and no dashboard exists** — this remains open until
+   both a real crash-reporting SDK and an alert provider are chosen and
+   connected.
 7. A TestFlight (or equivalent) distribution pipeline, since sideloaded
    developer-signed installs do not scale past a handful of known devices.
+8. A shared/multi-instance rate-limit store (Redis/Upstash or equivalent) —
+   the current in-memory limiter is explicitly Stage-1-only (see
+   `docs/SYNC_API_RATE_LIMITING.md`).
 
 See `docs/PRODUCTION_ROLLOUT_PLAN.md` and `docs/PRODUCTION_ROLLBACK_RUNBOOK.md`
 for the detailed stage design and disaster-recovery plan this review

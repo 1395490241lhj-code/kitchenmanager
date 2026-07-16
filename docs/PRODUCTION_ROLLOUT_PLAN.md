@@ -110,11 +110,23 @@ server-toggleable flag, never automatic.
 - **Data cleanup**: exact-entity-ID discipline remains permanent policy —
   never a prefix sweep or broad delete, at any stage, ever.
 
+> **Phase 2C-2 update**: the sync-side rows below (success rate, backend
+> 4xx/5xx, 426/429 rate, latency) are now actually computable from real
+> emitted data — see `src/server/observability/metrics.js` and
+> `docs/BACKEND_OBSERVABILITY.md`. `docs/MONITORING_ALERTING_STAGE1.md` is
+> the canonical, more detailed P1/P2/P3 version of this table (with
+> source/window/owner/response/rollback-trigger per rule) — still no
+> dashboard or alert provider is connected. The crash-rate row remains
+> unmeasurable until a real crash-reporting SDK is integrated (see
+> `docs/CRASH_REPORTING.md` — an abstraction and a selected provider exist,
+> but no SDK is wired in yet).
+
 ## Monitoring & alerting (design — no telemetry pipeline exists yet)
 
 None of the following currently has a live dashboard or alert channel. This
 table is the target design; today, the closest equivalent for most rows is
-manually reading the per-device diagnostics screen.
+manually reading the per-device diagnostics screen, or (for the sync-request
+rows, as of Phase 2C-2) grepping the structured backend log output.
 
 | Metric | Suggested threshold | Alert level |
 |---|---|---|
