@@ -304,7 +304,7 @@ test('Phase 0 migration defines constrained identity tables, idempotent initiali
 test('server keeps Guest APIs public while registering protected account and sync routes', () => {
   const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
   assert.match(server, /'\/api\/me',[\s\S]*authenticateRequest,[\s\S]*createRequireAuthRole\(\['authenticated'\]\),[\s\S]*limitAuthMe,[\s\S]*createMeHandler\(\)/);
-  assert.match(server, /registerSyncRoutes\(app\)/);
+  assert.match(server, /registerSyncRoutes\(app,\s*\{/);
   assert.match(server, /Access-Control-Allow-Headers', 'Content-Type, Authorization'/);
   assert.doesNotMatch(server, /app\.use\('\/api', authenticateRequest/);
   for (const publicPath of ['/api/xhs-extract', '/api/ai-chat', '/api/ai-parse']) {

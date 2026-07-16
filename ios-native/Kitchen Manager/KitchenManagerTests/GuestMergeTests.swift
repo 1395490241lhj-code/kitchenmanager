@@ -1244,6 +1244,130 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(retryController.session?.createdEntityIds.count, 1, "the retry after the app is updated must create exactly once, not a duplicate on top of a phantom prior create")
     }
 
+    // MARK: - Phase 2C-2: crash reporting breadcrumbs (fake provider injection)
+
+    /// A fake provider injected via the new `crashReporter:` init parameter
+    /// receives calls instead of the default `NoOpCrashReporter` — proves the
+    /// abstraction is actually wired into the controller, not just declared.
+    func testFakeCrashReporterInjectionOverridesDefaultProvider() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let fake = FakeCrashReporter()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) },
+            crashReporter: fake
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .mergePreviewStarted })
+    }
+
+    /// A generic transport failure during manual sync emits `sync_failed`
+    /// with a stable, safe error code — never the raw error description.
+    func testSyncFailureEmitsSyncFailedBreadcrumbWithSafeCode() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        _ = kitchen
+        let fake = FakeCrashReporter()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in FailingMergeTransport() }, crashReporter: fake
+        )
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.syncNow(authStore: authStore, householdId: householdA)
+        let failed = fake.breadcrumbs.first { $0.event == .syncFailed }
+        XCTAssertNotNil(failed)
+        XCTAssertEqual(failed?.metadata.fields["errorCode"], "transport")
+    }
+
+    /// A 426 during confirmMerge emits `sync_upgrade_required` (from the
+    /// shared display-flag hook) and `merge_confirm_failed` — never any
+    /// metadata field outside the allowlist.
+    func test426DuringConfirmMergeEmitsUpgradeRequiredAndMergeConfirmFailedBreadcrumbs() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let fake = FakeCrashReporter()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in UpgradeRequiredMergeTransport() }, crashReporter: fake
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .syncUpgradeRequired })
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .mergeConfirmFailed })
+        for (_, metadata) in fake.breadcrumbs {
+            for key in metadata.fields.keys {
+                XCTAssertTrue(CrashReportingMetadata.allowedKeys.contains(key), "unexpected metadata key: \(key)")
+            }
+        }
+    }
+
+    /// A 429 during rollback emits `sync_rate_limited` and `rollback_failed`.
+    func test429DuringRollbackEmitsRateLimitedAndRollbackFailedBreadcrumbs() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let controller = GuestMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) })
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        let fake = FakeCrashReporter()
+        let rateLimitedController = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in RateLimitedMergeTransport() }, crashReporter: fake
+        )
+        await rateLimitedController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        await rateLimitedController.rollback(authStore: authStore)
+
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .syncRateLimited })
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .rollbackFailed })
+    }
+
+    /// A successful confirmMerge/rollback cycle emits the matching
+    /// started/completed breadcrumbs for both flows, with no failure events.
+    func testSuccessfulMergeAndRollbackEmitStartedAndCompletedBreadcrumbsOnly() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let fake = FakeCrashReporter()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) },
+            crashReporter: fake
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        await controller.rollback(authStore: authStore)
+
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .mergeConfirmStarted })
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .mergeConfirmCompleted })
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .rollbackStarted })
+        XCTAssertTrue(fake.breadcrumbs.contains { $0.event == .rollbackCompleted })
+        XCTAssertFalse(fake.breadcrumbs.contains { $0.event == .mergeConfirmFailed })
+        XCTAssertFalse(fake.breadcrumbs.contains { $0.event == .rollbackFailed })
+    }
+
+    /// A local (non-network) preview persistence failure still reports via
+    /// `captureNonFatal` — never crashing the app, and never carrying the
+    /// raw error description as metadata (only the allowlisted `errorCode`
+    /// bucket).
+    func testConfirmMergeTransportFailureReportsNonFatalWithSafeCodeNotRawDescription() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let fake = FakeCrashReporter()
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in FailingMergeTransport() }, crashReporter: fake
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertTrue(fake.nonFatals.contains { $0.code == "transport" })
+        for (_, context) in fake.nonFatals {
+            for key in context.fields.keys {
+                XCTAssertTrue(CrashReportingMetadata.allowedKeys.contains(key))
+            }
+        }
+    }
+
     // MARK: - Guest data boundary
 
     func testMergeDoesNotTouchShoppingPlansOrRecipes() async throws {
@@ -3158,4 +3282,26 @@ private actor InventorySyncFaultInjectingTransport: SyncTransport {
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
     }
+}
+
+/// Phase 2C-2: records every breadcrumb/nonfatal call `GuestMergeController`
+/// makes, so tests can assert *which* operational event fired without
+/// depending on a real provider. Never itself throws — matches the
+/// `CrashReporting` protocol's "a provider must never crash the app"
+/// contract.
+private final class FakeCrashReporter: CrashReporting, @unchecked Sendable {
+    private(set) var breadcrumbs: [(event: CrashReportingEvent, metadata: CrashReportingMetadata)] = []
+    private(set) var nonFatals: [(code: String, context: CrashReportingMetadata)] = []
+
+    func configure(environment: String, release: String, build: String) {}
+    func captureFatalContext(_ metadata: CrashReportingMetadata) {}
+    func captureNonFatal(_ error: Error, context: CrashReportingMetadata) {
+        let code = (error as? any CrashReportableError)?.crashReportingCode ?? "unknown_error"
+        nonFatals.append((code, context))
+    }
+    func addBreadcrumb(_ event: CrashReportingEvent, metadata: CrashReportingMetadata) {
+        breadcrumbs.append((event, metadata))
+    }
+    func setOperationalTag(key: String, value: String) {}
+    func flushIfNeeded() {}
 }
