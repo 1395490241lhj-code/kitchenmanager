@@ -1,6 +1,19 @@
 const { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY } = require('../config');
 const { AccountDeletionError } = require('./errors');
 
+// Account deletion is a two-step saga. The first step is a user-scoped RPC,
+// but finishing it requires both the Auth Admin API and a service_role-only
+// finalize RPC. Keep this pure capability check separate from the operations
+// themselves so the HTTP boundary can reject the whole saga before its first
+// irreversible database mutation.
+function isAccountDeletionAdminConfigured({
+  supabaseUrl = SUPABASE_URL,
+  serviceRoleKey = SUPABASE_SERVICE_ROLE_KEY,
+  fetchImpl = globalThis.fetch
+} = {}) {
+  return Boolean(supabaseUrl && serviceRoleKey && typeof fetchImpl === 'function');
+}
+
 // User-scoped RPC calls: anon key + the caller's own bearer token, exactly
 // like src/server/sync/repository.js — never the service-role key. RLS and
 // the functions' own auth.uid()-derived checks are what keep these safe;
@@ -74,12 +87,16 @@ function createSupabaseAccountDeletionAdmin({
   fetchImpl = globalThis.fetch
 } = {}) {
   function assertConfigured() {
-    if (!supabaseUrl || !serviceRoleKey || typeof fetchImpl !== 'function') {
+    if (!isAccountDeletionAdminConfigured({ supabaseUrl, serviceRoleKey, fetchImpl })) {
       throw new AccountDeletionError('account_deletion_admin_not_configured', 'Account deletion admin operations are not configured', 503);
     }
   }
 
   return {
+    isConfigured() {
+      return isAccountDeletionAdminConfigured({ supabaseUrl, serviceRoleKey, fetchImpl });
+    },
+
     // Deleting the Auth user cannot be done via plain SQL (GoTrue owns
     // session/identity/refresh-token cleanup) — this is the one operation
     // in this codebase that legitimately needs the service-role key, used
@@ -141,4 +158,8 @@ function createSupabaseAccountDeletionAdmin({
   };
 }
 
-module.exports = { createSupabaseAccountDeletionRepository, createSupabaseAccountDeletionAdmin };
+module.exports = {
+  createSupabaseAccountDeletionRepository,
+  createSupabaseAccountDeletionAdmin,
+  isAccountDeletionAdminConfigured
+};

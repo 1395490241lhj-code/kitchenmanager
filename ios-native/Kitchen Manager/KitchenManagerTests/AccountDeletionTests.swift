@@ -58,6 +58,20 @@ final class APIAccountDeletionServiceTests: NetworkTestCase {
         }
     }
 
+    func test_accountDeletionUnavailableErrorCodeMapsToPlainUnavailableMessage() async {
+        MockURLProtocol.install { _ in
+            .init(statusCode: 503, data: Data(#"{"error":{"code":"ACCOUNT_DELETION_UNAVAILABLE","message":"internal configuration detail"}}"#.utf8))
+        }
+        do {
+            _ = try await APIAccountDeletionService(client: apiClient).preview(accessToken: "t")
+            XCTFail("expected error")
+        } catch {
+            let deletionError = error as? AccountDeletionError
+            XCTAssertEqual(deletionError, .unavailable)
+            XCTAssertEqual(deletionError?.localizedDescription, "账号删除服务暂时不可用，请稍后再试。")
+        }
+    }
+
     func test_transferOwnershipSendsExpectedBody() async throws {
         let householdId = UUID()
         let newOwnerId = UUID()
@@ -130,7 +144,8 @@ final class AccountDeletionControllerTests: XCTestCase {
         service.previewResult = .failure(AccountDeletionError.unavailable)
         await controller.loadPreview(authStore: authStore)
         XCTAssertNil(controller.preview)
-        XCTAssertNotNil(controller.errorMessage)
+        XCTAssertEqual(controller.errorMessage, "账号删除服务暂时不可用，请稍后再试。")
+        XCTAssertFalse(controller.didComplete, "an unavailable service must never be presented as deletion success")
     }
 
     func test_ownershipBlockerPreviewDoesNotAllowConfirmWithoutTransfer() async throws {

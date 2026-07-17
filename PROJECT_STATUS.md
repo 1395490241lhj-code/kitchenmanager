@@ -65,10 +65,13 @@ history, device-validation narratives, and bug investigations belong in
 - Account deletion implemented and locally validated (Docker-based
   Supabase): server-side identity deletion with household-ownership
   transfer/resolution, business-data anonymization, and an iOS
-  Settings/Account/Delete Account flow. Real reauthentication (a
-  short-lived nonce fallback is used instead) and hosted/production
-  validation remain open. See `docs/ACCOUNT_DELETION_DESIGN.md`,
-  `docs/ACCOUNT_DATA_LIFECYCLE.md`, `docs/PHASE2D2_VALIDATION.md`.
+  Settings/Account/Delete Account flow. Its backend now fails closed before
+  any deletion state is created when the server-only Auth Admin capability
+  is absent; `/ready` reports that capability without exposing a secret.
+  Real reauthentication (a short-lived nonce fallback is used instead) and
+  hosted/production validation remain open. See
+  `docs/ACCOUNT_DELETION_DESIGN.md`, `docs/ACCOUNT_DATA_LIFECYCLE.md`,
+  `docs/PHASE2D2_VALIDATION.md`.
 
 ## Remaining rollout conditions
 
@@ -105,7 +108,7 @@ list now exist: `docs/V1_STATIC_READINESS_AUDIT.md` and
 `docs/V1_RELEASE_BLOCKERS.md`. Every release stage (Internal TestFlight,
 External TestFlight, App Store, Production) is currently **No-Go**, with
 named blockers (IDs like `APP-ICON-001`, `SIGN-DIST-001`,
-`DEPLOY-SERVICEROLE-001`, `AUTH-REAUTH-001`). No new code defect was found
+`AUTH-REAUTH-001`). No new code defect was found
 in the audit; the app builds Debug/Release green and passes all release
 checks except the missing app icon.
 

@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
-const { registerAccountDeletionRoutes, createNonceStore } = require('../src/server/account/deletion-routes');
+const {
+  registerAccountDeletionRoutes,
+  createNonceStore,
+  createAccountDeletionAvailabilityGuard
+} = require('../src/server/account/deletion-routes');
 const { createAccountDeletionSyncGuard } = require('../src/server/account/deletion-sync-guard');
 const { AccountDeletionError } = require('../src/server/account/errors');
+const { isAccountDeletionAdminConfigured } = require('../src/server/account/deletion-repository');
+const { createReadyHandler } = require('../src/server/observability/health');
+const serverSource = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 
 const userA = '11111111-1111-4111-8111-111111111111';
 const userB = '22222222-2222-4222-8222-222222222222';
@@ -54,6 +62,7 @@ function baseDeps(overrides = {}) {
     admin: overrides.admin,
     nonceStore: overrides.nonceStore || createNonceStore(),
     rateLimiter: overrides.rateLimiter || ((req, res, next) => next()),
+    isAdminConfigured: overrides.isAdminConfigured,
     logger: overrides.logger
   };
 }
@@ -77,6 +86,93 @@ function fakeAdmin(overrides = {}) {
     ...overrides
   };
 }
+
+// ── 0. deployment capability gate ────────────────────────────────────────
+
+test('account-deletion Admin capability requires server-only URL, service-role key, and fetch support', () => {
+  assert.equal(isAccountDeletionAdminConfigured({ supabaseUrl: 'https://example.test', serviceRoleKey: '', fetchImpl: async () => {} }), false);
+  assert.equal(isAccountDeletionAdminConfigured({ supabaseUrl: '', serviceRoleKey: 'server-only-key', fetchImpl: async () => {} }), false);
+  assert.equal(isAccountDeletionAdminConfigured({ supabaseUrl: 'https://example.test', serviceRoleKey: 'server-only-key', fetchImpl: null }), false);
+  assert.equal(isAccountDeletionAdminConfigured({ supabaseUrl: 'https://example.test', serviceRoleKey: 'server-only-key', fetchImpl: async () => {} }), true);
+});
+
+test('missing Admin capability fails closed before preview, transfer, or confirm can create deletion state', async () => {
+  const app = createFakeApp();
+  const nonceStore = createNonceStore();
+  const nonce = nonceStore.issue(userA);
+  let available = false;
+  let previewCalls = 0;
+  let transferCalls = 0;
+  let requestDeletionCalls = 0;
+  let authAdminCalls = 0;
+
+  registerAccountDeletionRoutes(app, baseDeps({
+    nonceStore,
+    isAdminConfigured: () => available,
+    repository: fakeRepository({
+      getPreview: async () => { previewCalls += 1; return fakeRepository().getPreview(); },
+      transferOwnership: async () => { transferCalls += 1; return { status: 'transferred' }; },
+      requestDeletion: async () => { requestDeletionCalls += 1; return { status: 'business_data_cleaned' }; }
+    }),
+    admin: fakeAdmin({ deleteAuthUser: async () => { authAdminCalls += 1; return { deleted: true, alreadyGone: false }; } })
+  }));
+
+  const preview = await app.call('POST', '/api/account/delete/preview', { auth: authA, body: {} });
+  const transfer = await app.call('POST', '/api/account/transfer-ownership', {
+    auth: authA, body: { householdId: 'hh-1', newOwnerUserId: userB }
+  });
+  const confirm = await app.call('POST', '/api/account/delete/confirm', {
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+  });
+
+  for (const response of [preview, transfer, confirm]) {
+    assert.equal(response.statusCode, 503);
+    assert.equal(response.body.error.code, 'ACCOUNT_DELETION_UNAVAILABLE');
+    assert.equal(response.body.error.message, '账号删除服务当前不可用，请稍后再试。');
+    assert.doesNotMatch(JSON.stringify(response.body), /service.role|key|token|stack/i);
+  }
+  assert.equal(previewCalls, 0);
+  assert.equal(transferCalls, 0);
+  assert.equal(requestDeletionCalls, 0, 'no deletion request means no business-data cleanup and no sync freeze');
+  assert.equal(authAdminCalls, 0);
+
+  // The rejected confirm deliberately does not consume the user's nonce.
+  // Once deployment configuration is fixed, the same explicit attempt can
+  // proceed normally without requiring a fake success or partial retry.
+  available = true;
+  const recovered = await app.call('POST', '/api/account/delete/confirm', {
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+  });
+  assert.equal(recovered.statusCode, 200);
+  assert.equal(requestDeletionCalls, 1);
+  assert.equal(authAdminCalls, 1);
+});
+
+test('the readiness response exposes account-deletion capability without exposing a server-only credential', async () => {
+  const handler = createReadyHandler({
+    checks: [
+      { name: 'ordinary_service_config', run: async () => true },
+      { name: 'account_deletion_configured', run: async () => false }
+    ]
+  });
+  const res = createResponse();
+  await handler({}, res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.checks.ordinary_service_config, true);
+  assert.equal(res.body.checks.account_deletion_configured, false);
+  assert.doesNotMatch(JSON.stringify(res.body), /server-only-key|service.role|token|stack/i);
+  assert.match(serverSource, /name: 'account_deletion_configured'/);
+  assert.match(serverSource, /isAccountDeletionAdminConfigured/);
+});
+
+test('the availability middleware allows the original configured flow unchanged', async () => {
+  const guard = createAccountDeletionAvailabilityGuard(() => true);
+  const res = createResponse();
+  let nextCalled = false;
+  await guard({}, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+  assert.equal(res.body, null);
+});
 
 // ── 1. unauthenticated delete denied ──────────────────────────────────────
 

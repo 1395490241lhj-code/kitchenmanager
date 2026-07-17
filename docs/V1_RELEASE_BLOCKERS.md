@@ -91,38 +91,31 @@ an account-level or manual action outside this repository).
 - **Status**: USER-ACTION.
 - **Dependency**: None.
 
-### DEPLOY-SERVICEROLE-001 — Deployed backend must have the Auth Admin service-role key before the account-deletion UI ships to any tester
-- **Severity**: P0 (for any build that exposes the delete-account UI to a
-  signed-in tester, i.e. every current build).
+### DEPLOY-SERVICEROLE-001 — Missing Auth Admin configuration must not start account deletion
+- **Severity**: P0 (resolved in code; hosted end-to-end validation remains
+  separately tracked by AUTH-DELETE-HOSTED-001).
 - **Affected Stage**: Internal TestFlight (and downstream).
-- **Current Evidence**: `AccountViews.swift:126` renders the "删除账号"
-  `NavigationLink` unconditionally for any signed-in user (no feature-flag
-  gate). Account deletion is a two-step saga whose step 2 (`deleteAuthUser`
-  in `src/server/account/deletion-repository.js`) requires
-  `SUPABASE_SERVICE_ROLE_KEY`. The `/ready` endpoint (`server.js` ~L256)
-  checks `auth_config`/`version_gate_config`/`rate_limiter_config`/
-  `supabase_connectivity` but **not** service-role presence.
-- **Exact Risk**: If the deployed (Render) backend a TestFlight build
-  points at lacks `SUPABASE_SERVICE_ROLE_KEY`, a tester who taps Delete
-  Account gets step 1 (business-data cleanup + anonymization) applied,
-  then step 2 fails → the account is stuck at `auth_deletion_pending`:
-  business data is gone, the Auth user still exists, and sync is frozen
-  for that user by `accountDeletionGuard`. Degraded, hard-to-recover
-  state — and `/ready` would still report healthy.
-- **Required Action**: Configure `SUPABASE_SERVICE_ROLE_KEY` on the
-  deployed backend that any TestFlight build targets, before that build is
-  distributed. (Consider READY-SERVICEROLE-001 to make the misconfig
-  visible.) The key must never be committed or exposed to the client.
-- **Verification Method**: On the deployed backend, a delete-account
-  end-to-end run against a dedicated test account reaches `completed`
-  (see AUTH-DELETE-HOSTED-001, which subsumes this verification for the
-  hosted case).
-- **Fallback / Rollback**: If it cannot be guaranteed, gate the
-  delete-account entry point behind a build/runtime flag until the backend
-  is confirmed configured (small iOS change; deferred, not done in the
-  audit phase).
-- **Status**: OPEN.
-- **Dependency**: AUTH-DELETE-HOSTED-001 (shared verification).
+- **Current Evidence**: Every account-deletion route now passes through
+  `createAccountDeletionAvailabilityGuard` before preview, ownership
+  handling, nonce issuance, or `request_account_deletion`. The guard checks
+  the server-only Admin capability and returns a stable 503
+  `ACCOUNT_DELETION_UNAVAILABLE` when it is absent. No deletion ledger row,
+  business-data cleanup, sync freeze, or Auth Admin request can occur first.
+- **Exact Risk Addressed**: A backend lacking `SUPABASE_SERVICE_ROLE_KEY`
+  can no longer reach the saga's irreversible first step. The signed-in iOS
+  user sees a plain "账号删除服务暂时不可用，请稍后再试。" error rather than a
+  false confirmation or a partial deletion.
+- **Operational Note**: Configure the server-only key on a deployed backend
+  before expecting account deletion to succeed. The key remains forbidden in
+  iOS/PWA/configuration committed to Git. Missing configuration intentionally
+  disables only account deletion; `/health` and ordinary Guest/authenticated
+  features remain available.
+- **Verification Method**: Node regression covers missing configuration
+  before any repository/Admin call, recovery after configuration becomes
+  available, and response redaction. Hosted completion is still covered by
+  AUTH-DELETE-HOSTED-001.
+- **Status**: DONE (safe fail-closed behavior implemented).
+- **Dependency**: AUTH-DELETE-HOSTED-001 for hosted completion only.
 
 ---
 
@@ -363,21 +356,21 @@ an account-level or manual action outside this repository).
 - **Status**: OPEN.
 - **Dependency**: OBS-ALERT-001 (to detect stuck rows).
 
-### READY-SERVICEROLE-001 — `/ready` does not assert Auth Admin (service-role) configuration
-- **Severity**: P2
+### READY-SERVICEROLE-001 — `/ready` exposes Auth Admin capability state
+- **Severity**: P2 (resolved in code).
 - **Affected Stage**: Production / operational safety.
-- **Current Evidence**: `server.js` `/ready` checks omit any service-role
-  presence check; a backend missing it still reports healthy (see
-  DEPLOY-SERVICEROLE-001).
-- **Exact Risk**: A misconfigured deployment silently half-completes
-  deletions while appearing healthy.
-- **Required Action**: Add a `deletion_admin_config` `/ready` check
-  asserting `SUPABASE_SERVICE_ROLE_KEY` is present (booleans only, never
-  the value). Small, well-scoped, matches the existing `/ready` pattern.
-- **Verification Method**: `/ready` returns 503 when the key is absent.
+- **Current Evidence**: `server.js` now adds the boolean
+  `checks.account_deletion_configured`, derived from the same Admin
+  capability predicate as the deletion routes. A missing key makes `/ready`
+  return 503 with that check `false`; its response contains no key, URL,
+  token, or stack.
+- **Exact Risk Addressed**: Deployment monitoring can distinguish an
+  otherwise running service from one whose delete-account capability is
+  intentionally unavailable.
+- **Verification Method**: Focused Node tests cover the false check,
+  response redaction, and the composition-root wiring.
 - **Fallback / Rollback**: Additive check; trivially removable.
-- **Status**: OPEN (candidate for a small follow-up commit; not done in
-  this audit-only phase).
+- **Status**: DONE.
 - **Dependency**: None.
 
 ---
@@ -420,7 +413,7 @@ an account-level or manual action outside this repository).
 - **Verification Method**: iPad simulator/device review.
 - **Fallback / Rollback**: Narrowing device family is a one-line pbxproj
   change.
-- **Status**: OPEN.
+- **Status**: DONE.
 - **Dependency**: None.
 
 ### LEAVE-HOUSEHOLD-UI-001 — No standalone Leave/Delete-Household UI

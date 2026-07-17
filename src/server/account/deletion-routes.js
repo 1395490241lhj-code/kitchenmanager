@@ -52,6 +52,32 @@ function sendAccountDeletionError(res, error) {
   return res.status(502).json({ error: { code: 'account_deletion_failed', message: '账号删除请求处理失败，请稍后重试。' } });
 }
 
+// This guard deliberately runs before every account-deletion operation,
+// including preview. A configured user-scoped RPC alone is insufficient: a
+// confirm would otherwise be able to clean business data and create a ledger
+// row before discovering the Auth Admin/finalize half of the saga is absent.
+// A missing server-only key must therefore make the feature unavailable, not
+// leave a user in a partial deletion state.
+function createAccountDeletionAvailabilityGuard(isConfigured) {
+  return function accountDeletionAvailabilityGuard(_req, res, next) {
+    let configured = false;
+    try {
+      configured = isConfigured() === true;
+    } catch {
+      configured = false;
+    }
+    if (!configured) {
+      return res.status(503).json({
+        error: {
+          code: 'ACCOUNT_DELETION_UNAVAILABLE',
+          message: '账号删除服务当前不可用，请稍后再试。'
+        }
+      });
+    }
+    return next();
+  };
+}
+
 // Structured log helper matching the allowlist-based logger elsewhere in
 // this codebase (src/server/observability/logger.js): only safe, coarse
 // fields — never a raw userId, household id, or error body.
@@ -68,8 +94,12 @@ function registerAccountDeletionRoutes(app, options = {}) {
   const nonceStore = options.nonceStore || createNonceStore();
   const rateLimiter = options.rateLimiter || limitAccountDeletion;
   const logger = options.logger;
+  const isAdminConfigured = options.isAdminConfigured || (() => (
+    typeof admin.isConfigured === 'function' ? admin.isConfigured() : true
+  ));
+  const availabilityGuard = options.availabilityGuard || createAccountDeletionAvailabilityGuard(isAdminConfigured);
 
-  app.post('/api/account/delete/preview', auth, role, rateLimiter, async (req, res) => {
+  app.post('/api/account/delete/preview', auth, role, rateLimiter, availabilityGuard, async (req, res) => {
     try {
       const preview = await repository.getPreview({ accessToken: req.auth.accessToken });
       const nonce = nonceStore.issue(req.auth.userId);
@@ -91,7 +121,7 @@ function registerAccountDeletionRoutes(app, options = {}) {
     }
   });
 
-  app.post('/api/account/list-transfer-candidates', auth, role, rateLimiter, async (req, res) => {
+  app.post('/api/account/list-transfer-candidates', auth, role, rateLimiter, availabilityGuard, async (req, res) => {
     const householdId = typeof req.body?.householdId === 'string' ? req.body.householdId : null;
     if (!householdId) {
       return res.status(400).json({ error: { code: 'invalid_request', message: 'householdId is required.' } });
@@ -104,7 +134,7 @@ function registerAccountDeletionRoutes(app, options = {}) {
     }
   });
 
-  app.post('/api/account/transfer-ownership', auth, role, rateLimiter, async (req, res) => {
+  app.post('/api/account/transfer-ownership', auth, role, rateLimiter, availabilityGuard, async (req, res) => {
     const householdId = typeof req.body?.householdId === 'string' ? req.body.householdId : null;
     const newOwnerUserId = typeof req.body?.newOwnerUserId === 'string' ? req.body.newOwnerUserId : null;
     if (!householdId || !newOwnerUserId) {
@@ -119,7 +149,7 @@ function registerAccountDeletionRoutes(app, options = {}) {
     }
   });
 
-  app.post('/api/account/delete/confirm', auth, role, rateLimiter, async (req, res) => {
+  app.post('/api/account/delete/confirm', auth, role, rateLimiter, availabilityGuard, async (req, res) => {
     const idempotencyKey = typeof req.body?.idempotencyKey === 'string' ? req.body.idempotencyKey : null;
     const previewFingerprint = typeof req.body?.confirmationVersion === 'string' ? req.body.confirmationVersion : null;
     const deletionNonce = typeof req.body?.deletionNonce === 'string' ? req.body.deletionNonce : null;
@@ -195,4 +225,9 @@ function registerAccountDeletionRoutes(app, options = {}) {
   });
 }
 
-module.exports = { registerAccountDeletionRoutes, limitAccountDeletion, createNonceStore };
+module.exports = {
+  registerAccountDeletionRoutes,
+  limitAccountDeletion,
+  createNonceStore,
+  createAccountDeletionAvailabilityGuard
+};

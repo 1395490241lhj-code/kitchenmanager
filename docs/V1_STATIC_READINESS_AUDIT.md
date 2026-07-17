@@ -54,8 +54,11 @@ Scope: `ios-native/Kitchen Manager/KitchenManager/` (production Swift).
   permanently deletes identity, distinct from sign-out) as separate
   entries; the delete flow is recoverable (failure/pending preserve
   account + local data and force a fresh preview). **Clear separation** —
-  confirmed. One operational risk noted: the delete entry is
-  unconditional for signed-in users → DEPLOY-SERVICEROLE-001.
+  confirmed. The entry remains unconditional for signed-in users, but the
+  backend now fails closed before preview/confirm if its Admin capability is
+  absent; iOS maps the stable unavailable error to plain user-facing copy.
+  DEPLOY-SERVICEROLE-001 is resolved in code; hosted validation is still
+  AUTH-DELETE-HOSTED-001.
 - **App icon**: **no `Assets.xcassets` / `AppIcon.appiconset` at all** →
   **APP-ICON-001 (P0)**.
 - **PrivacyInfo.xcprivacy**: present at
@@ -103,8 +106,12 @@ Scope: `src/server/`, `server.js`.
 - **Saga resumption**: `account_deletion_requests` persists status, so a
   restart mid-saga is resumable by a client re-confirm; there is **no
   automatic retry worker** → SAGA-RETRY-001 (P2).
-- **`/ready` gap**: does not assert service-role presence →
-  READY-SERVICEROLE-001 (P2) / DEPLOY-SERVICEROLE-001 (P0 operational).
+- **Account-deletion deployment guard**: account-deletion routes check the
+  server-only Admin capability before any deletion RPC/nonce mutation and
+  return safe `ACCOUNT_DELETION_UNAVAILABLE` otherwise. `/ready` exposes
+  boolean `account_deletion_configured`; a false value returns 503 without
+  exposing a secret. READY-SERVICEROLE-001 and DEPLOY-SERVICEROLE-001 are
+  resolved in code; hosted deletion validation remains separate.
 
 ## 4. Database / RLS findings
 
@@ -169,8 +176,8 @@ Scope: `.github/workflows/`, `scripts/`.
 
 ## 7. Internal TestFlight readiness
 
-**No-Go.** Blockers: APP-ICON-001, SIGN-DIST-001, APPSTORE-CONNECT-001,
-DEPLOY-SERVICEROLE-001. The app itself builds Debug/Release green and
+**No-Go.** Blockers: APP-ICON-001, SIGN-DIST-001, APPSTORE-CONNECT-001.
+The app itself builds Debug/Release green and
 passes all release-tooling checks except the app icon; the remaining
 blockers are artwork, distribution signing, the App Store Connect record,
 and ensuring the deployed backend can complete account deletion.
@@ -210,10 +217,10 @@ Highest-leverage, lowest-dependency next steps (in order):
 2. **APPSTORE-CONNECT-001** (USER-ACTION) — register the Bundle ID and
    create the App Store Connect app record; complete Agreements/Tax/
    Banking. Prerequisite for SIGN-DIST-001.
-3. **DEPLOY-SERVICEROLE-001** — configure `SUPABASE_SERVICE_ROLE_KEY` on
-   the deployed backend (or gate the delete-account UI) before any build
-   with the deletion flow reaches a tester; optionally land
-   READY-SERVICEROLE-001 as a small `/ready` guard so misconfiguration is
-   visible.
+3. **AUTH-DELETE-HOSTED-001** — once a dedicated non-production account and
+   server-only Admin configuration are explicitly approved, verify the full
+   hosted deletion saga reaches `completed`. This is not required for the
+   new fail-closed protection itself.
 
-None of these are started in this audit-only phase.
+The two service-role deployment findings were resolved after this audit;
+no production project or credential was created.

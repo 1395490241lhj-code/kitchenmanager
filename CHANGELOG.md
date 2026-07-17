@@ -6,6 +6,30 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16 (Account deletion deployment fail-closed guard)
+
+### Fixed
+
+- Closed `DEPLOY-SERVICEROLE-001`: account-deletion preview, ownership
+  handling, and confirmation now require the backend's Admin capability
+  before nonce issuance or any user-scoped deletion RPC. A missing
+  server-only service-role configuration returns stable 503
+  `ACCOUNT_DELETION_UNAVAILABLE`, never creates a deletion ledger row,
+  cleans business data, freezes sync, or calls the Auth Admin API.
+- Closed `READY-SERVICEROLE-001`: `/ready` now reports only boolean
+  `account_deletion_configured`; a false capability produces 503 without
+  exposing a credential, token, URL, or stack. `/health` and ordinary
+  Guest/authenticated functionality remain unaffected.
+
+### Validated
+
+- Focused Node coverage verifies capability detection, fail-closed route
+  ordering, unchanged configured flow, readiness redaction/wiring, and the
+  existing sync-freeze behavior. iOS maps the stable unavailable code to a
+  plain delete-account error without reporting success. No hosted account
+  deletion, real reauthentication, production configuration, or production
+  project was used or enabled.
+
 ## 2026-07-16 (Phase 2D-3A: static production audit + v1 release blocker list)
 
 ### Added

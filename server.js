@@ -120,6 +120,7 @@ const { authenticateRequest, createRequireAuthRole, ALLOWED_ALGORITHMS } = requi
 const { createMeHandler } = require('./src/server/auth/me-route');
 const { registerSyncRoutes } = require('./src/server/sync/routes');
 const { registerAccountDeletionRoutes } = require('./src/server/account/deletion-routes');
+const { isAccountDeletionAdminConfigured } = require('./src/server/account/deletion-repository');
 const { createAccountDeletionSyncGuard } = require('./src/server/account/deletion-sync-guard');
 const { loadVersionEnforcementConfig } = require('./src/server/sync/version-gate');
 const { createLogger } = require('./src/server/observability/logger');
@@ -129,6 +130,7 @@ const { createRequestLoggingMiddleware } = require('./src/server/observability/h
 const { createHealthHandler, createReadyHandler } = require('./src/server/observability/health');
 const {
   SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_JWKS_URL,
   SYNC_READ_RATE_LIMIT_MAX,
   SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS,
@@ -273,6 +275,17 @@ app.get('/ready', createReadyHandler({
       run: async () => Number.isInteger(SYNC_READ_RATE_LIMIT_MAX) && SYNC_READ_RATE_LIMIT_MAX > 0
         && Number.isInteger(SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS) && SYNC_MUTATION_RATE_LIMIT_MAX_REQUESTS > 0
         && Number.isInteger(SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX) && SYNC_MUTATION_OPERATION_RATE_LIMIT_MAX > 0
+    },
+    {
+      // This is a capability check, not a secret disclosure. A false value
+      // leaves /health and ordinary Guest/authenticated features available,
+      // while making deployment monitoring surface that delete-account is
+      // intentionally fail-closed.
+      name: 'account_deletion_configured',
+      run: async () => isAccountDeletionAdminConfigured({
+        supabaseUrl: SUPABASE_URL,
+        serviceRoleKey: SUPABASE_SERVICE_ROLE_KEY
+      })
     },
     {
       name: 'supabase_connectivity',
