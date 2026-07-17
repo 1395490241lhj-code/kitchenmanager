@@ -6,6 +6,18 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-17 (Phase 2E-2 iOS Recipe Detail + Cooking Mode)
+
+### Changed
+
+- Added session-only serving scaling, ingredient checks, richer recipe metadata,
+  and a native full-screen Cooking Mode with step navigation, optional
+  foreground timers, and temporary screen-awake behavior.
+- Cooking completion marks a Today Plan only when launched from that plan;
+  ordinary recipes remain independent. Inventory consumption remains in the
+  existing explicit confirmation flow and cooking progress is not synchronized.
+- Added focused logic/UI coverage and `docs/IOS_RECIPE_COOKING_MODE.md`.
+
 ## 2026-07-17 (Phase 2E-1 iOS Home Dashboard V2)
 
 ### Changed

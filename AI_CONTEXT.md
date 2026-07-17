@@ -45,6 +45,10 @@ plan, then only inventory states that need attention and a compact shopping
 summary. Full inventory, recipe, planning, and settings workflows belong in
 their own native destinations rather than as a grid of home shortcuts.
 
+Recipe cooking is deliberately confirmation-first: the native Cooking Mode may
+track session-only checks, serving scale, steps, and a foreground timer, but
+does not mutate a recipe, deduct inventory, or synchronize cooking progress.
+
 ### Small, reversible iteration
 
 Prefer focused changes with explicit tests. Do not combine a behavior fix, architecture migration, design overhaul, and unrelated cleanup in one task.

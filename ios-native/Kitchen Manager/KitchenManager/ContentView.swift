@@ -172,6 +172,11 @@ struct ContentView: View {
             kitchenStore.clearAllLocalData()
             navigationStore.selectedTab = .today
         }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_COOKING") else { return }
+            kitchenStore.clearAllLocalData()
+            navigationStore.selectedTab = .recipes
+        }
         #endif
     }
 }

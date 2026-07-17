@@ -77,6 +77,11 @@ history, device-validation narratives, and bug investigations belong in
   concise inventory-alert and shopping summaries, direct native navigation,
   and a small toolbar action menu. It remains entirely local-first and does
   not change sync or authentication behavior; see `docs/IOS_HOME_DASHBOARD.md`.
+- iOS recipe detail now supports session-only serving scaling and ingredient
+  checks, plus a native Cooking Mode with step navigation, foreground timer,
+  temporary screen-awake behavior, and explicit Today Plan completion. It
+  never auto-deducts inventory or syncs cooking progress; see
+  `docs/IOS_RECIPE_COOKING_MODE.md`.
 
 ## Remaining rollout conditions
 

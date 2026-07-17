@@ -13,7 +13,7 @@ final class GuestMergeTests: XCTestCase {
 
     func testDetectionReportsNoGuestDataWhenAllStoresEmpty() {
         let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
-        let recipes = RecipeStore()
+        let recipes = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
         let summary = GuestDatasetDetector.summary(kitchenStore: kitchen, recipeStore: recipes, at: Date())
         XCTAssertFalse(summary.hasAnyGuestData)
         XCTAssertFalse(summary.hasMergeableInventory)

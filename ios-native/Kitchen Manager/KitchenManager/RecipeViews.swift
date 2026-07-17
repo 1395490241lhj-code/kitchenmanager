@@ -57,6 +57,7 @@ struct RecipeListView: View {
                     Text(recipe.summaryText).font(.subheadline).foregroundStyle(.secondary)
                 }
             }
+            .accessibilityIdentifier("recipe.list.\(recipe.id)")
         }
         .overlay { if recipes.isEmpty { ContentUnavailableView.search(text: searchText) } }
         .navigationTitle("菜谱")
@@ -113,12 +114,21 @@ struct RecipeListView: View {
 
 struct RecipeDetailView: View {
     let recipe: Recipe
+    let todayPlan: MealPlanItem?
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @State private var isShowingShoppingGeneration = false
     @State private var isEditing = false
     @State private var isShowingDeleteAlert = false
+    @State private var isShowingCookingMode = false
     @State private var errorMessage: String?
+    @StateObject private var cookingSession: RecipeCookingSession
+
+    init(recipe: Recipe, todayPlan: MealPlanItem? = nil) {
+        self.recipe = recipe
+        self.todayPlan = todayPlan
+        _cookingSession = StateObject(wrappedValue: RecipeCookingSession(servings: todayPlan?.servings ?? 1))
+    }
 
     private var cookingSteps: [String] { recipe.steps.filter { !$0.hasPrefix("小贴士：") } }
     private var tips: [String] { recipe.steps.compactMap { $0.hasPrefix("小贴士：") ? String($0.dropFirst("小贴士：".count)) : nil } }
@@ -126,15 +136,33 @@ struct RecipeDetailView: View {
     var body: some View {
         List {
             Section {
-                Text(recipe.title).font(.largeTitle.bold())
-                if !recipe.tags.isEmpty { Text(recipe.tags.joined(separator: " · ")).foregroundStyle(AppTheme.primary) }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(recipe.title).font(.title.bold())
+                    if !recipe.tags.isEmpty { Text(recipe.tags.joined(separator: " · ")).foregroundStyle(AppTheme.primary) }
+                    HStack(spacing: 14) {
+                        Label("\(cookingSession.servings) 人份", systemImage: "person.2")
+                        if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
+                        if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
+                    }
+                    .font(.subheadline).foregroundStyle(.secondary)
+                }
             }
+            Section {
+                Stepper(value: $cookingSession.servings, in: 1...12) {
+                    Text("当前份量：\(cookingSession.servings) 人份")
+                }
+                .accessibilityIdentifier("recipe.detail.servings")
+            } footer: { Text("仅调整当前查看和烹饪会话的用量，不会修改原始菜谱。") }
             Section("食材") {
                 if recipe.ingredients.isEmpty { Text("暂未记录食材").foregroundStyle(.secondary) }
-                else { ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { _, value in Text(value) } }
+                else { ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { index, value in
+                    ingredientRow(value, index: index)
+                } }
             }
             if !recipe.seasonings.isEmpty {
-                Section("调料与辅料") { ForEach(Array(recipe.seasonings.enumerated()), id: \.offset) { _, value in Text(value) } }
+                Section("调料与辅料") { ForEach(Array(recipe.seasonings.enumerated()), id: \.offset) { index, value in
+                    ingredientRow(value, index: recipe.ingredients.count + index)
+                } }
             }
             Section("步骤") {
                 ForEach(Array(cookingSteps.enumerated()), id: \.offset) { index, step in
@@ -142,6 +170,10 @@ struct RecipeDetailView: View {
                 }
             }
             if !tips.isEmpty { Section("小贴士") { ForEach(tips, id: \.self) { Label($0, systemImage: "lightbulb") } } }
+            Section {
+                Button("开始烹饪", systemImage: "flame.fill") { isShowingCookingMode = true }
+                    .font(.headline).frame(maxWidth: .infinity).accessibilityIdentifier("recipe.detail.startCooking")
+            }
         }
         .navigationTitle("菜谱详情").navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -164,12 +196,64 @@ struct RecipeDetailView: View {
         }
         .navigationDestination(isPresented: $isShowingShoppingGeneration) { ShoppingListGenerationView(source: .recipe(recipe, servings: 1)) }
         .navigationDestination(isPresented: $isEditing) { RecipeEditView(recipe: recipe) }
+        .fullScreenCover(isPresented: $isShowingCookingMode) {
+            RecipeCookingModeView(recipe: recipe, session: cookingSession, todayPlan: todayPlan) {
+                if let todayPlan { kitchenStore.markPlanCooked(todayPlan) }
+                isShowingCookingMode = false
+            } onExit: { isShowingCookingMode = false }
+            .environmentObject(kitchenStore)
+        }
         .alert(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置这份菜谱？" : "删除这份菜谱？", isPresented: $isShowingDeleteAlert) {
             Button(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置" : "删除", role: .destructive) { do { try recipeStore.deleteUserRecipe(id: recipe.id) } catch { errorMessage = error.localizedDescription } }
             Button("取消", role: .cancel) {}
         }
         .alert("操作失败", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("好", role: .cancel) {} } message: { Text(errorMessage ?? "请稍后重试。") }
     }
+
+    @ViewBuilder private func ingredientRow(_ value: String, index: Int) -> some View {
+        Button { cookingSession.toggleIngredient(at: index) } label: {
+            HStack {
+                Image(systemName: cookingSession.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(cookingSession.checkedIngredientIndexes.contains(index) ? AppTheme.success : .secondary)
+                Text(RecipeServingScaler.scaledText(value, multiplier: Double(cookingSession.servings)))
+                    .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
+                    .foregroundStyle(.primary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("recipe.detail.ingredient.\(index)")
+        .accessibilityLabel("\(RecipeServingScaler.scaledText(value, multiplier: Double(cookingSession.servings)))，\(cookingSession.checkedIngredientIndexes.contains(index) ? "已准备" : "未准备")")
+    }
+}
+
+private struct RecipeDetailPreview: View {
+    let recipe: Recipe
+
+    var body: some View {
+        NavigationStack {
+            RecipeDetailView(recipe: recipe)
+        }
+        .environmentObject(RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!))
+        .environmentObject(KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!))
+    }
+}
+
+#Preview("Recipe detail — no steps") {
+    RecipeDetailPreview(recipe: Recipe(id: "preview-empty", title: "待补充做法", cookingTime: nil, difficulty: nil, tags: [], ingredients: ["番茄 2 个"], steps: []))
+}
+
+#Preview("Recipe detail — long content") {
+    RecipeDetailPreview(recipe: Recipe(
+        id: "preview-long", title: "慢炖番茄蔬菜浓汤", cookingTime: 75, difficulty: "中等", tags: ["家庭料理", "周末"],
+        ingredients: ["新鲜成熟番茄 6 个（去皮切块后保留全部汁水）", "带叶芹菜 1 大把（仔细洗净后切成细末）"],
+        seasonings: ["现磨黑胡椒 适量", "蔬菜高汤 800 毫升"],
+        steps: ["用中小火慢慢煸炒所有蔬菜，持续搅拌直到边缘微微焦糖化且锅底没有粘连。", "加入番茄和高汤后保持轻微沸腾，炖煮至所有食材完全软烂并根据口味调整浓稠度。"]
+    ))
+}
+
+#Preview("Recipe detail — large type") {
+    RecipeDetailPreview(recipe: Recipe.samples[0])
+        .environment(\.dynamicTypeSize, .accessibility3)
 }
 
 private struct RecipeEditView: View {

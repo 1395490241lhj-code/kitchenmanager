@@ -952,11 +952,13 @@ private struct SmartImportRow: View {
 
 struct TodayPlanDetailView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
+    @EnvironmentObject private var recipeStore: RecipeStore
     @State private var activeSheet: TodayPlanSheet?
     @State private var planPendingRemoval: MealPlanItem?
     @State private var isShowingWeeklyPlanner = false
     @State private var isShowingShoppingGeneration = false
     @State private var toastMessage: String?
+    @State private var selectedRecipePlan: MealPlanItem?
 
     private enum TodayPlanSheet: Identifiable {
         case cook(MealPlanItem)
@@ -980,19 +982,24 @@ struct TodayPlanDetailView: View {
                 Section("今天 \(kitchenStore.todayPlans.count) 道菜") {
                     ForEach(kitchenStore.todayPlans) { plan in
                         HStack(spacing: 12) {
-                            Image(systemName: plan.isCooked ? "checkmark.circle.fill" : "fork.knife.circle")
-                                .font(.title2)
-                                .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.warning)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(plan.recipeName).font(.headline)
-                                Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份 · 今天")
-                                    .font(.caption).foregroundStyle(.secondary)
+                            Button {
+                                selectedRecipePlan = plan
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: plan.isCooked ? "checkmark.circle.fill" : "fork.knife.circle")
+                                        .font(.title2)
+                                        .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.warning)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(plan.recipeName).font(.headline)
+                                        Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份 · 今天")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
                             }
-                            Spacer()
-                            if !plan.isCooked {
-                                Button("做好了") { activeSheet = .cook(plan) }
-                                    .font(.caption.bold())
-                            }
+                            .buttonStyle(.plain)
+                            if !plan.isCooked { Button("做好了") { activeSheet = .cook(plan) }.font(.caption.bold()) }
                         }
                         .contextMenu {
                             Button("移出计划", role: .destructive) { planPendingRemoval = plan }
@@ -1040,6 +1047,13 @@ struct TodayPlanDetailView: View {
         }
         .navigationDestination(isPresented: $isShowingShoppingGeneration) {
             ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
+        }
+        .navigationDestination(item: $selectedRecipePlan) { plan in
+            if let recipe = recipeStore.recipes.first(where: { $0.id == plan.recipeID }) ?? Recipe.samples.first(where: { $0.id == plan.recipeID }) {
+                RecipeDetailView(recipe: recipe, todayPlan: plan)
+            } else {
+                ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text("这份计划保留不变，可以稍后重试。"))
+            }
         }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
