@@ -36,57 +36,56 @@ struct HomeView: View {
 
     @State private var activeSheet: HomeSheet?
     @State private var toastMessage: String?
-    @State private var selectedRecipe: Recipe?
     @State private var isShowingTodayPlan = false
     @State private var isShowingRecommendations = false
-    @State private var isShowingWeeklyPlanner = false
 
     private var sourceRecipes: [Recipe] {
         recipeStore.recipes.isEmpty ? Recipe.samples : recipeStore.recipes
     }
 
-    private var primaryTaskState: HomePrimaryTaskState {
-        if let plan = kitchenStore.pendingTodayPlans.first {
-            return .active(plan: plan, recipe: sourceRecipes.first { $0.id == plan.recipeID })
-        }
-        if !kitchenStore.todayPlans.isEmpty {
-            return .completed
-        }
-        return .empty
+    private var dashboard: HomeDashboardSummary {
+        HomeDashboardSummary(
+            inventory: kitchenStore.inventory,
+            todayPlans: kitchenStore.todayPlans,
+            pendingShoppingItems: kitchenStore.pendingShoppingItems
+        )
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                HomeHeaderView(
+            VStack(alignment: .leading, spacing: 28) {
+                HomeDashboardHeader(
                     displayName: displayName,
-                    subtitle: headerSubtitle,
-                    onOpenSmartImport: {
-                        activeSheet = .smartImport
+                    householdName: householdName
+                )
+
+                TodayPlanSummaryCard(
+                    dashboard: dashboard,
+                    onViewPlan: { isShowingTodayPlan = true },
+                    onAddPlan: { isShowingRecommendations = true }
+                )
+
+                InventoryAlertSummaryCard(
+                    dashboard: dashboard,
+                    onSelect: { focus in navigationStore.showInventory(focus) }
+                )
+
+                ShoppingSummaryCard(
+                    dashboard: dashboard,
+                    onShowShopping: { navigationStore.selectedTab = .shopping }
+                )
+
+                HomeModuleIssues(
+                    issues: HomeDashboardModuleIssue.issues(
+                        inventoryNotice: kitchenStore.inventoryNotice,
+                        shoppingNotice: kitchenStore.shoppingNotice
+                    ),
+                    action: { issue in
+                        switch issue {
+                        case .inventory: navigationStore.showInventory(.all)
+                        case .shopping: navigationStore.selectedTab = .shopping
+                        }
                     }
-                )
-
-                HomePrimaryTaskCard(
-                    state: primaryTaskState,
-                    mealLabel: currentMealLabel,
-                    onPrimaryAction: handlePrimaryAction,
-                    onViewFullPlan: { isShowingTodayPlan = true },
-                    onSwapRecommendation: { isShowingRecommendations = true },
-                    onGetRecommendation: { isShowingRecommendations = true }
-                )
-
-                KitchenAlertsCard(
-                    expiredCount: expiredItemCount,
-                    expiringSoonCount: expiringSoonItemCount,
-                    pendingShoppingCount: kitchenStore.pendingShoppingItems.count,
-                    onShowExpiring: { activeSheet = .expiry },
-                    onShowShopping: { activeSheet = .shopping }
-                )
-
-                WeeklyPlannerCard(
-                    hasPlan: kitchenStore.weeklyPlan != nil,
-                    subtitle: weeklyPlannerSubtitle,
-                    action: { isShowingWeeklyPlanner = true }
                 )
             }
             .padding(.horizontal, 20)
@@ -94,19 +93,42 @@ struct HomeView: View {
             .padding(.bottom, 24)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("首页")
-        .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(item: $selectedRecipe) { recipe in
-            RecipeDetailView(recipe: recipe)
+        .navigationTitle("今天")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    activeSheet = .smartImport
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityIdentifier("home.import.add.button")
+                .accessibilityLabel("添加食材")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("添加今日菜品", systemImage: "calendar.badge.plus") { isShowingRecommendations = true }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityIdentifier("home.add.menu")
+                .accessibilityLabel("更多操作")
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    navigationStore.selectedTab = .settings
+                } label: {
+                    Image(systemName: "person.crop.circle")
+                }
+                .accessibilityIdentifier("home.settings.button")
+                .accessibilityLabel("账号与设置")
+            }
         }
         .navigationDestination(isPresented: $isShowingTodayPlan) {
             TodayPlanDetailView()
         }
         .navigationDestination(isPresented: $isShowingRecommendations) {
             RecipeRecommendationBrowserView()
-        }
-        .navigationDestination(isPresented: $isShowingWeeklyPlanner) {
-            WeeklyMenuPlannerView()
         }
         .sheet(item: $activeSheet) { sheet in
             sheetContent(sheet)
@@ -158,60 +180,12 @@ struct HomeView: View {
         }
     }
 
-    private func handlePrimaryAction() {
-        switch primaryTaskState {
-        case .active(let plan, let recipe):
-            if let recipe {
-                selectedRecipe = recipe
-            } else {
-                isShowingTodayPlan = true
-            }
-        case .empty:
-            isShowingRecommendations = true
-        case .completed:
-            isShowingWeeklyPlanner = true
-        }
-    }
-
     private var displayName: String? {
         authStore.account?.user.displayName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyHome
     }
 
-    private var currentMealLabel: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        if hour < 10 { return "早餐" }
-        if hour < 15 { return "午餐" }
-        return "晚餐"
-    }
-
-    private var headerSubtitle: String {
-        switch primaryTaskState {
-        case .active: return "先把\(currentMealLabel)做好，其它待会儿再说"
-        case .completed: return "今天的安排已经完成"
-        case .empty: return "今天先把\(currentMealLabel)安排好"
-        }
-    }
-
-    private var weeklyPlannerSubtitle: String {
-        guard let plan = kitchenStore.weeklyPlan else {
-            return "按顿数、人数安排接下来一周"
-        }
-
-        let dishCount = plan.days.reduce(0) { total, day in
-            total + day.meals.reduce(0) { mealTotal, meal in
-                mealTotal + meal.recipes.count
-            }
-        }
-
-        return "已安排 \(plan.days.count) 天 · \(dishCount) 道菜"
-    }
-
-    private var expiredItemCount: Int {
-        kitchenStore.expiringItems.filter { $0.expiryStatus == .expired }.count
-    }
-
-    private var expiringSoonItemCount: Int {
-        kitchenStore.expiringItems.count - expiredItemCount
+    private var householdName: String? {
+        authStore.account?.households.first?.name.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyHome
     }
 
     private func showToast(_ message: String) {
@@ -221,6 +195,286 @@ struct HomeView: View {
             await MainActor.run { withAnimation { toastMessage = nil } }
         }
     }
+}
+
+// MARK: - Dashboard V2
+
+private struct HomeDashboardHeader: View {
+    let displayName: String?
+    let householdName: String?
+
+    private var model: HomeDashboardHeaderModel {
+        HomeDashboardHeaderModel(displayName: displayName, householdName: householdName)
+    }
+
+    private var dateText: String {
+        Date.now.formatted(.dateTime.weekday(.wide).month().day())
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(dateText)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(model.title)
+                .font(.largeTitle.weight(.bold))
+                .foregroundStyle(.primary)
+            if model.shouldShowHousehold, let householdName {
+                Label(householdName, systemImage: "person.2")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("home.dashboard.header")
+    }
+}
+
+private struct TodayPlanSummaryCard: View {
+    let dashboard: HomeDashboardSummary
+    let onViewPlan: () -> Void
+    let onAddPlan: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HomeSectionHeader(title: "今日计划", trailingTitle: dashboard.totalPlanCount > 0 ? "查看全部" : nil, action: onViewPlan)
+            switch dashboard.todayPlanState {
+            case .empty:
+                ContentUnavailableView {
+                    Label("今天还没有计划", systemImage: "calendar.badge.plus")
+                } description: {
+                    Text("先选一道想做的菜，晚些时候就不用再纠结。")
+                } actions: {
+                    Button("添加今日菜品", action: onAddPlan)
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.primary)
+                        .accessibilityIdentifier("home.today.plan.add.button")
+                }
+            case .active, .completed:
+                ForEach(dashboard.displayedPlans) { plan in
+                    HStack(spacing: 12) {
+                        Image(systemName: plan.isCooked ? "checkmark.circle.fill" : "fork.knife.circle.fill")
+                            .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.primary)
+                            .font(.title3)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(plan.recipeName).font(.headline).lineLimit(1)
+                            Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                }
+                if dashboard.additionalPlanCount > 0 {
+                    Text("还有 \(dashboard.additionalPlanCount) 道菜")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Text("已完成 \(dashboard.completedPlanCount)/\(dashboard.totalPlanCount)")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .accessibilityIdentifier("home.today.plan.card")
+    }
+}
+
+private struct InventoryAlertSummaryCard: View {
+    let dashboard: HomeDashboardSummary
+    let onSelect: (InventoryFocus) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "库存提醒")
+            if dashboard.hasInventoryAlerts {
+                if dashboard.expiredCount > 0 {
+                    HomeAlertButton(title: "已过期", count: dashboard.expiredCount, image: "exclamationmark.circle.fill", tint: .red, identifier: "home.inventory.expired.button") { onSelect(.expired) }
+                }
+                if dashboard.expiringSoonCount > 0 {
+                    HomeAlertButton(title: "即将到期", count: dashboard.expiringSoonCount, image: "clock.fill", tint: AppTheme.warning, identifier: "home.inventory.expiring.button") { onSelect(.expiringSoon) }
+                }
+                if dashboard.lowStockCount > 0 {
+                    HomeAlertButton(title: "库存不足", count: dashboard.lowStockCount, image: "shippingbox.fill", tint: .orange, identifier: "home.inventory.lowstock.button") { onSelect(.lowStock) }
+                }
+            } else {
+                Label("目前没有需要处理的库存提醒", systemImage: "checkmark.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 2)
+    }
+}
+
+private struct ShoppingSummaryCard: View {
+    let dashboard: HomeDashboardSummary
+    let onShowShopping: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "买菜清单", trailingTitle: "查看清单", action: onShowShopping)
+            Button(action: onShowShopping) {
+                HStack(spacing: 14) {
+                    Image(systemName: dashboard.pendingShoppingCount == 0 ? "checklist" : "cart.fill")
+                        .foregroundStyle(AppTheme.primary)
+                        .font(.title3)
+                        .frame(width: 30)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(dashboard.pendingShoppingCount == 0 ? "清单已完成" : "还有 \(dashboard.pendingShoppingCount) 项待购买")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        if dashboard.shoppingPreview.isEmpty {
+                            Text("需要时可从这里添加买菜项目。")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(dashboard.shoppingPreview.map(\.name).joined(separator: "、"))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("home.shopping.summary.card")
+        }
+    }
+}
+
+private struct HomeSectionHeader: View {
+    let title: String
+    var trailingTitle: String? = nil
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        HStack {
+            Text(title).font(.title3.weight(.semibold))
+            Spacer()
+            if let trailingTitle, let action {
+                Button(trailingTitle, action: action)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.primary)
+                    .accessibilityIdentifier(title == "今日计划" ? "home.today.plan.viewAll" : "home.section.\(title)")
+            }
+        }
+    }
+}
+
+private struct HomeAlertButton: View {
+    let title: String
+    let count: Int
+    let image: String
+    let tint: Color
+    let identifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: image).foregroundStyle(tint).frame(width: 22)
+                Text(title).foregroundStyle(.primary)
+                Spacer()
+                Text("\(count)").monospacedDigit().foregroundStyle(.secondary)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .font(.subheadline)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+private struct HomeModuleIssues: View {
+    let issues: [HomeDashboardModuleIssue]
+    let action: (HomeDashboardModuleIssue) -> Void
+
+    var body: some View {
+        ForEach(issues, id: \.self) { issue in
+            Button(issue.actionTitle) { action(issue) }
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("\(issue.title)，\(issue.actionTitle)")
+        }
+    }
+}
+
+#Preview("今日计划") {
+    TodayPlanSummaryCard(
+        dashboard: HomeDashboardSummary(
+            inventory: [],
+            todayPlans: [
+                MealPlanItem(recipeID: "1", recipeName: "番茄炒蛋", servings: 2),
+                MealPlanItem(recipeID: "2", recipeName: "清炒时蔬", servings: 1),
+                MealPlanItem(recipeID: "3", recipeName: "紫菜蛋花汤", servings: 3, isCooked: true)
+            ],
+            pendingShoppingItems: []
+        ),
+        onViewPlan: {},
+        onAddPlan: {}
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
+#Preview("空首页") {
+    VStack(alignment: .leading, spacing: 28) {
+        HomeDashboardHeader(displayName: nil, householdName: nil)
+        TodayPlanSummaryCard(
+            dashboard: HomeDashboardSummary(inventory: [], todayPlans: [], pendingShoppingItems: []),
+            onViewPlan: {},
+            onAddPlan: {}
+        )
+        ShoppingSummaryCard(
+            dashboard: HomeDashboardSummary(inventory: [], todayPlans: [], pendingShoppingItems: []),
+            onShowShopping: {}
+        )
+    }
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
+#Preview("深色模式") {
+    InventoryAlertSummaryCard(
+        dashboard: HomeDashboardSummary(
+            inventory: [
+                InventoryItem(name: "牛奶", quantity: 1, unit: "盒", expiryDate: Date().addingTimeInterval(86_400))
+            ],
+            todayPlans: [],
+            pendingShoppingItems: []
+        ),
+        onSelect: { _ in }
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+    .preferredColorScheme(.dark)
+}
+
+#Preview("辅助功能大字号") {
+    TodayPlanSummaryCard(
+        dashboard: HomeDashboardSummary(
+            inventory: [],
+            todayPlans: [MealPlanItem(recipeID: "1", recipeName: "家常豆腐", servings: 2)],
+            pendingShoppingItems: []
+        ),
+        onViewPlan: {},
+        onAddPlan: {}
+    )
+    .padding()
+    .dynamicTypeSize(.accessibility3)
 }
 
 private extension String {

@@ -146,6 +146,32 @@ struct ContentView: View {
             ])
             navigationStore.selectedTab = .inventory
         }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_DASHBOARD") else { return }
+            kitchenStore.clearAllLocalData()
+            let now = Date()
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "临期牛奶", quantity: 1, unit: "盒", expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: now)),
+                InventoryImportItem(name: "过期生菜", quantity: 1, unit: "颗", expiryDate: Calendar.current.date(byAdding: .day, value: -1, to: now)),
+                InventoryImportItem(name: "大米", quantity: 1, unit: "袋", expiryDate: nil, isStaple: true)
+            ])
+            if let riceIndex = kitchenStore.inventory.firstIndex(where: { $0.name == "大米" }) {
+                kitchenStore.inventory[riceIndex].lowStockThreshold = 2
+            }
+            kitchenStore.addShopping(name: "鸡蛋", quantity: 1, unit: "盒")
+            kitchenStore.addShopping(name: "青菜", quantity: 1, unit: "份")
+            kitchenStore.addPlans(
+                Recipe.samples.prefix(3).enumerated().map { offset, recipe in
+                    (recipe: recipe, servings: offset + 1)
+                }
+            )
+            navigationStore.selectedTab = .today
+        }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_HOME") else { return }
+            kitchenStore.clearAllLocalData()
+            navigationStore.selectedTab = .today
+        }
         #endif
     }
 }

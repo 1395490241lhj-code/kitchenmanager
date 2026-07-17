@@ -6,6 +6,22 @@ enum AppTab: Hashable {
     case today, inventory, shopping, recipes, settings
 }
 
+enum InventoryFocus: Equatable {
+    case all
+    case expired
+    case expiringSoon
+    case lowStock
+
+    var title: String {
+        switch self {
+        case .all: "全部食材"
+        case .expired: "已过期"
+        case .expiringSoon: "即将到期"
+        case .lowStock: "库存不足"
+        }
+    }
+}
+
 /// The single navigation destination type for inventory-detail pushes. Every entry
 /// point (inventory grid, pantry staples list, home expiry sheet) must push this
 /// value — never a bare UUID — so each NavigationStack's `navigationDestination`
@@ -17,6 +33,12 @@ enum InventoryRoute: Hashable {
 @MainActor
 final class AppNavigationStore: ObservableObject {
     @Published var selectedTab: AppTab = .today
+    @Published var inventoryFocus: InventoryFocus = .all
+
+    func showInventory(_ focus: InventoryFocus) {
+        inventoryFocus = focus
+        selectedTab = .inventory
+    }
 }
 
 struct InventoryItem: Identifiable, Codable, Hashable {

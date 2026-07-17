@@ -6,6 +6,19 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-17 (Phase 2E-1 iOS Home Dashboard V2)
+
+### Changed
+
+- Reworked the native iOS home tab around today's plan, concise actionable
+  inventory alerts, and a compact shopping summary. Summary cards retain
+  direct native navigation while the toolbar contains secondary actions.
+- Added pure dashboard-summary coverage, Home UI-test coverage, accessible
+  dashboard identifiers, and previews for populated, empty, dark-mode, and
+  larger Dynamic Type states. This does not change authentication, sync,
+  release flags, or any hosted configuration.
+
+
 ## 2026-07-16 (Phase 2D-3C account-deletion reauthentication)
 
 ### Changed

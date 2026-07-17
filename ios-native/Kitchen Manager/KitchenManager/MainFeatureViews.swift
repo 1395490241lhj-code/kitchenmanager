@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct InventoryView: View {
     @EnvironmentObject private var store: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
+    @EnvironmentObject private var navigationStore: AppNavigationStore
     /// Pushes onto the tab-root NavigationPath directly, rather than relying on
     /// NavigationLink(value:)'s own resolution — a LazyVGrid of many value-linked
     /// cards inside a List Section was reproducibly (via a real XCUITest tap, not
@@ -20,8 +21,42 @@ struct InventoryView: View {
         RestockSuggestionEngine().generate(kitchenStore: store, recipeStore: recipeStore)
     }
 
+    private var displayedFreshInventory: [InventoryItem] {
+        switch navigationStore.inventoryFocus {
+        case .all:
+            store.sortedFreshInventory
+        case .expired:
+            store.sortedFreshInventory.filter { $0.expiryStatus == .expired }
+        case .expiringSoon:
+            store.sortedFreshInventory.filter {
+                $0.expiryStatus == .today || $0.expiryStatus == .soon
+            }
+        case .lowStock:
+            store.sortedFreshInventory.filter {
+                $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
+            }
+        }
+    }
+
+    private var displayedStaples: [InventoryItem] {
+        let staples = store.pantryStaples.filter(stapleFilter.includes)
+        guard navigationStore.inventoryFocus == .lowStock else { return staples }
+        return staples.filter { $0.stapleStatus == .low || $0.stapleStatus == .outOfStock }
+    }
+
     var body: some View {
         List {
+            if navigationStore.inventoryFocus != .all {
+                Section {
+                    HStack {
+                        Label("正在查看：\(navigationStore.inventoryFocus.title)", systemImage: "line.3.horizontal.decrease.circle")
+                        Spacer()
+                        Button("清除") { navigationStore.inventoryFocus = .all }
+                    }
+                    .font(.subheadline)
+                }
+            }
+
             Section {
                 HStack {
                     StatusMetric(title: "在库", value: "\(store.availableInventory.count)", color: .green)
@@ -33,21 +68,23 @@ struct InventoryView: View {
             }
 
             Section("新鲜食材") {
-                if store.sortedFreshInventory.isEmpty {
+                if displayedFreshInventory.isEmpty {
                     ContentUnavailableView(
-                        "还没有食材",
+                        navigationStore.inventoryFocus == .all ? "还没有食材" : "没有符合条件的食材",
                         systemImage: "shippingbox",
-                        description: Text("从首页记录冰箱食材后，会在这里显示库存和保质期。")
+                        description: Text(navigationStore.inventoryFocus == .all ? "从首页记录冰箱食材后，会在这里显示库存和保质期。" : "可以清除筛选查看全部食材。")
                     )
-                    Button("快速记录食材", systemImage: "plus") {
-                        recordMode = .manual
+                    if navigationStore.inventoryFocus == .all {
+                        Button("快速记录食材", systemImage: "plus") {
+                            recordMode = .manual
+                        }
                     }
                 } else {
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: 145, maximum: 210), spacing: 10)],
                         spacing: 10
                     ) {
-                        ForEach(store.sortedFreshInventory) { item in
+                        ForEach(displayedFreshInventory) { item in
                             Button {
                                 onSelectItem(item.id)
                             } label: {
@@ -67,7 +104,7 @@ struct InventoryView: View {
             }
 
             Section {
-                let staples = store.pantryStaples.filter(stapleFilter.includes)
+                let staples = displayedStaples
                 if staples.isEmpty {
                     if store.pantryStaples.isEmpty {
                         ContentUnavailableView(

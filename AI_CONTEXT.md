@@ -40,6 +40,11 @@ Local device data and offline usability are primary. Optional account/sync infra
 
 PWA UI should work around a 390px phone viewport. Native iOS UI should follow SwiftUI platform conventions, accessibility, Dynamic Type, and safe-area behavior rather than mechanically copying browser markup.
 
+The native iOS home dashboard is a daily triage surface: prioritize today's
+plan, then only inventory states that need attention and a compact shopping
+summary. Full inventory, recipe, planning, and settings workflows belong in
+their own native destinations rather than as a grid of home shortcuts.
+
 ### Small, reversible iteration
 
 Prefer focused changes with explicit tests. Do not combine a behavior fix, architecture migration, design overhaul, and unrelated cleanup in one task.

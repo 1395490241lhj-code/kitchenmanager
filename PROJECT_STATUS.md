@@ -1,6 +1,6 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 This is the single current-state snapshot for humans and AI agents. It is
 not a changelog and must remain concise. Implementation detail, test-count
@@ -73,6 +73,10 @@ history, device-validation narratives, and bug investigations belong in
   a short-lived, single-use proof. Hosted/production validation remains open. See
   `docs/ACCOUNT_DELETION_DESIGN.md`, `docs/ACCOUNT_DATA_LIFECYCLE.md`,
   `docs/PHASE2D2_VALIDATION.md`.
+- iOS Home Dashboard V2 now makes today's plan the primary task, with
+  concise inventory-alert and shopping summaries, direct native navigation,
+  and a small toolbar action menu. It remains entirely local-first and does
+  not change sync or authentication behavior; see `docs/IOS_HOME_DASHBOARD.md`.
 
 ## Remaining rollout conditions
 
