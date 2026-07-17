@@ -68,8 +68,9 @@ history, device-validation narratives, and bug investigations belong in
   Settings/Account/Delete Account flow. Its backend now fails closed before
   any deletion state is created when the server-only Auth Admin capability
   is absent; `/ready` reports that capability without exposing a secret.
-  Real reauthentication (a short-lived nonce fallback is used instead) and
-  hosted/production validation remain open. See
+  Real email/password reauthentication is required before deletion; the
+  backend verifies Supabase-signed recent password AMR metadata and consumes
+  a short-lived, single-use proof. Hosted/production validation remains open. See
   `docs/ACCOUNT_DELETION_DESIGN.md`, `docs/ACCOUNT_DATA_LIFECYCLE.md`,
   `docs/PHASE2D2_VALIDATION.md`.
 
@@ -97,10 +98,10 @@ history, device-validation narratives, and bug investigations belong in
 7. A consent/opt-out UI and privacy-label decision for crash reporting is
    not yet designed — deferred until a real provider is chosen, since the
    no-op provider sends nothing.
-8. Account deletion (App Store Guideline 5.1.1(v)) is implemented and
-   locally validated, but not hosted/production-validated, and uses a
-   short-lived-nonce fallback rather than real reauthentication — both
-   required before External TestFlight/App Store submission. See
+8. Account deletion (App Store Guideline 5.1.1(v)) is implemented, locally
+   validated, and requires real email/password reauthentication, but is not
+   hosted/production-validated — hosted validation remains required before
+   External TestFlight/App Store submission. See
    `docs/ACCOUNT_DELETION_DESIGN.md` §11.
 
 A full static production-readiness audit and a stage-by-stage v1 blocker

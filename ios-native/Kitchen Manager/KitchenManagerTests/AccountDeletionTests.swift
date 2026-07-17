@@ -13,13 +13,12 @@ final class APIAccountDeletionServiceTests: NetworkTestCase {
             return .init(statusCode: 200, data: Data("""
             {"canDelete":true,"blockingReason":null,"householdCount":1,"ownedHouseholdCount":0,
              "requiresOwnershipTransfer":false,"requiresHouseholdDeletion":false,
-             "pendingMutationCountBucket":"0","confirmationVersion":"fp-1","deletionNonce":"nonce-1"}
+             "pendingMutationCountBucket":"0","confirmationVersion":"fp-1"}
             """.utf8))
         }
         let preview = try await APIAccountDeletionService(client: apiClient).preview(accessToken: "secret-test-token")
         XCTAssertEqual(preview.canDelete, true)
         XCTAssertEqual(preview.confirmationVersion, "fp-1")
-        XCTAssertEqual(preview.deletionNonce, "nonce-1")
     }
 
     func test_conflictErrorCodeMapsToOwnershipTransferRequired() async {
@@ -34,17 +33,17 @@ final class APIAccountDeletionServiceTests: NetworkTestCase {
         }
     }
 
-    func test_reauthenticationRequiredErrorCodeMaps() async {
+    func test_reauthenticationErrorsMapToSafeMessages() async {
         MockURLProtocol.install { _ in
-            .init(statusCode: 401, data: Data(#"{"error":{"code":"REAUTHENTICATION_REQUIRED","message":"x"}}"#.utf8))
+            .init(statusCode: 401, data: Data(#"{"error":{"code":"ACCOUNT_DELETION_REAUTH_EXPIRED","message":"x"}}"#.utf8))
         }
         do {
             _ = try await APIAccountDeletionService(client: apiClient).confirmDeletion(
-                accessToken: "t", idempotencyKey: UUID(), confirmationVersion: "fp", deletionNonce: "n"
+                accessToken: "t", idempotencyKey: UUID(), confirmationVersion: "fp", reauthenticationProof: "p"
             )
             XCTFail("expected error")
         } catch {
-            XCTAssertEqual(error as? AccountDeletionError, .reauthenticationRequired)
+            XCTAssertEqual(error as? AccountDeletionError, .reauthenticationExpired)
         }
     }
 
@@ -87,6 +86,21 @@ final class APIAccountDeletionServiceTests: NetworkTestCase {
         )
     }
 
+    func test_reauthenticationProofUsesOnlyFreshBearerTokenAndPreviewFingerprint() async throws {
+        MockURLProtocol.install { request in
+            XCTAssertEqual(request.url?.path, "/api/account/delete/reauthenticate")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fresh-test-token")
+            let body = try! JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: String]
+            XCTAssertEqual(body?["confirmationVersion"], "fp-1")
+            XCTAssertFalse((request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? "").contains("password"))
+            return .init(statusCode: 200, data: Data(#"{"reauthenticationProof":"proof-1"}"#.utf8))
+        }
+        let result = try await APIAccountDeletionService(client: apiClient).createReauthenticationProof(
+            accessToken: "fresh-test-token", confirmationVersion: "fp-1"
+        )
+        XCTAssertEqual(result.reauthenticationProof, "proof-1")
+    }
+
     func test_confirmDeletionNeverLogsOrLeaksTheAccessTokenInTheRequestBody() async throws {
         MockURLProtocol.install { request in
             let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
@@ -94,7 +108,7 @@ final class APIAccountDeletionServiceTests: NetworkTestCase {
             return .init(statusCode: 200, data: Data(#"{"status":"completed"}"#.utf8))
         }
         _ = try await APIAccountDeletionService(client: apiClient).confirmDeletion(
-            accessToken: "secret-test-token", idempotencyKey: UUID(), confirmationVersion: "fp", deletionNonce: "n"
+            accessToken: "secret-test-token", idempotencyKey: UUID(), confirmationVersion: "fp", reauthenticationProof: "p"
         )
     }
 }
@@ -176,6 +190,8 @@ final class AccountDeletionControllerTests: XCTestCase {
         kitchenStore.addInventory(name: "牛奶", quantity: 1, unit: "瓶", expiryDate: nil)
         XCTAssertFalse(kitchenStore.inventory.isEmpty)
 
+        let reauthenticated = await controller.reauthenticateForDeletion(password: "correct-password", authStore: authStore)
+        XCTAssertTrue(reauthenticated)
         service.confirmResult = .success(AccountDeletionConfirmResult(status: "completed"))
         let success = await controller.confirmDeletion(authStore: authStore, kitchenStore: kitchenStore)
 
@@ -193,6 +209,8 @@ final class AccountDeletionControllerTests: XCTestCase {
         await controller.loadPreview(authStore: authStore)
         kitchenStore.addInventory(name: "牛奶", quantity: 1, unit: "瓶", expiryDate: nil)
 
+        let reauthenticated = await controller.reauthenticateForDeletion(password: "correct-password", authStore: authStore)
+        XCTAssertTrue(reauthenticated)
         service.confirmResult = .success(AccountDeletionConfirmResult(status: "auth_deletion_pending"))
         let success = await controller.confirmDeletion(authStore: authStore, kitchenStore: kitchenStore)
 
@@ -208,6 +226,8 @@ final class AccountDeletionControllerTests: XCTestCase {
         await controller.loadPreview(authStore: authStore)
         kitchenStore.addInventory(name: "牛奶", quantity: 1, unit: "瓶", expiryDate: nil)
 
+        let reauthenticated = await controller.reauthenticateForDeletion(password: "correct-password", authStore: authStore)
+        XCTAssertTrue(reauthenticated)
         service.confirmResult = .failure(AccountDeletionError.stalePreview)
         let success = await controller.confirmDeletion(authStore: authStore, kitchenStore: kitchenStore)
 
@@ -232,6 +252,8 @@ final class AccountDeletionControllerTests: XCTestCase {
         service.previewResult = .success(samplePreview(canDelete: true))
         await controller.loadPreview(authStore: authStore)
         service.confirmResult = .success(AccountDeletionConfirmResult(status: "completed"))
+        let reauthenticated = await controller.reauthenticateForDeletion(password: "correct-password", authStore: authStore)
+        XCTAssertTrue(reauthenticated)
 
         async let first = controller.confirmDeletion(authStore: authStore, kitchenStore: kitchenStore)
         async let second = controller.confirmDeletion(authStore: authStore, kitchenStore: kitchenStore)
@@ -244,6 +266,22 @@ final class AccountDeletionControllerTests: XCTestCase {
         XCTAssertLessThanOrEqual(service.confirmCallCount, 2)
     }
 
+    func test_reauthenticationFailureDoesNotCallConfirmOrClearLocalData() async throws {
+        let (controller, authStore, kitchenStore, _, service) = try await makeSignedInFixture()
+        service.previewResult = .success(samplePreview(canDelete: true))
+        service.reauthenticationResult = .failure(AccountDeletionError.reauthenticationFailed)
+        await controller.loadPreview(authStore: authStore)
+        kitchenStore.addInventory(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: nil)
+
+        let reauthenticated = await controller.reauthenticateForDeletion(password: "wrong-password", authStore: authStore)
+        XCTAssertFalse(reauthenticated)
+        XCTAssertEqual(controller.errorMessage, AccountDeletionError.reauthenticationFailed.localizedDescription)
+        let confirmed = await controller.confirmDeletion(authStore: authStore, kitchenStore: kitchenStore)
+        XCTAssertFalse(confirmed)
+        XCTAssertEqual(service.confirmCallCount, 0)
+        XCTAssertFalse(kitchenStore.inventory.isEmpty)
+    }
+
     private func samplePreview(
         canDelete: Bool,
         requiresOwnershipTransfer: Bool = false,
@@ -252,7 +290,7 @@ final class AccountDeletionControllerTests: XCTestCase {
         AccountDeletionPreview(
             canDelete: canDelete, blockingReason: blockingReason, householdCount: 1, ownedHouseholdCount: canDelete ? 0 : 1,
             requiresOwnershipTransfer: requiresOwnershipTransfer, requiresHouseholdDeletion: false,
-            pendingMutationCountBucket: "0", confirmationVersion: "fp-1", deletionNonce: "nonce-1"
+            pendingMutationCountBucket: "0", confirmationVersion: "fp-1"
         )
     }
 
@@ -279,14 +317,22 @@ final class AccountDeletionControllerTests: XCTestCase {
 
 private final class FakeAccountDeletionService: AccountDeletionService {
     var previewResult: Result<AccountDeletionPreview, Error> = .failure(AccountDeletionError.unavailable)
+    var reauthenticationResult: Result<AccountDeletionReauthenticationResult, Error> = .success(
+        AccountDeletionReauthenticationResult(reauthenticationProof: "fixture-proof")
+    )
     var confirmResult: Result<AccountDeletionConfirmResult, Error> = .failure(AccountDeletionError.unavailable)
     private(set) var confirmCallCount = 0
 
     func preview(accessToken: String) async throws -> AccountDeletionPreview { try previewResult.get() }
     func transferCandidates(accessToken: String, householdId: UUID) async throws -> [TransferCandidate] { [] }
     func transferOwnership(accessToken: String, householdId: UUID, newOwnerUserId: UUID) async throws {}
+    func createReauthenticationProof(
+        accessToken: String, confirmationVersion: String
+    ) async throws -> AccountDeletionReauthenticationResult {
+        try reauthenticationResult.get()
+    }
     func confirmDeletion(
-        accessToken: String, idempotencyKey: UUID, confirmationVersion: String, deletionNonce: String
+        accessToken: String, idempotencyKey: UUID, confirmationVersion: String, reauthenticationProof: String
     ) async throws -> AccountDeletionConfirmResult {
         confirmCallCount += 1
         return try confirmResult.get()
@@ -302,6 +348,9 @@ private final class FixtureAuthService: AuthService {
     func signUp(email: String, password: String) async throws -> SignUpOutcome { throw AuthenticationError.unavailable }
     func signIn(email: String, password: String) async throws -> AuthSession {
         AuthSession(user: AuthUser(id: userID, email: email), accessToken: "fixture-access-token")
+    }
+    func reauthenticate(email: String, password: String) async throws -> AuthSession {
+        AuthSession(user: AuthUser(id: userID, email: email), accessToken: "fixture-reauthenticated-access-token")
     }
     func signOut() async throws {}
 }

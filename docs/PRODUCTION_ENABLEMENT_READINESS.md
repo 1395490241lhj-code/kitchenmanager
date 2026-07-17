@@ -81,8 +81,8 @@ is reproduced below.
 > `ON DELETE SET NULL`, adds an `account_deletion_requests` ledger, and
 > adds privileged SQL functions for preview/cleanup/ownership-transfer/
 > finalize; new Express routes and an iOS Settings/Account/Delete Account
-> flow call them. Real reauthentication is **not** implemented (a
-> short-lived nonce fallback is used instead); validation against the
+> flow call them. Real email/password reauthentication is implemented;
+> validation against the
 > real hosted development Supabase project was **not** performed (no
 > `SUPABASE_SERVICE_ROLE_KEY` configured in this environment) — see
 > `docs/ACCOUNT_DELETION_DESIGN.md` and `docs/PHASE2D2_VALIDATION.md`.

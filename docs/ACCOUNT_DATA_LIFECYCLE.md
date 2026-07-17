@@ -44,8 +44,7 @@ see §"Retention & backups" for what's actually true.
   "requiresOwnershipTransfer": false,
   "requiresHouseholdDeletion": false,
   "pendingMutationCountBucket": "0",
-  "confirmationVersion": "<sha256 hex>",
-  "deletionNonce": "<uuid>"
+  "confirmationVersion": "<sha256 hex>"
 }
 ```
 

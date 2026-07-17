@@ -121,29 +121,20 @@ an account-level or manual action outside this repository).
 
 ## P1 — Blocks External TestFlight
 
-### AUTH-REAUTH-001 — Real reauthentication not implemented (nonce fallback in use)
-- **Severity**: P1
-- **Affected Stage**: External TestFlight, App Store.
-- **Current Evidence**: `src/server/account/deletion-routes.js`
-  `createNonceStore` issues a 5-minute, single-use, in-memory nonce as the
-  Stage-1 stand-in; `docs/ACCOUNT_DELETION_DESIGN.md` §9/§11 label this
-  explicitly as **not** real reauthentication.
-- **Exact Risk**: A deliberately destructive action (account deletion)
-  should require recent real authentication. The nonce approximates
-  "recent deliberate action" but does not re-verify identity; a
-  device/session already signed in can delete without re-proving
-  credentials. Acceptable for a small trusted internal cohort; not
-  acceptable for a broad external audience or App Store review.
-- **Required Action**: Implement real reauthentication (Supabase password
-  reauth / OAuth re-verify) before the destructive confirm, or a
-  documented equivalent, without ever sending a password to this backend.
-- **Verification Method**: Confirm the delete flow requires a fresh
-  credential proof; add focused backend + iOS tests.
-- **Fallback / Rollback**: Keep the nonce fallback for Internal TestFlight
-  only; block External TestFlight/App Store until resolved (current
-  documented posture).
-- **Status**: OPEN.
-- **Dependency**: None.
+### AUTH-REAUTH-001 — Real account-deletion reauthentication
+- **Severity**: P1 (resolved in code; hosted deletion validation remains
+  separately tracked by AUTH-DELETE-HOSTED-001).
+- **Current Evidence**: iOS re-enters the active email/password credential
+  directly with Supabase. Express verifies Supabase's signed `amr.password`
+  timestamp is recent and not older than the deletion preview, then issues a
+  five-minute, user-and-preview-bound, single-use proof. Access-token refresh
+  cannot satisfy the AMR check. Passwords never reach Express.
+- **Provider Scope**: email/password is the only currently enabled provider;
+  there is no Apple, Google, magic-link, OTP, or other OAuth entry point.
+- **Verification Method**: focused Node/iOS tests cover stale sessions,
+  proof TTL/single-use/replay/cross-user/fingerprint rejection, safe failure,
+  and successful continuation. Hosted deletion remains untested.
+- **Status**: DONE.
 
 ### AUTH-DELETE-HOSTED-001 — Account deletion never validated against a hosted backend
 - **Severity**: P1

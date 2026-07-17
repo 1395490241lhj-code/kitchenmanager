@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const {
   registerAccountDeletionRoutes,
-  createNonceStore,
+  createDeletionReauthenticationStore,
   createAccountDeletionAvailabilityGuard
 } = require('../src/server/account/deletion-routes');
 const { createAccountDeletionSyncGuard } = require('../src/server/account/deletion-sync-guard');
@@ -17,7 +17,12 @@ const serverSource = readFileSync(new URL('../server.js', import.meta.url), 'utf
 
 const userA = '11111111-1111-4111-8111-111111111111';
 const userB = '22222222-2222-4222-8222-222222222222';
-const authA = { userId: userA, email: 'a@example.com', accessToken: 'token-a' };
+const authA = {
+  userId: userA,
+  email: 'a@example.com',
+  accessToken: 'token-a',
+  authenticationMethods: [{ method: 'password', timestamp: Date.now() }]
+};
 
 function createResponse() {
   return {
@@ -60,11 +65,22 @@ function baseDeps(overrides = {}) {
     requireRole: overrides.requireRole || passthroughRole,
     repository: overrides.repository,
     admin: overrides.admin,
-    nonceStore: overrides.nonceStore || createNonceStore(),
+    reauthenticationStore: overrides.reauthenticationStore || createDeletionReauthenticationStore(),
     rateLimiter: overrides.rateLimiter || ((req, res, next) => next()),
     isAdminConfigured: overrides.isAdminConfigured,
     logger: overrides.logger
   };
+}
+
+async function prepareReauthenticationProof(app, auth = authA, confirmationVersion = 'fp-1') {
+  const preview = await app.call('POST', '/api/account/delete/preview', { auth, body: {} });
+  assert.equal(preview.statusCode, 200);
+  const reauthentication = await app.call('POST', '/api/account/delete/reauthenticate', {
+    auth,
+    body: { confirmationVersion }
+  });
+  assert.equal(reauthentication.statusCode, 200);
+  return reauthentication.body.reauthenticationProof;
 }
 
 function fakeRepository(overrides = {}) {
@@ -98,8 +114,6 @@ test('account-deletion Admin capability requires server-only URL, service-role k
 
 test('missing Admin capability fails closed before preview, transfer, or confirm can create deletion state', async () => {
   const app = createFakeApp();
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
   let available = false;
   let previewCalls = 0;
   let transferCalls = 0;
@@ -107,7 +121,6 @@ test('missing Admin capability fails closed before preview, transfer, or confirm
   let authAdminCalls = 0;
 
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore,
     isAdminConfigured: () => available,
     repository: fakeRepository({
       getPreview: async () => { previewCalls += 1; return fakeRepository().getPreview(); },
@@ -121,11 +134,14 @@ test('missing Admin capability fails closed before preview, transfer, or confirm
   const transfer = await app.call('POST', '/api/account/transfer-ownership', {
     auth: authA, body: { householdId: 'hh-1', newOwnerUserId: userB }
   });
+  const reauthentication = await app.call('POST', '/api/account/delete/reauthenticate', {
+    auth: authA, body: { confirmationVersion: 'fp-1' }
+  });
   const confirm = await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: 'not-a-proof' }
   });
 
-  for (const response of [preview, transfer, confirm]) {
+  for (const response of [preview, transfer, reauthentication, confirm]) {
     assert.equal(response.statusCode, 503);
     assert.equal(response.body.error.code, 'ACCOUNT_DELETION_UNAVAILABLE');
     assert.equal(response.body.error.message, '账号删除服务当前不可用，请稍后再试。');
@@ -136,12 +152,12 @@ test('missing Admin capability fails closed before preview, transfer, or confirm
   assert.equal(requestDeletionCalls, 0, 'no deletion request means no business-data cleanup and no sync freeze');
   assert.equal(authAdminCalls, 0);
 
-  // The rejected confirm deliberately does not consume the user's nonce.
-  // Once deployment configuration is fixed, the same explicit attempt can
-  // proceed normally without requiring a fake success or partial retry.
+  // Once deployment configuration is fixed, the user must receive a real
+  // provider-backed proof before the saga can begin.
   available = true;
+  const proof = await prepareReauthenticationProof(app);
   const recovered = await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: proof }
   });
   assert.equal(recovered.statusCode, 200);
   assert.equal(requestDeletionCalls, 1);
@@ -202,13 +218,13 @@ test('confirm is denied when the role middleware rejects the request', async () 
 
 // ── 3/4. deletion preview safe, contains no names/email/UUID ──────────────
 
-test('preview returns only the documented coarse fields and a nonce, never a household id/email', async () => {
+test('preview returns only documented coarse fields, never a household id/email or reauthentication proof', async () => {
   const app = createFakeApp();
   registerAccountDeletionRoutes(app, baseDeps({ repository: fakeRepository(), admin: fakeAdmin() }));
   const res = await app.call('POST', '/api/account/delete/preview', { auth: authA, body: {} });
   assert.equal(res.statusCode, 200);
   assert.deepEqual(Object.keys(res.body).sort(), [
-    'blockingReason', 'canDelete', 'confirmationVersion', 'deletionNonce', 'householdCount',
+    'blockingReason', 'canDelete', 'confirmationVersion', 'householdCount',
     'ownedHouseholdCount', 'pendingMutationCountBucket', 'requiresHouseholdDeletion', 'requiresOwnershipTransfer'
   ].sort());
   assert.equal(JSON.stringify(res.body).includes('@'), false, 'no email-shaped string in the response');
@@ -230,15 +246,13 @@ test('preview surfaces repository errors as a safe, generic message', async () =
 
 test('confirm surfaces OWNERSHIP_TRANSFER_REQUIRED as 409 without touching local state', async () => {
   const app = createFakeApp();
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore,
     repository: fakeRepository({ requestDeletion: async () => ({ status: 'rejected', errorCode: 'OWNERSHIP_TRANSFER_REQUIRED' }) }),
     admin: fakeAdmin()
   }));
+  const proof = await prepareReauthenticationProof(app);
   const res = await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: proof }
   });
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error.code, 'OWNERSHIP_TRANSFER_REQUIRED');
@@ -280,15 +294,20 @@ test('transfer-ownership rejects a request missing required fields before callin
 
 test('confirm surfaces STALE_DELETION_PREVIEW as 409', async () => {
   const app = createFakeApp();
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore,
-    repository: fakeRepository({ requestDeletion: async () => ({ status: 'rejected', errorCode: 'STALE_DELETION_PREVIEW' }) }),
+    repository: fakeRepository({
+      getPreview: async () => ({
+        canDelete: true, blockingReason: null, householdCount: 1, ownedHouseholdCount: 0,
+        requiresOwnershipTransfer: false, requiresHouseholdDeletion: false,
+        pendingMutationCountBucket: '0', confirmationVersion: 'stale-fp'
+      }),
+      requestDeletion: async () => ({ status: 'rejected', errorCode: 'STALE_DELETION_PREVIEW' })
+    }),
     admin: fakeAdmin()
   }));
+  const proof = await prepareReauthenticationProof(app, authA, 'stale-fp');
   const res = await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'stale-fp', deletionNonce: nonce }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'stale-fp', reauthenticationProof: proof }
   });
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.error.code, 'STALE_DELETION_PREVIEW');
@@ -298,16 +317,14 @@ test('confirm surfaces STALE_DELETION_PREVIEW as 409', async () => {
 
 test('a duplicate confirm that the repository reports as already completed returns success without calling admin', async () => {
   const app = createFakeApp();
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
   let adminCalled = false;
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore,
     repository: fakeRepository({ requestDeletion: async () => ({ status: 'completed', errorCode: null }) }),
     admin: fakeAdmin({ deleteAuthUser: async () => { adminCalled = true; return { deleted: true }; } })
   }));
+  const proof = await prepareReauthenticationProof(app);
   const res = await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: proof }
   });
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.status, 'completed');
@@ -318,19 +335,17 @@ test('a duplicate confirm that the repository reports as already completed retur
 
 test('a failed Auth admin delete returns 202 auth_deletion_pending, not a hard failure', async () => {
   const app = createFakeApp();
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
   let markFinalizedArgs;
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore,
     repository: fakeRepository(),
     admin: fakeAdmin({
       deleteAuthUser: async () => ({ deleted: false, alreadyGone: false }),
       markFinalized: async (args) => { markFinalizedArgs = args; return { status: 'auth_deletion_pending' }; }
     })
   }));
+  const proof = await prepareReauthenticationProof(app);
   const res = await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: proof }
   });
   assert.equal(res.statusCode, 202);
   assert.equal(res.body.status, 'auth_deletion_pending');
@@ -339,16 +354,14 @@ test('a failed Auth admin delete returns 202 auth_deletion_pending, not a hard f
 
 test('a repository failure during business-data cleanup never calls the Auth admin API', async () => {
   const app = createFakeApp();
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
   let adminCalled = false;
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore,
     repository: fakeRepository({ requestDeletion: async () => { throw new AccountDeletionError('account_deletion_rpc_failed', 'x', 502); } }),
     admin: fakeAdmin({ deleteAuthUser: async () => { adminCalled = true; return { deleted: true }; } })
   }));
+  const proof = await prepareReauthenticationProof(app);
   const res = await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: proof }
   });
   assert.equal(res.statusCode, 502);
   assert.equal(adminCalled, false, 'business-data cleanup must fully fail before any Auth admin call is attempted');
@@ -430,42 +443,37 @@ test('the user-scoped repository never touches the service-role key, even if one
 
 test('the confirm route never accepts or forwards a client-supplied service-role-shaped value', async () => {
   const app = createFakeApp();
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
   let seenRequestDeletionArgs;
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore,
     repository: fakeRepository({ requestDeletion: async (args) => { seenRequestDeletionArgs = args; return { status: 'business_data_cleaned' }; } }),
     admin: fakeAdmin()
   }));
+  const proof = await prepareReauthenticationProof(app);
   await app.call('POST', '/api/account/delete/confirm', {
     auth: authA,
-    body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce, serviceRoleKey: 'sneaky-value' }
+    body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: proof, serviceRoleKey: 'sneaky-value' }
   });
   assert.equal(Object.keys(seenRequestDeletionArgs).includes('serviceRoleKey'), false);
 });
 
 // ── 18. structured logs redacted ───────────────────────────────────────────
 
-test('security-event logging never includes the raw userId, access token, or nonce', async () => {
+test('security-event logging never includes the raw userId, access token, or reauthentication proof', async () => {
   const app = createFakeApp();
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
   const logs = [];
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore,
     repository: fakeRepository(),
     admin: fakeAdmin(),
     logger: { info: (fields) => logs.push(fields) }
   }));
-  await app.call('POST', '/api/account/delete/preview', { auth: authA, body: {} });
+  const proof = await prepareReauthenticationProof(app);
   await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: nonce }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: proof }
   });
   const serialized = JSON.stringify(logs);
   assert.equal(serialized.includes(userA), false, 'raw userId must never appear in a log field');
   assert.equal(serialized.includes(authA.accessToken), false);
-  assert.equal(serialized.includes(nonce), false);
+  assert.equal(serialized.includes(proof), false);
 });
 
 // ── 19. rate limit applied ──────────────────────────────────────────────────
@@ -500,44 +508,90 @@ test('the rate limiter middleware is consulted and can block preview/confirm', a
 // ── 24. cleanup/anonymization correct ──────────────────────────────────────
 // Verified in supabase/tests/account_deletion_test.sql.
 
-// ── 25. retry safe (nonce single-use + idempotency key) ────────────────────
+// ── 25. real reauthentication proof — single-use, bounded and side-effect safe ──
 
-test('a nonce can only be consumed once, even for a legitimate immediate retry', () => {
-  const nonceStore = createNonceStore();
-  const nonce = nonceStore.issue(userA);
-  assert.equal(nonceStore.consume(userA, nonce), true);
-  assert.equal(nonceStore.consume(userA, nonce), false, 'the same nonce must not be usable twice');
-});
-
-test('an expired nonce is rejected', async () => {
-  const nonceStore = createNonceStore();
-  const originalNow = Date.now;
-  const nonce = nonceStore.issue(userA);
-  Date.now = () => originalNow() + 10 * 60 * 1000;
-  try {
-    assert.equal(nonceStore.consume(userA, nonce), false);
-  } finally {
-    Date.now = originalNow;
-  }
-});
-
-test('confirm rejects a missing or wrong nonce with REAUTHENTICATION_REQUIRED, without calling the repository', async () => {
+test('ordinary sessions and token refreshes cannot obtain a deletion proof', async () => {
   const app = createFakeApp();
   let called = false;
   registerAccountDeletionRoutes(app, baseDeps({
-    nonceStore: createNonceStore(),
+    repository: fakeRepository({ requestDeletion: async () => { called = true; return { status: 'business_data_cleaned' }; } }),
+    admin: fakeAdmin()
+  }));
+  const oldPasswordSession = {
+    ...authA,
+    // A token refresh may have a new `iat`, but Supabase AMR retains this
+    // original password-authentication time. It must not bypass reauth.
+    issuedAt: Date.now(),
+    authenticationMethods: [{ method: 'password', timestamp: Date.now() - 10 * 60 * 1000 }]
+  };
+  await app.call('POST', '/api/account/delete/preview', { auth: oldPasswordSession, body: {} });
+  const reauth = await app.call('POST', '/api/account/delete/reauthenticate', {
+    auth: oldPasswordSession, body: { confirmationVersion: 'fp-1' }
+  });
+  assert.equal(reauth.statusCode, 401);
+  assert.equal(reauth.body.error.code, 'ACCOUNT_DELETION_REAUTH_FAILED');
+  assert.equal(called, false);
+});
+
+test('proof is bound to the current user and fingerprint, expires, and is single-use', () => {
+  let currentTime = 1_000_000_000_000;
+  const store = createDeletionReauthenticationStore({ now: () => currentTime, ttlMs: 1_000 });
+  store.issuePreview(userA, 'fp-1');
+  const issued = store.issueProof({
+    userId: userA,
+    fingerprint: 'fp-1',
+    authenticationMethods: [{ method: 'password', timestamp: currentTime / 1000 }]
+  });
+  assert.ok(issued.proof);
+  assert.equal(store.consumeProof({ userId: userB, fingerprint: 'fp-1', proof: issued.proof }).valid, undefined);
+  assert.equal(store.consumeProof({ userId: userA, fingerprint: 'fp-1', proof: issued.proof }).valid, true);
+  assert.equal(store.consumeProof({ userId: userA, fingerprint: 'fp-1', proof: issued.proof }).error, 'required');
+
+  store.issuePreview(userA, 'fp-1');
+  const expiring = store.issueProof({ userId: userA, fingerprint: 'fp-1', authenticationMethods: [{ method: 'password', timestamp: currentTime / 1000 }] });
+  currentTime += 1_001;
+  assert.equal(store.consumeProof({ userId: userA, fingerprint: 'fp-1', proof: expiring.proof }).error, 'expired');
+});
+
+test('confirm rejects a missing or wrong reauthentication proof without calling the repository', async () => {
+  const app = createFakeApp();
+  let called = false;
+  registerAccountDeletionRoutes(app, baseDeps({
     repository: fakeRepository({ requestDeletion: async () => { called = true; return { status: 'business_data_cleaned' }; } }),
     admin: fakeAdmin()
   }));
   const res = await app.call('POST', '/api/account/delete/confirm', {
-    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', deletionNonce: 'wrong-or-missing' }
+    auth: authA, body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: 'wrong-or-missing' }
   });
   assert.equal(res.statusCode, 401);
-  assert.equal(res.body.error.code, 'REAUTHENTICATION_REQUIRED');
+  assert.equal(res.body.error.code, 'ACCOUNT_DELETION_REAUTH_REQUIRED');
   assert.equal(called, false);
 });
 
-test('confirm rejects a request missing any of idempotencyKey/confirmationVersion/deletionNonce', async () => {
+test('a proof cannot be used for a different preview fingerprint or replayed after a failed confirm', async () => {
+  const app = createFakeApp();
+  let deletionRequests = 0;
+  registerAccountDeletionRoutes(app, baseDeps({
+    repository: fakeRepository({ requestDeletion: async () => { deletionRequests += 1; return { status: 'business_data_cleaned' }; } }),
+    admin: fakeAdmin()
+  }));
+  const proof = await prepareReauthenticationProof(app);
+  const wrongFingerprint = await app.call('POST', '/api/account/delete/confirm', {
+    auth: authA,
+    body: { idempotencyKey: 'k1', confirmationVersion: 'other-preview', reauthenticationProof: proof }
+  });
+  assert.equal(wrongFingerprint.statusCode, 401);
+  assert.equal(wrongFingerprint.body.error.code, 'ACCOUNT_DELETION_REAUTH_FAILED');
+  const replay = await app.call('POST', '/api/account/delete/confirm', {
+    auth: authA,
+    body: { idempotencyKey: 'k1', confirmationVersion: 'fp-1', reauthenticationProof: proof }
+  });
+  assert.equal(replay.statusCode, 401);
+  assert.equal(replay.body.error.code, 'ACCOUNT_DELETION_REAUTH_REQUIRED');
+  assert.equal(deletionRequests, 0);
+});
+
+test('confirm rejects a request missing any of idempotencyKey/confirmationVersion/reauthenticationProof', async () => {
   const app = createFakeApp();
   registerAccountDeletionRoutes(app, baseDeps({ repository: fakeRepository(), admin: fakeAdmin() }));
   for (const body of [{}, { idempotencyKey: 'k1' }, { idempotencyKey: 'k1', confirmationVersion: 'fp-1' }]) {

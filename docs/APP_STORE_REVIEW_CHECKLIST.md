@@ -82,12 +82,10 @@ inaccurate UI.
 - [ ] Demo account provided **only if** App Review specifically requests
       sign-in/sync testing.
 - [x] Account/data-deletion path implemented and locally validated
-      (Phase 2D-2 — see `docs/ACCOUNT_DELETION_DESIGN.md`,
-      `docs/PHASE2D2_VALIDATION.md`). Real reauthentication is **not**
-      implemented (a short-lived nonce fallback is used instead — see
-      `docs/ACCOUNT_DELETION_DESIGN.md` §9/§11) and validation against
-      the real hosted/production Supabase project has **not** been done —
-      both remain required before External TestFlight/App Store
+      (Phase 2D-2/3C — see `docs/ACCOUNT_DELETION_DESIGN.md`,
+      `docs/PHASE2D2_VALIDATION.md`). Real email/password reauthentication
+      is implemented; validation against the real hosted/production Supabase
+      project has **not** been done and remains required before External TestFlight/App Store
       submission (Guideline 5.1.1(v) requires the deletion to actually
       work in the shipped, reviewed build, not just locally).
 - [ ] No debug menu, diagnostics screen, or dogfood/smoke flag reachable
@@ -108,9 +106,7 @@ inaccurate UI.
    Settings/Account/Delete Account now exists and performs a real
    server-side identity deletion (Phase 2D-2), distinct from sign-out or
    local-data-clear. Remaining before External TestFlight/App Store
-   submission: real reauthentication (a nonce fallback is used today, not
-   password/OAuth reauth — see `docs/ACCOUNT_DELETION_DESIGN.md` §9),
-   and validation against the real hosted/production Supabase project
+   submission: validation against the real hosted/production Supabase project
    (only local Docker-based Supabase has been exercised — see
    `docs/PHASE2D2_VALIDATION.md`). Internal TestFlight is not blocked by
    either gap (Internal Testing isn't reviewed under Guideline 5.1.1(v)

@@ -245,16 +245,18 @@ row (`household_members_delete_for_managers` explicitly excludes
 
 - `POST /api/account/delete/preview` — returns the coarse, non-identifying
   summary defined in `docs/ACCOUNT_DATA_LIFECYCLE.md` §"Preview response
-  fields," plus a short-lived `deletionNonce` (see §11's reauthentication
-  discussion).
+  fields."
 - `POST /api/account/list-transfer-candidates` — `{ householdId }` →
   `{ members: [{ userId, role, displayName }] }`, owner-only, used to
   populate the iOS ownership-transfer picker (existing `profiles` RLS
   would otherwise hide other members' display names from a plain client
   read).
 - `POST /api/account/transfer-ownership` — `{ householdId, newOwnerUserId }`.
+- `POST /api/account/delete/reauthenticate` — `{ confirmationVersion }` → a
+  short-lived one-use proof, only after Express verifies the Supabase-signed
+  recent password-authentication AMR claim for the current user.
 - `POST /api/account/delete/confirm` — `{ idempotencyKey,
-  confirmationVersion, deletionNonce }` → `{ status: "completed" |
+  confirmationVersion, reauthenticationProof }` → `{ status: "completed" |
   "auth_deletion_pending" }` or a `4xx` with one of the error codes below.
 
 All four require the same `authenticateRequest` + `createRequireAuthRole
@@ -264,7 +266,8 @@ window, keyed `userId:IP` exactly like `/api/me`'s limiter).
 
 **Error codes** (exactly as suggested, implemented as-is):
 `OWNERSHIP_TRANSFER_REQUIRED`, `HOUSEHOLD_ACTION_REQUIRED`,
-`REAUTHENTICATION_REQUIRED`, `STALE_DELETION_PREVIEW`,
+`ACCOUNT_DELETION_REAUTH_REQUIRED`, `ACCOUNT_DELETION_REAUTH_FAILED`,
+`ACCOUNT_DELETION_REAUTH_EXPIRED`, `STALE_DELETION_PREVIEW`,
 `ACCOUNT_DELETION_IN_PROGRESS`, `ACCOUNT_DELETION_BLOCKED` (generic
 fallback used only if the SQL layer ever returns an error code this
 Express layer doesn't specifically recognize — never fabricated).
@@ -323,19 +326,18 @@ New migration:
 
 ## 9. Reauthentication
 
-Audited: Supabase's iOS SDK exposes no lightweight, safe-to-use-from-a-
-backend "reauthenticate without re-entering a password" primitive that
-fits this project's "never send a password to our own backend" rule
-(`CODING_RULES.md` Authentication section). Rather than fabricate a real
-reauth flow or silently skip the requirement, this phase implements the
-explicitly-suggested fallback: **a short-lived, single-use, server-issued
-nonce** (`ACCOUNT_DELETION_NONCE_TTL_MS = 5 minutes`, in-memory, Stage-1,
-single-instance — consistent with every other in-memory store in this
-codebase). Every preview mints a fresh nonce; confirm consumes it exactly
-once (success or failure) and rejects with `REAUTHENTICATION_REQUIRED` if
-it's missing, expired, or already used. This is **not** real password
-reauthentication and is explicitly documented as such — see §11 for what
-must change before submission.
+The only enabled provider is Supabase email/password. iOS asks the user to
+re-enter the active account password and sends it directly to Supabase using
+`supabase-swift`; Express never receives, logs, or persists it. The resulting
+Supabase-signed JWT carries a password `amr` timestamp. Express accepts it
+only when it is recent (five minutes) and not older than the current deletion
+preview, then issues a process-local five-minute proof bound to that user and
+preview fingerprint. Confirm consumes that proof exactly once, including on a
+failed/replayed attempt. Since a token refresh retains the original AMR time,
+it cannot bypass this requirement. A restart loses outstanding proofs and
+therefore fails closed. OAuth/OTP providers are not enabled; if added later,
+they must receive provider-native reauthentication or account deletion must
+return `ACCOUNT_DELETION_REAUTH_UNSUPPORTED`.
 
 ## 10. Sync safety (implemented)
 
@@ -387,10 +389,10 @@ must change before submission.
 
 ## 11. What is NOT done this phase (explicit)
 
-- Real reauthentication (password/OAuth) — the nonce fallback is a Stage-1
-  approximation, not a substitute. **Must be resolved before External
-  TestFlight or App Store submission** — tracked in
-  `docs/APP_STORE_REVIEW_CHECKLIST.md`.
+- OAuth/provider support beyond the current email/password flow — any newly
+  enabled provider must gain provider-native reauthentication or return a
+  stable unsupported error before account deletion. Hosted validation remains
+  required before External TestFlight or App Store submission.
 - A standalone "Leave Household" UI entry point for non-owners (the safe
   primitive exists in SQL; no separate button was built).
 - A standalone "Delete Household" feature independent of account deletion.

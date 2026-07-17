@@ -6,6 +6,19 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16 (Phase 2D-3C account-deletion reauthentication)
+
+### Changed
+
+- Replaced the deletion nonce fallback with provider-native email/password
+  reauthentication. Passwords are sent only from iOS to Supabase; Express
+  verifies the signed, recent password AMR claim and issues a five-minute,
+  single-use proof bound to the user and deletion-preview fingerprint.
+- Added safe proof expiry/replay/cross-user/fingerprint rejection plus iOS
+  credential-reentry UI and regression coverage. Hosted account-deletion
+  validation remains open and no production configuration was changed.
+
+
 ## 2026-07-16 (Account deletion deployment fail-closed guard)
 
 ### Fixed

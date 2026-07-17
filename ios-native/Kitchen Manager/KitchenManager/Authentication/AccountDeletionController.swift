@@ -14,6 +14,7 @@ final class AccountDeletionController: ObservableObject {
     @Published private(set) var transferCandidates: [TransferCandidate] = []
     @Published private(set) var isLoadingCandidates = false
     @Published private(set) var isTransferring = false
+    @Published private(set) var isReauthenticating = false
     @Published private(set) var isConfirming = false
     @Published private(set) var errorMessage: String?
     @Published private(set) var didComplete = false
@@ -24,6 +25,7 @@ final class AccountDeletionController: ObservableObject {
     /// note in `docs/ACCOUNT_DELETION_DESIGN.md`); only regenerated when the
     /// user starts a genuinely new attempt after a full success/failure.
     private var idempotencyKey = UUID()
+    private var reauthenticationProof: String?
 
     init(persistence: SyncPersistenceProtocol, service: AccountDeletionService? = nil) {
         self.persistence = persistence
@@ -40,6 +42,7 @@ final class AccountDeletionController: ObservableObject {
         defer { isLoadingPreview = false }
         do {
             preview = try await service.preview(accessToken: accessToken)
+            self.reauthenticationProof = nil
         } catch {
             preview = nil
             errorMessage = (error as? LocalizedError)?.errorDescription
@@ -80,6 +83,38 @@ final class AccountDeletionController: ObservableObject {
         }
     }
 
+    /// iOS sends the password only to Supabase through `AuthStore`; our
+    /// backend receives only the new Supabase-issued JWT and returns a short,
+    /// one-use proof bound to this preview fingerprint.
+    @discardableResult
+    func reauthenticateForDeletion(password: String, authStore: AuthStore) async -> Bool {
+        guard let preview, preview.canDelete else {
+            errorMessage = AccountDeletionError.stalePreview.localizedDescription
+            return false
+        }
+        isReauthenticating = true
+        errorMessage = nil
+        defer { isReauthenticating = false }
+
+        guard await authStore.reauthenticateForAccountDeletion(password: password),
+              let accessToken = authStore.currentAccessToken() else {
+            errorMessage = AccountDeletionError.reauthenticationFailed.localizedDescription
+            return false
+        }
+
+        do {
+            reauthenticationProof = try await service.createReauthenticationProof(
+                accessToken: accessToken,
+                confirmationVersion: preview.confirmationVersion
+            ).reauthenticationProof
+            return true
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? AccountDeletionError.reauthenticationFailed.localizedDescription
+            return false
+        }
+    }
+
     /// Returns `true` only on a genuine `completed` result. `false` (with
     /// `errorMessage` set) covers every blocked/rejected/failed case,
     /// including the recoverable `auth_deletion_pending` state — the caller
@@ -91,6 +126,10 @@ final class AccountDeletionController: ObservableObject {
     ) async -> Bool {
         guard let preview else {
             errorMessage = AccountDeletionError.stalePreview.localizedDescription
+            return false
+        }
+        guard let reauthenticationProof else {
+            errorMessage = AccountDeletionError.reauthenticationRequired.localizedDescription
             return false
         }
         guard let accessToken = authStore.currentAccessToken() else {
@@ -105,7 +144,7 @@ final class AccountDeletionController: ObservableObject {
                 accessToken: accessToken,
                 idempotencyKey: idempotencyKey,
                 confirmationVersion: preview.confirmationVersion,
-                deletionNonce: preview.deletionNonce
+                reauthenticationProof: reauthenticationProof
             )
             guard result.status == "completed" else {
                 // auth_deletion_pending: business data is already gone
@@ -121,6 +160,7 @@ final class AccountDeletionController: ObservableObject {
             }
             await clearLocalStateAfterSuccessfulDeletion(authStore: authStore, kitchenStore: kitchenStore)
             idempotencyKey = UUID()
+            self.reauthenticationProof = nil
             didComplete = true
             return true
         } catch {
@@ -131,6 +171,7 @@ final class AccountDeletionController: ObservableObject {
             // before any further attempt, rather than silently retrying with
             // now-invalid values.
             self.preview = nil
+            self.reauthenticationProof = nil
             return false
         }
     }

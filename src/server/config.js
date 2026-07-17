@@ -23,15 +23,12 @@ const IMPORT_RATE_LIMIT_MAX = 10;
 const AUTH_ME_RATE_LIMIT_MAX = 60;
 const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
 
-// Phase 2D-2: account deletion is rare and destructive — a much tighter
-// bucket than /api/me, keyed the same way (userId:IP). The deletion nonce
-// is this codebase's Stage-1 fallback for "recent authentication" (see
-// docs/ACCOUNT_DELETION_DESIGN.md): rather than relaying a password to this
-// backend or assuming a full reauth flow, a preview mints a short-lived
-// nonce that confirm must present quickly afterward, approximating "the
-// user just took a deliberate, recent action" without real password reauth.
+// Account deletion is rare and destructive — a much tighter bucket than
+// /api/me, keyed the same way (userId:IP). A provider-native password
+// reauthentication is converted into a short-lived, server-side, single-use
+// proof. The proof never contains a password or a client-controlled flag.
 const ACCOUNT_DELETION_RATE_LIMIT_MAX = 10;
-const ACCOUNT_DELETION_NONCE_TTL_MS = 5 * 60 * 1000;
+const ACCOUNT_DELETION_REAUTH_TTL_MS = 5 * 60 * 1000;
 
 // Phase 2C-1: /api/sync/* only. These are a documented starting point (see
 // docs/SYNC_API_RATE_LIMITING.md), not empirically tuned against real
@@ -237,7 +234,7 @@ module.exports = {
   IMPORT_RATE_LIMIT_MAX,
   AUTH_ME_RATE_LIMIT_MAX,
   ACCOUNT_DELETION_RATE_LIMIT_MAX,
-  ACCOUNT_DELETION_NONCE_TTL_MS,
+  ACCOUNT_DELETION_REAUTH_TTL_MS,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
   SYNC_READ_RATE_LIMIT_WINDOW_MS,
   SYNC_READ_RATE_LIMIT_MAX,

@@ -11,6 +11,8 @@ struct AccountDeletionView: View {
 
     @State private var confirmationText = ""
     @State private var showIrreversibleAlert = false
+    @State private var showReauthenticationSheet = false
+    @State private var showFinalDeletionAlert = false
     @State private var selectedHouseholdIdForTransfer: UUID?
     @State private var selectedNewOwner: TransferCandidate?
 
@@ -49,11 +51,25 @@ struct AccountDeletionView: View {
         }
         .alert("此操作不可撤销", isPresented: $showIrreversibleAlert) {
             Button("取消", role: .cancel) {}
-            Button("确认删除", role: .destructive) {
+            Button("继续", role: .destructive) { showReauthenticationSheet = true }
+        } message: {
+            Text("删除后，你的账号身份、家庭成员关系与同步记录将被永久移除或匿名化，且无法恢复。")
+        }
+        .sheet(isPresented: $showReauthenticationSheet) {
+            AccountDeletionReauthenticationView(controller: controller) {
+                showReauthenticationSheet = false
+                showFinalDeletionAlert = true
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+        .alert("最后确认删除账号", isPresented: $showFinalDeletionAlert) {
+            Button("取消", role: .cancel) {}
+            Button("删除账号", role: .destructive) {
                 Task { await controller.confirmDeletion(authStore: authStore, kitchenStore: kitchenStore) }
             }
         } message: {
-            Text("删除后，你的账号身份、家庭成员关系与同步记录将被永久移除或匿名化，且无法恢复。")
+            Text("身份已重新验证。确认后将永久删除账号，且无法恢复。")
         }
     }
 
@@ -66,9 +82,9 @@ struct AccountDeletionView: View {
                     .foregroundStyle(.orange)
             }
             if let blockingReason = preview.blockingReason {
-                Text(AccountDeletionError(code: blockingReason).localizedDescription ?? "")
+                Text(AccountDeletionError(code: blockingReason).localizedDescription)
                     .foregroundStyle(.red)
-                    .accessibilityLabel(Text("删除受阻：\(AccountDeletionError(code: blockingReason).localizedDescription ?? "")"))
+                    .accessibilityLabel(Text("删除受阻：\(AccountDeletionError(code: blockingReason).localizedDescription)"))
             }
         }
     }
@@ -137,6 +153,68 @@ struct AccountDeletionView: View {
             .accessibilityLabel(Text("删除账号，此操作不可撤销"))
         } footer: {
             Text("删除完成后会自动退出登录，本机可继续以游客模式使用。")
+        }
+    }
+}
+
+private struct AccountDeletionReauthenticationView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authStore: AuthStore
+    @ObservedObject var controller: AccountDeletionController
+    let onVerified: () -> Void
+
+    @State private var password = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("为了保护你的账号，请重新验证身份后再继续删除。")
+                }
+
+                Section("密码") {
+                    SecureField("输入当前密码", text: $password)
+                        .textContentType(.password)
+                        .accessibilityLabel(Text("当前密码"))
+                }
+
+                if let message = controller.errorMessage {
+                    Section { Text(message).foregroundStyle(.red) }
+                }
+
+                Section {
+                    Button {
+                        Task {
+                            let verified = await controller.reauthenticateForDeletion(
+                                password: password,
+                                authStore: authStore
+                            )
+                            password = ""
+                            if verified {
+                                onVerified()
+                                dismiss()
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if controller.isReauthenticating { ProgressView() }
+                            else { Text("重新验证") }
+                            Spacer()
+                        }
+                    }
+                    .disabled(password.isEmpty || controller.isReauthenticating)
+                    .accessibilityLabel(Text("重新验证身份"))
+                }
+            }
+            .navigationTitle("验证身份")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+            }
+            .onDisappear { password = "" }
         }
     }
 }

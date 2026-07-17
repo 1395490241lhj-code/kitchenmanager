@@ -68,6 +68,17 @@ final class SupabaseAuthService: AuthService {
         }
     }
 
+    func reauthenticate(email: String, password: String) async throws -> AuthSession {
+        // Supabase signs the resulting password-auth session itself. The
+        // backend later verifies its signed AMR claim; do not relay password
+        // material through this app's own server.
+        do {
+            return Self.map(try await client.auth.signIn(email: email, password: password))
+        } catch {
+            throw Self.map(error)
+        }
+    }
+
     func signOut() async throws {
         do { try await client.auth.signOut() } catch { throw Self.map(error) }
     }

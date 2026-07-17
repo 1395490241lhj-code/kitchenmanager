@@ -9,8 +9,9 @@ environment or a real incident.**
 1. iOS requests a preview (`POST /api/account/delete/preview`).
 2. If blocked, the user resolves the blocker (ownership transfer) via
    `POST /api/account/transfer-ownership`.
-3. iOS requests confirm (`POST /api/account/delete/confirm`) with a fresh
-   preview's `confirmationVersion` + `deletionNonce`.
+3. iOS performs provider-native password reauthentication, receives a
+   server-verified one-use proof, then requests confirm with the preview's
+   `confirmationVersion` + `reauthenticationProof`.
 4. Backend runs `request_account_deletion` (business-data cleanup), then
    calls the Auth Admin API, then `mark_account_deletion_finalized`.
 5. iOS clears local sync state + domain data + signs out.

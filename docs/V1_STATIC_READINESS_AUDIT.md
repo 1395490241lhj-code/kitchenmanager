@@ -107,7 +107,8 @@ Scope: `src/server/`, `server.js`.
   restart mid-saga is resumable by a client re-confirm; there is **no
   automatic retry worker** → SAGA-RETRY-001 (P2).
 - **Account-deletion deployment guard**: account-deletion routes check the
-  server-only Admin capability before any deletion RPC/nonce mutation and
+  server-only Admin capability before any deletion RPC/reauthentication-proof
+  issuance and
   return safe `ACCOUNT_DELETION_UNAVAILABLE` otherwise. `/ready` exposes
   boolean `account_deletion_configured`; a false value returns 503 without
   exposing a secret. READY-SERVICEROLE-001 and DEPLOY-SERVICEROLE-001 are
@@ -184,11 +185,10 @@ and ensuring the deployed backend can complete account deletion.
 
 ## 8. External TestFlight readiness
 
-**No-Go.** All Internal blockers plus AUTH-REAUTH-001,
-AUTH-DELETE-HOSTED-001, BACKEND-PROD-001, DB-PROD-001, PRIVACY-POLICY-001,
-SUPPORT-URL-001. Real reauthentication and a hosted-validated,
-production-backed account-deletion flow are the substantive engineering
-gaps.
+**No-Go.** All Internal blockers plus AUTH-DELETE-HOSTED-001,
+BACKEND-PROD-001, DB-PROD-001, PRIVACY-POLICY-001, SUPPORT-URL-001. Real
+email/password reauthentication is implemented; a hosted-validated,
+production-backed account-deletion flow remains an engineering gap.
 
 ## 9. App Store readiness
 

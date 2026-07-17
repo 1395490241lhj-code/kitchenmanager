@@ -5,7 +5,7 @@ const {
 } = require('./deletion-repository');
 const { AccountDeletionError } = require('./errors');
 const { isBucketRateLimited, getClientIp } = require('../services/rate-limit');
-const { ACCOUNT_DELETION_RATE_LIMIT_MAX, ACCOUNT_DELETION_NONCE_TTL_MS } = require('../config');
+const { ACCOUNT_DELETION_RATE_LIMIT_MAX, ACCOUNT_DELETION_REAUTH_TTL_MS } = require('../config');
 
 const deletionRateLimitBuckets = new Map();
 
@@ -18,29 +18,60 @@ function limitAccountDeletion(req, res, next) {
   return next();
 }
 
-// In-memory, single-instance, Stage-1 store for the short-lived deletion
-// nonce (see config.js's ACCOUNT_DELETION_NONCE_TTL_MS comment for why this
-// exists instead of relaying a password to this backend). Keyed by userId;
-// a user can only ever have one live nonce at a time — requesting a new
-// preview invalidates any previous one, which is the desired behavior (the
-// most recent preview is the only one that should ever be actable on).
-function createNonceStore() {
-  const nonces = new Map();
+function passwordAuthenticationTime(authenticationMethods) {
+  if (!Array.isArray(authenticationMethods)) return null;
+  const passwordMethod = authenticationMethods.find((entry) => entry?.method === 'password');
+  if (!passwordMethod) return null;
+  const raw = passwordMethod.timestamp;
+  const numeric = typeof raw === 'number' ? raw : Number(raw);
+  if (Number.isFinite(numeric)) return numeric > 10_000_000_000 ? numeric : numeric * 1000;
+  const date = typeof raw === 'string' ? Date.parse(raw) : Number.NaN;
+  return Number.isFinite(date) ? date : null;
+}
+
+// Process-local by design: after a restart, an old proof cannot suddenly be
+// accepted. This store binds Supabase's signed, recent password-auth event to
+// the current user and preview fingerprint; it never receives a password.
+function createDeletionReauthenticationStore({ now = Date.now, ttlMs = ACCOUNT_DELETION_REAUTH_TTL_MS } = {}) {
+  const previews = new Map();
+  const proofs = new Map();
   return {
-    issue(userId) {
-      const nonce = crypto.randomUUID();
-      nonces.set(userId, { nonce, expiresAt: Date.now() + ACCOUNT_DELETION_NONCE_TTL_MS });
-      return nonce;
+    issuePreview(userId, fingerprint) {
+      proofs.delete(userId);
+      previews.set(userId, { fingerprint, issuedAt: now() });
     },
-    consume(userId, providedNonce) {
-      const entry = nonces.get(userId);
-      if (!entry) return false;
-      // Single-use: whether this call succeeds or fails, the nonce is gone —
-      // a rejected/expired/mismatched attempt must not be retryable with the
-      // same value, and a successful one must not be replayable.
-      nonces.delete(userId);
-      if (Date.now() > entry.expiresAt) return false;
-      return entry.nonce === providedNonce;
+    issueProof({ userId, fingerprint, authenticationMethods }) {
+      const preview = previews.get(userId);
+      if (!preview) return { error: 'required' };
+      if (now() > preview.issuedAt + ttlMs) {
+        previews.delete(userId);
+        return { error: 'expired' };
+      }
+      if (preview.fingerprint !== fingerprint) return { error: 'failed' };
+      const passwordAt = passwordAuthenticationTime(authenticationMethods);
+      // An access-token refresh retains its original AMR timestamp. It is
+      // therefore not enough: the password authentication must be both recent
+      // and no older than this deletion preview.
+      if (
+        passwordAt === null
+        || passwordAt > now() + 60_000
+        || now() - passwordAt > ttlMs
+        || passwordAt < Math.floor(preview.issuedAt / 1000) * 1000
+      ) return { error: 'failed' };
+
+      const proof = crypto.randomUUID();
+      proofs.set(userId, { proof, fingerprint, expiresAt: now() + ttlMs });
+      return { proof };
+    },
+    consumeProof({ userId, fingerprint, proof }) {
+      const entry = proofs.get(userId);
+      // A replay/wrong proof consumes the entry too. The user may always
+      // complete a new provider-native authentication to obtain another one.
+      proofs.delete(userId);
+      if (!entry) return { error: 'required' };
+      if (now() > entry.expiresAt) return { error: 'expired' };
+      if (entry.proof !== proof || entry.fingerprint !== fingerprint) return { error: 'failed' };
+      return { valid: true };
     }
   };
 }
@@ -91,7 +122,7 @@ function registerAccountDeletionRoutes(app, options = {}) {
   const role = options.requireRole;
   const repository = options.repository || createSupabaseAccountDeletionRepository();
   const admin = options.admin || createSupabaseAccountDeletionAdmin();
-  const nonceStore = options.nonceStore || createNonceStore();
+  const reauthenticationStore = options.reauthenticationStore || createDeletionReauthenticationStore();
   const rateLimiter = options.rateLimiter || limitAccountDeletion;
   const logger = options.logger;
   const isAdminConfigured = options.isAdminConfigured || (() => (
@@ -102,7 +133,7 @@ function registerAccountDeletionRoutes(app, options = {}) {
   app.post('/api/account/delete/preview', auth, role, rateLimiter, availabilityGuard, async (req, res) => {
     try {
       const preview = await repository.getPreview({ accessToken: req.auth.accessToken });
-      const nonce = nonceStore.issue(req.auth.userId);
+      reauthenticationStore.issuePreview(req.auth.userId, preview.confirmationVersion);
       logSecurityEvent(logger, 'preview_issued', { canDelete: preview.canDelete === true });
       return res.json({
         canDelete: preview.canDelete,
@@ -112,13 +143,35 @@ function registerAccountDeletionRoutes(app, options = {}) {
         requiresOwnershipTransfer: preview.requiresOwnershipTransfer,
         requiresHouseholdDeletion: preview.requiresHouseholdDeletion,
         pendingMutationCountBucket: preview.pendingMutationCountBucket,
-        confirmationVersion: preview.confirmationVersion,
-        deletionNonce: nonce
+        confirmationVersion: preview.confirmationVersion
       });
     } catch (error) {
       logSecurityEvent(logger, 'preview_failed', {});
       return sendAccountDeletionError(res, error);
     }
+  });
+
+  app.post('/api/account/delete/reauthenticate', auth, role, rateLimiter, availabilityGuard, async (req, res) => {
+    const previewFingerprint = typeof req.body?.confirmationVersion === 'string' ? req.body.confirmationVersion : null;
+    if (!previewFingerprint) {
+      return res.status(400).json({ error: { code: 'invalid_request', message: 'confirmationVersion is required.' } });
+    }
+    const result = reauthenticationStore.issueProof({
+      userId: req.auth.userId,
+      fingerprint: previewFingerprint,
+      authenticationMethods: req.auth.authenticationMethods
+    });
+    if (!result.proof) {
+      const code = result.error === 'expired'
+        ? 'ACCOUNT_DELETION_REAUTH_EXPIRED'
+        : result.error === 'failed'
+          ? 'ACCOUNT_DELETION_REAUTH_FAILED'
+          : 'ACCOUNT_DELETION_REAUTH_REQUIRED';
+      logSecurityEvent(logger, 'reauthentication_rejected', { reason: code });
+      return res.status(401).json({ error: { code, message: '为了保护你的账号，请重新验证身份。' } });
+    }
+    logSecurityEvent(logger, 'reauthentication_proof_issued', {});
+    return res.json({ reauthenticationProof: result.proof });
   });
 
   app.post('/api/account/list-transfer-candidates', auth, role, rateLimiter, availabilityGuard, async (req, res) => {
@@ -152,22 +205,27 @@ function registerAccountDeletionRoutes(app, options = {}) {
   app.post('/api/account/delete/confirm', auth, role, rateLimiter, availabilityGuard, async (req, res) => {
     const idempotencyKey = typeof req.body?.idempotencyKey === 'string' ? req.body.idempotencyKey : null;
     const previewFingerprint = typeof req.body?.confirmationVersion === 'string' ? req.body.confirmationVersion : null;
-    const deletionNonce = typeof req.body?.deletionNonce === 'string' ? req.body.deletionNonce : null;
+    const reauthenticationProof = typeof req.body?.reauthenticationProof === 'string' ? req.body.reauthenticationProof : null;
 
-    if (!idempotencyKey || !previewFingerprint || !deletionNonce) {
+    if (!idempotencyKey || !previewFingerprint || !reauthenticationProof) {
       return res.status(400).json({
-        error: { code: 'invalid_request', message: 'idempotencyKey, confirmationVersion, and deletionNonce are required.' }
+        error: { code: 'invalid_request', message: 'idempotencyKey, confirmationVersion, and reauthenticationProof are required.' }
       });
     }
 
-    // The nonce is this Stage-1 codebase's "recent authentication" signal
-    // (see config.js) — a missing/expired/mismatched nonce means the client
-    // must fetch a fresh preview (which re-establishes recency) before
-    // retrying, exactly the same user-facing effect real reauthentication
-    // would have, without this backend ever receiving a password.
-    if (!nonceStore.consume(req.auth.userId, deletionNonce)) {
-      logSecurityEvent(logger, 'confirm_rejected', { reason: 'reauthentication_required' });
-      return res.status(401).json({ error: { code: 'REAUTHENTICATION_REQUIRED', message: '请重新获取删除确认信息后再试一次。' } });
+    const proofResult = reauthenticationStore.consumeProof({
+      userId: req.auth.userId,
+      fingerprint: previewFingerprint,
+      proof: reauthenticationProof
+    });
+    if (!proofResult.valid) {
+      const code = proofResult.error === 'expired'
+        ? 'ACCOUNT_DELETION_REAUTH_EXPIRED'
+        : proofResult.error === 'failed'
+          ? 'ACCOUNT_DELETION_REAUTH_FAILED'
+          : 'ACCOUNT_DELETION_REAUTH_REQUIRED';
+      logSecurityEvent(logger, 'confirm_rejected', { reason: code });
+      return res.status(401).json({ error: { code, message: '为了保护你的账号，请重新验证身份。' } });
     }
 
     let stepOneResult;
@@ -228,6 +286,7 @@ function registerAccountDeletionRoutes(app, options = {}) {
 module.exports = {
   registerAccountDeletionRoutes,
   limitAccountDeletion,
-  createNonceStore,
+  createDeletionReauthenticationStore,
+  passwordAuthenticationTime,
   createAccountDeletionAvailabilityGuard
 };

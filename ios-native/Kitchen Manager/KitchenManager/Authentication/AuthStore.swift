@@ -97,6 +97,31 @@ final class AuthStore: ObservableObject {
         }
     }
 
+    /// Performs a new password authentication for account deletion. This is
+    /// intentionally distinct from session restore/refresh: only Supabase's
+    /// newly issued, signed authentication-method claim can satisfy the
+    /// server-side deletion proof endpoint.
+    @discardableResult
+    func reauthenticateForAccountDeletion(password: String) async -> Bool {
+        guard activity != .submitting,
+              case .signedIn(let user) = status,
+              let email = user.email,
+              !email.isEmpty else {
+            errorMessage = AuthenticationError.unavailable.localizedDescription
+            return false
+        }
+        activity = .submitting
+        errorMessage = nil
+        defer { activity = .idle }
+        do {
+            await apply(try await authService.reauthenticate(email: email, password: password))
+            return true
+        } catch {
+            errorMessage = safeMessage(for: error)
+            return false
+        }
+    }
+
     func refreshAccount() async {
         guard let session else { return }
         do {

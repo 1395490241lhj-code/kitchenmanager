@@ -10,6 +10,19 @@ const {
 const ALLOWED_ALGORITHMS = ['ES256', 'RS256'];
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// Preserve only the typed, Supabase-signed authentication-method metadata
+// needed by destructive flows. The raw JWT stays inside this middleware.
+function normalizeAuthenticationMethods(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object' || typeof entry.method !== 'string') return [];
+    const timestamp = typeof entry.timestamp === 'number' || typeof entry.timestamp === 'string'
+      ? entry.timestamp
+      : null;
+    return [{ method: entry.method, timestamp }];
+  });
+}
+
 // ── 验证失败诊断（脱敏）──────────────────────────────────────────────────
 // 目的：把「invalid_token」这个对客户端而言必须保持通用的错误，在服务端日志
 // 里拆解成可定位的具体阶段，同时严禁记录 Authorization/完整 JWT/access
@@ -171,6 +184,7 @@ function createSupabaseTokenVerifier({
         email: typeof payload.email === 'string' ? payload.email : null,
         role: typeof payload.role === 'string' ? payload.role : null,
         sessionId: typeof payload.session_id === 'string' ? payload.session_id : null,
+        authenticationMethods: normalizeAuthenticationMethods(payload.amr),
         algorithm: protectedHeader.alg
       };
     } catch (error) {
@@ -244,5 +258,6 @@ module.exports = {
   classifyVerificationFailure,
   redactErrorMessage,
   shortKidFingerprint,
-  isRemoteJwksNetworkFailure
+  isRemoteJwksNetworkFailure,
+  normalizeAuthenticationMethods
 };
