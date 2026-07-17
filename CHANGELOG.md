@@ -6,6 +6,29 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-16 (Phase 2D-3A: static production audit + v1 release blocker list)
+
+### Added
+
+- `docs/V1_RELEASE_BLOCKERS.md`: stage-classified (P0 Internal TestFlight / P1 External TestFlight / P1 App Store / P2 GA / P3 post-launch), ID'd blocker list — each with severity, affected stage, current evidence, exact risk, required action, verification method, fallback/rollback, status, and dependency.
+- `docs/V1_STATIC_READINESS_AUDIT.md`: the static-audit evidence (git baseline; iOS/backend/DB-RLS/CI/security findings; per-stage Go/No-Go; exact next action).
+
+### Audited (no code changed)
+
+- iOS production Swift: no `fatalError`/`preconditionFailure`/`assertionFailure`, no force-cast; the single `try!` is a provably-safe constant; all 32 `print(` calls are `#if DEBUG`-guarded; smoke harnesses fully DEBUG-gated; the diagnostics screen is runtime-flag-gated (both flags `NO`, archive-guard-enforced); no fake/mock in the production path; localhost appears only in the loopback-denylist safety check.
+- Backend: no `console.*`/`process.exit`; 5 empty catches all deliberate/commented; no raw error/stack returned to the client; no auth-header/token/email logging (userHash only, allowlist logger); JWT fails closed on config errors; service-role confined to one Auth-Admin call site.
+- DB/RLS: exactly 3 migrations, the two historical ones unmodified; all 15 `SECURITY DEFINER` functions set `search_path`; no `execute` granted to `public`/`anon`.
+- CI: the one `continue-on-error` (archive guard) is safe because the guard's security checks are independently hard-asserted by a non-soft test step; no secrets, no upload, no absolute paths in any workflow.
+
+### Found (new blockers, documented not fixed)
+
+- `DEPLOY-SERVICEROLE-001` (P0): the delete-account UI is unconditional for signed-in users, but the account-deletion saga's step 2 needs the deployed backend's `SUPABASE_SERVICE_ROLE_KEY`, and `/ready` does not assert it — a misconfigured deployment would silently half-complete deletions (business data cleaned, Auth user orphaned) while reporting healthy. Paired recommendation `READY-SERVICEROLE-001` (P2).
+- Consolidated the previously-scattered release gaps into named IDs (`APP-ICON-001`, `SIGN-DIST-001`, `APPSTORE-CONNECT-001`, `AUTH-REAUTH-001`, `AUTH-DELETE-HOSTED-001`, `BACKEND-PROD-001`, `DB-PROD-001`, `OBS-CRASH-001`, `OBS-ALERT-001`, `RATE-SHARED-001`, etc.).
+
+### Status
+
+- Every release stage is No-Go. No new code defect was found; the app builds Debug/Release green and passes all release-tooling checks except the missing app icon. No production project created, no provider integrated, nothing uploaded, nothing pushed. All flags remain `NO`.
+
 ## 2026-07-16 (Phase 2D-2: account deletion + data lifecycle safety)
 
 ### Added

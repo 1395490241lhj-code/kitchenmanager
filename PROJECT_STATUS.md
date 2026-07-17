@@ -100,6 +100,15 @@ history, device-validation narratives, and bug investigations belong in
    required before External TestFlight/App Store submission. See
    `docs/ACCOUNT_DELETION_DESIGN.md` §11.
 
+A full static production-readiness audit and a stage-by-stage v1 blocker
+list now exist: `docs/V1_STATIC_READINESS_AUDIT.md` and
+`docs/V1_RELEASE_BLOCKERS.md`. Every release stage (Internal TestFlight,
+External TestFlight, App Store, Production) is currently **No-Go**, with
+named blockers (IDs like `APP-ICON-001`, `SIGN-DIST-001`,
+`DEPLOY-SERVICEROLE-001`, `AUTH-REAUTH-001`). No new code defect was found
+in the audit; the app builds Debug/Release green and passes all release
+checks except the missing app icon.
+
 ## Next recommended phase
 
 Provision the separate production Supabase project (topology already
