@@ -1164,6 +1164,15 @@ final class KitchenStore: ObservableObject {
         shoppingItems.removeAll { $0.isDone }
     }
 
+    func markAllPendingShoppingPurchased() {
+        guard shoppingItems.contains(where: { !$0.isDone }) else { return }
+        var updated = shoppingItems
+        for index in updated.indices where !updated[index].isDone {
+            updated[index].isDone = true
+        }
+        shoppingItems = updated
+    }
+
     func stockInCompletedShopping() {
         let completed = shoppingItems.filter(\.isDone)
         var updated = inventory

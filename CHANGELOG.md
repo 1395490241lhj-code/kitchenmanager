@@ -6,6 +6,25 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-17 (Phase 2E-3 iOS Smart Shopping Experience)
+
+### Changed
+
+- Reworked the native shopping list into fixed local categories with a compact
+  pending/purchased/category summary, trimmed case-insensitive search, and a
+  purchased section that stays collapsed unless the user expands it or a
+  search result requires it.
+- Added guarded bulk actions for marking all pending items purchased, clearing
+  purchased items, stocking purchased items into inventory, and controlling
+  the purchased section. Stock-in continues to use the existing transactional
+  inventory-accumulation behavior.
+- Added a session-only Shopping Mode with larger tap targets, remaining-item
+  progress, an explicit completion state, and an accessible return to the
+  standard list. It does not add a schema, persistence, sync, barcode, or
+  network-classification feature.
+- Added presentation/UI coverage, SwiftUI previews, and
+  `docs/IOS_SHOPPING_EXPERIENCE.md`.
+
 ## 2026-07-17 (Phase 2E-2 iOS Recipe Detail + Cooking Mode)
 
 ### Changed

@@ -82,6 +82,11 @@ history, device-validation narratives, and bug investigations belong in
   temporary screen-awake behavior, and explicit Today Plan completion. It
   never auto-deducts inventory or syncs cooking progress; see
   `docs/IOS_RECIPE_COOKING_MODE.md`.
+- iOS Shopping now uses a category-first, local-only presentation with a
+  compact summary, name search, collapsible purchased items, guarded bulk
+  actions, and a session-only Shopping Mode. It reuses the existing recipe
+  shortfall and purchased-stock-in behaviors without changing sync or storage;
+  see `docs/IOS_SHOPPING_EXPERIENCE.md`.
 
 ## Remaining rollout conditions
 

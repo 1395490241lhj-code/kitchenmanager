@@ -325,18 +325,100 @@ struct ShoppingView: View {
     @EnvironmentObject private var store: KitchenStore
     @State private var isShowingStockInConfirm = false
     @State private var isShowingAddItem = false
+    @State private var isShowingClearPurchasedConfirm = false
+    @State private var searchText = ""
+    @State private var isPurchasedExpanded = false
+    @State private var isShoppingMode = false
 
-    var body: some View {
+    init(previewSearchText: String = "", previewPurchasedExpanded: Bool = false, previewShoppingMode: Bool = false) {
+        _searchText = State(initialValue: previewSearchText)
+        _isPurchasedExpanded = State(initialValue: previewPurchasedExpanded)
+        _isShoppingMode = State(initialValue: previewShoppingMode)
+    }
+
+    private var pendingSections: [(ShoppingCategory, [KitchenShoppingItem])] {
+        ShoppingListPresentation.sections(items: store.shoppingItems, query: searchText)
+    }
+
+    private var summary: ShoppingListSummary {
+        ShoppingListSummary(items: store.shoppingItems)
+    }
+
+    private var purchasedItems: [KitchenShoppingItem] {
+        ShoppingListPresentation.purchasedItems(items: store.shoppingItems, query: searchText)
+    }
+
+    private var hasSearchQuery: Bool {
+        !ShoppingListPresentation.normalizedQuery(searchText).isEmpty
+    }
+
+    private var shouldShowPurchasedItems: Bool {
+        ShoppingListPresentation.shouldShowPurchased(
+            isExpanded: isPurchasedExpanded,
+            query: searchText,
+            matchingPurchasedCount: purchasedItems.count
+        )
+    }
+
+    private var hasSearchResults: Bool {
+        !pendingSections.isEmpty || !purchasedItems.isEmpty
+    }
+
+    private var bulkActions: ShoppingBulkActionAvailability {
+        ShoppingBulkActionAvailability(summary: summary)
+    }
+
+    private var shoppingMode: ShoppingModePresentation {
+        ShoppingModePresentation(items: store.shoppingItems)
+    }
+
+    private var normalShoppingList: some View {
         List {
-            Section("待买") {
-                if store.pendingShoppingItems.isEmpty {
+            Section {
+                HStack(spacing: 16) {
+                    ShoppingSummaryValue(
+                        value: summary.pendingCount,
+                        title: "待购买",
+                        systemImage: "cart",
+                        accessibilityIdentifier: "shopping.summary.pending"
+                    )
+
+                    ShoppingSummaryValue(
+                        value: summary.purchasedCount,
+                        title: "已购买",
+                        systemImage: "checkmark.circle",
+                        accessibilityIdentifier: "shopping.summary.purchased"
+                    )
+
+                    ShoppingSummaryValue(
+                        value: summary.categoryCount,
+                        title: "分类",
+                        systemImage: "square.grid.2x2",
+                        accessibilityIdentifier: "shopping.summary.categories"
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .contain)
+            }
+
+            if store.shoppingItems.isEmpty {
+                Section("待买") {
                     ContentUnavailableView(
                         "买菜清单是空的",
                         systemImage: "checklist",
                         description: Text("今日计划缺少的食材和手动添加的项目会出现在这里。")
                     )
-                } else {
-                    ForEach(store.pendingShoppingItems) { item in
+                    .accessibilityIdentifier("shopping.empty")
+                }
+            } else if hasSearchQuery && !hasSearchResults {
+                Section {
+                    ContentUnavailableView.search(text: searchText)
+                        .accessibilityIdentifier("shopping.search.empty")
+                }
+            } else {
+                ForEach(pendingSections, id: \.0) { category, items in
+                    Section(category.rawValue) {
+                    ForEach(items) { item in
                         Button { store.toggleShopping(item) } label: {
                             HStack {
                                 Image(systemName: "circle")
@@ -355,36 +437,185 @@ struct ShoppingView: View {
                         .foregroundStyle(.primary)
                     }
                 }
+                .accessibilityIdentifier("shopping.section.\(category.id)")
+                }
             }
 
-            Section("已买") {
-                let completed = store.shoppingItems.filter(\.isDone)
-                if completed.isEmpty {
-                    Text("买好的食材会留在这里，确认后可以全部入库。")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(completed) { item in
-                        Button { store.toggleShopping(item) } label: {
-                            Label(item.name, systemImage: "checkmark.circle.fill")
+            if !store.shoppingItems.filter(\.isDone).isEmpty {
+                Section {
+                    Button {
+                        isPurchasedExpanded.toggle()
+                    } label: {
+                        HStack {
+                            Label("已购买", systemImage: "checkmark.circle.fill")
+                            Spacer()
+                            Text("\(summary.purchasedCount) 项")
+                                .foregroundStyle(.secondary)
+                            Image(systemName: shouldShowPurchasedItems ? "chevron.up" : "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                    .accessibilityIdentifier("shopping.purchased.toggle")
+                    .accessibilityLabel(
+                        "已购买，\(summary.purchasedCount) 项，\(shouldShowPurchasedItems ? "已展开" : "已折叠")"
+                    )
+                    .accessibilityHint("双击以\(shouldShowPurchasedItems ? "折叠" : "展开")已购买项目")
+
+                    if shouldShowPurchasedItems {
+                        ForEach(purchasedItems) { item in
+                            Button { store.toggleShopping(item) } label: {
+                                Label(item.name, systemImage: "checkmark.circle.fill")
+                            }
+                            .foregroundStyle(.primary)
                         }
                     }
                 }
             }
         }
         .navigationTitle("买菜")
-        .safeAreaInset(edge: .bottom) {
-            Button("全部入库") { isShowingStockInConfirm = true }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .disabled(!store.shoppingItems.contains(where: \.isDone))
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(.bar)
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "搜索买菜项目"
+        )
+        .accessibilityIdentifier("shopping.search")
+    }
+
+    private var shoppingModeList: some View {
+        List {
+            Section {
+                HStack {
+                    Label("购物模式", systemImage: "cart.fill")
+                        .font(.title3.bold())
+                    Spacer()
+                    Text(shoppingMode.isCompleted ? "已全部买齐" : "剩余 \(shoppingMode.remainingCount) 项")
+                        .foregroundStyle(shoppingMode.isCompleted ? .green : .secondary)
+                        .accessibilityIdentifier("shopping.mode.remaining")
+                }
+            }
+
+            if shoppingMode.isEmpty {
+                ContentUnavailableView("买菜清单是空的", systemImage: "checklist")
+            } else if shoppingMode.isCompleted {
+                ContentUnavailableView("已全部买齐", systemImage: "checkmark.circle.fill")
+                    .accessibilityIdentifier("shopping.mode.completed")
+            } else {
+                ForEach(ShoppingListPresentation.sections(items: store.shoppingItems, query: ""), id: \.0) { category, items in
+                    Section("\(category.rawValue) · \(items.count) 项") {
+                        ForEach(items) { item in
+                            Button { store.toggleShopping(item) } label: {
+                                HStack(spacing: 14) {
+                                    Image(systemName: "circle")
+                                        .font(.title3)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.name).font(.title3.weight(.semibold))
+                                        Text("\(item.quantity.formatted()) \(item.unit)")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.vertical, 8)
+                            }
+                            .foregroundStyle(.primary)
+                            .accessibilityLabel("\(item.name)，\(item.quantity.formatted()) \(item.unit)，未购买")
+                            .accessibilityHint("双击切换购买状态")
+                        }
+                    }
+                }
+            }
+
+            let completed = ShoppingListPresentation.purchasedItems(items: store.shoppingItems, query: "")
+            if !completed.isEmpty {
+                Section("已购买 · \(completed.count) 项") {
+                    ForEach(completed) { item in
+                        Button { store.toggleShopping(item) } label: {
+                            Label(item.name, systemImage: "checkmark.circle.fill")
+                                .strikethrough()
+                        }
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("\(item.name)，已购买")
+                        .accessibilityHint("双击取消购买状态")
+                    }
+                }
+            }
         }
+        .accessibilityIdentifier("shopping.mode.container")
+    }
+
+    var body: some View {
+        Group {
+            if isShoppingMode {
+                shoppingModeList
+            } else {
+                normalShoppingList
+            }
+        }
+        .navigationTitle(isShoppingMode ? "购物模式" : "买菜")
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if isShoppingMode {
+                    Button("退出", systemImage: "xmark") { isShoppingMode = false }
+                        .accessibilityIdentifier("shopping.mode.exit")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(isShoppingMode ? "普通模式" : "购物模式", systemImage: isShoppingMode ? "list.bullet" : "cart") {
+                    isShoppingMode.toggle()
+                }
+                .disabled(!isShoppingMode && store.shoppingItems.isEmpty)
+                .accessibilityIdentifier("shopping.mode.toggle")
+            }
+            if !isShoppingMode {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("全部标记为已购买", systemImage: "checkmark.circle") {
+                        store.markAllPendingShoppingPurchased()
+                    }
+                    .disabled(!bulkActions.canMarkAllPurchased)
+
+                    Button("清除已购买", systemImage: "trash", role: .destructive) {
+                        // A Menu dismisses in the same update cycle. Schedule the
+                        // confirmation for the next main-loop turn so UIKit has
+                        // released the menu presentation before SwiftUI presents it.
+                        DispatchQueue.main.async {
+                            isShowingClearPurchasedConfirm = true
+                        }
+                    }
+                    .disabled(!bulkActions.canClearPurchased)
+                    .accessibilityIdentifier("shopping.bulk.clearPurchased")
+
+                    Button("全部入库", systemImage: "shippingbox") {
+                        isShowingStockInConfirm = true
+                    }
+                    .disabled(!bulkActions.canStockInPurchased)
+                    .accessibilityIdentifier("shopping.bulk.stockIn")
+
+                    Divider()
+
+                    Button("展开已购买", systemImage: "chevron.down") {
+                        isPurchasedExpanded = true
+                    }
+                    .disabled(!bulkActions.canChangePurchasedExpansion || isPurchasedExpanded)
+                    .accessibilityIdentifier("shopping.bulk.expandPurchased")
+
+                    Button("折叠已购买", systemImage: "chevron.up") {
+                        isPurchasedExpanded = false
+                    }
+                    .disabled(!bulkActions.canChangePurchasedExpansion || !isPurchasedExpanded)
+                    .accessibilityIdentifier("shopping.bulk.collapsePurchased")
+                } label: {
+                    Label("购物清单批量操作", systemImage: "ellipsis.circle")
+                }
+                .accessibilityIdentifier("shopping.bulk.menu")
+                .accessibilityLabel("购物清单批量操作")
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button("添加", systemImage: "plus") { isShowingAddItem = true }
                     .accessibilityLabel("添加买菜项目")
+            }
             }
         }
         .sheet(isPresented: $isShowingAddItem) {
@@ -398,7 +629,132 @@ struct ShoppingView: View {
         } message: {
             Text("已买的食材将计入库存，此操作无法撤销。")
         }
+        .alert(
+            "清除 \(summary.purchasedCount) 项已购买项目？",
+            isPresented: $isShowingClearPurchasedConfirm,
+        ) {
+            Button("清除已购买", role: .destructive) {
+                store.clearCompletedShopping()
+                isPurchasedExpanded = false
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此操作只会删除已购买项目，待购买项目会保留。")
+        }
+        .alert(
+            "买菜清单",
+            isPresented: Binding(
+                get: { store.shoppingNotice != nil },
+                set: { if !$0 { store.shoppingNotice = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(store.shoppingNotice ?? "")
+        }
     }
+}
+
+private struct ShoppingSummaryValue: View {
+    let value: Int
+    let title: String
+    let systemImage: String
+    let accessibilityIdentifier: String
+
+    var body: some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value, format: .number)
+                    .font(.headline)
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(.tint)
+        }
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel("\(title) \(value) 项")
+    }
+}
+
+private struct ShoppingViewPreview: View {
+    @StateObject private var store: KitchenStore
+    private let searchText: String
+    private let purchasedExpanded: Bool
+    private let shoppingMode: Bool
+
+    init(
+        items: [KitchenShoppingItem],
+        searchText: String = "",
+        purchasedExpanded: Bool = false,
+        shoppingMode: Bool = false
+    ) {
+        let store = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        store.shoppingItems = items
+        _store = StateObject(wrappedValue: store)
+        self.searchText = searchText
+        self.purchasedExpanded = purchasedExpanded
+        self.shoppingMode = shoppingMode
+    }
+
+    var body: some View {
+        NavigationStack {
+            ShoppingView(
+                previewSearchText: searchText,
+                previewPurchasedExpanded: purchasedExpanded,
+                previewShoppingMode: shoppingMode
+            )
+        }
+        .environmentObject(store)
+    }
+}
+
+#Preview("Shopping — categories") {
+    ShoppingViewPreview(items: [
+        KitchenShoppingItem(name: "番茄", quantity: 2, unit: "个"),
+        KitchenShoppingItem(name: "鸡肉", quantity: 500, unit: "克"),
+        KitchenShoppingItem(name: "大米", quantity: 1, unit: "袋"),
+        KitchenShoppingItem(name: "牛奶", quantity: 1, unit: "盒", isDone: true)
+    ])
+}
+
+#Preview("Shopping — purchased expanded") {
+    ShoppingViewPreview(
+        items: [
+            KitchenShoppingItem(name: "番茄", quantity: 2, unit: "个"),
+            KitchenShoppingItem(name: "牛奶", quantity: 1, unit: "盒", isDone: true)
+        ],
+        purchasedExpanded: true
+    )
+}
+
+#Preview("Shopping — no search results") {
+    ShoppingViewPreview(
+        items: [KitchenShoppingItem(name: "番茄", quantity: 2, unit: "个")],
+        searchText: "不存在"
+    )
+}
+
+#Preview("Shopping — empty") {
+    ShoppingViewPreview(items: [])
+}
+
+#Preview("Shopping mode — categories") {
+    ShoppingViewPreview(items: [KitchenShoppingItem(name: "番茄", quantity: 2, unit: "个"), KitchenShoppingItem(name: "鸡肉", quantity: 1, unit: "盒"), KitchenShoppingItem(name: "牛奶", quantity: 1, unit: "盒", isDone: true)], shoppingMode: true)
+}
+
+#Preview("Shopping mode — one remaining") {
+    ShoppingViewPreview(items: [KitchenShoppingItem(name: "番茄", quantity: 1, unit: "个")], shoppingMode: true)
+}
+
+#Preview("Shopping mode — completed") {
+    ShoppingViewPreview(items: [KitchenShoppingItem(name: "牛奶", quantity: 1, unit: "盒", isDone: true)], shoppingMode: true)
+}
+
+#Preview("Shopping mode — empty") {
+    ShoppingViewPreview(items: [], shoppingMode: true)
 }
 
 private struct AddShoppingItemView: View {

@@ -49,6 +49,12 @@ Recipe cooking is deliberately confirmation-first: the native Cooking Mode may
 track session-only checks, serving scale, steps, and a foreground timer, but
 does not mutate a recipe, deduct inventory, or synchronize cooking progress.
 
+Shopping is category-first and local-only: the iOS list may group, search, and
+temporarily simplify presentation for a shopping trip, but it must preserve the
+existing recipe shortfall, purchase confirmation, and inventory stock-in
+semantics. Shopping Mode is session-only and is never a new persistence or
+sync source.
+
 ### Small, reversible iteration
 
 Prefer focused changes with explicit tests. Do not combine a behavior fix, architecture migration, design overhaul, and unrelated cleanup in one task.

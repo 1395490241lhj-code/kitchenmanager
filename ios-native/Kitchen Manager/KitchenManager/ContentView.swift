@@ -177,6 +177,17 @@ struct ContentView: View {
             kitchenStore.clearAllLocalData()
             navigationStore.selectedTab = .recipes
         }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_SHOPPING") else { return }
+            kitchenStore.clearAllLocalData()
+            kitchenStore.addShopping(name: "番茄", quantity: 2, unit: "个")
+            kitchenStore.addShopping(name: "大米", quantity: 1, unit: "袋")
+            kitchenStore.addShopping(name: "牛奶", quantity: 1, unit: "盒")
+            if let milk = kitchenStore.shoppingItems.first(where: { $0.name == "牛奶" }) {
+                kitchenStore.toggleShopping(milk)
+            }
+            navigationStore.selectedTab = .shopping
+        }
         #endif
     }
 }
