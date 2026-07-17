@@ -323,6 +323,7 @@ private struct InventoryExpiryProgressBar: View {
 
 struct ShoppingView: View {
     @EnvironmentObject private var store: KitchenStore
+    @EnvironmentObject private var navigationStore: AppNavigationStore
     @State private var isShowingStockInConfirm = false
     @State private var isShowingAddItem = false
     @State private var isShowingClearPurchasedConfirm = false
@@ -553,6 +554,10 @@ struct ShoppingView: View {
             }
         }
         .navigationTitle(isShoppingMode ? "购物模式" : "买菜")
+        .onAppear(perform: presentRequestedStockInIfNeeded)
+        .onChange(of: navigationStore.isShoppingStockInRequested) { _, isRequested in
+            if isRequested { presentRequestedStockInIfNeeded() }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 if isShoppingMode {
@@ -653,6 +658,13 @@ struct ShoppingView: View {
             Text(store.shoppingNotice ?? "")
         }
     }
+
+    private func presentRequestedStockInIfNeeded() {
+        guard navigationStore.isShoppingStockInRequested else { return }
+        navigationStore.consumeShoppingStockInRequest()
+        guard bulkActions.canStockInPurchased else { return }
+        isShowingStockInConfirm = true
+    }
 }
 
 private struct ShoppingSummaryValue: View {
@@ -708,6 +720,7 @@ private struct ShoppingViewPreview: View {
             )
         }
         .environmentObject(store)
+        .environmentObject(AppNavigationStore())
     }
 }
 

@@ -6,6 +6,21 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-17 (iOS Home information architecture Phase 1)
+
+### Changed
+
+- Made today's plan the first Home visual layer and derived the single
+  prominent action from existing stock-in, plan-detail, recommendation, and
+  Recipes-tab capabilities.
+- Replaced parallel inventory/shopping summaries with one aggregated reminder
+  using stock-in, expired, expiring, pending-shopping, then low-stock priority.
+- Kept local content visible during auth restoration, made local persistence
+  notices readable, added Reduce Motion-aware toast transitions, and expanded
+  focused projection/UI coverage without enabling sync or changing data rules.
+- Removed reference-proven unused legacy Home components while retaining all
+  active sheets and navigation destinations.
+
 ## 2026-07-17 (Phase 2E-3 iOS Smart Shopping Experience)
 
 ### Changed

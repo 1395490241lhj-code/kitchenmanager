@@ -34,10 +34,20 @@ enum InventoryRoute: Hashable {
 final class AppNavigationStore: ObservableObject {
     @Published var selectedTab: AppTab = .today
     @Published var inventoryFocus: InventoryFocus = .all
+    @Published private(set) var isShoppingStockInRequested = false
 
     func showInventory(_ focus: InventoryFocus) {
         inventoryFocus = focus
         selectedTab = .inventory
+    }
+
+    func showShoppingStockIn() {
+        isShoppingStockInRequested = true
+        selectedTab = .shopping
+    }
+
+    func consumeShoppingStockInRequest() {
+        isShoppingStockInRequested = false
     }
 }
 

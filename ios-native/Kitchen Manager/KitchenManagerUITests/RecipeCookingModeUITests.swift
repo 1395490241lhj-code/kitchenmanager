@@ -5,8 +5,11 @@ final class RecipeCookingModeUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_RECIPE_COOKING"]
         app.launch()
-        XCTAssertTrue(app.buttons["recipe.list.sample-mapotofu"].waitForExistence(timeout: 8))
-        app.buttons["recipe.list.sample-mapotofu"].tap()
+        let recipe = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "recipe.list.")
+        ).firstMatch
+        XCTAssertTrue(recipe.waitForExistence(timeout: 8))
+        recipe.tap()
         app.swipeUp()
         XCTAssertTrue(app.buttons["recipe.detail.startCooking"].waitForExistence(timeout: 5))
         return app
@@ -14,8 +17,11 @@ final class RecipeCookingModeUITests: XCTestCase {
 
     func testRecipeDetailSupportsServingChecklistAndCookingNavigation() throws {
         let app = launchRecipes()
+        app.swipeDown()
         app.buttons["recipe.detail.servings-Increment"].tap()
         app.buttons["recipe.detail.ingredient.0"].tap()
+        app.swipeUp()
+        XCTAssertTrue(app.buttons["recipe.detail.startCooking"].waitForExistence(timeout: 5))
         app.buttons["recipe.detail.startCooking"].tap()
         XCTAssertTrue(app.buttons["recipe.cooking.next"].waitForExistence(timeout: 5))
         app.buttons["recipe.cooking.next"].tap()

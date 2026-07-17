@@ -15,12 +15,13 @@ struct HomeDashboardSummary: Equatable {
     let expiringSoonCount: Int
     let lowStockCount: Int
     let pendingShoppingCount: Int
+    let purchasedShoppingCount: Int
     let shoppingPreview: [KitchenShoppingItem]
 
     init(
         inventory: [InventoryItem],
         todayPlans: [MealPlanItem],
-        pendingShoppingItems: [KitchenShoppingItem]
+        shoppingItems: [KitchenShoppingItem]
     ) {
         let pendingPlans = todayPlans.filter { !$0.isCooked }
         let completedPlans = todayPlans.filter(\.isCooked)
@@ -36,7 +37,9 @@ struct HomeDashboardSummary: Equatable {
             $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
         }.count
 
-        self.pendingShoppingCount = pendingShoppingItems.count
+        let pendingShoppingItems = shoppingItems.filter { !$0.isDone }
+        pendingShoppingCount = pendingShoppingItems.count
+        purchasedShoppingCount = shoppingItems.count - pendingShoppingItems.count
         shoppingPreview = Array(pendingShoppingItems.prefix(Self.maximumVisibleShoppingItems))
     }
 
@@ -50,14 +53,60 @@ struct HomeDashboardSummary: Equatable {
 
     var todayPlanState: HomeTodayPlanState {
         guard totalPlanCount > 0 else { return .empty }
-        return completedPlanCount == totalPlanCount ? .completed : .active
+        if completedPlanCount == totalPlanCount { return .completed }
+        return completedPlanCount > 0 ? .partial : .active
+    }
+
+    var primaryAction: HomePrimaryAction {
+        if purchasedShoppingCount > 0 { return .stockInPurchased }
+        switch todayPlanState {
+        case .empty: return .addTodayPlan
+        case .active, .partial: return .viewTodayPlan
+        case .completed: return .browseRecipes
+        }
+    }
+
+    var highestPriorityReminder: HomeAttentionReminder? {
+        if purchasedShoppingCount > 0 { return .purchasedAwaitingStockIn(count: purchasedShoppingCount) }
+        if expiredCount > 0 { return .expiredInventory(count: expiredCount) }
+        if expiringSoonCount > 0 { return .expiringInventory(count: expiringSoonCount) }
+        if pendingShoppingCount > 0 { return .pendingShopping(count: pendingShoppingCount) }
+        if lowStockCount > 0 { return .lowStock(count: lowStockCount) }
+        return nil
     }
 }
 
 enum HomeTodayPlanState: Equatable {
     case empty
     case active
+    case partial
     case completed
+}
+
+enum HomePrimaryAction: Equatable {
+    case stockInPurchased
+    case addTodayPlan
+    case viewTodayPlan
+    case browseRecipes
+}
+
+enum HomeAttentionReminder: Equatable {
+    case purchasedAwaitingStockIn(count: Int)
+    case expiredInventory(count: Int)
+    case expiringInventory(count: Int)
+    case pendingShopping(count: Int)
+    case lowStock(count: Int)
+
+    var count: Int {
+        switch self {
+        case .purchasedAwaitingStockIn(let count),
+             .expiredInventory(let count),
+             .expiringInventory(let count),
+             .pendingShopping(let count),
+             .lowStock(let count):
+            count
+        }
+    }
 }
 
 struct HomeDashboardHeaderModel: Equatable {

@@ -173,6 +173,29 @@ struct ContentView: View {
             navigationStore.selectedTab = .today
         }
         .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_STOCK_IN") else { return }
+            kitchenStore.clearAllLocalData()
+            kitchenStore.importInventory([
+                InventoryImportItem(
+                    name: "过期生菜",
+                    quantity: 1,
+                    unit: "颗",
+                    expiryDate: Calendar.current.date(byAdding: .day, value: -1, to: Date())
+                )
+            ])
+            kitchenStore.addShopping(name: "牛奶", quantity: 1, unit: "盒")
+            if let milk = kitchenStore.shoppingItems.first(where: { $0.name == "牛奶" }) {
+                kitchenStore.toggleShopping(milk)
+            }
+            navigationStore.selectedTab = .today
+        }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_ERROR") else { return }
+            kitchenStore.clearAllLocalData()
+            kitchenStore.inventoryNotice = "库存保存失败，请稍后重试。"
+            navigationStore.selectedTab = .today
+        }
+        .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_COOKING") else { return }
             kitchenStore.clearAllLocalData()
             navigationStore.selectedTab = .recipes

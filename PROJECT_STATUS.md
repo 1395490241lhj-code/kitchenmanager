@@ -73,10 +73,12 @@ history, device-validation narratives, and bug investigations belong in
   a short-lived, single-use proof. Hosted/production validation remains open. See
   `docs/ACCOUNT_DELETION_DESIGN.md`, `docs/ACCOUNT_DATA_LIFECYCLE.md`,
   `docs/PHASE2D2_VALIDATION.md`.
-- iOS Home Dashboard V2 now makes today's plan the primary task, with
-  concise inventory-alert and shopping summaries, direct native navigation,
-  and a small toolbar action menu. It remains entirely local-first and does
-  not change sync or authentication behavior; see `docs/IOS_HOME_DASHBOARD.md`.
+- iOS Home Dashboard Phase 1 now makes today's plan the first visual layer,
+  exposes exactly one state-derived prominent action, and shows at most one
+  aggregated reminder (stock-in, expired, expiring, shopping, low-stock
+  priority). Local data is never gated by auth restoration; existing tabs,
+  write paths, stock-in/consumption flows, sync boundaries, and default-off
+  flags remain unchanged. See `docs/IOS_HOME_DASHBOARD.md`.
 - iOS recipe detail now supports session-only serving scaling and ingredient
   checks, plus a native Cooking Mode with step navigation, foreground timer,
   temporary screen-awake behavior, and explicit Today Plan completion. It

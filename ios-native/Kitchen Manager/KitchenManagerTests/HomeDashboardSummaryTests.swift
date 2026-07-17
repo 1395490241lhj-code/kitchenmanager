@@ -29,13 +29,13 @@ final class HomeDashboardSummaryTests: XCTestCase {
         let summary = HomeDashboardSummary(
             inventory: [],
             todayPlans: [plan("已完成", cooked: true), plan("未完成一"), plan("未完成二"), plan("未完成三"), plan("未完成四")],
-            pendingShoppingItems: []
+            shoppingItems: []
         )
 
         XCTAssertEqual(summary.displayedPlans.map(\.recipeName), ["未完成一", "未完成二", "未完成三"])
         XCTAssertEqual(summary.additionalPlanCount, 2)
         XCTAssertEqual(summary.completedPlanCount, 1)
-        XCTAssertEqual(summary.todayPlanState, .active)
+        XCTAssertEqual(summary.todayPlanState, .partial)
     }
 
     func testInventorySummarySeparatesExpiredExpiringAndLowStock() {
@@ -47,7 +47,7 @@ final class HomeDashboardSummaryTests: XCTestCase {
                 item(name: "充足", quantity: 5, staple: true, threshold: 2)
             ],
             todayPlans: [],
-            pendingShoppingItems: []
+            shoppingItems: []
         )
 
         XCTAssertEqual(summary.expiredCount, 1)
@@ -57,7 +57,7 @@ final class HomeDashboardSummaryTests: XCTestCase {
     }
 
     func testEmptyDashboardOffersEmptyTodayPlanAndCompactShoppingState() {
-        let summary = HomeDashboardSummary(inventory: [], todayPlans: [], pendingShoppingItems: [])
+        let summary = HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: [])
 
         XCTAssertEqual(summary.todayPlanState, .empty)
         XCTAssertEqual(summary.totalPlanCount, 0)
@@ -68,7 +68,7 @@ final class HomeDashboardSummaryTests: XCTestCase {
 
     func testShoppingPreviewIsBoundedAndPreservesExistingOrder() {
         let items = ["鸡蛋", "牛奶", "青菜", "面包"].map { KitchenShoppingItem(name: $0) }
-        let summary = HomeDashboardSummary(inventory: [], todayPlans: [], pendingShoppingItems: items)
+        let summary = HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: items)
 
         XCTAssertEqual(summary.pendingShoppingCount, 4)
         XCTAssertEqual(summary.shoppingPreview.map(\.name), ["鸡蛋", "牛奶", "青菜"])
@@ -85,5 +85,119 @@ final class HomeDashboardSummaryTests: XCTestCase {
         XCTAssertEqual(HomeDashboardModuleIssue.issues(inventoryNotice: "库存保存失败，请稍后重试。", shoppingNotice: nil), [.inventory])
         XCTAssertEqual(HomeDashboardModuleIssue.issues(inventoryNotice: nil, shoppingNotice: "购物清单保存失败，请稍后重试。"), [.shopping])
         XCTAssertEqual(HomeDashboardModuleIssue.issues(inventoryNotice: "已添加 1 项食材", shoppingNotice: ""), [])
+    }
+
+    func testPrimaryActionAddsPlanWhenTodayIsEmpty() {
+        let summary = HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: [])
+
+        XCTAssertEqual(summary.primaryAction, .addTodayPlan)
+    }
+
+    func testPrimaryActionViewsPlanWhenTodayHasUnfinishedWork() {
+        let summary = HomeDashboardSummary(
+            inventory: [],
+            todayPlans: [plan("已完成", cooked: true), plan("待完成")],
+            shoppingItems: []
+        )
+
+        XCTAssertEqual(summary.todayPlanState, .partial)
+        XCTAssertEqual(summary.primaryAction, .viewTodayPlan)
+    }
+
+    func testPrimaryActionBrowsesRecipesWhenTodayIsComplete() {
+        let summary = HomeDashboardSummary(
+            inventory: [],
+            todayPlans: [plan("已完成", cooked: true)],
+            shoppingItems: []
+        )
+
+        XCTAssertEqual(summary.primaryAction, .browseRecipes)
+    }
+
+    func testPurchasedItemsOverrideAllOtherRemindersAndPrimaryActions() {
+        let purchased = KitchenShoppingItem(name: "牛奶", isDone: true)
+        let summary = HomeDashboardSummary(
+            inventory: [
+                item(name: "过期", expiryDays: -1),
+                item(name: "临期", expiryDays: 1),
+                item(name: "米", quantity: 1, staple: true, threshold: 2)
+            ],
+            todayPlans: [],
+            shoppingItems: [purchased, KitchenShoppingItem(name: "鸡蛋")]
+        )
+
+        XCTAssertEqual(summary.primaryAction, .stockInPurchased)
+        XCTAssertEqual(summary.highestPriorityReminder, .purchasedAwaitingStockIn(count: 1))
+    }
+
+    func testExpiredReminderPrecedesExpiringShoppingAndLowStock() {
+        let summary = HomeDashboardSummary(
+            inventory: [
+                item(name: "过期", expiryDays: -1),
+                item(name: "临期", expiryDays: 1),
+                item(name: "米", quantity: 1, staple: true, threshold: 2)
+            ],
+            todayPlans: [],
+            shoppingItems: [KitchenShoppingItem(name: "鸡蛋")]
+        )
+
+        XCTAssertEqual(summary.highestPriorityReminder, .expiredInventory(count: 1))
+    }
+
+    func testExpiringReminderPrecedesPendingShoppingAndLowStock() {
+        let summary = HomeDashboardSummary(
+            inventory: [
+                item(name: "临期一", expiryDays: 1),
+                item(name: "临期二", expiryDays: 2),
+                item(name: "米", quantity: 1, staple: true, threshold: 2)
+            ],
+            todayPlans: [],
+            shoppingItems: [KitchenShoppingItem(name: "鸡蛋")]
+        )
+
+        XCTAssertEqual(summary.highestPriorityReminder, .expiringInventory(count: 2))
+    }
+
+    func testPendingShoppingReminderPrecedesLowStock() {
+        let summary = HomeDashboardSummary(
+            inventory: [item(name: "米", quantity: 1, staple: true, threshold: 2)],
+            todayPlans: [],
+            shoppingItems: [KitchenShoppingItem(name: "鸡蛋"), KitchenShoppingItem(name: "青菜")]
+        )
+
+        XCTAssertEqual(summary.highestPriorityReminder, .pendingShopping(count: 2))
+    }
+
+    func testLowStockIsUsedWhenNoHigherPriorityReminderExists() {
+        let summary = HomeDashboardSummary(
+            inventory: [item(name: "米", quantity: 1, staple: true, threshold: 2)],
+            todayPlans: [],
+            shoppingItems: []
+        )
+
+        XCTAssertEqual(summary.highestPriorityReminder, .lowStock(count: 1))
+    }
+
+    func testNoReminderReturnsNil() {
+        let summary = HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: [])
+
+        XCTAssertNil(summary.highestPriorityReminder)
+    }
+
+    func testPurchasedItemsAreAggregatedWithoutChangingPendingPreview() {
+        let summary = HomeDashboardSummary(
+            inventory: [],
+            todayPlans: [],
+            shoppingItems: [
+                KitchenShoppingItem(name: "牛奶", isDone: true),
+                KitchenShoppingItem(name: "面包", isDone: true),
+                KitchenShoppingItem(name: "鸡蛋")
+            ]
+        )
+
+        XCTAssertEqual(summary.purchasedShoppingCount, 2)
+        XCTAssertEqual(summary.pendingShoppingCount, 1)
+        XCTAssertEqual(summary.shoppingPreview.map(\.name), ["鸡蛋"])
+        XCTAssertEqual(summary.highestPriorityReminder, .purchasedAwaitingStockIn(count: 2))
     }
 }
