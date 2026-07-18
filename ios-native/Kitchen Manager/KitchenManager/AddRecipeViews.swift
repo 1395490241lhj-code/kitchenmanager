@@ -417,16 +417,39 @@ struct ImportRecipeView: View {
     @State private var saveErrorMessage: String?
     @State private var editableDraft: EditableRecipeDraft?
     @State private var draftWarnings: [String] = []
+    @State private var hasAutoStarted = false
 
     private let extractService = LinkExtractService()
     var onSaved: (() -> Void)? = nil
 
+    /// Set only by the Share Extension pending-request handoff
+    /// (`HomeView.sharedImportSheetContent`) — every other call site keeps
+    /// the default `false` and still requires the user to tap "开始导入"
+    /// themselves. Deliberately a separate parameter rather than inferred
+    /// from `initialURLText` being non-empty, since a future manual prefill
+    /// entry point could pass initial text without wanting an automatic
+    /// network call.
+    private let autoStart: Bool
+
     /// `initialURLText` lets callers (e.g. the Share Extension handoff via
     /// `SharedImportCoordinator`) prefill the same field a user would
     /// otherwise paste into by hand — no separate import path.
-    init(initialURLText: String = "", onSaved: (() -> Void)? = nil) {
+    init(initialURLText: String = "", autoStart: Bool = false, onSaved: (() -> Void)? = nil) {
         _urlText = State(initialValue: initialURLText)
+        self.autoStart = autoStart
         self.onSaved = onSaved
+    }
+
+    /// Pure decision logic for whether `.task` should kick off `importLink()`
+    /// automatically, pulled out of the view body so it's directly unit
+    /// testable without constructing SwiftUI state.
+    static func shouldAutoStartImport(
+        autoStart: Bool,
+        hasAutoStarted: Bool,
+        isImporting: Bool,
+        hasDraft: Bool
+    ) -> Bool {
+        autoStart && !hasAutoStarted && !isImporting && !hasDraft
     }
 
     var body: some View {
@@ -529,6 +552,24 @@ struct ImportRecipeView: View {
         }
         .navigationTitle("导入菜谱")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            // Runs once per presentation (SwiftUI keys `.task` to view
+            // identity, not to body re-evaluation) — `hasAutoStarted` is
+            // still checked explicitly so a re-entrant call can never fire
+            // a second request for the same sheet instance. A fresh sheet
+            // presentation (e.g. the next pending shared import) gets a
+            // fresh `ImportRecipeView` with fresh `@State`, so auto-start
+            // can happen again there — that's the intended per-request
+            // behavior, not a bug.
+            guard Self.shouldAutoStartImport(
+                autoStart: autoStart,
+                hasAutoStarted: hasAutoStarted,
+                isImporting: isImporting,
+                hasDraft: editableDraft != nil
+            ) else { return }
+            hasAutoStarted = true
+            await importLink()
+        }
         .onDisappear {
             progressTask?.cancel()
         }

@@ -107,6 +107,10 @@ history, device-validation narratives, and bug investigations belong in
   treated as legacy/invalid and discarded rather than presented. Text-only
   AI import is deferred to Share Import Phase 2. See
   `docs/IOS_SHARE_IMPORT.md`.
+- Share Extension URL handoff now auto-starts the existing AI import
+  pipeline instead of requiring an extra manual "开始导入" tap. Manual
+  Smart Import remains user-triggered as before. Draft review and the
+  final save remain manual in both cases.
 
 ## Remaining rollout conditions
 

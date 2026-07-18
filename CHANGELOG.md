@@ -6,6 +6,23 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-17 (iOS Shared Import Auto-Start)
+
+### Changed
+
+- Share Extension URL handoff now auto-starts the existing AI import
+  pipeline (`ImportRecipeView.importLink()` → `LinkExtractService` →
+  `/api/recipe-import-from-url`) instead of requiring the user to tap
+  "开始导入" after the URL is prefilled. Manual Smart Import entry points
+  are unaffected — they still require that tap. Draft review and the
+  final "保存到菜谱库" save remain entirely manual in both cases; nothing
+  auto-saves.
+- Added `ImportRecipeView(autoStart:)`, defaulting to `false`; only the
+  Share Extension pending-request sheet (`HomeView.sharedImportSheetContent`)
+  passes `true`. No second import path, networking call, draft model, or
+  parsing state machine was introduced — this reuses `importLink()`
+  unchanged.
+
 ## 2026-07-17 (iOS Share Import Phase 1)
 
 Scope is **URL-only**. An earlier draft of this phase let plain text with

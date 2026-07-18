@@ -157,6 +157,7 @@ struct HomeView: View {
         NavigationStack {
             ImportRecipeView(
                 initialURLText: SharedImportCoordinator.prefillText(for: request),
+                autoStart: true,
                 onSaved: {
                     sharedImportCoordinator.markHandedOff(request)
                     showToast("已保存到菜谱库")

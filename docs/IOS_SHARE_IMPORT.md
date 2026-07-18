@@ -178,7 +178,13 @@ testable without a live extension context.
    Import screen) as a sheet, pre-filled via
    `SharedImportCoordinator.prefillText(for:)` — the same free-form
    "URL or full share text" field a user would otherwise paste into by
-   hand. There is no second import UI.
+   hand — and passes `autoStart: true` (added in the follow-up "Shared
+   Import Auto-Start" pass) so the existing `importLink()` AI-import call
+   fires immediately instead of waiting for a manual "开始导入" tap. Manual
+   Smart Import entry points never pass `autoStart: true` and are
+   unaffected. There is no second import UI, network call, or draft model
+   — `autoStart` only changes *when* the one existing call fires, not what
+   it does.
 8. Only a **successful** save (`ImportRecipeView`'s existing `onSaved`
    closure) calls `SharedImportCoordinator.markHandedOff`, which removes
    the request from the on-disk queue. Cancelling or closing the sheet
