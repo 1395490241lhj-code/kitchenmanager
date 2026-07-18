@@ -125,6 +125,12 @@ history, device-validation narratives, and bug investigations belong in
   content is automatically read, stored, queued, or imported. Debug and Release
   both use the production system detector; real cross-app detection and paste
   permission behavior remain manual device validation. See `docs/IOS_SHARE_IMPORT.md`.
+- Xiaohongshu video import now uses a stricter page-completeness gate before
+  skipping media processing: a long page with broad action words is not enough;
+  it must contain multiple independent action segments, multi-stage coverage
+  including real cooking, and concrete recipe evidence. Complete page recipes
+  remain page-first, ordinary web behavior and no-video fallback are preserved,
+  and existing media limits, models, ranking, and cache policies are unchanged.
 
 ## Remaining rollout conditions
 

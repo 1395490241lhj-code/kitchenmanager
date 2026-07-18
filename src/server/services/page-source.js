@@ -232,6 +232,99 @@ function hasContinuousRecipeSteps(text) {
   return actionMatches.length >= 4 && /[。；;\n]/u.test(raw);
 }
 
+const PAGE_PREPARATION_ACTION_PATTERN = /洗(?:净)?|切(?:块|片|丝|丁|段|碎|末)?|改刀|去皮|去骨|擦干|焯水|浸泡|沥干|打散/u;
+const PAGE_SEASONING_ACTION_PATTERN = /腌|抓匀|拌匀|调味|调汁|兑汁|勾芡|上浆|码味|加入.{0,20}(?:盐|糖|酱油|生抽|老抽|醋|油|淀粉|料酒|香料)/u;
+const PAGE_COOKING_ACTION_PATTERN = /下锅|锅中|热锅|热油|开火|大火|中火|小火|爆香|滑炒|煸炒|翻炒|炒至|炒熟|炒香|炒匀|煎至|煎熟|煎香|炸至|炸熟|煮至|煮熟|烧开|蒸至|蒸熟|烤至|烤熟|焖至|焖熟|炖至|炖熟|汆烫/u;
+const PAGE_FINISH_ACTION_PATTERN = /收汁|出锅|装盘|盛出|关火|撒入|翻炒均匀/u;
+const PAGE_RECIPE_OBJECT_PATTERN = /肉|鸡|鸭|鱼|虾|蛋|豆腐|蔬菜|菜|瓜|椒|菇|笋|米|面|粉|葱|姜|蒜|盐|糖|酱油|生抽|老抽|醋|油|淀粉|料酒|香料/u;
+const PAGE_QUANTITY_PATTERN = /(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半]+)\s*(?:克|千克|斤|两|毫升|升|勺|匙|杯|个|只|块|片|根|颗|瓣|把|份)/u;
+const PAGE_INGREDIENT_SECTION_PATTERN = /(?:^|[\n。；;])\s*(?:食材|用料|配料|调料)\s*[:：]\s*\S{2,}/u;
+const PAGE_INSTRUCTION_SECTION_PATTERN = /(?:^|[\n。；;])\s*(?:做法|步骤)\s*[:：]\s*\S{2,}/u;
+const PAGE_NUMBERED_STEP_PATTERN = /(?:^|[\s:：])(?:(?:步骤\s*)?(?:\d+|[一二三四五六七八九十]+)\s*[.、．。)）:：]|[-•·])\s*/gu;
+
+function splitPageRecipeActionSegments(text) {
+  const normalized = String(text || '').replace(PAGE_NUMBERED_STEP_PATTERN, '\n');
+  return uniqueTextList(
+    splitRawSourceIntoCandidateSegments(normalized)
+      .map(normalizeSourceLine)
+      .filter(segment => segment.length >= 4)
+      .filter(segment => !isHashtagOnlyLine(segment) && !isSocialNoiseLine(segment)),
+    40
+  );
+}
+
+function classifyPageRecipeActionStages(segment) {
+  const text = String(segment || '');
+  const stages = [];
+  if (PAGE_PREPARATION_ACTION_PATTERN.test(text)) stages.push('preparation');
+  if (PAGE_SEASONING_ACTION_PATTERN.test(text)) stages.push('seasoning');
+  if (PAGE_COOKING_ACTION_PATTERN.test(text)) stages.push('cooking');
+  if (PAGE_FINISH_ACTION_PATTERN.test(text)) stages.push('finish');
+  return stages;
+}
+
+function assessPageRecipeCompleteness(text) {
+  const raw = String(text || '').trim();
+  const candidateSegments = splitPageRecipeActionSegments(raw);
+  const actionSegments = candidateSegments
+    .map(segment => ({ segment, stages: classifyPageRecipeActionStages(segment) }))
+    .filter(item => item.stages.length > 0);
+  const stages = new Set(actionSegments.flatMap(item => item.stages));
+  const hasIngredientSection = PAGE_INGREDIENT_SECTION_PATTERN.test(raw);
+  const hasInstructionSection = PAGE_INSTRUCTION_SECTION_PATTERN.test(raw);
+  const hasQuantityEvidence = PAGE_QUANTITY_PATTERN.test(raw);
+  const hasObjectEvidence = actionSegments.some(item => PAGE_RECIPE_OBJECT_PATTERN.test(item.segment));
+  const hasRecipeEvidence = hasIngredientSection || hasQuantityEvidence || hasObjectEvidence;
+
+  let reason = 'page_complete';
+  if (!candidateSegments.length) reason = 'social_noise_only';
+  else if (actionSegments.length < 3) reason = 'insufficient_action_segments';
+  else if (!stages.has('cooking')) reason = 'missing_cooking_stage';
+  else if (stages.size < 2) reason = 'insufficient_stage_coverage';
+  else if (!hasRecipeEvidence) reason = 'insufficient_recipe_evidence';
+
+  return {
+    isComplete: reason === 'page_complete',
+    reason,
+    actionSegmentCount: actionSegments.length,
+    stageCount: stages.size,
+    hasPreparationStage: stages.has('preparation'),
+    hasSeasoningStage: stages.has('seasoning'),
+    hasCookingStage: stages.has('cooking'),
+    hasFinishStage: stages.has('finish'),
+    hasIngredientSection,
+    hasInstructionSection,
+    hasQuantityEvidence,
+    hasObjectEvidence
+  };
+}
+
+function decidePageTextPreference({ text = '', sourceType = 'web', hasVideoCandidate = false } = {}) {
+  const pageText = String(text || '').trim();
+  const completeness = assessPageRecipeCompleteness(pageText);
+  const isStrictXiaohongshuVideo = sourceType === 'xiaohongshu' && hasVideoCandidate;
+
+  if (!hasVideoCandidate) {
+    return { pageTextPreferred: false, reason: 'no_video_candidate', completeness };
+  }
+  if (pageText.length < 180) {
+    return { pageTextPreferred: false, reason: 'insufficient_text_length', completeness };
+  }
+  if (isStrictXiaohongshuVideo) {
+    return {
+      pageTextPreferred: completeness.isComplete,
+      reason: completeness.reason,
+      completeness
+    };
+  }
+  const pageTextPreferred = hasContinuousRecipeSteps(pageText);
+  return {
+    pageTextPreferred,
+    reason: pageTextPreferred ? 'page_complete' : completeness.reason,
+    completeness
+  };
+}
+
 function chooseRecipeExtractionMode({ initialStateText, jsonLdText, metaText, visibleText }) {
   if (initialStateText) return 'initial-state';
   if (jsonLdText) return 'json-ld';
@@ -823,6 +916,7 @@ function buildRecipeSourcePayload({ startUrl, fetched, html, source, media, allo
   ], 12);
   return {
     text,
+    sourceType: source.sourceType,
     finalUrl: fetched.finalUrl,
     canonicalUrl: extractCanonicalUrl(html, fetched.finalUrl),
     url: startUrl.href,
@@ -900,6 +994,7 @@ module.exports = {
   buildRecipeSourcePayload,
   buildVideoUrlSelectionDiagnostics,
   chooseRecipeExtractionMode,
+  classifyPageRecipeActionStages,
   classifyMediaUrl,
   classifyRecipeSourceSegment,
   cleanAuthorCandidateLine,
@@ -910,6 +1005,7 @@ module.exports = {
   collectStructuredTextFromObject,
   createMediaAccumulator,
   decodeHtmlText,
+  decidePageTextPreference,
   extractHttpUrlsFromText,
   extractInitialStateText,
   extractJsonLdText,
@@ -924,6 +1020,7 @@ module.exports = {
   getStructuredRecipeText,
   guessSourceTypeFromUrl,
   hasContinuousRecipeSteps,
+  assessPageRecipeCompleteness,
   isHashtagOnlyLine,
   isLikelyVideoMediaUrl,
   isSocialNoiseLine,
@@ -937,6 +1034,7 @@ module.exports = {
   scoreVideoMediaUrl,
   segmentSocialRecipeText,
   splitRawSourceIntoCandidateSegments,
+  splitPageRecipeActionSegments,
   splitRecipeSourceText,
   stripHtmlTags
 };

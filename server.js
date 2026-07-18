@@ -88,8 +88,8 @@ const {
 } = require('./src/server/services/ssrf-guard');
 const {
   buildVideoUrlSelectionDiagnostics,
+  decidePageTextPreference,
   extractRecipeSourcePayloadFromUrl,
-  hasContinuousRecipeSteps,
   mergeVideoUrlSelectionDiagnostics,
   pickBestVideoUrl,
   splitRecipeSourceText
@@ -1975,6 +1975,21 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
   const pageText = String(sourcePayload.text || '').trim();
   const videoUrls = Array.isArray(sourcePayload.media?.videoUrls) ? sourcePayload.media.videoUrls : [];
   const selectedVideoUrl = pickBestVideoUrl(videoUrls);
+  const pagePreference = decidePageTextPreference({
+    text: pageText,
+    sourceType: sourcePayload.sourceType,
+    hasVideoCandidate: Boolean(selectedVideoUrl)
+  });
+  const pageCompletenessDiagnostics = {
+    pageTextPreferred: pagePreference.pageTextPreferred,
+    pageCompletenessReason: pagePreference.reason,
+    pageActionSegmentCount: pagePreference.completeness.actionSegmentCount,
+    pageStageCount: pagePreference.completeness.stageCount,
+    pageHasPreparationStage: pagePreference.completeness.hasPreparationStage,
+    pageHasSeasoningStage: pagePreference.completeness.hasSeasoningStage,
+    pageHasCookingStage: pagePreference.completeness.hasCookingStage,
+    pageHasFinishStage: pagePreference.completeness.hasFinishStage
+  };
   const selectionDiagnostics = mergeVideoUrlSelectionDiagnostics(
     buildVideoUrlSelectionDiagnostics(videoUrls, selectedVideoUrl),
     sourcePayload.media?.mediaDiagnostics
@@ -1995,6 +2010,7 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
     ocrText = String(cachedMedia.ocrText || '');
     mediaDiagnostics = {
       ...cloneRecipeImportCacheValue(cachedMedia.mediaDiagnostics, {}),
+      ...pageCompletenessDiagnostics,
       cacheHit: true
     };
     sourceMetadataBase = {
@@ -2002,15 +2018,14 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
       mediaDiagnostics
     };
   } else {
-    const pageTextPreferred = pageText.length >= 180 && hasContinuousRecipeSteps(pageText);
-    const videoTextResult = pageTextPreferred
+    const videoTextResult = pagePreference.pageTextPreferred
       ? {
           transcriptText: '',
           ocrText: '',
           mediaDiagnostics: {
             hasVideo: Boolean(selectedVideoUrl),
             videoUrlCount: videoUrls.length,
-            pageTextPreferred: true,
+            ...pageCompletenessDiagnostics,
             asrAttempted: false,
             asrOk: false,
             ocrAttempted: false,
@@ -2023,6 +2038,7 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
     ocrText = String(videoTextResult.ocrText || '');
     mediaDiagnostics = {
       ...videoTextResult.mediaDiagnostics,
+      ...pageCompletenessDiagnostics,
       extractionMode: sourcePayload.extractionMode,
       pageTextLength: pageText.length,
       cacheHit: false

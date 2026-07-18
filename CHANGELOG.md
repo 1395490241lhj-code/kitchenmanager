@@ -6,6 +6,22 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-18 (Xiaohongshu Video Import Reliability Phase 1B)
+
+### Fixed
+
+- Xiaohongshu video notes no longer skip the existing media pipeline merely
+  because extracted page text is long and contains several broad action words.
+  Page-first import now requires at least three distinct actionable segments,
+  multiple cooking stages including actual heat/cooking, and concrete recipe
+  object, quantity, or structured-section evidence.
+- Complete page recipes can still avoid unnecessary video processing, ordinary
+  web imports retain their existing page-first threshold, and pages without a
+  video candidate continue through the existing page-text fallback.
+- Added non-sensitive page-completeness diagnostics and focused pure/integration
+  regressions. Video size, download timeout, ffmpeg, ASR, OCR, candidate ranking,
+  and media-cache policies are unchanged.
+
 ## 2026-07-18 (iOS Clipboard Recipe Import Phase 1)
 
 ### Added
