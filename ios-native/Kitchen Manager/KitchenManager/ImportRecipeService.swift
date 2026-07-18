@@ -107,6 +107,13 @@ struct LinkExtractService {
                     code: payload?.code ?? "unknown",
                     status: status
                 )
+            case .cancelled:
+                // Distinct from every other case: the caller's Task was
+                // cancelled (e.g. the import sheet was dismissed), not a
+                // real network/server failure — must not collapse into
+                // `.invalidResponse`, or callers can no longer tell the two
+                // apart and would show a normal error for a cancellation.
+                throw LinkExtractError.cancelled
             default:
                 throw LinkExtractError.invalidResponse
             }
@@ -163,6 +170,12 @@ enum LinkExtractError: LocalizedError {
     case invalidResponse
     case invalidJSON
     case server(code: String, status: Int)
+    /// The request's Task was cancelled (e.g. the import sheet was
+    /// dismissed mid-request) — never shown to the user as an error;
+    /// callers are expected to special-case this the same way they'd
+    /// special-case `CancellationError`. The description exists only so
+    /// `LocalizedError` stays a total protocol conformance.
+    case cancelled
 
     var errorDescription: String? {
         switch self {
@@ -174,6 +187,8 @@ enum LinkExtractError: LocalizedError {
             return "无法生成链接抓取请求。"
         case .invalidResponse:
             return "服务器返回了无效响应。"
+        case .cancelled:
+            return "导入已取消。"
         case .invalidJSON:
             return "服务器返回的数据无法识别。"
         case .server(let code, _):

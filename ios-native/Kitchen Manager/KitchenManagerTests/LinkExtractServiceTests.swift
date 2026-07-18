@@ -154,4 +154,57 @@ final class LinkExtractServiceTests: XCTestCase {
         }
         XCTAssertEqual(MockURLProtocol.capturedRequests().count, 0, "must not hit the network without a URL to send")
     }
+
+    // MARK: - Cancellation classification
+    //
+    // `APIClient.perform` already maps both `URLError.cancelled` and
+    // `CancellationError` to `APIError.cancelled` — these tests cover the
+    // fix in `LinkExtractService.extract`'s own catch block, which used to
+    // let `.cancelled` fall through to `default: throw .invalidResponse`,
+    // silently turning a cancelled import-sheet-dismiss into what looked
+    // like a normal server error.
+
+    func test_cancellingEnclosingTask_whileRequestInFlight_throwsCancelledNotInvalidResponse() async throws {
+        // A deliberate, short in-flight delay so the cancel() call below is
+        // guaranteed to land while the request is still outstanding rather
+        // than racing an instantaneous mock response.
+        MockURLProtocol.install { _ in .init(statusCode: 200, data: Data(self.minimalSuccessJSON.utf8), delay: 0.3) }
+        let service = makeService()
+
+        let task = Task<LinkExtractResult, Error> {
+            try await service.extract(from: "https://example.com/recipe")
+        }
+        try await Task.sleep(nanoseconds: 30_000_000) // 30ms — well before the 0.3s stub delay resolves
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("expected LinkExtractError.cancelled")
+        } catch let error as LinkExtractError {
+            guard case .cancelled = error else {
+                return XCTFail("expected .cancelled, got \(error) — a real cancellation must not look like a server/transport error")
+            }
+        } catch {
+            XCTFail("expected LinkExtractError.cancelled, got \(type(of: error)): \(error)")
+        }
+    }
+
+    func test_cancelledError_localizedDescription_isNeverConfusedWithARealFailure() {
+        // Documents that `.cancelled` has its own description distinct from
+        // every real-failure case — callers that (incorrectly) fell back to
+        // showing `.localizedDescription` for it would show this text, not
+        // a generic "导入失败"/server message, making a regression obvious.
+        XCTAssertEqual(LinkExtractError.cancelled.localizedDescription, "导入已取消。")
+        XCTAssertNotEqual(LinkExtractError.cancelled.localizedDescription, LinkExtractError.invalidResponse.localizedDescription)
+    }
+
+    func test_successfulRequest_stillSucceeds_afterCancellationHandlingWasAdded() async throws {
+        // Regression guard: adding the `.cancelled` case/switch branch must
+        // not change behavior for an ordinary, uncancelled, successful call.
+        MockURLProtocol.install { _ in .init(statusCode: 200, data: Data(self.minimalSuccessJSON.utf8)) }
+        let service = makeService()
+
+        let result = try await service.extract(from: "https://example.com/recipe")
+        XCTAssertEqual(result.recipe?.name, "示例菜谱")
+    }
 }

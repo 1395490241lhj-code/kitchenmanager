@@ -6,6 +6,29 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-17 (iOS Import Request Lifecycle & Cancellation)
+
+### Fixed
+
+- Active recipe-import network requests are now actually cancelled when the
+  import sheet disappears (dismiss, navigate away, or replacement). Two bugs
+  were fixed to make this true: (1) the network Task was never held by
+  anything, so `.onDisappear` could only stop the cosmetic progress
+  animation, not the real request; (2) `LinkExtractService` was silently
+  reclassifying a genuine cancellation (`APIError.cancelled`) as
+  `LinkExtractError.invalidResponse`, which would have shown a normal
+  "导入失败" error even once the Task actually got cancelled.
+- Cancellation is now treated as a silent lifecycle event, not an import
+  failure: no error text, no alert, no draft, no auto-retry, and no queue
+  acknowledgement. A real network/server error still shows the existing
+  "导入失败" UI with the existing manual Retry.
+- Manual Smart Import tap, Retry, and the Share-Extension auto-start all
+  funnel through one new `startImport()` entry point that guarantees at
+  most one active import request per sheet presentation; `importLink()`'s
+  own logic is unchanged. Draft review, manual save, and the pending-share
+  queue's snooze/acknowledge semantics (`SharedImportCoordinator`) are
+  unchanged.
+
 ## 2026-07-17 (iOS Shared Import Auto-Start)
 
 ### Changed

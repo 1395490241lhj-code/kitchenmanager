@@ -111,6 +111,10 @@ history, device-validation narratives, and bug investigations belong in
   pipeline instead of requiring an extra manual "开始导入" tap. Manual
   Smart Import remains user-triggered as before. Draft review and the
   final save remain manual in both cases.
+- Active recipe-import network requests are cancelled when the import sheet
+  disappears. Cancellation is treated as a silent lifecycle event, not as
+  an import failure. Retry, draft review, manual save, and pending-share
+  queue semantics remain unchanged.
 
 ## Remaining rollout conditions
 

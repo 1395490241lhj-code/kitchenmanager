@@ -418,6 +418,11 @@ struct ImportRecipeView: View {
     @State private var editableDraft: EditableRecipeDraft?
     @State private var draftWarnings: [String] = []
     @State private var hasAutoStarted = false
+    /// The real network-driving import Task — distinct from `progressTask`,
+    /// which only drives the cosmetic stage animation. Held here so
+    /// `.onDisappear` can actually cancel the in-flight `/api/recipe-import-
+    /// from-url` request instead of merely stopping its progress label.
+    @State private var importTask: Task<Void, Never>?
 
     private let extractService = LinkExtractService()
     var onSaved: (() -> Void)? = nil
@@ -452,6 +457,28 @@ struct ImportRecipeView: View {
         autoStart && !hasAutoStarted && !isImporting && !hasDraft
     }
 
+    /// Same "single active request" guard `startImport()` uses, pulled out
+    /// so it's directly unit testable: a manual tap, a Retry tap, and the
+    /// auto-start `.task` all funnel through `startImport()`, which only
+    /// creates a new `importTask` when this returns `true`.
+    static func shouldStartImport(hasActiveTask: Bool) -> Bool {
+        !hasActiveTask
+    }
+
+    /// Single entry point for every trigger (manual tap, Retry, auto-start)
+    /// — owns the real import Task's lifecycle without duplicating any of
+    /// `importLink()`'s business logic. Cancelling `importTask` (in
+    /// `.onDisappear`) propagates through the plain `await` chain into
+    /// `LinkExtractService`/`APIClient`/`URLSession`, since `importLink()`
+    /// runs directly on this Task rather than spawning a child one.
+    private func startImport() {
+        guard Self.shouldStartImport(hasActiveTask: importTask != nil) else { return }
+        importTask = Task {
+            await importLink()
+            importTask = nil
+        }
+    }
+
     var body: some View {
         Form {
             Section("菜谱链接") {
@@ -464,7 +491,7 @@ struct ImportRecipeView: View {
 
             Section {
                 Button {
-                    Task { await importLink() }
+                    startImport()
                 } label: {
                     HStack {
                         Spacer()
@@ -508,7 +535,7 @@ struct ImportRecipeView: View {
                     Label(extractErrorMessage, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.red)
                     Button("重试", systemImage: "arrow.clockwise") {
-                        Task { await importLink() }
+                        startImport()
                     }
                     .disabled(isImporting)
                 }
@@ -568,9 +595,14 @@ struct ImportRecipeView: View {
                 hasDraft: editableDraft != nil
             ) else { return }
             hasAutoStarted = true
-            await importLink()
+            startImport()
         }
         .onDisappear {
+            // Cancels the real network-driving Task, not just the cosmetic
+            // progress animation — cancellation propagates through the
+            // plain `await` chain into `LinkExtractService`/`APIClient`,
+            // which cancels the underlying `URLSessionTask`.
+            importTask?.cancel()
             progressTask?.cancel()
         }
         .alert(
@@ -619,6 +651,17 @@ struct ImportRecipeView: View {
                 throw UserRecipeSaveError.sourceAlreadyImported
             }
             let imported = try await extractService.extract(from: urlText)
+            // The network call above is the only real suspension point,
+            // and cancellation is expected to already surface as a thrown
+            // `LinkExtractError.cancelled`/`CancellationError` from it in
+            // the overwhelming majority of cases. This extra check only
+            // guards the narrow race where the response finished arriving
+            // in the same instant the Task was cancelled — without it, a
+            // dismiss-right-as-the-network-returns could still write a
+            // draft into a view that's going away. No request-generation
+            // token is needed beyond this: `startImport()` guarantees at
+            // most one `importTask` exists at a time for this view.
+            try Task.checkCancellation()
             guard !store.containsImportedSource(imported.canonicalURL) else {
                 throw UserRecipeSaveError.sourceAlreadyImported
             }
@@ -646,6 +689,12 @@ struct ImportRecipeView: View {
             draftWarnings = imported.warnings
             isSaved = false
         } catch is CancellationError {
+            // Cancellation is a lifecycle event, not an import failure: no
+            // error text, no alert, no draft, no retry prompt — the sheet
+            // is on its way to disappearing (or already has), so quietly
+            // stop instead of writing any further state.
+            return
+        } catch LinkExtractError.cancelled {
             return
         } catch {
             extractErrorMessage = error.localizedDescription
