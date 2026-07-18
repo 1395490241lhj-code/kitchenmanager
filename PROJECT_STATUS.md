@@ -1,6 +1,6 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 This is the single current-state snapshot for humans and AI agents. It is
 not a changelog and must remain concise. Implementation detail, test-count
@@ -115,6 +115,16 @@ history, device-validation narratives, and bug investigations belong in
   disappears. Cancellation is treated as a silent lifecycle event, not as
   an import failure. Retry, draft review, manual save, and pending-share
   queue semantics remain unchanged.
+- iOS Clipboard Recipe Import Phase 1 detects only the system's probable-URL
+  clipboard pattern while Home is active, without reading clipboard contents.
+  A lightweight Home prompt lets the user explicitly paste through the native
+  system paste control, then reuses the existing URL parser and
+  `ImportRecipeView` auto-start/cancel/Retry/draft/manual-save pipeline. The
+  clipboard version is deduplicated in memory; Share Extension requests keep
+  priority and their App Group queue behavior is unchanged. No clipboard
+  content is automatically read, stored, queued, or imported. Debug and Release
+  both use the production system detector; real cross-app detection and paste
+  permission behavior remain manual device validation. See `docs/IOS_SHARE_IMPORT.md`.
 
 ## Remaining rollout conditions
 

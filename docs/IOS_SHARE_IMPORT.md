@@ -44,6 +44,62 @@ The extension never touches SwiftData, `KitchenStore`, `RecipeStore`,
 `APIClient`, or the Keychain-backed auth session. It only classifies raw
 share input and hands a small `Codable` value to the App Group queue.
 
+## Clipboard Recipe Import Phase 1
+
+Clipboard import is a separate, main-app-only entry point. It does not create
+or imitate a Share Extension request:
+
+```text
+Share Extension:
+explicit share action → App Group queue → SharedImportCoordinator
+→ ImportRecipeView
+
+Clipboard:
+copy link → probable-URL pattern detection → explicit UIPasteControl action
+→ existing HTTP URL extraction → ImportRecipeView
+```
+
+When Home appears or the app returns to `scenePhase == .active`,
+`SystemClipboardPatternDetector` calls only
+`UIPasteboard.detectedPatterns(for: [\.probableWebURL])` and reads the
+pasteboard's integer `changeCount`. It does not request `.string`, item
+providers, detected values, or any concrete clipboard data. Detection is
+single-task, foreground-only, non-polling, cancellable with the view/lifecycle,
+and silently ignores errors or stale results. A probable pattern only controls
+whether a lightweight Home prompt is visible; it never opens a sheet or starts
+a network request. Debug and Release builds both use this production detector;
+there is no launch-argument or UI-test override for clipboard detection.
+
+Concrete URL/plain-text data is delivered only after the user activates the
+native `UIPasteControl`, through a minimal `UIPasteConfigurationSupporting`
+bridge accepting `public.url` and `public.plain-text`. Both Home and manual
+Smart Import use this control; there is no ordinary SwiftUI button that reads
+`UIPasteboard.general.string`. The pasted text is not retained as history. The
+first valid HTTP/HTTPS URL is selected with the existing
+`LinkExtractService.firstHTTPURL(in:)` helper, including for Xiaohongshu-style
+multi-line copied text. Invalid, URL-free, `file:`, `javascript:`, and custom
+scheme content does not open the importer or reach the network.
+
+Home owns session-local state for the evaluated, ignored, and handled
+`changeCount`; no SwiftData or persistent preference was added. The same
+clipboard version does not prompt again after Ignore, paste, import-sheet
+dismissal, or a foreground transition. A newly copied version can be detected
+on the next eligible Home/foreground evaluation.
+
+Modal priority remains:
+
+1. Pending Share Extension request.
+2. An already-presented Home sheet/import flow.
+3. Clipboard prompt.
+4. Ordinary manual Smart Import entry.
+
+Clipboard handoff is represented only by local Home sheet state and opens
+`ImportRecipeView(initialURLText:autoStart: true)`. It therefore reuses the
+existing AI endpoint, progress, active Task cancellation, Retry, editable
+draft, and manual save. It never writes `SharedImportQueue`, calls
+`SharedImportCoordinator.markHandedOff`, or changes the extension's snooze/
+acknowledgement semantics.
+
 ## App Group
 
 - Identifier: `group.com.lianghongjing.kitchenmanager`
@@ -294,6 +350,21 @@ does not add or remove that gate.
 
 ## Testing
 
+- **Clipboard Unit**: `KitchenManagerTests/ClipboardRecipeImportTests.swift`
+  covers probable/no/error results, inactive/pending-share suppression, stale
+  result rejection, same/new `changeCount`, Ignore/handled dedup, modal
+  priority, pure URL and Xiaohongshu/multi-line extraction, auto-start handoff,
+  and rejection of URL-free/non-http(s) content without a live clipboard.
+- **Clipboard UI**: `KitchenManagerUITests/ClipboardRecipeImportUITests.swift`
+  opens the real Home and existing manual Smart Import route, then verifies the
+  native paste control's accessibility surface without replacing or faking the
+  production detector. Prompt visibility, Ignore, and clipboard modal priority
+  remain covered by the pure state/policy tests rather than a production hook.
+- **Clipboard manual-only boundary**: system paste-panel behavior, actual
+  cross-app clipboard delivery, Xiaohongshu/Safari interaction, dark mode,
+  maximum Dynamic Type, VoiceOver reading order, rotation, and physical-device
+  paste-permission behavior remain part of the manual matrix below.
+
 - **Unit — model/parser**: `KitchenManagerTests/SharedImportRequestTests.swift`
   (URL attachment, URL-as-String, text-with-embedded-URL, URL+separate
   text combined, **plain text with no URL rejected** (`.unsupportedContent`,
@@ -337,6 +408,29 @@ does not add or remove that gate.
   run).
 
 ## Manual validation
+
+Clipboard Recipe Import physical-device checks:
+
+1. Copy a Xiaohongshu note link, open Kitchen Manager, and confirm Home shows
+   the prompt without a paste permission alert before interaction.
+2. Activate the system paste control; confirm the copied-text URL is extracted,
+   the existing importer opens once and auto-starts, and final save remains
+   manual.
+3. Close the importer during an active request; confirm the request cancels and
+   the same clipboard version does not prompt again.
+4. Copy a new link and foreground the app; confirm the new version can prompt.
+5. Repeat with a Safari URL and with URL-free text; URL-free content must not
+   prompt (pattern-dependent) or open/import if the user reaches paste.
+6. With a pending Share Extension request and a copied URL, confirm the share
+   sheet wins and no clipboard prompt competes.
+7. Check light/dark mode, maximum Dynamic Type (actions stack vertically),
+   VoiceOver order/labels, rotation, and a small-screen iPhone. System paste
+   permission behavior must match `UIPasteControl` on the physical OS/device.
+
+The automated suite does not create a fake clipboard prompt or replace the
+production detector. Real `detectedPatterns`, prompt presentation driven by a
+cross-app copy, cross-app clipboard delivery, and the physical-device paste
+permission panel are **not automated** and remain manual device validation.
 
 Full step-by-step results are in the final report of the implementing
 session. Summary: this environment cannot drive the iOS Simulator's GUI

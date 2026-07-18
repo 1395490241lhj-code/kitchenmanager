@@ -6,6 +6,33 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-18 (iOS Clipboard Recipe Import Phase 1)
+
+### Added
+
+- Home now uses UIKit's probable-web-URL pattern detection while the app is
+  active to offer a lightweight clipboard import prompt without reading or
+  displaying clipboard contents. Session-local `changeCount` state prevents
+  repeated prompts for the same clipboard version; Ignore affects only that
+  version and never clears the system clipboard.
+- A minimal SwiftUI bridge for the native `UIPasteControl` accepts URL/plain
+  text only after an explicit user paste action. It replaces the previous
+  direct pasteboard-string button in manual Smart Import as well, so neither
+  clipboard entry reads content programmatically.
+- Explicit clipboard pastes reuse `LinkExtractService.firstHTTPURL(in:)` and
+  the existing `ImportRecipeView(autoStart: true)` pipeline, including the
+  active import Task, cancellation, Retry, editable draft, and manual save.
+  Invalid/non-http(s) content stays on Home with clear local feedback and no
+  network request.
+- Pending Share Extension requests and existing sheets take priority over the
+  clipboard prompt. Clipboard imports never create a shared request, touch the
+  App Group queue, or acknowledge a pending share.
+- Added focused unit coverage for detection policy, lifecycle/dedup, Ignore,
+  URL extraction (including Xiaohongshu copied text), and modal priority. UI
+  coverage reaches the native paste control through the real manual Smart
+  Import route without replacing the production detector; real system
+  detection and cross-app paste remain manual device validation.
+
 ## 2026-07-17 (iOS Import Request Lifecycle & Cancellation)
 
 ### Fixed

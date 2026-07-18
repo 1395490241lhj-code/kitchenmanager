@@ -1,22 +1,30 @@
 import SwiftUI
 import UIKit
 
+private struct ClipboardImportPresentation {
+    let handoff: ClipboardRecipeImportURL.Handoff
+    let changeCount: Int
+}
+
 private enum HomeSheet: Identifiable {
     case smartImport
     case expiry
     case shopping
+    case clipboardImport(ClipboardImportPresentation)
 
     var id: String {
         switch self {
         case .smartImport: "smart-import"
         case .expiry: "expiry"
         case .shopping: "shopping"
+        case .clipboardImport(let presentation): "clipboard-import-\(presentation.changeCount)"
         }
     }
 }
 
 struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
@@ -28,6 +36,15 @@ struct HomeView: View {
     @State private var toastMessage: String?
     @State private var isShowingTodayPlan = false
     @State private var isShowingRecommendations = false
+    @State private var clipboardPromptState = ClipboardPromptSessionState()
+    @State private var clipboardDetectionTask: Task<Void, Never>?
+
+    private let clipboardDetector: any ClipboardPatternDetecting
+
+    @MainActor
+    init() {
+        self.clipboardDetector = SystemClipboardPatternDetector()
+    }
 
     private var sourceRecipes: [Recipe] {
         recipeStore.recipes.isEmpty ? Recipe.samples : recipeStore.recipes
@@ -56,6 +73,18 @@ struct HomeView: View {
                     onPrimaryAction: performPrimaryAction,
                     onViewPlan: { isShowingTodayPlan = true }
                 )
+
+                if shouldShowClipboardPrompt,
+                   let changeCount = clipboardPromptState.currentChangeCount {
+                    ClipboardRecipeImportPrompt(
+                        onPaste: { pastedText in
+                            handleClipboardPaste(pastedText)
+                        },
+                        onIgnore: {
+                            clipboardPromptState.ignore(changeCount: changeCount)
+                        }
+                    )
+                }
 
                 if let reminder = dashboard.highestPriorityReminder {
                     HomeAttentionReminderRow(reminder: reminder) {
@@ -136,6 +165,47 @@ struct HomeView: View {
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .onAppear {
+            scheduleClipboardDetection()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                scheduleClipboardDetection()
+            } else {
+                cancelClipboardDetection()
+            }
+        }
+        .onChange(of: sharedImportCoordinator.pendingRequest?.id) { _, pendingID in
+            if pendingID == nil {
+                scheduleClipboardDetection()
+            } else {
+                cancelClipboardDetection()
+            }
+        }
+        .onChange(of: activeSheet?.id) { _, sheetID in
+            if sheetID == nil {
+                scheduleClipboardDetection()
+            } else {
+                cancelClipboardDetection()
+            }
+        }
+        .onDisappear {
+            cancelClipboardDetection()
+        }
+    }
+
+    private var isClipboardPresentationBlocked: Bool {
+        ClipboardImportPresentationPolicy.isBlocked(
+            hasPendingShare: sharedImportCoordinator.pendingRequest != nil,
+            hasActiveSheet: activeSheet != nil
+        )
+    }
+
+    private var shouldShowClipboardPrompt: Bool {
+        clipboardPromptState.shouldShowPrompt(
+            isAppActive: scenePhase == .active,
+            isPresentationBlocked: isClipboardPresentationBlocked
+        )
     }
 
     /// Only surfaces the pending shared-import request when nothing else is
@@ -203,6 +273,19 @@ struct HomeView: View {
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        case .clipboardImport(let presentation):
+            NavigationStack {
+                ImportRecipeView(
+                    initialURLText: presentation.handoff.urlText,
+                    autoStart: presentation.handoff.autoStart,
+                    onSaved: { showToast("已保存到菜谱库") }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("关闭") { activeSheet = nil }
+                    }
+                }
+            }
         }
     }
 
@@ -222,6 +305,77 @@ struct HomeView: View {
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { toastMessage = nil }
             }
         }
+    }
+
+    private func scheduleClipboardDetection() {
+        clipboardDetectionTask?.cancel()
+        clipboardPromptState.cancelDetection()
+        clipboardDetectionTask = Task { @MainActor in
+            // Let ContentView's local Share queue refresh run first so a
+            // pending explicit share wins before a clipboard hint is shown.
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            let changeCount = clipboardDetector.changeCount
+            guard clipboardPromptState.beginDetection(
+                changeCount: changeCount,
+                isAppActive: scenePhase == .active,
+                isPresentationBlocked: isClipboardPresentationBlocked
+            ) else {
+                clipboardDetectionTask = nil
+                return
+            }
+
+            let result: Bool?
+            do {
+                result = try await clipboardDetector.containsProbableWebURL()
+            } catch {
+                result = nil
+            }
+
+            guard !Task.isCancelled else { return }
+            let latestChangeCount = clipboardDetector.changeCount
+            clipboardPromptState.finishDetection(
+                changeCount: changeCount,
+                latestChangeCount: latestChangeCount,
+                probableWebURL: result,
+                isAppActive: scenePhase == .active,
+                isPresentationBlocked: isClipboardPresentationBlocked
+            )
+            if clipboardPromptState.inFlightChangeCount == nil {
+                clipboardDetectionTask = nil
+            }
+        }
+    }
+
+    private func cancelClipboardDetection() {
+        clipboardDetectionTask?.cancel()
+        clipboardDetectionTask = nil
+        clipboardPromptState.cancelDetection()
+    }
+
+    private func handleClipboardPaste(_ pastedText: String) {
+        let pastedChangeCount = clipboardDetector.changeCount
+        clipboardPromptState.markHandled(changeCount: pastedChangeCount)
+
+        guard scenePhase == .active,
+              activeSheet == nil,
+              sharedImportCoordinator.pendingRequest == nil
+        else {
+            showToast("请先完成当前的导入操作")
+            return
+        }
+
+        guard let handoff = ClipboardRecipeImportURL.makeHandoff(from: pastedText) else {
+            showToast("剪贴板中没有可导入的网页链接，请重新复制后再试")
+            return
+        }
+
+        activeSheet = .clipboardImport(
+            ClipboardImportPresentation(
+                handoff: handoff,
+                changeCount: pastedChangeCount
+            )
+        )
     }
 
     private func performPrimaryAction() {
@@ -250,6 +404,53 @@ struct HomeView: View {
         case .lowStock:
             navigationStore.showInventory(.lowStock)
         }
+    }
+}
+
+private struct ClipboardRecipeImportPrompt: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    let onPaste: @MainActor @Sendable (String) -> Void
+    let onIgnore: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("发现剪贴板中可能有链接", systemImage: "doc.on.clipboard")
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            Text("可直接粘贴并导入菜谱。只有点击系统粘贴按钮后才会读取内容。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 8) { promptActions }
+                } else {
+                    HStack(spacing: 12) { promptActions }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home.clipboard.import.prompt")
+    }
+
+    @ViewBuilder
+    private var promptActions: some View {
+        ClipboardPasteControl(
+            accessibilityLabel: "粘贴并导入菜谱",
+            onPaste: { pastedText in onPaste(pastedText) }
+        )
+        .frame(minWidth: 132, minHeight: 44)
+        .accessibilityLabel("粘贴并导入菜谱")
+
+        Button("忽略", action: onIgnore)
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.primary)
+            .frame(minHeight: 44)
+            .accessibilityIdentifier("home.clipboard.ignore.button")
     }
 }
 

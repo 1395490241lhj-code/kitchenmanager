@@ -486,7 +486,12 @@ struct ImportRecipeView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
-                Button("粘贴剪贴板") { urlText = UIPasteboard.general.string ?? urlText }
+                ClipboardPasteControl(
+                    accessibilityLabel: "粘贴剪贴板内容",
+                    onPaste: { pastedText in urlText = pastedText }
+                )
+                .frame(minHeight: 44)
+                .accessibilityLabel("粘贴剪贴板内容")
             }
 
             Section {
