@@ -421,6 +421,14 @@ struct ImportRecipeView: View {
     private let extractService = LinkExtractService()
     var onSaved: (() -> Void)? = nil
 
+    /// `initialURLText` lets callers (e.g. the Share Extension handoff via
+    /// `SharedImportCoordinator`) prefill the same field a user would
+    /// otherwise paste into by hand — no separate import path.
+    init(initialURLText: String = "", onSaved: (() -> Void)? = nil) {
+        _urlText = State(initialValue: initialURLText)
+        self.onSaved = onSaved
+    }
+
     var body: some View {
         Form {
             Section("菜谱链接") {

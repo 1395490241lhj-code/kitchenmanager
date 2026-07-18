@@ -89,6 +89,24 @@ history, device-validation narratives, and bug investigations belong in
   actions, and a session-only Shopping Mode. It reuses the existing recipe
   shortfall and purchased-stock-in behaviors without changing sync or storage;
   see `docs/IOS_SHOPPING_EXPERIENCE.md`.
+- iOS Share Import Phase 1 added a native Share Extension
+  (`KitchenManagerShareExtension`) so a recipe **URL** shared from Safari,
+  Xiaohongshu, YouTube, or any share-sheet-capable app can be handed to
+  Kitchen Manager. Scope is URL-only: a plain-text share with no
+  http/https URL anywhere in it is rejected inside the extension with a
+  clear error and is never queued or handed to the main app — this was
+  tightened during review after an earlier draft let bare text through to
+  a "no valid link" failure inside Smart Import. The extension only
+  classifies input and writes a small request into a new App Group
+  (`group.com.lianghongjing.kitchenmanager`, the project's first App
+  Group/entitlements usage); it never runs AI parsing, touches SwiftData,
+  or accesses the main app's auth session. The main app reads the request
+  on next launch/foreground and hands it to the existing, unmodified
+  `ImportRecipeView` Smart Import flow (one additive `initialURLText`
+  prefill parameter — no second import UI); any request lacking a URL is
+  treated as legacy/invalid and discarded rather than presented. Text-only
+  AI import is deferred to Share Import Phase 2. See
+  `docs/IOS_SHARE_IMPORT.md`.
 
 ## Remaining rollout conditions
 

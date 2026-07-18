@@ -12,6 +12,7 @@ struct KitchenManagerApp: App {
     #endif
     @StateObject private var navigationStore = AppNavigationStore()
     @StateObject private var recommendationStore = HomeRecommendationStore()
+    @StateObject private var sharedImportCoordinator = SharedImportCoordinator(queue: SharedImportConfig.makeQueue())
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
 
     init() {
@@ -66,6 +67,7 @@ struct KitchenManagerApp: App {
                 .environmentObject(kitchenStore)
                 .environmentObject(navigationStore)
                 .environmentObject(recommendationStore)
+                .environmentObject(sharedImportCoordinator)
                 .environmentObject(authStore)
                 .environmentObject(guestMergeController)
                 .environmentObject(accountDeletionController)
@@ -82,6 +84,8 @@ struct ContentView: View {
     @EnvironmentObject private var navigationStore: AppNavigationStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var authStore: AuthStore
+    @EnvironmentObject private var sharedImportCoordinator: SharedImportCoordinator
+    @Environment(\.scenePhase) private var scenePhase
     @State private var inventoryPath = NavigationPath()
 
     var body: some View {
@@ -130,6 +134,16 @@ struct ContentView: View {
             if recipeStore.remoteRecipes.isEmpty {
                 await recipeStore.loadRecipes()
             }
+        }
+        .task {
+            // Initial check after launch completes — auth restoring runs
+            // concurrently above and never blocks this; a pending shared
+            // import is a purely local, guest-safe read.
+            sharedImportCoordinator.refresh(isAnotherImportFlowPresented: false)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            sharedImportCoordinator.refresh(isAnotherImportFlowPresented: false)
         }
         #if DEBUG
         // UI-test-only seed hook: only runs when KitchenManagerUITests passes this
@@ -221,6 +235,7 @@ struct ContentView: View {
         .environmentObject(KitchenStore())
         .environmentObject(AppNavigationStore())
         .environmentObject(HomeRecommendationStore())
+        .environmentObject(SharedImportCoordinator(queue: nil))
         .environmentObject(AuthStore.guestPreview())
         .environmentObject(GuestMergeController(
             persistence: KitchenPersistenceFactory.isolatedInMemory().sync

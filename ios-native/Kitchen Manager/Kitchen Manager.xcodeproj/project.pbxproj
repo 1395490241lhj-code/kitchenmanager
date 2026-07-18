@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		000000000000000000000601 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000603 /* Supabase */; };
+		A8EEDE79B2F133653C270ADB /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20BF990C21F749C4C906C5C2 /* Foundation.framework */; };
+		E7669623572A63B98C51FF06 /* KitchenManagerShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9321DA734E5A5F3A9FEA53FA /* KitchenManagerShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,7 +27,26 @@
 			remoteGlobalIDString = 000000000000000100000000;
 			remoteInfo = KitchenManager;
 		};
+		992952F882D1109A0A76FC47 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 64470CF0DBFEFCA76C74A3D2;
+			remoteInfo = KitchenManagerShareExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8D3AFAB4E1AA1A9ED866A8BC /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			dstPath = "";
+			dstSubfolder = PlugIns;
+			files = (
+				E7669623572A63B98C51FF06 /* KitchenManagerShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* KitchenManager.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KitchenManager.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -33,6 +54,8 @@
 		000000000000000000000420 /* KitchenManagerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KitchenManagerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000610 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		000000000000000000000611 /* Local.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.example.xcconfig; sourceTree = "<group>"; };
+		20BF990C21F749C4C906C5C2 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		9321DA734E5A5F3A9FEA53FA /* KitchenManagerShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KitchenManagerShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -42,6 +65,13 @@
 				Info.plist,
 			);
 			target = 000000000000000100000000 /* KitchenManager */;
+		};
+		E682385C2457BD0982D37E01 /* Exceptions for "KitchenManagerShareExtension" folder in "KitchenManagerShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 64470CF0DBFEFCA76C74A3D2 /* KitchenManagerShareExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -64,6 +94,19 @@
 			path = KitchenManagerTests;
 			sourceTree = "<group>";
 		};
+		26E8B3896A1F9D384D77381F /* KitchenManagerShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KitchenManagerShared;
+			sourceTree = "<group>";
+		};
+		607FAB8E199A76F78D5F8192 /* KitchenManagerShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E682385C2457BD0982D37E01 /* Exceptions for "KitchenManagerShareExtension" folder in "KitchenManagerShareExtension" target */,
+			);
+			path = KitchenManagerShareExtension;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,6 +126,12 @@
 			files = (
 			);
 		};
+		FC5393C0E38AE9E372458537 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+				A8EEDE79B2F133653C270ADB /* Foundation.framework in Frameworks */,
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -90,10 +139,13 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000010 /* KitchenManager */,
+				26E8B3896A1F9D384D77381F /* KitchenManagerShared */,
+				607FAB8E199A76F78D5F8192 /* KitchenManagerShareExtension */,
 				000000000000000000000210 /* KitchenManagerUITests */,
 				000000000000000000000410 /* KitchenManagerTests */,
 				000000000000000000000612 /* Config */,
 				000000000000000000000020 /* Products */,
+				0CD4B1C8014CFA58D9ACFF23 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -103,6 +155,7 @@
 				000000000000000000000120 /* KitchenManager.app */,
 				000000000000000000000220 /* KitchenManagerUITests.xctest */,
 				000000000000000000000420 /* KitchenManagerTests.xctest */,
+				9321DA734E5A5F3A9FEA53FA /* KitchenManagerShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,6 +169,22 @@
 			path = Config;
 			sourceTree = "<group>";
 		};
+		0CD4B1C8014CFA58D9ACFF23 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8A0CDE0DFBF607F11720CDE7 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		8A0CDE0DFBF607F11720CDE7 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				20BF990C21F749C4C906C5C2 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -126,11 +195,16 @@
 				000000000000000120000000 /* Sources */,
 				000000000000000130000000 /* Frameworks */,
 				000000000000000140000000 /* Resources */,
+				8D3AFAB4E1AA1A9ED866A8BC /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
+			dependencies = (
+				411937A72CF9C1D2F3BD3409 /* PBXTargetDependency */,
+			);
 			fileSystemSynchronizedGroups = (
 				000000000000000000000010 /* KitchenManager */,
+				26E8B3896A1F9D384D77381F /* KitchenManagerShared */,
 			);
 			name = KitchenManager;
 			packageProductDependencies = (
@@ -182,6 +256,25 @@
 			productReference = 000000000000000000000420 /* KitchenManagerTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		64470CF0DBFEFCA76C74A3D2 /* KitchenManagerShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 12F6AE0D323B588A7D982522 /* Build configuration list for PBXNativeTarget "KitchenManagerShareExtension" */;
+			buildPhases = (
+				8E83FF7D3E163C79258FDF45 /* Sources */,
+				FC5393C0E38AE9E372458537 /* Frameworks */,
+				9F92C57354C746D92EF31C2C /* Resources */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				26E8B3896A1F9D384D77381F /* KitchenManagerShared */,
+				607FAB8E199A76F78D5F8192 /* KitchenManagerShareExtension */,
+			);
+			name = KitchenManagerShareExtension;
+			productName = KitchenManagerShareExtension;
+			productReference = 9321DA734E5A5F3A9FEA53FA /* KitchenManagerShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -202,6 +295,9 @@
 					000000000000000300000000 = {
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = 000000000000000100000000;
+					};
+					64470CF0DBFEFCA76C74A3D2 = {
+						CreatedOnToolsVersion = 26.3;
 					};
 				};
 			};
@@ -225,6 +321,7 @@
 				000000000000000100000000 /* KitchenManager */,
 				000000000000000200000000 /* KitchenManagerUITests */,
 				000000000000000300000000 /* KitchenManagerTests */,
+				64470CF0DBFEFCA76C74A3D2 /* KitchenManagerShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -241,6 +338,11 @@
 			);
 		};
 		000000000000000340000000 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		9F92C57354C746D92EF31C2C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -263,6 +365,11 @@
 			files = (
 			);
 		};
+		8E83FF7D3E163C79258FDF45 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -275,6 +382,12 @@
 			isa = PBXTargetDependency;
 			target = 000000000000000100000000 /* KitchenManager */;
 			targetProxy = 000000000000000000000520 /* PBXContainerItemProxy */;
+		};
+		411937A72CF9C1D2F3BD3409 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = KitchenManagerShareExtension;
+			target = 64470CF0DBFEFCA76C74A3D2 /* KitchenManagerShareExtension */;
+			targetProxy = 992952F882D1109A0A76FC47 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -415,6 +528,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 000000000000000000000610 /* Shared.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = KitchenManager/KitchenManager.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5M5KT5ZG74;
@@ -441,6 +555,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 000000000000000000000610 /* Shared.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = KitchenManager/KitchenManager.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5M5KT5ZG74;
@@ -541,6 +656,60 @@
 			};
 			name = Release;
 		};
+		22998179106B5DB77593AC38 /* Debug configuration for PBXNativeTarget "KitchenManagerShareExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = KitchenManagerShareExtension/KitchenManagerShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5M5KT5ZG74;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KitchenManagerShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lianghongjing.kitchenmanager.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7587D090E1EFDB8C301A3504 /* Release configuration for PBXNativeTarget "KitchenManagerShareExtension" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = KitchenManagerShareExtension/KitchenManagerShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5M5KT5ZG74;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = KitchenManagerShareExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lianghongjing.kitchenmanager.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -573,6 +742,14 @@
 			buildConfigurations = (
 				000000000000000311000000 /* Debug configuration for PBXNativeTarget "KitchenManagerTests" */,
 				000000000000000312000000 /* Release configuration for PBXNativeTarget "KitchenManagerTests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		12F6AE0D323B588A7D982522 /* Build configuration list for PBXNativeTarget "KitchenManagerShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7587D090E1EFDB8C301A3504 /* Release configuration for PBXNativeTarget "KitchenManagerShareExtension" */,
+				22998179106B5DB77593AC38 /* Debug configuration for PBXNativeTarget "KitchenManagerShareExtension" */,
 			);
 			defaultConfigurationName = Release;
 		};

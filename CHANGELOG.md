@@ -6,6 +6,62 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-17 (iOS Share Import Phase 1)
+
+Scope is **URL-only**. An earlier draft of this phase let plain text with
+no URL through to the main app, which would then fail with a generic "no
+valid link" error after the extension had already told the user the share
+succeeded — that inconsistency was caught in review and removed before
+this phase shipped. Bare text is now rejected inside the extension itself
+and never queued.
+
+### Added
+
+- New `KitchenManagerShareExtension` app-extension target (native
+  `com.apple.share-services` extension point, no storyboard, no third-party
+  dependencies), embedded into the main app and sharing its Development
+  Team. Its `NSExtensionActivationRule` declares text and a single web URL
+  — no `TRUEPREDICATE`, no image/video/file support — but since the system
+  rule can't distinguish "text with a URL" from "bare text", the real
+  "must resolve to an http/https URL" enforcement happens inside the
+  extension after parsing, not at the activation-rule level.
+- New App Group (`group.com.lianghongjing.kitchenmanager`) and matching
+  entitlements files for both the main app and the extension — the
+  project's first use of App Groups/entitlements.
+- New Foundation-only shared model/queue
+  (`KitchenManagerShared/SharedImportRequest.swift`,
+  `SharedImportQueue.swift`, `SharedImportConfig.swift`), compiled into
+  both targets: normalizes a URL attachment or a URL found in shared text
+  into a `Codable` `SharedImportRequest` — plain text with no URL anywhere
+  is rejected, not built — plus a small App-Group-backed JSON queue with
+  atomic/coordinated writes, a 20-request cap, 5-minute URL dedup, 20k-char
+  text cap, and corrupted-file recovery.
+- New `SharedImportCoordinator` in the main app: reads the queue on launch
+  and on `scenePhase == .active`, and hands the oldest pending URL request
+  to the existing `ImportRecipeView` (Smart Import) as a prefilled sheet —
+  only when no other modal is already presented. Only a successful save
+  removes the request from the queue; cancelling preserves it. Any
+  already-queued request with no URL (only possible as legacy/invalid
+  data — the builder never produces one) is pruned on refresh rather than
+  ever being presented.
+- `ImportRecipeView` gained one additive `initialURLText` prefill
+  parameter — no new import UI or pipeline was introduced.
+- Unit tests: `SharedImportRequestTests`, `SharedImportQueueTests`,
+  `SharedImportCoordinatorTests`, including explicit coverage for
+  plain-text-without-URL rejection and legacy/invalid-request pruning.
+- New doc: `docs/IOS_SHARE_IMPORT.md`.
+
+### Known limitations
+
+- Plain text with no URL is not supported at all — rejected in the
+  extension with "暂时只支持包含网页链接的分享内容。" and never queued.
+  True text-only AI import (`AIRecipeParseService.parse(text:)`, which
+  exists but remains unwired to any UI path) is deferred to Share Import
+  Phase 2.
+- No image/video sharing, no in-extension AI parsing, no automatic main-app
+  launch from the extension, no platform-specific (Xiaohongshu/Douyin)
+  cleanup — all deferred, see `docs/IOS_SHARE_IMPORT.md` "Next phases".
+
 ## 2026-07-17 (iOS Home information architecture Phase 1)
 
 ### Changed

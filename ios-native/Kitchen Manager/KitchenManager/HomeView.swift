@@ -22,6 +22,7 @@ struct HomeView: View {
     @EnvironmentObject private var navigationStore: AppNavigationStore
     @EnvironmentObject private var recommendationStore: HomeRecommendationStore
     @EnvironmentObject private var authStore: AuthStore
+    @EnvironmentObject private var sharedImportCoordinator: SharedImportCoordinator
 
     @State private var activeSheet: HomeSheet?
     @State private var toastMessage: String?
@@ -120,6 +121,9 @@ struct HomeView: View {
         .sheet(item: $activeSheet) { sheet in
             sheetContent(sheet)
         }
+        .sheet(item: sharedImportSheetBinding) { request in
+            sharedImportSheetContent(request)
+        }
         .overlay(alignment: .bottom) {
             if let toastMessage {
                 Text(toastMessage)
@@ -130,6 +134,40 @@ struct HomeView: View {
                     .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
                     .padding(.bottom, 18)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+    }
+
+    /// Only surfaces the pending shared-import request when nothing else is
+    /// already presented from this view — avoids stacking it on top of the
+    /// existing Smart Import sheet or any other modal flow.
+    private var sharedImportSheetBinding: Binding<SharedImportRequest?> {
+        Binding(
+            get: { activeSheet == nil ? sharedImportCoordinator.pendingRequest : nil },
+            set: { newValue in
+                if newValue == nil, let current = sharedImportCoordinator.pendingRequest {
+                    sharedImportCoordinator.snooze(current)
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func sharedImportSheetContent(_ request: SharedImportRequest) -> some View {
+        NavigationStack {
+            ImportRecipeView(
+                initialURLText: SharedImportCoordinator.prefillText(for: request),
+                onSaved: {
+                    sharedImportCoordinator.markHandedOff(request)
+                    showToast("已保存到菜谱库")
+                }
+            )
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") {
+                        sharedImportCoordinator.snooze(request)
+                    }
+                }
             }
         }
     }

@@ -78,6 +78,11 @@ Prefer focused changes with explicit tests. Do not combine a behavior fix, archi
 - Keychain-backed auth session
 - `supabase-swift` for authentication
 - Explicit composition-root wiring rather than Views owning infrastructure secrets
+- `KitchenManagerShareExtension` (native Share Extension target): only
+  accepts content that resolves to an http/https URL and queues it via a
+  shared App Group; it never runs AI parsing or recipe saving itself —
+  that stays in the main app's existing import pipeline
+  (`docs/IOS_SHARE_IMPORT.md`)
 
 ### Express server
 
