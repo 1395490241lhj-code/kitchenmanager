@@ -1517,34 +1517,23 @@ test('/api/recipe-import-from-url 最终结构化限流时返回中间结果并�
   assert.equal(res.body.recipe.name, '藤椒鸡腿');
   assert.equal(res.body.recipe.needsReview, true);
   assert.ok(Array.isArray(res.body.recipe.method));
-  assert.ok(res.body.recipe.method.length >= 6);
-  assert.ok(res.body.recipe.method.every(step => step.length <= 55));
+  assert.equal(res.body.recipe.method.length, 5);
   assert.doesNotMatch(res.body.recipe.name, /一道看起来|看起来就|很好吃|详细版|教程/);
-  assert.match(res.body.recipe.method.join('\n'), /鸡腿去骨，处理干净。/);
-  assert.match(res.body.recipe.method.join('\n'), /擦干鸡腿表面水分|鸡腿清洗干净/);
-  assert.match(res.body.recipe.method.join('\n'), /加入盐、黄酒、生抽、老抽、糖和淀粉等调料，抓匀腌制。/);
-  assert.match(res.body.recipe.method.join('\n'), /锅中倒油烧热，放入鸡腿煎至表面定型。/);
-  assert.match(res.body.recipe.method.join('\n'), /加入藤椒、花椒等调味，鸡腿熟透后出锅。/);
-  assert.doesNotMatch(res.body.recipe.method.join('\n'), /看起来|前期处理|丝滑|铁锅|我跟你说|大家有没有|就不|下饭神器|点赞关注/);
-  assert.match(res.body.recipe.warnings.join('\n'), /规则提取生成/);
-  assert.match(res.body.recipe.warnings.join('\n'), /视频口播较长/);
-  assert.ok(res.body.diagnostics.cookingSegmentCount >= 3);
-  assert.ok(res.body.diagnostics.droppedChatterCount >= 1);
-  assert.equal(res.body.diagnostics.fallbackStepCount, res.body.recipe.method.length);
-  assert.ok(res.body.diagnostics.fallbackRawStepCount >= res.body.diagnostics.fallbackSimplifiedStepCount);
-  assert.equal(res.body.diagnostics.fallbackSimplifiedStepCount, res.body.recipe.method.length);
-  assert.equal(res.body.diagnostics.cleanedRecipeName, '藤椒鸡腿');
-  assert.equal(res.body.diagnostics.fallbackStageDetected.prep, true);
-  assert.equal(res.body.diagnostics.fallbackStageDetected.marinate, true);
-  assert.equal(res.body.diagnostics.fallbackStageDetected.cook, true);
-  assert.equal(res.body.diagnostics.fallbackStageDetected.season, true);
-  assert.equal(res.body.diagnostics.fallbackStageDetected.finish, true);
-  assert.ok(res.body.diagnostics.fallbackStageMethodCount >= 6);
-  assert.deepEqual(res.body.diagnostics.fallbackMissingStages, []);
-  assert.ok(Array.isArray(res.body.diagnostics.fallbackMethodPreview));
-  assert.ok(Array.isArray(res.body.diagnostics.fallbackSimplifiedPreview));
-  assert.ok(Array.isArray(res.body.diagnostics.cookingSegmentsPreview));
-  assert.ok(res.body.diagnostics.cookingSegmentsPreview.length >= 3);
+  assert.match(res.body.recipe.method.join('\n'), /鸡腿去骨清洗一下外皮/);
+  assert.match(res.body.recipe.method.join('\n'), /鸡腿改刀切每一块/);
+  assert.match(res.body.recipe.method.join('\n'), /加入盐黄酒生抽老抽糖淀粉抓匀腌制/);
+  assert.match(res.body.recipe.method.join('\n'), /锅中倒油烧热放入鸡腿煎至表面定型/);
+  assert.match(res.body.recipe.method.join('\n'), /加入鲜藤椒调味后出锅/);
+  assert.doesNotMatch(res.body.recipe.method.join('\n'), /处理干净|方便腌制入味|等调料|等调味增香/);
+  assert.match(res.body.recipe.warnings.join('\n'), /仅保留来源中明确识别到的信息/);
+  assert.equal(res.body.diagnostics.fallbackUsed, true);
+  assert.equal(res.body.diagnostics.fallbackReason, 'rate_limit_exceeded');
+  assert.equal(res.body.diagnostics.fallbackGroundedActionCount, res.body.recipe.method.length);
+  assert.equal(res.body.diagnostics.fallbackUsedPageText, false);
+  assert.equal(res.body.diagnostics.fallbackUsedTranscript, true);
+  assert.equal(res.body.diagnostics.fallbackUsedOcr, true);
+  assert.equal(res.body.diagnostics.fallbackFabricatedQuantityCount, 0);
+  assert.ok([...res.body.recipe.ingredients, ...res.body.recipe.seasonings].every(item => item.qty === '' && item.unit === ''));
   assert.equal(res.body.mediaDiagnostics.hasVideo, true);
   assert.equal(res.body.mediaDiagnostics.cacheHit, false);
   assert.equal(res.body.mediaDiagnostics.asrOk, true);
@@ -1562,7 +1551,7 @@ test('/api/recipe-import-from-url 最终结构化限流时返回中间结果并�
   assert.equal(retry.body.mediaDiagnostics.cacheHit, true);
   assert.equal(retry.body.mediaDiagnostics.asrOk, true);
   assert.equal(retry.body.mediaDiagnostics.ocrOk, true);
-  assert.ok(Array.isArray(retry.body.recipe.method) && retry.body.recipe.method.length >= 3);
+  assert.deepEqual(retry.body.recipe.method, res.body.recipe.method);
   assert.equal(asrCalls, 1);
   assert.equal(visionCalls, 3);
   assert.equal(aiPayloads.filter(payload => /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')).length, 2);
@@ -1954,10 +1943,119 @@ test('/api/recipe-import-from-url 最终 JSON 无法修复但有视频文字时�
   assert.match(res.body.ocrPreview, /鲜藤椒/);
   assert.match(res.body.pageTextPreview, /藤椒鸡腿/);
   assert.ok(Array.isArray(res.body.recipe.method) && res.body.recipe.method.length >= 1);
-  assert.match(res.body.recipe.warnings.join('\n'), /规则提取生成/);
+  assert.match(res.body.recipe.warnings.join('\n'), /仅保留来源中明确识别到的信息/);
+  assert.equal(res.body.diagnostics.fallbackFabricatedQuantityCount, 0);
   assert.equal(res.body.recipe.needsReview, true);
   assert.equal(res.body.mediaDiagnostics.asrOk, true);
   assert.equal(res.body.mediaDiagnostics.ocrOk, true);
+});
+
+test('/api/recipe-import-from-url 限流 fallback 对真实根因最小 fixture 只保留可信证据', async () => {
+  const videoBytes = Buffer.from('fake-video');
+  const audioBytes = Buffer.from('fake-audio');
+  const transcript = [
+    '今天做青椒肉丝。',
+    '肉丝切丝。',
+    '上次鱼香肉丝讲过这个问题。',
+    '加入土豆淀粉、老抽和小苏打抓匀。',
+    '锅中下肉丝翻炒。'
+  ].join('');
+  const childProcessMock = {
+    spawn(_bin, args) {
+      const child = new EventEmitter();
+      child.stderr = new EventEmitter();
+      child.kill = () => {};
+      setImmediate(() => {
+        if (args.includes('-hide_banner')) {
+          child.stderr.emit('data', 'Duration: 00:00:09.00, start: 0.000000');
+          child.emit('close', 1);
+          return;
+        }
+        const outputPath = args[args.length - 1];
+        if (/\.m4a$/i.test(outputPath)) fs.writeFileSync(outputPath, audioBytes);
+        else fs.writeFileSync(outputPath, Buffer.from('fake-jpg'));
+        child.emit('close', 0);
+      });
+      return child;
+    }
+  };
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() { return { text: transcript }; }
+  });
+  const { app } = loadServerWithMocks({
+    childProcessMock,
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async (_url, options) => {
+      if (options.responseType === 'stream') {
+        return {
+          status: 200,
+          headers: { 'content-length': String(videoBytes.length) },
+          data: Readable.from([videoBytes])
+        };
+      }
+      return {
+        status: 200,
+        headers: {},
+        data: `
+          <meta property="og:title" content="青椒肉丝">
+          <meta property="og:description" content="青椒肉丝制作记录。相关推荐：红烧牛肉面。">
+          <meta property="og:video" content="https://sns-video-grounded.xhscdn.com/stream/grounded.mp4">
+        `
+      };
+    },
+    axiosPost: async (_url, payload) => {
+      if (payload.model === 'meta-llama/llama-4-scout-17b-16e-instruct') {
+        return { data: { choices: [{ message: { content: JSON.stringify({ text: '青椒切丝。', confidence: 'high' }) } }] } };
+      }
+      if (/菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')) {
+        return {
+          data: {
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  dishNameCandidates: ['青椒肉丝'],
+                  observedMainIngredients: ['肉丝', '青椒'],
+                  observedSeasonings: ['土豆淀粉', '老抽', '小苏打'],
+                  observedActions: [
+                    { order: 1, action: '肉丝切丝', ingredients: ['肉丝'], evidenceText: '肉丝切丝', confidence: 'medium' },
+                    { order: 2, action: '加入土豆淀粉、老抽和小苏打抓匀', ingredients: ['土豆淀粉', '老抽', '小苏打'], evidenceText: '加入土豆淀粉、老抽和小苏打抓匀', confidence: 'medium' },
+                    { order: 3, action: '锅中下肉丝翻炒', ingredients: ['肉丝'], evidenceText: '锅中下肉丝翻炒', confidence: 'medium' }
+                  ],
+                  sourceConfidence: 'medium'
+                })
+              }
+            }]
+          }
+        };
+      }
+      const err = new Error('rate limit');
+      err.response = { status: 429, data: { error: { code: 'rate_limit_exceeded', message: 'try later' } } };
+      throw err;
+    }
+  });
+
+  const res = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/grounded-fixture' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.fallbackUsed, true);
+  assert.equal(res.body.fallbackReason, 'rate_limit_exceeded');
+  assert.equal(res.body.recipe.name, '青椒肉丝');
+  assert.equal(res.body.recipe.needsReview, true);
+  assert.ok(res.body.recipe.ingredients.some(item => item.item === '肉丝'));
+  assert.ok(res.body.recipe.ingredients.some(item => item.item === '青椒'));
+  assert.ok(res.body.recipe.seasonings.some(item => item.item === '土豆淀粉'));
+  assert.ok(res.body.recipe.seasonings.some(item => item.item === '老抽'));
+  assert.ok(res.body.recipe.seasonings.some(item => item.item === '小苏打'));
+  assert.ok(!res.body.recipe.ingredients.some(item => ['鸡腿', '牛肉', '鱼', '土豆'].includes(item.item)));
+  assert.doesNotMatch(res.body.recipe.method.join('\n'), /鸡腿|牛肉|鱼|土豆[^淀]/);
+  assert.ok([...res.body.recipe.ingredients, ...res.body.recipe.seasonings].every(item => item.qty === '' && item.unit === ''));
+  assert.equal(res.body.recipe.diagnostics.fallbackFabricatedQuantityCount, 0);
+  assert.equal(res.body.recipe.diagnostics.fallbackUsedPageText, false);
+  assert.equal(res.body.recipe.diagnostics.fallbackUsedTranscript, true);
+  assert.equal(res.body.recipe.diagnostics.fallbackUsedOcr, true);
+  assert.match(res.body.recipe.warnings.join('\n'), /仅保留来源中明确识别到的信息/);
 });
 
 test('/api/recipe-import-from-url 视频处理失败时使用页面文字继续生成草稿', async () => {

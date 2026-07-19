@@ -131,6 +131,13 @@ history, device-validation narratives, and bug investigations belong in
   including real cooking, and concrete recipe evidence. Complete page recipes
   remain page-first, ordinary web behavior and no-video fallback are preserved,
   and existing media limits, models, ranking, and cache policies are unchanged.
+- Xiaohongshu AI-failure fallback is now evidence-grounded and conservative.
+  It isolates transcript/OCR evidence from page recommendations, rejects
+  incidental dish-name and compound-word substring collisions, preserves only
+  traceable action sentences, leaves missing quantities blank, and always marks
+  low-evidence drafts for review. The former dish-specific method templates and
+  fabricated `1份`/`1适量` defaults are removed; media extraction, ASR/OCR,
+  ranking, cache, and normal AI-success behavior are unchanged.
 
 ## Remaining rollout conditions
 

@@ -6,6 +6,26 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-18 (Xiaohongshu Video Import Reliability Phase 1C-B)
+
+### Fixed
+
+- AI-failure recipe fallback is now evidence-grounded: it uses explicit ASR,
+  OCR, cleaned current-page, or user-supplied evidence and returns an editable,
+  review-required draft instead of completing missing recipe details.
+- Removed dish-specific fallback method templates. Fallback steps now retain
+  source action sentences without inventing ingredients, seasonings, heat,
+  timing, or completion states, and may remain sparse or empty.
+- Added longest-match span handling and incidental-reference filtering so
+  compound phrases such as dish names, starches, fish sauce, and chicken
+  essence do not create false shorter ingredients.
+- Page recommendations and raw/excluded metadata are not fallback recipe
+  evidence. When transcript or OCR evidence exists, page text is not merged
+  into fallback ingredients or steps.
+- Missing quantities and units now remain empty; fallback never fabricates
+  `1份`, `1适量`, or `适量`. Added non-sensitive grounded/rejected-source
+  diagnostics and focused unit/route regressions.
+
 ## 2026-07-18 (Xiaohongshu Video Import Reliability Phase 1B)
 
 ### Fixed
