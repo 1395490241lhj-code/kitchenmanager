@@ -4,18 +4,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const {
+import {
   parseMarketingVersion,
   parseBuildNumber,
   readPbxprojVersions,
   readBuildLedger,
   writeBuildLedger,
   bumpBuildNumberInPbxproj
-} = require('../scripts/ios-release-support.mjs');
+} from '../scripts/ios-release-support.mjs';
+
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'km-ios-release-test-'));
