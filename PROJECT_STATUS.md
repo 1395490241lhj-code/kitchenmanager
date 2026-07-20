@@ -1,6 +1,6 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 This is the single current-state snapshot for humans and AI agents. It is
 not a changelog and must remain concise. Implementation detail, test-count
@@ -138,6 +138,14 @@ history, device-validation narratives, and bug investigations belong in
   low-evidence drafts for review. The former dish-specific method templates and
   fabricated `1份`/`1适量` defaults are removed; media extraction, ASR/OCR,
   ranking, cache, and normal AI-success behavior are unchanged.
+- Normal final AI recipe results now deterministically retain any structured
+  main ingredients or seasonings omitted by the model, appending only exact
+  missing evidence items with blank unknown quantities. Existing model details
+  win, no names/actions/raw media text are scanned for inference, and bounded
+  input inspection, per-item/aggregate budgets, control-character filtering,
+  and count/boolean-only preservation diagnostics prevent abnormal evidence
+  from creating unbounded response growth. Low-evidence and grounded fallback
+  behavior remain unchanged.
 
 ## Remaining rollout conditions
 
@@ -168,6 +176,14 @@ history, device-validation narratives, and bug investigations belong in
    hosted/production-validated — hosted validation remains required before
    External TestFlight/App Store submission. See
    `docs/ACCOUNT_DELETION_DESIGN.md` §11.
+9. **Phase 1C-E Public Diagnostics Privacy Hardening** remains required for
+   pre-existing recipe-import diagnostics: audit all consumers, separate
+   internal state from the public response, redact sensitive URL query values,
+   and remove or replace raw/trusted/excluded source-text previews without
+   breaking canonical URL identity, duplicate detection, source display, PWA
+   behavior, or iOS decoding. This debt predates Phase 1C-D.1; its new
+   evidence-preservation diagnostics are strictly finite numbers or booleans
+   and do not expand that exposure.
 
 A full static production-readiness audit and a stage-by-stage v1 blocker
 list now exist: `docs/V1_STATIC_READINESS_AUDIT.md` and

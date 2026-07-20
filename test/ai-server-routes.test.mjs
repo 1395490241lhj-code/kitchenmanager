@@ -177,6 +177,217 @@ afterEach(() => {
   clearServerRequireCache();
 });
 
+test('/api/recipe-import-from-url 在 normal final AI 遗漏全部 evidence items 时确定性补回', async () => {
+  const method = ['控干肉丝水分。', '加入盐、小苏打和老抽。', '下肉丝翻炒。', '加入青椒和甜面酱。'];
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({
+      status: 200,
+      headers: {},
+      data: '<meta property="og:description" content="青椒肉丝：肉丝控干，加入盐、小苏打、老抽、土豆淀粉，下锅翻炒，加入青椒和甜面酱。">'
+    }),
+    axiosPost: async (_url, payload) => {
+      const content = /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')
+        ? JSON.stringify({
+            dishNameCandidates: ['青椒肉丝'],
+            observedMainIngredients: ['青椒', '肉丝'],
+            observedSeasonings: ['盐', '小苏打', '老抽', '土豆淀粉', '甜面酱'],
+            observedActions: method.map((action, index) => ({ order: index + 1, action, evidenceText: action, confidence: 'high' })),
+            sourceConfidence: 'high'
+          })
+        : JSON.stringify({
+            name: '青椒肉丝',
+            ingredients: [],
+            seasonings: [],
+            method,
+            warnings: [],
+            needsReview: false
+          });
+      return { data: { choices: [{ message: { content } }] } };
+    }
+  });
+
+  const res = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/evidence-preservation' });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.recipe.ingredients.map(row => row.item), ['青椒', '肉丝']);
+  assert.deepEqual(res.body.recipe.seasonings.map(row => row.item), ['盐', '小苏打', '老抽', '土豆淀粉', '甜面酱']);
+  assert.ok([...res.body.recipe.ingredients, ...res.body.recipe.seasonings].every(row => row.qty === '' && row.unit === ''));
+  assert.deepEqual(res.body.recipe.method, method);
+  assert.notEqual(res.body.fallbackUsed, true);
+  assert.doesNotMatch(res.body.recipe.warnings.join('\n'), /仅保留来源中明确识别到的信息/);
+  assert.equal(res.body.diagnostics.evidenceMainIngredientCount, 2);
+  assert.equal(res.body.diagnostics.evidenceSeasoningCount, 5);
+  assert.equal(res.body.diagnostics.evidenceMainIngredientInputCount, 2);
+  assert.equal(res.body.diagnostics.evidenceSeasoningInputCount, 5);
+  assert.equal(res.body.diagnostics.evidenceItemCheckedCount, 7);
+  assert.equal(res.body.diagnostics.evidenceItemLimitApplied, false);
+  assert.equal(res.body.diagnostics.preservedNameCodepointCount, 17);
+  assert.equal(res.body.diagnostics.modelIngredientCountBeforeSanitize, 0);
+  assert.equal(res.body.diagnostics.modelSeasoningCountBeforeSanitize, 0);
+  assert.equal(res.body.diagnostics.sanitizedIngredientCountBeforePreservation, 0);
+  assert.equal(res.body.diagnostics.sanitizedSeasoningCountBeforePreservation, 0);
+  assert.equal(res.body.diagnostics.preservedMainIngredientCount, 2);
+  assert.equal(res.body.diagnostics.preservedSeasoningCount, 5);
+  assert.equal(res.body.diagnostics.finalIngredientCount, 2);
+  assert.equal(res.body.diagnostics.finalSeasoningCount, 5);
+  assert.equal(res.body.diagnostics.finalModelOmittedEvidenceItems, true);
+});
+
+test('/api/recipe-import-from-url 对超大恶意 evidence 返回有界菜谱和纯计数 diagnostics', async () => {
+  const observedMainIngredients = Array.from({ length: 1000 }, (_, index) => `主料${index}`);
+  const observedSeasonings = Array.from({ length: 1000 }, (_, index) => `调料${index}`);
+  observedMainIngredients[0] = '\u200b\u200c';
+  observedMainIngredients[1] = '菜'.repeat(81);
+  observedSeasonings[0] = '\u0000\u0007';
+  observedSeasonings[1] = '盐'.repeat(81);
+  let finalPromptEvidence = null;
+  const { app } = loadServerWithMocks({
+    dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
+    axiosGet: async () => ({
+      status: 200,
+      headers: {},
+      data: '<meta property="og:description" content="测试菜谱：处理食材后下锅炒熟。">'
+    }),
+    axiosPost: async (_url, payload) => {
+      const isEvidenceRequest = /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '');
+      if (!isEvidenceRequest) {
+        const finalPromptPayload = JSON.parse(payload.messages?.[1]?.content.split('\n\n').at(-1) || '{}');
+        finalPromptEvidence = finalPromptPayload.evidence;
+      }
+      const content = isEvidenceRequest
+        ? JSON.stringify({
+            dishNameCandidates: ['测试菜谱'],
+            observedMainIngredients,
+            observedSeasonings,
+            observedActions: [{ order: 1, action: '处理食材后下锅炒熟。', evidenceText: '处理食材后下锅炒熟。', confidence: 'high' }],
+            sourceConfidence: 'high'
+          })
+        : JSON.stringify({
+            name: '测试菜谱',
+            ingredients: [],
+            seasonings: [],
+            method: ['处理食材后下锅炒熟。'],
+            warnings: [],
+            needsReview: false
+          });
+      return { data: { choices: [{ message: { content } }] } };
+    }
+  });
+
+  const res = await runPost(app, '/api/recipe-import-from-url', { url: 'http://xhslink.com/o/bounded-evidence' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(finalPromptEvidence.observedMainIngredients.length, 128);
+  assert.equal(finalPromptEvidence.observedSeasonings.length, 128);
+  assert.equal(finalPromptEvidence.observedMainIngredients.at(-1), '主料127');
+  assert.equal(finalPromptEvidence.observedSeasonings.at(-1), '调料127');
+  assert.equal(res.body.recipe.ingredients.length, 32);
+  assert.equal(res.body.recipe.seasonings.length, 16);
+  assert.equal(res.body.recipe.ingredients.length + res.body.recipe.seasonings.length, 48);
+  assert.doesNotMatch(JSON.stringify(res.body.recipe), /\u200b|\u200c|\u0000|\u0007/);
+  assert.equal(res.body.diagnostics.evidenceMainIngredientInputCount, 1000);
+  assert.equal(res.body.diagnostics.evidenceSeasoningInputCount, 1000);
+  assert.equal(res.body.diagnostics.evidenceItemCheckedCount, 256);
+  assert.equal(res.body.diagnostics.evidenceItemRejectedInvalidCount, 2);
+  assert.equal(res.body.diagnostics.evidenceItemRejectedTooLongCount, 2);
+  assert.equal(res.body.diagnostics.evidenceItemRejectedOverLimitCount, 1948);
+  assert.equal(res.body.diagnostics.evidenceItemLimitApplied, true);
+  const preservationDiagnosticKeys = [
+    'evidenceMainIngredientInputCount',
+    'evidenceSeasoningInputCount',
+    'evidenceMainIngredientCount',
+    'evidenceSeasoningCount',
+    'evidenceItemCheckedCount',
+    'evidenceItemRejectedInvalidCount',
+    'evidenceItemRejectedTooLongCount',
+    'evidenceItemRejectedDuplicateCount',
+    'evidenceItemRejectedOverLimitCount',
+    'evidenceItemLimitApplied',
+    'preservedNameCodepointCount',
+    'sanitizedIngredientCountBeforePreservation',
+    'sanitizedSeasoningCountBeforePreservation',
+    'preservedMainIngredientCount',
+    'preservedSeasoningCount',
+    'finalIngredientCount',
+    'finalSeasoningCount',
+    'finalModelOmittedEvidenceItems'
+  ];
+  for (const key of preservationDiagnosticKeys) {
+    const value = res.body.diagnostics[key];
+    assert.ok(typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value)), key);
+  }
+});
+
+test('/api/ai-parse 在 JSON repair 成功后仍补回 evidence items', async () => {
+  const { app } = loadServerWithMocks({
+    axiosPost: async (_url, payload) => {
+      const system = payload.messages?.[0]?.content || '';
+      if (/菜谱证据抽取器/.test(system)) {
+        return { data: { choices: [{ message: { content: JSON.stringify({
+          dishNameCandidates: ['青椒肉丝'],
+          observedMainIngredients: ['青椒', '肉丝', '\u200b', '菜'.repeat(81)],
+          observedSeasonings: ['老抽'],
+          observedActions: [{ order: 1, action: '肉丝与青椒下锅翻炒并加入老抽。', evidenceText: '肉丝与青椒下锅翻炒并加入老抽。', confidence: 'high' }],
+          sourceConfidence: 'high'
+        }) } }] } };
+      }
+      if (/repair malformed recipe JSON/i.test(system)) {
+        return { data: { choices: [{ message: { content: JSON.stringify({
+          name: '青椒肉丝', ingredients: [], seasonings: [], method: ['肉丝与青椒下锅翻炒并加入老抽。']
+        }) } }] } };
+      }
+      return { data: { choices: [{ message: { content: '菜谱内容不是 JSON' } }] } };
+    }
+  });
+
+  const res = await runPost(app, '/api/ai-parse', { text: '青椒肉丝：肉丝与青椒下锅翻炒并加入老抽。', sourceType: 'manual' });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.recipe.ingredients.map(row => row.item), ['青椒', '肉丝']);
+  assert.deepEqual(res.body.recipe.seasonings.map(row => row.item), ['老抽']);
+  assert.equal(res.body.diagnostics.finalModelOmittedEvidenceItems, true);
+  assert.equal(res.body.diagnostics.evidenceItemRejectedInvalidCount, 1);
+  assert.equal(res.body.diagnostics.evidenceItemRejectedTooLongCount, 1);
+  assert.notEqual(res.body.fallbackUsed, true);
+});
+
+test('/api/ai-parse 在 evidence items 为空时保持 normal recipe 不变', async () => {
+  const expectedRecipe = {
+    name: '番茄炒蛋',
+    ingredients: [{ item: '番茄', qty: '2', unit: '个' }],
+    seasonings: [{ item: '盐', qty: '1', unit: '克' }],
+    method: ['番茄切块后下锅翻炒。'],
+    warnings: ['链接可提取信息较少，菜谱可能缺少食材、调料或步骤，请人工确认。'],
+    needsReview: true
+  };
+  const { app } = loadServerWithMocks({
+    axiosPost: async (_url, payload) => {
+      const content = /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')
+        ? JSON.stringify({
+            dishNameCandidates: ['番茄炒蛋'],
+            observedMainIngredients: [],
+            observedSeasonings: [],
+            observedActions: [{ order: 1, action: '番茄切块后下锅翻炒。', evidenceText: '番茄切块后下锅翻炒。', confidence: 'high' }],
+            sourceConfidence: 'high'
+          })
+        : JSON.stringify(expectedRecipe);
+      return { data: { choices: [{ message: { content } }] } };
+    }
+  });
+
+  const res = await runPost(app, '/api/ai-parse', { text: '番茄切块后下锅翻炒。', sourceType: 'manual' });
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.recipe, expectedRecipe);
+  assert.equal(res.body.diagnostics.evidenceMainIngredientCount, 0);
+  assert.equal(res.body.diagnostics.evidenceSeasoningCount, 0);
+  assert.equal(res.body.diagnostics.preservedMainIngredientCount, 0);
+  assert.equal(res.body.diagnostics.preservedSeasoningCount, 0);
+  assert.equal(res.body.diagnostics.finalModelOmittedEvidenceItems, false);
+  assert.notEqual(res.body.fallbackUsed, true);
+});
+
 test('/api/ai-status 配置完整时返回可用状态且不泄露 API Key', async () => {
   const { app } = loadServerWithMocks({
     env: {
@@ -1533,6 +1744,8 @@ test('/api/recipe-import-from-url 最终结构化限流时返回中间结果并�
   assert.equal(res.body.diagnostics.fallbackUsedTranscript, true);
   assert.equal(res.body.diagnostics.fallbackUsedOcr, true);
   assert.equal(res.body.diagnostics.fallbackFabricatedQuantityCount, 0);
+  assert.equal(Object.hasOwn(res.body.diagnostics, 'evidenceItemCheckedCount'), false);
+  assert.equal(Object.hasOwn(res.body.diagnostics, 'evidenceItemLimitApplied'), false);
   assert.ok([...res.body.recipe.ingredients, ...res.body.recipe.seasonings].every(item => item.qty === '' && item.unit === ''));
   assert.equal(res.body.mediaDiagnostics.hasVideo, true);
   assert.equal(res.body.mediaDiagnostics.cacheHit, false);
@@ -1663,6 +1876,9 @@ test('/api/recipe-import-from-url 全程使用普通 chat completion，不发送
   assert.equal(evidencePayloads.length, 1);
   assert.equal(finalPayloads.length, 1);
   assert.ok(payloads.every(payload => payload.response_format === undefined));
+  assert.equal(res.body.diagnostics.preservedMainIngredientCount, 0);
+  assert.equal(res.body.diagnostics.preservedSeasoningCount, 0);
+  assert.equal(res.body.diagnostics.finalModelOmittedEvidenceItems, false);
 });
 
 test('/api/recipe-import-from-url 上游 json_validate_failed 不透传 400，有视频文字时返回 fallback 草稿', async () => {
@@ -1755,6 +1971,8 @@ test('/api/recipe-import-from-url 上游 json_validate_failed 不透传 400，�
   assert.ok(Array.isArray(res.body.recipe.method) && res.body.recipe.method.length >= 1);
   assert.equal(res.body.recipe.needsReview, true);
   assert.equal(res.body.mediaDiagnostics.asrOk, true);
+  assert.equal(Object.hasOwn(res.body.diagnostics, 'evidenceItemCheckedCount'), false);
+  assert.equal(Object.hasOwn(res.body.diagnostics, 'evidenceItemLimitApplied'), false);
 });
 
 test('/api/recipe-import-from-url evidence 解析失败时用转录动作句兜底，仍生成带步骤的草稿', async () => {
