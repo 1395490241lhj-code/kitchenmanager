@@ -5,6 +5,7 @@
 // scripts/validate-ios-release.mjs (version/build number only).
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { execSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readPbxprojVersions } from './ios-release-support.mjs';
@@ -114,12 +115,69 @@ function checkVersionAndBuild() {
 // solid color is a design/App-Review judgment, not something this
 // mechanical guard tries to detect).
 const MIN_APP_ICON_DIMENSION = 512;
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+// PNG dimensions are stored in the mandatory first IHDR chunk. Reading that
+// fixed header keeps this guard identical on macOS and Linux instead of
+// depending on the macOS-only `sips` executable. Chunk CRCs, compressed image
+// data, and IEND are also checked so a header-only placeholder cannot pass.
 function pngDimensions(filePath) {
   try {
-    const output = execSync(`sips -g pixelWidth -g pixelHeight ${JSON.stringify(filePath)}`, { encoding: 'utf8' });
-    const width = Number((output.match(/pixelWidth:\s*(\d+)/) || [])[1]);
-    const height = Number((output.match(/pixelHeight:\s*(\d+)/) || [])[1]);
+    const png = fs.readFileSync(filePath);
+    if (png.length < 33 || !png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+      return { width: 0, height: 0 };
+    }
+
+    let offset = PNG_SIGNATURE.length;
+    let width = 0;
+    let height = 0;
+    let sawIend = false;
+    const idatChunks = [];
+
+    while (offset + 12 <= png.length) {
+      const length = png.readUInt32BE(offset);
+      const typeStart = offset + 4;
+      const dataStart = typeStart + 4;
+      const dataEnd = dataStart + length;
+      const chunkEnd = dataEnd + 4;
+      if (chunkEnd > png.length) return { width: 0, height: 0 };
+
+      const type = png.toString('ascii', typeStart, dataStart);
+      const expectedCrc = png.readUInt32BE(dataEnd);
+      const actualCrc = crc32(png.subarray(typeStart, dataEnd));
+      if (expectedCrc !== actualCrc) return { width: 0, height: 0 };
+
+      if (offset === PNG_SIGNATURE.length) {
+        if (type !== 'IHDR' || length !== 13) return { width: 0, height: 0 };
+        width = png.readUInt32BE(dataStart);
+        height = png.readUInt32BE(dataStart + 4);
+        if (width === 0 || height === 0) return { width: 0, height: 0 };
+      } else if (type === 'IHDR') {
+        return { width: 0, height: 0 };
+      }
+
+      if (type === 'IDAT') idatChunks.push(png.subarray(dataStart, dataEnd));
+      if (type === 'IEND') {
+        if (length !== 0) return { width: 0, height: 0 };
+        sawIend = true;
+        break;
+      }
+      offset = chunkEnd;
+    }
+
+    if (!sawIend || idatChunks.length === 0) return { width: 0, height: 0 };
+    if (zlib.inflateSync(Buffer.concat(idatChunks)).length === 0) return { width: 0, height: 0 };
     return { width, height };
   } catch {
     return { width: 0, height: 0 };

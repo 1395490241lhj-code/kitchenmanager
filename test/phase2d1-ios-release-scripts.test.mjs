@@ -5,13 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
+import { validateIOSRelease } from '../scripts/validate-ios-release.mjs';
+import { bumpIOSBuild } from '../scripts/bump-ios-build.mjs';
+import { runAllChecks, readXcconfigValue, checkAppIconPresence } from '../scripts/ios-archive-guard.mjs';
 
-const require = createRequire(import.meta.url);
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const { validateIOSRelease } = require('../scripts/validate-ios-release.mjs');
-const { bumpIOSBuild } = require('../scripts/bump-ios-build.mjs');
-const { runAllChecks, readXcconfigValue, checkAppIconPresence } = require('../scripts/ios-archive-guard.mjs');
 
 function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'km-ios-release-scripts-test-'));
@@ -19,12 +17,23 @@ function makeTempDir() {
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
 function pngChunk(type, data) {
   const typeBuf = Buffer.from(type, 'ascii');
   const lengthBuf = Buffer.alloc(4);
   lengthBuf.writeUInt32BE(data.length, 0);
   const crcBuf = Buffer.alloc(4);
-  crcBuf.writeUInt32BE(zlib.crc32(Buffer.concat([typeBuf, data])), 0);
+  crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
   return Buffer.concat([lengthBuf, typeBuf, data, crcBuf]);
 }
 
@@ -184,6 +193,23 @@ test('checkAppIconPresence fails when the appiconset directory exists but has ze
   const iconDir = path.join(dir, 'Assets.xcassets', 'AppIcon.appiconset');
   fs.mkdirSync(iconDir, { recursive: true });
   fs.writeFileSync(path.join(iconDir, 'Contents.json'), '{}');
+  const result = checkAppIconPresence(dir);
+  assert.equal(result.ok, false, result.detail);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('checkAppIconPresence rejects a header-only PNG that claims a large size but has no image data', () => {
+  const dir = makeTempDir();
+  const iconDir = path.join(dir, 'Assets.xcassets', 'AppIcon.appiconset');
+  fs.mkdirSync(iconDir, { recursive: true });
+  fs.writeFileSync(path.join(iconDir, 'Contents.json'), '{}');
+  const fakeHeader = Buffer.alloc(33);
+  PNG_SIGNATURE.copy(fakeHeader);
+  fakeHeader.writeUInt32BE(13, 8);
+  fakeHeader.write('IHDR', 12, 'ascii');
+  fakeHeader.writeUInt32BE(1024, 16);
+  fakeHeader.writeUInt32BE(1024, 20);
+  fs.writeFileSync(path.join(iconDir, 'fake-1024.png'), fakeHeader);
   const result = checkAppIconPresence(dir);
   assert.equal(result.ok, false, result.detail);
   fs.rmSync(dir, { recursive: true, force: true });
