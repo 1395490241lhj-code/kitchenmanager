@@ -95,7 +95,7 @@ final class GuestMergeController: ObservableObject {
             ExpressSyncTransport(tokenProvider: provider)
         },
         rollbackWindow: TimeInterval = 24 * 60 * 60,
-        crashReporter: any CrashReporting = CrashReportingFactory.makeProvider()
+        crashReporter: (any CrashReporting)? = nil
     ) {
         self.persistence = persistence
         self.configuration = configuration
@@ -103,7 +103,7 @@ final class GuestMergeController: ObservableObject {
         self.dogfoodConfiguration = dogfoodConfiguration
         self.transportFactory = transportFactory
         self.rollbackWindow = rollbackWindow
-        self.crashReporter = crashReporter
+        self.crashReporter = crashReporter ?? CrashReportingFactory.makeProvider()
     }
 
     /// Whether the dogfood diagnostics screen should be reachable at all.
@@ -1001,3 +1001,4 @@ final class GuestMergeController: ObservableObject {
         }
     }
 }
+
