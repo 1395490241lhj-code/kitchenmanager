@@ -30,7 +30,9 @@ final class HomeDashboardUITests: XCTestCase {
 
     func testAddSheetAndSettingsRemainReachable() throws {
         let app = launchSeededDashboard()
-        app.buttons["home.import.add.button"].tap()
+        let importButton = app.buttons["home.import.add.button"]
+        XCTAssertEqual(importButton.label, "导入与添加")
+        importButton.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["导入与添加"].waitForExistence(timeout: 5))
         app.buttons["关闭"].tap()
 

@@ -60,6 +60,12 @@ final class ReceiptCompactListUITests: XCTestCase {
         let visibleRowCount = nameFields.count
         XCTAssertGreaterThan(visibleRowCount, 3, "紧凑布局应能在一屏内显示多于 3 行，实际同时可见 \(visibleRowCount) 行")
 
+        let selectionButtons = app.buttons.matching(identifier: "receiptItemSelection")
+        XCTAssertEqual(selectionButtons.count, visibleRowCount, "每一项都应有可访问的选择按钮")
+        let firstSelection = selectionButtons.firstMatch
+        XCTAssertTrue(firstSelection.label.hasPrefix("选择 "), "选择按钮应读出食材名称")
+        XCTAssertEqual(firstSelection.value as? String, "已选中")
+
         // Compact row height check: measure the vertical gap between two
         // consecutive visible item rows' name fields.
         let firstFrame = nameFields.element(boundBy: 0).frame
@@ -72,6 +78,7 @@ final class ReceiptCompactListUITests: XCTestCase {
         // one must actually remove just that item.
         let deleteButtons = app.buttons.matching(identifier: "receiptItemDelete")
         XCTAssertEqual(deleteButtons.count, visibleRowCount, "每一项都应有独立的删除按钮")
+
         var hittableDeleteButton: XCUIElement?
         for index in 0..<deleteButtons.count {
             let candidate = deleteButtons.element(boundBy: index)
