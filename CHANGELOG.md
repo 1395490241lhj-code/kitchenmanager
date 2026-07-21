@@ -6,6 +6,27 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-19 (Xiaohongshu Video Import Reliability Phase 1C-D)
+
+### Fixed
+
+- Normal final AI recipe results now deterministically preserve structured
+  `observedMainIngredients` and `observedSeasonings` that the final model
+  omitted. Existing model rows keep their spelling, category, order, quantity,
+  and unit; only missing exact-name evidence rows are appended.
+- Final recipe prompts now separate item presence from quantity availability.
+  Unknown quantities and units remain empty, explicit source quantities remain
+  intact, and a model must not delete an evidence-backed item to avoid an
+  unknown amount.
+- Preservation uses only the two structured evidence arrays, performs no
+  inference from dish names, methods, actions, transcript, OCR, or page text,
+  and inspects at most 128 entries per category. Evidence names are stripped of
+  control/format characters, rejected above 80 Unicode code points, and bounded
+  to 32 appended rows per category, 48 total rows, and 2,048 total name code
+  points. New preservation diagnostics contain only finite counts and booleans.
+  Low-evidence drafts, grounded fallback, media extraction, and iOS behavior
+  are unchanged.
+
 ## 2026-07-18 (Xiaohongshu Video Import Reliability Phase 1C-B)
 
 ### Fixed

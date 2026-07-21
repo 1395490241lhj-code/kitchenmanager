@@ -1159,10 +1159,35 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   assert.match(aiParsePipeline, /IMPORT_SIMPLE_SYSTEM_PROMPT/);
   assert.match(aiParsePipeline, /model: OPENAI_IMPORT_MODEL/);
   assert.match(aiParsePipeline, /repairRecipeJsonContent\(content\)/);
+  assert.match(aiParsePipeline, /buildBoundedFinalPromptEvidence\(evidence\)/);
+  assert.doesNotMatch(aiParsePipeline, /JSON\.stringify\(\{ evidence, sourceDiagnostics:/);
   assert.match(aiParsePipeline, /sanitizeRecipe\(parsed, \{ sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics \}\)/);
   assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiParseRoute, /parseRecipeDraftWithAi\(\{ text, imageBase64, sourceType, sourceMetadata \}\)/);
   assert.match(aiParseRoute, /sendAiParsePipelineError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);
+});
+
+test('final recipe prompts 将材料存在与用量分离且允许未知用量留空', () => {
+  const server = read('server.js');
+  const detailedPrompt = server.slice(
+    server.indexOf('const IMPORT_SYSTEM_PROMPT'),
+    server.indexOf('const IMPORT_SIMPLE_SYSTEM_PROMPT')
+  );
+  const simplePrompt = server.slice(
+    server.indexOf('const IMPORT_SIMPLE_SYSTEM_PROMPT'),
+    server.indexOf("app.get('/api/xhs-extract'")
+  );
+
+  for (const prompt of [detailedPrompt, simplePrompt]) {
+    assert.match(prompt, /item 必须(?:是)?非空/);
+    assert.match(prompt, /qty=""/);
+    assert.match(prompt, /unit=""/);
+    assert.match(prompt, /不得.*省略.*item|不得因用量未知而省略整项/);
+    assert.match(prompt, /"item":"青椒","qty":"","unit":""/);
+    assert.doesNotMatch(prompt, /qty 必须是有效数字字符串/);
+    assert.doesNotMatch(prompt, /严禁空数量/);
+    assert.doesNotMatch(prompt, /没有用量时必须猜测合理值/);
+  }
 });
 
 test('weekly menu AI result keeps summary, servings, local recipe ids, and new suggestions', () => {
