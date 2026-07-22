@@ -6,6 +6,21 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-22 (iOS Home UI Phase 1)
+
+### Changed
+
+- Refined the native Home hierarchy around the greeting, Today Plan, one
+  highest-priority reminder, the privacy-preserving clipboard banner, and local
+  module issues. The existing Home summary decisions and all business routes
+  remain unchanged.
+- Reduced Home's Toolbar to the existing Smart Import entry. Settings remain
+  reachable through the existing 我的 tab, while Today Plan now supplies a
+  contextual add-plan action whenever the primary action is occupied.
+- Improved Home Dynamic Type, VoiceOver heading/action semantics, adaptive
+  reminder colors, and focused Home previews/UI regressions without changing
+  clipboard detection, shared import, navigation architecture, or storage.
+
 ## 2026-07-21 (iOS UI Foundation Phase UI-0)
 
 ### Added
