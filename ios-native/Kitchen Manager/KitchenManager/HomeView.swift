@@ -34,6 +34,7 @@ struct HomeView: View {
 
     @State private var activeSheet: HomeSheet?
     @State private var toastMessage: String?
+    @State private var toastStyle: AppFeedbackStyle = .success
     @State private var isShowingTodayPlan = false
     @State private var isShowingRecommendations = false
     @State private var clipboardPromptState = ClipboardPromptSessionState()
@@ -120,7 +121,8 @@ struct HomeView: View {
                     Image(systemName: "plus")
                 }
                 .accessibilityIdentifier("home.import.add.button")
-                .accessibilityLabel("添加食材")
+                .accessibilityLabel("导入与添加")
+                .accessibilityHint("打开菜谱、收据和食材添加选项")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -155,14 +157,7 @@ struct HomeView: View {
         }
         .overlay(alignment: .bottom) {
             if let toastMessage {
-                Text(toastMessage)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 11)
-                    .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
-                    .padding(.bottom, 18)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                HomeFeedbackToast(message: toastMessage, style: toastStyle, reduceMotion: reduceMotion)
             }
         }
         .onAppear {
@@ -297,8 +292,11 @@ struct HomeView: View {
         authStore.account?.households.first?.name.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyHome
     }
 
-    private func showToast(_ message: String) {
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { toastMessage = message }
+    private func showToast(_ message: String, style: AppFeedbackStyle = .success) {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+            toastStyle = style
+            toastMessage = message
+        }
         Task {
             try? await Task.sleep(for: .seconds(1.8))
             await MainActor.run {
@@ -361,12 +359,12 @@ struct HomeView: View {
               activeSheet == nil,
               sharedImportCoordinator.pendingRequest == nil
         else {
-            showToast("请先完成当前的导入操作")
+            showToast("请先完成当前的导入操作", style: .warning)
             return
         }
 
         guard let handoff = ClipboardRecipeImportURL.makeHandoff(from: pastedText) else {
-            showToast("剪贴板中没有可导入的网页链接，请重新复制后再试")
+            showToast("剪贴板中没有可导入的网页链接，请重新复制后再试", style: .warning)
             return
         }
 
@@ -407,6 +405,25 @@ struct HomeView: View {
     }
 }
 
+/// Home's dark toast surface intentionally keeps the whole label white. The
+/// SF Symbol shape and VoiceOver prefix still distinguish feedback states,
+/// while text remains readable in every appearance and contrast setting.
+private struct HomeFeedbackToast: View {
+    let message: String
+    let style: AppFeedbackStyle
+    let reduceMotion: Bool
+
+    var body: some View {
+        AppFeedbackView(message: message, style: style, foregroundColor: .white)
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+            .padding(.bottom, 18)
+            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    }
+}
+
 private struct ClipboardRecipeImportPrompt: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -443,13 +460,13 @@ private struct ClipboardRecipeImportPrompt: View {
             accessibilityLabel: "粘贴并导入菜谱",
             onPaste: { pastedText in onPaste(pastedText) }
         )
-        .frame(minWidth: 132, minHeight: 44)
+        .frame(minWidth: 132, minHeight: AppTheme.minimumHitTarget)
         .accessibilityLabel("粘贴并导入菜谱")
 
         Button("忽略", action: onIgnore)
             .buttonStyle(.plain)
             .foregroundStyle(AppTheme.primary)
-            .frame(minHeight: 44)
+            .frame(minHeight: AppTheme.minimumHitTarget)
             .accessibilityIdentifier("home.clipboard.ignore.button")
     }
 }
@@ -768,6 +785,26 @@ private struct HomeModuleIssues: View {
     )
     .padding()
     .dynamicTypeSize(.accessibility3)
+}
+
+#Preview("首页 Toast — 成功") {
+    HomeFeedbackToast(message: "已保存到菜谱库", style: .success, reduceMotion: false)
+        .padding()
+        .background(Color(.systemGroupedBackground))
+}
+
+#Preview("首页 Toast — 提醒 / 深色") {
+    HomeFeedbackToast(message: "请先完成当前的导入操作", style: .warning, reduceMotion: false)
+        .padding()
+        .background(Color(.systemGroupedBackground))
+        .preferredColorScheme(.dark)
+}
+
+#Preview("首页 Toast — 错误 / 大字号") {
+    HomeFeedbackToast(message: "库存保存失败，请稍后重试。", style: .error, reduceMotion: true)
+        .padding()
+        .background(Color(.systemGroupedBackground))
+        .dynamicTypeSize(.accessibility3)
 }
 
 private extension String {

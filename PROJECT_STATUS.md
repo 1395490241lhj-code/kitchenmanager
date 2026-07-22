@@ -1,6 +1,6 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-19
+Last updated: 2026-07-21
 
 This is the single current-state snapshot for humans and AI agents. It is
 not a changelog and must remain concise. Implementation detail, test-count
@@ -79,6 +79,12 @@ history, device-validation narratives, and bug investigations belong in
   priority). Local data is never gated by auth restoration; existing tabs,
   write paths, stock-in/consumption flows, sync boundaries, and default-off
   flags remain unchanged. See `docs/IOS_HOME_DASHBOARD.md`.
+- iOS UI Foundation Phase UI-0 now provides presentation-only feedback
+  semantics, correct Inventory success/error iconography, an accurate Home
+  Smart Import accessibility label, receipt compact-row selection semantics,
+  and a Dynamic-Type-safe receipt fallback. Business state, persistence,
+  navigation, sync, and import contracts remain unchanged. See
+  `docs/IOS_UI_FOUNDATION_PHASE0.md`.
 - iOS recipe detail now supports session-only serving scaling and ingredient
   checks, plus a native Cooking Mode with step navigation, foreground timer,
   temporary screen-awake behavior, and explicit Today Plan completion. It

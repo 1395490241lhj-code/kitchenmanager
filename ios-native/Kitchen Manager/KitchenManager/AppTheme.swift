@@ -29,6 +29,10 @@ enum AppAppearance: String, CaseIterable, Identifiable, Codable {
 }
 
 enum AppTheme {
+    /// Shared minimum touch target for compact controls that still need to be
+    /// reachable at every Dynamic Type size.
+    static let minimumHitTarget: CGFloat = 44
+
     static let primary = adaptive(light: 0x007AFF, dark: 0x0A84FF)
     static let primaryDark = adaptive(light: 0x005ECB, dark: 0x409CFF)
     static let primarySoft = adaptive(light: 0xEAF4FF, dark: 0x10243A)

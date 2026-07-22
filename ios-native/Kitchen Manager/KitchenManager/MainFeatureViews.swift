@@ -3,6 +3,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct InventoryView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var store: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
@@ -214,21 +215,12 @@ struct InventoryView: View {
         }
         .overlay(alignment: .bottom) {
             if let notice = store.inventoryNotice {
-                Label(notice, systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 11)
-                    .background(.regularMaterial, in: Capsule())
-                    .shadow(radius: 8, y: 3)
-                    .padding(.bottom, 12)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .task(id: notice) {
-                        try? await Task.sleep(for: .seconds(2.2))
-                        withAnimation { store.clearInventoryNotice() }
-                    }
+                InventoryNoticeOverlay(notice: notice) {
+                    store.clearInventoryNotice()
+                }
             }
         }
-        .animation(.snappy, value: store.inventoryNotice)
+        .animation(reduceMotion ? nil : .snappy, value: store.inventoryNotice)
     }
 
     private func addSuggestion(_ suggestion: RestockSuggestion) {
@@ -239,6 +231,61 @@ struct InventoryView: View {
             source: suggestion.source == .pantryStaple ? "来自常备货架" : "补货建议"
         )
     }
+}
+
+private struct InventoryNoticeOverlay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let notice: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        AppFeedbackView(
+            message: notice,
+            style: InventoryNoticePresentation.style(for: notice)
+        )
+        .font(.subheadline.weight(.semibold))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(radius: 8, y: 3)
+        .padding(.bottom, 12)
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+        .task(id: notice) {
+            try? await Task.sleep(for: .seconds(2.2))
+            guard !Task.isCancelled else { return }
+            withAnimation(reduceMotion ? nil : .snappy) {
+                onDismiss()
+            }
+        }
+    }
+}
+
+#Preview("库存提示 — 成功") {
+    InventoryNoticeOverlay(notice: "已添加 2 项食材", onDismiss: {})
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background(Color(.systemGroupedBackground))
+}
+
+#Preview("库存提示 — 错误") {
+    InventoryNoticeOverlay(notice: "库存保存失败，请稍后重试。", onDismiss: {})
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background(Color(.systemGroupedBackground))
+}
+
+#Preview("库存提示 — 深色") {
+    InventoryNoticeOverlay(notice: "库存保存失败，请稍后重试。", onDismiss: {})
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background(Color(.systemGroupedBackground))
+        .preferredColorScheme(.dark)
+}
+
+#Preview("库存提示 — 辅助功能大字号") {
+    InventoryNoticeOverlay(notice: "库存保存失败，请稍后重试。", onDismiss: {})
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .padding()
+        .background(Color(.systemGroupedBackground))
+        .dynamicTypeSize(.accessibility3)
 }
 
 private struct InventoryFoodCard: View {

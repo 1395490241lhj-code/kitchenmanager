@@ -361,13 +361,26 @@ struct RecordFoodSheet: View {
             }
             .onDisappear { receiptStore.cancel() }
             #if DEBUG
-            // UI-test-only seed hook: lets ManualEntryExpiryUITests-style tests
-            // exercise the compact receipt confirmation list (many recognized
-            // items, scrolling, delete) without a real camera + OCR round trip.
-            // Only runs when KitchenManagerUITests passes this launch argument.
+            // UI-test-only seed hook: lets receipt UI tests exercise both a
+            // compact scrolling list and a stable long-name selection toggle
+            // without a real camera + OCR round trip.
             .onAppear {
-                guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECEIPT_ITEMS"),
-                      receiptStore.items.isEmpty else { return }
+                let arguments = ProcessInfo.processInfo.arguments
+                guard receiptStore.items.isEmpty else { return }
+                if arguments.contains("UITEST_SEED_RECEIPT_SELECTION") {
+                    receiptStore.seedForUITest([
+                        ReceiptItemDraft(
+                            name: "超市自有品牌低脂高钙纯牛奶家庭装",
+                            quantity: 1,
+                            unit: "箱",
+                            category: "乳制品",
+                            confidence: "high",
+                            expiryDate: InventoryExpirySuggestion.suggestedExpiryDate(for: "牛奶")
+                        )
+                    ])
+                    return
+                }
+                guard arguments.contains("UITEST_SEED_RECEIPT_ITEMS") else { return }
                 let names = [
                     "韭菜花", "菠菜", "番茄", "黄瓜", "鸡胸肉", "猪肉", "鱼片", "虾", "牛奶", "鸡蛋",
                     "豆腐", "苹果", "冷冻鱼", "大米", "食用油", "盐", "生抽", "面包", "香肠", "咖啡豆"
@@ -478,6 +491,7 @@ struct RecordFoodSheet: View {
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.primary)
                 .disabled(receiptStore.selectedCount == 0)
+                .accessibilityIdentifier("receiptConfirmStockIn")
             }
         }
     }
@@ -605,8 +619,13 @@ struct RecordFoodSheet: View {
 /// tall). This renders as two lines inside a shared `Section`'s `ForEach`,
 /// with no nested `Form`/`Section`, so many items stay scrollable and light.
 private struct ReceiptIngredientCompactRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var item: ReceiptItemDraft
     var onDelete: () -> Void
+
+    private var selectionLabel: String {
+        "选择 \(item.name.isEmpty ? "食材" : item.name)"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -618,6 +637,12 @@ private struct ReceiptIngredientCompactRow: View {
                         .foregroundStyle(item.isSelected ? AppTheme.primary : Color.secondary)
                 }
                 .buttonStyle(.plain)
+                .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("receiptItemSelection")
+                .accessibilityLabel(selectionLabel)
+                .accessibilityValue(item.isSelected ? "已选中" : "未选中")
+                .accessibilityHint("双击切换选择状态")
 
                 TextField("食材名", text: $item.name)
                     .accessibilityIdentifier("receiptItemName")
@@ -632,44 +657,135 @@ private struct ReceiptIngredientCompactRow: View {
                     onDelete()
                 } label: {
                     Image(systemName: "trash")
-                        .frame(width: 44, height: 44)
+                        .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.vertical, -13)
                 .accessibilityIdentifier("receiptItemDelete")
             }
 
-            HStack(spacing: 8) {
-                TextField("数量", value: $item.quantity, format: .number)
-                    .keyboardType(.decimalPad)
-                    .frame(width: 56)
-                TextField("单位", text: $item.unit)
-                    .frame(width: 48)
-
-                Spacer(minLength: 0)
-
-                if let expiryDate = item.expiryDate {
-                    Text("到期")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    DatePicker(
-                        "",
-                        selection: Binding(get: { expiryDate }, set: { item.expiryDate = $0 }),
-                        displayedComponents: .date
-                    )
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
-                    .fixedSize()
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    quantityAndExpiryStack
                 } else {
-                    Text("常备食材无需保质期")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    quantityAndExpiryRow
                 }
             }
         }
         .padding(.vertical, 4)
+        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
     }
+
+    @ViewBuilder
+    private var quantityAndExpiryRow: some View {
+        HStack(spacing: 8) {
+            quantityFields
+            Spacer(minLength: 0)
+            expiryControl
+        }
+    }
+
+    @ViewBuilder
+    private var quantityAndExpiryStack: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            quantityFields
+            expiryControl
+        }
+    }
+
+    @ViewBuilder
+    private var quantityFields: some View {
+        HStack(spacing: 8) {
+            TextField("数量", value: $item.quantity, format: .number)
+                .keyboardType(.decimalPad)
+                .frame(minWidth: 64, alignment: .leading)
+            TextField("单位", text: $item.unit)
+                .frame(minWidth: 56, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var expiryControl: some View {
+        if let expiryDate = item.expiryDate {
+            HStack(spacing: 6) {
+                Text("到期")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                DatePicker(
+                    "到期日期",
+                    selection: Binding(get: { expiryDate }, set: { item.expiryDate = $0 }),
+                    displayedComponents: .date
+                )
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .fixedSize()
+            }
+        } else {
+            Text("常备食材无需保质期")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct ReceiptIngredientCompactRowPreview: View {
+    @State private var item: ReceiptItemDraft
+
+    init(item: ReceiptItemDraft) {
+        _item = State(initialValue: item)
+    }
+
+    var body: some View {
+        Form {
+            ReceiptIngredientCompactRow(item: $item, onDelete: {})
+        }
+    }
+}
+
+#Preview("小票行 — 已选") {
+    ReceiptIngredientCompactRowPreview(item: ReceiptItemDraft(
+        name: "番茄",
+        quantity: 2,
+        unit: "个",
+        category: "蔬菜",
+        confidence: "high",
+        expiryDate: Date()
+    ))
+}
+
+#Preview("小票行 — 未选") {
+    ReceiptIngredientCompactRowPreview(item: ReceiptItemDraft(
+        isSelected: false,
+        name: "牛奶",
+        quantity: 1,
+        unit: "盒",
+        category: "乳制品",
+        confidence: "high",
+        expiryDate: Date()
+    ))
+}
+
+#Preview("小票行 — 长名称") {
+    ReceiptIngredientCompactRowPreview(item: ReceiptItemDraft(
+        name: "超市自有品牌低脂高钙纯牛奶家庭装",
+        quantity: 1,
+        unit: "箱",
+        category: "乳制品",
+        confidence: "low",
+        expiryDate: Date()
+    ))
+}
+
+#Preview("小票行 — 辅助功能大字号") {
+    ReceiptIngredientCompactRowPreview(item: ReceiptItemDraft(
+        name: "超市自有品牌低脂高钙纯牛奶家庭装",
+        quantity: 1,
+        unit: "箱",
+        category: "乳制品",
+        confidence: "low",
+        expiryDate: Date()
+    ))
+    .dynamicTypeSize(.accessibility3)
 }
 
 struct CameraPicker: UIViewControllerRepresentable {
