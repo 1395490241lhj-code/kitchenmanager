@@ -161,6 +161,7 @@ final class ReceiptCompactListUITests: XCTestCase {
             scrollAttempts += 1
         }
         XCTAssertTrue(confirm.exists)
+        XCTAssertEqual(confirm.label, "确认入库（1）")
         XCTAssertTrue(confirm.isEnabled)
 
         selection.tap()
