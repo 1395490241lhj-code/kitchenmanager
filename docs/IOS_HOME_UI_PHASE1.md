@@ -51,9 +51,10 @@ primary-action behavior are unchanged.
   readable elements.
 - Every remaining action retains an individual label/hint and at least the
   shared 44-point minimum hit target where compact.
-- Today Plan and clipboard actions switch to vertical layouts at accessibility
-  Dynamic Type sizes. No fixed-height container or key-text single-line limit
-  was introduced.
+- Today Plan title/progress, clipboard actions, and local module issues use
+  native width-fitting fallbacks, with explicit vertical layouts at
+  accessibility Dynamic Type sizes. No fixed-height container or key-text
+  single-line limit was introduced.
 - System semantic backgrounds and adaptive theme colors support Dark Mode;
   the reminder also includes a symbol and text rather than relying on color.
 - No new motion was added, so the established Reduce Motion behavior for Home
@@ -78,6 +79,11 @@ kept outside Git:
 - `/tmp/kitchenmanager-ui1-home-review/dark-home.png`
 - `/tmp/kitchenmanager-ui1-home-review/accessibility-large-home.png`
 
+The final visual review also keeps iPhone SE and standard-device screenshots in
+`/Users/lianghongjing/Desktop/KitchenManager-UI1-Review/validation/`. DEBUG-only
+presentation seeds support those screenshots and UI assertions without reading
+the real clipboard or changing Release behavior.
+
 ## Explicitly unchanged boundaries
 
 This phase does not modify `HomeDashboardSummary` business decisions,
@@ -93,14 +99,14 @@ bundles:
 
 - Debug simulator build: passed.
 - Home summary + presentation tests: 18 passed, 0 skipped, 0 failed —
-  `/tmp/kitchenmanager-ui1-home-summary-retry.xcresult`.
-- `HomeDashboardUITests`: 8 passed, 0 skipped, 0 failed —
-  `/tmp/kitchenmanager-ui1-home-ui.xcresult`.
+  `/tmp/kitchenmanager-ui1-review-focused-unit.xcresult`.
+- `HomeDashboardUITests`: 10 passed, 0 skipped, 0 failed at Accessibility 3
+  Dynamic Type — `/tmp/kitchenmanager-ui1-review-home-ui-accessibility-fixed.xcresult`.
 - Full `KitchenManagerTests`: 774 passed, 5 skipped, 0 failed —
-  `/tmp/kitchenmanager-ui1-full-unit.xcresult`. The skips are existing opt-in
+  `/tmp/kitchenmanager-ui1-review-full-unit.xcresult`. The skips are existing opt-in
   `HostedGuestMergeSmokeTests` with no hosted smoke credentials.
-- Full `KitchenManagerUITests`: 26 passed, 1 skipped, 0 failed —
-  `/tmp/kitchenmanager-ui1-full-ui.xcresult`. The skip is the existing hosted
+- Full `KitchenManagerUITests`: 28 passed, 1 skipped, 0 failed —
+  `/tmp/kitchenmanager-ui1-review-full-ui.xcresult`. The skip is the existing hosted
   sync smoke, which requires development credentials and is unrelated to Home.
 - `git diff --check`: passed.
 

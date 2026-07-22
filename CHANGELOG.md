@@ -20,6 +20,8 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - Improved Home Dynamic Type, VoiceOver heading/action semantics, adaptive
   reminder colors, and focused Home previews/UI regressions without changing
   clipboard detection, shared import, navigation architecture, or storage.
+- Hardened the Home clipboard prompt, Today Plan header, and local issue rows
+  with native narrow-width and larger-Dynamic-Type fallbacks.
 
 ## 2026-07-21 (iOS UI Foundation Phase UI-0)
 

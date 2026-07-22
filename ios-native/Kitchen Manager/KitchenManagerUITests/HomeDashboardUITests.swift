@@ -1,6 +1,13 @@
 import XCTest
 
 final class HomeDashboardUITests: XCTestCase {
+    private func makeHittable(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<6 where !element.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(element.isHittable)
+    }
+
     private func launchSeededDashboard() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_HOME_DASHBOARD"]
@@ -102,5 +109,32 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["库存暂未完全保存"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["查看食材"].exists)
+    }
+
+    func testClipboardPromptPresentationKeepsBothExplicitActionsAvailable() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_HOME_CLIPBOARD"]
+        app.launch()
+
+        XCTAssertTrue(app.otherElements["home.clipboard.import.prompt"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["clipboard.paste.control"].exists)
+        let ignore = app.buttons["home.clipboard.ignore.button"]
+        XCTAssertTrue(ignore.exists)
+        makeHittable(ignore, in: app)
+    }
+
+    func testBothModuleIssueActionsRemainReachable() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_HOME_MODULE_ISSUES"]
+        app.launch()
+
+        let inventoryAction = app.buttons["查看食材"]
+        let shoppingAction = app.buttons["查看清单"]
+        XCTAssertTrue(inventoryAction.waitForExistence(timeout: 5))
+        XCTAssertTrue(shoppingAction.exists)
+
+        makeHittable(shoppingAction, in: app)
+        shoppingAction.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["买菜"].waitForExistence(timeout: 5))
     }
 }

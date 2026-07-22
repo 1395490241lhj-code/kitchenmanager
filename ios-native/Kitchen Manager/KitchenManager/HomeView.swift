@@ -60,7 +60,12 @@ struct HomeView: View {
     }
 
     private var moduleIssues: [HomeDashboardModuleIssue] {
-        HomeDashboardModuleIssue.issues(
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_MODULE_ISSUES") {
+            return [.inventory, .shopping]
+        }
+#endif
+        return HomeDashboardModuleIssue.issues(
             inventoryNotice: kitchenStore.inventoryNotice,
             shoppingNotice: kitchenStore.shoppingNotice
         )
@@ -99,7 +104,7 @@ struct HomeView: View {
                             }
                         }
                     case .clipboardPrompt:
-                        if let changeCount = clipboardPromptState.currentChangeCount {
+                        if let changeCount = clipboardPromptChangeCount {
                             ClipboardRecipeImportPrompt(
                                 onPaste: { pastedText in
                                     handleClipboardPaste(pastedText)
@@ -196,10 +201,24 @@ struct HomeView: View {
     }
 
     private var shouldShowClipboardPrompt: Bool {
-        clipboardPromptState.shouldShowPrompt(
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_CLIPBOARD") {
+            return !isClipboardPresentationBlocked
+        }
+#endif
+        return clipboardPromptState.shouldShowPrompt(
             isAppActive: scenePhase == .active,
             isPresentationBlocked: isClipboardPresentationBlocked
         )
+    }
+
+    private var clipboardPromptChangeCount: Int? {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_CLIPBOARD") {
+            return 0
+        }
+#endif
+        return clipboardPromptState.currentChangeCount
     }
 
     /// Only surfaces the pending shared-import request when nothing else is
@@ -432,21 +451,11 @@ private struct ClipboardRecipeImportPrompt: View {
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 12) {
-                    promptCopy
-                    VStack(alignment: .leading, spacing: 8) { promptActions }
-                }
+                verticalLayout
             } else {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "doc.on.clipboard")
-                        .font(.title3)
-                        .foregroundStyle(AppTheme.brand)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
-                        promptText
-                    }
-                    Spacer(minLength: 8)
-                    HStack(spacing: 8) { promptActions }
+                ViewThatFits(in: .horizontal) {
+                    horizontalLayout
+                    verticalLayout
                 }
             }
         }
@@ -454,6 +463,27 @@ private struct ClipboardRecipeImportPrompt: View {
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.clipboard.import.prompt")
+    }
+
+    private var horizontalLayout: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.title3)
+                .foregroundStyle(AppTheme.brand)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                promptText
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 8) { promptActions }
+        }
+    }
+
+    private var verticalLayout: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            promptCopy
+            VStack(alignment: .leading, spacing: 8) { promptActions }
+        }
     }
 
     private var promptCopy: some View {
@@ -626,7 +656,7 @@ private struct TodayPlanSummaryCard: View {
     private var cardHeader: some View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 8) {
-                headerTitleAndProgress
+                headerTitleAndProgressVertical
                 if shouldShowAddPlanAction {
                     addPlanButton
                 }
@@ -643,7 +673,26 @@ private struct TodayPlanSummaryCard: View {
     }
 
     private var headerTitleAndProgress: some View {
+        ViewThatFits(in: .horizontal) {
+            headerTitleAndProgressHorizontal
+            headerTitleAndProgressVertical
+        }
+    }
+
+    private var headerTitleAndProgressHorizontal: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("今日计划")
+                .font(.headline)
+            if dashboard.totalPlanCount > 0 {
+                Text(planProgressText)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var headerTitleAndProgressVertical: some View {
+        VStack(alignment: .leading, spacing: 2) {
             Text("今日计划")
                 .font(.headline)
             if dashboard.totalPlanCount > 0 {
@@ -780,26 +829,65 @@ private struct HomeAttentionReminderRow: View {
 }
 
 private struct HomeModuleIssues: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let issues: [HomeDashboardModuleIssue]
     let action: (HomeDashboardModuleIssue) -> Void
 
     var body: some View {
         ForEach(issues, id: \.self) { issue in
-            HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(AppTheme.warning)
-                    .accessibilityHidden(true)
-                Text(issue.title)
-                    .font(.footnote)
-                    .foregroundStyle(.primary)
-                    .accessibilityIdentifier(issue == .inventory ? "home.issue.inventory" : "home.issue.shopping")
-                Spacer(minLength: 8)
-                Button(issue.actionTitle) { action(issue) }
-                    .font(.footnote.weight(.semibold))
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    verticalIssue(issue)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        horizontalIssue(issue)
+                        verticalIssue(issue)
+                    }
+                }
             }
             .padding(12)
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }
+    }
+
+    private func horizontalIssue(_ issue: HomeDashboardModuleIssue) -> some View {
+        HStack(spacing: 10) {
+            issueIcon
+            issueText(issue)
+            Spacer(minLength: 8)
+            issueAction(issue)
+        }
+    }
+
+    private func verticalIssue(_ issue: HomeDashboardModuleIssue) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                issueIcon
+                issueText(issue)
+                Spacer(minLength: 0)
+            }
+            issueAction(issue)
+        }
+    }
+
+    private var issueIcon: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(AppTheme.warning)
+            .accessibilityHidden(true)
+    }
+
+    private func issueText(_ issue: HomeDashboardModuleIssue) -> some View {
+        Text(issue.title)
+            .font(.footnote)
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier(issue == .inventory ? "home.issue.inventory" : "home.issue.shopping")
+    }
+
+    private func issueAction(_ issue: HomeDashboardModuleIssue) -> some View {
+        Button(issue.actionTitle) { action(issue) }
+            .font(.footnote.weight(.semibold))
+            .frame(minHeight: AppTheme.minimumHitTarget)
     }
 }
 
