@@ -154,9 +154,7 @@ final class ReceiptCompactListUITests: XCTestCase {
         XCTAssertTrue(delete.exists)
         XCTAssertTrue(delete.isHittable)
 
-        let confirm = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", "确认入库（1）")
-        ).firstMatch
+        let confirm = app.descendants(matching: .any)["receiptConfirmStockIn"]
         scrollAttempts = 0
         while !confirm.exists, scrollAttempts < 5 {
             app.swipeUp()

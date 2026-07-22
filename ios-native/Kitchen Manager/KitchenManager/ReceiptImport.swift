@@ -491,6 +491,7 @@ struct RecordFoodSheet: View {
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.primary)
                 .disabled(receiptStore.selectedCount == 0)
+                .accessibilityIdentifier("receiptConfirmStockIn")
             }
         }
     }
