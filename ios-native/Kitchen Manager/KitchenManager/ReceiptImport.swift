@@ -361,13 +361,26 @@ struct RecordFoodSheet: View {
             }
             .onDisappear { receiptStore.cancel() }
             #if DEBUG
-            // UI-test-only seed hook: lets ManualEntryExpiryUITests-style tests
-            // exercise the compact receipt confirmation list (many recognized
-            // items, scrolling, delete) without a real camera + OCR round trip.
-            // Only runs when KitchenManagerUITests passes this launch argument.
+            // UI-test-only seed hook: lets receipt UI tests exercise both a
+            // compact scrolling list and a stable long-name selection toggle
+            // without a real camera + OCR round trip.
             .onAppear {
-                guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECEIPT_ITEMS"),
-                      receiptStore.items.isEmpty else { return }
+                let arguments = ProcessInfo.processInfo.arguments
+                guard receiptStore.items.isEmpty else { return }
+                if arguments.contains("UITEST_SEED_RECEIPT_SELECTION") {
+                    receiptStore.seedForUITest([
+                        ReceiptItemDraft(
+                            name: "超市自有品牌低脂高钙纯牛奶家庭装",
+                            quantity: 1,
+                            unit: "箱",
+                            category: "乳制品",
+                            confidence: "high",
+                            expiryDate: InventoryExpirySuggestion.suggestedExpiryDate(for: "牛奶")
+                        )
+                    ])
+                    return
+                }
+                guard arguments.contains("UITEST_SEED_RECEIPT_ITEMS") else { return }
                 let names = [
                     "韭菜花", "菠菜", "番茄", "黄瓜", "鸡胸肉", "猪肉", "鱼片", "虾", "牛奶", "鸡蛋",
                     "豆腐", "苹果", "冷冻鱼", "大米", "食用油", "盐", "生抽", "面包", "香肠", "咖啡豆"

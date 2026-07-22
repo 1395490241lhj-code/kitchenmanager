@@ -157,13 +157,7 @@ struct HomeView: View {
         }
         .overlay(alignment: .bottom) {
             if let toastMessage {
-                AppFeedbackView(message: toastMessage, style: toastStyle)
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 11)
-                    .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
-                    .padding(.bottom, 18)
-                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                HomeFeedbackToast(message: toastMessage, style: toastStyle, reduceMotion: reduceMotion)
             }
         }
         .onAppear {
@@ -408,6 +402,25 @@ struct HomeView: View {
         case .lowStock:
             navigationStore.showInventory(.lowStock)
         }
+    }
+}
+
+/// Home's dark toast surface intentionally keeps the whole label white. The
+/// SF Symbol shape and VoiceOver prefix still distinguish feedback states,
+/// while text remains readable in every appearance and contrast setting.
+private struct HomeFeedbackToast: View {
+    let message: String
+    let style: AppFeedbackStyle
+    let reduceMotion: Bool
+
+    var body: some View {
+        AppFeedbackView(message: message, style: style, foregroundColor: .white)
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+            .padding(.bottom, 18)
+            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 }
 
@@ -772,6 +785,26 @@ private struct HomeModuleIssues: View {
     )
     .padding()
     .dynamicTypeSize(.accessibility3)
+}
+
+#Preview("首页 Toast — 成功") {
+    HomeFeedbackToast(message: "已保存到菜谱库", style: .success, reduceMotion: false)
+        .padding()
+        .background(Color(.systemGroupedBackground))
+}
+
+#Preview("首页 Toast — 提醒 / 深色") {
+    HomeFeedbackToast(message: "请先完成当前的导入操作", style: .warning, reduceMotion: false)
+        .padding()
+        .background(Color(.systemGroupedBackground))
+        .preferredColorScheme(.dark)
+}
+
+#Preview("首页 Toast — 错误 / 大字号") {
+    HomeFeedbackToast(message: "库存保存失败，请稍后重试。", style: .error, reduceMotion: true)
+        .padding()
+        .background(Color(.systemGroupedBackground))
+        .dynamicTypeSize(.accessibility3)
 }
 
 private extension String {

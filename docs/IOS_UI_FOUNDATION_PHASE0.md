@@ -12,10 +12,14 @@ business state machines, persistence, sync, authentication, or import logic.
   system-icon semantics.
 - Added `AppFeedbackView`, which combines text and SF Symbol feedback and posts
   one VoiceOver announcement for each displayed message when VoiceOver is on.
+  Its per-presentation gate resets when feedback leaves the hierarchy, so a
+  later identical notice can be announced once again without duplicate redraw
+  announcements.
 - Kept `KitchenStore.inventoryNotice` as a String. The UI recognizes only the
-  existing fixed `已添加 … 项食材` success copy; all other notices conservatively
-  use error presentation so an unknown migration/persistence failure cannot
-  look successful.
+  shared generated `已添加 <positive count> 项食材` success form; all known
+  failure paths and unknown messages conservatively use error presentation.
+  Because the existing contract is an untyped String, a future unrelated
+  producer must not emit that exact success form for a failure.
 - Fixed the Inventory notice success-icon bug and made its dismissal transition
   honor Reduce Motion.
 - Changed the Home import toolbar label to `导入与添加` with a matching hint;
@@ -32,7 +36,9 @@ Receipt quantity, unit, and expiry controls use a horizontal layout at regular
 sizes and a simple vertical fallback for accessibility Dynamic Type sizes. The
 row no longer relies on fixed 52/48-point fields or negative padding. Inventory
 and Home feedback use opacity-only transitions when Reduce Motion is enabled;
-normal motion retains a small bottom movement plus opacity.
+normal motion retains a small bottom movement plus opacity. Home's dark toast
+keeps its complete Label white in every appearance and contrast setting; the
+symbol shape and VoiceOver prefix, not color alone, convey status.
 
 ## VoiceOver
 
@@ -44,10 +50,12 @@ state, and toggle hint. The Home import control keeps
 ## Previews and tests
 
 Previews cover Inventory success/error, dark mode, large text, receipt selected
-and unselected rows, a long ingredient name, and large text. Focused unit tests
-cover semantic icons and conservative inventory notice mapping. Existing Home
-and Receipt UI tests retain their identifiers and now assert the updated Home
-label and the receipt selection control's accessible name/state.
+and unselected rows, a long ingredient name, and large text, plus Home
+success/warning/error toast surfaces. Focused unit tests
+cover semantic icons, announcement lifecycle, and conservative inventory notice
+mapping. Existing Home and Receipt UI tests retain their identifiers and now
+assert the updated Home label, Smart Import destination, receipt selection
+state transitions, and long-name control hitability.
 
 ## Explicit non-goals
 

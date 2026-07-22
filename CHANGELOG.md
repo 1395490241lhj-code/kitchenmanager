@@ -11,7 +11,8 @@ Keep entries concise. Use this file for what changed, not for long design discus
 ### Added
 
 - Added a small presentation-only feedback semantic model with SF Symbol,
-  adaptive tint, and VoiceOver announcement support.
+  adaptive tint, and VoiceOver announcement support that announces once per
+  presentation and permits a later reappearance to announce again.
 - Added focused previews and tests for Inventory success/error feedback and
   receipt compact-row accessibility.
 
@@ -22,6 +23,8 @@ Keep entries concise. Use this file for what changed, not for long design discus
   String notice contract remains unchanged.
 - Home's Smart Import toolbar control now exposes the accurate
   `导入与添加` label and hint without changing its identifier or sheet.
+- Home feedback Toast text now stays high-contrast on its dark surface in all
+  appearance and accessibility-contrast settings.
 - Receipt compact rows now expose ingredient selection state and use a
   Dynamic-Type-safe layout with 44-point compact controls.
 

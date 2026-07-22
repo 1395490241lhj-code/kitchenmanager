@@ -22,6 +22,27 @@ enum InventoryFocus: Equatable {
     }
 }
 
+/// Stable, user-facing Inventory notice text shared by the store and the
+/// presentation layer. The String notice contract remains unchanged.
+enum InventoryNoticeText {
+    private static let importedItemsPrefix = "已添加 "
+    private static let importedItemsSuffix = " 项食材"
+
+    static func importedItemsMessage(count: Int) -> String {
+        "\(importedItemsPrefix)\(count)\(importedItemsSuffix)"
+    }
+
+    static func importedItemsCount(from message: String) -> Int? {
+        guard message.hasPrefix(importedItemsPrefix),
+              message.hasSuffix(importedItemsSuffix) else { return nil }
+        let countText = String(
+            message.dropFirst(importedItemsPrefix.count).dropLast(importedItemsSuffix.count)
+        )
+        guard let count = Int(countText), count > 0 else { return nil }
+        return count
+    }
+}
+
 /// The single navigation destination type for inventory-detail pushes. Every entry
 /// point (inventory grid, pantry staples list, home expiry sheet) must push this
 /// value — never a bare UUID — so each NavigationStack's `navigationDestination`
@@ -581,7 +602,7 @@ final class KitchenStore: ObservableObject {
             )
         }
         inventory = updated
-        inventoryNotice = validItems.isEmpty ? nil : "已添加 \(validItems.count) 项食材"
+        inventoryNotice = validItems.isEmpty ? nil : InventoryNoticeText.importedItemsMessage(count: validItems.count)
         return validItems.count
     }
 

@@ -126,4 +126,57 @@ final class ReceiptCompactListUITests: XCTestCase {
         }
         XCTAssertTrue(confirmButton.waitForExistence(timeout: 3), "删除一项后底部应显示确认入库（19），且按钮可到达")
     }
+
+    func testReceiptSelectionTogglesAndLongNameControlsRemainHittable() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_RECEIPT_SELECTION"]
+        app.launch()
+
+        let smartImportButton = app.buttons["home.import.add.button"]
+        XCTAssertTrue(smartImportButton.waitForExistence(timeout: 5))
+        smartImportButton.tap()
+        let receiptRow = app.buttons["home.import.food.receipt"]
+        XCTAssertTrue(receiptRow.waitForExistence(timeout: 5))
+        receiptRow.tap()
+
+        let selection = app.buttons["receiptItemSelection"]
+        var scrollAttempts = 0
+        while !selection.exists, scrollAttempts < 5 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+        XCTAssertTrue(selection.waitForExistence(timeout: 5))
+        XCTAssertTrue(selection.isHittable)
+        XCTAssertEqual(selection.label, "选择 超市自有品牌低脂高钙纯牛奶家庭装")
+        XCTAssertEqual(selection.value as? String, "已选中")
+
+        let delete = app.buttons["receiptItemDelete"]
+        XCTAssertTrue(delete.exists)
+        XCTAssertTrue(delete.isHittable)
+
+        let confirm = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "确认入库（1）")
+        ).firstMatch
+        scrollAttempts = 0
+        while !confirm.exists, scrollAttempts < 5 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+        XCTAssertTrue(confirm.exists)
+        XCTAssertTrue(confirm.isEnabled)
+
+        selection.tap()
+        let unselectedSelection = app.buttons.matching(
+            NSPredicate(format: "identifier == %@ AND value == %@", "receiptItemSelection", "未选中")
+        ).firstMatch
+        XCTAssertTrue(unselectedSelection.waitForExistence(timeout: 3))
+        XCTAssertFalse(confirm.isEnabled)
+
+        unselectedSelection.tap()
+        let selectedSelection = app.buttons.matching(
+            NSPredicate(format: "identifier == %@ AND value == %@", "receiptItemSelection", "已选中")
+        ).firstMatch
+        XCTAssertTrue(selectedSelection.waitForExistence(timeout: 3))
+        XCTAssertTrue(confirm.isEnabled)
+    }
 }

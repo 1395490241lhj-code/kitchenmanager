@@ -3,7 +3,7 @@ import UIKit
 
 /// Presentation-only semantics for transient feedback. This type does not
 /// own business state or decide when a notice is created or cleared.
-enum AppFeedbackStyle: String, CaseIterable, Equatable {
+enum AppFeedbackStyle: Equatable {
     case success
     case warning
     case error
@@ -47,10 +47,25 @@ enum AppFeedbackStyle: String, CaseIterable, Equatable {
 /// persistence/migration failure can never look like a successful save.
 enum InventoryNoticePresentation {
     static func style(for message: String) -> AppFeedbackStyle {
-        if message.hasPrefix("已添加 "), message.hasSuffix(" 项食材") {
-            return .success
-        }
-        return .error
+        InventoryNoticeText.importedItemsCount(from: message) == nil ? .error : .success
+    }
+}
+
+/// Keeps the once-per-presentation announcement rule independent from SwiftUI
+/// view recomputation. The caller resets this gate when its feedback view
+/// leaves the hierarchy, so an identical message can be announced on a later
+/// presentation without repeating during the current one.
+struct FeedbackAnnouncementGate {
+    private var announcedMessage: String?
+
+    mutating func shouldAnnounce(_ message: String) -> Bool {
+        guard announcedMessage != message else { return false }
+        announcedMessage = message
+        return true
+    }
+
+    mutating func reset() {
+        announcedMessage = nil
     }
 }
 
@@ -60,22 +75,26 @@ enum InventoryNoticePresentation {
 struct AppFeedbackView: View {
     let message: String
     let style: AppFeedbackStyle
+    /// Callers with a dark surface can override the whole label to a
+    /// high-contrast color without changing the feedback's semantic icon.
+    var foregroundColor: Color? = nil
 
-    @State private var announcedMessage: String?
+    @State private var announcementGate = FeedbackAnnouncementGate()
 
     var body: some View {
         Label(message, systemImage: style.systemImage)
-            .foregroundStyle(style.tint)
-            .accessibilityElement(children: .combine)
+            .foregroundStyle(foregroundColor ?? style.tint)
             .accessibilityLabel(style.accessibilityLabel(for: message))
-            .task(id: message) {
-                guard announcedMessage != message else { return }
-                announcedMessage = message
-                guard UIAccessibility.isVoiceOverRunning else { return }
+            .task(id: message) { @MainActor in
+                guard UIAccessibility.isVoiceOverRunning,
+                      announcementGate.shouldAnnounce(message) else { return }
                 UIAccessibility.post(
                     notification: .announcement,
                     argument: style.accessibilityLabel(for: message)
                 )
+            }
+            .onDisappear {
+                announcementGate.reset()
             }
     }
 }
