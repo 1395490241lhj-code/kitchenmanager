@@ -59,6 +59,18 @@ struct HomeView: View {
         )
     }
 
+    private var moduleIssues: [HomeDashboardModuleIssue] {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_MODULE_ISSUES") {
+            return [.inventory, .shopping]
+        }
+#endif
+        return HomeDashboardModuleIssue.issues(
+            inventoryNotice: kitchenStore.inventoryNotice,
+            shoppingNotice: kitchenStore.shoppingNotice
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -72,46 +84,55 @@ struct HomeView: View {
                     dashboard: dashboard,
                     primaryAction: dashboard.primaryAction,
                     onPrimaryAction: performPrimaryAction,
+                    onAddPlan: { isShowingRecommendations = true },
                     onViewPlan: { isShowingTodayPlan = true }
                 )
 
-                if shouldShowClipboardPrompt,
-                   let changeCount = clipboardPromptState.currentChangeCount {
-                    ClipboardRecipeImportPrompt(
-                        onPaste: { pastedText in
-                            handleClipboardPaste(pastedText)
-                        },
-                        onIgnore: {
-                            clipboardPromptState.ignore(changeCount: changeCount)
-                        }
-                    )
-                }
-
-                if let reminder = dashboard.highestPriorityReminder {
-                    HomeAttentionReminderRow(reminder: reminder) {
-                        handleReminder(reminder)
-                    }
-                }
-
-                HomeModuleIssues(
-                    issues: HomeDashboardModuleIssue.issues(
-                        inventoryNotice: kitchenStore.inventoryNotice,
-                        shoppingNotice: kitchenStore.shoppingNotice
+                ForEach(
+                    HomeDashboardPresentation.supplementarySections(
+                        hasReminder: dashboard.highestPriorityReminder != nil,
+                        showsClipboardPrompt: shouldShowClipboardPrompt,
+                        hasModuleIssues: !moduleIssues.isEmpty
                     ),
-                    action: { issue in
-                        switch issue {
-                        case .inventory: navigationStore.showInventory(.all)
-                        case .shopping: navigationStore.selectedTab = .shopping
+                    id: \.self
+                ) { section in
+                    switch section {
+                    case .reminder:
+                        if let reminder = dashboard.highestPriorityReminder {
+                            HomeAttentionReminderRow(reminder: reminder) {
+                                handleReminder(reminder)
+                            }
                         }
+                    case .clipboardPrompt:
+                        if let changeCount = clipboardPromptChangeCount {
+                            ClipboardRecipeImportPrompt(
+                                onPaste: { pastedText in
+                                    handleClipboardPaste(pastedText)
+                                },
+                                onIgnore: {
+                                    clipboardPromptState.ignore(changeCount: changeCount)
+                                }
+                            )
+                        }
+                    case .moduleIssues:
+                        HomeModuleIssues(
+                            issues: moduleIssues,
+                            action: { issue in
+                                switch issue {
+                                case .inventory: navigationStore.showInventory(.all)
+                                case .shopping: navigationStore.selectedTab = .shopping
+                                }
+                            }
+                        )
                     }
-                )
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("首页")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -123,24 +144,7 @@ struct HomeView: View {
                 .accessibilityIdentifier("home.import.add.button")
                 .accessibilityLabel("导入与添加")
                 .accessibilityHint("打开菜谱、收据和食材添加选项")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("添加今日菜品", systemImage: "calendar.badge.plus") { isShowingRecommendations = true }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityIdentifier("home.add.menu")
-                .accessibilityLabel("更多操作")
-            }
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    navigationStore.selectedTab = .settings
-                } label: {
-                    Image(systemName: "person.crop.circle")
-                }
-                .accessibilityIdentifier("home.settings.button")
-                .accessibilityLabel("账号与设置")
+                .tint(AppTheme.brand)
             }
         }
         .navigationDestination(isPresented: $isShowingTodayPlan) {
@@ -197,10 +201,24 @@ struct HomeView: View {
     }
 
     private var shouldShowClipboardPrompt: Bool {
-        clipboardPromptState.shouldShowPrompt(
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_CLIPBOARD") {
+            return !isClipboardPresentationBlocked
+        }
+#endif
+        return clipboardPromptState.shouldShowPrompt(
             isAppActive: scenePhase == .active,
             isPresentationBlocked: isClipboardPresentationBlocked
         )
+    }
+
+    private var clipboardPromptChangeCount: Int? {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_CLIPBOARD") {
+            return 0
+        }
+#endif
+        return clipboardPromptState.currentChangeCount
     }
 
     /// Only surfaces the pending shared-import request when nothing else is
@@ -431,41 +449,78 @@ private struct ClipboardRecipeImportPrompt: View {
     let onIgnore: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("发现剪贴板中可能有链接", systemImage: "doc.on.clipboard")
-                .font(.headline)
-                .foregroundStyle(.primary)
-
-            Text("可直接粘贴并导入菜谱。只有点击系统粘贴按钮后才会读取内容。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 8) { promptActions }
-                } else {
-                    HStack(spacing: 12) { promptActions }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                verticalLayout
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    horizontalLayout
+                    verticalLayout
                 }
             }
         }
-        .padding(16)
+        .padding(14)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.clipboard.import.prompt")
     }
 
+    private var horizontalLayout: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.title3)
+                .foregroundStyle(AppTheme.brand)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                promptText
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 8) { promptActions }
+        }
+    }
+
+    private var verticalLayout: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            promptCopy
+            VStack(alignment: .leading, spacing: 8) { promptActions }
+        }
+    }
+
+    private var promptCopy: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.title3)
+                .foregroundStyle(AppTheme.brand)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                promptText
+            }
+        }
+    }
+
+    private var promptText: some View {
+        Group {
+            Text("剪贴板中有菜谱链接")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+            Text("只有点击“粘贴导入”后才会读取内容。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     @ViewBuilder
     private var promptActions: some View {
         ClipboardPasteControl(
-            accessibilityLabel: "粘贴并导入菜谱",
+            accessibilityLabel: "粘贴导入",
             onPaste: { pastedText in onPaste(pastedText) }
         )
-        .frame(minWidth: 132, minHeight: AppTheme.minimumHitTarget)
-        .accessibilityLabel("粘贴并导入菜谱")
+        .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
+        .accessibilityLabel("粘贴导入")
 
         Button("忽略", action: onIgnore)
             .buttonStyle(.plain)
-            .foregroundStyle(AppTheme.primary)
+            .foregroundStyle(AppTheme.brand)
             .frame(minHeight: AppTheme.minimumHitTarget)
             .accessibilityIdentifier("home.clipboard.ignore.button")
     }
@@ -494,6 +549,7 @@ private struct HomeDashboardHeader: View {
             Text(model.title)
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
             if model.shouldShowHousehold, let householdName {
                 Label(householdName, systemImage: "person.2")
                     .font(.footnote)
@@ -509,36 +565,30 @@ private struct HomeDashboardHeader: View {
                 .accessibilityIdentifier("home.auth.restoring")
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.dashboard.header")
     }
 }
 
 private struct TodayPlanSummaryCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let dashboard: HomeDashboardSummary
     let primaryAction: HomePrimaryAction
     let onPrimaryAction: () -> Void
+    let onAddPlan: () -> Void
     let onViewPlan: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("今日计划")
-                    .font(.headline)
-                Spacer(minLength: 12)
-                if dashboard.totalPlanCount > 0 {
-                    Text(planProgressText)
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-            }
+            cardHeader
 
             switch dashboard.todayPlanState {
             case .empty:
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("今天还没有计划", systemImage: "calendar.badge.plus")
+                    Label("今晚吃什么？", systemImage: "calendar.badge.plus")
                         .font(.title3.weight(.semibold))
-                    Text("先选一道想做的菜，晚些时候就不用再纠结。")
+                    Text("先安排一道菜，晚些时候就不用再纠结。")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -575,10 +625,10 @@ private struct TodayPlanSummaryCard: View {
                 Text(primaryActionTitle)
                     .frame(maxWidth: .infinity)
             }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.primary)
-                .controlSize(.large)
-                .accessibilityIdentifier("home.primary.action.button")
+            .buttonStyle(.borderedProminent)
+            .tint(AppTheme.brand)
+            .controlSize(.large)
+            .accessibilityIdentifier("home.primary.action.button")
 
             if dashboard.totalPlanCount > 0, primaryAction != .viewTodayPlan {
                 Button("查看今日计划", action: onViewPlan)
@@ -596,6 +646,78 @@ private struct TodayPlanSummaryCard: View {
                 : Color(uiColor: .systemBackground),
             in: RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+        }
+    }
+
+    @ViewBuilder
+    private var cardHeader: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                headerTitleAndProgressVertical
+                if shouldShowAddPlanAction {
+                    addPlanButton
+                }
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                headerTitleAndProgress
+                Spacer(minLength: 8)
+                if shouldShowAddPlanAction {
+                    addPlanButton
+                }
+            }
+        }
+    }
+
+    private var headerTitleAndProgress: some View {
+        ViewThatFits(in: .horizontal) {
+            headerTitleAndProgressHorizontal
+            headerTitleAndProgressVertical
+        }
+    }
+
+    private var headerTitleAndProgressHorizontal: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("今日计划")
+                .font(.headline)
+            if dashboard.totalPlanCount > 0 {
+                Text(planProgressText)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var headerTitleAndProgressVertical: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("今日计划")
+                .font(.headline)
+            if dashboard.totalPlanCount > 0 {
+                Text(planProgressText)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var shouldShowAddPlanAction: Bool {
+        primaryAction != .addTodayPlan
+    }
+
+    private var addPlanButton: some View {
+        Button(action: onAddPlan) {
+            Label("添加菜品", systemImage: "plus")
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: AppTheme.minimumHitTarget)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(AppTheme.brand)
+        .accessibilityIdentifier("home.today.plan.add.button")
+        .accessibilityLabel("添加今日菜品")
+        .accessibilityHint("打开菜谱推荐并添加到今日计划")
     }
 
     private var planProgressText: String {
@@ -622,39 +744,37 @@ private struct HomeAttentionReminderRow: View {
     let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("需要留意")
-                .font(.headline)
-            Button(action: action) {
-                HStack(spacing: 12) {
-                    Image(systemName: systemImage)
-                        .font(.title3)
-                        .foregroundStyle(tint)
-                        .frame(width: 28)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(title)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                        Text(subtitle)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.title3)
+                    .foregroundStyle(tint)
+                    .frame(width: 28)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(minHeight: 56)
-                .contentShape(Rectangle())
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(identifier)
-            .accessibilityLabel("\(title)，\(subtitle)")
-            .accessibilityHint("双击查看并处理")
+            .frame(minHeight: 56)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 2)
+        .buttonStyle(.plain)
+        .padding(.horizontal, 15)
+        .padding(.vertical, 12)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel("\(title)，\(subtitle)")
+        .accessibilityHint("双击查看并处理")
     }
 
     private var title: String {
@@ -689,11 +809,11 @@ private struct HomeAttentionReminderRow: View {
 
     private var tint: Color {
         switch reminder {
-        case .purchasedAwaitingStockIn: AppTheme.primary
-        case .expiredInventory: .red
+        case .purchasedAwaitingStockIn: AppTheme.brand
+        case .expiredInventory: AppTheme.inventoryExpired
         case .expiringInventory: AppTheme.warning
-        case .pendingShopping: AppTheme.primary
-        case .lowStock: .orange
+        case .pendingShopping: AppTheme.brand
+        case .lowStock: AppTheme.warning
         }
     }
 
@@ -709,26 +829,65 @@ private struct HomeAttentionReminderRow: View {
 }
 
 private struct HomeModuleIssues: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let issues: [HomeDashboardModuleIssue]
     let action: (HomeDashboardModuleIssue) -> Void
 
     var body: some View {
         ForEach(issues, id: \.self) { issue in
-            HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(AppTheme.warning)
-                    .accessibilityHidden(true)
-                Text(issue.title)
-                    .font(.footnote)
-                    .foregroundStyle(.primary)
-                    .accessibilityIdentifier(issue == .inventory ? "home.issue.inventory" : "home.issue.shopping")
-                Spacer(minLength: 8)
-                Button(issue.actionTitle) { action(issue) }
-                    .font(.footnote.weight(.semibold))
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    verticalIssue(issue)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        horizontalIssue(issue)
+                        verticalIssue(issue)
+                    }
+                }
             }
             .padding(12)
             .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
         }
+    }
+
+    private func horizontalIssue(_ issue: HomeDashboardModuleIssue) -> some View {
+        HStack(spacing: 10) {
+            issueIcon
+            issueText(issue)
+            Spacer(minLength: 8)
+            issueAction(issue)
+        }
+    }
+
+    private func verticalIssue(_ issue: HomeDashboardModuleIssue) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                issueIcon
+                issueText(issue)
+                Spacer(minLength: 0)
+            }
+            issueAction(issue)
+        }
+    }
+
+    private var issueIcon: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(AppTheme.warning)
+            .accessibilityHidden(true)
+    }
+
+    private func issueText(_ issue: HomeDashboardModuleIssue) -> some View {
+        Text(issue.title)
+            .font(.footnote)
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier(issue == .inventory ? "home.issue.inventory" : "home.issue.shopping")
+    }
+
+    private func issueAction(_ issue: HomeDashboardModuleIssue) -> some View {
+        Button(issue.actionTitle) { action(issue) }
+            .font(.footnote.weight(.semibold))
+            .frame(minHeight: AppTheme.minimumHitTarget)
     }
 }
 
@@ -745,6 +904,7 @@ private struct HomeModuleIssues: View {
         ),
         primaryAction: .viewTodayPlan,
         onPrimaryAction: {},
+        onAddPlan: {},
         onViewPlan: {}
     )
     .padding()
@@ -758,6 +918,7 @@ private struct HomeModuleIssues: View {
             dashboard: HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: []),
             primaryAction: .addTodayPlan,
             onPrimaryAction: {},
+            onAddPlan: {},
             onViewPlan: {}
         )
     }
@@ -781,10 +942,68 @@ private struct HomeModuleIssues: View {
         ),
         primaryAction: .viewTodayPlan,
         onPrimaryAction: {},
+        onAddPlan: {},
         onViewPlan: {}
     )
     .padding()
     .dynamicTypeSize(.accessibility3)
+}
+
+#Preview("已完成计划") {
+    TodayPlanSummaryCard(
+        dashboard: HomeDashboardSummary(
+            inventory: [],
+            todayPlans: [MealPlanItem(recipeID: "1", recipeName: "红烧豆腐", servings: 2, isCooked: true)],
+            shoppingItems: []
+        ),
+        primaryAction: .browseRecipes,
+        onPrimaryAction: {},
+        onAddPlan: {},
+        onViewPlan: {}
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
+#Preview("待入库提醒") {
+    HomeAttentionReminderRow(reminder: .purchasedAwaitingStockIn(count: 2), action: {})
+        .padding()
+        .background(Color(.systemGroupedBackground))
+}
+
+#Preview("剪贴板提示") {
+    ClipboardRecipeImportPrompt(onPaste: { _ in }, onIgnore: {})
+        .padding()
+        .background(Color(.systemGroupedBackground))
+}
+
+#Preview("本地保存问题") {
+    HomeModuleIssues(issues: [.inventory], action: { _ in })
+        .padding()
+        .background(Color(.systemGroupedBackground))
+}
+
+#Preview("长名称") {
+    VStack(alignment: .leading, spacing: 20) {
+        HomeDashboardHeader(
+            displayName: "一位名字很长的家庭成员",
+            householdName: "一个同样很长、仍需完整理解的家庭名称",
+            isRestoringAccount: false
+        )
+        TodayPlanSummaryCard(
+            dashboard: HomeDashboardSummary(
+                inventory: [],
+                todayPlans: [MealPlanItem(recipeID: "long", recipeName: "一份菜名很长但仍应保持清晰易读的家常晚餐", servings: 4)],
+                shoppingItems: []
+            ),
+            primaryAction: .viewTodayPlan,
+            onPrimaryAction: {},
+            onAddPlan: {},
+            onViewPlan: {}
+        )
+    }
+    .padding()
+    .background(Color(.systemGroupedBackground))
 }
 
 #Preview("首页 Toast — 成功") {

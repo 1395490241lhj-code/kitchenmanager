@@ -85,6 +85,12 @@ history, device-validation narratives, and bug investigations belong in
   and a Dynamic-Type-safe receipt fallback. Business state, persistence,
   navigation, sync, and import contracts remain unchanged. See
   `docs/IOS_UI_FOUNDATION_PHASE0.md`.
+- iOS Home UI Phase UI-1 now gives Home a calmer native hierarchy: greeting,
+  Today Plan, one existing-priority reminder, compact clipboard banner, then
+  local issues. Home keeps the existing Smart Import entry, moves Settings
+  access to the existing 我的 tab, and adds a contextual Today Plan add action
+  without changing Home decisions, stores, navigation, clipboard privacy, or
+  import behavior. See `docs/IOS_HOME_UI_PHASE1.md`.
 - iOS recipe detail now supports session-only serving scaling and ingredient
   checks, plus a native Cooking Mode with step navigation, foreground timer,
   temporary screen-awake behavior, and explicit Today Plan completion. It
