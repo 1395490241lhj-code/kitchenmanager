@@ -18,7 +18,7 @@ struct ClipboardPasteControl: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIPasteControl {
         let configuration = UIPasteControl.Configuration()
-        configuration.displayMode = .iconAndLabel
+        configuration.displayMode = .iconOnly
         configuration.cornerStyle = .capsule
 
         let control = UIPasteControl(configuration: configuration)

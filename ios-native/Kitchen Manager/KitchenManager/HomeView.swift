@@ -59,6 +59,10 @@ struct HomeView: View {
         )
     }
 
+    private var todayPlanPrimaryAction: HomePrimaryAction {
+        HomeDashboardPresentation.todayPlanPrimaryAction(for: dashboard.todayPlanState)
+    }
+
     private var moduleIssues: [HomeDashboardModuleIssue] {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_MODULE_ISSUES") {
@@ -77,13 +81,14 @@ struct HomeView: View {
                 HomeDashboardHeader(
                     displayName: displayName,
                     householdName: householdName,
-                    isRestoringAccount: authStore.activity == .restoring
+                    isRestoringAccount: authStore.activity == .restoring,
+                    onImport: { activeSheet = .smartImport }
                 )
 
                 TodayPlanSummaryCard(
                     dashboard: dashboard,
-                    primaryAction: dashboard.primaryAction,
-                    onPrimaryAction: performPrimaryAction,
+                    primaryAction: todayPlanPrimaryAction,
+                    onPrimaryAction: { performTodayPlanAction(todayPlanPrimaryAction) },
                     onAddPlan: { isShowingRecommendations = true },
                     onViewPlan: { isShowingTodayPlan = true }
                 )
@@ -131,22 +136,9 @@ struct HomeView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
+        .safeAreaPadding(.bottom, 112)
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    activeSheet = .smartImport
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityIdentifier("home.import.add.button")
-                .accessibilityLabel("导入与添加")
-                .accessibilityHint("打开菜谱、收据和食材添加选项")
-                .tint(AppTheme.brand)
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $isShowingTodayPlan) {
             TodayPlanDetailView()
         }
@@ -394,8 +386,8 @@ struct HomeView: View {
         )
     }
 
-    private func performPrimaryAction() {
-        switch dashboard.primaryAction {
+    private func performTodayPlanAction(_ action: HomePrimaryAction) {
+        switch action {
         case .stockInPurchased:
             navigationStore.showShoppingStockIn()
         case .addTodayPlan:
@@ -482,7 +474,14 @@ private struct ClipboardRecipeImportPrompt: View {
     private var verticalLayout: some View {
         VStack(alignment: .leading, spacing: 12) {
             promptCopy
-            VStack(alignment: .leading, spacing: 8) { promptActions }
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) { promptActions }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { promptActions }
+                    VStack(alignment: .leading, spacing: 8) { promptActions }
+                }
+            }
         }
     }
 
@@ -511,12 +510,21 @@ private struct ClipboardRecipeImportPrompt: View {
 
     @ViewBuilder
     private var promptActions: some View {
-        ClipboardPasteControl(
-            accessibilityLabel: "粘贴导入",
-            onPaste: { pastedText in onPaste(pastedText) }
-        )
+        ZStack {
+            ClipboardPasteControl(
+                accessibilityLabel: "粘贴导入",
+                onPaste: { pastedText in onPaste(pastedText) }
+            )
+            .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
+            .opacity(0.02)
+            Text("粘贴导入")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
+                .background(AppTheme.brand, in: Capsule())
+                .allowsHitTesting(false)
+        }
         .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
-        .accessibilityLabel("粘贴导入")
 
         Button("忽略", action: onIgnore)
             .buttonStyle(.plain)
@@ -529,41 +537,54 @@ private struct ClipboardRecipeImportPrompt: View {
 // MARK: - Dashboard V2
 
 private struct HomeDashboardHeader: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let displayName: String?
     let householdName: String?
     let isRestoringAccount: Bool
+    let onImport: () -> Void
 
     private var model: HomeDashboardHeaderModel {
         HomeDashboardHeaderModel(displayName: displayName, householdName: householdName)
     }
 
-    private var dateText: String {
-        Date.now.formatted(.dateTime.weekday(.wide).month().day())
-    }
+    private var dateText: String { HomeDatePresentation.text(for: .now) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(dateText)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            Text(model.title)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(.primary)
-                .accessibilityAddTraits(.isHeader)
-            if model.shouldShowHousehold, let householdName {
-                Label(householdName, systemImage: "person.2")
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(dateText)
+                    .font(.footnote)
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .foregroundStyle(.secondary)
+                Text(model.title)
+                    .font(dynamicTypeSize.isAccessibilitySize ? .title3.weight(.semibold) : .title2.weight(.semibold))
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .foregroundStyle(.primary)
+                    .accessibilityAddTraits(.isHeader)
+                if model.shouldShowHousehold, let householdName {
+                    Label(householdName, systemImage: "person.2")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if isRestoringAccount {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.mini)
+                        Text("正在恢复账号…")
+                    }
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-            }
-            if isRestoringAccount {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.mini)
-                    Text("正在恢复账号…")
+                    .accessibilityIdentifier("home.auth.restoring")
                 }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("home.auth.restoring")
             }
+            Spacer(minLength: 8)
+            Button(action: onImport) { Image(systemName: "plus") }
+                .frame(width: 46, height: 46)
+                .background(Color(.secondarySystemGroupedBackground), in: Circle())
+                .accessibilityIdentifier("home.import.add.button")
+                .accessibilityLabel("导入与添加")
+                .accessibilityHint("打开菜谱、收据和食材添加选项")
+                .tint(AppTheme.brand)
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.dashboard.header")
@@ -597,7 +618,7 @@ private struct TodayPlanSummaryCard: View {
                 ForEach(dashboard.displayedPlans) { plan in
                     HStack(spacing: 12) {
                         Image(systemName: plan.isCooked ? "checkmark.circle" : "fork.knife.circle.fill")
-                            .foregroundStyle(plan.isCooked ? Color.secondary : AppTheme.primary)
+                            .foregroundStyle(plan.isCooked ? Color.secondary : AppTheme.brand)
                             .font(.title3)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
@@ -913,7 +934,7 @@ private struct HomeModuleIssues: View {
 
 #Preview("空首页") {
     VStack(alignment: .leading, spacing: 28) {
-        HomeDashboardHeader(displayName: nil, householdName: nil, isRestoringAccount: false)
+        HomeDashboardHeader(displayName: nil, householdName: nil, isRestoringAccount: false, onImport: {})
         TodayPlanSummaryCard(
             dashboard: HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: []),
             primaryAction: .addTodayPlan,
@@ -988,7 +1009,8 @@ private struct HomeModuleIssues: View {
         HomeDashboardHeader(
             displayName: "一位名字很长的家庭成员",
             householdName: "一个同样很长、仍需完整理解的家庭名称",
-            isRestoringAccount: false
+            isRestoringAccount: false,
+            onImport: {}
         )
         TodayPlanSummaryCard(
             dashboard: HomeDashboardSummary(
