@@ -20,6 +20,18 @@ Keep entries concise. Use this file for what changed, not for long design discus
   UI-test seed mechanism for long-recipe visual evidence. No Release behavior,
   storage, model, navigation, auth, sync, or API contract changed.
 
+### Fixed
+
+- Hardened Recipe Detail at accessibility Dynamic Type: its hero uses a native
+  compact accessibility heading, metadata changes to a readable vertical
+  arrangement, and the single brand-colored cooking action now follows the
+  final detail content instead of overlaying it. The long DEBUG fixture is
+  deterministic and verifies ten ingredients and ten steps can be read before
+  the action.
+- Tightened Cooking Mode’s visual focus without changing its session or timer:
+  `下一步` is the only prominent step-navigation control, disabled controls are
+  visibly quiet, and contextual finish remains secondary.
+
 ## 2026-07-22 (iOS Home UI Phase 1)
 
 ### Changed

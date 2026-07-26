@@ -169,6 +169,7 @@ private struct RecipeListRow: View {
 struct RecipeDetailView: View {
     let recipe: Recipe
     let todayPlan: MealPlanItem?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @State private var isShowingShoppingGeneration = false
@@ -242,13 +243,14 @@ struct RecipeDetailView: View {
                         }
                     }
                 }
+
+                startCookingAction
             }
             .padding(.horizontal)
             .padding(.top, 20)
-            .padding(.bottom, 24)
+            .padding(.bottom, 16)
         }
         .background(Color(.systemGroupedBackground))
-        .safeAreaInset(edge: .bottom, spacing: 0) { startCookingAction }
         .navigationTitle("菜谱详情").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -287,19 +289,23 @@ struct RecipeDetailView: View {
     private var recipeHero: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(recipe.title)
-                .font(.largeTitle.weight(.bold))
+                .font(dynamicTypeSize.isAccessibilitySize ? .headline.weight(.bold) : .largeTitle.weight(.bold))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !recipe.tags.isEmpty {
                 Text(recipe.tags.joined(separator: " · "))
-                    .font(.subheadline)
+                    .font(dynamicTypeSize.isAccessibilitySize ? .caption : .subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            ViewThatFits(in: .horizontal) {
-                recipeMetadataHorizontal
+            if dynamicTypeSize.isAccessibilitySize {
                 recipeMetadataVertical
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    recipeMetadataHorizontal
+                    recipeMetadataVertical
+                }
             }
         }
     }
@@ -310,7 +316,8 @@ struct RecipeDetailView: View {
             if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
             if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
         }
-        .font(.subheadline)
+        .font(dynamicTypeSize.isAccessibilitySize ? .caption2 : .subheadline)
+        .imageScale(dynamicTypeSize.isAccessibilitySize ? .small : .medium)
         .foregroundStyle(.secondary)
     }
 
@@ -320,19 +327,18 @@ struct RecipeDetailView: View {
             if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
             if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
         }
-        .font(.subheadline)
+        .font(dynamicTypeSize.isAccessibilitySize ? .caption2 : .subheadline)
+        .imageScale(dynamicTypeSize.isAccessibilitySize ? .small : .medium)
         .foregroundStyle(.secondary)
     }
 
     private var startCookingAction: some View {
         Button("开始烹饪", systemImage: "flame.fill") { isShowingCookingMode = true }
             .buttonStyle(.borderedProminent)
-            .tint(AppTheme.primary)
+            .tint(AppTheme.brand)
             .font(.headline)
             .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
-            .padding(.horizontal)
-            .padding(.vertical, 10)
-            .background(Color(.systemBackground))
+            .padding(.top, 8)
             .accessibilityIdentifier("recipe.detail.startCooking")
     }
 
@@ -388,15 +394,16 @@ private struct RecipeStepRow: View {
         HStack(alignment: .top, spacing: 12) {
             Text("\(number)")
                 .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(AppTheme.primary)
+                .foregroundStyle(AppTheme.brand)
                 .frame(width: 28, height: 28)
-                .background(AppTheme.primarySoft, in: Circle())
+                .background(AppTheme.secondarySurface, in: Circle())
             Text(text)
                 .font(.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("recipe.detail.step.\(number - 1)")
     }
 }
 

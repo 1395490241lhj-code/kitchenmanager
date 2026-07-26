@@ -83,21 +83,26 @@ struct KitchenManagerApp: App {
 private enum RecipeUITestSeed {
     static let longRecipe = Recipe(
         id: "ui-test-recipe-long",
-        title: "周末番茄炖鸡腿",
+        title: "周末慢炖番茄香草鸡腿蔬菜锅",
         cookingTime: 75,
         difficulty: "中等",
         tags: ["周末", "一锅炖", "家庭料理"],
         ingredients: [
-            "去骨鸡腿肉 600 克", "番茄 5 个", "洋葱 1 个", "胡萝卜 2 根", "土豆 2 个", "新鲜罗勒 1 小把"
+            "去骨鸡腿肉 600 克", "番茄 5 个", "洋葱 1 个", "胡萝卜 2 根", "土豆 2 个",
+            "西芹 2 根", "红甜椒 1 个", "白芸豆 1 罐", "新鲜罗勒 1 小把", "柠檬 1 个"
         ],
         seasonings: ["橄榄油 1 汤匙", "高汤 500 毫升", "黑胡椒 适量", "盐 适量"],
         steps: [
-            "鸡腿肉擦干水分，切成大块并用少许盐和黑胡椒静置 10 分钟。",
-            "锅中加热橄榄油，将鸡腿肉分批煎至两面金黄后盛出。",
-            "放入洋葱和胡萝卜炒软，加入番茄块翻炒至出汁。",
-            "倒入高汤和鸡腿肉，小火焖煮 35 分钟，让汤汁慢慢收浓。",
-            "加入土豆继续焖煮 20 分钟，直到鸡肉和土豆都软嫩入味。",
-            "关火后拌入罗勒，静置 5 分钟再盛盘。"
+            "鸡腿肉擦干水分，切成大块并用少许盐和黑胡椒静置 10 分钟，让调味均匀进入肉里。",
+            "锅中加热橄榄油，将鸡腿肉分批煎至两面金黄后盛出，避免一次放太多导致出水。",
+            "放入洋葱、胡萝卜和西芹炒软，持续翻拌至边缘微微焦糖化。",
+            "加入红甜椒和番茄块翻炒至出汁，用木铲刮起锅底的焦香部分。",
+            "倒入高汤和鸡腿肉，小火焖煮 20 分钟，让汤汁慢慢收浓。",
+            "加入土豆继续焖煮 15 分钟，期间偶尔翻动避免食材粘在锅底。",
+            "放入白芸豆后再煮 10 分钟，直到鸡肉和土豆都软嫩入味。",
+            "尝味后加入盐、黑胡椒和少量柠檬汁，平衡番茄的酸甜味道。",
+            "关火后拌入一半罗勒，盖上锅盖静置 5 分钟让香气融合。",
+            "盛盘前撒上剩余罗勒和少量柠檬皮屑，趁热搭配面包或米饭享用。"
         ]
     )
 }
@@ -280,6 +285,7 @@ struct ContentView: View {
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_LONG") else { return }
             kitchenStore.clearAllLocalData()
+            recipeStore.clearLocalData()
             recipeStore.add(RecipeUITestSeed.longRecipe)
             navigationStore.selectedTab = .recipes
         }
