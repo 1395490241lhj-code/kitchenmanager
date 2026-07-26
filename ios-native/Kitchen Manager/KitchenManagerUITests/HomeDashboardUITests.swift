@@ -1,6 +1,13 @@
 import XCTest
 
 final class HomeDashboardUITests: XCTestCase {
+    private func attachScreenshot(of app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func makeHittable(_ element: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<6 where !element.isHittable {
             app.swipeUp()
@@ -115,8 +122,39 @@ final class HomeDashboardUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.otherElements["home.clipboard.import.prompt"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["clipboard.paste.control"].exists)
-        XCTAssertTrue(app.staticTexts["粘贴导入"].exists)
+
+        // Home draws its own "粘贴导入" capsule over an icon-only native control,
+        // so both must be present: the visible label for sighted users and the
+        // native button carrying the same wording for VoiceOver.
+        let visibleLabel = app.staticTexts["粘贴导入"]
+        XCTAssertTrue(visibleLabel.exists, "Home 应显示中文“粘贴导入”")
+
+        let pasteControl = app.buttons["clipboard.paste.control"]
+        XCTAssertTrue(pasteControl.exists)
+        XCTAssertEqual(
+            pasteControl.label,
+            "粘贴导入",
+            "原生粘贴按钮应播报“粘贴导入”，而不是系统默认的 Paste"
+        )
+        XCTAssertTrue(pasteControl.isHittable, "整块粘贴区域应由原生控件接收点击")
+
+        // Regression guard for hit-area drift: the native control must cover the
+        // whole visible capsule. It previously stayed at its ~41pt intrinsic icon
+        // width inside a 118pt capsule, so taps near the capsule's edges landed on
+        // nothing at all.
+        XCTAssertTrue(
+            pasteControl.frame.contains(CGPoint(x: visibleLabel.frame.minX + 2,
+                                                y: visibleLabel.frame.midY)),
+            "可见 label 左边缘不在原生控件点击区域内：control=\(pasteControl.frame) label=\(visibleLabel.frame)"
+        )
+        XCTAssertTrue(
+            pasteControl.frame.contains(CGPoint(x: visibleLabel.frame.maxX - 2,
+                                                y: visibleLabel.frame.midY)),
+            "可见 label 右边缘不在原生控件点击区域内：control=\(pasteControl.frame) label=\(visibleLabel.frame)"
+        )
+
+        attachScreenshot(of: app, named: "home-clipboard-banner")
+
         let ignore = app.buttons["home.clipboard.ignore.button"]
         XCTAssertTrue(ignore.exists)
         makeHittable(ignore, in: app)

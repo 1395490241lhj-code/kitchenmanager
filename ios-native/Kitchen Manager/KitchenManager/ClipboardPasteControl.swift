@@ -2,11 +2,50 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+/// How the shared paste control presents itself.
+///
+/// The default is deliberately `.iconAndLabel`: this control is shared, and a
+/// single hardcoded `displayMode` is exactly how the Home clipboard-banner work
+/// silently turned the recipe-import paste affordance into a bare icon. Making
+/// the style explicit means a call site can only become icon-only on purpose.
+///
+/// `UIPasteControl` exposes no custom-title API, so a call site that needs
+/// bespoke visible wording (the Home banner's "粘贴导入") selects `.iconOnly` and
+/// draws its own label over the control — see `HomeView`'s `promptActions`. There
+/// is intentionally no `labeled(String)` case here, because it would imply the
+/// native control can render arbitrary text, which it cannot.
+enum ClipboardPasteControlStyle {
+    /// Native icon plus the system's own localized paste label.
+    case iconAndLabel
+    /// Icon only. Only for call sites that supply their own visible label.
+    case iconOnly
+
+    var displayMode: UIPasteControl.DisplayMode {
+        switch self {
+        case .iconAndLabel: .iconAndLabel
+        case .iconOnly: .iconOnly
+        }
+    }
+
+    /// `.iconAndLabel` sizes itself around the system label, so it hugs its
+    /// content. `.iconOnly` is only used where the call site draws its own visible
+    /// label over the control, and there the control must *fill* the frame it is
+    /// given — otherwise it stays at its ~41pt intrinsic icon width inside a wider
+    /// visible capsule and the edges of that capsule tap nothing.
+    var horizontalContentHugging: UILayoutPriority {
+        switch self {
+        case .iconAndLabel: .required
+        case .iconOnly: .defaultLow
+        }
+    }
+}
+
 /// Minimal SwiftUI bridge for UIKit's privacy-preserving, user-initiated
 /// paste affordance. It returns raw pasted URL/text to its caller and owns no
 /// URL parsing, navigation, network, queue, or import state.
 struct ClipboardPasteControl: UIViewRepresentable {
     let accessibilityLabel: String
+    var style: ClipboardPasteControlStyle = .iconAndLabel
     var isEnabled = true
     let onPaste: @MainActor @Sendable (String) -> Void
 
@@ -18,15 +57,15 @@ struct ClipboardPasteControl: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIPasteControl {
         let configuration = UIPasteControl.Configuration()
-        configuration.displayMode = .iconOnly
+        configuration.displayMode = style.displayMode
         configuration.cornerStyle = .capsule
 
         let control = UIPasteControl(configuration: configuration)
         control.target = context.coordinator
-        control.accessibilityLabel = accessibilityLabel
         control.accessibilityIdentifier = "clipboard.paste.control"
-        control.setContentHuggingPriority(.required, for: .horizontal)
+        control.setContentHuggingPriority(style.horizontalContentHugging, for: .horizontal)
         control.setContentCompressionResistancePriority(.required, for: .horizontal)
+        applyAccessibility(to: control)
         return control
     }
 
@@ -36,6 +75,15 @@ struct ClipboardPasteControl: UIViewRepresentable {
             onPaste(pastedText)
         }
         control.isEnabled = isEnabled
+        // Re-applied on every update: `UIPasteControl` restores its own default
+        // label ("Paste") when it re-lays-out, so setting this only in
+        // `makeUIView` left the Home banner's button announcing "Paste" instead of
+        // "粘贴导入".
+        applyAccessibility(to: control)
+    }
+
+    private func applyAccessibility(to control: UIPasteControl) {
+        control.accessibilityLabel = accessibilityLabel
     }
 
     @MainActor
