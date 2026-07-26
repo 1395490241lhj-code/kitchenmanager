@@ -12,11 +12,23 @@ const home = read("HomeView.swift");
 const content = read("ContentView.swift");
 const uiTests = read("../KitchenManagerUITests/InventoryNavigationUITests.swift");
 
-test("fresh inventory uses adaptive lifecycle cards rather than plain list rows", () => {
+// Phase UI-3 replaced the adaptive `LazyVGrid` of tinted cards with a searchable
+// inset-grouped List. The grid and the per-card `InventoryExpiryProgressBar` are
+// deliberately gone, so the assertions below cover the surviving *wiring* —
+// source, row presentation, tap route, destination, swipe-delete, confirmation —
+// rather than the retired markup.
+test("fresh inventory renders as list rows routed through the explicit detail push", () => {
   assert.match(features, /store\.sortedFreshInventory/);
-  assert.match(features, /LazyVGrid\([\s\S]*GridItem\(\.adaptive\(minimum: 145, maximum: 210\)/);
-  assert.match(features, /InventoryFoodCard\(item: item\)/);
-  assert.match(features, /Button \{[\s\S]*onSelectItem\(item\.id\)[\s\S]*InventoryFoodCard\(item: item\)/);
+  // Matches a call, not the word: `InventoryView` still carries a comment
+  // explaining why the explicit push replaced value-based links in the old grid.
+  assert.doesNotMatch(features, /LazyVGrid\(/);
+  assert.match(features, /\.listStyle\(\.insetGrouped\)/);
+  assert.match(features, /\.searchable\(text: \$searchText/);
+  assert.match(
+    features,
+    /ForEach\(displayedFreshInventory\) \{ item in\s*Button \{\s*onSelectItem\(item\.id\)\s*\} label: \{\s*InventoryFoodCard\(item: item\)\s*\}/
+  );
+  assert.match(features, /InventorySectionHeader\(title: "食材", count: displayedFreshInventory\.count\)/);
   assert.match(content, /NavigationStack\(path: \$inventoryPath\)/);
   assert.match(content, /InventoryView\(onSelectItem:[\s\S]*inventoryPath\.append\(InventoryRoute\.detail\(itemID\)\)/);
   assert.match(features, /\.navigationDestination\(for: InventoryRoute\.self\)/);
@@ -25,15 +37,49 @@ test("fresh inventory uses adaptive lifecycle cards rather than plain list rows"
   assert.match(uiTests, /func testTappingEachInventoryCardPushesOnlyThatItem\(\)/);
 });
 
-test("inventory card communicates amount, a single expiry phrase, and a compact progress bar", () => {
+test("inventory row communicates amount and a single expiry phrase as text plus symbol", () => {
   assert.match(features, /private struct InventoryFoodCard/);
   assert.match(features, /item\.expiryStatusText/);
   assert.match(features, /item\.quantity\.formatted\(\)/);
   assert.match(features, /item\.unit/);
-  assert.match(features, /private struct InventoryExpiryProgressBar/);
-  assert.match(features, /\.frame\(height: 4\)/);
+  // Expiry is no longer encoded twice (tinted card background + progress bar);
+  // it is one status phrase paired with an SF Symbol, so the state never depends
+  // on colour alone.
+  assert.doesNotMatch(features, /private struct InventoryExpiryProgressBar/);
+  assert.match(features, /private var statusSymbol: String/);
+  assert.match(features, /Image\(systemName: statusSymbol\)/);
   assert.match(features, /accessibilityReduceMotion/);
   assert.match(features, /\.accessibilityLabel\(/);
+  // The row stays one VoiceOver element with a navigation hint.
+  assert.match(features, /\.accessibilityElement\(children: \.ignore\)[\s\S]*\.accessibilityHint\("打开食材详情"\)/);
+});
+
+test("inventory chrome is capped at accessibility sizes while food content is not", () => {
+  // Page chrome (title, summary, headers, symbols) is bounded in one place;
+  // names, quantities, and status text keep unrestricted Dynamic Type.
+  assert.match(features, /enum InventoryChromeMetrics/);
+  assert.match(features, /static let summaryTypeLimit = DynamicTypeSize\.accessibility1/);
+  assert.match(features, /static let headerTypeLimit = DynamicTypeSize\.accessibility1/);
+  assert.match(features, /static let symbolTypeLimit = DynamicTypeSize\.xxLarge/);
+  // Large title at default sizes, inline at accessibility sizes.
+  assert.match(
+    features,
+    /\.navigationBarTitleDisplayMode\(dynamicTypeSize\.isAccessibilitySize \? \.inline : \.large\)/
+  );
+  // Status and quantity fall back to stacked lines instead of overlapping.
+  assert.match(features, /ViewThatFits\(in: \.horizontal\)/);
+  // The staple row gets the same accessibility-size fallback.
+  assert.match(pantry, /dynamicTypeSize\.isAccessibilitySize/);
+  assert.match(pantry, /\.dynamicTypeSize\(\.\.\.InventoryChromeMetrics\.symbolTypeLimit\)/);
+});
+
+test("inventory list reserves one bottom inset for the floating tab bar", () => {
+  assert.match(features, /static let bottomClearance: CGFloat/);
+  assert.match(features, /\.safeAreaPadding\(\.bottom, InventoryChromeMetrics\.bottomClearance\)/);
+  assert.match(uiTests, /func testInventoryBottomContentClearsFloatingTabBar\(\)/);
+  assert.match(uiTests, /func testPantryEmptyStateCTAClearsTabBarAndOpensExistingFlow\(\)/);
+  assert.match(uiTests, /func testLastSearchResultClearsTabBar\(\)/);
+  assert.match(uiTests, /func testAccessibilityXXXLKeepsFirstIngredientOnFirstScreen\(\)/);
 });
 
 test("expiry lifecycle has one compatible progress calculation and urgency sort", () => {

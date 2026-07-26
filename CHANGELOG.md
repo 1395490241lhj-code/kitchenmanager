@@ -6,6 +6,60 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-26 (iOS Inventory Experience Phase UI-3)
+
+### Changed
+
+- Reworked the native Inventory list around one quiet, searchable food-browsing
+  surface. The former equal-weight metric dashboard and tinted grid cards are
+  replaced by a compact availability summary, system list sections, and
+  text-plus-symbol expiry rows.
+- Kept existing entry, receipt scan, pantry, restock, detail, delete, and
+  consumption routes intact while making `添加食材` the clear toolbar action and
+  moving secondary actions into an overflow menu.
+- Renamed the in-list staple section from `常备货架` to `常备食材` for
+  consistency with Settings, and removed the duplicate `常备食材 0 项` header
+  that sat directly above the identically-worded empty-state title.
+
+### Fixed
+
+- Accessibility XXXL no longer loses the Inventory first screen to page chrome.
+  The navigation title collapses to inline, the availability summary stacks and
+  is capped, section headers stay heading-weight, and the row status glyph and
+  toolbar icons hold their size inside 44pt targets — all via one
+  `InventoryChromeMetrics` type. Food names, quantities, and status text keep
+  unrestricted Dynamic Type; rows just grow taller, with a `ViewThatFits`
+  fallback so status and quantity never overlap.
+- The Inventory list no longer scrolls its last rows under the floating tab bar.
+  A single list-level `safeAreaPadding(.bottom, …)` lets the last ingredient,
+  the last search result, and the pantry empty-state CTA rest fully above it at
+  both default and Accessibility XXXL sizes.
+- `PantryStapleRow` no longer squeezes the staple name and detail text into a
+  one-to-two-character column at Accessibility sizes; the text now takes the full
+  width with the stepper below it. Stepper and status-cycle actions are unchanged.
+- The Dark Mode UI screenshot now actually renders dark. The launch argument it
+  relied on had no effect, so the "dark" screenshot was silently a duplicate of
+  the light one; a DEBUG-only `UITEST_FORCE_DARK_APPEARANCE` hook drives the app's
+  real appearance preference instead, and resets it on every other UI-test launch.
+
+### Testing
+
+- Added empty, search, large-inventory, Dynamic Type, and dark-mode visual
+  regressions using the existing DEBUG-only UI-test seed mechanism. No model,
+  persistence, sync, authentication, or business-rule behavior changed.
+- Added UI coverage asserting bottom tab-bar clearance against the tab bar's
+  expanded top edge, Accessibility XXXL first-screen readability, and the
+  pantry empty-state CTA's hit target and destination.
+- Updated stale static assertions in three files that described Inventory markup
+  the redesign replaced — `ios-native-pantry-staples.test.mjs` (the `常备货架`
+  heading and `补齐常备货架`), `ios-native-inventory-ui.test.mjs` (the adaptive
+  `LazyVGrid` and `InventoryExpiryProgressBar`), and
+  `ios-native-inventory-entry.test.mjs` (the single `录入食材` plus-menu). Each now
+  asserts real wiring — sources, row presentation, tap routes, sheet
+  destinations, identifiers — rather than surface strings. No assertion was
+  deleted, no skip added, and no package script or CI workflow changed.
+  `ios-native-core-alignment.test.mjs` needed no change and passes unmodified.
+
 ## 2026-07-22 (iOS Home UI Phase 1)
 
 ### Changed

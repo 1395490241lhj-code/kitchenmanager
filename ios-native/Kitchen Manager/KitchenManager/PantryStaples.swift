@@ -73,49 +73,84 @@ enum PantryStapleFilter: String, CaseIterable, Identifiable {
 
 struct PantryStapleRow: View {
     @EnvironmentObject private var store: KitchenStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let item: InventoryItem
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: item.stapleStatus == .outOfStock ? "cabinet.fill" : "cabinet")
-                .foregroundStyle(item.stapleStatus.color)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.name)
-                Text(item.stapleTrackingMode == .status
-                     ? "状态跟踪 · \(item.stapleAvailabilityStatus.title)"
-                     : "当前 \(item.quantity.formatted()) \(item.unit) · 最低 \(minimumText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let progress = item.stapleStockProgress {
-                    StapleStockProgressBar(value: progress, color: item.stapleStatus.color)
-                        .accessibilityHidden(true)
+        // At Accessibility sizes the label column and the trailing control
+        // cannot share a line: the stepper/status button keeps its intrinsic
+        // width and the name and detail text get squeezed down to one or two
+        // characters per line ("榄 / 油"). Stacking puts the full-width text
+        // above the control instead, so both stay legible without capping
+        // either one.
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    statusIcon
+                    labels
+                    Spacer(minLength: 8)
                 }
+                trailingControl
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Spacer()
-            if item.stapleTrackingMode == .status {
-                Button {
-                    store.cycleStapleStatus(item.id)
-                } label: {
-                    Label(item.stapleAvailabilityStatus.title, systemImage: statusSymbol)
-                }
-                .buttonStyle(.bordered)
-                .tint(item.stapleStatus.color)
-                .accessibilityLabel("\(item.name)，\(item.stapleAvailabilityStatus.title)，点击切换状态")
-            } else {
-                HStack(spacing: 7) {
-                    Button { store.adjustStapleQuantity(item.id, by: -1) } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .accessibilityLabel("减少\(item.name)")
-                    Text(item.quantity.formatted()).monospacedDigit().frame(minWidth: 24)
-                    Button { store.adjustStapleQuantity(item.id, by: 1) } label: {
-                        Image(systemName: "plus.circle")
-                    }
-                    .accessibilityLabel("增加\(item.name)")
-                }
-                .buttonStyle(.borderless)
+        } else {
+            HStack(spacing: 12) {
+                statusIcon
+                labels
+                Spacer()
+                trailingControl
             }
+        }
+    }
+
+    private var statusIcon: some View {
+        Image(systemName: item.stapleStatus == .outOfStock ? "cabinet.fill" : "cabinet")
+            .foregroundStyle(item.stapleStatus.color)
+            // Glyph tracks text size up to a limit and then holds, matching the
+            // fresh-inventory rows, so it never crowds out the staple name.
+            .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+            .frame(width: 28)
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(item.name)
+            Text(item.stapleTrackingMode == .status
+                 ? "状态跟踪 · \(item.stapleAvailabilityStatus.title)"
+                 : "当前 \(item.quantity.formatted()) \(item.unit) · 最低 \(minimumText)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let progress = item.stapleStockProgress {
+                StapleStockProgressBar(value: progress, color: item.stapleStatus.color)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var trailingControl: some View {
+        if item.stapleTrackingMode == .status {
+            Button {
+                store.cycleStapleStatus(item.id)
+            } label: {
+                Label(item.stapleAvailabilityStatus.title, systemImage: statusSymbol)
+            }
+            .buttonStyle(.bordered)
+            .tint(item.stapleStatus.color)
+            .accessibilityLabel("\(item.name)，\(item.stapleAvailabilityStatus.title)，点击切换状态")
+        } else {
+            HStack(spacing: 7) {
+                Button { store.adjustStapleQuantity(item.id, by: -1) } label: {
+                    Image(systemName: "minus.circle")
+                }
+                .accessibilityLabel("减少\(item.name)")
+                Text(item.quantity.formatted()).monospacedDigit().frame(minWidth: 24)
+                Button { store.adjustStapleQuantity(item.id, by: 1) } label: {
+                    Image(systemName: "plus.circle")
+                }
+                .accessibilityLabel("增加\(item.name)")
+            }
+            .buttonStyle(.borderless)
         }
     }
 

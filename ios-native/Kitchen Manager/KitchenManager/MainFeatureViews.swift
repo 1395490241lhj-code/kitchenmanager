@@ -2,8 +2,30 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+/// Shared presentation limits for the Inventory screen's *chrome* only — the
+/// navigation title, availability summary, section headers, filter menu, and
+/// toolbar glyphs. Food names, quantities, and status text keep unrestricted
+/// Dynamic Type; without these caps an Accessibility XXXL first screen is
+/// consumed entirely by headings before a single ingredient is readable.
+enum InventoryChromeMetrics {
+    /// Availability summary: still clearly enlarged, but bounded so the
+    /// overview can never outgrow the list it summarizes.
+    static let summaryTypeLimit = DynamicTypeSize.accessibility1
+    /// Section headers and the staple filter stay at a heading/body weight
+    /// rather than scaling into display-title territory.
+    static let headerTypeLimit = DynamicTypeSize.accessibility1
+    /// Symbols (row status glyph, toolbar icons) grow with text up to this
+    /// point and then hold, so they stay inside their 44pt hit targets.
+    static let symbolTypeLimit = DynamicTypeSize.xxLarge
+    /// Clearance for the floating (iOS 26) tab bar, so the final row and any
+    /// empty-state CTA can come to rest fully above it. A fixed inset — not a
+    /// screen-height calculation — added once at the scroll-view level.
+    static let bottomClearance: CGFloat = 44
+}
+
 struct InventoryView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var store: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
@@ -17,12 +39,13 @@ struct InventoryView: View {
     @State private var isShowingAddStaple = false
     @State private var stapleFilter: PantryStapleFilter = .all
     @State private var itemPendingDeletion: InventoryItem?
+    @State private var searchText = ""
 
     private var restockSuggestions: [RestockSuggestion] {
         RestockSuggestionEngine().generate(kitchenStore: store, recipeStore: recipeStore)
     }
 
-    private var displayedFreshInventory: [InventoryItem] {
+    private var focusedFreshInventory: [InventoryItem] {
         switch navigationStore.inventoryFocus {
         case .all:
             store.sortedFreshInventory
@@ -39,52 +62,98 @@ struct InventoryView: View {
         }
     }
 
-    private var displayedStaples: [InventoryItem] {
+    private var focusedStaples: [InventoryItem] {
         let staples = store.pantryStaples.filter(stapleFilter.includes)
         guard navigationStore.inventoryFocus == .lowStock else { return staples }
         return staples.filter { $0.stapleStatus == .low || $0.stapleStatus == .outOfStock }
+    }
+
+    private var displayedFreshInventory: [InventoryItem] {
+        focusedFreshInventory.filter(matchesSearch)
+    }
+
+    private var displayedStaples: [InventoryItem] {
+        focusedStaples.filter(matchesSearch)
+    }
+
+    private var hasSearchQuery: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasSearchResults: Bool {
+        !displayedFreshInventory.isEmpty || !displayedStaples.isEmpty
+    }
+
+    private var showsEmptyInventory: Bool {
+        !hasSearchQuery && navigationStore.inventoryFocus == .all && store.inventory.isEmpty
+    }
+
+    private func matchesSearch(_ item: InventoryItem) -> Bool {
+        guard hasSearchQuery else { return true }
+        return item.name.localizedCaseInsensitiveContains(searchText)
     }
 
     var body: some View {
         List {
             if navigationStore.inventoryFocus != .all {
                 Section {
-                    HStack {
-                        Label("正在查看：\(navigationStore.inventoryFocus.title)", systemImage: "line.3.horizontal.decrease.circle")
-                        Spacer()
+                    LabeledContent {
                         Button("清除") { navigationStore.inventoryFocus = .all }
+                            .buttonStyle(.borderless)
+                    } label: {
+                        Label("正在查看：\(navigationStore.inventoryFocus.title)", systemImage: "line.3.horizontal.decrease.circle")
                     }
                     .font(.subheadline)
+                    .accessibilityElement(children: .contain)
                 }
             }
 
-            Section {
-                HStack {
-                    StatusMetric(title: "在库", value: "\(store.availableInventory.count)", color: .green)
-                    StatusMetric(title: "快到期", value: "\(store.expiringItems.count)", color: .orange)
-                    StatusMetric(title: "已缺货", value: "\(store.inventory.filter { !$0.isAvailable }.count)", color: .red)
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-            }
-
-            Section("新鲜食材") {
-                if displayedFreshInventory.isEmpty {
-                    ContentUnavailableView(
-                        navigationStore.inventoryFocus == .all ? "还没有食材" : "没有符合条件的食材",
-                        systemImage: "shippingbox",
-                        description: Text(navigationStore.inventoryFocus == .all ? "从首页记录冰箱食材后，会在这里显示库存和保质期。" : "可以清除筛选查看全部食材。")
+            if !hasSearchQuery && !store.inventory.isEmpty {
+                Section {
+                    InventorySummaryRow(
+                        availableCount: store.availableInventory.count,
+                        expiringCount: store.expiringItems.count,
+                        lowStockCount: store.inventory.filter {
+                            $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
+                        }.count
                     )
-                    if navigationStore.inventoryFocus == .all {
-                        Button("快速记录食材", systemImage: "plus") {
-                            recordMode = .manual
-                        }
+                    .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                }
+            }
+
+            if hasSearchQuery && !hasSearchResults {
+                Section {
+                    ContentUnavailableView(
+                        "没有找到匹配食材",
+                        systemImage: "magnifyingglass",
+                        description: Text("尝试使用更短的名称，或清除搜索。")
+                    )
+                    .accessibilityIdentifier("inventory.search.empty")
+                }
+            } else if showsEmptyInventory {
+                Section {
+                    ContentUnavailableView(
+                        "还没有食材",
+                        systemImage: "shippingbox",
+                        description: Text("从这里添加食材，库存和保质期会自动显示在列表中。")
+                    )
+                    Button("添加食材", systemImage: "plus") {
+                        recordMode = .manual
                     }
-                } else {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 145, maximum: 210), spacing: 10)],
-                        spacing: 10
-                    ) {
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("inventory.empty.add.button")
+                }
+            } else if navigationStore.inventoryFocus != .all && !hasSearchResults {
+                Section {
+                    ContentUnavailableView(
+                        "没有符合条件的食材",
+                        systemImage: "line.3.horizontal.decrease.circle",
+                        description: Text("可以清除筛选查看全部食材。")
+                    )
+                }
+            } else {
+                if !displayedFreshInventory.isEmpty {
+                    Section {
                         ForEach(displayedFreshInventory) { item in
                             Button {
                                 onSelectItem(item.id)
@@ -92,99 +161,146 @@ struct InventoryView: View {
                                 InventoryFoodCard(item: item)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("inventory.item.\(item.id.uuidString)")
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("删除", role: .destructive) {
                                     itemPendingDeletion = item
                                 }
                             }
                         }
+                    } header: {
+                        InventorySectionHeader(title: "食材", count: displayedFreshInventory.count)
                     }
-                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                    .listRowBackground(Color.clear)
                 }
-            }
 
-            Section {
-                let staples = displayedStaples
-                if staples.isEmpty {
-                    if store.pantryStaples.isEmpty {
+                if !displayedStaples.isEmpty || (!hasSearchQuery && !store.pantryStaples.isEmpty) {
+                    Section {
+                        if displayedStaples.isEmpty {
+                            Text("当前筛选下没有常备食材。")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(displayedStaples) { item in
+                                Button {
+                                    onSelectItem(item.id)
+                                } label: {
+                                    PantryStapleRow(item: item)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    } header: {
+                        HStack {
+                            InventorySectionHeader(title: "常备食材", count: displayedStaples.count)
+                            Spacer()
+                            Menu {
+                                Picker("筛选", selection: $stapleFilter) {
+                                    ForEach(PantryStapleFilter.allCases) { Text($0.rawValue).tag($0) }
+                                }
+                            } label: {
+                                Text(stapleFilter.rawValue)
+                                    .font(.subheadline)
+                                    .dynamicTypeSize(...InventoryChromeMetrics.headerTypeLimit)
+                                    .frame(minHeight: 44)
+                            }
+                            .textCase(nil)
+                            .accessibilityIdentifier("inventory.staple.filter.button")
+                            .accessibilityLabel("常备食材筛选：\(stapleFilter.rawValue)")
+                        }
+                    }
+                } else if !hasSearchQuery && store.pantryStaples.isEmpty && !store.inventory.isEmpty {
+                    // No section header here: the ContentUnavailableView title
+                    // already reads "还没有常备食材", and a "常备食材 0 项" header
+                    // above it repeated the same words twice in a row.
+                    Section {
                         ContentUnavailableView(
                             "还没有常备食材",
                             systemImage: "cabinet",
-                            description: Text("把鸡蛋、牛奶、大米等常用食材设为常备，库存不足时会提醒补货。")
+                            description: Text("把常用食材设为常备，库存不足时会提醒补货。")
                         )
                         Button("添加常备食材") { isShowingAddStaple = true }
-                    } else {
-                        Text("当前筛选下没有常备食材。")
-                            .foregroundStyle(.secondary)
+                            .frame(minHeight: 44)
+                            .accessibilityIdentifier("inventory.staple.empty.add.button")
                     }
-                } else {
-                    ForEach(staples) { item in
-                        Button {
-                            onSelectItem(item.id)
+                }
+
+                if !hasSearchQuery && !restockSuggestions.isEmpty {
+                    Section("补货建议") {
+                        ForEach(restockSuggestions) { suggestion in
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(suggestion.name)
+                                    Text(suggestion.reason)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 12)
+                                Button("加入清单") {
+                                    addSuggestion(suggestion)
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                            .frame(minHeight: 44)
+                        }
+                        let stapleSuggestions = restockSuggestions.filter { $0.source == .pantryStaple }
+                        if !stapleSuggestions.isEmpty {
+                            Button {
+                                stapleSuggestions.forEach(addSuggestion)
+                            } label: {
+                                Label("加入 \(stapleSuggestions.count) 项常备补货", systemImage: "cart.badge.plus")
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                }
+
+                if !hasSearchQuery {
+                    Section {
+                        NavigationLink {
+                            RecentConsumptionView()
                         } label: {
-                            PantryStapleRow(item: item)
+                            Label("最近消耗", systemImage: "clock.arrow.circlepath")
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-            } header: {
-                HStack {
-                    Text("常备货架")
-                    Spacer()
-                    Menu(stapleFilter.rawValue) {
-                        Picker("筛选", selection: $stapleFilter) {
-                            ForEach(PantryStapleFilter.allCases) { Text($0.rawValue).tag($0) }
-                        }
-                    }
-                    .textCase(nil)
-                }
-            }
-
-            if !restockSuggestions.isEmpty {
-                Section("补货建议") {
-                    ForEach(restockSuggestions) { suggestion in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(suggestion.name)
-                                Text(suggestion.reason).font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Button("加入清单") {
-                                addSuggestion(suggestion)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    let stapleSuggestions = restockSuggestions.filter { $0.source == .pantryStaple }
-                    if !stapleSuggestions.isEmpty {
-                        Button("补齐常备货架（\(stapleSuggestions.count)）") {
-                            stapleSuggestions.forEach(addSuggestion)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.primary)
-                    }
-                }
-            }
-
-            Section {
-                NavigationLink("最近消耗", destination: RecentConsumptionView())
             }
         }
+        .listStyle(.insetGrouped)
+        // One list-level inset for the floating tab bar, rather than padding
+        // each row: the last ingredient, the staple empty-state CTA, and the
+        // final search result all scroll clear of it.
+        .safeAreaPadding(.bottom, InventoryChromeMetrics.bottomClearance)
         .navigationTitle("食材")
+        // Large title at normal sizes; at Accessibility sizes it would take
+        // most of the first screen, so it collapses to the inline title — still
+        // a VoiceOver heading, never truncated or scale-compressed.
+        .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
+        .searchable(text: $searchText, prompt: "搜索食材")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button("添加食材", systemImage: "plus") {
+                    recordMode = .manual
+                }
+                .frame(minWidth: 44, minHeight: 44)
+                .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+                .accessibilityIdentifier("inventory.add.button")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("添加食材", systemImage: "square.and.pencil") {
-                        recordMode = .manual
+                    Button("扫描购物小票", systemImage: "camera.viewfinder") {
+                        recordMode = .receipt
                     }
                     Button("添加常备食材", systemImage: "cabinet") {
                         isShowingAddStaple = true
                     }
                 } label: {
-                    Label("录入食材", systemImage: "plus")
+                    // Clamp the glyph only — the menu's own rows keep full
+                    // Dynamic Type.
+                    Label("更多食材操作", systemImage: "ellipsis.circle")
+                        .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+                        .frame(minWidth: 44, minHeight: 44)
                 }
-                .accessibilityLabel("录入食材")
+                .accessibilityIdentifier("inventory.more.button")
+                .accessibilityLabel("更多食材操作")
             }
         }
         .sheet(item: $recordMode) { mode in
@@ -248,7 +364,6 @@ private struct InventoryNoticeOverlay: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
         .background(.regularMaterial, in: Capsule())
-        .shadow(radius: 8, y: 3)
         .padding(.bottom, 12)
         .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         .task(id: notice) {
@@ -288,8 +403,106 @@ private struct InventoryNoticeOverlay: View {
         .dynamicTypeSize(.accessibility3)
 }
 
+private struct InventorySummaryRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let availableCount: Int
+    let expiringCount: Int
+    let lowStockCount: Int
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    primaryCount
+                    secondaryStatus
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    primaryCount
+                    Spacer(minLength: 12)
+                    secondaryStatus
+                }
+            }
+        }
+        .frame(minHeight: 44)
+        // The summary is a derived overview of the sections below it, so it is
+        // capped: still visibly enlarged, but it cannot push the ingredients it
+        // describes off the first screen.
+        .dynamicTypeSize(...InventoryChromeMetrics.summaryTypeLimit)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(summaryAccessibilityLabel)
+    }
+
+    /// Number stays the prominent element and the "在库" label stays secondary.
+    /// At Accessibility sizes the pair stacks so neither has to shrink, and the
+    /// count drops from `.title3` to `.headline` so only one level of the
+    /// summary reads as a heading.
+    @ViewBuilder
+    private var primaryCount: some View {
+        let count = Text("\(availableCount) 项")
+            .font((dynamicTypeSize.isAccessibilitySize ? Font.headline : Font.title3).weight(.semibold))
+            .monospacedDigit()
+        let caption = Text("在库")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 2) {
+                count
+                caption
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                count
+                caption
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var secondaryStatus: some View {
+        if expiringCount > 0 {
+            Label("\(expiringCount) 项即将到期", systemImage: "calendar.badge.exclamationmark")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+        } else if lowStockCount > 0 {
+            Label("\(lowStockCount) 项需补货", systemImage: "cart.badge.minus")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var summaryAccessibilityLabel: String {
+        var values = ["\(availableCount) 项食材在库"]
+        if expiringCount > 0 { values.append("\(expiringCount) 项即将到期") }
+        if lowStockCount > 0 { values.append("\(lowStockCount) 项需要补货") }
+        return values.joined(separator: "，")
+    }
+}
+
+private struct InventorySectionHeader: View {
+    let title: String
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(title)
+            Text("\(count) 项")
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .font(.subheadline.weight(.semibold))
+        .textCase(nil)
+        // Headers stay at a heading weight instead of scaling into display-title
+        // sizes that would dwarf the rows beneath them.
+        .dynamicTypeSize(...InventoryChromeMetrics.headerTypeLimit)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
 private struct InventoryFoodCard: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let item: InventoryItem
 
     private var statusText: String {
@@ -300,71 +513,107 @@ private struct InventoryFoodCard: View {
         item.isAvailable ? item.expiryStatus.color : .red
     }
 
-    private var progress: Double {
-        item.expiryProgress ?? (item.expiryDate == nil ? 0.16 : 0)
-    }
-
-    private var progressColor: Color {
-        item.expiryProgress == nil ? .secondary : item.expiryStatus.color
+    private var statusSymbol: String {
+        if !item.isAvailable { return "exclamationmark.circle.fill" }
+        return switch item.expiryStatus {
+        case .expired: "xmark.circle.fill"
+        case .today, .soon: "calendar.badge.exclamationmark"
+        case .upcoming: "calendar"
+        case .normal: "checkmark.circle"
+        case .unknown: "calendar.badge.questionmark"
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(item.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .multilineTextAlignment(.leading)
-
-                Spacer(minLength: 4)
-
-                Text("\(item.quantity.formatted()) \(item.unit)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .monospacedDigit()
-                    .lineLimit(1)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityLayout
+            } else {
+                standardLayout
             }
-
-            Text(statusText)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(statusColor)
-                .lineLimit(1)
-
-            InventoryExpiryProgressBar(value: progress, color: progressColor)
-                .accessibilityHidden(true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(11)
-        .background(item.expiryStatus.backgroundColor, in: RoundedRectangle(cornerRadius: 15))
-        .overlay {
-            RoundedRectangle(cornerRadius: 15)
-                .stroke(AppTheme.separator.opacity(0.32), lineWidth: 1)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 15))
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(item.name)，\(item.quantity.formatted()) \(item.unit)，\(statusText)")
         .accessibilityHint("打开食材详情")
-        .animation(reduceMotion ? nil : .snappy, value: item.expiryStatus)
-        .animation(reduceMotion ? nil : .snappy, value: item.expiryProgress)
     }
-}
 
-private struct InventoryExpiryProgressBar: View {
-    let value: Double
-    let color: Color
+    private var standardLayout: some View {
+        HStack(alignment: .center, spacing: 12) {
+            statusIcon
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.name)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
 
-    var body: some View {
-        GeometryReader { proxy in
-            Capsule()
-                .fill(Color.secondary.opacity(0.16))
-                .overlay(alignment: .leading) {
-                    Capsule()
-                        .fill(color)
-                        .frame(width: proxy.size.width * min(max(value, 0), 1))
+                    statusLabel
                 }
+                Spacer(minLength: 12)
+                // Higher layout priority so a long ingredient name wraps rather
+                // than squeezing the quantity out of the row.
+                quantityLabel.layoutPriority(1)
+            }
         }
-        .frame(height: 4)
+    }
+
+    /// The name, status, and quantity all keep unrestricted Dynamic Type here —
+    /// the row simply grows taller. Status and quantity share a line while they
+    /// both fit and drop to stacked lines when they no longer do, so they never
+    /// overlap or get pushed off-screen.
+    private var accessibilityLayout: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                statusIcon
+                Text(item.name)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 8)
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    statusLabel
+                    Spacer(minLength: 8)
+                    quantityLabel
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    statusLabel
+                    quantityLabel
+                }
+            }
+        }
+    }
+
+    private var statusIcon: some View {
+        Image(systemName: statusSymbol)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(statusColor)
+            // Glyph tracks text size up to a limit and then holds, so it stays
+            // inside its fixed slot instead of crowding out the food name.
+            .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+            .frame(width: 28, height: 28)
+            .accessibilityHidden(true)
+    }
+
+    private var statusLabel: some View {
+        Text(statusText)
+            .font(.footnote)
+            .foregroundStyle(statusColor)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .accessibilityHidden(true)
+    }
+
+    private var quantityLabel: some View {
+        Text("\(item.quantity.formatted()) \(item.unit)")
+            .font(.body.weight(.medium))
+            .foregroundStyle(.primary)
+            .monospacedDigit()
+            .multilineTextAlignment(.trailing)
+            .accessibilityHidden(true)
     }
 }
 
@@ -1166,21 +1415,5 @@ struct BackupRestoreView: View {
             get: { message != nil },
             set: { if !$0 { message = nil } }
         )) { Button("好", role: .cancel) {} } message: { Text(message ?? "") }
-    }
-}
-
-private struct StatusMetric: View {
-    let title: String
-    let value: String
-    let color: Color
-
-    var body: some View {
-        VStack(spacing: 5) {
-            Text(value).font(.title3.bold()).foregroundStyle(color)
-            Text(title).font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: 14))
     }
 }
