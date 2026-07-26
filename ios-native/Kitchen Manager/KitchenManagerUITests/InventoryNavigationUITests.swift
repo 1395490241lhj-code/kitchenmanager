@@ -75,14 +75,24 @@ final class InventoryNavigationUITests: XCTestCase {
     /// Phase UI-3 blocking fix: the last row of a long inventory, the last
     /// search result, and the pantry empty-state CTA must all be able to rest
     /// fully above the floating tab bar — at default *and* Accessibility XXXL
-    /// text sizes, where the content is several screens tall.
+    /// text sizes, and in Dark Mode, where the content is several screens tall.
+    ///
+    /// Clearance is always measured against the tab bar's own reported frame, never
+    /// a hardcoded coordinate, and against its **expanded** height captured before
+    /// any scrolling — `.tabBarMinimizeBehavior(.onScrollDown)` shrinks the bar
+    /// while the list moves, and asserting only against the minimized bar would
+    /// pass while real content sat underneath the expanded one.
     func testInventoryBottomContentClearsFloatingTabBar() throws {
-        for contentSize in ["UICTContentSizeCategoryLarge", "UICTContentSizeCategoryAccessibilityXXXL"] {
+        let variants: [(String, [String])] = [
+            ("normal", ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"]),
+            ("dark", ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge",
+                      "UITEST_FORCE_DARK_APPEARANCE"]),
+            ("accessibilityXXXL", ["-UIPreferredContentSizeCategoryName",
+                                   "UICTContentSizeCategoryAccessibilityXXXL"])
+        ]
+        for (contentSize, extraArguments) in variants {
             let app = XCUIApplication()
-            app.launchArguments = [
-                "UITEST_SEED_INVENTORY_LARGE",
-                "-UIPreferredContentSizeCategoryName", contentSize
-            ]
+            app.launchArguments = ["UITEST_SEED_INVENTORY_LARGE"] + extraArguments
             app.launch()
 
             XCTAssertTrue(app.staticTexts["嫩豆腐"].waitForExistence(timeout: 5))
@@ -99,11 +109,121 @@ final class InventoryNavigationUITests: XCTestCase {
             )
             assertClearsTabBar(lastRow, tabBarTop: tabBarTop, label: "列表最后一行（\(contentSize)）")
 
-            if contentSize.contains("Accessibility") {
+            // Recorded so the delivery report can quote real numbers rather than
+            // just "the assertion passed".
+            print("=====CLEARANCE \(contentSize)===== expandedTabBar=\(app.tabBars.firstMatch.frame) expandedTabBarTop=\(tabBarTop) lastRow=\(lastRow.frame) gap=\(tabBarTop - lastRow.frame.maxY)")
+
+            switch contentSize {
+            case "accessibilityXXXL":
                 attachScreenshot(of: app, named: "inventory-accessibility-bottom")
+            case "dark":
+                attachScreenshot(of: app, named: "inventory-dark-bottom")
+            default:
+                attachScreenshot(of: app, named: "inventory-large-bottom")
             }
             app.terminate()
         }
+    }
+
+    /// Phase UI-3 blocking fix: at Accessibility sizes the `.searchable` field
+    /// used `.automatic` placement, which pins the search bar to a fixed ~63pt in
+    /// an inline-title navigation bar. Accessibility XXXL text does not fit, so
+    /// the magnifier and the "搜索食材" prompt were clipped away and the bar drew
+    /// as a large empty grey capsule under the title. Explicit
+    /// `.navigationBarDrawer(displayMode: .always)` lets the drawer size to its
+    /// content so both actually render.
+    func testSearchFieldIsNeverAnEmptyPlaceholder() throws {
+        for (name, contentSize) in [("default", "UICTContentSizeCategoryLarge"),
+                                    ("accessibilityXXXL", "UICTContentSizeCategoryAccessibilityXXXL")] {
+            let app = XCUIApplication()
+            app.launchArguments = [
+                "UITEST_SEED_INVENTORY_LARGE",
+                "-UIPreferredContentSizeCategoryName", contentSize
+            ]
+            app.launch()
+            XCTAssertTrue(app.staticTexts["嫩豆腐"].waitForExistence(timeout: 5))
+
+            let searchField = app.searchFields.firstMatch
+            if searchField.exists {
+                // Visible search bar must carry its prompt and its magnifier —
+                // an on-screen field with neither is the empty grey capsule.
+                XCTAssertEqual(
+                    searchField.placeholderValue,
+                    "搜索食材",
+                    "\(name): 搜索框可见但没有 placeholder，会渲染成空白灰色占位块"
+                )
+                XCTAssertTrue(
+                    searchField.images["magnifyingglass"].exists,
+                    "\(name): 搜索框缺少放大镜图标"
+                )
+                // The drawer must be tall enough for its own text, otherwise UIKit
+                // clips the contents to nothing and only the grey capsule paints.
+                let promptHeight = searchField.images["magnifyingglass"].frame.height
+                XCTAssertGreaterThan(promptHeight, 0, "\(name): 放大镜高度为 0")
+                XCTAssertGreaterThanOrEqual(
+                    searchField.frame.height,
+                    promptHeight,
+                    "\(name): 搜索框高度 \(searchField.frame.height) 小于其内容高度 \(promptHeight)，内容被裁剪"
+                )
+                print("=====SEARCHFIELD \(name)===== frame=\(searchField.frame) placeholder=\(searchField.placeholderValue ?? "nil") glyph=\(searchField.images["magnifyingglass"].frame)")
+            } else {
+                // Hidden-until-pulled-down is the standard large-title behavior and
+                // is fine — what must not exist is a visible empty one.
+                print("=====SEARCHFIELD \(name)===== hidden until pulled down (large title)")
+            }
+            app.terminate()
+        }
+    }
+
+    /// At Accessibility sizes the row must be one left-aligned column in a fixed
+    /// order — name, expiry status, quantity — with nothing pinned to the trailing
+    /// edge, so the quantity can never be squeezed into a narrow column.
+    func testAccessibilityRowStacksNameStatusQuantityVertically() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "UITEST_SEED_INVENTORY_LARGE",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let name = app.staticTexts["嫩豆腐"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        let status = app.staticTexts["剩余 1 天"]
+        let quantity = app.staticTexts["2 盒"]
+        XCTAssertTrue(status.exists, "状态文案缺失")
+        XCTAssertTrue(quantity.exists, "数量文案缺失")
+
+        print("=====AXROW===== name=\(name.frame) status=\(status.frame) quantity=\(quantity.frame)")
+
+        // Fixed vertical order. The name's reported frame spans the whole text
+        // column rather than its glyph box: the row is a single
+        // `accessibilityElement(children: .ignore)`, so these child texts are not
+        // real accessibility elements and only `status`/`quantity` report true
+        // glyph rects. The name is therefore checked by start position, and the
+        // status→quantity relationship — the one that actually regressed — by
+        // strict top-to-bottom order.
+        XCTAssertGreaterThan(
+            status.frame.minY, name.frame.minY,
+            "状态文案未排在名称之后：name=\(name.frame) status=\(status.frame)"
+        )
+        XCTAssertGreaterThanOrEqual(
+            quantity.frame.minY, status.frame.maxY - 1,
+            "数量未排在状态文案下方：status=\(status.frame) quantity=\(quantity.frame)"
+        )
+
+        // Left-aligned in one column — the quantity is no longer pushed right.
+        XCTAssertEqual(quantity.frame.minX, status.frame.minX, accuracy: 2,
+                       "数量与状态未左对齐在同一列")
+        XCTAssertLessThan(
+            quantity.frame.minX,
+            app.windows.firstMatch.frame.width / 2,
+            "数量仍被推到行右侧：\(quantity.frame)"
+        )
+        // Nothing overlaps and nothing is clipped off-screen.
+        XCTAssertFalse(status.frame.intersects(quantity.frame), "状态与数量互相覆盖")
+        XCTAssertLessThanOrEqual(quantity.frame.maxX, app.windows.firstMatch.frame.maxX, "数量被挤出屏幕")
+
+        attachScreenshot(of: app, named: "inventory-accessibility-xxxl")
     }
 
     /// The pantry empty state's CTA is the only way into the staple flow from
@@ -138,6 +258,10 @@ final class InventoryNavigationUITests: XCTestCase {
         XCTAssertTrue(scrollUntilVisible(cta, in: app), "未能滚动到常备食材空状态 CTA")
         assertClearsTabBar(cta, tabBarTop: tabBarTop, label: "常备食材空状态 CTA")
         XCTAssertGreaterThanOrEqual(cta.frame.height, 44, "常备食材 CTA 点击区域应至少 44pt")
+
+        // The explanatory line must be fully visible too, not clipped by the bar.
+        let description = app.staticTexts["把常用食材设为常备，库存不足时会提醒补货。"]
+        assertClearsTabBar(description, tabBarTop: tabBarTop, label: "常备食材空状态说明")
 
         // Still opens the pre-existing AddPantryStapleView flow.
         cta.tap()
@@ -260,8 +384,10 @@ final class InventoryNavigationUITests: XCTestCase {
             app.windows.firstMatch.frame.maxX,
             "数量被挤出屏幕"
         )
-
-        attachScreenshot(of: app, named: "inventory-accessibility-xxxl")
+        // The XXXL reference screenshot is attached by
+        // `testAccessibilityRowStacksNameStatusQuantityVertically`, which owns the
+        // row-structure assertions; attaching it here too would make the exported
+        // file ambiguous.
     }
 
     func testInventorySearchKeepsExistingItemsAndAddAccessReachable() throws {

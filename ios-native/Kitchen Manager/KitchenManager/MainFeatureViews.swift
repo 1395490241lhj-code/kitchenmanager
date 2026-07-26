@@ -17,10 +17,13 @@ enum InventoryChromeMetrics {
     /// Symbols (row status glyph, toolbar icons) grow with text up to this
     /// point and then hold, so they stay inside their 44pt hit targets.
     static let symbolTypeLimit = DynamicTypeSize.xxLarge
-    /// Clearance for the floating (iOS 26) tab bar, so the final row and any
-    /// empty-state CTA can come to rest fully above it. A fixed inset — not a
-    /// screen-height calculation — added once at the scroll-view level.
-    static let bottomClearance: CGFloat = 44
+    /// Clearance for the floating (iOS 26) tab bar, so the final row, the staple
+    /// empty-state text, and any CTA come to rest fully above the bar in its
+    /// *expanded* state — `.tabBarMinimizeBehavior(.onScrollDown)` shrinks it
+    /// while scrolling, and sizing for the shrunken bar leaves content covered
+    /// once it expands again. Added once in the bottom safe area, never per row,
+    /// and a fixed inset rather than a screen-height calculation.
+    static let bottomClearance: CGFloat = 72
 }
 
 struct InventoryView: View {
@@ -265,16 +268,34 @@ struct InventoryView: View {
             }
         }
         .listStyle(.insetGrouped)
-        // One list-level inset for the floating tab bar, rather than padding
-        // each row: the last ingredient, the staple empty-state CTA, and the
-        // final search result all scroll clear of it.
-        .safeAreaPadding(.bottom, InventoryChromeMetrics.bottomClearance)
+        // One list-level clearance for the floating tab bar, rather than padding
+        // each row: an empty spacer in the bottom safe area, so the last
+        // ingredient, the staple empty-state text and CTA, and the final search
+        // result can all come to rest fully above the expanded bar.
+        .safeAreaInset(edge: .bottom) {
+            Color.clear
+                .frame(height: InventoryChromeMetrics.bottomClearance)
+                .accessibilityHidden(true)
+        }
         .navigationTitle("食材")
         // Large title at normal sizes; at Accessibility sizes it would take
         // most of the first screen, so it collapses to the inline title — still
         // a VoiceOver heading, never truncated or scale-compressed.
         .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
-        .searchable(text: $searchText, prompt: "搜索食材")
+        // Placement is explicit at Accessibility sizes. With `.automatic` and an
+        // inline title, UIKit pins the search bar to a fixed ~63pt that cannot
+        // fit Accessibility XXXL text, so the magnifier and the "搜索食材" prompt
+        // were clipped away and the bar rendered as an empty grey capsule.
+        // `.navigationBarDrawer(displayMode: .always)` lets the drawer size to its
+        // content (~124pt at XXXL) so both actually draw. Normal sizes keep
+        // `.automatic` — the standard hidden-until-pulled-down behavior.
+        .searchable(
+            text: $searchText,
+            placement: dynamicTypeSize.isAccessibilitySize
+                ? .navigationBarDrawer(displayMode: .always)
+                : .automatic,
+            prompt: "搜索食材"
+        )
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("添加食材", systemImage: "plus") {
@@ -560,31 +581,24 @@ private struct InventoryFoodCard: View {
         }
     }
 
-    /// The name, status, and quantity all keep unrestricted Dynamic Type here —
-    /// the row simply grows taller. Status and quantity share a line while they
-    /// both fit and drop to stacked lines when they no longer do, so they never
-    /// overlap or get pushed off-screen.
+    /// One unambiguous vertical order at Accessibility sizes: name, then expiry
+    /// status, then quantity — all left-aligned in a single column beside the
+    /// icon. Nothing is pushed to the trailing edge, so the quantity can never be
+    /// squeezed into a narrow column or wrapped onto an unrelated line. Every
+    /// string keeps unrestricted Dynamic Type: no `lineLimit(1)`, no
+    /// `minimumScaleFactor` — the row just grows taller.
     private var accessibilityLayout: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                statusIcon
+        HStack(alignment: .top, spacing: 12) {
+            statusIcon
+            VStack(alignment: .leading, spacing: 6) {
                 Text(item.name)
                     .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
-                Spacer(minLength: 8)
+                statusLabel
+                quantityLabel
             }
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    statusLabel
-                    Spacer(minLength: 8)
-                    quantityLabel
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    statusLabel
-                    quantityLabel
-                }
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -612,7 +626,9 @@ private struct InventoryFoodCard: View {
             .font(.body.weight(.medium))
             .foregroundStyle(.primary)
             .monospacedDigit()
-            .multilineTextAlignment(.trailing)
+            // Trailing only in the default side-by-side layout; at Accessibility
+            // sizes the quantity is a left-aligned line in the main column.
+            .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
             .accessibilityHidden(true)
     }
 }

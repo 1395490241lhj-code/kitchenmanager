@@ -80,12 +80,37 @@ simply grow taller. What is bounded is page *chrome*, collected in one place as
 | Staple filter menu | Same cap as headers, with a 44pt minimum height. |
 | Row status glyph | Tracks text size up to `.xxLarge`, then holds, so it stays inside its fixed 28pt slot instead of crowding out the food name. |
 | Toolbar `+` / `…` | Glyphs capped at `.xxLarge` with 44×44 minimum hit targets. The menu's own rows keep full Dynamic Type. |
+| Search field | Placement becomes `.navigationBarDrawer(displayMode: .always)` so the drawer sizes to its own content. See "The empty grey capsule" below. |
 
-Row layout at Accessibility sizes uses a `ViewThatFits`: status and quantity
-share a line while they both fit and drop to stacked lines when they do not, so
-they can neither overlap nor push the quantity off-screen. At default sizes the
-quantity carries a higher layout priority, so a long name wraps rather than
-squeezing the quantity out.
+### Row layout at Accessibility sizes
+
+The row becomes one explicit left-aligned column in a fixed order:
+
+```
+HStack(alignment: .top) {
+    statusIcon
+    VStack(alignment: .leading) {
+        name
+        expiry status
+        quantity
+    }
+}
+```
+
+Nothing is pinned to the trailing edge, so the quantity can never be squeezed
+into a narrow column or wrapped onto a line that reads as unrelated. An earlier
+attempt used `ViewThatFits` with a side-by-side arrangement first; it kept
+choosing that arrangement, which is exactly what pushed the quantity right and
+wrapped it. Every string keeps unrestricted Dynamic Type — no `lineLimit(1)`, no
+`minimumScaleFactor`; the row simply grows taller.
+
+At default sizes the layout is unchanged: name and status on the left, quantity
+trailing with a higher layout priority so a long name wraps rather than squeezing
+the quantity out.
+
+`PantryStapleRow` follows the same principle, and additionally splits its detail
+caption so 当前数量 and 最低库存 each get a full-width line, with the stepper below
+them rather than beside a squeezed text column.
 
 The existing Reduce Motion-aware inventory feedback transition remains in place;
 its presentation no longer adds a shadow. All colours are semantic and work in
@@ -95,15 +120,71 @@ Dark Mode and increased contrast.
 
 The app uses an iOS 26 floating `TabView` with
 `.tabBarMinimizeBehavior(.onScrollDown)`. The Inventory list previously scrolled
-its last rows underneath that bar. The fix is a single list-level
-`.safeAreaPadding(.bottom, InventoryChromeMetrics.bottomClearance)` — one fixed
-inset, not a screen-height calculation, and not per-row padding — so the last
-ingredient, the last search result, and the pantry empty-state CTA all come to
-rest fully above the bar at both default and Accessibility XXXL sizes.
+its last rows underneath that bar.
 
-UI coverage asserts this against the tab bar's *expanded* top edge, captured
-before any scrolling, because `.onScrollDown` shrinks the bar once the list
-moves and comparing against the shrunken frame would test a weaker condition.
+The clearance is a single Inventory-level empty spacer in the bottom safe area:
+
+```swift
+.safeAreaInset(edge: .bottom) {
+    Color.clear
+        .frame(height: InventoryChromeMetrics.bottomClearance)  // 72pt
+        .accessibilityHidden(true)
+}
+```
+
+One inset, never per-row padding, and a fixed value rather than a screen-height
+calculation or a `GeometryReader` layout system. An earlier attempt used
+`.safeAreaPadding(.bottom, 44)`, which did not reserve enough room.
+
+UI coverage measures against the tab bar's own reported `frame.minY` — never a
+hardcoded coordinate — and captures it *before* any scrolling so it reflects the
+**expanded** bar. `.onScrollDown` minimizes the bar while the list moves, so
+asserting only against the minimized bar would pass while real content sat
+underneath the expanded one. Coverage runs at default size, in Dark Mode, and at
+Accessibility XXXL.
+
+Measured with the bar expanded at `(0, 761, 390, 83)`, top edge 761pt:
+
+| Appearance | Last row frame | Gap above bar |
+| --- | --- | --- |
+| Default | `(16, 648, 358, 52.3)` | 60.7pt |
+| Dark | `(16, 657, 358, 52.3)` | 51.7pt |
+| Accessibility XXXL | `(16, 505.7, 358, 155.3)` | 100.0pt |
+
+A screenshot taken *mid-scroll* still shows the translucent bar over content —
+that is inherent to a floating tab bar, not the defect. The defect was content
+that could not come to **rest** above it, which the `*-bottom` screenshots and the
+table above cover.
+
+## The empty grey capsule
+
+At Accessibility sizes the page title collapses to inline, and an inline
+navigation bar always shows the search drawer. With `.searchable`'s default
+`.automatic` placement, UIKit pinned that drawer to a fixed ~63pt — too short for
+Accessibility XXXL text — so the magnifier glyph and the "搜索食材" prompt were
+clipped to nothing and only the drawer's grey capsule painted. The result was a
+large, empty, rounded grey block directly under the title.
+
+It was never a skeleton, a loading state, the summary background, an
+`opacity(0)`-hidden view, or a UI-test fixture artifact: the accessibility tree
+reported a real `SearchField` at `{{16, 101}, {358, 63}}` with
+`placeholderValue: '搜索食材'` and a `magnifyingglass` child, none of which was
+being drawn.
+
+A launch-argument matrix confirmed both the trigger and the fix:
+
+| Variant | Search field |
+| --- | --- |
+| inline title + `.automatic` | 63pt — contents clipped, empty capsule |
+| large title + `.automatic` | absent (hidden until pulled down) |
+| inline title + `.navigationBarDrawer(displayMode: .always)` | **124pt — glyph and prompt both render** |
+| inline title + `.navigationBarDrawer(displayMode: .automatic)` | 63pt — same as `.automatic` |
+
+Placement is therefore explicit at Accessibility sizes only; default sizes keep
+`.automatic` and its standard hidden-until-pulled-down behavior, so the
+normal-size page is untouched. `testSearchFieldIsNeverAnEmptyPlaceholder` asserts
+that whenever the field is on screen it carries both its prompt and its glyph and
+that its height is at least its content height — the condition that was violated.
 
 ## Node static assertion update
 
@@ -191,8 +272,10 @@ kept out of the repository.
 
 Focused UI regression in `InventoryNavigationUITests` covers normal browsing,
 search filtering, empty state, large inventory, Accessibility XXXL first-screen
-readability, bottom tab-bar clearance at both text sizes, the pantry empty-state
-CTA, Dark Mode, selection routing, and deletion safety.
+readability, the Accessibility row's vertical name/status/quantity order, the
+search field never rendering as an empty placeholder, bottom tab-bar clearance at
+default / Dark Mode / Accessibility XXXL, the pantry empty-state CTA and its
+explanatory line, selection routing, and deletion safety.
 
 ## Deliberate non-goals
 

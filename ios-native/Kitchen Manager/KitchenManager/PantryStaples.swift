@@ -77,21 +77,30 @@ struct PantryStapleRow: View {
     let item: InventoryItem
 
     var body: some View {
-        // At Accessibility sizes the label column and the trailing control
-        // cannot share a line: the stepper/status button keeps its intrinsic
-        // width and the name and detail text get squeezed down to one or two
-        // characters per line ("榄 / 油"). Stacking puts the full-width text
-        // above the control instead, so both stay legible without capping
-        // either one.
+        // At Accessibility sizes nothing may share a line: the stepper/status
+        // button keeps its intrinsic width, which squeezed the name and detail
+        // text down to one or two characters per line ("榄 / 油"). The row
+        // becomes one full-width column in a fixed order — name, current
+        // quantity, minimum stock, then the control — so no element is ever
+        // pushed into a narrow column. All text keeps unrestricted Dynamic Type.
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    statusIcon
-                    labels
-                    Spacer(minLength: 8)
+            HStack(alignment: .top, spacing: 12) {
+                statusIcon
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.name)
+                    ForEach(Array(detailLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let progress = item.stapleStockProgress {
+                        StapleStockProgressBar(value: progress, color: item.stapleStatus.color)
+                            .accessibilityHidden(true)
+                    }
+                    trailingControl
+                        .padding(.top, 4)
                 }
-                trailingControl
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
             HStack(spacing: 12) {
@@ -101,6 +110,16 @@ struct PantryStapleRow: View {
                 trailingControl
             }
         }
+    }
+
+    /// Split into separate lines at Accessibility sizes so "当前 1 瓶" and
+    /// "最低 未设置" each get a full-width line instead of wrapping mid-phrase.
+    /// The default layout keeps the single combined caption.
+    private var detailLines: [String] {
+        if item.stapleTrackingMode == .status {
+            return ["状态跟踪 · \(item.stapleAvailabilityStatus.title)"]
+        }
+        return ["当前 \(item.quantity.formatted()) \(item.unit)", "最低 \(minimumText)"]
     }
 
     private var statusIcon: some View {
