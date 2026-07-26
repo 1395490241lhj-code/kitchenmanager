@@ -33,10 +33,33 @@ test("shopping add button opens a focused medium form", () => {
 });
 
 test("home record-food action opens the existing flow instead of switching tabs", () => {
-  // The toolbar "+" keeps opening `SmartImportSheet`; its "手动添加食材" and
-  // "扫描购物小票" rows still open the existing `RecordFoodSheet` flows.
-  assert.match(home, /Button \{\s*activeSheet = \.smartImport\s*\} label:/);
-  assert.match(home, /\.accessibilityIdentifier\("home\.import\.add\.button"\)/);
+  // The Home header's "+" keeps opening `SmartImportSheet`; its
+  // "手动添加食材" and "扫描购物小票" rows still open the existing
+  // `RecordFoodSheet` flows.
+  const homeView = home.slice(
+    home.indexOf("struct HomeView: View"),
+    home.indexOf("private struct HomeDashboardHeader")
+  );
+  const headerStart = home.indexOf("private struct HomeDashboardHeader: View");
+  const header = home.slice(
+    headerStart,
+    home.indexOf("private struct TodayPlanSummaryCard", headerStart)
+  );
+
+  assert.match(
+    homeView,
+    /HomeDashboardHeader\([\s\S]*?onImport:\s*\{\s*activeSheet = \.smartImport\s*\}/
+  );
+  assert.match(header, /let onImport: \(\) -> Void/);
+  assert.match(
+    header,
+    /Button\(action: onImport\) \{[\s\S]*?\.accessibilityIdentifier\("home\.import\.add\.button"\)[\s\S]*?\.accessibilityLabel\("导入与添加"\)/
+  );
+  assert.match(
+    homeView,
+    /\.sheet\(item: \$activeSheet\) \{ sheet in\s*sheetContent\(sheet\)\s*\}/
+  );
+  assert.match(homeView, /case \.smartImport:\s*SmartImportSheet \{/);
   const manualFoodActionStart = home.indexOf('childSheet = .manualIngredient');
   const manualFoodAction = home.slice(manualFoodActionStart, home.indexOf('title: "手动添加食材"') + 100);
   assert.match(manualFoodAction, /childSheet = \.manualIngredient/);

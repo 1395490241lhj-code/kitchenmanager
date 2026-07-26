@@ -112,6 +112,10 @@ bundles:
 
 ## Suggested UI-2 follow-up
 
+Phase UI-1B documents and fixes the screenshot-derived Home follow-up issues
+without rewriting this phase's historical evidence; see
+`docs/IOS_HOME_UI_PHASE1B_VISUAL_FIXES.md`.
+
 Use the same restraint to review one non-Home surface at a time, beginning with
 a separately scoped recipe or inventory pass only after manual device checks
 for this Home update.

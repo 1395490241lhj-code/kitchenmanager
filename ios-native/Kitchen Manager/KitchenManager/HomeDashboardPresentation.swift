@@ -10,6 +10,13 @@ enum HomeDashboardSupplementarySection: Hashable {
 }
 
 enum HomeDashboardPresentation {
+    static func todayPlanPrimaryAction(for state: HomeTodayPlanState) -> HomePrimaryAction {
+        switch state {
+        case .empty: .addTodayPlan
+        case .active, .partial: .viewTodayPlan
+        case .completed: .browseRecipes
+        }
+    }
     static func supplementarySections(
         hasReminder: Bool,
         showsClipboardPrompt: Bool,
@@ -28,5 +35,15 @@ enum HomeDashboardPresentation {
         }
 
         return sections
+    }
+}
+
+enum HomeDatePresentation {
+    static func text(for date: Date, timeZone: TimeZone = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "M月d日 EEEE"
+        return formatter.string(from: date)
     }
 }

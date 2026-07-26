@@ -6,6 +6,20 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-22 (iOS Home UI Phase 1B)
+
+### Fixed
+
+- Corrected screenshot-discovered Home regressions: Today Plan actions now
+  stay derived from the plan state while the existing purchased stock-in
+  reminder remains separately prioritized and reachable.
+- Localized the compact Home date to stable Simplified Chinese, moved the
+  existing Smart Import control into the Header, added Home-only floating-tab
+  scroll clearance, and restrained Header chrome at accessibility sizes.
+- Kept the native privacy-preserving paste control while presenting the Chinese
+  `粘贴导入` action, tightened its responsive action layout, and aligned
+  unfinished plan symbols with the Home brand tint.
+
 ## 2026-07-22 (iOS Home UI Phase 1)
 
 ### Changed
