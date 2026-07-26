@@ -451,7 +451,7 @@ private struct ClipboardRecipeImportPrompt: View {
                 }
             }
         }
-        .padding(14)
+        .padding(12)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.clipboard.import.prompt")
@@ -472,7 +472,7 @@ private struct ClipboardRecipeImportPrompt: View {
     }
 
     private var verticalLayout: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             promptCopy
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 8) { promptActions }
@@ -578,8 +578,12 @@ private struct HomeDashboardHeader: View {
             }
             Spacer(minLength: 8)
             Button(action: onImport) { Image(systemName: "plus") }
-                .frame(width: 46, height: 46)
-                .background(Color(.secondarySystemGroupedBackground), in: Circle())
+                .frame(width: AppTheme.minimumHitTarget, height: AppTheme.minimumHitTarget)
+                .background {
+                    Circle()
+                        .fill(Color(.secondarySystemGroupedBackground))
+                        .frame(width: 40, height: 40)
+                }
                 .accessibilityIdentifier("home.import.add.button")
                 .accessibilityLabel("导入与添加")
                 .accessibilityHint("打开菜谱、收据和食材添加选项")
@@ -676,8 +680,8 @@ private struct TodayPlanSummaryCard: View {
     @ViewBuilder
     private var cardHeader: some View {
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 8) {
-                headerTitleAndProgressVertical
+            VStack(alignment: .leading, spacing: 6) {
+                headerTitleAndProgress
                 if shouldShowAddPlanAction {
                     addPlanButton
                 }
@@ -706,7 +710,7 @@ private struct TodayPlanSummaryCard: View {
                 .font(.headline)
             if dashboard.totalPlanCount > 0 {
                 Text(planProgressText)
-                    .font(.footnote.weight(.medium))
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
         }
@@ -718,7 +722,7 @@ private struct TodayPlanSummaryCard: View {
                 .font(.headline)
             if dashboard.totalPlanCount > 0 {
                 Text(planProgressText)
-                    .font(.footnote.weight(.medium))
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
             }
         }
