@@ -41,4 +41,36 @@ final class RecipeCookingModeUITests: XCTestCase {
         app.buttons["recipe.cooking.timer.cancel"].tap()
         XCTAssertFalse(app.staticTexts["sync-smoke-status"].exists)
     }
+
+    func testRecipeSearchShowsAQuietNoResultsState() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_RECIPE_COOKING"]
+        app.launch()
+
+        let recipe = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "recipe.list.")
+        ).firstMatch
+        XCTAssertTrue(recipe.waitForExistence(timeout: 8))
+        app.swipeDown()
+        let searchField = app.searchFields.firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.tap()
+        searchField.typeText("不存在的菜谱")
+
+        XCTAssertTrue(app.staticTexts["没有找到匹配菜谱"].waitForExistence(timeout: 5))
+    }
+
+    func testLongRecipeKeepsCookingActionReachableAtTheDetailTop() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_RECIPE_LONG"]
+        app.launch()
+
+        let recipe = app.buttons["recipe.list.ui-test-recipe-long"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 8))
+        recipe.tap()
+
+        let startCooking = app.buttons["recipe.detail.startCooking"]
+        XCTAssertTrue(startCooking.waitForExistence(timeout: 5))
+        XCTAssertTrue(startCooking.isHittable)
+    }
 }

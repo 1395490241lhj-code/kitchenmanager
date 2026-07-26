@@ -79,6 +79,30 @@ struct KitchenManagerApp: App {
     }
 }
 
+#if DEBUG
+private enum RecipeUITestSeed {
+    static let longRecipe = Recipe(
+        id: "ui-test-recipe-long",
+        title: "周末番茄炖鸡腿",
+        cookingTime: 75,
+        difficulty: "中等",
+        tags: ["周末", "一锅炖", "家庭料理"],
+        ingredients: [
+            "去骨鸡腿肉 600 克", "番茄 5 个", "洋葱 1 个", "胡萝卜 2 根", "土豆 2 个", "新鲜罗勒 1 小把"
+        ],
+        seasonings: ["橄榄油 1 汤匙", "高汤 500 毫升", "黑胡椒 适量", "盐 适量"],
+        steps: [
+            "鸡腿肉擦干水分，切成大块并用少许盐和黑胡椒静置 10 分钟。",
+            "锅中加热橄榄油，将鸡腿肉分批煎至两面金黄后盛出。",
+            "放入洋葱和胡萝卜炒软，加入番茄块翻炒至出汁。",
+            "倒入高汤和鸡腿肉，小火焖煮 35 分钟，让汤汁慢慢收浓。",
+            "加入土豆继续焖煮 20 分钟，直到鸡肉和土豆都软嫩入味。",
+            "关火后拌入罗勒，静置 5 分钟再盛盘。"
+        ]
+    )
+}
+#endif
+
 struct ContentView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
@@ -116,9 +140,21 @@ struct ContentView: View {
             }
 
             Tab("菜谱", systemImage: "book.closed", value: AppTab.recipes) {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_DETAIL_SCREENSHOT") {
+                    NavigationStack {
+                        RecipeDetailView(recipe: RecipeUITestSeed.longRecipe)
+                    }
+                } else {
+                    NavigationStack {
+                        RecipeListView()
+                    }
+                }
+                #else
                 NavigationStack {
                     RecipeListView()
                 }
+                #endif
             }
 
             Tab("我的", systemImage: "person", value: AppTab.settings) {
@@ -128,6 +164,22 @@ struct ContentView: View {
             }
         }
         .tint(AppTheme.primary)
+        #if DEBUG
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_COOKING_SCREENSHOT") },
+                set: { _ in }
+            )
+        ) {
+            RecipeCookingModeView(
+                recipe: RecipeUITestSeed.longRecipe,
+                session: RecipeCookingSession(servings: 4),
+                todayPlan: nil,
+                onFinish: {},
+                onExit: {}
+            )
+        }
+        #endif
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
             await authStore.start()
@@ -214,6 +266,24 @@ struct ContentView: View {
             kitchenStore.clearAllLocalData()
             navigationStore.selectedTab = .recipes
         }
+        #if DEBUG
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_EMPTY_SCREENSHOT") else { return }
+            kitchenStore.clearAllLocalData()
+            navigationStore.selectedTab = .recipes
+        }
+        .task {
+            let arguments = ProcessInfo.processInfo.arguments
+            guard arguments.contains("UITEST_RECIPE_DETAIL_SCREENSHOT") || arguments.contains("UITEST_RECIPE_COOKING_SCREENSHOT") else { return }
+            navigationStore.selectedTab = .recipes
+        }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_LONG") else { return }
+            kitchenStore.clearAllLocalData()
+            recipeStore.add(RecipeUITestSeed.longRecipe)
+            navigationStore.selectedTab = .recipes
+        }
+        #endif
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_SHOPPING") else { return }
             kitchenStore.clearAllLocalData()

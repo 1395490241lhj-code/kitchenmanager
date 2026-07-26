@@ -6,6 +6,20 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-25 (iOS Recipe Experience Phase 2)
+
+### Changed
+
+- Refined the native Recipe list, detail, and Cooking Mode around recipe-name
+  hierarchy, calmer metadata, grouped preparation content, and a single clear
+  cooking action. The existing filters, import routes, detail actions, serving
+  session, ingredient checks, timer, and Today Plan completion behavior remain
+  unchanged.
+- Added Dynamic-Type-safe metadata and cooking-control fallbacks, refreshed
+  Recipe search no-results presentation, and used the existing Debug-only
+  UI-test seed mechanism for long-recipe visual evidence. No Release behavior,
+  storage, model, navigation, auth, sync, or API contract changed.
+
 ## 2026-07-22 (iOS Home UI Phase 1)
 
 ### Changed
