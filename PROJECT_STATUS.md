@@ -1,6 +1,6 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-25
+Last updated: 2026-07-28
 
 This is the single current-state snapshot for humans and AI agents. It is
 not a changelog and must remain concise. Implementation detail, test-count
@@ -106,6 +106,8 @@ history, device-validation narratives, and bug investigations belong in
   metadata and secondary controls recede, and the existing Start Cooking action
   remains the sole prominent detail action. It is presentation-only; existing
   Recipe behavior, data, imports, navigation, auth, and sync remain unchanged.
+  The branch has been revalidated against the latest `main`; post-main visual
+  evidence shows no material Recipe, Home, or native paste-control regression.
   See `docs/IOS_RECIPE_EXPERIENCE_PHASE2.md`.
 - iOS Shopping now uses a category-first, local-only presentation with a
   compact summary, name search, collapsible purchased items, guarded bulk

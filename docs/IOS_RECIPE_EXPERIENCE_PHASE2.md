@@ -75,8 +75,11 @@ navigation architecture, auth, sync, and every non-Recipe tab.
   cooking action.
 - Final visual evidence is exported outside the repository to
   `/Users/lianghongjing/Desktop/KitchenManager-Recipe-UI2-Review/final-fix/`.
-  The branch requires an update after PR #6 merges because PR #6 is still open
-  and has not entered `main`.
+  Post-main integration evidence is exported to
+  `/Users/lianghongjing/Desktop/KitchenManager-Recipe-UI2-Review/post-main-update/`.
+  The branch was updated with a normal `--no-ff` merge of `origin/main` at
+  `ef9077decde274dcc9975a3c1fb877565c44afcd`; the only merge conflict was the
+  changelog chronology and it was reconciled manually.
 
 ## Validation
 
@@ -99,3 +102,22 @@ Dynamic Type.
   simulator builds and `git diff --check` passed.
 - Fresh simulator captures are outside Git at
   `/Users/lianghongjing/Desktop/KitchenManager-Recipe-UI2-Review/final-fix/`.
+
+### Post-main integration review — 2026-07-28
+
+- The Recipe branch now includes the latest `main` (`ef9077d`) through a
+  normal merge commit. The integrated Recipe patch remains limited to the same
+  eight files and `683 additions / 74 deletions` relative to `main`.
+- Debug and Release simulator builds passed. Recipe support/store focused unit
+  tests passed **24/24**; Recipe UI passed **7/7**; affected Home + Clipboard
+  UI passed **13/13**; the full unit suite passed **782**, with **5 existing
+  skips**; and the full UI suite passed **35**, with the existing hosted-sync
+  smoke test skipped because credentials were not supplied.
+- Node static alignment tests passed **17/17** and the full Node suite passed
+  **1054**, with no failures or skips. `node --check` and `git diff --check`
+  passed.
+- The nine-file integration review set is outside Git at
+  `/Users/lianghongjing/Desktop/KitchenManager-Recipe-UI2-Review/post-main-update/`;
+  each screenshot was opened and visually reviewed on the iPhone 17e
+  simulator. No material Recipe, Home, or native paste-control change was
+  observed after the main update.

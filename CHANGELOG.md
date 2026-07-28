@@ -6,6 +6,18 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-28 (Recipe Experience Phase 2 — main integration)
+
+### Changed
+
+- Updated the Recipe UI Phase 2 branch onto the latest `main` with a normal
+  merge. The Recipe presentation patch remains scoped to its existing eight
+  files; the only merge conflict was reconciled in this changelog.
+- Revalidated the Recipe list, detail, Cooking Mode, Home clipboard banner, and
+  native paste-control evidence after integration. Debug/Release builds,
+  focused suites, the full iOS suites, and the full Node suite passed; fresh
+  review screenshots are stored outside Git in the post-main-update folder.
+
 ## 2026-07-25 (iOS Recipe Experience Phase 2)
 
 ### Changed
