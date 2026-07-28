@@ -1,6 +1,13 @@
 import XCTest
 
 final class HomeDashboardUITests: XCTestCase {
+    private func attachScreenshot(of app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func makeHittable(_ element: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<6 where !element.isHittable {
             app.swipeUp()
@@ -45,7 +52,7 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["正在查看：已过期"].waitForExistence(timeout: 5))
     }
 
-    func testToolbarIsFocusedAndSettingsRemainReachableFromMyTab() throws {
+    func testHeaderImportAndSettingsRemainReachableFromMyTab() throws {
         let app = launchSeededDashboard()
         let importButton = app.buttons["home.import.add.button"]
         XCTAssertEqual(importButton.label, "导入与添加")
@@ -73,32 +80,30 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["sync-smoke-status"].exists)
     }
 
-    func testPurchasedItemsOverrideExpiredReminderAndOpenExistingStockInConfirmation() throws {
+    func testPurchasedItemsKeepTodayPlanActionAndOpenExistingStockInConfirmation() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_HOME_STOCK_IN"]
         app.launch()
 
         let primaryAction = app.buttons["home.primary.action.button"]
         XCTAssertTrue(primaryAction.waitForExistence(timeout: 5))
-        XCTAssertEqual(primaryAction.label, "完成入库")
+        XCTAssertEqual(primaryAction.label, "添加今日菜品")
         XCTAssertTrue(app.buttons["home.shopping.stockIn.button"].exists)
         XCTAssertFalse(app.buttons["home.inventory.expired.button"].exists)
 
-        primaryAction.tap()
+        app.buttons["home.shopping.stockIn.button"].tap()
         XCTAssertTrue(app.navigationBars.staticTexts["买菜"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.alerts["全部入库？"].waitForExistence(timeout: 5))
         app.alerts["全部入库？"].buttons["取消"].tap()
     }
 
-    func testPurchasedAwaitingStockInStillOffersContextualAddPlanAction() throws {
+    func testPurchasedAwaitingStockInKeepsEmptyTodayPlanFocused() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_HOME_STOCK_IN"]
         app.launch()
 
-        let addPlan = app.buttons["home.today.plan.add.button"]
-        XCTAssertTrue(addPlan.waitForExistence(timeout: 5))
-        addPlan.tap()
-        XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["home.primary.action.button"].label, "添加今日菜品")
+        XCTAssertFalse(app.buttons["home.today.plan.add.button"].exists)
     }
 
     func testLocalPersistenceIssueIsVisibleWithoutReplacingLocalContent() throws {
@@ -117,7 +122,20 @@ final class HomeDashboardUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.otherElements["home.clipboard.import.prompt"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["clipboard.paste.control"].exists)
+
+        let pasteControl = app.buttons["clipboard.paste.control"]
+        XCTAssertTrue(pasteControl.exists)
+        XCTAssertEqual(
+            pasteControl.label,
+            "粘贴导入",
+            "原生粘贴按钮应播报“粘贴导入”，而不是系统默认的 Paste"
+        )
+        XCTAssertTrue(pasteControl.isHittable, "整块粘贴区域应由原生控件接收点击")
+        XCTAssertGreaterThanOrEqual(pasteControl.frame.width, 118, "原生控件应覆盖完整中文胶囊")
+        XCTAssertGreaterThanOrEqual(pasteControl.frame.height, 43.5, "粘贴控件点击区域应至少 44pt 高")
+
+        attachScreenshot(of: app, named: "home-clipboard-banner")
+
         let ignore = app.buttons["home.clipboard.ignore.button"]
         XCTAssertTrue(ignore.exists)
         makeHittable(ignore, in: app)

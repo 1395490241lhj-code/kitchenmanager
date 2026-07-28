@@ -262,13 +262,50 @@ Two defects were visible in the regenerated screenshots and are fixed here:
   explicitly resets it to `.system`, so one dark screenshot cannot tint later
   tests.
 
+## Post-main integration review — 2026-07-28
+
+The branch was updated with a normal `git merge --no-ff origin/main` at
+`817b29f3c5962d7ee2cde28e54b8cb9fb23e2886`. The only merge conflicts were the
+two documentation files (`CHANGELOG.md` and `PROJECT_STATUS.md`); the current
+Home, Clipboard Import, Recipe, Share Extension, and App Icon work was kept
+intact. No Inventory production source was changed by conflict resolution.
+
+Post-merge validation on iPhone 17e / iOS 27.0:
+
+- Debug and Release builds: passed.
+- Focused Inventory unit tests: 128 passed, 0 failed, 0 skipped.
+- Inventory UI: 10 passed, 0 failed, 0 skipped.
+- Home + Clipboard UI: 13 passed, 0 failed, 0 skipped.
+- Recipe focused UI: 7 passed, 0 failed, 0 skipped.
+- Full unit suite: 782 passed, 5 pre-existing skips, 0 failed.
+- Full UI suite: 44 passed, 1 pre-existing skip, 0 failed.
+- Focused Node static tests: 37 passed, 0 failed, 0 skipped.
+- `npm test`: run after documentation reconciliation; result is recorded in
+  the PR body and delivery report.
+- `git diff --check`: clean.
+
+Fresh post-main screenshots are exported outside Git to
+`~/Desktop/KitchenManager-Inventory-UI3-Review/post-main-update/`. The folder
+contains the requested 12 named PNGs for normal, search, empty, large,
+Dark Mode, Accessibility XXXL/bottom, pantry accessibility evidence, Home
+clipboard, Import paste control, and Recipe detail. The pantry file reuses the
+captured Accessibility Inventory frame because the empty-state test has no
+attachment of its own; no production behavior is inferred from that naming.
+
+The focused and full `.xcresult` bundles remain at:
+
+- `/tmp/kitchenmanager-inventory-phase3-focused-unit.xcresult`
+- `/tmp/kitchenmanager-inventory-phase3-focused-ui.xcresult`
+- `/tmp/kitchenmanager-inventory-phase3-home-clipboard-ui.xcresult`
+- `/tmp/kitchenmanager-inventory-phase3-recipe-ui.xcresult`
+- `/tmp/kitchenmanager-inventory-phase3-full-unit.xcresult`
+- `/tmp/kitchenmanager-inventory-phase3-full-ui.xcresult`
+
 ## Validation evidence
 
 Exact executed/passed/failed/skipped counts, build results, and `.xcresult`
-paths for this phase are recorded in the pull request body and the delivery
-report. Screenshots are exported to
-`~/Desktop/KitchenManager-Inventory-UI3-Review/final-fix/` and are deliberately
-kept out of the repository.
+paths for this phase are recorded above and in the pull request body.
+Screenshots are deliberately kept out of the repository.
 
 Focused UI regression in `InventoryNavigationUITests` covers normal browsing,
 search filtering, empty state, large inventory, Accessibility XXXL first-screen

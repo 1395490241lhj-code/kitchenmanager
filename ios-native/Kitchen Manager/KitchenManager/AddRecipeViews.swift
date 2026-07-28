@@ -487,11 +487,11 @@ struct ImportRecipeView: View {
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
                 ClipboardPasteControl(
-                    accessibilityLabel: "粘贴剪贴板内容",
+                    accessibilityLabel: "粘贴导入",
+                    style: .customLabeled("粘贴导入"),
                     onPaste: { pastedText in urlText = pastedText }
                 )
                 .frame(minHeight: 44)
-                .accessibilityLabel("粘贴剪贴板内容")
             }
 
             Section {

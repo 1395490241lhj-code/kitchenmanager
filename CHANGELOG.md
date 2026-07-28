@@ -6,6 +6,22 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-28 (Inventory UI Phase UI-3 — main integration)
+
+### Validation
+
+- Updated the Inventory UI branch onto `main` at
+  `817b29f3c5962d7ee2cde28e54b8cb9fb23e2886` with a normal merge; only
+  `CHANGELOG.md` and `PROJECT_STATUS.md` conflicted, and both were reconciled
+  without changing Inventory production code.
+- Revalidated Debug/Release builds, focused Inventory (128 unit / 10 UI), Home
+  + Clipboard UI (13), Recipe UI (7), full unit (782 passed / 5 existing
+  skips), full UI (44 passed / 1 existing skip), focused Node (37), and the
+  full Node suite after documentation updates.
+- Preserved the merged Home UI 1B, Clipboard native paste-control, Recipe UI
+  Phase 2, Share Extension, and App Icon work; no App Icon files entered this
+  branch. Review screenshots remain outside Git in the post-main-update set.
+
 ## 2026-07-26 (iOS Inventory Experience Phase UI-3)
 
 ### Changed
@@ -74,6 +90,57 @@ Keep entries concise. Use this file for what changed, not for long design discus
   destinations, identifiers — rather than surface strings. No assertion was
   deleted, no skip added, and no package script or CI workflow changed.
   `ios-native-core-alignment.test.mjs` needed no change and passes unmodified.
+## 2026-07-28 (Recipe Experience Phase 2 — main integration)
+
+### Changed
+
+- Updated the Recipe UI Phase 2 branch onto the latest `main` with a normal
+  merge. The Recipe presentation patch remains scoped to its existing eight
+  files; the only merge conflict was reconciled in this changelog.
+- Revalidated the Recipe list, detail, Cooking Mode, Home clipboard banner, and
+  native paste-control evidence after integration. Debug/Release builds,
+  focused suites, the full iOS suites, and the full Node suite passed; fresh
+  review screenshots are stored outside Git in the post-main-update folder.
+
+## 2026-07-25 (iOS Recipe Experience Phase 2)
+
+### Changed
+
+- Refined the native Recipe list, detail, and Cooking Mode around recipe-name
+  hierarchy, calmer metadata, grouped preparation content, and a single clear
+  cooking action. The existing filters, import routes, detail actions, serving
+  session, ingredient checks, timer, and Today Plan completion behavior remain
+  unchanged.
+- Added Dynamic-Type-safe metadata and cooking-control fallbacks, refreshed
+  Recipe search no-results presentation, and used the existing Debug-only
+  UI-test seed mechanism for long-recipe visual evidence. No Release behavior,
+  storage, model, navigation, auth, sync, or API contract changed.
+
+### Fixed
+
+- Hardened Recipe Detail at accessibility Dynamic Type: its hero uses a native
+  compact accessibility heading, metadata changes to a readable vertical
+  arrangement, and the single brand-colored cooking action now follows the
+  final detail content instead of overlaying it. The long DEBUG fixture is
+  deterministic and verifies ten ingredients and ten steps can be read before
+  the action.
+- Tightened Cooking Mode’s visual focus without changing its session or timer:
+  `下一步` is the only prominent step-navigation control, disabled controls are
+  visibly quiet, and contextual finish remains secondary.
+
+## 2026-07-22 (iOS Home UI Phase 1B)
+
+### Fixed
+
+- Corrected screenshot-discovered Home regressions: Today Plan actions now
+  stay derived from the plan state while the existing purchased stock-in
+  reminder remains separately prioritized and reachable.
+- Localized the compact Home date to stable Simplified Chinese, moved the
+  existing Smart Import control into the Header, added Home-only floating-tab
+  scroll clearance, and restrained Header chrome at accessibility sizes.
+- Kept the native privacy-preserving paste control while presenting the Chinese
+  `粘贴导入` action, tightened its responsive action layout, and aligned
+  unfinished plan symbols with the Home brand tint.
 
 ## 2026-07-22 (iOS Home UI Phase 1)
 
