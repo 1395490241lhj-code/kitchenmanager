@@ -510,21 +510,11 @@ private struct ClipboardRecipeImportPrompt: View {
 
     @ViewBuilder
     private var promptActions: some View {
-        ZStack {
-            ClipboardPasteControl(
-                accessibilityLabel: "粘贴导入",
-                onPaste: { pastedText in onPaste(pastedText) }
-            )
-            .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
-            .opacity(0.02)
-            Text("粘贴导入")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
-                .background(AppTheme.brand, in: Capsule())
-                .allowsHitTesting(false)
-        }
-        .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
+        ClipboardPasteControl(
+            accessibilityLabel: "粘贴导入",
+            style: .customLabeled("粘贴导入"),
+            onPaste: { pastedText in onPaste(pastedText) }
+        )
 
         Button("忽略", action: onIgnore)
             .buttonStyle(.plain)
