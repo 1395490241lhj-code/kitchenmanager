@@ -6,6 +6,26 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-28 (iOS App Icon)
+
+### Changed
+
+- Added the real 1024×1024 `AppIcon-1024.png` to the app's
+  `Assets.xcassets/AppIcon.appiconset` and selected `AppIcon` for the
+  KitchenManager application target in both Debug and Release.
+- Removed the redundant App Icon-related `Info.plist` drift; the existing
+  launch-screen and privacy keys remain unchanged. No signing, team, bundle
+  identifier, or product Swift code changed.
+
+### Validation
+
+- Debug and Release simulator builds pass, the local archive guard passes,
+  and the full Node suite passes (1,057/1,057). Runtime review screenshots
+  are stored outside Git in `/Users/lianghongjing/Desktop/KitchenManager-AppIcon-Review/`.
+- The icon has no dark or tinted asset variant; the same opaque universal icon
+  is used on light and dark Home Screens. App Store Connect/distribution
+  signing and metadata remain manual follow-up work.
+
 ## 2026-07-28 (Inventory UI Phase UI-3 — main integration)
 
 ### Validation

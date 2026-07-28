@@ -20,24 +20,6 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>KM_CRASH_REPORTING_DSN</key>
-	<string>$(CRASH_REPORTING_DSN)</string>
-	<key>KM_CRASH_REPORTING_ENABLED</key>
-	<string>$(CRASH_REPORTING_ENABLED)</string>
-	<key>KM_CRASH_REPORTING_ENVIRONMENT</key>
-	<string>$(CRASH_REPORTING_ENVIRONMENT)</string>
-	<key>KM_CRASH_REPORTING_SAMPLE_RATE</key>
-	<string>$(CRASH_REPORTING_SAMPLE_RATE)</string>
-	<key>KM_GUEST_MERGE_SMOKE_ENABLED</key>
-	<string>$(GUEST_MERGE_SMOKE_ENABLED)</string>
-	<key>KM_INVENTORY_MERGE_UI_ENABLED</key>
-	<string>$(INVENTORY_MERGE_UI_ENABLED)</string>
-	<key>KM_INVENTORY_SYNC_DIAGNOSTICS_ENABLED</key>
-	<string>$(INVENTORY_SYNC_DIAGNOSTICS_ENABLED)</string>
-	<key>KM_INVENTORY_SYNC_DOGFOOD_ENABLED</key>
-	<string>$(INVENTORY_SYNC_DOGFOOD_ENABLED)</string>
-	<key>KM_INVENTORY_SYNC_ENABLED</key>
-	<string>$(INVENTORY_SYNC_ENABLED)</string>
 	<key>KM_SUPABASE_PUBLISHABLE_KEY</key>
 	<string>$(SUPABASE_PUBLISHABLE_KEY)</string>
 	<key>KM_SUPABASE_URL</key>
@@ -48,6 +30,24 @@
 	<string>$(SYNC_SMOKE_ENABLED)</string>
 	<key>KM_SYNC_SMOKE_ENVIRONMENT</key>
 	<string>$(SYNC_SMOKE_ENVIRONMENT)</string>
+	<key>KM_INVENTORY_SYNC_ENABLED</key>
+	<string>$(INVENTORY_SYNC_ENABLED)</string>
+	<key>KM_INVENTORY_MERGE_UI_ENABLED</key>
+	<string>$(INVENTORY_MERGE_UI_ENABLED)</string>
+	<key>KM_GUEST_MERGE_SMOKE_ENABLED</key>
+	<string>$(GUEST_MERGE_SMOKE_ENABLED)</string>
+	<key>KM_INVENTORY_SYNC_DOGFOOD_ENABLED</key>
+	<string>$(INVENTORY_SYNC_DOGFOOD_ENABLED)</string>
+	<key>KM_INVENTORY_SYNC_DIAGNOSTICS_ENABLED</key>
+	<string>$(INVENTORY_SYNC_DIAGNOSTICS_ENABLED)</string>
+	<key>KM_CRASH_REPORTING_ENABLED</key>
+	<string>$(CRASH_REPORTING_ENABLED)</string>
+	<key>KM_CRASH_REPORTING_DSN</key>
+	<string>$(CRASH_REPORTING_DSN)</string>
+	<key>KM_CRASH_REPORTING_ENVIRONMENT</key>
+	<string>$(CRASH_REPORTING_ENVIRONMENT)</string>
+	<key>KM_CRASH_REPORTING_SAMPLE_RATE</key>
+	<string>$(CRASH_REPORTING_SAMPLE_RATE)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
@@ -63,8 +63,6 @@
 	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
-	<key>UILaunchStoryboardName</key>
-	<string></string>
 	<key>UIStatusBarStyle</key>
 	<string>UIStatusBarStyleDefault</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>

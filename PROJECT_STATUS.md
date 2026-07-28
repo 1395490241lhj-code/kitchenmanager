@@ -59,9 +59,10 @@ history, device-validation narratives, and bug investigations belong in
   locally (development-class signing) — not a distribution-class signed
   archive, no App Store Connect app record exists, nothing was uploaded.
   See `docs/IOS_RELEASE_PIPELINE.md`, `docs/IOS_SIGNING_AND_ARCHIVE.md`,
-  `docs/TESTFLIGHT_ROLLOUT_PLAN.md`, `docs/PHASE2D1_VALIDATION.md`. A
-  missing app icon remains a real, unresolved blocker for any real
-  archive/upload.
+  `docs/TESTFLIGHT_ROLLOUT_PLAN.md`, `docs/PHASE2D1_VALIDATION.md`. The
+  committed 1024×1024 AppIcon asset now satisfies the local archive guard;
+  real distribution still requires the separate signing and App Store
+  Connect prerequisites below.
 - Account deletion implemented and locally validated (Docker-based
   Supabase): server-side identity deletion with household-ownership
   transfer/resolution, business-data anonymization, and an iOS
@@ -201,8 +202,8 @@ history, device-validation narratives, and bug investigations belong in
    to close for this item.
 5. ~~No TestFlight/App Store Connect distribution pipeline exists~~ — the
    pipeline is now designed and locally validated (see "Completed"
-   above); remaining before real distribution: a real app icon, an App
-   Store Connect app record, a distribution-class signed archive, and the
+   above); remaining before real distribution: an App Store Connect app
+   record, a distribution-class signed archive, and the
    account-level Apple Developer/App Store Connect prerequisites listed
    in `docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3.
 6. The sync rate limiter needs a shared/multi-instance store (Redis/Upstash
@@ -228,10 +229,9 @@ A full static production-readiness audit and a stage-by-stage v1 blocker
 list now exist: `docs/V1_STATIC_READINESS_AUDIT.md` and
 `docs/V1_RELEASE_BLOCKERS.md`. Every release stage (Internal TestFlight,
 External TestFlight, App Store, Production) is currently **No-Go**, with
-named blockers (IDs like `APP-ICON-001`, `SIGN-DIST-001`,
-`AUTH-REAUTH-001`). No new code defect was found
-in the audit; the app builds Debug/Release green and passes all release
-checks except the missing app icon.
+named blockers (IDs like `SIGN-DIST-001`, `AUTH-REAUTH-001`). No new code
+defect was found in the audit; the app builds Debug/Release green and passes
+the local release checks, while distribution prerequisites remain.
 
 ## Next recommended phase
 
@@ -240,8 +240,8 @@ decided; local migration/pgTAP validation now proven repeatable) — this is
 the remaining prerequisite, independent of further engineering work, before
 any real crash-reporting SDK or shared rate-limit store is worth
 configuring. In parallel, the user can complete the manual Apple Developer/
-App Store Connect prerequisites (`docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3) and
-supply a real app icon — both are required before Internal TestFlight can
-actually start, independent of the Supabase provisioning work. Feature
+App Store Connect prerequisites (`docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3), which
+remain required before Internal TestFlight can actually start, independent
+of the Supabase provisioning work. Feature
 expansion to additional synchronized entities should not jump ahead of
 this operational readiness work.
