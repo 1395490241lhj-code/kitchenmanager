@@ -18,6 +18,7 @@ struct RecipeListView: View {
     @EnvironmentObject private var store: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @State private var searchText = ""
+    @State private var isSearchPresented = false
     @State private var route: RecipeRoute?
     @State private var filter: RecipeAvailabilityFilter = .all
     @State private var selectedTag = "全部标签"
@@ -50,18 +51,36 @@ struct RecipeListView: View {
     }
 
     var body: some View {
-        List(recipes) { recipe in
-            NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack { Text(recipe.title).font(.headline); Spacer(); availabilityLabel(recipe) }
-                    Text(recipe.summaryText).font(.subheadline).foregroundStyle(.secondary)
+        List {
+            if recipes.isEmpty {
+                ContentUnavailableView(
+                    searchText.isEmpty ? "暂时没有菜谱" : "没有找到匹配菜谱",
+                    systemImage: searchText.isEmpty ? "book.closed" : "magnifyingglass",
+                    description: Text(searchText.isEmpty ? "添加一份菜谱，下一餐就有了开始。" : "试试菜名、食材或其他筛选条件。")
+                )
+                .listRowBackground(Color.clear)
+            } else {
+                Section {
+                    ForEach(recipes) { recipe in
+                        NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
+                            RecipeListRow(
+                                recipe: recipe,
+                                availability: availabilityText(recipe)
+                            )
+                        }
+                        .accessibilityIdentifier("recipe.list.\(recipe.id)")
+                    }
+                } header: {
+                    Text(searchText.isEmpty ? "全部菜谱 · \(recipes.count) 道" : "搜索结果 · \(recipes.count) 道")
+                        .textCase(nil)
                 }
             }
-            .accessibilityIdentifier("recipe.list.\(recipe.id)")
         }
-        .overlay { if recipes.isEmpty { ContentUnavailableView.search(text: searchText) } }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color(.systemGroupedBackground))
         .navigationTitle("菜谱")
-        .searchable(text: $searchText, prompt: "搜索菜名、食材或标签")
+        .searchable(text: $searchText, isPresented: $isSearchPresented, prompt: "搜索菜名、食材或标签")
         .refreshable { await store.loadRecipes() }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -95,6 +114,13 @@ struct RecipeListView: View {
             case .aiGenerator: AIGeneratorView()
             }
         }
+        #if DEBUG
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_EMPTY_SCREENSHOT") else { return }
+            searchText = "没有匹配的测试菜谱"
+            isSearchPresented = true
+        }
+        #endif
     }
 
     private func missingCoreIngredientCount(_ recipe: Recipe) -> Int {
@@ -104,17 +130,46 @@ struct RecipeListView: View {
         }.count
     }
 
-    @ViewBuilder private func availabilityLabel(_ recipe: Recipe) -> some View {
+    private func availabilityText(_ recipe: Recipe) -> String {
         let count = missingCoreIngredientCount(recipe)
-        Text(count == 0 ? "可直接做" : count <= 2 ? "缺 \(count) 样" : "缺少较多")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(count == 0 ? AppTheme.success : .secondary)
+        return count == 0 ? "可直接做" : count <= 2 ? "缺 \(count) 样" : "缺少较多"
+    }
+}
+
+private struct RecipeListRow: View {
+    let recipe: Recipe
+    let availability: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(recipe.title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+
+            HStack(spacing: 8) {
+                Text(recipe.summaryText)
+                Text(availability)
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+            if !recipe.tags.isEmpty {
+                Text(recipe.tags.prefix(2).joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 }
 
 struct RecipeDetailView: View {
     let recipe: Recipe
     let todayPlan: MealPlanItem?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @State private var isShowingShoppingGeneration = false
@@ -134,47 +189,68 @@ struct RecipeDetailView: View {
     private var tips: [String] { recipe.steps.compactMap { $0.hasPrefix("小贴士：") ? String($0.dropFirst("小贴士：".count)) : nil } }
 
     var body: some View {
-        List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(recipe.title).font(.title.bold())
-                    if !recipe.tags.isEmpty { Text(recipe.tags.joined(separator: " · ")).foregroundStyle(AppTheme.primary) }
-                    HStack(spacing: 14) {
-                        Label("\(cookingSession.servings) 人份", systemImage: "person.2")
-                        if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
-                        if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                recipeHero
+
+                RecipeDetailSection("份量", systemImage: "person.2") {
+                    Stepper(value: $cookingSession.servings, in: 1...12) {
+                        Text("当前份量：\(cookingSession.servings) 人份")
                     }
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("recipe.detail.servings")
+
+                    Text("仅调整当前查看和烹饪会话的用量，不会修改原始菜谱。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-            }
-            Section {
-                Stepper(value: $cookingSession.servings, in: 1...12) {
-                    Text("当前份量：\(cookingSession.servings) 人份")
+
+                RecipeDetailSection("食材", systemImage: "basket") {
+                    if recipe.ingredients.isEmpty {
+                        Text("暂未记录食材")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { index, value in
+                            ingredientRow(value, index: index)
+                        }
+                    }
                 }
-                .accessibilityIdentifier("recipe.detail.servings")
-            } footer: { Text("仅调整当前查看和烹饪会话的用量，不会修改原始菜谱。") }
-            Section("食材") {
-                if recipe.ingredients.isEmpty { Text("暂未记录食材").foregroundStyle(.secondary) }
-                else { ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { index, value in
-                    ingredientRow(value, index: index)
-                } }
-            }
-            if !recipe.seasonings.isEmpty {
-                Section("调料与辅料") { ForEach(Array(recipe.seasonings.enumerated()), id: \.offset) { index, value in
-                    ingredientRow(value, index: recipe.ingredients.count + index)
-                } }
-            }
-            Section("步骤") {
-                ForEach(Array(cookingSteps.enumerated()), id: \.offset) { index, step in
-                    HStack(alignment: .top) { Text("\(index + 1)").font(.caption.bold()).foregroundStyle(AppTheme.primary); Text(step) }
+
+                if !recipe.seasonings.isEmpty {
+                    RecipeDetailSection("调料与辅料", systemImage: "leaf") {
+                        ForEach(Array(recipe.seasonings.enumerated()), id: \.offset) { index, value in
+                            ingredientRow(value, index: recipe.ingredients.count + index)
+                        }
+                    }
                 }
+
+                RecipeDetailSection("步骤", systemImage: "list.number") {
+                    if cookingSteps.isEmpty {
+                        Text("暂未记录制作步骤")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(cookingSteps.enumerated()), id: \.offset) { index, step in
+                            RecipeStepRow(number: index + 1, text: step)
+                        }
+                    }
+                }
+
+                if !tips.isEmpty {
+                    RecipeDetailSection("小贴士", systemImage: "lightbulb") {
+                        ForEach(tips, id: \.self) { tip in
+                            Label(tip, systemImage: "lightbulb")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                startCookingAction
             }
-            if !tips.isEmpty { Section("小贴士") { ForEach(tips, id: \.self) { Label($0, systemImage: "lightbulb") } } }
-            Section {
-                Button("开始烹饪", systemImage: "flame.fill") { isShowingCookingMode = true }
-                    .font(.headline).frame(maxWidth: .infinity).accessibilityIdentifier("recipe.detail.startCooking")
-            }
+            .padding(.horizontal)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
         }
+        .background(Color(.systemGroupedBackground))
         .navigationTitle("菜谱详情").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -210,19 +286,124 @@ struct RecipeDetailView: View {
         .alert("操作失败", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("好", role: .cancel) {} } message: { Text(errorMessage ?? "请稍后重试。") }
     }
 
+    private var recipeHero: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(recipe.title)
+                .font(dynamicTypeSize.isAccessibilitySize ? .headline.weight(.bold) : .largeTitle.weight(.bold))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !recipe.tags.isEmpty {
+                Text(recipe.tags.joined(separator: " · "))
+                    .font(dynamicTypeSize.isAccessibilitySize ? .caption : .subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            if dynamicTypeSize.isAccessibilitySize {
+                recipeMetadataVertical
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    recipeMetadataHorizontal
+                    recipeMetadataVertical
+                }
+            }
+        }
+    }
+
+    private var recipeMetadataHorizontal: some View {
+        HStack(spacing: 14) {
+            Label("\(cookingSession.servings) 人份", systemImage: "person.2")
+            if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
+            if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
+        }
+        .font(dynamicTypeSize.isAccessibilitySize ? .caption2 : .subheadline)
+        .imageScale(dynamicTypeSize.isAccessibilitySize ? .small : .medium)
+        .foregroundStyle(.secondary)
+    }
+
+    private var recipeMetadataVertical: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("\(cookingSession.servings) 人份", systemImage: "person.2")
+            if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
+            if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
+        }
+        .font(dynamicTypeSize.isAccessibilitySize ? .caption2 : .subheadline)
+        .imageScale(dynamicTypeSize.isAccessibilitySize ? .small : .medium)
+        .foregroundStyle(.secondary)
+    }
+
+    private var startCookingAction: some View {
+        Button("开始烹饪", systemImage: "flame.fill") { isShowingCookingMode = true }
+            .buttonStyle(.borderedProminent)
+            .tint(AppTheme.brand)
+            .font(.headline)
+            .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+            .padding(.top, 8)
+            .accessibilityIdentifier("recipe.detail.startCooking")
+    }
+
     @ViewBuilder private func ingredientRow(_ value: String, index: Int) -> some View {
         Button { cookingSession.toggleIngredient(at: index) } label: {
-            HStack {
+            HStack(spacing: 12) {
                 Image(systemName: cookingSession.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(cookingSession.checkedIngredientIndexes.contains(index) ? AppTheme.success : .secondary)
                 Text(RecipeServingScaler.scaledText(value, multiplier: Double(cookingSession.servings)))
                     .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
                     .foregroundStyle(.primary)
+                Spacer(minLength: 0)
             }
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .padding(.vertical, 3)
         .accessibilityIdentifier("recipe.detail.ingredient.\(index)")
         .accessibilityLabel("\(RecipeServingScaler.scaledText(value, multiplier: Double(cookingSession.servings)))，\(cookingSession.checkedIngredientIndexes.contains(index) ? "已准备" : "未准备")")
+    }
+}
+
+private struct RecipeDetailSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    @ViewBuilder let content: Content
+
+    init(_ title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+                .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 12) {
+                content
+            }
+        }
+        .padding(16)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct RecipeStepRow: View {
+    let number: Int
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .foregroundStyle(AppTheme.brand)
+                .frame(width: 28, height: 28)
+                .background(AppTheme.secondarySurface, in: Circle())
+            Text(text)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("recipe.detail.step.\(number - 1)")
     }
 }
 
