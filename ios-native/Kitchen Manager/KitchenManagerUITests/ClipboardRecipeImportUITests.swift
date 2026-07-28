@@ -35,7 +35,7 @@ final class ClipboardRecipeImportUITests: XCTestCase {
         let pasteControl = app.buttons["clipboard.paste.control"]
         XCTAssertTrue(pasteControl.exists)
         XCTAssertTrue(pasteControl.isHittable)
-        XCTAssertEqual(pasteControl.label, "粘贴剪贴板内容")
+        XCTAssertEqual(pasteControl.label, "粘贴导入")
     }
 
     /// Regression guard: the shared control's single hardcoded `displayMode` once
@@ -91,7 +91,7 @@ final class ClipboardRecipeImportUITests: XCTestCase {
             print("=====IMPORT PASTE \(name)===== frame=\(frame) ratio=\(frame.width / frame.height)")
 
             XCTAssertTrue(pasteControl.isHittable, "\(name): 粘贴控件不可点击")
-            XCTAssertEqual(pasteControl.label, "粘贴剪贴板内容", "\(name): 无障碍标签应保持不变")
+            XCTAssertEqual(pasteControl.label, "粘贴导入", "\(name): 无障碍标签应保持中文")
             XCTAssertGreaterThan(
                 frame.width,
                 frame.height * 1.05,

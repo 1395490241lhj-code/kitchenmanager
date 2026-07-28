@@ -510,37 +510,11 @@ private struct ClipboardRecipeImportPrompt: View {
 
     @ViewBuilder
     private var promptActions: some View {
-        // Home needs the brand capsule and the wording "粘贴导入", which
-        // `UIPasteControl` cannot render itself, so the native control stays the
-        // only tappable element and this label is drawn over it. `.iconOnly` is
-        // now requested explicitly rather than relying on the shared control's
-        // default, which is `.iconAndLabel` for every other call site.
-        ZStack {
-            ClipboardPasteControl(
-                accessibilityLabel: "粘贴导入",
-                style: .iconOnly,
-                onPaste: { pastedText in onPaste(pastedText) }
-            )
-            .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
-            // Applied at the SwiftUI level, matching the recipe-import call site.
-            // `UIPasteControl` resets its own `accessibilityLabel` back to the
-            // system default ("Paste") when it re-lays-out, so the UIKit-side
-            // assignment alone left this button announcing "Paste".
-            .accessibilityLabel("粘贴导入")
-            .opacity(0.02)
-            Text("粘贴导入")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
-                .background(AppTheme.brand, in: Capsule())
-                .allowsHitTesting(false)
-                // Purely decorative: the native control beneath already exposes
-                // an actionable button labeled "粘贴导入". Without this,
-                // VoiceOver announces "粘贴导入" twice — once as the real button
-                // and once as inert text (`allowsHitTesting` affects touch only).
-                .accessibilityHidden(true)
-        }
-        .frame(minWidth: 118, minHeight: AppTheme.minimumHitTarget)
+        ClipboardPasteControl(
+            accessibilityLabel: "粘贴导入",
+            style: .customLabeled("粘贴导入"),
+            onPaste: { pastedText in onPaste(pastedText) }
+        )
 
         Button("忽略", action: onIgnore)
             .buttonStyle(.plain)
