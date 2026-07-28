@@ -61,7 +61,9 @@ history, device-validation narratives, and bug investigations belong in
   See `docs/IOS_RELEASE_PIPELINE.md`, `docs/IOS_SIGNING_AND_ARCHIVE.md`,
   `docs/TESTFLIGHT_ROLLOUT_PLAN.md`, `docs/PHASE2D1_VALIDATION.md`. The
   committed 1024×1024 AppIcon asset now satisfies the local archive guard;
-  real distribution still requires the separate signing and App Store
+  its project configuration is limited to the explicit AppIcon selection,
+  with no application-category metadata or alternate-icon include flag.
+  Real distribution still requires the separate signing and App Store
   Connect prerequisites below.
 - Account deletion implemented and locally validated (Docker-based
   Supabase): server-side identity deletion with household-ownership

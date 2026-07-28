@@ -13,6 +13,9 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - Added the real 1024×1024 `AppIcon-1024.png` to the app's
   `Assets.xcassets/AppIcon.appiconset` and selected `AppIcon` for the
   KitchenManager application target in both Debug and Release.
+- Removed the unrelated Lifestyle category metadata and the unnecessary
+  `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` flag; this PR now keeps
+  only the explicit single-set `ASSETCATALOG_COMPILER_APPICON_NAME` setting.
 - Removed the redundant App Icon-related `Info.plist` drift; the existing
   launch-screen and privacy keys remain unchanged. No signing, team, bundle
   identifier, or product Swift code changed.
