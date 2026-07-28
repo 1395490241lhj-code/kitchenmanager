@@ -91,6 +91,20 @@ history, device-validation narratives, and bug investigations belong in
   access to the existing 我的 tab, and adds a contextual Today Plan add action
   without changing Home decisions, stores, navigation, clipboard privacy, or
   import behavior. See `docs/IOS_HOME_UI_PHASE1.md`.
+- iOS Inventory Experience Phase UI-3 now presents local food inventory as a
+  searchable native list with a quiet availability summary, clear add action,
+  adaptive item rows, and focused empty/search/error treatment. Page chrome
+  (title, summary, headers, toolbar glyphs) is bounded at Accessibility sizes
+  via `InventoryChromeMetrics` while food content keeps unrestricted Dynamic
+  Type, and one list-level bottom inset keeps the last row, last search result,
+  and pantry empty-state CTA clear of the floating tab bar. Existing inventory
+  rules, persistence, scan/import paths, sync boundaries, and navigation remain
+  unchanged. See `docs/IOS_INVENTORY_EXPERIENCE_PHASE3.md`.
+- Inventory UI Phase UI-3 has been revalidated after a normal merge with the
+  latest `main` (`817b29f3c5962d7ee2cde28e54b8cb9fb23e2886`); the only conflicts
+  were documentation files. Home/Clipboard/Recipe presentation and native
+  paste-control behavior remain intact, with Debug/Release builds and focused
+  and full iOS/Node validation passing. The PR remains Draft and unmerged.
 - iOS Home UI Phase UI-1B resolves the follow-up simulator findings without
   changing those boundaries: Today Plan CTAs are presentation-derived from plan
   state rather than stock-in priority, the date and native paste presentation

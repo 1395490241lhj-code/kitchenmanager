@@ -57,6 +57,23 @@ struct KitchenManagerApp: App {
         _syncSmokeController = StateObject(
             wrappedValue: SyncSmokeController(persistence: persistence.sync)
         )
+        // UI-test-only appearance hook. Setting the simulator's appearance from
+        // XCTest (`XCUIDevice.appearance`, or an "-AppleInterfaceStyle Dark"
+        // launch argument) did not reliably reach the app before its first
+        // render, so the Dark Mode screenshot silently came out light. Writing
+        // the app's own `appearance` preference before the first body evaluation
+        // drives the exact `preferredColorScheme(.dark)` path a user gets from
+        // 设置 → 显示模式 → 深色. Never fires for a real user or a normal debug run.
+        //
+        // The preference persists in UserDefaults across launches on the same
+        // simulator, so any UI-test launch *without* the flag explicitly resets
+        // it — otherwise one dark screenshot would tint every later test.
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains(where: { $0.hasPrefix("UITEST_") }) {
+            let appearance: AppAppearance =
+                arguments.contains("UITEST_FORCE_DARK_APPEARANCE") ? .dark : .system
+            UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
+        }
         #endif
     }
 
@@ -215,6 +232,35 @@ struct ContentView: View {
                 InventoryImportItem(name: "土豆", quantity: 1, unit: "个", expiryDate: Calendar.current.date(byAdding: .day, value: 16, to: now)),
                 InventoryImportItem(name: "韭菜花", quantity: 1, unit: "份", expiryDate: Calendar.current.date(byAdding: .day, value: 19, to: now)),
             ])
+            navigationStore.selectedTab = .inventory
+        }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_INVENTORY") else { return }
+            kitchenStore.clearAllLocalData()
+            navigationStore.selectedTab = .inventory
+        }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_INVENTORY_LARGE") else { return }
+            kitchenStore.clearAllLocalData()
+            let now = Date()
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "嫩豆腐", quantity: 2, unit: "盒", expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: now)),
+                InventoryImportItem(name: "小番茄", quantity: 12, unit: "个", expiryDate: Calendar.current.date(byAdding: .day, value: 2, to: now)),
+                InventoryImportItem(name: "西兰花", quantity: 1, unit: "颗", expiryDate: Calendar.current.date(byAdding: .day, value: 4, to: now)),
+                InventoryImportItem(name: "三文鱼", quantity: 2, unit: "块", expiryDate: Calendar.current.date(byAdding: .day, value: 5, to: now)),
+                InventoryImportItem(name: "鸡腿", quantity: 4, unit: "只", expiryDate: Calendar.current.date(byAdding: .day, value: 6, to: now)),
+                InventoryImportItem(name: "上海青", quantity: 2, unit: "把", expiryDate: Calendar.current.date(byAdding: .day, value: 7, to: now)),
+                InventoryImportItem(name: "口蘑", quantity: 1, unit: "盒", expiryDate: Calendar.current.date(byAdding: .day, value: 8, to: now)),
+                InventoryImportItem(name: "胡萝卜", quantity: 3, unit: "根", expiryDate: Calendar.current.date(byAdding: .day, value: 10, to: now)),
+                InventoryImportItem(name: "土豆", quantity: 5, unit: "个", expiryDate: Calendar.current.date(byAdding: .day, value: 12, to: now)),
+                InventoryImportItem(name: "苹果", quantity: 6, unit: "个", expiryDate: Calendar.current.date(byAdding: .day, value: 14, to: now)),
+                InventoryImportItem(name: "大米", quantity: 1, unit: "袋", expiryDate: nil, isStaple: true),
+                InventoryImportItem(name: "鸡蛋", quantity: 8, unit: "个", expiryDate: nil, isStaple: true),
+                InventoryImportItem(name: "橄榄油", quantity: 0, unit: "瓶", expiryDate: nil, isStaple: true)
+            ])
+            if let eggIndex = kitchenStore.inventory.firstIndex(where: { $0.name == "鸡蛋" }) {
+                kitchenStore.inventory[eggIndex].lowStockThreshold = 12
+            }
             navigationStore.selectedTab = .inventory
         }
         .task {

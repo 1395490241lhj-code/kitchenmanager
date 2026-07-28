@@ -73,49 +73,103 @@ enum PantryStapleFilter: String, CaseIterable, Identifiable {
 
 struct PantryStapleRow: View {
     @EnvironmentObject private var store: KitchenStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let item: InventoryItem
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: item.stapleStatus == .outOfStock ? "cabinet.fill" : "cabinet")
-                .foregroundStyle(item.stapleStatus.color)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.name)
-                Text(item.stapleTrackingMode == .status
-                     ? "状态跟踪 · \(item.stapleAvailabilityStatus.title)"
-                     : "当前 \(item.quantity.formatted()) \(item.unit) · 最低 \(minimumText)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let progress = item.stapleStockProgress {
-                    StapleStockProgressBar(value: progress, color: item.stapleStatus.color)
-                        .accessibilityHidden(true)
-                }
-            }
-            Spacer()
-            if item.stapleTrackingMode == .status {
-                Button {
-                    store.cycleStapleStatus(item.id)
-                } label: {
-                    Label(item.stapleAvailabilityStatus.title, systemImage: statusSymbol)
-                }
-                .buttonStyle(.bordered)
-                .tint(item.stapleStatus.color)
-                .accessibilityLabel("\(item.name)，\(item.stapleAvailabilityStatus.title)，点击切换状态")
-            } else {
-                HStack(spacing: 7) {
-                    Button { store.adjustStapleQuantity(item.id, by: -1) } label: {
-                        Image(systemName: "minus.circle")
+        // At Accessibility sizes nothing may share a line: the stepper/status
+        // button keeps its intrinsic width, which squeezed the name and detail
+        // text down to one or two characters per line ("榄 / 油"). The row
+        // becomes one full-width column in a fixed order — name, current
+        // quantity, minimum stock, then the control — so no element is ever
+        // pushed into a narrow column. All text keeps unrestricted Dynamic Type.
+        if dynamicTypeSize.isAccessibilitySize {
+            HStack(alignment: .top, spacing: 12) {
+                statusIcon
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.name)
+                    ForEach(Array(detailLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    .accessibilityLabel("减少\(item.name)")
-                    Text(item.quantity.formatted()).monospacedDigit().frame(minWidth: 24)
-                    Button { store.adjustStapleQuantity(item.id, by: 1) } label: {
-                        Image(systemName: "plus.circle")
+                    if let progress = item.stapleStockProgress {
+                        StapleStockProgressBar(value: progress, color: item.stapleStatus.color)
+                            .accessibilityHidden(true)
                     }
-                    .accessibilityLabel("增加\(item.name)")
+                    trailingControl
+                        .padding(.top, 4)
                 }
-                .buttonStyle(.borderless)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+        } else {
+            HStack(spacing: 12) {
+                statusIcon
+                labels
+                Spacer()
+                trailingControl
+            }
+        }
+    }
+
+    /// Split into separate lines at Accessibility sizes so "当前 1 瓶" and
+    /// "最低 未设置" each get a full-width line instead of wrapping mid-phrase.
+    /// The default layout keeps the single combined caption.
+    private var detailLines: [String] {
+        if item.stapleTrackingMode == .status {
+            return ["状态跟踪 · \(item.stapleAvailabilityStatus.title)"]
+        }
+        return ["当前 \(item.quantity.formatted()) \(item.unit)", "最低 \(minimumText)"]
+    }
+
+    private var statusIcon: some View {
+        Image(systemName: item.stapleStatus == .outOfStock ? "cabinet.fill" : "cabinet")
+            .foregroundStyle(item.stapleStatus.color)
+            // Glyph tracks text size up to a limit and then holds, matching the
+            // fresh-inventory rows, so it never crowds out the staple name.
+            .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+            .frame(width: 28)
+    }
+
+    private var labels: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(item.name)
+            Text(item.stapleTrackingMode == .status
+                 ? "状态跟踪 · \(item.stapleAvailabilityStatus.title)"
+                 : "当前 \(item.quantity.formatted()) \(item.unit) · 最低 \(minimumText)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let progress = item.stapleStockProgress {
+                StapleStockProgressBar(value: progress, color: item.stapleStatus.color)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var trailingControl: some View {
+        if item.stapleTrackingMode == .status {
+            Button {
+                store.cycleStapleStatus(item.id)
+            } label: {
+                Label(item.stapleAvailabilityStatus.title, systemImage: statusSymbol)
+            }
+            .buttonStyle(.bordered)
+            .tint(item.stapleStatus.color)
+            .accessibilityLabel("\(item.name)，\(item.stapleAvailabilityStatus.title)，点击切换状态")
+        } else {
+            HStack(spacing: 7) {
+                Button { store.adjustStapleQuantity(item.id, by: -1) } label: {
+                    Image(systemName: "minus.circle")
+                }
+                .accessibilityLabel("减少\(item.name)")
+                Text(item.quantity.formatted()).monospacedDigit().frame(minWidth: 24)
+                Button { store.adjustStapleQuantity(item.id, by: 1) } label: {
+                    Image(systemName: "plus.circle")
+                }
+                .accessibilityLabel("增加\(item.name)")
+            }
+            .buttonStyle(.borderless)
         }
     }
 

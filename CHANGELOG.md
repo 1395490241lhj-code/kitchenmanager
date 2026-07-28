@@ -6,6 +6,91 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-28 (Inventory UI Phase UI-3 — main integration)
+
+### Validation
+
+- Updated the Inventory UI branch onto `main` at
+  `817b29f3c5962d7ee2cde28e54b8cb9fb23e2886` with a normal merge; only
+  `CHANGELOG.md` and `PROJECT_STATUS.md` conflicted, and both were reconciled
+  without changing Inventory production code.
+- Revalidated Debug/Release builds, focused Inventory (128 unit / 10 UI), Home
+  + Clipboard UI (13), Recipe UI (7), full unit (782 passed / 5 existing
+  skips), full UI (44 passed / 1 existing skip), focused Node (37), and the
+  full Node suite (1,057 passed / 0 failed / 0 skipped) after documentation
+  updates.
+- Preserved the merged Home UI 1B, Clipboard native paste-control, Recipe UI
+  Phase 2, Share Extension, and App Icon work; no App Icon files entered this
+  branch. Review screenshots remain outside Git in the post-main-update set.
+
+## 2026-07-26 (iOS Inventory Experience Phase UI-3)
+
+### Changed
+
+- Reworked the native Inventory list around one quiet, searchable food-browsing
+  surface. The former equal-weight metric dashboard and tinted grid cards are
+  replaced by a compact availability summary, system list sections, and
+  text-plus-symbol expiry rows.
+- Kept existing entry, receipt scan, pantry, restock, detail, delete, and
+  consumption routes intact while making `添加食材` the clear toolbar action and
+  moving secondary actions into an overflow menu.
+- Renamed the in-list staple section from `常备货架` to `常备食材` for
+  consistency with Settings, and removed the duplicate `常备食材 0 项` header
+  that sat directly above the identically-worded empty-state title.
+
+### Fixed
+
+- Accessibility XXXL no longer loses the Inventory first screen to page chrome.
+  The navigation title collapses to inline, the availability summary stacks and
+  is capped, section headers stay heading-weight, and the row status glyph and
+  toolbar icons hold their size inside 44pt targets — all via one
+  `InventoryChromeMetrics` type. Food names, quantities, and status text keep
+  unrestricted Dynamic Type; rows just grow taller.
+- At Accessibility sizes the inventory row is now one explicit left-aligned column
+  in a fixed order — name, expiry status, quantity — instead of trying to keep the
+  quantity at the trailing edge, which squeezed it into a narrow column and
+  wrapped it onto its own line. No `lineLimit(1)`, no `minimumScaleFactor`. The
+  default-size layout is unchanged.
+- The `.searchable` field no longer renders as a large empty grey capsule under
+  the Accessibility-size title. `.automatic` placement pinned the drawer to a fixed
+  ~63pt that Accessibility XXXL text could not fit, so UIKit clipped away the
+  magnifier and the "搜索食材" prompt. Accessibility sizes now use
+  `.navigationBarDrawer(displayMode: .always)` so the drawer sizes to its content;
+  default sizes keep `.automatic`.
+- The Inventory list no longer scrolls its last rows under the floating tab bar.
+  A single Inventory-level `safeAreaInset(edge: .bottom)` spacer lets the last
+  ingredient, the last search result, and the pantry empty-state CTA and its
+  explanatory line rest fully above the expanded bar at default, Dark Mode, and
+  Accessibility XXXL sizes.
+- `PantryStapleRow` no longer squeezes the staple name and detail text into a
+  one-to-two-character column at Accessibility sizes; name, current quantity,
+  minimum stock, and the stepper each get a full-width line. Stepper and
+  status-cycle actions are unchanged.
+- The Dark Mode UI screenshot now actually renders dark. The launch argument it
+  relied on had no effect, so the "dark" screenshot was silently a duplicate of
+  the light one; a DEBUG-only `UITEST_FORCE_DARK_APPEARANCE` hook drives the app's
+  real appearance preference instead, and resets it on every other UI-test launch.
+
+### Testing
+
+- Added empty, search, large-inventory, Dynamic Type, and dark-mode visual
+  regressions using the existing DEBUG-only UI-test seed mechanism. No model,
+  persistence, sync, authentication, or business-rule behavior changed.
+- Added UI coverage asserting bottom tab-bar clearance against the tab bar's
+  reported expanded top edge at default / Dark Mode / Accessibility XXXL sizes,
+  Accessibility XXXL first-screen readability, the Accessibility row's vertical
+  name/status/quantity order and left alignment, that a visible search field
+  always carries its prompt and glyph, and the pantry empty-state CTA's hit
+  target, explanatory line, and destination.
+- Updated stale static assertions in three files that described Inventory markup
+  the redesign replaced — `ios-native-pantry-staples.test.mjs` (the `常备货架`
+  heading and `补齐常备货架`), `ios-native-inventory-ui.test.mjs` (the adaptive
+  `LazyVGrid` and `InventoryExpiryProgressBar`), and
+  `ios-native-inventory-entry.test.mjs` (the single `录入食材` plus-menu). Each now
+  asserts real wiring — sources, row presentation, tap routes, sheet
+  destinations, identifiers — rather than surface strings. No assertion was
+  deleted, no skip added, and no package script or CI workflow changed.
+  `ios-native-core-alignment.test.mjs` needed no change and passes unmodified.
 ## 2026-07-28 (Recipe Experience Phase 2 — main integration)
 
 ### Changed
