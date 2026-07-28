@@ -1,6 +1,13 @@
 import XCTest
 
 final class HomeDashboardUITests: XCTestCase {
+    private func attachScreenshot(of app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func makeHittable(_ element: XCUIElement, in app: XCUIApplication) {
         for _ in 0..<6 where !element.isHittable {
             app.swipeUp()
@@ -115,8 +122,20 @@ final class HomeDashboardUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.otherElements["home.clipboard.import.prompt"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["clipboard.paste.control"].exists)
-        XCTAssertTrue(app.staticTexts["粘贴导入"].exists)
+
+        let pasteControl = app.buttons["clipboard.paste.control"]
+        XCTAssertTrue(pasteControl.exists)
+        XCTAssertEqual(
+            pasteControl.label,
+            "粘贴导入",
+            "原生粘贴按钮应播报“粘贴导入”，而不是系统默认的 Paste"
+        )
+        XCTAssertTrue(pasteControl.isHittable, "整块粘贴区域应由原生控件接收点击")
+        XCTAssertGreaterThanOrEqual(pasteControl.frame.width, 118, "原生控件应覆盖完整中文胶囊")
+        XCTAssertGreaterThanOrEqual(pasteControl.frame.height, 43.5, "粘贴控件点击区域应至少 44pt 高")
+
+        attachScreenshot(of: app, named: "home-clipboard-banner")
+
         let ignore = app.buttons["home.clipboard.ignore.button"]
         XCTAssertTrue(ignore.exists)
         makeHittable(ignore, in: app)

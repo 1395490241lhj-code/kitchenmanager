@@ -17,33 +17,46 @@ struct RecipeCookingModeView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 22) {
+            VStack(spacing: 0) {
                 if steps.isEmpty {
                     ContentUnavailableView("还没有制作步骤", systemImage: "list.number", description: Text("可以返回详情编辑菜谱后再开始烹饪。"))
                 } else {
-                    ProgressView(value: Double(session.currentStepIndex + 1), total: Double(steps.count))
-                        .accessibilityLabel("烹饪进度 \(session.currentStepIndex + 1) / \(steps.count)")
-                    Text("第 \(session.currentStepIndex + 1) 步，共 \(steps.count) 步")
-                        .font(.headline).foregroundStyle(.secondary)
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            Text(currentStep).font(.title2.weight(.semibold)).frame(maxWidth: .infinity, alignment: .leading)
-                            Button {
-                                session.toggleStep(at: session.currentStepIndex)
-                            } label: {
-                                Label(session.completedStepIndexes.contains(session.currentStepIndex) ? "已完成此步骤" : "标记此步骤完成", systemImage: session.completedStepIndexes.contains(session.currentStepIndex) ? "checkmark.circle.fill" : "circle")
+                        VStack(alignment: .leading, spacing: 24) {
+                            cookingProgress
+
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("第 \(session.currentStepIndex + 1) 步")
+                                    .font(.headline)
+                                    .foregroundStyle(.secondary)
+                                Text(currentStep)
+                                    .font(.title2.weight(.semibold))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("recipe.cooking.currentStep")
+                                Button {
+                                    session.toggleStep(at: session.currentStepIndex)
+                                } label: {
+                                    Label(
+                                        session.completedStepIndexes.contains(session.currentStepIndex) ? "已完成此步骤" : "标记此步骤完成",
+                                        systemImage: session.completedStepIndexes.contains(session.currentStepIndex) ? "checkmark.circle.fill" : "circle"
+                                    )
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(AppTheme.brand)
+                                .frame(minHeight: AppTheme.minimumHitTarget)
+                                .accessibilityIdentifier("recipe.cooking.step.complete")
                             }
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("recipe.cooking.step.complete")
 
                             timerPanel
+                            stepControls
                         }
-                        .padding(.vertical, 8)
+                        .padding(.horizontal)
+                        .padding(.vertical, 24)
                     }
-                    stepControls
                 }
             }
-            .padding()
+            .background(Color(.systemGroupedBackground))
             .navigationTitle(recipe.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -60,11 +73,7 @@ struct RecipeCookingModeView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Button(todayPlan == nil ? "结束烹饪" : "完成今日计划") { finishCooking() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
-                    .frame(maxWidth: .infinity).padding(.horizontal).padding(.vertical, 8)
-                    .accessibilityIdentifier("recipe.cooking.finish")
+                finishCookingAction
             }
         }
         .onAppear { screenAwake.activate() }
@@ -94,18 +103,72 @@ struct RecipeCookingModeView: View {
         }
     }
 
+    private var cookingProgress: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("烹饪进度")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(session.currentStepIndex + 1) / \(steps.count)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            ProgressView(value: Double(session.currentStepIndex + 1), total: Double(steps.count))
+                .tint(AppTheme.brand)
+                .accessibilityLabel("烹饪进度 \(session.currentStepIndex + 1) / \(steps.count)")
+        }
+    }
+
     @ViewBuilder private var stepControls: some View {
+        ViewThatFits(in: .horizontal) {
+            stepControlsHorizontal
+            stepControlsVertical
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 4)
+    }
+
+    private var stepControlsHorizontal: some View {
         HStack(spacing: 12) {
             Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
-                .buttonStyle(.bordered).disabled(session.currentStepIndex == 0)
+                .buttonStyle(.bordered)
+                .tint(AppTheme.brand)
+                .disabled(session.currentStepIndex == 0)
                 .accessibilityIdentifier("recipe.cooking.previous")
             Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
                 .buttonStyle(.bordered)
+                .tint(AppTheme.brand)
+                .accessibilityIdentifier("recipe.cooking.ingredients")
             Button("下一步", systemImage: "chevron.right") { session.next(stepCount: steps.count) }
-                .buttonStyle(.borderedProminent).disabled(session.currentStepIndex >= steps.count - 1)
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.brand)
+                .disabled(session.currentStepIndex >= steps.count - 1)
                 .accessibilityIdentifier("recipe.cooking.next")
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var stepControlsVertical: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button("下一步", systemImage: "chevron.right") { session.next(stepCount: steps.count) }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.brand)
+                .disabled(session.currentStepIndex >= steps.count - 1)
+                .accessibilityIdentifier("recipe.cooking.next")
+            HStack(spacing: 12) {
+                Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
+                    .buttonStyle(.bordered)
+                    .tint(AppTheme.brand)
+                    .disabled(session.currentStepIndex == 0)
+                    .accessibilityIdentifier("recipe.cooking.previous")
+                Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
+                    .buttonStyle(.bordered)
+                    .tint(AppTheme.brand)
+                    .accessibilityIdentifier("recipe.cooking.ingredients")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder private var timerPanel: some View {
@@ -118,6 +181,7 @@ struct RecipeCookingModeView: View {
                 }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("recipe.cooking.timer.start")
+                .tint(AppTheme.brand)
             } else {
                 HStack {
                     Button(timer.state.status == .running ? "暂停" : "继续") { timer.state.status == .running ? timer.pause() : timer.resume() }
@@ -126,10 +190,21 @@ struct RecipeCookingModeView: View {
                 .buttonStyle(.bordered)
             }
         }
-        .padding().background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: 16))
+        .padding(16)
+        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var timerText: String { String(format: "%02d:%02d", timer.state.remainingSeconds / 60, timer.state.remainingSeconds % 60) }
+    private var finishCookingAction: some View {
+        Button(todayPlan == nil ? "结束烹饪" : "完成今日计划") { finishCooking() }
+            .buttonStyle(.bordered)
+            .tint(AppTheme.brand)
+            .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(.systemBackground))
+            .accessibilityIdentifier("recipe.cooking.finish")
+    }
     private func finishCooking() { screenAwake.deactivate(); timer.cancel(); onFinish() }
 }
 

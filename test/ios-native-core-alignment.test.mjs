@@ -72,7 +72,8 @@ test("recipe seasonings are a real backward-compatible field", () => {
   assert.match(recipeModel, /let seasonings: \[String\]/);
   assert.match(recipeModel, /decodeIfPresent\(\[String\]\.self, forKey: \.seasonings\)/);
   assert.match(recipeModel, /RecipeIngredientClassifier\.classify\(legacyIngredients, recipeTitle: title\)/);
-  assert.match(recipes, /Section\("调料与辅料"\)/);
+  assert.match(recipes, /RecipeDetailSection\("调料与辅料", systemImage: "leaf"\)/);
+  assert.match(recipes, /if !recipe\.seasonings\.isEmpty/);
 });
 
 test("classifier moves bean flour, starch, oil, and liquids into seasonings conservatively", () => {

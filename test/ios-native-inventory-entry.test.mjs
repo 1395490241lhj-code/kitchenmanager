@@ -10,13 +10,35 @@ const store = read("KitchenStore.swift");
 const shopping = read("ShoppingListGenerator.swift");
 const expiry = read("InventoryExpirySuggestion.swift");
 
-test("inventory plus menu exposes only normal and staple entry", () => {
+// Phase UI-3 split the single "录入食材" plus-menu into a dedicated 添加食材
+// toolbar button plus an adjacent overflow menu, so 添加食材 is unambiguously the
+// primary action instead of one row among equals. The entry *routes* are
+// unchanged — every action still opens a pre-existing sheet.
+test("inventory toolbar promotes add-food and keeps secondary entry in one overflow menu", () => {
   const toolbar = features.slice(features.indexOf('.navigationTitle("食材")'), features.indexOf('.sheet(item: $recordMode)'));
-  assert.match(toolbar, /Button\("添加食材", systemImage: "square\.and\.pencil"\)/);
+
+  // Primary action: its own toolbar button with a stable identifier.
+  assert.match(toolbar, /Button\("添加食材", systemImage: "plus"\)/);
+  assert.match(toolbar, /\.accessibilityIdentifier\("inventory\.add\.button"\)/);
+
+  // Secondary actions live behind one overflow menu, not a second primary button.
+  assert.match(toolbar, /Label\("更多食材操作", systemImage: "ellipsis\.circle"\)/);
+  assert.match(toolbar, /\.accessibilityLabel\("更多食材操作"\)/);
+  assert.match(toolbar, /\.accessibilityIdentifier\("inventory\.more\.button"\)/);
+  assert.match(toolbar, /Button\("扫描购物小票", systemImage: "camera\.viewfinder"\)/);
   assert.match(toolbar, /Button\("添加常备食材", systemImage: "cabinet"\)/);
+
+  // Retired labels from earlier entry-point cleanups stay retired.
   assert.doesNotMatch(toolbar, /Button\("扫描小票"/);
   assert.doesNotMatch(toolbar, /Button\("批量录入"/);
-  assert.match(toolbar, /\.accessibilityLabel\("录入食材"\)/);
+
+  // Both food-entry actions still resolve to the existing RecordFoodSheet modes,
+  // and staple creation to the existing AddPantryStapleView — no new flow.
+  assert.match(toolbar, /recordMode = \.manual/);
+  assert.match(toolbar, /recordMode = \.receipt/);
+  assert.match(toolbar, /isShowingAddStaple = true/);
+  assert.match(features, /\.sheet\(item: \$recordMode\) \{ mode in\s*RecordFoodSheet\(initialMode: mode\)/);
+  assert.match(features, /\.sheet\(isPresented: \$isShowingAddStaple\) \{\s*AddPantryStapleView\(\)/);
   assert.match(receipt, /case receipt = "拍小票"/);
 });
 
