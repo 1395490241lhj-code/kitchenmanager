@@ -91,6 +91,11 @@ history, device-validation narratives, and bug investigations belong in
   access to the existing 我的 tab, and adds a contextual Today Plan add action
   without changing Home decisions, stores, navigation, clipboard privacy, or
   import behavior. See `docs/IOS_HOME_UI_PHASE1.md`.
+- iOS Home UI Phase UI-1B resolves the follow-up simulator findings without
+  changing those boundaries: Today Plan CTAs are presentation-derived from plan
+  state rather than stock-in priority, the date and native paste presentation
+  are Chinese, Header chrome is more compact, and Home content safely scrolls
+  above the floating tab bar. See `docs/IOS_HOME_UI_PHASE1B_VISUAL_FIXES.md`.
 - iOS recipe detail now supports session-only serving scaling and ingredient
   checks, plus a native Cooking Mode with step navigation, foreground timer,
   temporary screen-awake behavior, and explicit Today Plan completion. It
