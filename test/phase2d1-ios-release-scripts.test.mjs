@@ -226,9 +226,9 @@ test('checkAppIconPresence passes when a real, non-trivially-sized PNG icon exis
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('checkAppIconPresence on the real repository currently fails (no asset catalog exists yet — a real, un-fabricated blocker)', () => {
+test('checkAppIconPresence on the real repository passes with the committed AppIcon asset', () => {
   const result = checkAppIconPresence();
-  assert.equal(result.ok, false);
+  assert.equal(result.ok, true, result.detail);
 });
 
 test('runAllChecks on the real repository currently passes every check except the two genuinely-pending ones', () => {
@@ -242,8 +242,5 @@ test('runAllChecks on the real repository currently passes every check except th
   assert.equal(checks.versionAndBuild.ok, true, checks.versionAndBuild.detail);
   assert.equal(checks.signingConfigured.ok, true, checks.signingConfigured.detail);
   assert.equal(checks.launchScreenAndPrivacyDescriptions.ok, true, checks.launchScreenAndPrivacyDescriptions.detail);
-  // appIconPresence is a known, documented, currently-unmet pending item
-  // (no app icon artwork exists yet) — asserting it stays false here would
-  // make this test fail the moment someone adds a real icon, which is the
-  // point at which this assertion should be removed, not before.
+  assert.equal(checks.appIconPresence.ok, true, checks.appIconPresence.detail);
 });
