@@ -280,8 +280,8 @@ Post-merge validation on iPhone 17e / iOS 27.0:
 - Full unit suite: 782 passed, 5 pre-existing skips, 0 failed.
 - Full UI suite: 44 passed, 1 pre-existing skip, 0 failed.
 - Focused Node static tests: 37 passed, 0 failed, 0 skipped.
-- `npm test`: run after documentation reconciliation; result is recorded in
-  the PR body and delivery report.
+- `npm test`: 1,057 passed, 0 failed, 0 skipped (rerun with local-listen
+  permissions after the sandbox-only EPERM result).
 - `git diff --check`: clean.
 
 Fresh post-main screenshots are exported outside Git to

@@ -17,7 +17,8 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - Revalidated Debug/Release builds, focused Inventory (128 unit / 10 UI), Home
   + Clipboard UI (13), Recipe UI (7), full unit (782 passed / 5 existing
   skips), full UI (44 passed / 1 existing skip), focused Node (37), and the
-  full Node suite after documentation updates.
+  full Node suite (1,057 passed / 0 failed / 0 skipped) after documentation
+  updates.
 - Preserved the merged Home UI 1B, Clipboard native paste-control, Recipe UI
   Phase 2, Share Extension, and App Icon work; no App Icon files entered this
   branch. Review screenshots remain outside Git in the post-main-update set.
