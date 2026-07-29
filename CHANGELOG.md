@@ -6,6 +6,50 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-28 (iOS Settings Experience Phase UI-5A)
+
+### Changed
+
+- Reworked the native 我的 / Settings information architecture. The account area
+  now leads with the mode (`游客模式`), states plainly that all local features are
+  available, and names its action (`登录或创建账号`) instead of rendering the action
+  as a trailing value; the nuanced sync/merge explanation moved into the section
+  footer with its wording unchanged.
+- Moved `管理常备货架` out of the 提醒 section into its own 常备食材 section — it is a
+  pantry preference, not a notification setting. Same destination.
+- Moved `清除全部本地数据` out of the 数据 section into its own trailing section, so
+  the destructive action no longer sits one row below `备份与恢复`. Its confirmation
+  flow, wording, roles, and mutation scope are unchanged.
+- Added stable accessibility identifiers across Settings rows so tests no longer
+  depend on product copy.
+- Added one Form-level bottom safe-area inset so the destructive row and the About
+  footer rest above the expanded floating tab bar.
+
+### Accessibility
+
+- The account row is a single VoiceOver element reading mode → status → action,
+  and stacks vertically at every type size so the action can never be squeezed
+  against the disclosure chevron.
+- Row symbols are capped at `.xxLarge`; all text keeps unrestricted Dynamic Type.
+  No `minimumScaleFactor`, no fixed row/text heights, no `GeometryReader`.
+- Interactive rows carry a 44pt minimum height, icons are accessibility-hidden,
+  and the destructive action is identified by wording, role, and position rather
+  than by colour alone.
+
+### Testing
+
+- Added `SettingsExperienceUITests` covering guest Settings at standard type, core
+  entry reachability, the clear-data confirmation (opened, asserted, then
+  **cancelled** — never executed), Accessibility XXXL top and bottom with tab-bar
+  clearance, Dark Mode via the existing `UITEST_FORCE_DARK_APPEARANCE` path, and
+  backup-entry navigation without running an export or restore.
+- Updated `GuestMergeUIPhase2B3UITests` for the element/copy contract only (the
+  guest row is now one combined accessibility element); its behavioural assertions
+  are unchanged.
+- No authentication, sync, reminder, backup, appearance-persistence, model,
+  persistence, or project-configuration change. No signed-in fixture was added —
+  signed-in lifecycle presentation is deferred to UI-5B.
+
 ## 2026-07-28 (iOS Shopping Experience Phase UI-4)
 
 ### Changed

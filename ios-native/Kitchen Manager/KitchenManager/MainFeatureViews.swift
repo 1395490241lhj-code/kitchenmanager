@@ -1287,7 +1287,92 @@ private struct AddShoppingItemView: View {
     }
 }
 
+/// Presentation limits for the Settings screen only.
+///
+/// Deliberately separate from `InventoryChromeMetrics` rather than importing an
+/// Inventory-named type into Settings; the bottom clearance intentionally matches
+/// it, because both screens sit under the same floating tab bar.
+enum SettingsChromeMetrics {
+    /// Row symbols track text size up to this point and then hold, so they stay
+    /// inside their slot instead of crowding out the row's text.
+    static let symbolTypeLimit = DynamicTypeSize.xxLarge
+    static let minimumRowHeight: CGFloat = 44
+    /// Clearance for the expanded floating (iOS 26) tab bar, added once at the
+    /// Form level rather than per row.
+    static let bottomClearance: CGFloat = 72
+}
+
+/// Wraps a Settings row's text in a `Label` with a leading decorative symbol at
+/// normal sizes, and drops the symbol entirely at Accessibility sizes.
+///
+/// `Label` keeps the icon in its own leading column, which at Accessibility XXXL
+/// leaves the text column so narrow that wrapped continuation lines hang back out
+/// to the left underneath the icon ("游客" / "模式", "本机功能" / "已全部可用") —
+/// legible in theory, ragged and hard to scan in practice. The symbols here carry
+/// no information (they are all `accessibilityHidden`), so at those sizes the text
+/// simply takes the full row width instead.
+private struct SettingsRowLabel<Content: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let symbol: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            content.frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Label {
+                content
+            } icon: {
+                Image(systemName: symbol)
+                    .dynamicTypeSize(...SettingsChromeMetrics.symbolTypeLimit)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
+/// Account/guest row: mode or identity first, an optional plain-language status,
+/// then the action. Always a vertical stack, so the action text can never be
+/// squeezed against the disclosure chevron, and reads as a single VoiceOver
+/// element in that same order.
+private struct SettingsAccountRow: View {
+    let symbol: String
+    let title: String
+    let detail: String?
+    let action: String
+
+    var body: some View {
+        SettingsRowLabel(symbol: symbol) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                if let detail {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Text(action)
+                    .font(.footnote)
+                    .foregroundStyle(.tint)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct SettingsView: View {
+    /// Kept as a named constant so the guest-mode UI test asserts the same string
+    /// the screen renders, instead of a hand-copied duplicate.
+    ///
+    /// Wording is deliberately byte-identical to the pre-UI-5A copy. UI-5A's
+    /// improvement is *hierarchy* — the mode, local-usability status, and action
+    /// moved into the row, and this qualification moved into the section footer —
+    /// not rewording. Two static contracts pin this exact string
+    /// (`test/ios-native-auth-phase1.test.mjs` and `GuestMergeUIPhase2B3UITests`),
+    /// and there is no user-facing gain in churning them for one word.
+    static let guestAccountFooter = "无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。"
+
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @AppStorage("expiryNotificationsEnabled") private var notificationsEnabled = false
     @AppStorage("notifyLeadTime1Day") private var notifyLeadTime1Day = true
@@ -1315,31 +1400,50 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("账号") {
+            Section {
                 switch authStore.status {
                 case .guest:
+                    // Guest is a normal, complete state — not a warning. The row
+                    // leads with the mode, states plainly that nothing is missing
+                    // locally, and names the action, so the nuanced sync/merge
+                    // detail can move to the section footer where iOS puts it.
                     NavigationLink {
                         AuthEntryView()
                     } label: {
-                        LabeledContent("游客模式", value: "登录或创建账号")
+                        SettingsAccountRow(
+                            symbol: "person.crop.circle",
+                            title: "游客模式",
+                            detail: "本机功能已全部可用",
+                            action: "登录或创建账号"
+                        )
                     }
-                    Text("无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    if let message = authStore.errorMessage {
-                        Text(message).font(.caption).foregroundStyle(.secondary)
-                    }
+                    .accessibilityIdentifier("settings.account.entry")
                 case .signedIn(let user):
                     NavigationLink {
                         AccountView()
                     } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(user.email ?? "已登录账号")
-                            Text("管理账号与家庭")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        SettingsAccountRow(
+                            symbol: "person.crop.circle.fill",
+                            title: user.email ?? "已登录账号",
+                            detail: nil,
+                            action: "管理账号与家庭"
+                        )
                     }
+                    .accessibilityIdentifier("settings.account.entry")
+                }
+
+                if let message = authStore.errorMessage {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settings.account.error")
+                }
+            } header: {
+                Text("账号")
+            } footer: {
+                if case .guest = authStore.status {
+                    Text(Self.guestAccountFooter)
+                        .accessibilityIdentifier("settings.account.guest.footer")
                 }
             }
 
@@ -1349,6 +1453,7 @@ struct SettingsView: View {
                         Text(option.title).tag(option)
                     }
                 }
+                .accessibilityIdentifier("settings.appearance.picker")
             }
 
             Section("菜谱") {
@@ -1358,15 +1463,21 @@ struct SettingsView: View {
                 )) {
                     ForEach(RecipeLibraryMode.allCases) { Text($0.title).tag($0) }
                 }
+                .accessibilityIdentifier("settings.recipeLibrary.picker")
                 if let message = recipeStore.errorMessage {
-                    Text(message).font(.caption).foregroundStyle(.secondary)
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settings.recipeLibrary.error")
                 }
             }
+
             Section {
                 Toggle("食材到期提醒", isOn: Binding(
                     get: { notificationsEnabled },
                     set: { handleNotificationsToggle($0) }
                 ))
+                .accessibilityIdentifier("settings.expiryNotifications.toggle")
                 if notificationsEnabled {
                     Toggle(
                         ExpiryNotificationLeadTime.oneDayBefore.title,
@@ -1388,12 +1499,8 @@ struct SettingsView: View {
                     get: { stapleNotificationsEnabled },
                     set: { handleStapleNotificationsToggle($0) }
                 ))
+                .accessibilityIdentifier("settings.stapleNotifications.toggle")
 
-                NavigationLink {
-                    PantryStaplesView()
-                } label: {
-                    Text("管理常备货架")
-                }
             } header: {
                 Text("提醒")
             } footer: {
@@ -1403,16 +1510,52 @@ struct SettingsView: View {
             .onChange(of: notifyLeadTime3Day) { _, _ in rescheduleNotifications() }
             .onChange(of: notifyLeadTimeDayOf) { _, _ in rescheduleNotifications() }
 
+            // Managing the pantry shelf is a pantry preference, not a reminder
+            // setting, so it no longer sits among the notification toggles. Same
+            // destination as before.
+            Section("常备食材") {
+                NavigationLink {
+                    PantryStaplesView()
+                } label: {
+                    SettingsRowLabel(symbol: "cabinet") {
+                        Text("管理常备货架")
+                    }
+                }
+                .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+                .accessibilityIdentifier("settings.pantry.manage.link")
+            }
+
             Section("数据") {
-                NavigationLink("备份与恢复", destination: BackupRestoreView())
-                Button("清除全部本地数据", role: .destructive) { isShowingClearDataAlert = true }
+                NavigationLink {
+                    BackupRestoreView()
+                } label: {
+                    SettingsRowLabel(symbol: "externaldrive") {
+                        Text("备份与恢复")
+                    }
+                }
+                .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+                .accessibilityIdentifier("settings.backup.link")
             }
 
             Section("关于") {
                 LabeledContent("版本", value: appVersion)
+                    .accessibilityIdentifier("settings.about.version")
                 Text("Kitchen Manager 仅在你主动使用导入或 AI 功能时发送必要内容。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            }
+
+            // The destructive action gets its own section, last, so it never sits
+            // beside an ordinary setting like 备份与恢复 and cannot be tapped by
+            // aiming for a neighbouring row. Confirmation flow is unchanged.
+            Section {
+                Button("清除全部本地数据", role: .destructive) {
+                    isShowingClearDataAlert = true
+                }
+                .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+                .accessibilityIdentifier("settings.cleardata.button")
+            } footer: {
+                Text("此操作无法撤销，且不会影响远端菜谱库。")
             }
 
             #if DEBUG
@@ -1435,6 +1578,13 @@ struct SettingsView: View {
                 }
             }
             #endif
+        }
+        // One Settings-level inset so the destructive row and the About footer can
+        // come to rest above the floating tab bar instead of under it.
+        .safeAreaInset(edge: .bottom) {
+            Color.clear
+                .frame(height: SettingsChromeMetrics.bottomClearance)
+                .accessibilityHidden(true)
         }
         .navigationTitle("我的")
         .alert("无法开启到期提醒", isPresented: $isShowingPermissionDeniedAlert) {

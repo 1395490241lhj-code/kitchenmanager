@@ -135,6 +135,24 @@ history, device-validation narratives, and bug investigations belong in
   content, and stock-in confirmation uses a neutral default action because it
   changes inventory rather than deleting data; see
   `docs/IOS_SHOPPING_EXPERIENCE.md`.
+- iOS Settings Phase UI-5A reworked the 我的 information architecture: the account
+  area leads with `游客模式`, states that all local features are available, and
+  names its action; the sync/merge qualification moved to the section footer.
+  `管理常备货架` moved out of 提醒 into its own 常备食材 section, and
+  `清除全部本地数据` moved out of 数据 into its own trailing section so a destructive
+  action no longer neighbours an ordinary one. Adds stable row identifiers, a
+  Form-level bottom inset that clears the expanded floating tab bar, and
+  vertical-at-every-size account presentation with unrestricted Dynamic Type for
+  text. **Frozen and unchanged:** authentication, sign-in/sign-up, session and
+  Keychain handling, account error handling, sync, guest merge, household,
+  reminder permissions/scheduling/persisted values, appearance persistence,
+  recipe-library persistence, backup export/import/payload/restore, and the
+  clear-local-data mutation scope and confirmation semantics. No model,
+  persistence, SwiftData, migration, or project-configuration change. Presentation
+  only; see `docs/IOS_SETTINGS_EXPERIENCE_UI5A.md`.
+  **Deferred to UI-5B:** signed-in lifecycle presentation (account/household/sync
+  status, sign-out, deletion, reauthentication). UI-5A adds no deterministic
+  signed-in fixture and makes no claim about signed-in coverage.
 - iOS Share Import Phase 1 added a native Share Extension
   (`KitchenManagerShareExtension`) so a recipe **URL** shared from Safari,
   Xiaohongshu, YouTube, or any share-sheet-capable app can be handed to
