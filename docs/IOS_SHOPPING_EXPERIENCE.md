@@ -1,4 +1,4 @@
-# iOS Smart Shopping Experience
+# iOS Shopping Experience
 
 ## Scope
 
@@ -8,15 +8,30 @@ Supabase schema, sync protocol, background task, or network classification.
 
 ## Information architecture
 
-In ordinary mode, the page contains a compact summary, native name search,
-pending items grouped by category, and a purchased section. The summary shows
-pending items, purchased items, and the number of non-empty pending
-categories. The list keeps the existing add, toggle, delete, and stock-in
-business operations.
+In ordinary mode, the page contains an always-visible native name search, one
+quiet summary, pending items grouped by category, and a purchased section. The
+summary gives pending count the leading position and demotes purchased and
+non-empty category counts to secondary text instead of presenting three
+equal-weight metrics. The list keeps the existing add, toggle, bulk, and
+stock-in business operations.
+
+Each category header includes a quiet item count. Item names are the primary
+row content; source and quantity are secondary. At Accessibility Dynamic Type
+sizes, quantity and source move below the name instead of competing for a
+narrow trailing column. Page chrome is bounded, but shopping-item content
+keeps unrestricted Dynamic Type.
 
 Purchased items are collapsed at first. A matching purchased item is shown
-temporarily while a non-empty search query is active; clearing the query
-restores the user’s prior collapsed/expanded preference for this session.
+temporarily while a non-empty search query is active; unrelated purchased
+items and their section are not rendered for a pending-only or no-match query.
+Clearing the query restores the user’s prior collapsed/expanded preference for
+this session.
+Expanded purchased rows use the same layout as pending rows but reduce color
+and add strikethrough without removing the readable quantity.
+
+The truly empty list provides a direct `添加买菜项目` action wired to the same
+existing add-item sheet as the toolbar. Search-empty remains a distinct state
+and does not offer a second data path.
 
 ## Categories, search, and order
 
@@ -62,9 +77,11 @@ write restores the inventory snapshot, and no consumption record is written.
 Shopping Mode is a session-only focused view. It hides the ordinary summary,
 search field, add action, and bulk menu; keeps fixed category ordering; makes
 the entire item row an accessible purchase toggle; and shows the remaining
-pending count. When all items are purchased it shows an explicit completion
-state, retains access to completed items so a purchase can be undone, and does
-not automatically clear items, stock inventory, or exit the mode.
+pending count. The mode header and category chrome remain secondary to the
+larger pending-item names. When all items are purchased it shows an explicit
+completion state, retains access to completed items so a purchase can be
+undone, and does not automatically clear items, stock inventory, or exit the
+mode.
 
 Leaving Shopping Mode returns to the normal presentation. The mode, its
 progress, and purchased-section expansion are not persisted and are not
@@ -83,19 +100,26 @@ consumption records.
 
 Stable identifiers include:
 
-- `shopping.search`, `shopping.search.empty`, `shopping.empty`
+- `shopping.search`, `shopping.search.empty`, `shopping.empty`,
+  `shopping.empty.add.button`, and `shopping.add.button`
 - `shopping.summary.pending`, `shopping.summary.purchased`,
   `shopping.summary.categories`
-- `shopping.section.<category>` and `shopping.purchased.toggle`
+- `shopping.section.<category>`, `shopping.item.<uuid>`, and
+  `shopping.purchased.toggle`
 - `shopping.bulk.menu`, `shopping.bulk.clearPurchased`,
   `shopping.bulk.stockIn`, `shopping.bulk.expandPurchased`, and
   `shopping.bulk.collapsePurchased`
 - `shopping.mode.toggle`, `shopping.mode.container`,
-  `shopping.mode.remaining`, `shopping.mode.exit`, and
-  `shopping.mode.completed`
+  `shopping.mode.remaining`, `shopping.mode.item.<uuid>`,
+  `shopping.mode.exit`, and `shopping.mode.completed`
 
-Category and purchased controls announce counts and state. Shopping Mode rows
-announce their name, quantity, unit, purchase state, and the toggle action.
+Category and purchased controls announce counts and state. Every item button
+announces name, quantity, unit, non-manual source when present, purchase state,
+and the exact toggle action. Toolbar symbols keep 44pt targets and bounded
+chrome sizing; row text is never scale-compressed or line-limited. A single
+list-level bottom inset lets the final content scroll above the expanded
+floating tab bar. There is no custom Shopping animation, so Reduce Motion keeps
+the system list/sheet behavior without a parallel transition.
 
 ## Previews and tests
 
@@ -106,10 +130,12 @@ completed, and an empty list. Samples use an isolated `UserDefaults` suite and
 are not part of the production runtime path.
 
 `ShoppingExperienceTests` covers category mapping/order, summary and search
-presentation, purchased visibility, bulk availability and effects, stock-in
-accumulation, and Shopping Mode state. `ShoppingExperienceUITests` covers
-search, purchased collapse, bulk actions, and the Shopping Mode entry/toggle/
-exit path.
+presentation (including hiding an unrelated purchased section), purchased
+visibility, bulk availability and effects, stock-in accumulation, and Shopping
+Mode state. `ShoppingExperienceUITests` covers the summary/action hierarchy,
+search (including the pending-only purchased-section regression), purchased
+collapse, bulk actions and stock-in confirmation, empty-state add-sheet wiring,
+Accessibility XXXL reachability, and the Shopping Mode entry/toggle/exit path.
 
 ## Non-goals
 

@@ -25,6 +25,17 @@ final class ShoppingExperienceTests: XCTestCase {
         XCTAssertEqual(summary.categoryCount, 2)
     }
 
+    func testSummaryKeepsPurchasedItemsOutOfThePendingCategoryCount() {
+        let summary = ShoppingListSummary(items: [
+            item("番茄", done: true),
+            item("鸡肉", done: true)
+        ])
+
+        XCTAssertEqual(summary.pendingCount, 0)
+        XCTAssertEqual(summary.purchasedCount, 2)
+        XCTAssertEqual(summary.categoryCount, 0)
+    }
+
     func testSearchTrimsWhitespaceAndIgnoresCase() {
         let items = [item("Tomato"), item("大米")]
 
@@ -62,6 +73,16 @@ final class ShoppingExperienceTests: XCTestCase {
                 query: "牛",
                 matchingPurchasedCount: purchased.count
             )
+        )
+    }
+
+    func testPurchasedSearchProjectionExcludesUnrelatedPurchasedItems() {
+        let items = [item("番茄"), item("牛奶", done: true)]
+
+        XCTAssertTrue(ShoppingListPresentation.sections(items: items, query: "番茄").count > 0)
+        XCTAssertTrue(
+            ShoppingListPresentation.purchasedItems(items: items, query: "番茄").isEmpty,
+            "A pending-only query must not expose the unrelated purchased section"
         )
     }
 
