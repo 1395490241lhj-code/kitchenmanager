@@ -86,38 +86,63 @@ struct AccountView: View {
         Form {
             if case .signedIn(let user) = authStore.status {
                 Section("账号") {
-                    LabeledContent("邮箱", value: authStore.account?.user.email ?? user.email ?? "未提供")
-                    if let name = authStore.account?.user.displayName, !name.isEmpty {
-                        LabeledContent("名称", value: name)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(authStore.account?.user.displayName ?? "已登录账号")
+                            .font(.headline)
+                        Text(authStore.account?.user.email ?? user.email ?? "未提供")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("account.identity.summary")
+
+                    if let message = authStore.errorMessage {
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("account.auth.error")
                     }
                 }
 
                 Section("家庭") {
-                    if let households = authStore.account?.households, !households.isEmpty {
+                    if fixtureKeepsAccountLoading {
+                        ProgressView("正在读取账号资料…")
+                            .accessibilityIdentifier("account.household.loading")
+                    } else if let households = authStore.account?.households, !households.isEmpty {
                         ForEach(households) { household in
-                            LabeledContent(household.name, value: household.roleTitle)
+                            LabeledContent {
+                                Text(household.roleTitle)
+                                    .foregroundStyle(.secondary)
+                            } label: {
+                                Label(household.name, systemImage: "person.2")
+                            }
+                            .accessibilityIdentifier("account.household.\(household.id.uuidString)")
                         }
                     } else if let message = authStore.accountMessage {
-                        Text(message).foregroundStyle(.secondary)
+                        Label(message, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("account.household.error")
                         Button("重试") { Task { await authStore.refreshAccount() } }
+                            .frame(minHeight: 44)
                     } else {
                         ProgressView("正在读取账号资料…")
+                            .accessibilityIdentifier("account.household.loading")
                     }
                 }
 
-                if let userId = authStore.currentUserID, let household = defaultHousehold {
-                    GuestMergePromptView(
-                        controller: guestMergeController,
-                        userId: userId,
-                        householdId: household.id,
-                        householdName: household.name,
-                        kitchenStore: kitchenStore
-                    )
-                    InventorySyncStatusView(controller: guestMergeController, householdId: household.id)
+                #if DEBUG
+                if let fixture = AccountLifecycleFixture.active {
+                    fixtureSyncSection(fixture)
+                } else {
+                    liveSyncAndMergeSections
                 }
+                #else
+                liveSyncAndMergeSections
+                #endif
 
                 Section {
                     Button("退出登录", role: .destructive) { isConfirmingSignOut = true }
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("account.signout.button")
                 } footer: {
                     Text("退出登录不会删除本机的库存、计划、购物清单或菜谱。")
                 }
@@ -126,6 +151,7 @@ struct AccountView: View {
                     NavigationLink("删除账号") {
                         AccountDeletionView(controller: accountDeletionController)
                     }
+                    .accessibilityIdentifier("account.delete.link")
                 } footer: {
                     Text("永久删除你的登录身份，与退出登录不同。")
                 }
@@ -147,8 +173,71 @@ struct AccountView: View {
         .onChange(of: authStore.status) { _, status in
             if status == .guest { dismiss() }
         }
-        .task {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: 72)
+        }
+        .task(id: authStore.currentUserID) {
             guestMergeController.detect(kitchenStore: kitchenStore, recipeStore: recipeStore)
         }
     }
+
+    @ViewBuilder
+    private var liveSyncAndMergeSections: some View {
+        if let userId = authStore.currentUserID, let household = defaultHousehold {
+            GuestMergePromptView(
+                controller: guestMergeController,
+                userId: userId,
+                householdId: household.id,
+                householdName: household.name,
+                kitchenStore: kitchenStore
+            )
+            InventorySyncStatusView(controller: guestMergeController, householdId: household.id)
+        }
+    }
+
+    private var fixtureKeepsAccountLoading: Bool {
+        #if DEBUG
+        return AccountLifecycleFixture.active == .loading
+        #else
+        return false
+        #endif
+    }
+
+    #if DEBUG
+    private func fixtureSyncSection(_ fixture: AccountLifecycleFixture) -> some View {
+        Section("库存同步") {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("状态")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text(fixture.syncTitle)
+                    .font(.body)
+                    .accessibilityIdentifier("account.sync.status")
+            }
+            if let detail = fixture.syncDetail {
+                Label(detail, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+                    .font(.footnote)
+                    .accessibilityIdentifier("account.sync.error")
+            }
+            if fixture == .owner,
+               let userId = authStore.currentUserID,
+               let household = defaultHousehold {
+                NavigationLink("查看库存合并") {
+                    InventoryMergeFlowView(
+                        controller: guestMergeController,
+                        userId: userId,
+                        householdId: household.id,
+                        householdName: household.name,
+                        kitchenStore: kitchenStore
+                    )
+                }
+                .accessibilityIdentifier("account.merge.link")
+            }
+            Text("测试状态仅展示界面，不会连接网络或修改同步数据。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+    #endif
 }

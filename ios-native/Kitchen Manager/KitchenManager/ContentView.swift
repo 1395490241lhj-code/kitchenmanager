@@ -30,8 +30,36 @@ struct KitchenManagerApp: App {
             consumptionPersistence: persistence.consumption,
             weeklyPlanPersistence: persistence.weeklyPlan
         )
+        #if DEBUG
+        if AccountLifecycleFixture.active != nil {
+            kitchenStoreInstance.clearAllLocalData()
+            kitchenStoreInstance.addInventory(name: "测试库存", quantity: 1, unit: "项", expiryDate: nil)
+        }
+        #endif
         let authStoreInstance = AuthenticationAssembly.make()
+        #if DEBUG
+        let guestMergeControllerInstance: GuestMergeController
+        if AccountLifecycleFixture.active != nil {
+            guestMergeControllerInstance = GuestMergeController(
+                persistence: persistence.sync,
+                configuration: InventoryMergeConfiguration(isEnabled: true),
+                uiConfiguration: InventoryMergeUIConfiguration(isEnabled: true),
+                dogfoodConfiguration: InventorySyncDogfoodConfiguration(
+                    isDogfoodEnabled: true,
+                    isMergeUIEnabled: true,
+                    isManualSyncEnabled: true,
+                    diagnosticsEnabled: true,
+                    allowHostedWrites: false,
+                    environmentName: "ui-test-fixture"
+                ),
+                transportFactory: { _ in AccountLifecycleFixtureTransport() }
+            )
+        } else {
+            guestMergeControllerInstance = GuestMergeController(persistence: persistence.sync)
+        }
+        #else
         let guestMergeControllerInstance = GuestMergeController(persistence: persistence.sync)
+        #endif
 
         // Phase 2B-4: the only place `KitchenStore` is told anything about
         // sync — a plain closure capturing weak references, reading the

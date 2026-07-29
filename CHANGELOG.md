@@ -4,6 +4,20 @@ All notable project changes should be documented here.
 
 Keep entries concise. Use this file for what changed, not for long design discussion. Put current project state in `PROJECT_STATUS.md`.
 
+## 2026-07-29 (iOS Account Lifecycle UI-5B1 — uncommitted)
+
+### Changed
+
+- Refined the signed-in Account screen into identity, household role, sync
+  status, existing account actions, and a separate destructive sign-out area.
+- Added visible authentication-error presentation, bottom tab-bar clearance,
+  and stable accessibility identifiers without changing any destinations or
+  mutation paths.
+- Added a DEBUG-only in-memory fixture and focused presentation/UI coverage;
+  the fixture never uses credentials, network, or real account mutations.
+
+See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B1.md` for scope and validation evidence.
+
 ---
 
 ## 2026-07-28 (iOS Settings Experience Phase UI-5A)

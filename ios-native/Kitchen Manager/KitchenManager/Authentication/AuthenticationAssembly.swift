@@ -3,6 +3,14 @@ import Foundation
 @MainActor
 enum AuthenticationAssembly {
     static func make(bundle: Bundle = .main) -> AuthStore {
+        #if DEBUG
+        if let fixture = AccountLifecycleFixture.active {
+            return AuthStore(
+                authService: AccountLifecycleFixtureAuthService(fixture: fixture),
+                accountService: AccountLifecycleFixtureAccountService(fixture: fixture)
+            )
+        }
+        #endif
         do {
             let configuration = try AuthConfiguration.load(from: bundle)
             return AuthStore(

@@ -20,6 +20,7 @@ struct InventorySyncDiagnosticsEntryView: View {
                         controller: controller, kitchenStore: kitchenStore, userId: userId, householdId: householdId
                     )
                 }
+                .accessibilityIdentifier("account.sync.diagnostics.link")
             }
         }
     }
