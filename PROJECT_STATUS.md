@@ -1,14 +1,14 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 ## In progress
 
-- UI-5B1 signed-in Account overview and sign-out presentation is implemented
-  on branch `claude/ios-account-lifecycle-ui5b1`; changes remain uncommitted.
-  The work is presentation-only, with a DEBUG-only credential-free fixture for
-  deterministic UI validation. Auth, sync, merge, deletion, and household
-  semantics remain unchanged. See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B1.md`.
+- UI-5B2A sync status and recoverable-error presentation is implemented on
+  branch `claude/ios-sync-status-ui5b2a`; changes remain uncommitted. The
+  work is presentation-only, with a DEBUG-only credential-free fixture for
+  deterministic UI validation. Sync, merge, persistence, and household
+  semantics remain unchanged. See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2A.md`.
 
 This is the single current-state snapshot for humans and AI agents. It is
 not a changelog and must remain concise. Implementation detail, test-count

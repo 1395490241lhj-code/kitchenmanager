@@ -4,6 +4,20 @@ All notable project changes should be documented here.
 
 Keep entries concise. Use this file for what changed, not for long design discussion. Put current project state in `PROJECT_STATUS.md`.
 
+## 2026-07-29 (iOS Account Lifecycle UI-5B2A — uncommitted)
+
+### Changed
+
+- Unified signed-in inventory sync status copy for enrollment, idle, pending,
+  syncing, offline, error, rate-limited, upgrade-required, and no-household
+  states.
+- Added deterministic rate-limit countdown/retry presentation, pending-count
+  hierarchy, and enrollment refresh after merge-session changes.
+- Reused the existing DEBUG-only account fixture with safe local no-op actions;
+  sync, merge, persistence, and account semantics are unchanged.
+
+See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2A.md` for scope and validation evidence.
+
 ## 2026-07-29 (iOS Account Lifecycle UI-5B1 — uncommitted)
 
 ### Changed
