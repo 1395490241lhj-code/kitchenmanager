@@ -16,12 +16,18 @@ final class GuestMergeUIPhase2B3UITests: XCTestCase {
 
         app.buttons["我的"].tap()
 
-        let guestRow = app.staticTexts["游客模式"]
+        // UI-5A folded the guest row's mode, local-usability status, and action
+        // into one combined accessibility element, so "游客模式" is now part of the
+        // account entry's label rather than a standalone static text. The
+        // behavioural contract this test guards is unchanged.
+        let guestRow = app.buttons["settings.account.entry"]
         XCTAssertTrue(guestRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(guestRow.label.contains("游客模式"), "账号入口应仍标明游客模式")
 
-        // The explanatory copy must mention future sync prep AND inventory
-        // backup, matching the exact product copy — and no merge-specific
-        // UI (which requires a signed-in account) may ever appear here.
+        // The explanatory copy must mention future sync prep AND inventory backup,
+        // matching the exact product copy — unchanged by UI-5A, which moved this
+        // text into the section footer without rewording it. No merge-specific UI
+        // (which requires a signed-in account) may ever appear here.
         let explanation = app.staticTexts[
             "无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。"
         ]
