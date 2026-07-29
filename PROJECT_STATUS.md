@@ -126,11 +126,15 @@ history, device-validation narratives, and bug investigations belong in
   The branch has been revalidated against the latest `main`; post-main visual
   evidence shows no material Recipe, Home, or native paste-control regression.
   See `docs/IOS_RECIPE_EXPERIENCE_PHASE2.md`.
-- iOS Shopping now uses a category-first, local-only presentation with a
-  compact summary, name search, collapsible purchased items, guarded bulk
-  actions, and a session-only Shopping Mode. It reuses the existing recipe
-  shortfall and purchased-stock-in behaviors without changing sync or storage;
-  see `docs/IOS_SHOPPING_EXPERIENCE.md`.
+- iOS Shopping Phase UI-4 now presents one searchable, category-first native
+  list with a quiet adaptive summary, count-aware section headers, accessible
+  purchase rows, a direct empty-state add action, collapsible purchased items,
+  guarded bulk actions, and a session-only Shopping Mode. It preserves the
+  existing recipe shortfall, purchased-stock-in, SwiftData, navigation, auth,
+  and sync semantics. Active searches now render only matching purchased
+  content, and stock-in confirmation uses a neutral default action because it
+  changes inventory rather than deleting data; see
+  `docs/IOS_SHOPPING_EXPERIENCE.md`.
 - iOS Share Import Phase 1 added a native Share Extension
   (`KitchenManagerShareExtension`) so a recipe **URL** shared from Safari,
   Xiaohongshu, YouTube, or any share-sheet-capable app can be handed to

@@ -6,6 +6,35 @@ Keep entries concise. Use this file for what changed, not for long design discus
 
 ---
 
+## 2026-07-28 (iOS Shopping Experience Phase UI-4)
+
+### Changed
+
+- Reframed the native Shopping tab around one searchable, category-first list:
+  the former three-column metric strip is now a quiet adaptive summary, category
+  headers include low-weight counts, and pending item names lead over source and
+  quantity metadata.
+- Unified ordinary, purchased, and Shopping Mode rows with 44pt minimum targets,
+  explicit purchase-state VoiceOver copy, and layouts that stack rather than
+  compress at Accessibility sizes. Empty Shopping now links directly to the
+  existing add-item sheet.
+- Kept search visible, bounded only page chrome at Accessibility sizes, and added
+  one list-level bottom clearance so the final row can scroll above the floating
+  tab bar. No custom motion, gradient, material stack, or new business flow was
+  introduced.
+- Corrected the purchased-section projection so a pending-only search does not
+  reveal unrelated completed items, and made the existing stock-in confirmation
+  a neutral action while retaining destructive roles for clear/delete flows.
+
+### Validation
+
+- Shopping focused tests pass (15 unit, 12 UI); full iOS regression passes
+  (779 unit passed with 5 hosted-smoke skips; 48 UI passed with 1 hosted-smoke
+  skip). The full Node suite passes (1,057/1,057).
+- Standard, Accessibility XXXL, and Dark Mode simulator review passed on
+  iPhone 17e. Recipe, Inventory, Home, persistence, sync, authentication, and
+  App Icon files are unchanged.
+
 ## 2026-07-28 (iOS App Icon)
 
 ### Changed

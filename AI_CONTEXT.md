@@ -52,8 +52,10 @@ does not mutate a recipe, deduct inventory, or synchronize cooking progress.
 Shopping is category-first and local-only: the iOS list may group, search, and
 temporarily simplify presentation for a shopping trip, but it must preserve the
 existing recipe shortfall, purchase confirmation, and inventory stock-in
-semantics. Shopping Mode is session-only and is never a new persistence or
-sync source.
+semantics. The ordinary list should let item names lead while summary, category
+counts, source, and quantity remain secondary; at Accessibility sizes those
+elements should stack rather than truncate or shrink. Shopping Mode is
+session-only and is never a new persistence or sync source.
 
 ### Small, reversible iteration
 

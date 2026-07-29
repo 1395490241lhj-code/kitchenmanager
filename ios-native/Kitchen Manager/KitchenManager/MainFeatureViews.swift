@@ -633,7 +633,15 @@ private struct InventoryFoodCard: View {
     }
 }
 
+enum ShoppingChromeMetrics {
+    static let summaryTypeLimit = DynamicTypeSize.accessibility1
+    static let headerTypeLimit = DynamicTypeSize.accessibility1
+    static let symbolTypeLimit = DynamicTypeSize.xxLarge
+    static let bottomClearance: CGFloat = 72
+}
+
 struct ShoppingView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var store: KitchenStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
     @State private var isShowingStockInConfirm = false
@@ -687,80 +695,64 @@ struct ShoppingView: View {
 
     private var normalShoppingList: some View {
         List {
-            Section {
-                HStack(spacing: 16) {
-                    ShoppingSummaryValue(
-                        value: summary.pendingCount,
-                        title: "待购买",
-                        systemImage: "cart",
-                        accessibilityIdentifier: "shopping.summary.pending"
-                    )
-
-                    ShoppingSummaryValue(
-                        value: summary.purchasedCount,
-                        title: "已购买",
-                        systemImage: "checkmark.circle",
-                        accessibilityIdentifier: "shopping.summary.purchased"
-                    )
-
-                    ShoppingSummaryValue(
-                        value: summary.categoryCount,
-                        title: "分类",
-                        systemImage: "square.grid.2x2",
-                        accessibilityIdentifier: "shopping.summary.categories"
-                    )
+            if !hasSearchQuery && !store.shoppingItems.isEmpty {
+                Section {
+                    ShoppingSummaryRow(summary: summary)
+                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .contain)
             }
 
             if store.shoppingItems.isEmpty {
-                Section("待买") {
+                Section {
                     ContentUnavailableView(
                         "买菜清单是空的",
                         systemImage: "checklist",
                         description: Text("今日计划缺少的食材和手动添加的项目会出现在这里。")
                     )
                     .accessibilityIdentifier("shopping.empty")
+
+                    Button("添加买菜项目", systemImage: "plus") {
+                        isShowingAddItem = true
+                    }
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .accessibilityIdentifier("shopping.empty.add.button")
                 }
             } else if hasSearchQuery && !hasSearchResults {
                 Section {
-                    ContentUnavailableView.search(text: searchText)
+                    ContentUnavailableView(
+                        "没有找到匹配项目",
+                        systemImage: "magnifyingglass",
+                        description: Text("尝试使用更短的名称，或清除搜索。")
+                    )
                         .accessibilityIdentifier("shopping.search.empty")
                 }
             } else {
                 ForEach(pendingSections, id: \.0) { category, items in
-                    Section(category.rawValue) {
-                    ForEach(items) { item in
-                        Button { store.toggleShopping(item) } label: {
-                            HStack {
-                                Image(systemName: "circle")
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.name)
-                                    if item.source != "手动添加" {
-                                        Text(item.source)
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                Spacer()
-                                Text("\(item.quantity.formatted()) \(item.unit)").foregroundStyle(.secondary)
+                    Section {
+                        ForEach(items) { item in
+                            Button { store.toggleShopping(item) } label: {
+                                ShoppingItemRow(item: item, isPurchased: false)
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("shopping.item.\(item.id.uuidString)")
+                            .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: false))
+                            .accessibilityHint("双击标记为已购买")
                         }
-                        .foregroundStyle(.primary)
+                    } header: {
+                        ShoppingSectionHeader(title: category.rawValue, count: items.count)
                     }
-                }
-                .accessibilityIdentifier("shopping.section.\(category.id)")
+                    .accessibilityIdentifier("shopping.section.\(category.id)")
                 }
             }
 
-            if !store.shoppingItems.filter(\.isDone).isEmpty {
+            if !purchasedItems.isEmpty {
                 Section {
                     Button {
                         isPurchasedExpanded.toggle()
                     } label: {
                         HStack {
-                            Label("已购买", systemImage: "checkmark.circle.fill")
+                            Label("已购买", systemImage: "checkmark.circle")
+                                .font(.body.weight(.medium))
                             Spacer()
                             Text("\(summary.purchasedCount) 项")
                                 .foregroundStyle(.secondary)
@@ -779,13 +771,22 @@ struct ShoppingView: View {
                     if shouldShowPurchasedItems {
                         ForEach(purchasedItems) { item in
                             Button { store.toggleShopping(item) } label: {
-                                Label(item.name, systemImage: "checkmark.circle.fill")
+                                ShoppingItemRow(item: item, isPurchased: true)
                             }
-                            .foregroundStyle(.primary)
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("shopping.item.\(item.id.uuidString)")
+                            .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: true))
+                            .accessibilityHint("双击取消已购买状态")
                         }
                     }
                 }
             }
+        }
+        .listStyle(.insetGrouped)
+        .safeAreaInset(edge: .bottom) {
+            Color.clear
+                .frame(height: ShoppingChromeMetrics.bottomClearance)
+                .accessibilityHidden(true)
         }
         .navigationTitle("买菜")
         .searchable(
@@ -799,14 +800,7 @@ struct ShoppingView: View {
     private var shoppingModeList: some View {
         List {
             Section {
-                HStack {
-                    Label("购物模式", systemImage: "cart.fill")
-                        .font(.title3.bold())
-                    Spacer()
-                    Text(shoppingMode.isCompleted ? "已全部买齐" : "剩余 \(shoppingMode.remainingCount) 项")
-                        .foregroundStyle(shoppingMode.isCompleted ? .green : .secondary)
-                        .accessibilityIdentifier("shopping.mode.remaining")
-                }
+                ShoppingModeHeader(presentation: shoppingMode)
             }
 
             if shoppingMode.isEmpty {
@@ -816,43 +810,44 @@ struct ShoppingView: View {
                     .accessibilityIdentifier("shopping.mode.completed")
             } else {
                 ForEach(ShoppingListPresentation.sections(items: store.shoppingItems, query: ""), id: \.0) { category, items in
-                    Section("\(category.rawValue) · \(items.count) 项") {
+                    Section {
                         ForEach(items) { item in
                             Button { store.toggleShopping(item) } label: {
-                                HStack(spacing: 14) {
-                                    Image(systemName: "circle")
-                                        .font(.title3)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(item.name).font(.title3.weight(.semibold))
-                                        Text("\(item.quantity.formatted()) \(item.unit)")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.vertical, 8)
+                                ShoppingItemRow(item: item, isPurchased: false, isEmphasized: true)
                             }
-                            .foregroundStyle(.primary)
-                            .accessibilityLabel("\(item.name)，\(item.quantity.formatted()) \(item.unit)，未购买")
-                            .accessibilityHint("双击切换购买状态")
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("shopping.mode.item.\(item.id.uuidString)")
+                            .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: false))
+                            .accessibilityHint("双击标记为已购买")
                         }
+                    } header: {
+                        ShoppingSectionHeader(title: category.rawValue, count: items.count)
                     }
                 }
             }
 
             let completed = ShoppingListPresentation.purchasedItems(items: store.shoppingItems, query: "")
             if !completed.isEmpty {
-                Section("已购买 · \(completed.count) 项") {
+                Section {
                     ForEach(completed) { item in
                         Button { store.toggleShopping(item) } label: {
-                            Label(item.name, systemImage: "checkmark.circle.fill")
-                                .strikethrough()
+                            ShoppingItemRow(item: item, isPurchased: true)
                         }
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("\(item.name)，已购买")
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("shopping.mode.item.\(item.id.uuidString)")
+                        .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: true))
                         .accessibilityHint("双击取消购买状态")
                     }
+                } header: {
+                    ShoppingSectionHeader(title: "已购买", count: completed.count)
                 }
             }
+        }
+        .listStyle(.insetGrouped)
+        .safeAreaInset(edge: .bottom) {
+            Color.clear
+                .frame(height: ShoppingChromeMetrics.bottomClearance)
+                .accessibilityHidden(true)
         }
         .accessibilityIdentifier("shopping.mode.container")
     }
@@ -866,6 +861,7 @@ struct ShoppingView: View {
             }
         }
         .navigationTitle(isShoppingMode ? "购物模式" : "买菜")
+        .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
         .onAppear(perform: presentRequestedStockInIfNeeded)
         .onChange(of: navigationStore.isShoppingStockInRequested) { _, isRequested in
             if isRequested { presentRequestedStockInIfNeeded() }
@@ -874,6 +870,8 @@ struct ShoppingView: View {
             ToolbarItem(placement: .topBarLeading) {
                 if isShoppingMode {
                     Button("退出", systemImage: "xmark") { isShoppingMode = false }
+                        .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                        .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
                         .accessibilityIdentifier("shopping.mode.exit")
                 }
             }
@@ -882,6 +880,8 @@ struct ShoppingView: View {
                     isShoppingMode.toggle()
                 }
                 .disabled(!isShoppingMode && store.shoppingItems.isEmpty)
+                .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
                 .accessibilityIdentifier("shopping.mode.toggle")
             }
             if !isShoppingMode {
@@ -924,6 +924,8 @@ struct ShoppingView: View {
                     .accessibilityIdentifier("shopping.bulk.collapsePurchased")
                 } label: {
                     Label("购物清单批量操作", systemImage: "ellipsis.circle")
+                        .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
+                        .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
                 }
                 .accessibilityIdentifier("shopping.bulk.menu")
                 .accessibilityLabel("购物清单批量操作")
@@ -931,6 +933,9 @@ struct ShoppingView: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 Button("添加", systemImage: "plus") { isShowingAddItem = true }
+                    .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                    .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
+                    .accessibilityIdentifier("shopping.add.button")
                     .accessibilityLabel("添加买菜项目")
             }
             }
@@ -941,7 +946,7 @@ struct ShoppingView: View {
                 .presentationDragIndicator(.visible)
         }
         .alert("全部入库？", isPresented: $isShowingStockInConfirm) {
-            Button("入库", role: .destructive) { store.stockInCompletedShopping() }
+            Button("入库") { store.stockInCompletedShopping() }
             Button("取消", role: .cancel) {}
         } message: {
             Text("已买的食材将计入库存，此操作无法撤销。")
@@ -977,29 +982,177 @@ struct ShoppingView: View {
         guard bulkActions.canStockInPurchased else { return }
         isShowingStockInConfirm = true
     }
+
+    private func itemAccessibilityLabel(_ item: KitchenShoppingItem, isPurchased: Bool) -> String {
+        let source = item.source == "手动添加" ? "" : "，\(item.source)"
+        return "\(item.name)，\(item.quantity.formatted()) \(item.unit)\(source)，\(isPurchased ? "已购买" : "未购买")"
+    }
 }
 
-private struct ShoppingSummaryValue: View {
-    let value: Int
-    let title: String
-    let systemImage: String
-    let accessibilityIdentifier: String
+private struct ShoppingSummaryRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let summary: ShoppingListSummary
 
     var body: some View {
-        Label {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(value, format: .number)
-                    .font(.headline)
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    pendingSummary
+                    secondarySummary
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    pendingSummary
+                    Spacer(minLength: 12)
+                    secondarySummary
+                }
             }
-        } icon: {
-            Image(systemName: systemImage)
-                .foregroundStyle(.tint)
         }
-        .accessibilityIdentifier(accessibilityIdentifier)
-        .accessibilityLabel("\(title) \(value) 项")
+        .dynamicTypeSize(...ShoppingChromeMetrics.summaryTypeLimit)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var pendingSummary: some View {
+        Label("\(summary.pendingCount) 项待购买", systemImage: "cart")
+            .font(.headline)
+            .accessibilityIdentifier("shopping.summary.pending")
+            .accessibilityLabel("待购买 \(summary.pendingCount) 项")
+    }
+
+    private var secondarySummary: some View {
+        HStack(spacing: 8) {
+            Text("已购 \(summary.purchasedCount)")
+                .accessibilityIdentifier("shopping.summary.purchased")
+                .accessibilityLabel("已购买 \(summary.purchasedCount) 项")
+            Text("·")
+                .accessibilityHidden(true)
+            Text("\(summary.categoryCount) 个分类")
+                .accessibilityIdentifier("shopping.summary.categories")
+                .accessibilityLabel("分类 \(summary.categoryCount) 个")
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+    }
+}
+
+private struct ShoppingSectionHeader: View {
+    let title: String
+    let count: Int
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+            Spacer()
+            Text("\(count) 项")
+                .foregroundStyle(.secondary)
+        }
+        .font(.subheadline.weight(.medium))
+        .dynamicTypeSize(...ShoppingChromeMetrics.headerTypeLimit)
+        .textCase(nil)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title)，\(count) 项")
+    }
+}
+
+private struct ShoppingItemRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let item: KitchenShoppingItem
+    let isPurchased: Bool
+    var isEmphasized = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: isPurchased ? "checkmark.circle.fill" : "circle")
+                .font(.title3)
+                .foregroundStyle(isPurchased ? Color.secondary : AppTheme.primary)
+                .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    name
+                    quantity
+                    source
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        name
+                        source
+                    }
+                    Spacer(minLength: 12)
+                    quantity
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var name: some View {
+        Text(item.name)
+            .font(isEmphasized ? .title3.weight(.semibold) : .body.weight(.medium))
+            .foregroundStyle(isPurchased ? .secondary : .primary)
+            .strikethrough(isPurchased)
+            .multilineTextAlignment(.leading)
+            .accessibilityHidden(true)
+    }
+
+    private var quantity: some View {
+        Text("\(item.quantity.formatted()) \(item.unit)")
+            .font(isEmphasized ? .body.weight(.medium) : .subheadline)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var source: some View {
+        if !isPurchased, item.source != "手动添加" {
+            Text(item.source)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+private struct ShoppingModeHeader: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let presentation: ShoppingModePresentation
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    title
+                    status
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    title
+                    Spacer(minLength: 12)
+                    status
+                }
+            }
+        }
+        .dynamicTypeSize(...ShoppingChromeMetrics.summaryTypeLimit)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var title: some View {
+        Label("购物模式", systemImage: "cart.fill")
+            .font(.headline)
+    }
+
+    private var status: some View {
+        Text(presentation.isCompleted ? "已全部买齐" : "剩余 \(presentation.remainingCount) 项")
+            .font(.subheadline)
+            .foregroundStyle(presentation.isCompleted ? AppTheme.success : .secondary)
+            .accessibilityIdentifier("shopping.mode.remaining")
     }
 }
 
