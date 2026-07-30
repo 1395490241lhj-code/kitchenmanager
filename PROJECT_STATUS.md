@@ -4,6 +4,12 @@ Last updated: 2026-07-29
 
 ## In progress
 
+- UI-5B2B-A explicit merge-preview boundary and persisted-plan safety is being
+  implemented on `claude/ios-merge-preview-ui5b2ba`; changes remain
+  uncommitted. Account and inline prompt rendering remain local-only, while
+  preview reads occur only after the user opens the sheet. See
+  `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BA.md`.
+
 - UI-5B2A sync status and recoverable-error presentation is implemented on
   branch `claude/ios-sync-status-ui5b2a`; changes remain uncommitted. The
   work is presentation-only, with a DEBUG-only credential-free fixture for

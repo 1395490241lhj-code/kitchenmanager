@@ -52,7 +52,7 @@ enum AccountLifecycleFixture: Equatable {
     var session: AuthSession { AuthSession(user: user, accessToken: "fixture-token-never-sent") }
 
     var account: CurrentAccount {
-        let householdID = UUID(uuidString: "00000000-0000-0000-0000-000000000010")!
+        let householdID = mergeFixtureHouseholdID
         let role = self == .member ? "member" : "owner"
         return CurrentAccount(
             user: AccountProfile(id: user.id, email: user.email, displayName: self == .member ? "家庭成员" : "厨房主人"),
@@ -92,6 +92,21 @@ enum AccountLifecycleFixture: Equatable {
     }
 
     var shouldFailSignOut: Bool { self == .signOutFailure }
+
+    private var mergeFixtureHouseholdID: UUID {
+        let arguments = ProcessInfo.processInfo.arguments
+        let ids: [(String, String)] = [
+            ("UITEST_MERGE_EMPTY", "00000000-0000-0000-0000-000000000011"),
+            ("UITEST_MERGE_COUNTS", "00000000-0000-0000-0000-000000000012"),
+            ("UITEST_MERGE_UNAUTHORIZED", "00000000-0000-0000-0000-000000000013"),
+            ("UITEST_MERGE_OFFLINE", "00000000-0000-0000-0000-000000000014"),
+            ("UITEST_MERGE_LOADING", "00000000-0000-0000-0000-000000000015"),
+            ("UITEST_MERGE_RETRY_SUCCESS", "00000000-0000-0000-0000-000000000016"),
+            ("UITEST_MERGE_LEGACY", "00000000-0000-0000-0000-000000000017")
+        ]
+        let raw = ids.first(where: { arguments.contains($0.0) })?.1 ?? "00000000-0000-0000-0000-000000000010"
+        return UUID(uuidString: raw)!
+    }
 }
 
 @MainActor
@@ -130,7 +145,49 @@ final class AccountLifecycleFixtureAccountService: AccountService {
 struct AccountLifecycleFixtureTransport: SyncTransport {
     func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.transport }
     func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
-        throw SyncError.transport
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("UITEST_MERGE_LOADING") {
+            try await Task.sleep(for: .seconds(2))
+        }
+        if arguments.contains("UITEST_MERGE_UNAUTHORIZED") {
+            throw SyncError.unauthorized
+        }
+        if arguments.contains("UITEST_MERGE_OFFLINE") {
+            throw SyncError.transport
+        }
+        if arguments.contains("UITEST_MERGE_MALFORMED") {
+            throw SyncError.decoding
+        }
+
+        let changes: [SyncChangeEnvelope]
+        if arguments.contains("UITEST_MERGE_COUNTS") || arguments.contains("UITEST_MERGE_RETRY_SUCCESS") || arguments.contains("UITEST_MERGE_LEGACY") {
+            let remoteID = UUID(uuidString: "00000000-0000-0000-0000-000000000021")!
+            changes = [SyncChangeEnvelope(
+                sequence: .zero,
+                entityType: .inventoryItem,
+                entityId: remoteID,
+                operation: .upsert,
+                version: try! SyncCursorValue("1"),
+                changedAt: Date(timeIntervalSince1970: 1_735_689_600),
+                data: [
+                    "name": .string("豆腐"),
+                    "quantity": .number(3),
+                    "unit": .string("块"),
+                    "isStaple": .bool(false)
+                ]
+            )]
+        } else if arguments.contains("UITEST_MERGE_EMPTY") {
+            changes = []
+        } else {
+            throw SyncError.transport
+        }
+        return SyncChangesResponse(
+            scopeType: scope.type,
+            scopeId: scope.id,
+            cursor: cursor,
+            hasMore: false,
+            changes: changes
+        )
     }
     func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse {
         throw SyncError.transport

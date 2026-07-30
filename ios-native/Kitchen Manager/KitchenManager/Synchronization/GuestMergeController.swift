@@ -85,6 +85,11 @@ final class GuestMergeController: ObservableObject {
     /// docs/CRASH_REPORTING.md) — never business content. Defaults to the
     /// safe no-op provider; tests inject a fake to assert on emitted events.
     private let crashReporter: any CrashReporting
+    /// True only after the current controller instance prepared a preview
+    /// with the production remote transport. Offline/no-transport callers
+    /// retain their existing local-only semantics; production callers must
+    /// never confirm a plan that lacks a remote fingerprint.
+    private var previewRequiresRemoteFingerprint = false
 
     init(
         persistence: any SyncPersistenceProtocol,
@@ -147,6 +152,12 @@ final class GuestMergeController: ObservableObject {
         previewFetchFailureMessage = nil
         clientUpgradeRequired = false
         rateLimitedRetryAfter = nil
+        previewRequiresRemoteFingerprint = remoteTransport != nil
+        // A persisted plan is not trusted for presentation until this
+        // explicit, user-initiated remote read completes. The in-memory and
+        // persisted record remains available for recovery, while
+        // `InventoryMergeFlowView` gates its body on this request completing
+        // so a stale preview can never flash or become confirmable.
         crashReporter.addBreadcrumb(.mergePreviewStarted, metadata: [:])
         defer { isBusy = false }
 
@@ -179,7 +190,8 @@ final class GuestMergeController: ObservableObject {
                 userId: userId, householdId: householdId, entityType: .inventoryItem
             ) {
                 if let existingPlan = existing.plan,
-                   !InventoryMergePlanner.isPlanStillValid(existingPlan, against: localItems, currentRemoteItems: knownRemoteItems),
+                   (remoteTransport != nil && existingPlan.remoteSnapshotHash == nil
+                    || !InventoryMergePlanner.isPlanStillValid(existingPlan, against: localItems, currentRemoteItems: knownRemoteItems)),
                    existing.status == .detected || existing.status == .previewReady || existing.status == .awaitingConfirmation {
                     // Local data changed since this plan was generated and no
                     // upload has started yet — regenerate rather than upload
@@ -207,7 +219,9 @@ final class GuestMergeController: ObservableObject {
         }
     }
 
-    /// Production entry point — the sole call site is `GuestMergePromptView`.
+    /// Production entry point — called only after the user opens the preview
+    /// sheet. Account-page rendering and the inline prompt never construct a
+    /// credential provider or transport.
     /// The View passes its already-injected `AuthStore` reference (never a
     /// token); this constructs the same credential-provider/transport
     /// pattern `confirmMerge`/`syncNow` already use, so the pre-merge read
@@ -417,6 +431,23 @@ final class GuestMergeController: ObservableObject {
 
         let provider = AuthStoreCredentialProvider(authStore: authStore)
         let transport = transportFactory(provider)
+
+        // A legacy/offline plan has no trustworthy remote fingerprint. The
+        // production path must fail closed before stageUpsert or
+        // SyncCoordinator, even if a caller bypasses the preview UI.
+        //
+        // Depends on the plan alone, never on `previewRequiresRemoteFingerprint`:
+        // that flag is cleared by the no-transport `preparePreview` overload, which
+        // also persists a plan carrying no fingerprint. Consulting it let
+        // controller state disarm the guard — the hash-less plan passed here, then
+        // skipped the re-verification below (itself conditional on a non-nil
+        // hash), and reached stageUpsert and SyncCoordinator with no remote check
+        // at all. The no-transport overload stays available for local preview and
+        // tests; its plans simply can never be confirmed in production.
+        guard plan.remoteSnapshotHash != nil else {
+            lastErrorMessage = "请重新查看合并预览后再确认。"
+            return
+        }
 
         // Re-verify the remote state right before writing anything — a plan
         // built minutes or hours earlier may no longer reflect reality.
@@ -1001,4 +1032,3 @@ final class GuestMergeController: ObservableObject {
         }
     }
 }
-
