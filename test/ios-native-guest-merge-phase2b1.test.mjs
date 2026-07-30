@@ -526,11 +526,12 @@ test('Phase 2B-6: Shopping/Today Plan/Weekly Plan/Recipe/Favorites/Frequent rema
 // MARK: - Phase 2B-8: production remote preview, stale-preview safety gate, Conflict UI reachability
 
 test('Phase 2B-8: the production preview call site passes an authenticated transport, never a nil/no-op one', () => {
-  // GuestMergePromptView.task must call the authStore-taking overload, not
-  // the raw remoteTransport-defaults-to-nil entry point directly — this is
-  // the actual release-blocker fix: the shipped app must perform a real
-  // pre-merge remote read, not silently keep knownRemoteItems empty.
-  assert.match(views, /controller\.preparePreview\(\s*userId: userId, householdId: householdId, kitchenStore: kitchenStore, authStore: authStore\s*\)/);
+  // The explicit merge sheet owns the authenticated preview read. The
+  // account-page prompt only presents the entry point and must not start a
+  // remote read while it is rendering.
+  const flowStart = views.indexOf('struct InventoryMergeFlowView');
+  const flow = views.slice(flowStart);
+  assert.match(flow, /\.task\(id: previewTaskID\)[\s\S]{0,2000}controller\.preparePreview\([\s\S]*?userId: userId,[\s\S]*?householdId: householdId,[\s\S]*?kitchenStore: kitchenStore,[\s\S]*?authStore: authStore/);
   assert.match(controller, /func preparePreview\(\s*userId: UUID,\s*householdId: UUID,\s*kitchenStore: KitchenStore,\s*authStore: AuthStore\s*\) async/);
 });
 

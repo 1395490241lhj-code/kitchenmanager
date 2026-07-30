@@ -52,9 +52,6 @@ struct GuestMergePromptView: View {
                     )
                 }
             }
-            .task {
-                await controller.preparePreview(userId: userId, householdId: householdId, kitchenStore: kitchenStore, authStore: authStore)
-            }
         }
     }
 
@@ -256,20 +253,20 @@ struct InventoryMergeFlowView: View {
     let kitchenStore: KitchenStore
     @EnvironmentObject private var authStore: AuthStore
     @Environment(\.dismiss) private var dismiss
+    @State private var didFinishPreviewRequest = false
+    @State private var previewAttempt = 0
 
     var body: some View {
         Group {
+            if !didFinishPreviewRequest {
+                InventoryMergeProgressView(message: "正在准备合并预览…")
             // A failed remote read takes precedence over everything else —
             // including an existing session — since neither "no mergeable
             // inventory" nor a possibly-stale prior plan may safely be shown
             // in its place; the household's real cloud state is unknown.
-            if let fetchFailure = controller.previewFetchFailureMessage {
+            } else if let fetchFailure = controller.previewFetchFailureMessage {
                 InventoryMergePreviewFetchFailureView(message: fetchFailure) {
-                    Task {
-                        await controller.preparePreview(
-                            userId: userId, householdId: householdId, kitchenStore: kitchenStore, authStore: authStore
-                        )
-                    }
+                    retryPreview()
                 }
             } else if controller.isBusy && controller.session == nil {
                 InventoryMergeProgressView(message: "正在准备合并预览…")
@@ -290,12 +287,49 @@ struct InventoryMergeFlowView: View {
         }
         .navigationTitle("合并库存")
         .navigationBarTitleDisplayMode(.inline)
+        // The merge flow is a focused decision surface. From the account page it is
+        // *pushed* onto that tab's own NavigationStack rather than presented
+        // modally, so without this the floating tab bar stays on screen and
+        // overlaps the confirm/cancel area — at Accessibility sizes the minimized
+        // "我的" pill sat directly on top of the planned-item counts, and the
+        // confirm button rendered behind the bar.
+        //
+        // Applied once at the body root so it covers every state this view can
+        // show (loading, empty remote, counts, fetch error, unauthorized, offline,
+        // retry, legacy regenerated, conflict, and the defer/cancel exits) instead
+        // of being opted into per branch. SwiftUI scopes it to this destination, so
+        // the tab bar comes back on its own when the flow is popped or dismissed —
+        // no route-level state, no dependence on scroll position or the tab bar's
+        // minimize behavior, and the bottom system safe area is left intact.
+        .toolbarVisibility(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("稍后处理") { dismiss() }
                     .accessibilityIdentifier("guestMergeDismissLater")
             }
         }
+        .task(id: previewTaskID) {
+            await controller.preparePreview(
+                userId: userId,
+                householdId: householdId,
+                kitchenStore: kitchenStore,
+                authStore: authStore
+            )
+            didFinishPreviewRequest = true
+        }
+    }
+
+    private var previewRequestID: String {
+        "\(userId.uuidString):\(householdId.uuidString)"
+    }
+
+    private var previewTaskID: String {
+        "\(previewRequestID):\(previewAttempt)"
+    }
+
+    private func retryPreview() {
+        didFinishPreviewRequest = false
+        previewAttempt += 1
     }
 
     private func progressMessage(for status: GuestMergeSessionStatus) -> String {
@@ -423,6 +457,11 @@ struct InventoryMergePreviewView: View {
         } message: {
             Text("本机库存不会有任何改动。")
         }
+        // No bottom spacer: the floating tab bar is now hidden for the whole merge
+        // flow (`toolbarVisibility(.hidden, for: .tabBar)` on the flow root), so the
+        // confirmation copy needs only the system safe area. The 260pt inset that
+        // previously stood in for this left a large dead gap and masked the real
+        // obstruction rather than removing it.
     }
 
     /// Maps the session's own recorded error code (a debug string, e.g.
@@ -482,6 +521,8 @@ struct InventoryMergeConflictView: View {
             }
         }
         .navigationTitle("处理冲突")
+        // Same as the preview screen: the tab bar is hidden for the whole merge
+        // flow, so the system safe area is sufficient here too.
     }
 
     private func choiceBinding(for id: UUID) -> Binding<InventoryMergeConflictChoice> {

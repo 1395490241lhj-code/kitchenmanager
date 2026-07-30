@@ -4,6 +4,18 @@ All notable project changes should be documented here.
 
 Keep entries concise. Use this file for what changed, not for long design discussion. Put current project state in `PROJECT_STATUS.md`.
 
+## 2026-07-29 (iOS Merge Preview UI-5B2B-A — uncommitted)
+
+### Changed
+
+- Moved Guest merge preview reads behind the explicit “查看并合并” sheet
+  action; Account and the inline prompt no longer create sync transports or
+  fetch remote inventory.
+- Added a production safety guard and regeneration path for persisted merge
+  plans without a remote snapshot fingerprint, while preserving offline and
+  conflict/write semantics.
+- Added deterministic boundary tests and credential-free UI coverage.
+
 ## 2026-07-29 (iOS Account Lifecycle UI-5B2A — uncommitted)
 
 ### Changed
