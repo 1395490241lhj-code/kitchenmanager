@@ -11,8 +11,15 @@ enum AccountLifecycleFixture: Equatable {
     case loading
     case accountError
     case syncIdle
+    case syncNotEnrolled
     case syncCompleted
+    case syncPending
+    case syncRunning
+    case syncOffline
     case syncError
+    case syncRateLimited
+    case syncUpgradeRequired
+    case syncNoHousehold
     case signOutFailure
 
     static var active: AccountLifecycleFixture? {
@@ -24,8 +31,15 @@ enum AccountLifecycleFixture: Equatable {
         case "UITEST_ACCOUNT_LOADING": return .loading
         case "UITEST_ACCOUNT_ERROR": return .accountError
         case "UITEST_ACCOUNT_SYNC_IDLE": return .syncIdle
+        case "UITEST_ACCOUNT_SYNC_NOT_ENROLLED": return .syncNotEnrolled
         case "UITEST_ACCOUNT_SYNC_COMPLETED": return .syncCompleted
+        case "UITEST_ACCOUNT_SYNC_PENDING": return .syncPending
+        case "UITEST_ACCOUNT_SYNC_RUNNING": return .syncRunning
+        case "UITEST_ACCOUNT_SYNC_OFFLINE": return .syncOffline
         case "UITEST_ACCOUNT_SYNC_ERROR": return .syncError
+        case "UITEST_ACCOUNT_SYNC_RATE_LIMITED": return .syncRateLimited
+        case "UITEST_ACCOUNT_SYNC_UPGRADE_REQUIRED": return .syncUpgradeRequired
+        case "UITEST_ACCOUNT_SYNC_NO_HOUSEHOLD": return .syncNoHousehold
         case "UITEST_ACCOUNT_SIGNOUT_FAILURE": return .signOutFailure
         default: return nil
         }
@@ -42,14 +56,33 @@ enum AccountLifecycleFixture: Equatable {
         let role = self == .member ? "member" : "owner"
         return CurrentAccount(
             user: AccountProfile(id: user.id, email: user.email, displayName: self == .member ? "家庭成员" : "厨房主人"),
-            households: [AccountHousehold(id: householdID, name: "家庭厨房", role: role)]
+            households: self == .syncNoHousehold
+                ? []
+                : [AccountHousehold(id: householdID, name: "家庭厨房", role: role)]
         )
+    }
+
+    var syncPresentationState: InventorySyncPresentationState {
+        switch self {
+        case .syncNotEnrolled: return .notEnrolled
+        case .syncCompleted: return .completed
+        case .syncPending: return .pending(count: 3)
+        case .syncRunning: return .syncing
+        case .syncOffline: return .offline
+        case .syncError: return .error
+        case .syncRateLimited: return .rateLimited(retryAfter: Date().addingTimeInterval(45))
+        case .syncUpgradeRequired: return .upgradeRequired
+        case .syncNoHousehold: return .noHousehold
+        case .syncIdle: return .idle
+        default: return .featureDisabled
+        }
     }
 
     var syncTitle: String {
         switch self {
         case .syncCompleted: "已同步"
         case .syncError: "同步遇到问题，可重试"
+        case .syncIdle: "已同步"
         default: "尚未开启"
         }
     }

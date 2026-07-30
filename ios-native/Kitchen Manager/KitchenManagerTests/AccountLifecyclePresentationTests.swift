@@ -39,11 +39,21 @@ final class AccountLifecyclePresentationTests: XCTestCase {
     }
 
     func testSyncFixtureCopySeparatesIdleCompletedAndError() {
-        XCTAssertEqual(AccountLifecycleFixture.syncIdle.syncTitle, "尚未开启")
+        XCTAssertEqual(AccountLifecycleFixture.syncIdle.syncTitle, "已同步")
         XCTAssertEqual(AccountLifecycleFixture.syncCompleted.syncTitle, "已同步")
         XCTAssertEqual(AccountLifecycleFixture.syncError.syncTitle, "同步遇到问题，可重试")
         XCTAssertNil(AccountLifecycleFixture.syncIdle.syncDetail)
         XCTAssertNotNil(AccountLifecycleFixture.syncError.syncDetail)
+    }
+
+    func testSyncFixtureStatesUsePresentationProjectionAndSafeActions() {
+        XCTAssertEqual(AccountLifecycleFixture.syncNotEnrolled.syncPresentationState, .notEnrolled)
+        XCTAssertEqual(AccountLifecycleFixture.syncPending.syncPresentationState, .pending(count: 3))
+        XCTAssertEqual(AccountLifecycleFixture.syncRunning.syncPresentationState, .syncing)
+        XCTAssertEqual(AccountLifecycleFixture.syncOffline.syncPresentationState, .offline)
+        XCTAssertEqual(AccountLifecycleFixture.syncUpgradeRequired.syncPresentationState, .upgradeRequired)
+        XCTAssertEqual(AccountLifecycleFixture.syncNoHousehold.account.households.count, 0)
+        XCTAssertFalse(AccountLifecycleFixture.syncRateLimited.syncPresentationState.isActionSafeForFixture)
     }
 
     func testSignOutFailureIsLocalAndNeverClearsFixtureSessionByItself() async {

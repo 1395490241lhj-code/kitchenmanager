@@ -206,20 +206,13 @@ struct AccountView: View {
     #if DEBUG
     private func fixtureSyncSection(_ fixture: AccountLifecycleFixture) -> some View {
         Section("库存同步") {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("状态")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(fixture.syncTitle)
-                    .font(.body)
-                    .accessibilityIdentifier("account.sync.status")
-            }
-            if let detail = fixture.syncDetail {
-                Label(detail, systemImage: "exclamationmark.triangle")
-                    .foregroundStyle(.red)
-                    .font(.footnote)
-                    .accessibilityIdentifier("account.sync.error")
-            }
+            InventorySyncStatusSectionContent(
+                presentation: InventorySyncPresentation.make(
+                    state: fixture.syncPresentationState,
+                    detail: fixture.syncDetail
+                ),
+                onAction: fixture.syncPresentationState.isActionSafeForFixture ? {} : nil
+            )
             if fixture == .owner,
                let userId = authStore.currentUserID,
                let household = defaultHousehold {

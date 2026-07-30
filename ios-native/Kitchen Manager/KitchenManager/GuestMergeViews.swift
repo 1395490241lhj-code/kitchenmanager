@@ -82,71 +82,74 @@ struct InventorySyncStatusView: View {
     @State private var enrollmentStatus: InventorySyncEnrollmentStatus = .notEnrolled
 
     var body: some View {
-        Section {
-            LabeledContent("状态", value: statusText)
-            if let pendingCount, pendingCount > 0 {
-                LabeledContent("待同步", value: "\(pendingCount) 项")
-            }
-            if let error = controller.lastSyncErrorMessage {
-                Text(error).foregroundStyle(.red).font(.footnote)
-            }
-            if let blocked = controller.inventoryMutationBlockedMessage {
-                Text(blocked).foregroundStyle(.orange).font(.footnote)
-            }
-            if canSyncNow {
-                Button {
-                    guard let householdId else { return }
-                    Task {
-                        await controller.syncNow(authStore: authStore, householdId: householdId)
-                        await refreshPendingCount()
-                    }
-                } label: {
-                    if controller.isSyncing {
-                        HStack { ProgressView(); Text("正在同步…") }
-                    } else {
-                        Text("立即同步库存")
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .buttonStyle(.bordered)
-                .disabled(controller.isSyncing || controller.clientUpgradeRequired)
-                .accessibilityIdentifier("inventorySyncNowButton")
-            }
-            if let retryAfter = controller.rateLimitedRetryAfter, retryAfter > Date() {
-                Text("同步请求过于频繁，请稍后再试。")
-                    .foregroundStyle(.orange)
-                    .font(.footnote)
-                    .accessibilityIdentifier("inventorySyncRateLimitedMessage")
-            }
-        } header: {
-            Text("库存同步")
-        } footer: {
-            Text("只同步库存；购物清单、计划和菜谱不受影响。不会自动同步——只有点击“立即同步库存”才会联网。")
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            InventorySyncStatusSection(
+                presentation: presentation(now: context.date),
+                onAction: canSyncNow ? { performSync() } : nil
+            )
         }
-        .task {
+        .task(id: refreshTaskID) {
             await refreshPendingCount()
             await refreshEnrollmentStatus()
         }
+    }
+
+    private var refreshTaskID: String {
+        let user = authStore.currentUserID?.uuidString ?? "guest"
+        let household = householdId?.uuidString ?? "none"
+        let status = controller.session?.status.rawValue ?? "none"
+        return "\(user):\(household):\(status)"
     }
 
     private var canSyncNow: Bool {
         controller.isFeatureEnabled && householdId != nil && authStore.currentUserID != nil
     }
 
-    private var statusText: String {
-        if !controller.isFeatureEnabled { return "尚未开启" }
-        if authStore.currentUserID == nil { return "尚未登录" }
-        if controller.clientUpgradeRequired { return "需要更新 App" }
-        if householdId == nil { return "没有可同步的家庭" }
-        if enrollmentStatus == .notEnrolled || enrollmentStatus == .mergeRequired { return "尚未完成合并" }
-        if controller.isSyncing { return "正在同步" }
-        switch controller.lastSyncOutcome {
-        case .completed: return "已同步"
-        case .paused(let error) where error == .notAuthenticated: return "需要重新登录"
-        case .paused: return "暂时离线"
-        case .failed: return "同步遇到问题，可重试"
-        case .disabled, .none: return (pendingCount ?? 0) > 0 ? "待同步 \(pendingCount ?? 0) 项" : "已同步"
-        case .alreadyRunning: return "正在同步"
+    private func presentation(now: Date) -> InventorySyncPresentation {
+        let state: InventorySyncPresentationState
+        if !controller.isFeatureEnabled {
+            state = .featureDisabled
+        } else if authStore.currentUserID == nil {
+            state = .noHousehold
+        } else if householdId == nil {
+            state = .noHousehold
+        } else if controller.clientUpgradeRequired {
+            state = .upgradeRequired
+        } else if let retryAfter = controller.rateLimitedRetryAfter {
+            state = .rateLimited(retryAfter: retryAfter)
+        } else if controller.isSyncing {
+            state = .syncing
+        } else if enrollmentStatus == .notEnrolled || enrollmentStatus == .mergeRequired {
+            state = .notEnrolled
+        } else {
+            switch controller.lastSyncOutcome {
+            case .completed:
+                state = (pendingCount ?? 0) > 0 ? .pending(count: pendingCount ?? 0) : .completed
+            case .paused(let error) where error == .notAuthenticated:
+                state = .error
+            case .paused:
+                state = .offline
+            case .failed:
+                state = .error
+            case .disabled, .none:
+                state = (pendingCount ?? 0) > 0 ? .pending(count: pendingCount ?? 0) : .idle
+            case .alreadyRunning:
+                state = .syncing
+            }
+        }
+
+        return InventorySyncPresentation.make(
+            state: state,
+            now: now,
+            detail: controller.lastSyncErrorMessage ?? controller.inventoryMutationBlockedMessage
+        )
+    }
+
+    private func performSync() {
+        guard let householdId else { return }
+        Task {
+            await controller.syncNow(authStore: authStore, householdId: householdId)
+            await refreshPendingCount()
         }
     }
 
@@ -164,6 +167,80 @@ struct InventorySyncStatusView: View {
             return
         }
         enrollmentStatus = await controller.enrollmentStatus(userId: userId, householdId: householdId)
+    }
+}
+
+/// Shared presentation shell used by the live status view and the DEBUG-only
+/// account fixture. The action closure is injected so fixture buttons are safe
+/// local no-ops and can never call a real sync path.
+struct InventorySyncStatusSection: View {
+    let presentation: InventorySyncPresentation
+    let onAction: (() -> Void)?
+
+    var body: some View {
+        Section {
+            InventorySyncStatusSectionContent(presentation: presentation, onAction: onAction)
+        } header: {
+            Text("库存同步")
+        } footer: {
+            Text("只同步库存；购物清单、计划和菜谱不受影响。不会自动同步——只有点击同步按钮才会联网。")
+        }
+    }
+}
+
+struct InventorySyncStatusSectionContent: View {
+    let presentation: InventorySyncPresentation
+    let onAction: (() -> Void)?
+
+    var body: some View {
+        Group {
+            Label {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(presentation.title)
+                        .font(.body.weight(.semibold))
+                        .accessibilityIdentifier("account.sync.status")
+                    Text(presentation.message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: presentation.systemImage)
+                    .foregroundStyle(presentation.state.isErrorLike ? .orange : .secondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(presentation.title)，\(presentation.message)")
+
+            if let pendingCount = presentation.pendingCount {
+                LabeledContent("待同步", value: "\(pendingCount) 项")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("inventorySyncPendingCount")
+            }
+
+            if let detail = presentation.detail {
+                Label(detail, systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("account.sync.error")
+            }
+
+            if let actionTitle = presentation.actionTitle, let onAction {
+                Button(actionTitle, action: onAction)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .buttonStyle(.bordered)
+                    .disabled(!presentation.actionEnabled)
+                    .accessibilityIdentifier("inventorySyncNowButton")
+            }
+        }
+    }
+}
+
+private extension InventorySyncPresentationState {
+    var isErrorLike: Bool {
+        switch self {
+        case .offline, .error, .rateLimited, .upgradeRequired: true
+        default: false
+        }
     }
 }
 

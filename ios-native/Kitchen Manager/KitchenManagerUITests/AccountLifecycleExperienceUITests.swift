@@ -42,6 +42,15 @@ final class AccountLifecycleExperienceUITests: XCTestCase {
         }
     }
 
+    private func scrollToSyncAction(_ app: XCUIApplication) -> XCUIElement {
+        for _ in 0..<8 {
+            let action = app.buttons["inventorySyncNowButton"]
+            if action.exists, action.isHittable { return action }
+            app.swipeUp()
+        }
+        return app.buttons["inventorySyncNowButton"]
+    }
+
     private func assertAccountBottomClearsTabBar(
         _ app: XCUIApplication,
         label: String,
@@ -133,19 +142,58 @@ final class AccountLifecycleExperienceUITests: XCTestCase {
 
     func testSyncIdleAndCompletedStatusArePresentedAsStatus() throws {
         let idle = launchAccount("UITEST_ACCOUNT_SYNC_IDLE")
-        XCTAssertTrue(idle.staticTexts["尚未开启"].waitForExistence(timeout: 5))
+        XCTAssertTrue(idle.staticTexts["已同步"].waitForExistence(timeout: 5))
         attach(idle, "account-sync-idle")
 
         let completed = launchAccount("UITEST_ACCOUNT_SYNC_COMPLETED")
         XCTAssertTrue(completed.staticTexts["已同步"].waitForExistence(timeout: 5))
+        attach(completed, "account-sync-completed")
     }
 
     func testSyncErrorIsVisibleWithoutClaimingSuccess() throws {
-        let app = launchAccount("UITEST_ACCOUNT_SYNC_ERROR")
-        XCTAssertTrue(app.staticTexts["同步遇到问题，可重试"].waitForExistence(timeout: 5))
+        let app = launchAccount("UITEST_ACCOUNT_SYNC_ERROR", extra: ["UITEST_FORCE_DARK_APPEARANCE"])
+        XCTAssertTrue(app.staticTexts["同步遇到问题"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["当前使用本机数据，稍后可重试。"].exists)
         XCTAssertFalse(app.staticTexts["已同步"].exists)
         attach(app, "account-sync-error")
+    }
+
+    func testSyncRecoverableStatesHaveClearCopyAndSafeActions() throws {
+        let cases: [(String, String, Bool)] = [
+            ("UITEST_ACCOUNT_SYNC_NOT_ENROLLED", "尚未完成合并", false),
+            ("UITEST_ACCOUNT_SYNC_PENDING", "待同步", true),
+            ("UITEST_ACCOUNT_SYNC_RUNNING", "正在同步", false),
+            ("UITEST_ACCOUNT_SYNC_OFFLINE", "暂时离线", true),
+            ("UITEST_ACCOUNT_SYNC_RATE_LIMITED", "请稍后重试", false),
+            ("UITEST_ACCOUNT_SYNC_UPGRADE_REQUIRED", "需要更新 App", false),
+            ("UITEST_ACCOUNT_SYNC_NO_HOUSEHOLD", "没有可同步的家庭", false)
+        ]
+
+        for (fixture, title, actionEnabled) in cases {
+            let app = launchAccount(fixture)
+            XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5), fixture)
+            let action = app.buttons["inventorySyncNowButton"]
+            if action.exists {
+                XCTAssertEqual(action.isEnabled, actionEnabled, fixture)
+                if actionEnabled { action.tap() }
+            } else {
+                XCTAssertFalse(actionEnabled, fixture)
+            }
+            attach(app, fixture.replacingOccurrences(of: "UITEST_ACCOUNT_", with: "sync-").lowercased())
+            XCTAssertTrue(app.navigationBars.staticTexts["账号"].exists, fixture)
+        }
+    }
+
+    func testSyncStatusAccessibilityXXXLTopAndBottomRemainReachable() throws {
+        let large = launchAccount(
+            "UITEST_ACCOUNT_SYNC_PENDING",
+            extra: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        )
+        XCTAssertTrue(large.staticTexts["待同步"].waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollToSyncAction(large).isHittable)
+        attach(large, "sync-accessibility-xxxl-top")
+        assertAccountBottomClearsTabBar(large, label: "同步状态 Accessibility XXXL")
+        attach(large, "sync-accessibility-xxxl-bottom")
     }
 
     func testSignOutConfirmationOpensAndCancelKeepsSignedIn() throws {
