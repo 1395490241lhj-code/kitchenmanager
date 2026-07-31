@@ -16,6 +16,11 @@ struct KitchenManagerApp: App {
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
 
     init() {
+        #if DEBUG
+        // Must run before the coordinator's first `refresh` reads the queue.
+        // No-op unless KitchenManagerUITests passes the opt-in arguments.
+        SharedImportConfig.applyUITestQueueSeedingIfRequested()
+        #endif
         let persistence = KitchenPersistenceFactory.application()
         _recipeStore = StateObject(
             wrappedValue: RecipeStore(

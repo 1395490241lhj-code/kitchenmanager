@@ -23,6 +23,13 @@ public final class SharedImportQueue {
     /// "already queued" rather than piling up a second identical request.
     public static let duplicateWindow: TimeInterval = 300
 
+    /// A queued request the user never completed eventually stops being
+    /// something they want re-offered. Without this, a single share from
+    /// months ago stays in the App Group file forever and keeps surfacing.
+    /// 14 days is long enough to survive "I'll get to it next weekend" and
+    /// short enough that stale entries actually age out on their own.
+    public static let maxRequestAge: TimeInterval = 14 * 24 * 60 * 60
+
     private let fileURL: URL
     private let fileManager: FileManager
     private let decoder = JSONDecoder()
@@ -103,6 +110,47 @@ public final class SharedImportQueue {
 
     public func removeAll() {
         try? writeAll([])
+    }
+
+    /// Persists a lifecycle transition for a single request in place.
+    ///
+    /// Read-modify-write under the same `NSFileCoordinator` discipline as
+    /// every other mutation here. Unknown ids are ignored. The transform
+    /// must not change `id`/`createdAt` — `SharedImportRequest.updating`
+    /// is the intended way to build the new value.
+    @discardableResult
+    public func update(id: UUID, transform: (SharedImportRequest) -> SharedImportRequest) -> Bool {
+        var current = readAll()
+        guard let index = current.firstIndex(where: { $0.id == id }) else { return false }
+        let updated = transform(current[index])
+        guard updated.id == current[index].id else { return false }
+        current[index] = updated
+        do {
+            try writeAll(current)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Drops requests older than `maxAge`, whatever their status.
+    ///
+    /// This is the generic answer to "a request nobody ever finished is
+    /// still on disk months later" — it is age-based, so it needs no
+    /// knowledge of any particular URL or link.
+    ///
+    /// - Returns: the ids that were removed.
+    @discardableResult
+    public func pruneExpired(
+        olderThan maxAge: TimeInterval = SharedImportQueue.maxRequestAge,
+        now: Date = Date()
+    ) -> [UUID] {
+        let current = readAll()
+        let expired = current.filter { now.timeIntervalSince($0.createdAt) > maxAge }
+        guard !expired.isEmpty else { return [] }
+        let survivors = current.filter { request in !expired.contains(where: { $0.id == request.id }) }
+        try? writeAll(survivors)
+        return expired.map(\.id)
     }
 
     // MARK: - Disk I/O

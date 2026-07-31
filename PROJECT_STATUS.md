@@ -4,6 +4,17 @@ Last updated: 2026-07-29
 
 ## In progress
 
+- Xiaohongshu recipe import: deterministic `method` step cleanup
+  (`src/server/services/recipe-step-cleanup.js`) and a persisted
+  shared-import request lifecycle (status / failure count / age pruning),
+  plus a Home「待处理的分享」entry point and an opt-in, non-production
+  import stage snapshot for debugging real links. Committed on
+  `claude/xhs-import-steps-and-share-queue`. Name, ingredient, and quantity extraction are
+  unchanged. See `docs/RECIPE_IMPORT_STEP_PIPELINE.md` and the request
+  lifecycle section of `docs/IOS_SHARE_IMPORT.md`. Physical-device
+  confirmation that the previously-recurring share no longer auto-opens is
+  still outstanding.
+
 - UI-5B2B-A explicit merge-preview boundary and persisted-plan safety is being
   implemented on `claude/ios-merge-preview-ui5b2ba`; changes remain
   uncommitted. Account and inline prompt rendering remain local-only, while

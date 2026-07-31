@@ -19,6 +19,25 @@ public enum ShareImportSource: String, Codable, Sendable {
     case sharedTextAndURL
 }
 
+/// Where a queued request currently sits in its lifecycle.
+///
+/// This is **persisted with the request**, not held in memory: the whole
+/// point is that "the user already dealt with this" survives a relaunch.
+/// Before this existed, a dismissed request stayed `pending` forever on
+/// disk and was auto-presented (and auto-imported) on every single launch.
+public enum SharedImportStatus: String, Codable, Sendable {
+    /// Newly queued by the extension; eligible for automatic presentation
+    /// and auto-start exactly once.
+    case pending
+    /// The user explicitly chose "稍后处理" (or just closed the sheet).
+    /// Stays in the queue and remains reachable from an explicit entry
+    /// point, but is never auto-presented or auto-started again.
+    case deferred
+    /// The import failed enough times that retrying automatically would
+    /// just loop. Kept for an explicit user-driven retry / delete.
+    case failed
+}
+
 /// A normalized request produced by the Share Extension and consumed by the
 /// main app's existing Smart Import flow.
 ///
@@ -38,6 +57,11 @@ public struct SharedImportRequest: Codable, Sendable, Identifiable {
     public let text: String?
     public let originalHostBundleIdentifier: String?
     public let schemaVersion: Int
+    /// Persisted lifecycle state. See `SharedImportStatus`.
+    public let status: SharedImportStatus
+    /// How many times the import pipeline has failed for this request.
+    /// Persisted so a failing link can't silently auto-retry on every launch.
+    public let failureCount: Int
 
     public init(
         id: UUID = UUID(),
@@ -46,7 +70,9 @@ public struct SharedImportRequest: Codable, Sendable, Identifiable {
         url: URL?,
         text: String?,
         originalHostBundleIdentifier: String?,
-        schemaVersion: Int = SharedImportRequest.currentSchemaVersion
+        schemaVersion: Int = SharedImportRequest.currentSchemaVersion,
+        status: SharedImportStatus = .pending,
+        failureCount: Int = 0
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -55,6 +81,50 @@ public struct SharedImportRequest: Codable, Sendable, Identifiable {
         self.text = text
         self.originalHostBundleIdentifier = originalHostBundleIdentifier
         self.schemaVersion = schemaVersion
+        self.status = status
+        self.failureCount = failureCount
+    }
+
+    /// Tolerant decode so a queue file written *before* `status`/
+    /// `failureCount` existed still loads instead of being discarded.
+    /// `schemaVersion` is deliberately **not** bumped for this addition:
+    /// bumping it would make the queue silently drop every already-queued
+    /// request, which is exactly the kind of blunt data loss this change is
+    /// meant to avoid. Legacy entries decode as `.pending` / `0`, i.e. they
+    /// behave exactly as before until the user acts on them once.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        source = try container.decode(ShareImportSource.self, forKey: .source)
+        url = try container.decodeIfPresent(URL.self, forKey: .url)
+        text = try container.decodeIfPresent(String.self, forKey: .text)
+        originalHostBundleIdentifier = try container.decodeIfPresent(
+            String.self,
+            forKey: .originalHostBundleIdentifier
+        )
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        status = try container.decodeIfPresent(SharedImportStatus.self, forKey: .status) ?? .pending
+        failureCount = try container.decodeIfPresent(Int.self, forKey: .failureCount) ?? 0
+    }
+
+    /// Returns a copy with updated lifecycle state; identity, content, and
+    /// `createdAt` are never rewritten, so FIFO order and dedup stay stable.
+    public func updating(
+        status newStatus: SharedImportStatus? = nil,
+        failureCount newFailureCount: Int? = nil
+    ) -> SharedImportRequest {
+        SharedImportRequest(
+            id: id,
+            createdAt: createdAt,
+            source: source,
+            url: url,
+            text: text,
+            originalHostBundleIdentifier: originalHostBundleIdentifier,
+            schemaVersion: schemaVersion,
+            status: newStatus ?? status,
+            failureCount: newFailureCount ?? failureCount
+        )
     }
 
     /// Phase 1 only supports content that resolves to a usable http/https
@@ -82,6 +152,8 @@ extension SharedImportRequest: Equatable {
             && lhs.text == rhs.text
             && lhs.originalHostBundleIdentifier == rhs.originalHostBundleIdentifier
             && lhs.schemaVersion == rhs.schemaVersion
+            && lhs.status == rhs.status
+            && lhs.failureCount == rhs.failureCount
     }
 }
 

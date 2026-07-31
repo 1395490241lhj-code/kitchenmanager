@@ -193,4 +193,111 @@ final class SharedImportQueueTests: XCTestCase {
         XCTAssertEqual(queue.peekAll(), [request])
         XCTAssertEqual(queue.peekAll(), [request], "a second read must not consume the request")
     }
+
+    // MARK: - Persisted lifecycle state
+
+    func test_update_persistsStatusAcrossReads() throws {
+        let request = makeRequest(url: "https://example.com/a")
+        try queue.enqueue(request)
+
+        XCTAssertTrue(queue.update(id: request.id) { $0.updating(status: .deferred) })
+
+        // A brand new queue object over the same directory = "next launch".
+        let reopened = SharedImportQueue(directoryURL: tempDirectory)
+        XCTAssertEqual(reopened.peekAll().first?.status, .deferred)
+        XCTAssertEqual(reopened.peekAll().first?.id, request.id)
+    }
+
+    func test_update_persistsFailureCount_andIgnoresUnknownIDs() throws {
+        let request = makeRequest(url: "https://example.com/a")
+        try queue.enqueue(request)
+
+        queue.update(id: request.id) { $0.updating(failureCount: 2) }
+        XCTAssertEqual(queue.peekAll().first?.failureCount, 2)
+
+        XCTAssertFalse(queue.update(id: UUID()) { $0.updating(status: .failed) })
+        XCTAssertEqual(queue.peekAll().count, 1, "an unknown id must not add or drop entries")
+    }
+
+    func test_update_doesNotDisturbOtherRequests() throws {
+        let first = makeRequest(url: "https://example.com/a")
+        let second = makeRequest(url: "https://example.com/b")
+        try queue.enqueue(first)
+        try queue.enqueue(second)
+
+        queue.update(id: first.id) { $0.updating(status: .failed, failureCount: 3) }
+
+        let all = queue.peekAll()
+        XCTAssertEqual(all.map(\.id), [first.id, second.id], "FIFO order must be preserved")
+        XCTAssertEqual(all.last?.status, .pending)
+        XCTAssertEqual(all.last?.failureCount, 0)
+    }
+
+    // MARK: - Age-based pruning
+
+    func test_pruneExpired_removesOnlyStaleRequests() throws {
+        let stale = makeRequest(
+            url: "https://example.com/old",
+            createdAt: Date().addingTimeInterval(-(SharedImportQueue.maxRequestAge + 60))
+        )
+        let recent = makeRequest(url: "https://example.com/new")
+        try queue.enqueue(stale)
+        try queue.enqueue(recent)
+
+        let removed = queue.pruneExpired()
+
+        XCTAssertEqual(removed, [stale.id])
+        XCTAssertEqual(queue.peekAll().map(\.id), [recent.id])
+    }
+
+    func test_pruneExpired_isANoOp_whenNothingIsStale() throws {
+        let request = makeRequest(url: "https://example.com/a")
+        try queue.enqueue(request)
+
+        XCTAssertTrue(queue.pruneExpired().isEmpty)
+        XCTAssertEqual(queue.peekAll().map(\.id), [request.id])
+    }
+
+    // MARK: - Legacy on-disk data (written before status/failureCount existed)
+
+    func test_legacyQueueFileWithoutLifecycleFields_stillDecodes_asPending() throws {
+        // Exactly the shape the shipped build wrote: no `status`, no
+        // `failureCount`. Bumping schemaVersion would have silently dropped
+        // these; tolerant decoding keeps them and lets the user act once.
+        let id = UUID()
+        let legacyJSON = """
+        [{
+          "id": "\(id.uuidString)",
+          "createdAt": \(Date().timeIntervalSince1970),
+          "source": "sharedURL",
+          "url": "https://example.com/legacy",
+          "schemaVersion": 1
+        }]
+        """
+        let fileURL = tempDirectory.appendingPathComponent("shared_import_queue.json")
+        try Data(legacyJSON.utf8).write(to: fileURL)
+
+        let loaded = queue.peekAll()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded.first?.id, id)
+        XCTAssertEqual(loaded.first?.status, .pending)
+        XCTAssertEqual(loaded.first?.failureCount, 0)
+
+        // And it can immediately be transitioned like any other request.
+        XCTAssertTrue(queue.update(id: id) { $0.updating(status: .deferred) })
+        XCTAssertEqual(queue.peekAll().first?.status, .deferred)
+    }
+
+    func test_corruptedQueueFile_doesNotWedgeStartup() throws {
+        let fileURL = tempDirectory.appendingPathComponent("shared_import_queue.json")
+        try Data("{ not json at all".utf8).write(to: fileURL)
+
+        XCTAssertEqual(queue.peekAll(), [], "a corrupt file must read as empty, not crash or loop")
+        XCTAssertTrue(queue.pruneExpired().isEmpty)
+
+        // The queue stays usable afterward.
+        let request = makeRequest(url: "https://example.com/after-corruption")
+        try queue.enqueue(request)
+        XCTAssertEqual(queue.peekAll().map(\.id), [request.id])
+    }
 }

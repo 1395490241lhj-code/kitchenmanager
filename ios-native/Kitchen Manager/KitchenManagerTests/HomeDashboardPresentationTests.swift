@@ -64,4 +64,56 @@ final class HomeDashboardPresentationTests: XCTestCase {
             [.clipboardPrompt]
         )
     }
+
+    // MARK: - Pending shares entry point
+
+    func testPendingSharesSectionIsHiddenWhenThereAreNone() {
+        XCTAssertEqual(
+            HomeDashboardPresentation.supplementarySections(
+                hasReminder: false,
+                pendingShareCount: 0,
+                showsClipboardPrompt: false,
+                hasModuleIssues: false
+            ),
+            [],
+            "no deferred share means no Home entry point at all"
+        )
+    }
+
+    func testPendingSharesSectionAppearsWhenAtLeastOneExists() {
+        XCTAssertEqual(
+            HomeDashboardPresentation.supplementarySections(
+                hasReminder: false,
+                pendingShareCount: 1,
+                showsClipboardPrompt: false,
+                hasModuleIssues: false
+            ),
+            [.pendingShares]
+        )
+    }
+
+    func testPendingSharesRankAboveClipboardPromptButBelowReminder() {
+        XCTAssertEqual(
+            HomeDashboardPresentation.supplementarySections(
+                hasReminder: true,
+                pendingShareCount: 2,
+                showsClipboardPrompt: true,
+                hasModuleIssues: true
+            ),
+            [.reminder, .pendingShares, .clipboardPrompt, .moduleIssues]
+        )
+    }
+
+    func testExistingCallersWithoutPendingSharesAreUnaffected() {
+        // The parameter is defaulted, so the pre-existing ordering contract
+        // holds for every call site that doesn't pass it.
+        XCTAssertEqual(
+            HomeDashboardPresentation.supplementarySections(
+                hasReminder: true,
+                showsClipboardPrompt: true,
+                hasModuleIssues: true
+            ),
+            [.reminder, .clipboardPrompt, .moduleIssues]
+        )
+    }
 }
