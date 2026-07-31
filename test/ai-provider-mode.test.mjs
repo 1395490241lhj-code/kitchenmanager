@@ -1161,7 +1161,9 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   assert.match(aiParsePipeline, /repairRecipeJsonContent\(content\)/);
   assert.match(aiParsePipeline, /buildBoundedFinalPromptEvidence\(evidence\)/);
   assert.doesNotMatch(aiParsePipeline, /JSON\.stringify\(\{ evidence, sourceDiagnostics:/);
-  assert.match(aiParsePipeline, /sanitizeRecipe\(parsed, \{ sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics \}\)/);
+  // sanitizeRecipe 仍然只吃 evidence/diagnostics 上下文，另外多一个纯输出用的
+  // diagnosticsSink（步骤整理统计），不改变解析输入。
+  assert.match(aiParsePipeline, /sanitizeRecipe\(parsed, \{\s*sourceText: evidenceSourceText,\s*evidence,\s*diagnostics: initialDiagnostics,\s*diagnosticsSink: stepCleanupDiagnostics\s*\}\)/);
   assert.match(aiParseRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiParseRoute, /parseRecipeDraftWithAi\(\{ text, imageBase64, sourceType, sourceMetadata \}\)/);
   assert.match(aiParseRoute, /sendAiParsePipelineError\(res, err, 'AI 解析请求失败，请稍后重试。'\)/);

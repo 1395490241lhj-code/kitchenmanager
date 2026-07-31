@@ -426,6 +426,11 @@ struct ImportRecipeView: View {
 
     private let extractService = LinkExtractService()
     var onSaved: (() -> Void)? = nil
+    /// Called when an import attempt actually failed (not when it was
+    /// cancelled by dismissing the sheet). Only the Share Extension handoff
+    /// passes this, so a failing queued link can be counted and eventually
+    /// stop auto-retrying; every other call site leaves it `nil`.
+    var onImportFailed: (() -> Void)? = nil
 
     /// Set only by the Share Extension pending-request handoff
     /// (`HomeView.sharedImportSheetContent`) — every other call site keeps
@@ -439,10 +444,16 @@ struct ImportRecipeView: View {
     /// `initialURLText` lets callers (e.g. the Share Extension handoff via
     /// `SharedImportCoordinator`) prefill the same field a user would
     /// otherwise paste into by hand — no separate import path.
-    init(initialURLText: String = "", autoStart: Bool = false, onSaved: (() -> Void)? = nil) {
+    init(
+        initialURLText: String = "",
+        autoStart: Bool = false,
+        onSaved: (() -> Void)? = nil,
+        onImportFailed: (() -> Void)? = nil
+    ) {
         _urlText = State(initialValue: initialURLText)
         self.autoStart = autoStart
         self.onSaved = onSaved
+        self.onImportFailed = onImportFailed
     }
 
     /// Pure decision logic for whether `.task` should kick off `importLink()`
@@ -703,6 +714,9 @@ struct ImportRecipeView: View {
             return
         } catch {
             extractErrorMessage = error.localizedDescription
+            // A real failure, not a dismissal — let the shared-import queue
+            // count it so a permanently broken link stops auto-retrying.
+            onImportFailed?()
         }
     }
 

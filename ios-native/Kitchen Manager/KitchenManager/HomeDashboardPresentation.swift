@@ -5,6 +5,10 @@ import Foundation
 /// the visual and VoiceOver order deterministic once a state is already known.
 enum HomeDashboardSupplementarySection: Hashable {
     case reminder
+    /// Shares the user chose to handle later (or that exhausted automatic
+    /// retries). Ranked above the clipboard prompt because it represents
+    /// work the user explicitly kept, not an opportunistic suggestion.
+    case pendingShares
     case clipboardPrompt
     case moduleIssues
 }
@@ -19,6 +23,7 @@ enum HomeDashboardPresentation {
     }
     static func supplementarySections(
         hasReminder: Bool,
+        pendingShareCount: Int = 0,
         showsClipboardPrompt: Bool,
         hasModuleIssues: Bool
     ) -> [HomeDashboardSupplementarySection] {
@@ -26,6 +31,9 @@ enum HomeDashboardPresentation {
 
         if hasReminder {
             sections.append(.reminder)
+        }
+        if pendingShareCount > 0 {
+            sections.append(.pendingShares)
         }
         if showsClipboardPrompt {
             sections.append(.clipboardPrompt)

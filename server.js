@@ -123,6 +123,7 @@ const {
 const {
   preserveEvidenceItemsInRecipe
 } = require('./src/server/services/evidence-item-preservation');
+const { cleanRecipeSteps } = require('./src/server/services/recipe-step-cleanup');
 const { authenticateRequest, createRequireAuthRole, ALLOWED_ALGORITHMS } = require('./src/server/auth/jwt');
 const { createMeHandler } = require('./src/server/auth/me-route');
 const { registerSyncRoutes } = require('./src/server/sync/routes');
@@ -446,7 +447,21 @@ ingredients/seasonings/method 可以不完美，但必须是合法 JSON。
 ingredients 只放构成菜品主体的原材料（鸡肉、土豆、番茄、鸡蛋、猪肉、青椒等）；seasonings 放腌制、调味、勾芡、炝锅、炸制和辅助材料。豆粉、淀粉、生粉、水淀粉、食用油、盐、糖、生抽、料酒、花椒、豆瓣酱、少许葱姜蒜、清水和高汤必须放在 seasonings，不能放 ingredients。
 ingredients 与 seasonings 的 item 必须非空；来源明确给出数量和单位时保留来源值。来源未提供用量时输出 qty="" 和 unit=""，不得猜测数量，也不得通过省略 item 回避未知用量。仅来源明确写了“适量”或“少许”时允许保留该表达。合法示例：{"item":"青椒","qty":"","unit":""}。
 method 如果 observedActions 有内容，必须至少输出对应步骤；不要因为信息不完整就把 method 清空。
-不确定内容放 warnings。`;
+不确定内容放 warnings。
+
+【method 步骤质量约束】method 是字符串数组，每个元素是一条可直接执行的中文菜谱操作说明：
+- 按 observedActions 的真实烹饪顺序排列；不要按 OCR/ASR 的出现顺序原样搬运。
+- 每条只表达一个主要烹饪阶段，或一组紧密连续的操作（如"炒至变色后盛出"）。
+- 一段文本里有多个互不相关的主要动作时拆开；零碎片段属于同一阶段时合并。
+- 严禁出现任何序号前缀（"1. "、"1、"、"第一步："、"步骤2："、"一、"、"(1) "）。
+- 严禁把大段口播原文整句照抄成步骤。
+- 严禁写入广告、寒暄、点赞收藏关注、口头禅、背景故事、平台话术。
+- 严禁把完整食材清单重新写成一条步骤；食材只在具体操作里自然提到，如"加入腌好的肉丝"。
+- OCR 与 ASR 对同一个动作的重复描述只保留信息最全的一条，不要输出两遍。
+- 必须保留来源出现的时间、温度、火候、用量比例和"炒至变色""煮至浓稠"等状态判断。
+- 严禁补充来源没有的动作、时间、温度或调味料；信息不足时保持简略并写入 warnings。
+- 不要输出"准备食材""开始烹饪"这类没有实际操作的空泛步骤。
+- 步骤数量由内容决定，不要机械凑成固定条数。`;
 
 
 app.get('/api/xhs-extract', async (req, res) => {
@@ -949,6 +964,55 @@ function buildDebugEvidenceSummary({ sourceText = '', evidence = null, diagnosti
   };
 }
 
+// 导入链路分阶段调试快照。默认完全关闭：必须同时满足
+//   1) NODE_ENV !== 'production'（生产环境永远不返回）；
+//   2) 请求显式带 debugStages=true。
+// 只回显本次请求已经在内存里的来源文本，不写日志、不落库、不缓存，响应发出后即释放；
+// 每段都有长度上限，避免回传整篇用户内容。绝不包含 API key、Authorization 头
+// 或任何鉴权信息 —— 这些从来不进入这里引用的任何变量。
+const IMPORT_DEBUG_STAGE_LIMIT = 2000;
+const IMPORT_DEBUG_STEP_LIMIT = 40;
+
+function isImportStageDebugEnabled(requestedFlag) {
+  return process.env.NODE_ENV !== 'production' && requestedFlag === true;
+}
+
+function limitDebugStageText(value) {
+  const text = String(value || '');
+  return {
+    length: text.length,
+    truncated: text.length > IMPORT_DEBUG_STAGE_LIMIT,
+    text: text.slice(0, IMPORT_DEBUG_STAGE_LIMIT)
+  };
+}
+
+function limitDebugStageSteps(value) {
+  if (!Array.isArray(value)) {
+    return value == null ? null : [String(value).slice(0, IMPORT_DEBUG_STAGE_LIMIT)];
+  }
+  return value.slice(0, IMPORT_DEBUG_STEP_LIMIT).map(step => String(step || '').slice(0, 300));
+}
+
+function buildImportStageDebugSnapshot({
+  pageText = '',
+  transcriptText = '',
+  ocrText = '',
+  sourceText = '',
+  aiRawMethod = null,
+  cleanedMethod = null,
+  stepCleanupDiagnostics = null
+} = {}) {
+  return {
+    pageText: limitDebugStageText(pageText),
+    asrText: limitDebugStageText(transcriptText),
+    ocrText: limitDebugStageText(ocrText),
+    mergedSourceText: limitDebugStageText(sourceText),
+    aiRawMethod: limitDebugStageSteps(aiRawMethod),
+    cleanedMethod: limitDebugStageSteps(cleanedMethod),
+    stepCleanupDiagnostics: stepCleanupDiagnostics || null
+  };
+}
+
 function normalizeEvidenceName(name) {
   return String(name || '').replace(/^#+/u, '').trim();
 }
@@ -1125,6 +1189,20 @@ function sanitizeRecipe(recipe, options = {}) {
       recipe.warnings = [
         ...(Array.isArray(recipe.warnings) ? recipe.warnings : []),
         '清洗后可用菜谱正文较少，未能可靠提取完整做法，请补充原文或手动编辑。'
+      ];
+      recipe.needsReview = true;
+    }
+    // 确定性步骤整理：去噪 / 拆分 / 合并 / 近似去重 / 保守重排。纯减法与重排，
+    // 不新增任何原文没有的动作、时间、温度或调味料。
+    const stepCleanup = cleanRecipeSteps(recipe.method);
+    recipe.method = stepCleanup.steps;
+    if (options.diagnosticsSink && typeof options.diagnosticsSink === 'object') {
+      Object.assign(options.diagnosticsSink, stepCleanup.diagnostics);
+    }
+    if (stepCleanup.diagnostics.stepCleanupFellBack) {
+      recipe.warnings = [
+        ...(Array.isArray(recipe.warnings) ? recipe.warnings : []),
+        '做法步骤噪声较多，已保留原始文本，请人工整理。'
       ];
       recipe.needsReview = true;
     }
@@ -1358,7 +1436,17 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
   if (parsed) {
     const modelIngredientCountBeforeSanitize = Array.isArray(parsed.ingredients) ? parsed.ingredients.length : 0;
     const modelSeasoningCountBeforeSanitize = Array.isArray(parsed.seasonings) ? parsed.seasonings.length : 0;
-    const cleaned = sanitizeRecipe(parsed, { sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics });
+    // 快照必须在 sanitizeRecipe 之前取：它是就地修改 recipe.method 的。
+    const aiRawMethod = Array.isArray(parsed.method)
+      ? [...parsed.method]
+      : (Array.isArray(parsed.steps) ? [...parsed.steps] : parsed.method ?? null);
+    const stepCleanupDiagnostics = {};
+    const cleaned = sanitizeRecipe(parsed, {
+      sourceText: evidenceSourceText,
+      evidence,
+      diagnostics: initialDiagnostics,
+      diagnosticsSink: stepCleanupDiagnostics
+    });
     const preservation = preserveEvidenceItemsInRecipe(cleaned, evidence);
     const preservedRecipe = preservation.recipe;
     const diagnostics = buildSourceExtractionDiagnostics({
@@ -1373,11 +1461,20 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
     Object.assign(diagnostics, {
       modelIngredientCountBeforeSanitize,
       modelSeasoningCountBeforeSanitize,
+      ...stepCleanupDiagnostics,
       ...preservation.diagnostics
     });
     applySourceDiagnosticsWarnings(preservedRecipe, diagnostics);
     const debugEvidenceSummary = buildDebugEvidenceSummary({ sourceText: text, evidence, diagnostics, sourceSplit });
-    return { content: JSON.stringify(preservedRecipe), recipe: preservedRecipe, evidence, diagnostics, debugEvidenceSummary };
+    return {
+      content: JSON.stringify(preservedRecipe),
+      recipe: preservedRecipe,
+      evidence,
+      diagnostics,
+      debugEvidenceSummary,
+      aiRawMethod,
+      stepCleanupDiagnostics
+    };
   }
   throw createAiParsePipelineError(422, 'recipe_json_failed', '视频文字已读取成功，但 AI 整理菜谱失败。');
 }
@@ -1596,7 +1693,25 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
       sourceMetadata
     });
     cleanupRecipeImportMediaCache();
-    return res.json({ ...draft, mediaDiagnostics });
+    // `aiRawMethod`/`stepCleanupDiagnostics` 只用于构造调试快照，不进入常规响应。
+    const { aiRawMethod, stepCleanupDiagnostics, ...draftResponse } = draft;
+    return res.json({
+      ...draftResponse,
+      mediaDiagnostics,
+      ...(isImportStageDebugEnabled(req.body?.debugStages === true)
+        ? {
+            debugStages: buildImportStageDebugSnapshot({
+              pageText,
+              transcriptText,
+              ocrText,
+              sourceText,
+              aiRawMethod,
+              cleanedMethod: draft.recipe?.method,
+              stepCleanupDiagnostics
+            })
+          }
+        : {})
+    });
   } catch (err) {
     const info = getUpstreamAiErrorInfo(err);
     const importTextReadyExtra = {
@@ -1640,7 +1755,21 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
         importTextReady: true,
         transcriptPreview: transcriptText.slice(0, 1200),
         ocrPreview: ocrText.slice(0, 800),
-        pageTextPreview: pageText.slice(0, 500)
+        pageTextPreview: pageText.slice(0, 500),
+        ...(isImportStageDebugEnabled(req.body?.debugStages === true)
+          ? {
+              debugStages: buildImportStageDebugSnapshot({
+                pageText,
+                transcriptText,
+                ocrText,
+                sourceText,
+                // fallback 没有 AI 输出可言，这正是它被启用的原因。
+                aiRawMethod: null,
+                cleanedMethod: fallbackRecipe.method,
+                stepCleanupDiagnostics: fallbackRecipe.diagnostics || null
+              })
+            }
+          : {})
       });
     }
     // 安全网：final recipe 已经失败，但视频文字确实读到了。绝不把 json_validate_failed 这类
@@ -1673,7 +1802,25 @@ app.post('/api/ai-parse', async (req, res) => {
 
   const sourceType = normalizeSourceType(req.body && req.body.sourceType, { imageBase64 });
   try {
-    return res.json(await parseRecipeDraftWithAi({ text, imageBase64, sourceType, sourceMetadata }));
+    const draft = await parseRecipeDraftWithAi({ text, imageBase64, sourceType, sourceMetadata });
+    // 与 /api/recipe-import-from-url 一致：调试用字段不进入常规响应形状。
+    const { aiRawMethod, stepCleanupDiagnostics, ...draftResponse } = draft;
+    return res.json({
+      ...draftResponse,
+      ...(isImportStageDebugEnabled(req.body?.debugStages === true)
+        ? {
+            debugStages: buildImportStageDebugSnapshot({
+              pageText: '',
+              transcriptText: '',
+              ocrText: '',
+              sourceText: text,
+              aiRawMethod,
+              cleanedMethod: draft.recipe?.method,
+              stepCleanupDiagnostics
+            })
+          }
+        : {})
+    });
   } catch (err) {
     return sendAiParsePipelineError(res, err, 'AI 解析请求失败，请稍后重试。');
   }

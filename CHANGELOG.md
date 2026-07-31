@@ -4,6 +4,43 @@ All notable project changes should be documented here.
 
 Keep entries concise. Use this file for what changed, not for long design discussion. Put current project state in `PROJECT_STATUS.md`.
 
+## 2026-07-30 (Xiaohongshu import: step cleanup + share-queue lifecycle — uncommitted)
+
+### Fixed
+
+- Shared-import requests no longer re-present and re-run AI recognition on
+  every app launch. Dismissing the import sheet used to `snooze` a request
+  **in memory only** while it stayed `pending` on disk, so a single old
+  share reappeared and auto-imported indefinitely. `SharedImportRequest`
+  now carries a persisted `status`/`failureCount`, closing the sheet asks
+  「稍后处理 / 删除此次导入」, failures stop auto-retrying after 2 attempts,
+  and requests older than 14 days are pruned. Legacy queue files still
+  decode (no `schemaVersion` bump, no data dropped).
+
+### Added
+
+- Home「待处理的分享」entry point: shown only when a deferred/failed share
+  exists, with a count, a failure badge, and per-request 继续导入/重试导入
+  and 删除 actions. Resuming never re-arms automatic recognition.
+- Opt-in, non-production import stage snapshot (`debugStages: true`) on
+  `/api/recipe-import-from-url` and `/api/ai-parse`: page text, raw ASR, raw
+  OCR, merged sourceText, AI raw `method`, cleaned `method`, and cleanup
+  diagnostics. Length-capped, response-only, never logged or persisted, and
+  never touching secrets.
+
+### Changed
+
+- Added `src/server/services/recipe-step-cleanup.js`: deterministic,
+  subtractive-only post-processing of imported `method` steps (denoise,
+  ingredient-list removal, split, OCR×ASR near-dedup, fragment merge,
+  conservative reorder), applied in `sanitizeRecipe` and in the grounded
+  fallback so both paths produce comparable steps.
+- `IMPORT_SIMPLE_SYSTEM_PROMPT` (the Xiaohongshu path) gained explicit step
+  quality constraints; `IMPORT_SYSTEM_PROMPT` is unchanged. `method`
+  remains `string[]` — no DTO or persistence migration.
+- New docs: `docs/RECIPE_IMPORT_STEP_PIPELINE.md`; request lifecycle
+  documented in `docs/IOS_SHARE_IMPORT.md`.
+
 ## 2026-07-29 (iOS Merge Preview UI-5B2B-A — uncommitted)
 
 ### Changed

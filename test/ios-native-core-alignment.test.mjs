@@ -55,9 +55,13 @@ test("home record-food action opens the existing flow instead of switching tabs"
     header,
     /Button\(action: onImport\) \{[\s\S]*?\.accessibilityIdentifier\("home\.import\.add\.button"\)[\s\S]*?\.accessibilityLabel\("导入与添加"\)/
   );
+  // Still one `activeSheet`-driven sheet rendering `sheetContent`. It now
+  // also carries an `onDismiss:` that hands a resumed shared import back to
+  // the import sheet after this one is gone; the binding and content
+  // wiring are unchanged.
   assert.match(
     homeView,
-    /\.sheet\(item: \$activeSheet\) \{ sheet in\s*sheetContent\(sheet\)\s*\}/
+    /\.sheet\(item: \$activeSheet(?:, onDismiss: \{[\s\S]*?\})?\) \{ sheet in\s*sheetContent\(sheet\)\s*\}/
   );
   assert.match(homeView, /case \.smartImport:\s*SmartImportSheet \{/);
   const manualFoodActionStart = home.indexOf('childSheet = .manualIngredient');

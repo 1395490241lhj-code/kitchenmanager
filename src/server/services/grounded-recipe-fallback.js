@@ -1,5 +1,7 @@
 'use strict';
 
+const { cleanRecipeSteps } = require('./recipe-step-cleanup');
+
 const MAIN_TERMS = [
   '西红柿', '西兰花', '鸡胸肉', '里脊肉', '五花肉', '鸡腿', '鸡肉', '鸡胸', '鸡翅',
   '牛肉', '猪肉', '羊肉', '肉片', '肉丝', '肉末', '排骨', '鱼片', '虾仁', '番茄',
@@ -115,7 +117,11 @@ function classifyFallbackSentence(sentence) {
       return { type: 'incidental', grounded: false };
     }
     const hasObject = spans.some(span => span.category !== 'protected') || /肉|菜|蛋|面|饭|锅|汁|块|片|丝/u.test(text);
-    return { type: 'action', grounded: hasObject || /出锅|装盘|收汁/u.test(text) };
+    // 「腌制10分钟」「小火煎3分钟」这类子句没有独立的食材宾语，但携带的时间/
+    // 温度/火候是菜谱里不能丢的信息。要求同时存在烹饪动作（上面已确认）和明确
+    // 的时间/温度/火候，避免把无意义的短句放进来。
+    const hasCookingParameter = /\d+\s*(?:分钟|小时|秒|度|℃)|大火|中火|小火|中小火|文火/u.test(text);
+    return { type: 'action', grounded: hasObject || hasCookingParameter || /出锅|装盘|收汁/u.test(text) };
   }
   return { type: 'context', grounded: false };
 }
@@ -260,11 +266,14 @@ function buildGroundedFallbackRecipe({
   ].filter(source => String(source.text || '').trim());
   const items = collectGroundedItems(sources);
   const actions = extractGroundedActionSentences(sources);
+  // fallback 的动作句是逐句抽取的，天然零碎且 ASR/OCR 高度重复；交给同一套
+  // 确定性整理逻辑，让 fallback 步骤与 AI 路径保持一致的可读性。
+  const cleanedSteps = cleanRecipeSteps(actions.actions);
   const warnings = [
     'AI 整理暂时不可用，当前草稿仅保留来源中明确识别到的信息。',
     '部分食材用量和完整步骤未能可靠识别，请人工确认。'
   ];
-  if (!actions.actions.length) warnings.push('未能可靠提取做法步骤，请参考来源并手动补充。');
+  if (!cleanedSteps.steps.length) warnings.push('未能可靠提取做法步骤，请参考来源并手动补充。');
   if (Array.isArray(mediaDiagnostics.warnings)) warnings.push(...mediaDiagnostics.warnings);
   const diagnostics = {
     fallbackUsed: true,
@@ -278,14 +287,15 @@ function buildGroundedFallbackRecipe({
     fallbackUsedTranscript: sources.some(source => source.type === 'transcript'),
     fallbackUsedOcr: sources.some(source => source.type === 'ocr'),
     fallbackUsedUserText: sources.some(source => source.type === 'user'),
-    fallbackFabricatedQuantityCount: 0
+    fallbackFabricatedQuantityCount: 0,
+    ...cleanedSteps.diagnostics
   };
   return {
     name: extractGroundedDishName({ sourceMetadata, trustedPageText, transcriptText, ocrText }),
     tags: ['AI草稿', '视频导入'],
     ingredients: items.ingredients,
     seasonings: items.seasonings,
-    method: actions.actions,
+    method: cleanedSteps.steps,
     warnings: uniqueStrings(warnings, 12),
     needsReview: true,
     sourceType: 'xiaohongshu',

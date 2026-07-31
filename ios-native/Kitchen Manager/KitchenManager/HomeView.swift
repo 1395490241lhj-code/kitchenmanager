@@ -11,6 +11,7 @@ private enum HomeSheet: Identifiable {
     case expiry
     case shopping
     case clipboardImport(ClipboardImportPresentation)
+    case pendingShares
 
     var id: String {
         switch self {
@@ -18,6 +19,7 @@ private enum HomeSheet: Identifiable {
         case .expiry: "expiry"
         case .shopping: "shopping"
         case .clipboardImport(let presentation): "clipboard-import-\(presentation.changeCount)"
+        case .pendingShares: "pending-shares"
         }
     }
 }
@@ -39,6 +41,12 @@ struct HomeView: View {
     @State private var isShowingRecommendations = false
     @State private var clipboardPromptState = ClipboardPromptSessionState()
     @State private var clipboardDetectionTask: Task<Void, Never>?
+    /// The queued share whose "关闭" tap is awaiting an explicit
+    /// 稍后处理 / 删除 decision.
+    @State private var closeDecisionRequest: SharedImportRequest?
+    /// Set when the user taps 继续导入 in the pending-shares list; applied in
+    /// that sheet's `onDismiss` so the two sheets never overlap.
+    @State private var resumeAfterDismiss: SharedImportRequest?
 
     private let clipboardDetector: any ClipboardPatternDetecting
 
@@ -96,6 +104,7 @@ struct HomeView: View {
                 ForEach(
                     HomeDashboardPresentation.supplementarySections(
                         hasReminder: dashboard.highestPriorityReminder != nil,
+                        pendingShareCount: sharedImportCoordinator.deferredRequests.count,
                         showsClipboardPrompt: shouldShowClipboardPrompt,
                         hasModuleIssues: !moduleIssues.isEmpty
                     ),
@@ -107,6 +116,13 @@ struct HomeView: View {
                             HomeAttentionReminderRow(reminder: reminder) {
                                 handleReminder(reminder)
                             }
+                        }
+                    case .pendingShares:
+                        PendingSharedImportsRow(
+                            count: sharedImportCoordinator.deferredRequests.count,
+                            hasFailure: sharedImportCoordinator.deferredRequests.contains { $0.status == .failed }
+                        ) {
+                            activeSheet = .pendingShares
                         }
                     case .clipboardPrompt:
                         if let changeCount = clipboardPromptChangeCount {
@@ -145,7 +161,15 @@ struct HomeView: View {
         .navigationDestination(isPresented: $isShowingRecommendations) {
             RecipeRecommendationBrowserView()
         }
-        .sheet(item: $activeSheet) { sheet in
+        .sheet(item: $activeSheet, onDismiss: {
+            // Handing a deferred share back to the import sheet has to wait
+            // until this sheet is actually gone, otherwise both would try to
+            // present from the same view at once.
+            if let request = resumeAfterDismiss {
+                resumeAfterDismiss = nil
+                sharedImportCoordinator.resume(request)
+            }
+        }) { sheet in
             sheetContent(sheet)
         }
         .sheet(item: sharedImportSheetBinding) { request in
@@ -231,19 +255,55 @@ struct HomeView: View {
     private func sharedImportSheetContent(_ request: SharedImportRequest) -> some View {
         NavigationStack {
             ImportRecipeView(
+                // A deferred/failed request the user re-opened on purpose is
+                // prefilled but never auto-fires the network call again —
+                // that decision lives in the coordinator, not here.
                 initialURLText: SharedImportCoordinator.prefillText(for: request),
-                autoStart: true,
+                autoStart: SharedImportCoordinator.shouldAutoStart(request),
                 onSaved: {
                     sharedImportCoordinator.markHandedOff(request)
                     showToast("已保存到菜谱库")
+                },
+                onImportFailed: {
+                    sharedImportCoordinator.recordFailure(request)
                 }
             )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") {
-                        sharedImportCoordinator.snooze(request)
+                        closeDecisionRequest = request
                     }
                 }
+            }
+            // "关闭" on a queued share used to mean an ambiguous in-memory
+            // snooze that resurrected itself on the next launch. Make the
+            // two real outcomes explicit instead.
+            .confirmationDialog(
+                "这次分享的链接还需要保留吗？",
+                isPresented: Binding(
+                    get: { closeDecisionRequest != nil },
+                    set: { if !$0 { closeDecisionRequest = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("稍后处理") {
+                    if let closeDecisionRequest {
+                        sharedImportCoordinator.snooze(closeDecisionRequest)
+                    }
+                    closeDecisionRequest = nil
+                }
+                Button("删除此次导入", role: .destructive) {
+                    if let closeDecisionRequest {
+                        sharedImportCoordinator.discard(closeDecisionRequest)
+                        showToast("已删除这次导入")
+                    }
+                    closeDecisionRequest = nil
+                }
+                Button("继续导入", role: .cancel) {
+                    closeDecisionRequest = nil
+                }
+            } message: {
+                Text("「稍后处理」会保留链接但不再自动识别；「删除此次导入」会彻底移除它。")
             }
         }
     }
@@ -276,6 +336,27 @@ struct HomeView: View {
                 activeSheet = nil
                 navigationStore.selectedTab = .shopping
             }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        case .pendingShares:
+            PendingSharedImportsSheet(
+                requests: sharedImportCoordinator.deferredRequests,
+                onResume: { request in
+                    // Close this sheet first; the actual resume runs from
+                    // `onDismiss` so the import screen is never stacked on
+                    // top of this list.
+                    resumeAfterDismiss = request
+                    activeSheet = nil
+                },
+                onDelete: { request in
+                    sharedImportCoordinator.discard(request)
+                    showToast("已删除这次导入")
+                    if sharedImportCoordinator.deferredRequests.isEmpty {
+                        activeSheet = nil
+                    }
+                },
+                onClose: { activeSheet = nil }
+            )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         case .clipboardImport(let presentation):
@@ -431,6 +512,146 @@ private struct HomeFeedbackToast: View {
             .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
             .padding(.bottom, 18)
             .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    }
+}
+
+/// Home entry point for shares the user chose to handle later, or that
+/// stopped auto-retrying after repeated failures. Only rendered when at
+/// least one such request exists — see
+/// `HomeDashboardPresentation.supplementarySections`.
+private struct PendingSharedImportsRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    let count: Int
+    let hasFailure: Bool
+    let onOpen: () -> Void
+
+    private var title: String { "待处理的分享" }
+    private var detail: String {
+        hasFailure ? "\(count) 条待处理，其中有导入失败" : "\(count) 条待处理"
+    }
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: hasFailure ? "exclamationmark.arrow.triangle.2.circlepath" : "tray.full")
+                    .font(.title3)
+                    .foregroundStyle(hasFailure ? AnyShapeStyle(Color.orange) : AnyShapeStyle(AppTheme.brand))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title)，\(detail)")
+        .accessibilityHint("查看并继续处理这些分享链接")
+        .accessibilityIdentifier("home.pending.shares.row")
+    }
+}
+
+/// Lists deferred/failed shares with the two actions the lifecycle
+/// guarantees: continue importing, or delete. Nothing here starts an import
+/// on its own — `resume` hands the request back to the normal import sheet,
+/// which does not auto-start a previously deferred or failed request.
+private struct PendingSharedImportsSheet: View {
+    let requests: [SharedImportRequest]
+    let onResume: (SharedImportRequest) -> Void
+    let onDelete: (SharedImportRequest) -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if requests.isEmpty {
+                    ContentUnavailableView(
+                        "没有待处理的分享",
+                        systemImage: "tray",
+                        description: Text("通过分享或复制链接导入菜谱后，选择「稍后处理」的链接会出现在这里。")
+                    )
+                } else {
+                    List {
+                        Section {
+                            ForEach(requests) { request in
+                                PendingSharedImportRow(
+                                    request: request,
+                                    onResume: { onResume(request) },
+                                    onDelete: { onDelete(request) }
+                                )
+                            }
+                        } footer: {
+                            Text("这些链接不会自动开始识别，需要你手动选择「继续导入」。")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("待处理的分享")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭", action: onClose)
+                }
+            }
+        }
+        .accessibilityIdentifier("home.pending.shares.sheet")
+    }
+}
+
+private struct PendingSharedImportRow: View {
+    let request: SharedImportRequest
+    let onResume: () -> Void
+    let onDelete: () -> Void
+
+    private var displayText: String {
+        request.url?.absoluteString ?? request.text ?? "未知链接"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(displayText)
+                .font(.subheadline)
+                .lineLimit(2)
+                .truncationMode(.middle)
+
+            if request.status == .failed {
+                Label("导入失败 \(request.failureCount) 次，不会自动重试", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                    .accessibilityIdentifier("pending.share.failed.badge")
+            }
+
+            HStack(spacing: 12) {
+                Button(request.status == .failed ? "重试导入" : "继续导入", action: onResume)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(AppTheme.primary)
+                    .accessibilityIdentifier("pending.share.resume.button")
+
+                Button("删除", role: .destructive, action: onDelete)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("pending.share.delete.button")
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("pending.share.row")
     }
 }
 

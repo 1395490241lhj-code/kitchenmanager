@@ -234,18 +234,110 @@ testable without a live extension context.
    Import screen) as a sheet, pre-filled via
    `SharedImportCoordinator.prefillText(for:)` — the same free-form
    "URL or full share text" field a user would otherwise paste into by
-   hand — and passes `autoStart: true` (added in the follow-up "Shared
-   Import Auto-Start" pass) so the existing `importLink()` AI-import call
-   fires immediately instead of waiting for a manual "开始导入" tap. Manual
-   Smart Import entry points never pass `autoStart: true` and are
-   unaffected. There is no second import UI, network call, or draft model
-   — `autoStart` only changes *when* the one existing call fires, not what
-   it does.
-8. Only a **successful** save (`ImportRecipeView`'s existing `onSaved`
-   closure) calls `SharedImportCoordinator.markHandedOff`, which removes
-   the request from the on-disk queue. Cancelling or closing the sheet
-   calls `snooze`, which hides it for the rest of this app session but
-   leaves it on disk — it reappears on next launch or app relaunch.
+   hand — and passes `autoStart:` from
+   `SharedImportCoordinator.shouldAutoStart(request)` so the existing
+   `importLink()` AI-import call fires immediately for a genuinely new
+   request instead of waiting for a manual "开始导入" tap. A deferred or
+   previously-failed request the user re-opened on purpose is prefilled but
+   **not** auto-started. Manual Smart Import entry points never pass
+   `autoStart: true` and are unaffected. There is no second import UI,
+   network call, or draft model — `autoStart` only changes *when* the one
+   existing call fires, not what it does.
+8. The sheet's outcome drives an explicit, **persisted** lifecycle
+   transition — see "Request lifecycle" below.
+
+## Request lifecycle
+
+A queued request has a persisted `status` (`SharedImportRequest.status`)
+and `failureCount`. These live in the queue file, not in memory, which is
+the whole point: "the user already dealt with this" has to survive a cold
+launch.
+
+| State | Set by | Auto-presented? | Auto-started? | Stays on disk? |
+|---|---|---|---|---|
+| `.pending` | extension enqueue | yes, once per session | yes | yes |
+| `.deferred` | "稍后处理" / closing the sheet | no | no | yes |
+| `.failed` | `maxAutoRetryCount` (2) failures | no | no | yes |
+| — | successful save (`markHandedOff`) | — | — | **removed** |
+| — | "删除此次导入" (`discard`) | — | — | **removed** |
+| — | older than `maxRequestAge` (14 days) | — | — | **removed** |
+
+- **New request** — the extension writes it as `.pending`. The next
+  `refresh` presents it once and auto-starts recognition.
+- **In progress** — the sheet is open; `presentedThisSession` keeps a
+  `scenePhase` bounce from re-presenting the same sheet mid-session. This
+  is a presentation guard only, *not* the cross-launch mechanism.
+- **稍后处理** — `snooze` persists `.deferred`. The link is kept and stays
+  reachable through the Home「待处理的分享」entry point (below), but it is
+  never auto-presented or auto-recognized again.
+- **删除此次导入** — `discard` removes it from the queue by id. It cannot
+  return.
+- **成功保存** — `markHandedOff` removes it by id.
+- **导入失败** — `ImportRecipeView`'s new `onImportFailed` callback (fired
+  only on a real failure, never on cancellation/dismissal) calls
+  `recordFailure`, which persists an incremented `failureCount` and flips
+  the request to `.failed` at `maxAutoRetryCount`. A broken link therefore
+  gets at most 2 automatic attempts, then waits for an explicit retry or
+  delete. Even the second automatic attempt no longer auto-starts the
+  network call.
+
+**Historical bug this replaces.** Before this lifecycle existed, closing
+the sheet called a `snooze` that only inserted the id into an in-memory
+`Set`. The request stayed `.pending` on disk, so every subsequent cold
+launch re-read it, re-presented it, and — because `autoStart` was
+hardcoded `true` — re-ran the AI import. A single old share (in the
+reported case, a Xiaohongshu 青椒肉丝 test link) reappeared on every
+launch indefinitely. The fix is persistence plus age-based pruning; no
+URL is special-cased anywhere.
+
+## Pending shares entry point (Home)
+
+A deferred request must not be a dead end. `HomeView` renders a
+「待处理的分享」row (`home.pending.shares.row`) as a supplementary dashboard
+section, ordered by `HomeDashboardPresentation.supplementarySections` —
+below an attention reminder, above the clipboard prompt (it represents work
+the user explicitly kept, not an opportunistic suggestion).
+
+- Rendered **only** when `sharedImportCoordinator.deferredRequests` is
+  non-empty; there is no empty-state row.
+- Shows the count, and switches to an orange warning treatment when any
+  request is `.failed`.
+- Tapping opens `PendingSharedImportsSheet`, which lists each request with
+  its URL and, for `.failed` ones, a visible「导入失败 N 次，不会自动重试」
+  badge.
+- Each row offers exactly two actions: **继续导入 / 重试导入** (`resume`)
+  and **删除** (`discard`). Deleting the last one closes the sheet and the
+  Home row disappears.
+- `resume` deliberately **does not** restore `.pending`. The request stays
+  `.deferred`/`.failed`, so `shouldAutoStart` remains false and the import
+  screen opens prefilled but waits for a deliberate 开始导入 tap. Re-arming
+  auto-start here would reintroduce the original bug.
+- The handoff runs from the sheet's `onDismiss` (via
+  `resumeAfterDismiss`), so the import screen is never stacked on top of
+  the list.
+
+## Clearing a leftover request
+
+Nothing here is hardcoded to a particular link. A stale queued request is
+resolved by any of:
+
+1. Opening the app once and choosing **删除此次导入** on the sheet — the
+   supported user-facing path.
+2. Doing nothing for 14 days — `SharedImportQueue.pruneExpired()` runs on
+   every `refresh` and drops anything past `maxRequestAge`. A request that
+   has been sitting in the queue since long-term real-world use is already
+   past this and is removed on the very next launch, before it can be
+   presented.
+3. In a development environment only, deleting
+   `shared_import_queue.json` from the App Group container, or
+   reinstalling the app. Neither is required by the fix and neither is
+   needed on a user device.
+
+Legacy queue files written before `status`/`failureCount` existed still
+decode (`SharedImportRequest.init(from:)` uses `decodeIfPresent`), so no
+already-queued share is silently dropped by the upgrade itself.
+`schemaVersion` was deliberately **not** bumped for this reason — bumping
+it would have discarded every queued request on read.
 
 ## Queue behavior
 
@@ -256,7 +348,8 @@ testable without a live extension context.
   .atomic)` to minimize cross-process (extension vs. app) races and torn
   writes.
 - `enqueue(_:) throws -> Bool`, `peekAll() -> [SharedImportRequest]`,
-  `remove(id:)`, `removeAll()`.
+  `remove(id:)`, `removeAll()`, `update(id:transform:)` (persist a lifecycle
+  transition in place), `pruneExpired(olderThan:now:)` (age-based cleanup).
 - Max queue size: **20**. Enqueueing past that throws `QueueError.queueFull`
   instead of silently evicting an older, not-yet-imported request.
 - Deduplication: re-sharing the same normalized URL within **5 minutes**
@@ -295,12 +388,24 @@ decides *when* to surface a pending share:
   build) — Phase 1's import pipeline can never complete it, so it is
   discarded outright rather than being presented (which would show the
   "no valid link" failure the extension is supposed to prevent) or left to
-  block a later, valid request. Requests that do have a URL are untouched
-  here — only `markHandedOff`/`discard` remove those.
+  block a later, valid request. It then prunes anything past
+  `SharedImportQueue.maxRequestAge`, and only considers `.pending`
+  requests under the retry cap as auto-presentation candidates. Requests
+  that have a URL and are within the age limit are untouched here — only
+  `markHandedOff`/`discard` remove those.
 - `markHandedOff` — only successful save path; removes from disk.
-- `snooze` — user closed the sheet without saving; request stays queued.
-- `discard` — explicit "clear" action; removes from disk (available for a
-  future affordance — not yet wired to a dedicated Phase 1 button).
+- `snooze` — "稍后处理"; persists `.deferred` so it is kept but never
+  auto-presented or auto-recognized again.
+- `discard` — "删除此次导入"; removes from disk. Wired to the sheet's close
+  confirmation dialog in `HomeView`.
+- `recordFailure` — persists an incremented `failureCount`, flipping to
+  `.failed` at `maxAutoRetryCount` so failures cannot retry forever.
+- `resume` — explicit re-entry for a deferred/failed request; presents it
+  again without auto-starting the network call.
+- `deferredRequests` — the deferred/exhausted requests still on disk, for
+  an explicit "继续处理" affordance.
+- `shouldAutoStart(_:)` — pure policy: only a `.pending`, never-failed
+  request fires the import by itself.
 - `prefillText(for:)` reproduces exactly the input shape
   `ImportRecipeView` already expects (a URL, or text that may contain one)
   — no second parsing path was introduced.
@@ -317,10 +422,13 @@ so a pending share never stacks on top of the existing Smart Import sheet
 
 ## Existing Smart Import reuse
 
-- `ImportRecipeView` (`KitchenManager/AddRecipeViews.swift`) gained one
-  additive initializer parameter, `initialURLText: String = ""` — the
-  existing call site (`ImportRecipeView(onSaved:)` from `SmartImportSheet`)
-  is unchanged.
+- `ImportRecipeView` (`KitchenManager/AddRecipeViews.swift`) gained two
+  additive initializer parameters, `initialURLText: String = ""` and
+  `onImportFailed: (() -> Void)? = nil` — the existing call site
+  (`ImportRecipeView(onSaved:)` from `SmartImportSheet`) is unchanged and
+  passes neither. `onImportFailed` fires only in the real failure branch of
+  `importLink()`, never for cancellation/dismissal, so it counts genuine
+  import failures rather than sheet closes.
 - No new save path, no new draft model, no new AI-parsing call: a shared
   URL/text is prefilled into the exact same field a user pastes into
   manually today, and follows the exact same `LinkExtractService` →
@@ -379,7 +487,12 @@ does not add or remove that gate.
   (enqueue/read/remove/removeAll, FIFO order, duplicate-URL handling inside
   and outside the window, max-size enforcement without evicting existing
   entries, corrupted-file recovery and reuse afterward, schema-version
-  filtering, App-Group-unavailable path, "read doesn't consume"). The queue
+  filtering, App-Group-unavailable path, "read doesn't consume",
+  `update(id:)` persisting status/failureCount across a reopen without
+  disturbing other entries or FIFO order, unknown-id updates being a no-op,
+  age-based `pruneExpired` removing only stale entries, a **legacy queue
+  file with no `status`/`failureCount` still decoding as `.pending`**, and a
+  corrupt file reading as empty without wedging startup). The queue
   itself is content-agnostic (it doesn't enforce "must have a URL" —
   that's `SharedImportRequestBuilder`'s and the coordinator's job), so
   these tests still use text-only fixtures where that's just exercising
@@ -387,9 +500,16 @@ does not add or remove that gate.
 - **Unit — coordinator**: `KitchenManagerTests/SharedImportCoordinatorTests.swift`
   (no pending / one URL / one URL+text / multiple in FIFO order, existing
   modal blocks presentation, successful handoff removes the request,
-  snoozing after a failed/cancelled handoff preserves it on disk but hides
-  it for the session, a fresh coordinator instance — simulating relaunch —
-  resurfaces a snoozed-but-still-queued request, repeated refresh calls
+  snoozing after a failed/cancelled handoff preserves it on disk as
+  `.deferred`, **a fresh coordinator instance — simulating relaunch — does
+  *not* resurface a snoozed request** (the reported regression) while still
+  listing it in `deferredRequests`, an explicit `resume` bringing it back
+  without auto-start, discarded and saved requests staying gone across a
+  relaunch, repeated failures flipping to `.failed` and stopping automatic
+  presentation while the first failure still allows one more (non-auto-
+  starting) attempt, the `shouldAutoStart` policy table, deferring one
+  request not affecting an independent one, age-based pruning on refresh,
+  repeated refresh calls
   don't change which request is pending, prefill-text derivation, explicit
   documentation-by-test that there is no auth/guest dependency, and a
   dedicated "legacy/invalid (no-URL) request handling" section: such a
@@ -397,6 +517,20 @@ does not add or remove that gate.
   never blocks a subsequent valid URL request, doesn't loop or crash
   across repeated refreshes when it's the only thing queued, and a valid
   URL request is never touched by this pruning).
+- **UI — queue lifecycle**:
+  `KitchenManagerUITests/SharedImportQueueLifecycleUITests.swift` drives the
+  real Home + import sheet: a seeded queued share is presented on launch,
+  closed via the confirmation dialog with 删除此次导入 (and, in a second
+  test, 稍后处理), the app is terminated, and a cold relaunch must **not**
+  present it again. To make this possible the main app accepts DEBUG-only
+  launch arguments (`SharedImportConfig.uiTestQueueArgument` /
+  `uiTestResetArgument` / `uiTestSeedArgument`) that point its queue at a
+  directory inside its own container and optionally seed one request — a UI
+  test process cannot write the app's App Group container, and the file has
+  to survive `terminate()` for the scenario to mean anything. Only the
+  queue's *location* changes; the coordinator, the lifecycle transitions,
+  the dialog, and `autoStart` are all the production code paths. Release
+  builds always use the real App Group queue.
 - **Extension/UI integration**: not automated in this phase. Driving the
   live iOS share sheet from `KitchenManagerUITests` was not attempted
   because host-app UI tests cannot reliably invoke a separate share
