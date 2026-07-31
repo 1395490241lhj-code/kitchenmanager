@@ -278,10 +278,32 @@ test('Phase 2B-3: Shopping/Today Plan/Weekly Plan/Recipe entity types never appe
   assert.doesNotMatch(planner, forbidden);
 });
 
-test('Phase 2B-3: manual sync button and keepBoth-fork notice expose stable accessibility identifiers for UI testing', () => {
+test('Phase 2B-3: manual sync button and per-choice conflict rows expose stable accessibility identifiers for UI testing', () => {
   assert.match(views, /accessibilityIdentifier\("inventorySyncNowButton"\)/);
-  assert.match(views, /accessibilityIdentifier\("guestMergeKeepBothForkNotice/);
-  assert.match(views, /accessibilityIdentifier\("guestMergeConflictPicker/);
+  // UI-5B2B-B1 replaced the single segmented picker with one identified row per
+  // choice, so the per-choice identifier is now the stable UI-testing handle.
+  assert.match(views, /accessibilityIdentifier\(\s*"guestMergeConflictChoice-/);
+});
+
+// UI-5B2B-B1 split the conflict screen into a pure presentation type plus the
+// view that renders it, so several tests below slice the same two regions.
+const conflictPresentationSection = () => views.slice(
+  views.indexOf('struct InventoryMergeConflictChoicePresentation'),
+  views.indexOf('struct InventoryMergeConflictView')
+);
+const conflictViewSection = () => views.slice(
+  views.indexOf('struct InventoryMergeConflictView'),
+  views.indexOf('struct InventoryMergeProgressView')
+);
+
+test('UI-5B2B-B1: the same-record keepBoth fork explanation is shown before the choice, not after it', () => {
+  // It used to be a separate notice rendered only once keepBoth was already
+  // picked. A tap now resolves the conflict and the row leaves the list, so
+  // that notice could never appear; the same explanation is instead part of
+  // the keepBoth row's up-front consequence copy.
+  assert.match(conflictPresentationSection(), /家庭库存里已有这条记录/);
+  assert.match(conflictPresentationSection(), /单独新增一份/);
+  assert.match(conflictPresentationSection(), /不会覆盖家庭原有的记录/);
 });
 
 test('Phase 2B-3: manual sync and conflict-resolution controls declare at least 44pt touch targets', () => {
@@ -289,12 +311,38 @@ test('Phase 2B-3: manual sync and conflict-resolution controls declare at least 
   assert.match(syncSection, /minHeight: 44/);
 });
 
-test('Phase 2B-3: the conflict picker offers all four documented choices (keepLocal/keepRemote/keepBoth/skip)', () => {
-  const conflictViewSection = views.slice(views.indexOf('struct InventoryMergeConflictView'), views.indexOf('struct InventoryMergeProgressView'));
-  assert.match(conflictViewSection, /InventoryMergeConflictChoice\.keepLocal/);
-  assert.match(conflictViewSection, /InventoryMergeConflictChoice\.keepRemote/);
-  assert.match(conflictViewSection, /InventoryMergeConflictChoice\.keepBoth/);
-  assert.match(conflictViewSection, /InventoryMergeConflictChoice\.skip/);
+test('Phase 2B-3: the conflict screen offers all four documented choices (keepLocal/keepRemote/keepBoth/skip)', () => {
+  // UI-5B2B-B1 moved the choice list out of the view and into a pure
+  // presentation type, so the declaration is asserted here and the view's use
+  // of it in the next test — kept separate so a failure names which one broke.
+  assert.match(
+    conflictPresentationSection(),
+    /static let orderedChoices: \[InventoryMergeConflictChoice\] = \[\.keepLocal, \.keepRemote, \.keepBoth, \.skip\]/
+  );
+  for (const choice of ['keepLocal', 'keepRemote', 'keepBoth', 'skip']) {
+    assert.match(conflictPresentationSection(), new RegExp(`case \\.${choice}:`));
+  }
+});
+
+test('UI-5B2B-B1: the conflict screen renders exactly the ordered choice list, never its own copy of it', () => {
+  assert.match(
+    conflictViewSection(),
+    /ForEach\(InventoryMergeConflictChoicePresentation\.orderedChoices/
+  );
+});
+
+test('UI-5B2B-B1: no phantom keepRemote default can make 保留家庭 look chosen', () => {
+  // The exact defect this phase fixed: a view-local `?? .keepRemote` fallback.
+  assert.doesNotMatch(conflictViewSection(), /\?\?\s*\.keepRemote/);
+});
+
+test('UI-5B2B-B1: the conflict screen keeps no view-local pendingChoice selection state', () => {
+  // The state that made the displayed selection independent of the stored one.
+  assert.doesNotMatch(conflictViewSection(), /pendingChoice/);
+});
+
+test('UI-5B2B-B1: the displayed selection is derived from the persisted candidate choice', () => {
+  assert.match(conflictViewSection(), /isSelected: candidate\.userChoice == choice/);
 });
 
 test('Phase 2B-3: the preview screen never displays a raw UUID, mutation id, cursor, token, or household internal id', () => {

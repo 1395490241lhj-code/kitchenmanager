@@ -479,9 +479,105 @@ struct InventoryMergePreviewView: View {
     }
 }
 
+/// Title plus plain-language consequence for one conflict choice.
+///
+/// Pure value mapping, deliberately free of SwiftUI and of any controller or
+/// plan reference, so it can be unit-tested directly and cannot mutate the
+/// candidate or the plan. Wording avoids fork / hash / remote ID / mutation /
+/// snapshot: it describes the outcome in the user's own terms.
+struct InventoryMergeConflictChoicePresentation: Equatable {
+    let choice: InventoryMergeConflictChoice
+    let title: String
+    let consequence: String
+
+    /// Fixed display order, independent of the enum's declaration order.
+    static let orderedChoices: [InventoryMergeConflictChoice] = [.keepLocal, .keepRemote, .keepBoth, .skip]
+
+    /// - Parameter isSameRemoteRecord: true when this candidate matched one
+    ///   definite existing family record (same stable id). It changes what
+    ///   `keepLocal` and `keepBoth` actually do, so it changes the copy.
+    static func make(
+        choice: InventoryMergeConflictChoice,
+        isSameRemoteRecord: Bool
+    ) -> InventoryMergeConflictChoicePresentation {
+        switch choice {
+        case .keepLocal:
+            return .init(
+                choice: choice,
+                title: "保留本机",
+                consequence: isSameRemoteRecord
+                    ? "用本机的内容更新家庭库存里的同一条记录，家庭原来的内容会被替换。"
+                    : "把本机这条新增到家庭库存，家庭现有的记录保持不变。"
+            )
+        case .keepRemote:
+            return .init(
+                choice: choice,
+                title: "保留家庭",
+                consequence: "家庭库存里的记录保持不变，本机这条的不同内容本次不会上传。"
+            )
+        case .keepBoth:
+            return .init(
+                choice: choice,
+                title: "两条都保留",
+                consequence: isSameRemoteRecord
+                    ? "家庭库存里已有这条记录，会为本机这条单独新增一份，不会覆盖家庭原有的记录。"
+                    : "把本机这条作为另一条记录加入家庭库存，两条都会保留。"
+            )
+        case .skip:
+            return .init(
+                choice: choice,
+                title: "本次跳过",
+                consequence: "本次合并不会上传这条，家庭库存和本机库存都保持现在的样子。"
+            )
+        }
+    }
+}
+
+/// One full-width, tappable choice row. No fixed height, so the title and the
+/// consequence both wrap freely at Accessibility sizes.
+private struct InventoryMergeConflictChoiceRow: View {
+    let presentation: InventoryMergeConflictChoicePresentation
+    let isSelected: Bool
+    let isBusy: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(presentation.title)
+                        .foregroundStyle(.primary)
+                    Text(presentation.consequence)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isBusy)
+        // One element reading title, consequence and selected state, with the
+        // native single-select semantics VoiceOver already understands.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(presentation.title)。\(presentation.consequence)")
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
 struct InventoryMergeConflictView: View {
     @ObservedObject var controller: GuestMergeController
-    @State private var pendingChoice: [UUID: InventoryMergeConflictChoice] = [:]
+    /// Ids whose `resolveConflict` call is still in flight. Purely transient: it
+    /// exists only so one tap cannot start two overlapping resolves, and is
+    /// never consulted to decide which option appears selected.
+    @State private var inFlight: Set<UUID> = []
+
+    private var conflicts: [InventoryMergeCandidate] { controller.plan?.conflicts ?? [] }
 
     var body: some View {
         Form {
@@ -489,8 +585,10 @@ struct InventoryMergeConflictView: View {
                 Text("以下条目需要你逐条选择，不会自动覆盖。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                LabeledContent("待处理", value: "\(conflicts.count) 条")
+                    .accessibilityIdentifier("guestMergeConflictPendingCount")
             }
-            ForEach(controller.plan?.conflicts ?? []) { candidate in
+            ForEach(conflicts) { candidate in
                 Section {
                     LabeledContent("本机", value: localDescription(for: candidate))
                     LabeledContent("家庭", value: remoteDescription(for: candidate))
@@ -500,23 +598,38 @@ struct InventoryMergeConflictView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Picker("选择", selection: choiceBinding(for: candidate.localItemId)) {
-                        Text("保留本机").tag(InventoryMergeConflictChoice.keepLocal)
-                        Text("保留家庭").tag(InventoryMergeConflictChoice.keepRemote)
-                        Text("两条都保留").tag(InventoryMergeConflictChoice.keepBoth)
-                        Text("稍后处理").tag(InventoryMergeConflictChoice.skip)
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("guestMergeConflictPicker-\(candidate.localItemId.uuidString)")
-
-                    if pendingChoice[candidate.localItemId] == .keepBoth, candidate.remoteItemId == candidate.localItemId {
-                        Text("家庭库存中已有这条记录，选择“两条都保留”会为本机这条创建一条独立的新库存记录，不会覆盖原有记录。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("guestMergeKeepBothForkNotice-\(candidate.localItemId.uuidString)")
+                    // Vertical single-select rows rather than a segmented control:
+                    // four 3–4 character CJK labels in one segmented control
+                    // compress or truncate outright at Accessibility sizes, and a
+                    // segment has nowhere to carry the per-option consequence text
+                    // this screen needs.
+                    ForEach(InventoryMergeConflictChoicePresentation.orderedChoices, id: \.self) { choice in
+                        InventoryMergeConflictChoiceRow(
+                            presentation: InventoryMergeConflictChoicePresentation.make(
+                                choice: choice,
+                                // Computed here, for copy selection only. It
+                                // mirrors the condition `applyingChoice` uses to
+                                // decide behavior, but is never fed back into
+                                // applyingChoice, readyToUpload, resolveConflict,
+                                // confirmMerge, fork-id allocation, or persistence.
+                                isSameRemoteRecord: candidate.remoteItemId == candidate.localItemId
+                            ),
+                            // Selection comes only from the persisted choice.
+                            // There is deliberately no fallback value: until the
+                            // user picks, `userChoice` is nil and nothing reads as
+                            // selected.
+                            isSelected: candidate.userChoice == choice,
+                            isBusy: inFlight.contains(candidate.localItemId)
+                        ) {
+                            select(choice, for: candidate)
+                        }
+                        .accessibilityIdentifier(
+                            "guestMergeConflictChoice-\(choice.rawValue)-\(candidate.localItemId.uuidString)"
+                        )
                     }
                 } header: {
                     Text(candidate.name)
+                        .accessibilityAddTraits(.isHeader)
                 }
             }
         }
@@ -525,14 +638,16 @@ struct InventoryMergeConflictView: View {
         // flow, so the system safe area is sufficient here too.
     }
 
-    private func choiceBinding(for id: UUID) -> Binding<InventoryMergeConflictChoice> {
-        Binding(
-            get: { pendingChoice[id] ?? .keepRemote },
-            set: { newValue in
-                pendingChoice[id] = newValue
-                Task { await controller.resolveConflict(candidateId: id, choice: newValue) }
-            }
-        )
+    /// One tap, one `resolveConflict`. Data semantics are unchanged: the choice
+    /// persists immediately and the row leaves the unresolved list.
+    private func select(_ choice: InventoryMergeConflictChoice, for candidate: InventoryMergeCandidate) {
+        let id = candidate.localItemId
+        guard !inFlight.contains(id) else { return }
+        inFlight.insert(id)
+        Task {
+            await controller.resolveConflict(candidateId: id, choice: choice)
+            inFlight.remove(id)
+        }
     }
 
     private func localDescription(for candidate: InventoryMergeCandidate) -> String {

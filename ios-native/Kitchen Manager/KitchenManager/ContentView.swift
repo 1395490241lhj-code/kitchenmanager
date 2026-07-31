@@ -9,6 +9,12 @@ struct KitchenManagerApp: App {
     @StateObject private var accountDeletionController: AccountDeletionController
     #if DEBUG
     @StateObject private var syncSmokeController: SyncSmokeController
+    /// UI-test-only handle used solely to seed deterministic merge-conflict
+    /// fixtures. Never read on a normal launch.
+    private let uiTestSyncPersistence: any SyncPersistenceProtocol
+    /// True once the conflict fixture's session is present. Drives a zero-size,
+    /// accessibility-only marker UI tests wait on instead of sleeping.
+    @State private var conflictFixtureSeeded = false
     #endif
     @StateObject private var navigationStore = AppNavigationStore()
     @StateObject private var recommendationStore = HomeRecommendationStore()
@@ -85,6 +91,13 @@ struct KitchenManagerApp: App {
         _syncSmokeController = StateObject(
             wrappedValue: SyncSmokeController(persistence: persistence.sync)
         )
+        // UI-5B2B-B1: the conflict screen is only reachable from a *persisted*
+        // session whose status is `.conflict`, so the fixture must write one before
+        // the merge flow runs. This is the only place holding a `persistence.sync`
+        // handle and it already hosts every other `UITEST_SEED_*` hook, hence
+        // reusing it instead of standing up a second fixture composition. The
+        // write itself happens in the `.task` below, since it is async.
+        uiTestSyncPersistence = persistence.sync
         // UI-test-only appearance hook. Setting the simulator's appearance from
         // XCTest (`XCUIDevice.appearance`, or an "-AppleInterfaceStyle Dark"
         // launch argument) did not reliably reach the app before its first
@@ -118,6 +131,30 @@ struct KitchenManagerApp: App {
                 .environmentObject(accountDeletionController)
                 #if DEBUG
                 .environmentObject(syncSmokeController)
+                // UI-5B2B-B1: writes a deterministic `.conflict` session so the
+                // merge flow opens on the conflict screen. Local persistence only —
+                // no network, no sync coordinator run, no staged mutation — and it
+                // returns immediately unless one of the conflict launch arguments
+                // is present. Lives here rather than in `ContentView` because the
+                // persistence handle belongs to this composition root.
+                .task {
+                    conflictFixtureSeeded = await AccountLifecycleConflictFixture.seedIfRequested(
+                        persistence: uiTestSyncPersistence,
+                        userID: AccountLifecycleFixture.owner.user.id
+                    )
+                }
+                // Minimal observable "seed finished" marker so UI tests can wait on
+                // the actual completion instead of sleeping. Zero-size and
+                // accessibility-only, so it changes nothing a user can see, and it
+                // exists only in DEBUG.
+                .overlay(alignment: .topLeading) {
+                    if conflictFixtureSeeded {
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .allowsHitTesting(false)
+                            .accessibilityIdentifier("uitest.conflictFixtureSeeded")
+                    }
+                }
                 #endif
                 .preferredColorScheme((AppAppearance(rawValue: appearanceRawValue) ?? .system).colorScheme)
         }
