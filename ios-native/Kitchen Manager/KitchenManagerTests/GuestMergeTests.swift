@@ -3126,6 +3126,130 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(mutations, 0)
     }
 
+    // MARK: - UI-5B2B-B2A: post-partial-confirm presentation accuracy
+
+    /// The state the review/summary copy has to stay accurate in: a first
+    /// confirm uploads what was ready, leftover conflicts push the session to
+    /// `.conflict`, and resolving the last one returns it to `.previewReady`
+    /// with a plan that now mixes already-uploaded choices and newly-decided
+    /// ones. Nothing is fabricated — this runs the real `confirmMerge` and
+    /// `resolveConflict` against the simulated transport.
+    private func partiallyConfirmedFixture() async throws -> (GuestMergeController, SwiftDataSyncPersistence, UUID, UUID) {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let uploadableId = UUID()
+        let conflictedId = UUID()
+        kitchen.inventory = [
+            InventoryItem(id: uploadableId, name: "面粉", quantity: 1, unit: "袋", expiryDate: nil),
+            InventoryItem(id: conflictedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)
+        ]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        // Same id, different quantity → a real unresolved conflict, while 面粉
+        // has no remote counterpart and is uploadable immediately.
+        await transport.seedRemoteChange(id: conflictedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(
+            userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport
+        )
+        return (controller, persistence, uploadableId, conflictedId)
+    }
+
+    func testPartialConfirmThenResolvingTheLastConflictReturnsToPreviewReadyWithMixedPlan() async throws {
+        let (controller, persistence, uploadableId, conflictedId) = try await partiallyConfirmedFixture()
+
+        // 1. The plan holds both kinds of candidate.
+        let planBefore = try XCTUnwrap(controller.plan)
+        XCTAssertTrue(planBefore.candidates.contains { $0.localItemId == uploadableId && !$0.needsDecision })
+        XCTAssertTrue(planBefore.candidates.contains { $0.localItemId == conflictedId && $0.needsDecision })
+
+        // 2. First confirm.
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        // 3. Something really was uploaded, the leftover conflict survives, and
+        //    the session parks in `.conflict`.
+        let afterConfirm = try XCTUnwrap(controller.session)
+        XCTAssertGreaterThan(afterConfirm.uploadedItemCount, 0, "第一次 confirm 应真的上传了可上传条目")
+        XCTAssertNotNil(afterConfirm.confirmedAt, "confirmMerge 应记录 confirmedAt")
+        XCTAssertEqual(afterConfirm.status, .conflict)
+        XCTAssertTrue(afterConfirm.plan?.candidates.contains { $0.localItemId == conflictedId && $0.needsDecision } ?? false)
+
+        // 4. Resolve the last conflict.
+        await controller.resolveConflict(candidateId: conflictedId, choice: .keepLocal)
+
+        // 5. Back to `.previewReady`, with a plan mixing an already-uploaded
+        //    candidate and a freshly-decided one.
+        let resumed = try XCTUnwrap(controller.session)
+        XCTAssertEqual(resumed.status, .previewReady)
+        XCTAssertNotNil(resumed.confirmedAt)
+        XCTAssertGreaterThan(resumed.uploadedItemCount, 0)
+        let resumedPlan = try XCTUnwrap(resumed.plan)
+        XCTAssertTrue(
+            resumedPlan.candidates.contains { $0.localItemId == uploadableId && !$0.needsDecision },
+            "此前已上传的 candidate 仍留在 plan 中"
+        )
+        let nowResolved = try XCTUnwrap(resumedPlan.candidates.first { $0.localItemId == conflictedId })
+        XCTAssertEqual(nowResolved.userChoice, .keepLocal)
+        XCTAssertFalse(nowResolved.needsDecision)
+
+        // 6. Presentation mapping is read-only and stages nothing.
+        let scope = SyncScope(type: .household, id: householdA)
+        let pendingBefore = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+        let summary = InventoryMergeSummaryPresentation.make(plan: resumedPlan)
+        _ = InventoryMergeConfirmationPresentation.make(summary: summary, session: resumed)
+        _ = InventoryMergeCandidateGroupPresentation.make(plan: resumedPlan)
+        _ = InventoryMergeReviewFooterPresentation.make(session: resumed)
+        let pendingAfter = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+        XCTAssertEqual(pendingAfter, pendingBefore, "presentation mapping 不得暂存 mutation")
+        XCTAssertEqual(controller.session, resumed, "presentation mapping 不得修改 session")
+        XCTAssertEqual(controller.plan, resumedPlan, "presentation mapping 不得修改 plan")
+    }
+
+    /// The copy that must not lie in that state.
+    func testResumedAfterPartialConfirmCopyNeverClaimsNothingWasUploaded() async throws {
+        let (controller, _, _, conflictedId) = try await partiallyConfirmedFixture()
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        await controller.resolveConflict(candidateId: conflictedId, choice: .keepLocal)
+
+        let session = try XCTUnwrap(controller.session)
+        let plan = try XCTUnwrap(session.plan)
+        let summary = InventoryMergeSummaryPresentation.make(plan: plan)
+        let confirmation = InventoryMergeConfirmationPresentation.make(summary: summary, session: session)
+        let footer = InventoryMergeReviewFooterPresentation.make(session: session)
+
+        // This session has already uploaded something, so no copy may claim the
+        // choices are un-uploaded, nor that the whole plan is merely upcoming.
+        for text in [footer.text, confirmation.buttonTitle, confirmation.supportingCopy] {
+            for banned in ["尚未上传", "已上传", "已合并", "不会上传任何库存"] {
+                XCTAssertFalse(text.contains(banned), "已部分上传的会话不得出现“\(banned)”：\(text)")
+            }
+        }
+        XCTAssertTrue(
+            InventoryMergeReviewFooterPresentation.hasUploadedAlready(session: session),
+            "此会话应被判定为已有上传"
+        )
+    }
+
+    func testPreConfirmSessionStillUsesTheDefiniteFirstPassCopy() async throws {
+        let (controller, _, _, conflictedId) = try await partiallyConfirmedFixture()
+        await controller.resolveConflict(candidateId: conflictedId, choice: .keepLocal)
+
+        let session = try XCTUnwrap(controller.session)
+        XCTAssertNil(session.confirmedAt)
+        XCTAssertEqual(session.uploadedItemCount, 0)
+        XCTAssertFalse(InventoryMergeReviewFooterPresentation.hasUploadedAlready(session: session))
+
+        let plan = try XCTUnwrap(session.plan)
+        let summary = InventoryMergeSummaryPresentation.make(plan: plan)
+        let confirmation = InventoryMergeConfirmationPresentation.make(summary: summary, session: session)
+        // Nothing uploaded yet, so the definite first-pass wording is accurate.
+        XCTAssertEqual(confirmation.buttonTitle, "确认合并库存")
+        XCTAssertTrue(confirmation.supportingCopy.contains("计划新增"), confirmation.supportingCopy)
+    }
+
     // MARK: - Helpers
 
     private func makePersistence() throws -> (ModelContainer, SwiftDataSyncPersistence) {

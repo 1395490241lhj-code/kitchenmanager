@@ -657,3 +657,168 @@ test('Phase 2B-8: no service-role key, no automatic sync trigger, and Shopping/P
   const newProductionSurface = controller.slice(controller.indexOf('func preparePreview'), controller.indexOf('func resolveConflict'));
   assert.doesNotMatch(newProductionSurface, /Shopping|TodayPlan|WeeklyPlan|Recipe|Favorite|Frequent/);
 });
+
+// UI-5B2B-B2A: the preview summary is corrected and the resolved results become
+// visible, entirely through a new pure presentation mapping. The model's own
+// aggregates and every write path stay exactly as they were.
+
+const summaryPresentation = read('KitchenManager/Synchronization/InventoryMergeSummaryPresentation.swift');
+
+test('UI-5B2B-B2A: the summary mapping is pure — no controller, persistence, AuthStore, transport or SwiftUI', () => {
+  assert.doesNotMatch(summaryPresentation, /import SwiftUI/);
+  assert.doesNotMatch(summaryPresentation, /GuestMergeController|SyncPersistence|AuthStore|SyncTransport|SyncCoordinator/);
+  assert.doesNotMatch(summaryPresentation, /URLSession|stageUpsert|saveGuestMergeSession|resolveConflict/);
+});
+
+test('UI-5B2B-B2A:每个 summary 数字使用约定的 predicate', () => {
+  assert.match(summaryPresentation, /static func willCreate[\s\S]{0,120}action == \.create && !c\.needsDecision/);
+  assert.match(summaryPresentation, /static func willUpdate[\s\S]{0,120}action == \.update && !c\.needsDecision/);
+  assert.match(summaryPresentation, /static func keptRemote[\s\S]{0,160}conflictReason != nil && c\.userChoice == \.keepRemote/);
+  assert.match(summaryPresentation, /static func skippedThisTime[\s\S]{0,160}conflictReason != nil && c\.userChoice == \.skip/);
+  assert.match(summaryPresentation, /static func stillNeedsDecision[\s\S]{0,120}c\.needsDecision/);
+  assert.match(summaryPresentation, /static func nothingToDo[\s\S]{0,160}action == \.skip && c\.conflictReason == nil/);
+});
+
+test('UI-5B2B-B2A: conflict reason breakdown 只统计 needsDecision', () => {
+  assert.match(
+    summaryPresentation,
+    /conflictReason == reason && \$0\.needsDecision/,
+    'conflict reason 统计必须同时要求 needsDecision，否则已解决项会被算成需要处理'
+  );
+});
+
+test('UI-5B2B-B2A: the preview no longer derives its counts from the plan aggregates it used to overcount with', () => {
+  const previewSection = views.slice(views.indexOf('struct InventoryMergePreviewView'), views.indexOf('struct InventoryMergeConflictView'));
+  for (const stale of ['plan.quantityConflicts', 'plan.expiryConflicts', 'plan.metadataConflicts', 'plan.ambiguousConflicts']) {
+    assert.doesNotMatch(previewSection, new RegExp(stale.replace('.', '\\.')));
+  }
+  assert.match(previewSection, /InventoryMergeSummaryPresentation\.make/);
+  assert.match(previewSection, /InventoryMergeConflictReasonPresentation\.make/);
+});
+
+test('UI-5B2B-B2A: 保留家庭与本次跳过在预览中可见', () => {
+  const previewSection = views.slice(views.indexOf('struct InventoryMergePreviewView'), views.indexOf('struct InventoryMergeConflictView'));
+  assert.match(previewSection, /guestMergeSummaryKeptRemote/);
+  assert.match(previewSection, /guestMergeSummarySkipped/);
+  assert.match(previewSection, /guestMergeSummaryStillNeedsDecision/);
+});
+
+test('UI-5B2B-B2A: the resolved review screen is read-only — it takes a plan, never the controller', () => {
+  const reviewSection = views.slice(
+    views.indexOf('struct InventoryMergeResolvedReviewView'),
+    views.indexOf('struct InventoryMergeProgressView')
+  );
+  assert.match(reviewSection, /let plan: InventoryMergePlan/);
+  assert.doesNotMatch(reviewSection, /GuestMergeController|ObservedObject|resolveConflict/);
+  assert.doesNotMatch(reviewSection, /InventoryMergeConflictChoiceRow|pickerStyle|Picker\(/);
+});
+
+test('UI-5B2B-B2A: the review screen asserts no per-item upload state in either direction', () => {
+  const reviewSection = views.slice(
+    views.indexOf('struct InventoryMergeResolvedReviewView'),
+    views.indexOf('struct InventoryMergeProgressView')
+  );
+  // A session that partially confirmed carries a plan mixing already-uploaded
+  // choices with newly-decided ones, so "尚未上传" would be false there — and
+  // "已上传" would be false before a first confirm. The footer claims neither.
+  for (const banned of ['已上传', '已合并', '尚未上传']) {
+    assert.doesNotMatch(reviewSection, new RegExp(banned));
+  }
+  assert.match(reviewSection, /InventoryMergeReviewFooterPresentation\.make\(session: session\)/);
+});
+
+test('UI-5B2B-B2A: the neutral review footer never asserts an upload state', () => {
+  const footerSection = summaryPresentation.slice(
+    summaryPresentation.indexOf('struct InventoryMergeReviewFooterPresentation'),
+    summaryPresentation.indexOf('struct InventoryMergeConfirmationPresentation')
+  );
+  assert.match(footerSection, /不代表各条目的当前上传状态/);
+  for (const banned of ['尚未上传', '已上传', '已合并', '即将上传']) {
+    assert.doesNotMatch(footerSection, new RegExp(banned));
+  }
+});
+
+test('UI-5B2B-B2A: a session that already confirmed never gets the first-pass definite copy', () => {
+  // The post-partial branch must be evaluated before every other case, so a
+  // partly-uploaded session can never fall through to 确认合并库存 /
+  // 完成，不上传任何条目 / 先合并其余 N 条.
+  const confirmSection = summaryPresentation.slice(
+    summaryPresentation.indexOf('struct InventoryMergeConfirmationPresentation')
+  );
+  assert.match(confirmSection, /hasUploadedAlready\(session: session\)/);
+  const guardIndex = confirmSection.indexOf('hasUploadedAlready');
+  for (const later of ['完成，不上传任何条目', '确认当前处理结果', '先合并其余', '确认合并库存']) {
+    assert.ok(
+      guardIndex < confirmSection.indexOf(later),
+      `已上传守卫必须先于 ${later} 分支`
+    );
+  }
+  assert.match(confirmSection, /确认当前处理计划/);
+  // Exact user-facing sentence, with no developer-facing meta-narration.
+  assert.match(confirmSection, /当前页面汇总本次会话的整体计划，系统会根据当前同步状态继续处理。/);
+  for (const banned of ['文案', '重新定义', '尚未上传', '已经上传', '已经合并']) {
+    assert.doesNotMatch(confirmSection, new RegExp(banned));
+  }
+});
+
+test('UI-5B2B-B2A: summary row labels do not promise that every listed item is still upcoming', () => {
+  const previewSection = views.slice(views.indexOf('struct InventoryMergePreviewView'), views.indexOf('struct InventoryMergeConflictView'));
+  assert.match(previewSection, /LabeledContent\("计划新增"/);
+  assert.match(previewSection, /LabeledContent\("计划更新"/);
+  assert.doesNotMatch(previewSection, /LabeledContent\("将新增"/);
+  assert.doesNotMatch(previewSection, /LabeledContent\("将更新"/);
+});
+
+test('UI-5B2B-B2A: the presentation mapping reads only immutable session fields', () => {
+  // Allowed: status/confirmedAt/uploadedItemCount/conflictCount/failedCount.
+  // Never a controller, persistence, or network handle.
+  assert.doesNotMatch(summaryPresentation, /GuestMergeController|SyncPersistence|SyncTransport|SyncCoordinator/);
+  assert.doesNotMatch(summaryPresentation, /URLSession|stageUpsert|saveGuestMergeSession|resolveConflict|confirmMerge\(/);
+  assert.match(summaryPresentation, /session\.confirmedAt != nil \|\| session\.uploadedItemCount > 0/);
+});
+
+test('UI-5B2B-B2A: the post-partial-confirm fixture really carries confirm history', () => {
+  const fixtures = read('KitchenManager/Authentication/AccountLifecyclePresentation.swift');
+  assert.match(fixtures, /case postPartialConfirmResumed = "UITEST_MERGE_SUMMARY_POST_PARTIAL_CONFIRM"/);
+  assert.match(fixtures, /confirmedAt: self == \.postPartialConfirmResumed \? now : nil/);
+  assert.match(fixtures, /uploadedItemCount: self == \.postPartialConfirmResumed \? 2 : 0/);
+});
+
+test('UI-5B2B-B2A: confirmation copy covers zero-upload without ever saying 先合并其余 0 条', () => {
+  assert.match(summaryPresentation, /完成，不上传任何条目/);
+  assert.match(summaryPresentation, /确认当前处理结果/);
+  assert.match(summaryPresentation, /先合并其余 \\\(uploadable\) 条/);
+  // The zero-uploadable branch must be checked before the partial-merge branch.
+  const zeroIndex = summaryPresentation.indexOf('确认当前处理结果');
+  const partialIndex = summaryPresentation.indexOf('先合并其余');
+  assert.ok(zeroIndex < partialIndex, 'zero-upload 分支必须先于 partial-merge 分支');
+});
+
+test('UI-5B2B-B2A: confirm stays enabled and its action is unchanged', () => {
+  const previewSection = views.slice(views.indexOf('struct InventoryMergePreviewView'), views.indexOf('struct InventoryMergeConflictView'));
+  assert.match(previewSection, /await controller\.confirmMerge\(authStore: authStore\)/);
+  assert.match(previewSection, /\.disabled\(controller\.isBusy \|\| plan == nil \|\| controller\.clientUpgradeRequired\)/);
+});
+
+test('UI-5B2B-B2A: 分组只依赖 conflictReason 与 userChoice，不新增 persisted enum', () => {
+  assert.match(
+    summaryPresentation,
+    /guard candidate\.conflictReason != nil, let choice = candidate\.userChoice else \{ return nil \}/
+  );
+  assert.doesNotMatch(summaryPresentation, /: String, Codable|Codable, Sendable/);
+});
+
+test('UI-5B2B-B2A: the summary fixtures are DEBUG-only and seed a previewReady session', () => {
+  const fixtures = read('KitchenManager/Authentication/AccountLifecyclePresentation.swift');
+  assert.match(fixtures, /^#if DEBUG/m);
+  assert.match(fixtures, /enum AccountLifecycleSummaryFixture: String, CaseIterable/);
+  assert.match(fixtures, /status: \.previewReady/);
+  // Seeding is a single local persistence write; never a coordinator run.
+  // Bounded to the enum itself: the pre-existing fixture transport further down
+  // the file legitimately declares a throwing `sendMutations` stub.
+  const summaryFixtureSection = fixtures.slice(
+    fixtures.indexOf('enum AccountLifecycleSummaryFixture'),
+    fixtures.indexOf('final class AccountLifecycleFixtureAuthService')
+  );
+  assert.doesNotMatch(summaryFixtureSection, /runOnce|stageUpsert|sendMutations|resolveConflict/);
+});

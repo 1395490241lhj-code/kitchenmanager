@@ -373,6 +373,19 @@ struct InventoryMergePreviewView: View {
 
     private var plan: InventoryMergePlan? { controller.plan }
 
+    /// UI-5B2B-B2A: all counts and copy come from the pure presentation mapping,
+    /// never from the plan's own aggregates, so `readyToUpload`/`confirmMerge`
+    /// keep their exact prior meaning.
+    private var summary: InventoryMergeSummaryPresentation? {
+        plan.map(InventoryMergeSummaryPresentation.make)
+    }
+    private var reasonRows: [InventoryMergeConflictReasonPresentation] {
+        plan.map(InventoryMergeConflictReasonPresentation.make) ?? []
+    }
+    private var confirmation: InventoryMergeConfirmationPresentation? {
+        summary.map { InventoryMergeConfirmationPresentation.make(summary: $0, session: controller.session) }
+    }
+
     private var failureMessage: String? {
         guard controller.session?.status == .failed else { return nil }
         return controller.lastErrorMessage ?? userFacingErrorMessage(for: controller.session?.lastErrorCode)
@@ -396,24 +409,53 @@ struct InventoryMergePreviewView: View {
                 LabeledContent("合并目标", value: householdName)
                 LabeledContent("本地库存", value: "\(plan?.sourceCount ?? 0) 条")
                 LabeledContent("家庭云端库存", value: "\(plan?.knownRemoteItemCount ?? 0) 条")
-                LabeledContent("预计新增", value: "\(plan?.creates.count ?? 0) 条")
-                LabeledContent("预计更新", value: "\(plan?.updates.count ?? 0) 条")
-                LabeledContent("完全一致（无需处理）", value: "\(plan?.exactMatches.count ?? 0) 条")
+                // 计划 rather than 将: once this session has partially confirmed,
+                // the plan still lists candidates it already uploaded, and no
+                // per-item upload state exists to separate them. See
+                // `InventoryMergeReviewFooterPresentation`.
+                LabeledContent("计划新增", value: "\(summary?.willCreate ?? 0) 条")
+                    .accessibilityIdentifier("guestMergeSummaryWillCreate")
+                LabeledContent("计划更新", value: "\(summary?.willUpdate ?? 0) 条")
+                    .accessibilityIdentifier("guestMergeSummaryWillUpdate")
+                // Zero-count secondary rows stay hidden, except 仍待处理, which is
+                // always shown once anything still needs a decision.
+                if let summary, summary.keptRemote > 0 {
+                    LabeledContent("保留家庭（不上传）", value: "\(summary.keptRemote) 条")
+                        .accessibilityIdentifier("guestMergeSummaryKeptRemote")
+                }
+                if let summary, summary.skippedThisTime > 0 {
+                    LabeledContent("本次跳过", value: "\(summary.skippedThisTime) 条")
+                        .accessibilityIdentifier("guestMergeSummarySkipped")
+                }
+                if let summary, summary.stillNeedsDecision > 0 {
+                    LabeledContent("仍待处理", value: "\(summary.stillNeedsDecision) 条")
+                        .accessibilityIdentifier("guestMergeSummaryStillNeedsDecision")
+                }
+                LabeledContent("完全一致（无需处理）", value: "\(summary?.nothingToDo ?? 0) 条")
+                    .accessibilityIdentifier("guestMergeSummaryNothingToDo")
             }
-            if let plan, !plan.conflicts.isEmpty {
+            if !reasonRows.isEmpty {
                 Section("需要处理的冲突") {
-                    if !plan.quantityConflicts.isEmpty {
-                        LabeledContent("数量不同", value: "\(plan.quantityConflicts.count) 条")
+                    // Unresolved only. The plan's own `quantityConflicts`-style
+                    // properties match on `conflictReason` alone, so a
+                    // partly-resolved plan previously reported more outstanding
+                    // work here than actually remained.
+                    ForEach(reasonRows, id: \.reason) { row in
+                        LabeledContent(row.title, value: "\(row.count) 条")
+                            .accessibilityIdentifier("guestMergeConflictReason-\(row.reason.rawValue)")
                     }
-                    if !plan.expiryConflicts.isEmpty {
-                        LabeledContent("保质期不同", value: "\(plan.expiryConflicts.count) 条")
+                }
+            }
+            if let plan, let summary, summary.resolvedCount > 0 {
+                Section {
+                    NavigationLink {
+                        InventoryMergeResolvedReviewView(plan: plan, session: controller.session)
+                    } label: {
+                        LabeledContent("查看处理结果", value: summary.resolvedSummaryText)
                     }
-                    if !plan.metadataConflicts.isEmpty {
-                        LabeledContent("其他信息不同", value: "\(plan.metadataConflicts.count) 条")
-                    }
-                    if !plan.ambiguousConflicts.isEmpty {
-                        LabeledContent("可能重复", value: "\(plan.ambiguousConflicts.count) 条")
-                    }
+                    .accessibilityIdentifier("guestMergeResolvedReviewLink")
+                } footer: {
+                    Text("仅供查看，不在此修改。")
                 }
             }
             Section {
@@ -431,17 +473,20 @@ struct InventoryMergePreviewView: View {
                         await controller.confirmMerge(authStore: authStore)
                     }
                 } label: {
-                    Text(controller.session?.status == .failed ? "重试合并" : "确认合并库存")
+                    Text(controller.session?.status == .failed ? "重试合并" : (confirmation?.buttonTitle ?? "确认合并库存"))
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
+                // Unchanged: still enabled while conflicts remain — that is the
+                // existing partial-merge path, and this phase only rewords it.
                 .disabled(controller.isBusy || plan == nil || controller.clientUpgradeRequired)
                 .accessibilityIdentifier("guestMergeConfirmButton")
 
-                if let plan, !plan.conflicts.isEmpty {
-                    Text("有 \(plan.conflicts.count) 条存在冲突，确认后仍会先处理没有冲突的条目；冲突条目需要单独选择。")
+                if let confirmation {
+                    Text(confirmation.supportingCopy)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("guestMergeConfirmSupportingCopy")
                 }
 
                 Button("取消本次合并", role: .destructive) { isShowingCancelConfirmation = true }
@@ -688,6 +733,94 @@ struct InventoryMergeConflictView: View {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return "保质期至 \(formatter.string(from: date))"
+    }
+}
+
+/// UI-5B2B-B2A: read-only review of conflicts the user has already decided.
+///
+/// Strictly a viewer. It takes an immutable plan rather than the controller, so
+/// it has no way to call `resolveConflict`, stage anything, or change a choice —
+/// re-editing is UI-5B2B-B2B. Unresolved conflicts and non-conflict candidates
+/// are not shown at all: the former still belong to the conflict screen, the
+/// latter were never decisions.
+struct InventoryMergeResolvedReviewView: View {
+    let plan: InventoryMergePlan
+    /// Read-only, and only for its confirm history — the footer cannot be
+    /// accurate from the plan alone.
+    let session: GuestMergeSession?
+
+    private var groups: [InventoryMergeCandidateGroupPresentation] {
+        InventoryMergeCandidateGroupPresentation.make(plan: plan)
+    }
+    private var summary: InventoryMergeSummaryPresentation {
+        InventoryMergeSummaryPresentation.make(plan: plan)
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                LabeledContent("已处理", value: "\(summary.resolvedCount) 条")
+                    .accessibilityIdentifier("guestMergeReviewResolvedCount")
+                if summary.skippedThisTime > 0 {
+                    LabeledContent("其中本次跳过", value: "\(summary.skippedThisTime) 条")
+                        .accessibilityIdentifier("guestMergeReviewSkippedCount")
+                }
+            } footer: {
+                // Never asserts a per-item upload state in either direction: a
+                // session that partially confirmed carries a plan mixing
+                // already-uploaded choices with newly-decided ones.
+                Text(InventoryMergeReviewFooterPresentation.make(session: session).text)
+                    .accessibilityIdentifier("guestMergeReviewFooter")
+            }
+            ForEach(groups) { group in
+                Section {
+                    DisclosureGroup {
+                        ForEach(group.candidates) { candidate in
+                            InventoryMergeResolvedCandidateRow(candidate: candidate)
+                        }
+                    } label: {
+                        // Combined into one element so the group header reads as a
+                        // single "name + count" announcement, and so the identifier
+                        // resolves to exactly one element rather than propagating to
+                        // both the LabeledContent and its title/value children.
+                        LabeledContent(group.title, value: "\(group.count) 条")
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("guestMergeReviewGroup-\(group.group.rawValue)")
+                    }
+                }
+            }
+        }
+        .navigationTitle("处理结果")
+        .navigationBarTitleDisplayMode(.inline)
+        // The flow root already hides the tab bar and SwiftUI scopes that to
+        // pushed destinations, so this screen inherits it. Asserted by UI tests
+        // rather than assumed.
+    }
+}
+
+/// One resolved candidate, presentation only. Selection is conveyed by text —
+/// the recorded choice is named outright — never by colour alone.
+private struct InventoryMergeResolvedCandidateRow: View {
+    let candidate: InventoryMergeResolvedCandidatePresentation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(candidate.name)
+                .font(.subheadline.weight(.semibold))
+            Text("当前选择：\(candidate.choiceTitle)")
+                .font(.footnote)
+            Text(candidate.consequence)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("本机 \(candidate.localValue) · 家庭 \(candidate.remoteValue)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("guestMergeReviewCandidate-\(candidate.id.uuidString)")
     }
 }
 
