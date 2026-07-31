@@ -4,6 +4,33 @@ All notable project changes should be documented here.
 
 Keep entries concise. Use this file for what changed, not for long design discussion. Put current project state in `PROJECT_STATUS.md`.
 
+## 2026-07-30 (iOS Merge Conflict UI-5B2B-B1 — uncommitted)
+
+### Fixed
+
+- The conflict screen no longer shows 保留家庭 as selected before the user has
+  chosen anything. Selection now reflects the persisted `userChoice` instead
+  of a view-local `?? .keepRemote` fallback, so the displayed selection and
+  the stored choice can no longer disagree.
+
+### Changed
+
+- Replaced the conflict segmented picker with four vertically stacked,
+  full-row action rows carrying a title, a plain-language consequence
+  sentence, and `.isSelected` for VoiceOver.
+- Added identity-aware consequence copy: 保留本机 and 两条都保留 now describe
+  updating the same family record versus adding a separate one, without
+  exposing fork/hash/remote ID/mutation/snapshot wording.
+- Added DEBUG-only conflict fixtures (same-ID, different-ID, expiry,
+  ambiguous, multiple, long list) that seed a local `.conflict` session
+  idempotently, plus a DEBUG-only seed marker so UI tests wait rather than
+  sleep.
+
+Conflict resolution, choice persistence, upload/confirm semantics, and
+`GuestMergeModels.swift` are unchanged. Re-editing, the deferred section, and
+the preview summary are deferred to UI-5B2B-B2. See
+`docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB1.md`.
+
 ## 2026-07-29 (iOS Merge Preview UI-5B2B-A — uncommitted)
 
 ### Changed

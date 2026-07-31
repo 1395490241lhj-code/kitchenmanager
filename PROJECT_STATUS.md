@@ -1,8 +1,17 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 ## In progress
+
+- UI-5B2B-B1 conflict choice presentation correctness is being implemented on
+  `claude/ios-merge-conflict-ui5b2bb1`; changes remain uncommitted. The
+  conflict screen no longer displays 保留家庭 as a phantom default, and each
+  option now states its actual consequence. Choice persistence, conflict
+  resolution, and upload semantics are unchanged; re-editing, the deferred
+  section, and the preview summary are UI-5B2B-B2. The
+  `previewRequiresRemoteFingerprint` cleanup remains a separate maintenance
+  item. See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB1.md`.
 
 - UI-5B2B-A explicit merge-preview boundary and persisted-plan safety is being
   implemented on `claude/ios-merge-preview-ui5b2ba`; changes remain
