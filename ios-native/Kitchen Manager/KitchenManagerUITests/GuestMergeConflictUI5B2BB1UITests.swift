@@ -276,10 +276,16 @@ final class GuestMergeConflictUI5B2BB1UITests: XCTestCase {
         choiceRow(app, .skip, sameIDCandidate).tap()
 
         // Existing behavior: the flow hands control back to the preview screen.
+        // Identified by the preview's own summary section rather than the confirm
+        // button — UI-5B2B-B2A added summary rows above it, so the button now sits
+        // below the fold and a lazily-rendered Form leaves it out of the tree
+        // until scrolled to. The behavior under test (auto-return, without
+        // confirming) is unchanged.
         XCTAssertTrue(
-            app.buttons["guestMergeConfirmButton"].waitForExistence(timeout: 10),
+            app.staticTexts["预计结果"].waitForExistence(timeout: 10),
             "处理完最后一条后应自动返回预览\n\(app.debugDescription)"
         )
+        XCTAssertTrue(scrollTo(app, app.buttons["guestMergeConfirmButton"]), "预览页应有确认按钮")
         // Returning is not confirming: no progress or result screen appears.
         XCTAssertFalse(app.staticTexts["正在合并库存…"].exists)
         XCTAssertFalse(app.staticTexts["合并完成"].exists)

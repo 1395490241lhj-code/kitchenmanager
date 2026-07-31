@@ -265,9 +265,13 @@ final class GuestMergePreviewUI5B2BAUITests: XCTestCase {
         )
     }
 
+    /// UI-5B2B-B2A renamed 预计新增/预计更新 to 将新增/将更新, so the old label no
+    /// longer matches. Anchored on the section header as well, which is at the top
+    /// of the Form and therefore rendered without scrolling at every text size.
     private func waitForPreviewContent(_ app: XCUIApplication) -> Bool {
-        app.buttons["guestMergeConfirmButton"].waitForExistence(timeout: 5)
-            || app.staticTexts["预计新增, 3 条"].waitForExistence(timeout: 5)
+        app.staticTexts["预计结果"].waitForExistence(timeout: 5)
+            || app.buttons["guestMergeConfirmButton"].waitForExistence(timeout: 5)
+            || app.staticTexts["将新增, 3 条"].waitForExistence(timeout: 5)
             || app.staticTexts["可能重复, 1 条"].waitForExistence(timeout: 5)
     }
 

@@ -98,6 +98,7 @@ enum AccountLifecycleFixture: Equatable {
         // must point at that one — otherwise the merge link would open a different
         // household than the seeded `.conflict` session belongs to.
         if let conflict = AccountLifecycleConflictFixture.active { return conflict.householdID }
+        if let summary = AccountLifecycleSummaryFixture.active { return summary.householdID }
         let arguments = ProcessInfo.processInfo.arguments
         let ids: [(String, String)] = [
             ("UITEST_MERGE_EMPTY", "00000000-0000-0000-0000-000000000011"),
@@ -345,6 +346,278 @@ enum AccountLifecycleConflictFixture: String, CaseIterable {
     static func resetSeedTrackingForTesting() { seededThisProcess.removeAll() }
 }
 
+/// UI-5B2B-B2A: deterministic *preview* states for the corrected summary, the
+/// read-only resolved review, and the confirmation copy.
+///
+/// Distinct from `AccountLifecycleConflictFixture`: these sessions are
+/// `.previewReady`, because everything this phase changes lives on the preview
+/// screen. Candidates arrive with `userChoice` already recorded where the
+/// scenario needs a resolved outcome — set directly on the fixture value, never
+/// by calling `resolveConflict`, which this phase must not invoke.
+///
+/// Same safety envelope as the B1 fixtures: local, fake, inert. No account, no
+/// token, no network, no `SyncCoordinator`, no staged mutation.
+enum AccountLifecycleSummaryFixture: String, CaseIterable {
+    /// creates + updates + keepRemote + skip + unresolved, all at once.
+    case mixed = "UITEST_MERGE_SUMMARY_MIXED"
+    /// Every conflict decided; some will upload.
+    case resolvedOnly = "UITEST_MERGE_SUMMARY_RESOLVED_ONLY"
+    /// Every conflict skipped — nothing to upload, nothing outstanding.
+    case allSkip = "UITEST_MERGE_SUMMARY_ALL_SKIP"
+    /// Every conflict kept-remote — nothing to upload, nothing outstanding.
+    case keepRemoteOnly = "UITEST_MERGE_SUMMARY_KEEP_REMOTE_ONLY"
+    /// keepRemote and skip mixed, still zero uploadable.
+    case keepRemoteAndSkip = "UITEST_MERGE_SUMMARY_KEEP_REMOTE_AND_SKIP"
+    /// Unresolved conflicts alongside uploadable entries.
+    case unresolvedWithUploadable = "UITEST_MERGE_SUMMARY_UNRESOLVED_UPLOADABLE"
+    /// Unresolved conflicts with nothing uploadable — must never read "先合并其余 0 条".
+    case unresolvedZeroUpload = "UITEST_MERGE_SUMMARY_UNRESOLVED_ZERO_UPLOAD"
+    /// 20 resolved conflicts, for scroll and grouping behavior.
+    case longResolved = "UITEST_MERGE_SUMMARY_LONG_RESOLVED"
+    /// No conflicts at all — the ordinary merge, to prove no copy regression.
+    case noConflict = "UITEST_MERGE_SUMMARY_NO_CONFLICT"
+    /// Resumed after a *partial* confirm: this session already uploaded part of
+    /// the plan, hit leftover conflicts, and returned to `.previewReady` once the
+    /// last one was resolved. Its plan therefore mixes already-uploaded choices
+    /// with newly-decided ones, and no copy may claim either that nothing has
+    /// been uploaded or that the whole plan is still upcoming.
+    case postPartialConfirmResumed = "UITEST_MERGE_SUMMARY_POST_PARTIAL_CONFIRM"
+
+    static var active: AccountLifecycleSummaryFixture? {
+        let arguments = ProcessInfo.processInfo.arguments
+        return allCases.first { arguments.contains($0.rawValue) }
+    }
+
+    /// One isolated household per scenario, distinct from every B1 conflict
+    /// household (…0031–0036) and every legacy merge household (…0010–0017).
+    var householdID: UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000000%02d", 51 + index))!
+    }
+
+    var sessionID: UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000000%02d", 61 + index))!
+    }
+
+    private var index: Int {
+        Self.allCases.firstIndex(of: self) ?? 0
+    }
+
+    private func localID(_ n: Int) -> UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000007%02d", n))!
+    }
+
+    private func remoteID(_ n: Int) -> UUID {
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000008%02d", n))!
+    }
+
+    private static let expiry = Date(timeIntervalSince1970: 1_767_225_600)
+    private static let laterExpiry = Date(timeIntervalSince1970: 1_769_904_000)
+
+    /// A plain non-conflict candidate: `conflictReason == nil`, so it can never
+    /// appear in the resolved review, and it counts under 将新增/将更新/无需处理.
+    private func plain(_ n: Int, _ name: String, action: InventoryMergeAction) -> InventoryMergeCandidate {
+        InventoryMergeCandidate(
+            localItemId: localID(n), name: name, unit: "份",
+            localQuantity: Double(n), localExpiryDate: nil,
+            remoteItemId: action == .create ? nil : localID(n),
+            remoteQuantity: action == .create ? nil : Double(n),
+            remoteExpiryDate: nil, remoteVersion: nil,
+            action: action, conflictReason: nil, userChoice: nil
+        )
+    }
+
+    /// A conflict candidate. `choice == nil` leaves it unresolved; otherwise the
+    /// recorded choice is applied through the model's own `applyingChoice`, so
+    /// `action` and `forkedLocalItemId` are exactly what the real flow produces.
+    private func conflict(
+        _ n: Int, _ name: String, sameIdentity: Bool,
+        reason: InventoryMergeConflictReason, choice: InventoryMergeConflictChoice?
+    ) -> InventoryMergeCandidate {
+        let local = localID(n)
+        let base = InventoryMergeCandidate(
+            localItemId: local, name: name, unit: "份",
+            localQuantity: Double(n), localExpiryDate: reason == .expiryMismatch ? Self.expiry : nil,
+            remoteItemId: sameIdentity ? local : remoteID(n),
+            remoteQuantity: Double(n + 1),
+            remoteExpiryDate: reason == .expiryMismatch ? Self.laterExpiry : nil,
+            remoteVersion: nil, action: .create, conflictReason: reason, userChoice: nil
+        )
+        guard let choice else { return base }
+        return base.applyingChoice(choice)
+    }
+
+    var candidates: [InventoryMergeCandidate] {
+        switch self {
+        case .mixed:
+            return [
+                plain(1, "面粉", action: .create),
+                plain(2, "白糖", action: .create),
+                plain(3, "酱油", action: .update),
+                plain(4, "食盐", action: .skip),
+                conflict(5, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepLocal),
+                conflict(6, "大米", sameIdentity: false, reason: .metadataMismatch, choice: .keepRemote),
+                conflict(7, "牛奶", sameIdentity: true, reason: .expiryMismatch, choice: .skip),
+                conflict(8, "鸡蛋", sameIdentity: true, reason: .quantityMismatch, choice: .keepBoth),
+                conflict(9, "青椒", sameIdentity: true, reason: .quantityMismatch, choice: nil),
+                conflict(10, "土豆", sameIdentity: false, reason: .ambiguousDuplicate, choice: nil)
+            ]
+        case .resolvedOnly:
+            return [
+                conflict(11, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepLocal),
+                conflict(12, "大米", sameIdentity: false, reason: .metadataMismatch, choice: .keepRemote),
+                conflict(13, "牛奶", sameIdentity: true, reason: .expiryMismatch, choice: .keepBoth),
+                conflict(14, "鸡蛋", sameIdentity: true, reason: .quantityMismatch, choice: .skip)
+            ]
+        case .allSkip:
+            return (21...23).map {
+                conflict($0, "跳过食材\($0 - 20)", sameIdentity: true, reason: .quantityMismatch, choice: .skip)
+            }
+        case .keepRemoteOnly:
+            return (31...33).map {
+                conflict($0, "保留家庭食材\($0 - 30)", sameIdentity: true, reason: .quantityMismatch, choice: .keepRemote)
+            }
+        case .keepRemoteAndSkip:
+            return [
+                conflict(41, "保留家庭豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepRemote),
+                conflict(42, "跳过大米", sameIdentity: false, reason: .metadataMismatch, choice: .skip)
+            ]
+        case .unresolvedWithUploadable:
+            return [
+                plain(51, "面粉", action: .create),
+                plain(52, "酱油", action: .update),
+                conflict(53, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepLocal),
+                conflict(54, "青椒", sameIdentity: true, reason: .quantityMismatch, choice: nil),
+                conflict(55, "土豆", sameIdentity: false, reason: .ambiguousDuplicate, choice: nil)
+            ]
+        case .unresolvedZeroUpload:
+            return [
+                conflict(61, "保留家庭豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepRemote),
+                conflict(62, "跳过大米", sameIdentity: true, reason: .expiryMismatch, choice: .skip),
+                conflict(63, "青椒", sameIdentity: true, reason: .quantityMismatch, choice: nil),
+                conflict(64, "土豆", sameIdentity: false, reason: .ambiguousDuplicate, choice: nil)
+            ]
+        case .longResolved:
+            return (1...20).map { n in
+                let choices: [InventoryMergeConflictChoice] = [.keepLocal, .keepRemote, .keepBoth, .skip]
+                return conflict(
+                    n, "已处理食材\(n)",
+                    sameIdentity: n.isMultiple(of: 2),
+                    reason: n.isMultiple(of: 3) ? .expiryMismatch : .quantityMismatch,
+                    choice: choices[(n - 1) % 4]
+                )
+            }
+        case .noConflict:
+            return [
+                plain(71, "面粉", action: .create),
+                plain(72, "白糖", action: .create),
+                plain(73, "酱油", action: .update),
+                plain(74, "食盐", action: .skip)
+            ]
+        case .postPartialConfirmResumed:
+            return [
+                // Uploaded by the first confirm — still listed in the plan,
+                // because nothing removes a confirmed candidate from it.
+                plain(81, "面粉", action: .create),
+                plain(82, "酱油", action: .update),
+                // Decided after that confirm, awaiting the next one.
+                conflict(83, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepLocal),
+                conflict(84, "大米", sameIdentity: false, reason: .metadataMismatch, choice: .keepRemote),
+                conflict(85, "牛奶", sameIdentity: true, reason: .expiryMismatch, choice: .skip)
+            ]
+        }
+    }
+
+    /// A `.previewReady` session, because every surface this phase changes is on
+    /// the preview screen.
+    ///
+    /// `planHash`/`remoteSnapshotHash` are computed with the real planner against
+    /// `localItems` (the live local inventory at seed time) and an empty remote
+    /// snapshot — which is exactly what the fixture transport returns. Without
+    /// that, `preparePreview` would find the plan stale and regenerate it for a
+    /// `.previewReady` session, discarding the recorded choices this phase needs
+    /// to display. A literal placeholder hash cannot work here, unlike the B1
+    /// `.conflict` fixtures, which `preparePreview` never regenerates.
+    func session(userID: UUID, localItems: [InventoryItem]) -> GuestMergeSession {
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        let candidates = self.candidates
+        let remoteHash = InventoryMergePlanner.remoteSnapshotHash([])
+        let plan = InventoryMergePlan(
+            sessionId: sessionID,
+            householdId: householdID,
+            generatedAt: now,
+            sourceCount: candidates.count,
+            candidates: candidates,
+            skippedItemIds: [],
+            planHash: InventoryMergePlanner.planHash(
+                sessionId: sessionID, householdId: householdID,
+                localItems: localItems, remoteSnapshotHash: remoteHash
+            ),
+            knownRemoteItemCount: candidates.filter { $0.remoteItemId != nil }.count,
+            remoteSnapshotHash: remoteHash,
+            remoteSnapshotFetchedAt: now
+        )
+        return GuestMergeSession(
+            id: sessionID,
+            userId: userID,
+            householdId: householdID,
+            entityType: .inventoryItem,
+            status: .previewReady,
+            createdAt: now,
+            updatedAt: now,
+            // The post-partial state is the only one that has already confirmed
+            // once; every other scenario is a first pass.
+            confirmedAt: self == .postPartialConfirmResumed ? now : nil,
+            completedAt: nil,
+            cancelledAt: nil,
+            rollbackAvailableUntil: nil,
+            localSnapshot: candidates.map {
+                GuestInventorySnapshotItem(
+                    id: $0.localItemId, name: $0.name, unit: $0.unit,
+                    quantity: $0.localQuantity, expiryDate: $0.localExpiryDate
+                )
+            },
+            plan: plan,
+            plannedItemCount: 0,
+            uploadedItemCount: self == .postPartialConfirmResumed ? 2 : 0,
+            conflictCount: candidates.filter { $0.needsDecision }.count,
+            failedCount: 0,
+            lastErrorCode: nil,
+            createdEntityIds: [],
+            mergeVersion: 1
+        )
+    }
+
+    /// Seeded at most once per process, for exactly the reasons documented on
+    /// `AccountLifecycleConflictFixture.seededThisProcess`: within a process a
+    /// repeat `.task` must not clobber state a test has changed, while a new
+    /// process must re-seed so nothing leaks between UI test cases.
+    private static var seededThisProcess: Set<String> = []
+
+    @discardableResult
+    static func seedIfRequested(
+        persistence: any SyncPersistenceProtocol, userID: UUID, localItems: [InventoryItem]
+    ) async -> Bool {
+        guard let fixture = active else { return false }
+        return await fixture.seed(persistence: persistence, userID: userID, localItems: localItems)
+    }
+
+    @discardableResult
+    func seed(
+        persistence: any SyncPersistenceProtocol, userID: UUID, localItems: [InventoryItem]
+    ) async -> Bool {
+        if Self.seededThisProcess.contains(rawValue) { return true }
+        do {
+            try await persistence.saveGuestMergeSession(session(userID: userID, localItems: localItems))
+            Self.seededThisProcess.insert(rawValue)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    static func resetSeedTrackingForTesting() { seededThisProcess.removeAll() }
+}
+
 @MainActor
 final class AccountLifecycleFixtureAuthService: AuthService {
     let fixture: AccountLifecycleFixture
@@ -414,7 +687,7 @@ struct AccountLifecycleFixtureTransport: SyncTransport {
             )]
         } else if arguments.contains("UITEST_MERGE_EMPTY") {
             changes = []
-        } else if AccountLifecycleConflictFixture.active != nil {
+        } else if AccountLifecycleConflictFixture.active != nil || AccountLifecycleSummaryFixture.active != nil {
             // The conflict scenarios seed their own `.conflict` session, so this
             // pre-merge read only has to succeed: `preparePreview` resumes the
             // seeded session and never regenerates a `.conflict` plan. Returning

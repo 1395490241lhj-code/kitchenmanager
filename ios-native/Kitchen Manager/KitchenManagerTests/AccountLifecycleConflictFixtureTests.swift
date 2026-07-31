@@ -15,6 +15,7 @@ final class AccountLifecycleConflictFixtureTests: XCTestCase {
     override func setUp() {
         super.setUp()
         AccountLifecycleConflictFixture.resetSeedTrackingForTesting()
+        AccountLifecycleSummaryFixture.resetSeedTrackingForTesting()
     }
 
     private func makePersistence() throws -> (ModelContainer, SwiftDataSyncPersistence) {
@@ -203,5 +204,155 @@ final class AccountLifecycleConflictFixtureTests: XCTestCase {
             try context.fetchCount(FetchDescriptor<InventoryRecord>()), 0,
             "seed 不得写入本机库存"
         )
+    }
+
+    // MARK: - UI-5B2B-B2A summary fixtures
+
+    func testNoSummaryFixtureIsActiveWithoutItsLaunchArgument() {
+        XCTAssertNil(AccountLifecycleSummaryFixture.active)
+    }
+
+    func testSummarySeedIfRequestedIsANoOpWhenNoFixtureIsActive() async throws {
+        let (container, persistence) = try makePersistence()
+        let seeded = await AccountLifecycleSummaryFixture.seedIfRequested(
+            persistence: persistence, userID: userID, localItems: []
+        )
+        XCTAssertFalse(seeded, "没有 summary launch argument 时不得 seed")
+        XCTAssertEqual(try sessionCount(container), 0, "普通启动不得写入任何 session")
+    }
+
+    func testSummaryFixturesUseHouseholdsAndSessionsIsolatedFromConflictFixtures() {
+        let summaryHouseholds = AccountLifecycleSummaryFixture.allCases.map(\.householdID)
+        let summarySessions = AccountLifecycleSummaryFixture.allCases.map(\.sessionID)
+        XCTAssertEqual(Set(summaryHouseholds).count, summaryHouseholds.count, "household 必须互不相同")
+        XCTAssertEqual(Set(summarySessions).count, summarySessions.count, "session 必须互不相同")
+
+        let conflictHouseholds = Set(AccountLifecycleConflictFixture.allCases.map(\.householdID))
+        let conflictSessions = Set(AccountLifecycleConflictFixture.allCases.map(\.sessionID))
+        XCTAssertTrue(Set(summaryHouseholds).isDisjoint(with: conflictHouseholds), "不得复用 B1 的 household")
+        XCTAssertTrue(Set(summarySessions).isDisjoint(with: conflictSessions), "不得复用 B1 的 session")
+
+        // Also distinct from the pre-existing merge fixtures' households.
+        for raw in 0x10...0x17 {
+            let legacy = UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000000%02d", raw))!
+            XCTAssertFalse(summaryHouseholds.contains(legacy))
+        }
+    }
+
+    func testEverySummaryFixtureSeedsAPreviewReadySession() {
+        for fixture in AccountLifecycleSummaryFixture.allCases {
+            let session = fixture.session(userID: userID, localItems: [])
+            XCTAssertEqual(
+                session.status, .previewReady,
+                "\(fixture.rawValue) 必须是 previewReady —— 本阶段的界面都在预览页"
+            )
+            XCTAssertNotNil(session.plan)
+        }
+    }
+
+    /// The seeded plan must look current to `preparePreview`, or it would be
+    /// regenerated for a `.previewReady` session and the recorded choices this
+    /// phase displays would be discarded.
+    func testSeededSummaryPlanIsConsideredStillValidAgainstTheSameLocalItems() {
+        let localItems = [
+            InventoryItem(name: "面粉", quantity: 1, unit: "袋", expiryDate: nil),
+            InventoryItem(name: "白糖", quantity: 2, unit: "袋", expiryDate: nil)
+        ]
+        for fixture in AccountLifecycleSummaryFixture.allCases {
+            let session = fixture.session(userID: userID, localItems: localItems)
+            let plan = try! XCTUnwrap(session.plan)
+            XCTAssertTrue(
+                InventoryMergePlanner.isPlanStillValid(plan, against: localItems, currentRemoteItems: []),
+                "\(fixture.rawValue) 的 plan 必须被视为仍然有效，否则会被重新生成"
+            )
+        }
+    }
+
+    func testSummaryFixtureCandidatesRecordChoicesWithoutCallingTheController() {
+        // Resolved candidates must carry a `userChoice` and a consistent `action`,
+        // produced by the model's own `applyingChoice` — never by `resolveConflict`,
+        // which this phase must not invoke.
+        let mixed = AccountLifecycleSummaryFixture.mixed.candidates
+        let resolved = mixed.filter { $0.conflictReason != nil && $0.userChoice != nil }
+        XCTAssertFalse(resolved.isEmpty)
+        for candidate in resolved {
+            switch candidate.userChoice {
+            case .keepLocal:
+                XCTAssertEqual(candidate.action, candidate.remoteItemId == candidate.localItemId ? .update : .create)
+            case .keepRemote:
+                XCTAssertEqual(candidate.action, .keepRemote)
+            case .keepBoth:
+                XCTAssertEqual(candidate.action, .create)
+            case .skip:
+                XCTAssertEqual(candidate.action, .skip)
+            case nil:
+                XCTFail("unreachable")
+            }
+        }
+        XCTAssertTrue(mixed.contains { $0.needsDecision }, "mixed fixture 必须同时包含未处理项")
+        XCTAssertTrue(mixed.contains { $0.conflictReason == nil }, "mixed fixture 必须同时包含非冲突项")
+    }
+
+    func testRepeatSummarySeedingCreatesExactlyOneSessionPerFixture() async throws {
+        let (container, persistence) = try makePersistence()
+        let fixture = AccountLifecycleSummaryFixture.mixed
+        for _ in 0..<3 {
+            let seeded = await fixture.seed(persistence: persistence, userID: userID, localItems: [])
+            XCTAssertTrue(seeded)
+        }
+        XCTAssertEqual(try sessionCount(container), 1, "重复 seed 不得产生第二个 session")
+    }
+
+    func testRepeatSummarySeedingDoesNotOverwriteChangedStateInTheSameProcess() async throws {
+        let (_, persistence) = try makePersistence()
+        let fixture = AccountLifecycleSummaryFixture.mixed
+        await fixture.seed(persistence: persistence, userID: userID, localItems: [])
+
+        let loaded = try await persistence.activeGuestMergeSession(
+            userId: userID, householdId: fixture.householdID, entityType: .inventoryItem
+        )
+        var session = try XCTUnwrap(loaded)
+        session.conflictCount = 99
+        try await persistence.saveGuestMergeSession(session)
+
+        await fixture.seed(persistence: persistence, userID: userID, localItems: [])
+
+        let reloaded = try await persistence.activeGuestMergeSession(
+            userId: userID, householdId: fixture.householdID, entityType: .inventoryItem
+        )
+        XCTAssertEqual(reloaded?.conflictCount, 99, "同一进程内重复 seed 不得覆盖测试中已变化的状态")
+    }
+
+    func testANewProcessReSeedsSummaryFixtures() async throws {
+        let (container, persistence) = try makePersistence()
+        let fixture = AccountLifecycleSummaryFixture.mixed
+        await fixture.seed(persistence: persistence, userID: userID, localItems: [])
+
+        let loaded = try await persistence.activeGuestMergeSession(
+            userId: userID, householdId: fixture.householdID, entityType: .inventoryItem
+        )
+        var session = try XCTUnwrap(loaded)
+        session.conflictCount = 99
+        try await persistence.saveGuestMergeSession(session)
+
+        AccountLifecycleSummaryFixture.resetSeedTrackingForTesting()
+        await fixture.seed(persistence: persistence, userID: userID, localItems: [])
+
+        let reloaded = try await persistence.activeGuestMergeSession(
+            userId: userID, householdId: fixture.householdID, entityType: .inventoryItem
+        )
+        XCTAssertEqual(reloaded?.conflictCount, 2, "新进程必须重新 seed 回确定状态")
+        XCTAssertEqual(try sessionCount(container), 1)
+    }
+
+    func testSummarySeedingStagesNoMutationAndAdvancesNoCursor() async throws {
+        let (container, persistence) = try makePersistence()
+        for fixture in AccountLifecycleSummaryFixture.allCases {
+            await fixture.seed(persistence: persistence, userID: userID, localItems: [])
+        }
+        let context = ModelContext(container)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<PendingMutationRecord>()), 0, "seed 不得暂存任何 mutation")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<SyncCursorRecord>()), 0, "seed 不得推进 sync cursor")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<InventoryRecord>()), 0, "seed 不得写入本机库存")
     }
 }

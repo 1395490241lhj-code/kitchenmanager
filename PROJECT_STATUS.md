@@ -1,8 +1,19 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 ## In progress
+
+- UI-5B2B-B2A preview summaries and resolved visibility is being implemented on
+  `claude/ios-merge-summary-ui5b2bb2a`; changes remain uncommitted. It corrects
+  the conflict-reason counts (which previously included resolved conflicts),
+  surfaces 保留家庭/本次跳过/仍待处理, adds a read-only 查看处理结果 screen, and
+  makes the confirm copy match what would actually upload — including a neutral,
+  session-aware wording for a merge that already confirmed once and returned to
+  the preview with leftover conflicts resolved. Read-only: choice
+  semantics and every write path are unchanged. Re-editing, plus the fork-id and
+  status-guard safety fixes the B2 audit identified, are UI-5B2B-B2B. See
+  `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2A.md`.
 
 - UI-5B2B-B1 conflict choice presentation correctness is being implemented on
   `claude/ios-merge-conflict-ui5b2bb1`; changes remain uncommitted. The

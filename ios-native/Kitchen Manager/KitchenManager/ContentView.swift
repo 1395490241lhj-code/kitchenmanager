@@ -15,6 +15,8 @@ struct KitchenManagerApp: App {
     /// True once the conflict fixture's session is present. Drives a zero-size,
     /// accessibility-only marker UI tests wait on instead of sleeping.
     @State private var conflictFixtureSeeded = false
+    /// Same purpose for the UI-5B2B-B2A preview-summary fixtures.
+    @State private var summaryFixtureSeeded = false
     #endif
     @StateObject private var navigationStore = AppNavigationStore()
     @StateObject private var recommendationStore = HomeRecommendationStore()
@@ -143,16 +145,36 @@ struct KitchenManagerApp: App {
                         userID: AccountLifecycleFixture.owner.user.id
                     )
                 }
-                // Minimal observable "seed finished" marker so UI tests can wait on
+                // UI-5B2B-B2A: the same single injection point, for the
+                // `.previewReady` summary states. `localItems` is the live local
+                // inventory, which the fixture folds into a real plan hash so
+                // `preparePreview` treats the seeded plan as current instead of
+                // regenerating it and discarding the recorded choices.
+                .task {
+                    summaryFixtureSeeded = await AccountLifecycleSummaryFixture.seedIfRequested(
+                        persistence: uiTestSyncPersistence,
+                        userID: AccountLifecycleFixture.owner.user.id,
+                        localItems: kitchenStore.inventory
+                    )
+                }
+                // Minimal observable "seed finished" markers so UI tests can wait on
                 // the actual completion instead of sleeping. Zero-size and
-                // accessibility-only, so it changes nothing a user can see, and it
-                // exists only in DEBUG.
+                // accessibility-only, so they change nothing a user can see, and they
+                // exist only in DEBUG.
                 .overlay(alignment: .topLeading) {
                     if conflictFixtureSeeded {
                         Color.clear
                             .frame(width: 1, height: 1)
                             .allowsHitTesting(false)
                             .accessibilityIdentifier("uitest.conflictFixtureSeeded")
+                    }
+                }
+                .overlay(alignment: .topTrailing) {
+                    if summaryFixtureSeeded {
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .allowsHitTesting(false)
+                            .accessibilityIdentifier("uitest.summaryFixtureSeeded")
                     }
                 }
                 #endif

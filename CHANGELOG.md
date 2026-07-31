@@ -4,6 +4,39 @@ All notable project changes should be documented here.
 
 Keep entries concise. Use this file for what changed, not for long design discussion. Put current project state in `PROJECT_STATUS.md`.
 
+## 2026-07-31 (iOS Merge Summary UI-5B2B-B2A — uncommitted)
+
+### Fixed
+
+- The merge preview's conflict-reason counts included conflicts the user had
+  already decided, so a partly-resolved plan reported more outstanding work
+  than actually remained. They now require `needsDecision`.
+- 保留家庭 and 本次跳过 appeared in no preview count at all. Both are now shown,
+  alongside 仍待处理.
+- The confirm button read "确认合并库存" even when every conflict was kept-remote
+  or skipped and a confirm would upload nothing.
+- Preview and review copy claimed the recorded choices had not been uploaded.
+  That is false for a session that already confirmed once, hit leftover
+  conflicts, and returned to `.previewReady` — its plan mixes already-uploaded
+  choices with newly-decided ones. The review footer is now neutral, the rows
+  read 计划新增/计划更新, and a session that has already confirmed gets
+  「确认当前处理计划」 with 「当前页面汇总本次会话的整体计划，系统会根据当前同步状态继续处理。」 instead of the first-pass wording.
+
+### Added
+
+- A read-only 查看处理结果 screen listing already-decided conflicts, grouped by
+  choice, reusing the UI-5B2B-B1 consequence copy. No editing — that is
+  UI-5B2B-B2B.
+- `InventoryMergeSummaryPresentation`: a pure, SwiftUI-free mapping owning the
+  summary predicates, resolved grouping, and confirmation copy.
+- DEBUG-only `.previewReady` fixtures for nine summary states, plus unit and UI
+  coverage.
+
+Conflict choice semantics, `resolveConflict`, `applyingChoice`, `readyToUpload`,
+`confirmMerge`'s writes, session-status transitions, and `forkedLocalItemId` are
+unchanged; `GuestMergeModels.swift` and `GuestMergeController.swift` are
+byte-identical to base. See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2A.md`.
+
 ## 2026-07-30 (iOS Merge Conflict UI-5B2B-B1 — uncommitted)
 
 ### Fixed
