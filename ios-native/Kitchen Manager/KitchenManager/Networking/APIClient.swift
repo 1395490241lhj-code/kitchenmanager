@@ -9,6 +9,16 @@ import Foundation
 /// (`.shared`) across concurrent callers without any of them being able to
 /// mutate its configuration.
 actor APIClient {
+    nonisolated struct ResponseMetadata: Sendable, Equatable {
+        let statusCode: Int
+        let latency: TimeInterval
+        let requestID: String?
+    }
+
+    nonisolated struct RawResponse: Sendable {
+        let data: Data
+        let metadata: ResponseMetadata
+    }
     /// Base client using the app's single real backend. Holds no business
     /// state — just a session, base URL, and default timeout — so it is
     /// safe to share and does not need to be mocked away in tests the way a
@@ -52,6 +62,13 @@ actor APIClient {
     /// caller decode however it needs to (several existing services try
     /// more than one decode shape on the same payload).
     func sendRaw(_ endpoint: APIEndpoint) async throws -> Data {
+        try await sendRawDetailed(endpoint).data
+    }
+
+    /// Same request path as every production service, with response metadata
+    /// retained for diagnostics. No request body, headers, or response body is
+    /// returned from this API.
+    func sendRawDetailed(_ endpoint: APIEndpoint) async throws -> RawResponse {
         let request = try buildRequest(for: endpoint)
         return try await perform(request, method: endpoint.method, path: endpoint.path)
     }
@@ -63,7 +80,7 @@ actor APIClient {
         var request = try buildRequest(for: endpoint)
         request.setValue(multipart.contentType, forHTTPHeaderField: "Content-Type")
         request.httpBody = multipart.encode()
-        return try await perform(request, method: endpoint.method, path: endpoint.path)
+        return try await perform(request, method: endpoint.method, path: endpoint.path).data
     }
 
     private func buildRequest(for endpoint: APIEndpoint) throws -> URLRequest {
@@ -89,10 +106,8 @@ actor APIClient {
         return request
     }
 
-    private func perform(_ request: URLRequest, method: HTTPMethod, path: String) async throws -> Data {
-        #if DEBUG
+    private func perform(_ request: URLRequest, method: HTTPMethod, path: String) async throws -> RawResponse {
         let start = Date()
-        #endif
 
         let data: Data
         let response: URLResponse
@@ -117,10 +132,10 @@ actor APIClient {
             throw APIError.invalidResponse
         }
 
-        #if DEBUG
         // Method, path, and status only — never headers, body, or query
         // values, since those can carry recipe/receipt content.
         let elapsedMs = Int(Date().timeIntervalSince(start) * 1000)
+        #if DEBUG
         print("[APIClient] \(method.rawValue) \(path) -> \(httpResponse.statusCode) (\(elapsedMs)ms)")
         #endif
 
@@ -129,6 +144,15 @@ actor APIClient {
             throw APIError.server(status: httpResponse.statusCode, payload: payload)
         }
 
-        return data
+        let requestID = httpResponse.value(forHTTPHeaderField: "X-Request-ID")
+            ?? httpResponse.value(forHTTPHeaderField: "X-Trace-ID")
+        return RawResponse(
+            data: data,
+            metadata: ResponseMetadata(
+                statusCode: httpResponse.statusCode,
+                latency: Date().timeIntervalSince(start),
+                requestID: requestID
+            )
+        )
     }
 }

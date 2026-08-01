@@ -120,12 +120,19 @@ struct ReceiptRecognitionService {
 
     func recognize(jpegData: Data) async throws -> [ReceiptItemDraft] {
         let imageBase64 = "data:image/jpeg;base64,\(jpegData.base64EncodedString())"
-        let content = try await aiService.request(
-            prompt: Self.prompt,
-            taskType: "receipt",
-            imageBase64: imageBase64,
-            timeout: 50
-        )
+        let content: String
+        do {
+            content = try await aiService.requestDetailed(
+                prompt: Self.prompt,
+                taskType: "receipt",
+                imageBase64: imageBase64,
+                timeout: 50
+            ).content
+        } catch {
+            let failure = AIServiceFailure.classify(error, imageRequest: true)
+            AIFailureStore.save(failure)
+            throw ReceiptImportError.ai(failure)
+        }
         guard let data = content.data(using: .utf8),
               let response = try? JSONDecoder().decode(ReceiptAIResponse.self, from: data) else {
             throw ReceiptImportError.invalidResponse
@@ -294,6 +301,7 @@ struct RecordFoodSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
+    @EnvironmentObject private var authStore: AuthStore
     @StateObject private var receiptStore = ReceiptImportStore()
     @State private var inputMode: FoodInputMode
     @State private var manualText = ""
@@ -301,6 +309,7 @@ struct RecordFoodSheet: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var isShowingCamera = false
     @State private var isShowingCameraDeniedAlert = false
+    @State private var isShowingAIDiagnostics = false
 
     init(initialMode: FoodInputMode = .receipt) {
         _inputMode = State(initialValue: initialMode)
@@ -341,9 +350,13 @@ struct RecordFoodSheet: View {
                 get: { receiptStore.errorMessage != nil },
                 set: { if !$0 { receiptStore.errorMessage = nil } }
             )) {
+                Button("打开 AI 服务诊断") { isShowingAIDiagnostics = true }
                 Button("好") { receiptStore.errorMessage = nil }
             } message: {
                 Text(receiptStore.errorMessage ?? "请稍后重试。")
+            }
+            .sheet(isPresented: $isShowingAIDiagnostics) {
+                NavigationStack { AIServiceDiagnosticsView(authStore: authStore) }
             }
             .onChange(of: photoItem) { _, newValue in
                 guard let newValue else { return }
@@ -867,13 +880,15 @@ private struct ReceiptAIItem: Decodable {
     }
 }
 
-private enum ReceiptImportError: LocalizedError {
+enum ReceiptImportError: LocalizedError {
     case invalidResponse, noFoodItems
+    case ai(AIServiceFailure)
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse: "AI 返回的数据无法识别，请重新拍摄或稍后重试。"
         case .noFoodItems: "没有识别到可入库的食材，请确认小票完整清晰。"
+        case .ai(let failure): "\(failure.category.title)：\(failure.message)"
         }
     }
 }

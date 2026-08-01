@@ -4,6 +4,19 @@ All notable project changes should be documented here.
 
 Keep entries concise. Use this file for what changed, not for long design discussion. Put current project state in `PROJECT_STATUS.md`.
 
+## 2026-08-01 (AI service live diagnosis)
+
+### Fixed locally
+
+- Confirmed through the real iOS App path that `/health` and text AI succeed,
+  while receipt image requests reach Render and fail with HTTP 404
+  `model_not_found`.
+- Changed the default Groq vision model from the deprecated Llama 4 Scout to
+  `meta-llama/llama-4-maverick-17b-128e-instruct`.
+
+Render deployment is managed outside this repository; live image verification
+after the model change remains pending deployment.
+
 ## 2026-07-31 (iOS Merge Summary UI-5B2B-B2A — uncommitted)
 
 ### Fixed

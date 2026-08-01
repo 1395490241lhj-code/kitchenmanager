@@ -262,6 +262,18 @@ app.get(
 // Response bodies never contain a URL, key, project ref, or stack trace —
 // only booleans keyed by check name (see src/server/observability/health.js).
 app.get('/health', createHealthHandler({ environment: OBSERVABILITY_ENVIRONMENT, release: OBSERVABILITY_RELEASE }));
+// Safe, read-only diagnostics metadata for the native app. Model names and
+// configuration booleans are not credentials; secrets, URLs, prompts, and
+// provider response bodies must never be returned from this route.
+app.get('/api/ai-diagnostics/config', (req, res) => {
+  res.status(200).json({
+    textModel: OPENAI_MODEL || null,
+    visionModel: OPENAI_VISION_MODEL || null,
+    textModelConfigured: Boolean(String(OPENAI_MODEL || '').trim()),
+    visionModelConfigured: Boolean(String(OPENAI_VISION_MODEL || '').trim()),
+    apiKeyConfigured: Boolean(String(OPENAI_API_KEY || '').trim())
+  });
+});
 app.get('/ready', createReadyHandler({
   environment: OBSERVABILITY_ENVIRONMENT,
   release: OBSERVABILITY_RELEASE,

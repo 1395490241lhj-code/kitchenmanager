@@ -1,6 +1,19 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
+
+## AI service incident (2026-08-01)
+
+- Real iOS App verification reached the Render backend: `/health` and the
+  minimal text `/api/ai-chat` request returned 200.
+- The real receipt/vision request returned HTTP 404 with sanitized upstream
+  code `model_not_found`. Render is still configured/deployed with the
+  deprecated Groq Scout vision model;
+  this is the confirmed cause of the receipt “AI unavailable” symptom.
+- Local source now changes the default vision model to
+  `meta-llama/llama-4-maverick-17b-128e-instruct`. Render deployment and the
+  post-fix live image verification remain pending because Render deployment is
+  managed outside this repository.
 
 ## In progress
 

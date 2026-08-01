@@ -93,6 +93,18 @@ final class AIChatServiceTests: XCTestCase {
         }
     }
 
+    func test_request_emptyJSONContent_throwsInvalidResponse() async throws {
+        MockURLProtocol.install { _ in .init(statusCode: 200, data: Data(#"{"content":""}"#.utf8)) }
+        let service = makeService()
+
+        do {
+            _ = try await service.request(prompt: "p", taskType: "t")
+            XCTFail("expected an error")
+        } catch let error as AIChatServiceError {
+            guard case .invalidResponse = error else { return XCTFail("expected .invalidResponse") }
+        }
+    }
+
     func test_request_non2xxResponse_throwsUnavailable() async throws {
         MockURLProtocol.install { _ in .init(statusCode: 500, data: Data("{}".utf8)) }
         let service = makeService()

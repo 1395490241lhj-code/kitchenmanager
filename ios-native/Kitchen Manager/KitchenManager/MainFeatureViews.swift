@@ -1537,6 +1537,23 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.backup.link")
             }
 
+            Section("AI") {
+                NavigationLink {
+                    AIServiceDiagnosticsView(authStore: authStore)
+                } label: {
+                    SettingsRowLabel(symbol: "stethoscope") {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("AI 服务诊断")
+                            Text("检查 App 实际网络、认证和模型请求")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+                .accessibilityIdentifier("settings.aiDiagnostics.link")
+            }
+
             Section("关于") {
                 LabeledContent("版本", value: appVersion)
                     .accessibilityIdentifier("settings.about.version")

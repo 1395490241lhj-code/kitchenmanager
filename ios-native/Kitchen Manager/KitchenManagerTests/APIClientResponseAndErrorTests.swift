@@ -73,6 +73,14 @@ final class APIClientResponseAndErrorTests: NetworkTestCase {
         try await assertStatusMapsToServer(404)
     }
 
+    func test_status408_mapsToServerError() async throws {
+        try await assertStatusMapsToServer(408)
+    }
+
+    func test_status413_mapsToServerError() async throws {
+        try await assertStatusMapsToServer(413)
+    }
+
     func test_status422_mapsToServerError() async throws {
         try await assertStatusMapsToServer(422)
     }
