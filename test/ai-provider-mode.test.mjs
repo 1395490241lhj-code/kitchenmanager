@@ -1107,7 +1107,7 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   assert.match(server, /app\.post\('\/api\/ai-chat'/);
   assert.match(server, /OPENAI_API_KEY/);
   assert.match(server, /OPENAI_VISION_MODEL/);
-  assert.match(serverConfig, /DEFAULT_OPENAI_VISION_MODEL = 'meta-llama\/llama-4-maverick-17b-128e-instruct'/);
+  assert.match(serverConfig, /DEFAULT_OPENAI_VISION_MODEL = 'qwen\/qwen3\.6-27b'/);
   assert.match(serverConfig, /OPENAI_VISION_MODEL = process\.env\.OPENAI_VISION_MODEL \|\| DEFAULT_OPENAI_VISION_MODEL/);
   assert.match(serverConfig, /AI_PROMPT_MAX_CHARS = 12000/);
   assert.match(serverConfig, /AI_IMAGE_MAX_BASE64_BYTES = 4 \* 1024 \* 1024/);

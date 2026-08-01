@@ -7,13 +7,11 @@ Last updated: 2026-08-01
 - Real iOS App verification reached the Render backend: `/health` and the
   minimal text `/api/ai-chat` request returned 200.
 - The real receipt/vision request returned HTTP 404 with sanitized upstream
-  code `model_not_found`. Render is still configured/deployed with the
-  deprecated Groq Scout vision model;
-  this is the confirmed cause of the receipt “AI unavailable” symptom.
-- Local source now changes the default vision model to
-  `meta-llama/llama-4-maverick-17b-128e-instruct`. Render deployment and the
-  post-fix live image verification remain pending because Render deployment is
-  managed outside this repository.
+  code `model_not_found` while Render used a deprecated Groq Llama 4 model;
+  this caused the receipt “AI unavailable” symptom.
+- Local source now uses `qwen/qwen3.6-27b` as the default vision model. Render
+  environment configuration and post-fix live image verification remain
+  external deployment steps.
 
 ## In progress
 

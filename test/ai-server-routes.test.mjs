@@ -394,7 +394,7 @@ test('/api/ai-status 配置完整时返回可用状态且不泄露 API Key', asy
       OPENAI_API_KEY: 'test-key',
       OPENAI_BASE_URL: 'https://api.groq.com/openai/v1',
       OPENAI_MODEL: 'openai/gpt-oss-120b',
-      OPENAI_VISION_MODEL: 'meta-llama/llama-4-maverick-17b-128e-instruct'
+      OPENAI_VISION_MODEL: 'qwen/qwen3.6-27b'
     }
   });
 
@@ -416,7 +416,7 @@ test('/api/ai-status 缺少 OPENAI_API_KEY 时返回安全 code', async () => {
       OPENAI_API_KEY: '',
       OPENAI_BASE_URL: 'https://api.groq.com/openai/v1',
       OPENAI_MODEL: 'openai/gpt-oss-120b',
-      OPENAI_VISION_MODEL: 'meta-llama/llama-4-maverick-17b-128e-instruct'
+      OPENAI_VISION_MODEL: 'qwen/qwen3.6-27b'
     }
   });
 
@@ -449,8 +449,13 @@ test('/api/ai-chat 图片请求默认使用 Groq 视觉模型，不回退到文�
   });
 
   assert.equal(res.statusCode, 200);
-  assert.equal(capturedPayload.model, 'meta-llama/llama-4-maverick-17b-128e-instruct');
+  assert.equal(capturedPayload.model, 'qwen/qwen3.6-27b');
   assert.notEqual(capturedPayload.model, 'openai/gpt-oss-120b');
+  assert.deepEqual(capturedPayload.messages[1].content, [
+    { type: 'text', text: '识别小票' },
+    { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,abcd' } }
+  ]);
+  assert.equal(res.body.content, '{"ok":true}');
 });
 
 test('/api/ai-chat 文本请求继续使用 OPENAI_MODEL', async () => {
@@ -546,7 +551,7 @@ test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
         }
       };
     },
-    env: { OPENAI_VISION_MODEL: 'meta-llama/llama-4-maverick-17b-128e-instruct' }
+    env: { OPENAI_VISION_MODEL: 'qwen/qwen3.6-27b' }
   });
 
   const res = await runPost(app, '/api/ai-parse', {
@@ -555,7 +560,7 @@ test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
 
   assert.equal(res.statusCode, 200);
   assert.equal(capturedPayloads.length, 2);
-  assert.equal(capturedPayloads[0].model, 'meta-llama/llama-4-maverick-17b-128e-instruct');
+  assert.equal(capturedPayloads[0].model, 'qwen/qwen3.6-27b');
   assert.match(capturedPayloads[0].messages[0].content, /证据抽取器/);
   assert.match(capturedPayloads[0].messages[0].content, /observedActions/);
   assert.match(capturedPayloads[0].messages[0].content, /有"水"不等于加水焖煮/);
@@ -981,7 +986,7 @@ test('/api/media/ocr-frames 使用视觉模型提取帧中文字且不生成菜�
       capturedPayloads.push({ url, payload, options });
       assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
       assert.equal(options.headers.Authorization, 'Bearer test-key');
-      assert.equal(payload.model, 'meta-llama/llama-4-maverick-17b-128e-instruct');
+      assert.equal(payload.model, 'qwen/qwen3.6-27b');
       const userContent = payload.messages[1].content;
       assert.match(userContent[0].text, /只提取画面中清晰可见/);
       assert.match(userContent[0].text, /不要根据画面猜完整做法/);
@@ -1272,7 +1277,7 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
     },
     axiosPost: async (_url, payload) => {
       capturedAiPayloads.push(payload);
-      if (payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct') {
+      if (payload.model === 'qwen/qwen3.6-27b') {
         visionCallCount += 1;
         if (visionCallCount === 1) {
           const err = new Error('vision upstream failed test-key');
@@ -1375,7 +1380,7 @@ test('/api/recipe-import-from-url 合并页面文字、视频转录、抽帧 OCR
   assert.doesNotMatch(res.body.mediaDiagnostics.visionErrorPreview, /test-key/);
   assert.match(res.body.mediaDiagnostics.warnings.join('\n'), /部分视频画面文字识别失败/);
   assert.match(res.body.recipe.method.join('\n'), /鲜藤椒/);
-  assert.ok(capturedAiPayloads.some(payload => payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct'));
+  assert.ok(capturedAiPayloads.some(payload => payload.model === 'qwen/qwen3.6-27b'));
   const filesAfter = await fs.promises.readdir(mediaDir);
   assert.deepEqual(filesAfter.filter(name => !filesBefore.has(name)), [], '组合导入结束后应立即删除本次临时媒体文件');
 });
@@ -1431,7 +1436,7 @@ test('/api/recipe-import-from-url 遇到 ASR/OCR 上游 413 仍返回草稿和�
       };
     },
     axiosPost: async (_url, payload) => {
-      if (payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct') {
+      if (payload.model === 'qwen/qwen3.6-27b') {
         const err = new Error('vision payload too large test-key');
         err.response = {
           status: 413,
@@ -1496,7 +1501,7 @@ test('/api/recipe-import-from-url 遇到 ASR/OCR 上游 413 仍返回草稿和�
   assert.equal(res.body.mediaDiagnostics.failedFrameCount, res.body.mediaDiagnostics.framesExtracted);
   assert.equal(res.body.mediaDiagnostics.skippedFrameCount, 0);
   assert.equal(res.body.mediaDiagnostics.visionEndpointHost, 'api.groq.com');
-  assert.equal(res.body.mediaDiagnostics.visionModel, 'meta-llama/llama-4-maverick-17b-128e-instruct');
+  assert.equal(res.body.mediaDiagnostics.visionModel, 'qwen/qwen3.6-27b');
   assert.equal(res.body.mediaDiagnostics.visionUpstreamStatus, 413);
   assert.equal(res.body.mediaDiagnostics.visionUpstreamCode, 'rate_limit_exceeded');
   assert.doesNotMatch(res.body.mediaDiagnostics.visionErrorPreview, /test-key/);
@@ -1557,7 +1562,7 @@ test('/api/recipe-import-from-url 跳过过大的视频帧且不请求 Vision', 
       };
     },
     axiosPost: async (_url, payload) => {
-      if (payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct') {
+      if (payload.model === 'qwen/qwen3.6-27b') {
         visionCalls += 1;
         throw new Error('Vision should not be called for oversized frames');
       }
@@ -1672,7 +1677,7 @@ test('/api/recipe-import-from-url 最终结构化限流时返回中间结果并�
     },
     axiosPost: async (_url, payload) => {
       aiPayloads.push(payload);
-      if (payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct') {
+      if (payload.model === 'qwen/qwen3.6-27b') {
         visionCalls += 1;
         return {
           data: {
@@ -1931,7 +1936,7 @@ test('/api/recipe-import-from-url 上游 json_validate_failed 不透传 400，�
       };
     },
     axiosPost: async (_url, payload) => {
-      if (payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct') {
+      if (payload.model === 'qwen/qwen3.6-27b') {
         return { data: { choices: [{ message: { content: JSON.stringify({ text: '字幕：加入鲜藤椒。', confidence: 'medium' }) } }] } };
       }
       if (/菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')) {
@@ -2025,7 +2030,7 @@ test('/api/recipe-import-from-url evidence 解析失败时用转录动作句兜�
       };
     },
     axiosPost: async (_url, payload) => {
-      if (payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct') {
+      if (payload.model === 'qwen/qwen3.6-27b') {
         return { data: { choices: [{ message: { content: JSON.stringify({ text: '字幕：鲜藤椒。', confidence: 'medium' }) } }] } };
       }
       // evidence 抽取返回不可解析内容 → 触发转录动作句兜底 evidence。
@@ -2112,7 +2117,7 @@ test('/api/recipe-import-from-url 最终 JSON 无法修复但有视频文字时�
       };
     },
     axiosPost: async (_url, payload) => {
-      if (payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct') {
+      if (payload.model === 'qwen/qwen3.6-27b') {
         return {
           data: {
             choices: [{ message: { content: JSON.stringify({ text: '字幕：加入鲜藤椒。', confidence: 'medium' }) } }]
@@ -2224,7 +2229,7 @@ test('/api/recipe-import-from-url 限流 fallback 对真实根因最小 fixture 
       };
     },
     axiosPost: async (_url, payload) => {
-      if (payload.model === 'meta-llama/llama-4-maverick-17b-128e-instruct') {
+      if (payload.model === 'qwen/qwen3.6-27b') {
         return { data: { choices: [{ message: { content: JSON.stringify({ text: '青椒切丝。', confidence: 'high' }) } }] } };
       }
       if (/菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')) {
@@ -2293,7 +2298,7 @@ test('/api/recipe-import-from-url 视频处理失败时使用页面文字继续�
     },
     axiosPost: async (_url, payload) => {
       aiPayloads.push(payload);
-      assert.notEqual(payload.model, 'meta-llama/llama-4-maverick-17b-128e-instruct');
+      assert.notEqual(payload.model, 'qwen/qwen3.6-27b');
       if (/菜谱证据抽取器/.test(payload.messages[0].content)) {
         assert.match(payload.messages[1].content, /页面文字：番茄炒蛋/);
         return {

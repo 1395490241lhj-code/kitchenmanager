@@ -11,8 +11,8 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - Confirmed through the real iOS App path that `/health` and text AI succeed,
   while receipt image requests reach Render and fail with HTTP 404
   `model_not_found`.
-- Changed the default Groq vision model from the deprecated Llama 4 Scout to
-  `meta-llama/llama-4-maverick-17b-128e-instruct`.
+- Changed the default Groq vision model to the multimodal
+  `qwen/qwen3.6-27b`.
 
 Render deployment is managed outside this repository; live image verification
 after the model change remains pending deployment.

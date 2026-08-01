@@ -2,7 +2,7 @@ export const CUSTOM_AI = {
   URL: 'https://api.groq.com/openai/v1/chat/completions',
   KEY: '',
   MODEL: 'qwen/qwen3-32b',
-  VISION_MODEL: 'meta-llama/llama-4-maverick-17b-128e-instruct'
+  VISION_MODEL: 'qwen/qwen3.6-27b'
 };
 
 // ── 后端 API 基址 ──────────────────────────────────────────────────────────

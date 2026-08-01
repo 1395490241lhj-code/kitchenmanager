@@ -11,10 +11,10 @@ const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.groq.com/ope
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'openai/gpt-oss-120b';
 const OPENAI_IMPORT_MODEL = process.env.OPENAI_IMPORT_MODEL
   || (/groq\.com/i.test(OPENAI_BASE_URL) ? 'openai/gpt-oss-20b' : OPENAI_MODEL);
-// Groq deprecated Llama 4 Scout on 2026-07-17. Maverick is the current
-// multimodal replacement; Render can still override this explicitly through
-// OPENAI_VISION_MODEL when its provider configuration requires another model.
-const DEFAULT_OPENAI_VISION_MODEL = 'meta-llama/llama-4-maverick-17b-128e-instruct';
+// Groq's current multimodal model for this integration. Render can override
+// this explicitly through OPENAI_VISION_MODEL when provider configuration
+// requires another supported vision model.
+const DEFAULT_OPENAI_VISION_MODEL = 'qwen/qwen3.6-27b';
 const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || DEFAULT_OPENAI_VISION_MODEL;
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
 
