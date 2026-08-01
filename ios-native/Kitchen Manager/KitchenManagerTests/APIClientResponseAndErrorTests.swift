@@ -85,8 +85,33 @@ final class APIClientResponseAndErrorTests: NetworkTestCase {
         try await assertStatusMapsToServer(422)
     }
 
-    func test_status429_mapsToServerError() async throws {
-        try await assertStatusMapsToServer(429)
+    func test_status429_mapsToIndependentRateLimitedErrorAndReadsRetryAfterHeader() async throws {
+        MockURLProtocol.install { _ in
+            .init(statusCode: 429, headers: ["Retry-After": "7", "X-Request-ID": "rate-limit-request"], data: Data(#"{"code":"rate_limited"}"#.utf8))
+        }
+        do {
+            _ = try await apiClient.sendRaw(APIEndpoint.get(path: "/api/example"))
+            XCTFail("expected APIError.rateLimited")
+        } catch let error as APIError {
+            guard case .rateLimited(let retryAfter) = error else {
+                return XCTFail("expected .rateLimited, got \(error)")
+            }
+            XCTAssertEqual(retryAfter ?? -1, 7, accuracy: 0.001)
+            XCTAssertEqual(error.errorDescription, "请求过于频繁，请稍后再试。")
+        }
+    }
+
+    func test_serverError_keepsRequestIDInSanitizedPayload() async throws {
+        MockURLProtocol.install { _ in
+            .init(statusCode: 502, headers: ["X-Request-ID": "upstream-request"], data: Data(#"{"code":"empty_response","error":"AI 服务暂时不可用。"}"#.utf8))
+        }
+        do {
+            _ = try await apiClient.sendRaw(APIEndpoint.get(path: "/api/example"))
+            XCTFail("expected APIError.server")
+        } catch let error as APIError {
+            guard case let .server(_, payload) = error else { return XCTFail("expected .server") }
+            XCTAssertEqual(payload?.requestID, "upstream-request")
+        }
     }
 
     func test_status500_mapsToServerError() async throws {

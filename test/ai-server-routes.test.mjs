@@ -451,6 +451,7 @@ test('/api/ai-chat 图片请求默认使用 Groq 视觉模型，不回退到文�
   assert.equal(res.statusCode, 200);
   assert.equal(capturedPayload.model, 'qwen/qwen3.6-27b');
   assert.notEqual(capturedPayload.model, 'openai/gpt-oss-120b');
+  assert.equal(capturedPayload.reasoning_format, 'hidden');
   assert.deepEqual(capturedPayload.messages[1].content, [
     { type: 'text', text: '识别小票' },
     { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,abcd' } }
@@ -474,6 +475,7 @@ test('/api/ai-chat 文本请求继续使用 OPENAI_MODEL', async () => {
 
   assert.equal(res.statusCode, 200);
   assert.equal(capturedPayload.model, 'openai/gpt-oss-120b');
+  assert.equal(capturedPayload.reasoning_format, undefined);
 });
 
 test('/api/ai-chat 剥离 think 块与 markdown 围栏，返回纯 JSON content', async () => {

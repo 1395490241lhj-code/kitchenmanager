@@ -10,6 +10,7 @@ nonisolated struct APIErrorResponse: Decodable, Sendable {
     let error: String?
     let message: String?
     let detail: String?
+    let requestID: String?
     /// Only ever present on a 426 (`CLIENT_UPGRADE_REQUIRED`) response.
     let minimumVersion: String?
     let minimumBuild: Int?
@@ -54,6 +55,7 @@ nonisolated struct APIErrorResponse: Decodable, Sendable {
             error = nestedBody.message
             message = nestedBody.message
             detail = nil
+            requestID = nil
             minimumVersion = nil
             minimumBuild = nil
             retryAfterSeconds = nil
@@ -64,8 +66,30 @@ nonisolated struct APIErrorResponse: Decodable, Sendable {
         error = try flat.decodeIfPresent(String.self, forKey: .error)
         message = try flat.decodeIfPresent(String.self, forKey: .message)
         detail = try flat.decodeIfPresent(String.self, forKey: .detail)
+        requestID = nil
         minimumVersion = try flat.decodeIfPresent(String.self, forKey: .minimumVersion)
         minimumBuild = try flat.decodeIfPresent(Int.self, forKey: .minimumBuild)
         retryAfterSeconds = try flat.decodeIfPresent(Int.self, forKey: .retryAfterSeconds)
+    }
+
+    init(
+        code: String?, error: String?, message: String?, detail: String?, requestID: String?,
+        minimumVersion: String?, minimumBuild: Int?, retryAfterSeconds: Int?
+    ) {
+        self.code = code
+        self.error = error
+        self.message = message
+        self.detail = detail
+        self.requestID = requestID
+        self.minimumVersion = minimumVersion
+        self.minimumBuild = minimumBuild
+        self.retryAfterSeconds = retryAfterSeconds
+    }
+
+    func withRequestID(_ requestID: String?) -> Self {
+        Self(
+            code: code, error: error, message: message, detail: detail, requestID: requestID,
+            minimumVersion: minimumVersion, minimumBuild: minimumBuild, retryAfterSeconds: retryAfterSeconds
+        )
     }
 }

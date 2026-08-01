@@ -2,6 +2,10 @@ import Foundation
 
 struct AIChatService {
     var apiClient: APIClient = .shared
+    var maxRateLimitRetries = 2
+    var sleep: @Sendable (UInt64) async throws -> Void = { nanoseconds in
+        try await Task.sleep(nanoseconds: nanoseconds)
+    }
 
     struct DetailedResult: Sendable {
         let content: String
@@ -49,7 +53,19 @@ struct AIChatService {
             throw AIChatServiceError.invalidResponse
         }
 
-        let raw = try await apiClient.sendRawDetailed(endpoint)
+        var attempt = 0
+        let raw: APIClient.RawResponse
+        while true {
+            do {
+                raw = try await apiClient.sendRawDetailed(endpoint)
+                break
+            } catch let APIError.rateLimited(retryAfter) where attempt < maxRateLimitRetries {
+                let exponentialDelay = pow(2.0, Double(attempt))
+                let delay = max(retryAfter ?? 0, exponentialDelay)
+                try await sleep(UInt64(delay * 1_000_000_000))
+                attempt += 1
+            }
+        }
 
         guard let responseBody = try? JSONDecoder().decode(
             AIChatResponse.self,

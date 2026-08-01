@@ -10,6 +10,7 @@ enum AIServiceFailureCategory: String, Codable, CaseIterable, Sendable {
     case modelUnavailable
     case imageUpload
     case timeout
+    case rateLimited
     case server
     case responseFormat
     case emptyResponse
@@ -21,6 +22,7 @@ enum AIServiceFailureCategory: String, Codable, CaseIterable, Sendable {
         case .modelUnavailable: "模型不可用"
         case .imageUpload: "图片上传失败"
         case .timeout: "请求超时"
+        case .rateLimited: "请求过于频繁"
         case .server: "服务端错误"
         case .responseFormat: "响应格式错误"
         case .emptyResponse: "空响应"
@@ -33,24 +35,39 @@ struct AIServiceFailure: Codable, Equatable, Sendable {
     let message: String
     let statusCode: Int?
     let requestID: String?
+    let source: String?
+    let upstreamCode: String?
+    let upstreamMessage: String?
     let date: Date
 
-    static func classify(_ error: Error, imageRequest: Bool = false) -> Self {
+    static func classify(_ error: Error, imageRequest: Bool = false, source: String? = nil) -> Self {
         let category: AIServiceFailureCategory
         let status: Int?
+        let upstreamCode: String?
+        let upstreamMessage: String?
         switch error {
         case ImageUploadError.imageTooLarge, ImageUploadError.invalidImage:
             category = .imageUpload; status = nil
+            upstreamCode = nil; upstreamMessage = nil
         case APIError.timeout:
             category = .timeout; status = nil
+            upstreamCode = nil; upstreamMessage = nil
+        case APIError.rateLimited:
+            category = .rateLimited; status = 429
+            upstreamCode = "rate_limited"; upstreamMessage = error.localizedDescription
         case APIError.transport:
             category = .network; status = nil
+            upstreamCode = nil; upstreamMessage = nil
         case APIError.decodingFailed:
             category = .responseFormat; status = nil
+            upstreamCode = nil; upstreamMessage = nil
         case is AuthenticationError:
             category = .authentication; status = nil
+            upstreamCode = nil; upstreamMessage = nil
         case APIError.server(let code, let payload):
             status = code
+            upstreamCode = payload?.code
+            upstreamMessage = payload?.displayMessage
             if code == 401 || code == 403 { category = .authentication }
             else if imageRequest && code == 413 { category = .imageUpload }
             else if code == 408 { category = .timeout }
@@ -59,12 +76,19 @@ struct AIServiceFailure: Codable, Equatable, Sendable {
             } else { category = .server }
         case AIChatServiceError.emptyResponse:
             category = .emptyResponse; status = nil
+            upstreamCode = "empty_response"; upstreamMessage = error.localizedDescription
         case AIChatServiceError.invalidResponse:
             category = .responseFormat; status = nil
+            upstreamCode = nil; upstreamMessage = nil
         default:
             category = imageRequest ? .imageUpload : .server; status = nil
+            upstreamCode = nil; upstreamMessage = nil
         }
-        return Self(category: category, message: Self.safeMessage(for: error, category: category), statusCode: status, requestID: nil, date: Date())
+        let requestID = (error as? APIError).flatMap { apiError in
+            if case let .server(_, payload) = apiError { return payload?.requestID }
+            return nil
+        }
+        return Self(category: category, message: Self.safeMessage(for: error, category: category), statusCode: status, requestID: requestID, source: source, upstreamCode: upstreamCode, upstreamMessage: upstreamMessage, date: Date())
     }
 
     private static func safeMessage(for error: Error, category: AIServiceFailureCategory) -> String {
@@ -74,6 +98,7 @@ struct AIServiceFailure: Codable, Equatable, Sendable {
         case .modelUnavailable: return "后端当前未配置可用的 AI 模型。"
         case .imageUpload: return "图片未能上传或超过服务端大小限制。"
         case .timeout: return "AI 请求超时，请稍后重试。"
+        case .rateLimited: return "请求过于频繁，请稍后重试。"
         case .server:
             if case APIError.server(let status, _) = error { return "服务端返回 HTTP \(status)。" }
             return "服务端返回了错误。"
@@ -94,6 +119,11 @@ enum AIFailureStore {
     static func save(_ failure: AIServiceFailure) {
         guard let data = try? JSONEncoder().encode(failure) else { return }
         UserDefaults.standard.set(data, forKey: key)
+    }
+
+    static func clearIfSourceMatches(_ source: String) {
+        guard last?.source == source else { return }
+        UserDefaults.standard.removeObject(forKey: key)
     }
 }
 
@@ -130,8 +160,10 @@ final class AIServiceDiagnosticsStore: ObservableObject {
     @Published private(set) var results = Dictionary(uniqueKeysWithValues: AIDiagnosticTest.allCases.map { ($0, AIDiagnosticResult(id: $0)) })
     @Published private(set) var lastFailure = AIFailureStore.last
     @Published var selectedImage: UIImage?
+    @Published private(set) var isRunning = false
 
     private let apiClient: APIClient
+    private var runningTests = Set<AIDiagnosticTest>()
     var authStore: AuthStore?
 
     init(apiClient: APIClient = .shared, authStore: AuthStore) {
@@ -140,6 +172,9 @@ final class AIServiceDiagnosticsStore: ObservableObject {
     }
 
     func runAll() async {
+        guard !isRunning else { return }
+        isRunning = true
+        defer { isRunning = false }
         await run(.configuration)
         await run(.connectivity)
         await run(.authentication)
@@ -148,6 +183,8 @@ final class AIServiceDiagnosticsStore: ObservableObject {
     }
 
     func run(_ test: AIDiagnosticTest) async {
+        guard runningTests.insert(test).inserted else { return }
+        defer { runningTests.remove(test) }
         results[test] = AIDiagnosticResult(id: test, status: .running)
         let started = Date()
         do {
@@ -164,7 +201,7 @@ final class AIServiceDiagnosticsStore: ObservableObject {
             }
             results[test] = result
         } catch {
-            let failure = AIServiceFailure.classify(error, imageRequest: test == .image)
+            let failure = AIServiceFailure.classify(error, imageRequest: test == .image, source: source(for: test))
             let metadata = failure.statusCode
             let message = test == .configuration && metadata == 404
                 ? "诊断配置接口尚未部署（HTTP 404），无法从当前后端读取模型配置。"
@@ -174,6 +211,16 @@ final class AIServiceDiagnosticsStore: ObservableObject {
             if test == .minimalAI || test == .image {
                 AIFailureStore.save(failure); lastFailure = failure
             }
+        }
+    }
+
+    private func source(for test: AIDiagnosticTest) -> String {
+        switch test {
+        case .configuration: return "GET /api/ai-diagnostics/config"
+        case .connectivity: return "GET /health"
+        case .authentication: return "GET /api/me"
+        case .minimalAI: return "POST /api/ai-chat · diagnostics"
+        case .image: return "POST /api/ai-chat · diagnostics-image"
         }
     }
 
@@ -213,6 +260,8 @@ final class AIServiceDiagnosticsStore: ObservableObject {
         let started = Date()
         let service = AIChatService(apiClient: apiClient)
         let result = try await service.requestDetailed(prompt: prompt, taskType: taskType, imageBase64: imageData.map { "data:image/jpeg;base64,\($0.base64EncodedString())" }, timeout: 50)
+        AIFailureStore.clearIfSourceMatches(source(for: imageData == nil ? .minimalAI : .image))
+        lastFailure = AIFailureStore.last
         return AIDiagnosticResult(id: imageData == nil ? .minimalAI : .image, status: .passed, statusCode: result.metadata.statusCode, latency: result.metadata.latency, message: result.content == "OK" ? "返回 OK。" : "收到非空响应（内容已隐藏）。", requestID: result.metadata.requestID, date: started)
     }
 }
@@ -229,6 +278,7 @@ struct AIServiceDiagnosticsView: View {
             Section {
                 Button("Run All Tests", systemImage: "play.fill") { Task { await store.runAll() } }
                     .buttonStyle(.borderedProminent)
+                    .disabled(store.isRunning)
                 Text("所有请求均由当前 iOS App 直接发起；不会显示或保存 Token、API Key、图片或完整响应。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
@@ -239,6 +289,9 @@ struct AIServiceDiagnosticsView: View {
                 Section("最近一次 AI 失败（脱敏）") {
                     LabeledContent("类型", value: failure.category.title)
                     LabeledContent("说明", value: failure.message)
+                    if let source = failure.source { LabeledContent("来源", value: source) }
+                    if let code = failure.upstreamCode { LabeledContent("上游 Code", value: code) }
+                    if let message = failure.upstreamMessage { LabeledContent("上游错误", value: message) }
                     if let code = failure.statusCode { LabeledContent("HTTP", value: "\(code)") }
                     LabeledContent("时间", value: failure.date.formatted(date: .abbreviated, time: .standard))
                 }

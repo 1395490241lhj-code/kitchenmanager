@@ -16,7 +16,7 @@ nonisolated enum APIError: LocalizedError, @unchecked Sendable {
     case forbidden
     case notFound
     case validation(String)
-    case rateLimited
+    case rateLimited(retryAfter: TimeInterval?)
     case server(status: Int, payload: APIErrorResponse?)
     /// Keeps the real `DecodingError` (or whatever the decoder threw)
     /// reachable by callers/tests, rather than collapsing it to a string —

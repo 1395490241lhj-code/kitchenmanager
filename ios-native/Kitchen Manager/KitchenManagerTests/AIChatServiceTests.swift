@@ -135,4 +135,44 @@ final class AIChatServiceTests: XCTestCase {
             }
         }
     }
+
+    func test_requestDetailed_retriesRateLimitedRequest_thenSucceeds() async throws {
+        var requestCount = 0
+        MockURLProtocol.install { _ in
+            requestCount += 1
+            if requestCount == 1 {
+                return .init(statusCode: 429, headers: ["Retry-After": "0"], data: Data(#"{"code":"rate_limited"}"#.utf8))
+            }
+            return .init(statusCode: 200, data: Data(#"{"content":"OK"}"#.utf8))
+        }
+        let service = AIChatService(
+            apiClient: APIClient(environment: .production, session: .mocked(), defaultTimeout: 60),
+            sleep: { _ in }
+        )
+
+        let result = try await service.requestDetailed(prompt: "p", taskType: "t")
+
+        XCTAssertEqual(result.content, "OK")
+        XCTAssertEqual(requestCount, 2)
+    }
+
+    func test_requestDetailed_stopsAfterTwoRateLimitRetries() async throws {
+        var requestCount = 0
+        MockURLProtocol.install { _ in
+            requestCount += 1
+            return .init(statusCode: 429, headers: ["Retry-After": "0"], data: Data(#"{"code":"rate_limited"}"#.utf8))
+        }
+        let service = AIChatService(
+            apiClient: APIClient(environment: .production, session: .mocked(), defaultTimeout: 60),
+            sleep: { _ in }
+        )
+
+        do {
+            _ = try await service.requestDetailed(prompt: "p", taskType: "t")
+            XCTFail("expected APIError.rateLimited")
+        } catch let error as APIError {
+            guard case .rateLimited = error else { return XCTFail("expected .rateLimited, got \(error)") }
+        }
+        XCTAssertEqual(requestCount, 3, "initial request plus at most two retries")
+    }
 }

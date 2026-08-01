@@ -1229,18 +1229,20 @@ app.post('/api/ai-chat', async (req, res) => {
     ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageBase64 } }]
     : prompt;
   const model = imageBase64 ? OPENAI_VISION_MODEL : OPENAI_MODEL;
+  const aiPayload = {
+    model,
+    messages: [
+      { role: 'system', content: `Kitchen Manager task: ${taskType}. Return only the requested content.` },
+      { role: 'user', content: userContent }
+    ],
+    temperature: 0.2
+  };
+  if (imageBase64) aiPayload.reasoning_format = 'hidden';
 
   try {
     const resp = await axios.post(
       resolveChatUrl(OPENAI_BASE_URL),
-      {
-        model,
-        messages: [
-          { role: 'system', content: `Kitchen Manager task: ${taskType}. Return only the requested content.` },
-          { role: 'user', content: userContent }
-        ],
-        temperature: 0.2
-      },
+      aiPayload,
       {
         timeout: 45000,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }

@@ -117,6 +117,7 @@ struct ImageUploadProcessor {
 
 struct ReceiptRecognitionService {
     private let aiService = AIChatService()
+    private let failureSource = "POST /api/ai-chat · receipt"
 
     func recognize(jpegData: Data) async throws -> [ReceiptItemDraft] {
         let imageBase64 = "data:image/jpeg;base64,\(jpegData.base64EncodedString())"
@@ -129,10 +130,11 @@ struct ReceiptRecognitionService {
                 timeout: 50
             ).content
         } catch {
-            let failure = AIServiceFailure.classify(error, imageRequest: true)
+            let failure = AIServiceFailure.classify(error, imageRequest: true, source: failureSource)
             AIFailureStore.save(failure)
             throw ReceiptImportError.ai(failure)
         }
+        AIFailureStore.clearIfSourceMatches(failureSource)
         guard let data = content.data(using: .utf8),
               let response = try? JSONDecoder().decode(ReceiptAIResponse.self, from: data) else {
             throw ReceiptImportError.invalidResponse
@@ -238,8 +240,7 @@ final class ReceiptImportStore: ObservableObject {
     }
 
     func recognize() {
-        guard let jpegData else { return }
-        recognitionTask?.cancel()
+        guard canRecognize, let jpegData else { return }
         let currentID = selectionID
         isRecognizing = true
         errorMessage = nil

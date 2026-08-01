@@ -140,7 +140,14 @@ actor APIClient {
         #endif
 
         guard 200..<300 ~= httpResponse.statusCode else {
-            let payload = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+            let requestID = httpResponse.value(forHTTPHeaderField: "X-Request-ID")
+                ?? httpResponse.value(forHTTPHeaderField: "X-Trace-ID")
+            let payload = (try? JSONDecoder().decode(APIErrorResponse.self, from: data))?.withRequestID(requestID)
+            if httpResponse.statusCode == 429 {
+                let retryAfter = Self.retryAfterInterval(from: httpResponse.value(forHTTPHeaderField: "Retry-After"))
+                    ?? payload?.retryAfterSeconds.map(TimeInterval.init)
+                throw APIError.rateLimited(retryAfter: retryAfter)
+            }
             throw APIError.server(status: httpResponse.statusCode, payload: payload)
         }
 
@@ -154,5 +161,19 @@ actor APIClient {
                 requestID: requestID
             )
         )
+    }
+
+    private static func retryAfterInterval(from value: String?) -> TimeInterval? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        if let seconds = TimeInterval(value), seconds >= 0 {
+            return seconds
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+        guard let date = formatter.date(from: value) else { return nil }
+        return max(0, date.timeIntervalSinceNow)
     }
 }
