@@ -451,12 +451,22 @@ test('/api/ai-chat 图片请求默认使用 Groq 视觉模型，不回退到文�
   assert.equal(res.statusCode, 200);
   assert.equal(capturedPayload.model, 'qwen/qwen3.6-27b');
   assert.notEqual(capturedPayload.model, 'openai/gpt-oss-120b');
-  assert.equal(capturedPayload.reasoning_format, 'hidden');
+  assert.equal(capturedPayload.reasoning_effort, 'none');
+  assert.equal(capturedPayload.reasoning_format, undefined);
   assert.deepEqual(capturedPayload.messages[1].content, [
     { type: 'text', text: '识别小票' },
     { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,abcd' } }
   ]);
   assert.equal(res.body.content, '{"ok":true}');
+});
+
+test('/api/ai-diagnostics/config 返回非敏感部署版本和视觉推理模式', async () => {
+  const { app } = loadServerWithMocks({ env: { RENDER_GIT_COMMIT: '1234567890abcdef' } });
+  const res = await runGet(app, '/api/ai-diagnostics/config');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.renderCommit, '1234567890ab');
+  assert.equal(res.body.visionReasoningMode, 'none');
+  assert.doesNotMatch(JSON.stringify(res.body), /1234567890abcdef/);
 });
 
 test('/api/ai-chat 文本请求继续使用 OPENAI_MODEL', async () => {
@@ -476,6 +486,44 @@ test('/api/ai-chat 文本请求继续使用 OPENAI_MODEL', async () => {
   assert.equal(res.statusCode, 200);
   assert.equal(capturedPayload.model, 'openai/gpt-oss-120b');
   assert.equal(capturedPayload.reasoning_format, undefined);
+  assert.equal(capturedPayload.reasoning_effort, undefined);
+});
+
+test('/api/ai-chat 空响应结构只记录脱敏元数据，并兼容非字符串 content', async () => {
+  let logLine = '';
+  const originalWrite = process.stdout.write;
+  process.stdout.write = (line) => { logLine += String(line); return true; };
+  try {
+    const { app } = loadServerWithMocks({
+      axiosPost: async () => ({
+        data: {
+          id: 'upstream-id', model: 'qwen/qwen3.6-27b',
+          choices: [{ finish_reason: 'length', message: { content: '', reasoning: 'hidden reasoning', tool_calls: [] } }],
+          usage: { prompt_tokens: 3, completion_tokens: 4, reasoning_tokens: 5 }
+        },
+        headers: { 'x-groq-id': 'header-id' }
+      })
+    });
+    const res = await runPost(app, '/api/ai-chat', { prompt: '识别小票', imageBase64: 'data:image/jpeg;base64,abcd' });
+    assert.equal(res.statusCode, 502);
+    assert.equal(res.body.code, 'empty_response');
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+  assert.match(logLine, /"event":"ai_empty_response"/);
+  assert.match(logLine, /"upstreamRequestId":"header-id"/);
+  assert.match(logLine, /"finishReason":"length"/);
+  assert.match(logLine, /"reasoningLength":16/);
+  assert.doesNotMatch(logLine, /hidden reasoning|识别小票/);
+});
+
+test('/api/ai-chat 能提取 OpenAI content block 数组，不记录其内容', async () => {
+  const { app } = loadServerWithMocks({
+    axiosPost: async () => ({ data: { choices: [{ message: { content: [{ type: 'text', text: '{"ok":true}' }] } }] } })
+  });
+  const res = await runPost(app, '/api/ai-chat', { prompt: '识别小票', imageBase64: 'data:image/jpeg;base64,abcd' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.content, '{"ok":true}');
 });
 
 test('/api/ai-chat 剥离 think 块与 markdown 围栏，返回纯 JSON content', async () => {

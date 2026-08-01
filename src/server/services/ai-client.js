@@ -101,7 +101,42 @@ function isJsonValidateFailedError(err) {
 }
 
 function getAiMessageContent(resp) {
-  return resp?.data?.choices?.[0]?.message?.content || '';
+  const content = resp?.data?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (typeof part === 'string') return part;
+      return part && typeof part.text === 'string' ? part.text : '';
+    }).join('');
+  }
+  return content && typeof content.text === 'string' ? content.text : '';
+}
+
+function summarizeAiResponse(resp) {
+  const data = resp?.data && typeof resp.data === 'object' ? resp.data : {};
+  const choices = Array.isArray(data.choices) ? data.choices : [];
+  const message = choices[0]?.message && typeof choices[0].message === 'object'
+    ? choices[0].message
+    : {};
+  const content = message.content;
+  const reasoning = message.reasoning;
+  const usage = data.usage && typeof data.usage === 'object' ? data.usage : {};
+  const headers = resp?.headers && typeof resp.headers === 'object' ? resp.headers : {};
+  const headerRequestId = headers['x-groq-id'] || headers['x-request-id'] || headers['x-trace-id'];
+  const groqRequestId = data.x_groq && typeof data.x_groq === 'object' ? data.x_groq.id : null;
+  return {
+    upstreamRequestId: String(headerRequestId || groqRequestId || '').slice(0, 160) || null,
+    model: typeof data.model === 'string' ? data.model.slice(0, 160) : null,
+    choicesCount: choices.length,
+    finishReason: choices[0]?.finish_reason == null ? null : String(choices[0].finish_reason).slice(0, 80),
+    contentType: content === null ? 'null' : Array.isArray(content) ? 'array' : typeof content,
+    contentLength: typeof content === 'string' ? content.length : Array.isArray(content) ? content.length : 0,
+    reasoningLength: typeof reasoning === 'string' ? reasoning.length : 0,
+    toolCallsCount: Array.isArray(message.tool_calls) ? message.tool_calls.length : 0,
+    promptTokens: Number.isFinite(usage.prompt_tokens) ? usage.prompt_tokens : null,
+    completionTokens: Number.isFinite(usage.completion_tokens) ? usage.completion_tokens : null,
+    reasoningTokens: Number.isFinite(usage.reasoning_tokens) ? usage.reasoning_tokens : null
+  };
 }
 
 async function postChatCompletion({ model, messages, temperature = 0.2, responseFormat = true, timeout = 45000 }) {
@@ -175,6 +210,7 @@ module.exports = {
   isRateLimitExceeded,
   isJsonValidateFailedError,
   getAiMessageContent,
+  summarizeAiResponse,
   postChatCompletion,
   postJsonChatContentWithFallback,
   repairRecipeJsonContent

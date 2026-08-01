@@ -26,7 +26,18 @@ const ALLOWED_LOG_FIELDS = new Set([
   'minimumVersion',
   'minimumBuild',
   'checks',
-  'reason'
+  'reason',
+  'upstreamRequestId',
+  'model',
+  'choicesCount',
+  'finishReason',
+  'contentType',
+  'contentLength',
+  'reasoningLength',
+  'toolCallsCount',
+  'promptTokens',
+  'completionTokens',
+  'reasoningTokens'
 ]);
 
 // Irreversible, short, stable per-process identity for log correlation only.

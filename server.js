@@ -68,6 +68,7 @@ const {
   isRateLimitExceeded,
   isJsonValidateFailedError,
   getAiMessageContent,
+  summarizeAiResponse,
   postChatCompletion,
   postJsonChatContentWithFallback,
   repairRecipeJsonContent
@@ -266,12 +267,15 @@ app.get('/health', createHealthHandler({ environment: OBSERVABILITY_ENVIRONMENT,
 // configuration booleans are not credentials; secrets, URLs, prompts, and
 // provider response bodies must never be returned from this route.
 app.get('/api/ai-diagnostics/config', (req, res) => {
+  const renderCommit = String(process.env.RENDER_GIT_COMMIT || '').trim().slice(0, 12) || null;
   res.status(200).json({
     textModel: OPENAI_MODEL || null,
     visionModel: OPENAI_VISION_MODEL || null,
     textModelConfigured: Boolean(String(OPENAI_MODEL || '').trim()),
     visionModelConfigured: Boolean(String(OPENAI_VISION_MODEL || '').trim()),
-    apiKeyConfigured: Boolean(String(OPENAI_API_KEY || '').trim())
+    apiKeyConfigured: Boolean(String(OPENAI_API_KEY || '').trim()),
+    renderCommit,
+    visionReasoningMode: 'none'
   });
 });
 app.get('/ready', createReadyHandler({
@@ -1237,7 +1241,7 @@ app.post('/api/ai-chat', async (req, res) => {
     ],
     temperature: 0.2
   };
-  if (imageBase64) aiPayload.reasoning_format = 'hidden';
+  if (imageBase64) aiPayload.reasoning_effort = 'none';
 
   try {
     const resp = await axios.post(
@@ -1248,11 +1252,17 @@ app.post('/api/ai-chat', async (req, res) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
       }
     );
-    const content = resp.data && resp.data.choices && resp.data.choices[0] && resp.data.choices[0].message
-      ? (resp.data.choices[0].message.content || '')
-      : '';
+    const content = getAiMessageContent(resp);
     const cleaned = cleanAiChatContent(content);
-    if (!cleaned) return sendAiJsonError(res, 502, 'empty_response', 'AI 服务暂时不可用。');
+    if (!cleaned) {
+      observabilityLogger.log('ai_empty_response', {
+        requestId: req.requestId,
+        route: '/api/ai-chat',
+        resultCode: 'empty_response',
+        ...summarizeAiResponse(resp)
+      });
+      return sendAiJsonError(res, 502, 'empty_response', 'AI 服务暂时不可用。');
+    }
     return res.json({ content: cleaned });
   } catch (err) {
     return sendAiUpstreamError(res, err);
