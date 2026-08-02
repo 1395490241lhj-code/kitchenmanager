@@ -55,6 +55,17 @@ transport, API, `SyncCoordinator`, flags and rollback are unchanged; no
 per-candidate upload state and no remote undo were introduced. See
 `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2B.md`.
 
+## 2026-08-01 (库存菜谱推荐修复)
+
+### Fixed
+
+- 库存推荐现在先比较核心食材覆盖率、缺口和匹配数量，质量接近时才优先用户菜谱；已有系统/用户菜谱不会被低匹配候选压过。
+- 推荐结果保留菜谱来源和匹配/缺失食材信息；AI creative 仅在没有合理现有候选时允许生成，并明确标记为临时创意推荐。
+
+### Tests
+
+- Added regression coverage for complete/partial inventory matches, user/system source ordering, no-candidate creative fallback, and creative result tracing.
+
 ## 2026-07-31 (iOS Merge Summary UI-5B2B-B2A — uncommitted)
 
 ### Fixed

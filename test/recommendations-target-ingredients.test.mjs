@@ -6,7 +6,9 @@ import {
   addRecipeToPlan,
   findRecipesByName,
   findRecipesUsingIngredients,
-  normalizeTargetIngredientNames
+  normalizeTargetIngredientNames,
+  hasReasonableInventoryRecipeCandidates,
+  rankRecipesForRecommendation
 } from '../src/recommendations.js';
 import { S } from '../src/storage.js';
 
@@ -127,6 +129,79 @@ test('缺库存时 missing 只包含核心食材，不包含调料', () => {
   assert.ok(missingNames.includes('牛肉'));
   assert.ok(missingNames.includes('土豆'));
   assert.ok(!missingNames.includes('盐'));
+});
+
+test('库存完整覆盖已有菜谱时，优先返回该现有菜谱并保留追踪字段', () => {
+  const pack = {
+    recipes: [
+      { id: 'system-soup', name: '系统汤', method: '煮' },
+      { id: 'u-family', name: '家庭炒菜', method: '炒', source: 'user' }
+    ],
+    recipe_ingredients: {
+      'system-soup': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }],
+      'u-family': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }]
+    }
+  };
+  const ranked = rankRecipesForRecommendation(pack, [
+    { name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' },
+    { name: '豆腐', qty: 1, unit: '块', stockStatus: 'ok' }
+  ], CONTEXT);
+  assert.equal(ranked[0].recipeId, 'u-family');
+  assert.equal(ranked[0].source, 'user');
+  assert.deepEqual(ranked[0].matchedIngredients.sort(), ['番茄', '豆腐'].sort());
+  assert.deepEqual(ranked[0].missingIngredients, []);
+});
+
+test('部分覆盖多个菜谱时，按覆盖率、缺口和用户来源稳定排序', () => {
+  const pack = {
+    recipes: [
+      { id: 'system-one', name: '系统一', method: '做' },
+      { id: 'system-two', name: '系统二', method: '做' },
+      { id: 'u-three', name: '用户三', method: '做', source: 'user' }
+    ],
+    recipe_ingredients: {
+      'system-one': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }, { item: '鸡蛋', qty: 1, unit: '个' }],
+      'system-two': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }],
+      'u-three': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }, { item: '鸡蛋', qty: 1, unit: '个' }]
+    }
+  };
+  const ranked = rankRecipesForRecommendation(pack, [
+    { name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' },
+    { name: '豆腐', qty: 1, unit: '块', stockStatus: 'ok' }
+  ], CONTEXT);
+  assert.deepEqual(ranked.map(item => item.recipeId), ['system-two', 'u-three', 'system-one']);
+  assert.equal(hasReasonableInventoryRecipeCandidates(pack, [
+    { name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' },
+    { name: '豆腐', qty: 1, unit: '块', stockStatus: 'ok' }
+  ], CONTEXT), true);
+});
+
+test('质量接近时用户菜谱优先，但不能压过明显更匹配的系统菜谱', () => {
+  const pack = {
+    recipes: [
+      { id: 'system-exact', name: '系统完整', method: '做' },
+      { id: 'u-partial', name: '用户部分', method: '做', recipeSource: 'user' }
+    ],
+    recipe_ingredients: {
+      'system-exact': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }],
+      'u-partial': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }, { item: '鸡蛋', qty: 1, unit: '个' }]
+    }
+  };
+  const ranked = rankRecipesForRecommendation(pack, [
+    { name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' },
+    { name: '豆腐', qty: 1, unit: '块', stockStatus: 'ok' }
+  ], CONTEXT);
+  assert.deepEqual(ranked.map(item => item.recipeId), ['system-exact', 'u-partial']);
+});
+
+test('完全没有库存匹配菜谱时，才允许进入 AI 创意降级', () => {
+  const pack = {
+    recipes: [{ id: 'system-only', name: '系统菜', method: '做' }],
+    recipe_ingredients: { 'system-only': [{ item: '牛肉', qty: 1, unit: '份' }] }
+  };
+  assert.equal(hasReasonableInventoryRecipeCandidates(pack, [
+    { name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' }
+  ], CONTEXT), false);
 });
 
 // ── 类别展开 + 包含匹配 + AI 草稿过滤（本轮升级）──────────────────────────────

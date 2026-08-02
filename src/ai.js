@@ -1792,7 +1792,7 @@ export async function callAiSearchRecipe(query, invNames) {
   return validateRecipeResult(raw);
 }
 
-export async function callCloudAI(pack, inv) {
+export async function callCloudAI(pack, inv, { allowCreative = true } = {}) {
   const invNames = inv.map(x => x.name).join('、');
 
   // ── 反疲劳机制：读取后台烹饪频次账本（recipe_activity）──
@@ -1833,6 +1833,9 @@ export async function callCloudAI(pack, inv) {
     ? `\n- 用户之前标记过这些菜不喜欢或不合理，请避免推荐相同或高度相似的菜：[${dislikedNames.join('、')}]`
     : '';
 
+  const creativeGate = allowCreative
+    ? '当前没有合理的现有菜谱候选时，才允许填写 creative；如果库存组合不适合，返回 null。'
+    : '当前已有合理的现有菜谱候选，creative 必须返回 null，不得生成新菜。';
   const prompt = `你是一位严谨的中式家庭厨房助手。请根据冰箱库存：【${invNames}】规划今日菜单。
 
 请严格返回 JSON，不要 markdown，不要解释：
@@ -1855,6 +1858,7 @@ export async function callCloudAI(pack, inv) {
 - creative.name 必须是字符串。
 - creative.ingredients 必须是数组，只列核心主材。
 - creative 是 AI 草稿，不是最终菜谱。
+- ${creativeGate}
 - 严禁用葱姜蒜、香菜、调料替代肉菜蛋豆等主材。
 - 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。
 

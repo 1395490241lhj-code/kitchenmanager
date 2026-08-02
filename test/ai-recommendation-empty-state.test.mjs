@@ -70,6 +70,16 @@ test('processAiData 面对 local:[]/creative:null 的空 aiResult：返回空数
   });
 });
 
+test('processAiData 为 AI 创意菜明确标记 creative 且不伪装成正式菜谱', () => {
+  const cards = processAiData({
+    local: [],
+    creative: { name: '番茄炒蛋', reason: '库存没有现成候选', ingredients: [{ item: '番茄' }, { item: '鸡蛋' }] }
+  }, { recipes: [] });
+  assert.equal(cards[0].recipeId, null);
+  assert.equal(cards[0].source, 'creative');
+  assert.deepEqual(cards[0].matchedIngredients, ['番茄', '鸡蛋']);
+});
+
 // ── 二：initRecsState 在「曾保存过 AI 结果，但过滤后为空」时进入 ai-empty ────────
 
 test('initRecsState：savedAi 存在但 processAiData 后为空 → mode 为 ai-empty，不是静默换回 local', () => {

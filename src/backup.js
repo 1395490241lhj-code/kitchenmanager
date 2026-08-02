@@ -565,7 +565,9 @@ export function applyOverlay(base, overlay) {
   for (const [id, ov] of Object.entries(ro)) {
     if (del[id]) continue;
     if (!baseMap.has(id)) {
-      baseMap.set(id, { id, name: '未命名', tags: [], method: '', ...ov });
+      // 运行时来源标记：不写回 overlay，避免改变备份契约；用于推荐时可靠区分
+      // 用户新增菜谱和基础菜谱。旧数据仍由 recommendations.js 的兼容兜底识别。
+      baseMap.set(id, { id, name: '未命名', tags: [], method: '', ...ov, recipeSource: 'user' });
     } else {
       const old = baseMap.get(id);
       const finalMethod = ov.method || old.staticMethod || old.method || '';

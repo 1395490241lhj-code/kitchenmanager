@@ -8,6 +8,7 @@ import {
   addMissingRecipeIngredientsToShopping,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData,
+  hasReasonableInventoryRecipeCandidates,
   isFavoriteRecipe, toggleFavoriteRecipe
 } from '../recommendations.js?v=236';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=236';
@@ -147,7 +148,19 @@ function getInspirationCards(pack, inv) {
         missing = (row.missing || []).map(m => m.name || m.item).filter(Boolean);
         matchLabel = `只差 ${missing.length} 样`;
       }
-      cards.push({ id: row.r.id, name: row.r.name, matchLabel, missing, reason: row.reason || '', tone, row });
+      cards.push({
+        id: row.r.id,
+        recipeId: row.recipeId || row.r.id,
+        source: row.source || 'system',
+        matchedIngredients: row.matchedIngredients || [],
+        missingIngredients: row.missingIngredients || missing,
+        name: row.r.name,
+        matchLabel,
+        missing,
+        reason: row.reason || '',
+        tone,
+        row
+      });
     }
   };
   pushFrom(groups.priority, 'priority');
@@ -499,7 +512,9 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
       setInlineStatus(aiStatus, formatAiErrorMessage(new Error('AI 响应超时')), 'bad');
     }, 30000);
     try {
-      const aiResult = await callCloudAI(pack, inv);
+      const aiResult = await callCloudAI(pack, inv, {
+        allowCreative: !hasReasonableInventoryRecipeCandidates(pack, inv, getRecommendationUiContext())
+      });
       clearTimeout(safety);
       const cards = processAiData(aiResult, pack);
       if (cards.length > 0) {
@@ -1124,7 +1139,9 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中…';
     const safety = setTimeout(() => { aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled'); }, 30000);
     try {
-      const aiResult = await callCloudAI(pack, inv);
+      const aiResult = await callCloudAI(pack, inv, {
+        allowCreative: !hasReasonableInventoryRecipeCandidates(pack, inv, getRecommendationUiContext())
+      });
       clearTimeout(safety);
       const cards = processAiData(aiResult, pack);
       if (cards.length > 0) { S.save(S.keys.ai_recs, aiResult); showAi(cards); }
@@ -1943,7 +1960,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     btn.innerHTML = '<span class="spinner"></span> 思考中…';
     const safety = setTimeout(() => { btn.innerHTML = original; btn.removeAttribute('disabled'); }, 30000);
     try {
-      const aiResult = await callCloudAI(pack, inv);
+      const aiResult = await callCloudAI(pack, inv, {
+        allowCreative: !hasReasonableInventoryRecipeCandidates(pack, inv, getRecommendationUiContext())
+      });
       clearTimeout(safety);
       const aiCards = processAiData(aiResult, pack);
       S.save(S.keys.ai_recs, aiResult);

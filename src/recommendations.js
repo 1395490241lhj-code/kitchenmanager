@@ -32,6 +32,21 @@ export {
 
 const RECIPE_PACK_SCORING_BONUS = 3;
 
+// 用户 overlay 菜谱没有统一的历史 source 字段；兼容现有 id/source/tags
+// 约定，供推荐结果持久化和 UI 追踪使用。基础菜谱一律视为 system。
+export function getRecipeSource(recipe) {
+  if (recipe?.recipeSource === 'user' || recipe?.recipeSource === 'system') return recipe.recipeSource;
+  const source = String(recipe?.source || '').trim().toLowerCase();
+  if (['user', 'custom', 'user-recipe', 'ai-search', 'ai-creative', 'recipe-detail'].includes(source)) return 'user';
+  if (/^(u-|ai-search-)/.test(String(recipe?.id || ''))) return 'user';
+  if (Array.isArray(recipe?.tags) && recipe.tags.some(tag => /自定义|我的菜谱|用户/u.test(String(tag)))) return 'user';
+  return 'system';
+}
+
+function uniqueIngredientNames(items = []) {
+  return [...new Set(items.map(item => String(item?.name || item?.item || '').trim()).filter(Boolean))];
+}
+
 // Lightweight scoring bridge for formal recipe packs. This intentionally includes
 // only id/name/packs metadata and never contributes recipes to the recommendation pool.
 const RECIPE_PACK_SCORING_DATA = {
@@ -668,7 +683,11 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
       };
       return {
         id: recipe.id,
+        recipeId: recipe.id,
         name: recipe.name,
+        source: scored.source,
+        matchedIngredients: scored.matchedIngredients,
+        missingIngredients: scored.missingIngredients,
         matchLabel,
         missing: missingNames,
         reason: buildTargetRecipeReason({ targetHits, missingTargets, inventoryMissing }),
@@ -689,8 +708,10 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
     .sort((a, b) =>
       Number(b.completeTargetHit) - Number(a.completeTargetHit) ||
       b.targetHits.length - a.targetHits.length ||
-      b.score - a.score ||
+      (b.row?.coverage || 0) - (a.row?.coverage || 0) ||
       a.inventoryMissing.length - b.inventoryMissing.length ||
+      (a.source === 'user' ? 0 : 1) - (b.source === 'user' ? 0 : 1) ||
+      b.score - a.score ||
       a.name.localeCompare(b.name, 'zh-Hans-CN')
     )
     .slice(0, limit);
@@ -754,11 +775,15 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
 
   const result = {
     r: recipe,
+    recipeId: recipe.id,
+    source: getRecipeSource(recipe),
     score: Math.round(score * 10) / 10,
     matches: analysis.matches,
     matchCount: analysis.matchCount,
     totalCore: analysis.totalCore,
     missing: analysis.missing,
+    matchedIngredients: uniqueIngredientNames(analysis.matches.map(item => ({ item: item.recipeItem }))),
+    missingIngredients: uniqueIngredientNames(analysis.missing),
     uncertain: analysis.uncertain,
     needsConfirm: analysis.needsConfirm,
     coverageConfidence: analysis.coverageConfidence,
@@ -797,11 +822,20 @@ export function rankRecipesForRecommendation(pack, inv, context = {}) {
   const pool = effectiveMatches.length && !context.includeNoMatch ? effectiveMatches : scored;
 
   return pool.sort((a, b) =>
-    b.score - a.score ||
-    b.matchCount - a.matchCount ||
+    b.coverage - a.coverage ||
     a.missing.length - b.missing.length ||
+    b.matchCount - a.matchCount ||
+    (a.source === 'user' ? 0 : 1) - (b.source === 'user' ? 0 : 1) ||
+    b.score - a.score ||
     a.r.name.localeCompare(b.r.name, 'zh-Hans-CN')
   );
+}
+
+// “合理候选”用于决定是否需要 AI 创意降级：至少命中一项核心食材，且缺口不超过两项，
+// 并且有可打开的做法。库存里有很多食材但没有同一道菜能合理承接时，仍返回 false。
+export function hasReasonableInventoryRecipeCandidates(pack, inv, context = {}) {
+  return rankRecipesForRecommendation(pack, inv, context)
+    .some(item => item.hasMethod && item.matchCount > 0 && item.missing.length <= 2);
 }
 
 export function buildRecommendationSignature(pack, inv, context) {
@@ -875,6 +909,10 @@ function restoreSavedRecommendation(saved, pack) {
     uncertain: Array.isArray(saved.uncertain) ? saved.uncertain : [],
     needsConfirm: Array.isArray(saved.needsConfirm) ? saved.needsConfirm : [],
     coverageConfidence: saved.coverageConfidence || '',
+    recipeId: r.id,
+    source: getRecipeSource(r),
+    matchedIngredients: Array.isArray(saved.matchedIngredients) ? saved.matchedIngredients : [],
+    missingIngredients: Array.isArray(saved.missingIngredients) ? saved.missingIngredients : (Array.isArray(saved.missing) ? uniqueIngredientNames(saved.missing) : []),
     expiringMatches: Array.isArray(saved.expiringMatches) ? saved.expiringMatches : [],
     reason: saved.reason || '',
     explain: Array.isArray(saved.explain) ? saved.explain : [],
@@ -931,6 +969,8 @@ export function getLocalRecommendations(pack, inv, forceRefresh = false) {
     matchCount: item.matchCount,
     totalCore: item.totalCore,
     missing: item.missing,
+    matchedIngredients: item.matchedIngredients || [],
+    missingIngredients: item.missingIngredients || uniqueIngredientNames(item.missing),
     uncertain: item.uncertain || [],
     needsConfirm: item.needsConfirm || [],
     coverageConfidence: item.coverageConfidence || '',
@@ -1102,7 +1142,15 @@ export function processAiData(aiResult, pack) {
       if (isAiRecipeDisliked(l.name)) return;
       let found = (pack.recipes || []).find(r => r.name === l.name);
       if (!found) found = (pack.recipes || []).find(r => r.name.includes(l.name) || l.name.includes(r.name));
-      if (found) cards.push({ r: found, reason: l.reason, isAi: true });
+      if (found) cards.push({
+        r: found,
+        recipeId: found.id,
+        source: getRecipeSource(found),
+        matchedIngredients: [],
+        missingIngredients: [],
+        reason: l.reason,
+        isAi: true
+      });
     });
   }
 
@@ -1122,6 +1170,10 @@ export function processAiData(aiResult, pack) {
 
     cards.push({
       r: { id: 'creative-ai-temp', name: aiResult.creative.name, tags: ['AI草稿'], isAiDraft: true },
+      recipeId: null,
+      source: 'creative',
+      matchedIngredients: ingList.map(item => item.item),
+      missingIngredients: [],
       list: ingList,
       reason: aiResult.creative.reason || 'AI 草稿，确认后再使用',
       isAi: true
