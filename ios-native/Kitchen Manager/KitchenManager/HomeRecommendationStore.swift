@@ -29,7 +29,18 @@ private struct AIRecommendedRecipeDTO: Decodable {
     let reason: String?
 }
 
-struct AIRecommendationService {
+protocol AIRecommendationProviding {
+    func generateRecommendations(
+        query: String,
+        inventory: [String],
+        expiringIngredients: [String],
+        preferences: [String],
+        excludedRecipeNames: [String],
+        count: Int
+    ) async throws -> [RecipeRecommendation]
+}
+
+struct AIRecommendationService: AIRecommendationProviding {
     private let chatService = AIChatService()
 
     func generateRecommendations(
@@ -141,10 +152,26 @@ final class HomeRecommendationStore: ObservableObject {
     @Published private(set) var recommendationError: String?
     @Published private(set) var favoriteRecipeIDs: Set<String> = []
 
-    private let aiService = AIRecommendationService()
+    private let aiService: any AIRecommendationProviding
     private var requestTask: Task<[RecipeRecommendation], Error>?
     private var activeRequestID: UUID?
     private var lastCompletedSearchQuery = ""
+    private var recommendationSessionDay: Date?
+    private var hasLoadedRecommendationsForSession = false
+    private let currentDate: () -> Date
+
+    init(currentDate: @escaping () -> Date = { Date() }) {
+        self.aiService = AIRecommendationService()
+        self.currentDate = currentDate
+    }
+
+    init(
+        aiService: any AIRecommendationProviding,
+        currentDate: @escaping () -> Date = { Date() }
+    ) {
+        self.aiService = aiService
+        self.currentDate = currentDate
+    }
 
     var currentRecommendation: RecipeRecommendation? {
         guard recommendedRecipes.indices.contains(currentRecommendationIndex) else {
@@ -158,9 +185,11 @@ final class HomeRecommendationStore: ObservableObject {
         inventory: [String],
         expiringIngredients: [String]
     ) {
+        refreshRecommendationSessionIfNeeded()
         guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !isSearchingRecommendations,
-              !isGeneratingRecommendations else {
+              !isGeneratingRecommendations,
+              !hasLoadedRecommendationsForSession else {
             return
         }
         apply(
@@ -172,6 +201,7 @@ final class HomeRecommendationStore: ObservableObject {
             )
         )
         recommendationError = nil
+        hasLoadedRecommendationsForSession = true
     }
 
     func searchRecommendations(
@@ -179,6 +209,7 @@ final class HomeRecommendationStore: ObservableObject {
         inventory: [String],
         expiringIngredients: [String]
     ) async {
+        refreshRecommendationSessionIfNeeded()
         let query = Self.normalizedQuery(searchQuery)
         searchQuery = query
         recommendationError = nil
@@ -205,6 +236,7 @@ final class HomeRecommendationStore: ObservableObject {
             guard activeRequestID == requestID else { return }
             apply(local)
             lastCompletedSearchQuery = query
+            hasLoadedRecommendationsForSession = true
             finishSearch(requestID)
             return
         }
@@ -228,6 +260,7 @@ final class HomeRecommendationStore: ObservableObject {
             let merged = deduplicated(local + ai, limit: 8)
             apply(merged)
             lastCompletedSearchQuery = query
+            hasLoadedRecommendationsForSession = true
         } catch is CancellationError {
             return
         } catch {
@@ -248,6 +281,7 @@ final class HomeRecommendationStore: ObservableObject {
         inventory: [String],
         expiringIngredients: [String]
     ) async {
+        refreshRecommendationSessionIfNeeded()
         guard !isGeneratingRecommendations else { return }
         cancelCurrentRequest()
         let requestID = UUID()
@@ -278,6 +312,7 @@ final class HomeRecommendationStore: ObservableObject {
                 recommendationError = "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
             } else {
                 apply(ai)
+                hasLoadedRecommendationsForSession = true
             }
         } catch is CancellationError {
             return
@@ -295,6 +330,7 @@ final class HomeRecommendationStore: ObservableObject {
         inventory: [String],
         expiringIngredients: [String]
     ) {
+        refreshRecommendationSessionIfNeeded()
         cancelCurrentRequest()
         searchQuery = ""
         lastCompletedSearchQuery = ""
@@ -307,6 +343,7 @@ final class HomeRecommendationStore: ObservableObject {
                 limit: 8
             )
         )
+        hasLoadedRecommendationsForSession = true
     }
 
     func removeRecommendation(id: String) {
@@ -486,6 +523,16 @@ final class HomeRecommendationStore: ObservableObject {
         activeRequestID = nil
         isSearchingRecommendations = false
         isGeneratingRecommendations = false
+    }
+
+    private func refreshRecommendationSessionIfNeeded() {
+        let today = Calendar.current.startOfDay(for: currentDate())
+        guard recommendationSessionDay != today else { return }
+
+        recommendationSessionDay = today
+        hasLoadedRecommendationsForSession = false
+        recommendedRecipes = []
+        currentRecommendationIndex = 0
     }
 
     private func finishSearch(_ requestID: UUID) {
