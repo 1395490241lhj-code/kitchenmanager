@@ -15,6 +15,23 @@ Last updated: 2026-08-01
 
 ## In progress
 
+- UI-5B2B-B2B safe editing of recorded conflict choices is implemented but
+  uncommitted on `claude/ios-merge-choice-editing-ui5b2bb2b`. The preview now
+  offers a real pre-confirm conflict entry — previously no production path
+  recorded a choice before the first confirm — and recorded choices can be
+  changed until any confirm attempt, after which the review is read-only.
+  A same-record keepBoth reservation is retained across edits and only an
+  *active* fork participates in upload. No schema, migration, API, transport,
+  `SyncCoordinator` or flag change.
+  Validation on frozen base `9642b1a6`: npm 1100/1100; full non-hosted iOS UI
+  130 executed / 129 passed / 1 hosted skipped / 0 failed; Debug and isolated
+  Release builds succeed; the Release binary contains none of the DEBUG-only
+  test seams; 13 screenshots reviewed. The full iOS unit suite is **not** all
+  green — `SyncTransportTests.test429MapsToRateLimitedAndCarriesRetryAfterSeconds`
+  fails, reproduced on clean frozen `main` with this phase stashed, so it is a
+  pre-existing base defect outside this scope.
+  See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2B.md`.
+
 - UI-5B2B-B2A preview summaries and resolved visibility is being implemented on
   `claude/ios-merge-summary-ui5b2bb2a`; changes remain uncommitted. It corrects
   the conflict-reason counts (which previously included resolved conflicts),

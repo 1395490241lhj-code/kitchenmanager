@@ -17,6 +17,44 @@ Keep entries concise. Use this file for what changed, not for long design discus
 Render deployment is managed outside this repository; live image verification
 after the model change remains pending deployment.
 
+## 2026-08-01 (iOS Merge Choice Editing UI-5B2B-B2B — uncommitted)
+
+### Fixed
+
+- A same-record 两条都保留 reservation was discarded whenever the user moved to
+  another choice, so returning to it minted a second fork id. Combined with
+  `confirmMerge`'s "create if no metadata yet" guard that was a duplicate-record
+  path. The reservation is now retained, and only `activeForkedLocalItemId` —
+  requiring keepBoth + create + same-id + a reservation — can drive an upload.
+- `resolveConflict` accepted an edit to a choice a previous confirm may already
+  have executed remotely. Re-editing now requires that the session has never
+  confirmed; first-time resolution of an outstanding conflict is unchanged.
+
+### Added
+
+- 确认前处理冲突 on the merge preview. Before this there was no production path
+  to record a conflict choice ahead of the first confirm, so the read-only
+  review added in UI-5B2B-B2A could not be reached on a first pass. Partial
+  confirm remains optional and unchanged.
+- Editing of recorded choices before any confirm, via 修改选择 on the review and
+  a per-candidate editor reusing the UI-5B2B-B1 choice rows.
+- Candidate-scoped conflict-edit errors, separate from the global sync error so
+  a successful edit no longer discards an unrelated failure.
+
+### Tests
+
+- `scrollUntilHittable` in the UI-5B2B-B2A preview UI tests treated `isHittable`
+  as proof a control was tappable. At XXXL the long-list button became hittable
+  while its lower half was still below the window, so the following
+  full-visibility assertion failed. The helper now requires hittable *and* fully
+  within the window frame, drags in window coordinates, and tracks midY
+  progress. Test-only; no production change.
+
+Choice model, persistence schema, `readyToUpload`, ordinary choice outcomes,
+transport, API, `SyncCoordinator`, flags and rollback are unchanged; no
+per-candidate upload state and no remote undo were introduced. See
+`docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2B.md`.
+
 ## 2026-07-31 (iOS Merge Summary UI-5B2B-B2A — uncommitted)
 
 ### Fixed

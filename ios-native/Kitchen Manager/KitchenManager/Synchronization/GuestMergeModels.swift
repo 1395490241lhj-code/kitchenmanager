@@ -319,19 +319,43 @@ nonisolated struct InventoryMergeCandidate: Identifiable, Codable, Equatable, Se
     var action: InventoryMergeAction
     var conflictReason: InventoryMergeConflictReason?
     var userChoice: InventoryMergeConflictChoice?
-    /// Set only by `keepBoth` on a **same-id** conflict (`remoteItemId ==
-    /// localItemId`) — the existing remote entity is certain, so "keep both"
-    /// cannot mean "create using the same id" (that would collide with a
-    /// real, already-versioned remote row). This is the fresh, stable id the
-    /// local copy is forked under instead; `GuestMergeController.confirmMerge`
-    /// stages a `create` for *this* id, never `localItemId`, and never
-    /// touches the original remote record. Generated once by
-    /// `applyingChoice` and reused verbatim on every subsequent call (repeat
-    /// confirmation, retry, or restart) — never regenerated. For the
-    /// different-id ambiguous-duplicate case, `keepBoth`'s existing
-    /// `.create` behavior (using the candidate's own already-distinct id) is
-    /// unchanged and this stays `nil`.
+    /// A **reserved** id, set the first time `keepBoth` is chosen on a
+    /// **same-id** conflict (`remoteItemId == localItemId`) — the existing
+    /// remote entity is certain, so "keep both" cannot mean "create using the
+    /// same id" (that would collide with a real, already-versioned remote row).
+    /// This is the fresh, stable id the local copy is forked under instead.
+    ///
+    /// Reserved, not active. UI-5B2B-B2B lets the user change a recorded choice
+    /// before the first confirm, so this id is **retained** when the choice
+    /// moves away to `keepLocal`/`keepRemote`/`skip` and reused verbatim if the
+    /// user comes back to `keepBoth`. Clearing it instead would mint a second
+    /// fork on the return trip, which — combined with `confirmMerge`'s
+    /// "create it if no metadata exists yet" guard — is a duplicate-record path.
+    /// It survives repeat confirmation, retry, and restart, and is never
+    /// regenerated once allocated.
+    ///
+    /// Because it is retained while inactive, **never** treat a non-nil value as
+    /// "this candidate forks". Only `activeForkedLocalItemId` may drive an
+    /// upload. For the different-id ambiguous-duplicate case, `keepBoth`'s
+    /// existing `.create` behavior (using the candidate's own already-distinct
+    /// id) is unchanged and this stays `nil`.
     var forkedLocalItemId: UUID? = nil
+
+    /// The forked id **only when it actually governs this candidate's upload**:
+    /// the current choice is `keepBoth`, the resulting action is `.create`, the
+    /// match was same-id, and an id has been reserved. Any other combination —
+    /// including a retained reservation left behind by an earlier `keepBoth` —
+    /// yields `nil`, so `confirmMerge` stages the ordinary path instead.
+    ///
+    /// Different-id `keepBoth` is always `nil` here: it creates under the
+    /// candidate's own already-distinct `localItemId`.
+    var activeForkedLocalItemId: UUID? {
+        guard userChoice == .keepBoth,
+              action == .create,
+              remoteItemId == localItemId,
+              let reserved = forkedLocalItemId else { return nil }
+        return reserved
+    }
 
     /// A conflict that still needs an explicit user decision before it can
     /// be included in an upload batch.
@@ -351,18 +375,18 @@ nonisolated struct InventoryMergeCandidate: Identifiable, Codable, Equatable, Se
         var copy = self
         copy.userChoice = choice
         switch choice {
+        // A reserved fork id is retained across every choice change, never
+        // cleared — see `forkedLocalItemId`. What changes is whether it is
+        // *active* (`activeForkedLocalItemId`), which is what the upload reads.
         case .keepLocal:
             copy.action = (remoteItemId == localItemId) ? .update : .create
-            copy.forkedLocalItemId = nil
         case .keepRemote:
             copy.action = .keepRemote
-            copy.forkedLocalItemId = nil
         case .keepBoth:
             copy.action = .create
             copy.forkedLocalItemId = (remoteItemId == localItemId) ? (forkedLocalItemId ?? UUID()) : nil
         case .skip:
             copy.action = .skip
-            copy.forkedLocalItemId = nil
         }
         return copy
     }

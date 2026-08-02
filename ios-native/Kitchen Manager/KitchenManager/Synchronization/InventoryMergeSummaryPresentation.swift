@@ -288,6 +288,50 @@ nonisolated struct InventoryMergeReviewFooterPresentation: Equatable {
     }
 }
 
+// MARK: - Editing availability
+
+/// Whether recorded conflict choices may still be changed.
+///
+/// UI-5B2B-B2B allows editing a decision only while this session has provably
+/// never attempted a write. Once a confirm has run, an edit could contradict a
+/// remote create or update that already happened, and nothing in the app can
+/// undo that — `InventoryMergeCandidate` keeps no per-item upload state to tell
+/// which candidates were affected.
+///
+/// This drives presentation only. `GuestMergeController.resolveConflict`
+/// enforces the same rule independently and is the final safety boundary: a
+/// stale screen or a queued tap must fail closed there, not here.
+nonisolated enum InventoryMergeChoiceEditingAvailability: Equatable {
+    /// Before any confirm attempt — choices may be viewed and changed.
+    case editable
+    /// This session already confirmed at least once, so recorded choices are
+    /// read-only even if the status later returned to `.previewReady`.
+    case readOnlyAfterSyncStarted
+    /// The session is in a status where the review is not an editing surface —
+    /// mid-upload, terminal, or the post-partial `.conflict` root (whose
+    /// unresolved candidates are still handled by the conflict flow itself).
+    case unavailableForCurrentStatus
+
+    var isEditable: Bool { self == .editable }
+
+    static func make(session: GuestMergeSession?) -> InventoryMergeChoiceEditingAvailability {
+        guard let session else { return .unavailableForCurrentStatus }
+        // Checked before status: a partly-confirmed session can be back in
+        // `.previewReady`, and it must not regain editing.
+        if session.confirmedAt != nil
+            || session.uploadedItemCount > 0
+            || !session.createdEntityIds.isEmpty {
+            return .readOnlyAfterSyncStarted
+        }
+        switch session.status {
+        case .previewReady, .awaitingConfirmation:
+            return .editable
+        default:
+            return .unavailableForCurrentStatus
+        }
+    }
+}
+
 // MARK: - Confirmation
 
 /// Button title and supporting copy only. The action behind the button, and
