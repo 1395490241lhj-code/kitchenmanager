@@ -15,8 +15,9 @@ Last updated: 2026-08-01
 
 ## In progress
 
-- UI-5B2B-B2B safe editing of recorded conflict choices is implemented but
-  uncommitted on `claude/ios-merge-choice-editing-ui5b2bb2b`. The preview now
+- UI-5B2B-B2B safe editing of recorded conflict choices is implemented,
+  validated, committed, and submitted in Draft PR #19 pending review and merge,
+  on `claude/ios-merge-choice-editing-ui5b2bb2b`. The preview now
   offers a real pre-confirm conflict entry — previously no production path
   recorded a choice before the first confirm — and recorded choices can be
   changed until any confirm attempt, after which the review is read-only.

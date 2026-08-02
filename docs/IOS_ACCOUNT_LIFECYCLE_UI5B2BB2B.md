@@ -1,7 +1,7 @@
 # UI-5B2B-B2B — Safe Editing of Recorded Conflict Choices
 
-Status: implemented but uncommitted pending review, on
-`claude/ios-merge-choice-editing-ui5b2bb2b`.
+Status: implemented, validated, committed, and submitted in Draft PR #19
+pending review and merge, on `claude/ios-merge-choice-editing-ui5b2bb2b`.
 
 ## The reachability problem this phase found
 

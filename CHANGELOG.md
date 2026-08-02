@@ -17,7 +17,7 @@ Keep entries concise. Use this file for what changed, not for long design discus
 Render deployment is managed outside this repository; live image verification
 after the model change remains pending deployment.
 
-## 2026-08-01 (iOS Merge Choice Editing UI-5B2B-B2B — uncommitted)
+## 2026-08-01 (iOS Merge Choice Editing UI-5B2B-B2B — Draft PR #19)
 
 ### Fixed
 
