@@ -12,6 +12,7 @@ import { renderHome } from './src/views/home-view.js?v=236';
 import { renderRecipes } from './src/views/recipes-view.js?v=236';
 import { renderSettings } from './src/views/settings-view.js?v=236';
 import { applyCompletionOverlay } from './src/recipe-completion.js?v=236';
+import { mergeRecipeMethods } from './src/recipe-library.js?v=236';
 import { initTheme } from './src/theme.js?v=236';
 import { maybeStartOnboarding } from './src/onboarding.js?v=236';
 import { initPwaInstallPrompt } from './src/pwa-install.js?v=236';
@@ -66,7 +67,8 @@ export async function getCurrentPack({ force = false } = {}) {
     cachedBasePack = await loadBasePack(currentVersion);
   }
   if (!cachedBaseWithCompletion) {
-    cachedBaseWithCompletion = await applyCompletionOverlay(cachedBasePack);
+    const completedPack = await applyCompletionOverlay(cachedBasePack);
+    cachedBaseWithCompletion = mergeRecipeMethods(completedPack, window.RECIPE_METHODS || {});
   }
   if (!cachedEffectivePack) {
     const overlay = loadOverlay();
@@ -112,9 +114,8 @@ async function loadBasePack(v = '23') {
     }
   }
 
-  const staticMethods = window.RECIPE_METHODS || {};
   const existingNames = new Set(pack.recipes.map(r => r.name));
-  Object.keys(staticMethods).forEach(name => {
+  Object.keys(window.RECIPE_METHODS || {}).forEach(name => {
     if (!existingNames.has(name)) {
       const newId = 'static-' + Math.abs(name.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0));
       pack.recipes.push({ id: newId, name: name, tags: ['家常菜', '新增'] });
