@@ -382,6 +382,9 @@ struct InventoryMergePreviewView: View {
     private var reasonRows: [InventoryMergeConflictReasonPresentation] {
         plan.map(InventoryMergeConflictReasonPresentation.make) ?? []
     }
+    private var editingAvailability: InventoryMergeChoiceEditingAvailability {
+        InventoryMergeChoiceEditingAvailability.make(session: controller.session)
+    }
     private var confirmation: InventoryMergeConfirmationPresentation? {
         summary.map { InventoryMergeConfirmationPresentation.make(summary: $0, session: controller.session) }
     }
@@ -446,10 +449,29 @@ struct InventoryMergePreviewView: View {
                     }
                 }
             }
-            if let plan, let summary, summary.resolvedCount > 0 {
+            // UI-5B2B-B2B: the only production route to the conflict screen used
+            // to be the `.conflict` flow root, which `confirmMerge` alone can
+            // produce. Before a first confirm every `userChoice` was therefore
+            // nil, 查看处理结果 never appeared, and choices could not be made —
+            // let alone reviewed or edited — until after an upload had already
+            // happened. This link is that missing entry point. It only navigates:
+            // no confirm, no status change, no network.
+            if let summary, summary.stillNeedsDecision > 0, editingAvailability.isEditable {
                 Section {
                     NavigationLink {
-                        InventoryMergeResolvedReviewView(plan: plan, session: controller.session)
+                        InventoryMergeConflictView(controller: controller, mode: .preConfirmNavigation)
+                    } label: {
+                        LabeledContent("确认前处理冲突", value: "\(summary.stillNeedsDecision) 条待处理")
+                    }
+                    .accessibilityIdentifier("guestMergePreConfirmConflictLink")
+                } footer: {
+                    Text("可以在确认合并前先选择处理方式，也可以先合并其他没有冲突的条目。")
+                }
+            }
+            if let summary, summary.resolvedCount > 0 {
+                Section {
+                    NavigationLink {
+                        InventoryMergeResolvedReviewView(controller: controller)
                     } label: {
                         LabeledContent("查看处理结果", value: summary.resolvedSummaryText)
                     }
@@ -615,8 +637,24 @@ private struct InventoryMergeConflictChoiceRow: View {
     }
 }
 
+/// How the conflict screen was reached. This is presentation only — it never
+/// fakes or changes `session.status`, and both modes call the same guarded
+/// `resolveConflict`.
+enum InventoryMergeConflictPresentationMode {
+    /// The flow root for a `.conflict` session: `confirmMerge` uploaded what it
+    /// could and parked the leftovers here. Resolving the last one flips the
+    /// status back to `.previewReady` and the root swaps to the preview by
+    /// itself — the pre-existing UI-5B2B-B1 behavior, unchanged.
+    case postPartialRoot
+    /// Pushed from the preview before any confirm, so the user can decide
+    /// conflicts up front. The session stays `.previewReady`, nothing
+    /// auto-returns, and the user navigates back when they choose.
+    case preConfirmNavigation
+}
+
 struct InventoryMergeConflictView: View {
     @ObservedObject var controller: GuestMergeController
+    var mode: InventoryMergeConflictPresentationMode = .postPartialRoot
     /// Ids whose `resolveConflict` call is still in flight. Purely transient: it
     /// exists only so one tap cannot start two overlapping resolves, and is
     /// never consulted to decide which option appears selected.
@@ -626,6 +664,17 @@ struct InventoryMergeConflictView: View {
 
     var body: some View {
         Form {
+            if mode == .preConfirmNavigation && conflicts.isEmpty {
+                // Pushed destinations are not swapped out by the flow root, so
+                // this screen has to say for itself when there is nothing left.
+                Section {
+                    Text("待处理冲突已全部选择")
+                        .font(.body.weight(.semibold))
+                        .accessibilityIdentifier("guestMergePreConfirmAllResolved")
+                } footer: {
+                    Text("返回上一页即可查看处理结果，或继续确认合并。")
+                }
+            }
             Section {
                 Text("以下条目需要你逐条选择，不会自动覆盖。")
                     .font(.footnote)
@@ -635,6 +684,15 @@ struct InventoryMergeConflictView: View {
             }
             ForEach(conflicts) { candidate in
                 Section {
+                    // A controller rejection (for example the session status
+                    // changed under a screen that was already open) must be
+                    // visible here too, never a silent no-op.
+                    if let error = controller.conflictChoiceError(for: candidate.localItemId) {
+                        Text(error)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("guestMergeConflictChoiceError-\(candidate.localItemId.uuidString)")
+                    }
                     LabeledContent("本机", value: localDescription(for: candidate))
                     LabeledContent("家庭", value: remoteDescription(for: candidate))
                     if let reason = candidate.conflictReason {
@@ -678,7 +736,7 @@ struct InventoryMergeConflictView: View {
                 }
             }
         }
-        .navigationTitle("处理冲突")
+        .navigationTitle(mode == .preConfirmNavigation ? "确认前处理冲突" : "处理冲突")
         // Same as the preview screen: the tab bar is hidden for the whole merge
         // flow, so the system safe area is sufficient here too.
     }
@@ -744,20 +802,50 @@ struct InventoryMergeConflictView: View {
 /// are not shown at all: the former still belong to the conflict screen, the
 /// latter were never decisions.
 struct InventoryMergeResolvedReviewView: View {
-    let plan: InventoryMergePlan
-    /// Read-only, and only for its confirm history — the footer cannot be
-    /// accurate from the plan alone.
-    let session: GuestMergeSession?
+    /// Observed, not snapshotted: an edit made in the pushed per-candidate
+    /// editor has to move the candidate into its new group the moment the user
+    /// comes back, and the edit entry has to disappear the moment this session
+    /// starts syncing. A captured `InventoryMergePlan` would show stale groups.
+    @ObservedObject var controller: GuestMergeController
+
+    private var plan: InventoryMergePlan? { controller.plan }
+    private var session: GuestMergeSession? { controller.session }
+
+    private var availability: InventoryMergeChoiceEditingAvailability {
+        InventoryMergeChoiceEditingAvailability.make(session: session)
+    }
+    private var canEdit: Bool { availability.isEditable }
 
     private var groups: [InventoryMergeCandidateGroupPresentation] {
-        InventoryMergeCandidateGroupPresentation.make(plan: plan)
+        plan.map(InventoryMergeCandidateGroupPresentation.make) ?? []
     }
-    private var summary: InventoryMergeSummaryPresentation {
-        InventoryMergeSummaryPresentation.make(plan: plan)
+    private var summary: InventoryMergeSummaryPresentation? {
+        plan.map(InventoryMergeSummaryPresentation.make)
     }
 
     var body: some View {
         Form {
+            if plan == nil {
+                ContentUnavailableView("没有可查看的处理结果", systemImage: "tray")
+                    .accessibilityIdentifier("guestMergeReviewUnavailable")
+            }
+            #if DEBUG
+            // UI-test-only trigger so a test can flip this session to
+            // "sync started" without leaving the screen, proving the review
+            // re-renders read-only live. It is an ordinary visible row, so it is
+            // gated twice: the launch argument must ask for it, *and* the screen
+            // must still be editable. Once the seam fires, `canEdit` goes false
+            // and the row disappears along with the 修改选择 entries — a
+            // read-only review therefore never renders it, including in
+            // screenshots.
+            if canEdit, ProcessInfo.processInfo.arguments.contains("UITEST_ALLOW_SYNC_START_SEAM") {
+                Button("uitest.markSyncStarted") {
+                    Task { await controller.markSyncStartedForUITesting() }
+                }
+                .accessibilityIdentifier("uitest.markSyncStarted")
+            }
+            #endif
+            if let summary {
             Section {
                 LabeledContent("已处理", value: "\(summary.resolvedCount) 条")
                     .accessibilityIdentifier("guestMergeReviewResolvedCount")
@@ -772,11 +860,36 @@ struct InventoryMergeResolvedReviewView: View {
                 Text(InventoryMergeReviewFooterPresentation.make(session: session).text)
                     .accessibilityIdentifier("guestMergeReviewFooter")
             }
+            }
+            Section {
+                if canEdit {
+                    Text("确认合并前可以修改已选择的处理方式")
+                        .font(.footnote)
+                        .accessibilityIdentifier("guestMergeReviewEditableNotice")
+                } else if availability == .readOnlyAfterSyncStarted {
+                    Text("此会话已经开始同步，已记录的处理方式仅供查看。")
+                        .font(.footnote)
+                        .accessibilityIdentifier("guestMergeReviewReadOnlyNotice")
+                }
+            }
             ForEach(groups) { group in
                 Section {
                     DisclosureGroup {
                         ForEach(group.candidates) { candidate in
-                            InventoryMergeResolvedCandidateRow(candidate: candidate)
+                            if canEdit {
+                                NavigationLink {
+                                    InventoryMergeChoiceEditorView(controller: controller, candidateId: candidate.id)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        InventoryMergeResolvedCandidateRow(candidate: candidate)
+                                        Text("修改选择")
+                                            .font(.footnote.weight(.semibold))
+                                    }
+                                }
+                                .accessibilityIdentifier("guestMergeReviewEdit-\(candidate.id.uuidString)")
+                            } else {
+                                InventoryMergeResolvedCandidateRow(candidate: candidate)
+                            }
                         }
                     } label: {
                         // Combined into one element so the group header reads as a
@@ -795,6 +908,109 @@ struct InventoryMergeResolvedReviewView: View {
         // The flow root already hides the tab bar and SwiftUI scopes that to
         // pushed destinations, so this screen inherits it. Asserted by UI tests
         // rather than assumed.
+    }
+
+}
+
+/// Per-candidate editor for a choice that was already recorded, reachable only
+/// before the first confirm. Reuses the UI-5B2B-B1 choice rows verbatim so the
+/// options, consequence copy, and selected-state semantics cannot drift.
+///
+/// It reads the candidate live from the controller so the selected state
+/// reflects what was actually persisted, and it never navigates away on its own.
+struct InventoryMergeChoiceEditorView: View {
+    @ObservedObject var controller: GuestMergeController
+    let candidateId: UUID
+    @State private var isBusy = false
+
+    private var candidate: InventoryMergeCandidate? {
+        controller.plan?.candidates.first { $0.localItemId == candidateId }
+    }
+    private var availability: InventoryMergeChoiceEditingAvailability {
+        InventoryMergeChoiceEditingAvailability.make(session: controller.session)
+    }
+
+    var body: some View {
+        Form {
+            // Surfaced here, not just held on the controller: a rejected edit
+            // must be visible on the screen the user tapped.
+            if let error = controller.conflictChoiceError(for: candidateId) {
+                Section {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("guestMergeChoiceEditError")
+                }
+            }
+            if let candidate {
+                Section {
+                    LabeledContent("本机", value: InventoryMergeResolvedCandidatePresentation.valueText(
+                        quantity: candidate.localQuantity, expiry: candidate.localExpiryDate, unit: candidate.unit
+                    ))
+                    LabeledContent("家庭", value: candidate.remoteQuantity.map {
+                        InventoryMergeResolvedCandidatePresentation.valueText(
+                            quantity: $0, expiry: candidate.remoteExpiryDate, unit: candidate.unit
+                        )
+                    } ?? "—")
+                    if let reason = candidate.conflictReason {
+                        Text(InventoryMergeResolvedCandidatePresentation.reasonText(reason))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text(candidate.name)
+                }
+
+                Section {
+                    ForEach(InventoryMergeConflictChoicePresentation.orderedChoices, id: \.self) { choice in
+                        InventoryMergeConflictChoiceRow(
+                            presentation: InventoryMergeConflictChoicePresentation.make(
+                                choice: choice,
+                                isSameRemoteRecord: candidate.remoteItemId == candidate.localItemId
+                            ),
+                            isSelected: candidate.userChoice == choice,
+                            isBusy: isBusy
+                        ) {
+                            select(choice)
+                        }
+                        .accessibilityIdentifier("guestMergeEditChoice-\(choice.rawValue)-\(candidateId.uuidString)")
+                    }
+                } footer: {
+                    Text("修改后仍需返回并确认合并才会上传。")
+                }
+
+                if availability != .editable {
+                    Section {
+                        Text("此会话已经开始同步，已记录的处理方式仅供查看。")
+                            .font(.footnote)
+                    }
+                }
+            } else {
+                // Fail closed: the candidate is looked up live every render, so
+                // if the plan is replaced or the candidate disappears there is
+                // no stale snapshot to keep writing from.
+                ContentUnavailableView("找不到这条记录", systemImage: "questionmark.circle")
+                    .accessibilityIdentifier("guestMergeEditUnavailable")
+            }
+        }
+        .navigationTitle("修改选择")
+        .navigationBarTitleDisplayMode(.inline)
+        // Only on open, and only for *other* candidates: a rejection this screen
+        // just produced must survive the controller's own state publish.
+        .task(id: candidateId) {
+            controller.clearConflictChoiceError(unless: candidateId)
+        }
+    }
+
+    /// The controller re-checks the same rule and is the final boundary; this
+    /// view stays put either way, so a rejected edit simply leaves the selected
+    /// state unchanged.
+    private func select(_ choice: InventoryMergeConflictChoice) {
+        guard !isBusy else { return }
+        isBusy = true
+        Task {
+            await controller.resolveConflict(candidateId: candidateId, choice: choice)
+            isBusy = false
+        }
     }
 }
 

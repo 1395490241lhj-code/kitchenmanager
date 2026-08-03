@@ -163,7 +163,7 @@ test('Phase 2B-2.5: same-id keepBoth forks a new UUID rather than re-using the e
 });
 
 test('Phase 2B-2.5: the same-id keepBoth fork is always created at baseVersion 0, never inheriting the original entity\'s remote version', () => {
-  const forkSection = controller.slice(controller.indexOf('if let forkedId = candidate.forkedLocalItemId'), controller.indexOf('guard let localItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }'));
+  const forkSection = controller.slice(controller.indexOf('if let forkedId = candidate.activeForkedLocalItemId'), controller.indexOf('guard let localItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }'));
   assert.match(forkSection, /forkedItem\.id = forkedId/);
   // The fork must go through a plain stageUpsert on a never-before-seen id
   // (no seeded/known remoteVersion attached to it), which is what makes
@@ -176,7 +176,7 @@ test('Phase 2B-2.5: the original entity id is never simultaneously staged as kee
   // The fork branch must `continue` immediately after staging the forked
   // id, so control never falls through into staging `candidate.localItemId`
   // (the original, certain remote entity) for the very same candidate.
-  const forkBranch = stagingLoop.slice(stagingLoop.indexOf('if let forkedId = candidate.forkedLocalItemId'), stagingLoop.indexOf('guard let localItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }'));
+  const forkBranch = stagingLoop.slice(stagingLoop.indexOf('if let forkedId = candidate.activeForkedLocalItemId'), stagingLoop.indexOf('guard let localItem = try await persistence.inventoryItem(id: candidate.localItemId) else { continue }'));
   assert.match(forkBranch, /continue\s*\n\s*\}/, 'the fork branch must continue, never fall through to staging the original id too');
 });
 
@@ -187,7 +187,7 @@ test('Phase 2B-2.5: rollback only ever references entity ids recorded in created
   // The read-back loop after upload must record the forked id (not the
   // original localItemId) into createdEntityIds for a forked candidate.
   const readBackSection = controller.slice(controller.indexOf('var uploaded = 0'), controller.indexOf('current.uploadedItemCount = uploaded'));
-  assert.match(readBackSection, /let entityIdToCheck = candidate\.forkedLocalItemId \?\? candidate\.localItemId/);
+  assert.match(readBackSection, /let entityIdToCheck = candidate\.activeForkedLocalItemId \?\? candidate\.localItemId/);
   assert.match(readBackSection, /newCreatedIds\.append\(entityIdToCheck\)/);
 });
 
@@ -267,7 +267,8 @@ test('Phase 2B-3: no service-role key, no raw token access from any View, and th
 test('Phase 2B-3: same-id keepBoth identity-fork semantics are preserved (no regression from the new skip choice)', () => {
   assert.match(models, /case skip$/m);
   const applyingChoiceSection = models.slice(models.indexOf('func applyingChoice'));
-  assert.match(applyingChoiceSection, /case \.skip:\s*\n\s*copy\.action = \.skip\s*\n\s*copy\.forkedLocalItemId = nil/);
+  // UI-5B2B-B2B: `.skip` retains the reservation; only `activeForkedLocalItemId` gates upload.
+  assert.match(applyingChoiceSection, /case \.skip:\s*\n\s*copy\.action = \.skip/);
   assert.match(applyingChoiceSection, /remoteItemId == localItemId\)\s*\?\s*\(forkedLocalItemId \?\? UUID\(\)\)\s*:\s*nil/);
 });
 
@@ -347,7 +348,13 @@ test('UI-5B2B-B1: the displayed selection is derived from the persisted candidat
 
 test('Phase 2B-3: the preview screen never displays a raw UUID, mutation id, cursor, token, or household internal id', () => {
   const previewSection = views.slice(views.indexOf('struct InventoryMergePreviewView'), views.indexOf('struct InventoryMergeConflictView'));
-  assert.doesNotMatch(previewSection, /\.uuidString|mutationId|cursor|accessToken|householdId\.uuidString/);
+  // Accessibility identifiers may embed a candidate id — they are test handles,
+  // never rendered text. Strip those lines before checking for visible leaks.
+  const visible = previewSection
+    .split('\n')
+    .filter(line => !line.includes('accessibilityIdentifier'))
+    .join('\n');
+  assert.doesNotMatch(visible, /\.uuidString|mutationId|cursor|accessToken|householdId\.uuidString/);
 });
 
 // Phase 2B-4: synced-scope Inventory CRUD mutation staging — still zero
@@ -665,9 +672,13 @@ test('Phase 2B-8: no service-role key, no automatic sync trigger, and Shopping/P
 const summaryPresentation = read('KitchenManager/Synchronization/InventoryMergeSummaryPresentation.swift');
 
 test('UI-5B2B-B2A: the summary mapping is pure — no controller, persistence, AuthStore, transport or SwiftUI', () => {
-  assert.doesNotMatch(summaryPresentation, /import SwiftUI/);
-  assert.doesNotMatch(summaryPresentation, /GuestMergeController|SyncPersistence|AuthStore|SyncTransport|SyncCoordinator/);
-  assert.doesNotMatch(summaryPresentation, /URLSession|stageUpsert|saveGuestMergeSession|resolveConflict/);
+  // Doc comments legitimately name the things the mapping must not touch
+  // ("never touches a controller"), so the rule applies to code lines only.
+  const code = summaryPresentation
+    .split('\n').filter(line => !line.trim().startsWith('///')).join('\n');
+  assert.doesNotMatch(code, /import SwiftUI/);
+  assert.doesNotMatch(code, /GuestMergeController|SyncPersistence|AuthStore|SyncTransport|SyncCoordinator/);
+  assert.doesNotMatch(code, /URLSession|stageUpsert|saveGuestMergeSession|resolveConflict/);
 });
 
 test('UI-5B2B-B2A:每个 summary 数字使用约定的 predicate', () => {
@@ -703,13 +714,17 @@ test('UI-5B2B-B2A: 保留家庭与本次跳过在预览中可见', () => {
   assert.match(previewSection, /guestMergeSummaryStillNeedsDecision/);
 });
 
-test('UI-5B2B-B2A: the resolved review screen is read-only — it takes a plan, never the controller', () => {
+test('UI-5B2B-B2B: the resolved review screen is controller-backed and read-only without editing rights', () => {
+  // Bounded at the editor: `InventoryMergeChoiceEditorView` now sits between
+  // the review and the progress view, and it legitimately resolves conflicts.
   const reviewSection = views.slice(
     views.indexOf('struct InventoryMergeResolvedReviewView'),
-    views.indexOf('struct InventoryMergeProgressView')
+    views.indexOf('struct InventoryMergeChoiceEditorView')
   );
-  assert.match(reviewSection, /let plan: InventoryMergePlan/);
-  assert.doesNotMatch(reviewSection, /GuestMergeController|ObservedObject|resolveConflict/);
+  assert.match(reviewSection, /@ObservedObject var controller: GuestMergeController/);
+  assert.match(reviewSection, /private var plan: InventoryMergePlan\? \{ controller\.plan \}/);
+  // The review itself never resolves, never renders choice rows, never pickers.
+  assert.doesNotMatch(reviewSection, /resolveConflict/);
   assert.doesNotMatch(reviewSection, /InventoryMergeConflictChoiceRow|pickerStyle|Picker\(/);
 });
 
@@ -772,15 +787,23 @@ test('UI-5B2B-B2A: summary row labels do not promise that every listed item is s
 test('UI-5B2B-B2A: the presentation mapping reads only immutable session fields', () => {
   // Allowed: status/confirmedAt/uploadedItemCount/conflictCount/failedCount.
   // Never a controller, persistence, or network handle.
-  assert.doesNotMatch(summaryPresentation, /GuestMergeController|SyncPersistence|SyncTransport|SyncCoordinator/);
-  assert.doesNotMatch(summaryPresentation, /URLSession|stageUpsert|saveGuestMergeSession|resolveConflict|confirmMerge\(/);
+  assert.doesNotMatch(summaryPresentation, /SyncPersistence|SyncTransport|SyncCoordinator/);
+  // `GuestMergeSession` is read for confirm history; a controller never is.
+  const code = summaryPresentation.split('\n').filter(line => !line.trim().startsWith('///')).join('\n');
+  assert.doesNotMatch(code, /GuestMergeController/);
+  const sessionFieldCode = summaryPresentation
+    .split('\n').filter(line => !line.trim().startsWith('///')).join('\n');
+  assert.doesNotMatch(sessionFieldCode, /URLSession|stageUpsert|saveGuestMergeSession|resolveConflict|confirmMerge\(/);
   assert.match(summaryPresentation, /session\.confirmedAt != nil \|\| session\.uploadedItemCount > 0/);
 });
 
 test('UI-5B2B-B2A: the post-partial-confirm fixture really carries confirm history', () => {
   const fixtures = read('KitchenManager/Authentication/AccountLifecyclePresentation.swift');
   assert.match(fixtures, /case postPartialConfirmResumed = "UITEST_MERGE_SUMMARY_POST_PARTIAL_CONFIRM"/);
-  assert.match(fixtures, /confirmedAt: self == \.postPartialConfirmResumed \? now : nil/);
+  assert.match(
+    fixtures,
+    /confirmedAt: \(self == \.postPartialConfirmResumed \|\| self == \.confirmedButNothingUploaded\) \? now : nil/
+  );
   assert.match(fixtures, /uploadedItemCount: self == \.postPartialConfirmResumed \? 2 : 0/);
 });
 
@@ -821,4 +844,194 @@ test('UI-5B2B-B2A: the summary fixtures are DEBUG-only and seed a previewReady s
     fixtures.indexOf('final class AccountLifecycleFixtureAuthService')
   );
   assert.doesNotMatch(summaryFixtureSection, /runOnce|stageUpsert|sendMutations|resolveConflict/);
+});
+
+// ---------------------------------------------------------------------------
+// UI-5B2B-B2B: safe editing of recorded conflict choices.
+// Each guarantee is its own block so a failure names what broke.
+// ---------------------------------------------------------------------------
+
+const b2bModels = read('KitchenManager/Synchronization/GuestMergeModels.swift');
+const b2bController = read('KitchenManager/Synchronization/GuestMergeController.swift');
+const b2bViews = read('KitchenManager/GuestMergeViews.swift');
+const b2bFixtures = read('KitchenManager/Authentication/AccountLifecyclePresentation.swift');
+const b2bProbe = read('KitchenManager/Authentication/RestartUITestProbe.swift');
+const b2bContent = read('KitchenManager/ContentView.swift');
+
+test('UI-5B2B-B2B: activeForkedLocalItemId requires all four conditions', () => {
+  const section = b2bModels.slice(
+    b2bModels.indexOf('var activeForkedLocalItemId'),
+    b2bModels.indexOf('/// A conflict that still needs an explicit user decision')
+  );
+  assert.match(section, /userChoice == \.keepBoth/);
+  assert.match(section, /action == \.create/);
+  assert.match(section, /remoteItemId == localItemId/);
+  assert.match(section, /let reserved = forkedLocalItemId/);
+});
+
+test('UI-5B2B-B2B: applyingChoice retains the reserved fork on non-keepBoth choices', () => {
+  const section = b2bModels.slice(b2bModels.indexOf('func applyingChoice'));
+  const body = section.slice(0, section.indexOf('return copy'));
+  // No branch may clear it any more.
+  assert.doesNotMatch(body, /copy\.forkedLocalItemId = nil/);
+});
+
+test('UI-5B2B-B2B: repeated keepBoth reuses the existing reservation', () => {
+  assert.match(b2bModels, /forkedLocalItemId \?\? UUID\(\)/);
+});
+
+test('UI-5B2B-B2B: confirm staging selects the fork by active identity', () => {
+  assert.match(b2bController, /if let forkedId = candidate\.activeForkedLocalItemId/);
+});
+
+test('UI-5B2B-B2B: confirm outcome verification uses the active identity', () => {
+  assert.match(b2bController, /let entityIdToCheck = candidate\.activeForkedLocalItemId \?\? candidate\.localItemId/);
+});
+
+test('UI-5B2B-B2B: no upload-identity branch reads the raw reserved fork', () => {
+  // Every remaining mention in the controller must be the active accessor.
+  const allReads = b2bController.match(/candidate\.(active)?ForkedLocalItemId/g) || [];
+  const rawReads = allReads.filter(match => !match.includes('active'));
+  assert.equal(rawReads.length, 0, `上传路径不得直接读取 raw reserved fork：${rawReads.length} 处`);
+  assert.ok(allReads.length > 0, '应存在 active fork 读取');
+});
+
+test('UI-5B2B-B2B: resolveConflict branches on unresolved versus resolved', () => {
+  const section = b2bController.slice(b2bController.indexOf('func resolveConflict'));
+  assert.match(section, /if candidate\.userChoice == nil \{/);
+  assert.match(section, /\} else \{/);
+});
+
+test('UI-5B2B-B2B: every confirm-history signal blocks a resolved edit', () => {
+  const section = b2bController.slice(b2bController.indexOf('func resolveConflict'));
+  assert.match(section, /current\.confirmedAt == nil/);
+  assert.match(section, /current\.uploadedItemCount == 0/);
+  assert.match(section, /current\.createdEntityIds\.isEmpty/);
+});
+
+test('UI-5B2B-B2B: resolved re-edit is not permitted from the conflict root', () => {
+  const section = b2bController.slice(b2bController.indexOf('func resolveConflict'));
+  const resolvedBranch = section.slice(section.indexOf('} else {'), section.indexOf('applyingChoice(choice)'));
+  assert.doesNotMatch(resolvedBranch, /== \.conflict/);
+});
+
+test('UI-5B2B-B2B: the dedicated edit error never clears the global error', () => {
+  const section = b2bController.slice(b2bController.indexOf('func resolveConflict'));
+  const success = section.slice(section.indexOf('conflictChoiceErrorMessage = nil'), section.indexOf('applyingChoice(choice)'));
+  assert.doesNotMatch(success, /lastErrorMessage = nil/);
+});
+
+test('UI-5B2B-B2B: edit errors are scoped to the candidate that produced them', () => {
+  assert.match(b2bController, /conflictChoiceErrorCandidateId/);
+  assert.match(b2bController, /func conflictChoiceError\(for candidateId: UUID\)/);
+  assert.match(b2bController, /func clearConflictChoiceError\(unless candidateId: UUID\)/);
+});
+
+test('UI-5B2B-B2B: the preview exposes a pre-confirm conflict entry', () => {
+  const previewSection = b2bViews.slice(
+    b2bViews.indexOf('struct InventoryMergePreviewView'),
+    b2bViews.indexOf('struct InventoryMergeConflictChoicePresentation')
+  );
+  assert.match(previewSection, /确认前处理冲突/);
+  assert.match(previewSection, /guestMergePreConfirmConflictLink/);
+  assert.match(previewSection, /mode: \.preConfirmNavigation/);
+});
+
+test('UI-5B2B-B2B: the pre-confirm destination never fakes a session status', () => {
+  const conflictSection = b2bViews.slice(
+    b2bViews.indexOf('enum InventoryMergeConflictPresentationMode'),
+    b2bViews.indexOf('struct InventoryMergeResolvedReviewView')
+  );
+  assert.doesNotMatch(conflictSection, /status = \./);
+  assert.doesNotMatch(conflictSection, /\.conflict\b.*=/);
+});
+
+test('UI-5B2B-B2B: the review reads live controller state, not a captured plan', () => {
+  const reviewSection = b2bViews.slice(
+    b2bViews.indexOf('struct InventoryMergeResolvedReviewView'),
+    b2bViews.indexOf('struct InventoryMergeChoiceEditorView')
+  );
+  assert.match(reviewSection, /@ObservedObject var controller: GuestMergeController/);
+  assert.match(reviewSection, /private var plan: InventoryMergePlan\? \{ controller\.plan \}/);
+  assert.doesNotMatch(reviewSection, /let plan: InventoryMergePlan/);
+});
+
+test('UI-5B2B-B2B: the editor stores only a candidate id and looks it up live', () => {
+  const editorSection = b2bViews.slice(b2bViews.indexOf('struct InventoryMergeChoiceEditorView'));
+  assert.match(editorSection, /let candidateId: UUID/);
+  assert.match(editorSection, /controller\.plan\?\.candidates\.first \{ \$0\.localItemId == candidateId \}/);
+  assert.doesNotMatch(editorSection, /let candidate: InventoryMergeCandidate\n/);
+});
+
+test('UI-5B2B-B2B: post-confirm review hides every editing entry', () => {
+  const reviewSection = b2bViews.slice(
+    b2bViews.indexOf('struct InventoryMergeResolvedReviewView'),
+    b2bViews.indexOf('struct InventoryMergeChoiceEditorView')
+  );
+  assert.match(reviewSection, /private var canEdit: Bool \{ availability\.isEditable \}/);
+  assert.match(reviewSection, /if canEdit \{/);
+  assert.match(reviewSection, /此会话已经开始同步，已记录的处理方式仅供查看。/);
+});
+
+test('UI-5B2B-B2B: no segmented picker returns on any editing surface', () => {
+  assert.doesNotMatch(b2bViews, /pickerStyle\(\.segmented\)/);
+});
+
+test('UI-5B2B-B2B: restart seed and resume bypass the generic 测试库存 reset', () => {
+  const initSection = b2bContent.slice(0, b2bContent.indexOf('var body: some Scene'));
+  assert.match(initSection, /switch AccountLifecycleSummaryFixture\.restartLaunchMode/);
+  assert.match(initSection, /case \.seed:/);
+  assert.match(initSection, /case \.resume:\s*\n\s*break/);
+  // The generic reset is now only reachable in `.none`.
+  const noneBranch = initSection.slice(initSection.indexOf('case .none:'));
+  assert.match(noneBranch, /addInventory\(name: "测试库存"/);
+});
+
+test('UI-5B2B-B2B: the resume launch performs no fixture seeding', () => {
+  assert.match(b2bFixtures, /if isResumeOnlyLaunch \{ return true \}/);
+});
+
+test('UI-5B2B-B2B: preparePreview records its real branch outcome', () => {
+  assert.match(b2bController, /uiTestPreviewOrigin = \.regeneratedInvalidPlan/);
+  assert.match(b2bController, /uiTestPreviewOrigin = \.resumedExisting/);
+  assert.match(b2bController, /uiTestPreviewOrigin = \.createdNew/);
+});
+
+test('UI-5B2B-B2B: every restart probe and seam is DEBUG-only', () => {
+  // The whole probe file is wrapped, with the terminating #endif last.
+  assert.match(b2bProbe, /^import Foundation\nimport SwiftUI\n\n#if DEBUG/);
+  assert.match(b2bProbe.trimEnd(), /#endif$/);
+  assert.equal((b2bProbe.match(/#if DEBUG/g) || []).length, 1);
+  assert.equal((b2bProbe.match(/#endif/g) || []).length, 1);
+  // Controller instrumentation and seam.
+  for (const symbol of ['UITestPreviewOrigin', 'markSyncStartedForUITesting']) {
+    const index = b2bController.indexOf(symbol);
+    assert.ok(index > 0, `${symbol} 应存在`);
+    const before = b2bController.slice(0, index);
+    const opens = (before.match(/#if DEBUG/g) || []).length;
+    const closes = (before.match(/#endif/g) || []).length;
+    assert.ok(opens > closes, `${symbol} 必须位于 #if DEBUG 内`);
+  }
+});
+
+test('UI-5B2B-B2B: the sync-start seam is a visible row, so it is also gated on editability', () => {
+  // It renders as an ordinary Form row rather than a hidden probe, so the
+  // launch argument alone is not enough: a read-only review must not show it,
+  // otherwise it appears in the post-confirm screenshot.
+  assert.match(
+    b2bViews,
+    /if canEdit, ProcessInfo\.processInfo\.arguments\.contains\("UITEST_ALLOW_SYNC_START_SEAM"\)/
+  );
+  const index = b2bViews.indexOf('uitest.markSyncStarted');
+  assert.ok(index > 0);
+  const before = b2bViews.slice(0, index);
+  assert.ok(
+    (before.match(/#if DEBUG/g) || []).length > (before.match(/#endif/g) || []).length,
+    'seam 必须位于 #if DEBUG 内'
+  );
+});
+
+test('UI-5B2B-B2B: restart probes use fixed identifiers, never interpolated ones', () => {
+  assert.match(b2bProbe, /static let forkIdentity = "uitest\.restart\.forkIdentity"/);
+  assert.doesNotMatch(b2bProbe, /accessibilityIdentifier\("uitest\.restart\.[a-zA-Z]*\\\(/);
 });

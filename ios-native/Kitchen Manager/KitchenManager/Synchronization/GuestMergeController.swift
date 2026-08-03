@@ -37,6 +37,45 @@ final class GuestMergeController: ObservableObject {
     @Published private(set) var session: GuestMergeSession?
     @Published private(set) var isBusy = false
     @Published private(set) var lastErrorMessage: String?
+    #if DEBUG
+    /// UI-test-only record of which branch `preparePreview` actually took.
+    ///
+    /// Set inside the real branches, never inferred from session id (which
+    /// `regeneratedPreview` preserves), candidate counts, or launch arguments.
+    enum UITestPreviewOrigin: String {
+        case createdNew = "created-new"
+        case resumedExisting = "resumed-existing"
+        case regeneratedInvalidPlan = "regenerated-invalid-plan"
+    }
+    @Published private(set) var uiTestPreviewOrigin: UITestPreviewOrigin?
+    #endif
+
+    /// UI-5B2B-B2B: transient, edit-scoped error for conflict-choice actions.
+    ///
+    /// Deliberately separate from `lastErrorMessage`: a successful choice edit
+    /// must not silently discard an unrelated preview/confirm/sync/rollback
+    /// error the user still needs to see, and the editing surfaces must not have
+    /// to rely on clearing a global field to display their own failure.
+    @Published private(set) var conflictChoiceErrorMessage: String?
+    /// Which candidate the message above belongs to, so opening a different
+    /// candidate never shows another candidate's stale rejection.
+    @Published private(set) var conflictChoiceErrorCandidateId: UUID?
+
+    /// The edit error for `candidateId`, or `nil` when the current error belongs
+    /// to a different candidate.
+    func conflictChoiceError(for candidateId: UUID) -> String? {
+        guard conflictChoiceErrorCandidateId == candidateId else { return nil }
+        return conflictChoiceErrorMessage
+    }
+
+    /// Drops an error that belongs to some other candidate. Called when an
+    /// editing surface opens, never on every render — a rejection produced by
+    /// the surface's own stale action must stay on screen.
+    func clearConflictChoiceError(unless candidateId: UUID) {
+        guard conflictChoiceErrorCandidateId != candidateId else { return }
+        conflictChoiceErrorMessage = nil
+        conflictChoiceErrorCandidateId = nil
+    }
     /// Set only when the production preview's read-only remote fetch itself
     /// fails (network/auth/decode/scope/pagination) — kept separate from
     /// `lastErrorMessage` so an unrelated sync error elsewhere can never
@@ -193,6 +232,9 @@ final class GuestMergeController: ObservableObject {
                    (remoteTransport != nil && existingPlan.remoteSnapshotHash == nil
                     || !InventoryMergePlanner.isPlanStillValid(existingPlan, against: localItems, currentRemoteItems: knownRemoteItems)),
                    existing.status == .detected || existing.status == .previewReady || existing.status == .awaitingConfirmation {
+                    #if DEBUG
+                    uiTestPreviewOrigin = .regeneratedInvalidPlan
+                    #endif
                     // Local data changed since this plan was generated and no
                     // upload has started yet — regenerate rather than upload
                     // a stale plan.
@@ -202,11 +244,20 @@ final class GuestMergeController: ObservableObject {
                     )
                     try await persistence.saveGuestMergeSession(existing)
                 }
+                #if DEBUG
+                // Only when the regenerate branch above did not run.
+                if uiTestPreviewOrigin != .regeneratedInvalidPlan {
+                    uiTestPreviewOrigin = .resumedExisting
+                }
+                #endif
                 session = existing
                 return
             }
 
             guard !localItems.isEmpty else { return }
+            #if DEBUG
+            uiTestPreviewOrigin = .createdNew
+            #endif
             let newSession = freshPreview(
                 userId: userId, householdId: householdId, localItems: localItems, knownRemoteItems: knownRemoteItems,
                 remoteSnapshotFetchedAt: remoteSnapshotFetchedAt
@@ -342,9 +393,57 @@ final class GuestMergeController: ObservableObject {
 
     // MARK: Conflict resolution (persisted; App-restart safe; no upload here)
 
+    /// Records — or, before the first confirm, changes — one candidate's choice.
+    ///
+    /// The controller is the final safety boundary here, not the UI: a stale
+    /// screen, a queued tap, or any future caller must fail closed rather than
+    /// rewrite a decision this session may already have executed remotely.
+    /// Nothing in this app can undo a completed remote create or update.
     func resolveConflict(candidateId: UUID, choice: InventoryMergeConflictChoice) async {
-        guard var current = session, var plan = current.plan else { return }
-        guard let index = plan.candidates.firstIndex(where: { $0.localItemId == candidateId }) else { return }
+        guard var current = session, var plan = current.plan else {
+            conflictChoiceErrorMessage = "无法找到这条冲突记录，请返回合并预览后重试。"
+            conflictChoiceErrorCandidateId = candidateId
+            return
+        }
+        guard let index = plan.candidates.firstIndex(where: { $0.localItemId == candidateId }) else {
+            conflictChoiceErrorMessage = "无法找到这条冲突记录，请返回合并预览后重试。"
+            conflictChoiceErrorCandidateId = candidateId
+            return
+        }
+
+        let candidate = plan.candidates[index]
+        if candidate.userChoice == nil {
+            // First-time resolution of an outstanding conflict. `.conflict` is
+            // included because that is exactly where `confirmMerge` parks a
+            // session whose leftover conflicts still need deciding.
+            guard current.status == .previewReady
+                    || current.status == .awaitingConfirmation
+                    || current.status == .conflict else {
+                conflictChoiceErrorMessage = "当前状态无法处理冲突，请重新查看合并预览。"
+                conflictChoiceErrorCandidateId = candidateId
+                return
+            }
+        } else {
+            // Re-editing an already-recorded choice. Allowed only while this
+            // session has provably never attempted a write: a confirm may have
+            // uploaded this very candidate, and `InventoryMergeCandidate` keeps
+            // no per-item upload state to tell which. Note `.conflict` is
+            // absent — reaching it means a confirm already ran.
+            guard current.status == .previewReady || current.status == .awaitingConfirmation,
+                  current.confirmedAt == nil,
+                  current.uploadedItemCount == 0,
+                  current.createdEntityIds.isEmpty else {
+                conflictChoiceErrorMessage = "同步已经开始，已记录的处理方式不能再修改。"
+                conflictChoiceErrorCandidateId = candidateId
+                return
+            }
+        }
+
+        // Past both guards. Only the edit-scoped error is cleared — an
+        // unrelated preview/confirm/sync failure in `lastErrorMessage` stays
+        // visible, because this edit did not resolve it.
+        conflictChoiceErrorMessage = nil
+        conflictChoiceErrorCandidateId = nil
         plan.candidates[index] = plan.candidates[index].applyingChoice(choice)
         current.plan = plan
         current.conflictCount = plan.conflicts.count
@@ -369,6 +468,10 @@ final class GuestMergeController: ObservableObject {
             try await persistence.saveGuestMergeSession(current)
             session = current
         } catch {
+            // Both: the dedicated field drives the editor, while the existing
+            // global message is preserved for callers that already relied on it.
+            conflictChoiceErrorMessage = "无法保存处理方式，请重试。"
+            conflictChoiceErrorCandidateId = candidateId
             lastErrorMessage = "无法保存冲突处理结果，请重试。"
         }
     }
@@ -487,7 +590,14 @@ final class GuestMergeController: ObservableObject {
             try await persistence.saveGuestMergeSession(current)
 
             for candidate in toUpload {
-                if let forkedId = candidate.forkedLocalItemId {
+                // `activeForkedLocalItemId`, never `forkedLocalItemId`: since
+                // UI-5B2B-B2B a reserved fork id is retained after the user
+                // moves the choice away from `keepBoth`, so a non-nil raw value
+                // no longer means "this candidate forks". Reading the raw field
+                // here would route a `keepLocal`/`keepRemote`/`skip` candidate
+                // down the fork-create path and create a record the user never
+                // asked for.
+                if let forkedId = candidate.activeForkedLocalItemId {
                     // Same-id `keepBoth`: the existing remote entity
                     // (`candidate.localItemId`) is certain and is never
                     // touched here (a true no-op for it, like `keepRemote`).
@@ -577,10 +687,13 @@ final class GuestMergeController: ObservableObject {
             for index in plan.candidates.indices {
                 let candidate = plan.candidates[index]
                 guard toUpload.contains(where: { $0.localItemId == candidate.localItemId }) else { continue }
-                // A same-id `keepBoth` fork's outcome lives under
-                // `forkedLocalItemId`, not `localItemId` — the original
-                // entity id is never staged for this candidate at all.
-                let entityIdToCheck = candidate.forkedLocalItemId ?? candidate.localItemId
+                // A same-id `keepBoth` fork's outcome lives under its *active*
+                // forked id, not `localItemId` — the original entity id is
+                // never staged for this candidate at all. An inactive retained
+                // reservation must fall through to `localItemId`, or the
+                // outcome of an edited-away choice would be read from an entity
+                // that was never staged.
+                let entityIdToCheck = candidate.activeForkedLocalItemId ?? candidate.localItemId
                 guard let metadata = try await persistence.metadata(entityType: .inventoryItem, entityId: entityIdToCheck) else { continue }
                 switch metadata.state {
                 case .synced:
@@ -637,6 +750,20 @@ final class GuestMergeController: ObservableObject {
             crashReporter.addBreadcrumb(.mergeConfirmFailed, metadata: ["errorCode": (error as? SyncError)?.crashReportingCode ?? "unknown_error"])
         }
     }
+
+    #if DEBUG
+    /// UI-test-only seam: marks the in-memory and persisted session as having
+    /// started syncing, so a UI test can prove the review/editor turn read-only
+    /// *while still open*. Sets nothing else — no upload, no coordinator, no
+    /// network, no staged mutation — and exists only in DEBUG.
+    func markSyncStartedForUITesting() async {
+        guard var current = session else { return }
+        current.confirmedAt = current.confirmedAt ?? Date()
+        current.updatedAt = Date()
+        try? await persistence.saveGuestMergeSession(current)
+        session = current
+    }
+    #endif
 
     // MARK: Rollback (limited — only this session's own newly-created records)
 

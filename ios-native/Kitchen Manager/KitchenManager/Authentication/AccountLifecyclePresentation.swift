@@ -382,20 +382,102 @@ enum AccountLifecycleSummaryFixture: String, CaseIterable {
     /// with newly-decided ones, and no copy may claim either that nothing has
     /// been uploaded or that the whole plan is still upcoming.
     case postPartialConfirmResumed = "UITEST_MERGE_SUMMARY_POST_PARTIAL_CONFIRM"
+    /// UI-5B2B-B2B production path: a first-pass preview with **no** recorded
+    /// choices. The UI test makes every choice itself through the real
+    /// 确认前处理冲突 entry, which is the only honest way to prove that path is
+    /// reachable — a fixture that pre-writes `userChoice` would prove nothing.
+    case preConfirmUnresolved = "UITEST_MERGE_EDIT_PRECONFIRM_UNRESOLVED"
+    /// Screenshot convenience: choices already recorded, still pre-confirm, so
+    /// the editable review and editor can be captured without a click-through.
+    case editableResolved = "UITEST_MERGE_EDIT_EDITABLE_RESOLVED"
+    /// Screenshot convenience: a same-ID keepBoth already selected.
+    case editableKeepBoth = "UITEST_MERGE_EDIT_EDITABLE_KEEP_BOTH"
+    /// Screenshot convenience: 20 recorded choices for long-list editing.
+    case editableLongList = "UITEST_MERGE_EDIT_EDITABLE_LONG"
+    /// `confirmedAt` set with nothing uploaded — read-only must still apply.
+    case confirmedButNothingUploaded = "UITEST_MERGE_EDIT_CONFIRMED_ZERO_UPLOAD"
+    /// Two-phase cold-relaunch acceptance fixture. Phase one seeds an
+    /// all-unresolved session in its own isolated namespace; phase two
+    /// (`resumeArgument`) deliberately does **not** seed, so the production
+    /// `preparePreview` has to resume the very session the first launch left —
+    /// including whatever choices the UI made in it.
+    case choiceEditingRestart = "UITEST_MERGE_CHOICE_EDITING_RESTART_SEED"
+
+    /// The second phase of the cold-relaunch fixture. Same household and
+    /// session as `choiceEditingRestart`, but seeding is skipped.
+    static let resumeArgument = "UITEST_MERGE_CHOICE_EDITING_RESTART_RESUME"
 
     static var active: AccountLifecycleSummaryFixture? {
         let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains(resumeArgument) { return .choiceEditingRestart }
         return allCases.first { arguments.contains($0.rawValue) }
     }
 
-    /// One isolated household per scenario, distinct from every B1 conflict
-    /// household (…0031–0036) and every legacy merge household (…0010–0017).
+    /// True on the resume launch: the fixture must resolve its household and
+    /// session as usual, but must not write anything.
+    static var isResumeOnlyLaunch: Bool {
+        ProcessInfo.processInfo.arguments.contains(resumeArgument)
+    }
+
+    /// Which phase of the cold-relaunch acceptance fixture this launch is.
+    ///
+    /// Read once in `KitchenManagerApp.init`. Only `.seed` may touch local data;
+    /// `.resume` must leave everything the previous process persisted alone,
+    /// including the generic account-fixture reset that would otherwise wipe the
+    /// inventory and re-add 测试库存 under a brand-new UUID — which is what made
+    /// the seeded plan hash stale and forced `regeneratedPreview`.
+    enum RestartLaunchMode {
+        case none
+        case seed
+        case resume
+    }
+
+    static var restartLaunchMode: RestartLaunchMode {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains(resumeArgument) { return .resume }
+        if arguments.contains(choiceEditingRestart.rawValue) { return .seed }
+        return .none
+    }
+
+    /// The one same-ID conflict candidate the cold-relaunch test drives. Every
+    /// reference — local inventory, seeded plan, UI test, probe — uses this.
+    static let restartSameIDCandidateID = UUID(uuidString: "00000000-0000-0000-0000-000000000760")!
+
+    /// The exact local inventory the cold-relaunch fixture requires.
+    ///
+    /// `planHash` covers local item id/quantity/unit/expiry, so the seeded hash
+    /// only survives a relaunch if the store holds precisely these items on both
+    /// launches. Owning them here removes the race where the first launch hashed
+    /// an inventory that had not finished loading yet.
+    static var restartLocalItems: [InventoryItem] {
+        // Fixed ids, names, quantities, units, expiries and timestamps: every
+        // input to `planHash` must be byte-identical on both launches.
+        let fixedDate = Date(timeIntervalSince1970: 1_767_225_600)
+        return [
+            InventoryItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000760")!,
+                name: "豆腐", quantity: 60, unit: "份", expiryDate: nil,
+                createdAt: fixedDate, updatedAt: fixedDate
+            ),
+            InventoryItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000761")!,
+                name: "大米", quantity: 61, unit: "份", expiryDate: nil,
+                createdAt: fixedDate, updatedAt: fixedDate
+            )
+        ]
+    }
+
+    /// One isolated household per scenario, disjoint from every B1 conflict
+    /// household and every legacy merge household.
     var householdID: UUID {
-        UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000000%02d", 51 + index))!
+        // Distinct 4-digit block per fixture. The former `51 + index` /
+        // `61 + index` scheme collided once the case count passed ten: household
+        // 61 and session 61 were the same UUID, so two fixtures shared identity.
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000C%04d", index))!
     }
 
     var sessionID: UUID {
-        UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000000%02d", 61 + index))!
+        UUID(uuidString: String(format: "00000000-0000-0000-0000-0000000D%04d", index))!
     }
 
     private var index: Int {
@@ -513,6 +595,45 @@ enum AccountLifecycleSummaryFixture: String, CaseIterable {
                 plain(73, "酱油", action: .update),
                 plain(74, "食盐", action: .skip)
             ]
+        case .preConfirmUnresolved:
+            // Every candidate unresolved: the test supplies the choices.
+            return [
+                plain(91, "面粉", action: .create),
+                conflict(92, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: nil),
+                conflict(93, "大米", sameIdentity: false, reason: .metadataMismatch, choice: nil)
+            ]
+        case .editableResolved:
+            return [
+                conflict(94, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepLocal),
+                conflict(95, "大米", sameIdentity: false, reason: .metadataMismatch, choice: .keepRemote),
+                conflict(96, "牛奶", sameIdentity: true, reason: .expiryMismatch, choice: .skip)
+            ]
+        case .editableKeepBoth:
+            return [
+                conflict(97, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepBoth),
+                conflict(98, "大米", sameIdentity: true, reason: .quantityMismatch, choice: .keepLocal)
+            ]
+        case .editableLongList:
+            return (1...20).map { n in
+                let choices: [InventoryMergeConflictChoice] = [.keepLocal, .keepRemote, .keepBoth, .skip]
+                return conflict(
+                    n, "可改食材\(n)", sameIdentity: n.isMultiple(of: 2),
+                    reason: n.isMultiple(of: 3) ? .expiryMismatch : .quantityMismatch,
+                    choice: choices[(n - 1) % 4]
+                )
+            }
+        case .confirmedButNothingUploaded:
+            return [
+                conflict(99, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: .keepLocal)
+            ]
+        case .choiceEditingRestart:
+            // Fixed ids, quantities, units and expiries so every input to
+            // `planHash` is identical on both launches. All unresolved: the UI
+            // makes the choices.
+            return [
+                conflict(60, "豆腐", sameIdentity: true, reason: .quantityMismatch, choice: nil),
+                conflict(61, "大米", sameIdentity: false, reason: .metadataMismatch, choice: nil)
+            ]
         case .postPartialConfirmResumed:
             return [
                 // Uploaded by the first confirm — still listed in the plan,
@@ -566,7 +687,7 @@ enum AccountLifecycleSummaryFixture: String, CaseIterable {
             updatedAt: now,
             // The post-partial state is the only one that has already confirmed
             // once; every other scenario is a first pass.
-            confirmedAt: self == .postPartialConfirmResumed ? now : nil,
+            confirmedAt: (self == .postPartialConfirmResumed || self == .confirmedButNothingUploaded) ? now : nil,
             completedAt: nil,
             cancelledAt: nil,
             rollbackAvailableUntil: nil,
@@ -598,6 +719,11 @@ enum AccountLifecycleSummaryFixture: String, CaseIterable {
         persistence: any SyncPersistenceProtocol, userID: UUID, localItems: [InventoryItem]
     ) async -> Bool {
         guard let fixture = active else { return false }
+        // Resume phase: report ready without writing, so the session the first
+        // launch left — with its UI-made choices — is the one production code
+        // resumes. Scoped to this one fixture; every other fixture keeps its
+        // per-process re-seed, so no other test can inherit stale state.
+        if isResumeOnlyLaunch { return true }
         return await fixture.seed(persistence: persistence, userID: userID, localItems: localItems)
     }
 

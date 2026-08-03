@@ -239,13 +239,80 @@ final class GuestMergePreviewUI5B2BAUITests: XCTestCase {
         )
     }
 
+    /// Scrolls until `element` is not merely hittable but *entirely* inside the
+    /// window, deciding when to stop from scroll progress rather than a count.
+    ///
+    /// Stopping at the first `isHittable` was the real defect behind the
+    /// intermittent XXXL cancel-action failure: at Accessibility sizes that
+    /// button is ~93pt tall, and it reports hittable while its lower edge is
+    /// still ~60pt below the window, so `assertFullyOnScreen` then failed.
+    /// Whether a run passed depended on exactly where scrolling happened to
+    /// stop, which is why no fixed swipe count was ever reliable.
     private func scrollUntilHittable(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        if element.exists && element.isHittable { return true }
-        for _ in 0..<10 {
-            if element.exists && element.isHittable { return true }
-            app.swipeUp()
+        let window = app.windows.firstMatch
+        // An *inset*, never a tolerance. `assertFullyOnScreen` requires
+        // `minY >= window.minY` and `maxY <= window.maxY` with no slack, so a
+        // helper that accepted 1pt outside the window could stop in a position
+        // the assertion then rejected — the same class of flake this rewrite
+        // removed, only narrower. Requiring the element to sit ~1pt *inside*
+        // both edges makes the stop condition strictly stronger than the
+        // assertion instead of weaker.
+        let requiredInset: CGFloat = 1
+
+        func fullyVisible() -> Bool {
+            guard element.exists, element.isHittable else { return false }
+            let frame = element.frame
+            let bounds = window.frame
+            return frame.minY >= bounds.minY + requiredInset && frame.maxY <= bounds.maxY - requiredInset
         }
-        return element.exists && element.isHittable
+
+        if fullyVisible() { return true }
+
+        var attempts = 0
+        var noProgress = 0
+        var recent: [String] = []
+        let hardSafetyCap = 80
+
+        while attempts < hardSafetyCap {
+            let existedBefore = element.exists
+            let midBefore = existedBefore ? element.frame.midY : .greatestFiniteMagnitude
+
+            let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.82))
+            let end = window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.22))
+            start.press(forDuration: 0.05, thenDragTo: end)
+            attempts += 1
+
+            if fullyVisible() { return true }
+
+            let existsNow = element.exists
+            let midNow = existsNow ? element.frame.midY : .greatestFiniteMagnitude
+            recent.append("attempt=" + String(attempts) + " exists=" + String(existsNow)
+                + " frame=" + (existsNow ? String(describing: element.frame) : "-"))
+            if recent.count > 10 { recent.removeFirst() }
+
+            // No-progress only counts once the element is actually in the tree.
+            // Before it appears, `exists` stays false while the page really is
+            // scrolling, and counting that as stalled aborted the search on the
+            // very swipe that would have revealed the button.
+            if existsNow {
+                let moved = !existedBefore || abs(midNow - midBefore) > 1
+                noProgress = moved ? 0 : noProgress + 1
+                if noProgress >= 4 { break }
+            } else {
+                noProgress = 0
+            }
+        }
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "scroll-failure"
+        shot.lifetime = .keepAlways
+        add(shot)
+        XCTFail("无法把元素完整滚入窗口：attempts=" + String(attempts)
+            + " noProgress=" + String(noProgress)
+            + " window=" + String(describing: window.frame)
+            + "\n" + recent.joined(separator: "\n")
+            + "\n" + app.debugDescription)
+        return false
     }
 
     /// Fully on screen and clear of the window's bottom edge — a button whose lower

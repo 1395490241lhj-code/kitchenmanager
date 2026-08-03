@@ -39,9 +39,22 @@ struct KitchenManagerApp: App {
             weeklyPlanPersistence: persistence.weeklyPlan
         )
         #if DEBUG
-        if AccountLifecycleFixture.active != nil {
+        // The generic account fixture resets local data and adds 测试库存 under a
+        // fresh UUID on every launch. That is fine for single-launch tests, but
+        // it makes a seeded merge plan stale on the next launch — the very thing
+        // the cold-relaunch acceptance fixture has to survive. So that fixture
+        // owns this step explicitly, and its resume phase does nothing at all.
+        switch AccountLifecycleSummaryFixture.restartLaunchMode {
+        case .seed:
             kitchenStoreInstance.clearAllLocalData()
-            kitchenStoreInstance.addInventory(name: "测试库存", quantity: 1, unit: "项", expiryDate: nil)
+            kitchenStoreInstance.inventory = AccountLifecycleSummaryFixture.restartLocalItems
+        case .resume:
+            break
+        case .none:
+            if AccountLifecycleFixture.active != nil {
+                kitchenStoreInstance.clearAllLocalData()
+                kitchenStoreInstance.addInventory(name: "测试库存", quantity: 1, unit: "项", expiryDate: nil)
+            }
         }
         #endif
         let authStoreInstance = AuthenticationAssembly.make()
@@ -167,6 +180,19 @@ struct KitchenManagerApp: App {
                             .frame(width: 1, height: 1)
                             .allowsHitTesting(false)
                             .accessibilityIdentifier("uitest.conflictFixtureSeeded")
+                    }
+                }
+                // UI-5B2B-B2B cold-relaunch probes. At the app root so they
+                // survive every push/pop inside the merge flow — the previous
+                // markers lived inside the preview screen and vanished as soon
+                // as navigation changed, which is why the test could not find
+                // them. Fixed identifiers; all state lives in the value.
+                .overlay(alignment: .bottomLeading) {
+                    if AccountLifecycleSummaryFixture.restartLaunchMode != .none {
+                        RestartUITestProbeView(
+                            controller: guestMergeController,
+                            kitchenStore: kitchenStore
+                        )
                     }
                 }
                 .overlay(alignment: .topTrailing) {

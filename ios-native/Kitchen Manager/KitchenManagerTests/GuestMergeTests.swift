@@ -3126,6 +3126,721 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(mutations, 0)
     }
 
+    // MARK: - UI-5B2B-B2B: base-behaviour reproduction
+
+    /// Reproduces the fork-id churn this phase fixes: leaving `keepBoth` clears
+    /// `forkedLocalItemId`, so coming back to it mints a brand-new id.
+    func testBaseReproductionKeepBothRoundTripMintsANewForkId() {
+        let localId = UUID(uuidString: "00000000-0000-0000-0000-0000000000E1")!
+        let base = InventoryMergeCandidate(
+            localItemId: localId, name: "豆腐", unit: "块", localQuantity: 1, localExpiryDate: nil,
+            remoteItemId: localId, remoteQuantity: 3, remoteExpiryDate: nil, remoteVersion: nil,
+            action: .create, conflictReason: .quantityMismatch, userChoice: nil
+        )
+        let first = base.applyingChoice(.keepBoth)
+        let originalFork = try! XCTUnwrap(first.forkedLocalItemId)
+
+        for detour in [InventoryMergeConflictChoice.keepLocal, .keepRemote, .skip] {
+            let left = first.applyingChoice(detour)
+            let returned = left.applyingChoice(.keepBoth)
+            let returnedFork = try! XCTUnwrap(returned.forkedLocalItemId)
+            XCTAssertEqual(
+                returnedFork, originalFork,
+                "keepBoth → \(detour.rawValue) → keepBoth 必须复用同一个 fork id"
+            )
+        }
+        // Repeating keepBoth directly must also reuse it.
+        XCTAssertEqual(first.applyingChoice(.keepBoth).forkedLocalItemId, originalFork)
+    }
+
+    /// A retained fork id must never by itself route the upload down the
+    /// fork-create path when the current choice is not a same-ID `keepBoth`.
+    /// This drives the real `confirmMerge` staging path, not a source grep.
+    func testRetainedInactiveForkIsIgnoredByConfirmAndUpdatesTheOriginalRecord() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+
+        // keepBoth reserves a fork, then keepLocal leaves it behind.
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
+        let reservedFork = try XCTUnwrap(controller.plan?.candidates.first?.forkedLocalItemId)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+
+        let candidate = try XCTUnwrap(controller.plan?.candidates.first)
+        XCTAssertEqual(candidate.userChoice, .keepLocal)
+        XCTAssertEqual(candidate.action, .update, "same-ID keepLocal 必须更新原记录")
+        XCTAssertNil(candidate.activeForkedLocalItemId, "keepLocal 下 retained fork 必须 inactive")
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+
+        // The reserved id must never have been created remotely.
+        let forkMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: reservedFork)
+        XCTAssertNil(forkMetadata, "inactive retained fork 不得被 stage 或上传")
+        XCTAssertFalse(controller.session?.createdEntityIds.contains(reservedFork) ?? true)
+        // The original record was updated instead.
+        let originalMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: sharedId)
+        XCTAssertNotNil(originalMetadata)
+    }
+
+    /// A session that already confirmed must not accept an edit to a choice it
+    /// may already have executed remotely — nothing here can undo that.
+    func testResolvedChoiceCannotBeEditedOnceConfirmHasStarted() async throws {
+        let (controller, _, _, conflictedId) = try await partiallyConfirmedFixture()
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        await controller.resolveConflict(candidateId: conflictedId, choice: .keepLocal)
+
+        let session = try XCTUnwrap(controller.session)
+        XCTAssertEqual(session.status, .previewReady)
+        XCTAssertNotNil(session.confirmedAt)
+        XCTAssertGreaterThan(session.uploadedItemCount, 0)
+        let before = try XCTUnwrap(controller.plan)
+
+        // Attempt to re-edit the choice recorded above.
+        await controller.resolveConflict(candidateId: conflictedId, choice: .skip)
+
+        XCTAssertEqual(controller.plan, before, "已 confirm 的会话不得再修改已记录的选择")
+        XCTAssertEqual(
+            controller.plan?.candidates.first { $0.localItemId == conflictedId }?.userChoice, .keepLocal,
+            "选择必须保持原值"
+        )
+        XCTAssertEqual(controller.conflictChoiceErrorMessage, "同步已经开始，已记录的处理方式不能再修改。")
+    }
+
+    /// Builds a real, confirmable session whose single same-ID candidate is
+    /// `keepLocal`/`.update` yet still carries a **reserved** fork id, then runs
+    /// the genuine `confirmMerge` staging path against fake persistence and the
+    /// simulated transport.
+    ///
+    /// Constructed by persisting a modified plan and letting `preparePreview`
+    /// resume it: `planHash` covers local items and the remote fingerprint, not
+    /// candidate choices, so the plan stays valid and is not regenerated.
+    ///
+    /// - Returns: (controller, persistence, localItemId, reservedForkId)
+    private func sessionWithRetainedInactiveFork() async throws
+        -> (GuestMergeController, SwiftDataSyncPersistence, UUID, UUID) {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        let reservedFork = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+
+        let builder = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await builder.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        var seeded = try XCTUnwrap(builder.session)
+        var plan = try XCTUnwrap(seeded.plan)
+        // keepLocal on a same-id match → `.update`, and then a reserved fork id
+        // left behind exactly as an earlier keepBoth would leave it.
+        var candidate = plan.candidates[0].applyingChoice(.keepLocal)
+        candidate.forkedLocalItemId = reservedFork
+        XCTAssertEqual(candidate.action, .update)
+        XCTAssertEqual(candidate.remoteItemId, candidate.localItemId)
+        plan.candidates[0] = candidate
+        seeded.plan = plan
+        seeded.conflictCount = plan.conflicts.count
+        try await persistence.saveGuestMergeSession(seeded)
+
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        let resumed = try XCTUnwrap(controller.plan?.candidates.first)
+        XCTAssertEqual(resumed.userChoice, .keepLocal, "resumed plan 必须保留构造的选择")
+        XCTAssertEqual(resumed.forkedLocalItemId, reservedFork, "resumed plan 必须保留 reserved fork id")
+        return (controller, persistence, sharedId, reservedFork)
+    }
+
+    /// The retained reservation must be inert: `confirmMerge` updates the
+    /// original record and never creates anything under the reserved id.
+    func testRetainedInactiveForkIsInertThroughRealConfirmStaging() async throws {
+        let (controller, persistence, sharedId, reservedFork) = try await sessionWithRetainedInactiveFork()
+
+        let candidate = try XCTUnwrap(controller.plan?.candidates.first)
+        XCTAssertNil(candidate.activeForkedLocalItemId, "keepLocal 下 reserved fork 必须 inactive")
+        XCTAssertTrue(
+            controller.plan?.readyToUpload.contains { $0.localItemId == sharedId } ?? false,
+            "keepLocal 候选仍应属于 readyToUpload"
+        )
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+
+        // Nothing whatsoever exists under the reserved id.
+        let forkMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: reservedFork)
+        XCTAssertNil(forkMetadata, "reserved fork 不得有 metadata")
+        let forkItem = try await persistence.inventoryItem(id: reservedFork)
+        XCTAssertNil(forkItem, "reserved fork 不得有 inventory item")
+        XCTAssertFalse(
+            controller.session?.createdEntityIds.contains(reservedFork) ?? true,
+            "createdEntityIds 不得包含 reserved fork"
+        )
+        // The original record took the ordinary update path instead.
+        let originalMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: sharedId)
+        XCTAssertEqual(originalMetadata?.state, .synced, "原记录应按 keepLocal 正常同步")
+        XCTAssertEqual(controller.session?.uploadedItemCount, 1, "只应上传一条，不得额外 create")
+    }
+
+    // MARK: - UI-5B2B-B2B: transition matrix
+
+    private func sameIdCandidate() -> InventoryMergeCandidate {
+        let localId = UUID(uuidString: "00000000-0000-0000-0000-0000000000D1")!
+        return InventoryMergeCandidate(
+            localItemId: localId, name: "豆腐", unit: "块", localQuantity: 1, localExpiryDate: nil,
+            remoteItemId: localId, remoteQuantity: 3, remoteExpiryDate: nil, remoteVersion: nil,
+            action: .create, conflictReason: .quantityMismatch, userChoice: nil
+        )
+    }
+
+    private func differentIdCandidate() -> InventoryMergeCandidate {
+        InventoryMergeCandidate(
+            localItemId: UUID(uuidString: "00000000-0000-0000-0000-0000000000D2")!,
+            name: "大米", unit: "袋", localQuantity: 2, localExpiryDate: nil,
+            remoteItemId: UUID(uuidString: "00000000-0000-0000-0000-0000000000D3")!,
+            remoteQuantity: 2, remoteExpiryDate: nil, remoteVersion: nil,
+            action: .create, conflictReason: .ambiguousDuplicate, userChoice: nil
+        )
+    }
+
+    private func expectedAction(
+        _ choice: InventoryMergeConflictChoice, sameIdentity: Bool
+    ) -> InventoryMergeAction {
+        switch choice {
+        case .keepLocal: sameIdentity ? .update : .create
+        case .keepRemote: .keepRemote
+        case .keepBoth: .create
+        case .skip: .skip
+        }
+    }
+
+    private func planContaining(_ candidate: InventoryMergeCandidate) -> InventoryMergePlan {
+        InventoryMergePlan(
+            sessionId: UUID(uuidString: "00000000-0000-0000-0000-0000000000D4")!,
+            householdId: householdA, generatedAt: Date(timeIntervalSince1970: 1),
+            sourceCount: 1, candidates: [candidate], skippedItemIds: [],
+            planHash: "matrix", knownRemoteItemCount: 1,
+            remoteSnapshotHash: "matrix-remote", remoteSnapshotFetchedAt: Date(timeIntervalSince1970: 1)
+        )
+    }
+
+    /// Full same-ID 4×4 matrix. Every source choice to every target choice.
+    func testSameIdFourByFourTransitionMatrix() throws {
+        let all = InventoryMergeConflictChoice.allCasesForTesting
+        for source in all {
+            let afterSource = sameIdCandidate().applyingChoice(source)
+            let reservedAfterSource = afterSource.forkedLocalItemId
+            if source == .keepBoth {
+                XCTAssertNotNil(reservedAfterSource, "首次 keepBoth 必须预留 fork id")
+            }
+            for target in all {
+                let result = afterSource.applyingChoice(target)
+
+                XCTAssertEqual(result.userChoice, target, "\(source.rawValue)→\(target.rawValue) userChoice")
+                XCTAssertEqual(
+                    result.action, expectedAction(target, sameIdentity: true),
+                    "\(source.rawValue)→\(target.rawValue) action"
+                )
+
+                // Reserved id is retained across every transition once allocated.
+                if let reservedAfterSource {
+                    XCTAssertEqual(
+                        result.forkedLocalItemId, reservedAfterSource,
+                        "\(source.rawValue)→\(target.rawValue) 必须复用同一个 reserved fork id"
+                    )
+                } else if target == .keepBoth {
+                    XCTAssertNotNil(result.forkedLocalItemId, "\(target.rawValue) 应分配 reserved fork id")
+                } else {
+                    XCTAssertNil(result.forkedLocalItemId, "尚未预留过 fork 时不应凭空出现")
+                }
+
+                // Active only for a genuine same-ID keepBoth.
+                if target == .keepBoth {
+                    XCTAssertEqual(result.activeForkedLocalItemId, result.forkedLocalItemId,
+                                   "\(target.rawValue) 的 reserved fork 应为 active")
+                } else {
+                    XCTAssertNil(result.activeForkedLocalItemId,
+                                 "\(source.rawValue)→\(target.rawValue) 下 retained fork 必须 inactive")
+                }
+
+                // readyToUpload membership follows action, never the reservation.
+                let uploads = planContaining(result).readyToUpload.contains { $0.localItemId == result.localItemId }
+                XCTAssertEqual(
+                    uploads, target == .keepLocal || target == .keepBoth,
+                    "\(source.rawValue)→\(target.rawValue) readyToUpload membership"
+                )
+            }
+        }
+    }
+
+    func testKeepBothRoundTripsThroughEveryOtherChoiceReuseTheSameForkId() throws {
+        let first = sameIdCandidate().applyingChoice(.keepBoth)
+        let reserved = try XCTUnwrap(first.forkedLocalItemId)
+        for detour in [InventoryMergeConflictChoice.keepLocal, .keepRemote, .skip] {
+            let returned = first.applyingChoice(detour).applyingChoice(.keepBoth)
+            XCTAssertEqual(returned.forkedLocalItemId, reserved, "经由 \(detour.rawValue) 往返必须复用")
+            XCTAssertEqual(returned.activeForkedLocalItemId, reserved)
+        }
+        // Repeat keepBoth, and a long chain, both stable.
+        var chained = first
+        for choice in [InventoryMergeConflictChoice.keepBoth, .skip, .keepBoth, .keepRemote, .keepBoth] {
+            chained = chained.applyingChoice(choice)
+        }
+        XCTAssertEqual(chained.forkedLocalItemId, reserved, "多次往返不得铸造第二个 fork")
+    }
+
+    func testReservedForkIdSurvivesCodableRoundTrip() throws {
+        let resolved = sameIdCandidate().applyingChoice(.keepBoth).applyingChoice(.skip)
+        let reserved = try XCTUnwrap(resolved.forkedLocalItemId)
+        XCTAssertNil(resolved.activeForkedLocalItemId, "skip 状态下不得 active")
+
+        let data = try JSONEncoder().encode(planContaining(resolved))
+        let decoded = try JSONDecoder().decode(InventoryMergePlan.self, from: data)
+        let restored = try XCTUnwrap(decoded.candidates.first)
+        XCTAssertEqual(restored.forkedLocalItemId, reserved, "重启后 reserved id 必须不变")
+        XCTAssertNil(restored.activeForkedLocalItemId)
+        XCTAssertEqual(restored.applyingChoice(.keepBoth).forkedLocalItemId, reserved,
+                       "重启后回到 keepBoth 仍复用同一个 id")
+    }
+
+    func testDifferentIdCandidateNeverHasAnyFork() throws {
+        for target in InventoryMergeConflictChoice.allCasesForTesting {
+            let result = differentIdCandidate().applyingChoice(target)
+            XCTAssertEqual(result.userChoice, target)
+            XCTAssertEqual(result.action, expectedAction(target, sameIdentity: false))
+            XCTAssertNil(result.forkedLocalItemId, "different-ID 不得预留 fork")
+            XCTAssertNil(result.activeForkedLocalItemId, "different-ID 不得有 active fork")
+        }
+        // keepBoth still creates under the candidate's own id.
+        let keepBoth = differentIdCandidate().applyingChoice(.keepBoth)
+        XCTAssertEqual(keepBoth.action, .create)
+        XCTAssertTrue(planContaining(keepBoth).readyToUpload.contains { $0.localItemId == keepBoth.localItemId })
+    }
+
+    // MARK: - UI-5B2B-B2B: resolveConflict guard
+
+    /// Builds a resumable session in an arbitrary status with one same-ID
+    /// conflict, optionally already resolved, and optional confirm history.
+    private func guardScenario(
+        status: GuestMergeSessionStatus,
+        preResolvedWith choice: InventoryMergeConflictChoice? = nil,
+        confirmedAt: Date? = nil,
+        uploadedItemCount: Int = 0,
+        createdEntityIds: [UUID] = []
+    ) async throws -> (GuestMergeController, SwiftDataSyncPersistence, UUID) {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+
+        let builder = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await builder.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        var seeded = try XCTUnwrap(builder.session)
+        var plan = try XCTUnwrap(seeded.plan)
+        if let choice { plan.candidates[0] = plan.candidates[0].applyingChoice(choice) }
+        seeded.plan = plan
+        seeded.status = status
+        seeded.confirmedAt = confirmedAt
+        seeded.uploadedItemCount = uploadedItemCount
+        seeded.createdEntityIds = createdEntityIds
+        try await persistence.saveGuestMergeSession(seeded)
+
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        return (controller, persistence, sharedId)
+    }
+
+    private func assertRejected(
+        _ controller: GuestMergeController, _ persistence: SwiftDataSyncPersistence,
+        candidateId: UUID, attempt: InventoryMergeConflictChoice, expectedMessage: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) async throws {
+        let planBefore = controller.plan
+        let statusBefore = controller.session?.status
+        let candidateBefore = controller.plan?.candidates.first { $0.localItemId == candidateId }
+        let scope = SyncScope(type: .household, id: householdA)
+        let pendingBefore = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+
+        await controller.resolveConflict(candidateId: candidateId, choice: attempt)
+
+        XCTAssertEqual(controller.plan, planBefore, "plan 不得改变", file: file, line: line)
+        XCTAssertEqual(controller.session?.status, statusBefore, "status 不得改变", file: file, line: line)
+        XCTAssertEqual(
+            controller.plan?.candidates.first { $0.localItemId == candidateId }, candidateBefore,
+            "candidate 不得改变", file: file, line: line
+        )
+        let pendingAfter = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+        XCTAssertEqual(pendingAfter, pendingBefore, "不得产生 mutation", file: file, line: line)
+        XCTAssertEqual(pendingAfter, 0, "confirm 前 mutation 必须为 0", file: file, line: line)
+        XCTAssertEqual(controller.conflictChoiceErrorMessage, expectedMessage, "错误文案", file: file, line: line)
+    }
+
+    private static let resolvedEditRejection = "同步已经开始，已记录的处理方式不能再修改。"
+    private static let unresolvedStatusRejection = "当前状态无法处理冲突，请重新查看合并预览。"
+
+    /// The UI-test seam that flips a session to "sync started" is DEBUG-only,
+    /// but a UI test taps it and then asserts the screen is read-only, so what
+    /// it writes has to be pinned: it must mark the session and nothing else.
+    /// If it ever staged a mutation or counted an upload, the read-only
+    /// screenshot would be evidence of a state the product cannot reach.
+    func testMarkSyncStartedForUITestingOnlyMarksTheSessionAndStagesNothing() async throws {
+        let (controller, persistence, candidateId) = try await guardScenario(
+            status: .previewReady, preResolvedWith: .keepLocal
+        )
+        let scope = SyncScope(type: .household, id: householdA)
+        let pendingBefore = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+        XCTAssertEqual(pendingBefore, 0)
+        let planBefore = controller.plan
+        XCTAssertTrue(
+            InventoryMergeChoiceEditingAvailability.make(session: controller.session).isEditable,
+            "前置条件：seam 只在可编辑时渲染"
+        )
+
+        await controller.markSyncStartedForUITesting()
+
+        // Marks exactly one thing.
+        XCTAssertNotNil(controller.session?.confirmedAt)
+        // And nothing else.
+        XCTAssertEqual(controller.session?.uploadedItemCount, 0, "seam 不得计入任何上传")
+        XCTAssertEqual(controller.session?.createdEntityIds, [], "seam 不得创建任何远端实体")
+        XCTAssertEqual(controller.session?.status, .previewReady, "seam 不得改变 status")
+        XCTAssertEqual(controller.plan, planBefore, "seam 不得改变 plan")
+        let pendingAfter = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+        XCTAssertEqual(pendingAfter, 0, "seam 不得产生 mutation")
+
+        // The screen it drives is now read-only in both the view's rule and the
+        // controller's, so the seam's own render condition is false as well.
+        let availability = InventoryMergeChoiceEditingAvailability.make(session: controller.session)
+        XCTAssertEqual(availability, .readOnlyAfterSyncStarted)
+        XCTAssertFalse(availability.isEditable, "触发后 seam 与修改入口必须同时消失")
+        await controller.resolveConflict(candidateId: candidateId, choice: .skip)
+        XCTAssertEqual(controller.conflictChoiceErrorMessage, Self.resolvedEditRejection)
+    }
+
+    func testFirstUnresolvedChoiceIsAllowedInEveryNormalResolutionStatus() async throws {
+        for status in [GuestMergeSessionStatus.previewReady, .awaitingConfirmation, .conflict] {
+            let (controller, _, candidateId) = try await guardScenario(status: status)
+            XCTAssertNil(controller.plan?.candidates.first?.userChoice)
+            await controller.resolveConflict(candidateId: candidateId, choice: .keepLocal)
+            XCTAssertEqual(
+                controller.plan?.candidates.first?.userChoice, .keepLocal,
+                "\(status.rawValue) 中首次处理未解决冲突必须被允许"
+            )
+            XCTAssertNil(controller.conflictChoiceErrorMessage)
+        }
+    }
+
+    func testResolvedEditIsAllowedOnlyBeforeAnyConfirmAttempt() async throws {
+        for status in [GuestMergeSessionStatus.previewReady, .awaitingConfirmation] {
+            let (controller, _, candidateId) = try await guardScenario(status: status, preResolvedWith: .keepLocal)
+            await controller.resolveConflict(candidateId: candidateId, choice: .keepBoth)
+            XCTAssertEqual(controller.plan?.candidates.first?.userChoice, .keepBoth,
+                           "\(status.rawValue) 且未 confirm 时应允许修改")
+            XCTAssertNil(controller.conflictChoiceErrorMessage)
+        }
+    }
+
+    func testResolvedEditIsRejectedInConflictRoot() async throws {
+        let (controller, persistence, candidateId) = try await guardScenario(
+            status: .conflict, preResolvedWith: .keepLocal
+        )
+        try await assertRejected(
+            controller, persistence, candidateId: candidateId, attempt: .skip,
+            expectedMessage: Self.resolvedEditRejection
+        )
+    }
+
+    /// Non-terminal statuses that `preparePreview` still resumes: the guard must
+    /// reject a resolved edit in each one.
+    func testResolvedEditIsRejectedInEveryResumableNonEditableStatus() async throws {
+        for status in [GuestMergeSessionStatus.preparing, .uploading, .failed, .rollbackPending] {
+            let (controller, persistence, candidateId) = try await guardScenario(
+                status: status, preResolvedWith: .keepLocal
+            )
+            XCTAssertEqual(controller.session?.status, status, "\(status.rawValue) 应被恢复")
+            try await assertRejected(
+                controller, persistence, candidateId: candidateId, attempt: .skip,
+                expectedMessage: Self.resolvedEditRejection
+            )
+        }
+    }
+
+    /// Terminal statuses are never resumed at all, so the recorded choice is
+    /// unreachable by construction — `preparePreview` starts a brand-new session
+    /// rather than handing back the finished one to edit.
+    func testTerminalSessionsAreNeverResumedForEditing() async throws {
+        for status in [GuestMergeSessionStatus.completed, .cancelled, .rolledBack] {
+            let (controller, _, _) = try await guardScenario(status: status, preResolvedWith: .keepLocal)
+            let resumed = try XCTUnwrap(controller.session)
+            XCTAssertNotEqual(resumed.status, status, "\(status.rawValue) 是终态，不得被恢复为可编辑会话")
+            XCTAssertNil(
+                resumed.plan?.candidates.first?.userChoice,
+                "\(status.rawValue) 之后应是全新会话，不携带此前记录的选择"
+            )
+            XCTAssertNil(resumed.confirmedAt)
+            XCTAssertEqual(resumed.uploadedItemCount, 0)
+        }
+    }
+
+    func testResolvedEditIsRejectedByEachConfirmHistorySignalIndependently() async throws {
+        let signals: [(String, Date?, Int, [UUID])] = [
+            ("confirmedAt", Date(timeIntervalSince1970: 10), 0, []),
+            ("uploadedItemCount", nil, 1, []),
+            ("createdEntityIds", nil, 0, [UUID()])
+        ]
+        for (name, confirmedAt, uploaded, created) in signals {
+            let (controller, persistence, candidateId) = try await guardScenario(
+                status: .previewReady, preResolvedWith: .keepLocal,
+                confirmedAt: confirmedAt, uploadedItemCount: uploaded, createdEntityIds: created
+            )
+            try await assertRejected(
+                controller, persistence, candidateId: candidateId, attempt: .skip,
+                expectedMessage: Self.resolvedEditRejection
+            )
+            XCTAssertEqual(controller.plan?.candidates.first?.userChoice, .keepLocal, "\(name) 应独立触发拒绝")
+        }
+    }
+
+    func testFirstUnresolvedResolutionFailsClosedWithItsOwnMessageInABadStatus() async throws {
+        let (controller, persistence, candidateId) = try await guardScenario(status: .uploading)
+        guard controller.session != nil else { return }
+        try await assertRejected(
+            controller, persistence, candidateId: candidateId, attempt: .keepLocal,
+            expectedMessage: Self.unresolvedStatusRejection
+        )
+        // Never the "sync already started" wording for a first-time decision.
+        XCTAssertNotEqual(controller.conflictChoiceErrorMessage, Self.resolvedEditRejection)
+    }
+
+    func testUnknownCandidateIdIsIgnoredWithoutTouchingAnything() async throws {
+        let (controller, persistence, _) = try await guardScenario(status: .previewReady)
+        let planBefore = controller.plan
+        let scope = SyncScope(type: .household, id: householdA)
+        let pendingBefore = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+        await controller.resolveConflict(candidateId: UUID(), choice: .keepLocal)
+        XCTAssertEqual(controller.plan, planBefore)
+        let pendingAfter = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+        XCTAssertEqual(pendingAfter, pendingBefore)
+    }
+
+    func testSuccessfulEditClearsAPreviousRejectionMessage() async throws {
+        let (controller, _, candidateId) = try await guardScenario(
+            status: .previewReady, preResolvedWith: .keepLocal
+        )
+        // Force a rejection first by attempting an unknown candidate? That path
+        // is silent, so drive a real rejection via a non-editable sibling state.
+        await controller.resolveConflict(candidateId: UUID(), choice: .skip)
+        // Then a legitimate edit must leave no stale error behind.
+        await controller.resolveConflict(candidateId: candidateId, choice: .keepBoth)
+        XCTAssertEqual(controller.plan?.candidates.first?.userChoice, .keepBoth)
+        XCTAssertNil(controller.conflictChoiceErrorMessage, "成功修改后不得残留旧的编辑错误")
+    }
+
+    // MARK: - UI-5B2B-B2B: terminal states and dedicated edit error
+
+    /// Drives a session all the way to a genuine terminal status through the
+    /// real controller, so the terminal session is the one held in memory —
+    /// `preparePreview` is never called again and therefore cannot replace it.
+    private func terminalController(
+        reaching terminal: GuestMergeSessionStatus
+    ) async throws -> (GuestMergeController, SwiftDataSyncPersistence, UUID) {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        let authStore = await signedInAuthStore(userID: userA)
+
+        switch terminal {
+        case .cancelled:
+            await controller.cancel()
+        case .completed:
+            await controller.confirmMerge(authStore: authStore)
+        case .rolledBack:
+            await controller.confirmMerge(authStore: authStore)
+            await controller.rollback(authStore: authStore)
+        default:
+            XCTFail("unsupported terminal status")
+        }
+        XCTAssertEqual(controller.session?.status, terminal, "应真正到达 \(terminal.rawValue)")
+        return (controller, persistence, sharedId)
+    }
+
+    /// The controller is the final boundary: even when the terminal session is
+    /// the one in memory (so no re-resume can rescue us), a direct call must be
+    /// refused. This complements — never replaces — the UI-level guarantee that
+    /// terminal sessions are not resumed at all.
+    func testDirectTerminalSessionsRejectResolvedEdit() async throws {
+        for terminal in [GuestMergeSessionStatus.completed, .cancelled, .rolledBack] {
+            let (controller, persistence, candidateId) = try await terminalController(reaching: terminal)
+            let planBefore = try XCTUnwrap(controller.plan)
+            let candidateBefore = try XCTUnwrap(planBefore.candidates.first { $0.localItemId == candidateId })
+            let statusBefore = controller.session?.status
+            // Deltas, not absolutes: reaching `.completed`/`.rolledBack` legitimately
+            // produces mutations and records on the way in. What must not change is
+            // anything caused by the *rejected edit itself*.
+            let scope = SyncScope(type: .household, id: householdA)
+            let pendingBefore = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+            let metadataBefore = try await persistence.allMetadata(scope: scope).count
+            let inventoryBefore = try await persistence.inventoryItem(id: candidateId) != nil
+
+            await controller.resolveConflict(candidateId: candidateId, choice: .skip)
+
+            let after = try XCTUnwrap(controller.plan?.candidates.first { $0.localItemId == candidateId })
+            XCTAssertEqual(after.userChoice, candidateBefore.userChoice, "\(terminal.rawValue): userChoice 不变")
+            XCTAssertEqual(after.action, candidateBefore.action, "\(terminal.rawValue): action 不变")
+            XCTAssertEqual(after.forkedLocalItemId, candidateBefore.forkedLocalItemId, "\(terminal.rawValue): fork 不变")
+            XCTAssertEqual(controller.plan, planBefore, "\(terminal.rawValue): plan 不变")
+            XCTAssertEqual(controller.session?.status, statusBefore, "\(terminal.rawValue): status 不变")
+            let pendingAfter = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+            XCTAssertEqual(pendingAfter, pendingBefore, "\(terminal.rawValue): 被拒绝的编辑不得改变 mutation 数量")
+            let metadataAfter = try await persistence.allMetadata(scope: scope).count
+            XCTAssertEqual(metadataAfter, metadataBefore, "\(terminal.rawValue): 不得新增 metadata")
+            let inventoryAfter = try await persistence.inventoryItem(id: candidateId) != nil
+            XCTAssertEqual(inventoryAfter, inventoryBefore, "\(terminal.rawValue): 不得新增 inventory record")
+            XCTAssertEqual(
+                controller.conflictChoiceError(for: candidateId), Self.resolvedEditRejection,
+                "\(terminal.rawValue): 应返回稳定的拒绝文案"
+            )
+        }
+    }
+
+    func testConflictEditErrorIsSeparateFromUnrelatedGlobalErrors() async throws {
+        // A rejected edit populates the dedicated field, not the global one.
+        let (rejecting, _, candidateId) = try await guardScenario(
+            status: .previewReady, preResolvedWith: .keepLocal,
+            confirmedAt: Date(timeIntervalSince1970: 5)
+        )
+        await rejecting.resolveConflict(candidateId: candidateId, choice: .skip)
+        XCTAssertEqual(rejecting.conflictChoiceErrorMessage, Self.resolvedEditRejection)
+    }
+
+    func testSuccessfulEditClearsOnlyTheEditErrorAndKeepsUnrelatedGlobalError() async throws {
+        let (controller, _, candidateId) = try await guardScenario(
+            status: .previewReady, preResolvedWith: .keepLocal
+        )
+        // Produce a genuine unrelated global error: confirming a plan whose
+        // remote fingerprint cannot be re-verified fails and sets it.
+        let authStore = await signedInAuthStore(userID: UUID())
+        await controller.confirmMerge(authStore: authStore)
+        let unrelated = try XCTUnwrap(controller.lastErrorMessage, "应先存在一个无关的全局错误")
+
+        // Force an edit rejection, then a successful edit.
+        await controller.resolveConflict(candidateId: UUID(), choice: .skip)
+        XCTAssertEqual(controller.conflictChoiceErrorMessage, "无法找到这条冲突记录，请返回合并预览后重试。")
+
+        await controller.resolveConflict(candidateId: candidateId, choice: .keepBoth)
+        XCTAssertEqual(controller.plan?.candidates.first?.userChoice, .keepBoth, "修改应成功")
+        XCTAssertNil(controller.conflictChoiceErrorMessage, "成功后应清除专用编辑错误")
+        XCTAssertEqual(controller.lastErrorMessage, unrelated, "不得清除无关的全局错误")
+    }
+
+    func testMissingCandidateProducesTheDedicatedNotFoundMessage() async throws {
+        let (controller, _, _) = try await guardScenario(status: .previewReady)
+        await controller.resolveConflict(candidateId: UUID(), choice: .keepLocal)
+        XCTAssertEqual(controller.conflictChoiceErrorMessage, "无法找到这条冲突记录，请返回合并预览后重试。")
+    }
+
+    func testPersistenceFailureDuringEditShowsTheDedicatedSaveError() async throws {
+        let (kitchen, shared) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = GuestMergeController(
+            persistence: shared, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+
+        // Same store, but every save now fails.
+        let failing = SwiftDataSyncPersistence(modelContainer: shared.modelContainer, behavior: .failSavesForTesting)
+        let failingController = GuestMergeController(
+            persistence: failing, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await failingController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        guard failingController.plan?.candidates.first != nil else { return }
+        await failingController.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        XCTAssertEqual(failingController.conflictChoiceErrorMessage, "无法保存处理方式，请重试。")
+    }
+
+    func testEditErrorIsScopedToTheCandidateThatProducedIt() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let firstId = UUID()
+        let secondId = UUID()
+        kitchen.inventory = [
+            InventoryItem(id: firstId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil),
+            InventoryItem(id: secondId, name: "香蕉", quantity: 2, unit: "根", expiryDate: nil)
+        ]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: firstId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        await transport.seedRemoteChange(id: secondId, name: "香蕉", unit: "根", quantity: 9, version: "5", sequence: "2")
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+
+        // Produce a rejection bound to a candidate that does not exist.
+        let ghost = UUID()
+        await controller.resolveConflict(candidateId: ghost, choice: .skip)
+        XCTAssertNotNil(controller.conflictChoiceError(for: ghost))
+        XCTAssertNil(controller.conflictChoiceError(for: firstId), "错误不得泄漏到其他 candidate")
+        XCTAssertNil(controller.conflictChoiceError(for: secondId))
+
+        // Opening another candidate's editor clears the foreign error.
+        controller.clearConflictChoiceError(unless: firstId)
+        XCTAssertNil(controller.conflictChoiceError(for: ghost))
+
+        // A successful edit on one candidate leaves the other untouched.
+        await controller.resolveConflict(candidateId: firstId, choice: .keepLocal)
+        XCTAssertNil(controller.conflictChoiceError(for: firstId))
+        XCTAssertEqual(controller.plan?.candidates.first { $0.localItemId == firstId }?.userChoice, .keepLocal)
+        XCTAssertNil(controller.plan?.candidates.first { $0.localItemId == secondId }?.userChoice)
+    }
+
+    func testClearingForeignErrorsNeverDropsTheCurrentCandidatesOwnRejection() async throws {
+        let (controller, _, candidateId) = try await guardScenario(
+            status: .previewReady, preResolvedWith: .keepLocal,
+            confirmedAt: Date(timeIntervalSince1970: 5)
+        )
+        await controller.resolveConflict(candidateId: candidateId, choice: .skip)
+        XCTAssertEqual(controller.conflictChoiceError(for: candidateId), Self.resolvedEditRejection)
+        // The editor's own on-open cleanup must not erase its own rejection.
+        controller.clearConflictChoiceError(unless: candidateId)
+        XCTAssertEqual(
+            controller.conflictChoiceError(for: candidateId), Self.resolvedEditRejection,
+            "stale-action 拒绝必须在本页面持续可见"
+        )
+    }
+
     // MARK: - UI-5B2B-B2A: post-partial-confirm presentation accuracy
 
     /// The state the review/summary copy has to stay accurate in: a first
@@ -3719,4 +4434,12 @@ private final class FakeCrashReporter: CrashReporting, @unchecked Sendable {
     }
     func setOperationalTag(key: String, value: String) {}
     func flushIfNeeded() {}
+}
+
+/// Test-only enumeration of the four choices. The production enum deliberately
+/// does not conform to `CaseIterable` — UI-5B2B-B2B must not change its shape.
+extension InventoryMergeConflictChoice {
+    static var allCasesForTesting: [InventoryMergeConflictChoice] {
+        [.keepLocal, .keepRemote, .keepBoth, .skip]
+    }
 }
