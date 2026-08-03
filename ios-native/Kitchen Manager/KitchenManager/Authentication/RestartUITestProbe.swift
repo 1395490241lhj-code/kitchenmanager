@@ -75,9 +75,49 @@ nonisolated enum RestartUITestProbePresentation {
             + ";active=\(candidate.activeForkedLocalItemId?.uuidString.lowercased() ?? "nil")"
     }
 
-    static func mutationCount(_ count: Int?) -> String {
-        guard let count else { return "state=waiting" }
-        return "count=\(count)"
+    /// `reads` is how many times the count has actually been re-read. A UI test
+    /// asserting only `count=0` cannot tell a fresh zero from the first read
+    /// left on screen, so the read tally is published alongside it: after an
+    /// edit the tally must move, which is what proves the value was refetched.
+    static func mutationCount(_ count: Int?, reads: Int = 0) -> String {
+        guard let count else { return "state=waiting;reads=\(reads)" }
+        return "count=\(count);reads=\(reads)"
+    }
+
+    /// Refresh key for the pending-mutation read.
+    ///
+    /// `.task(id:)` re-runs only when its id changes, so a key that misses an
+    /// edit leaves a stale count on screen — and a stale `count=0` would let a
+    /// regression that staged a mutation during a choice edit pass unnoticed,
+    /// which is the one invariant the cold-relaunch test exists to protect.
+    /// The candidate *count* was exactly such a key: every one of the four
+    /// choices leaves it identical.
+    ///
+    /// Derived entirely from persisted merge state — never a random value,
+    /// never a timer — so identical state always yields an identical key, and
+    /// any recorded change (including a reservation that is retained but
+    /// deactivated) yields a different one.
+    static func mutationRefreshKey(session: GuestMergeSession?, plan: InventoryMergePlan?) -> String {
+        var key = "session=" + (session.map { session in
+            session.id.uuidString.lowercased()
+                + ";status=\(session.status.rawValue)"
+                + ";updated=\(session.updatedAt.timeIntervalSince1970)"
+                + ";confirmed=\(session.confirmedAt.map { String($0.timeIntervalSince1970) } ?? "nil")"
+                + ";uploaded=\(session.uploadedItemCount)"
+                + ";created=\(session.createdEntityIds.count)"
+        } ?? "nil")
+        guard let plan else { return key + "|plan=nil" }
+        key += "|count=\(plan.candidates.count)|"
+        // Every candidate, in plan order: an edit to any one of them must move
+        // the key, not just an edit to the canonical restart candidate.
+        key += plan.candidates.map { candidate in
+            candidate.localItemId.uuidString.lowercased()
+                + ":" + (candidate.userChoice?.rawValue ?? "nil")
+                + ":" + candidate.action.rawValue
+                + ":" + (candidate.forkedLocalItemId?.uuidString.lowercased() ?? "nil")
+                + ":" + (candidate.activeForkedLocalItemId?.uuidString.lowercased() ?? "nil")
+        }.joined(separator: ",")
+        return key
     }
 }
 
@@ -88,6 +128,8 @@ struct RestartUITestProbeView: View {
     @ObservedObject var controller: GuestMergeController
     @ObservedObject var kitchenStore: KitchenStore
     @State private var pendingMutationCount: Int?
+    /// Incremented on every completed read, never reset — see `mutationCount`.
+    @State private var mutationReadCount = 0
 
     private var mode: AccountLifecycleSummaryFixture.RestartLaunchMode {
         AccountLifecycleSummaryFixture.restartLaunchMode
@@ -131,14 +173,24 @@ struct RestartUITestProbeView: View {
             probe(
                 RestartUITestProbePresentation.Identifier.mutationCount,
                 "Restart mutation count",
-                RestartUITestProbePresentation.mutationCount(pendingMutationCount)
+                RestartUITestProbePresentation.mutationCount(
+                    pendingMutationCount, reads: mutationReadCount
+                )
             )
         }
         .allowsHitTesting(false)
-        .task(id: controller.plan?.candidates.count ?? -1) {
-            pendingMutationCount = await controller.pendingInventoryCount(
+        // Keyed on the full merge state, not the candidate count: the count is
+        // unchanged by every choice edit, so it left the first reading on
+        // screen forever. Re-runs on first appearance and after each recorded
+        // choice, so the displayed count is always a fresh read.
+        .task(id: RestartUITestProbePresentation.mutationRefreshKey(
+            session: controller.session, plan: controller.plan
+        )) {
+            let count = await controller.pendingInventoryCount(
                 householdId: AccountLifecycleSummaryFixture.choiceEditingRestart.householdID
             )
+            pendingMutationCount = count
+            mutationReadCount += 1
         }
     }
 

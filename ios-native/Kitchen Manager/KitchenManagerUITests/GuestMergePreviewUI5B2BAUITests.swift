@@ -250,13 +250,20 @@ final class GuestMergePreviewUI5B2BAUITests: XCTestCase {
     /// stop, which is why no fixed swipe count was ever reliable.
     private func scrollUntilHittable(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
         let window = app.windows.firstMatch
-        let tolerance: CGFloat = 1
+        // An *inset*, never a tolerance. `assertFullyOnScreen` requires
+        // `minY >= window.minY` and `maxY <= window.maxY` with no slack, so a
+        // helper that accepted 1pt outside the window could stop in a position
+        // the assertion then rejected — the same class of flake this rewrite
+        // removed, only narrower. Requiring the element to sit ~1pt *inside*
+        // both edges makes the stop condition strictly stronger than the
+        // assertion instead of weaker.
+        let requiredInset: CGFloat = 1
 
         func fullyVisible() -> Bool {
             guard element.exists, element.isHittable else { return false }
             let frame = element.frame
             let bounds = window.frame
-            return frame.minY >= bounds.minY - tolerance && frame.maxY <= bounds.maxY + tolerance
+            return frame.minY >= bounds.minY + requiredInset && frame.maxY <= bounds.maxY - requiredInset
         }
 
         if fullyVisible() { return true }

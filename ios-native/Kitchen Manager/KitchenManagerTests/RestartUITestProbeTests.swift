@@ -64,8 +64,16 @@ final class RestartUITestProbeTests: XCTestCase {
     func testSessionAndOriginAndMutationCountReportWaitingWhenUnknown() {
         XCTAssertEqual(RestartUITestProbePresentation.session(nil), "state=waiting")
         XCTAssertEqual(RestartUITestProbePresentation.previewOrigin(nil), "state=waiting")
-        XCTAssertEqual(RestartUITestProbePresentation.mutationCount(nil), "state=waiting")
+        XCTAssertEqual(RestartUITestProbePresentation.mutationCount(nil), "state=waiting;reads=0")
         XCTAssertEqual(RestartUITestProbePresentation.inventory([]), "state=empty")
+    }
+
+    /// The read tally is what lets a UI test tell a fresh zero from the first
+    /// reading left on screen, so it has to appear in both states.
+    func testMutationCountAlwaysPublishesHowManyReadsHaveCompleted() {
+        XCTAssertEqual(RestartUITestProbePresentation.mutationCount(nil, reads: 3), "state=waiting;reads=3")
+        XCTAssertEqual(RestartUITestProbePresentation.mutationCount(0, reads: 1), "count=0;reads=1")
+        XCTAssertEqual(RestartUITestProbePresentation.mutationCount(2, reads: 7), "count=2;reads=7")
     }
 
     // MARK: - Choice states
@@ -194,6 +202,122 @@ final class RestartUITestProbeTests: XCTestCase {
         XCTAssertNil(session.confirmedAt)
         XCTAssertEqual(session.uploadedItemCount, 0)
         XCTAssertTrue(session.createdEntityIds.isEmpty)
+    }
+
+    // MARK: - Mutation-count refresh key
+
+    /// A session carrying `candidates`, otherwise identical to the real restart
+    /// fixture's — so these tests exercise the same shape the probe sees.
+    private func session(_ candidates: [InventoryMergeCandidate]) -> GuestMergeSession {
+        var base = AccountLifecycleSummaryFixture.choiceEditingRestart.session(
+            userID: UUID(uuidString: "00000000-0000-0000-0000-0000000000C1")!,
+            localItems: AccountLifecycleSummaryFixture.restartLocalItems
+        )
+        base.plan = plan(candidates)
+        base.updatedAt = Date(timeIntervalSince1970: 2)
+        return base
+    }
+
+    private func refreshKey(_ candidates: [InventoryMergeCandidate]) -> String {
+        let current = session(candidates)
+        return RestartUITestProbePresentation.mutationRefreshKey(
+            session: current, plan: current.plan
+        )
+    }
+
+    /// The defect this key replaces: `plan.candidates.count` is identical for
+    /// every choice, so `.task(id:)` never re-ran and the first pending-mutation
+    /// reading stayed on screen for the whole session.
+    func testRefreshKeyChangesForEachOfTheFourChoicesDespiteAConstantCandidateCount() {
+        let unresolved = refreshKey([candidate()])
+        var keys: [String: String] = ["nil": unresolved]
+        for choice in InventoryMergeConflictChoice.allCasesForTesting {
+            keys[choice.rawValue] = refreshKey([candidate(choice: choice)])
+        }
+        XCTAssertEqual(
+            Set(keys.values).count, keys.count,
+            "每种选择都必须产生不同的 refresh key，实际：\(keys)"
+        )
+        // The candidate count — the old key — never moved at all.
+        for choice in InventoryMergeConflictChoice.allCasesForTesting {
+            XCTAssertEqual(session([candidate(choice: choice)]).plan?.candidates.count, 1)
+        }
+    }
+
+    func testRefreshKeyIsStableWhenNothingChanges() {
+        let candidates = [candidate(choice: .keepBoth)]
+        let first = refreshKey(candidates)
+        let second = refreshKey(candidates)
+        XCTAssertEqual(first, second, "状态未变时 key 必须完全稳定，不得含随机值或时间戳噪声")
+        XCTAssertEqual(refreshKey([candidate()]), refreshKey([candidate()]))
+    }
+
+    /// keepBoth → skip retains the reservation but deactivates it. The key has
+    /// to move, otherwise the read that proves nothing was staged is skipped
+    /// exactly where fork identity is most delicate.
+    func testRefreshKeyDistinguishesARetainedButInactiveReservation() {
+        let reserved = candidate(choice: .keepBoth)
+        let deactivated = reserved.applyingChoice(.skip)
+        XCTAssertNotNil(deactivated.forkedLocalItemId, "前提：skip 之后 reserved 仍保留")
+        XCTAssertNil(deactivated.activeForkedLocalItemId, "前提：skip 之后 active 为 nil")
+
+        XCTAssertNotEqual(refreshKey([reserved]), refreshKey([deactivated]))
+        // And distinct from a candidate that never reserved anything, even
+        // though both report `active=nil`.
+        XCTAssertNotEqual(refreshKey([deactivated]), refreshKey([candidate(choice: .skip)]))
+    }
+
+    func testRefreshKeyTracksSessionUpdatedAtStatusAndConfirmHistory() {
+        let base = session([candidate(choice: .keepLocal)])
+        let baseKey = RestartUITestProbePresentation.mutationRefreshKey(session: base, plan: base.plan)
+
+        var laterUpdate = base
+        laterUpdate.updatedAt = base.updatedAt.addingTimeInterval(1)
+        var otherStatus = base
+        otherStatus.status = .awaitingConfirmation
+        var confirmed = base
+        confirmed.confirmedAt = Date(timeIntervalSince1970: 9)
+        var uploaded = base
+        uploaded.uploadedItemCount = 1
+        var created = base
+        created.createdEntityIds = [otherId]
+
+        for (label, variant) in [
+            ("updatedAt", laterUpdate), ("status", otherStatus), ("confirmedAt", confirmed),
+            ("uploadedItemCount", uploaded), ("createdEntityIds", created)
+        ] {
+            XCTAssertNotEqual(
+                RestartUITestProbePresentation.mutationRefreshKey(session: variant, plan: variant.plan),
+                baseKey,
+                "\(label) 变化时 refresh key 必须变化"
+            )
+        }
+    }
+
+    /// An edit to any candidate must refresh the count, not just an edit to the
+    /// canonical restart candidate.
+    func testRefreshKeyCoversEveryCandidateNotJustTheCanonicalOne() {
+        let other = InventoryMergeCandidate(
+            localItemId: otherId, name: "大米", unit: "份", localQuantity: 1, localExpiryDate: nil,
+            remoteItemId: otherId, remoteQuantity: 2, remoteExpiryDate: nil, remoteVersion: nil,
+            action: .create, conflictReason: .metadataMismatch, userChoice: nil
+        )
+        XCTAssertNotEqual(
+            refreshKey([candidate(), other]),
+            refreshKey([candidate(), other.applyingChoice(.keepRemote)])
+        )
+    }
+
+    func testRefreshKeyReportsMissingSessionAndPlanWithoutCrashing() {
+        XCTAssertEqual(
+            RestartUITestProbePresentation.mutationRefreshKey(session: nil, plan: nil),
+            "session=nil|plan=nil"
+        )
+        let current = session([candidate()])
+        XCTAssertNotEqual(
+            RestartUITestProbePresentation.mutationRefreshKey(session: current, plan: nil),
+            RestartUITestProbePresentation.mutationRefreshKey(session: current, plan: current.plan)
+        )
     }
 
     // MARK: - Launch-mode isolation

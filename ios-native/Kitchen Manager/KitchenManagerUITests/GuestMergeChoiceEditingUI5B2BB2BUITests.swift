@@ -173,6 +173,44 @@ final class GuestMergeChoiceEditingUI5B2BB2BUITests: XCTestCase {
             .map { String($0.dropFirst(key.count + 1)) }
     }
 
+    /// Asserts that no mutation is pending **and** that the number shown is a
+    /// fresh read rather than the first one left on screen.
+    ///
+    /// Asserting `count=0` alone could not tell those apart: the probe used to
+    /// re-read only when the candidate *count* changed, which no choice edit
+    /// does, so a regression that staged a mutation during an edit would still
+    /// have displayed the original zero. The probe now publishes how many reads
+    /// have completed; requiring that tally to move past `previousReads` is what
+    /// makes the zero meaningful. Returns the new tally to chain the next check.
+    private func assertFreshlyReadZeroMutations(
+        _ app: XCUIApplication, after previousReads: Int, _ context: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) -> Int {
+        let deadline = Date().addingTimeInterval(15)
+        var last: String?
+        repeat {
+            let current = probeValue(app, "uitest.restart.mutationCount")
+            last = current
+            if let current,
+               let reads = probeField(current, "reads").flatMap(Int.init),
+               reads > previousReads {
+                XCTAssertEqual(
+                    probeField(current, "count"), "0",
+                    "\(context)：编辑不得 stage 任何 mutation，实际 \(current)",
+                    file: file, line: line
+                )
+                return reads
+            }
+            _ = app.staticTexts.firstMatch.waitForExistence(timeout: 0.5)
+        } while Date() < deadline
+        XCTFail(
+            "\(context)：mutationCount 未在编辑后重新读取（previousReads=\(previousReads)，"
+                + "最后值 \(last ?? "<nil>")）\n\(allProbes(app))",
+            file: file, line: line
+        )
+        return previousReads
+    }
+
     // MARK: - Production path: choices made entirely through the UI
 
     func testPreConfirmEntryIsPresentAndReviewIsAbsentBeforeAnyChoice() throws {
@@ -407,6 +445,15 @@ final class GuestMergeChoiceEditingUI5B2BB2BUITests: XCTestCase {
         XCTAssertEqual(probeField(initialFork, "reserved"), "nil", initialFork)
         XCTAssertEqual(probeField(initialFork, "active"), "nil", initialFork)
 
+        // Read tally *before* any choice is recorded, so the check after the
+        // edit demands a genuinely new read rather than just a completed one.
+        let baselineReads = try XCTUnwrap(
+            probeField(
+                waitForProbeValue(app, "uitest.restart.mutationCount", containing: "count="),
+                "reads"
+            ).flatMap(Int.init)
+        )
+
         // Make the choice through the real production entry.
         openPreConfirmConflicts(app)
         let keepBoth = choiceRow(app, "keepBoth", restartSameID)
@@ -419,7 +466,7 @@ final class GuestMergeChoiceEditingUI5B2BB2BUITests: XCTestCase {
         let activeAtSeed = try XCTUnwrap(probeField(afterKeepBoth, "active"))
         XCTAssertNotEqual(reservedAtSeed, "nil", afterKeepBoth)
         XCTAssertEqual(activeAtSeed, reservedAtSeed, "keepBoth 下 active 必须等于 reserved")
-        XCTAssertEqual(probeValue(app, "uitest.restart.mutationCount"), "count=0", allProbes(app))
+        _ = assertFreshlyReadZeroMutations(app, after: baselineReads, "首次 keepBoth 之后")
 
         back(app)
         openReview(app)
@@ -462,7 +509,8 @@ final class GuestMergeChoiceEditingUI5B2BB2BUITests: XCTestCase {
         XCTAssertEqual(probeField(resumedFork, "action"), "create", resumedFork)
         XCTAssertEqual(probeField(resumedFork, "reserved"), reservedAtSeed, "reserved fork 必须逐字符相同")
         XCTAssertEqual(probeField(resumedFork, "active"), activeAtSeed, "active fork 必须逐字符相同")
-        XCTAssertEqual(probeValue(relaunched, "uitest.restart.mutationCount"), "count=0")
+        // Fresh process, so the tally restarts from zero here.
+        let readsAtResume = assertFreshlyReadZeroMutations(relaunched, after: 0, "重启恢复后")
 
         openReview(relaunched)
         XCTAssertTrue(group(relaunched, "keptBoth").exists, "重启后 candidate 仍应在两条都保留分组")
@@ -481,12 +529,15 @@ final class GuestMergeChoiceEditingUI5B2BB2BUITests: XCTestCase {
         XCTAssertEqual(probeField(afterSkip, "action"), "skip", afterSkip)
         XCTAssertEqual(probeField(afterSkip, "reserved"), reservedAtSeed, "skip 下 reserved 必须保留")
         XCTAssertEqual(probeField(afterSkip, "active"), "nil", "skip 下 active 必须为 nil")
+        // The candidate count is identical to the previous check — only the
+        // recorded choice moved, which is exactly the case the old key missed.
+        let readsAfterSkip = assertFreshlyReadZeroMutations(relaunched, after: readsAtResume, "skip 编辑之后")
 
         editRow(relaunched, "keepBoth", restartSameID).tap()
         let restored = waitForProbeValue(relaunched, "uitest.restart.forkIdentity", containing: "choice=keepBoth")
         XCTAssertEqual(probeField(restored, "reserved"), reservedAtSeed, "改回 keepBoth 必须复用同一 reserved")
         XCTAssertEqual(probeField(restored, "active"), reservedAtSeed, "active 应再次等于 reserved")
-        XCTAssertEqual(probeValue(relaunched, "uitest.restart.mutationCount"), "count=0")
+        _ = assertFreshlyReadZeroMutations(relaunched, after: readsAfterSkip, "改回 keepBoth 之后")
     }
 
     /// Fixture smoke only: a pre-seeded editable session stays editable across a
