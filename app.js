@@ -116,6 +116,7 @@ async function loadBasePack(v = '23') {
 
   return mergeRecipeSources(pack, {
     staticMethods: window.RECIPE_METHODS || {},
+    staticIngredients: window.RECIPE_INGREDIENTS || {},
     hocData: window.HOC_DATA || []
   });
 }

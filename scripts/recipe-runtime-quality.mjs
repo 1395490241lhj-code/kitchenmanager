@@ -80,6 +80,7 @@ export function loadWindowGlobal(relativePath, key) {
 export function loadRuntimeSources() {
   return {
     staticMethods: loadWindowGlobal('data/recipe-methods.js', 'RECIPE_METHODS') || {},
+    staticIngredients: loadWindowGlobal('data/recipe-methods.js', 'RECIPE_INGREDIENTS') || {},
     hocData: loadWindowGlobal('data/hoc-recipes.js', 'HOC_DATA') || [],
     completionOverlay: readJson('data/recipe-completion-overlay.json')
   };

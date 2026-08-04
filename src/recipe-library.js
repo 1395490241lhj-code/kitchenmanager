@@ -10,7 +10,7 @@ function stableHash(value) {
  * pack. This is the same source merge used by app.js, exposed as a pure
  * function so runtime quality checks cannot silently drift from the app.
  */
-export function mergeRecipeSources(pack, { staticMethods = {}, hocData = [] } = {}) {
+export function mergeRecipeSources(pack, { staticMethods = {}, staticIngredients = {}, hocData = [] } = {}) {
   const recipes = Array.isArray(pack?.recipes)
     ? pack.recipes.map(recipe => ({ ...recipe }))
     : [];
@@ -30,6 +30,10 @@ export function mergeRecipeSources(pack, { staticMethods = {}, hocData = [] } = 
       name: sourceName,
       tags: ['家常菜', '新增']
     });
+    if (Array.isArray(staticIngredients?.[sourceName])) {
+      recipeIngredients[`static-${Math.abs(stableHash(sourceName))}`] = staticIngredients[sourceName]
+        .map(entry => typeof entry === 'string' ? { item: entry } : { ...entry });
+    }
     existingNames.add(sourceName);
   }
 
