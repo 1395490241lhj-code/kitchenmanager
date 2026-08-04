@@ -39,7 +39,9 @@ test('类别展开：绿叶菜 / 辣椒 / 豆制品 / 海鲜 / 蛋', () => {
   const leafy = parseTargetIngredients('绿叶菜').targets[0];
   assert.ok(['青菜', '菠菜', '生菜', '空心菜'].every(c => leafy.candidates.includes(c)));
   const pepper = parseTargetIngredients('辣椒').targets[0];
-  assert.ok(['青椒', '红椒'].every(c => pepper.candidates.includes(c)));
+  assert.equal(pepper.canonical, '辣椒');
+  assert.ok(['辣椒', '小米辣', '红椒', '二荆条'].every(c => pepper.candidates.includes(c)));
+  assert.equal(pepper.candidates.includes('青椒'), false);
   const tofu = parseTargetIngredients('豆制品').targets[0];
   assert.ok(['豆腐', '腐竹'].every(c => tofu.candidates.includes(c)));
   const sea = parseTargetIngredients('海鲜').targets[0];

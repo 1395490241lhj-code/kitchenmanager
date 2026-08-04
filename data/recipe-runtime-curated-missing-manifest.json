@@ -512,7 +512,6 @@
     "suggestedCoreIngredients": [
       "鸭肉",
       "青红椒",
-      "青椒",
       "姜蒜"
     ],
     "methodStepCount": 5,
@@ -841,8 +840,7 @@
     "suggestedCoreIngredients": [
       "土豆",
       "姜蒜",
-      "青红椒",
-      "青椒"
+      "青红椒"
     ],
     "methodStepCount": 4,
     "batch": 4
