@@ -1,39 +1,40 @@
-import { S, mustSave, todayISO, addDaysISO } from './storage.js?v=236';
+import { S, mustSave, todayISO, addDaysISO } from './storage.js?v=237';
 import {
   INGREDIENT_ALIASES,
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
-  isSmartIngredientMatch
-} from './ingredients.js?v=236';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=236';
+  isSmartIngredientMatch,
+  normalizeIngredientAmount
+} from './ingredients.js?v=237';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=237';
 import {
   daysBetween,
   getStockCoverageAnalysis,
   remainingDays
-} from './inventory.js?v=236';
-import { addShoppingItem } from './shopping.js?v=236';
+} from './inventory.js?v=237';
+import { addShoppingItem } from './shopping.js?v=237';
 import {
   STAPLE_CATALOG,
   getManagedStapleGroups,
   isPantryStaple,
   isStapleOutOfStock
-} from './staples.js?v=236';
-import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=236';
-import { isPlanRowOnDate } from './plan-selectors.js?v=236';
-import { isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=236';
+} from './staples.js?v=237';
+import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=237';
+import { isPlanRowOnDate } from './plan-selectors.js?v=237';
+import { isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=237';
 import {
   buildRecipePackMetadataIndex,
   getEnabledRecipePackIds,
   getRecipePackScoringHint
-} from './recipe-packs.js?v=236';
+} from './recipe-packs.js?v=237';
 export {
   buildGenericRecipeTemplateRecommendations,
   buildRecipeVariantRecommendations,
   buildVariantMethodDraft,
   getGenericIngredientRecipeRecommendations,
   getRecipeVariantRecommendations
-} from './utils/recipe-variants.js?v=236';
+} from './utils/recipe-variants.js?v=237';
 
 const RECIPE_PACK_SCORING_BONUS = 3;
 
@@ -201,9 +202,13 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
   const needsConfirm = [];
 
   for (const ing of core) {
+    const requiredAmount = normalizeIngredientAmount(ing.qty, ing.unit);
     const analysis = getStockCoverageAnalysis(inv, ing.item, ing.qty, ing.unit);
     if (analysis.confidence === 'exact') {
-      const requiredQty = ing.qty !== '' && ing.qty !== null && ing.qty !== undefined ? +ing.qty : '';
+      const parsedRequiredQty = Number(requiredAmount.qty);
+      const requiredQty = requiredAmount.qty === '' || !Number.isFinite(parsedRequiredQty)
+        ? ''
+        : parsedRequiredQty;
       if (requiredQty !== '' && analysis.coveredQty >= requiredQty) {
         const match = analysis.matchedItems[0];
         const days = remainingDays(match);
@@ -242,8 +247,8 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
         missing.push({
           item: ing.item,
           name: ing.item,
-          qty: ing.qty ?? '',
-          unit: ing.unit || guessKitchenUnit(ing.item) || '',
+          qty: requiredAmount.qty,
+          unit: requiredAmount.unit || guessKitchenUnit(ing.item) || '',
           missingQty: Math.max(0, requiredQty - analysis.coveredQty)
         });
       }
@@ -261,8 +266,8 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
       uncertain.push({
         item: ing.item,
         name: ing.item,
-        qty: ing.qty ?? '',
-        unit: ing.unit || guessKitchenUnit(ing.item) || '',
+        qty: requiredAmount.qty,
+        unit: requiredAmount.unit || guessKitchenUnit(ing.item) || '',
         reason: 'unit-mismatch'
       });
       needsConfirm.push({
@@ -283,8 +288,8 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
       uncertain.push({
         item: ing.item,
         name: ing.item,
-        qty: ing.qty ?? '',
-        unit: ing.unit || guessKitchenUnit(ing.item) || '',
+        qty: requiredAmount.qty,
+        unit: requiredAmount.unit || guessKitchenUnit(ing.item) || '',
         reason: 'status-only'
       });
       needsConfirm.push({
@@ -296,8 +301,8 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
       missing.push({
         item: ing.item,
         name: ing.item,
-        qty: ing.qty ?? '',
-        unit: ing.unit || guessKitchenUnit(ing.item) || ''
+        qty: requiredAmount.qty,
+        unit: requiredAmount.unit || guessKitchenUnit(ing.item) || ''
       });
     }
   }

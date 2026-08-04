@@ -87,6 +87,35 @@ test('同名不同单位 → uncertain(unit-mismatch)，不算 missing', () => {
   assert.equal(a.coverageConfidence, 'unit-mismatch');
 });
 
+test('兼容单位参与推荐数量、状态与徽标判断，不兼容单位保持需确认', () => {
+  const recipe = { id: 'egg-quantity', name: '鸡蛋试点', method: '炒熟即可' };
+  const pack = { recipes: [recipe], recipe_ingredients: { [recipe.id]: [{ item: '鸡蛋', qty: 2, unit: '个' }] } };
+  const enoughInventory = [{ name: '鸡蛋', qty: 2, unit: 'pieces', stockStatus: 'ok' }];
+  const shortInventory = [{ name: '鸡蛋', qty: 1, unit: 'piece', stockStatus: 'ok' }];
+  const incompatibleInventory = [{ name: '鸡蛋', qty: 2, unit: '盒', stockStatus: 'ok' }];
+
+  const enough = analyzeRecipeInventory(recipe, pack, enoughInventory);
+  assert.equal(enough.status, 'ok');
+  assert.equal(enough.coverageConfidence, 'exact');
+  assert.deepEqual(calculateStockStatus(recipe, pack, enoughInventory), {
+    status: 'ok', missing: [], uncertain: [], needsConfirm: [], coverageConfidence: 'exact'
+  });
+
+  const short = analyzeRecipeInventory(recipe, pack, shortInventory);
+  assert.equal(short.status, 'none');
+  assert.equal(short.missing[0].missingQty, 1);
+
+  const incompatible = calculateStockStatus(recipe, pack, incompatibleInventory);
+  assert.equal(incompatible.status, 'partial');
+  assert.equal(incompatible.coverageConfidence, 'unit-mismatch');
+
+  const context = { plan: [], favoriteIds: [], recipeActivity: {}, today: '2026-08-04' };
+  assert.ok(
+    scoreRecipe(recipe, pack, enoughInventory, context).score
+      > scoreRecipe(recipe, pack, shortInventory, context).score
+  );
+});
+
 // 6) 数量不足 → 体现缺口（进 missing）
 test('数量不足 → 缺口体现在 missing（配合够量项 → partial）', () => {
   const a = analyze(

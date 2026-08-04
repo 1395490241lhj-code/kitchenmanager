@@ -186,6 +186,23 @@ test('补到买菜只加入缺食材，不加入今日计划', () => {
   assert.deepEqual(S.load(S.keys.plan, []), []);
 });
 
+test('详情及快捷买菜保留数量并按 canonical 单位写入', () => {
+  const recipe = { id: 'quantity-quick-shop', name: '数量试点菜', method: '炒熟即可' };
+  const pack = {
+    recipes: [recipe],
+    recipe_ingredients: {
+      [recipe.id]: [{ item: '鸡蛋', qty: 2, unit: 'pieces' }]
+    }
+  };
+  const missing = getPlanMissingItems(recipe, pack, []);
+  assert.deepEqual(missing, [{ item: '鸡蛋', qty: 2, unit: 'pieces', name: '鸡蛋' }]);
+  assert.equal(addMissingRecipeIngredientsToShopping(recipe, pack, [], null, missing), 1);
+  assert.deepEqual(
+    loadShoppingItems().map(item => ({ name: item.name, qty: item.qty, unit: item.unit })),
+    [{ name: '鸡蛋', qty: 2, unit: '个' }]
+  );
+});
+
 test('demo 模式可在缺食材确认前推进计划步骤', async () => {
   let demoAdded = false;
   await addRecipeToPlanWithMissingCheck('tomato-egg-noodle', PACK, BASE_INV, {

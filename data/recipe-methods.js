@@ -449,8 +449,8 @@ window.RECIPE_METHODS = {
 // Static recipes are created by app.js from RECIPE_METHODS rather than from
 // either JSON pack. Keep their ingredient maps beside the same source and let
 // recipe-library.js attach them under the generated stable static-* id.
-// Quantities/units are intentionally omitted, matching the source pack
-// default for reviewed-but-unquantified ingredients.
+// Quantities/units remain omitted unless the paired final method states one
+// unambiguously. The first small pilot records only those reviewed values.
 window.RECIPE_INGREDIENTS = {
   "菠饺白肺": ["猪肺", "猪肉", "菠菜", "面粉", "火腿", "鸡皮", "口蘑", "猪油", "姜", "葱白", "料酒", "胡椒面", "味精", "香油", "盐"],
   "菠饺玻璃肚": ["猪肚", "瘦肉", "菠菜", "面粉", "草碱", "酱油", "料酒", "香油", "味精", "胡椒面", "盐"],
@@ -478,7 +478,7 @@ window.RECIPE_INGREDIENTS = {
   "鸡豆花": ["鸡脯肉", "鸡蛋清", "豆粉", "盐", "味精", "清汤"],
   "鸡淖脊髓": ["猪脊髓", "鸡脯肉", "鸡蛋清", "豆粉", "盐", "味精", "清汤", "猪油", "料酒"],
   "鸡塔": ["鸡脯肉", "猪肥膘肉", "鸡蛋清", "干豆粉", "火腿", "盐", "香油"],
-  "韭菜炒鸡蛋": ["韭菜", "鸡蛋", "油", "盐"],
+  "韭菜炒鸡蛋": ["韭菜", { item: "鸡蛋", qty: 3, unit: "个" }, "油", "盐"],
   "韭黄炒肉丝": ["韭黄", "肉丝", "盐", "生抽", "淀粉", "油", "味精"],
   "烤酥方": ["厚膘连皮带肋骨肉", "香油"],
   "苦瓜炒蛋": ["苦瓜", "鸡蛋", "盐", "料酒", "油"],
@@ -534,7 +534,7 @@ window.RECIPE_INGREDIENTS = {
   "热窝姜汁鸡": ["肥嫩母鸡", "菜油", "姜米", "葱", "盐", "酱油", "二汤", "醋", "水豆粉", "净辣椒油"],
   "三菌炖鸡": ["三菌", "肥仔鸡", "姜", "大葱", "猪油", "二汤", "蒜", "盐"],
   "烧皱皮肉": ["猪肉", "红酱油", "葱", "姜", "冰糖汁", "清汤", "料酒", "盐", "香料"],
-  "丝瓜蛋汤": ["丝瓜", "鸡蛋", "油", "盐", "葱花", "香油"],
+  "丝瓜蛋汤": ["丝瓜", { item: "鸡蛋", qty: 2, unit: "个" }, "油", "盐", "葱花", "香油"],
   "五香脆皮鸡": ["鸡", "盐", "白糖", "红酱油", "白酱油", "料酒", "花椒", "葱", "姜", "香料", "油"],
   "油淋仔鸡": ["鸡", "料酒", "酱油", "姜", "葱", "花椒", "鱼辣椒", "白糖", "醋", "红油", "花椒面", "油"],
   "海椒香辣鸡": ["鸡", "蒜苗", "姜", "蒜", "干辣椒", "菜油", "豆瓣", "辣椒面", "料酒", "酱油", "味精", "花椒", "清汤", "香油"],
