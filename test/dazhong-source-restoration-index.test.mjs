@@ -194,8 +194,15 @@ test('Curated and Full name matching partitions both sides without guessing', ()
 
 test('batch plan covers the catalog once in 10–15 item catalog-order batches', () => {
   assert.equal(json.batchPlan.applicationReady, false);
-  assert.equal(json.batchPlan.status, 'planned-not-started');
-  assert.equal(json.batchPlan.constraints.recipeBodyExtractionStarted, false);
+  assert.ok([
+    'planned-not-started',
+    'in-progress',
+    'completed-primary-reviewed',
+  ].includes(json.batchPlan.status));
+  assert.equal(
+    json.batchPlan.constraints.recipeBodyExtractionStarted,
+    json.batchPlan.summary.processedRecipeCount > 0,
+  );
   assert.equal(json.batchPlan.constraints.productionRecipeGenerated, false);
   assert.equal(json.batchPlan.inputs.catalog.sha256, sha256(buffers.catalog));
   assert.equal(json.batchPlan.inputs.nameMatches.sha256, sha256(buffers.matches));
@@ -205,7 +212,13 @@ test('batch plan covers the catalog once in 10–15 item catalog-order batches',
   const flattenedEntryIds = [];
   for (const batch of json.batchPlan.batches) {
     assert.equal(batch.applicationReady, false);
-    assert.equal(batch.status, 'planned-not-started');
+    assert.ok(['planned-not-started', 'completed-primary-reviewed'].includes(batch.status));
+    if (batch.status === 'completed-primary-reviewed') {
+      assert.equal(batch.processedEntryCount, batch.entryCount);
+      assert.equal(batch.processing.workerVisualReview, true);
+      assert.equal(batch.processing.primaryVisualReview, true);
+      assert.equal(batch.processing.ocrUsedAsAuthority, false);
+    }
     assert.ok(batch.entryCount >= 10 && batch.entryCount <= 15);
     assert.equal(batch.entryCount, batch.entryIds.length);
     assert.equal(batch.entryCount, batch.bookNames.length);

@@ -29,3 +29,6 @@ supabase/.branches/
 
 # Local reference material (copyrighted scanned book; kept locally, not committed)
 data/reference/
+
+# Rendered scan pages for 《大众川菜》 batch extraction (regenerable from the PDF)
+/tmp/pdfs/dazhong-full/

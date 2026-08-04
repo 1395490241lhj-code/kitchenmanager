@@ -23,10 +23,17 @@ Last updated: 2026-08-04
   conversions, not household servings or App-ready quantities. Production
   recipes, schemas, serving sizes, and cache stamps are unchanged. The seven
   catalog pages now have a visually reviewed 147-name index, Curated/Full name
-  matching, and an 11-batch (10–15 dishes each) future extraction plan. No new
-  recipe body was read and all batches remain planned-not-started. See
-  `docs/DAZHONG_CHUANCAI_1979_SOURCE_RESTORATION.md` and
-  `docs/DAZHONG_CHUANCAI_1979_CATALOG_INDEX.md`.
+  matching, and an 11-batch (10–15 dishes each) extraction plan. Batch one
+  (`dz1979-b01`, 肉食类, book pages 27–47) is `completed-primary-reviewed`:
+  13 of 147 recipes were extracted by luna_worker from rendered pages and then
+  re-checked page by page by the main agent, with seven corrections applied and
+  zero unresolved readings. 134 recipes remain and batch two has not started —
+  no page beyond the batch-one range has been read. These 13 recipes are
+  intermediate-only data: no production recipe, schema, patch, cache stamp, or
+  UI change was made. See
+  `docs/DAZHONG_CHUANCAI_1979_SOURCE_RESTORATION.md`,
+  `docs/DAZHONG_CHUANCAI_1979_CATALOG_INDEX.md` and
+  `docs/DAZHONG_CHUANCAI_1979_EXTRACTION_SCHEMA.md`.
 
 - UI-5B2B-B2B safe editing of recorded conflict choices is implemented,
   validated, committed, and submitted in Draft PR #19 pending review and merge,

@@ -1,7 +1,7 @@
 {
   "schema": "kitchenmanager.source-restoration.batch-plan.v1",
   "createdAt": "2026-08-04",
-  "status": "planned-not-started",
+  "status": "in-progress",
   "applicationReady": false,
   "purpose": "Plan later recipe-body extraction in 10–15 dish batches after the catalog index; no recipe body is extracted in this artifact.",
   "constraints": {
@@ -9,8 +9,9 @@
     "maximumRecipesPerBatch": 15,
     "preserveCatalogOrder": true,
     "keepCategoryBoundaries": true,
-    "recipeBodyExtractionStarted": false,
-    "productionRecipeGenerated": false
+    "recipeBodyExtractionStarted": true,
+    "productionRecipeGenerated": false,
+    "recipeBodyExtractionCompleted": false
   },
   "inputs": {
     "catalog": {
@@ -52,12 +53,15 @@
         "category": "蔬菜类",
         "count": 3
       }
-    ]
+    ],
+    "processedRecipeCount": 13,
+    "remainingRecipeCount": 134,
+    "completedBatchCount": 1
   },
   "batches": [
     {
       "batchId": "dz1979-b01",
-      "status": "planned-not-started",
+      "status": "completed-primary-reviewed",
       "applicationReady": false,
       "category": "肉食类",
       "entryCount": 13,
@@ -109,6 +113,48 @@
         "required": false,
         "uncertainEntryIds": [],
         "suspectedMatchEntryIds": []
+      },
+      "processedAt": "2026-08-04T20:26:34Z",
+      "processedEntryCount": 13,
+      "processing": {
+        "workerVisualReview": true,
+        "primaryVisualReview": true,
+        "ocrUsedAsAuthority": false,
+        "renderedPdfPages": [
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60
+        ],
+        "ingredientEntryCount": 132,
+        "unresolvedRecipeCount": 0,
+        "reviewResult": "completed-with-corrections-no-unresolved-readings",
+        "correctionsApplied": [
+          "回锅肉猪肉由误录二斤更正为一斤（500g）",
+          "白油肉片补列方法中出现但原料栏未列的水豆粉",
+          "宫保肉丁做法更正为临起锅勾醋并保留簸几下",
+          "干煸肉丝绍酒更正为三钱、香油更正为五钱",
+          "酱爆肉盐更正为二分",
+          "花椒肉一斤耗二两按投料500g、明确耗用100g双值保存",
+          "东坡肉冰糖和葱各更正为一两，确认下垫篾巴及汤淹肉约二寸"
+        ]
       }
     },
     {
