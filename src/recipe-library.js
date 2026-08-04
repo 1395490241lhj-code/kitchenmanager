@@ -1,3 +1,57 @@
+function stableHash(value) {
+  return value.split('').reduce((hash, char) => {
+    hash = ((hash << 5) - hash) + char.charCodeAt(0);
+    return hash & hash;
+  }, 0);
+}
+
+/**
+ * Merge the browser-loaded static method and HOC recipe sources into a base
+ * pack. This is the same source merge used by app.js, exposed as a pure
+ * function so runtime quality checks cannot silently drift from the app.
+ */
+export function mergeRecipeSources(pack, { staticMethods = {}, hocData = [] } = {}) {
+  const recipes = Array.isArray(pack?.recipes)
+    ? pack.recipes.map(recipe => ({ ...recipe }))
+    : [];
+  const recipeIngredients = Object.fromEntries(
+    Object.entries(pack?.recipe_ingredients || {}).map(([id, list]) => [id, Array.isArray(list) ? list.slice() : list])
+  );
+  // Keep the exact name/hash semantics of the browser loader. Source files use
+  // clean names today, but trimming here would silently change IDs for a future
+  // source entry that intentionally contains surrounding whitespace.
+  const existingNames = new Set(recipes.map(recipe => recipe?.name));
+
+  for (const name of Object.keys(staticMethods || {})) {
+    const sourceName = String(name || '');
+    if (!sourceName || existingNames.has(sourceName)) continue;
+    recipes.push({
+      id: `static-${Math.abs(stableHash(sourceName))}`,
+      name: sourceName,
+      tags: ['家常菜', '新增']
+    });
+    existingNames.add(sourceName);
+  }
+
+  for (const item of Array.isArray(hocData) ? hocData : []) {
+    const name = String(item?.name || '');
+    if (!name || existingNames.has(name)) continue;
+    const id = `hoc-${Math.abs(stableHash(name))}`;
+    recipes.push({
+      id,
+      name,
+      tags: item.tags || ['家常菜'],
+      staticMethod: item.method
+    });
+    if (Array.isArray(item.ingredients)) {
+      recipeIngredients[id] = item.ingredients.map(itemName => ({ item: itemName, qty: null, unit: null }));
+    }
+    existingNames.add(name);
+  }
+
+  return { ...pack, recipes, recipe_ingredients: recipeIngredients };
+}
+
 /**
  * Merge the browser-loaded static recipe methods into an already enriched pack.
  *

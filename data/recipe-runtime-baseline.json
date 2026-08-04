@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "algorithm": "sha256(JSON.stringify(sorted recipe IDs))",
+  "sources": {
+    "curated": {
+      "file": "data/sichuan-recipes.curated.json",
+      "count": 126,
+      "idSha256": "ca2a3694a6f05938d8c08149d5b85bcaf914d22fc4d9e4a8542ed5540c2a75b3"
+    },
+    "full": {
+      "file": "data/sichuan-recipes.json",
+      "count": 264,
+      "idSha256": "8d5b1b730b15d17a0d4425fb7c42d1d09be15e34dfd0030b4ccc5eddedb804c3"
+    }
+  }
+}

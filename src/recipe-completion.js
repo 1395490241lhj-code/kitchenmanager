@@ -29,6 +29,12 @@
 /** Cache so we fetch only once per page load */
 let _cached = null;
 
+// Test/diagnostic hook: production callers keep the one-fetch cache, while
+// the runtime quality audit can explicitly start from a clean overlay cache.
+export function resetCompletionOverlayCache() {
+  _cached = null;
+}
+
 export async function applyCompletionOverlay(basePack) {
   // Fetch and cache the overlay JSON
   if (!_cached) {
@@ -157,4 +163,3 @@ function isCoarseOrEmpty(ings) {
   }
   return false; // ≥ 2 separate ingredient entries → fine
 }
-

@@ -14,6 +14,8 @@
     "smoke:sync": "node scripts/sync-smoke.mjs",
     "validate:recipe-packs": "node scripts/validate-recipe-pack-samples.js",
     "validate:recipe-pack-data": "node scripts/validate-recipe-packs.js",
+    "validate:recipe-runtime": "node scripts/recipe-runtime-quality.mjs",
+    "validate:recipe-runtime:strict": "node scripts/recipe-runtime-quality.mjs --strict",
     "ios:release:check": "node scripts/validate-ios-release.mjs",
     "ios:release:bump-build": "node scripts/bump-ios-build.mjs",
     "ios:archive:guard": "node scripts/ios-archive-guard.mjs"
