@@ -72,11 +72,30 @@ function baseDeps(overrides = {}) {
   };
 }
 
-async function prepareReauthenticationProof(app, auth = authA, confirmationVersion = 'fp-1') {
+// Returns a copy of `auth` whose password authentication happened at
+// `timestamp`, the way a provider-native password reauthentication produces a
+// session with a refreshed AMR password entry. The caller's object (notably the
+// shared `authA`) is never mutated, and userId/email/accessToken plus any
+// non-password authentication method are preserved.
+function withPasswordReauthentication(auth, timestamp) {
+  const otherMethods = Array.isArray(auth.authenticationMethods)
+    ? auth.authenticationMethods.filter((entry) => entry?.method !== 'password')
+    : [];
+  return { ...auth, authenticationMethods: [...otherMethods, { method: 'password', timestamp }] };
+}
+
+// issueProof (src/server/account/deletion-routes.js) deliberately rejects a
+// password authentication older than the deletion preview, comparing against
+// the preview's whole-second floor. A real client therefore reauthenticates
+// *after* requesting the preview, and this fixture must do the same: reusing a
+// timestamp captured when this module was loaded made every caller fail
+// whenever load and preview landed on different whole seconds.
+async function prepareReauthenticationProof(app, auth = authA, confirmationVersion = 'fp-1', { now = Date.now } = {}) {
   const preview = await app.call('POST', '/api/account/delete/preview', { auth, body: {} });
   assert.equal(preview.statusCode, 200);
+  const reauthenticatedAuth = withPasswordReauthentication(auth, now());
   const reauthentication = await app.call('POST', '/api/account/delete/reauthenticate', {
-    auth,
+    auth: reauthenticatedAuth,
     body: { confirmationVersion }
   });
   assert.equal(reauthentication.statusCode, 200);
@@ -551,6 +570,62 @@ test('proof is bound to the current user and fingerprint, expires, and is single
   const expiring = store.issueProof({ userId: userA, fingerprint: 'fp-1', authenticationMethods: [{ method: 'password', timestamp: currentTime / 1000 }] });
   currentTime += 1_001;
   assert.equal(store.consumeProof({ userId: userA, fingerprint: 'fp-1', proof: expiring.proof }).error, 'expired');
+});
+
+test('a password authentication predating the preview is rejected across a whole-second boundary, while one performed after it succeeds', async () => {
+  // Fully controlled clock — no sleeping, no retrying, no tolerance. The
+  // password authentication lands at .900 of one second and the preview at
+  // .050 of the next, which is exactly the ordering issueProof rejects via
+  // its Math.floor(issuedAt / 1000) comparison.
+  let currentTime = 1_000_000_000_900;
+  const app = createFakeApp();
+  registerAccountDeletionRoutes(app, baseDeps({
+    repository: fakeRepository(),
+    admin: fakeAdmin(),
+    reauthenticationStore: createDeletionReauthenticationStore({ now: () => currentTime })
+  }));
+
+  const authBeforePreview = withPasswordReauthentication(authA, currentTime);
+  currentTime = 1_000_000_001_050;
+
+  const preview = await app.call('POST', '/api/account/delete/preview', { auth: authBeforePreview, body: {} });
+  assert.equal(preview.statusCode, 200);
+  const stale = await app.call('POST', '/api/account/delete/reauthenticate', {
+    auth: authBeforePreview, body: { confirmationVersion: 'fp-1' }
+  });
+  assert.equal(stale.statusCode, 401, 'a password authentication older than the preview must never yield a proof');
+  assert.equal(stale.body.error.code, 'ACCOUNT_DELETION_REAUTH_FAILED');
+
+  // Same clock, same boundary crossing: the fixture reauthenticates after the
+  // preview, so it obtains a proof deterministically.
+  const proof = await prepareReauthenticationProof(app, authA, 'fp-1', { now: () => currentTime });
+  assert.equal(typeof proof, 'string');
+  assert.ok(proof.length > 0);
+});
+
+test('the reauthentication fixture copies the caller auth instead of mutating it', async () => {
+  const app = createFakeApp();
+  registerAccountDeletionRoutes(app, baseDeps({ repository: fakeRepository(), admin: fakeAdmin() }));
+  const callerAuth = {
+    userId: userA,
+    email: 'a@example.com',
+    accessToken: 'token-a',
+    authenticationMethods: [{ method: 'otp', timestamp: 1_000 }, { method: 'password', timestamp: 2_000 }]
+  };
+  const snapshot = structuredClone(callerAuth);
+
+  await prepareReauthenticationProof(app, callerAuth);
+  assert.deepEqual(callerAuth, snapshot, 'the caller-supplied auth object must be left untouched');
+
+  const reauthenticated = withPasswordReauthentication(callerAuth, 5_000);
+  assert.deepEqual(callerAuth, snapshot);
+  assert.equal(reauthenticated.userId, userA);
+  assert.equal(reauthenticated.email, 'a@example.com');
+  assert.equal(reauthenticated.accessToken, 'token-a');
+  assert.deepEqual(reauthenticated.authenticationMethods, [
+    { method: 'otp', timestamp: 1_000 },
+    { method: 'password', timestamp: 5_000 }
+  ], 'non-password authentication methods survive; only the password entry is refreshed');
 });
 
 test('confirm rejects a missing or wrong reauthentication proof without calling the repository', async () => {
