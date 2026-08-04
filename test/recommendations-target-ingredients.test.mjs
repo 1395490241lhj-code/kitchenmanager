@@ -8,7 +8,8 @@ import {
   findRecipesUsingIngredients,
   normalizeTargetIngredientNames,
   hasReasonableInventoryRecipeCandidates,
-  rankRecipesForRecommendation
+  rankRecipesForRecommendation,
+  getReasonableInventoryRecipeRecommendations
 } from '../src/recommendations.js';
 import { S } from '../src/storage.js';
 
@@ -192,6 +193,28 @@ test('质量接近时用户菜谱优先，但不能压过明显更匹配的系�
     { name: '豆腐', qty: 1, unit: '块', stockStatus: 'ok' }
   ], CONTEXT);
   assert.deepEqual(ranked.map(item => item.recipeId), ['system-exact', 'u-partial']);
+});
+
+test('首页本地候选池同时保留用户/系统菜谱，质量排序后不重复且保留 recipeId/source', () => {
+  const pack = {
+    recipes: [
+      { id: 'system-best', name: '系统完整菜', method: '做' },
+      { id: 'u-close', name: '用户接近菜', method: '做', source: 'user' },
+      { id: 'u-repeat', name: '用户重复菜', method: '做', source: 'user' }
+    ],
+    recipe_ingredients: {
+      'system-best': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }],
+      'u-close': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }],
+      'u-repeat': [{ item: '番茄', qty: 1, unit: '个' }, { item: '豆腐', qty: 1, unit: '块' }]
+    }
+  };
+  const cards = getReasonableInventoryRecipeRecommendations(pack, [
+    { name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' },
+    { name: '豆腐', qty: 1, unit: '块', stockStatus: 'ok' }
+  ], CONTEXT);
+  assert.equal(new Set(cards.map(card => card.recipeId)).size, cards.length);
+  assert.deepEqual(cards.map(card => card.recipeId), ['u-close', 'u-repeat', 'system-best']);
+  assert.deepEqual(cards.map(card => card.source), ['user', 'user', 'system']);
 });
 
 test('完全没有库存匹配菜谱时，才允许进入 AI 创意降级', () => {

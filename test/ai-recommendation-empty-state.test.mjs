@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { validateRecommendationResult } from '../src/ai.js';
-import { processAiData } from '../src/recommendations.js';
+import { getNextUnshownRecommendationIndex, getReasonableInventoryRecipeRecommendations, processAiData } from '../src/recommendations.js';
 import { markAiRecipeDisliked } from '../src/utils/ai-disliked-recipes.js';
 
 const root = process.cwd();
@@ -29,8 +29,6 @@ function homeSource() {
   return read('src/views/home-view.js');
 }
 
-// ── 一：过滤后 local/creative 都为空时不崩溃 ─────────────────────────────────
-
 test('黑暗料理 + 不喜欢过滤都命中后，validateRecommendationResult 抛出可预期错误而不是崩溃', () => {
   markAiRecipeDisliked('青椒肉丝');
   assert.throws(() => validateRecommendationResult(JSON.stringify({
@@ -44,8 +42,6 @@ test('黑暗料理 + 不喜欢过滤都命中后，validateRecommendationResult 
 });
 
 test('processAiData 面对全部被过滤的 aiResult：返回空数组，不抛异常', () => {
-  // processAiData 只负责「不喜欢」过滤（黑暗料理过滤在 validateRecommendationResult 里，
-  // 针对刚拿到的 AI 原始结果；processAiData 还要处理已保存过的合法旧数据，两者职责不同）。
   markAiRecipeDisliked('青椒肉丝');
   markAiRecipeDisliked('茭笋青椒瘦肉炒蛋');
   const pack = { recipes: [{ id: 'r1', name: '青椒肉丝', tags: [] }] };
@@ -63,9 +59,8 @@ test('processAiData 面对全部被过滤的 aiResult：返回空数组，不抛
 });
 
 test('processAiData 面对 local:[]/creative:null 的空 aiResult：返回空数组，不抛异常', () => {
-  const pack = { recipes: [] };
   assert.doesNotThrow(() => {
-    const cards = processAiData({ local: [], creative: null }, pack);
+    const cards = processAiData({ local: [], creative: null }, { recipes: [] });
     assert.deepEqual(cards, []);
   });
 });
@@ -80,61 +75,106 @@ test('processAiData 为 AI 创意菜明确标记 creative 且不伪装成正式�
   assert.deepEqual(cards[0].matchedIngredients, ['番茄', '鸡蛋']);
 });
 
-// ── 二：initRecsState 在「曾保存过 AI 结果，但过滤后为空」时进入 ai-empty ────────
-
-test('initRecsState：savedAi 存在但 processAiData 后为空 → mode 为 ai-empty，不是静默换回 local', () => {
+test('initRecsState：忽略已保存的 AI 结果，首次只读取完整本地候选池', () => {
   const source = homeSource();
   const fn = source.slice(source.indexOf('const initRecsState = () => {'), source.indexOf('const stepRecommendation ='));
-  assert.match(fn, /if \(aiCards\.length\) return \{ mode: 'ai', cards: aiCards, idx: 0 \};/);
-  assert.match(fn, /if \(savedAi\) return \{ mode: 'ai-empty', cards: \[\], idx: 0 \};/);
-  assert.match(fn, /return \{ mode: 'local', cards: getInspirationCached\(\), idx: 0 \};/);
+  assert.match(fn, /const cards = getLocalCached\(\);/);
+  assert.match(fn, /return \{ mode: 'local', cards, idx: 0 \};/);
+  assert.doesNotMatch(fn, /S\.load\(S\.keys\.ai_recs/);
+  assert.doesNotMatch(fn, /processAiData/);
 });
 
-// ── 三：友好空状态文案与三个操作按钮 ──────────────────────────────────────────
-
-test('renderRecsTab：mode 为 ai-empty 时渲染友好空状态文案，不是"暂无推荐"或空白', () => {
+test('首页首次推荐和推荐 tab 共用本地候选调用链，不从 ai_recs 自动接管', () => {
   const source = homeSource();
-  assert.match(source, /mode === 'ai-empty'/);
-  assert.match(source, /暂时没有合适的 AI 推荐/);
-  assert.match(source, /可能是最近做过、已标记不喜欢，或当前库存组合不适合硬凑。/);
+  const renderHome = source.slice(source.indexOf('export function renderHome'));
+  assert.match(renderHome, /getLocalRecommendationCards\(pack, inv\)\.slice\(0, 3\)/);
+  assert.match(source, /const getLocalCached = \(\) => \{[\s\S]*?getLocalRecommendationCards\(pack, inv\)/);
+  assert.doesNotMatch(renderHome, /S\.load\(S\.keys\.ai_recs/);
 });
 
-test('ai-empty 空状态提供三个操作按钮：换一批 / 看本地推荐 / 规划本周菜单', () => {
+test('renderRecsTab：没有本地候选时渲染独立 AI 创作空状态', () => {
   const source = homeSource();
-  const branch = source.slice(source.indexOf("} else if (mode === 'ai-empty') {"), source.indexOf("} else if (!cards.length) {"));
-  assert.match(branch, /id="wxRecEmptyRefresh">换一批</);
-  assert.match(branch, /id="wxRecEmptyLocal">看本地推荐</);
-  assert.match(branch, /id="wxRecEmptyPlan">规划本周菜单</);
+  const branch = source.slice(source.indexOf("} else if (mode === 'local-empty') {"), source.indexOf("} else if (mode === 'creative') {"));
+  assert.match(branch, /暂时没有合适的本地菜谱/);
+  assert.match(branch, /只用一部分库存/);
+  assert.match(branch, /id="wxRecCreative">✨ AI 创作新菜/);
 });
 
-test('「换一批」复用共用的 triggerAiRefresh（不是另起一套 AI 调用逻辑）', () => {
+test('本地候选耗尽后只显示 AI 创作入口，不把“换一批”变成 AI 请求', () => {
   const source = homeSource();
-  const branch = source.slice(source.indexOf("} else if (mode === 'ai-empty') {"), source.indexOf("} else if (!cards.length) {"));
-  assert.match(branch, /wxRecEmptyRefresh'\)\.onclick = e => triggerAiRefresh\(e\.currentTarget\)/);
-  const footerTrigger = source.slice(source.indexOf("const aiTrigger = foot.querySelector"), source.indexOf("const aiTrigger = foot.querySelector") + 200);
-  assert.match(footerTrigger, /triggerAiRefresh\(e\.currentTarget\)/);
+  const renderRecsTab = source.slice(source.indexOf('const renderRecsTab'), source.indexOf('export function renderHome'));
+  assert.match(renderRecsTab, /const hasNextLocal = mode === 'local'/);
+  assert.match(renderRecsTab, /const showCreativeEntry = mode === 'local-exhausted' \|\| \(mode === 'local' && !hasNextLocal\)/);
+  assert.match(renderRecsTab, /id="wxRecNext">换一批/);
+  assert.match(renderRecsTab, /id="wxRecCreative">✨ AI 创作新菜/);
+  assert.match(renderRecsTab, /nextBtn\.onclick = \(\) => stepRecommendation\(1\)/);
+  assert.doesNotMatch(renderRecsTab, /callCloudAI/);
 });
 
-test('「看本地推荐」清掉保存的 AI 推荐、改用本地推荐，且不调用 callCloudAI', () => {
-  const source = homeSource();
-  const branch = source.slice(source.indexOf("} else if (mode === 'ai-empty') {"), source.indexOf("} else if (!cards.length) {"));
-  const localHandler = branch.slice(branch.indexOf("wxRecEmptyLocal').onclick"));
-  assert.match(localHandler, /localStorage\.removeItem\(S\.keys\.ai_recs\)/);
-  assert.match(localHandler, /mode: 'local', cards: getInspirationCached\(\)/);
-  assert.doesNotMatch(localHandler, /callCloudAI/);
+test('连续换批只寻找未展示的本地 recipeId，并保留 source', async () => {
+  const cards = [
+    { recipeId: 'user-1', source: 'user', name: '用户菜' },
+    { recipeId: 'system-1', source: 'system', name: '系统菜' },
+    { recipeId: 'user-2', source: 'user', name: '用户第二道' }
+  ];
+  const shown = new Set(['user-1']);
+  const firstNext = getNextUnshownRecommendationIndex(cards, 0, shown);
+  assert.equal(firstNext, 1);
+  shown.add(cards[firstNext].recipeId);
+  const secondNext = getNextUnshownRecommendationIndex(cards, firstNext, shown);
+  assert.equal(secondNext, 2);
+  assert.equal(cards[secondNext].recipeId, 'user-2');
+  assert.equal(cards[secondNext].source, 'user');
 });
 
-test('「规划本周菜单」第一版切到计划 Tab', () => {
+test('四个合理本地候选可连续换到第 4 个，候选耗尽前不进入 AI', () => {
+  const pack = {
+    recipes: [
+      { id: 'user-1', name: '用户菜一', method: '做', source: 'user' },
+      { id: 'system-1', name: '系统菜一', method: '做' },
+      { id: 'user-2', name: '用户菜二', method: '做', source: 'user' },
+      { id: 'system-2', name: '系统菜二', method: '做' }
+    ],
+    recipe_ingredients: {
+      'user-1': [{ item: '番茄', qty: 1, unit: '个' }],
+      'system-1': [{ item: '番茄', qty: 1, unit: '个' }],
+      'user-2': [{ item: '番茄', qty: 1, unit: '个' }],
+      'system-2': [{ item: '番茄', qty: 1, unit: '个' }]
+    }
+  };
+  const cards = getReasonableInventoryRecipeRecommendations(pack, [
+    { name: '番茄', qty: 2, unit: '个', stockStatus: 'ok' }
+  ], { source: 'test' }).map(item => ({
+    recipeId: item.recipeId,
+    source: item.source,
+    name: item.r.name
+  }));
+  assert.equal(cards.length, 4);
+
+  const shown = new Set([cards[0].recipeId]);
+  let currentIndex = 0;
+  for (let count = 1; count < cards.length; count += 1) {
+    const nextIndex = getNextUnshownRecommendationIndex(cards, currentIndex, shown);
+    assert.notEqual(nextIndex, -1, `第 ${count + 1} 道本地菜谱应仍可换出`);
+    currentIndex = nextIndex;
+    shown.add(cards[currentIndex].recipeId);
+  }
+  assert.equal(shown.size, 4);
+  assert.equal(currentIndex, cards.length - 1);
+  assert.equal(getNextUnshownRecommendationIndex(cards, currentIndex, shown), -1);
+
   const source = homeSource();
-  const branch = source.slice(source.indexOf("} else if (mode === 'ai-empty') {"), source.indexOf("} else if (!cards.length) {"));
-  assert.match(branch, /wxRecEmptyPlan'\)\.onclick = \(\) => switchTab\('plan'\)/);
+  const localPool = source.slice(source.indexOf('function getInspirationCards'), source.indexOf('function getLocalRecommendationCards'));
+  const renderRecsTab = source.slice(source.indexOf('const renderRecsTab'), source.indexOf('export function renderHome'));
+  assert.match(localPool, /if \(cards\.length < maxCards\) pushRecipe\(row\);/);
+  assert.match(renderRecsTab, /const showCreativeEntry = mode === 'local-exhausted'/);
+  assert.doesNotMatch(renderRecsTab, /callCloudAI/);
 });
 
-// ── 四：triggerAiRefresh 过滤后为空也进入 ai-empty，而不是留旧卡片 + 小提示 ──────
-
-test('triggerAiRefresh：AI 结果过滤后为空时进入 ai-empty 并切回推荐 tab', () => {
+test('只有显式点击 AI 创作入口的 handler 才传 allowCreative:true', () => {
   const source = homeSource();
-  const fn = source.slice(source.indexOf('const triggerAiRefresh = async'), source.indexOf('const isCardControlTarget ='));
-  assert.match(fn, /recsState = aiCards\.length \? \{ mode: 'ai', cards: aiCards, idx: 0 \} : \{ mode: 'ai-empty', cards: \[\], idx: 0 \};/);
-  assert.match(fn, /switchTab\('recs'\)/);
+  const handler = source.slice(source.indexOf('const triggerCreativeRecipe = async'), source.indexOf('const isCardControlTarget ='));
+  assert.match(handler, /callCloudAI\(pack, inv, \{ allowCreative: true \}\)/);
+  assert.match(handler, /processAiData\(aiResult, pack\)\.filter\(card => card\.source === 'creative'\)/);
+  assert.doesNotMatch(source.slice(source.indexOf('const stepRecommendation ='), source.indexOf('const triggerCreativeRecipe = async')), /callCloudAI/);
 });

@@ -8,7 +8,7 @@ import {
   addMissingRecipeIngredientsToShopping,
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData,
-  hasReasonableInventoryRecipeCandidates,
+  getReasonableInventoryRecipeRecommendations, getNextUnshownRecommendationIndex,
   isFavoriteRecipe, toggleFavoriteRecipe
 } from '../recommendations.js?v=236';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=236';
@@ -132,46 +132,55 @@ function getTodayDecisionGroups(pack, inv) {
   };
 }
 
-// 把真实的「今日决策」推荐映射成 Section 1 的统一卡片形状（最多 3 张）。
-function getInspirationCards(pack, inv) {
-  const groups = getTodayDecisionGroups(pack, inv);
+// 把真实的「今日决策」推荐映射成统一卡片形状。默认仍只给摘要 3 张；推荐面板
+// 可请求完整的正式菜谱池，保证“换一批”不会在前三张卡片后过早重复或降级。
+function getInspirationCards(pack, inv, { limit = 3, includeFallback = true } = {}) {
+  const maxCards = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : Infinity;
+  const ranked = getReasonableInventoryRecipeRecommendations(pack, inv, getRecommendationUiContext());
   const cards = [];
-  const pushFrom = (list, tone) => {
-    for (const row of (list || [])) {
-      if (cards.length >= 3) break;
-      if (cards.some(c => c.id === row.r.id)) continue;
-      let matchLabel = '';
-      let missing = [];
-      if (tone === 'priority') matchLabel = '优先用掉';
-      else if (tone === 'ready') matchLabel = '食材已齐';
-      else {
-        missing = (row.missing || []).map(m => m.name || m.item).filter(Boolean);
-        matchLabel = `只差 ${missing.length} 样`;
-      }
-      cards.push({
-        id: row.r.id,
-        recipeId: row.recipeId || row.r.id,
-        source: row.source || 'system',
-        matchedIngredients: row.matchedIngredients || [],
-        missingIngredients: row.missingIngredients || missing,
-        name: row.r.name,
-        matchLabel,
-        missing,
-        reason: row.reason || '',
-        tone,
-        row
-      });
-    }
+  const pushRecipe = row => {
+    if (cards.length >= maxCards || !row?.r?.id || cards.some(card => card.id === row.r.id)) return;
+    const missing = (row.missing || []).map(item => item.name || item.item).filter(Boolean);
+    const tone = row.expiringMatches?.length
+      ? 'priority'
+      : row.coverageConfidence === 'exact'
+        ? 'ready'
+        : 'almost';
+    const matchLabel = tone === 'priority'
+      ? '优先用掉'
+      : tone === 'ready'
+        ? '食材已齐'
+        : `只差 ${missing.length} 样`;
+    cards.push({
+      id: row.r.id,
+      recipeId: row.recipeId || row.r.id,
+      source: row.source || 'system',
+      matchedIngredients: row.matchedIngredients || [],
+      missingIngredients: row.missingIngredients || missing,
+      name: row.r.name,
+      matchLabel,
+      missing,
+      reason: row.reason || '',
+      tone,
+      row
+    });
   };
-  pushFrom(groups.priority, 'priority');
-  pushFrom(groups.ready, 'ready');
-  pushFrom(groups.almost, 'almost');
-  const variants = getRecipeVariantRecommendations(pack, inv, { limit: Math.max(0, 3 - cards.length) });
+  ranked.forEach(row => {
+    if (cards.length < maxCards) pushRecipe(row);
+  });
+
+  // 正式菜谱不足三道时，继续保留已有的本地变化/通用做法兜底；它们仍然不触发
+  // 网络请求，且排在正式用户/系统菜谱之后。
+  if (!includeFallback || !Number.isFinite(maxCards)) return cards;
+  const existingNames = cards.map(card => card.name);
+  const variants = getRecipeVariantRecommendations(pack, inv, { limit: Math.max(0, maxCards - cards.length) });
   for (const variant of variants) {
-    if (cards.length >= 3) break;
+    if (cards.length >= maxCards || cards.some(card => card.id === variant.id || card.name === variant.name)) break;
     cards.push({
       ...variant,
       id: variant.id,
+      recipeId: null,
+      source: variant.source || 'local',
       name: variant.name,
       matchLabel: variant.matchLabel || '变化菜',
       reason: variant.reason || '',
@@ -181,14 +190,16 @@ function getInspirationCards(pack, inv) {
     });
   }
   const genericTemplates = getGenericIngredientRecipeRecommendations(pack, inv, {
-    limit: Math.max(0, 3 - cards.length),
-    existingNames: cards.map(card => card.name)
+    limit: Math.max(0, maxCards - cards.length),
+    existingNames: [...existingNames, ...cards.map(card => card.name)]
   });
   for (const item of genericTemplates) {
-    if (cards.length >= 3) break;
+    if (cards.length >= maxCards || cards.some(card => card.id === item.id || card.name === item.name)) break;
     cards.push({
       ...item,
       id: item.id,
+      recipeId: null,
+      source: item.source || 'local',
       name: item.name,
       matchLabel: item.matchLabel || '简单做法',
       reason: item.reason || '',
@@ -198,6 +209,10 @@ function getInspirationCards(pack, inv) {
     });
   }
   return cards;
+}
+
+function getLocalRecommendationCards(pack, inv) {
+  return getInspirationCards(pack, inv, { limit: null, includeFallback: false });
 }
 
 function formatMissingSummary(missing = []) {
@@ -225,6 +240,7 @@ function getSuggestTags(card, missing = []) {
 }
 
 function getSuggestKickerLabel(card) {
+  if (card.source === 'creative') return 'AI 创作';
   if (card.tone === 'priority') return '优先推荐';
   if (card.tone === 'variant') return '变化菜';
   if (card.tone === 'generic') return '快手灵感';
@@ -434,11 +450,11 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   inspiWrap.className = 'home-inspi-bottom is-collapsed';
   inspiWrap.setAttribute('aria-hidden', 'true');
 
-  // 面板内部：问候语行（含「换一批」按钮） + 状态行 + 滚动卡片 + 注释
+  // 面板内部：问候语行（含「AI 创作新菜」按钮） + 状态行 + 滚动卡片 + 注释
   inspiWrap.innerHTML = `
     <div class="home-inspi-panel-head">
       <p class="home-hero-greeting">🔮 结合当前厨房食材，为你定制的今日烹饪灵感：</p>
-      <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ 换几道</button>
+      <button type="button" class="home-mini-btn home-ai-btn" id="heroAiBtn">✨ AI 创作新菜</button>
     </div>
     <div class="home-suggest-scroll"></div>
     <p class="home-hero-note" id="heroNote"></p>
@@ -449,6 +465,7 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
   const note = inspiWrap.querySelector('#heroNote');
   const aiStatus = section.querySelector('#heroAiStatus');
   const aiBtn = inspiWrap.querySelector('#heroAiBtn');
+  aiBtn.hidden = getLocalRecommendationCards(pack, inv).length > 0;
 
   // 折叠状态切换
   let inspiExpanded = false;
@@ -497,10 +514,8 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
     updateToggleLabel((aiCards || []).slice(0, 4).length);
   };
 
-  // 初次渲染：若已有保存的 AI 推荐则展示，否则本地推荐
-  const savedAiRecs = S.load(S.keys.ai_recs, null);
-  const savedCards = savedAiRecs ? processAiData(savedAiRecs, pack) : [];
-  if (savedCards.length > 0) showAi(savedCards); else showLocal();
+  // 初次渲染只展示本地推荐；保存过的 AI 结果不能绕过本地候选直接出现。
+  showLocal();
 
   aiBtn.onclick = async () => {
     if (aiBtn.getAttribute('disabled')) return;
@@ -512,11 +527,9 @@ function renderInspirationPanel(pack, inv, expiringCount, { onRoute = () => {}, 
       setInlineStatus(aiStatus, formatAiErrorMessage(new Error('AI 响应超时')), 'bad');
     }, 30000);
     try {
-      const aiResult = await callCloudAI(pack, inv, {
-        allowCreative: !hasReasonableInventoryRecipeCandidates(pack, inv, getRecommendationUiContext())
-      });
+      const aiResult = await callCloudAI(pack, inv, { allowCreative: true });
       clearTimeout(safety);
-      const cards = processAiData(aiResult, pack);
+      const cards = processAiData(aiResult, pack).filter(card => card.source === 'creative');
       if (cards.length > 0) {
         S.save(S.keys.ai_recs, aiResult);
         showAi(cards);
@@ -1085,7 +1098,7 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
   body.setAttribute('aria-hidden', 'true');
   body.innerHTML = `
     <div class="today-ai-head">
-      <button type="button" class="home-mini-btn today-ai-btn" id="todayAiBtn">✨ 换几道</button>
+      <button type="button" class="home-mini-btn today-ai-btn" id="todayAiBtn">✨ AI 创作新菜</button>
     </div>
     <div class="today-picks-grid" id="todayPicksGrid"></div>
     <p class="today-picks-note" id="todayPicksNote" hidden></p>
@@ -1095,6 +1108,7 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
   const grid = body.querySelector('#todayPicksGrid');
   const note = body.querySelector('#todayPicksNote');
   const aiBtn = body.querySelector('#todayAiBtn');
+  aiBtn.hidden = getLocalRecommendationCards(pack, inv).length > 0;
   const summary = toggle.querySelector('#aiSummary');
   const setSummary = (n) => { summary.textContent = n > 0 ? `有 ${n} 个推荐` : '根据食材生成晚餐灵感'; };
 
@@ -1118,10 +1132,8 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
     setSummary(list.length);
   };
 
-  // 初次：有保存的 AI 推荐则展示，否则本地推荐（都只是预渲染进折叠体，默认不展开）。
-  const savedAiRecs = S.load(S.keys.ai_recs, null);
-  const savedCards = savedAiRecs ? processAiData(savedAiRecs, pack) : [];
-  if (savedCards.length > 0) showAi(savedCards); else renderLocal();
+  // 初次只预渲染本地推荐；保存过的 AI 结果不能自动接管首页入口。
+  renderLocal();
 
   let expanded = false;
   toggle.onclick = () => {
@@ -1139,11 +1151,9 @@ function buildAiRecommendations(pack, inv, { onRoute = () => {} } = {}) {
     aiBtn.innerHTML = '<span class="spinner"></span> 思考中…';
     const safety = setTimeout(() => { aiBtn.innerHTML = original; aiBtn.removeAttribute('disabled'); }, 30000);
     try {
-      const aiResult = await callCloudAI(pack, inv, {
-        allowCreative: !hasReasonableInventoryRecipeCandidates(pack, inv, getRecommendationUiContext())
-      });
+      const aiResult = await callCloudAI(pack, inv, { allowCreative: true });
       clearTimeout(safety);
-      const cards = processAiData(aiResult, pack);
+      const cards = processAiData(aiResult, pack).filter(card => card.source === 'creative');
       if (cards.length > 0) { S.save(S.keys.ai_recs, aiResult); showAi(cards); }
     } catch (e) {
       clearTimeout(safety); // 静默失败：保留本地推荐
@@ -1919,8 +1929,13 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   // 本面板生命周期内的本地推荐缓存：pack/inv 在一次渲染内不变（任何写库操作都会
   // onRoute 整页重建面板），同一面板内多处需要本地推荐时只算一次全库排序。
   let inspirationCache = Array.isArray(inspirationCards) ? inspirationCards : null;
+  let localRecommendationCache = null;
+  const getLocalCached = () => {
+    if (!localRecommendationCache) localRecommendationCache = getLocalRecommendationCards(pack, inv);
+    return localRecommendationCache;
+  };
   const getInspirationCached = () => {
-    if (!inspirationCache) inspirationCache = getInspirationCards(pack, inv);
+    if (!inspirationCache) inspirationCache = getLocalCached().slice(0, 3);
     return inspirationCache;
   };
   const section = document.createElement('section');
@@ -1934,39 +1949,50 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   `;
   const body = section.querySelector('.wx-body');
 
-  // 推荐 tab 状态（仅内存）：local=本地灵感卡 / ai=云端草稿 / ai-empty=AI 结果被过滤后为空；idx=「换一道」游标。
+  // 推荐 tab 状态（仅内存）：local=本地正式菜谱 / creative=用户明确请求的 AI 草稿；
+  // localShownIds 只在本次面板生命周期内记录已展示项，避免“换一批”重复。
   let recsState = null;
+  const localShownIds = new Set();
+  const getCardKey = card => String(card?.recipeId || card?.id || card?.name || '').trim();
   const initRecsState = () => {
-    const savedAi = S.load(S.keys.ai_recs, null);
-    const aiCards = savedAi ? processAiData(savedAi, pack) : [];
-    if (aiCards.length) return { mode: 'ai', cards: aiCards, idx: 0 };
-    // savedAi 存在但 processAiData 过滤后没有可展示项（黑暗料理/不喜欢过滤命中）：
-    // 不要默默换回本地推荐，用户会看不出发生了什么——给一个明确的兜底空状态。
-    if (savedAi) return { mode: 'ai-empty', cards: [], idx: 0 };
-    return { mode: 'local', cards: getInspirationCached(), idx: 0 };
+    const cards = getLocalCached();
+    localShownIds.clear();
+    if (!cards.length) return { mode: 'local-empty', cards: [], idx: 0 };
+    localShownIds.add(getCardKey(cards[0]));
+    return { mode: 'local', cards, idx: 0 };
   };
   const stepRecommendation = (delta = 1) => {
-    if (!recsState || !recsState.cards || recsState.cards.length <= 1) return;
-    const total = recsState.cards.length;
-    recsState.idx = (recsState.idx + delta + total) % total;
+    if (!recsState || recsState.mode !== 'local' || !recsState.cards?.length) return;
+    const currentIndex = Number.isInteger(recsState.idx) ? recsState.idx : 0;
+    if (delta < 0) {
+      recsState.idx = Math.max(0, currentIndex - 1);
+      switchTab('recs');
+      return;
+    }
+    const nextIndex = getNextUnshownRecommendationIndex(recsState.cards, currentIndex, localShownIds);
+    if (nextIndex < 0) {
+      recsState = { ...recsState, mode: 'local-exhausted' };
+      switchTab('recs');
+      return;
+    }
+    localShownIds.add(getCardKey(recsState.cards[nextIndex]));
+    recsState.idx = nextIndex;
     switchTab('recs');
   };
-  // 「AI 换一批」共用触发逻辑：推荐 tab 底部按钮、ai-empty 兜底空状态里的「换一批」都走这里，
-  // 过滤后为空时统一进入 mode:'ai-empty'（而不是静默换回本地推荐或留一句不起眼的提示）。
-  const triggerAiRefresh = async (btn) => {
+  // 只有用户明确点击独立的“AI 创作新菜”入口时才允许 creative；“换一批”不进此函数。
+  const triggerCreativeRecipe = async (btn) => {
     if (!btn || btn.getAttribute('disabled')) return;
     btn.setAttribute('disabled', 'true');
     const original = btn.textContent;
     btn.innerHTML = '<span class="spinner"></span> 思考中…';
     const safety = setTimeout(() => { btn.innerHTML = original; btn.removeAttribute('disabled'); }, 30000);
     try {
-      const aiResult = await callCloudAI(pack, inv, {
-        allowCreative: !hasReasonableInventoryRecipeCandidates(pack, inv, getRecommendationUiContext())
-      });
+      const aiResult = await callCloudAI(pack, inv, { allowCreative: true });
       clearTimeout(safety);
-      const aiCards = processAiData(aiResult, pack);
+      const aiCards = processAiData(aiResult, pack).filter(card => card.source === 'creative');
+      if (!aiCards.length) throw new Error('AI 没有返回可用的新菜草稿');
       S.save(S.keys.ai_recs, aiResult);
-      recsState = aiCards.length ? { mode: 'ai', cards: aiCards, idx: 0 } : { mode: 'ai-empty', cards: [], idx: 0 };
+      recsState = { mode: 'creative', cards: aiCards, idx: 0 };
       switchTab('recs');
     } catch (err) {
       clearTimeout(safety);
@@ -2044,7 +2070,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   };
 
   // ── ✨ 推荐：一次只展示 1 个主推荐（不摊开三张卡）。
-  //    「换一道」在已有推荐里轮换；「AI 换一批」沿用原 callCloudAI → processAiData 流程。──
+  //    「换一批」只轮换本地正式菜谱；本地候选耗尽后才显示独立的 AI 创作入口。
   const renderTargetRecipeSearch = (targetNames, resultCount, nameCount = 0) => {
     const hasQuery = !!targetRecipeQuery.trim();
     const search = document.createElement('div');
@@ -2651,54 +2677,33 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       `;
       cardWrap.querySelector('#wxRecAddFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
       cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
-    } else if (mode === 'ai-empty') {
-      // AI 推荐经 validateRecommendationResult/processAiData 过滤（黑暗料理/用户不喜欢）后一个都不剩：
-      // 不留空白、不写「暂无推荐」，给出明确的兜底操作，而不是悄悄换回本地推荐。
-      cardWrap.innerHTML = `
-        <div class="wx-empty wx-rec-empty wx-rec-ai-empty">
-          <strong>暂时没有合适的 AI 推荐</strong>
-          <span>可能是最近做过、已标记不喜欢，或当前库存组合不适合硬凑。</span>
-          <div class="wx-actions wx-empty-actions">
-            <button type="button" class="wx-mini-btn is-ai" id="wxRecEmptyRefresh">换一批</button>
-            <button type="button" class="wx-mini-btn" id="wxRecEmptyLocal">看本地推荐</button>
-            <button type="button" class="wx-mini-btn" id="wxRecEmptyPlan">规划本周菜单</button>
-          </div>
-        </div>
-      `;
-      cardWrap.querySelector('#wxRecEmptyRefresh').onclick = e => triggerAiRefresh(e.currentTarget);
-      cardWrap.querySelector('#wxRecEmptyLocal').onclick = () => {
-        localStorage.removeItem(S.keys.ai_recs);
-        recsState = { mode: 'local', cards: getInspirationCached(), idx: 0 };
-        switchTab('recs');
-      };
-      cardWrap.querySelector('#wxRecEmptyPlan').onclick = () => switchTab('plan');
-    } else if (!cards.length) {
+    } else if (mode === 'local-empty') {
+      // 没有合理的本地候选时，AI 入口必须独立出现；“换一批”不会在这里偷偷发起 AI。
       cardWrap.innerHTML = `
         <div class="wx-empty wx-rec-empty">
-          <strong>还没有匹配到能直接做的菜</strong>
-          <span>可以再记几样食材，或者先去菜谱里挑一道。</span>
-          <small class="wx-help-text">推荐会优先看现有食材，缺的可以加入买菜。</small>
+          <strong>暂时没有合适的本地菜谱</strong>
+          <span>可以再记几样食材，或者让 AI 只用一部分库存创作一道新菜。</span>
           <div class="wx-actions wx-empty-actions">
             <button type="button" class="wx-mini-btn" id="wxRecAddFood">继续记食材</button>
             <button type="button" class="wx-mini-btn" id="wxRecGoRecipes">去菜谱看看</button>
+            <button type="button" class="wx-mini-btn is-ai" id="wxRecCreative">✨ AI 创作新菜</button>
           </div>
         </div>
       `;
       cardWrap.querySelector('#wxRecAddFood').onclick = () => openBatchInputModal(pack, { onRoute, initialTab: 'text' });
       cardWrap.querySelector('#wxRecGoRecipes').onclick = () => { location.hash = '#recipes'; };
-    } else if (mode === 'ai') {
+      cardWrap.querySelector('#wxRecCreative').onclick = e => triggerCreativeRecipe(e.currentTarget);
+    } else if (mode === 'creative') {
       const item = cards[idx];
       const aiCard = {
         id: item?.r?.id,
-        name: item?.r?.name || 'AI 推荐',
-        matchLabel: 'AI 推荐',
+        recipeId: null,
+        source: 'creative',
+        name: item?.r?.name || 'AI 新菜草稿',
+        matchLabel: 'AI 创作',
         reason: item?.reason || (Array.isArray(item?.explain) ? item.explain.join('；') : ''),
         tone: 'idea',
-        row: item?.r ? {
-          r: item.r,
-          list: item.list || (pack.recipe_ingredients || {})[item.r.id] || [],
-          missing: item.missing || []
-        } : null
+        list: item?.list || []
       };
       cardWrap.appendChild(renderSuggestCard(aiCard, pack, inv, {
         onPreviewRecipe: openRecipePreviewModal,
@@ -2737,7 +2742,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       }
     } else if (cards.length) {
       body.appendChild(renderWxSectionIntro('推荐', ''));
-    } else if (mode !== 'ai-empty') {
+    } else {
       body.appendChild(renderWxSectionIntro('暂无合适推荐', '再记录几样食材，推荐会更准。'));
     }
     body.appendChild(cardWrap);
@@ -2752,17 +2757,19 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       `;
       body.appendChild(dots);
     }
-    if (hasInlineAiState || (hasSearchQuery && !cards.length) || mode === 'ai-empty') return;
+    if (hasInlineAiState || (hasSearchQuery && !cards.length)) return;
 
+    const hasNextLocal = mode === 'local'
+      && getNextUnshownRecommendationIndex(cards, idx, localShownIds) >= 0;
+    const showCreativeEntry = mode === 'local-exhausted' || (mode === 'local' && !hasNextLocal);
     const foot = document.createElement('div');
     foot.className = 'wx-actions';
     foot.innerHTML = `
-      ${mode === 'ai' && cards.length ? '<button type="button" class="wx-mini-btn" id="wxRecLocal">用本地推荐</button>' : ''}
-      ${cards.length > 1 ? '<button type="button" class="wx-mini-btn" id="wxRecNext">换一道 ›</button>' : ''}
-      <button type="button" class="wx-mini-btn is-ai" id="wxRecAi">✨ 换几道</button>
+      ${mode === 'creative' ? '<button type="button" class="wx-mini-btn" id="wxRecLocal">看本地推荐</button>' : ''}
+      ${hasNextLocal ? '<button type="button" class="wx-mini-btn" id="wxRecNext">换一批 ›</button>' : ''}
+      ${showCreativeEntry ? '<button type="button" class="wx-mini-btn is-ai" id="wxRecCreative">✨ AI 创作新菜</button>' : ''}
     `;
     body.appendChild(foot);
-    if (mode === 'target') foot.querySelector('#wxRecAi')?.remove();
     if (!foot.querySelector('button')) {
       foot.remove();
       return;
@@ -2772,13 +2779,11 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     if (nextBtn) nextBtn.onclick = () => stepRecommendation(1);
     const localBtn = foot.querySelector('#wxRecLocal');
     if (localBtn) localBtn.onclick = () => {
-      localStorage.removeItem(S.keys.ai_recs);
-      recsState = { mode: 'local', cards: getInspirationCached(), idx: 0 };
+      recsState = initRecsState();
       switchTab('recs');
     };
-    const aiTrigger = foot.querySelector('#wxRecAi');
-    if (!aiTrigger) return;
-    aiTrigger.onclick = e => triggerAiRefresh(e.currentTarget);
+    const creativeTrigger = foot.querySelector('#wxRecCreative');
+    if (creativeTrigger) creativeTrigger.onclick = e => triggerCreativeRecipe(e.currentTarget);
   };
 
   const TAB_RENDERERS = { plan: renderPlanTab, recs: renderRecsTab };
@@ -2799,7 +2804,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   // 默认 tab：优先回答“今天能做什么”；手动切过 tab 时仍尊重记忆的 tab（home-tab-state）。
   const defaultRecCount = getInspirationCached().length;
   const defaultPlanCount = getTodayPlanCount();
-  const defaultTab = defaultRecCount > 0 ? 'recs' : (defaultPlanCount > 0 ? 'plan' : 'plan');
+  const defaultTab = defaultRecCount > 0 ? 'recs' : (defaultPlanCount > 0 ? 'plan' : 'recs');
   switchTab(getHomeTab() || defaultTab);
 
   return {
@@ -2825,7 +2830,7 @@ export function renderHome(pack, { onRoute = () => {} } = {}) {
 
   // 轻量 Today：主面板保留「计划 / 推荐」，临期和待买由顶部状态弹窗承接，
   // 只压轻视觉和按钮层级；不改推荐算法、不接新 API。
-  const inspirationCards = perfMeasure('getInspirationCards(home)', () => getInspirationCards(pack, inv));
+  const inspirationCards = perfMeasure('getInspirationCards(home)', () => getLocalRecommendationCards(pack, inv).slice(0, 3));
   const summaryStats = getTodaySummaryStats(pack, inv, { inspirationCards });
   const statusHeader = renderWxStatus(summaryStats);
   const panel = perfMeasure('createWeatherPanel', () => createWeatherPanel(pack, inv, { onRoute, inspirationCards }));

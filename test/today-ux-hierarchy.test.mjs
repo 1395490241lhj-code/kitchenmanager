@@ -90,14 +90,19 @@ test('AI 生成新菜作为同一张推荐卡内的兜底状态', () => {
   assert.doesNotMatch(renderRecsTab, /renderDishDraftBox/);
 });
 
-test('推荐 tab 直接外露用本地推荐、换一道和换几道', () => {
+test('推荐 tab 优先本地换批，候选耗尽后才显示 AI 创作入口', () => {
   const home = read('src/views/home-view.js');
+  const renderRecsTab = home.slice(home.indexOf('const renderRecsTab'), home.indexOf('export function renderHome'));
 
-  assert.match(home, /id="wxRecLocal"[\s\S]*用本地推荐/);
-  assert.match(home, /id="wxRecNext"[\s\S]*换一道/);
-  assert.match(home, /id="wxRecAi"[\s\S]*换几道/);
+  assert.match(home, /id="wxRecLocal"[\s\S]*看本地推荐/);
+  assert.match(home, /id="wxRecNext"[\s\S]*换一批/);
+  assert.match(home, /id="wxRecCreative"[\s\S]*AI 创作新菜/);
   assert.match(home, /stepRecommendation\(1\)/);
-  assert.match(home, /callCloudAI/);
+  assert.match(home, /const triggerCreativeRecipe = async/);
+  assert.match(home, /callCloudAI\(pack, inv, \{ allowCreative: true \}\)/);
+  assert.match(renderRecsTab, /const hasNextLocal = mode === 'local'/);
+  assert.match(renderRecsTab, /const showCreativeEntry = mode === 'local-exhausted'/);
+  assert.doesNotMatch(renderRecsTab, /allowCreative: !/);
 });
 
 test('推荐卡第一层保留加入计划、查看和更多，并仍走缺菜检测', () => {
