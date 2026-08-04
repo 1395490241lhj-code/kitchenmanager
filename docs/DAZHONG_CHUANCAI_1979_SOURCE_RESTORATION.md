@@ -1,7 +1,7 @@
 # 《大众川菜》1979 扫描版来源恢复
 
 状态：5 道试点已通过用户复核并完成指定修正；中间数据仍不可写入应用。
-目录索引和 Curated/Full 匹配完成前，不制定后续批次。
+目录索引、Curated/Full 匹配和 10–15 道批次规划已完成，但尚未开始正文提取。
 
 机器可读中间数据位于
 [dazhong-chuancai-1979-pilot.v1.json](../data/source-restoration/dazhong-chuancai-1979-pilot.v1.json)。
@@ -224,6 +224,8 @@
 ## 7. 试点门禁
 
 用户已确认试点通过。指定原文、并列成员结构和 applicationReady=false 门禁
-完成验证后，才进入目录索引与 Curated/Full 菜名匹配。
+已完成验证；目录页索引、Curated/Full 菜名匹配和后续批次规划另见
+[《大众川菜》1979 目录索引与名称匹配](DAZHONG_CHUANCAI_1979_CATALOG_INDEX.md)。
 
-目录索引验证前仍不制定 10–15 道批次，也不生成生产导入文件。
+本轮没有继续读取菜谱正文。批次均保持 planned-not-started，且所有相关中间
+数据仍为 applicationReady=false；不生成生产导入文件。

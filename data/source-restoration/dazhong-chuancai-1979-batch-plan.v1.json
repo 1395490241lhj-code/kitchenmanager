@@ -1,0 +1,714 @@
+{
+  "schema": "kitchenmanager.source-restoration.batch-plan.v1",
+  "createdAt": "2026-08-04",
+  "status": "planned-not-started",
+  "applicationReady": false,
+  "purpose": "Plan later recipe-body extraction in 10–15 dish batches after the catalog index; no recipe body is extracted in this artifact.",
+  "constraints": {
+    "minimumRecipesPerBatch": 10,
+    "maximumRecipesPerBatch": 15,
+    "preserveCatalogOrder": true,
+    "keepCategoryBoundaries": true,
+    "recipeBodyExtractionStarted": false,
+    "productionRecipeGenerated": false
+  },
+  "inputs": {
+    "catalog": {
+      "path": "data/source-restoration/dazhong-chuancai-1979-catalog.v1.json",
+      "sha256": "5d91030a28933a8766fc007b679cd3b06d2e0ad936bd1869cec3e14bec682ed7",
+      "entryCount": 147
+    },
+    "nameMatches": {
+      "path": "data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json",
+      "sha256": "e599b613ff4424b37dc55ac1920e1a7843c0b950f78604fef20ffbfa05686289"
+    }
+  },
+  "summary": {
+    "totalCatalogEntries": 147,
+    "totalBatches": 11,
+    "batchSizes": [
+      13,
+      13,
+      13,
+      13,
+      12,
+      12,
+      14,
+      13,
+      15,
+      15,
+      14
+    ],
+    "categoryBatchCounts": [
+      {
+        "category": "肉食类",
+        "count": 6
+      },
+      {
+        "category": "禽蛋鱼类",
+        "count": 2
+      },
+      {
+        "category": "蔬菜类",
+        "count": 3
+      }
+    ]
+  },
+  "batches": [
+    {
+      "batchId": "dz1979-b01",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "肉食类",
+      "entryCount": 13,
+      "bookPageRange": {
+        "first": 27,
+        "last": 46
+      },
+      "pdfPageRange": {
+        "first": 40,
+        "last": 59
+      },
+      "entryIds": [
+        "dz1979-p027",
+        "dz1979-p029",
+        "dz1979-p031",
+        "dz1979-p033",
+        "dz1979-p034",
+        "dz1979-p036",
+        "dz1979-p037",
+        "dz1979-p038",
+        "dz1979-p040",
+        "dz1979-p041",
+        "dz1979-p042",
+        "dz1979-p044",
+        "dz1979-p046"
+      ],
+      "bookNames": [
+        "回锅肉",
+        "白油肉片",
+        "鱼香肉丝",
+        "炒盐煎肉",
+        "宫保肉丁",
+        "炒酱肉丝",
+        "干煸肉丝",
+        "鱼香碎滑肉",
+        "酱爆肉",
+        "花椒肉",
+        "东坡肉",
+        "樱桃肉",
+        "香糟肉"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 13
+      },
+      "matchClassificationCounts": {
+        "exact_name": 13
+      },
+      "preExtractionReview": {
+        "required": false,
+        "uncertainEntryIds": [],
+        "suspectedMatchEntryIds": []
+      }
+    },
+    {
+      "batchId": "dz1979-b02",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "肉食类",
+      "entryCount": 13,
+      "bookPageRange": {
+        "first": 48,
+        "last": 62
+      },
+      "pdfPageRange": {
+        "first": 61,
+        "last": 75
+      },
+      "entryIds": [
+        "dz1979-p048",
+        "dz1979-p049",
+        "dz1979-p050",
+        "dz1979-p051",
+        "dz1979-p053",
+        "dz1979-p054",
+        "dz1979-p055",
+        "dz1979-p056",
+        "dz1979-p057",
+        "dz1979-p058",
+        "dz1979-p060",
+        "dz1979-p061",
+        "dz1979-p062"
+      ],
+      "bookNames": [
+        "红烧排蹄",
+        "红枣煨肘",
+        "板栗烧肉",
+        "红烧狮子头",
+        "家常热味肘子",
+        "醋蒸猪头肉",
+        "水煮烧白",
+        "豆瓣肘子",
+        "姜汁蹄花",
+        "五香卤肉",
+        "蒜泥白肉",
+        "姜汁拐肉",
+        "连锅子"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 13
+      },
+      "matchClassificationCounts": {
+        "exact_name": 13
+      },
+      "preExtractionReview": {
+        "required": false,
+        "uncertainEntryIds": [],
+        "suspectedMatchEntryIds": []
+      }
+    },
+    {
+      "batchId": "dz1979-b03",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "肉食类",
+      "entryCount": 13,
+      "bookPageRange": {
+        "first": 63,
+        "last": 82
+      },
+      "pdfPageRange": {
+        "first": 76,
+        "last": 95
+      },
+      "entryIds": [
+        "dz1979-p063",
+        "dz1979-p065",
+        "dz1979-p066",
+        "dz1979-p068",
+        "dz1979-p070",
+        "dz1979-p071",
+        "dz1979-p073",
+        "dz1979-p074",
+        "dz1979-p076",
+        "dz1979-p078",
+        "dz1979-p079",
+        "dz1979-p081",
+        "dz1979-p082"
+      ],
+      "bookNames": [
+        "白菜丸子",
+        "肉片汤",
+        "炖酥肉",
+        "清汤丸子",
+        "清蒸肘子",
+        "夹沙肉",
+        "咸烧白",
+        "粉蒸肉",
+        "荷叶蒸肉",
+        "韭黄肉丝",
+        "锅粑肉片",
+        "榨菜肉丝",
+        "青椒肉丝"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 13
+      },
+      "matchClassificationCounts": {
+        "exact_name": 12,
+        "clear_alias": 1
+      },
+      "preExtractionReview": {
+        "required": false,
+        "uncertainEntryIds": [],
+        "suspectedMatchEntryIds": []
+      }
+    },
+    {
+      "batchId": "dz1979-b04",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "肉食类",
+      "entryCount": 13,
+      "bookPageRange": {
+        "first": 83,
+        "last": 98
+      },
+      "pdfPageRange": {
+        "first": 96,
+        "last": 111
+      },
+      "entryIds": [
+        "dz1979-p083",
+        "dz1979-p085",
+        "dz1979-p086",
+        "dz1979-p087",
+        "dz1979-p088",
+        "dz1979-p089",
+        "dz1979-p090",
+        "dz1979-p091",
+        "dz1979-p093",
+        "dz1979-p095",
+        "dz1979-p096",
+        "dz1979-p097",
+        "dz1979-p098"
+      ],
+      "bookNames": [
+        "甜椒肉丝",
+        "肉焖鲜豌豆",
+        "家常肉丝干豇",
+        "南瓜炒肉丝",
+        "肉焖青豆",
+        "肉末炒泡豇豆",
+        "腊肉烧菜头",
+        "豌豆焖肉",
+        "红烧丸子",
+        "豆筋烧肉",
+        "蒜苔炒腊肉",
+        "明笋焖肉片",
+        "洋葱炒肉丝"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 12,
+        "medium": 1
+      },
+      "matchClassificationCounts": {
+        "exact_name": 11,
+        "book_only": 2
+      },
+      "preExtractionReview": {
+        "required": true,
+        "uncertainEntryIds": [
+          "dz1979-p086"
+        ],
+        "suspectedMatchEntryIds": []
+      }
+    },
+    {
+      "batchId": "dz1979-b05",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "肉食类",
+      "entryCount": 12,
+      "bookPageRange": {
+        "first": 99,
+        "last": 113
+      },
+      "pdfPageRange": {
+        "first": 112,
+        "last": 126
+      },
+      "entryIds": [
+        "dz1979-p099",
+        "dz1979-p100",
+        "dz1979-p101",
+        "dz1979-p102",
+        "dz1979-p104",
+        "dz1979-p105",
+        "dz1979-p106",
+        "dz1979-p107",
+        "dz1979-p109",
+        "dz1979-p110",
+        "dz1979-p111",
+        "dz1979-p113"
+      ],
+      "bookNames": [
+        "黄瓜肉片",
+        "豆芽肉饼汤",
+        "酸菜肉丝汤",
+        "粉蒸排骨",
+        "鱼香排骨",
+        "糖醋排骨",
+        "家常排骨",
+        "苤蓝烧牛肉",
+        "干拌牛肉",
+        "麻辣牛肉干",
+        "水煮牛肉",
+        "牛肉末炒芹菜花"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 11,
+        "medium": 1
+      },
+      "matchClassificationCounts": {
+        "exact_name": 10,
+        "book_only": 2
+      },
+      "preExtractionReview": {
+        "required": true,
+        "uncertainEntryIds": [
+          "dz1979-p107"
+        ],
+        "suspectedMatchEntryIds": []
+      }
+    },
+    {
+      "batchId": "dz1979-b06",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "肉食类",
+      "entryCount": 12,
+      "bookPageRange": {
+        "first": 115,
+        "last": 132
+      },
+      "pdfPageRange": {
+        "first": 128,
+        "last": 145
+      },
+      "entryIds": [
+        "dz1979-p115",
+        "dz1979-p117",
+        "dz1979-p119",
+        "dz1979-p121",
+        "dz1979-p122",
+        "dz1979-p123",
+        "dz1979-p125",
+        "dz1979-p127",
+        "dz1979-p129",
+        "dz1979-p130",
+        "dz1979-p131",
+        "dz1979-p132"
+      ],
+      "bookNames": [
+        "粉蒸牛肉",
+        "小烧十锦",
+        "白油猪肝",
+        "豌豆肥肠汤",
+        "蒜烧肚条",
+        "清蒸杂烩",
+        "火爆腰花",
+        "大蒜烧肥肠",
+        "凉拌猪肺",
+        "蕃茄丝瓜肉片汤",
+        "麻辣兔丁",
+        "青笋烧兔"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 11,
+        "medium": 1
+      },
+      "matchClassificationCounts": {
+        "exact_name": 6,
+        "book_only": 6
+      },
+      "preExtractionReview": {
+        "required": true,
+        "uncertainEntryIds": [
+          "dz1979-p123"
+        ],
+        "suspectedMatchEntryIds": []
+      }
+    },
+    {
+      "batchId": "dz1979-b07",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "禽蛋鱼类",
+      "entryCount": 14,
+      "bookPageRange": {
+        "first": 135,
+        "last": 152
+      },
+      "pdfPageRange": {
+        "first": 148,
+        "last": 165
+      },
+      "entryIds": [
+        "dz1979-p135",
+        "dz1979-p136",
+        "dz1979-p137",
+        "dz1979-p138",
+        "dz1979-p139",
+        "dz1979-p141",
+        "dz1979-p142",
+        "dz1979-p143",
+        "dz1979-p144",
+        "dz1979-p145",
+        "dz1979-p147",
+        "dz1979-p149",
+        "dz1979-p151",
+        "dz1979-p152"
+      ],
+      "bookNames": [
+        "盐水仔鸡",
+        "棒棒鸡丝",
+        "椒麻鸡块",
+        "红油鸡块",
+        "辣子鸡丁",
+        "热味姜汁鸡",
+        "香菌烧鸡",
+        "当归炖鸡",
+        "黄焖鸭子",
+        "蘑芋烧鸭",
+        "芋儿烧鸭",
+        "青豆焖鸭条",
+        "椿芽烘蛋",
+        "番茄炒蛋"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 14
+      },
+      "matchClassificationCounts": {
+        "book_only": 8,
+        "exact_name": 4,
+        "suspected_match": 1,
+        "clear_alias": 1
+      },
+      "preExtractionReview": {
+        "required": true,
+        "uncertainEntryIds": [],
+        "suspectedMatchEntryIds": [
+          "dz1979-p141"
+        ]
+      }
+    },
+    {
+      "batchId": "dz1979-b08",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "禽蛋鱼类",
+      "entryCount": 13,
+      "bookPageRange": {
+        "first": 153,
+        "last": 173
+      },
+      "pdfPageRange": {
+        "first": 166,
+        "last": 186
+      },
+      "entryIds": [
+        "dz1979-p153",
+        "dz1979-p154",
+        "dz1979-p155",
+        "dz1979-p157",
+        "dz1979-p159",
+        "dz1979-p161",
+        "dz1979-p162",
+        "dz1979-p164",
+        "dz1979-p166",
+        "dz1979-p168",
+        "dz1979-p170",
+        "dz1979-p171",
+        "dz1979-p173"
+      ],
+      "bookNames": [
+        "绍子蒸蛋",
+        "酸辣蛋花汤",
+        "芹黄炒什件",
+        "炒鸭肝",
+        "烧鸭血",
+        "拌鸡血",
+        "豆瓣鱼",
+        "干烧鲫鱼",
+        "泡菜鱼",
+        "豆腐鱼",
+        "葱酥鱼",
+        "大蒜烧鳝鱼",
+        "干煸鳝鱼丝"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 13
+      },
+      "matchClassificationCounts": {
+        "book_only": 8,
+        "exact_name": 3,
+        "suspected_match": 2
+      },
+      "preExtractionReview": {
+        "required": true,
+        "uncertainEntryIds": [],
+        "suspectedMatchEntryIds": [
+          "dz1979-p168",
+          "dz1979-p173"
+        ]
+      }
+    },
+    {
+      "batchId": "dz1979-b09",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "蔬菜类",
+      "entryCount": 15,
+      "bookPageRange": {
+        "first": 177,
+        "last": 195
+      },
+      "pdfPageRange": {
+        "first": 190,
+        "last": 208
+      },
+      "entryIds": [
+        "dz1979-p177",
+        "dz1979-p179",
+        "dz1979-p180",
+        "dz1979-p181",
+        "dz1979-p183",
+        "dz1979-p184",
+        "dz1979-p185",
+        "dz1979-p186",
+        "dz1979-p187",
+        "dz1979-p188",
+        "dz1979-p189",
+        "dz1979-p191",
+        "dz1979-p193",
+        "dz1979-p194",
+        "dz1979-p195"
+      ],
+      "bookNames": [
+        "麻辣豆腐",
+        "家常豆腐",
+        "干炒豆腐",
+        "鱼香油菜苔",
+        "酱烧苦瓜",
+        "麻辣明笋丝",
+        "麻酱青笋尖",
+        "蒜泥拌黄瓜",
+        "糖醋子姜",
+        "姜汁蕹菜",
+        "醋渍胡豆",
+        "炒野鸡红",
+        "鱼香茄子",
+        "家常芋头",
+        "干煸苦瓜"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 15
+      },
+      "matchClassificationCounts": {
+        "suspected_match": 1,
+        "exact_name": 2,
+        "book_only": 12
+      },
+      "preExtractionReview": {
+        "required": true,
+        "uncertainEntryIds": [],
+        "suspectedMatchEntryIds": [
+          "dz1979-p177"
+        ]
+      }
+    },
+    {
+      "batchId": "dz1979-b10",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "蔬菜类",
+      "entryCount": 15,
+      "bookPageRange": {
+        "first": 196,
+        "last": 210
+      },
+      "pdfPageRange": {
+        "first": 209,
+        "last": 223
+      },
+      "entryIds": [
+        "dz1979-p196",
+        "dz1979-p197",
+        "dz1979-p198",
+        "dz1979-p199",
+        "dz1979-p200",
+        "dz1979-p201",
+        "dz1979-p202",
+        "dz1979-p203",
+        "dz1979-p204",
+        "dz1979-p205",
+        "dz1979-p206",
+        "dz1979-p207",
+        "dz1979-p208",
+        "dz1979-p209",
+        "dz1979-p210"
+      ],
+      "bookNames": [
+        "醋熘白菜",
+        "家常四季豆",
+        "酱烧茄子",
+        "干煸四季豆",
+        "炒土豆泥",
+        "炝黄瓜",
+        "白油鲜笋",
+        "炝绿豆芽",
+        "炒豌豆尖",
+        "青椒炒大头菜",
+        "烧拌莴笋",
+        "炝莲花白",
+        "炒土豆丝",
+        "拌素三丝",
+        "青椒拌皮蛋"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 15
+      },
+      "matchClassificationCounts": {
+        "book_only": 11,
+        "clear_alias": 3,
+        "suspected_match": 1
+      },
+      "preExtractionReview": {
+        "required": true,
+        "uncertainEntryIds": [],
+        "suspectedMatchEntryIds": [
+          "dz1979-p206"
+        ]
+      }
+    },
+    {
+      "batchId": "dz1979-b11",
+      "status": "planned-not-started",
+      "applicationReady": false,
+      "category": "蔬菜类",
+      "entryCount": 14,
+      "bookPageRange": {
+        "first": 211,
+        "last": 226
+      },
+      "pdfPageRange": {
+        "first": 224,
+        "last": 239
+      },
+      "entryIds": [
+        "dz1979-p211",
+        "dz1979-p212",
+        "dz1979-p213",
+        "dz1979-p215",
+        "dz1979-p216",
+        "dz1979-p217",
+        "dz1979-p218",
+        "dz1979-p219",
+        "dz1979-p221",
+        "dz1979-p222",
+        "dz1979-p223",
+        "dz1979-p224",
+        "dz1979-p225",
+        "dz1979-p226"
+      ],
+      "bookNames": [
+        "花仁萝卜干",
+        "糖醋萝卜丝",
+        "青笋拌折耳根",
+        "拌辣菜",
+        "拌盐白菜",
+        "米汤煮青菜",
+        "酸菜豆瓣汤",
+        "过浆豆花",
+        "蒜泥蚕豆",
+        "酱胡豆",
+        "熏豆腐干",
+        "拌鱼香豌豆",
+        "熏豆筋",
+        "蛋酥花仁"
+      ],
+      "recognitionConfidenceCounts": {
+        "high": 14
+      },
+      "matchClassificationCounts": {
+        "book_only": 14
+      },
+      "preExtractionReview": {
+        "required": false,
+        "uncertainEntryIds": [],
+        "suspectedMatchEntryIds": []
+      }
+    }
+  ]
+}

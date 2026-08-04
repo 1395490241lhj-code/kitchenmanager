@@ -1098,8 +1098,9 @@
   ],
   "pilotGate": {
     "status": "approved-corrections-verified",
-    "nextAction": "Build and verify the catalog-only name index and Curated/Full matches before creating extraction batches.",
-    "catalogIndexCreated": false,
-    "batchPlanCreated": false
+    "nextAction": "Use the verified catalog index and 10–15 dish plan only when a later round authorizes recipe-body extraction.",
+    "catalogIndexCreated": true,
+    "nameMatchingCreated": true,
+    "batchPlanCreated": true
   }
 }

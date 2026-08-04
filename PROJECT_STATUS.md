@@ -21,10 +21,12 @@ Last updated: 2026-08-04
   grouped-ingredient semantics are recorded in intermediate data. Its
   applicationReady flag remains false: gram values are source-equivalent
   conversions, not household servings or App-ready quantities. Production
-  recipes, schemas, serving sizes, and cache stamps are unchanged. Catalog-only
-  indexing and Curated/Full name matching come before any 10–15 recipe batch
-  plan. See
-  `docs/DAZHONG_CHUANCAI_1979_SOURCE_RESTORATION.md`.
+  recipes, schemas, serving sizes, and cache stamps are unchanged. The seven
+  catalog pages now have a visually reviewed 147-name index, Curated/Full name
+  matching, and an 11-batch (10–15 dishes each) future extraction plan. No new
+  recipe body was read and all batches remain planned-not-started. See
+  `docs/DAZHONG_CHUANCAI_1979_SOURCE_RESTORATION.md` and
+  `docs/DAZHONG_CHUANCAI_1979_CATALOG_INDEX.md`.
 
 - UI-5B2B-B2B safe editing of recorded conflict choices is implemented,
   validated, committed, and submitted in Draft PR #19 pending review and merge,

@@ -29,8 +29,9 @@ test('pilot remains intermediate-only and application-ineligible', () => {
   assert.equal(data.reviewProcess.servingScale, 'none');
   assert.equal(data.reviewProcess.cacheStampUpdated, false);
   assert.equal(data.pilotGate.status, 'approved-corrections-verified');
-  assert.equal(data.pilotGate.catalogIndexCreated, false);
-  assert.equal(data.pilotGate.batchPlanCreated, false);
+  assert.equal(data.pilotGate.catalogIndexCreated, true);
+  assert.equal(data.pilotGate.nameMatchingCreated, true);
+  assert.equal(data.pilotGate.batchPlanCreated, true);
   assert.match(data.standardizationMeaning, /source-equivalent conversions only/);
 });
 

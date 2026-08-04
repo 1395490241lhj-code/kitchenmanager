@@ -1,0 +1,1612 @@
+{
+  "schema": "kitchenmanager.source-restoration.catalog-index.v1",
+  "createdAt": "2026-08-04",
+  "status": "catalog-index-reviewed-intermediate-only",
+  "applicationReady": false,
+  "purpose": "Record the 1979 scan catalog as source-restoration intermediate data before any recipe-body extraction or production import.",
+  "scope": {
+    "catalogOnly": true,
+    "recipeBodyExtracted": false,
+    "productionRecipeGenerated": false,
+    "productionSchemaExpanded": false,
+    "cacheStampUpdated": false,
+    "uiChanged": false
+  },
+  "source": {
+    "title": "大众川菜",
+    "authors": [
+      "刘建成",
+      "杨德喜",
+      "胡廉泉"
+    ],
+    "edition": "1979年12月第一版",
+    "usedFile": {
+      "filename": "大众川菜 (刘建成等编) (Z-Library).pdf",
+      "sha256": "d7d5d62ea1585bbc1cba3f78eeda4e1ffddbae702180af5ea7fef25cd65f3c41"
+    },
+    "pdf": {
+      "pageCount": 247,
+      "textLayerPages": 0,
+      "readingMode": "rendered-page-image",
+      "catalogPdfPages": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ]
+    },
+    "pageMapping": {
+      "rule": "pdfPage = bookPage + 13",
+      "basis": "The constant offset was established from the scan pagination and visually checked against all five approved pilot recipes; this catalog-only round did not extract additional recipe bodies.",
+      "confidence": "high"
+    }
+  },
+  "reviewProcess": {
+    "delegatedSegments": [
+      {
+        "agentType": "luna_worker",
+        "catalogPdfPages": [
+          6,
+          7
+        ]
+      },
+      {
+        "agentType": "luna_worker",
+        "catalogPdfPages": [
+          8,
+          9
+        ]
+      },
+      {
+        "agentType": "luna_worker",
+        "catalogPdfPages": [
+          10,
+          11,
+          12
+        ]
+      }
+    ],
+    "primaryReview": {
+      "mode": "rendered-page-image manual line review",
+      "renderDpi": 800,
+      "ocrAuthority": false,
+      "result": "merged, corrected, and confidence-rated"
+    }
+  },
+  "confidenceScale": {
+    "high": "The dish name and page number are visually clear in the rendered catalog image.",
+    "medium": "The primary reading is supported by the rendered image, but scan noise or an uncommon glyph warrants later title-level confirmation.",
+    "low": "The catalog image does not support a reliable reading."
+  },
+  "summary": {
+    "totalEntries": 147,
+    "categoryCounts": [
+      {
+        "category": "肉食类",
+        "count": 76
+      },
+      {
+        "category": "禽蛋鱼类",
+        "count": 27
+      },
+      {
+        "category": "蔬菜类",
+        "count": 44
+      }
+    ],
+    "recognitionConfidenceCounts": [
+      {
+        "recognitionConfidence": "high",
+        "count": 144
+      },
+      {
+        "recognitionConfidence": "medium",
+        "count": 3
+      }
+    ]
+  },
+  "nonRecipeSections": [
+    {
+      "text": "怎样做菜",
+      "catalogPdfPage": 6,
+      "bookPage": 1,
+      "pdfPage": 14,
+      "treatment": "excluded from dish-name entries"
+    }
+  ],
+  "uncertainties": [
+    {
+      "entryId": "dz1979-p086",
+      "reading": "家常肉丝干豇",
+      "uncertainPart": "豇",
+      "nextCheck": "Confirm against the recipe title page in a later body-extraction batch."
+    },
+    {
+      "entryId": "dz1979-p107",
+      "reading": "苤蓝烧牛肉",
+      "uncertainPart": "苤",
+      "nextCheck": "Confirm against the recipe title page in a later body-extraction batch."
+    },
+    {
+      "entryId": "dz1979-p123",
+      "reading": "清蒸杂烩",
+      "uncertainPart": "烩",
+      "nextCheck": "Confirm against the recipe title page in a later body-extraction batch."
+    }
+  ],
+  "entries": [
+    {
+      "entryId": "dz1979-p027",
+      "bookName": "回锅肉",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 27,
+      "pdfPage": 40,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p029",
+      "bookName": "白油肉片",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 29,
+      "pdfPage": 42,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p031",
+      "bookName": "鱼香肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 31,
+      "pdfPage": 44,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p033",
+      "bookName": "炒盐煎肉",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 33,
+      "pdfPage": 46,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p034",
+      "bookName": "宫保肉丁",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 34,
+      "pdfPage": 47,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p036",
+      "bookName": "炒酱肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 36,
+      "pdfPage": 49,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p037",
+      "bookName": "干煸肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 37,
+      "pdfPage": 50,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p038",
+      "bookName": "鱼香碎滑肉",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 38,
+      "pdfPage": 51,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p040",
+      "bookName": "酱爆肉",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 40,
+      "pdfPage": 53,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p041",
+      "bookName": "花椒肉",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 41,
+      "pdfPage": 54,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p042",
+      "bookName": "东坡肉",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 42,
+      "pdfPage": 55,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p044",
+      "bookName": "樱桃肉",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 44,
+      "pdfPage": 57,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p046",
+      "bookName": "香糟肉",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 46,
+      "pdfPage": 59,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p048",
+      "bookName": "红烧排蹄",
+      "category": "肉食类",
+      "catalogPdfPage": 6,
+      "bookPage": 48,
+      "pdfPage": 61,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p049",
+      "bookName": "红枣煨肘",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 49,
+      "pdfPage": 62,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p050",
+      "bookName": "板栗烧肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 50,
+      "pdfPage": 63,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p051",
+      "bookName": "红烧狮子头",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 51,
+      "pdfPage": 64,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p053",
+      "bookName": "家常热味肘子",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 53,
+      "pdfPage": 66,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p054",
+      "bookName": "醋蒸猪头肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 54,
+      "pdfPage": 67,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p055",
+      "bookName": "水煮烧白",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 55,
+      "pdfPage": 68,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p056",
+      "bookName": "豆瓣肘子",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 56,
+      "pdfPage": 69,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p057",
+      "bookName": "姜汁蹄花",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 57,
+      "pdfPage": 70,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p058",
+      "bookName": "五香卤肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 58,
+      "pdfPage": 71,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p060",
+      "bookName": "蒜泥白肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 60,
+      "pdfPage": 73,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p061",
+      "bookName": "姜汁拐肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 61,
+      "pdfPage": 74,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p062",
+      "bookName": "连锅子",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 62,
+      "pdfPage": 75,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p063",
+      "bookName": "白菜丸子",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 63,
+      "pdfPage": 76,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p065",
+      "bookName": "肉片汤",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 65,
+      "pdfPage": 78,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p066",
+      "bookName": "炖酥肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 66,
+      "pdfPage": 79,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p068",
+      "bookName": "清汤丸子",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 68,
+      "pdfPage": 81,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p070",
+      "bookName": "清蒸肘子",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 70,
+      "pdfPage": 83,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p071",
+      "bookName": "夹沙肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 71,
+      "pdfPage": 84,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p073",
+      "bookName": "咸烧白",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 73,
+      "pdfPage": 86,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p074",
+      "bookName": "粉蒸肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 74,
+      "pdfPage": 87,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p076",
+      "bookName": "荷叶蒸肉",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 76,
+      "pdfPage": 89,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p078",
+      "bookName": "韭黄肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 78,
+      "pdfPage": 91,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p079",
+      "bookName": "锅粑肉片",
+      "category": "肉食类",
+      "catalogPdfPage": 7,
+      "bookPage": 79,
+      "pdfPage": 92,
+      "recognitionConfidence": "high",
+      "notes": "目录原字为“粑”；未以项目中的“锅巴肉片”反向改写书名。"
+    },
+    {
+      "entryId": "dz1979-p081",
+      "bookName": "榨菜肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 81,
+      "pdfPage": 94,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p082",
+      "bookName": "青椒肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 82,
+      "pdfPage": 95,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p083",
+      "bookName": "甜椒肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 83,
+      "pdfPage": 96,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p085",
+      "bookName": "肉焖鲜豌豆",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 85,
+      "pdfPage": 98,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p086",
+      "bookName": "家常肉丝干豇",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 86,
+      "pdfPage": 99,
+      "recognitionConfidence": "medium",
+      "notes": "末字按目录图读为“豇”；扫描墨迹较重，保留中等置信度。"
+    },
+    {
+      "entryId": "dz1979-p087",
+      "bookName": "南瓜炒肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 87,
+      "pdfPage": 100,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p088",
+      "bookName": "肉焖青豆",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 88,
+      "pdfPage": 101,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p089",
+      "bookName": "肉末炒泡豇豆",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 89,
+      "pdfPage": 102,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p090",
+      "bookName": "腊肉烧菜头",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 90,
+      "pdfPage": 103,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p091",
+      "bookName": "豌豆焖肉",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 91,
+      "pdfPage": 104,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p093",
+      "bookName": "红烧丸子",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 93,
+      "pdfPage": 106,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p095",
+      "bookName": "豆筋烧肉",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 95,
+      "pdfPage": 108,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p096",
+      "bookName": "蒜苔炒腊肉",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 96,
+      "pdfPage": 109,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p097",
+      "bookName": "明笋焖肉片",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 97,
+      "pdfPage": 110,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p098",
+      "bookName": "洋葱炒肉丝",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 98,
+      "pdfPage": 111,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p099",
+      "bookName": "黄瓜肉片",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 99,
+      "pdfPage": 112,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p100",
+      "bookName": "豆芽肉饼汤",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 100,
+      "pdfPage": 113,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p101",
+      "bookName": "酸菜肉丝汤",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 101,
+      "pdfPage": 114,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p102",
+      "bookName": "粉蒸排骨",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 102,
+      "pdfPage": 115,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p104",
+      "bookName": "鱼香排骨",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 104,
+      "pdfPage": 117,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p105",
+      "bookName": "糖醋排骨",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 105,
+      "pdfPage": 118,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p106",
+      "bookName": "家常排骨",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 106,
+      "pdfPage": 119,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p107",
+      "bookName": "苤蓝烧牛肉",
+      "category": "肉食类",
+      "catalogPdfPage": 8,
+      "bookPage": 107,
+      "pdfPage": 120,
+      "recognitionConfidence": "medium",
+      "notes": "首字按目录图读为“苤”；扫描墨迹较重，保留中等置信度。"
+    },
+    {
+      "entryId": "dz1979-p109",
+      "bookName": "干拌牛肉",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 109,
+      "pdfPage": 122,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p110",
+      "bookName": "麻辣牛肉干",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 110,
+      "pdfPage": 123,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p111",
+      "bookName": "水煮牛肉",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 111,
+      "pdfPage": 124,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p113",
+      "bookName": "牛肉末炒芹菜花",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 113,
+      "pdfPage": 126,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p115",
+      "bookName": "粉蒸牛肉",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 115,
+      "pdfPage": 128,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p117",
+      "bookName": "小烧十锦",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 117,
+      "pdfPage": 130,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p119",
+      "bookName": "白油猪肝",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 119,
+      "pdfPage": 132,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p121",
+      "bookName": "豌豆肥肠汤",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 121,
+      "pdfPage": 134,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p122",
+      "bookName": "蒜烧肚条",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 122,
+      "pdfPage": 135,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p123",
+      "bookName": "清蒸杂烩",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 123,
+      "pdfPage": 136,
+      "recognitionConfidence": "medium",
+      "notes": "末字按目录图读为“烩”；扫描墨迹较重，保留中等置信度。"
+    },
+    {
+      "entryId": "dz1979-p125",
+      "bookName": "火爆腰花",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 125,
+      "pdfPage": 138,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p127",
+      "bookName": "大蒜烧肥肠",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 127,
+      "pdfPage": 140,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p129",
+      "bookName": "凉拌猪肺",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 129,
+      "pdfPage": 142,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p130",
+      "bookName": "蕃茄丝瓜肉片汤",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 130,
+      "pdfPage": 143,
+      "recognitionConfidence": "high",
+      "notes": "保留目录异体字“蕃”。"
+    },
+    {
+      "entryId": "dz1979-p131",
+      "bookName": "麻辣兔丁",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 131,
+      "pdfPage": 144,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p132",
+      "bookName": "青笋烧兔",
+      "category": "肉食类",
+      "catalogPdfPage": 9,
+      "bookPage": 132,
+      "pdfPage": 145,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p135",
+      "bookName": "盐水仔鸡",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 9,
+      "bookPage": 135,
+      "pdfPage": 148,
+      "recognitionConfidence": "high",
+      "notes": "末字按目录图读为“鸡”。"
+    },
+    {
+      "entryId": "dz1979-p136",
+      "bookName": "棒棒鸡丝",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 9,
+      "bookPage": 136,
+      "pdfPage": 149,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p137",
+      "bookName": "椒麻鸡块",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 9,
+      "bookPage": 137,
+      "pdfPage": 150,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p138",
+      "bookName": "红油鸡块",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 9,
+      "bookPage": 138,
+      "pdfPage": 151,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p139",
+      "bookName": "辣子鸡丁",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 9,
+      "bookPage": 139,
+      "pdfPage": 152,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p141",
+      "bookName": "热味姜汁鸡",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 141,
+      "pdfPage": 154,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“味”；未以项目中的“热窝姜汁鸡”反向改写书名。"
+    },
+    {
+      "entryId": "dz1979-p142",
+      "bookName": "香菌烧鸡",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 142,
+      "pdfPage": 155,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p143",
+      "bookName": "当归炖鸡",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 143,
+      "pdfPage": 156,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p144",
+      "bookName": "黄焖鸭子",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 144,
+      "pdfPage": 157,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p145",
+      "bookName": "蘑芋烧鸭",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 145,
+      "pdfPage": 158,
+      "recognitionConfidence": "high",
+      "notes": "保留目录原字“蘑芋”。"
+    },
+    {
+      "entryId": "dz1979-p147",
+      "bookName": "芋儿烧鸭",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 147,
+      "pdfPage": 160,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p149",
+      "bookName": "青豆焖鸭条",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 149,
+      "pdfPage": 162,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p151",
+      "bookName": "椿芽烘蛋",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 151,
+      "pdfPage": 164,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p152",
+      "bookName": "番茄炒蛋",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 152,
+      "pdfPage": 165,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p153",
+      "bookName": "绍子蒸蛋",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 153,
+      "pdfPage": 166,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“绍”；未擅改为“臊”。"
+    },
+    {
+      "entryId": "dz1979-p154",
+      "bookName": "酸辣蛋花汤",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 154,
+      "pdfPage": 167,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p155",
+      "bookName": "芹黄炒什件",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 155,
+      "pdfPage": 168,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p157",
+      "bookName": "炒鸭肝",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 157,
+      "pdfPage": 170,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p159",
+      "bookName": "烧鸭血",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 159,
+      "pdfPage": 172,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p161",
+      "bookName": "拌鸡血",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 161,
+      "pdfPage": 174,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p162",
+      "bookName": "豆瓣鱼",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 162,
+      "pdfPage": 175,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p164",
+      "bookName": "干烧鲫鱼",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 164,
+      "pdfPage": 177,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p166",
+      "bookName": "泡菜鱼",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 166,
+      "pdfPage": 179,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p168",
+      "bookName": "豆腐鱼",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 168,
+      "pdfPage": 181,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p170",
+      "bookName": "葱酥鱼",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 170,
+      "pdfPage": 183,
+      "recognitionConfidence": "high",
+      "notes": "目录菜名为“葱酥鱼”；未据项目菜名补出鱼种。"
+    },
+    {
+      "entryId": "dz1979-p171",
+      "bookName": "大蒜烧鳝鱼",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 171,
+      "pdfPage": 184,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p173",
+      "bookName": "干煸鳝鱼丝",
+      "category": "禽蛋鱼类",
+      "catalogPdfPage": 10,
+      "bookPage": 173,
+      "pdfPage": 186,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p177",
+      "bookName": "麻辣豆腐",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 177,
+      "pdfPage": 190,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p179",
+      "bookName": "家常豆腐",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 179,
+      "pdfPage": 192,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p180",
+      "bookName": "干炒豆腐",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 180,
+      "pdfPage": 193,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p181",
+      "bookName": "鱼香油菜苔",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 181,
+      "pdfPage": 194,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p183",
+      "bookName": "酱烧苦瓜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 183,
+      "pdfPage": 196,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p184",
+      "bookName": "麻辣明笋丝",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 184,
+      "pdfPage": 197,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p185",
+      "bookName": "麻酱青笋尖",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 185,
+      "pdfPage": 198,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p186",
+      "bookName": "蒜泥拌黄瓜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 186,
+      "pdfPage": 199,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p187",
+      "bookName": "糖醋子姜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 187,
+      "pdfPage": 200,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p188",
+      "bookName": "姜汁蕹菜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 188,
+      "pdfPage": 201,
+      "recognitionConfidence": "high",
+      "notes": "保留目录原字“蕹菜”。"
+    },
+    {
+      "entryId": "dz1979-p189",
+      "bookName": "醋渍胡豆",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 189,
+      "pdfPage": 202,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“醋渍胡豆”。"
+    },
+    {
+      "entryId": "dz1979-p191",
+      "bookName": "炒野鸡红",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 191,
+      "pdfPage": 204,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p193",
+      "bookName": "鱼香茄子",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 193,
+      "pdfPage": 206,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p194",
+      "bookName": "家常芋头",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 194,
+      "pdfPage": 207,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p195",
+      "bookName": "干煸苦瓜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 195,
+      "pdfPage": 208,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p196",
+      "bookName": "醋熘白菜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 196,
+      "pdfPage": 209,
+      "recognitionConfidence": "high",
+      "notes": "保留目录用字“熘”。"
+    },
+    {
+      "entryId": "dz1979-p197",
+      "bookName": "家常四季豆",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 197,
+      "pdfPage": 210,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p198",
+      "bookName": "酱烧茄子",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 198,
+      "pdfPage": 211,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p199",
+      "bookName": "干煸四季豆",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 199,
+      "pdfPage": 212,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p200",
+      "bookName": "炒土豆泥",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 200,
+      "pdfPage": 213,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p201",
+      "bookName": "炝黄瓜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 11,
+      "bookPage": 201,
+      "pdfPage": 214,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“炝黄瓜”。"
+    },
+    {
+      "entryId": "dz1979-p202",
+      "bookName": "白油鲜笋",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 202,
+      "pdfPage": 215,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p203",
+      "bookName": "炝绿豆芽",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 203,
+      "pdfPage": 216,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“炝绿豆芽”。"
+    },
+    {
+      "entryId": "dz1979-p204",
+      "bookName": "炒豌豆尖",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 204,
+      "pdfPage": 217,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p205",
+      "bookName": "青椒炒大头菜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 205,
+      "pdfPage": 218,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p206",
+      "bookName": "烧拌莴笋",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 206,
+      "pdfPage": 219,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“烧拌莴笋”。"
+    },
+    {
+      "entryId": "dz1979-p207",
+      "bookName": "炝莲花白",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 207,
+      "pdfPage": 220,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“炝莲花白”。"
+    },
+    {
+      "entryId": "dz1979-p208",
+      "bookName": "炒土豆丝",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 208,
+      "pdfPage": 221,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p209",
+      "bookName": "拌素三丝",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 209,
+      "pdfPage": 222,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p210",
+      "bookName": "青椒拌皮蛋",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 210,
+      "pdfPage": 223,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p211",
+      "bookName": "花仁萝卜干",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 211,
+      "pdfPage": 224,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p212",
+      "bookName": "糖醋萝卜丝",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 212,
+      "pdfPage": 225,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p213",
+      "bookName": "青笋拌折耳根",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 213,
+      "pdfPage": 226,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p215",
+      "bookName": "拌辣菜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 215,
+      "pdfPage": 228,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p216",
+      "bookName": "拌盐白菜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 216,
+      "pdfPage": 229,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p217",
+      "bookName": "米汤煮青菜",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 217,
+      "pdfPage": 230,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p218",
+      "bookName": "酸菜豆瓣汤",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 218,
+      "pdfPage": 231,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p219",
+      "bookName": "过浆豆花",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 219,
+      "pdfPage": 232,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“过浆豆花”。"
+    },
+    {
+      "entryId": "dz1979-p221",
+      "bookName": "蒜泥蚕豆",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 221,
+      "pdfPage": 234,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p222",
+      "bookName": "酱胡豆",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 222,
+      "pdfPage": 235,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p223",
+      "bookName": "熏豆腐干",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 223,
+      "pdfPage": 236,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p224",
+      "bookName": "拌鱼香豌豆",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 224,
+      "pdfPage": 237,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p225",
+      "bookName": "熏豆筋",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 225,
+      "pdfPage": 238,
+      "recognitionConfidence": "high",
+      "notes": null
+    },
+    {
+      "entryId": "dz1979-p226",
+      "bookName": "蛋酥花仁",
+      "category": "蔬菜类",
+      "catalogPdfPage": 12,
+      "bookPage": 226,
+      "pdfPage": 239,
+      "recognitionConfidence": "high",
+      "notes": "目录原字按图读为“蛋酥花仁”。"
+    }
+  ]
+}
