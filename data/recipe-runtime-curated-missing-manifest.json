@@ -1,222 +1,5 @@
 [
   {
-    "id": "static-35524600",
-    "name": "贵州鸡",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "鸡脯肉",
-      "鸡肉",
-      "姜蒜",
-      "鸡蛋"
-    ],
-    "methodStepCount": 3,
-    "batch": 1
-  },
-  {
-    "id": "static-1172519253",
-    "name": "锅贴鸡片",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "鸡脯肉",
-      "鸡肉",
-      "肥膘",
-      "猪肉",
-      "火腿"
-    ],
-    "methodStepCount": 4,
-    "batch": 1
-  },
-  {
-    "id": "static-1172291558",
-    "name": "锅贴腰片",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "肥膘",
-      "猪肉",
-      "火腿",
-      "韭菜",
-      "鸡蛋"
-    ],
-    "methodStepCount": 3,
-    "batch": 1
-  },
-  {
-    "id": "static-994480383",
-    "name": "红烧环喉",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "火腿",
-      "鸡松"
-    ],
-    "methodStepCount": 2,
-    "batch": 1
-  },
-  {
-    "id": "static-756534817",
-    "name": "红烧卷筒鸡",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "鸡腿",
-      "鸡肉",
-      "鸡脯肉",
-      "火腿",
-      "笋"
-    ],
-    "methodStepCount": 5,
-    "batch": 1
-  },
-  {
-    "id": "static-32082596",
-    "name": "红烧肉",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "五花肉",
-      "猪肉",
-      "姜葱"
-    ],
-    "methodStepCount": 5,
-    "batch": 1
-  },
-  {
-    "id": "static-901831824",
-    "name": "煳辣鸡丁",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "鸡肉",
-      "花生"
-    ],
-    "methodStepCount": 3,
-    "batch": 1
-  },
-  {
-    "id": "static-901606519",
-    "name": "煳辣腰块",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "猪肉",
-      "猪腰"
-    ],
-    "methodStepCount": 2,
-    "batch": 1
-  },
-  {
-    "id": "static-40048908",
-    "name": "鸡豆花",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "鸡脯肉",
-      "鸡肉",
-      "鸡淖",
-      "鸡蛋",
-      "鲜菜"
-    ],
-    "methodStepCount": 2,
-    "batch": 1
-  },
-  {
-    "id": "static-1234054558",
-    "name": "鸡淖脊髓",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "脊髓",
-      "鸡脯肉",
-      "鸡肉",
-      "火腿",
-      "鸡蛋"
-    ],
-    "methodStepCount": 4,
-    "batch": 1
-  },
-  {
-    "id": "static-1277523",
-    "name": "鸡塔",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "鸡脯肉",
-      "鸡肉",
-      "肥膘",
-      "猪肉",
-      "鸡蛋"
-    ],
-    "methodStepCount": 4,
-    "batch": 1
-  },
-  {
-    "id": "static-1701594899",
-    "name": "韭菜炒鸡蛋",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "韭菜",
-      "鸡蛋"
-    ],
-    "methodStepCount": 4,
-    "batch": 1
-  },
-  {
-    "id": "static-1496643857",
-    "name": "韭黄炒肉丝",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "韭菜",
-      "猪肉"
-    ],
-    "methodStepCount": 4,
-    "batch": 1
-  },
-  {
-    "id": "static-28952792",
-    "name": "烤酥方",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "猪肉",
-      "排骨",
-      "瘦肉"
-    ],
-    "methodStepCount": 5,
-    "batch": 1
-  },
-  {
-    "id": "static-1027973551",
-    "name": "苦瓜炒蛋",
-    "methodSource": "recipe-methods",
-    "priority": "P1",
-    "priorityReason": "method/name inferred at least two core ingredients",
-    "suggestedCoreIngredients": [
-      "鸡蛋",
-      "熟鸡"
-    ],
-    "methodStepCount": 4,
-    "batch": 1
-  },
-  {
     "id": "static-654509853",
     "name": "兰花鸡丝",
     "methodSource": "recipe-methods",
@@ -228,7 +11,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 3,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-648679063",
@@ -244,7 +27,7 @@
       "豆腐"
     ],
     "methodStepCount": 3,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-25997141",
@@ -258,7 +41,7 @@
       "瘦肉"
     ],
     "methodStepCount": 4,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-29232650",
@@ -274,7 +57,7 @@
       "茨菰"
     ],
     "methodStepCount": 2,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-1999150952",
@@ -290,7 +73,7 @@
       "鸡肉"
     ],
     "methodStepCount": 3,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-893248609",
@@ -306,7 +89,7 @@
       "桃米"
     ],
     "methodStepCount": 3,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-1247568140",
@@ -322,7 +105,7 @@
       "瘦肉"
     ],
     "methodStepCount": 3,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-16669423",
@@ -335,7 +118,7 @@
       "米饭"
     ],
     "methodStepCount": 3,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-8700811",
@@ -349,7 +132,7 @@
       "芽菜"
     ],
     "methodStepCount": 2,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-40244567",
@@ -364,7 +147,7 @@
       "青菜"
     ],
     "methodStepCount": 4,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-39773758",
@@ -378,7 +161,7 @@
       "肥膘"
     ],
     "methodStepCount": 2,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-1059559366",
@@ -393,7 +176,7 @@
       "姜蒜"
     ],
     "methodStepCount": 4,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-892838462",
@@ -409,7 +192,7 @@
       "蘑菇"
     ],
     "methodStepCount": 4,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-525063392",
@@ -425,7 +208,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 7,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-664179745",
@@ -441,7 +224,7 @@
       "豌豆"
     ],
     "methodStepCount": 4,
-    "batch": 2
+    "batch": 1
   },
   {
     "id": "static-21197628",
@@ -456,7 +239,7 @@
       "卤肉"
     ],
     "methodStepCount": 2,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-27820604",
@@ -472,7 +255,7 @@
       "青菜"
     ],
     "methodStepCount": 5,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-31763773",
@@ -488,7 +271,7 @@
       "豌豆"
     ],
     "methodStepCount": 3,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-938343985",
@@ -501,7 +284,7 @@
       "皮蛋"
     ],
     "methodStepCount": 4,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-22201215",
@@ -515,7 +298,7 @@
       "姜蒜"
     ],
     "methodStepCount": 5,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1875218339",
@@ -529,7 +312,7 @@
       "猪肉"
     ],
     "methodStepCount": 4,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1030638460",
@@ -543,7 +326,7 @@
       "青椒"
     ],
     "methodStepCount": 4,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-866782600",
@@ -557,7 +340,7 @@
       "青叶菜"
     ],
     "methodStepCount": 2,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1006716942",
@@ -571,7 +354,7 @@
       "姜蒜"
     ],
     "methodStepCount": 4,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1122669763",
@@ -586,7 +369,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 3,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1122913213",
@@ -602,7 +385,7 @@
       "茨菰"
     ],
     "methodStepCount": 3,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1122674928",
@@ -618,7 +401,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 4,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1122712506",
@@ -634,7 +417,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 4,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1122381423",
@@ -648,7 +431,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 3,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-628509470",
@@ -664,7 +447,7 @@
       "鸡淖"
     ],
     "methodStepCount": 3,
-    "batch": 3
+    "batch": 2
   },
   {
     "id": "static-1901364811",
@@ -680,7 +463,7 @@
       "豌豆"
     ],
     "methodStepCount": 2,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-922286956",
@@ -696,7 +479,7 @@
       "冬笋"
     ],
     "methodStepCount": 2,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-922287398",
@@ -711,7 +494,7 @@
       "口蘑"
     ],
     "methodStepCount": 2,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-1482694287",
@@ -727,7 +510,7 @@
       "猪蹄"
     ],
     "methodStepCount": 2,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-775068321",
@@ -740,7 +523,7 @@
       "猪肉"
     ],
     "methodStepCount": 4,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-652528271",
@@ -756,7 +539,7 @@
       "猪肉"
     ],
     "methodStepCount": 3,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-672220178",
@@ -769,7 +552,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 4,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-315753341",
@@ -784,7 +567,7 @@
       "番茄"
     ],
     "methodStepCount": 5,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-26530806",
@@ -800,7 +583,7 @@
       "冬笋"
     ],
     "methodStepCount": 3,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-26218295",
@@ -815,7 +598,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 4,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-1136930950",
@@ -829,7 +612,7 @@
       "姜蒜"
     ],
     "methodStepCount": 4,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-1150194923",
@@ -843,7 +626,7 @@
       "青红椒"
     ],
     "methodStepCount": 4,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-1964437082",
@@ -856,7 +639,7 @@
       "青菜"
     ],
     "methodStepCount": 4,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-1044456943",
@@ -870,7 +653,7 @@
       "瘦肉"
     ],
     "methodStepCount": 4,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-22248404",
@@ -886,7 +669,7 @@
       "墨鱼"
     ],
     "methodStepCount": 5,
-    "batch": 4
+    "batch": 3
   },
   {
     "id": "static-832207830",
@@ -902,7 +685,7 @@
       "猪肉"
     ],
     "methodStepCount": 4,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-220852758",
@@ -916,7 +699,7 @@
       "土豆"
     ],
     "methodStepCount": 4,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-999001854",
@@ -932,7 +715,7 @@
       "瘦肉"
     ],
     "methodStepCount": 3,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-624032347",
@@ -948,7 +731,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 2,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-860432694",
@@ -963,7 +746,7 @@
       "土豆"
     ],
     "methodStepCount": 5,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-1199808588",
@@ -977,7 +760,7 @@
       "青菜"
     ],
     "methodStepCount": 2,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-1184380700",
@@ -992,7 +775,7 @@
       "鸡淖"
     ],
     "methodStepCount": 3,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-1005491487",
@@ -1008,7 +791,7 @@
       "青菜"
     ],
     "methodStepCount": 3,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-865124733",
@@ -1022,7 +805,7 @@
       "姜蒜"
     ],
     "methodStepCount": 4,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-466278760",
@@ -1035,7 +818,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 3,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-1232264251",
@@ -1049,7 +832,7 @@
       "木耳"
     ],
     "methodStepCount": 4,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-28537260",
@@ -1062,7 +845,7 @@
       "青菜"
     ],
     "methodStepCount": 3,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-43519201",
@@ -1077,7 +860,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 3,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-32249810",
@@ -1089,7 +872,7 @@
       "猪肉"
     ],
     "methodStepCount": 3,
-    "batch": 5
+    "batch": 4
   },
   {
     "id": "static-633910981",
@@ -1101,7 +884,7 @@
       "猪肉"
     ],
     "methodStepCount": 3,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-810793184",
@@ -1113,7 +896,7 @@
       "全鸡"
     ],
     "methodStepCount": 2,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-1054699040",
@@ -1125,7 +908,7 @@
       "青椒"
     ],
     "methodStepCount": 4,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-654275524",
@@ -1137,7 +920,7 @@
       "茨菰"
     ],
     "methodStepCount": 4,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-1886380940",
@@ -1149,7 +932,7 @@
       "鸡肉"
     ],
     "methodStepCount": 2,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-628492910",
@@ -1161,7 +944,7 @@
       "鸡肉"
     ],
     "methodStepCount": 2,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-891224005",
@@ -1173,7 +956,7 @@
       "猪肉"
     ],
     "methodStepCount": 2,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-625577368",
@@ -1185,7 +968,7 @@
       "鸡蛋"
     ],
     "methodStepCount": 4,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-1693151980",
@@ -1197,7 +980,7 @@
       "鸡皮"
     ],
     "methodStepCount": 2,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-856849791",
@@ -1209,7 +992,7 @@
       "鸡肉"
     ],
     "methodStepCount": 3,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-950311388",
@@ -1219,7 +1002,7 @@
     "priorityReason": "no high-confidence core ingredient match; manual review required",
     "suggestedCoreIngredients": [],
     "methodStepCount": 2,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-994218485",
@@ -1229,7 +1012,7 @@
     "priorityReason": "no high-confidence core ingredient match; manual review required",
     "suggestedCoreIngredients": [],
     "methodStepCount": 4,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-893167104",
@@ -1239,7 +1022,7 @@
     "priorityReason": "no high-confidence core ingredient match; manual review required",
     "suggestedCoreIngredients": [],
     "methodStepCount": 3,
-    "batch": 6
+    "batch": 5
   },
   {
     "id": "static-1036215798",
@@ -1249,6 +1032,6 @@
     "priorityReason": "no high-confidence core ingredient match; manual review required",
     "suggestedCoreIngredients": [],
     "methodStepCount": 2,
-    "batch": 6
+    "batch": 5
   }
 ]
