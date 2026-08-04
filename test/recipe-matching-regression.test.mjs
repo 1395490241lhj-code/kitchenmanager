@@ -172,6 +172,31 @@ test('糖 alias 不吞并红糖/冰糖，辣椒与青椒保持库存/search 语�
   assert.deepEqual([...searchIds('食用油')].sort(), ['canola-oil', 'food-oil']);
 });
 
+test('Curated 新增映射保留原始食材名称，搜索可命中食材与非核心词', () => {
+  const pack = {
+    recipes: [
+      { id: 'shrimp-cake', name: '椒盐虾饼', method: '虾仁剁成虾茸' },
+      { id: 'sprout-cake', name: '炸豆芽饼', method: '豆芽与鸡蛋调糊' },
+      { id: 'fish-pepper', name: '龙眼咸烧白', method: '鱼辣椒入味' },
+      { id: 'stock-broth', name: '松子肉', method: '加二汤和奶汤蒸熟' }
+    ],
+    recipe_ingredients: {
+      'shrimp-cake': [{ item: '虾饼' }, { item: '虾仁' }],
+      'sprout-cake': [{ item: '豆芽' }, { item: '鸡蛋' }],
+      'fish-pepper': [{ item: '鱼辣椒' }],
+      'stock-broth': [{ item: '二汤' }, { item: '奶汤' }]
+    }
+  };
+  const idsFor = query => new Set(searchRecipes(pack.recipes, query, pack).map(item => item.recipe.id));
+  assert.equal(idsFor('虾仁').has('shrimp-cake'), true);
+  assert.equal(idsFor('鸡蛋').has('sprout-cake'), true);
+  assert.equal(idsFor('鱼辣椒').has('fish-pepper'), true);
+  assert.equal(idsFor('二汤').has('stock-broth'), true);
+  assert.equal(idsFor('奶汤').has('stock-broth'), true);
+  assert.equal(pack.recipe_ingredients['fish-pepper'][0].item, '鱼辣椒');
+  assert.equal(pack.recipe_ingredients['stock-broth'][0].item, '二汤');
+});
+
 test('陈皮/草果/草碱均为非核心 seasoning，首批三道菜不因缺少它们降低 coverage/status/score', () => {
   for (const name of ['陈皮', '草果', '草碱']) {
     assert.equal(classifyRecipeIngredient(name).role, 'seasoning', `${name} role`);
