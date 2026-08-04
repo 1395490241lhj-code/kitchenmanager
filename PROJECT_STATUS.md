@@ -1,6 +1,6 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 ## AI service incident (2026-08-01)
 
@@ -14,6 +14,17 @@ Last updated: 2026-08-01
   external deployment steps.
 
 ## In progress
+
+- The 1979 《大众川菜》 scanned-source restoration pilot has passed user review.
+  Five single-page recipes were visually reviewed by luna_workers and the main
+  agent; the requested quantity/readings corrections and machine-readable
+  grouped-ingredient semantics are recorded in intermediate data. Its
+  applicationReady flag remains false: gram values are source-equivalent
+  conversions, not household servings or App-ready quantities. Production
+  recipes, schemas, serving sizes, and cache stamps are unchanged. Catalog-only
+  indexing and Curated/Full name matching come before any 10–15 recipe batch
+  plan. See
+  `docs/DAZHONG_CHUANCAI_1979_SOURCE_RESTORATION.md`.
 
 - UI-5B2B-B2B safe editing of recorded conflict choices is implemented,
   validated, committed, and submitted in Draft PR #19 pending review and merge,
