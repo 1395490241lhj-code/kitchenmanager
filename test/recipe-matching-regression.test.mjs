@@ -278,7 +278,12 @@ test('首批 15 道逐道移除一个真正主料仍变 partial/none，误分类
 test('推荐签名包含 canonical+role+相关常备状态，稳定排序且忽略无关常备状态', () => {
   const basePack = {
     recipes: [{ id: 'r', name: '签名菜', method: '炒熟' }],
-    recipe_ingredients: { r: [{ item: '猪肉' }, { item: '盐' }] }
+    recipe_ingredients: {
+      r: [
+        { item: '猪肉', qty: 2, unit: '克' },
+        { item: '盐', qty: null, unit: null }
+      ]
+    }
   };
   const inv = [{ name: '猪肉', qty: 1, unit: '', stockStatus: 'ok' }];
   const context = {
@@ -293,7 +298,25 @@ test('推荐签名包含 canonical+role+相关常备状态，稳定排序且忽�
   }, inv, context);
   const roleChanged = buildRecommendationSignature({
     ...basePack,
-    recipe_ingredients: { r: [{ item: '猪肉' }, { item: '水' }] }
+    recipe_ingredients: { r: [{ item: '猪肉', qty: 2, unit: '克' }, { item: '水', qty: null, unit: null }] }
+  }, inv, context);
+  const qtyChanged = buildRecommendationSignature({
+    ...basePack,
+    recipe_ingredients: {
+      r: [
+        { item: '猪肉', qty: 3, unit: '克' },
+        { item: '盐', qty: null, unit: null }
+      ]
+    }
+  }, inv, context);
+  const unitChanged = buildRecommendationSignature({
+    ...basePack,
+    recipe_ingredients: {
+      r: [
+        { item: '猪肉', qty: 2, unit: '斤' },
+        { item: '盐', qty: null, unit: null }
+      ]
+    }
   }, inv, context);
   const stapleChanged = buildRecommendationSignature(basePack, inv, {
     ...context,
@@ -305,12 +328,19 @@ test('推荐签名包含 canonical+role+相关常备状态，稳定排序且忽�
   });
   assert.notEqual(renamed, base, 'same-count canonical rename changes signature');
   assert.notEqual(roleChanged, base, 'role change changes signature');
+  assert.notEqual(qtyChanged, base, 'quantity change changes signature');
+  assert.notEqual(unitChanged, base, 'unit change changes signature');
   assert.notEqual(stapleChanged, base, 'related staple status changes signature');
   assert.equal(unrelatedStapleChanged, base, 'unrelated staple status does not invalidate');
 
   const reversed = buildRecommendationSignature({
     recipes: basePack.recipes,
-    recipe_ingredients: { r: [{ item: '盐' }, { item: '猪肉' }] }
+    recipe_ingredients: {
+      r: [
+        { item: '盐', qty: '', unit: ' ' },
+        { item: '猪肉', qty: 2, unit: ' 克 ' }
+      ]
+    }
   }, inv.slice().reverse(), {
     ...context,
     favoriteIds: new Set(['x']),
@@ -318,6 +348,26 @@ test('推荐签名包含 canonical+role+相关常备状态，稳定排序且忽�
   });
   const baseWithFavorite = buildRecommendationSignature(basePack, inv, { ...context, favoriteIds: ['x'] });
   assert.equal(reversed, baseWithFavorite, 'signature serialization is order-stable');
+
+  const missingValues = buildRecommendationSignature({
+    recipes: basePack.recipes,
+    recipe_ingredients: {
+      r: [
+        { item: '猪肉', qty: undefined, unit: null },
+        { item: '盐', qty: '', unit: '' }
+      ]
+    }
+  }, inv, context);
+  const explicitEmptyValues = buildRecommendationSignature({
+    recipes: basePack.recipes,
+    recipe_ingredients: {
+      r: [
+        { item: '猪肉', qty: null, unit: '' },
+        { item: '盐' }
+      ]
+    }
+  }, inv, context);
+  assert.equal(missingValues, explicitEmptyValues, 'missing/null/empty qty and unit share stable empty semantics');
 });
 
 test('推荐签名纯函数不隐式读取 localStorage', () => {
@@ -360,4 +410,58 @@ test('推荐缓存遇到相关常备状态变化会重算，无关状态不触�
   assert.notEqual(relatedSignature, firstSignature);
   assert.equal(related[0].status, 'partial');
   assert.ok(related[0].missing.some(item => item.name === '盐'));
+});
+
+test('推荐缓存遇到 recipe qty/unit 变化会重算，数组重排保持缓存签名', () => {
+  const pack = {
+    recipes: [{ id: 'r', name: '数量缓存菜', method: '炒熟' }],
+    recipe_ingredients: {
+      r: [
+        { item: '猪肉', qty: 1, unit: '份' },
+        { item: '盐', qty: null, unit: null }
+      ]
+    }
+  };
+  const inv = [{ name: '猪肉', qty: 1, unit: '份', stockStatus: 'ok' }];
+  getLocalRecommendations(pack, inv, true);
+  const firstSignature = S.load(S.keys.rec_signature, '');
+
+  const reorderedPack = {
+    ...pack,
+    recipe_ingredients: {
+      r: [
+        { item: '盐', qty: '', unit: '' },
+        { item: '猪肉', qty: 1, unit: ' 份 ' }
+      ]
+    }
+  };
+  getLocalRecommendations(reorderedPack, inv, false);
+  const reorderedSignature = S.load(S.keys.rec_signature, '');
+  assert.equal(reorderedSignature, firstSignature, 'ingredient reorder and equivalent unit formatting keep cache');
+
+  const qtyChangedPack = {
+    ...pack,
+    recipe_ingredients: {
+      r: [
+        { item: '猪肉', qty: 2, unit: '份' },
+        { item: '盐', qty: null, unit: null }
+      ]
+    }
+  };
+  getLocalRecommendations(qtyChangedPack, inv, false);
+  const qtyChangedSignature = S.load(S.keys.rec_signature, '');
+  assert.notEqual(qtyChangedSignature, firstSignature, 'quantity change invalidates recommendation cache');
+
+  const unitChangedPack = {
+    ...qtyChangedPack,
+    recipe_ingredients: {
+      r: [
+        { item: '猪肉', qty: 2, unit: '克' },
+        { item: '盐', qty: null, unit: null }
+      ]
+    }
+  };
+  getLocalRecommendations(unitChangedPack, inv, false);
+  const unitChangedSignature = S.load(S.keys.rec_signature, '');
+  assert.notEqual(unitChangedSignature, qtyChangedSignature, 'unit change invalidates recommendation cache');
 });

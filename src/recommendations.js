@@ -885,6 +885,12 @@ function compareSignatureObjects(a, b) {
   return JSON.stringify(a).localeCompare(JSON.stringify(b), 'en');
 }
 
+function normalizeRecipeSignatureValue(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  return value;
+}
+
 function buildRecipeIngredientSignature(pack) {
   return Object.entries(pack?.recipe_ingredients || {})
     .sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'zh-Hans-CN'))
@@ -899,7 +905,9 @@ function buildRecipeIngredientSignature(pack) {
           if (!canonical) return null;
           return {
             canonical,
-            role: classifyRecipeIngredient(canonical).role
+            role: classifyRecipeIngredient(canonical).role,
+            qty: normalizeRecipeSignatureValue(item?.qty),
+            unit: normalizeRecipeSignatureValue(item?.unit)
           };
         })
         .filter(Boolean)
