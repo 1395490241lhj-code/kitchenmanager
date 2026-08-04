@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,8 +11,10 @@ import {
   analyzeRuntimeQuality,
   buildDefaultRuntimePacks,
   buildIdBaseline,
+  compareIdsByCodeUnit,
   generateCuratedMissingManifest,
   recipeIdDigest,
+  sortedRecipeIds,
   validateManifest
 } from '../scripts/recipe-runtime-quality.mjs';
 
@@ -137,4 +140,112 @@ test('analysis mode stays green while strict mode reports the known nonzero data
   assert.equal(strict.status, 1, strict.stdout + strict.stderr);
   assert.match(strict.stdout, /curated-missing-ingredient-map/);
   assert.match(strict.stdout, /strict=enabled/);
+});
+
+// --- Baseline digest determinism -------------------------------------------
+//
+// The digest must be a pure function of the ID *set*. It previously sorted with
+// `localeCompare` and no locale argument, so the host's default locale decided
+// the order and therefore the hash. These tests pin the behaviour, not the
+// source text: every one of them fails if the ordering rule starts consulting
+// ICU again, regardless of how it is written.
+
+// Each pair below is ordered differently by code units than by at least one
+// real locale. `static-1` vs `static_1` is the case that matters most in
+// practice — every generated recipe id contains a hyphen.
+const LOCALE_DIVERGENT_IDS = ['static_1', 'static-1', 'aa', 'z', 'a', 'B', 'Z', 'ab'];
+
+const packOfIds = (ids) => ({ recipes: ids.map(id => ({ id })), recipe_ingredients: {} });
+
+// Independent oracle: `Array.prototype.sort()` with no comparator is defined to
+// sort by UTF-16 code unit, so this never routes through the code under test.
+const codeUnitDigest = (ids) =>
+  createHash('sha256').update(JSON.stringify([...ids].sort())).digest('hex');
+
+test('digest orders locale-divergent ids by code unit, not by host locale', () => {
+  // Guard against a vacuous test: prove this input really is locale-sensitive.
+  const byCodeUnit = [...LOCALE_DIVERGENT_IDS].sort();
+  const localeOrders = ['en-US', 'da-DK', 'sv-SE'].map(
+    locale => JSON.stringify([...LOCALE_DIVERGENT_IDS].sort((a, b) => a.localeCompare(b, locale)))
+  );
+  assert.ok(
+    localeOrders.some(order => order !== JSON.stringify(byCodeUnit)),
+    'fixture must be a set whose locale ordering differs from code-unit ordering'
+  );
+
+  assert.deepEqual(sortedRecipeIds(packOfIds(LOCALE_DIVERGENT_IDS)), byCodeUnit);
+  assert.equal(recipeIdDigest(packOfIds(LOCALE_DIVERGENT_IDS)), codeUnitDigest(LOCALE_DIVERGENT_IDS));
+
+  // The comparator itself follows code units, including for the hyphen case.
+  assert.equal(compareIdsByCodeUnit('static-1', 'static_1'), -1);
+  assert.equal(compareIdsByCodeUnit('B', 'a'), -1);
+  assert.equal(compareIdsByCodeUnit('static-1', 'static-1'), 0);
+});
+
+test('replacing String.prototype.localeCompare cannot change any digest', () => {
+  const original = String.prototype.localeCompare;
+  const realPacks = [];
+  try {
+    // Any read of localeCompare on the digest path is now a hard failure.
+    // eslint-disable-next-line no-extend-native
+    String.prototype.localeCompare = function poisoned() {
+      throw new Error('digest must not depend on localeCompare');
+    };
+    assert.equal(recipeIdDigest(packOfIds(LOCALE_DIVERGENT_IDS)), codeUnitDigest(LOCALE_DIVERGENT_IDS));
+    assert.deepEqual(sortedRecipeIds(packOfIds(LOCALE_DIVERGENT_IDS)), [...LOCALE_DIVERGENT_IDS].sort());
+    realPacks.push(recipeIdDigest(packOfIds(['static-2', 'hoc-1', 'ex--9'])));
+  } finally {
+    // eslint-disable-next-line no-extend-native
+    String.prototype.localeCompare = original;
+  }
+  // Same value once the real implementation is back — the patch changed nothing.
+  assert.equal(realPacks[0], recipeIdDigest(packOfIds(['static-2', 'hoc-1', 'ex--9'])));
+});
+
+test('digest depends on the id set, not on input order', () => {
+  const ids = [...LOCALE_DIVERGENT_IDS];
+  const expected = recipeIdDigest(packOfIds(ids));
+  const permutations = [
+    [...ids].reverse(),
+    [...ids.slice(3), ...ids.slice(0, 3)],
+    [...ids].sort((a, b) => a.length - b.length || (a < b ? 1 : -1))
+  ];
+  for (const permutation of permutations) {
+    assert.deepEqual([...permutation].sort(), [...ids].sort(), 'permutation must hold the same set');
+    assert.equal(recipeIdDigest(packOfIds(permutation)), expected);
+  }
+});
+
+test('digest changes whenever the id set or an id value changes', () => {
+  const base = recipeIdDigest(packOfIds(LOCALE_DIVERGENT_IDS));
+  const added = recipeIdDigest(packOfIds([...LOCALE_DIVERGENT_IDS, 'static-999']));
+  const removed = recipeIdDigest(packOfIds(LOCALE_DIVERGENT_IDS.slice(1)));
+  const mutated = recipeIdDigest(packOfIds(
+    LOCALE_DIVERGENT_IDS.map(id => (id === 'static-1' ? 'static-2' : id))
+  ));
+  for (const [label, digest] of [['added', added], ['removed', removed], ['mutated', mutated]]) {
+    assert.notEqual(digest, base, `${label} id set must produce a different digest`);
+  }
+  assert.equal(new Set([base, added, removed, mutated]).size, 4);
+});
+
+test('curated and full base id sets and counts are unchanged by the ordering fix', () => {
+  const baseline = readJson(BASELINE_PATH);
+  const packs = {
+    curated: readJson(join(root, 'data', 'sichuan-recipes.curated.json')),
+    full: readJson(join(root, 'data', 'sichuan-recipes.json'))
+  };
+
+  const expectedCounts = { curated: 126, full: 264 };
+  for (const mode of ['curated', 'full']) {
+    const ids = packs[mode].recipes.map(recipe => String(recipe?.id || ''));
+    assert.equal(ids.length, expectedCounts[mode]);
+    assert.equal(baseline.sources[mode].count, expectedCounts[mode]);
+    assert.equal(new Set(ids).size, expectedCounts[mode], `${mode} base ids must be unique`);
+    // Code-unit digest still equals the checked-in baseline: the ordering rule
+    // changed, the set did not, and on this data the two orders coincide.
+    assert.equal(recipeIdDigest(packs[mode]), baseline.sources[mode].idSha256);
+    assert.equal(codeUnitDigest(ids), baseline.sources[mode].idSha256);
+  }
+  assert.deepEqual(buildIdBaseline(packs), baseline);
 });

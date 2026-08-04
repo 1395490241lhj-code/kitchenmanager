@@ -129,14 +129,35 @@ export async function buildDefaultRuntimePacks({ resetCache = true } = {}) {
   }
 }
 
-function sortedIds(pack) {
+/**
+ * Deterministic UTF-16 code-unit comparator.
+ *
+ * `localeCompare` *without* an explicit locale sorts using the host's default
+ * locale, so the very same ID set could order — and therefore hash —
+ * differently on two machines. That was reproducible: `da-DK` orders the full
+ * pack's IDs differently from `en-US`, which would have made the checked-in
+ * baseline digest fail on a Danish-locale developer machine or CI runner.
+ *
+ * The baseline digest must be a pure function of the ID *set*, so ordering
+ * here is fixed to raw code-unit comparison and never consults ICU. Exported
+ * so a regression test can pin the rule itself rather than the call site.
+ */
+export function compareIdsByCodeUnit(a, b) {
+  const left = String(a);
+  const right = String(b);
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+export function sortedRecipeIds(pack) {
   return (pack?.recipes || [])
     .map(recipe => String(recipe?.id || ''))
-    .sort((a, b) => a.localeCompare(b));
+    .sort(compareIdsByCodeUnit);
 }
 
 export function recipeIdDigest(pack) {
-  return createHash('sha256').update(JSON.stringify(sortedIds(pack))).digest('hex');
+  return createHash('sha256').update(JSON.stringify(sortedRecipeIds(pack))).digest('hex');
 }
 
 export function buildIdBaseline(basePacks) {
