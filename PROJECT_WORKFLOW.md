@@ -66,7 +66,7 @@ For a discovered unrelated bug, document it separately unless it blocks the requ
 
 ## 5. Validate incrementally
 
-Use `TESTING_RULES.md`.
+Use `docs/AI_WORKFLOW.md` for incremental test selection and escalation limits, and `TESTING_RULES.md` for concrete platform commands and coverage details.
 
 Typical order:
 
@@ -117,6 +117,7 @@ Update only the document that owns the information:
 - stable architecture/invariant changed → `PROJECT_GUIDE.zh.md` and, if needed, its English companion
 - coding policy changed → `CODING_RULES.md`
 - verification policy/command changed → `TESTING_RULES.md`
+- agent incremental/escalation/retry behavior changed → `docs/AI_WORKFLOW.md`
 - detailed design/validation evidence → focused file under `docs/`
 - onboarding changed → `README.md`
 

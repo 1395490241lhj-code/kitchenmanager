@@ -4,6 +4,8 @@ This file is the single entry point for every AI coding agent working on Kitchen
 
 Its purpose is to route an agent to the smallest relevant context, not to duplicate the entire repository history.
 
+All agents must follow [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md) for incremental test selection, test escalation, failure retry limits, concise test output, and when to suggest starting a new conversation. Keep detailed commands and platform matrices in `TESTING_RULES.md`.
+
 Last reorganized: 2026-07-16.
 
 ## 1. Source of truth
@@ -28,6 +30,7 @@ Repository facts always beat AI memory. A historical validation document proves 
 Always read:
 
 - `AGENTS.md`
+- `docs/AI_WORKFLOW.md`
 - `PROJECT_STATUS.md`
 - `package.json`
 - the directly affected source files
@@ -130,7 +133,7 @@ For every task:
 3. State the smallest safe implementation plan when the task is non-trivial.
 4. Preserve unrelated behavior and avoid opportunistic refactors.
 5. Add or update tests for logic, persistence, security, migrations, or regressions.
-6. Run the relevant matrix in `TESTING_RULES.md`; never overstate coverage.
+6. Select the verification scope with `docs/AI_WORKFLOW.md`, then run the relevant matrix in `TESTING_RULES.md`; never overstate coverage.
 7. Check secrets, feature flags, environment targeting, and data-loss risk.
 8. Update documentation only where responsibility belongs.
 9. Report exact files, commands, results, manual checks, assumptions, and remaining risks.
@@ -145,6 +148,7 @@ Commit, push, deploy, change hosted configuration, apply a migration, enable a f
 - `PROJECT_GUIDE.zh.md`: stable architecture and invariant rules.
 - `CODING_RULES.md`: coding constraints.
 - `TESTING_RULES.md`: verification policy and commands.
+- `docs/AI_WORKFLOW.md`: agent incremental test selection, escalation thresholds, retry limits, and conversation handoff rules.
 - `README.md`: human onboarding.
 - `AI_CONTEXT.md`: stable product intent and decision boundaries.
 - `CLAUDE.md` and `.cursorrules`: thin pointers to this file; do not duplicate project facts there.

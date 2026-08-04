@@ -18,15 +18,27 @@ Always distinguish:
 
 Passing one category does not imply another.
 
-## 2. Baseline commands
+## 2. Available commands
 
-From repository root:
+Run commands from the repository root and select the smallest applicable set according to `docs/AI_WORKFLOW.md`.
+
+Initial setup or dependency refresh:
 
 ```bash
 npm install
-npm test
-git diff --check
 npm audit --omit=dev --audit-level=high
+```
+
+Full PWA unit suite, when the selected verification scope requires it:
+
+```bash
+npm test
+```
+
+Repository diff check:
+
+```bash
+git diff --check
 ```
 
 Useful focused Node command:
@@ -53,7 +65,7 @@ Required:
 - validate JSON or config files that were edited;
 - run `git diff --check`.
 
-Run `npm test` when documentation is parsed/guarded by tests or when broad rule changes may affect semantic guard tests. Do not claim application behavior was manually verified if only Markdown changed.
+Use the lightweight documentation checks in `docs/AI_WORKFLOW.md`. Do not claim application behavior was manually verified if only Markdown changed. If a document is parsed by a test, script, build step, or semantic guard, use the relevant command from this file.
 
 ### PWA domain logic
 
@@ -61,7 +73,6 @@ Run:
 
 ```bash
 node --test test/<focused-test>.mjs
-npm test
 ```
 
 When persistence changes, also test:
@@ -78,9 +89,10 @@ When persistence changes, also test:
 Run:
 
 ```bash
-npm test
 npm start
 ```
+
+Use a focused regression check when one covers the affected path. Follow `docs/AI_WORKFLOW.md` for whether any broader suite is appropriate.
 
 Manual checks:
 
@@ -103,13 +115,14 @@ Review Service Worker cache-name changes separately; do not bump it automaticall
 
 ### Recipe data/packs
 
-Run:
+For a single recipe pack, fixture, or local data change, run the relevant focused validation command:
 
 ```bash
-npm test
 npm run validate:recipe-packs
 npm run validate:recipe-pack-data
 ```
+
+For shared recipe schema, all recipe-pack contracts, the parser, or behavior across data packs, pair these validation commands with the full PWA unit command from §2. If no focused command covers a local change, document the smallest available validation.
 
 ### Server / API / AI / extraction / media
 
@@ -117,7 +130,6 @@ Run:
 
 ```bash
 node --test test/<focused-test>.mjs
-npm test
 npm start
 ```
 
@@ -146,7 +158,7 @@ Record the exact environment and whether any hosted data was created. Never run 
 
 ### Sync server/database contract
 
-Run focused Node tests and the full Node suite. When the task changes migration/RLS/RPC/route contract and hosted verification is authorized:
+Run focused Node tests. Follow `docs/AI_WORKFLOW.md` for broader-suite selection. When the task changes migration/RLS/RPC/route contract and hosted verification is authorized:
 
 ```bash
 npm run verify:sync-db
@@ -246,12 +258,12 @@ Test:
 - in-memory and production schema parity
 - failure/rollback or self-heal semantics
 
-Then run the full iOS Unit suite.
+Use the focused XCTest commands from §4. Follow `docs/AI_WORKFLOW.md` for broader-suite selection.
 
 ### SwiftUI change
 
 - focused XCUITest/regression if the behavior is automation-relevant
-- full UI suite for navigation/shared component changes
+- use the focused XCUITest command from §4 for automation-relevant behavior; follow `docs/AI_WORKFLOW.md` for broader-suite selection
 - manual simulator check for layout, dark mode, Dynamic Type, VoiceOver labels, hit targets, destructive confirmation, and error states
 
 ### Auth/Keychain/network change
@@ -287,7 +299,7 @@ At minimum cover the affected invariants among:
 - no Guest data scan/upload without explicit confirmation
 - no automatic sync call site added
 
-Run the full iOS Unit suite and the relevant UI suite after focused tests.
+Use the focused XCTest/XCUITest commands from §4 for the affected invariants. Follow `docs/AI_WORKFLOW.md` for broader-suite selection.
 
 ## 6. Hosted iOS smoke rules
 
