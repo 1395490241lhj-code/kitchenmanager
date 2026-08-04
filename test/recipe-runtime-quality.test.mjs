@@ -56,6 +56,24 @@ const CURRENT_BATCH_REPAIRS = [
   ['static-1027973551', '苦瓜炒蛋', ['苦瓜', '鸡蛋', '盐', '料酒', '油']]
 ];
 
+const NEXT_BATCH_REPAIRS = [
+  ['static-654509853', '兰花鸡丝', ['鸡脯肉', '蛋清', '豆粉', '盐', '料酒', '兰花', '猪油', '味精', '清汤']],
+  ['static-648679063', '凉拌三丝', ['海带丝', '粉丝', '胡萝卜丝', '蒜末', '香菜段', '盐', '生抽', '醋', '糖', '辣椒油', '香油']],
+  ['static-25997141', '晾干肉', ['大头菜', '葱', '蒜', '猪后腿净瘦肉', '酱油', '胡椒面', '料酒', '菜油', '化猪油', '姜', '醋', '白糖', '清汤', '香油']],
+  ['static-29232650', '熘鸡米', ['鸡脯肉', '茨菰', '火腿', '葱', '鸡蛋', '干豆粉', '盐', '料酒', '水豆粉', '味精', '胡椒面', '清汤', '油']],
+  ['static-1999150952', '熘珊瑚鸡丁', ['鸡脯', '蛋清', '豆粉', '料酒', '盐', '红萝卜', '化猪油', '香油']],
+  ['static-893248609', '熘桃鸡卷', ['鸡脯', '火腿', '口蘑', '桃米', '蛋清', '豆粉', '化猪油', '盐', '料酒', '味精', '清汤', '香油']],
+  ['static-1247568140', '龙眼脊髓', ['脊髓', '鱼肉', '猪肥膘', '蛋清', '豆粉', '盐', '猪瘦肉', '火腿', '猪油', '清汤', '料酒', '酱油', '味精', '胡椒']],
+  ['static-16669423', '龙眼甜烧白', ['干沙', '红糖', '连皮肥肉', '樱桃', '酒米']],
+  ['static-8700811', '龙眼咸烧白', ['五花肉', '红酱油', '菜油', '鱼辣椒', '芽菜', '豆豉', '盐']],
+  ['static-40244567', '麻酥鸡', ['鸡肉', '茨菰', '芝麻', '鸡蛋清', '豆粉', '盐', '胡椒面', '香油', '菜油']],
+  ['static-39773758', '麻圆肉', ['猪肥膘', '蛋黄', '豆粉', '菜油', '白糖', '芝麻']],
+  ['static-1059559366', '蚂蚁上树', ['粉丝', '猪肉', '油', '豆瓣酱', '姜', '蒜', '酱油', '糖', '味精']],
+  ['static-892838462', '牡丹鸡片', ['小白菜心', '火腿', '口蘑', '鸡蛋清', '面粉', '鸡脯', '干豆粉', '猪油', '油', '鸡汤', '水豆粉', '盐', '料酒', '味精', '胡椒面', '鸡油']],
+  ['static-525063392', '奶汤大杂烩', ['菜油', '猪肉皮', '干笋', '清汤', '肥膘猪肉', '鸡蛋', '干豆粉', '盐', '肥瘦相连猪肉', '猪心', '猪舌', '水豆粉', '胡椒', '火腿', '特级奶汤', '味精', '料酒']],
+  ['static-664179745', '南煎圆子', ['茨菰', '香菌', '猪肉', '火腿', '兰片', '葱', '姜', '盐', '酱油', '水豆粉', '鸡蛋', '油', '料酒', '胡椒', '味精', '香油']]
+];
+
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
@@ -74,9 +92,9 @@ test('default runtime quality covers the final Curated and Full merge chain', as
     recipes: 403,
     methodsReady: 403,
     missingMethods: 0,
-    ingredientMaps: 330,
-    missingIngredientMaps: 73,
-    ingredientEntries: 1505,
+    ingredientMaps: 345,
+    missingIngredientMaps: 58,
+    ingredientEntries: 1671,
     duplicateIds: 0,
     duplicateNames: 0,
     orphanIngredientMaps: 0
@@ -84,14 +102,14 @@ test('default runtime quality covers the final Curated and Full merge chain', as
   assert.equal(report.modes.full.stats.recipes, 526);
   assert.equal(report.modes.full.stats.methodsReady, 403);
   assert.equal(report.modes.full.stats.missingMethods, 123);
-  assert.equal(report.modes.full.stats.ingredientMaps, 505);
-  assert.equal(report.modes.full.stats.missingIngredientMaps, 21);
-  assert.equal(report.modes.full.stats.ingredientEntries, 1597);
+  assert.equal(report.modes.full.stats.ingredientMaps, 507);
+  assert.equal(report.modes.full.stats.missingIngredientMaps, 19);
+  assert.equal(report.modes.full.stats.ingredientEntries, 1617);
   assert.equal(report.modes.full.stats.duplicateIds, 0);
   assert.equal(report.modes.full.stats.duplicateNames, 0);
   assert.equal(report.modes.full.stats.orphanIngredientMaps, 0);
   assert.equal(report.modes.curated.errorCounts['curated-missing-method'] || 0, 0);
-  assert.equal(report.modes.curated.errorCounts['curated-missing-ingredient-map'], 73);
+  assert.equal(report.modes.curated.errorCounts['curated-missing-ingredient-map'], 58);
   assert.ok(report.modes.curated.warningCounts['missing-qty-unit'] > 0);
   assert.ok(report.modes.curated.warningCounts['short-method'] > 0);
   assert.ok(report.modes.curated.warningCounts['generic-ingredient'] > 0);
@@ -100,7 +118,7 @@ test('default runtime quality covers the final Curated and Full merge chain', as
   assert.ok(report.modes.curated.warningCounts['repeated-methods'] > 0);
 });
 
-test('ID baseline and deterministic 73-entry manifest cover exactly the remaining runtime gap', async () => {
+test('ID baseline and deterministic 58-entry manifest cover exactly the remaining runtime gap', async () => {
   const runtime = await buildDefaultRuntimePacks();
   const baseline = readJson(BASELINE_PATH);
   const manifest = readJson(MANIFEST_PATH);
@@ -113,9 +131,9 @@ test('ID baseline and deterministic 73-entry manifest cover exactly the remainin
 
   const regenerated = generateCuratedMissingManifest(runtime.packs.curated, runtime.basePacks, runtime.sources);
   assert.deepEqual(regenerated, manifest);
-  assert.equal(manifest.length, 73);
-  assert.equal(new Set(manifest.map(entry => entry.id)).size, 73);
-  assert.equal(new Set(manifest.map(entry => entry.name)).size, 73);
+  assert.equal(manifest.length, 58);
+  assert.equal(new Set(manifest.map(entry => entry.id)).size, 58);
+  assert.equal(new Set(manifest.map(entry => entry.name)).size, 58);
   assert.ok(manifest.every(entry => entry.methodSource === 'recipe-methods'));
   assert.ok(manifest.every(entry => ['P1', 'P2', 'P3'].includes(entry.priority)));
   assert.ok(manifest.every(entry => Array.isArray(entry.suggestedCoreIngredients)));
@@ -124,7 +142,7 @@ test('ID baseline and deterministic 73-entry manifest cover exactly the remainin
     groups.set(entry.batch, (groups.get(entry.batch) || 0) + 1);
     return groups;
   }, new Map()).values()];
-  assert.deepEqual(batchSizes, [15, 15, 15, 14, 14]);
+  assert.deepEqual(batchSizes, [15, 15, 14, 14]);
   assert.ok(batchSizes.every(size => size >= 10 && size <= 20));
   assert.deepEqual(validateManifest(manifest, runtime.packs.curated, runtime.basePacks, runtime.sources), []);
 });
@@ -144,14 +162,14 @@ test('Earlier curated static repairs remain mapped and out of the manifest', asy
     for (const item of requiredItems) assert.ok(items.has(item), `${name} should map ${item}`);
     assert.equal(missingIds.has(id), false, `${name} must leave the missing-map manifest`);
   }
-  assert.equal(missingIds.size, 73);
+  assert.equal(missingIds.size, 58);
 });
 
 test('Current first-batch repairs preserve method-backed local names and split compounds', async () => {
   const runtime = await buildDefaultRuntimePacks();
   const manifest = readJson(MANIFEST_PATH);
   const missingIds = new Set(manifest.map(entry => entry.id));
-  const compoundPlaceholders = new Set(['姜蒜', '姜葱', '青红椒', '蛋清豆粉', '红白酱油']);
+  const compoundPlaceholders = new Set(['姜蒜', '姜葱', '青红椒', '蛋清豆粉', '红白酱油', '蛋豆粉']);
   for (const [id, name, requiredItems] of CURRENT_BATCH_REPAIRS) {
     const recipe = runtime.packs.curated.recipes.find(item => item.id === id);
     assert.equal(recipe?.name, name);
@@ -164,7 +182,7 @@ test('Current first-batch repairs preserve method-backed local names and split c
     for (const compound of compoundPlaceholders) assert.equal(items.has(compound), false, `${name} must not retain ${compound}`);
     assert.equal(missingIds.has(id), false, `${name} must leave the missing-map manifest`);
   }
-  assert.equal(missingIds.size, 73);
+  assert.equal(missingIds.size, 58);
 });
 
 test('Current first-batch repairs exclude optional and decorative-only method items', async () => {
@@ -191,11 +209,68 @@ test('Current first-batch repairs exclude optional and decorative-only method it
   }
 });
 
+test('Next curated batch repairs preserve method evidence, split compounds, and exclude optional or decorative items', async () => {
+  const runtime = await buildDefaultRuntimePacks();
+  const manifest = readJson(MANIFEST_PATH);
+  const missingIds = new Set(manifest.map(entry => entry.id));
+  const compoundPlaceholders = new Set(['姜蒜', '姜葱', '青红椒', '红白酱油', '蛋清豆粉', '蛋豆粉']);
+  for (const [id, name, requiredItems] of NEXT_BATCH_REPAIRS) {
+    const recipe = runtime.packs.curated.recipes.find(item => item.id === id);
+    assert.equal(recipe?.name, name);
+    assert.ok(String(recipe?.method || '').trim(), `${name} must keep its runtime method`);
+    assert.ok(Object.hasOwn(runtime.sources.staticMethods, name), `${name} must use recipe-methods`);
+    const mapped = runtime.packs.curated.recipe_ingredients[id];
+    assert.ok(Array.isArray(mapped) && mapped.length > 0, `${name} must have an ingredient map`);
+    assert.ok(mapped.every(entry => Object.keys(entry).every(key => key === 'item')), `${name} map must keep the {item} shape`);
+    const items = new Set(mapped.map(entry => entry.item));
+    for (const item of requiredItems) assert.ok(items.has(item), `${name} should map ${item}`);
+    for (const compound of compoundPlaceholders) assert.equal(items.has(compound), false, `${name} must not retain ${compound}`);
+    assert.equal(missingIds.has(id), false, `${name} must leave the missing-map manifest`);
+  }
+  assert.equal(missingIds.size, 58);
+});
+
+test('Next curated batch keeps exact oil spellings and excludes optional/garnish-only items', async () => {
+  const runtime = await buildDefaultRuntimePacks();
+  const exclusions = new Map([
+    ['凉拌三丝', ['干豆腐丝']],
+    ['熘鸡米', ['香油', '鸡油']],
+    ['熘桃鸡卷', ['建兰菜']],
+    ['龙眼甜烧白', ['白糖']],
+    ['麻酥鸡', ['生菜', '椒盐', '葱酱']],
+    ['蚂蚁上树', ['高汤', '水', '葱花']],
+    ['奶汤大杂烩', ['绿色鲜菜']],
+    ['南煎圆子', ['菜心']]
+  ]);
+  for (const [name, forbiddenItems] of exclusions) {
+    const recipe = runtime.packs.curated.recipes.find(item => item.name === name);
+    const items = new Set(runtime.packs.curated.recipe_ingredients[recipe.id].map(entry => entry.item));
+    for (const item of forbiddenItems) assert.equal(items.has(item), false, `${name} must exclude ${item}`);
+  }
+  const oilExpectations = new Map([
+    ['兰花鸡丝', ['猪油']],
+    ['晾干肉', ['菜油', '化猪油', '香油']],
+    ['熘鸡米', ['油']],
+    ['熘珊瑚鸡丁', ['化猪油', '香油']],
+    ['熘桃鸡卷', ['化猪油', '香油']],
+    ['龙眼咸烧白', ['菜油']],
+    ['麻酥鸡', ['香油', '菜油']],
+    ['牡丹鸡片', ['猪油', '油', '鸡油']],
+    ['奶汤大杂烩', ['菜油']],
+    ['南煎圆子', ['油', '香油']]
+  ]);
+  for (const [name, expectedOils] of oilExpectations) {
+    const recipe = runtime.packs.curated.recipes.find(item => item.name === name);
+    const items = new Set(runtime.packs.curated.recipe_ingredients[recipe.id].map(entry => entry.item));
+    for (const item of expectedOils) assert.equal(items.has(item), true, `${name} must preserve oil spelling ${item}`);
+  }
+});
+
 test('analysis mode stays green while strict mode reports the known nonzero data errors', () => {
   const script = join(root, 'scripts', 'recipe-runtime-quality.mjs');
   const analysis = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
   assert.equal(analysis.status, 0, analysis.stderr);
-  assert.match(analysis.stdout, /errors total=73/);
+  assert.match(analysis.stdout, /errors total=58/);
   assert.match(analysis.stdout, /strict=analysis-only/);
 
   const strict = spawnSync(process.execPath, [script, '--strict'], { cwd: root, encoding: 'utf8' });
