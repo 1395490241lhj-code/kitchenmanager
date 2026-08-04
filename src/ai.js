@@ -1,14 +1,14 @@
 // apiUrl 改名导入：getAiConfig 内部有同名局部变量（BYOK 的用户自填地址），避免遮蔽。
-import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=237';
-import { S } from './storage.js?v=237';
-import { getCanonicalName } from './ingredients.js?v=237';
-import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=237';
-import { splitMethodSteps } from './utils/method-steps.js?v=237';
+import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=238';
+import { S } from './storage.js?v=238';
+import { getCanonicalName } from './ingredients.js?v=238';
+import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=238';
+import { splitMethodSteps } from './utils/method-steps.js?v=238';
 import {
   classifyReceiptCandidate,
   postProcessReceiptItems
-} from './utils/receipt-import.js?v=237';
-import { getDislikedAiRecipeNames, isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=237';
+} from './utils/receipt-import.js?v=238';
+import { getDislikedAiRecipeNames, isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=238';
 
 const CLOUD_AI_ERROR = 'AI 暂不可用：云端服务暂时不可用。本地功能仍可正常使用。';
 const BYOK_MISSING_KEY_ERROR = 'AI 暂不可用：还没有配置 API Key。本地功能仍可正常使用。';

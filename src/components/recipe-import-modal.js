@@ -1,7 +1,7 @@
-import { loadOverlay, saveOverlay } from '../backup.js?v=237';
-import { genId } from '../shopping.js?v=237';
-import { importRecipeFromSource, getRecipeImportAiFailureCopy } from '../ai.js?v=237';
-import { setActionStatus, setInlineStatus, showToast } from './status.js?v=237';
+import { loadOverlay, saveOverlay } from '../backup.js?v=238';
+import { genId } from '../shopping.js?v=238';
+import { importRecipeFromSource, getRecipeImportAiFailureCopy } from '../ai.js?v=238';
+import { setActionStatus, setInlineStatus, showToast } from './status.js?v=238';
 
 const AI_DRAFT_SESSION_KEY = 'kitchen-ai-draft-pending';
 

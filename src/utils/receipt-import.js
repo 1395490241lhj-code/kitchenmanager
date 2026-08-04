@@ -3,21 +3,21 @@ import {
   getDryPrepText,
   guessKitchenUnit,
   normalizeReceiptIngredientName
-} from '../ingredients.js?v=237';
-import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=237';
+} from '../ingredients.js?v=238';
+import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=238';
 import {
   findBuiltInReceiptAlias,
   lookupReceiptUserAlias
-} from './receipt-aliases.js?v=237';
-import { mergeInventoryEntry } from '../inventory.js?v=237';
+} from './receipt-aliases.js?v=238';
+import { mergeInventoryEntry } from '../inventory.js?v=238';
 import {
   STAPLE_STATUS,
   addCustomPantryEntry,
   isStaple,
   loadPantryConfig,
   setStapleStatus
-} from '../staples.js?v=237';
-import { todayISO } from '../storage.js?v=237';
+} from '../staples.js?v=238';
+import { todayISO } from '../storage.js?v=238';
 
 const RECEIPT_GROUPS = ['inventory', 'pantry', 'review', 'ignored'];
 const CJK_RE = /[\u3400-\u9fff]/;

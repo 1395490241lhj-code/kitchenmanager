@@ -1,9 +1,9 @@
-import { todayISO } from '../storage.js?v=237';
-import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=237';
-import { escapeOptionAttr, escapeHtml, setInlineStatus, showToast } from './status.js?v=237';
-import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=237';
-import { loadShoppingItems, saveShoppingItems, mergeShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem, addShoppingItemsFromText } from '../shopping.js?v=237';
-import { learnReceiptAliasCorrection, shouldLearnReceiptAliasCorrection } from '../utils/receipt-aliases.js?v=237';
+import { todayISO } from '../storage.js?v=238';
+import { normalizeKitchenAmount, isSeasoning, UNIT_TYPE } from '../ingredients.js?v=238';
+import { escapeOptionAttr, escapeHtml, setInlineStatus, showToast } from './status.js?v=238';
+import { findInventoryMatch, formatInventoryAmount, getStockCoverageAnalysis, isIngredientMatch, GEAR_SCALE, GEAR_LABELS, gearInfo } from '../inventory.js?v=238';
+import { loadShoppingItems, saveShoppingItems, mergeShoppingItems, matchReceiptItemsToShoppingItems, addShoppingItem, addShoppingItemsFromText } from '../shopping.js?v=238';
+import { learnReceiptAliasCorrection, shouldLearnReceiptAliasCorrection } from '../utils/receipt-aliases.js?v=238';
 
 // 食材 emoji 速查（仅用于校准舱视觉点缀，匹配不到则用兜底）。
 const CALIB_EMOJI = [

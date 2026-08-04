@@ -3,20 +3,20 @@
  * 入口 renderWeeklyMenuCard；做几顿/每顿几道/几人/补充要求 → AI 规划（本地建议兜底）→ 分顿展示 →
  * 加入计划 / 补齐待买 / AI 新建议保存为菜谱。mealIndex 只用于建议分组，不改 plan 结构。
  */
-import { S, todayISO, addDaysISO } from '../../storage.js?v=237';
-import { getCanonicalName, guessKitchenUnit } from '../../ingredients.js?v=237';
-import { isInventoryAvailable, remainingDays } from '../../inventory.js?v=237';
-import { addShoppingItem, loadShoppingItems } from '../../shopping.js?v=237';
-import { hasRecipeMethod, isFavoriteRecipe, rankRecipesForRecommendation } from '../../recommendations.js?v=237';
-import { classifyRecipeIngredient } from '../../utils/recipe-sanitizer.js?v=237';
-import { getPendingPlanRowsInRange, isPlanRowOnDate } from '../../plan-selectors.js?v=237';
-import { addRecipeToPlanWithMissingCheck, getPlanMissingItems } from '../../components/plan-missing-check.js?v=237';
-import { callAiWeeklyMenuPlan, formatAiErrorMessage, withTimeout } from '../../ai.js?v=237';
-import { createUserRecipe } from '../../components/recipe-create-modal.js?v=237';
-import { brieflyConfirmButton, escapeHtml, escapeOptionAttr, showToast } from '../../components/status.js?v=237';
-import { createHomeModal } from './home-modal.js?v=237';
-import { getExpiringItems, getRecommendationUiContext, isExpiryTracked } from './home-data.js?v=237';
-import { isDemoKitchenMode, markDemoPlanAdded } from './demo-kitchen.js?v=237';
+import { S, todayISO, addDaysISO } from '../../storage.js?v=238';
+import { getCanonicalName, guessKitchenUnit } from '../../ingredients.js?v=238';
+import { isInventoryAvailable, remainingDays } from '../../inventory.js?v=238';
+import { addShoppingItem, loadShoppingItems } from '../../shopping.js?v=238';
+import { hasRecipeMethod, isFavoriteRecipe, rankRecipesForRecommendation } from '../../recommendations.js?v=238';
+import { classifyRecipeIngredient } from '../../utils/recipe-sanitizer.js?v=238';
+import { getPendingPlanRowsInRange, isPlanRowOnDate } from '../../plan-selectors.js?v=238';
+import { addRecipeToPlanWithMissingCheck, getPlanMissingItems } from '../../components/plan-missing-check.js?v=238';
+import { callAiWeeklyMenuPlan, formatAiErrorMessage, withTimeout } from '../../ai.js?v=238';
+import { createUserRecipe } from '../../components/recipe-create-modal.js?v=238';
+import { brieflyConfirmButton, escapeHtml, escapeOptionAttr, showToast } from '../../components/status.js?v=238';
+import { createHomeModal } from './home-modal.js?v=238';
+import { getExpiringItems, getRecommendationUiContext, isExpiryTracked } from './home-data.js?v=238';
+import { isDemoKitchenMode, markDemoPlanAdded } from './demo-kitchen.js?v=238';
 
 export const WEEKLY_MENU_MAX_DISHES = 12;
 
