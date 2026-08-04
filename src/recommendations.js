@@ -4,7 +4,8 @@ import {
   explodeCombinedItems,
   getCanonicalName,
   guessKitchenUnit,
-  isSmartIngredientMatch
+  isSmartIngredientMatch,
+  normalizeIngredientAmount
 } from './ingredients.js?v=236';
 import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=236';
 import {
@@ -201,9 +202,13 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
   const needsConfirm = [];
 
   for (const ing of core) {
+    const requiredAmount = normalizeIngredientAmount(ing.qty, ing.unit);
     const analysis = getStockCoverageAnalysis(inv, ing.item, ing.qty, ing.unit);
     if (analysis.confidence === 'exact') {
-      const requiredQty = ing.qty !== '' && ing.qty !== null && ing.qty !== undefined ? +ing.qty : '';
+      const parsedRequiredQty = Number(requiredAmount.qty);
+      const requiredQty = requiredAmount.qty === '' || !Number.isFinite(parsedRequiredQty)
+        ? ''
+        : parsedRequiredQty;
       if (requiredQty !== '' && analysis.coveredQty >= requiredQty) {
         const match = analysis.matchedItems[0];
         const days = remainingDays(match);
@@ -242,8 +247,8 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
         missing.push({
           item: ing.item,
           name: ing.item,
-          qty: ing.qty ?? '',
-          unit: ing.unit || guessKitchenUnit(ing.item) || '',
+          qty: requiredAmount.qty,
+          unit: requiredAmount.unit || guessKitchenUnit(ing.item) || '',
           missingQty: Math.max(0, requiredQty - analysis.coveredQty)
         });
       }
@@ -261,8 +266,8 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
       uncertain.push({
         item: ing.item,
         name: ing.item,
-        qty: ing.qty ?? '',
-        unit: ing.unit || guessKitchenUnit(ing.item) || '',
+        qty: requiredAmount.qty,
+        unit: requiredAmount.unit || guessKitchenUnit(ing.item) || '',
         reason: 'unit-mismatch'
       });
       needsConfirm.push({
@@ -283,8 +288,8 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
       uncertain.push({
         item: ing.item,
         name: ing.item,
-        qty: ing.qty ?? '',
-        unit: ing.unit || guessKitchenUnit(ing.item) || '',
+        qty: requiredAmount.qty,
+        unit: requiredAmount.unit || guessKitchenUnit(ing.item) || '',
         reason: 'status-only'
       });
       needsConfirm.push({
@@ -296,8 +301,8 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
       missing.push({
         item: ing.item,
         name: ing.item,
-        qty: ing.qty ?? '',
-        unit: ing.unit || guessKitchenUnit(ing.item) || ''
+        qty: requiredAmount.qty,
+        unit: requiredAmount.unit || guessKitchenUnit(ing.item) || ''
       });
     }
   }

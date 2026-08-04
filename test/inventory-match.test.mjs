@@ -122,6 +122,27 @@ test('getStockCoverageAnalysis 同名不同单位 → unit-mismatch，不误判 
   assert.equal(a.coveredQty, 0);
 });
 
+test('getStockCoverageAnalysis 聚合可换算重量并统一中英文单位', () => {
+  const weighted = [
+    { name: '猪肉', qty: 0.5, unit: 'kg', stockStatus: 'ok' },
+    { name: '猪肉', qty: 250, unit: '克', stockStatus: 'ok' }
+  ];
+  const analysis = getStockCoverageAnalysis(weighted, '猪肉', 600, 'g');
+  assert.equal(analysis.confidence, 'exact');
+  assert.equal(analysis.coveredQty, 750);
+  assert.equal(analysis.matchedItems.length, 2);
+});
+
+test('getStockCoverageAnalysis 兼容计数别名，但不跨维度误判充足', () => {
+  const pieces = [{ name: '鸡蛋', qty: 2, unit: 'pieces', stockStatus: 'ok' }];
+  assert.equal(getStockCoverageAnalysis(pieces, '鸡蛋', 2, '个').confidence, 'exact');
+
+  const incompatible = [{ name: '牛奶', qty: 500, unit: 'g', stockStatus: 'ok' }];
+  const analysis = getStockCoverageAnalysis(incompatible, '牛奶', 500, 'ml');
+  assert.equal(analysis.confidence, 'unit-mismatch');
+  assert.equal(analysis.coveredQty, 0);
+});
+
 test('getStockCoverageAnalysis 同名但 qty=0 且状态 ok → status-only', () => {
   const a = getStockCoverageAnalysis(inv, '番茄', 1, '个');
   assert.equal(a.confidence, 'status-only');

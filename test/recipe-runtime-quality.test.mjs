@@ -17,8 +17,24 @@ import {
   sortedRecipeIds,
   validateManifest
 } from '../scripts/recipe-runtime-quality.mjs';
+import { RECIPE_UNIT_WHITELIST } from '../src/ingredients.js';
 
 const root = process.cwd();
+
+const CURATED_QTY_UNIT_PILOT = new Map([
+  ['static-625577368', { name: '丝瓜蛋汤', item: '鸡蛋', qty: 2, unit: '个', evidence: /鸡蛋2个/ }],
+  ['static-1701594899', { name: '韭菜炒鸡蛋', item: '鸡蛋', qty: 3, unit: '个', evidence: /鸡蛋3个/ }]
+]);
+
+function hasReviewedIngredientShape(id, entry) {
+  const pilot = CURATED_QTY_UNIT_PILOT.get(id);
+  if (pilot && entry.item === pilot.item) {
+    return entry.qty === pilot.qty
+      && entry.unit === pilot.unit
+      && Object.keys(entry).every(key => ['item', 'qty', 'unit'].includes(key));
+  }
+  return Object.keys(entry).every(key => key === 'item');
+}
 
 const BATCH_ONE_REPAIRS = [
   ['static-1044475127', '菠饺白肺', ['猪肺', '猪肉', '菠菜', '面粉', '火腿', '鸡皮', '口蘑']],
@@ -216,6 +232,21 @@ test('Curated runtime keeps both reviewed ingredient omissions and clears their 
   assert.equal(mismatchIds.has('ex--9f93d3f9'), false);
 });
 
+test('Curated qty/unit pilot records only final-method-backed egg counts', async () => {
+  const runtime = await buildDefaultRuntimePacks();
+  for (const [id, { name, qty, unit, evidence }] of CURATED_QTY_UNIT_PILOT) {
+    const recipe = runtime.packs.curated.recipes.find(entry => entry.id === id);
+    assert.equal(recipe?.name, name);
+    assert.match(recipe.method, evidence);
+    const egg = runtime.packs.curated.recipe_ingredients[id].find(entry => entry.item === '鸡蛋');
+    assert.deepEqual(egg, { item: '鸡蛋', qty, unit });
+    assert.equal(RECIPE_UNIT_WHITELIST.includes(egg.unit), true);
+  }
+
+  assert.equal(runtime.packs.curated.recipes.length, 403);
+  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 403);
+});
+
 test('ID baseline and deterministic empty manifest cover the completed runtime map set', async () => {
   const runtime = await buildDefaultRuntimePacks();
   const baseline = readJson(BASELINE_PATH);
@@ -274,7 +305,7 @@ test('Current first-batch repairs preserve method-backed local names and split c
     assert.ok(String(recipe?.method || '').trim(), `${name} must keep its runtime method`);
     const mapped = runtime.packs.curated.recipe_ingredients[id];
     assert.ok(Array.isArray(mapped) && mapped.length > 0, `${name} must have an ingredient map`);
-    assert.ok(mapped.every(entry => Object.keys(entry).every(key => key === 'item')), `${name} map must keep the {item} shape`);
+    assert.ok(mapped.every(entry => hasReviewedIngredientShape(id, entry)), `${name} map must keep only reviewed quantity fields`);
     const items = new Set(mapped.map(entry => entry.item));
     for (const item of requiredItems) assert.ok(items.has(item), `${name} should map ${item}`);
     for (const compound of compoundPlaceholders) assert.equal(items.has(compound), false, `${name} must not retain ${compound}`);
@@ -319,7 +350,7 @@ test('Next curated batch repairs preserve method evidence, split compounds, and 
     assert.ok(Object.hasOwn(runtime.sources.staticMethods, name), `${name} must use recipe-methods`);
     const mapped = runtime.packs.curated.recipe_ingredients[id];
     assert.ok(Array.isArray(mapped) && mapped.length > 0, `${name} must have an ingredient map`);
-    assert.ok(mapped.every(entry => Object.keys(entry).every(key => key === 'item')), `${name} map must keep the {item} shape`);
+    assert.ok(mapped.every(entry => hasReviewedIngredientShape(id, entry)), `${name} map must keep only reviewed quantity fields`);
     const items = new Set(mapped.map(entry => entry.item));
     for (const item of requiredItems) assert.ok(items.has(item), `${name} should map ${item}`);
     for (const compound of compoundPlaceholders) assert.equal(items.has(compound), false, `${name} must not retain ${compound}`);
@@ -376,7 +407,7 @@ test('Active curated batch repairs preserve final method-backed names and split 
     assert.ok(Object.hasOwn(runtime.sources.staticMethods, name), `${name} must use recipe-methods`);
     const mapped = runtime.packs.curated.recipe_ingredients[id];
     assert.ok(Array.isArray(mapped) && mapped.length > 0, `${name} must have an ingredient map`);
-    assert.ok(mapped.every(entry => Object.keys(entry).every(key => key === 'item')), `${name} map must keep the {item} shape`);
+    assert.ok(mapped.every(entry => hasReviewedIngredientShape(id, entry)), `${name} map must keep only reviewed quantity fields`);
     const items = new Set(mapped.map(entry => entry.item));
     for (const item of requiredItems) assert.ok(items.has(item), `${name} should map ${item}`);
     for (const compound of compoundPlaceholders) assert.equal(items.has(compound), false, `${name} must not retain ${compound}`);
@@ -454,7 +485,7 @@ test('Current manifest batch repairs preserve final method evidence and split co
     assert.ok(Object.hasOwn(runtime.sources.staticMethods, name), `${name} must use recipe-methods`);
     const mapped = runtime.packs.curated.recipe_ingredients[id];
     assert.ok(Array.isArray(mapped) && mapped.length > 0, `${name} must have an ingredient map`);
-    assert.ok(mapped.every(entry => Object.keys(entry).every(key => key === 'item')), `${name} map must keep the {item} shape`);
+    assert.ok(mapped.every(entry => hasReviewedIngredientShape(id, entry)), `${name} map must keep only reviewed quantity fields`);
     const items = new Set(mapped.map(entry => entry.item));
     for (const item of requiredItems) assert.ok(items.has(item), `${name} should map ${item}`);
     for (const compound of compoundPlaceholders) assert.equal(items.has(compound), false, `${name} must not retain ${compound}`);
@@ -554,7 +585,7 @@ test('Next manifest batch repairs preserve exact final method maps and split com
     assert.ok(Object.hasOwn(runtime.sources.staticMethods, name), `${name} must use recipe-methods`);
     const mapped = runtime.packs.curated.recipe_ingredients[id];
     assert.ok(Array.isArray(mapped) && mapped.length > 0, `${name} must have an ingredient map`);
-    assert.ok(mapped.every(entry => Object.keys(entry).every(key => key === 'item')), `${name} map must keep the {item} shape`);
+    assert.ok(mapped.every(entry => hasReviewedIngredientShape(id, entry)), `${name} map must keep only reviewed quantity fields`);
     assert.deepEqual(mapped.map(entry => entry.item), expectedItems, `${name} map must match the reviewed method evidence`);
     const items = new Set(expectedItems);
     for (const compound of compoundPlaceholders) assert.equal(items.has(compound), false, `${name} must not retain ${compound}`);
@@ -640,7 +671,7 @@ test('Final manifest batch preserves exact runtime maps and clears the curated g
     assert.ok(Object.hasOwn(runtime.sources.staticMethods, name), `${name} must use recipe-methods`);
     const mapped = runtime.packs.curated.recipe_ingredients[id];
     assert.ok(Array.isArray(mapped) && mapped.length > 0, `${name} must have an ingredient map`);
-    assert.ok(mapped.every(entry => Object.keys(entry).every(key => key === 'item')), `${name} map must keep the {item} shape`);
+    assert.ok(mapped.every(entry => hasReviewedIngredientShape(id, entry)), `${name} map must keep only reviewed quantity fields`);
     assert.deepEqual(mapped.map(entry => entry.item), expectedItems, `${name} map must match the reviewed method evidence`);
   }
 });
