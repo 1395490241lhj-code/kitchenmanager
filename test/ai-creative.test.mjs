@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   areCreativeRecipeNamesSimilar,
   filterAiDraftCoreIngredients,
+  normalizeAiInventoryNames,
   normalizeAiIngredients,
   pickNextCreativeDishMode
 } from '../src/ai.js';
@@ -52,4 +53,15 @@ test('AI 草稿归一化：leek / 韭葱 不展示为韭葱', () => {
     ingredients: [{ item: '鸡肉' }, { item: 'leek' }]
   });
   assert.deepEqual(out.ingredients.map(item => item.item), ['鸡肉']);
+});
+
+test('AI 库存 prompt 归一化：青骨通菜等商品名复用标准食材别名', () => {
+  assert.deepEqual(
+    normalizeAiInventoryNames([
+      { name: '青骨通菜' },
+      { name: '通菜' },
+      { name: '番茄' }
+    ]),
+    ['空心菜', '番茄']
+  );
 });

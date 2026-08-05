@@ -1,6 +1,7 @@
 // apiUrl 改名导入：getAiConfig 内部有同名局部变量（BYOK 的用户自填地址），避免遮蔽。
 import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=236';
 import { S } from './storage.js?v=236';
+import { getCanonicalName } from './ingredients.js?v=236';
 import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=236';
 import { splitMethodSteps } from './utils/method-steps.js?v=236';
 import {
@@ -183,6 +184,25 @@ export function normalizeAiIngredients(value) {
       unit: String(item.unit || '').trim()
     };
   }).filter(Boolean);
+}
+
+// AI prompt 只接收稳定的库存食材名：优先复用小票/库存已有的标准化结果，
+// 避免把「青骨通菜」这类商品原始名直接拼进菜名。未能识别的普通名称再走
+// ingredients.js 的 canonical 别名，最后才保留原文作为兜底。
+export function normalizeAiInventoryNames(inventory = []) {
+  const seen = new Set();
+  const names = [];
+  for (const item of (Array.isArray(inventory) ? inventory : [])) {
+    const raw = String(typeof item === 'string' ? item : item?.name || item?.item || '').trim();
+    if (!raw) continue;
+    const receipt = classifyReceiptCandidate({ name: raw, originalName: raw, rawText: raw });
+    const receiptName = receipt?.group === 'inventory' ? receipt.name : '';
+    const name = getCanonicalName(receiptName || raw) || receiptName || raw;
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
 }
 
 const RECIPE_STEP_COVERAGE_RULES = [
@@ -1727,9 +1747,13 @@ export async function callAiCreativeRecipeByIngredients({
   const avoidedNames = [...new Set([...(localRecipeNames || []), ...(avoidedRecipeNames || [])]
     .map(name => String(name || '').trim())
     .filter(Boolean))];
+  const targetNames = [...new Set((targets || [])
+    .map(name => getCanonicalName(String(name || '').trim()) || String(name || '').trim())
+    .filter(Boolean))];
+  const normalizedInventoryNames = normalizeAiInventoryNames(inventoryNames);
   const modeOptions = CREATIVE_DISH_MODES.map(mode => `${mode.key}=${mode.label}`).join('；');
-  const prompt = `用户想用这些食材做一道菜：【${targets.join('、')}】。
-当前厨房里还有：【${inventoryNames.join('、') || '没有更多库存信息'}】。
+  const prompt = `用户想用这些食材做一道菜：【${targetNames.join('、')}】。
+当前厨房里还有：【${normalizedInventoryNames.join('、') || '没有更多库存信息'}】。
 已经出现过或需要避开的菜名：【${avoidedNames.join('、') || '无'}】。
 已经用过的烹饪形态：【${avoidedModes.join('、') || '无'}】。
 
@@ -1754,6 +1778,8 @@ export async function callAiCreativeRecipeByIngredients({
 - 如果刚推荐过炒菜，本次不要再推荐炒菜；不要把同一道菜从鸡肉片改成鸡肉丁/鸡肉丝来伪装变化。
 - 菜品形态要明显不同，可以是焖饭、烩饭、盖饭、汤面/拌面、炖煮、烤盘/焗烤、温沙拉、蛋饼/煎饼、卷饼等方向。
 - ingredients 只列肉、菜、蛋、豆制品、菌菇等核心主材。
+- 当前库存只是可选素材；优先选 1–2 个常见且彼此搭配合理的核心食材，可以只用部分库存，不要为了“用完”而把所有库存硬塞进一道菜。
+- 菜名使用常见、自然的家常菜表达，不要照抄小票/商品原始名或把多个库存词机械串成菜名。
 - 不要把葱姜蒜、盐糖油酱醋、料酒、淀粉、水、高汤、汤汁列入 ingredients；需要调料只写在 method 里。
 - 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。
 - name 不要和上面列出的菜名重复，也不要只是刀工变化。`;
@@ -1792,8 +1818,8 @@ export async function callAiSearchRecipe(query, invNames) {
   return validateRecipeResult(raw);
 }
 
-export async function callCloudAI(pack, inv, { allowCreative = true } = {}) {
-  const invNames = inv.map(x => x.name).join('、');
+export async function callCloudAI(pack, inv, { allowCreative = false } = {}) {
+  const invNames = normalizeAiInventoryNames(inv).join('、');
 
   // ── 反疲劳机制：读取后台烹饪频次账本（recipe_activity）──
   const activity = S.load(S.keys.recipe_activity, {});
@@ -1834,8 +1860,8 @@ export async function callCloudAI(pack, inv, { allowCreative = true } = {}) {
     : '';
 
   const creativeGate = allowCreative
-    ? '当前没有合理的现有菜谱候选时，才允许填写 creative；如果库存组合不适合，返回 null。'
-    : '当前已有合理的现有菜谱候选，creative 必须返回 null，不得生成新菜。';
+    ? '用户已经明确点击“AI 创作新菜”；只有在库存能组成一道正常家常菜时才允许填写 creative，否则返回 null。'
+    : '本次请求不是用户明确点击“AI 创作新菜”；creative 必须返回 null，不得生成新菜。';
   const prompt = `你是一位严谨的中式家庭厨房助手。请根据冰箱库存：【${invNames}】规划今日菜单。
 
 请严格返回 JSON，不要 markdown，不要解释：
@@ -1859,6 +1885,8 @@ export async function callCloudAI(pack, inv, { allowCreative = true } = {}) {
 - creative.ingredients 必须是数组，只列核心主材。
 - creative 是 AI 草稿，不是最终菜谱。
 - ${creativeGate}
+- creative 优先使用 1–2 个常见且逻辑相容的核心食材，可以只使用部分库存；绝不要尝试把所有库存逐个塞进同一道菜。
+- creative.name 只使用标准、自然的食材名，不要把商品规格、收银小票词或未经标准化的原始库存名直接拼进菜名。
 - 严禁用葱姜蒜、香菜、调料替代肉菜蛋豆等主材。
 - 不要主动使用“韭葱”这个食材名；英文 leek/leeks 不要直译成“韭葱”，按中餐语境改写为葱/大葱、蒜苗或韭菜。
 

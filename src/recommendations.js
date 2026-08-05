@@ -629,7 +629,7 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
         .map(name => ({ canonical: name, candidates: [name] }));
   if (!descriptors.length) return [];
 
-  const baseContext = options.context || getRecommendationContext();
+  const baseContext = options.context || getRecommendationContextSnapshot();
   const context = {
     ...baseContext,
     recipePackPreferenceScoring: getRecipePackPreferenceScoringContext(baseContext)
@@ -826,21 +826,59 @@ export function rankRecipesForRecommendation(pack, inv, context = {}) {
   const effectiveMatches = scored.filter(result => result.matchCount > 0 || (result.uncertain && result.uncertain.length > 0));
   const pool = effectiveMatches.length && !context.includeNoMatch ? effectiveMatches : scored;
 
-  return pool.sort((a, b) =>
-    b.coverage - a.coverage ||
-    a.missing.length - b.missing.length ||
-    b.matchCount - a.matchCount ||
-    (a.source === 'user' ? 0 : 1) - (b.source === 'user' ? 0 : 1) ||
-    b.score - a.score ||
-    a.r.name.localeCompare(b.r.name, 'zh-Hans-CN')
-  );
+  return pool.sort(compareRecipeRecommendationRows);
+}
+
+const SOURCE_PREFERENCE_SCORE_GAP = 12;
+
+// 覆盖率、缺口和命中数是用户/系统菜谱共用的硬质量顺序；只有这些质量指标相同，
+// 且综合分差距很小时，才用来源偏好打破平局。这样用户菜谱不会因为 source 标签
+// 抢过明显更匹配的系统菜谱，同时仍保留“质量接近时优先用户菜谱”的体验。
+function compareRecipeRecommendationRows(a, b) {
+  const qualityOrder =
+    (b.coverage || 0) - (a.coverage || 0) ||
+    (a.missing?.length || 0) - (b.missing?.length || 0) ||
+    (b.matchCount || 0) - (a.matchCount || 0);
+  if (qualityOrder) return qualityOrder;
+
+  const scoreGap = Math.abs((Number(a.score) || 0) - (Number(b.score) || 0));
+  if (scoreGap <= SOURCE_PREFERENCE_SCORE_GAP) {
+    const sourceOrder = (a.source === 'user' ? 0 : 1) - (b.source === 'user' ? 0 : 1);
+    if (sourceOrder) return sourceOrder;
+  }
+
+  return (Number(b.score) || 0) - (Number(a.score) || 0) ||
+    String(a.r?.name || '').localeCompare(String(b.r?.name || ''), 'zh-Hans-CN');
+}
+
+// 首页“换一批”与首次推荐共用这一份合理本地候选池，避免 UI 自己重新排序或把
+// 没有做法/缺口过大的菜谱误当成 AI 降级前的候选。返回值保留 scoreRecipe 的
+// recipeId/source/matchedIngredients/missingIngredients 追踪字段。
+export function getReasonableInventoryRecipeRecommendations(pack, inv, context = {}, options = {}) {
+  const excludedIds = new Set(Array.isArray(options.excludeRecipeIds) ? options.excludeRecipeIds : []);
+  const limit = Number.isFinite(options.limit) ? Math.max(0, Math.trunc(options.limit)) : null;
+  const candidates = rankRecipesForRecommendation(pack, inv, context)
+    .filter(item => item.hasMethod && item.matchCount > 0 && item.missing.length <= 2)
+    .filter(item => !excludedIds.has(item.recipeId));
+  return limit === null ? candidates : candidates.slice(0, limit);
+}
+
+// 推荐 UI 的“换一批”只向前寻找尚未展示的正式菜谱；纯函数便于回归测试，
+// 也避免把轮换逻辑和 AI 请求耦合在一起。
+export function getNextUnshownRecommendationIndex(cards, currentIndex = 0, shownIds = new Set()) {
+  const seen = shownIds instanceof Set ? shownIds : new Set(shownIds || []);
+  const start = Number.isInteger(currentIndex) ? currentIndex : 0;
+  return (Array.isArray(cards) ? cards : []).findIndex((card, index) => {
+    if (index <= start) return false;
+    const key = String(card?.recipeId || card?.id || card?.name || '').trim();
+    return key && !seen.has(key);
+  });
 }
 
 // “合理候选”用于决定是否需要 AI 创意降级：至少命中一项核心食材，且缺口不超过两项，
 // 并且有可打开的做法。库存里有很多食材但没有同一道菜能合理承接时，仍返回 false。
 export function hasReasonableInventoryRecipeCandidates(pack, inv, context = {}) {
-  return rankRecipesForRecommendation(pack, inv, context)
-    .some(item => item.hasMethod && item.matchCount > 0 && item.missing.length <= 2);
+  return getReasonableInventoryRecipeRecommendations(pack, inv, context, { limit: 1 }).length > 0;
 }
 
 function compareSignatureObjects(a, b) {
@@ -917,7 +955,7 @@ function buildRecipeStapleStateSignature(recipeIngredients, context = {}) {
 
 export function buildRecommendationSignature(pack, inv, context = {}) {
   // Keep signature generation pure: callers that need persisted settings or
-  // activity must snapshot them into context (getRecommendationContext does so
+  // activity must snapshot them into context (getRecommendationContextSnapshot does so
   // at the cache boundary). Missing fields use deterministic empty defaults.
   const signatureContext = {
     ...(context && typeof context === 'object' ? context : {}),
@@ -974,7 +1012,11 @@ export function buildRecommendationSignature(pack, inv, context = {}) {
   });
 }
 
-function getRecommendationContext() {
+// buildRecommendationSignature 是纯函数，所有 storage 读取都集中在这里。签名的
+// 唯一 context 来源：推荐缓存和首页推荐会话都必须用它，不要在 view 层另拼一份
+// 缺字段的 context——少了 settings / stapleNames / stapleStates 会让菜谱包偏好和
+// 常备品状态变化无法让缓存或会话失效。
+export function getRecommendationContextSnapshot() {
   const stapleNames = getManagedStapleGroups()
     .flatMap(group => (group.items || []).map(item => item.name))
     .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hans-CN'));
@@ -1022,7 +1064,7 @@ export function getLocalRecommendations(pack, inv, forceRefresh = false) {
   const savedRecs = S.load(S.keys.local_recs, null);
   const savedSignature = S.load(S.keys.rec_signature, null);
 
-  const context = getRecommendationContext();
+  const context = getRecommendationContextSnapshot();
   const currentSignature = buildRecommendationSignature(pack, inv, context);
 
   const cacheValid = !forceRefresh && 

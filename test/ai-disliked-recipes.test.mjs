@@ -129,6 +129,54 @@ test('没有 disliked 菜名时，prompt 不包含该规则段落', async () => 
   assert.doesNotMatch(request.body.prompt, /用户之前标记过这些菜不喜欢或不合理/);
 });
 
+test('callCloudAI 默认禁止 creative，并把原始商品名标准化后再放入 prompt', async () => {
+  let request = null;
+  global.fetch = async (url, options) => {
+    request = { url, body: JSON.parse(options.body) };
+    return {
+      ok: true,
+      json: async () => ({
+        content: JSON.stringify({ local: [{ name: '清炒空心菜', reason: '本地菜谱' }], creative: null })
+      })
+    };
+  };
+
+  await callCloudAI(
+    { recipes: [{ id: 'r1', name: '清炒空心菜' }] },
+    [{ name: '青骨通菜' }, { name: '黑椒鲷鱼片' }]
+  );
+
+  assert.match(request.body.prompt, /空心菜/);
+  assert.doesNotMatch(request.body.prompt, /青骨通菜/);
+  assert.match(request.body.prompt, /不是用户明确点击“AI 创作新菜”/);
+  assert.match(request.body.prompt, /只使用部分库存/);
+});
+
+test('callCloudAI 只有显式创作请求才打开 creative，并仍要求选择部分库存', async () => {
+  let request = null;
+  global.fetch = async (url, options) => {
+    request = { url, body: JSON.parse(options.body) };
+    return {
+      ok: true,
+      json: async () => ({
+        content: JSON.stringify({
+          local: [{ name: '清炒空心菜', reason: '本地菜谱' }],
+          creative: { name: '清炒空心菜', reason: '家常', ingredients: [{ item: '空心菜' }] }
+        })
+      })
+    };
+  };
+
+  await callCloudAI(
+    { recipes: [{ id: 'r1', name: '清炒空心菜' }] },
+    [{ name: '青骨通菜' }, { name: '番茄' }],
+    { allowCreative: true }
+  );
+
+  assert.match(request.body.prompt, /用户已经明确点击“AI 创作新菜”/);
+  assert.match(request.body.prompt, /绝不要尝试把所有库存逐个塞进同一道菜/);
+});
+
 // ── 五：本地后处理过滤 ───────────────────────────────────────────────────────
 
 test('validateRecommendationResult：disliked 的 creative 名字被丢弃为 null，local 保留', () => {
