@@ -14,7 +14,7 @@ import {
 } from '../recommendations.js?v=238';
 import {
   createHomeRecSession, getRecommendationCardKey, restoreHomeRecSession
-} from '../utils/home-rec-session.js?v=236';
+} from '../utils/home-rec-session.js?v=238';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=238';
 import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=238';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=238';
