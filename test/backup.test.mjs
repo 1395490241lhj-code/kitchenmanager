@@ -364,6 +364,28 @@ test('导入后 build pack / applyOverlay 不报错（含合法 overlay.recipe_i
   });
 });
 
+test('用户 overlay 与备份恢复 round-trip 保留 recipe qty/unit', () => {
+  const ingredientRows = [
+    { item: '猪肉', qty: 250, unit: 'g' },
+    { item: '鸡蛋', qty: 2, unit: '个' },
+    { item: '盐', qty: '', unit: '' }
+  ];
+  S.save(S.keys.overlay, {
+    version: 1,
+    recipes: { r1: { name: '数量菜谱', method: '炒熟即可' } },
+    recipe_ingredients: { r1: ingredientRows },
+    deletes: {}
+  });
+
+  const backup = exportKitchenBackup();
+  S.save(S.keys.overlay, { version: 1, recipes: {}, recipe_ingredients: {}, deletes: {} });
+  importKitchenBackup(backup);
+
+  assert.deepEqual(loadOverlay().recipe_ingredients.r1, ingredientRows);
+  const pack = applyOverlay({ recipes: [], recipe_ingredients: {} }, loadOverlay());
+  assert.deepEqual(pack.recipe_ingredients.r1, ingredientRows);
+});
+
 // ── 完整备份范围：AI 不喜欢/不合理记录 + 小票用户别名 ────────────────────────
 
 test('exportKitchenBackup 包含 ai_disliked_recipes', () => {

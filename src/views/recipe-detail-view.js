@@ -1,25 +1,25 @@
-import { S, STORAGE_WRITE_FAILED_MESSAGE, todayISO, addDaysISO } from '../storage.js?v=236';
-import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=236';
-import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=236';
-import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=236';
+import { S, STORAGE_WRITE_FAILED_MESSAGE, todayISO, addDaysISO } from '../storage.js?v=238';
+import { buildCatalog, explodeCombinedItems } from '../ingredients.js?v=238';
+import { splitRecipeIngredients } from '../utils/recipe-sanitizer.js?v=238';
+import { applyCookCalibration, computeCookDeductions, getStockCoverageAnalysis, loadInventory } from '../inventory.js?v=238';
 import {
   addMissingRecipeIngredientsToShopping,
   getMissingRecipeIngredients,
   markRecipeCooked
-} from '../recommendations.js?v=236';
-import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=236';
+} from '../recommendations.js?v=238';
+import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=238';
 import {
   callAiCompleteDraftRecipe,
   withTimeout
-} from '../ai.js?v=236';
-import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=236';
-import { loadOverlay, saveOverlay } from '../backup.js?v=236';
-import { createUserRecipe } from '../components/recipe-create-modal.js?v=236';
-import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=236';
-import { showCalibrationModal } from '../components/modal.js?v=236';
-import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=236';
-import { splitMethodSteps } from '../utils/method-steps.js?v=236';
-import { isPlanRowOnDate } from '../plan-selectors.js?v=236';
+} from '../ai.js?v=238';
+import { markAiRecipeDisliked } from '../utils/ai-disliked-recipes.js?v=238';
+import { loadOverlay, saveOverlay } from '../backup.js?v=238';
+import { createUserRecipe } from '../components/recipe-create-modal.js?v=238';
+import { escapeHtml, brieflyConfirmButton, getRecipeStatusInfo, showToast } from '../components/status.js?v=238';
+import { showCalibrationModal } from '../components/modal.js?v=238';
+import { getCookShoppingCandidates, showCookCompleteFeedback } from '../components/cook-feedback.js?v=238';
+import { splitMethodSteps } from '../utils/method-steps.js?v=238';
+import { isPlanRowOnDate } from '../plan-selectors.js?v=238';
 
 // 把做法字符串渲染成 glass 分步列表（每步 escapeHtml；无步骤时返回空串，由调用方兜底）。
 function methodToListHtml(method) {

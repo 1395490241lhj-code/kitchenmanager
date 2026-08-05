@@ -1,14 +1,15 @@
-import { S, mustSave, todayISO } from './storage.js?v=236';
-import { perfCount } from './utils/perf.js?v=236';
+import { S, mustSave, todayISO } from './storage.js?v=238';
+import { perfCount } from './utils/perf.js?v=238';
 import {
   getCanonicalName,
   getDryPrepText,
   guessKitchenUnit,
   guessShelfDays,
   isDryGoodName,
+  normalizeIngredientAmount,
   normalizeReceiptIngredientName,
   normalizeKitchenAmount
-} from './ingredients.js?v=236';
+} from './ingredients.js?v=238';
 
 export function genId(){
   return 'u-' + Math.random().toString(36).slice(2,8) + '-' + Date.now().toString(36).slice(-4);
@@ -211,20 +212,21 @@ export function mergeShoppingItems(items) {
     if (!raw || !raw.name) continue;
     const name = getCanonicalName(raw.name);
     if (!name) continue;
-    const unit = raw.unit || '';
+    const normalizedAmount = normalizeIngredientAmount(raw.qty, raw.unit);
+    const unit = normalizedAmount.unit;
     const done = !!raw.done;
     const stockedIn = !!raw.stockedIn;
     // Include stockedIn in key so partially-stocked groups are never merged together
     const key = `${name}|${unit}|${done ? 'done' : 'open'}|${stockedIn ? 'stocked' : 'unstocked'}`;
     const source = cleanSource(raw.source);
-    const qty = parseQty(raw.qty);
+    const qty = parseQty(normalizedAmount.qty);
 
     if (!map.has(key)) {
       map.set(key, {
         id: raw.id || genId(),
         ids: raw.id ? [raw.id] : [],
         name,
-        qty: qty === null ? (raw.qty || '') : qty,
+        qty: qty === null ? normalizedAmount.qty : qty,
         unit,
         source,
         sources: source ? [source] : [],
@@ -418,19 +420,29 @@ export function convertShoppingItemToInventory(item, options = {}) {
 export function addShoppingItem(name, qty = '', unit = '', source = '手动', remark = '') {
   const cleanName = getCanonicalName(name || '');
   if(!cleanName) return;
-  const cleanUnit = unit || '';
+  const normalizedAmount = normalizeIngredientAmount(qty, unit);
+  const cleanQty = normalizedAmount.qty;
+  const cleanUnit = normalizedAmount.unit;
   const cleanItemSource = cleanSource(source);
   const cleanRemark = String(remark || '').trim();
   const items = loadShoppingItems();
-  const existing = items.find(item => item.name === cleanName && item.unit === cleanUnit && item.source === cleanItemSource && !item.done);
+  const existing = items.find(item => {
+    const existingAmount = normalizeIngredientAmount(item.qty, item.unit);
+    return item.name === cleanName
+      && existingAmount.unit === cleanUnit
+      && item.source === cleanItemSource
+      && !item.done;
+  });
   if(existing) {
-    const oldQty = parseQty(existing.qty);
-    const nextQty = parseQty(qty);
+    const existingAmount = normalizeIngredientAmount(existing.qty, existing.unit);
+    existing.unit = existingAmount.unit;
+    const oldQty = parseQty(existingAmount.qty);
+    const nextQty = parseQty(cleanQty);
     if (oldQty !== null && nextQty !== null) existing.qty = formatQty(oldQty + nextQty);
-    else existing.qty = existing.qty || qty || '';
+    else existing.qty = existingAmount.qty || cleanQty || '';
     if (cleanRemark) existing.remark = cleanRemark; // 新备注覆盖（仅在填写时）
   } else {
-    items.push({ id: genId(), name: cleanName, qty: qty || '', unit: cleanUnit, source: cleanItemSource, done: false, remark: cleanRemark });
+    items.push({ id: genId(), name: cleanName, qty: cleanQty, unit: cleanUnit, source: cleanItemSource, done: false, remark: cleanRemark });
   }
   saveShoppingItems(items);
 }

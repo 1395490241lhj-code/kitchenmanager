@@ -1,21 +1,21 @@
 // v156 app.js - 路由与初始化（页面渲染已拆分到 src/views/）
-import { el, els } from './src/dom.js?v=236';
-import { S } from './src/storage.js?v=236';
-import { applyOverlay, loadOverlay } from './src/backup.js?v=236';
-import { runLocalStorageMigrations } from './src/migrations.js?v=236';
-import { escapeHtml } from './src/components/status.js?v=236';
-import { renderShopping } from './src/views/shopping-view.js?v=236';
-import { renderInventory } from './src/views/inventory-view.js?v=236';
-import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=236';
-import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=236';
-import { renderHome } from './src/views/home-view.js?v=236';
-import { renderRecipes } from './src/views/recipes-view.js?v=236';
-import { renderSettings } from './src/views/settings-view.js?v=236';
-import { applyCompletionOverlay } from './src/recipe-completion.js?v=236';
-import { mergeRecipeMethods, mergeRecipeSources } from './src/recipe-library.js?v=236';
-import { initTheme } from './src/theme.js?v=236';
-import { maybeStartOnboarding } from './src/onboarding.js?v=236';
-import { initPwaInstallPrompt } from './src/pwa-install.js?v=236';
+import { el, els } from './src/dom.js?v=238';
+import { S } from './src/storage.js?v=238';
+import { applyOverlay, loadOverlay } from './src/backup.js?v=238';
+import { runLocalStorageMigrations } from './src/migrations.js?v=238';
+import { escapeHtml } from './src/components/status.js?v=238';
+import { renderShopping } from './src/views/shopping-view.js?v=238';
+import { renderInventory } from './src/views/inventory-view.js?v=238';
+import { renderRecipeEditor } from './src/views/recipe-editor-view.js?v=238';
+import { renderRecipeDetail } from './src/views/recipe-detail-view.js?v=238';
+import { renderHome } from './src/views/home-view.js?v=238';
+import { renderRecipes } from './src/views/recipes-view.js?v=238';
+import { renderSettings } from './src/views/settings-view.js?v=238';
+import { applyCompletionOverlay } from './src/recipe-completion.js?v=238';
+import { mergeRecipeMethods, mergeRecipeSources } from './src/recipe-library.js?v=238';
+import { initTheme } from './src/theme.js?v=238';
+import { maybeStartOnboarding } from './src/onboarding.js?v=238';
+import { initPwaInstallPrompt } from './src/pwa-install.js?v=238';
 
 // 尽早应用已保存的外观主题（浅色 / 深色 / 跟随系统），避免首屏闪烁。
 initTheme();

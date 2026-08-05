@@ -588,27 +588,104 @@ export function guessKitchenUnit(name) {
   return '份';
 }
 
+// Curated recipe quantities use a deliberately small canonical unit set.
+// Weight and volume are stored in the same units exposed by the inventory UI;
+// count/package units remain distinct because there is no reliable conversion
+// between (for example) one box, one bag, and one piece.
+export const RECIPE_UNIT_WHITELIST = Object.freeze([
+  'g', 'ml',
+  '个', '只', '颗', '枚', '根', '条', '片', '块', '瓣', '张', '把', '棵', '头', '支',
+  '份', '盒', '袋', '包', '瓶', '罐', '听'
+]);
+
+const INGREDIENT_UNIT_ALIASES = new Map([
+  ['g', ['g', 1]],
+  ['gram', ['g', 1]],
+  ['grams', ['g', 1]],
+  ['克', ['g', 1]],
+  ['kg', ['g', 1000]],
+  ['kgs', ['g', 1000]],
+  ['kilogram', ['g', 1000]],
+  ['kilograms', ['g', 1000]],
+  ['千克', ['g', 1000]],
+  ['公斤', ['g', 1000]],
+  ['斤', ['g', 500]],
+  ['两', ['g', 50]],
+  ['ml', ['ml', 1]],
+  ['milliliter', ['ml', 1]],
+  ['milliliters', ['ml', 1]],
+  ['millilitre', ['ml', 1]],
+  ['millilitres', ['ml', 1]],
+  ['毫升', ['ml', 1]],
+  ['l', ['ml', 1000]],
+  ['liter', ['ml', 1000]],
+  ['liters', ['ml', 1000]],
+  ['litre', ['ml', 1000]],
+  ['litres', ['ml', 1000]],
+  ['升', ['ml', 1000]],
+  ['pc', ['个', 1]],
+  ['pcs', ['个', 1]],
+  ['piece', ['个', 1]],
+  ['pieces', ['个', 1]],
+  ['box', ['盒', 1]],
+  ['boxes', ['盒', 1]],
+  ['bag', ['袋', 1]],
+  ['bags', ['袋', 1]],
+  ['pack', ['包', 1]],
+  ['packs', ['包', 1]],
+  ['package', ['包', 1]],
+  ['packages', ['包', 1]],
+  ['pkt', ['包', 1]],
+  ['pkts', ['包', 1]],
+  ['bottle', ['瓶', 1]],
+  ['bottles', ['瓶', 1]],
+  ['bunch', ['把', 1]],
+  ['bunches', ['把', 1]],
+  ['serving', ['份', 1]],
+  ['servings', ['份', 1]],
+  ['portion', ['份', 1]],
+  ['portions', ['份', 1]],
+  ...RECIPE_UNIT_WHITELIST.map(unit => [unit, [unit, 1]])
+]);
+
+function unitAliasKey(unit) {
+  const value = String(unit || '').trim();
+  return /^[\x00-\x7F]+$/.test(value) ? value.toLowerCase() : value;
+}
+
+function roundKitchenQuantity(value) {
+  return Math.round(value * 10000) / 10000;
+}
+
+/**
+ * Normalize an ingredient amount without inventing missing values.
+ * Unknown units are kept verbatim so callers retain the existing safe
+ * unit-mismatch behavior instead of assuming a conversion.
+ */
+export function normalizeIngredientAmount(qty, unit) {
+  const rawUnit = String(unit || '').trim();
+  const alias = rawUnit ? INGREDIENT_UNIT_ALIASES.get(unitAliasKey(rawUnit)) : null;
+  const canonicalUnit = alias ? alias[0] : rawUnit;
+  const factor = alias ? alias[1] : 1;
+  const missingQty = qty === '' || qty === null || qty === undefined;
+  if (missingQty) return { qty: '', unit: canonicalUnit };
+  const numericQty = Number(qty);
+  if (!Number.isFinite(numericQty)) return { qty, unit: canonicalUnit };
+  return { qty: roundKitchenQuantity(numericQty * factor), unit: canonicalUnit };
+}
+
 export function normalizeKitchenAmount(name, qty, unit, options = {}) {
   const n = options.source === 'receipt'
     ? normalizeReceiptIngredientName(name)
     : getCanonicalName(name || '');
-  let q = Number(qty) || 1;
-  let u = String(unit || '').trim();
-  const lowerUnit = u.toLowerCase();
-  if (['pcs', 'piece', 'pieces'].includes(lowerUnit)) u = '个';
-  else if (['box', 'boxes'].includes(lowerUnit)) u = '盒';
-  else if (['bag', 'bags'].includes(lowerUnit)) u = '袋';
-  else if (['pack', 'packs', 'package', 'packages', 'pkt'].includes(lowerUnit)) u = '包';
-  else if (['bottle', 'bottles'].includes(lowerUnit)) u = '瓶';
-  else if (['bunch', 'bunches'].includes(lowerUnit)) u = '把';
-
-  if (['kg', '千克', '公斤'].includes(u)) { q *= 1000; u = 'g'; }
-  if (['l', 'L', '升'].includes(u)) { q *= 1000; u = 'ml'; }
+  const normalized = normalizeIngredientAmount(Number(qty) || 1, unit);
+  let q = Number(normalized.qty) || 1;
+  let u = normalized.unit;
   if (!u) u = guessKitchenUnit(n);
   return { name: n, qty: Math.round(q * 100) / 100, unit: u };
 }
 
-import { perfMeasure as __perfMeasure } from './utils/perf.js?v=236';
+import { perfMeasure as __perfMeasure } from './utils/perf.js?v=238';
 export function buildCatalog(pack) {
   return __perfMeasure('buildCatalog', () => buildCatalogImpl(pack));
 }
@@ -636,7 +713,7 @@ function buildCatalogImpl(pack) {
 export const UNIT_TYPE = { PIECE: 'PIECE', GEAR: 'GEAR' };
 
 // 离散可数单位 → 计件
-const PIECE_UNITS = new Set(['个', '颗', '只', '根', '片', '块', '枚', '瓣', '条', '棵', '头', '张', '支', '盒', '袋', '包', '瓶', '罐', '听', '份']);
+const PIECE_UNITS = new Set(RECIPE_UNIT_WHITELIST.filter(unit => unit !== 'g' && unit !== 'ml'));
 
 /**
  * 判定食材属于「计件(PIECE)」还是「档位(GEAR)」。

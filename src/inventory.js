@@ -1,4 +1,4 @@
-import { S, mustSave, todayISO } from './storage.js?v=236';
+import { S, mustSave, todayISO } from './storage.js?v=238';
 import {
   UNIT_TYPE,
   getCanonicalName,
@@ -8,9 +8,10 @@ import {
   getUnitType,
   guessShelfDays,
   isDryGoodName,
-  isSmartIngredientMatch
-} from './ingredients.js?v=236';
-import { isSeasoningName } from './utils/recipe-sanitizer.js?v=236';
+  isSmartIngredientMatch,
+  normalizeIngredientAmount
+} from './ingredients.js?v=238';
+import { isSeasoningName } from './utils/recipe-sanitizer.js?v=238';
 
 export const FROZEN_DEFAULT_SHELF_DAYS = 30;
 
@@ -95,17 +96,24 @@ export function getStockCoverageAnalysis(inv, recipeName, qty, unit) {
     return { coveredQty: 0, confidence: 'none', matchedItems: [] };
   }
 
-  // 1. 同名且单位相同 → exact
-  const sameUnitItems = matchedItems.filter(item => (item.unit || '') === (unit || ''));
-  const sameUnitTotal = sameUnitItems.reduce((sum, item) => sum + (+item.qty || 0), 0);
+  const requiredAmount = normalizeIngredientAmount(qty, unit);
+  const normalizedItems = matchedItems.map(item => ({
+    item,
+    amount: normalizeIngredientAmount(item.qty, item.unit)
+  }));
+
+  // 1. 同名且单位相同或可安全换算到同一 canonical 单位 → exact
+  const sameUnitRows = normalizedItems.filter(row => row.amount.unit === requiredAmount.unit);
+  const sameUnitItems = sameUnitRows.map(row => row.item);
+  const sameUnitTotal = sameUnitRows.reduce((sum, row) => sum + (+row.amount.qty || 0), 0);
   if (sameUnitTotal > 0) {
     return { coveredQty: sameUnitTotal, confidence: 'exact', matchedItems: sameUnitItems };
   }
 
   // 2. 同名但单位不同，且有实际数量 → unit-mismatch
-  const differentUnitWithQty = matchedItems.filter(
-    item => (item.unit || '') !== (unit || '') && (+item.qty || 0) > 0
-  );
+  const differentUnitWithQty = normalizedItems
+    .filter(row => row.amount.unit !== requiredAmount.unit && (+row.amount.qty || 0) > 0)
+    .map(row => row.item);
   if (differentUnitWithQty.length > 0) {
     return { coveredQty: 0, confidence: 'unit-mismatch', matchedItems: differentUnitWithQty };
   }
@@ -128,7 +136,7 @@ export function getStockCoverageForNeed(inv, recipeName, qty, unit) {
   const analysis = getStockCoverageAnalysis(inv, recipeName, qty, unit);
   if (analysis.confidence === 'exact') return analysis.coveredQty;
   // unit-mismatch / status-only：保持旧行为，视为"刚好够用"
-  if (analysis.confidence !== 'none') return +qty || 1;
+  if (analysis.confidence !== 'none') return +normalizeIngredientAmount(qty, unit).qty || 1;
   return 0;
 }
 

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 
 import { S } from '../src/storage.js';
 import {
+  addShoppingItem,
   clearDoneShoppingItems,
   parseShoppingNoteText,
   mergeShoppingItems,
@@ -66,6 +67,33 @@ test('mergeShoppingItems 同名同单位合并数量', () => {
   assert.equal(merged[0].name, '苹果');
   assert.equal(merged[0].unit, '个');
   assert.equal(merged[0].qty, 5); // 2 + 3
+});
+
+test('mergeShoppingItems 合并可换算及同义单位，不产生重复行', () => {
+  const weights = mergeShoppingItems([
+    { name: '猪肉', qty: 0.5, unit: 'kg', done: false },
+    { name: '猪肉', qty: 250, unit: '克', done: false }
+  ]);
+  assert.equal(weights.length, 1);
+  assert.equal(weights[0].qty, 750);
+  assert.equal(weights[0].unit, 'g');
+
+  const pieces = mergeShoppingItems([
+    { name: '鸡蛋', qty: 1, unit: 'piece', done: false },
+    { name: '鸡蛋', qty: 2, unit: '个', done: false }
+  ]);
+  assert.equal(pieces.length, 1);
+  assert.equal(pieces[0].qty, 3);
+  assert.equal(pieces[0].unit, '个');
+});
+
+test('addShoppingItem 按 canonical 单位合并持久化购物项', () => {
+  addShoppingItem('猪肉', 0.5, 'kg', '菜谱');
+  addShoppingItem('猪肉', 250, '克', '菜谱');
+  const items = loadShoppingItems();
+  assert.equal(items.length, 1);
+  assert.equal(items[0].qty, 750);
+  assert.equal(items[0].unit, 'g');
 });
 
 test('mergeShoppingItems 同名不同单位不合并', () => {

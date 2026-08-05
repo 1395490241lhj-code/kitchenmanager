@@ -2,11 +2,11 @@
  * src/views/home/demo-kitchen.js —— 示例厨房（demo mode）状态机 + 引导横幅（从 home-view 抽出）。
  * 进入时快照真实业务数据、退出时原样恢复；步骤状态存 km_demo_step_v1，见 storage.js S.keys。
  */
-import { S } from '../../storage.js?v=236';
-import { DEMO_COPY } from '../../copy.js?v=236';
-import { escapeHtml, showToast } from '../../components/status.js?v=236';
-import { writeItemsToInventory } from '../../utils/inventory-write.js?v=236';
-import { getTodayPlanCount, setHomeTab } from './home-tab-state.js?v=236';
+import { S } from '../../storage.js?v=238';
+import { DEMO_COPY } from '../../copy.js?v=238';
+import { escapeHtml, showToast } from '../../components/status.js?v=238';
+import { writeItemsToInventory } from '../../utils/inventory-write.js?v=238';
+import { getTodayPlanCount, setHomeTab } from './home-tab-state.js?v=238';
 
 const DEMO_KITCHEN_ITEMS = [
   { name: '鸡蛋', qty: 6, unit: '个' },
