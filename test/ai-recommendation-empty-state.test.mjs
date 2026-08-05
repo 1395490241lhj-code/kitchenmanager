@@ -75,13 +75,20 @@ test('processAiData 为 AI 创意菜明确标记 creative 且不伪装成正式�
   assert.deepEqual(cards[0].matchedIngredients, ['番茄', '鸡蛋']);
 });
 
-test('initRecsState：忽略已保存的 AI 结果，首次只读取完整本地候选池', () => {
+test('initRecsState：默认读取完整本地候选池，ai_recs 只能经会话闸门被消费', () => {
   const source = homeSource();
   const fn = source.slice(source.indexOf('const initRecsState = () => {'), source.indexOf('const stepRecommendation ='));
   assert.match(fn, /const cards = getLocalCached\(\);/);
-  assert.match(fn, /return \{ mode: 'local', cards, idx: 0 \};/);
-  assert.doesNotMatch(fn, /S\.load\(S\.keys\.ai_recs/);
-  assert.doesNotMatch(fn, /processAiData/);
+  // 没有可恢复的会话时一律开新的本地轮换会话（第一项），不看 AI。
+  assert.match(fn, /return startFreshLocalSession\(\);/);
+  assert.match(source, /const startFreshLocalSession = \(\) => \{[\s\S]*?return \{ mode: 'local', cards, idx: 0 \};/);
+  // ai_recs 只用于给 restoreHomeRecSession 提供候选，且只有 mode='creative' +
+  // explicitCreativeRequested 的有效会话才会走进 creative 分支（行为断言见
+  // test/home-rec-session.test.mjs：「只有 ai_recs、没有有效 session 标记时首屏仍走本地池」）。
+  assert.match(fn, /restoreHomeRecSession\(S\.load\(S\.keys\.home_rec_session, null\)/);
+  assert.match(fn, /if \(restored\.state\.mode === 'creative'\)/);
+  const beforeRestore = fn.slice(0, fn.indexOf('const restored ='));
+  assert.doesNotMatch(beforeRestore, /return \{ mode: 'creative'/);
 });
 
 test('首页首次推荐和推荐 tab 共用本地候选调用链，不从 ai_recs 自动接管', () => {

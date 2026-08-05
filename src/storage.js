@@ -54,6 +54,7 @@ export const S = {
     local_recs: 'km_v97_local_recs',
     rec_time: 'km_v97_rec_time',
     rec_signature: 'km_v97_rec_signature',
+    home_rec_session: 'km_v1_home_rec_session',
     favorite_recipes: 'km_v80_favorite_recipes',
     recipe_usage: 'km_v95_recipe_usage',
     recipe_activity: 'km_v2_recipe_activity',

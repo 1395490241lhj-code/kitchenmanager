@@ -9,8 +9,12 @@ import {
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData,
   getReasonableInventoryRecipeRecommendations, getNextUnshownRecommendationIndex,
+  buildRecommendationSignature,
   isFavoriteRecipe, toggleFavoriteRecipe
 } from '../recommendations.js?v=236';
+import {
+  createHomeRecSession, getRecommendationCardKey, restoreHomeRecSession
+} from '../utils/home-rec-session.js?v=236';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=236';
 import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=236';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=236';
@@ -1949,34 +1953,90 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   `;
   const body = section.querySelector('.wx-body');
 
-  // 推荐 tab 状态（仅内存）：local=本地正式菜谱 / creative=用户明确请求的 AI 草稿；
-  // localShownIds 只在本次面板生命周期内记录已展示项，避免“换一批”重复。
+  // 推荐 tab 状态：local=本地正式菜谱 / local-exhausted=本地候选换完 /
+  // creative=用户明确请求的 AI 草稿。面板闭包只是本次渲染的工作副本，真正跨
+  // renderHome 存活的是 S.keys.home_rec_session（见 utils/home-rec-session.js）。
   let recsState = null;
   const localShownIds = new Set();
-  const getCardKey = card => String(card?.recipeId || card?.id || card?.name || '').trim();
-  const initRecsState = () => {
+  const getCardKey = getRecommendationCardKey;
+
+  // 会话签名复用推荐缓存那套 buildRecommendationSignature：库存 / 计划 / 收藏 /
+  // 用户菜谱 / 常备品状态任一变化都会改签名，从而让旧会话自然失效。整页只算一次。
+  let sessionSignatureCache = null;
+  const getSessionSignature = () => {
+    if (sessionSignatureCache === null) {
+      try {
+        sessionSignatureCache = buildRecommendationSignature(pack, inv, getRecommendationUiContext());
+      } catch (err) {
+        sessionSignatureCache = '';
+      }
+    }
+    return sessionSignatureCache;
+  };
+  const saveRecsSession = (mode, currentCardKey, { explicitCreativeRequested = false } = {}) => {
+    S.save(S.keys.home_rec_session, createHomeRecSession({
+      date: todayISO(),
+      signature: getSessionSignature(),
+      mode,
+      currentCardKey,
+      shownIds: [...localShownIds],
+      explicitCreativeRequested
+    }));
+  };
+
+  // 开一段全新的本地轮换会话（首次没有可用会话，或用户显式点「看本地推荐」）。
+  const startFreshLocalSession = () => {
     const cards = getLocalCached();
     localShownIds.clear();
     if (!cards.length) return { mode: 'local-empty', cards: [], idx: 0 };
     localShownIds.add(getCardKey(cards[0]));
+    saveRecsSession('local', getCardKey(cards[0]));
     return { mode: 'local', cards, idx: 0 };
+  };
+
+  // 普通渲染优先恢复仍然有效的会话，并且不回写——避免无条件覆盖一份有效会话。
+  const initRecsState = () => {
+    const cards = getLocalCached();
+    const savedCreative = S.load(S.keys.ai_recs, null);
+    // 只有会话自称 creative 时才去解码 ai_recs；单独存在的旧 ai_recs 无法接管首屏。
+    const creativeCards = savedCreative
+      ? processAiData(savedCreative, pack).filter(card => card.source === 'creative')
+      : [];
+    const restored = restoreHomeRecSession(S.load(S.keys.home_rec_session, null), {
+      date: todayISO(),
+      signature: getSessionSignature(),
+      cards,
+      creativeCards
+    });
+    if (restored.ok) {
+      localShownIds.clear();
+      restored.state.shownIds.forEach(key => localShownIds.add(key));
+      if (restored.state.mode === 'creative') {
+        return { mode: 'creative', cards: creativeCards, idx: 0 };
+      }
+      return { mode: restored.state.mode, cards, idx: restored.state.idx };
+    }
+    return startFreshLocalSession();
   };
   const stepRecommendation = (delta = 1) => {
     if (!recsState || recsState.mode !== 'local' || !recsState.cards?.length) return;
     const currentIndex = Number.isInteger(recsState.idx) ? recsState.idx : 0;
     if (delta < 0) {
       recsState.idx = Math.max(0, currentIndex - 1);
+      saveRecsSession('local', getCardKey(recsState.cards[recsState.idx]));
       switchTab('recs');
       return;
     }
     const nextIndex = getNextUnshownRecommendationIndex(recsState.cards, currentIndex, localShownIds);
     if (nextIndex < 0) {
       recsState = { ...recsState, mode: 'local-exhausted' };
+      saveRecsSession('local-exhausted', getCardKey(recsState.cards[currentIndex]));
       switchTab('recs');
       return;
     }
     localShownIds.add(getCardKey(recsState.cards[nextIndex]));
     recsState.idx = nextIndex;
+    saveRecsSession('local', getCardKey(recsState.cards[nextIndex]));
     switchTab('recs');
   };
   // 只有用户明确点击独立的“AI 创作新菜”入口时才允许 creative；“换一批”不进此函数。
@@ -1993,6 +2053,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       if (!aiCards.length) throw new Error('AI 没有返回可用的新菜草稿');
       S.save(S.keys.ai_recs, aiResult);
       recsState = { mode: 'creative', cards: aiCards, idx: 0 };
+      // 只有走到这里（用户本人点过入口且拿到可用草稿）才写 explicitCreativeRequested，
+      // 它是 creative 会话日后能被恢复的唯一凭据。
+      saveRecsSession('creative', getCardKey(aiCards[0]), { explicitCreativeRequested: true });
       switchTab('recs');
     } catch (err) {
       clearTimeout(safety);
@@ -2779,7 +2842,9 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     if (nextBtn) nextBtn.onclick = () => stepRecommendation(1);
     const localBtn = foot.querySelector('#wxRecLocal');
     if (localBtn) localBtn.onclick = () => {
-      recsState = initRecsState();
+      // 显式重置：用户主动要求回到本地推荐，按现有设计开一段新的轮换会话并清空
+      // 已展示集合。这与普通路由返回不同——后者会恢复原会话，不会重置。
+      recsState = startFreshLocalSession();
       switchTab('recs');
     };
     const creativeTrigger = foot.querySelector('#wxRecCreative');

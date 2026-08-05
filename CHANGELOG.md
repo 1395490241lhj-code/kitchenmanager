@@ -15,10 +15,12 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - 没有合理本地候选时改为展示“暂时没有合适的本地菜谱”空状态（含继续记食材／去菜谱／AI 创作新菜三个出口），替代原先仅在 AI 结果被过滤后才出现的兜底空状态。
 - 推荐排序中的用户菜谱偏好改为仅在覆盖率、缺口和命中数完全相同、且综合分接近时才生效，用户菜谱不再排到明显更匹配的系统菜谱前面。
 - 首页在既无推荐也无计划时默认停在推荐 tab，不再落到空的计划 tab。
+- 首页推荐会话现在跨完整 `renderHome` 存活：路由离开首页再返回、浏览器刷新、写库后重建面板都会恢复当前推荐卡、已展示集合、耗尽状态，以及用户本人明确生成的 creative 结果。跨天、推荐签名变化（库存／计划／收藏／用户菜谱／常备品）、当前卡片已不在候选池、会话损坏时安全重置为最新本地池第一项；只有旧 `ai_recs`、没有有效会话标记时仍然先给本地推荐。
 
 ### Tests
 
 - Added regression coverage for initial recommendations, local source/quality ordering, repeated local rotation, explicit creative gating, suspicious dish filtering, and prompt normalization.
+- Added `test/home-rec-session.test.mjs`: real serialization / restore / invalidation coverage for the home recommendation session.
 
 ## 2026-08-01 (AI service live diagnosis)
 
