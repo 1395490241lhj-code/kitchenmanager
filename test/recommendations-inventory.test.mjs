@@ -10,8 +10,11 @@ import { installLocalStorageStub, resetLocalStorage } from './helpers/localstora
 import {
   analyzeRecipeInventory,
   calculateStockStatus,
-  getMissingRecipeIngredients
+  getMissingRecipeIngredients,
+  scoreRecipe
 } from '../src/recommendations.js';
+import { STAPLE_STATUS, setStapleStatus } from '../src/staples.js';
+import { loadShoppingItems } from '../src/shopping.js';
 
 beforeEach(() => {
   installLocalStorageStub();
@@ -187,6 +190,66 @@ test('核心食材 + 高汤/十三香/咖喱 → 只对核心做缺货判断，�
   for (const s of ['高汤', '十三香', '咖喱', '清水']) {
     assert.ok(!names(a.missing).includes(s), `${s} 不应进 missing`);
   }
+});
+
+test('Curated 新角色不降低库存/推荐/徽标，但保留用户标记常备品断货后的购物闭环', () => {
+  const recipe = { id: 'curated-role-r', name: '角色语义菜', method: '炒熟即可' };
+  const pack = {
+    recipes: [recipe],
+    recipe_ingredients: {
+      [recipe.id]: [
+        { item: '鸡肉' },
+        { item: '泡辣椒' },
+        { item: '鱼辣椒' },
+        { item: '豆腐乳汁' },
+        { item: '净辣椒油' },
+        { item: '二汤' },
+        { item: '奶汤' },
+        { item: '特级奶汤' }
+      ]
+    }
+  };
+  const inventory = [{ name: '鸡肉', qty: 1, unit: '', stockStatus: 'ok' }];
+  const analysis = analyzeRecipeInventory(recipe, pack, inventory);
+  assert.equal(analysis.totalCore, 1);
+  assert.equal(analysis.matchCount, 1);
+  assert.equal(analysis.coverage, 1);
+  assert.equal(analysis.status, 'ok');
+  assert.deepEqual(analysis.missing, []);
+  assert.deepEqual(calculateStockStatus(recipe, pack, inventory), {
+    status: 'ok',
+    missing: [],
+    uncertain: [],
+    needsConfirm: [],
+    coverageConfidence: 'exact'
+  });
+
+  const score = scoreRecipe(recipe, pack, inventory, {
+    plan: [], favoriteIds: [], recipeActivity: {}, today: '2026-06-11'
+  });
+  assert.equal(score.totalCore, 1);
+  assert.equal(score.matchCount, 1);
+  assert.equal(score.missing.length, 0);
+  const scoreWithNonCoreStock = scoreRecipe(recipe, pack, [
+    ...inventory,
+    { name: '泡辣椒', qty: 1, unit: '', stockStatus: 'ok' },
+    { name: '二汤', qty: 1, unit: '', stockStatus: 'ok' }
+  ], {
+    plan: [], favoriteIds: [], recipeActivity: {}, today: '2026-06-11'
+  });
+  assert.equal(scoreWithNonCoreStock.score, score.score);
+
+  // 泡辣椒 is a configured staple (泡椒 in the catalog). An explicit
+  // out-of-stock mark must still surface it as a shopping item even though
+  // the recipe role is seasoning rather than core.
+  setStapleStatus('泡辣椒', STAPLE_STATUS.INSUFFICIENT);
+  const afterStapleDepletion = analyzeRecipeInventory(recipe, pack, inventory);
+  assert.equal(afterStapleDepletion.totalCore, 1);
+  assert.equal(afterStapleDepletion.coverage, 1);
+  assert.equal(afterStapleDepletion.status, 'partial');
+  assert.deepEqual(afterStapleDepletion.missing.map(item => item.name), ['泡辣椒']);
+  assert.equal(afterStapleDepletion.missing[0].source, 'staple');
+  assert.ok(loadShoppingItems().some(item => item.name === '泡辣椒' && item.source === '常备品'));
 });
 
 // 守门：豆制品同义并入后，库存有同义品 → 不应误判缺货

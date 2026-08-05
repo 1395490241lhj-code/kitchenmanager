@@ -164,7 +164,7 @@ test('default runtime quality covers the final Curated and Full merge chain', as
     missingMethods: 0,
     ingredientMaps: 403,
     missingIngredientMaps: 0,
-    ingredientEntries: 2279,
+    ingredientEntries: 2281,
     duplicateIds: 0,
     duplicateNames: 0,
     orphanIngredientMaps: 0
@@ -186,6 +186,34 @@ test('default runtime quality covers the final Curated and Full merge chain', as
   assert.ok(report.modes.curated.warningCounts['ingredient-step-mismatch'] > 0);
   assert.ok(report.modes.curated.warningCounts['repeated-ingredients'] > 0);
   assert.ok(report.modes.curated.warningCounts['repeated-methods'] > 0);
+});
+
+test('Curated runtime keeps both reviewed ingredient omissions and clears their mismatch warnings', async () => {
+  const runtime = await buildDefaultRuntimePacks();
+  const expected = [
+    ['ex--36f76a55', '椒盐虾饼', '虾仁'],
+    ['ex--9f93d3f9', '炸豆芽饼', '鸡蛋']
+  ];
+  for (const [id, name, item] of expected) {
+    const recipe = runtime.packs.curated.recipes.find(entry => entry.id === id);
+    assert.equal(recipe?.name, name);
+    const mapped = runtime.packs.curated.recipe_ingredients[id] || [];
+    assert.equal(mapped.some(entry => entry.item === item), true, `${name} must map ${item}`);
+    assert.ok(mapped.every(entry => Object.keys(entry).every(key => key === 'item')));
+  }
+
+  const report = analyzeRuntimeQuality({
+    ...runtime,
+    baseline: readJson(BASELINE_PATH),
+    manifest: readJson(MANIFEST_PATH)
+  });
+  const mismatchIds = new Set(
+    report.modes.curated.warnings
+      .filter(issue => issue.code === 'ingredient-step-mismatch')
+      .map(issue => issue.id)
+  );
+  assert.equal(mismatchIds.has('ex--36f76a55'), false);
+  assert.equal(mismatchIds.has('ex--9f93d3f9'), false);
 });
 
 test('ID baseline and deterministic empty manifest cover the completed runtime map set', async () => {

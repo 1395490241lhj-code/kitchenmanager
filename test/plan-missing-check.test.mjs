@@ -139,6 +139,31 @@ test('加入计划缺菜与推荐/买菜共用同一核心食材口径（菜名�
   assert.deepEqual(missing.map(item => item.name), ['番茄', '鸡蛋']);
 });
 
+test('计划缺菜排除 Curated 调料与成品汤底角色，不把它们写入买菜候选', () => {
+  const recipe = { id: 'curated-role-plan', name: '角色计划菜', method: '炖熟即可' };
+  const pack = {
+    recipes: [recipe],
+    recipe_ingredients: {
+      [recipe.id]: [
+        { item: '鸡肉' },
+        { item: '泡辣椒' },
+        { item: '鱼辣椒' },
+        { item: '豆腐乳汁' },
+        { item: '净辣椒油' },
+        { item: '二汤' },
+        { item: '奶汤' },
+        { item: '特级奶汤' }
+      ]
+    }
+  };
+  const inventory = [{ name: '鸡肉', qty: 1, unit: '', stockStatus: 'ok' }];
+  assert.deepEqual(getPlanMissingItems(recipe, pack, inventory), []);
+  assert.deepEqual(
+    getPlanMissingItems(recipe, pack, []).map(item => item.name),
+    ['鸡肉']
+  );
+});
+
 test('用户取消后只保留今日计划，不加入买菜清单', async () => {
   const result = await addRecipeToPlanWithMissingCheck('tomato-egg-noodle', PACK, BASE_INV, {
     toast: false,
