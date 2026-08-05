@@ -13,7 +13,12 @@ import {
   remainingDays
 } from './inventory.js?v=236';
 import { addShoppingItem } from './shopping.js?v=236';
-import { isPantryStaple, isStapleOutOfStock } from './staples.js?v=236';
+import {
+  STAPLE_CATALOG,
+  getManagedStapleGroups,
+  isPantryStaple,
+  isStapleOutOfStock
+} from './staples.js?v=236';
 import { normalizeText, searchRecipes as searchRecipesByText } from './recipe-search.js?v=236';
 import { isPlanRowOnDate } from './plan-selectors.js?v=236';
 import { isAiRecipeDisliked } from './utils/ai-disliked-recipes.js?v=236';
@@ -838,7 +843,87 @@ export function hasReasonableInventoryRecipeCandidates(pack, inv, context = {}) 
     .some(item => item.hasMethod && item.matchCount > 0 && item.missing.length <= 2);
 }
 
-export function buildRecommendationSignature(pack, inv, context) {
+function compareSignatureObjects(a, b) {
+  return JSON.stringify(a).localeCompare(JSON.stringify(b), 'en');
+}
+
+function buildRecipeIngredientSignature(pack) {
+  return Object.entries(pack?.recipe_ingredients || {})
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'zh-Hans-CN'))
+    .map(([id, list]) => {
+      const source = Array.isArray(list)
+        ? list.map(item => typeof item === 'string' ? { item } : item)
+        : [];
+      const ingredients = explodeCombinedItems(source)
+        .map(item => {
+          const rawName = String(item?.item || item?.name || '').trim();
+          const canonical = getCanonicalName(rawName);
+          if (!canonical) return null;
+          return {
+            canonical,
+            role: classifyRecipeIngredient(canonical).role
+          };
+        })
+        .filter(Boolean)
+        .sort(compareSignatureObjects);
+      return { id: String(id), ingredients };
+    });
+}
+
+function getSignatureStapleNames(context = {}) {
+  const names = new Set();
+  for (const group of STAPLE_CATALOG) {
+    for (const raw of group.items || []) {
+      const canonical = getCanonicalName(raw);
+      if (canonical) names.add(canonical);
+    }
+  }
+  for (const raw of (Array.isArray(context.stapleNames) ? context.stapleNames : [])) {
+    const canonical = getCanonicalName(raw);
+    if (canonical) names.add(canonical);
+  }
+  return names;
+}
+
+function getSignatureStapleStates(context = {}) {
+  const source = context.stapleStates || context.stapleStatusByName || context.staples || {};
+  const entries = source instanceof Map ? Array.from(source.entries()) : Object.entries(source || {});
+  const states = new Map();
+  for (const [rawName, value] of entries) {
+    const canonical = getCanonicalName(rawName);
+    if (!canonical) continue;
+    const status = value && typeof value === 'object' ? value.status : value;
+    states.set(canonical, status === 'INSUFFICIENT' ? 'INSUFFICIENT' : 'SUFFICIENT');
+  }
+  return states;
+}
+
+function buildRecipeStapleStateSignature(recipeIngredients, context = {}) {
+  const knownStaples = getSignatureStapleNames(context);
+  const states = getSignatureStapleStates(context);
+  const recipeNames = new Set();
+  for (const recipe of recipeIngredients) {
+    for (const ingredient of recipe.ingredients || []) {
+      if (knownStaples.has(ingredient.canonical)) recipeNames.add(ingredient.canonical);
+    }
+  }
+  return Array.from(recipeNames)
+    .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+    .map(canonical => ({
+      canonical,
+      status: states.get(canonical) || 'SUFFICIENT'
+    }));
+}
+
+export function buildRecommendationSignature(pack, inv, context = {}) {
+  // Keep signature generation pure: callers that need persisted settings or
+  // activity must snapshot them into context (getRecommendationContext does so
+  // at the cache boundary). Missing fields use deterministic empty defaults.
+  const signatureContext = {
+    ...(context && typeof context === 'object' ? context : {}),
+    settings: context?.settings ?? {},
+    recipeActivity: context?.recipeActivity ?? context?.recipe_activity ?? {}
+  };
   const safeInv = (inv || []).map(item => ({
     name: item.name || '',
     qty: item.qty ?? '',
@@ -847,20 +932,20 @@ export function buildRecommendationSignature(pack, inv, context) {
     buyDate: item.buyDate || '',
     shelf: item.shelf ?? '',
     kind: item.kind || ''
-  })).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN') || (a.buyDate || '').localeCompare(b.buyDate || '') || (a.kind || '').localeCompare(b.kind || ''));
+  })).sort(compareSignatureObjects);
 
-  const safePlan = (context.plan || []).map(p => ({
+  const safePlan = (signatureContext.plan || []).map(p => ({
     id: p.id || '',
     servings: p.servings ?? 1
-  })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  })).sort(compareSignatureObjects);
 
-  const safeFavorites = (context.favoriteIds || []).slice().sort();
-  const safeRecipePackPreferences = getRecipePackPreferenceScoringContext(context)
+  const safeFavorites = Array.from(normalizeRecommendationSet(signatureContext.favoriteIds)).sort();
+  const safeRecipePackPreferences = getRecipePackPreferenceScoringContext(signatureContext)
     .enabledPackIds
     .slice()
     .sort();
 
-  const activityData = context.recipeActivity || context.recipe_activity || loadRecipeActivity();
+  const activityData = signatureContext.recipeActivity;
   const safeActivity = Object.entries(activityData)
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([id, val]) => {
@@ -871,7 +956,7 @@ export function buildRecommendationSignature(pack, inv, context) {
     });
 
   const recipesCount = (pack.recipes || []).length;
-  
+  const recipeIngredients = buildRecipeIngredientSignature(pack);
   const ingSummary = Object.entries(pack.recipe_ingredients || {})
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([id, list]) => `${id}:${(list || []).length}`);
@@ -883,16 +968,25 @@ export function buildRecommendationSignature(pack, inv, context) {
     recipePackPrefs: safeRecipePackPreferences,
     activity: safeActivity,
     recCount: recipesCount,
-    ingSum: ingSummary
+    ingSum: ingSummary,
+    recipeIngredients,
+    stapleStates: buildRecipeStapleStateSignature(recipeIngredients, signatureContext)
   });
 }
 
 function getRecommendationContext() {
+  const stapleNames = getManagedStapleGroups()
+    .flatMap(group => (group.items || []).map(item => item.name))
+    .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hans-CN'));
   return {
     favoriteIds: loadFavoriteRecipeIds(),
     recipeActivity: loadRecipeActivity(),
     plan: S.load(S.keys.plan, []),
     settings: S.load(S.keys.settings, {}),
+    // Snapshot storage at the context boundary so buildRecommendationSignature
+    // stays pure/testable and only includes states related to recipe ingredients.
+    stapleNames,
+    stapleStates: S.load(S.keys.staples, {}),
     today: todayISO()
   };
 }

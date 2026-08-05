@@ -77,6 +77,16 @@ export function normalizeText(text) {
 //       这里只补它没有的酱料 / 调味 / 豆制品细分等。
 // ──────────────────────────────────────────────────────────────────────────
 export const SEARCH_SYNONYMS = {
+  // —— 生产匹配层统一的 seasoning / protein 词（保留 recipe map 原始展示名）——
+  '胡椒': ['胡椒', '胡椒面', '胡椒粉'],
+  '糖': ['糖', '白糖'],
+  // 选用现有库存/常备 canonical「菜油」；「食用油」是泛称 alias，
+  // 不把香油、猪油、辣椒油等特定油类扩进来。
+  '菜油': ['菜油', '食用油'],
+  '猪肉': ['猪肉', '瘦肉'],
+  '鸡肉': ['鸡肉', '仔鸡', '鸡脯肉', '鸡脯', '鸡胸', '鸡胸肉', '鸡柳'],
+  '青椒': ['青椒', '菜椒', '甜椒', '尖椒', '螺丝椒', '灯笼椒', '青辣椒'],
+  '辣椒': ['辣椒', '小米辣', '红椒', '二荆条', '线椒', '朝天椒'],
   // —— 酱料 / 酱油 / 醋 / 酒 ——
   '豆瓣酱': ['豆瓣酱', '豆瓣', '郫县豆瓣', '郫县豆瓣酱', '红油豆瓣酱', '辣豆瓣酱', '细豆瓣'],
   '黄豆酱': ['黄豆酱', '豆酱', '大豆酱', '黄酱'],
@@ -90,7 +100,6 @@ export const SEARCH_SYNONYMS = {
   // —— 辣味调料 / 花椒 ——
   '花椒': ['花椒', '红花椒', '青花椒', '藤椒', '麻椒', '花椒粒', '花椒面', '花椒粉'],
   '干辣椒': ['干辣椒', '干海椒', '干红辣椒', '辣椒节', '辣椒面', '辣椒粉', '糊辣椒'],
-  '辣椒': ['辣椒', '小米辣', '二荆条', '线椒', '朝天椒', '红椒'],
   '泡椒': ['泡椒', '泡辣椒', '泡海椒', '野山椒', '鱼辣椒'],
   '剁椒': ['剁椒', '剁辣椒'],
   // —— 葱姜蒜（与库存口径一致，便于查询侧归一）——
@@ -315,6 +324,11 @@ export function scoreRecipe(recipe, query, pack, context = {}) {
   // 查询归一化：得到 canonical（郫县豆瓣→豆瓣酱、西红柿→番茄、香干→豆干…）。
   const qCanon = normalizeIngredientName(query);
   const qCanonNorm = normalizeText(qCanon);
+  // A declared synonym group is an exact semantic scope.  Do not fall back
+  // to substring matching for a different canonical seasoning (e.g. 糖 must
+  // not pull in 红糖/冰糖); uncatalogued generic terms such as「油」keep the
+  // historical broad search behavior below.
+  const hasScopedSeasoningSynonyms = Object.prototype.hasOwnProperty.call(SEARCH_SYNONYMS, qCanon);
   // 是否「明确在搜调料」（决定是否给调料命中正常权重，避免非调料查询被调料污染）。
   const qIsSeasoning = isSeasoning(qCanon) || SEASONING_CANON_SET.has(qCanonNorm);
   // 单字蛋白锚点（鱼/鸡/蛋/牛/猪/虾）：菜名「假朋友」防护用。
@@ -391,7 +405,10 @@ export function scoreRecipe(recipe, query, pack, context = {}) {
     for (const s of fields.seasonings) {
       const sCanonNorm = normalizeText(normalizeIngredientName(s));
       if (sCanonNorm && sCanonNorm === qCanonNorm) { bestSeas = W.seasoningCanon; bestSeasName = s; break; }
-      if (!bestSeas && normalizeText(s).includes(q)) { bestSeas = W.seasoning; bestSeasName = s; }
+      if (!bestSeas && !hasScopedSeasoningSynonyms && normalizeText(s).includes(q)) {
+        bestSeas = W.seasoning;
+        bestSeasName = s;
+      }
     }
     if (bestSeas > 0) { score += bestSeas; reasons.push(`匹配调料：${bestSeasName}`); }
   }
