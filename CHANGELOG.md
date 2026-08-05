@@ -16,6 +16,7 @@ Keep entries concise. Use this file for what changed, not for long design discus
 - 推荐排序中的用户菜谱偏好改为仅在覆盖率、缺口和命中数完全相同、且综合分接近时才生效，用户菜谱不再排到明显更匹配的系统菜谱前面。
 - 首页在既无推荐也无计划时默认停在推荐 tab，不再落到空的计划 tab。
 - 首页推荐会话现在跨完整 `renderHome` 存活：路由离开首页再返回、浏览器刷新、写库后重建面板都会恢复当前推荐卡、已展示集合、耗尽状态，以及用户本人明确生成的 creative 结果。跨天、推荐签名变化（库存／计划／收藏／用户菜谱／常备品）、当前卡片已不在候选池、会话损坏时安全重置为最新本地池第一项；只有旧 `ai_recs`、没有有效会话标记时仍然先给本地推荐。
+- 首页推荐会话签名改用与推荐缓存统一的 `getRecommendationContextSnapshot()`：此前用的 UI context 缺少 `settings` / `stapleNames` / `stapleStates`，导致修改启用的菜谱包、把相关常备品改为断货或补货、以及调整自定义常备品配置都无法让会话失效。无关常备品仍不会制造签名抖动。
 
 ### Tests
 

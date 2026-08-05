@@ -9,7 +9,7 @@ import {
   findRecipesByName, findRecipesUsingIngredients, hasRecipeMethod, rankRecipesForRecommendation,
   getCleanFridgeRecommendations, getGenericIngredientRecipeRecommendations, getRecipeVariantRecommendations, processAiData,
   getReasonableInventoryRecipeRecommendations, getNextUnshownRecommendationIndex,
-  buildRecommendationSignature,
+  buildRecommendationSignature, getRecommendationContextSnapshot,
   isFavoriteRecipe, toggleFavoriteRecipe
 } from '../recommendations.js?v=236';
 import {
@@ -1960,13 +1960,15 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   const localShownIds = new Set();
   const getCardKey = getRecommendationCardKey;
 
-  // 会话签名复用推荐缓存那套 buildRecommendationSignature：库存 / 计划 / 收藏 /
-  // 用户菜谱 / 常备品状态任一变化都会改签名，从而让旧会话自然失效。整页只算一次。
+  // 会话签名与推荐缓存共用同一份 context snapshot：getRecommendationUiContext()
+  // 少了 settings / stapleNames / stapleStates，用它算签名会让菜谱包偏好和常备品
+  // 状态变化无法让会话失效，因此这里必须用 getRecommendationContextSnapshot()。
+  // 候选排序仍沿用 getRecommendationUiContext()，本处只统一签名口径。整页只算一次。
   let sessionSignatureCache = null;
   const getSessionSignature = () => {
     if (sessionSignatureCache === null) {
       try {
-        sessionSignatureCache = buildRecommendationSignature(pack, inv, getRecommendationUiContext());
+        sessionSignatureCache = buildRecommendationSignature(pack, inv, getRecommendationContextSnapshot());
       } catch (err) {
         sessionSignatureCache = '';
       }

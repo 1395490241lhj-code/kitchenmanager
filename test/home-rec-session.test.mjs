@@ -15,9 +15,11 @@ import {
   buildRecommendationSignature,
   getNextUnshownRecommendationIndex,
   getReasonableInventoryRecipeRecommendations,
+  getRecommendationContextSnapshot,
   processAiData
 } from '../src/recommendations.js';
-import { S } from '../src/storage.js';
+import { S, todayISO } from '../src/storage.js';
+import { STAPLE_STATUS, addCustomPantryEntry, setStapleStatus } from '../src/staples.js';
 
 beforeEach(() => {
   installLocalStorageStub();
@@ -42,8 +44,19 @@ const PACK = {
   }
 };
 const INV = [{ name: '番茄', qty: 4, unit: '个', stockStatus: 'ok' }];
-const CONTEXT = { favoriteIds: [], recipeActivity: {}, plan: [], today: '2026-06-11' };
-const TODAY = '2026-06-11';
+const CONTEXT = { favoriteIds: [], recipeActivity: {}, plan: [], today: todayISO() };
+const TODAY = todayISO();
+
+// 含常备品食材的菜谱：用来验证「相关常备品状态 / 名称变化必须改签名」。
+const STAPLE_PACK = {
+  recipes: [{ id: 'staple-r', name: '常备品菜', method: '做' }],
+  recipe_ingredients: { 'staple-r': [{ item: '番茄' }, { item: '盐' }] }
+};
+// 完全不含任何常备品食材的菜谱：用来验证「无关常备品不制造签名抖动」。
+const NO_STAPLE_PACK = {
+  recipes: [{ id: 'plain-r', name: '无常备品菜', method: '做' }],
+  recipe_ingredients: { 'plain-r': [{ item: '番茄' }] }
+};
 
 function localCards() {
   return getReasonableInventoryRecipeRecommendations(PACK, INV, CONTEXT).map(item => ({
@@ -54,8 +67,14 @@ function localCards() {
   }));
 }
 
+// 与 home-view 的 getSessionSignature 完全同源：真实 storage snapshot，
+// 不手工拼一个永远正确的 context 对象。
+function signatureOf(pack = PACK, inv = INV) {
+  return buildRecommendationSignature(pack, inv, getRecommendationContextSnapshot());
+}
+
 function signature() {
-  return buildRecommendationSignature(PACK, INV, CONTEXT);
+  return signatureOf();
 }
 
 // 模拟一次完整 renderHome：面板闭包被丢弃，只剩 localStorage 里的会话。
@@ -180,7 +199,7 @@ test('recommendation signature 变化重置；库存变化确实改变签名', (
   saveSession('local', cards[2].recipeId, cards.slice(0, 3).map(card => card.recipeId));
 
   const changedInv = [...INV, { name: '豆腐', qty: 1, unit: '块', stockStatus: 'ok' }];
-  const changedSignature = buildRecommendationSignature(PACK, changedInv, CONTEXT);
+  const changedSignature = signatureOf(PACK, changedInv);
   assert.notEqual(changedSignature, signature(), '库存变化必须改变签名');
 
   const after = simulateRenderHome({ sig: changedSignature });
@@ -191,8 +210,105 @@ test('recommendation signature 变化重置；库存变化确实改变签名', (
 
 test('收藏与计划变化也会改变签名，从而让旧会话失效', () => {
   const base = signature();
-  assert.notEqual(buildRecommendationSignature(PACK, INV, { ...CONTEXT, favoriteIds: ['user-1'] }), base);
-  assert.notEqual(buildRecommendationSignature(PACK, INV, { ...CONTEXT, plan: [{ id: 'user-1', servings: 1 }] }), base);
+  assert.notEqual(buildRecommendationSignature(PACK, INV, { ...getRecommendationContextSnapshot(), favoriteIds: ['user-1'] }), base);
+  assert.notEqual(buildRecommendationSignature(PACK, INV, { ...getRecommendationContextSnapshot(), plan: [{ id: 'user-1', servings: 1 }] }), base);
+});
+
+test('相关常备品 SUFFICIENT → INSUFFICIENT 会改变签名并使会话失效', () => {
+  const before = signatureOf(STAPLE_PACK);
+  saveSession('local', 'staple-r', ['staple-r']);
+  const savedSignature = S.load(S.keys.home_rec_session, null).signature;
+
+  setStapleStatus('盐', STAPLE_STATUS.INSUFFICIENT);
+  const after = signatureOf(STAPLE_PACK);
+  assert.notEqual(after, before, '相关常备品断货必须改变签名');
+
+  // 会话按新签名校验时安全失效（会话是用 PACK 的签名存的，这里直接用新签名校验）。
+  const restored = restoreHomeRecSession(S.load(S.keys.home_rec_session, null), {
+    date: TODAY,
+    signature: signatureOf(STAPLE_PACK),
+    cards: [{ recipeId: 'staple-r' }]
+  });
+  assert.equal(savedSignature === signatureOf(STAPLE_PACK), false);
+  assert.equal(restored.ok, false);
+  assert.equal(restored.reason, 'signature-changed');
+});
+
+test('相关常备品 INSUFFICIENT → SUFFICIENT 会再次改变签名', () => {
+  setStapleStatus('盐', STAPLE_STATUS.INSUFFICIENT);
+  const insufficient = signatureOf(STAPLE_PACK);
+
+  setStapleStatus('盐', STAPLE_STATUS.SUFFICIENT);
+  const sufficient = signatureOf(STAPLE_PACK);
+  assert.notEqual(sufficient, insufficient, '常备品补货必须再次改变签名');
+});
+
+test('修改启用的菜谱包设置会改变签名并使会话失效', () => {
+  const before = signature();
+  saveSession('local', localCards()[0].recipeId, [localCards()[0].recipeId]);
+
+  S.save(S.keys.settings, { ...S.load(S.keys.settings, {}), enabledRecipePackIds: ['basic-home'] });
+  const after = signature();
+  assert.notEqual(after, before, '菜谱包偏好变化必须改变签名');
+
+  const restored = restoreHomeRecSession(S.load(S.keys.home_rec_session, null), {
+    date: TODAY,
+    signature: after,
+    cards: localCards()
+  });
+  assert.equal(restored.ok, false);
+  assert.equal(restored.reason, 'signature-changed');
+});
+
+test('自定义 managed staple 名称与菜谱食材相关时会反映到签名', () => {
+  const relatedPack = {
+    recipes: [{ id: 'shiitake-r', name: '香菇菜', method: '做' }],
+    recipe_ingredients: { 'shiitake-r': [{ item: '番茄' }, { item: '香菇' }] }
+  };
+  const before = signatureOf(relatedPack);
+
+  // 香菇原本不是 managed staple，其状态不进签名；加为自定义常备品后应进入签名。
+  addCustomPantryEntry({ name: '香菇', group: '生鲜常备' });
+  const snapshot = getRecommendationContextSnapshot();
+  assert.equal(snapshot.stapleNames.includes('香菇'), true, 'stapleNames 应包含新增自定义常备品');
+
+  const after = signatureOf(relatedPack);
+  assert.notEqual(after, before, '与菜谱食材相关的自定义常备品名称变化必须改变签名');
+});
+
+test('无关常备品状态变化不制造签名抖动', () => {
+  // NO_STAPLE_PACK 不含任何常备品食材，任何常备品状态变化都不该影响它的签名。
+  const before = signatureOf(NO_STAPLE_PACK);
+  setStapleStatus('酱油', STAPLE_STATUS.INSUFFICIENT);
+  assert.equal(signatureOf(NO_STAPLE_PACK), before, '无关常备品断货不应改变签名');
+  setStapleStatus('生抽', STAPLE_STATUS.INSUFFICIENT);
+  assert.equal(signatureOf(NO_STAPLE_PACK), before, '无关常备品断货不应改变签名');
+
+  // 含「盐」的菜谱同样不受「生抽」影响，只受自己用到的常备品影响。
+  const stapleBefore = signatureOf(STAPLE_PACK);
+  setStapleStatus('老抽', STAPLE_STATUS.INSUFFICIENT);
+  assert.equal(signatureOf(STAPLE_PACK), stapleBefore, '菜谱没用到的常备品不应改变签名');
+  setStapleStatus('盐', STAPLE_STATUS.INSUFFICIENT);
+  assert.notEqual(signatureOf(STAPLE_PACK), stapleBefore, '菜谱用到的常备品必须改变签名');
+});
+
+test('home-view 的会话签名使用统一 snapshot，而不是不完整的 UI context', () => {
+  const source = homeSource();
+  const fn = source.slice(source.indexOf('const getSessionSignature = () => {'), source.indexOf('const saveRecsSession ='));
+  assert.match(fn, /buildRecommendationSignature\(pack, inv, getRecommendationContextSnapshot\(\)\)/);
+  assert.doesNotMatch(fn, /getRecommendationUiContext/);
+  // snapshot 只有一份实现，view 层不得另拼一套 context。
+  assert.doesNotMatch(source, /stapleStates: S\.load/);
+  assert.doesNotMatch(source, /getManagedStapleGroups/);
+});
+
+test('统一 snapshot 覆盖签名所需的全部字段', () => {
+  const snapshot = getRecommendationContextSnapshot();
+  for (const key of ['favoriteIds', 'recipeActivity', 'plan', 'settings', 'stapleNames', 'stapleStates', 'today']) {
+    assert.ok(Object.prototype.hasOwnProperty.call(snapshot, key), `snapshot 缺少 ${key}`);
+  }
+  assert.ok(Array.isArray(snapshot.stapleNames));
+  assert.ok(snapshot.stapleNames.length > 0);
 });
 
 test('当前卡片已从候选池移除时安全重置', () => {

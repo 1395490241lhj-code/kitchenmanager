@@ -629,7 +629,7 @@ export function findRecipesUsingIngredients(pack, inv, targetNames, options = {}
         .map(name => ({ canonical: name, candidates: [name] }));
   if (!descriptors.length) return [];
 
-  const baseContext = options.context || getRecommendationContext();
+  const baseContext = options.context || getRecommendationContextSnapshot();
   const context = {
     ...baseContext,
     recipePackPreferenceScoring: getRecipePackPreferenceScoringContext(baseContext)
@@ -955,7 +955,7 @@ function buildRecipeStapleStateSignature(recipeIngredients, context = {}) {
 
 export function buildRecommendationSignature(pack, inv, context = {}) {
   // Keep signature generation pure: callers that need persisted settings or
-  // activity must snapshot them into context (getRecommendationContext does so
+  // activity must snapshot them into context (getRecommendationContextSnapshot does so
   // at the cache boundary). Missing fields use deterministic empty defaults.
   const signatureContext = {
     ...(context && typeof context === 'object' ? context : {}),
@@ -1012,7 +1012,11 @@ export function buildRecommendationSignature(pack, inv, context = {}) {
   });
 }
 
-function getRecommendationContext() {
+// buildRecommendationSignature 是纯函数，所有 storage 读取都集中在这里。签名的
+// 唯一 context 来源：推荐缓存和首页推荐会话都必须用它，不要在 view 层另拼一份
+// 缺字段的 context——少了 settings / stapleNames / stapleStates 会让菜谱包偏好和
+// 常备品状态变化无法让缓存或会话失效。
+export function getRecommendationContextSnapshot() {
   const stapleNames = getManagedStapleGroups()
     .flatMap(group => (group.items || []).map(item => item.name))
     .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hans-CN'));
@@ -1060,7 +1064,7 @@ export function getLocalRecommendations(pack, inv, forceRefresh = false) {
   const savedRecs = S.load(S.keys.local_recs, null);
   const savedSignature = S.load(S.keys.rec_signature, null);
 
-  const context = getRecommendationContext();
+  const context = getRecommendationContextSnapshot();
   const currentSignature = buildRecommendationSignature(pack, inv, context);
 
   const cacheValid = !forceRefresh && 
