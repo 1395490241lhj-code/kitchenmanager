@@ -212,11 +212,18 @@ test('batch plan covers the catalog once in 10–15 item catalog-order batches',
   const flattenedEntryIds = [];
   for (const batch of json.batchPlan.batches) {
     assert.equal(batch.applicationReady, false);
-    assert.ok(['planned-not-started', 'completed-primary-reviewed'].includes(batch.status));
-    if (batch.status === 'completed-primary-reviewed') {
+    assert.ok([
+      'planned-not-started',
+      'completed-primary-reviewed',
+      'completed-external-reviewed',
+    ].includes(batch.status));
+    if (batch.status !== 'planned-not-started') {
       assert.equal(batch.processedEntryCount, batch.entryCount);
       assert.equal(batch.processing.workerVisualReview, true);
-      assert.equal(batch.processing.primaryVisualReview, true);
+      assert.ok(
+        batch.processing.primaryVisualReview === true
+          || batch.processing.externalVisualReview?.completed === true,
+      );
       assert.equal(batch.processing.ocrUsedAsAuthority, false);
     }
     assert.ok(batch.entryCount >= 10 && batch.entryCount <= 15);
