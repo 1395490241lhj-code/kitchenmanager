@@ -233,6 +233,63 @@ test('approved pilot readings remain intact whenever their recipes are processed
   }
 });
 
+test('batch five readings keep consumed, grouped, and approximate quantities distinct', () => {
+  const byName = new Map(restored.recipes.map((recipe) => [recipe.bookName, recipe]));
+
+  const beefJerky = byName.get('麻辣牛肉干');
+  if (beefJerky) {
+    const oil = beefJerky.ingredients.find(
+      (ingredient) => ingredient.rawItemText === '菜油',
+    );
+    assert.equal(oil.rawQuantityText, '一斤耗二两');
+    assert.equal(oil.normalizedQuantity.qty, 500);
+    assert.equal(oil.normalizedQuantity.consumedQty, 100);
+    assert.equal(oil.normalizedQuantity.consumedUnit, 'g');
+  }
+
+  const sweetSourRibs = byName.get('糖醋排骨');
+  if (sweetSourRibs) {
+    const aromatics = sweetSourRibs.ingredients.find(
+      (ingredient) => ingredient.rawItemText === '姜、蒜片',
+    );
+    assert.equal(aromatics.rawQuantityText, '五钱');
+    assert.equal(aromatics.memberQuantityMode, 'unallocated-group-total');
+    assert.deepEqual(aromatics.groupTotal, { qty: 25, unit: 'g' });
+    for (const member of aromatics.members) {
+      assert.equal(member.qty, null);
+      assert.equal(member.unit, null);
+    }
+  }
+
+  const steamedRibs = byName.get('粉蒸排骨');
+  if (steamedRibs) {
+    const pepper = steamedRibs.ingredients.find(
+      (ingredient) => ingredient.rawItemText === '花椒',
+    );
+    assert.equal(pepper.rawQuantityText, '二十余粒');
+    assert.equal(pepper.normalizedQuantity.kind, 'approximate-count');
+    assert.equal(pepper.normalizedQuantity.qty, null);
+    assert.equal(pepper.normalizedQuantity.qualifier, '余');
+  }
+
+  const cucumberPork = byName.get('黄瓜肉片');
+  if (cucumberPork) {
+    const picked = cucumberPork.ingredients.find(
+      (ingredient) => ingredient.rawItemText === '泡红辣椒',
+    );
+    assert.equal(picked.rawQuantityText, '三根');
+    assert.equal(picked.normalizedQuantity.kind, 'exact-count');
+    assert.equal(picked.normalizedQuantity.unit, '根');
+  }
+
+  const kohlrabiBeef = byName.get('苤蓝烧牛肉');
+  if (kohlrabiBeef) {
+    assert.equal(kohlrabiBeef.titleVisualCheck.matchesCatalog, true);
+    assert.equal(kohlrabiBeef.source.pdfStartPage, 120);
+    assert.equal(kohlrabiBeef.source.pdfEndPage, 121);
+  }
+});
+
 test('batch-plan completion state agrees with assembled recipes', () => {
   const completed = new Set(restored.completedBatchIds);
   for (const batch of plan.batches) {

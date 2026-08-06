@@ -1,0 +1,807 @@
+{
+  "chunkId": "dz1979-b05-chunk2",
+  "batchId": "dz1979-b05",
+  "applicationReady": false,
+  "pdfPages": [117, 118, 119],
+  "recipes": [
+    {
+      "entryId": "dz1979-p104",
+      "batchId": "dz1979-b05",
+      "bookName": "鱼香排骨",
+      "category": "肉食类",
+      "source": {
+        "pdfStartPage": 117,
+        "pdfEndPage": 117,
+        "bookStartPage": 104,
+        "bookEndPage": 104
+      },
+      "titleVisualCheck": {
+        "observedText": "鱼香排骨",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "猪排骨",
+          "rawQuantityText": "二斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1000,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤 × 500g = 1000g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "豆瓣",
+          "rawQuantityText": "一两二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 60,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g + 二钱 × 5g = 50g + 10g = 60g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "姜米",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "蒜米、葱花",
+          "rawQuantityText": "各一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "each-item",
+            "qualifier": null
+          },
+          "memberQuantityMode": "same-for-each",
+          "members": [
+            { "item": "蒜米", "qty": 50, "unit": "g" },
+            { "item": "葱花", "qty": 50, "unit": "g" }
+          ],
+          "conversionBasis": "原文有“各”；每项一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油、醋",
+          "rawQuantityText": "各一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "each-item",
+            "qualifier": null
+          },
+          "memberQuantityMode": "same-for-each",
+          "members": [
+            { "item": "酱油", "qty": 50, "unit": "g" },
+            { "item": "醋", "qty": 50, "unit": "g" }
+          ],
+          "conversionBasis": "原文有“各”；每项一两 × 50g = 50g；按原书质量单位保存为g，不推测毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二斤五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤 × 500g + 五两 × 50g = 1000g + 250g = 1250g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "四分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "四分 × 0.5g = 2g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 30,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "猪排骨洗净，砍成约一寸长的节子。",
+            "measureMentions": [
+              {
+                "raw": "约一寸长",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "排骨切段长度，长度单位不作质量换算"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "锅内放油烧至六成热，排骨下锅煸干水汽以除血腥味，下豆瓣、姜、蒜和一半葱花同炒，至炒出香味、油呈红色。",
+            "measureMentions": [
+              {
+                "raw": "六成热",
+                "dimension": "heat",
+                "normalized": null,
+                "reason": "油温火候描述"
+              }
+            ]
+          },
+          {
+            "order": 3,
+            "summary": "掺汤加盐、酱油、糖调味，烧约一个半小时至排骨入味、肉松散能与骨脱离。",
+            "measureMentions": [
+              {
+                "raw": "约一个半小时",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "烧制时间"
+              }
+            ]
+          },
+          {
+            "order": 4,
+            "summary": "下水豆粉收汁，起锅加醋和剩余葱花合匀即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "煸干水汽",
+            "modernSummary": "煸炒至水分收干",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "肉松散能与骨脱离",
+            "modernSummary": "肉已软烂到能脱骨",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "味浓而鲜，冷吃热食均可。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": ["锅"],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": ["洗净排骨所用水"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        { "raw": "煸干水汽（除血腥味）", "location": "做法第2步" },
+        { "raw": "葱花（用一半）同炒", "location": "做法第2步" },
+        { "raw": "肉松散能与骨脱离", "location": "做法第2步" }
+      ],
+      "uncertainties": [
+        {
+          "location": "原料与做法",
+          "type": "allocation-unknown",
+          "rawText": "蒜米、葱花各一两；做法“蒜和葱花（用一半）同炒”，起锅再加葱花",
+          "candidates": [],
+          "treatment": "原书明确葱花分两次使用且第一次为一半，但未印出各次具体重量；保留总量与“用一半”原文，不折算数值。"
+        },
+        {
+          "location": "做法第2步",
+          "type": "old-term",
+          "rawText": "锅内放油",
+          "candidates": ["化猪油"],
+          "treatment": "原料栏仅列化猪油一两；做法只写“油”，未证实是否全部为化猪油，不改写。"
+        }
+      ],
+      "projectMatch": {
+        "classification": "exact-name",
+        "projectName": "鱼香排骨",
+        "projectIds": [{ "library": "curated", "id": "comp-496f82b3" }],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    },
+    {
+      "entryId": "dz1979-p105",
+      "batchId": "dz1979-b05",
+      "bookName": "糖醋排骨",
+      "category": "肉食类",
+      "source": {
+        "pdfStartPage": 118,
+        "pdfEndPage": 118,
+        "bookStartPage": 105,
+        "bookEndPage": 105
+      },
+      "titleVisualCheck": {
+        "observedText": "糖醋排骨",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "猪排骨",
+          "rawQuantityText": "一斤五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 750,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤 × 500g + 五两 × 50g = 500g + 250g = 750g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g；本条未印“耗”字，只保存投入量",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "姜、蒜片",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "group-total",
+            "qualifier": null
+          },
+          "memberQuantityMode": "unallocated-group-total",
+          "groupTotal": { "qty": 25, "unit": "g" },
+          "members": [
+            { "item": "姜", "qty": null, "unit": null },
+            { "item": "蒜片", "qty": null, "unit": null }
+          ],
+          "conversionBasis": "原文无“各”；五钱 × 5g = 25g 为两项合计，未分配到单项",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "一两二",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 60,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "“一两二”按一两二钱读，50g + 2 × 5g = 60g；末级单位省略，转换置信度记为medium",
+          "confidence": { "recognition": "high", "conversion": "medium" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g + 五钱 × 5g = 50g + 25g = 75g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二斤五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤 × 500g + 五两 × 50g = 1000g + 250g = 1250g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "泡红辣椒",
+          "rawQuantityText": "六根",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 6,
+            "unit": "根",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "计数单位“根”按原书保留，不换算为质量",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 40,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "葱节",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 30,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "排骨洗净砍成一寸长的节子；泡辣椒切寸长的节子。",
+            "measureMentions": [
+              {
+                "raw": "一寸长",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "排骨与泡辣椒切段长度"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅置旺火上放菜油烧至六成热，下排骨煸干水气，再放盐、酱油、姜、蒜片、泡辣椒及汤同烧；如有绍酒可加绍酒一两。",
+            "measureMentions": [
+              {
+                "raw": "六成热",
+                "dimension": "heat",
+                "normalized": null,
+                "reason": "油温火候描述"
+              }
+            ]
+          },
+          {
+            "order": 3,
+            "summary": "烧约一小时，视排骨入味肉软时，加糖醋、葱节及水豆粉，收浓滋汁即成。",
+            "measureMentions": [
+              {
+                "raw": "约一小时",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "烧制时间"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "煸干水气",
+            "modernSummary": "煸炒至水分收干",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "收浓滋汁",
+            "modernSummary": "把味汁收稠",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "排骨酥烂、糖醋口味。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "绍酒",
+          "rawQuantityText": "一两",
+          "use": "做法第2步可选：如有绍酒可加",
+          "quantityHandling": "原料栏未列；原书给出“一两”，作为可选项保留原文数量",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": ["炒锅"],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": ["洗净排骨所用水"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        { "raw": "下排骨煸干水气", "location": "做法第2步" },
+        { "raw": "如有绍酒可加绍酒一两", "location": "做法第2步" },
+        { "raw": "视排骨入味肉软时", "location": "做法第3步" }
+      ],
+      "uncertainties": [
+        {
+          "location": "原料栏",
+          "type": "unresolved-quantity",
+          "rawText": "醋 一两二",
+          "candidates": [
+            { "qty": 60, "unit": "g", "assumption": "读作一两二钱", "accepted": true }
+          ],
+          "treatment": "原书省略末级单位；按同页其他条目的钱位惯例读作一两二钱，转换置信度记为medium。"
+        },
+        {
+          "location": "原料栏",
+          "type": "allocation-unknown",
+          "rawText": "姜、蒜片 五钱",
+          "candidates": [],
+          "treatment": "无“各”字，只保存合计25g，不向姜与蒜片分配。"
+        }
+      ],
+      "projectMatch": {
+        "classification": "exact-name",
+        "projectName": "糖醋排骨",
+        "projectIds": [{ "library": "curated", "id": "comp-3aee4f8b" }],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    },
+    {
+      "entryId": "dz1979-p106",
+      "batchId": "dz1979-b05",
+      "bookName": "家常排骨",
+      "category": "肉食类",
+      "source": {
+        "pdfStartPage": 119,
+        "pdfEndPage": 119,
+        "bookStartPage": 106,
+        "bookEndPage": 106
+      },
+      "titleVisualCheck": {
+        "observedText": "家常排骨",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "猪排骨",
+          "rawQuantityText": "一斤五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 750,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤 × 500g + 五两 × 50g = 500g + 250g = 750g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": "十余粒",
+          "normalizedQuantity": {
+            "kind": "approximate-count",
+            "qty": null,
+            "unit": "粒",
+            "appliesTo": "item",
+            "qualifier": "余",
+            "referenceQty": 10
+          },
+          "conversionBasis": "“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
+          "confidence": { "recognition": "high", "conversion": "medium" }
+        },
+        {
+          "rawItemText": "葱姜",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 30,
+            "unit": "g",
+            "appliesTo": "group-total",
+            "qualifier": null
+          },
+          "memberQuantityMode": "unallocated-group-total",
+          "groupTotal": { "qty": 30, "unit": "g" },
+          "members": [
+            { "item": "葱", "qty": null, "unit": null },
+            { "item": "姜", "qty": null, "unit": null }
+          ],
+          "conversionBasis": "原文无“各”；六钱 × 5g = 30g 为两项合计，未分配到单项",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "萝卜",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "三分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三分 × 0.5g = 1.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "豆瓣",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1000,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤 × 500g = 1000g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "排骨洗净砍成一寸长的节子；萝卜去皮切成长一寸二、宽厚八分的块子。",
+            "measureMentions": [
+              {
+                "raw": "一寸长",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "排骨切段长度"
+              },
+              {
+                "raw": "长一寸二、宽厚八分",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "萝卜块尺寸，长度单位不作质量换算"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "锅中猪油烧至六成热，下排骨煸干水汽，然后下豆瓣、酱油、盐、花椒及葱、姜再炒几下，掺汤烧开。",
+            "measureMentions": [
+              {
+                "raw": "六成热",
+                "dimension": "heat",
+                "normalized": null,
+                "reason": "油温火候描述"
+              }
+            ]
+          },
+          {
+            "order": 3,
+            "summary": "在中火上烧约一小时后下萝卜，再烧约三十分钟，到肉㸆、菜熟时下水豆粉，收浓滋汁起锅即成。",
+            "measureMentions": [
+              {
+                "raw": "约一小时",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "中火烧制时间"
+              },
+              {
+                "raw": "约三十分钟",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "下萝卜后续烧时间"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "煸干水汽",
+            "modernSummary": "煸炒至水分收干",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "肉㸆",
+            "modernSummary": null,
+            "confidence": "medium",
+            "notes": "字形可辨但该时代用语语义未作现代化改写。"
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "色红，味厚，尤其萝卜好吃。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": ["锅"],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": ["洗净排骨所用水"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        { "raw": "宽厚八分的块子", "location": "做法第1步" },
+        { "raw": "下排骨煸干水汽", "location": "做法第2步" },
+        { "raw": "到肉㸆、菜熟时", "location": "做法第2步" }
+      ],
+      "uncertainties": [
+        {
+          "location": "原料栏",
+          "type": "unresolved-quantity",
+          "rawText": "花椒 十余粒",
+          "candidates": [],
+          "treatment": "“余”为约数限定，保留参考值10粒，不作为精确计数，也不换算为质量。"
+        },
+        {
+          "location": "原料栏",
+          "type": "allocation-unknown",
+          "rawText": "葱姜 六钱",
+          "candidates": [],
+          "treatment": "无“各”字，只保存合计30g，不向葱与姜分配。"
+        },
+        {
+          "location": "做法第2步",
+          "type": "old-term",
+          "rawText": "到肉㸆、菜熟时",
+          "candidates": [],
+          "treatment": "“㸆”字形可辨，为川菜火候用语；语义未作现代化改写。"
+        }
+      ],
+      "projectMatch": {
+        "classification": "exact-name",
+        "projectName": "家常排骨",
+        "projectIds": [{ "library": "curated", "id": "comp-2b1eda18" }],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    }
+  ]
+}

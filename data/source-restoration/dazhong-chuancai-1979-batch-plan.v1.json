@@ -54,9 +54,9 @@
         "count": 3
       }
     ],
-    "processedRecipeCount": 52,
-    "remainingRecipeCount": 95,
-    "completedBatchCount": 4
+    "processedRecipeCount": 64,
+    "remainingRecipeCount": 83,
+    "completedBatchCount": 5
   },
   "batches": [
     {
@@ -444,7 +444,7 @@
     },
     {
       "batchId": "dz1979-b05",
-      "status": "planned-not-started",
+      "status": "completed-primary-reviewed",
       "applicationReady": false,
       "category": "肉食类",
       "entryCount": 12,
@@ -498,6 +498,35 @@
           "dz1979-p107"
         ],
         "suspectedMatchEntryIds": []
+      },
+      "processedAt": "2026-08-06T10:30:00-04:00",
+      "processedEntryCount": 12,
+      "processing": {
+        "workerVisualReview": true,
+        "primaryVisualReview": true,
+        "ocrUsedAsAuthority": false,
+        "renderedPdfPages": [
+          112,
+          113,
+          114,
+          115,
+          116,
+          117,
+          118,
+          119,
+          120,
+          121,
+          122,
+          123,
+          124,
+          125,
+          126,
+          127
+        ],
+        "ingredientEntryCount": 121,
+        "unresolvedRecipeCount": 11,
+        "reviewResult": "completed-with-recorded-uncertainties",
+        "correctionsApplied": []
       }
     },
     {
