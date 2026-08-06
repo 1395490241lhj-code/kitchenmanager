@@ -145,7 +145,7 @@ const validateIngredient = (ingredient, label) => {
     if (!Number.isFinite(quantity.qty) || quantity.unit !== 'g') {
       throw new Error(`${label} exact mass must have a finite g quantity.`);
     }
-    if ((quantity.consumedQty !== undefined || quantity.consumedUnit !== undefined)
+    if (quantity.consumedQty !== undefined
       && (!Number.isFinite(quantity.consumedQty) || quantity.consumedUnit !== 'g')) {
       throw new Error(`${label} explicit consumed mass must have a finite g quantity.`);
     }
