@@ -86,15 +86,24 @@ test('every processed recipe keeps visual source, method, material, and mapping 
     assert.ok(['high', 'medium', 'low'].includes(recipe.titleVisualCheck.confidence));
     assert.ok(recipe.titleVisualCheck.observedText);
 
-    assert.ok(recipe.ingredients.length > 0);
-    assert.ok(recipe.methodSummary.steps.length >= 2);
-    assert.ok(recipe.methodSummary.steps.length <= 6);
+    const isVerifiedContentMissing = recipe.contentMissing === true
+      && recipe.uncertainties.some((u) => u.type === 'page-boundary');
+    if (isVerifiedContentMissing) {
+      assert.equal(recipe.ingredients.length, 0);
+      assert.equal(recipe.methodSummary.steps.length, 0);
+    } else {
+      assert.ok(recipe.ingredients.length > 0);
+      assert.ok(recipe.methodSummary.steps.length >= 2);
+      assert.ok(recipe.methodSummary.steps.length <= 6);
+    }
     assert.deepEqual(
       recipe.methodSummary.steps.map((step) => step.order),
       recipe.methodSummary.steps.map((_, index) => index + 1),
     );
     assert.ok(recipe.methodSummary.steps.every((step) => step.summary));
-    assert.ok(recipe.characteristicsSummary);
+    if (!isVerifiedContentMissing) {
+      assert.ok(recipe.characteristicsSummary);
+    }
     assert.ok(Array.isArray(recipe.methodOnlyIngredients));
     assert.ok(Array.isArray(recipe.confirmedReadings));
     assert.ok(Array.isArray(recipe.uncertainties));

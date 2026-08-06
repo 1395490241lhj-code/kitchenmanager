@@ -1,0 +1,992 @@
+{
+  "chunkId": "dz1979-b06-chunk3",
+  "batchId": "dz1979-b06",
+  "applicationReady": false,
+  "pdfPages": [
+    136,
+    137,
+    138,
+    139,
+    140,
+    141
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p123",
+      "batchId": "dz1979-b06",
+      "bookName": "清蒸杂烩",
+      "category": "肉食类",
+      "source": {
+        "pdfStartPage": 136,
+        "pdfEndPage": 137,
+        "bookStartPage": 123,
+        "bookEndPage": 124
+      },
+      "titleVisualCheck": {
+        "observedText": "清蒸杂烩",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "正文标题直接确认，字迹清晰无歧义"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "猪肉",
+          "rawQuantityText": "五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五两 × 50g = 250g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "猪肚",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "响皮",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "葱、姜",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 30,
+            "unit": "g",
+            "appliesTo": "group-total",
+            "qualifier": null
+          },
+          "conversionBasis": "原文无“各”；六钱 × 5g = 30g 为葱、姜合计总量，不拆分",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五分 × 0.5g = 2.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "干豆粉",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一斤五两耗一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 750,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": "耗一两",
+            "consumedQty": 50,
+            "consumedUnit": "g"
+          },
+          "conversionBasis": "投入：一斤五两 = 一斤×500g + 五两×50g = 500g + 250g = 750g；耗用：一两 × 50g = 50g；投入量与耗用量分别保存",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "猪心",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "猪舌",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "明笋",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": "十余粒",
+          "normalizedQuantity": {
+            "kind": "approximate-count",
+            "qty": null,
+            "unit": "粒",
+            "appliesTo": "item",
+            "qualifier": "余",
+            "referenceQty": 10
+          },
+          "conversionBasis": "“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "medium"
+          }
+        },
+        {
+          "rawItemText": "鸡蛋",
+          "rawQuantityText": "二个",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 2,
+            "unit": "个",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "计数单位“个”按原书保留，不换算为质量",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "胡椒面",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二斤五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤五两 = 二斤×500g + 五两×50g = 1000g + 250g = 1250g；原书按质量给出，保存为g，不推测毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "猪肉的泡泡肉部分加鸡蛋、干豆粉拌匀，在八成热油锅内炸成酥肉；渣渣肉部分用刀剁茸，加盐、水豆粉拌成肉馅；肥瘦净肉部分在汤中煮成熟肉（又名老肉）。",
+            "measureMentions": [
+              {
+                "raw": "八成热",
+                "dimension": "heat",
+                "normalized": null,
+                "reason": "油温火候描述"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "猪的心、舌、肚在清水中洗净后用开水煮一下（俗称“出水”），再刮洗干净煮成熟料。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "猪的干肉皮放入油锅中，用温油浸软，逐渐加热炸泡成响皮；明笋用温热水泡胀、洗净，撕成粗丝。",
+            "measureMentions": []
+          },
+          {
+            "order": 4,
+            "summary": "酥肉、老肉和熟心、舌、肚分别切成长约二寸、宽约六分、厚约一分的片子；肉馅用刀尖刮成小指头粗细、呈三棱形的刀尖丸子；响皮、明笋切成长约一寸二的筷子条，用开水煮透漂起。",
+            "measureMentions": [
+              {
+                "raw": "长约二寸、宽约六分、厚约一分",
+                "dimension": "size",
+                "normalized": null,
+                "reason": "片子切法规格，长度单位不作质量换算"
+              },
+              {
+                "raw": "小指头粗细",
+                "dimension": "size",
+                "normalized": null,
+                "reason": "刀尖丸子粗细描述"
+              },
+              {
+                "raw": "长约一寸二",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "响皮、明笋条子长度"
+              }
+            ]
+          },
+          {
+            "order": 5,
+            "summary": "用蒸碗将心、舌、肚放在碗内正中，周围分四角间隔摆放酥肉、老肉、刀尖元子和其余心、舌、肚片部分；用响皮、明笋装底子，加葱姜、花椒、盐、胡椒及汤少许，上笼蒸至酥肉泡发。",
+            "measureMentions": []
+          },
+          {
+            "order": 6,
+            "summary": "翻倒入碗内灌汤，汤内加少许青叶菜、味精即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "泡泡肉",
+            "modernSummary": "猪肉中较松软带筋膜的部分",
+            "confidence": "medium",
+            "notes": "字形确认，语义按上下文推断保留原词"
+          },
+          {
+            "raw": "渣渣肉",
+            "modernSummary": "肉质较碎、边角零散的部分",
+            "confidence": "medium",
+            "notes": "字形确认，语义按上下文推断保留原词"
+          },
+          {
+            "raw": "出水",
+            "modernSummary": "焯水去腥去杂",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "刀尖元子",
+            "modernSummary": "用刀尖刮制的三棱形小丸子",
+            "confidence": "high",
+            "notes": "与做法第6步“刀尖丸子”所指为同一物"
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "内容多样，质地软和，汤清淡，味鲜香，吃时可蘸酱油。附注：此菜以多作几份为宜，单作用料不方便。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "青叶菜",
+          "rawQuantityText": "少许",
+          "use": "灌汤时加入汤内提味",
+          "quantityHandling": "原料栏未列；保留“少许”，不标准化为精确值",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": [
+          "蒸碗",
+          "蒸笼"
+        ],
+        "containers": [
+          "碗"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "洗净心舌肚所用清水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "清蒸杂烩",
+          "location": "正文标题（PDF第136页/书内第123页）"
+        },
+        {
+          "raw": "菜油 一斤五两耗一两",
+          "location": "原料栏"
+        },
+        {
+          "raw": "上笼蒸至酥肉泡发，翻倒入碗内灌汤",
+          "location": "做法第7步"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    },
+    {
+      "entryId": "dz1979-p125",
+      "batchId": "dz1979-b06",
+      "bookName": "火爆腰花",
+      "category": "肉食类",
+      "source": {
+        "pdfStartPage": 138,
+        "pdfEndPage": 139,
+        "bookStartPage": 125,
+        "bookEndPage": 126
+      },
+      "titleVisualCheck": {
+        "observedText": "火爆腰花",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "猪腰",
+          "rawQuantityText": "五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五两 × 50g = 250g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "葱节",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "姜、蒜片",
+          "rawQuantityText": "四钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 20,
+            "unit": "g",
+            "appliesTo": "group-total",
+            "qualifier": null
+          },
+          "conversionBasis": "原文无“各”；四钱 × 5g = 20g 为姜、蒜片合计总量，不拆分",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "泡辣椒",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "豌豆尖",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "四钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 20,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "四钱 × 5g = 20g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g；原书按质量给出，保存为g，不推测毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "猪腰洗净，撕去油皮，对剖两开，片去腰臊。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "把腰子用斜刀均匀地在一面切一道花子，再将腰子换个方向用立刀切，头两刀不切断、第三刀切断，如是将腰子切成腰花。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "炒锅置旺火上放猪油，同时在碗内用盐、酱油、水豆粉、汤少许兑成滋汁；将葱、姜、蒜、泡辣椒、豌豆尖等小配料放于碗内。",
+            "measureMentions": []
+          },
+          {
+            "order": 4,
+            "summary": "猪油烧至七成热时，将腰花用盐、水豆粉拌匀下锅，经旺火热油爆炒直到变色翻花，立即放下小配料炒匀，并勾滋汁下锅炒转即成。",
+            "measureMentions": [
+              {
+                "raw": "七成热",
+                "dimension": "heat",
+                "normalized": null,
+                "reason": "油温火候描述"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "腰臊",
+            "modernSummary": "猪腰内部带腥臊味的白色筋膜部分",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "切一道花子",
+            "modernSummary": "斜刀切出花刀纹路",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "变色翻花",
+            "modernSummary": "爆炒至腰花卷曲变色成型",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "菜形美观，味鲜质嫩。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [
+          "碗"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "洗净猪腰所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "片去腰臊",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "头两刀不切断，第三刀切断",
+          "location": "做法第2步"
+        },
+        {
+          "raw": "旺火热油爆炒直到变色翻花",
+          "location": "做法第4步"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "exact-name",
+        "projectName": "火爆腰花",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-8d2e7c19"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    },
+    {
+      "entryId": "dz1979-p127",
+      "batchId": "dz1979-b06",
+      "bookName": "大蒜烧肥肠",
+      "category": "肉食类",
+      "source": {
+        "pdfStartPage": 140,
+        "pdfEndPage": 141,
+        "bookStartPage": 127,
+        "bookEndPage": 128
+      },
+      "titleVisualCheck": {
+        "observedText": "大蒜烧肥肠",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "猪肥肠",
+          "rawQuantityText": "二斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1000,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤 × 500g = 1000g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "一钱五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 7.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一钱五分 = 一钱×5g + 五分×0.5g = 5g + 2.5g = 7.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": "十余粒",
+          "normalizedQuantity": {
+            "kind": "approximate-count",
+            "qty": null,
+            "unit": "粒",
+            "appliesTo": "item",
+            "qualifier": "余",
+            "referenceQty": 10
+          },
+          "conversionBasis": "“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "medium"
+          }
+        },
+        {
+          "rawItemText": "大蒜",
+          "rawQuantityText": "四两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 200,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "四两 × 50g = 200g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 40,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "葱、姜",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "group-total",
+            "qualifier": null
+          },
+          "conversionBasis": "原文无“各”；一两 × 50g = 50g 为葱、姜合计总量，不拆分",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1000,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤 × 500g = 1000g；原书按质量给出，保存为g，不推测毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "切去肥肠的肠头圈口，用盐在肠壁内外反复揉搓，并在清水中翻洗干净，再用白矾末反复翻洗揉搓冲洗，直至洗净杂质、无异味为止。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "将洗净的肥肠在开水中煮一次，“出水”后捞起切成数段，另用开水将肥肠煮熟，然后对剖开，切成宽约六分的条子。",
+            "measureMentions": [
+              {
+                "raw": "宽约六分",
+                "dimension": "size",
+                "normalized": null,
+                "reason": "肥肠条子宽度"
+              }
+            ]
+          },
+          {
+            "order": 3,
+            "summary": "炒锅置旺火上，烧热猪油，白糖炒化，掺水少许，炒成不深不浅的糖汁，下肥肠在糖汁中炒上色，掺汤烧开，撇尽浮沫。",
+            "measureMentions": []
+          },
+          {
+            "order": 4,
+            "summary": "加盐、葱、姜、花椒，用小火煨至七成炬时加大蒜，直至全炬后加味精，再用水豆粉勾芡起锅即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "出水",
+            "modernSummary": "焯水去腥去杂",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "炬",
+            "modernSummary": "煨至熟透酥烂",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "不深不浅的糖汁",
+            "modernSummary": "炒糖色深浅适中",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "色泽红亮，炬香可口。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "白矾末",
+          "rawQuantityText": null,
+          "use": "反复翻洗揉搓冲洗肥肠以去异味",
+          "quantityHandling": "做法第1步出现；原料栏未列，无数量",
+          "confidence": "high"
+        },
+        {
+          "rawItemText": "水",
+          "rawQuantityText": "少许",
+          "use": "白糖炒化时掺入调糖汁",
+          "quantityHandling": "原料栏未列；保留“少许”，不标准化为精确值",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [
+          "翻洗肥肠所用清水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "白糖炒化，掺水少许，炒成不深不浅的糖汁",
+          "location": "做法第3步"
+        },
+        {
+          "raw": "用小火煨至七成炬时加大蒜，直至全炬后加味精",
+          "location": "做法第4步"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    }
+  ]
+}

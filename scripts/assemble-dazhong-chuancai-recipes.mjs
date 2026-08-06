@@ -231,23 +231,38 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
     || !allowedRecognitionConfidence.has(recipe.titleVisualCheck.confidence)) {
     throw new Error(`${expectedEntryId} is missing a valid visual title check.`);
   }
-  if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
-    throw new Error(`${expectedEntryId} has no printed ingredients.`);
-  }
-  recipe.ingredients.forEach((ingredient, index) => (
-    validateIngredient(ingredient, `${expectedEntryId}.ingredients[${index}]`)
-  ));
-  const steps = recipe.methodSummary?.steps;
-  if (!Array.isArray(steps) || steps.length < 2 || steps.length > 6) {
-    throw new Error(`${expectedEntryId} must have a 2–6 step method summary.`);
-  }
-  for (const [index, step] of steps.entries()) {
-    if (step.order !== index + 1) {
-      throw new Error(`${expectedEntryId} method step order is not contiguous.`);
+  const isVerifiedContentMissing = recipe.contentMissing === true
+    && Array.isArray(recipe.uncertainties)
+    && recipe.uncertainties.some((u) => u.type === 'page-boundary');
+  if (isVerifiedContentMissing) {
+    if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length !== 0) {
+      throw new Error(`${expectedEntryId} contentMissing recipes must have an empty ingredients array.`);
     }
-    assertString(step.summary, `${expectedEntryId}.methodSummary.steps[${index}].summary`);
+    const steps = recipe.methodSummary?.steps;
+    if (!Array.isArray(steps) || steps.length !== 0) {
+      throw new Error(`${expectedEntryId} contentMissing recipes must have an empty method step array.`);
+    }
+  } else {
+    if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+      throw new Error(`${expectedEntryId} has no printed ingredients.`);
+    }
+    recipe.ingredients.forEach((ingredient, index) => (
+      validateIngredient(ingredient, `${expectedEntryId}.ingredients[${index}]`)
+    ));
+    const steps = recipe.methodSummary?.steps;
+    if (!Array.isArray(steps) || steps.length < 2 || steps.length > 6) {
+      throw new Error(`${expectedEntryId} must have a 2–6 step method summary.`);
+    }
+    for (const [index, step] of steps.entries()) {
+      if (step.order !== index + 1) {
+        throw new Error(`${expectedEntryId} method step order is not contiguous.`);
+      }
+      assertString(step.summary, `${expectedEntryId}.methodSummary.steps[${index}].summary`);
+    }
   }
-  assertString(recipe.characteristicsSummary, `${expectedEntryId}.characteristicsSummary`);
+  if (!isVerifiedContentMissing || recipe.characteristicsSummary !== null) {
+    assertString(recipe.characteristicsSummary, `${expectedEntryId}.characteristicsSummary`);
+  }
   if (!Array.isArray(recipe.methodOnlyIngredients)
     || !Array.isArray(recipe.confirmedReadings)
     || !Array.isArray(recipe.uncertainties)) {
