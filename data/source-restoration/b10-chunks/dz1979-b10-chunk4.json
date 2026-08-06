@@ -1,0 +1,261 @@
+{
+  "batchId": "dz1979-b10",
+  "chunkIndex": 4,
+  "recipes": [
+    {
+      "entryId": "dz1979-p205",
+      "batchId": "dz1979-b10",
+      "bookName": "青椒炒大头菜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 218,
+        "pdfEndPage": 218,
+        "bookStartPage": 205,
+        "bookEndPage": 205
+      },
+      "titleVisualCheck": {
+        "observedText": "青椒炒大头菜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "青椒",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 100, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "大头菜",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 150, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "豆豉",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "葱白",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "一分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 0.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，一分 × 0.5g = 0.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodOnlyMentions": [],
+      "methodSummary": [
+        "青椒洗净去蒂，切成四分长的短节；大头菜削去老皮，切成三分见方的小颗；葱白也切同样大小的颗。",
+        "锅置旺火上，下青椒煸炒（炒时放盐）；青椒煸熟，下菜油、豆豉同炒；待炒出香味后，加大头菜；最后下葱颗一起炒，炒匀起锅。"
+      ],
+      "characteristicsSummary": "咸、香、脆、辣，下饭好菜。",
+      "contentIncomplete": false,
+      "reviewRequired": false,
+      "notes": "四分长、三分见方均为长度语境，不换算克。"
+    },
+    {
+      "entryId": "dz1979-p206",
+      "batchId": "dz1979-b10",
+      "bookName": "烧拌莴笋",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 219,
+        "pdfEndPage": 219,
+        "bookStartPage": 206,
+        "bookEndPage": 206
+      },
+      "titleVisualCheck": {
+        "observedText": "烧拌莴笋",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题；batch-plan标记本条目为suspected_match，此处仅记录来源事实，匹配分类留待菜谱库对照阶段处理"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "莴笋",
+          "rawQuantityText": "七两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 350, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "七两 × 50g = 350g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "四分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 2, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，四分 × 0.5g = 2g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "香油",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "辣椒油",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "干辣椒",
+          "rawQuantityText": "四根",
+          "normalizedQuantity": { "kind": "exact-count", "qty": 4, "unit": "根", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "计数单位保留，不换算克",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodOnlyMentions": [],
+      "methodSummary": [
+        "将莴笋洗净，用干净菜叶在其外包裹两层，放于子母火中（即柴灶的灰火中），围严烧起。烧至莴笋水分蒸发，笋体变软已熟时，从灰中取出。",
+        "去掉包裹莴笋的菜叶，用刀削去表皮后将其拍松，切成不规则的筷子条，盛于菜盘中。",
+        "干辣椒切节在锅内炕起，待其炕出糊香味时，铲起用刀铡细，盛入碗内加酱油、盐、辣椒油、味精、香油调匀，然后淋于盘中的莴笋上即成。"
+      ],
+      "characteristicsSummary": "这是按传统的农村做法，加以较讲究的调味品作成。菜脆嫩，味香辣，异常鲜美。",
+      "contentIncomplete": false,
+      "reviewRequired": true,
+      "notes": "本条目在batch-plan中标记为suspected_match（entryId dz1979-p206对应书内名“烧拌莴笋”），仅记录来源事实与原文数量，匹配分类判定留待后续菜谱库对照阶段处理，此处reviewRequired=true。做法涉及“子母火”“灰烬烧制”等传统农村做法，逐字保留原文术语，不扩写。"
+    },
+    {
+      "entryId": "dz1979-p207",
+      "batchId": "dz1979-b10",
+      "bookName": "炝莲花白",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 220,
+        "pdfEndPage": 220,
+        "bookStartPage": 207,
+        "bookEndPage": 207
+      },
+      "titleVisualCheck": {
+        "observedText": "炝莲花白",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "莲花白",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 500, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 40, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "干辣椒",
+          "rawQuantityText": "四根",
+          "normalizedQuantity": { "kind": "exact-count", "qty": 4, "unit": "根", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "计数单位保留，不换算克",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": "十余粒",
+          "normalizedQuantity": { "kind": "approximate-count", "qty": null, "unit": "粒", "appliesTo": "item", "qualifier": "十余" },
+          "conversionBasis": "约数计数不压成单值，保留十余和粒",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 2.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油、醋",
+          "rawQuantityText": "各三钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "each-item", "qualifier": null },
+          "memberQuantityMode": "same-for-each",
+          "members": [
+            { "item": "酱油", "qty": 15, "unit": "g" },
+            { "item": "醋", "qty": 15, "unit": "g" }
+          ],
+          "conversionBasis": "原文有各；每项三钱 × 5g = 15g，醋不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "四钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 20, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "四钱 × 5g = 20g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodOnlyMentions": [
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "五钱",
+          "context": "做法第2步：用碗将盐、酱油、白糖、醋、味精、水豆粉和汤（五钱）兑成滋汁",
+          "note": "汤未列入原料栏，仅在做法中出现，单列为method-only mention；五钱=25g，不推算毫升"
+        }
+      ],
+      "methodSummary": [
+        "莲花白嫩叶洗净，切二寸方片；干辣椒切成约八分节。",
+        "用碗将盐、酱油、白糖、醋、味精、水豆粉和汤兑成滋汁。",
+        "菜油在炒锅内烧至七成热，下干辣椒节和花椒入油中，炸至呈棕红色时，将莲花白入锅翻炒。待莲花白稍软即烹下滋汁，收浓起锅即成。"
+      ],
+      "characteristicsSummary": "味麻、辣、甜、酸，莲花白熟而带脆。",
+      "contentIncomplete": false,
+      "reviewRequired": false,
+      "notes": "全页文字清晰，花椒十余粒按approximate-count处理；二寸方片、八分节均为长度语境。"
+    }
+  ]
+}

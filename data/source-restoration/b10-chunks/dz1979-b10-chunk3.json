@@ -1,0 +1,225 @@
+{
+  "batchId": "dz1979-b10",
+  "chunkIndex": 3,
+  "recipes": [
+    {
+      "entryId": "dz1979-p202",
+      "batchId": "dz1979-b10",
+      "bookName": "白油鲜笋",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 215,
+        "pdfEndPage": 215,
+        "bookStartPage": 202,
+        "bookEndPage": 202
+      },
+      "titleVisualCheck": {
+        "observedText": "白油鲜笋",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "鲜笋",
+          "rawQuantityText": "一斤五两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 750, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤五两 = 500g + 250g = 750g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 100, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 40, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 40, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "一斤二两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 600, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤二两 = 500g + 100g = 600g，不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodOnlyMentions": [],
+      "methodSummary": [
+        "将鲜笋剥去外壳，用刀修去老皮，切成“梳子背”形。",
+        "炒锅内下猪油，烧至五成热时，放入鲜笋稍煸几下，掺汤，吃味（下盐）。约烧四分钟下水豆粉、味精，滋汁收浓起锅。"
+      ],
+      "characteristicsSummary": "笋嫩味鲜，应时佳肴之一。",
+      "contentIncomplete": false,
+      "reviewRequired": false,
+      "appendix": {
+        "rawText": "如要吃家常味可加郫县豆瓣五钱（剁细）、酱油三钱、葱节、姜片各三钱，另用肥瘦猪肉二两，切薄片。其烹制方法：1.同上；2.炒锅内猪油烧至五成热时，下肉片及姜、葱节同炒几下后，再下豆瓣炒至油呈红色时，下鲜笋炒一分钟左右，掺汤，吃味，约焖四分钟，下水豆粉、味精，汁收浓起锅即可。",
+        "note": "书中该条目附有“附注”段落，说明可加料改做家常味的替代做法；此为原书印刷内容的一部分，逐字保留在附录字段，不并入主原料栏或主做法摘要，因其为可选变体而非本条目的标准原料/做法。",
+        "additionalIngredients": [
+          {
+            "rawItemText": "郫县豆瓣",
+            "rawQuantityText": "五钱",
+            "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+            "conversionBasis": "五钱 × 5g = 25g"
+          },
+          {
+            "rawItemText": "酱油",
+            "rawQuantityText": "三钱",
+            "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null },
+            "conversionBasis": "三钱 × 5g = 15g"
+          },
+          {
+            "rawItemText": "葱节、姜片",
+            "rawQuantityText": "各三钱",
+            "memberQuantityMode": "same-for-each",
+            "members": [
+              { "itemText": "葱节", "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null } },
+              { "itemText": "姜片", "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null } }
+            ],
+            "conversionBasis": "原文有各；每项三钱 × 5g = 15g"
+          },
+          {
+            "rawItemText": "肥瘦猪肉",
+            "rawQuantityText": "二两",
+            "normalizedQuantity": { "kind": "exact-mass", "qty": 100, "unit": "g", "appliesTo": "item", "qualifier": null },
+            "conversionBasis": "二两 × 50g = 100g"
+          }
+        ]
+      },
+      "notes": "全页文字清晰，无模糊字形；附注段落完整保留于appendix字段。"
+    },
+    {
+      "entryId": "dz1979-p203",
+      "batchId": "dz1979-b10",
+      "bookName": "炝绿豆芽",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 216,
+        "pdfEndPage": 216,
+        "bookStartPage": 203,
+        "bookEndPage": 203
+      },
+      "titleVisualCheck": {
+        "observedText": "炝绿豆芽",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "绿豆芽",
+          "rawQuantityText": "五两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 250, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五两 × 50g = 250g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "干辣椒",
+          "rawQuantityText": "三根",
+          "normalizedQuantity": { "kind": "exact-count", "qty": 3, "unit": "根", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "计数单位保留，不换算克",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": "十余粒",
+          "normalizedQuantity": { "kind": "approximate-count", "qty": null, "unit": "粒", "appliesTo": "item", "qualifier": "十余" },
+          "conversionBasis": "约数计数不压成单值，保留十余和粒",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 2.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodOnlyMentions": [],
+      "methodSummary": [
+        "绿豆芽择去根、须，洗净；干辣椒切成与豆芽同样粗细的丝子。",
+        "炒锅内菜油烧至六成热，下干辣椒丝和花椒。干辣椒丝炸至呈棕红色时，下绿豆芽同炒几下，放盐炒匀。待绿豆芽熟而带脆，上味即起锅入盘。"
+      ],
+      "characteristicsSummary": "豆芽脆，味香辣。",
+      "contentIncomplete": false,
+      "reviewRequired": false,
+      "notes": "全页文字清晰，花椒十余粒按approximate-count处理，与前批一致。"
+    },
+    {
+      "entryId": "dz1979-p204",
+      "batchId": "dz1979-b10",
+      "bookName": "炒豌豆尖",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 217,
+        "pdfEndPage": 217,
+        "bookStartPage": 204,
+        "bookEndPage": 204
+      },
+      "titleVisualCheck": {
+        "observedText": "炒豌豆尖",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "豌豆尖",
+          "rawQuantityText": "二斤",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1000, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二斤 × 500g = 1000g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 2.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodOnlyMentions": [],
+      "methodSummary": [
+        "豌豆尖择去须根，洗净。",
+        "炒锅内菜油烧至七成热时，先下盐炒匀，即下豌豆尖迅速翻炒几下起锅即可。"
+      ],
+      "characteristicsSummary": "鲜嫩，清香。",
+      "contentIncomplete": false,
+      "reviewRequired": false,
+      "notes": "全页文字清晰，条目简短无附注。"
+    }
+  ]
+}
