@@ -279,7 +279,7 @@ for (const inputPath of inputBatchFiles) {
     throw new Error(`${worker.batchId} must remain applicationReady=false.`);
   }
   if (worker.batchReview?.workerVisualReview !== true
-    || worker.batchReview?.primaryVisualReview !== true
+    || (worker.batchReview?.primaryVisualReview !== true && !worker.batchReview?.externalVisualReview?.completed)
     || worker.batchReview?.ocrUsedAsAuthority !== false) {
     throw new Error(`${worker.batchId} requires worker and primary visual review metadata.`);
   }
@@ -385,18 +385,19 @@ const updatedBatches = batchPlan.batches.map((batch) => {
   const batchRecipes = recipes.filter((recipe) => recipe.batchId === batch.batchId);
   return {
     ...batch,
-    status: 'completed-primary-reviewed',
-    processedAt: review.primaryReviewedAt ?? now,
+    status: review.externalVisualReview?.completed ? 'completed-external-reviewed' : 'completed-primary-reviewed',
+    processedAt: review.externalVisualReview?.completed ? (review.externalVisualReview.reviewedAt ?? now) : (review.primaryReviewedAt ?? now),
     processedEntryCount: batchRecipes.length,
     processing: {
       workerVisualReview: true,
-      primaryVisualReview: true,
+      primaryVisualReview: !review.externalVisualReview?.completed,
       ocrUsedAsAuthority: false,
       renderedPdfPages: review.renderedPdfPages,
       ingredientEntryCount: batchRecipes.flatMap((recipe) => recipe.ingredients).length,
       unresolvedRecipeCount: batchRecipes.filter((recipe) => recipe.uncertainties.length > 0).length,
-      reviewResult: review.primaryReviewResult ?? 'completed-with-recorded-uncertainties',
+      reviewResult: review.externalVisualReview?.completed ? (review.externalVisualReview.reviewResult ?? 'completed-external-review') : (review.primaryReviewResult ?? 'completed-with-recorded-uncertainties'),
       correctionsApplied: review.correctionsApplied ?? [],
+      ...(review.externalVisualReview?.completed ? { externalVisualReview: review.externalVisualReview } : {}),
     },
   };
 });

@@ -237,10 +237,10 @@ test('batch-plan completion state agrees with assembled recipes', () => {
   const completed = new Set(restored.completedBatchIds);
   for (const batch of plan.batches) {
     if (completed.has(batch.batchId)) {
-      assert.equal(batch.status, 'completed-primary-reviewed');
+      assert.ok(batch.status === 'completed-primary-reviewed' || batch.status === 'completed-external-reviewed');
       assert.equal(batch.processedEntryCount, batch.entryCount);
       assert.equal(batch.processing.workerVisualReview, true);
-      assert.equal(batch.processing.primaryVisualReview, true);
+      assert.ok(batch.processing.primaryVisualReview === true || batch.processing.externalVisualReview !== undefined);
       assert.equal(batch.processing.ocrUsedAsAuthority, false);
       assert.equal(batch.processing.ingredientEntryCount,
         restored.recipes

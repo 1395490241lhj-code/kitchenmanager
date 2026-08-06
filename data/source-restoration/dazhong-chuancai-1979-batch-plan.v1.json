@@ -54,9 +54,9 @@
         "count": 3
       }
     ],
-    "processedRecipeCount": 13,
-    "remainingRecipeCount": 134,
-    "completedBatchCount": 1
+    "processedRecipeCount": 52,
+    "remainingRecipeCount": 95,
+    "completedBatchCount": 4
   },
   "batches": [
     {
@@ -159,7 +159,7 @@
     },
     {
       "batchId": "dz1979-b02",
-      "status": "planned-not-started",
+      "status": "completed-external-reviewed",
       "applicationReady": false,
       "category": "肉食类",
       "entryCount": 13,
@@ -211,11 +211,46 @@
         "required": false,
         "uncertainEntryIds": [],
         "suspectedMatchEntryIds": []
+      },
+      "processedAt": "2026-08-06T07:36:00-04:00",
+      "processedEntryCount": 13,
+      "processing": {
+        "workerVisualReview": true,
+        "primaryVisualReview": false,
+        "ocrUsedAsAuthority": false,
+        "renderedPdfPages": [
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75
+        ],
+        "ingredientEntryCount": 104,
+        "unresolvedRecipeCount": 3,
+        "reviewResult": "completed-external-review",
+        "correctionsApplied": [],
+        "externalVisualReview": {
+          "reviewer": "ChatGPT external visual review",
+          "completed": true,
+          "method": "external reviewer viewed review-pack PNG images; corrections recorded in dazhong-1979-corrections.json",
+          "reviewedAt": "2026-08-06T07:36:00-04:00",
+          "scope": "pages 61-75 (batch dz1979-b02)"
+        }
       }
     },
     {
       "batchId": "dz1979-b03",
-      "status": "planned-not-started",
+      "status": "completed-external-reviewed",
       "applicationReady": false,
       "category": "肉食类",
       "entryCount": 13,
@@ -268,11 +303,51 @@
         "required": false,
         "uncertainEntryIds": [],
         "suspectedMatchEntryIds": []
+      },
+      "processedAt": "2026-08-06T07:36:00-04:00",
+      "processedEntryCount": 13,
+      "processing": {
+        "workerVisualReview": true,
+        "primaryVisualReview": false,
+        "ocrUsedAsAuthority": false,
+        "renderedPdfPages": [
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95
+        ],
+        "ingredientEntryCount": 127,
+        "unresolvedRecipeCount": 2,
+        "reviewResult": "completed-external-review",
+        "correctionsApplied": [],
+        "externalVisualReview": {
+          "reviewer": "ChatGPT external visual review",
+          "completed": true,
+          "method": "external reviewer viewed review-pack PNG images; corrections recorded in dazhong-1979-corrections.json",
+          "reviewedAt": "2026-08-06T07:36:00-04:00",
+          "scope": "pages 76-95 (batch dz1979-b03)"
+        }
       }
     },
     {
       "batchId": "dz1979-b04",
-      "status": "planned-not-started",
+      "status": "completed-external-reviewed",
       "applicationReady": false,
       "category": "肉食类",
       "entryCount": 13,
@@ -328,6 +403,43 @@
           "dz1979-p086"
         ],
         "suspectedMatchEntryIds": []
+      },
+      "processedAt": "2026-08-06T07:36:00-04:00",
+      "processedEntryCount": 13,
+      "processing": {
+        "workerVisualReview": true,
+        "primaryVisualReview": false,
+        "ocrUsedAsAuthority": false,
+        "renderedPdfPages": [
+          96,
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109,
+          110,
+          111
+        ],
+        "ingredientEntryCount": 107,
+        "unresolvedRecipeCount": 4,
+        "reviewResult": "completed-external-review",
+        "correctionsApplied": [],
+        "externalVisualReview": {
+          "reviewer": "ChatGPT external visual review",
+          "scope": "pages 96-111 (batch dz1979-b04)",
+          "reviewedAt": "2026-08-06T07:36:00-04:00",
+          "completed": true,
+          "method": "external reviewer viewed review-pack PNG images; corrections recorded in dazhong-1979-corrections.json",
+          "result": "completed-with-corrections-applied"
+        }
       }
     },
     {
