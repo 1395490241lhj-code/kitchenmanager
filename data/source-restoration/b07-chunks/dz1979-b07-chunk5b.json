@@ -1,0 +1,188 @@
+{
+  "chunkId": "dz1979-b07-chunk5b",
+  "batchId": "dz1979-b07",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [
+    164
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p151",
+      "batchId": "dz1979-b07",
+      "bookName": "椿芽烘蛋",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 164,
+        "pdfEndPage": 164,
+        "bookStartPage": 151,
+        "bookEndPage": 151
+      },
+      "titleVisualCheck": {
+        "observedText": "椿芽烘蛋",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "鸡蛋",
+          "rawQuantityText": "五个",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 5,
+            "unit": "个",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "计数单位“个”按原书保留，不换算",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "椿芽",
+          "rawQuantityText": "一两二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 60,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两二钱 = 一两×50g + 二钱×5g = 50g + 10g = 60g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五分 × 0.5g = 2.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "把椿芽嫩的部分淘洗干净，用刀切细。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "将鸡蛋打于大碗内，加椿芽、盐、水豆粉，用竹筷充分搅打均匀。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "炒锅置小火上，放入猪油，油烧至四、五成热时，将打好的蛋从锅心油上冲下，随即将锅盖盖着（此时火宜小）。烘约三、四分钟，用竹筷试插锅心的蛋，如已不见蛋汁时，即稍放点油将蛋翻面，依然用盖盖着，直到两面都烘成深黄色，即起锅盛盘（可用刀划成斜方块，也可不划）。",
+            "measureMentions": [
+              {
+                "raw": "烘约三、四分钟",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "烘制时间"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "菜香，质嫩，味鲜，为时令菜之一。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "竹筷",
+          "炒锅",
+          "刀"
+        ],
+        "containers": [
+          "大碗",
+          "盘"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "淘洗椿芽所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "此时火宜小",
+          "location": "做法第3步"
+        },
+        {
+          "raw": "可用刀划成斜方块，也可不划",
+          "location": "做法第3步"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "exact-name",
+        "projectName": "椿芽烘蛋",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--24b2a22b"
+          },
+          {
+            "library": "full",
+            "id": "ex--24b2a22b"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    }
+  ]
+}

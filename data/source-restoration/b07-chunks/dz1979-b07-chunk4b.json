@@ -1,0 +1,300 @@
+{
+  "chunkId": "dz1979-b07-chunk4b",
+  "batchId": "dz1979-b07",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [
+    160,
+    161
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p147",
+      "batchId": "dz1979-b07",
+      "bookName": "芋儿烧鸭",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 160,
+        "pdfEndPage": 161,
+        "bookStartPage": 147,
+        "bookEndPage": 148
+      },
+      "titleVisualCheck": {
+        "observedText": "芋儿烧鸭",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "鸭子",
+          "rawQuantityText": "一只（约一斤五两）",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 1,
+            "unit": "只",
+            "appliesTo": "item",
+            "qualifier": "约一斤五两"
+          },
+          "conversionBasis": "计数单位“只”按原书保留；括注“约一斤五两”为参考重量，不替代计数单位",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "芋儿",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "姜",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "一钱五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 7.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一钱五分 = 一钱×5g + 五分×0.5g = 5g + 2.5g = 7.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": "十余粒",
+          "normalizedQuantity": {
+            "kind": "approximate-count",
+            "qty": null,
+            "unit": "粒",
+            "appliesTo": "item",
+            "qualifier": "余",
+            "referenceQty": 10
+          },
+          "conversionBasis": "“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "medium"
+          }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 30,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二斤五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤五两 = 二斤×500g + 五两×50g = 1000g + 250g = 1250g；原书按质量给出，保存为g，不推测毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "选用个头均匀的小芋儿，刮洗干净，沥干水。将宰杀整理后的鸭子清洗干净，去掉大骨，砍成长约一寸二、宽约八分的条形块子。姜拍松，葱挽结。",
+            "measureMentions": [
+              {
+                "raw": "长约一寸二、宽约八分",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "鸭条尺寸"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅置旺火上，放入猪油，油烧至七成热时放鸭条下锅，加姜、葱、花椒一起煸干水汽，出香味，下盐和酱油，再煸至鸭条上色时，掺汤烧开，撇去浮沫，移小火上加盖煨起。",
+            "measureMentions": [
+              {
+                "raw": "七成热",
+                "dimension": "heat",
+                "normalized": null,
+                "reason": "油温火候描述"
+              }
+            ]
+          },
+          {
+            "order": 3,
+            "summary": "待鸭条烧至五成粑时，加芋儿下锅一同烧。烧至全粑，即拈去姜、葱不用。然后放味精、水豆粉，将汁收浓起锅即成。",
+            "measureMentions": [
+              {
+                "raw": "五成粑",
+                "dimension": "doneness",
+                "normalized": null,
+                "reason": "鸭条软烂程度描述"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "粑",
+            "modernSummary": "软烂",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "滚刀块",
+            "modernSummary": "边滚边切成的多面块",
+            "confidence": "high",
+            "notes": "附注：大芋子的切法"
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "菜鲜味美，嫩滑适口。附注：若是大芋子，可用刀切成“滚刀块”。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅",
+          "刀"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [
+          "刮洗芋儿及清洗鸭所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "撇去浮沫，移小火上加盖煨起",
+          "location": "做法第2步"
+        },
+        {
+          "raw": "烧至全粑，即拈去姜、葱不用",
+          "location": "做法第3步"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    }
+  ]
+}

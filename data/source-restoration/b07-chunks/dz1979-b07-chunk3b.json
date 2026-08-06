@@ -1,0 +1,440 @@
+{
+  "chunkId": "dz1979-b07-chunk3b",
+  "batchId": "dz1979-b07",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [
+    156,
+    157
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p143",
+      "batchId": "dz1979-b07",
+      "bookName": "当归炖鸡",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 156,
+        "pdfEndPage": 156,
+        "bookStartPage": 143,
+        "bookEndPage": 143
+      },
+      "titleVisualCheck": {
+        "observedText": "当归炖鸡",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "仔母鸡",
+          "rawQuantityText": "一只（约重三斤五两）",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 1,
+            "unit": "只",
+            "appliesTo": "item",
+            "qualifier": "约重三斤五两"
+          },
+          "conversionBasis": "计数单位“只”按原书保留；括注“约重三斤五两”为参考重量，不替代计数单位",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "当归",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "醪糟汁",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "仔母鸡杀后去毛及内脏，洗净。在开水锅内煮去血水捞起，再用水清洗一下。当归宜用秦归，用水洗过。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "用一铝锅（或沙罐），装水三斤，将鸡放入，同时下醪糟汁、当归，盖严锅口，在旺火上烧开，用小火炖约三小时即成。",
+            "measureMentions": [
+              {
+                "raw": "装水三斤",
+                "dimension": "mass",
+                "normalized": {
+                  "kind": "exact-mass",
+                  "qty": 1500,
+                  "unit": "g"
+                },
+                "reason": "炖鸡用水量，三斤 × 500g = 1500g"
+              },
+              {
+                "raw": "约三小时",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "炖制时间"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "秦归",
+            "modernSummary": "甘肃（秦地）所产当归",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "汤鲜肉粑，补血活血。此菜用于冬季，最宜老人、产妇食用。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "水",
+          "rawQuantityText": "三斤",
+          "use": "铝锅（或沙罐）内装水炖鸡",
+          "quantityHandling": "做法中给出“三斤”，原料栏未列；按原书质量单位保留",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": [
+          "开水锅",
+          "铝锅（或沙罐）"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [
+          "清洗鸡及当归所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "当归宜用秦归",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "用小火炖约三小时即成",
+          "location": "做法第2步"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    },
+    {
+      "entryId": "dz1979-p144",
+      "batchId": "dz1979-b07",
+      "bookName": "黄焖鸭子",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 157,
+        "pdfEndPage": 157,
+        "bookStartPage": 144,
+        "bookEndPage": 144
+      },
+      "titleVisualCheck": {
+        "observedText": "黄焖鸭子",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "水盆鸭",
+          "rawQuantityText": "一只（约一斤五两）",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 1,
+            "unit": "只",
+            "appliesTo": "item",
+            "qualifier": "约一斤五两"
+          },
+          "conversionBasis": "计数单位“只”按原书保留；括注“约一斤五两”为参考重量，不替代计数单位",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "姜、葱",
+          "rawQuantityText": "各五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "each-item",
+            "qualifier": null
+          },
+          "memberQuantityMode": "same-for-each",
+          "members": [
+            {
+              "item": "姜",
+              "qty": 25,
+              "unit": "g"
+            },
+            {
+              "item": "葱",
+              "qty": 25,
+              "unit": "g"
+            }
+          ],
+          "conversionBasis": "原文有“各”；每项五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "笋子",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "三分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三分 × 0.5g = 1.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "绍酒、酱油",
+          "rawQuantityText": "各一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "each-item",
+            "qualifier": null
+          },
+          "memberQuantityMode": "same-for-each",
+          "members": [
+            {
+              "item": "绍酒",
+              "qty": 50,
+              "unit": "g"
+            },
+            {
+              "item": "酱油",
+              "qty": 50,
+              "unit": "g"
+            }
+          ],
+          "conversionBasis": "原文有“各”；每项一两 × 50g = 50g；绍酒按原书质量单位保存为g，不推测毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "将水盆鸭先用水洗净，再砍成八分见方的块子。姜拍松，葱挽结，笋子（明笋、玉兰片均可）切成六分长的条。",
+            "measureMentions": [
+              {
+                "raw": "八分见方",
+                "dimension": "size",
+                "normalized": null,
+                "reason": "鸭块尺寸"
+              },
+              {
+                "raw": "六分长",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "笋条长度"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅内下猪油，烧至六成热时下鸭块，煸走一些水汽时，即下绍酒（如无绍酒，用醪糟汁也可）、酱油、姜、葱、盐、笋子和开水（用汤更好）二斤，在旺火上烧开，然后用小火烧约三小时，待鸭块粑时，去掉姜、葱，下水豆粉、味精，收浓起锅即成。",
+            "measureMentions": [
+              {
+                "raw": "六成热",
+                "dimension": "heat",
+                "normalized": null,
+                "reason": "油温火候描述"
+              },
+              {
+                "raw": "开水二斤",
+                "dimension": "mass",
+                "normalized": {
+                  "kind": "exact-mass",
+                  "qty": 1000,
+                  "unit": "g"
+                },
+                "reason": "烧制用水量，二斤 × 500g = 1000g"
+              },
+              {
+                "raw": "约三小时",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "小火烧制时间"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "粑",
+            "modernSummary": "软烂",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "味浓而鲜香，色泽金黄。四季均宜。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "醪糟汁",
+          "rawQuantityText": null,
+          "use": "如无绍酒，用醪糟汁也可",
+          "quantityHandling": "绍酒替代项，无独立数量",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [
+          "洗净鸭所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "如无绍酒，用醪糟汁也可",
+          "location": "做法第2步"
+        },
+        {
+          "raw": "开水（用汤更好）二斤",
+          "location": "做法第2步"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    }
+  ]
+}

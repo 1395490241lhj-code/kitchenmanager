@@ -1,0 +1,184 @@
+{
+  "chunkId": "dz1979-b07-chunk4",
+  "batchId": "dz1979-b07",
+  "applicationReady": false,
+  "chunkStatus": "partial-checkpoint",
+  "pdfPages": [
+    158,
+    159
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p145",
+      "batchId": "dz1979-b07",
+      "bookName": "蘑芋烧鸭",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 158,
+        "pdfEndPage": 159,
+        "bookStartPage": 145,
+        "bookEndPage": 146
+      },
+      "titleVisualCheck": {
+        "observedText": "（起始页无可见标题）按目录页序归位为蘑芋烧鸭",
+        "matchesCatalog": true,
+        "confidence": "medium",
+        "notes": "PDF第158页经220dpi与600dpi两次渲染确认全页空白，标题、原料栏与做法起始均未印出；本条目归属仅依据目录页序（书内第145页）及PDF第159页的连续正文推断。"
+      },
+      "ingredients": [],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "（续接缺失的起始正文）锅内余油下豆瓣、花椒炒香，掺汤烧开后打去渣子，放入鸭条，加盐、酱油，盖盖用小火烧。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "烧至七成粑时，加入蘑芋、胡椒面，再放蒜苗、味精，用水豆粉勾芡起锅。附注：烧时注意翻动鸭条，使其入味均匀。",
+            "measureMentions": [
+              {
+                "raw": "七成粑",
+                "dimension": "doneness",
+                "normalized": null,
+                "reason": "鸭条软烂程度描述"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "七成粑",
+            "modernSummary": "约七成软烂",
+            "confidence": "high",
+            "notes": null
+          },
+          {
+            "raw": "打渣",
+            "modernSummary": "捞去汤中花椒等渣料",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "medium"
+      },
+      "characteristicsSummary": "色泽红亮，味浓而鲜。附注：烧时注意翻动鸭条，使其入味均匀。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "豆瓣",
+          "rawQuantityText": null,
+          "use": "续存正文：余油下锅炒香",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": null,
+          "use": "续存正文：与豆瓣同炒后打渣",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        },
+        {
+          "rawItemText": "胡椒面",
+          "rawQuantityText": null,
+          "use": "七成粑时加入",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        },
+        {
+          "rawItemText": "蒜苗",
+          "rawQuantityText": null,
+          "use": "起锅前加入",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": null,
+          "use": "起锅前加入",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": null,
+          "use": "勾芡",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": null,
+          "use": "烧制调味",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": null,
+          "use": "烧制调味",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": null,
+          "use": "掺汤烧鸭条",
+          "quantityHandling": "起始正文缺失，原料栏不可见，无数量",
+          "confidence": "medium"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": [
+          "锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "烧至七成粑",
+          "location": "做法第2步（续存正文）"
+        },
+        {
+          "raw": "色泽红亮，味浓而鲜",
+          "location": "特点栏"
+        }
+      ],
+      "uncertainties": [
+        {
+          "location": "标题、原料栏、做法起始（含第1步前半）",
+          "type": "page-boundary",
+          "rawText": "PDF第158页经220dpi与600dpi两次渲染确认全页空白；PDF第159页仅存本条目的连续正文尾部（第1步后半起）、特点与附注",
+          "candidates": [],
+          "treatment": "仅记录当前扫描件可证实的事实：起始页全页空白，标题、原料栏与做法起始在本扫描件中不可见；续存页仅存第1步后半以后的正文。已保留页面实际可见的做法片段、特点与附注，不伪造缺失部分；ingredients保持为空（原料栏不可见），contentIncomplete=true。不对成因作出判断（不断言所有纸质版本都存在印刷缺失），待人工核对原始纸质版本确认。",
+          "reasonCode": "source-content-missing"
+        }
+      ],
+      "projectMatch": {
+        "classification": "confirmed-alias",
+        "projectName": "魔芋烧鸭",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--56a6ad20"
+          },
+          {
+            "library": "full",
+            "id": "ex--56a6ad20"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "confidence": {
+        "recognition": "medium",
+        "conversion": null
+      },
+      "contentMissing": false,
+      "contentIncomplete": true
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isVerifiedContentMissing } from './lib/content-missing.mjs';
+import { isVerifiedContentMissing, isVerifiedContentIncomplete } from './lib/content-missing.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -233,6 +233,7 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
     throw new Error(`${expectedEntryId} is missing a valid visual title check.`);
   }
   const contentMissingVerified = isVerifiedContentMissing(recipe);
+  const contentIncompleteVerified = isVerifiedContentIncomplete(recipe);
   if (contentMissingVerified) {
     if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length !== 0) {
       throw new Error(`${expectedEntryId} contentMissing recipes must have an empty ingredients array.`);
@@ -241,9 +242,33 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
     if (!Array.isArray(steps) || steps.length !== 0) {
       throw new Error(`${expectedEntryId} contentMissing recipes must have an empty method step array.`);
     }
+  } else if (contentIncompleteVerified) {
+    // Relaxed shape: the printed page itself is truncated (missing start or
+    // continuation), so ingredients may be empty and steps may fall outside
+    // the normal 2-6 range, but whatever is genuinely visible must still be
+    // well-formed.
+    if (!Array.isArray(recipe.ingredients)) {
+      throw new Error(`${expectedEntryId} ingredients must be an array.`);
+    }
+    recipe.ingredients.forEach((ingredient, index) => (
+      validateIngredient(ingredient, `${expectedEntryId}.ingredients[${index}]`)
+    ));
+    const steps = recipe.methodSummary?.steps;
+    if (!Array.isArray(steps) || steps.length < 1 || steps.length > 6) {
+      throw new Error(`${expectedEntryId} contentIncomplete recipes must have 1-6 visible method steps.`);
+    }
+    for (const [index, step] of steps.entries()) {
+      if (step.order !== index + 1) {
+        throw new Error(`${expectedEntryId} method step order is not contiguous.`);
+      }
+      assertString(step.summary, `${expectedEntryId}.methodSummary.steps[${index}].summary`);
+    }
   } else {
     if (recipe.contentMissing === true) {
       throw new Error(`${expectedEntryId} contentMissing=true requires a page-boundary uncertainty with an allowed reasonCode (scan-page-blank or source-content-missing).`);
+    }
+    if (recipe.contentIncomplete === true) {
+      throw new Error(`${expectedEntryId} contentIncomplete=true requires a page-boundary uncertainty with reasonCode source-content-missing (and contentMissing must not also be true).`);
     }
     if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
       throw new Error(`${expectedEntryId} has no printed ingredients.`);
@@ -262,7 +287,7 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
       assertString(step.summary, `${expectedEntryId}.methodSummary.steps[${index}].summary`);
     }
   }
-  if (!contentMissingVerified || recipe.characteristicsSummary !== null) {
+  if ((!contentMissingVerified && !contentIncompleteVerified) || recipe.characteristicsSummary !== null) {
     assertString(recipe.characteristicsSummary, `${expectedEntryId}.characteristicsSummary`);
   }
   if (!Array.isArray(recipe.methodOnlyIngredients)
@@ -281,9 +306,12 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
       throw new Error(`${expectedEntryId}.nonIngredientMaterials.${key} must be an array.`);
     }
   }
+  const projectMatch = projectMatchFor(expectedEntryId);
   return {
     ...recipe,
-    projectMatch: projectMatchFor(expectedEntryId),
+    projectMatch: contentIncompleteVerified
+      ? { ...projectMatch, reviewRequired: true }
+      : projectMatch,
   };
 };
 

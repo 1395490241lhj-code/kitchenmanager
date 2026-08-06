@@ -66,19 +66,23 @@ test('contentMissing exception only applies to a verified missing-source uncerta
   }), true);
 });
 
-test('dz1979-p122 (蒜烧肚条) is the sole verified-missing entry in the restored batch prefix', () => {
+test('dz1979-p122, dz1979-p138, dz1979-p152 are the verified-missing entries in the restored batch prefix', () => {
   const missingEntries = restored.recipes.filter((recipe) => recipe.contentMissing === true);
-  assert.deepEqual(missingEntries.map((recipe) => recipe.entryId), ['dz1979-p122']);
-  const [entry] = missingEntries;
-  assert.equal(isVerifiedContentMissing(entry), true);
-  assert.equal(entry.ingredients.length, 0);
-  assert.equal(entry.methodSummary.steps.length, 0);
-  const uncertainty = entry.uncertainties.find((u) => u.type === 'page-boundary');
-  assert.equal(uncertainty.reasonCode, 'scan-page-blank');
-  // The recorded fact must describe what the source proves (a blank page),
-  // not assert an unproven cause such as a printing defect.
-  assert.doesNotMatch(uncertainty.treatment, /判定为.{0,4}印刷缺页/);
-  assert.match(uncertainty.treatment, /不对成因作出判断/);
+  assert.deepEqual(
+    missingEntries.map((recipe) => recipe.entryId),
+    ['dz1979-p122', 'dz1979-p138', 'dz1979-p152'],
+  );
+  for (const entry of missingEntries) {
+    assert.equal(isVerifiedContentMissing(entry), true);
+    assert.equal(entry.ingredients.length, 0);
+    assert.equal(entry.methodSummary.steps.length, 0);
+    const uncertainty = entry.uncertainties.find((u) => u.type === 'page-boundary');
+    assert.equal(uncertainty.reasonCode, 'scan-page-blank');
+    // The recorded fact must describe what the source proves (a blank page),
+    // not assert an unproven cause such as a printing defect.
+    assert.doesNotMatch(uncertainty.treatment, /判定为.{0,4}印刷缺页/);
+    assert.match(uncertainty.treatment, /不对成因作出判断/);
+  }
 });
 
 test('assembler rejects an ordinary recipe with empty ingredients/steps even when other batches are valid', () => {
@@ -105,16 +109,20 @@ test('assembler rejects an ordinary recipe with empty ingredients/steps even whe
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test('assembler accepts dz1979-p122 as the only contentMissing exception in b06', () => {
-  // Re-running the assembler against the real (corrected) b06 worker file
+test('assembler accepts the real contentMissing exceptions across b05-b07', () => {
+  // Re-running the assembler against the real (corrected) worker files
   // must succeed and must not change which entry is treated as missing.
   execFileSync('node', [
     new URL('../scripts/assemble-dazhong-chuancai-recipes.mjs', import.meta.url).pathname,
     'data/source-restoration/dz1979-b05-worker.json',
     'data/source-restoration/dz1979-b06-worker.json',
+    'data/source-restoration/dz1979-b07-worker.json',
   ], { cwd: new URL('..', import.meta.url).pathname, stdio: 'pipe' });
 
   const rebuilt = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
   const missingEntries = rebuilt.recipes.filter((recipe) => recipe.contentMissing === true);
-  assert.deepEqual(missingEntries.map((recipe) => recipe.entryId), ['dz1979-p122']);
+  assert.deepEqual(
+    missingEntries.map((recipe) => recipe.entryId),
+    ['dz1979-p122', 'dz1979-p138', 'dz1979-p152'],
+  );
 });

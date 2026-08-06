@@ -54,9 +54,9 @@
         "count": 3
       }
     ],
-    "processedRecipeCount": 76,
-    "remainingRecipeCount": 71,
-    "completedBatchCount": 6
+    "processedRecipeCount": 90,
+    "remainingRecipeCount": 57,
+    "completedBatchCount": 7
   },
   "batches": [
     {
@@ -622,7 +622,7 @@
     },
     {
       "batchId": "dz1979-b07",
-      "status": "planned-not-started",
+      "status": "completed-primary-reviewed",
       "applicationReady": false,
       "category": "禽蛋鱼类",
       "entryCount": 14,
@@ -681,6 +681,37 @@
         "suspectedMatchEntryIds": [
           "dz1979-p141"
         ]
+      },
+      "processedAt": "2026-08-06T19:18:32.423Z",
+      "processedEntryCount": 14,
+      "processing": {
+        "workerVisualReview": true,
+        "primaryVisualReview": true,
+        "ocrUsedAsAuthority": false,
+        "renderedPdfPages": [
+          148,
+          149,
+          150,
+          151,
+          152,
+          153,
+          154,
+          155,
+          156,
+          157,
+          158,
+          159,
+          160,
+          161,
+          162,
+          163,
+          164,
+          165
+        ],
+        "ingredientEntryCount": 91,
+        "unresolvedRecipeCount": 6,
+        "reviewResult": "completed-with-recorded-uncertainties",
+        "correctionsApplied": []
       }
     },
     {

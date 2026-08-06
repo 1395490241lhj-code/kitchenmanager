@@ -1,0 +1,242 @@
+{
+  "chunkId": "dz1979-b07-chunk3",
+  "batchId": "dz1979-b07",
+  "applicationReady": false,
+  "chunkStatus": "partial-checkpoint",
+  "pdfPages": [
+    155,
+    156
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p142",
+      "batchId": "dz1979-b07",
+      "bookName": "香菌烧鸡",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 155,
+        "pdfEndPage": 155,
+        "bookStartPage": 142,
+        "bookEndPage": 142
+      },
+      "titleVisualCheck": {
+        "observedText": "香菌烧鸡",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题；本条目仅含页面实际可见内容，正文在第1步后中断"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "鸡肉",
+          "rawQuantityText": "一斤五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 750,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤五两 = 一斤×500g + 五两×50g = 500g + 250g = 750g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "猪肉",
+          "rawQuantityText": "八两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 400,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "八两 × 50g = 400g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "一钱五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 7.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一钱五分 = 一钱×5g + 五分×0.5g = 5g + 2.5g = 7.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "香菌",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "姜",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "四钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 20,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "四钱 × 5g = 20g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二斤五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤五两 = 二斤×500g + 五两×50g = 1000g + 250g = 1250g；原书按质量给出，保存为g，不推测毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "鸡肉宰洗干净，宰成约一寸见方的块子；猪肉切成一寸二长、七分宽、二分厚的片；香菌用温热水泡胀洗净；姜拍松，葱挽成结。",
+            "measureMentions": [
+              {
+                "raw": "约一寸见方",
+                "dimension": "size",
+                "normalized": null,
+                "reason": "鸡块大小描述"
+              },
+              {
+                "raw": "一寸二长、七分宽、二分厚",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "肉片长度一寸二、宽七分、厚二分"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "medium"
+      },
+      "characteristicsSummary": null,
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "香菌用温热水泡胀洗净",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "汤 二斤五两",
+          "location": "原料栏"
+        }
+      ],
+      "uncertainties": [
+        {
+          "location": "做法第2步起及特点栏",
+          "type": "page-boundary",
+          "rawText": "当前扫描件PDF第155页正文在做法第1步后结束，页面底部为空白；其后PDF第156页为下一条目“当归炖鸡”的起始页，无本条目连续正文",
+          "candidates": [],
+          "treatment": "仅记录当前扫描件可证实的事实：本来源正文在做法第1步后中断，后续页面（含PDF第156页）无本条目的连续正文，第2步及以后的做法与“特点”栏在本扫描件中不可见。已保留页面实际可见的全部原料与第1步做法，不伪造第2步以后内容或特点；contentIncomplete=true。不对成因作出判断（不断言所有纸质版本都存在印刷缺失），待人工核对原始纸质版本确认。",
+          "reasonCode": "source-content-missing"
+        }
+      ],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      },
+      "contentMissing": false,
+      "contentIncomplete": true
+    }
+  ]
+}

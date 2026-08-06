@@ -1,0 +1,67 @@
+{
+  "chunkId": "dz1979-b07-chunk2",
+  "batchId": "dz1979-b07",
+  "applicationReady": false,
+  "chunkStatus": "partial-checkpoint",
+  "pdfPages": [
+    151
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p138",
+      "batchId": "dz1979-b07",
+      "bookName": "红油鸡块",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 151,
+        "pdfEndPage": 151,
+        "bookStartPage": 138,
+        "bookEndPage": 138
+      },
+      "titleVisualCheck": {
+        "observedText": "（页面无可见标题）按目录页序归位为红油鸡块",
+        "matchesCatalog": true,
+        "confidence": "medium",
+        "notes": "PDF第151页经220dpi与600dpi两次渲染确认全页空白，无任何标题文字；本条目归属仅依据目录页序（书内第138页），非页面可见标题。"
+      },
+      "ingredients": [],
+      "methodSummary": {
+        "steps": [],
+        "dialectOrOldTerms": [],
+        "confidence": null
+      },
+      "characteristicsSummary": null,
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [
+        {
+          "location": "整页",
+          "type": "page-boundary",
+          "rawText": "PDF第151页经220dpi与600dpi两次渲染确认全页无任何可见印刷内容（标题、原料栏、做法栏、特点栏均未印出）",
+          "candidates": [],
+          "treatment": "仅记录本来源可证实的事实：当前PDF扫描件对应页面全页空白（标题、原料、做法、特点栏均未印出）。不对成因作出判断（不断言为原书印刷缺页、扫描遗漏或其他原因），contentMissing=true，ingredients/methodSummary保持为空，待人工核对原始纸质版本确认。",
+          "reasonCode": "scan-page-blank"
+        }
+      ],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "medium",
+        "conversion": null
+      },
+      "contentMissing": true
+    }
+  ]
+}

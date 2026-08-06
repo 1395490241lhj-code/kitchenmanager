@@ -88,9 +88,19 @@ test('every processed recipe keeps visual source, method, material, and mapping 
 
     const isVerifiedContentMissing = recipe.contentMissing === true
       && recipe.uncertainties.some((u) => u.type === 'page-boundary');
+    const isVerifiedContentIncomplete = recipe.contentIncomplete === true
+      && recipe.contentMissing !== true
+      && recipe.uncertainties.some((u) => u.type === 'page-boundary'
+        && u.reasonCode === 'source-content-missing');
     if (isVerifiedContentMissing) {
       assert.equal(recipe.ingredients.length, 0);
       assert.equal(recipe.methodSummary.steps.length, 0);
+    } else if (isVerifiedContentIncomplete) {
+      // A genuinely truncated printed page: whatever is visible must still
+      // be well-formed, but the normal non-empty/2-6-step thresholds do not
+      // apply because part of the page itself is missing.
+      assert.ok(recipe.methodSummary.steps.length >= 1);
+      assert.ok(recipe.methodSummary.steps.length <= 6);
     } else {
       assert.ok(recipe.ingredients.length > 0);
       assert.ok(recipe.methodSummary.steps.length >= 2);
@@ -101,7 +111,7 @@ test('every processed recipe keeps visual source, method, material, and mapping 
       recipe.methodSummary.steps.map((_, index) => index + 1),
     );
     assert.ok(recipe.methodSummary.steps.every((step) => step.summary));
-    if (!isVerifiedContentMissing) {
+    if (!isVerifiedContentMissing && !(isVerifiedContentIncomplete && recipe.characteristicsSummary === null)) {
       assert.ok(recipe.characteristicsSummary);
     }
     assert.ok(Array.isArray(recipe.methodOnlyIngredients));
@@ -132,10 +142,17 @@ test('every processed recipe keeps visual source, method, material, and mapping 
       assert.equal(recipe.projectMatch.projectName, null);
       assert.deepEqual(recipe.projectMatch.projectIds, []);
       assert.equal(recipe.projectMatch.candidateProjectName, null);
+      if (isVerifiedContentIncomplete) {
+        assert.equal(recipe.projectMatch.reviewRequired, true);
+      }
     } else {
       assert.equal(recipe.projectMatch.projectName, sourceMatch.projectName);
       assert.ok(recipe.projectMatch.projectIds.length > 0);
-      assert.equal(recipe.projectMatch.reviewRequired, false);
+      if (isVerifiedContentIncomplete) {
+        assert.equal(recipe.projectMatch.reviewRequired, true);
+      } else {
+        assert.equal(recipe.projectMatch.reviewRequired, false);
+      }
     }
   }
 });
