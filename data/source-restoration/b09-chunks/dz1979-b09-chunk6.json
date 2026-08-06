@@ -1,0 +1,158 @@
+{
+  "chunkId": "dz1979-b09-chunk6",
+  "batchId": "dz1979-b09",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [202, 203],
+  "recipes": [
+    {
+      "entryId": "dz1979-p189",
+      "batchId": "dz1979-b09",
+      "bookName": "醋渍胡豆",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 202,
+        "pdfEndPage": 203,
+        "bookStartPage": 189,
+        "bookEndPage": 190
+      },
+      "titleVisualCheck": {
+        "observedText": "醋渍胡豆",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "干胡豆",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 500, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "姜",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 30, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 40, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g，不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": "一分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 0.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一分 × 0.5g = 0.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 30, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "泡红辣椒",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 30, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "三分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，三分 × 0.5g = 1.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "红糖",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "生菜油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "干胡豆用温热水浸泡，至皮发皱时，捞起，沥干水；姜、蒜均切末，葱切细花，泡红辣椒切“鱼眼睛”，生花椒铡细，红糖切散。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "将以上各味调料盛碗内，加盐、酱油、醋、生菜油（五钱）及开水（八两）搅匀。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "炒锅置旺火上烧热，下胡豆用铲炒动，炒至胡豆发出爆响声，把余下的生菜油从锅边的胡豆四周徐徐倒下，并不断铲炒。此时爆声更响更密，迅速将胡豆铲于调料碗内，盖严渍起，稍待即可食用。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          { "raw": "泡红辣椒切“鱼眼睛”", "notes": "指将泡红辣椒切成鱼眼睛大小的碎粒，保留原书比喻用语" }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "咸、甜、麻、辣、酸香俱全，嘴嚼味长，下酒下粥均宜。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "开水",
+          "rawQuantityText": "八两",
+          "use": "做法第2步：调料碗内加开水搅匀",
+          "quantityHandling": "原料栏未列此项；做法中给出八两，按50g/两换算为400g仅供参考，不推算毫升",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": ["炒锅", "锅铲"],
+        "containers": ["碗"],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        { "raw": "生菜油（五钱）", "location": "做法第2步：原料栏“生菜油”合计一两，做法第2步先用五钱调入调料碗，第3步注明“余下的生菜油”用于最后浇淋，两处均逐字保留，不合并为单一数量" }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    }
+  ]
+}

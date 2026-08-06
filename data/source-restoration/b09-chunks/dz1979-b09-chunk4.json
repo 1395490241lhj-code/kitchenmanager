@@ -1,0 +1,233 @@
+{
+  "chunkId": "dz1979-b09-chunk4",
+  "batchId": "dz1979-b09",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [198, 199],
+  "recipes": [
+    {
+      "entryId": "dz1979-p185",
+      "batchId": "dz1979-b09",
+      "bookName": "麻酱青笋尖",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 198,
+        "pdfEndPage": 198,
+        "bookStartPage": 185,
+        "bookEndPage": 185
+      },
+      "titleVisualCheck": {
+        "observedText": "麻酱青笋尖",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "青笋尖",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 500, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 2.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "熟油辣椒",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "芝麻酱",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 75, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 30, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒面",
+          "rawQuantityText": "一分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 0.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一分 × 0.5g = 0.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "只取青笋尖部（约二寸长），去掉外层老叶，淘洗干净，细的用刀切成四牙，粗的六牙。先用盐腌渍约一小时，再用清水淘一次，装入筲箕内放少许白糖和盐拌匀，沥干，除掉湿味。",
+            "measureMentions": [
+              { "raw": "约二寸长", "dimension": "length", "normalized": null, "reason": "笋尖长度，不是重量" }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "将笋尖装入碗内，用熟油辣椒合转。然后依次放入酱油、花椒面、白糖、蒜（剁成泥）、芝麻酱，拌合均匀即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "咸甜麻辣、香味浓郁。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": ["筲箕", "碗"],
+        "fuels": [],
+        "cleaningMaterials": ["淘洗笋尖所用清水"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    },
+    {
+      "entryId": "dz1979-p186",
+      "batchId": "dz1979-b09",
+      "bookName": "蒜泥拌黄瓜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 199,
+        "pdfEndPage": 199,
+        "bookStartPage": 186,
+        "bookEndPage": 186
+      },
+      "titleVisualCheck": {
+        "observedText": "蒜泥拌黄瓜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "黄瓜",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 500, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "熟油辣椒",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 40, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "七钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 35, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "七钱 × 5g = 35g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 2.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒面",
+          "rawQuantityText": "一分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 0.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一分 × 0.5g = 0.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三钱 × 5g = 15g，不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "黄瓜用清水洗后削去两头及青皮，再用刀切成“梳子背”块形，蒜剥泥。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "将黄瓜盛筲箕内，用盐腌约十分钟，入味后，用清水淘一次，将水沥干。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "用一碗装黄瓜，先下熟油辣椒合转，然后加盐、白糖、花椒面、蒜泥、醋拌匀即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "红油蒜泥味道，入口清脆。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": ["筲箕", "碗"],
+        "fuels": [],
+        "cleaningMaterials": ["清水淘洗黄瓜所用水"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        { "raw": "切成“梳子背”块形", "location": "做法第1步" }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    }
+  ]
+}

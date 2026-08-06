@@ -1,0 +1,226 @@
+{
+  "chunkId": "dz1979-b09-chunk8",
+  "batchId": "dz1979-b09",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [207, 208],
+  "recipes": [
+    {
+      "entryId": "dz1979-p194",
+      "batchId": "dz1979-b09",
+      "bookName": "家常芋头",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 207,
+        "pdfEndPage": 207,
+        "bookStartPage": 194,
+        "bookEndPage": 194
+      },
+      "titleVisualCheck": {
+        "observedText": "家常芋头",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "芋头",
+          "rawQuantityText": "一斤五两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 750, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤五两 = 500g + 250g = 750g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 100, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "三分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，三分 × 0.5g = 1.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "豆瓣",
+          "rawQuantityText": "一两二钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 60, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两二钱 = 一两×50g + 二钱×5g = 50g + 10g = 60g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "蒜苗",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 75, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "二斤",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1000, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二斤 × 500g = 1000g，不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "选嫩芋头刮洗干净，切块，蒜苗切长约八分的节，豆瓣剁细。",
+            "measureMentions": [
+              { "raw": "长约八分的节", "dimension": "length", "normalized": null, "reason": "蒜苗切段长度，不是重量" }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅置中火上，放油烧至五成热时，下芋头炒几下；再下豆瓣同炒，炒出香味下鲜汤、盐、酱油烧开；然后用小火慢烧至芋头炬（熟软）时，加蒜苗；最后蒜苗烧熟放味精、水豆粉，收浓滋汁，起锅即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          { "raw": "烧至芋头炬时", "notes": "“炬”疑为方言或印刷用字，指芋头烧至熟软透心，摘要以括注“（熟软）”辅助说明语义，不改动原字判读" }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "鲜香烫而略带甜味，宜于下饭。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": ["炒锅"],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": ["刮洗芋头所用水"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [
+        {
+          "location": "做法第2步",
+          "type": "unclear-glyph",
+          "rawText": "烧至芋头炬时",
+          "candidates": ["烧至芋头耙时", "烧至芋头糯时"],
+          "treatment": "字形按“炬”读出并逐字保留；因该字在此语境下的确切含义无法仅凭本页字形完全确认，不替换为候选字，仅在方法摘要括注补充语义提示",
+          "reasonCode": "unclear-glyph",
+          "entryId": "dz1979-p194"
+        }
+      ],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    },
+    {
+      "entryId": "dz1979-p195",
+      "batchId": "dz1979-b09",
+      "bookName": "干煸苦瓜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 208,
+        "pdfEndPage": 208,
+        "bookStartPage": 195,
+        "bookEndPage": 195
+      },
+      "titleVisualCheck": {
+        "observedText": "干煸苦瓜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "苦瓜",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 500, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "青椒",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "八分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 4, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，八分 × 0.5g = 4g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "大白苦瓜去两头，对剖两开去瓤，洗净后打斜切成长约一寸二、厚约半分的片子；青椒去蒂去籽洗净，切成粗丝。",
+            "measureMentions": [
+              { "raw": "长约一寸二、厚约半分", "dimension": "length", "normalized": null, "reason": "苦瓜片子的长厚，不是重量" }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅烧热（不用油），下苦瓜干煸，煸干水分后铲起；然后再煸青椒，煸蔫时加苦瓜同煸，煸得干香后下菜油，再煸几下，放盐合匀起锅。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "味苦而干香，家常风味菜之一。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": ["炒锅"],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    }
+  ]
+}

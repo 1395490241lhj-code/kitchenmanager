@@ -1,0 +1,279 @@
+{
+  "chunkId": "dz1979-b09-chunk3",
+  "batchId": "dz1979-b09",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [196, 197],
+  "recipes": [
+    {
+      "entryId": "dz1979-p183",
+      "batchId": "dz1979-b09",
+      "bookName": "酱烧苦瓜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 196,
+        "pdfEndPage": 196,
+        "bookStartPage": 183,
+        "bookEndPage": 183
+      },
+      "titleVisualCheck": {
+        "observedText": "酱烧苦瓜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题（渲染于PDF第195-196页，标题及正文均在PDF第196页）"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "苦瓜",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 500, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "甜酱",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 10, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 10, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "三分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，三分 × 0.5g = 1.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两二钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 60, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两二钱 = 一两×50g + 二钱×5g = 50g + 10g = 60g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "苦瓜用水洗净，切去两头蒂把尖细部份，对剖两开，挖去瓜瓤，切成长约八分、宽约四分的条子。",
+            "measureMentions": [
+              { "raw": "长约八分、宽约四分", "dimension": "length", "normalized": null, "reason": "苦瓜条子的长宽，不是重量" }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅置中火上，放入菜油烧至六成热时，下甜酱在油中炒散，炒香；接着下盐、白糖合炒几下，加苦瓜合转（使其粘满甜酱），然后掺汤（三两）再烧，直至苦瓜上色入味时，加味精，勾水豆粉收汁起锅即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "清鲜味苦，富有甜酱味，能消暑退热，夏季好菜。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "三两",
+          "use": "做法第2步：苦瓜与甜酱合炒后掺汤再烧",
+          "quantityHandling": "原料栏未列此项；做法中给出三两，按50g/两换算为150g仅供参考，不推算毫升",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": ["炒锅"],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        { "raw": "附注：不习惯苦味的，可先将苦瓜用水煮一下，减轻苦味后再烧。", "location": "特点栏后附注" }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    },
+    {
+      "entryId": "dz1979-p184",
+      "batchId": "dz1979-b09",
+      "bookName": "麻辣明笋丝",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 197,
+        "pdfEndPage": 197,
+        "bookStartPage": 184,
+        "bookEndPage": 184
+      },
+      "titleVisualCheck": {
+        "observedText": "麻辣明笋丝",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "干明笋",
+          "rawQuantityText": "四两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 200, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "四两 × 50g = 200g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 2.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 30, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "熟油辣椒",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒面",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "香油",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "葱白",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "干明笋用温热水淹没，浸泡十二小时发胀，用淘米水揉搓几次，再清洗去掉硫磺味，葱白切成粗丝。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "将明笋用手撕成粗丝子后，用刀切成二至三段的短节，在开水锅中余（煮）两次，捞起沥干。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "明笋丝盛碗内，先用熟油辣椒和香油合转，然后加盐、酱油、花椒面、味精及葱蒜拌匀即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          { "raw": "余两次", "notes": "疑为“煮两次”或类似方言写法的印刷简省，字形按“余”确认，摘要在括注中补充“（煮）”以说明动作语义，不改动原字判读" }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "菜质脆，麻辣味香。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "未列数量",
+          "use": "做法第3步：与盐、酱油、花椒面、味精一起加入拌匀，原文写“葱蒜拌匀”",
+          "quantityHandling": "原料栏仅列“葱白”未列“蒜”；做法第3步明确写到蒜，原料栏与做法用词不一致，两处均逐字保留，不猜测或补全蒜的数量",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": ["碗"],
+        "fuels": [],
+        "cleaningMaterials": ["淘米水", "开水锅"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        { "raw": "在开水锅中余两次", "location": "做法第2步（字形确认为“余”，语义存疑，已在uncertainties记录）" }
+      ],
+      "uncertainties": [
+        {
+          "location": "做法第2步",
+          "type": "unclear-glyph",
+          "rawText": "在开水锅中余两次",
+          "candidates": ["煮两次", "余（渌/煠）两次"],
+          "treatment": "字形按“余”读出并逐字保留；因该字在此语境下的确切含义（是否为“煮”的方言简写或印刷讹字）无法仅凭本页确认，不替换为候选字，仅在方法摘要括注补充语义提示",
+          "reasonCode": "unclear-glyph",
+          "entryId": "dz1979-p184"
+        },
+        {
+          "location": "原料栏 vs 做法第3步",
+          "type": "ingredient-mismatch",
+          "rawText": "原料栏仅列“葱白”，做法第3步写“加……葱蒜拌匀”",
+          "candidates": [],
+          "treatment": "原料栏未列蒜，做法提到蒜；按规则做法中才出现的原料单列为method-only mention，不臆测蒜的数量或将其并入葱白项",
+          "reasonCode": "source-content-missing",
+          "entryId": "dz1979-p184"
+        }
+      ],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    }
+  ]
+}

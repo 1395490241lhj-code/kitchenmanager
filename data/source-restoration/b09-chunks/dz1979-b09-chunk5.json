@@ -1,0 +1,203 @@
+{
+  "chunkId": "dz1979-b09-chunk5",
+  "batchId": "dz1979-b09",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [200, 201],
+  "recipes": [
+    {
+      "entryId": "dz1979-p187",
+      "batchId": "dz1979-b09",
+      "bookName": "糖醋子姜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 200,
+        "pdfEndPage": 200,
+        "bookStartPage": 187,
+        "bookEndPage": 187
+      },
+      "titleVisualCheck": {
+        "observedText": "糖醋子姜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "子姜",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 150, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "香油",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 30, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "六钱 × 5g = 30g，不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "三分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 1.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，三分 × 0.5g = 1.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "四钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 20, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "四钱 × 5g = 20g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "将子姜刮去外层筋皮，清洗干净切成薄片，然后用盐腌数分钟，再淘洗一次，将水沥干。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "子姜片装碗内，加盐、白糖、醋和香油拌匀即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "糖醋口味，清脆爽口。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": ["碗"],
+        "fuels": [],
+        "cleaningMaterials": ["淘洗子姜所用水"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    },
+    {
+      "entryId": "dz1979-p188",
+      "batchId": "dz1979-b09",
+      "bookName": "姜汁蕹菜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 201,
+        "pdfEndPage": 201,
+        "bookStartPage": 188,
+        "bookEndPage": 188
+      },
+      "titleVisualCheck": {
+        "observedText": "姜汁蕹菜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "蕹菜",
+          "rawQuantityText": "一斤五两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 750, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一斤五两 = 500g + 250g = 750g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "姜",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "香油",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 30, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 2.5, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": { "kind": "exact-mass", "qty": 30, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "conversionBasis": "六钱 × 5g = 30g，不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "选用新鲜蕹菜，择其茎叶鲜嫩部份，茎管掐约寸长左右，并将其捏破，在清水中淘洗干净，姜去皮、切碎，舂茸成汁。",
+            "measureMentions": [
+              { "raw": "掐约寸长左右", "dimension": "length", "normalized": null, "reason": "蕹菜茎管切段长度，不是重量" }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "将蕹菜在开水中汆熟后，捞起盛筲箕内晾开，散热，滴干水。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "用碗装蕹菜，先用菜油拌匀，然后加盐、姜汁、香油等拌合均匀，临吃时放醋，以免蕹菜发黑。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "菜色碧绿，姜醋味浓，清鲜可口。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": ["筲箕", "碗"],
+        "fuels": [],
+        "cleaningMaterials": ["淘洗蕹菜所用清水"],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    }
+  ]
+}

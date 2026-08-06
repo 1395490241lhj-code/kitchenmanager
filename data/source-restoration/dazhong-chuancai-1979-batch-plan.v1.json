@@ -54,9 +54,9 @@
         "count": 3
       }
     ],
-    "processedRecipeCount": 103,
-    "remainingRecipeCount": 44,
-    "completedBatchCount": 8
+    "processedRecipeCount": 118,
+    "remainingRecipeCount": 29,
+    "completedBatchCount": 9
   },
   "batches": [
     {
@@ -814,7 +814,7 @@
     },
     {
       "batchId": "dz1979-b09",
-      "status": "planned-not-started",
+      "status": "completed-primary-reviewed",
       "applicationReady": false,
       "category": "蔬菜类",
       "entryCount": 15,
@@ -874,6 +874,38 @@
         "suspectedMatchEntryIds": [
           "dz1979-p177"
         ]
+      },
+      "processedAt": "2026-08-06T20:13:25.922Z",
+      "processedEntryCount": 15,
+      "processing": {
+        "workerVisualReview": true,
+        "primaryVisualReview": true,
+        "ocrUsedAsAuthority": false,
+        "renderedPdfPages": [
+          190,
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200,
+          201,
+          202,
+          203,
+          204,
+          205,
+          206,
+          207,
+          208
+        ],
+        "ingredientEntryCount": 121,
+        "unresolvedRecipeCount": 3,
+        "reviewResult": "completed-with-recorded-uncertainties",
+        "correctionsApplied": []
       }
     },
     {
