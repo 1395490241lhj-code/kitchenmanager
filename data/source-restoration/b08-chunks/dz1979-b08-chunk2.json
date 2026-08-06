@@ -1,0 +1,531 @@
+{
+  "chunkId": "dz1979-b08-chunk2",
+  "batchId": "dz1979-b08",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [
+    170,
+    171,
+    172,
+    173
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p157",
+      "batchId": "dz1979-b08",
+      "bookName": "炒鸭肝",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 170,
+        "pdfEndPage": 171,
+        "bookStartPage": 157,
+        "bookEndPage": 158
+      },
+      "titleVisualCheck": {
+        "observedText": "炒鸭肝",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "鸭肝",
+          "rawQuantityText": "五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五两 × 50g = 250g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "鲜菜心",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "姜",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 10,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": { "recognition": "medium", "conversion": "high" },
+          "notes": "原书该行印刷模糊近似“二”字，按栏内上下数值合理性判读为二钱"
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 10,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": { "recognition": "medium", "conversion": "high" },
+          "notes": "原书该行印刷模糊近似“二”字，按栏内上下数值合理性判读为二钱"
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "泡红辣椒",
+          "rawQuantityText": "三根",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 3,
+            "unit": "根",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "计数单位“根”按原书保留",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "一钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一钱 × 5g = 5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "白糖",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 10,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g，投入量与做法第2步“水豆粉三分”另兑滋汁为不同用途，分别保存",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g，不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "选黄色鸭肝，清洗干净，用刀片成大片（注意不要片烂），放碗内，用水豆粉、盐少许拌匀。姜、蒜切片，葱和泡红辣椒切“马耳朵”节，鲜菜心洗净。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "另用一碗，将水豆粉（三分）、酱油、盐、白糖、味精、醋、汤等兑成滋汁。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "炒锅内放猪油，烧至六成热时，将鸭肝下锅炒，至散籽即依次下姜、葱、蒜、泡红辣椒及鲜菜心，同炒几下，烹入滋汁（烹时调料要搅匀），待汁收浓起锅即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "散籽",
+            "modernSummary": "食材受热后分散、不再粘连成团",
+            "confidence": "medium",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "味鲜可口，鸭肝细嫩，酒饭均宜。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅",
+          "刀"
+        ],
+        "containers": [
+          "碗"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "清洗鸭肝所用水",
+          "洗净鲜菜心所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "注意不要片烂",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "烹时调料要搅匀",
+          "location": "做法第3步"
+        }
+      ],
+      "uncertainties": [
+        {
+          "raw": "姜二钱、蒜二钱",
+          "location": "原料栏",
+          "reasonCode": "unclear-glyph",
+          "notes": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为“二钱”，不完全排除为其他数字的可能",
+          "entryId": "dz1979-p157"
+        }
+      ],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "medium", "conversion": "high" }
+    },
+    {
+      "entryId": "dz1979-p159",
+      "batchId": "dz1979-b08",
+      "bookName": "烧鸭血",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 172,
+        "pdfEndPage": 173,
+        "bookStartPage": 159,
+        "bookEndPage": 160
+      },
+      "titleVisualCheck": {
+        "observedText": "烧鸭血",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "鸭血",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "郫县豆瓣",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "三分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三分 × 0.5g = 1.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "姜",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 10,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "水豆粉",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒面",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五两 × 50g = 250g，不推算毫升",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "鸭血用开水略煮一下，捞起用冷水漂起，再切成五分见方的丁。姜、蒜切末，葱切细花，豆瓣剁细。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "炒锅置中火上，下菜油烧至六成热时，下豆瓣、姜、蒜米及葱花（只用一半）入锅煵炒。煵出香味，油现红色时掺汤，加酱油、盐，最后下鸭血，约烧五分钟，下水豆粉，将汁收浓亮油，下味精、葱花合匀，起锅入碗。吃时菜面上撒花椒面即可。",
+            "measureMentions": [
+              {
+                "raw": "约烧五分钟",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "烧制时间"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "煵",
+            "modernSummary": "小火慢炒出香味",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "麻辣烫鲜，适宜下饭。附注：也可用鸡血，作法同上。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [
+          "碗"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "略煮鸭血所用开水",
+          "漂起鸭血所用冷水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "葱花（只用一半）",
+          "location": "做法第2步"
+        },
+        {
+          "raw": "也可用鸡血，作法同上",
+          "location": "附注"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    }
+  ]
+}

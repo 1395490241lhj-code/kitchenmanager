@@ -1,0 +1,272 @@
+{
+  "chunkId": "dz1979-b08-chunk6",
+  "batchId": "dz1979-b08",
+  "applicationReady": false,
+  "chunkStatus": "complete",
+  "pdfPages": [
+    186,
+    187
+  ],
+  "recipes": [
+    {
+      "entryId": "dz1979-p173",
+      "batchId": "dz1979-b08",
+      "bookName": "干煸鳝鱼丝",
+      "category": "禽蛋鱼类",
+      "source": {
+        "pdfStartPage": 186,
+        "pdfEndPage": 189,
+        "bookStartPage": 173,
+        "bookEndPage": 176
+      },
+      "titleVisualCheck": {
+        "observedText": "干煸鳝鱼丝",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "鳝鱼",
+          "rawQuantityText": "二斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1000,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤 × 500g = 1000g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "姜",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 40,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "八钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 40,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "八钱 × 5g = 40g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "芹菜",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "郫县豆瓣",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 30,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "醪糟汁",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "花椒面",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五分 × 0.5g = 2.5g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二分 × 0.5g = 1g",
+          "confidence": { "recognition": "high", "conversion": "high" }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "选肚黄肉厚的大鳝鱼，去头尾、骨刺，洗净，打斜切成长约一寸半、宽约二分的丝；芹菜除去根叶和筋，淘洗干净切成长约九分的丝；姜、葱、蒜均切成细丝，豆瓣剁细。",
+            "measureMentions": [
+              {
+                "raw": "长约一寸半、宽约二分",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "鳝鱼丝尺寸"
+              },
+              {
+                "raw": "长约九分",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "芹菜丝长度"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅置旺火上，放油烧至七成热时，下鳝鱼丝煸炒。同时下盐、醪糟汁，不断用锅铲翻动，煸炒均匀。约五分钟（以煸干水汽，鳝鱼吐油为度），加豆瓣煵出红油时下姜、蒜及酱油，再煵几下，加芹菜、葱丝，然后烹入醋及味精。炒匀起锅装盘，菜上撒花椒面即成。",
+            "measureMentions": [
+              {
+                "raw": "约五分钟",
+                "dimension": "time",
+                "normalized": null,
+                "reason": "煸炒时间"
+              }
+            ]
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "煵",
+            "modernSummary": "小火慢炒出香味",
+            "confidence": "high",
+            "notes": null
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "麻辣干香，鲜美可口，为佐酒佳肴。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": null,
+          "use": "做法第2步：与醪糟汁同下锅煸炒",
+          "quantityHandling": "原料栏未列盐；做法中提及但无数量，未标准化",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅",
+          "锅铲"
+        ],
+        "containers": [
+          "盘"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "清洗鳝鱼所用水",
+          "淘洗芹菜所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "以煸干水汽，鳝鱼吐油为度",
+          "location": "做法第2步"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "干煸鳝鱼",
+        "reviewRequired": true,
+        "notes": "本条目书名为“干煸鳝鱼丝”，项目候选名“干煸鳝鱼”省略了形态词“丝”；本来源正文刀工明确为切丝，与项目名是否指向同一菜品需人工复核后确认。"
+      },
+      "confidence": { "recognition": "high", "conversion": "high" }
+    }
+  ]
+}
