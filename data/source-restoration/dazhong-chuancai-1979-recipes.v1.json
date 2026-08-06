@@ -1,7 +1,7 @@
 {
   "schema": "kitchenmanager.source-restoration.recipes.v1",
   "createdAt": "2026-08-04T20:30:14.979Z",
-  "updatedAt": "2026-08-06T15:04:52.496Z",
+  "updatedAt": "2026-08-06T15:22:20.989Z",
   "status": "in-progress-reviewed-intermediate-only",
   "applicationReady": false,
   "purpose": "Restore all 147 recipes from rendered pages while preserving source wording, uncertainty, and non-production boundaries.",
@@ -638,8 +638,9 @@
           "type": "page-boundary",
           "rawText": "PDF第135页仅印有标题“蒜烧肚条”，标题下方及全页其余区域经像素级复核（200dpi与600dpi两次渲染，全页扫描无任何字迹墨点，仅有边角散布的扫描噪点，尺寸2-4像素、位置与文字笔画不符）确认无正文印刷内容",
           "candidates": [],
-          "treatment": "本页在原书印刷中标题下方为空白，原料、做法、特点栏均未印出；不臆测缺失内容，ingredients/methodSummary保持为空，待人工核对原始纸质版本或Opus review确认是否为印刷缺页/漏印。",
-          "entryId": "dz1979-p122"
+          "treatment": "仅记录本来源可证实的事实：当前PDF扫描件对应页面标题下方及全页无可见正文（原料、做法、特点栏均未印出）。不对成因作出判断（不断言为原书印刷缺页、扫描遗漏或其他原因），contentMissing=true，ingredients/methodSummary保持为空，待人工核对原始纸质版本或Opus review确认成因与是否可补全。",
+          "entryId": "dz1979-p122",
+          "reasonCode": "scan-page-blank"
         },
         {
           "location": "三 特点",
@@ -673,7 +674,7 @@
           "usageLog": null
         },
         "correctionsApplied": [],
-        "notes": "恢复自quota-blocked checkpoint；全部12条目重新视觉核对，未复用先前未落盘的阅读结果。dz1979-p122（蒜烧肚条）PDF第135页经200dpi与600dpi双重渲染逐像素扫描确认标题下方无正文，判定为原书印刷缺失，非扫描/识别错误。"
+        "notes": "恢复自quota-blocked checkpoint；全部12条目重新视觉核对，未复用先前未落盘的阅读结果。dz1979-p122（蒜烧肚条）PDF第135页经200dpi与600dpi双重渲染逐像素扫描确认标题下方及全页无可见正文；不对成因作出判断（不断言为印刷缺页），待人工核对原始纸质版本确认。"
       }
     }
   ],
@@ -19779,7 +19780,8 @@
           "type": "page-boundary",
           "rawText": "PDF第135页仅印有标题“蒜烧肚条”，标题下方及全页其余区域经像素级复核（200dpi与600dpi两次渲染，全页扫描无任何字迹墨点，仅有边角散布的扫描噪点，尺寸2-4像素、位置与文字笔画不符）确认无正文印刷内容",
           "candidates": [],
-          "treatment": "本页在原书印刷中标题下方为空白，原料、做法、特点栏均未印出；不臆测缺失内容，ingredients/methodSummary保持为空，待人工核对原始纸质版本或Opus review确认是否为印刷缺页/漏印。"
+          "treatment": "仅记录本来源可证实的事实：当前PDF扫描件对应页面标题下方及全页无可见正文（原料、做法、特点栏均未印出）。不对成因作出判断（不断言为原书印刷缺页、扫描遗漏或其他原因），contentMissing=true，ingredients/methodSummary保持为空，待人工核对原始纸质版本或Opus review确认成因与是否可补全。",
+          "reasonCode": "scan-page-blank"
         }
       ],
       "projectMatch": {
@@ -21474,7 +21476,15 @@
         "pdfStartPage": 145,
         "pdfEndPage": 147,
         "bookStartPage": 132,
-        "bookEndPage": 134
+        "bookEndPage": 134,
+        "catalogPdfEndPage": 147,
+        "catalogBookEndPage": 134,
+        "actualContentPdfEndPage": 145,
+        "actualContentBookEndPage": 132,
+        "sourceNotes": [
+          "PDF第146-147页/书内第133-134页为下一分类\"禽蛋鱼类\"的分隔图案页与其空白背页，不含本条目正文；本条目正文（原料、做法、特点）已在PDF第145页/书内第132页完整结束。",
+          "source.pdfEndPage/bookEndPage按目录推算规则（取下一目录条目起始页减一）保留147/134，用于批次页码范围连续性；实际正文结束页见actualContentPdfEndPage/actualContentBookEndPage。"
+        ]
       },
       "titleVisualCheck": {
         "observedText": "青笋烧兔",
@@ -21722,7 +21732,8 @@
           "type": "page-boundary",
           "rawText": "PDF第146-147页为下一分类\"禽蛋鱼类\"的分隔页（图案页）与空白背页，不含本条目正文",
           "candidates": [],
-          "treatment": "目录页码规则将本条目结束页定为PDF147/书内134（取自下一条目dz1979-p135起始页128减一）；但正文（原料、做法、特点）已在PDF第145页/书内132页完整结束，PDF146-147页视觉核对确认无本菜谱内容，仅为分类分隔页。source字段按目录规则保留147/134以维持批次页码连续性，正文范围以PDF145/书内132为准。"
+          "treatment": "目录页码规则将本条目结束页定为PDF147/书内134（取自下一条目dz1979-p135起始页128减一）；但正文（原料、做法、特点）已在PDF第145页/书内132页完整结束，PDF146-147页视觉核对确认无本菜谱内容，仅为分类分隔页。source字段按目录规则保留147/134以维持批次页码连续性，正文范围以PDF145/书内132为准。",
+          "reasonCode": "catalog-range-exceeds-content"
         }
       ],
       "projectMatch": {

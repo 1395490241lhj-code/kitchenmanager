@@ -611,7 +611,8 @@
           "type": "page-boundary",
           "rawText": "PDF第135页仅印有标题“蒜烧肚条”，标题下方及全页其余区域经像素级复核（200dpi与600dpi两次渲染，全页扫描无任何字迹墨点，仅有边角散布的扫描噪点，尺寸2-4像素、位置与文字笔画不符）确认无正文印刷内容",
           "candidates": [],
-          "treatment": "本页在原书印刷中标题下方为空白，原料、做法、特点栏均未印出；不臆测缺失内容，ingredients/methodSummary保持为空，待人工核对原始纸质版本或Opus review确认是否为印刷缺页/漏印。"
+          "treatment": "仅记录本来源可证实的事实：当前PDF扫描件对应页面标题下方及全页无可见正文（原料、做法、特点栏均未印出）。不对成因作出判断（不断言为原书印刷缺页、扫描遗漏或其他原因），contentMissing=true，ingredients/methodSummary保持为空，待人工核对原始纸质版本或Opus review确认成因与是否可补全。",
+          "reasonCode": "scan-page-blank"
         }
       ],
       "projectMatch": {

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isVerifiedContentMissing } from './lib/content-missing.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..');
@@ -231,10 +232,8 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
     || !allowedRecognitionConfidence.has(recipe.titleVisualCheck.confidence)) {
     throw new Error(`${expectedEntryId} is missing a valid visual title check.`);
   }
-  const isVerifiedContentMissing = recipe.contentMissing === true
-    && Array.isArray(recipe.uncertainties)
-    && recipe.uncertainties.some((u) => u.type === 'page-boundary');
-  if (isVerifiedContentMissing) {
+  const contentMissingVerified = isVerifiedContentMissing(recipe);
+  if (contentMissingVerified) {
     if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length !== 0) {
       throw new Error(`${expectedEntryId} contentMissing recipes must have an empty ingredients array.`);
     }
@@ -243,6 +242,9 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
       throw new Error(`${expectedEntryId} contentMissing recipes must have an empty method step array.`);
     }
   } else {
+    if (recipe.contentMissing === true) {
+      throw new Error(`${expectedEntryId} contentMissing=true requires a page-boundary uncertainty with an allowed reasonCode (scan-page-blank or source-content-missing).`);
+    }
     if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
       throw new Error(`${expectedEntryId} has no printed ingredients.`);
     }
@@ -260,7 +262,7 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
       assertString(step.summary, `${expectedEntryId}.methodSummary.steps[${index}].summary`);
     }
   }
-  if (!isVerifiedContentMissing || recipe.characteristicsSummary !== null) {
+  if (!contentMissingVerified || recipe.characteristicsSummary !== null) {
     assertString(recipe.characteristicsSummary, `${expectedEntryId}.characteristicsSummary`);
   }
   if (!Array.isArray(recipe.methodOnlyIngredients)
