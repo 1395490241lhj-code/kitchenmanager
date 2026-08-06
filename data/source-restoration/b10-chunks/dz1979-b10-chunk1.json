@@ -31,7 +31,10 @@
             "qualifier": null
           },
           "conversionBasis": "一斤五两 = 一斤×500g + 五两×50g = 500g + 250g = 750g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "菜油",
@@ -44,7 +47,10 @@
             "qualifier": null
           },
           "conversionBasis": "一两 × 50g = 50g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "盐",
@@ -57,7 +63,10 @@
             "qualifier": null
           },
           "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "醋",
@@ -70,7 +79,10 @@
             "qualifier": null
           },
           "conversionBasis": "五钱 × 5g = 25g，不推算毫升",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油",
@@ -83,7 +95,10 @@
             "qualifier": null
           },
           "conversionBasis": "二钱 × 5g = 10g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "水豆粉",
@@ -96,38 +111,74 @@
             "qualifier": null
           },
           "conversionBasis": "一两 × 50g = 50g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
-      "methodOnlyMentions": [
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "二分",
-          "context": "做法第1步：莲花白切片后，加盐（二分）合匀腌约一分钟",
-          "note": "原料栏盐为总量五分；做法第1步与第2步分别提到二分、三分的用量拆分，做法内两次用量之和等于原料栏总量，仅记录做法原文，不改动原料栏总量"
-        },
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "三分",
-          "context": "做法第2步：酱油、盐（三分）、醋、水豆粉等调成滋汁",
-          "note": "见上条"
-        },
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "莲花白（卷心白也可）除去老叶及梗，洗后切约一寸二见方的片，加盐（二分）合匀腌约一分钟。",
+            "measureMentions": [
+              {
+                "raw": "一寸二见方",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "白菜片切法尺寸，不是重量"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "用碗将酱油、盐（三分）、醋、水豆粉等调成滋汁。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "炒锅置旺火上烧热，下菜油烧至七成热时，下白菜炒熟，加汤（一两五钱）烹下滋汁，将汁收浓起锅。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "味鲜而烫，醋味突出，宜于下饭。",
+      "methodOnlyIngredients": [
         {
           "rawItemText": "汤",
           "rawQuantityText": "一两五钱",
-          "context": "做法第3步：加汤（一两五钱）烹下滋汁",
-          "note": "汤未列入原料栏，仅在做法中出现，单列为method-only mention；一两五钱=50g+25g=75g，不推算毫升"
+          "use": "做法第3步：加汤（一两五钱）烹下滋汁",
+          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only ingredient；一两五钱=50g+25g=75g，不推算毫升",
+          "confidence": "high"
         }
       ],
-      "methodSummary": [
-        "莲花白（卷心白也可）除去老叶及梗，洗后切约一寸二见方的片，加盐合匀腌约一分钟。",
-        "用碗将酱油、盐、醋、水豆粉等调成滋汁。",
-        "炒锅置旺火上烧热，下菜油烧至七成热时，下白菜炒熟，加汤烹下滋汁，将汁收浓起锅。"
-      ],
-      "characteristicsSummary": "味鲜而烫，醋味突出，宜于下饭。",
-      "contentIncomplete": false,
-      "reviewRequired": false,
-      "notes": "全页文字清晰，无模糊字形或版面缺损。"
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [
+          "碗"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     },
     {
       "entryId": "dz1979-p197",
@@ -158,7 +209,10 @@
             "qualifier": null
           },
           "conversionBasis": "一斤 × 500g = 500g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油",
@@ -171,7 +225,10 @@
             "qualifier": null
           },
           "conversionBasis": "六钱 × 5g = 30g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "猪肉",
@@ -184,7 +241,10 @@
             "qualifier": null
           },
           "conversionBasis": "二两 × 50g = 100g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "化猪油",
@@ -197,7 +257,10 @@
             "qualifier": null
           },
           "conversionBasis": "一两五钱 = 50g + 25g = 75g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "豆瓣",
@@ -210,7 +273,10 @@
             "qualifier": null
           },
           "conversionBasis": "八钱 × 5g = 40g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "味精",
@@ -223,7 +289,10 @@
             "qualifier": null
           },
           "conversionBasis": "二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "水豆粉",
@@ -236,7 +305,10 @@
             "qualifier": null
           },
           "conversionBasis": "八钱 × 5g = 40g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "汤",
@@ -249,18 +321,79 @@
             "qualifier": null
           },
           "conversionBasis": "一斤五两 = 500g + 250g = 750g，不推算毫升",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
-      "methodOnlyMentions": [],
-      "methodSummary": [
-        "选细长刚上市的四季豆，掐头去筋，洗净，折成长约一寸五的节；肥瘦猪肉切小薄片，豆瓣剁细。",
-        "炒锅内猪油烧至六成热时，下肉片煸去血腥味，再下豆瓣煸香，油呈红色时，下四季豆炒几下，接着放酱油、鲜汤在中火上焖；焖至豆炬，勾水豆粉，加味精，滋汁收浓起锅。"
-      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "选细长刚上市的四季豆，掐头去筋，洗净，折成长约一寸五的节；肥瘦猪肉切小薄片，豆瓣剁细。",
+            "measureMentions": [
+              {
+                "raw": "长约一寸五",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "四季豆折段长度，不是重量"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅内猪油烧至六成热时，下肉片煸去血腥味，再下豆瓣煸香，油呈红色时，下四季豆炒几下，接着放酱油、鲜汤在中火上焖；焖至豆炬（熟软），勾水豆粉，加味精，滋汁收浓起锅。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "焖至豆炬",
+            "modernSummary": "焖至四季豆熟软入味",
+            "confidence": "medium",
+            "notes": "“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证，与b06/b07/b09已记录“炬”字用法一致；摘要以括注补充语义提示，不改动原字判读"
+          }
+        ],
+        "confidence": "high"
+      },
       "characteristicsSummary": "味浓而鲜，宜下饭。",
-      "contentIncomplete": false,
-      "reviewRequired": true,
-      "notes": "做法第2步“焖至豆炬”的“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证；按可见字形逐字保留，不替换候选字，标记reviewRequired待人工复核语义。"
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [
+        {
+          "location": "做法第2步",
+          "type": "unclear-glyph",
+          "rawText": "焖至豆炬",
+          "candidates": [
+            "焖至豆耙",
+            "焖至豆糯"
+          ],
+          "treatment": "字形按“炬”读出并逐字保留；因该字在此语境下的确切含义无法仅凭本页字形完全确认，不替换为候选字，仅在方法摘要括注补充语义提示，与b09-p194“烧至芋头炬时”处理一致",
+          "reasonCode": "unclear-glyph",
+          "entryId": "dz1979-p197"
+        }
+      ],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     },
     {
       "entryId": "dz1979-p198",
@@ -291,7 +424,10 @@
             "qualifier": null
           },
           "conversionBasis": "一斤五两 = 500g + 250g = 750g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "菜油",
@@ -304,7 +440,10 @@
             "qualifier": null
           },
           "conversionBasis": "一两五钱 = 50g + 25g = 75g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "甜酱",
@@ -317,7 +456,10 @@
             "qualifier": null
           },
           "conversionBasis": "一两 × 50g = 50g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油",
@@ -330,7 +472,10 @@
             "qualifier": null
           },
           "conversionBasis": "六钱 × 5g = 30g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "白糖",
@@ -343,7 +488,10 @@
             "qualifier": null
           },
           "conversionBasis": "三钱 × 5g = 15g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "味精",
@@ -356,7 +504,10 @@
             "qualifier": null
           },
           "conversionBasis": "二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "葱",
@@ -369,7 +520,10 @@
             "qualifier": null
           },
           "conversionBasis": "五钱 × 5g = 25g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "水豆粉",
@@ -382,25 +536,67 @@
             "qualifier": null
           },
           "conversionBasis": "五钱 × 5g = 25g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
-      "methodOnlyMentions": [
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "茄子去把去皮清洗后，切成长约一寸五、宽约八分、厚约五分的条；葱切长约八分的节。",
+            "measureMentions": [
+              {
+                "raw": "长约一寸五、宽约八分、厚约五分",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "茄条的长宽厚，不是重量"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "炒锅内下菜油，烧至七成热时，将茄条下锅煸炒一下（炒走茄子的一些水分）。然后下甜酱、白糖、酱油、葱及汤（四两）与茄条同烧约二、三分钟，勾水豆粉，下味精，滋汁收浓，茄条巴味起锅。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "菜鲜烫巴味，酱味突出而微甜。",
+      "methodOnlyIngredients": [
         {
           "rawItemText": "汤",
           "rawQuantityText": "四两",
-          "context": "做法第2步：然后下甜酱、白糖、酱油、葱及汤（四两）与茄条同烧约二、三分钟",
-          "note": "汤未列入原料栏，仅在做法中出现，单列为method-only mention；四两=200g，不推算毫升"
+          "use": "做法第2步：然后下甜酱、白糖、酱油、葱及汤（四两）与茄条同烧约二、三分钟",
+          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only ingredient；四两=200g，不推算毫升",
+          "confidence": "high"
         }
       ],
-      "methodSummary": [
-        "茄子去把去皮清洗后，切成长约一寸五、宽约八分、厚约五分的条；葱切长约八分的节。",
-        "炒锅内下菜油，烧至七成热时，将茄条下锅煸炒一下（炒走茄子的一些水分）。然后下甜酱、白糖、酱油、葱及汤与茄条同烧约二、三分钟，勾水豆粉，下味精，滋汁收浓，茄条巴味起锅。"
-      ],
-      "characteristicsSummary": "菜鲜烫巴味，酱味突出而微甜。",
-      "contentIncomplete": false,
-      "reviewRequired": false,
-      "notes": "全页文字清晰，八分、五分均为长度单位，不换算克。"
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     }
   ]
 }

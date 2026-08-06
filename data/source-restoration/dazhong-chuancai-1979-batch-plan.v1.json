@@ -971,7 +971,7 @@
           "dz1979-p206"
         ]
       },
-      "processedAt": "2026-08-06T20:32:36.000Z",
+      "processedAt": "2026-08-06T20:13:25.922Z",
       "processedEntryCount": 15,
       "processing": {
         "workerVisualReview": true,
@@ -995,7 +995,7 @@
           223
         ],
         "ingredientEntryCount": 95,
-        "unresolvedRecipeCount": 2,
+        "unresolvedRecipeCount": 1,
         "reviewResult": "completed-with-recorded-uncertainties",
         "correctionsApplied": []
       }

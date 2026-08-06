@@ -121,17 +121,24 @@
         "steps": [
           {
             "order": 1,
-            "summary": "莲花白（卷心白也可）除去老叶及梗，洗后切约一寸二见方的片，加盐合匀腌约一分钟。",
-            "measureMentions": []
+            "summary": "莲花白（卷心白也可）除去老叶及梗，洗后切约一寸二见方的片，加盐（二分）合匀腌约一分钟。",
+            "measureMentions": [
+              {
+                "raw": "一寸二见方",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "白菜片切法尺寸，不是重量"
+              }
+            ]
           },
           {
             "order": 2,
-            "summary": "用碗将酱油、盐、醋、水豆粉等调成滋汁。",
+            "summary": "用碗将酱油、盐（三分）、醋、水豆粉等调成滋汁。",
             "measureMentions": []
           },
           {
             "order": 3,
-            "summary": "炒锅置旺火上烧热，下菜油烧至七成热时，下白菜炒熟，加汤烹下滋汁，将汁收浓起锅。",
+            "summary": "炒锅置旺火上烧热，下菜油烧至七成热时，下白菜炒熟，加汤（一两五钱）烹下滋汁，将汁收浓起锅。",
             "measureMentions": []
           }
         ],
@@ -141,30 +148,20 @@
       "characteristicsSummary": "味鲜而烫，醋味突出，宜于下饭。",
       "methodOnlyIngredients": [
         {
-          "rawItemText": "盐",
-          "rawQuantityText": "二分",
-          "use": "做法第1步：莲花白切片后，加盐（二分）合匀腌约一分钟",
-          "quantityHandling": "原料栏盐为总量五分；做法第1步与第2步分别提到二分、三分的用量拆分，做法内两次用量之和等于原料栏总量，仅记录做法原文，不改动原料栏总量",
-          "confidence": "high"
-        },
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "三分",
-          "use": "做法第2步：酱油、盐（三分）、醋、水豆粉等调成滋汁",
-          "quantityHandling": "见上条",
-          "confidence": "high"
-        },
-        {
           "rawItemText": "汤",
           "rawQuantityText": "一两五钱",
           "use": "做法第3步：加汤（一两五钱）烹下滋汁",
-          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only mention；一两五钱=50g+25g=75g，不推算毫升",
+          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only ingredient；一两五钱=50g+25g=75g，不推算毫升",
           "confidence": "high"
         }
       ],
       "nonIngredientMaterials": {
-        "tools": [],
-        "containers": [],
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [
+          "碗"
+        ],
         "fuels": [],
         "cleaningMaterials": [],
         "nonEdiblePackaging": []
@@ -172,7 +169,7 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -335,21 +332,37 @@
           {
             "order": 1,
             "summary": "选细长刚上市的四季豆，掐头去筋，洗净，折成长约一寸五的节；肥瘦猪肉切小薄片，豆瓣剁细。",
-            "measureMentions": []
+            "measureMentions": [
+              {
+                "raw": "长约一寸五",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "四季豆折段长度，不是重量"
+              }
+            ]
           },
           {
             "order": 2,
-            "summary": "炒锅内猪油烧至六成热时，下肉片煸去血腥味，再下豆瓣煸香，油呈红色时，下四季豆炒几下，接着放酱油、鲜汤在中火上焖；焖至豆炬，勾水豆粉，加味精，滋汁收浓起锅。",
+            "summary": "炒锅内猪油烧至六成热时，下肉片煸去血腥味，再下豆瓣煸香，油呈红色时，下四季豆炒几下，接着放酱油、鲜汤在中火上焖；焖至豆炬（熟软），勾水豆粉，加味精，滋汁收浓起锅。",
             "measureMentions": []
           }
         ],
-        "dialectOrOldTerms": [],
+        "dialectOrOldTerms": [
+          {
+            "raw": "焖至豆炬",
+            "modernSummary": "焖至四季豆熟软入味",
+            "confidence": "medium",
+            "notes": "“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证，与b06/b07/b09已记录“炬”字用法一致；摘要以括注补充语义提示，不改动原字判读"
+          }
+        ],
         "confidence": "high"
       },
       "characteristicsSummary": "味浓而鲜，宜下饭。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "炒锅"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -358,17 +371,20 @@
       "confirmedReadings": [],
       "uncertainties": [
         {
-          "location": "see notes",
+          "location": "做法第2步",
           "type": "unclear-glyph",
-          "rawText": "做法第2步“焖至豆炬”的“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证；按可见字形逐字保留，不替换候选字，标记reviewRequired待人工复核语义。",
-          "candidates": [],
-          "treatment": "做法第2步“焖至豆炬”的“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证；按可见字形逐字保留，不替换候选字，标记reviewRequired待人工复核语义。",
+          "rawText": "焖至豆炬",
+          "candidates": [
+            "焖至豆耙",
+            "焖至豆糯"
+          ],
+          "treatment": "字形按“炬”读出并逐字保留；因该字在此语境下的确切含义无法仅凭本页字形完全确认，不替换为候选字，仅在方法摘要括注补充语义提示，与b09-p194“烧至芋头炬时”处理一致",
           "reasonCode": "unclear-glyph",
           "entryId": "dz1979-p197"
         }
       ],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -531,11 +547,18 @@
           {
             "order": 1,
             "summary": "茄子去把去皮清洗后，切成长约一寸五、宽约八分、厚约五分的条；葱切长约八分的节。",
-            "measureMentions": []
+            "measureMentions": [
+              {
+                "raw": "长约一寸五、宽约八分、厚约五分",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "茄条的长宽厚，不是重量"
+              }
+            ]
           },
           {
             "order": 2,
-            "summary": "炒锅内下菜油，烧至七成热时，将茄条下锅煸炒一下（炒走茄子的一些水分）。然后下甜酱、白糖、酱油、葱及汤与茄条同烧约二、三分钟，勾水豆粉，下味精，滋汁收浓，茄条巴味起锅。",
+            "summary": "炒锅内下菜油，烧至七成热时，将茄条下锅煸炒一下（炒走茄子的一些水分）。然后下甜酱、白糖、酱油、葱及汤（四两）与茄条同烧约二、三分钟，勾水豆粉，下味精，滋汁收浓，茄条巴味起锅。",
             "measureMentions": []
           }
         ],
@@ -548,12 +571,14 @@
           "rawItemText": "汤",
           "rawQuantityText": "四两",
           "use": "做法第2步：然后下甜酱、白糖、酱油、葱及汤（四两）与茄条同烧约二、三分钟",
-          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only mention；四两=200g，不推算毫升",
+          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only ingredient；四两=200g，不推算毫升",
           "confidence": "high"
         }
       ],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "炒锅"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -562,7 +587,7 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -720,7 +745,9 @@
         }
       ],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "炒锅"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -729,12 +756,15 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "clear_alias",
+        "classification": "confirmed-alias",
         "projectName": "干煸豆角",
         "projectIds": [
-          "fam-dry-fried-beans"
+          {
+            "library": "curated",
+            "id": "fam-dry-fried-beans"
+          }
         ],
-        "candidateProjectName": "干煸豆角",
+        "candidateProjectName": null,
         "reviewRequired": false
       },
       "confidence": {
@@ -844,7 +874,10 @@
       "characteristicsSummary": "白中带绿，味清鲜，可下饭亦可单吃。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "炒锅",
+          "锅铲"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -853,7 +886,7 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -1001,7 +1034,7 @@
               "unit": "g"
             }
           ],
-          "conversionBasis": "原文有各；每项三钱 × 5g = 15g",
+          "conversionBasis": "原文有“各”；每项三钱 × 5g = 15g",
           "confidence": {
             "recognition": "high",
             "conversion": "high"
@@ -1044,12 +1077,19 @@
         "steps": [
           {
             "order": 1,
-            "summary": "黄瓜削去两头，去籽清洗后，切“骨牌片”，同盐拌匀腌几分钟（去涩水）；干辣椒切六分节。",
-            "measureMentions": []
+            "summary": "黄瓜削去两头，去籽清洗后，切“骨牌片”，同盐（一分）拌匀腌几分钟（去涩水）；干辣椒切六分节。",
+            "measureMentions": [
+              {
+                "raw": "六分节",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "干辣椒切段长度，不是重量"
+              }
+            ]
           },
           {
             "order": 2,
-            "summary": "用碗将盐、白糖、醋、酱油、味精、水豆粉及汤兑成滋汁。",
+            "summary": "用碗将盐（一分）、白糖、醋、酱油、味精、水豆粉及汤（五钱）兑成滋汁。",
             "measureMentions": []
           },
           {
@@ -1064,30 +1104,20 @@
       "characteristicsSummary": "黄瓜片脆嫩，味麻辣而带甜酸。",
       "methodOnlyIngredients": [
         {
-          "rawItemText": "盐",
-          "rawQuantityText": "一分",
-          "use": "做法第1步：同盐（一分）拌匀腌几分钟（去涩水）",
-          "quantityHandling": "原料栏盐总量四分；做法第1步、第2步各提到一分，两次用量之和小于原料栏总量，仅记录做法原文，不改动原料栏总量，不猜测差额去向",
-          "confidence": "high"
-        },
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "一分",
-          "use": "做法第2步：用碗将盐（一分）、白糖、醋、酱油、味精、水豆粉及汤兑成滋汁",
-          "quantityHandling": "见上条",
-          "confidence": "high"
-        },
-        {
           "rawItemText": "汤",
           "rawQuantityText": "五钱",
           "use": "做法第2步：水豆粉及汤（五钱）兑成滋汁",
-          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only mention；五钱=25g，不推算毫升",
+          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only ingredient；五钱=25g，不推算毫升",
           "confidence": "high"
         }
       ],
       "nonIngredientMaterials": {
-        "tools": [],
-        "containers": [],
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [
+          "碗"
+        ],
         "fuels": [],
         "cleaningMaterials": [],
         "nonEdiblePackaging": []
@@ -1095,7 +1125,7 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -1240,7 +1270,9 @@
       "characteristicsSummary": "笋嫩味鲜，应时佳肴之一。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "炒锅"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -1248,13 +1280,13 @@
       },
       "confirmedReadings": [
         {
-          "raw": "如要吃家常味可加郫县豆瓣五钱（剁细）、酱油三钱、葱节、姜片各三钱，另用肥瘦猪肉二两，切薄片。其烹制方法：1.同上；2.炒锅内猪油烧至五成热时，下肉片及姜、葱节同炒几下后，再下豆瓣炒至油呈红色时，下鲜笋炒一分钟左右，掺汤，吃味，约焖四分钟，下水豆粉、味精，汁收浓起锅即可。",
+          "raw": "附注：如要吃家常味可加郫县豆瓣五钱（剁细）、酱油三钱、葱节、姜片各三钱，另用肥瘦猪肉二两，切薄片。其烹制方法：1.同上；2.炒锅内猪油烧至五成热时，下肉片及姜、葱节同炒几下后，再下豆瓣炒至油呈红色时，下鲜笋炒一分钟左右，掺汤，吃味，约焖四分钟，下水豆粉、味精，汁收浓起锅即可。",
           "location": "特点栏后附注"
         }
       ],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -1383,7 +1415,9 @@
       "characteristicsSummary": "豆芽脆，味香辣。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "炒锅"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -1392,7 +1426,7 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -1489,7 +1523,9 @@
       "characteristicsSummary": "鲜嫩，清香。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "炒锅"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -1498,7 +1534,7 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -1629,7 +1665,20 @@
           {
             "order": 1,
             "summary": "青椒洗净去蒂，切成四分长的短节；大头菜削去老皮，切成三分见方的小颗；葱白也切同样大小的颗。",
-            "measureMentions": []
+            "measureMentions": [
+              {
+                "raw": "四分长的短节",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "青椒切段长度，不是重量"
+              },
+              {
+                "raw": "三分见方",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "大头菜、葱白切颗尺寸，不是重量"
+              }
+            ]
           },
           {
             "order": 2,
@@ -1643,7 +1692,9 @@
       "characteristicsSummary": "咸、香、脆、辣，下饭好菜。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "锅"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -1652,7 +1703,7 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -1678,7 +1729,7 @@
         "observedText": "烧拌莴笋",
         "matchesCatalog": true,
         "confidence": "high",
-        "notes": "直接查看扫描页标题；batch-plan标记本条目为suspected_match，此处仅记录来源事实，匹配分类留待菜谱库对照阶段处理"
+        "notes": "直接查看扫描页标题"
       },
       "ingredients": [
         {
@@ -1812,37 +1863,46 @@
             "measureMentions": []
           }
         ],
-        "dialectOrOldTerms": [],
+        "dialectOrOldTerms": [
+          {
+            "raw": "子母火",
+            "modernSummary": "柴灶灰烬余火",
+            "confidence": "high",
+            "notes": "原文括注“即柴灶的灰火中”，已随文自解，逐字保留"
+          },
+          {
+            "raw": "炕起",
+            "modernSummary": "干锅焙烤",
+            "confidence": "high",
+            "notes": "与b05-p111“炕脆”用法一致"
+          }
+        ],
         "confidence": "high"
       },
       "characteristicsSummary": "这是按传统的农村做法，加以较讲究的调味品作成。菜脆嫩，味香辣，异常鲜美。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
-        "containers": [],
-        "fuels": [],
+        "tools": [
+          "刀"
+        ],
+        "containers": [
+          "碗",
+          "盘"
+        ],
+        "fuels": [
+          "子母火（柴灶灰火）"
+        ],
         "cleaningMaterials": [],
-        "nonEdiblePackaging": []
+        "nonEdiblePackaging": [
+          "菜叶（包裹用）"
+        ]
       },
       "confirmedReadings": [],
-      "uncertainties": [
-        {
-          "location": "see notes",
-          "type": "other",
-          "rawText": "本条目在batch-plan中标记为suspected_match（entryId dz1979-p206对应书内名“烧拌莴笋”），仅记录来源事实与原文数量，匹配分类判定留待后续菜谱库对照阶段处理，此处reviewRequired=true。做法涉及“子母火”“灰烬烧制”等传统农村做法，逐字保留原文术语，不扩写。",
-          "candidates": [],
-          "treatment": "本条目在batch-plan中标记为suspected_match（entryId dz1979-p206对应书内名“烧拌莴笋”），仅记录来源事实与原文数量，匹配分类判定留待后续菜谱库对照阶段处理，此处reviewRequired=true。做法涉及“子母火”“灰烬烧制”等传统农村做法，逐字保留原文术语，不扩写。",
-          "reasonCode": "review-required",
-          "entryId": "dz1979-p206"
-        }
-      ],
+      "uncertainties": [],
       "projectMatch": {
-        "classification": "suspected_match",
-        "projectName": "烧拌鲜笋",
-        "projectIds": [
-          "ex--57fd9bbb",
-          "ex--57fd9bbb"
-        ],
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
         "candidateProjectName": "烧拌鲜笋",
         "reviewRequired": true
       },
@@ -1972,7 +2032,7 @@
               "unit": "g"
             }
           ],
-          "conversionBasis": "原文有各；每项三钱 × 5g = 15g，醋不推算毫升",
+          "conversionBasis": "原文有“各”；每项三钱 × 5g = 15g，醋不推算毫升",
           "confidence": {
             "recognition": "high",
             "conversion": "high"
@@ -2032,11 +2092,24 @@
           {
             "order": 1,
             "summary": "莲花白嫩叶洗净，切二寸方片；干辣椒切成约八分节。",
-            "measureMentions": []
+            "measureMentions": [
+              {
+                "raw": "二寸方片",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "莲花白切片尺寸，不是重量"
+              },
+              {
+                "raw": "约八分节",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "干辣椒切段长度，不是重量"
+              }
+            ]
           },
           {
             "order": 2,
-            "summary": "用碗将盐、酱油、白糖、醋、味精、水豆粉和汤兑成滋汁。",
+            "summary": "用碗将盐、酱油、白糖、醋、味精、水豆粉和汤（五钱）兑成滋汁。",
             "measureMentions": []
           },
           {
@@ -2054,13 +2127,17 @@
           "rawItemText": "汤",
           "rawQuantityText": "五钱",
           "use": "做法第2步：用碗将盐、酱油、白糖、醋、味精、水豆粉和汤（五钱）兑成滋汁",
-          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only mention；五钱=25g，不推算毫升",
+          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only ingredient；五钱=25g，不推算毫升",
           "confidence": "high"
         }
       ],
       "nonIngredientMaterials": {
-        "tools": [],
-        "containers": [],
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [
+          "碗"
+        ],
         "fuels": [],
         "cleaningMaterials": [],
         "nonEdiblePackaging": []
@@ -2068,7 +2145,7 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -2183,7 +2260,14 @@
           {
             "order": 1,
             "summary": "土豆去皮洗净，切成粗丝，在冷水中漂、淘几下，去掉一部分淀粉后，打起滴干水分；葱切八分节，干辣椒去蒂，也切成八分节。",
-            "measureMentions": []
+            "measureMentions": [
+              {
+                "raw": "八分节",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "葱、干辣椒切段长度，不是重量"
+              }
+            ]
           },
           {
             "order": 2,
@@ -2197,7 +2281,9 @@
       "characteristicsSummary": "土豆丝脆，味带微辣，吃饭佐酒均可。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
+        "tools": [
+          "炒锅"
+        ],
         "containers": [],
         "fuels": [],
         "cleaningMaterials": [],
@@ -2206,12 +2292,15 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "clear_alias",
+        "classification": "confirmed-alias",
         "projectName": "土豆丝",
         "projectIds": [
-          "fam-potato-shreds"
+          {
+            "library": "curated",
+            "id": "fam-potato-shreds"
+          }
         ],
-        "candidateProjectName": "土豆丝",
+        "candidateProjectName": null,
         "reviewRequired": false
       },
       "confidence": {
@@ -2386,12 +2475,19 @@
         "steps": [
           {
             "order": 1,
-            "summary": "豆腐干洗净，切粗丝。青笋（去皮）、红萝卜洗净均切成二粗丝（这两样先用盐拌匀码过，拌时挤干水分）。葱切粗丝。",
-            "measureMentions": []
+            "summary": "豆腐干洗净，切粗丝。青笋（去皮）、红萝卜洗净均切成二粗丝（这两样先用二分盐拌匀码过，拌时挤干水分）。葱切粗丝。",
+            "measureMentions": [
+              {
+                "raw": "二粗丝",
+                "dimension": "other",
+                "normalized": null,
+                "reason": "青笋、红萝卜丝的粗细规格用语，与b09-p191已记录术语一致，保留原书表达，不换算数值"
+              }
+            ]
           },
           {
             "order": 2,
-            "summary": "用碗将酱油、盐、醋、熟油辣椒、味精等调成滋汁，合上三丝，拌匀入味装盘，菜面上放葱丝即成。",
+            "summary": "用碗将酱油、盐（一分）、醋、熟油辣椒、味精等调成滋汁，合上三丝，拌匀入味装盘，菜面上放葱丝即成。",
             "measureMentions": []
           }
         ],
@@ -2399,38 +2495,25 @@
         "confidence": "high"
       },
       "characteristicsSummary": "味咸酸而微辣，清香可口。",
-      "methodOnlyIngredients": [
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "二分",
-          "use": "做法第1步：青笋（去皮）、红萝卜洗净均切成二粗丝（这两样先用二分盐拌匀码过，拌时挤干水分）",
-          "quantityHandling": "原料栏盐总量四分；做法第1步提到二分用于码青笋、红萝卜，第2步另提到一分用于滋汁，两次用量之和小于原料栏总量，仅记录做法原文，不改动原料栏总量，不猜测差额去向",
-          "confidence": "high"
-        },
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "一分",
-          "use": "做法第2步：用碗将酱油、盐（一分）、醋、熟油辣椒、味精等调成滋汁",
-          "quantityHandling": "见上条",
-          "confidence": "high"
-        }
-      ],
+      "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
         "tools": [],
-        "containers": [],
+        "containers": [
+          "碗"
+        ],
         "fuels": [],
         "cleaningMaterials": [],
         "nonEdiblePackaging": []
       },
       "confirmedReadings": [
         {
-          "raw": "如爱吃麻味，可加少许花椒面。",
+          "raw": "附注：如爱吃麻味，可加少许花椒面。",
           "location": "特点栏后附注"
         }
       ],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "book_only",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
         "candidateProjectName": null,
@@ -2543,21 +2626,32 @@
       "characteristicsSummary": "烧拌青椒系沿用农村习俗，加入皮蛋拌食，其味别具一格。",
       "methodOnlyIngredients": [],
       "nonIngredientMaterials": {
-        "tools": [],
-        "containers": [],
-        "fuels": [],
+        "tools": [
+          "刀"
+        ],
+        "containers": [
+          "盘"
+        ],
+        "fuels": [
+          "柴火灰"
+        ],
         "cleaningMaterials": [],
-        "nonEdiblePackaging": []
+        "nonEdiblePackaging": [
+          "菜叶（垫底用）"
+        ]
       },
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "clear_alias",
+        "classification": "confirmed-alias",
         "projectName": "青椒皮蛋",
         "projectIds": [
-          "fam-pepper-century-egg"
+          {
+            "library": "curated",
+            "id": "fam-pepper-century-egg"
+          }
         ],
-        "candidateProjectName": "青椒皮蛋",
+        "candidateProjectName": null,
         "reviewRequired": false
       },
       "confidence": {
@@ -2589,25 +2683,19 @@
     ],
     "unresolved": [
       {
-        "location": "see notes",
+        "location": "做法第2步",
         "type": "unclear-glyph",
-        "rawText": "做法第2步“焖至豆炬”的“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证；按可见字形逐字保留，不替换候选字，标记reviewRequired待人工复核语义。",
-        "candidates": [],
-        "treatment": "做法第2步“焖至豆炬”的“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证；按可见字形逐字保留，不替换候选字，标记reviewRequired待人工复核语义。",
+        "rawText": "焖至豆炬",
+        "candidates": [
+          "焖至豆耙",
+          "焖至豆糯"
+        ],
+        "treatment": "字形按“炬”读出并逐字保留；因该字在此语境下的确切含义无法仅凭本页字形完全确认，不替换为候选字，仅在方法摘要括注补充语义提示，与b09-p194“烧至芋头炬时”处理一致",
         "reasonCode": "unclear-glyph",
         "entryId": "dz1979-p197"
-      },
-      {
-        "location": "see notes",
-        "type": "other",
-        "rawText": "本条目在batch-plan中标记为suspected_match（entryId dz1979-p206对应书内名“烧拌莴笋”），仅记录来源事实与原文数量，匹配分类判定留待后续菜谱库对照阶段处理，此处reviewRequired=true。做法涉及“子母火”“灰烬烧制”等传统农村做法，逐字保留原文术语，不扩写。",
-        "candidates": [],
-        "treatment": "本条目在batch-plan中标记为suspected_match（entryId dz1979-p206对应书内名“烧拌莴笋”），仅记录来源事实与原文数量，匹配分类判定留待后续菜谱库对照阶段处理，此处reviewRequired=true。做法涉及“子母火”“灰烬烧制”等传统农村做法，逐字保留原文术语，不扩写。",
-        "reasonCode": "review-required",
-        "entryId": "dz1979-p206"
       }
     ],
-    "primaryReviewedAt": "2026-08-06T20:32:36.000Z",
+    "primaryReviewedAt": "2026-08-06T20:13:25.922Z",
     "primaryReviewResult": "completed-with-recorded-uncertainties",
     "correctionsApplied": [],
     "delegatedVisualReview": {
@@ -2615,7 +2703,7 @@
       "agentId": null,
       "method": "Claude main agent view_image direct visual review of rendered PDF pages (220dpi)",
       "pageScope": "pdf pages 209-223 (book pages 196-210), batch dz1979-b10",
-      "reviewedAt": "2026-08-06T20:32:36.000Z",
+      "reviewedAt": "2026-08-06T20:13:25.922Z",
       "requestIds": [],
       "routeVerified": true,
       "routeEvidence": {
@@ -2627,7 +2715,7 @@
         "usageLog": null
       },
       "correctionsApplied": [],
-      "notes": "本轮完成b10批次15道菜谱正文提取（蔬菜类）。dz1979-p199（干煸四季豆）、dz1979-p208（炒土豆丝）、dz1979-p210（青椒拌皮蛋）为明确异名匹配。dz1979-p206（烧拌莴笋）为疑似匹配（与curated“烧拌鲜笋”烹调法相同但主料“莴笋/鲜笋”需人工确认），已按批次规划标记reviewRequired=true。dz1979-p197（家常四季豆）做法第2步“焖至豆炬”字形清晰但语义存疑，标记unclear-glyph，候选“耙/糯”未采纳。其余11道条目全页文字清晰，无模糊字形或版面缺损。全部15道原料原文与数量原文逐项保留；无各不拆分组合总量；范围/约数/少许/适量未精确化；十余粒按approximate-count处理，与既往批次一致。"
+      "notes": "本轮完成b10批次15道菜谱正文提取（蔬菜类）。dz1979-p199（干煸四季豆）、dz1979-p208（炒土豆丝）、dz1979-p210（青椒拌皮蛋）为明确异名匹配（confirmed-alias）。dz1979-p206（烧拌莴笋）为疑似匹配（probable-match-needs-review，与curated“烧拌鲜笋”烹调法相同但主料“莴笋/鲜笋”需人工确认），reviewRequired保留在projectMatch内部。dz1979-p197（家常四季豆）做法第2步“焖至豆炬”字形清晰但语义存疑，标记unclear-glyph，候选“耙/糯”未采纳，与b06/b07/b09已记录“炬”字用法一致。其余11道条目全页文字清晰，无模糊字形或版面缺损。全部15道原料原文与数量原文逐项保留；无各不拆分组合总量；范围/约数/少许/适量未精确化；十余粒按approximate-count处理。本次为schema规范化重写：methodSummary统一为{steps,dialectOrOldTerms,confidence}标准对象；methodOnlyIngredients仅保留原料栏未列而做法中出现的汤、少许油等真实method-only原料，原属methodOnlyMentions中与ingredients重复的盐分次用量条目已转为方法步骤内文括注（不再重复列为method-only）；projectMatch.classification/projectIds按name-matches标准词汇（exact-name/confirmed-alias/probable-match-needs-review/book-only）与b01-b08既有assembler输出格式对齐；reviewRequired仅存在于projectMatch内部，顶层不再出现reviewRequired/contentIncomplete遗留字段；nonIngredientMaterials、confirmedReadings按b05-b09既有粒度补齐。"
     }
   }
 }

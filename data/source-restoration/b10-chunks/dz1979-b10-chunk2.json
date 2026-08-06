@@ -23,63 +23,158 @@
         {
           "rawItemText": "四季豆",
           "rawQuantityText": "一斤五两",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 750, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 750,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "一斤五两 = 500g + 250g = 750g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "猪肉",
           "rawQuantityText": "二两",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 100, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "二两 × 50g = 100g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "芽菜",
           "rawQuantityText": "一两",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "一两 × 50g = 50g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油",
           "rawQuantityText": "八钱",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 40, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 40,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "八钱 × 5g = 40g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "化猪油",
           "rawQuantityText": "一两五钱",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 75, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "一两五钱 = 50g + 25g = 75g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "味精",
           "rawQuantityText": "二分",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
-      "methodOnlyMentions": [
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "四季豆掐头去筋洗净。肥瘦猪肉剁成末。芽菜（冬菜也可）淘洗干净，用刀切成末。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "先将肉末在炒锅内（放油少许）煸干水汽，接着下芽菜末同煸几下，铲起备用。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "炒锅洗净，下猪油烧至七成热时，下四季豆入锅煸炒。边煸边翻，直至四季豆煸熟，锅中不见水分时，将芽菜、肉末加入，一同再煸约一分钟。最后下酱油、味精合匀起锅入盘。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "清香可口，芽菜、肉末同炒其味别致。",
+      "methodOnlyIngredients": [
         {
           "rawItemText": "油",
           "rawQuantityText": "少许",
-          "context": "做法第2步：先将肉末在炒锅内（放油少许）煸干水汽",
-          "note": "原料栏未单列此油用量，做法中为“少许”，属限定词不精确化，不并入化猪油总量"
+          "use": "做法第2步：先将肉末在炒锅内（放油少许）煸干水汽",
+          "quantityHandling": "原料栏未单列此油用量，做法中为“少许”，属限定词不精确化，不并入化猪油总量",
+          "confidence": "high"
         }
       ],
-      "methodSummary": [
-        "四季豆掐头去筋洗净。肥瘦猪肉剁成末。芽菜（冬菜也可）淘洗干净，用刀切成末。",
-        "先将肉末在炒锅内（放油少许）煸干水汽，接着下芽菜末同煸几下，铲起备用。",
-        "炒锅洗净，下猪油烧至七成热时，下四季豆入锅煸炒。边煸边翻，直至四季豆煸熟，锅中不见水分时，将芽菜、肉末加入，一同再煸约一分钟。最后下酱油、味精合匀起锅入盘。"
-      ],
-      "characteristicsSummary": "清香可口，芽菜、肉末同炒其味别致。",
-      "contentIncomplete": false,
-      "reviewRequired": false,
-      "notes": "全页文字清晰，无模糊字形或版面缺损。"
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "confirmed-alias",
+        "projectName": "干煸豆角",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-dry-fried-beans"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     },
     {
       "entryId": "dz1979-p200",
@@ -102,41 +197,109 @@
         {
           "rawItemText": "土豆",
           "rawQuantityText": "一斤",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 500, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "一斤 × 500g = 500g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "化猪油",
           "rawQuantityText": "二两",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 100, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "二两 × 50g = 100g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "盐",
           "rawQuantityText": "八钱",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 40, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 40,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "八钱 × 5g = 40g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "葱",
           "rawQuantityText": "五钱",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "五钱 × 5g = 25g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
-      "methodOnlyMentions": [],
-      "methodSummary": [
-        "土豆洗净上笼（或用水煮）蒸熟取出去皮，在炒锅（不要放在火上）内用锅铲按成泥后打起；葱切细花。",
-        "炒锅置中火上，下猪油烧至六成热时，放土豆泥和盐下锅炒，边炒边翻，约三分钟，再下葱花合匀起锅。"
-      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "土豆洗净上笼（或用水煮）蒸熟取出去皮，在炒锅（不要放在火上）内用锅铲按成泥后打起；葱切细花。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "炒锅置中火上，下猪油烧至六成热时，放土豆泥和盐下锅炒，边炒边翻，约三分钟，再下葱花合匀起锅。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
       "characteristicsSummary": "白中带绿，味清鲜，可下饭亦可单吃。",
-      "contentIncomplete": false,
-      "reviewRequired": false,
-      "notes": "全页文字清晰，无模糊字形或版面缺损。"
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅",
+          "锅铲"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     },
     {
       "entryId": "dz1979-p201",
@@ -159,101 +322,223 @@
         {
           "rawItemText": "黄瓜",
           "rawQuantityText": "一斤",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 500, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "一斤 × 500g = 500g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "菜油",
           "rawQuantityText": "一两",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 50, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "一两 × 50g = 50g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "干辣椒",
           "rawQuantityText": "四根",
-          "normalizedQuantity": { "kind": "exact-count", "qty": 4, "unit": "根", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 4,
+            "unit": "根",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "计数单位保留，不换算克",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "花椒",
           "rawQuantityText": "十余粒",
-          "normalizedQuantity": { "kind": "approximate-count", "qty": null, "unit": "粒", "appliesTo": "item", "qualifier": "十余" },
+          "normalizedQuantity": {
+            "kind": "approximate-count",
+            "qty": null,
+            "unit": "粒",
+            "appliesTo": "item",
+            "qualifier": "十余"
+          },
           "conversionBasis": "约数计数不压成单值，保留十余和粒",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "味精",
           "rawQuantityText": "二分",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 1, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "盐",
           "rawQuantityText": "四分",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 2, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "原料栏重量语境，四分 × 0.5g = 2g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "白糖、酱油",
           "rawQuantityText": "各三钱",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 15, "unit": "g", "appliesTo": "each-item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "each-item",
+            "qualifier": null
+          },
           "memberQuantityMode": "same-for-each",
           "members": [
-            { "item": "白糖", "qty": 15, "unit": "g" },
-            { "item": "酱油", "qty": 15, "unit": "g" }
+            {
+              "item": "白糖",
+              "qty": 15,
+              "unit": "g"
+            },
+            {
+              "item": "酱油",
+              "qty": 15,
+              "unit": "g"
+            }
           ],
-          "conversionBasis": "原文有各；每项三钱 × 5g = 15g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "conversionBasis": "原文有“各”；每项三钱 × 5g = 15g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "醋",
           "rawQuantityText": "二钱",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 10, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 10,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "二钱 × 5g = 10g，不推算毫升",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "水豆粉",
           "rawQuantityText": "五钱",
-          "normalizedQuantity": { "kind": "exact-mass", "qty": 25, "unit": "g", "appliesTo": "item", "qualifier": null },
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
           "conversionBasis": "五钱 × 5g = 25g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
-      "methodOnlyMentions": [
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "一分",
-          "context": "做法第1步：同盐（一分）拌匀腌几分钟（去涩水）",
-          "note": "原料栏盐总量四分；做法第1步、第2步各提到一分，两次用量之和小于原料栏总量，仅记录做法原文，不改动原料栏总量，不猜测差额去向"
-        },
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "一分",
-          "context": "做法第2步：用碗将盐（一分）、白糖、醋、酱油、味精、水豆粉及汤兑成滋汁",
-          "note": "见上条"
-        },
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "黄瓜削去两头，去籽清洗后，切“骨牌片”，同盐（一分）拌匀腌几分钟（去涩水）；干辣椒切六分节。",
+            "measureMentions": [
+              {
+                "raw": "六分节",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "干辣椒切段长度，不是重量"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "用碗将盐（一分）、白糖、醋、酱油、味精、水豆粉及汤（五钱）兑成滋汁。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "炒锅内菜油烧至六成热时，下辣椒节和花椒炸呈棕色，即放黄瓜片约炒一分钟。烹下滋汁，汁收浓起锅即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "黄瓜片脆嫩，味麻辣而带甜酸。",
+      "methodOnlyIngredients": [
         {
           "rawItemText": "汤",
           "rawQuantityText": "五钱",
-          "context": "做法第2步：水豆粉及汤（五钱）兑成滋汁",
-          "note": "汤未列入原料栏，仅在做法中出现，单列为method-only mention；五钱=25g，不推算毫升"
+          "use": "做法第2步：水豆粉及汤（五钱）兑成滋汁",
+          "quantityHandling": "汤未列入原料栏，仅在做法中出现，单列为method-only ingredient；五钱=25g，不推算毫升",
+          "confidence": "high"
         }
       ],
-      "methodSummary": [
-        "黄瓜削去两头，去籽清洗后，切“骨牌片”，同盐拌匀腌几分钟（去涩水）；干辣椒切六分节。",
-        "用碗将盐、白糖、醋、酱油、味精、水豆粉及汤兑成滋汁。",
-        "炒锅内菜油烧至六成热时，下辣椒节和花椒炸呈棕色，即放黄瓜片约炒一分钟。烹下滋汁，汁收浓起锅即成。"
-      ],
-      "characteristicsSummary": "黄瓜片脆嫩，味麻辣而带甜酸。",
-      "contentIncomplete": false,
-      "reviewRequired": false,
-      "notes": "六分节、八分等均为长度语境，不换算克；花椒十余粒按approximate-count处理。"
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [
+          "碗"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     }
   ]
 }
