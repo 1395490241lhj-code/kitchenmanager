@@ -1,0 +1,2626 @@
+{
+  "schema": "kitchenmanager.source-restoration.promotion-batch3-dry-run.v1",
+  "generatedAt": "2026-08-07",
+  "baseline": {
+    "main": "f0603ce34dd41838b4a963007e1b5cb815425bce",
+    "applicationReady": false,
+    "batch1Promoted": true,
+    "batch2Promoted": true,
+    "batch1Ledger": "data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json"
+  },
+  "purpose": "《大众川菜》1979 Production Batch 3 dry-run：复用 Batch 1 已验证硬性 gate 与 Batch 2 已验证 runtime gate（仅 core ingredients，unresolved-name-match 阻塞、expected-unit-confirmation 记录不阻塞，禁止新增 alias/单位换算），机械选出 5 道剩余 new-recipe-candidate，给出 overlay -> curate -> provenance 的可复现 promotion 链预览，并在临时目录用真实 curate-recipes.js 模拟完整链路。不写任何 workspace production 文件，不做真实 promotion。",
+  "selection": {
+    "hardGateCriteria": [
+      "promotionState=not-promoted",
+      "promotionDisposition=new-recipe-candidate",
+      "sourceQuality=ready-for-later-promotion-review",
+      "productionQuantityReadiness=exact-comparable",
+      "所有 production ingredients inventoryComparable=true",
+      "无 methodOnly conversionWarning",
+      "无 unallocated-group-total / same-for-each 组合数量",
+      "无 range/approximate/qualitative/unresolved（非精确数量）",
+      "无 consumedQty/consumedReferenceQty/consumedQualifier/consumedUnit",
+      "canonical uncertainties=[]、contentMissing/contentIncomplete=false",
+      "recognition/conversion/methodSummary/titleVisualCheck/ingredient confidence 均 high",
+      "production ID/name 无冲突"
+    ],
+    "runtimeGateRules": [
+      "只检查 candidate 的 core ingredients（classifyRecipeIngredient role=core）。",
+      "任何 core unresolved-name-match => 阻塞。",
+      "core expected-unit-confirmation => 允许，但逐项记录。",
+      "non-core（seasoning/non-stock）不参与 name gate。",
+      "禁止新增 alias 或 unit 换算：只使用现有 src/ingredients.js / src/inventory.js canonicalization。"
+    ],
+    "order": "expected-unit-confirmation 数量少 -> ingredient 特殊结构少 -> ingredient 数量少 -> method 步骤少 -> entryId 升序",
+    "funnel": {
+      "remainingNotPromotedCandidates": 29,
+      "afterHardGates": 19,
+      "blockedByRuntimeNameGate": 2,
+      "eligible": 17,
+      "selected": 5
+    },
+    "hardGateExclusions": {
+      "methodOnlyConversionWarning": [
+        "dz1979-p129",
+        "dz1979-p130"
+      ],
+      "sameForEachCombinedQuantity": [
+        "dz1979-p130",
+        "dz1979-p144",
+        "dz1979-p201",
+        "dz1979-p207",
+        "dz1979-p211"
+      ],
+      "nonExactQuantity": [
+        "dz1979-p201",
+        "dz1979-p203",
+        "dz1979-p207"
+      ],
+      "consumedDualQuantity": [
+        "dz1979-p222",
+        "dz1979-p224",
+        "dz1979-p226"
+      ]
+    },
+    "runtimeNameGateBlocked": [
+      {
+        "entryId": "dz1979-p137",
+        "bookName": "椒麻鸡块",
+        "unresolvedItems": [
+          "子公鸡"
+        ]
+      },
+      {
+        "entryId": "dz1979-p161",
+        "bookName": "拌鸡血",
+        "unresolvedItems": [
+          "鸡血"
+        ]
+      }
+    ],
+    "eligiblePoolCount": 17,
+    "rankedEntryIds": [
+      "dz1979-p212",
+      "dz1979-p216",
+      "dz1979-p218",
+      "dz1979-p221",
+      "dz1979-p206",
+      "dz1979-p183",
+      "dz1979-p198",
+      "dz1979-p153",
+      "dz1979-p209",
+      "dz1979-p223",
+      "dz1979-p162",
+      "dz1979-p186",
+      "dz1979-p185",
+      "dz1979-p219",
+      "dz1979-p213",
+      "dz1979-p159",
+      "dz1979-p168"
+    ],
+    "selectedEntryIds": [
+      "dz1979-p212",
+      "dz1979-p216",
+      "dz1979-p218",
+      "dz1979-p221",
+      "dz1979-p206"
+    ],
+    "note": "机械筛选，未硬编码结果；Batch 1/2 已 promotion 的 10 道不在候选池（promotionState=promoted）。"
+  },
+  "items": [
+    {
+      "entryId": "dz1979-p212",
+      "productionId": "dz1979-p212",
+      "name": "糖醋萝卜丝",
+      "category": "蔬菜类",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "selectionMetrics": {
+        "expectedUnitConfirmationCount": 0,
+        "specialStructureCount": 0,
+        "ingredientCount": 7,
+        "methodStepCount": 2,
+        "entryId": "dz1979-p212",
+        "rankPosition": 1
+      },
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p212",
+        "name": "糖醋萝卜丝",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 除去萝卜缨及根须，洗净切成二粗丝，用二分盐码起待用；葱白切细丝。\n2. 将码过的萝卜丝用冷开水淘洗后，挤去涩水，同葱丝盛于碗内；然后下二分盐和味精、醋、白糖等拌匀入味，再拈入盘内，菜上面淋香油（或熟菜油）即成。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p212": [
+          {
+            "item": "萝卜",
+            "qty": "250",
+            "unit": "g"
+          },
+          {
+            "item": "葱白",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "2.5",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g"
+          },
+          {
+            "item": "白糖",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "醋",
+            "qty": "30",
+            "unit": "g"
+          },
+          {
+            "item": "香油",
+            "qty": "15",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p212",
+        "name": "糖醋萝卜丝",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 除去萝卜缨及根须，洗净切成二粗丝，用二分盐码起待用；葱白切细丝。\n2. 将码过的萝卜丝用冷开水淘洗后，挤去涩水，同葱丝盛于碗内；然后下二分盐和味精、醋、白糖等拌匀入味，再拈入盘内，菜上面淋香油（或熟菜油）即成。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p212": [
+          {
+            "item": "萝卜",
+            "qty": "250",
+            "unit": "g"
+          },
+          {
+            "item": "葱白",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "2.5",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g"
+          },
+          {
+            "item": "白糖",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "醋",
+            "qty": "30",
+            "unit": "g"
+          },
+          {
+            "item": "香油",
+            "qty": "15",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p212",
+        "bookName": "糖醋萝卜丝",
+        "bookPage": 212,
+        "pdfPage": 225,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "味甜酸带辣，宜于下饭。",
+        "uncertainties": [],
+        "confirmedReadings": [
+          {
+            "raw": "味甜酸带辣，宜于下饭。",
+            "location": "特点栏"
+          }
+        ],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ],
+      "quantityReviewPreview": {
+        "recordCount": 7,
+        "records": [
+          {
+            "item": "萝卜",
+            "qty": "250",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 250,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "葱白",
+            "qty": "25",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 25,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "盐",
+            "qty": "2.5",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五分",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 2.5,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "二分",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 1,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "白糖",
+            "qty": "25",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 25,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "醋",
+            "qty": "30",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "六钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 30,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "香油",
+            "qty": "15",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "三钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 15,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          }
+        ]
+      },
+      "coreRuntimeCompatibility": {
+        "coreIngredientResults": [
+          {
+            "item": "萝卜",
+            "qty": "250",
+            "unit": "g",
+            "role": "core",
+            "canonical": "萝卜",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "compatibility": "exact-compatible",
+            "reasons": [
+              "名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。"
+            ],
+            "normalizedQuantity": {
+              "qty": 250,
+              "unit": "g",
+              "finite": true
+            }
+          }
+        ],
+        "nonCoreObservations": [
+          {
+            "entryId": "dz1979-p212",
+            "item": "葱白",
+            "qty": "25",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "葱",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "把",
+            "normalizedQuantity": {
+              "qty": 25,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p212",
+            "item": "盐",
+            "qty": "2.5",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "盐",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 2.5,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p212",
+            "item": "味精",
+            "qty": "1",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "味精",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 1,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p212",
+            "item": "白糖",
+            "qty": "25",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "糖",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 25,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p212",
+            "item": "醋",
+            "qty": "30",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "醋",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 30,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p212",
+            "item": "香油",
+            "qty": "15",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "香油",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 15,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          }
+        ],
+        "counts": {
+          "core": 1,
+          "exact-compatible": 1,
+          "expected-unit-confirmation": 0,
+          "unresolved-name-match": 0
+        },
+        "unitConfirmationDetails": [],
+        "gatePassed": true
+      }
+    },
+    {
+      "entryId": "dz1979-p216",
+      "productionId": "dz1979-p216",
+      "name": "拌盐白菜",
+      "category": "蔬菜类",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "selectionMetrics": {
+        "expectedUnitConfirmationCount": 0,
+        "specialStructureCount": 0,
+        "ingredientCount": 7,
+        "methodStepCount": 2,
+        "entryId": "dz1979-p216",
+        "rankPosition": 2
+      },
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p216",
+        "name": "拌盐白菜",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 黄秧白去掉老叶及根部，用水洗净，晾干后，用盐、花椒把一片片白菜抹匀，再一层一层地码在盆内（如叶大可改小），腌三天即可食用。\n2. 吃时，取出白菜，切成细丝，挤干盐水，拌以各种调料即可。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p216": [
+          {
+            "item": "黄秧白",
+            "qty": "2500",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "200",
+            "unit": "g"
+          },
+          {
+            "item": "花椒",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "熟油辣椒",
+            "qty": "200",
+            "unit": "g"
+          },
+          {
+            "item": "酱油",
+            "qty": "150",
+            "unit": "g"
+          },
+          {
+            "item": "醋",
+            "qty": "150",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "2.5",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p216",
+        "name": "拌盐白菜",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 黄秧白去掉老叶及根部，用水洗净，晾干后，用盐、花椒把一片片白菜抹匀，再一层一层地码在盆内（如叶大可改小），腌三天即可食用。\n2. 吃时，取出白菜，切成细丝，挤干盐水，拌以各种调料即可。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p216": [
+          {
+            "item": "黄秧白",
+            "qty": "2500",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "200",
+            "unit": "g"
+          },
+          {
+            "item": "花椒",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "熟油辣椒",
+            "qty": "200",
+            "unit": "g"
+          },
+          {
+            "item": "酱油",
+            "qty": "150",
+            "unit": "g"
+          },
+          {
+            "item": "醋",
+            "qty": "150",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "2.5",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p216",
+        "bookName": "拌盐白菜",
+        "bookPage": 216,
+        "pdfPage": 229,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "此菜是成都市家常小菜，经济方便，现吃现拌，味厚可口，最宜下饭。附注：此配料为大份量作法，食用时要根据具体情况面定，吃多少拌多少。不吃辣味者，可不拌调料，直接取食也行。",
+        "uncertainties": [],
+        "confirmedReadings": [
+          {
+            "raw": "此菜是成都市家常小菜，经济方便，现吃现拌，味厚可口，最宜下饭。",
+            "location": "特点栏"
+          },
+          {
+            "raw": "此配料为大份量作法，食用时要根据具体情况面定，吃多少拌多少。不吃辣味者，可不拌调料，直接取食也行。",
+            "location": "特点栏后附注"
+          }
+        ],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ],
+      "quantityReviewPreview": {
+        "recordCount": 7,
+        "records": [
+          {
+            "item": "黄秧白",
+            "qty": "2500",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五斤",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 2500,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "盐",
+            "qty": "200",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "四两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 200,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "花椒",
+            "qty": "50",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "一两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 50,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "熟油辣椒",
+            "qty": "200",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "四两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 200,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "酱油",
+            "qty": "150",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "三两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 150,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "醋",
+            "qty": "150",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "三两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 150,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "味精",
+            "qty": "2.5",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五分",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 2.5,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          }
+        ]
+      },
+      "coreRuntimeCompatibility": {
+        "coreIngredientResults": [
+          {
+            "item": "黄秧白",
+            "qty": "2500",
+            "unit": "g",
+            "role": "core",
+            "canonical": "白菜",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "compatibility": "exact-compatible",
+            "reasons": [
+              "名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。"
+            ],
+            "normalizedQuantity": {
+              "qty": 2500,
+              "unit": "g",
+              "finite": true
+            }
+          },
+          {
+            "item": "熟油辣椒",
+            "qty": "200",
+            "unit": "g",
+            "role": "core",
+            "canonical": "熟油辣椒",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "compatibility": "exact-compatible",
+            "reasons": [
+              "名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。"
+            ],
+            "normalizedQuantity": {
+              "qty": 200,
+              "unit": "g",
+              "finite": true
+            }
+          }
+        ],
+        "nonCoreObservations": [
+          {
+            "entryId": "dz1979-p216",
+            "item": "盐",
+            "qty": "200",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "盐",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 200,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p216",
+            "item": "花椒",
+            "qty": "50",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "花椒",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 50,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p216",
+            "item": "酱油",
+            "qty": "150",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "酱油",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 150,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p216",
+            "item": "醋",
+            "qty": "150",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "醋",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 150,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p216",
+            "item": "味精",
+            "qty": "2.5",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "味精",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 2.5,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          }
+        ],
+        "counts": {
+          "core": 2,
+          "exact-compatible": 2,
+          "expected-unit-confirmation": 0,
+          "unresolved-name-match": 0
+        },
+        "unitConfirmationDetails": [],
+        "gatePassed": true
+      }
+    },
+    {
+      "entryId": "dz1979-p218",
+      "productionId": "dz1979-p218",
+      "name": "酸菜豆瓣汤",
+      "category": "蔬菜类",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "selectionMetrics": {
+        "expectedUnitConfirmationCount": 0,
+        "specialStructureCount": 0,
+        "ingredientCount": 7,
+        "methodStepCount": 2,
+        "entryId": "dz1979-p218",
+        "rankPosition": 3
+      },
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p218",
+        "name": "酸菜豆瓣汤",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 干胡豆用温热水泡胀（得需十二小时）后用清水淘洗，剥去壳，将胡豆分成两瓣，再将色正、味好的陈泡青菜，用刀切成短丝子，把盐水挤一挤（不要挤得太干），葱切细花。\n2. 炒锅置旺火上，放入猪油烧热，先下泡青菜丝炒一下，再下胡豆瓣合炒，接着掺汤，加盐煮约十五分钟，煮至酸菜出味，汤色发白，起锅盛入碗中，放葱花，最后放味精即成。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p218": [
+          {
+            "item": "干胡豆",
+            "qty": "250",
+            "unit": "g"
+          },
+          {
+            "item": "葱",
+            "qty": "30",
+            "unit": "g"
+          },
+          {
+            "item": "泡青菜（酸菜）",
+            "qty": "150",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "5",
+            "unit": "g"
+          },
+          {
+            "item": "化猪油",
+            "qty": "30",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1.5",
+            "unit": "g"
+          },
+          {
+            "item": "汤",
+            "qty": "1000",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p218",
+        "name": "酸菜豆瓣汤",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 干胡豆用温热水泡胀（得需十二小时）后用清水淘洗，剥去壳，将胡豆分成两瓣，再将色正、味好的陈泡青菜，用刀切成短丝子，把盐水挤一挤（不要挤得太干），葱切细花。\n2. 炒锅置旺火上，放入猪油烧热，先下泡青菜丝炒一下，再下胡豆瓣合炒，接着掺汤，加盐煮约十五分钟，煮至酸菜出味，汤色发白，起锅盛入碗中，放葱花，最后放味精即成。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p218": [
+          {
+            "item": "干胡豆",
+            "qty": "250",
+            "unit": "g"
+          },
+          {
+            "item": "葱",
+            "qty": "30",
+            "unit": "g"
+          },
+          {
+            "item": "泡青菜（酸菜）",
+            "qty": "150",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "5",
+            "unit": "g"
+          },
+          {
+            "item": "化猪油",
+            "qty": "30",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1.5",
+            "unit": "g"
+          },
+          {
+            "item": "汤",
+            "qty": "1000",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p218",
+        "bookName": "酸菜豆瓣汤",
+        "bookPage": 218,
+        "pdfPage": 231,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "汤色泛白，味鲜而香，酸味自然。暑天食用最宜。",
+        "uncertainties": [],
+        "confirmedReadings": [
+          {
+            "raw": "汤色泛白，味鲜而香，酸味自然。暑天食用最宜。",
+            "location": "特点栏"
+          }
+        ],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ],
+      "quantityReviewPreview": {
+        "recordCount": 7,
+        "records": [
+          {
+            "item": "干胡豆",
+            "qty": "250",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 250,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "葱",
+            "qty": "30",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "六钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 30,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "泡青菜（酸菜）",
+            "qty": "150",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "三两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 150,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "盐",
+            "qty": "5",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "一钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 5,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "化猪油",
+            "qty": "30",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "六钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 30,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "味精",
+            "qty": "1.5",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "三分",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 1.5,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "汤",
+            "qty": "1000",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "二斤",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 1000,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          }
+        ]
+      },
+      "coreRuntimeCompatibility": {
+        "coreIngredientResults": [
+          {
+            "item": "干胡豆",
+            "qty": "250",
+            "unit": "g",
+            "role": "core",
+            "canonical": "蚕豆",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "compatibility": "exact-compatible",
+            "reasons": [
+              "名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。"
+            ],
+            "normalizedQuantity": {
+              "qty": 250,
+              "unit": "g",
+              "finite": true
+            }
+          },
+          {
+            "item": "泡青菜（酸菜）",
+            "qty": "150",
+            "unit": "g",
+            "role": "core",
+            "canonical": "泡青菜（酸菜）",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "把",
+            "compatibility": "exact-compatible",
+            "reasons": [
+              "名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。"
+            ],
+            "normalizedQuantity": {
+              "qty": 150,
+              "unit": "g",
+              "finite": true
+            }
+          }
+        ],
+        "nonCoreObservations": [
+          {
+            "entryId": "dz1979-p218",
+            "item": "葱",
+            "qty": "30",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "葱",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "把",
+            "normalizedQuantity": {
+              "qty": 30,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p218",
+            "item": "盐",
+            "qty": "5",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "盐",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 5,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p218",
+            "item": "化猪油",
+            "qty": "30",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "化猪油",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 30,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p218",
+            "item": "味精",
+            "qty": "1.5",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "味精",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 1.5,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p218",
+            "item": "汤",
+            "qty": "1000",
+            "unit": "g",
+            "role": "non-stock",
+            "canonical": "汤",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 1000,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=non-stock，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          }
+        ],
+        "counts": {
+          "core": 2,
+          "exact-compatible": 2,
+          "expected-unit-confirmation": 0,
+          "unresolved-name-match": 0
+        },
+        "unitConfirmationDetails": [],
+        "gatePassed": true
+      }
+    },
+    {
+      "entryId": "dz1979-p221",
+      "productionId": "dz1979-p221",
+      "name": "蒜泥蚕豆",
+      "category": "蔬菜类",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "selectionMetrics": {
+        "expectedUnitConfirmationCount": 0,
+        "specialStructureCount": 0,
+        "ingredientCount": 7,
+        "methodStepCount": 2,
+        "entryId": "dz1979-p221",
+        "rankPosition": 4
+      },
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p221",
+        "name": "蒜泥蚕豆",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 把出新的嫩胡豆淘洗干净后，在开水锅内煮熟，打起装筲箕内，待水分稍干时下二分盐拌匀、使之上味，蒜舂成泥。\n2. 将盐（二分）、酱油、蒜泥、熟油辣椒、醋、味精等盛碗内调成滋汁，倒入蚕豆中，拌合均匀即成。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p221": [
+          {
+            "item": "嫩蚕豆",
+            "qty": "250",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "2",
+            "unit": "g"
+          },
+          {
+            "item": "蒜",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "熟油辣子",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g"
+          },
+          {
+            "item": "酱油",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "醋",
+            "qty": "5",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p221",
+        "name": "蒜泥蚕豆",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 把出新的嫩胡豆淘洗干净后，在开水锅内煮熟，打起装筲箕内，待水分稍干时下二分盐拌匀、使之上味，蒜舂成泥。\n2. 将盐（二分）、酱油、蒜泥、熟油辣椒、醋、味精等盛碗内调成滋汁，倒入蚕豆中，拌合均匀即成。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p221": [
+          {
+            "item": "嫩蚕豆",
+            "qty": "250",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "2",
+            "unit": "g"
+          },
+          {
+            "item": "蒜",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "熟油辣子",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g"
+          },
+          {
+            "item": "酱油",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "醋",
+            "qty": "5",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p221",
+        "bookName": "蒜泥蚕豆",
+        "bookPage": 221,
+        "pdfPage": 234,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "蚕豆清新鲜嫩，蒜味突出，酒饭均宜。",
+        "uncertainties": [],
+        "confirmedReadings": [
+          {
+            "raw": "把出新的嫩胡豆淘洗干净后",
+            "location": "做法第1步：原料栏“嫩蚕豆”与做法“嫩胡豆”为同一物的两种称法，均逐字保留，不统一改写"
+          }
+        ],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ],
+      "quantityReviewPreview": {
+        "recordCount": 7,
+        "records": [
+          {
+            "item": "嫩蚕豆",
+            "qty": "250",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 250,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "盐",
+            "qty": "2",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "四分",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 2,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "蒜",
+            "qty": "25",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 25,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "熟油辣子",
+            "qty": "50",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "一两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 50,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "二分",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 1,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "酱油",
+            "qty": "25",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 25,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "醋",
+            "qty": "5",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "一钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 5,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          }
+        ]
+      },
+      "coreRuntimeCompatibility": {
+        "coreIngredientResults": [
+          {
+            "item": "嫩蚕豆",
+            "qty": "250",
+            "unit": "g",
+            "role": "core",
+            "canonical": "蚕豆",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "compatibility": "exact-compatible",
+            "reasons": [
+              "名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。"
+            ],
+            "normalizedQuantity": {
+              "qty": 250,
+              "unit": "g",
+              "finite": true
+            }
+          },
+          {
+            "item": "熟油辣子",
+            "qty": "50",
+            "unit": "g",
+            "role": "core",
+            "canonical": "熟油辣子",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "compatibility": "exact-compatible",
+            "reasons": [
+              "名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。"
+            ],
+            "normalizedQuantity": {
+              "qty": 50,
+              "unit": "g",
+              "finite": true
+            }
+          }
+        ],
+        "nonCoreObservations": [
+          {
+            "entryId": "dz1979-p221",
+            "item": "盐",
+            "qty": "2",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "盐",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 2,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p221",
+            "item": "蒜",
+            "qty": "25",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "蒜",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 25,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p221",
+            "item": "味精",
+            "qty": "1",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "味精",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 1,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p221",
+            "item": "酱油",
+            "qty": "25",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "酱油",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 25,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p221",
+            "item": "醋",
+            "qty": "5",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "醋",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 5,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          }
+        ],
+        "counts": {
+          "core": 2,
+          "exact-compatible": 2,
+          "expected-unit-confirmation": 0,
+          "unresolved-name-match": 0
+        },
+        "unitConfirmationDetails": [],
+        "gatePassed": true
+      }
+    },
+    {
+      "entryId": "dz1979-p206",
+      "productionId": "dz1979-p206",
+      "name": "烧拌莴笋",
+      "category": "蔬菜类",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "selectionMetrics": {
+        "expectedUnitConfirmationCount": 0,
+        "specialStructureCount": 0,
+        "ingredientCount": 7,
+        "methodStepCount": 3,
+        "entryId": "dz1979-p206",
+        "rankPosition": 5
+      },
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p206",
+        "name": "烧拌莴笋",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 将莴笋洗净，用干净菜叶在其外包裹两层，放于子母火中（即柴灶的灰火中），围严烧起。烧至莴笋水分蒸发，笋体变软已熟时，从灰中取出。\n2. 去掉包裹莴笋的菜叶，用刀削去表皮后将其拍松，切成不规则的筷子条，盛于菜盘中。\n3. 干辣椒切节在锅内炕起，待其炕出糊香味时，铲起用刀铡细，盛入碗内加酱油、盐、辣椒油、味精、香油调匀，然后淋于盘中的莴笋上即成。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p206": [
+          {
+            "item": "莴笋",
+            "qty": "350",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "2",
+            "unit": "g"
+          },
+          {
+            "item": "酱油",
+            "qty": "15",
+            "unit": "g"
+          },
+          {
+            "item": "香油",
+            "qty": "15",
+            "unit": "g"
+          },
+          {
+            "item": "辣椒油",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g"
+          },
+          {
+            "item": "干辣椒",
+            "qty": "4",
+            "unit": "根"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p206",
+        "name": "烧拌莴笋",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 将莴笋洗净，用干净菜叶在其外包裹两层，放于子母火中（即柴灶的灰火中），围严烧起。烧至莴笋水分蒸发，笋体变软已熟时，从灰中取出。\n2. 去掉包裹莴笋的菜叶，用刀削去表皮后将其拍松，切成不规则的筷子条，盛于菜盘中。\n3. 干辣椒切节在锅内炕起，待其炕出糊香味时，铲起用刀铡细，盛入碗内加酱油、盐、辣椒油、味精、香油调匀，然后淋于盘中的莴笋上即成。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p206": [
+          {
+            "item": "莴笋",
+            "qty": "350",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "2",
+            "unit": "g"
+          },
+          {
+            "item": "酱油",
+            "qty": "15",
+            "unit": "g"
+          },
+          {
+            "item": "香油",
+            "qty": "15",
+            "unit": "g"
+          },
+          {
+            "item": "辣椒油",
+            "qty": "25",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g"
+          },
+          {
+            "item": "干辣椒",
+            "qty": "4",
+            "unit": "根"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p206",
+        "bookName": "烧拌莴笋",
+        "bookPage": 206,
+        "pdfPage": 219,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "这是按传统的农村做法，加以较讲究的调味品作成。菜脆嫩，味香辣，异常鲜美。",
+        "uncertainties": [],
+        "confirmedReadings": [],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（3 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ],
+      "quantityReviewPreview": {
+        "recordCount": 7,
+        "records": [
+          {
+            "item": "莴笋",
+            "qty": "350",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "七两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 350,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "盐",
+            "qty": "2",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "四分",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 2,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "酱油",
+            "qty": "15",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "三钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 15,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "香油",
+            "qty": "15",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "三钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 15,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "辣椒油",
+            "qty": "25",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "五钱",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 25,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "二分",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 1,
+              "unit": "g"
+            },
+            "reviewStatus": "approved"
+          },
+          {
+            "item": "干辣椒",
+            "qty": "4",
+            "unit": "根",
+            "evidenceType": "source-restoration",
+            "sourceRawQuantityText": "四根",
+            "normalizedQuantity": {
+              "kind": "exact-count",
+              "qty": 4,
+              "unit": "根"
+            },
+            "reviewStatus": "approved"
+          }
+        ]
+      },
+      "coreRuntimeCompatibility": {
+        "coreIngredientResults": [
+          {
+            "item": "莴笋",
+            "qty": "350",
+            "unit": "g",
+            "role": "core",
+            "canonical": "莴笋",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "compatibility": "exact-compatible",
+            "reasons": [
+              "名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。"
+            ],
+            "normalizedQuantity": {
+              "qty": 350,
+              "unit": "g",
+              "finite": true
+            }
+          }
+        ],
+        "nonCoreObservations": [
+          {
+            "entryId": "dz1979-p206",
+            "item": "盐",
+            "qty": "2",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "盐",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 2,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p206",
+            "item": "酱油",
+            "qty": "15",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "酱油",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 15,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p206",
+            "item": "香油",
+            "qty": "15",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "香油",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 15,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p206",
+            "item": "辣椒油",
+            "qty": "25",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "辣椒油",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "瓶",
+            "normalizedQuantity": {
+              "qty": 25,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p206",
+            "item": "味精",
+            "qty": "1",
+            "unit": "g",
+            "role": "seasoning",
+            "canonical": "味精",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 1,
+              "unit": "g",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          },
+          {
+            "entryId": "dz1979-p206",
+            "item": "干辣椒",
+            "qty": "4",
+            "unit": "根",
+            "role": "seasoning",
+            "canonical": "干辣椒",
+            "ingredientFamilyKey": null,
+            "guessKitchenUnit": "份",
+            "normalizedQuantity": {
+              "qty": 4,
+              "unit": "根",
+              "finite": true
+            },
+            "observation": "role=seasoning，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。"
+          }
+        ],
+        "counts": {
+          "core": 1,
+          "exact-compatible": 1,
+          "expected-unit-confirmation": 0,
+          "unresolved-name-match": 0
+        },
+        "unitConfirmationDetails": [],
+        "gatePassed": true
+      }
+    }
+  ],
+  "quantityReviewPreview": {
+    "purpose": "Batch 3 promotion 将引入的 curated qty/unit 的 source-restoration-reviewed 登记预览（与 Batch 1/2 quantity-review 同构）。真实 promotion 时另行生成正式 quantity-review artifact；本预览仅为 dry-run 证据。",
+    "recordCount": 35,
+    "records": [
+      {
+        "entryId": "dz1979-p212",
+        "productionId": "dz1979-p212",
+        "recipeName": "糖醋萝卜丝",
+        "item": "萝卜",
+        "qty": "250",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 250,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p212",
+        "productionId": "dz1979-p212",
+        "recipeName": "糖醋萝卜丝",
+        "item": "葱白",
+        "qty": "25",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 25,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p212",
+        "productionId": "dz1979-p212",
+        "recipeName": "糖醋萝卜丝",
+        "item": "盐",
+        "qty": "2.5",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五分",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 2.5,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p212",
+        "productionId": "dz1979-p212",
+        "recipeName": "糖醋萝卜丝",
+        "item": "味精",
+        "qty": "1",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "二分",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 1,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p212",
+        "productionId": "dz1979-p212",
+        "recipeName": "糖醋萝卜丝",
+        "item": "白糖",
+        "qty": "25",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 25,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p212",
+        "productionId": "dz1979-p212",
+        "recipeName": "糖醋萝卜丝",
+        "item": "醋",
+        "qty": "30",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "六钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 30,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p212",
+        "productionId": "dz1979-p212",
+        "recipeName": "糖醋萝卜丝",
+        "item": "香油",
+        "qty": "15",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "三钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 15,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p216",
+        "productionId": "dz1979-p216",
+        "recipeName": "拌盐白菜",
+        "item": "黄秧白",
+        "qty": "2500",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五斤",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 2500,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p216",
+        "productionId": "dz1979-p216",
+        "recipeName": "拌盐白菜",
+        "item": "盐",
+        "qty": "200",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "四两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 200,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p216",
+        "productionId": "dz1979-p216",
+        "recipeName": "拌盐白菜",
+        "item": "花椒",
+        "qty": "50",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "一两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 50,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p216",
+        "productionId": "dz1979-p216",
+        "recipeName": "拌盐白菜",
+        "item": "熟油辣椒",
+        "qty": "200",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "四两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 200,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p216",
+        "productionId": "dz1979-p216",
+        "recipeName": "拌盐白菜",
+        "item": "酱油",
+        "qty": "150",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "三两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 150,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p216",
+        "productionId": "dz1979-p216",
+        "recipeName": "拌盐白菜",
+        "item": "醋",
+        "qty": "150",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "三两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 150,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p216",
+        "productionId": "dz1979-p216",
+        "recipeName": "拌盐白菜",
+        "item": "味精",
+        "qty": "2.5",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五分",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 2.5,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p218",
+        "productionId": "dz1979-p218",
+        "recipeName": "酸菜豆瓣汤",
+        "item": "干胡豆",
+        "qty": "250",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 250,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p218",
+        "productionId": "dz1979-p218",
+        "recipeName": "酸菜豆瓣汤",
+        "item": "葱",
+        "qty": "30",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "六钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 30,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p218",
+        "productionId": "dz1979-p218",
+        "recipeName": "酸菜豆瓣汤",
+        "item": "泡青菜（酸菜）",
+        "qty": "150",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "三两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 150,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p218",
+        "productionId": "dz1979-p218",
+        "recipeName": "酸菜豆瓣汤",
+        "item": "盐",
+        "qty": "5",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "一钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 5,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p218",
+        "productionId": "dz1979-p218",
+        "recipeName": "酸菜豆瓣汤",
+        "item": "化猪油",
+        "qty": "30",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "六钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 30,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p218",
+        "productionId": "dz1979-p218",
+        "recipeName": "酸菜豆瓣汤",
+        "item": "味精",
+        "qty": "1.5",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "三分",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 1.5,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p218",
+        "productionId": "dz1979-p218",
+        "recipeName": "酸菜豆瓣汤",
+        "item": "汤",
+        "qty": "1000",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "二斤",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 1000,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p221",
+        "productionId": "dz1979-p221",
+        "recipeName": "蒜泥蚕豆",
+        "item": "嫩蚕豆",
+        "qty": "250",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 250,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p221",
+        "productionId": "dz1979-p221",
+        "recipeName": "蒜泥蚕豆",
+        "item": "盐",
+        "qty": "2",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "四分",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 2,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p221",
+        "productionId": "dz1979-p221",
+        "recipeName": "蒜泥蚕豆",
+        "item": "蒜",
+        "qty": "25",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 25,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p221",
+        "productionId": "dz1979-p221",
+        "recipeName": "蒜泥蚕豆",
+        "item": "熟油辣子",
+        "qty": "50",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "一两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 50,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p221",
+        "productionId": "dz1979-p221",
+        "recipeName": "蒜泥蚕豆",
+        "item": "味精",
+        "qty": "1",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "二分",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 1,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p221",
+        "productionId": "dz1979-p221",
+        "recipeName": "蒜泥蚕豆",
+        "item": "酱油",
+        "qty": "25",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 25,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p221",
+        "productionId": "dz1979-p221",
+        "recipeName": "蒜泥蚕豆",
+        "item": "醋",
+        "qty": "5",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "一钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 5,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p206",
+        "productionId": "dz1979-p206",
+        "recipeName": "烧拌莴笋",
+        "item": "莴笋",
+        "qty": "350",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "七两",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 350,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p206",
+        "productionId": "dz1979-p206",
+        "recipeName": "烧拌莴笋",
+        "item": "盐",
+        "qty": "2",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "四分",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 2,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p206",
+        "productionId": "dz1979-p206",
+        "recipeName": "烧拌莴笋",
+        "item": "酱油",
+        "qty": "15",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "三钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 15,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p206",
+        "productionId": "dz1979-p206",
+        "recipeName": "烧拌莴笋",
+        "item": "香油",
+        "qty": "15",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "三钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 15,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p206",
+        "productionId": "dz1979-p206",
+        "recipeName": "烧拌莴笋",
+        "item": "辣椒油",
+        "qty": "25",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "五钱",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 25,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p206",
+        "productionId": "dz1979-p206",
+        "recipeName": "烧拌莴笋",
+        "item": "味精",
+        "qty": "1",
+        "unit": "g",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "二分",
+        "normalizedQuantity": {
+          "kind": "exact-mass",
+          "qty": 1,
+          "unit": "g"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      },
+      {
+        "entryId": "dz1979-p206",
+        "productionId": "dz1979-p206",
+        "recipeName": "烧拌莴笋",
+        "item": "干辣椒",
+        "qty": "4",
+        "unit": "根",
+        "evidenceType": "source-restoration",
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "sourceRawQuantityText": "四根",
+        "normalizedQuantity": {
+          "kind": "exact-count",
+          "qty": 4,
+          "unit": "根"
+        },
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "reviewStatus": "approved"
+      }
+    ]
+  },
+  "promotionChain": [
+    "1. recipe-completion-overlay.json：newRecipes + newRecipeIngredients 追加 5 道（recipeIngredientOverrides 保持不变）",
+    "2. 重跑 scripts/curate-recipes.js：物化到 data/sichuan-recipes.curated.json",
+    "3. provenance 独立侧文件承载书页/置信/特点等 source 信息",
+    "4. 不修改 data/sichuan-recipes.json（Full 库）"
+  ],
+  "simulation": {
+    "tempCurateResult": {
+      "headCuratedCount": 136,
+      "simulatedCuratedCount": 141,
+      "newRecipeIds": [
+        "dz1979-p206",
+        "dz1979-p212",
+        "dz1979-p216",
+        "dz1979-p218",
+        "dz1979-p221"
+      ],
+      "newRecipeCount": 5,
+      "existingDeleted": 0,
+      "existingRecipeObjectModified": 0,
+      "existingIngredientMapModified": 0,
+      "newRecipesHaveMethod": true,
+      "newRecipesHaveTags": true,
+      "newIngredientMapsComplete": true,
+      "strictCurrentPlusFive": true
+    },
+    "auxiliaryGeneratedFiles": {
+      "recipeCurationRemoved": {
+        "changes": "unchanged",
+        "note": "Batch 3 的 5 道均有 method，curate 直接保留，不进入 removed；既有 removed 决定不变。"
+      },
+      "recipesNeedingCompletion": {
+        "changes": "unchanged",
+        "note": "Batch 3 不改变任何既有 needing 决定。"
+      },
+      "recipeCurationSummaryMd": {
+        "changes": "expected count changes from the 5 additions",
+        "expectedLineChanges": [
+          "原始菜谱（有效集）: 332 -> 337",
+          "overlay 新增/补全净增: 68 -> 73",
+          "curated 保留: 136 -> 141",
+          "从有效集保留（有做法）: 115 -> 120",
+          "从 overlay 补全 method: 115 -> 120",
+          "从 overlay 补全 ingredients: 78 -> 83"
+        ]
+      }
+    }
+  },
+  "pwaVisibilityAudit": {
+    "overlayFetch": {
+      "url": "./data/recipe-completion-overlay.json",
+      "cacheMode": "fetch(..., { cache: 'no-store' })",
+      "note": "src/recipe-completion.js 每次页面加载直接取最新 overlay。"
+    },
+    "basePackFetch": {
+      "url": "data/sichuan-recipes.{curated,full}.json?v=<releaseVersion>",
+      "cacheMode": "fetch(..., { cache: 'no-store' })",
+      "note": "app.js loadBasePack 按当前 ?v= 版本取基包，无 HTTP 缓存。"
+    },
+    "serviceWorker": {
+      "strategy": "data/*.json 命中 sw.v18.js isDataJson -> networkFirst（在线总是取最新，离线回退缓存）",
+      "cacheBumpRequired": false,
+      "note": "数据内容变更不要求同步更新 cache-bust/version/service-worker 版本；只有 JS/CSS/SW 资产改动才需要发布版本更新。"
+    },
+    "conclusion": "真实 promotion 后，在线用户经 networkFirst 立即获得新 overlay 与 curated JSON，无需同步更新 cache-bust/version/SW 相关版本。"
+  },
+  "iosDecodeAudit": {
+    "recipeShape": "recipes[]: { id: string, name: string, method?: string, tags?: string[] }",
+    "ingredientShape": "recipe_ingredients[id]: [{ item: string, qty?: string, unit?: string }]",
+    "batch3Compatible": true,
+    "note": "RecipeService.RemoteRecipe/RemoteIngredient 可直接解码上述结构。"
+  },
+  "verificationProblems": []
+}

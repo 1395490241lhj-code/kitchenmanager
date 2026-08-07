@@ -72,7 +72,9 @@ const DAZHONG_PROMOTION_QTY_UNIT_RECORDS = new Map(
   )),
 );
 
-// Unified reviewed qty/unit registry: 11 method-backed + 19 source-restoration-backed.
+// Unified reviewed qty/unit registry: method-backed records plus every
+// promoted batch's source-restoration-backed records (count derived below,
+// not hardcoded here).
 const CURATED_QTY_UNIT_RECORDS_ALL = new Map([
   ...CURATED_QTY_UNIT_RECORDS,
   ...DAZHONG_PROMOTION_QTY_UNIT_RECORDS,
