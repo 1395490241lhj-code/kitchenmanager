@@ -382,9 +382,11 @@ if (promotedNotCandidate.length > 0) {
 }
 const promotedNewCount = promotedEntries.length;
 const remainingNewCandidateCount = newCandidateIds.size - promotedNewCount;
-if (promotedNewCount !== 5) problems.push(`promoted-new-count-not-5:${promotedNewCount}`);
-if (remainingNewCandidateCount !== 34) {
-  problems.push(`remaining-new-candidate-not-34:${remainingNewCandidateCount}`);
+if (promotedNewCount !== promotedEntryIds.size) {
+  problems.push(`promoted-new-count-mismatch:${promotedNewCount}!=${promotedEntryIds.size}`);
+}
+if (promotedNewCount + remainingNewCandidateCount !== newCandidateIds.size) {
+  problems.push(`promoted-plus-remaining-not-equal-total-candidates:${promotedNewCount}+${remainingNewCandidateCount}!=${newCandidateIds.size}`);
 }
 
 const dangling = entries.flatMap((entry) => (

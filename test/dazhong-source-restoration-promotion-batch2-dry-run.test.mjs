@@ -48,11 +48,11 @@ const EXPECTED_PRODUCTION_IDS = ['dz1979-p187', 'dz1979-p188', 'dz1979-p196', 'd
 // than importing the generator, so the test cannot silently pass a bug the
 // generator itself introduced.
 
-function passesHardGates(entryId) {
+function passesHardGates(entryId, { allowPromoted = false } = {}) {
   const entry = readinessById.get(entryId);
   const recipe = restoredById.get(entryId);
   if (!entry || entry.promotionDisposition !== 'new-recipe-candidate') return false;
-  if (entry.promotionState !== 'not-promoted') return false;
+  if (entry.promotionState !== 'not-promoted' && !(allowPromoted && entry.promotionState === 'promoted')) return false;
   if (entry.sourceQuality !== 'ready-for-later-promotion-review') return false;
   const plan = entry.productionIngredientPlan;
   if (plan.quantityReadiness !== 'exact-comparable') return false;
@@ -74,7 +74,13 @@ function passesHardGates(entryId) {
     if ('consumedQty' in quantity || 'consumedReferenceQty' in quantity) return false;
     if ('consumedQualifier' in quantity || 'consumedUnit' in quantity) return false;
   }
-  if (productionNames.has(entry.bookName)) return false;
+  // A name collision is only a real conflict if some *other* recipe already
+  // owns that name in production. If this entry itself has been promoted
+  // under its own book name (ledger-confirmed), that match is expected.
+  const dryRunItem = dryRun.items.find((it) => it.entryId === entryId);
+  const nameOwnedBySelf = allowPromoted && dryRunItem && dryRunItem.name === entry.bookName
+    && curated.recipes.some((r) => r.id === dryRunItem.productionId && r.name === entry.bookName);
+  if (productionNames.has(entry.bookName) && !nameOwnedBySelf) return false;
   return true;
 }
 
@@ -120,19 +126,32 @@ test('remaining candidate pool excludes Batch 1 promoted entries and matches the
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, 34);
+  // Batch 2 has since promoted; the dry-run's own recorded funnel snapshot
+  // (34 remaining at dry-run creation time) is preserved on the frozen
+  // artifact and checked separately below. Live readiness now reflects
+  // Batch 1 + Batch 2 promoted (10), so live remaining is 29.
+  assert.equal(dryRun.selection.funnel.remainingNotPromotedCandidates, 34);
+  assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const entry of remaining) {
     assert.equal(ledgerPromotedEntryIds.has(entry.entryId), false, `${entry.entryId} should not be in the remaining pool`);
   }
-  assert.equal(ledgerPromotedEntryIds.size, 5);
+  // The five Batch 2 entries must now be present in the ledger alongside
+  // Batch 1's five (10 total), and none of them may still show up as
+  // "remaining" (not-promoted).
+  for (const item of dryRun.items) {
+    assert.ok(ledgerPromotedEntryIds.has(item.entryId), `${item.entryId} should be in the ledger after promotion`);
+  }
+  assert.equal(ledgerPromotedEntryIds.size, 10);
 });
 
 test('the funnel counts match an independently recomputed selection (34 -> 24 -> 22 -> 5)', () => {
-  const funnel = mechanicalFunnel();
-  assert.equal(funnel.remaining.length, 34);
-  assert.equal(funnel.hardGateSurvivors.length, 24);
-  assert.equal(funnel.eligible.length, 22);
-  assert.equal(funnel.blocked.length, 2);
+  // This funnel is inherently point-in-time: it was computed against live
+  // readiness at dry-run creation, before Batch 2 promoted. Re-running it
+  // against current (post-promotion) readiness would legitimately produce
+  // different remaining/eligible counts, since the five selected items no
+  // longer have promotionState=not-promoted. What must still hold is that
+  // the frozen artifact's own recorded funnel numbers are internally
+  // self-consistent, and its recorded selected ids match its own items.
   assert.deepEqual(dryRun.selection.funnel, {
     remainingNotPromotedCandidates: 34,
     afterHardGates: 24,
@@ -140,7 +159,8 @@ test('the funnel counts match an independently recomputed selection (34 -> 24 ->
     eligible: 22,
     selected: 5,
   });
-  assert.deepEqual(funnel.top5, dryRun.selection.selectedEntryIds);
+  assert.equal(dryRun.selection.selectedEntryIds.length, 5);
+  assert.deepEqual(dryRun.selection.selectedEntryIds, dryRun.items.map((item) => item.entryId));
 });
 
 test('the five selected entries are exactly p187/p202/p205/p188/p196', () => {
@@ -163,9 +183,12 @@ test('runtime name gate blocks exactly dz1979-p137 and dz1979-p161 on their unre
   assert.equal(readinessById.get('dz1979-p161').bookName, byId.get('dz1979-p161').bookName);
 });
 
-test('every selected item fully satisfies both gates and has zero unit-confirmation core ingredients', () => {
+test('every selected item fully satisfies both gates (as promoted) and has zero unit-confirmation core ingredients', () => {
   for (const item of dryRun.items) {
-    assert.equal(passesHardGates(item.entryId), true, item.entryId);
+    // These 5 have since been promoted, so promotionState is 'promoted' not
+    // 'not-promoted'; every other hard-gate field must still hold.
+    assert.equal(readinessById.get(item.entryId).promotionState, 'promoted', item.entryId);
+    assert.equal(passesHardGates(item.entryId, { allowPromoted: true }), true, item.entryId);
     const audit = auditRuntimeGate(item.entryId);
     assert.equal(audit.blocked, false, item.entryId);
     assert.equal(audit.unresolvedCount, 0, item.entryId);
@@ -282,7 +305,7 @@ test('coreRuntimeCompatibility results only classify core ingredients and never 
   }
 });
 
-test('temp promotion from dry-run proposals reproduces the expected curated delta exactly (131 -> 136)', () => {
+test('promotion-aware: stripping the five promoted ids from a temp copy and re-applying the frozen proposals reproduces 131 -> 136 exactly', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dz1979-batch2-test-'));
   try {
     fs.mkdirSync(path.join(tmp, 'scripts'));
@@ -302,12 +325,24 @@ test('temp promotion from dry-run proposals reproduces the expected curated delt
     );
     const tmpOverlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
     const overridesBefore = tmpOverlay.recipeIngredientOverrides;
+    // Real production already contains the Batch 2 promotion. To exercise
+    // the same "add these 5 via curate-recipes.js" mechanics that promotion
+    // itself relied on, strip the five promoted ids back out of the temp
+    // overlay first, then re-add them from the frozen proposals. This
+    // proves the frozen dry-run proposals are what actually produced
+    // today's production state, without assuming production is still
+    // pre-promotion.
+    const batchIdSet = new Set(dryRun.items.map((item) => item.productionId));
+    tmpOverlay.newRecipes = (tmpOverlay.newRecipes ?? []).filter((r) => !batchIdSet.has(r.id));
+    tmpOverlay.newRecipeIngredients = Object.fromEntries(
+      Object.entries(tmpOverlay.newRecipeIngredients ?? {}).filter(([id]) => !batchIdSet.has(id)),
+    );
     tmpOverlay.newRecipes = [
-      ...(tmpOverlay.newRecipes ?? []),
+      ...tmpOverlay.newRecipes,
       ...dryRun.items.map((item) => item.proposedOverlayRecipe),
     ];
     tmpOverlay.newRecipeIngredients = {
-      ...(tmpOverlay.newRecipeIngredients ?? {}),
+      ...tmpOverlay.newRecipeIngredients,
       ...Object.fromEntries(dryRun.items.map((item) => [
         item.productionId,
         item.proposedOverlayIngredients[item.productionId],
@@ -322,13 +357,15 @@ test('temp promotion from dry-run proposals reproduces the expected curated delt
       needing: JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'recipes-needing-completion.json'), 'utf8')),
     };
 
-    assert.equal(curated.recipes.length, 131);
+    // Real production is now 136 (post-promotion); the re-derived temp
+    // result must match it exactly, proving no drift.
+    assert.equal(curated.recipes.length, 136);
     assert.equal(out.curated.recipes.length, 136);
+    assert.deepEqual(out.curated, curated);
 
-    const batchIds = new Set(dryRun.items.map((item) => item.productionId));
+    const batchIds = batchIdSet;
     const newIds = out.curated.recipes.map((r) => r.id).filter((id) => !curated.recipes.some((r2) => r2.id === id));
-    assert.equal(newIds.length, 5);
-    assert.deepEqual(new Set(newIds), batchIds);
+    assert.equal(newIds.length, 0);
 
     const existingIds = curated.recipes.map((r) => r.id);
     const existingModified = existingIds.filter((id) => {
@@ -410,14 +447,15 @@ test('temp curate run is deterministic across two consecutive invocations (byte-
   assert.deepEqual(run1, run2);
 });
 
-test('the real (pre-promotion) PWA runtime packs do not yet contain any Batch 2 recipe', async () => {
-  // Batch 2 has not been promoted; buildDefaultRuntimePacks reads the real
-  // on-disk overlay, so this asserts the dry-run has not leaked into
-  // production runtime state.
+test('the real PWA runtime packs contain every Batch 2 recipe exactly once now that it is promoted', async () => {
+  // Batch 2 has since been promoted; buildDefaultRuntimePacks reads the real
+  // on-disk overlay, so each item must be present exactly once, matching
+  // the frozen proposal.
   const runtime = await buildDefaultRuntimePacks();
-  const mergedIds = new Set(runtime.packs.full.recipes.map((r) => r.id));
+  const mergedIds = runtime.packs.full.recipes.map((r) => r.id);
   for (const item of dryRun.items) {
-    assert.equal(mergedIds.has(item.productionId), false, `${item.productionId} unexpectedly present in real runtime before promotion`);
+    const occurrences = mergedIds.filter((id) => id === item.productionId).length;
+    assert.equal(occurrences, 1, `${item.productionId} should appear exactly once in real runtime after promotion`);
   }
 });
 
@@ -471,13 +509,22 @@ test('PWA runtime packs built from the temp-simulated overlay contain all five b
   }
 });
 
-test('no production file was modified by this dry-run: real production files are untouched', () => {
-  assert.equal(curated.recipes.length, 131);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 5);
+test('promotion-aware: production now contains exactly the frozen Batch 2 proposals, byte-identical, nothing extra', () => {
+  // Batch 2 has since promoted. Real production must equal Batch 1's five
+  // plus Batch 2's five (10 dz1979- recipes total), and each Batch 2
+  // recipe/ingredient map in production must be byte-identical to its
+  // frozen dry-run proposal.
+  assert.equal(curated.recipes.length, 136);
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 10);
   for (const item of dryRun.items) {
-    assert.equal(productionIds.has(item.productionId), false, `${item.productionId} unexpectedly already in production`);
-    assert.equal(productionNames.has(item.name), false, `${item.name} unexpectedly already in production`);
-    assert.equal(overlay.newRecipes.some((r) => r.id === item.productionId), false, `${item.productionId} should not yet be in the real overlay`);
+    assert.ok(productionIds.has(item.productionId), `${item.productionId} should be in production after promotion`);
+    assert.ok(productionNames.has(item.name), `${item.name} should be in production after promotion`);
+    const overlayRecipe = overlay.newRecipes.find((r) => r.id === item.productionId);
+    assert.deepEqual(overlayRecipe, item.proposedOverlayRecipe, `${item.productionId} overlay recipe must match frozen proposal`);
+    assert.deepEqual(overlay.newRecipeIngredients[item.productionId], item.proposedOverlayIngredients[item.productionId], `${item.productionId} overlay ingredients must match frozen proposal`);
+    const curatedRecipe = curated.recipes.find((r) => r.id === item.productionId);
+    assert.deepEqual(curatedRecipe, item.proposedCuratedRecipe, `${item.productionId} curated recipe must match frozen proposal`);
+    assert.deepEqual(curated.recipe_ingredients[item.productionId], item.proposedCuratedIngredients[item.productionId], `${item.productionId} curated ingredients must match frozen proposal`);
   }
 });
 
@@ -507,7 +554,7 @@ test('dry-run reports no verification problems and no production writes', () => 
   assert.equal(dryRun.pwaVisibilityAudit.serviceWorker.cacheBumpRequired, false);
 });
 
-test('canonical, crosswalk, readiness, and Batch 1 artifacts remain unchanged (frozen)', () => {
+test('canonical, crosswalk, and Batch 1 frozen artifacts remain unchanged; ledger now records both promoted batches', () => {
   const crosswalk = readJson('data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json');
   const batch1DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch1-dry-run.v1.json');
   const batch1QuantityReview = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch1-quantity-review.v1.json');
@@ -532,6 +579,9 @@ test('canonical, crosswalk, readiness, and Batch 1 artifacts remain unchanged (f
   assert.equal(batch1RuntimeAudit.summary.coreCompatibilityCounts['exact-compatible'], 5);
   assert.equal(batch1RuntimeAudit.summary.coreCompatibilityCounts['expected-unit-confirmation'], 2);
   assert.equal(batch1RuntimeAudit.summary.coreCompatibilityCounts['unresolved-name-match'], 0);
-  assert.equal(promotions.batches.length, 1);
+  assert.equal(promotions.batches.length, 2);
   assert.equal(promotions.batches[0].status, 'promoted');
+  assert.equal(promotions.batches[0].batchId, 'dz1979-production-b01');
+  assert.equal(promotions.batches[1].status, 'promoted');
+  assert.deepEqual(promotions.batches[1].entries.map((e) => e.entryId), dryRun.items.map((i) => i.entryId));
 });

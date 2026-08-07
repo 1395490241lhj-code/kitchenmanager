@@ -322,19 +322,22 @@ test('PWA runtime packs contain all five batch recipes exactly once', async () =
   }
 });
 
-test('batch additions are unique and visible in exactly the promoted production files', () => {
+test('batch additions are unique and remain visible in production after later batches promote', () => {
   const ids = dryRun.items.map((item) => item.productionId);
   assert.equal(new Set(ids).size, 5);
   const names = dryRun.items.map((item) => item.name);
   assert.equal(new Set(names).size, 5);
-  assert.equal(curated.recipes.length, 131);
   for (const id of ids) {
     assert.ok(overlay.newRecipes.some((r) => r.id === id), `${id} missing in overlay newRecipes`);
     assert.ok(overlay.newRecipeIngredients[id], `${id} missing overlay ingredients`);
     assert.ok(curated.recipe_ingredients[id], `${id} missing curated ingredients`);
   }
   const overlayNewIds = overlay.newRecipes.map((r) => r.id).filter((id) => id.startsWith('dz1979-'));
-  assert.deepEqual(overlayNewIds.sort(), ids.slice().sort());
+  // Later batches (e.g. Batch 2) may add more dz1979- ids; Batch 1's five
+  // must remain a subset, never removed or altered.
+  for (const id of ids) {
+    assert.ok(overlayNewIds.includes(id), `${id} missing from overlay dz1979- ids`);
+  }
   assert.equal(full.recipes.some((r) => ids.includes(r.id)), false);
 });
 

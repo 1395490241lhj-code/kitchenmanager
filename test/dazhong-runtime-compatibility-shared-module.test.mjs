@@ -79,8 +79,12 @@ test('re-derived coreCompatibility/nonCoreObservations arrays are byte-identical
   const curated = readJson('data/sichuan-recipes.curated.json');
   const ledger = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
   const quantityReview = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch1-quantity-review.v1.json');
+  // This regression is specifically about the Batch 1 frozen audit; scope
+  // strictly to Batch 1's ledger entries so later batches (e.g. Batch 2)
+  // don't get pulled into a Batch-1-only comparison.
+  const batch1 = ledger.batches.find((batch) => batch.batchId === 'dz1979-production-b01');
   const promotedIds = new Set(
-    (ledger.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.productionId)),
+    (batch1?.entries ?? []).map((entry) => entry.productionId),
   );
   const quantityReviewByKey = new Map(
     (quantityReview.records ?? []).map((record) => [`${record.productionId}:${record.item}`, record]),

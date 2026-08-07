@@ -25,14 +25,14 @@ const readiness = readJson('data/source-restoration/dazhong-chuancai-1979-promot
 const EXPECTED_IDS = ['dz1979-p143', 'dz1979-p180', 'dz1979-p195', 'dz1979-p200', 'dz1979-p204'];
 const itemsById = new Map(dryRun.items.map((item) => [item.productionId, item]));
 
-test('overlay contains exactly the five promoted recipes matching the dry-run', () => {
+test('overlay still contains the five Batch 1 promoted recipes matching the dry-run', () => {
   const overlayIds = overlay.newRecipes
     .filter((recipe) => recipe.id.startsWith('dz1979-'))
     .map((recipe) => recipe.id)
     .sort();
-  assert.deepEqual(overlayIds, EXPECTED_IDS.slice().sort());
-  assert.equal(overlay.newRecipes.length, 63);
-  assert.equal(Object.keys(overlay.newRecipeIngredients).length, 63);
+  for (const id of EXPECTED_IDS) {
+    assert.ok(overlayIds.includes(id), `${id} missing from overlay`);
+  }
   for (const id of EXPECTED_IDS) {
     const expected = itemsById.get(id).proposedOverlayRecipe;
     const actual = overlay.newRecipes.find((recipe) => recipe.id === id);
@@ -47,9 +47,7 @@ test('overlay contains exactly the five promoted recipes matching the dry-run', 
   assert.ok(Object.values(overlay.recipeIngredientOverrides || {}).every((v) => v === 'replace'));
 });
 
-test('curated contains exactly the five promoted recipes with full content', () => {
-  assert.equal(curated.recipes.length, 131);
-  assert.equal(curated.recipes.filter((recipe) => recipe.id.startsWith('dz1979-')).length, 5);
+test('curated still contains the five Batch 1 promoted recipes with full content, unmodified', () => {
   for (const id of EXPECTED_IDS) {
     const recipe = curated.recipes.find((entry) => entry.id === id);
     assert.deepEqual(recipe, itemsById.get(id).proposedCuratedRecipe, id);
@@ -70,11 +68,11 @@ test('full library, removed, and needing reports carry no batch entries', () => 
   assert.equal(full.recipes.length, 264);
 });
 
-test('promotion ledger records the batch with full provenance', () => {
+test('promotion ledger still records Batch 1 with full provenance, unmodified', () => {
   assert.equal(ledger.applicationReady, false);
   assert.equal(ledger.partialPromotion, true);
-  assert.equal(ledger.batches.length, 1);
-  const batch = ledger.batches[0];
+  const batch = ledger.batches.find((b) => b.batchId === 'dz1979-production-b01');
+  assert.ok(batch, 'Batch 1 ledger entry must still exist');
   assert.equal(batch.batchId, 'dz1979-production-b01');
   assert.equal(batch.status, 'promoted');
   assert.equal(batch.baselineCommit, '7ad674d548f2d4749e183383a668f63461150842');
@@ -95,10 +93,17 @@ test('promotion ledger records the batch with full provenance', () => {
   }
 });
 
-test('readiness marks five promoted and keeps all pre-promotion stats', () => {
-  assert.equal(readiness.summary.promotedNewRecipeCount, 5);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 34);
-  assert.deepEqual(readiness.summary.promotedNewRecipeIds.sort(), EXPECTED_IDS.slice().sort());
+test('readiness keeps the five Batch 1 ids promoted and preserves classification stats', () => {
+  // readiness.json is a shared, regenerated artifact reflecting every
+  // promoted batch, not just Batch 1. This locks in only the Batch
+  // 1-specific facts: its five ids remain promoted, and the underlying
+  // source/matching classification counts (independent of promotionState)
+  // are unaffected by any promotion.
+  assert.ok(readiness.summary.promotedNewRecipeCount >= 5);
+  const promotedIds = new Set(readiness.summary.promotedNewRecipeIds);
+  for (const id of EXPECTED_IDS) {
+    assert.ok(promotedIds.has(id), `${id} must remain promoted`);
+  }
   assert.deepEqual(readiness.summary.dispositionCounts, {
     'existing-project-match': 50,
     'new-recipe-candidate': 39,

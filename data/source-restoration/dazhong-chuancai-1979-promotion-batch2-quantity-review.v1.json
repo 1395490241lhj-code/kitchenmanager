@@ -1,0 +1,569 @@
+{
+  "schema": "kitchenmanager.source-restoration.promotion-batch2-quantity-review.v1",
+  "generatedAt": "2026-08-07",
+  "purpose": "Batch 2 promotion 引入的 curated qty/unit 的 source-restoration-reviewed 登记。qty/unit 逐字段取自冻结 Batch 2 dry-run quantityReviewPreview.records，raw/normalized 数量取自 canonical source，evidenceType=source-restoration。不重新推算、不手改数值。",
+  "applicationReady": false,
+  "evidencePolicy": "证据来源为已审阅 source-restoration canonical quantity，不声称来自 production method 文本。",
+  "summary": {
+    "recordCount": 29,
+    "unitCounts": {
+      "g": 29
+    },
+    "keys": [
+      "dz1979-p187:子姜",
+      "dz1979-p187:白糖",
+      "dz1979-p187:盐",
+      "dz1979-p187:醋",
+      "dz1979-p187:香油",
+      "dz1979-p188:姜",
+      "dz1979-p188:盐",
+      "dz1979-p188:菜油",
+      "dz1979-p188:蕹菜",
+      "dz1979-p188:醋",
+      "dz1979-p188:香油",
+      "dz1979-p196:水豆粉",
+      "dz1979-p196:盐",
+      "dz1979-p196:莲花白",
+      "dz1979-p196:菜油",
+      "dz1979-p196:酱油",
+      "dz1979-p196:醋",
+      "dz1979-p202:化猪油",
+      "dz1979-p202:味精",
+      "dz1979-p202:水豆粉",
+      "dz1979-p202:汤",
+      "dz1979-p202:盐",
+      "dz1979-p202:鲜笋",
+      "dz1979-p205:大头菜",
+      "dz1979-p205:盐",
+      "dz1979-p205:菜油",
+      "dz1979-p205:葱白",
+      "dz1979-p205:豆豉",
+      "dz1979-p205:青椒"
+    ]
+  },
+  "records": [
+    {
+      "entryId": "dz1979-p187",
+      "productionId": "dz1979-p187",
+      "recipeName": "糖醋子姜",
+      "item": "子姜",
+      "qty": "150",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "三两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 150,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p187",
+      "productionId": "dz1979-p187",
+      "recipeName": "糖醋子姜",
+      "item": "香油",
+      "qty": "15",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "三钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 15,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p187",
+      "productionId": "dz1979-p187",
+      "recipeName": "糖醋子姜",
+      "item": "醋",
+      "qty": "30",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "六钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 30,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p187",
+      "productionId": "dz1979-p187",
+      "recipeName": "糖醋子姜",
+      "item": "盐",
+      "qty": "1.5",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "三分",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 1.5,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p187",
+      "productionId": "dz1979-p187",
+      "recipeName": "糖醋子姜",
+      "item": "白糖",
+      "qty": "20",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "四钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 20,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p202",
+      "productionId": "dz1979-p202",
+      "recipeName": "白油鲜笋",
+      "item": "鲜笋",
+      "qty": "750",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一斤五两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 750,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p202",
+      "productionId": "dz1979-p202",
+      "recipeName": "白油鲜笋",
+      "item": "化猪油",
+      "qty": "100",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "二两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 100,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p202",
+      "productionId": "dz1979-p202",
+      "recipeName": "白油鲜笋",
+      "item": "盐",
+      "qty": "40",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "八钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 40,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p202",
+      "productionId": "dz1979-p202",
+      "recipeName": "白油鲜笋",
+      "item": "味精",
+      "qty": "1",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "二分",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 1,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p202",
+      "productionId": "dz1979-p202",
+      "recipeName": "白油鲜笋",
+      "item": "水豆粉",
+      "qty": "40",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "八钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 40,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p202",
+      "productionId": "dz1979-p202",
+      "recipeName": "白油鲜笋",
+      "item": "汤",
+      "qty": "600",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一斤二两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 600,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p205",
+      "productionId": "dz1979-p205",
+      "recipeName": "青椒炒大头菜",
+      "item": "青椒",
+      "qty": "100",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "二两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 100,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p205",
+      "productionId": "dz1979-p205",
+      "recipeName": "青椒炒大头菜",
+      "item": "大头菜",
+      "qty": "150",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "三两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 150,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p205",
+      "productionId": "dz1979-p205",
+      "recipeName": "青椒炒大头菜",
+      "item": "豆豉",
+      "qty": "25",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "五钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 25,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p205",
+      "productionId": "dz1979-p205",
+      "recipeName": "青椒炒大头菜",
+      "item": "葱白",
+      "qty": "25",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "五钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 25,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p205",
+      "productionId": "dz1979-p205",
+      "recipeName": "青椒炒大头菜",
+      "item": "菜油",
+      "qty": "50",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 50,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p205",
+      "productionId": "dz1979-p205",
+      "recipeName": "青椒炒大头菜",
+      "item": "盐",
+      "qty": "0.5",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一分",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 0.5,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p188",
+      "productionId": "dz1979-p188",
+      "recipeName": "姜汁蕹菜",
+      "item": "蕹菜",
+      "qty": "750",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一斤五两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 750,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p188",
+      "productionId": "dz1979-p188",
+      "recipeName": "姜汁蕹菜",
+      "item": "姜",
+      "qty": "50",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 50,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p188",
+      "productionId": "dz1979-p188",
+      "recipeName": "姜汁蕹菜",
+      "item": "香油",
+      "qty": "15",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "三钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 15,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p188",
+      "productionId": "dz1979-p188",
+      "recipeName": "姜汁蕹菜",
+      "item": "菜油",
+      "qty": "30",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "六钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 30,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p188",
+      "productionId": "dz1979-p188",
+      "recipeName": "姜汁蕹菜",
+      "item": "盐",
+      "qty": "2.5",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "五分",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 2.5,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p188",
+      "productionId": "dz1979-p188",
+      "recipeName": "姜汁蕹菜",
+      "item": "醋",
+      "qty": "30",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "六钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 30,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p196",
+      "productionId": "dz1979-p196",
+      "recipeName": "醋熘白菜",
+      "item": "莲花白",
+      "qty": "750",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一斤五两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 750,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p196",
+      "productionId": "dz1979-p196",
+      "recipeName": "醋熘白菜",
+      "item": "菜油",
+      "qty": "50",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 50,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p196",
+      "productionId": "dz1979-p196",
+      "recipeName": "醋熘白菜",
+      "item": "盐",
+      "qty": "2.5",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "五分",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 2.5,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p196",
+      "productionId": "dz1979-p196",
+      "recipeName": "醋熘白菜",
+      "item": "醋",
+      "qty": "25",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "五钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 25,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p196",
+      "productionId": "dz1979-p196",
+      "recipeName": "醋熘白菜",
+      "item": "酱油",
+      "qty": "10",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "二钱",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 10,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    },
+    {
+      "entryId": "dz1979-p196",
+      "productionId": "dz1979-p196",
+      "recipeName": "醋熘白菜",
+      "item": "水豆粉",
+      "qty": "50",
+      "unit": "g",
+      "evidenceType": "source-restoration",
+      "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+      "sourceRawQuantityText": "一两",
+      "normalizedQuantity": {
+        "kind": "exact-mass",
+        "qty": 50,
+        "unit": "g"
+      },
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "reviewStatus": "approved"
+    }
+  ],
+  "verificationProblems": []
+}

@@ -112,6 +112,115 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b02",
+      "status": "promoted",
+      "baselineCommit": "f794e475bdd32e9c372ff5abe012b5c75164e988",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p187",
+          "productionId": "dz1979-p187",
+          "name": "糖醋子姜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p187",
+            "bookName": "糖醋子姜",
+            "bookPage": 187,
+            "pdfPage": 200,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p202",
+          "productionId": "dz1979-p202",
+          "name": "白油鲜笋",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p202",
+            "bookName": "白油鲜笋",
+            "bookPage": 202,
+            "pdfPage": 215,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p205",
+          "productionId": "dz1979-p205",
+          "name": "青椒炒大头菜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p205",
+            "bookName": "青椒炒大头菜",
+            "bookPage": 205,
+            "pdfPage": 218,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p188",
+          "productionId": "dz1979-p188",
+          "name": "姜汁蕹菜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p188",
+            "bookName": "姜汁蕹菜",
+            "bookPage": 188,
+            "pdfPage": 201,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p196",
+          "productionId": "dz1979-p196",
+          "name": "醋熘白菜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p196",
+            "bookName": "醋熘白菜",
+            "bookPage": 196,
+            "pdfPage": 209,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }
