@@ -24,7 +24,6 @@ const readJson = (relativePath) => JSON.parse(
 const catalog = readJson('data/source-restoration/dazhong-chuancai-1979-catalog.v1.json');
 const recipes = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
 const nameMatches = readJson('data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json');
-const reviewQueue = readJson('data/source-restoration/dazhong-chuancai-1979-review-queue.v1.json');
 const r1Results = readJson('data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-results.v1.json');
 const r2Results = readJson('data/source-restoration/dazhong-chuancai-1979-review-resolution-r2-results.v1.json');
 const applyAudit = readJson('data/source-restoration/dazhong-chuancai-1979-apply-review-resolutions-audit.v1.json');
@@ -47,16 +46,85 @@ const alternateSourceRequiredIds = new Set(
   applyAudit.unchangedByDesign?.alternateSourceRequired ?? [],
 );
 
-// Review-queue entryIds (deduped) mark entries with an open source-fidelity
-// question (reviewRequired, contentMissing, contentIncomplete, non-empty
-// uncertainties, or sub-high confidence anywhere). Entries in the queue but
-// NOT in the alternate-source-required set are "needs-source-review".
-// Everything else is "ready-for-later-promotion-review".
-const reviewQueueIds = new Set(reviewQueue.items.map((item) => item.entryId));
+// R1/R2 resolutions that ended confirmed-unresolved remain open
+// source-fidelity questions independent of the crosswalk mapping.
+const r1ConfirmedUnresolvedIds = new Set(
+  r1Results.items
+    .filter((item) => item.status === 'confirmed-unresolved')
+    .map((item) => item.entryId),
+);
+const r2ConfirmedUnresolvedIds = new Set(
+  r2Results.items
+    .filter((item) => item.status === 'confirmed-unresolved')
+    .map((item) => item.entryId),
+);
 
-function sourceQualityFor(entryId) {
+// Source-quality evaluates ONLY the fidelity of the restored source data:
+// content completeness, residual uncertainties, sub-high recognition /
+// conversion anywhere, unresolved old-term semantics, and R1/R2
+// confirmed-unresolved. Crosswalk classification, candidateProjectName,
+// projectMatch.reviewRequired, and unconfirmed name-matches are mapping
+// concerns and never become source-quality reasons.
+function sourceFidelityReasons(entryId, recipe) {
+  const reasons = [];
+
+  if (recipe.contentMissing === true) reasons.push('contentMissing=true');
+  if (recipe.contentIncomplete === true) reasons.push('contentIncomplete=true');
+
+  recipe.uncertainties?.forEach((uncertainty, index) => {
+    reasons.push(`uncertainties[${index}].type=${uncertainty.type}`);
+  });
+
+  const confidence = recipe.confidence ?? {};
+  if (confidence.recognition !== 'high') {
+    reasons.push(`confidence.recognition=${String(confidence.recognition)}`);
+  }
+  if (confidence.conversion !== 'high') {
+    reasons.push(`confidence.conversion=${String(confidence.conversion)}`);
+  }
+
+  const methodSummary = recipe.methodSummary ?? {};
+  if (methodSummary.confidence !== 'high') {
+    reasons.push(`methodSummary.confidence=${String(methodSummary.confidence)}`);
+  }
+
+  const titleVisualCheck = recipe.titleVisualCheck ?? {};
+  if (titleVisualCheck.confidence !== 'high') {
+    reasons.push(`titleVisualCheck.confidence=${String(titleVisualCheck.confidence)}`);
+  }
+
+  recipe.ingredients?.forEach((ingredient, index) => {
+    const ingredientConfidence = ingredient.confidence ?? {};
+    if (ingredientConfidence.recognition !== 'high') {
+      reasons.push(`ingredients[${index}].confidence.recognition=${String(ingredientConfidence.recognition)}`);
+    }
+    if (ingredientConfidence.conversion !== 'high') {
+      reasons.push(`ingredients[${index}].confidence.conversion=${String(ingredientConfidence.conversion)}`);
+    }
+  });
+
+  methodSummary.dialectOrOldTerms?.forEach((term, index) => {
+    if (term.modernSummary === null || term.modernSummary === undefined) {
+      reasons.push(`methodSummary.dialectOrOldTerms[${index}].modernSummary=null`);
+    }
+    if (term.confidence !== 'high') {
+      reasons.push(`methodSummary.dialectOrOldTerms[${index}].confidence=${String(term.confidence)}`);
+    }
+  });
+
+  if (r1ConfirmedUnresolvedIds.has(entryId)) {
+    reasons.push('R1-confirmed-unresolved');
+  }
+  if (r2ConfirmedUnresolvedIds.has(entryId)) {
+    reasons.push('R2-confirmed-unresolved');
+  }
+
+  return reasons;
+}
+
+function sourceQualityFor(entryId, reasons) {
   if (alternateSourceRequiredIds.has(entryId)) return 'alternate-source-required';
-  if (reviewQueueIds.has(entryId)) return 'needs-source-review';
+  if (reasons.length > 0) return 'needs-source-review';
   return 'ready-for-later-promotion-review';
 }
 
@@ -188,6 +256,14 @@ for (const catalogEntry of catalog.entries) {
     problemsFound.push(`unknown-classification:${entryId}:${classification}`);
   }
 
+  const sourceQualityReasons = sourceFidelityReasons(entryId, recipe);
+  const sourceQuality = sourceQualityFor(entryId, sourceQualityReasons);
+  if (sourceQuality === 'alternate-source-required') {
+    sourceQualityReasons.unshift(
+      'apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired',
+    );
+  }
+
   entries.push({
     entryId,
     bookName,
@@ -198,7 +274,8 @@ for (const catalogEntry of catalog.entries) {
     candidateProjectName,
     candidateProjectIds,
     evidence,
-    sourceQuality: sourceQualityFor(entryId),
+    sourceQuality,
+    sourceQualityReasons,
     reviewRequired,
     manyToOne: null, // filled below
     collision: null, // filled below
@@ -276,6 +353,21 @@ if (alternateSourceRequiredList.length !== 12) {
   problemsFound.push(`alternate-source-required-count-not-12:${alternateSourceRequiredList.length}`);
 }
 
+for (const e of entries) {
+  if (e.sourceQuality === 'ready-for-later-promotion-review' && e.sourceQualityReasons.length !== 0) {
+    problemsFound.push(`ready-with-reasons:${e.entryId}`);
+  }
+  if (e.sourceQuality !== 'ready-for-later-promotion-review' && e.sourceQualityReasons.length === 0) {
+    problemsFound.push(`non-ready-without-reasons:${e.entryId}`);
+  }
+  const mappingTaintedReason = e.sourceQualityReasons.some((reason) =>
+    /projectMatch|reviewRequired|candidateProject|name-match|crosswalk/i.test(reason),
+  );
+  if (mappingTaintedReason) {
+    problemsFound.push(`mapping-tainted-source-quality-reason:${e.entryId}`);
+  }
+}
+
 const uniqueEntryIds = new Set(entries.map((e) => e.entryId));
 if (uniqueEntryIds.size !== 147 || entries.length !== 147) {
   problemsFound.push(`entry-count-mismatch:total=${entries.length}:unique=${uniqueEntryIds.size}`);
@@ -306,8 +398,8 @@ const output = {
     { id: 'book-only', reviewRequired: false, note: '当前项目找不到可靠对应，不强行配对。' },
   ],
   sourceQualityDefinitions: [
-    { id: 'ready-for-later-promotion-review', note: '不在review queue且不属于B类，source侧无已知开放问题。' },
-    { id: 'needs-source-review', note: '在review queue中记录了开放的source保真问题（confirmedFacts之外的unresolvedQuestions），非B类。' },
+    { id: 'ready-for-later-promotion-review', note: '非B类且当前canonical不存在来源层保真问题（contentMissing/contentIncomplete、uncertainties、sub-high recognition/conversion、旧词modernSummary未解、R1/R2 confirmed-unresolved）。crosswalk仍可能为probable，映射风险由reviewRequired单独表达。' },
+    { id: 'needs-source-review', note: '当前canonical仍存在来源层保真问题，非B类。来源问题以sourceQualityReasons逐项列出；不因projectMatch.reviewRequired/probable/candidate/name-match未确认而判定。' },
     { id: 'alternate-source-required', note: '既有apply-review-resolutions审计中记录的unchangedByDesign.alternateSourceRequired 12道，需要替代来源，与crosswalk分类无关。' },
   ],
   summary: {

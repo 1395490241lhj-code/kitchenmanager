@@ -2,7 +2,7 @@
 
 生成时间: 2026-08-07
 
-基线: main/origin/main=d691bdd9d5c8d5f1083d46b49e9281d30f95a58f, applicationReady=False
+基线: main/origin/main=f88bbfa, applicationReady=False
 
 本报告仅审计 147 个 source-restoration entryId 与项目当前 Curated/Full 真实菜谱 ID 之间的映射关系，不做 production promotion。不修改 canonical 147 道 worker/chunk/assembled、name-matches、R1/R2 overlay、review queue、apply-review audit、Curated/Full/HOC/UI/cache。
 
@@ -50,15 +50,39 @@
 
 ## Book-only（63）
 
-当前 Curated/Full 库中找不到可靠对应，未强行配对。其中含 B 类 12 道中的 11 道（见下）以及 R1/R2 confirmed-unresolved 的「麻辣兔丁」「水煮牛肉」等未匹配条目。
+当前 Curated/Full 库中找不到可靠对应，未强行配对。其中含 B 类 12 道中的 9 道（见下）以及 R1/R2 confirmed-unresolved 的「麻辣兔丁」「水煮牛肉」等未匹配条目。
 
 ## Source quality（独立维度，与映射分类无关）
 
-- ready-for-later-promotion-review: **88**
-- needs-source-review: **47**
+- ready-for-later-promotion-review: **90**
+- needs-source-review: **45**
 - alternate-source-required: **12**
 
 映射成功不等于可以 promotion；例如「水煮牛肉」映射为 exact-name 但 sourceQuality=needs-source-review（R2 confirmed-unresolved）。
+
+sourceQuality 只评价来源数据保真度，不因 crosswalk 未确认而降低：
+- contentMissing / contentIncomplete
+- uncertainties 非空
+- ingredient 或整体 recognition/conversion 低于 high
+- 旧词 modernSummary 仍为 null 或相关 confidence 未达 high
+- R1/R2 confirmed-unresolved
+
+projectMatch.reviewRequired、probable-match-needs-review、candidateProjectName、name-match 未确认均不构成 source-quality 原因；映射风险由 crosswalk 的 reviewRequired 单独表达。例如 5 道 probable 条目（热味姜汁鸡、豆腐鱼、干煸鳝鱼丝、麻辣豆腐、烧拌莴笋）来源层无任何保真问题，sourceQuality 均为 ready，reviewRequired 仍为 true。
+
+### 相对上一版（88/47/12）的变化（8 道）
+
+| entryId | 书名 | 变化 | 原因 |
+| --- | --- | --- | --- |
+| dz1979-p141 | 热味姜汁鸡 | needs → ready | 原仅因 projectMatch.reviewRequired 入 needs；来源层无保真问题 |
+| dz1979-p168 | 豆腐鱼 | needs → ready | 同上（probable，来源层无保真问题） |
+| dz1979-p173 | 干煸鳝鱼丝 | needs → ready | 同上（probable，来源层无保真问题） |
+| dz1979-p177 | 麻辣豆腐 | needs → ready | 同上（probable，来源层无保真问题） |
+| dz1979-p206 | 烧拌莴笋 | needs → ready | 同上（probable，来源层无保真问题） |
+| dz1979-p070 | 清蒸肘子 | ready → needs | methodSummary.dialectOrOldTerms[0].modernSummary=null（“头粗丝”旧词未解） |
+| dz1979-p074 | 粉蒸肉 | ready → needs | methodSummary.dialectOrOldTerms[0].modernSummary=null（“保肋”旧词未解） |
+| dz1979-p076 | 荷叶蒸肉 | ready → needs | methodSummary.dialectOrOldTerms[0].modernSummary=null（“保肋”旧词未解） |
+
+其余 139 道 sourceQuality 不变；crosswalk 四类数量（74/5/5/63）与全部 project/candidate 绑定完全不变。
 
 ### Alternate-source-required（12，来自 apply-review-resolutions audit 的 unchangedByDesign.alternateSourceRequired）
 
@@ -77,8 +101,8 @@ dz1979-p090 腊肉烧菜头、dz1979-p100 豆芽肉饼汤、dz1979-p122 蒜烧�
 - B 类 12 道全部 sourceQuality=alternate-source-required：通过
 - catalog/bookName 三源（catalog、recipes、name-matches、crosswalk）一致：通过
 - crosswalk 与 canonical recipes projectMatch、name-matches classification 一致：通过
-- `node --test test/dazhong-source-restoration-crosswalk-dry-run.test.mjs`：13/13 通过
+- `node --test test/dazhong-source-restoration-crosswalk-dry-run.test.mjs`：20/20 通过
 - JSON parse：通过
-- 本任务未触发 assembler，未改写任何 canonical 时间戳
+- sourceQualityReasons：147 项齐备；needs/alternate 均含具体来源字段依据；ready 均为空数组；无任何引用 projectMatch/reviewRequired/candidate/name-match 的理由
 
-生成方式：`node scripts/build-dazhong-chuancai-crosswalk-dry-run.mjs`（只读 canonical 输入，输出单一新 artifact）。
+生成方式：`node scripts/build-dazhong-chuancai-crosswalk-dry-run.mjs`。generator 本身只读 canonical 且不调用 assembler；source-restoration 测试可能触发 assembler 测试副作用，若 canonical recipes 的 updatedAt 因此变化必须恢复。

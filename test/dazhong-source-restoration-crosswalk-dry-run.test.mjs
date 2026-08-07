@@ -168,6 +168,79 @@ test('sourceQuality is a valid independent dimension for all entries', () => {
   }
 });
 
+test('every entry carries sourceQualityReasons', () => {
+  assert.equal(crosswalk.entries.length, 147);
+  for (const entry of crosswalk.entries) {
+    assert.ok(
+      Array.isArray(entry.sourceQualityReasons),
+      `${entry.entryId} sourceQualityReasons is not an array`,
+    );
+  }
+});
+
+test('sourceQuality counts sum to 147', () => {
+  const counts = crosswalk.summary.sourceQualityCounts;
+  const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+  assert.equal(total, 147);
+  const actual = {};
+  for (const entry of crosswalk.entries) {
+    actual[entry.sourceQuality] = (actual[entry.sourceQuality] ?? 0) + 1;
+  }
+  assert.deepEqual(actual, counts);
+});
+
+test('alternate-source-required set stays exactly the 12 B-class entries', () => {
+  const expected = new Set(applyAudit.unchangedByDesign.alternateSourceRequired);
+  assert.equal(expected.size, 12);
+  const alt = crosswalk.entries.filter((e) => e.sourceQuality === 'alternate-source-required');
+  assert.equal(alt.length, 12);
+  assert.deepEqual(new Set(alt.map((e) => e.entryId)), expected);
+  for (const entry of alt) {
+    assert.ok(entry.sourceQualityReasons.length > 0, entry.entryId);
+  }
+});
+
+test('needs-source-review entries each carry at least one source-fidelity reason', () => {
+  const needs = crosswalk.entries.filter((e) => e.sourceQuality === 'needs-source-review');
+  assert.ok(needs.length > 0);
+  for (const entry of needs) {
+    assert.ok(entry.sourceQualityReasons.length > 0, entry.entryId);
+  }
+});
+
+test('ready entries always have an empty sourceQualityReasons array', () => {
+  const ready = crosswalk.entries.filter((e) => e.sourceQuality === 'ready-for-later-promotion-review');
+  assert.ok(ready.length > 0);
+  for (const entry of ready) {
+    assert.deepEqual(entry.sourceQualityReasons, [], entry.entryId);
+  }
+});
+
+test('source-quality reasons never reference crosswalk/mapping fields', () => {
+  const taintPattern = /projectMatch|reviewRequired|candidateProject|name-match|crosswalk/i;
+  for (const entry of crosswalk.entries) {
+    for (const reason of entry.sourceQualityReasons) {
+      assert.ok(
+        !taintPattern.test(reason),
+        `${entry.entryId} mapping-tainted reason: ${reason}`,
+      );
+    }
+  }
+});
+
+test('probable-match-needs-review does not by itself cause needs-source-review', () => {
+  for (const entry of crosswalk.entries) {
+    if (entry.proposedClassification === 'probable-match-needs-review') {
+      assert.ok(
+        entry.sourceQuality === 'ready-for-later-promotion-review' ||
+          (entry.sourceQuality === 'needs-source-review' && entry.sourceQualityReasons.length > 0),
+        `${entry.entryId} probable should only be needs with concrete source-fidelity reasons`,
+      );
+      assert.equal(entry.reviewRequired, true, entry.entryId);
+    }
+  }
+});
+
 test('crosswalk classification is consistent with canonical recipes and name-matches', () => {
   for (const entry of crosswalk.entries) {
     const recipe = recipeByEntryId.get(entry.entryId);

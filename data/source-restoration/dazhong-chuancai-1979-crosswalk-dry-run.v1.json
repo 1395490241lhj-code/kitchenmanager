@@ -41,11 +41,11 @@
   "sourceQualityDefinitions": [
     {
       "id": "ready-for-later-promotion-review",
-      "note": "不在review queue且不属于B类，source侧无已知开放问题。"
+      "note": "非B类且当前canonical不存在来源层保真问题（contentMissing/contentIncomplete、uncertainties、sub-high recognition/conversion、旧词modernSummary未解、R1/R2 confirmed-unresolved）。crosswalk仍可能为probable，映射风险由reviewRequired单独表达。"
     },
     {
       "id": "needs-source-review",
-      "note": "在review queue中记录了开放的source保真问题（confirmedFacts之外的unresolvedQuestions），非B类。"
+      "note": "当前canonical仍存在来源层保真问题，非B类。来源问题以sourceQualityReasons逐项列出；不因projectMatch.reviewRequired/probable/candidate/name-match未确认而判定。"
     },
     {
       "id": "alternate-source-required",
@@ -64,8 +64,8 @@
     "probableCandidateCount": 5,
     "bookOnlyCount": 63,
     "sourceQualityCounts": {
-      "ready-for-later-promotion-review": 88,
-      "needs-source-review": 47,
+      "ready-for-later-promotion-review": 90,
+      "needs-source-review": 45,
       "alternate-source-required": 12
     },
     "collisionCount": 0,
@@ -232,6 +232,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -265,6 +266,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -298,6 +300,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -331,6 +334,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -364,6 +368,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -397,6 +402,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -430,6 +436,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -463,6 +470,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "confidence.recognition=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -496,6 +506,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -529,6 +540,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "confidence.recognition=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -562,6 +576,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "confidence.recognition=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -595,6 +612,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -628,6 +646,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -661,6 +680,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -702,6 +722,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=allocation-unknown"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -735,6 +758,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=allocation-unknown"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -768,6 +794,11 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=allocation-unknown",
+        "confidence.conversion=medium",
+        "ingredients[1].confidence.conversion=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -801,6 +832,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -834,6 +866,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -867,6 +900,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -900,6 +934,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -933,6 +968,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -966,6 +1002,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -999,6 +1036,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1032,6 +1070,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1065,6 +1104,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1098,6 +1138,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1131,6 +1172,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1164,6 +1206,10 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "confidence.conversion=low",
+        "ingredients[1].confidence.conversion=low"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1197,6 +1243,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1229,7 +1276,10 @@
       "evidence": [
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
-      "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1271,6 +1321,10 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=old-term",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1312,6 +1366,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1352,7 +1407,10 @@
       "evidence": [
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
-      "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1393,7 +1451,10 @@
       "evidence": [
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
-      "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1427,6 +1488,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1468,6 +1530,10 @@
         "目录“粑”与项目“巴”为该菜名的明确字形/写法差异，其余文字完全一致。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "confidence.conversion=low",
+        "ingredients[9].confidence.conversion=low"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1501,6 +1567,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1534,6 +1601,10 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=old-term",
+        "uncertainties[1].type=allocation-unknown"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1567,6 +1638,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1600,6 +1672,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1633,6 +1706,10 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=old-term",
+        "confidence.recognition=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1666,6 +1743,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1699,6 +1777,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1732,6 +1811,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1755,6 +1835,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "uncertainties[0].type=page-boundary",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1778,6 +1863,10 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[3].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[3].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1811,6 +1900,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "ingredients[6].confidence.conversion=low"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1844,6 +1936,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1877,6 +1970,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1910,6 +2004,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=old-term"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1943,6 +2040,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1976,6 +2074,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -1999,6 +2098,14 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "uncertainties[0].type=page-boundary",
+        "uncertainties[1].type=allocation-unknown",
+        "methodSummary.confidence=medium",
+        "methodSummary.dialectOrOldTerms[1].confidence=medium",
+        "methodSummary.dialectOrOldTerms[2].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2022,6 +2129,10 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=allocation-unknown",
+        "uncertainties[1].type=old-term"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2055,6 +2166,12 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unresolved-quantity",
+        "ingredients[3].confidence.conversion=medium",
+        "ingredients[4].confidence.recognition=medium",
+        "ingredients[10].confidence.recognition=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2088,6 +2205,10 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=allocation-unknown",
+        "uncertainties[1].type=old-term"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2121,6 +2242,11 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unresolved-quantity",
+        "uncertainties[1].type=allocation-unknown",
+        "ingredients[3].confidence.conversion=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2154,6 +2280,14 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unresolved-quantity",
+        "uncertainties[1].type=allocation-unknown",
+        "uncertainties[2].type=old-term",
+        "ingredients[3].confidence.conversion=medium",
+        "methodSummary.dialectOrOldTerms[1].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[1].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2187,6 +2321,15 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unresolved-quantity",
+        "uncertainties[1].type=allocation-unknown",
+        "uncertainties[2].type=old-term",
+        "uncertainties[3].type=allocation-unknown",
+        "ingredients[2].confidence.conversion=medium",
+        "methodSummary.dialectOrOldTerms[1].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[1].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2220,6 +2363,11 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unresolved-quantity",
+        "ingredients[3].confidence.recognition=medium",
+        "ingredients[3].confidence.conversion=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2253,6 +2401,12 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=allocation-unknown",
+        "uncertainties[1].type=old-term",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2286,6 +2440,13 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unresolved-quantity",
+        "uncertainties[1].type=allocation-unknown",
+        "uncertainties[2].type=page-boundary",
+        "ingredients[8].confidence.conversion=medium",
+        "R2-confirmed-unresolved"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2319,6 +2480,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=allocation-unknown"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2352,6 +2516,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "ingredients[3].confidence.conversion=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2385,6 +2552,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2426,6 +2594,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2459,6 +2628,9 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "ingredients[1].confidence.conversion=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2482,6 +2654,13 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentMissing=true",
+        "uncertainties[0].type=page-boundary",
+        "confidence.conversion=null",
+        "methodSummary.confidence=null"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2515,6 +2694,11 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "ingredients[12].confidence.conversion=medium",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium",
+        "methodSummary.dialectOrOldTerms[1].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2548,6 +2732,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2571,6 +2756,9 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "ingredients[2].confidence.conversion=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2594,6 +2782,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2617,6 +2806,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2640,6 +2830,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unclear-glyph",
+        "confidence.recognition=medium",
+        "R1-confirmed-unresolved"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2663,6 +2858,9 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=page-boundary"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2686,6 +2884,9 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "ingredients[4].confidence.conversion=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2727,6 +2928,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2750,6 +2952,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2773,6 +2976,15 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentMissing=true",
+        "uncertainties[0].type=page-boundary",
+        "confidence.recognition=medium",
+        "confidence.conversion=null",
+        "methodSummary.confidence=null",
+        "titleVisualCheck.confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2814,6 +3026,10 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "uncertainties[0].type=page-boundary"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2841,7 +3057,8 @@
       "evidence": [
         "两个名称仅一字不同且项目候选唯一，但“味/窝”不是可直接等同的字形规范化。"
       ],
-      "sourceQuality": "needs-source-review",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": true,
       "manyToOne": null,
       "collision": null
@@ -2865,6 +3082,12 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentIncomplete=true",
+        "uncertainties[0].type=page-boundary",
+        "methodSummary.confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2888,6 +3111,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2911,6 +3135,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2952,6 +3177,15 @@
         "“蘑芋/魔芋”指向同一食材，烹调法与主料完全一致。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentIncomplete=true",
+        "uncertainties[0].type=page-boundary",
+        "confidence.recognition=medium",
+        "confidence.conversion=null",
+        "methodSummary.confidence=medium",
+        "titleVisualCheck.confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2975,6 +3209,9 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "ingredients[6].confidence.conversion=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -2998,6 +3235,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "ingredients[2].confidence.conversion=medium",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3039,6 +3281,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3072,6 +3315,15 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentMissing=true",
+        "uncertainties[0].type=page-boundary",
+        "confidence.recognition=medium",
+        "confidence.conversion=null",
+        "methodSummary.confidence=null",
+        "titleVisualCheck.confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3095,6 +3347,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3118,6 +3371,9 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3141,6 +3397,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentIncomplete=true",
+        "uncertainties[0].type=page-boundary"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3164,6 +3425,10 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "confidence.recognition=medium",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3187,6 +3452,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3210,6 +3476,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3233,6 +3500,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3274,6 +3542,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3315,6 +3584,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3346,7 +3616,8 @@
       "evidence": [
         "项目名增加了鱼种“鲫”，需要正文主料确认。"
       ],
-      "sourceQuality": "needs-source-review",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": true,
       "manyToOne": null,
       "collision": null
@@ -3388,6 +3659,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3411,6 +3683,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentIncomplete=true",
+        "uncertainties[0].type=page-boundary"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3442,7 +3719,8 @@
       "evidence": [
         "项目名省略形态词“丝”，需要正文刀工与成品确认。"
       ],
-      "sourceQuality": "needs-source-review",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": true,
       "manyToOne": null,
       "collision": null
@@ -3470,7 +3748,8 @@
       "evidence": [
         "菜式高度相关但名称语义并不等值，需要正文调味和做法确认。"
       ],
-      "sourceQuality": "needs-source-review",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": true,
       "manyToOne": null,
       "collision": null
@@ -3504,6 +3783,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3527,6 +3807,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3550,6 +3831,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentIncomplete=true",
+        "uncertainties[0].type=page-boundary"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3573,6 +3859,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3596,6 +3883,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unclear-glyph",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3619,6 +3911,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3642,6 +3935,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3665,6 +3959,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3688,6 +3983,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3711,6 +4007,10 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=undefined"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3734,6 +4034,10 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=undefined"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3767,6 +4071,7 @@
         "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3790,6 +4095,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unclear-glyph",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3813,6 +4123,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3836,6 +4147,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3859,6 +4171,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "uncertainties[0].type=unclear-glyph",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3882,6 +4199,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3915,6 +4233,7 @@
         "“四季豆/豆角”为明确同义食材称呼，烹调法一致。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3938,6 +4257,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3961,6 +4281,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -3984,6 +4305,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4007,6 +4329,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4030,6 +4353,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4053,6 +4377,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4084,7 +4409,8 @@
       "evidence": [
         "烹调法相同但“莴笋/鲜笋”可能指不同原料，需要正文确认。"
       ],
-      "sourceQuality": "needs-source-review",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": true,
       "manyToOne": null,
       "collision": null
@@ -4108,6 +4434,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4141,6 +4468,7 @@
         "项目名仅省略目录中的烹调动词“炒”，核心菜名唯一。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4164,6 +4492,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4197,6 +4526,7 @@
         "项目名仅省略目录中的“拌”，原料组合完整一致。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4220,6 +4550,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4243,6 +4574,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4266,6 +4598,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4289,6 +4622,10 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4312,6 +4649,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4335,6 +4673,10 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "needs-source-review",
+      "sourceQualityReasons": [
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4358,6 +4700,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4381,6 +4724,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4404,6 +4748,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4427,6 +4772,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4450,6 +4796,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4473,6 +4820,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4496,6 +4844,11 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "alternate-source-required",
+      "sourceQualityReasons": [
+        "apply-review-resolutions-audit.unchangedByDesign.alternateSourceRequired",
+        "contentIncomplete=true",
+        "uncertainties[0].type=page-boundary"
+      ],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
@@ -4519,6 +4872,7 @@
         "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
+      "sourceQualityReasons": [],
       "reviewRequired": false,
       "manyToOne": null,
       "collision": null
