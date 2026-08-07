@@ -1,7 +1,7 @@
 {
   "schema": "kitchenmanager.source-restoration.recipes.v1",
   "createdAt": "2026-08-04T20:30:14.979Z",
-  "updatedAt": "2026-08-06T21:38:21.390Z",
+  "updatedAt": "2026-08-07T00:16:29.029Z",
   "status": "in-progress-reviewed-intermediate-only",
   "applicationReady": false,
   "purpose": "Restore all 147 recipes from rendered pages while preserving source wording, uncertainty, and non-production boundaries.",
@@ -989,7 +989,7 @@
             "焖至豆耙",
             "焖至豆糯"
           ],
-          "treatment": "字形按“炬”读出并逐字保留；因该字在此语境下的确切含义无法仅凭本页字形完全确认，不替换为候选字，仅在方法摘要括注补充语义提示，与b09-p194“烧至芋头炬时”处理一致",
+          "treatment": "字形按“炬”读出并逐字保留；因该字在此语境下的确切含义无法仅凭本页字形完全确认，不替换为候选字，不作语义推断，与b09-p194“烧至芋头炬时”记录方式一致",
           "reasonCode": "unclear-glyph",
           "entryId": "dz1979-p197"
         }
@@ -24820,10 +24820,13 @@
       ],
       "uncertainties": [
         {
-          "raw": "炬",
           "location": "做法第3步（五成炬/全炬）",
+          "type": "unclear-glyph",
+          "rawText": "炬",
+          "candidates": [],
+          "treatment": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换",
           "reasonCode": "unclear-glyph",
-          "notes": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换"
+          "entryId": "dz1979-p149"
         }
       ],
       "projectMatch": {
@@ -26161,10 +26164,12 @@
       ],
       "uncertainties": [
         {
-          "raw": "姜二钱、蒜二钱",
           "location": "原料栏",
+          "type": "unclear-glyph",
+          "rawText": "姜二钱、蒜二钱",
+          "candidates": [],
+          "treatment": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为“二钱”，不完全排除为其他数字的可能",
           "reasonCode": "unclear-glyph",
-          "notes": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为“二钱”，不完全排除为其他数字的可能",
           "entryId": "dz1979-p157"
         }
       ],
@@ -29576,13 +29581,6 @@
           "use": "做法第2步：兑滋汁时加少许汤",
           "quantityHandling": "原料栏未列；保留“少许”，不标准化为精确值",
           "confidence": "high"
-        },
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "少许",
-          "use": "做法第3步：炒油菜苔时另加盐少许",
-          "quantityHandling": "原料栏已列盐三分为整道用量；做法第3步另注“加盐少许”，两处均逐字保留，不合并猜测分配",
-          "confidence": "high"
         }
       ],
       "nonIngredientMaterials": {
@@ -30012,7 +30010,7 @@
           "rawItemText": "蒜",
           "rawQuantityText": "未列数量",
           "use": "做法第3步：与盐、酱油、花椒面、味精一起加入拌匀，原文写“葱蒜拌匀”",
-          "quantityHandling": "原料栏仅列“葱白”未列“蒜”；做法第3步明确写到蒜，原料栏与做法用词不一致，两处均逐字保留，不猜测或补全蒜的数量",
+          "quantityHandling": "原料栏仅列“葱白”未列“蒜”；做法第3步明确写到蒜，原料栏与做法用词不一致，两处均逐字保留，不猜测或补全蒜的数量，也不将其并入葱白项",
           "confidence": "high"
         }
       ],
@@ -30045,15 +30043,6 @@
           ],
           "treatment": "字形按“余”读出并逐字保留；因该字在此语境下的确切含义（是否为“煮”的方言简写或印刷讹字）无法仅凭本页确认，不替换为候选字，仅在方法摘要括注补充语义提示",
           "reasonCode": "unclear-glyph",
-          "entryId": "dz1979-p184"
-        },
-        {
-          "location": "原料栏 vs 做法第3步",
-          "type": "ingredient-mismatch",
-          "rawText": "原料栏仅列“葱白”，做法第3步写“加……葱蒜拌匀”",
-          "candidates": [],
-          "treatment": "原料栏未列蒜，做法提到蒜；按规则做法中才出现的原料单列为method-only mention，不臆测蒜的数量或将其并入葱白项",
-          "reasonCode": "source-content-missing",
           "entryId": "dz1979-p184"
         }
       ],
@@ -32257,16 +32246,16 @@
           },
           {
             "order": 2,
-            "summary": "炒锅内猪油烧至六成热时，下肉片煸去血腥味，再下豆瓣煸香，油呈红色时，下四季豆炒几下，接着放酱油、鲜汤在中火上焖；焖至豆炬（熟软），勾水豆粉，加味精，滋汁收浓起锅。",
+            "summary": "炒锅内猪油烧至六成热时，下肉片煸去血腥味，再下豆瓣煸香，油呈红色时，下四季豆炒几下，接着放酱油、鲜汤在中火上焖；焖至豆炬，勾水豆粉，加味精，滋汁收浓起锅。",
             "measureMentions": []
           }
         ],
         "dialectOrOldTerms": [
           {
             "raw": "焖至豆炬",
-            "modernSummary": "焖至四季豆熟软入味",
+            "modernSummary": null,
             "confidence": "medium",
-            "notes": "“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证，与b06/b07/b09已记录“炬”字用法一致；摘要以括注补充语义提示，不改动原字判读"
+            "notes": "“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证，与b06/b07/b09已记录“炬”字用法一致；不作语义推断"
           }
         ],
         "confidence": "high"

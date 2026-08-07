@@ -262,15 +262,13 @@
         }
       ],
       "uncertainties": [],
-      "projectMatch": {
-        "classification": "suspected_match",
-        "projectName": "麻婆豆腐",
-        "projectIds": [
-          "curated:fam-mapo-tofu"
-        ],
-        "candidateProjectName": "麻婆豆腐",
-        "reviewRequired": true
-      },
+  "projectMatch": {
+    "classification": "probable-match-needs-review",
+    "projectName": null,
+    "projectIds": [],
+    "candidateProjectName": "麻婆豆腐",
+    "reviewRequired": true
+  },
       "confidence": {
         "recognition": "high",
         "conversion": "high"
@@ -488,15 +486,15 @@
       },
       "confirmedReadings": [],
       "uncertainties": [],
-      "projectMatch": {
-        "classification": "exact_name",
-        "projectName": "家常豆腐",
-        "projectIds": [
-          "curated:fam-homestyle-tofu"
-        ],
-        "candidateProjectName": null,
-        "reviewRequired": false
-      },
+  "projectMatch": {
+    "classification": "exact-name",
+    "projectName": "家常豆腐",
+    "projectIds": [
+      { "library": "curated", "id": "fam-homestyle-tofu" }
+    ],
+    "candidateProjectName": null,
+    "reviewRequired": false
+  },
       "confidence": {
         "recognition": "high",
         "conversion": "high"
@@ -871,21 +869,14 @@
       },
       "characteristicsSummary": null,
       "methodOnlyIngredients": [
-        {
-          "rawItemText": "汤",
-          "rawQuantityText": "少许",
-          "use": "做法第2步：兑滋汁时加少许汤",
-          "quantityHandling": "原料栏未列；保留“少许”，不标准化为精确值",
-          "confidence": "high"
-        },
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "少许",
-          "use": "做法第3步：炒油菜苔时另加盐少许",
-          "quantityHandling": "原料栏已列盐三分为整道用量；做法第3步另注“加盐少许”，两处均逐字保留，不合并猜测分配",
-          "confidence": "high"
-        }
-      ],
+    {
+      "rawItemText": "汤",
+      "rawQuantityText": "少许",
+      "use": "做法第2步：兑滋汁时加少许汤",
+      "quantityHandling": "原料栏未列；保留“少许”，不标准化为精确值",
+      "confidence": "high"
+    }
+  ],
       "nonIngredientMaterials": {
         "tools": [
           "炒锅"
@@ -1309,14 +1300,14 @@
       },
       "characteristicsSummary": "菜质脆，麻辣味香。",
       "methodOnlyIngredients": [
-        {
-          "rawItemText": "蒜",
-          "rawQuantityText": "未列数量",
-          "use": "做法第3步：与盐、酱油、花椒面、味精一起加入拌匀，原文写“葱蒜拌匀”",
-          "quantityHandling": "原料栏仅列“葱白”未列“蒜”；做法第3步明确写到蒜，原料栏与做法用词不一致，两处均逐字保留，不猜测或补全蒜的数量",
-          "confidence": "high"
-        }
-      ],
+    {
+      "rawItemText": "蒜",
+      "rawQuantityText": "未列数量",
+      "use": "做法第3步：与盐、酱油、花椒面、味精一起加入拌匀，原文写“葱蒜拌匀”",
+      "quantityHandling": "原料栏仅列“葱白”未列“蒜”；做法第3步明确写到蒜，原料栏与做法用词不一致，两处均逐字保留，不猜测或补全蒜的数量，也不将其并入葱白项",
+      "confidence": "high"
+    }
+  ],
       "nonIngredientMaterials": {
         "tools": [],
         "containers": [
@@ -1344,20 +1335,11 @@
             "煮两次",
             "余（渌/煠）两次"
           ],
-          "treatment": "字形按“余”读出并逐字保留；因该字在此语境下的确切含义（是否为“煮”的方言简写或印刷讹字）无法仅凭本页确认，不替换为候选字，仅在方法摘要括注补充语义提示",
-          "reasonCode": "unclear-glyph",
-          "entryId": "dz1979-p184"
-        },
-        {
-          "location": "原料栏 vs 做法第3步",
-          "type": "ingredient-mismatch",
-          "rawText": "原料栏仅列“葱白”，做法第3步写“加……葱蒜拌匀”",
-          "candidates": [],
-          "treatment": "原料栏未列蒜，做法提到蒜；按规则做法中才出现的原料单列为method-only mention，不臆测蒜的数量或将其并入葱白项",
-          "reasonCode": "source-content-missing",
-          "entryId": "dz1979-p184"
-        }
-      ],
+      "treatment": "字形按“余”读出并逐字保留；因该字在此语境下的确切含义（是否为“煮”的方言简写或印刷讹字）无法仅凭本页确认，不替换为候选字，仅在方法摘要括注补充语义提示",
+      "reasonCode": "unclear-glyph",
+      "entryId": "dz1979-p184"
+    }
+  ],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,
@@ -2838,15 +2820,15 @@
       },
       "confirmedReadings": [],
       "uncertainties": [],
-      "projectMatch": {
-        "classification": "exact_name",
-        "projectName": "鱼香茄子",
-        "projectIds": [
-          "curated:fam-yuxiang-eggplant"
-        ],
-        "candidateProjectName": null,
-        "reviewRequired": false
-      },
+  "projectMatch": {
+    "classification": "exact-name",
+    "projectName": "鱼香茄子",
+    "projectIds": [
+      { "library": "curated", "id": "fam-yuxiang-eggplant" }
+    ],
+    "candidateProjectName": null,
+    "reviewRequired": false
+  },
       "confidence": {
         "recognition": "high",
         "conversion": "high"

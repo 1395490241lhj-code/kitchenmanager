@@ -2732,14 +2732,17 @@
      "location": "附注"
     }
    ],
-   "uncertainties": [
+  "uncertainties": [
     {
-     "raw": "炬",
-     "location": "做法第3步（五成炬/全炬）",
-     "reasonCode": "unclear-glyph",
-     "notes": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换"
+      "location": "做法第3步（五成炬/全炬）",
+      "type": "unclear-glyph",
+      "rawText": "炬",
+      "candidates": [],
+      "treatment": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换",
+      "reasonCode": "unclear-glyph",
+      "entryId": "dz1979-p149"
     }
-   ],
+  ],
    "projectMatch": {
     "classification": "book-only",
     "projectName": null,

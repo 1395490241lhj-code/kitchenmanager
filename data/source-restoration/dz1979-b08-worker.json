@@ -1085,15 +1085,17 @@
           "location": "做法第3步"
         }
       ],
-      "uncertainties": [
-        {
-          "raw": "姜二钱、蒜二钱",
-          "location": "原料栏",
-          "reasonCode": "unclear-glyph",
-          "notes": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为“二钱”，不完全排除为其他数字的可能",
-          "entryId": "dz1979-p157"
-        }
-      ],
+  "uncertainties": [
+    {
+      "location": "原料栏",
+      "type": "unclear-glyph",
+      "rawText": "姜二钱、蒜二钱",
+      "candidates": [],
+      "treatment": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为“二钱”，不完全排除为其他数字的可能",
+      "reasonCode": "unclear-glyph",
+      "entryId": "dz1979-p157"
+    }
+  ],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,

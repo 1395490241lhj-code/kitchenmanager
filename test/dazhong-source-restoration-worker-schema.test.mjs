@@ -44,31 +44,32 @@ const allowedUncertaintyTypes = new Set([
   'page-boundary',
 ]);
 
-// Pre-existing schema drift found in b05-b09 worker files during the
-// 2026-08-06 b10 schema-normalization audit. These batches are out of scope
-// for this fix (the task instructs not to touch b01-b09 without a separate,
-// explicitly approved follow-up), so their known issues are allowlisted here
-// by entryId + field rather than silently loosening the checks for every
-// batch. Any NEW drift, in these batches or any other, still fails the test.
-const legacyProjectClassificationExceptions = new Set([
-  'dz1979-b09-worker.json:dz1979-p177', // projectMatch.classification 'suspected_match' (snake_case legacy value)
-  'dz1979-b09-worker.json:dz1979-p179', // projectMatch.classification 'exact_name' (snake_case legacy value)
-  'dz1979-b09-worker.json:dz1979-p193', // projectMatch.classification 'exact_name' (snake_case legacy value)
+// These entries have the same "unexplained gloss for an unresolved glyph"
+// shape that dz1979-b10-p197 was found to have and was fixed for in the
+// 2026-08-06 legacy-metadata cleanup, but each is out of THIS task's
+// explicitly approved scope (only dz1979-b09-p177/p179/p193/p184/p181 and
+// the b07-p149/b08-p157 uncertainty *shape* were named as fixes to make).
+// Left untouched here and called out in the final report as follow-up
+// candidates rather than silently fixed or silently ignored:
+//  - b07-p149 "炬": modernSummary asserts a resolved meaning for a glyph
+//    the uncertainty entry says is genuinely unclear (only p149's
+//    uncertainty *object shape* was in scope for this task, not this
+//    gloss content).
+//  - b09-p184 "余两次": dialectOrOldTerms entry is missing the standard
+//    confidence/modernSummary fields entirely (only p184's non-standard
+//    uncertainty.type was in scope for this task).
+//  - b09-p194 "烧至芋头炬时": same pattern as b10-p197 (medium confidence,
+//    modernSummary + step-text bracket gloss for an unconfirmed glyph).
+const uncorroboratedGlossExceptions = new Set([
+  'dz1979-b07-worker.json:dz1979-p149',
+  'dz1979-b09-worker.json:dz1979-p184',
+  'dz1979-b09-worker.json:dz1979-p194',
 ]);
-const legacyUncertaintyShapeExceptions = new Set([
-  'dz1979-b07-worker.json:dz1979-p149', // uncertainty object uses {raw,location,reasonCode,notes} instead of {location,type,rawText,candidates,treatment}
-  'dz1979-b08-worker.json:dz1979-p157', // same legacy {raw,location,reasonCode,notes} shape
-  'dz1979-b09-worker.json:dz1979-p184', // uncertainty.type 'ingredient-mismatch' is not a standard schema value
-]);
-// A printed ingredient (盐) also gets an explicit "另加盐少许" mention in the
-// method text for a distinct, separately-quantified use; the extraction
-// schema does not have a field for "same ingredient, a second unlisted
-// use", so this was recorded as a second methodOnlyIngredients entry. Left
-// as-is rather than silently deleted, since deleting it would erase a real
-// visually-confirmed fact; flagged here so it is not mistaken for new drift.
-const legacyMethodOnlyDuplicateExceptions = new Set([
-  'dz1979-b09-worker.json:dz1979-p181',
-]);
+
+// As of the 2026-08-06 legacy-metadata cleanup, every batch worker file on
+// disk (b05-b10) uses the standard schema shapes with no remaining
+// allowlisted exceptions. Any drift found from here on should be fixed at
+// the source rather than reintroducing a whitelist.
 
 for (const fileName of workerFiles) {
   test(`${fileName} recipes use the standard extraction schema shapes`, () => {
@@ -105,6 +106,36 @@ for (const fileName of workerFiles) {
       }
       assert.ok(Array.isArray(recipe.methodSummary.dialectOrOldTerms),
         `${label} methodSummary.dialectOrOldTerms must be an array`);
+
+      // A dialect/old-term entry that is also the subject of an
+      // unclear-glyph uncertainty (i.e. the raw character itself is not
+      // confirmed, not just its modern meaning) must not carry a
+      // modernSummary gloss, and the raw term must not appear in a step's
+      // summary text wrapped in an explanatory "（...）" that was not
+      // actually printed on the source page. This is narrower than "any
+      // medium/low-confidence term" because plenty of legitimately
+      // medium-confidence glosses (e.g. period vocabulary whose glyph is
+      // clear but whose precise modern equivalent is inferred) are fine;
+      // the drift this guards against is specifically inventing a
+      // resolved-sounding gloss for a character the source itself could
+      // not visually confirm.
+      if (!uncorroboratedGlossExceptions.has(label)) {
+        const unclearGlyphRawTexts = recipe.uncertainties
+          .filter((u) => u.type === 'unclear-glyph')
+          .map((u) => u.rawText);
+        for (const term of recipe.methodSummary.dialectOrOldTerms) {
+          const tiedToUnclearGlyph = unclearGlyphRawTexts
+            .some((rawText) => rawText.includes(term.raw) || term.raw.includes(rawText));
+          if (tiedToUnclearGlyph) {
+            assert.equal(term.modernSummary, null,
+              `${label} unresolved-glyph dialect term '${term.raw}' must not carry a modernSummary gloss`);
+            for (const step of recipe.methodSummary.steps) {
+              assert.ok(!step.summary.includes(`${term.raw}（`),
+                `${label} step summary must not append an unauthenticated bracket gloss after unresolved-glyph term '${term.raw}'`);
+            }
+          }
+        }
+      }
       if (relaxedConfidence) {
         // A verified fully-blank scanned page has nothing to be confident
         // about; confidence may legitimately be null in this narrow case.
@@ -131,10 +162,8 @@ for (const fileName of workerFiles) {
       // "原料栏未列、只在做法中出现的可食用内容").
       const printedNames = new Set(recipe.ingredients.map((i) => i.rawItemText));
       for (const moi of recipe.methodOnlyIngredients) {
-        if (!legacyMethodOnlyDuplicateExceptions.has(label)) {
-          assert.ok(!printedNames.has(moi.rawItemText),
-            `${label} methodOnlyIngredients must not duplicate printed ingredient '${moi.rawItemText}'`);
-        }
+        assert.ok(!printedNames.has(moi.rawItemText),
+          `${label} methodOnlyIngredients must not duplicate printed ingredient '${moi.rawItemText}'`);
         assert.equal(typeof moi.rawItemText, 'string');
         assert.equal(typeof moi.use, 'string');
         assert.equal(typeof moi.quantityHandling, 'string');
@@ -149,14 +178,11 @@ for (const fileName of workerFiles) {
       // projectMatch and confidence are required top-level objects.
       assert.equal(typeof recipe.projectMatch, 'object', `${label} projectMatch must be an object`);
       assert.ok(recipe.projectMatch, `${label} projectMatch must be present`);
-      if (!legacyProjectClassificationExceptions.has(label)) {
-        assert.ok(allowedProjectClassifications.has(recipe.projectMatch.classification),
-          `${label} projectMatch.classification '${recipe.projectMatch.classification}' is not a standard value`);
-      }
+      assert.ok(allowedProjectClassifications.has(recipe.projectMatch.classification),
+        `${label} projectMatch.classification '${recipe.projectMatch.classification}' is not a standard value`);
       assert.equal(typeof recipe.projectMatch.reviewRequired, 'boolean',
         `${label} projectMatch.reviewRequired must be boolean`);
-      if (!legacyProjectClassificationExceptions.has(label)
-        && recipe.projectMatch.classification === 'probable-match-needs-review') {
+      if (recipe.projectMatch.classification === 'probable-match-needs-review') {
         assert.equal(recipe.projectMatch.projectName, null,
           `${label} probable-match-needs-review must not bind a projectName`);
         assert.deepEqual(recipe.projectMatch.projectIds, [],
@@ -187,9 +213,6 @@ for (const fileName of workerFiles) {
       assert.ok(Array.isArray(recipe.confirmedReadings), `${label} confirmedReadings must be an array`);
       assert.ok(Array.isArray(recipe.uncertainties), `${label} uncertainties must be an array`);
       for (const uncertainty of recipe.uncertainties) {
-        if (legacyUncertaintyShapeExceptions.has(label)) {
-          continue;
-        }
         assert.ok(allowedUncertaintyTypes.has(uncertainty.type),
           `${label} uncertainty.type '${uncertainty.type}' is not a standard value`);
         assert.equal(typeof uncertainty.location, 'string');
