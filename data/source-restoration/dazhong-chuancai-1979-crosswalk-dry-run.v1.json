@@ -1,0 +1,4527 @@
+{
+  "schema": "kitchenmanager.source-restoration.crosswalk-dry-run.v1",
+  "generatedAt": "2026-08-07",
+  "purpose": "《大众川菜》1979 147道source-restoration entryId与项目Curated/Full真实菜谱ID之间的crosswalk dry-run审计。仅审计/映射，不做production promotion，不修改canonical147道worker/chunk/assembled、name-matches、review overlay/audit、Curated/Full/HOC或applicationReady。",
+  "scope": {
+    "totalEntries": 147,
+    "sourceCatalog": "data/source-restoration/dazhong-chuancai-1979-catalog.v1.json",
+    "sourceRecipes": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+    "sourceNameMatches": "data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json",
+    "sourceReviewQueue": "data/source-restoration/dazhong-chuancai-1979-review-queue.v1.json",
+    "sourceR1Results": "data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-results.v1.json",
+    "sourceR2Results": "data/source-restoration/dazhong-chuancai-1979-review-resolution-r2-results.v1.json",
+    "sourceApplyAudit": "data/source-restoration/dazhong-chuancai-1979-apply-review-resolutions-audit.v1.json",
+    "targetCuratedLibrary": "data/sichuan-recipes.curated.json",
+    "targetFullLibrary": "data/sichuan-recipes.json"
+  },
+  "applicationReady": false,
+  "productionPromotion": false,
+  "classificationDefinitions": [
+    {
+      "id": "exact-name",
+      "reviewRequired": false,
+      "note": "书名与项目菜名规范化后实质完全一致，绑定真实project ID。"
+    },
+    {
+      "id": "confirmed-alias",
+      "reviewRequired": false,
+      "note": "名称不同但仓库证据确认为同一道菜的明确别名，绑定真实project ID。"
+    },
+    {
+      "id": "probable-match-needs-review",
+      "reviewRequired": true,
+      "note": "有合理候选但不能无歧义证明，candidate单独记录，不作为confirmed绑定。"
+    },
+    {
+      "id": "book-only",
+      "reviewRequired": false,
+      "note": "当前项目找不到可靠对应，不强行配对。"
+    }
+  ],
+  "sourceQualityDefinitions": [
+    {
+      "id": "ready-for-later-promotion-review",
+      "note": "不在review queue且不属于B类，source侧无已知开放问题。"
+    },
+    {
+      "id": "needs-source-review",
+      "note": "在review queue中记录了开放的source保真问题（confirmedFacts之外的unresolvedQuestions），非B类。"
+    },
+    {
+      "id": "alternate-source-required",
+      "note": "既有apply-review-resolutions审计中记录的unchangedByDesign.alternateSourceRequired 12道，需要替代来源，与crosswalk分类无关。"
+    }
+  ],
+  "summary": {
+    "totalEntries": 147,
+    "classificationCounts": {
+      "exact-name": 74,
+      "confirmed-alias": 5,
+      "probable-match-needs-review": 5,
+      "book-only": 63
+    },
+    "confirmedProjectMappingTotal": 79,
+    "probableCandidateCount": 5,
+    "bookOnlyCount": 63,
+    "sourceQualityCounts": {
+      "ready-for-later-promotion-review": 88,
+      "needs-source-review": 47,
+      "alternate-source-required": 12
+    },
+    "collisionCount": 0,
+    "manyToOneCount": 0,
+    "consistencyProblemsCount": 0
+  },
+  "probableCandidates": [
+    {
+      "entryId": "dz1979-p141",
+      "bookName": "热味姜汁鸡",
+      "candidateProjectName": "热窝姜汁鸡",
+      "candidateProjectIds": [
+        {
+          "library": "full",
+          "id": "ex--832d7c5d"
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p168",
+      "bookName": "豆腐鱼",
+      "candidateProjectName": "豆腐鲫鱼",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--8aec747f"
+        },
+        {
+          "library": "full",
+          "id": "ex--8aec747f"
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p173",
+      "bookName": "干煸鳝鱼丝",
+      "candidateProjectName": "干煸鳝鱼",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--efa871b1"
+        },
+        {
+          "library": "full",
+          "id": "ex--efa871b1"
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p177",
+      "bookName": "麻辣豆腐",
+      "candidateProjectName": "麻婆豆腐",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "fam-mapo-tofu"
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p206",
+      "bookName": "烧拌莴笋",
+      "candidateProjectName": "烧拌鲜笋",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--57fd9bbb"
+        },
+        {
+          "library": "full",
+          "id": "ex--57fd9bbb"
+        }
+      ]
+    }
+  ],
+  "collisions": [],
+  "manyToOnes": [],
+  "alternateSourceRequiredList": [
+    {
+      "entryId": "dz1979-p090",
+      "bookName": "腊肉烧菜头"
+    },
+    {
+      "entryId": "dz1979-p100",
+      "bookName": "豆芽肉饼汤"
+    },
+    {
+      "entryId": "dz1979-p122",
+      "bookName": "蒜烧肚条"
+    },
+    {
+      "entryId": "dz1979-p138",
+      "bookName": "红油鸡块"
+    },
+    {
+      "entryId": "dz1979-p139",
+      "bookName": "辣子鸡丁"
+    },
+    {
+      "entryId": "dz1979-p142",
+      "bookName": "香菌烧鸡"
+    },
+    {
+      "entryId": "dz1979-p145",
+      "bookName": "蘑芋烧鸭"
+    },
+    {
+      "entryId": "dz1979-p152",
+      "bookName": "番茄炒蛋"
+    },
+    {
+      "entryId": "dz1979-p155",
+      "bookName": "芹黄炒什件"
+    },
+    {
+      "entryId": "dz1979-p171",
+      "bookName": "大蒜烧鳝鱼"
+    },
+    {
+      "entryId": "dz1979-p181",
+      "bookName": "鱼香油菜苔"
+    },
+    {
+      "entryId": "dz1979-p225",
+      "bookName": "熏豆筋"
+    }
+  ],
+  "consistencyProblems": [],
+  "entries": [
+    {
+      "entryId": "dz1979-p027",
+      "bookName": "回锅肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "回锅肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--4f93c5ac"
+          },
+          {
+            "library": "full",
+            "id": "ex--4f93c5ac"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "回锅肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--4f93c5ac"
+        },
+        {
+          "library": "full",
+          "id": "ex--4f93c5ac"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p029",
+      "bookName": "白油肉片",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "白油肉片",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3784c1ba"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "白油肉片",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3784c1ba"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p031",
+      "bookName": "鱼香肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "鱼香肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-4972b811"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "鱼香肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-4972b811"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p033",
+      "bookName": "炒盐煎肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "炒盐煎肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-34f829f9"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "炒盐煎肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-34f829f9"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p034",
+      "bookName": "宫保肉丁",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "宫保肉丁",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2ae72baa"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "宫保肉丁",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2ae72baa"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p036",
+      "bookName": "炒酱肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "炒酱肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-355dc613"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "炒酱肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-355dc613"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p037",
+      "bookName": "干煸肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "干煸肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2ca8867a"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "干煸肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2ca8867a"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p038",
+      "bookName": "鱼香碎滑肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "鱼香碎滑肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-1b3534d7"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "鱼香碎滑肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-1b3534d7"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p040",
+      "bookName": "酱爆肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "酱爆肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-02304874"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "酱爆肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-02304874"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p041",
+      "bookName": "花椒肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "花椒肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-01f7d428"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "花椒肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-01f7d428"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p042",
+      "bookName": "东坡肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "东坡肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-01304c64"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "东坡肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-01304c64"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p044",
+      "bookName": "樱桃肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "樱桃肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-019bc297"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "樱桃肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-019bc297"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p046",
+      "bookName": "香糟肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "香糟肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-025036e3"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "香糟肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-025036e3"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p048",
+      "bookName": "红烧排蹄",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "红烧排蹄",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3b44d637"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "红烧排蹄",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3b44d637"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p049",
+      "bookName": "红枣煨肘",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "红枣煨肘",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--0d31aaec"
+          },
+          {
+            "library": "full",
+            "id": "ex--0d31aaec"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "红枣煨肘",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--0d31aaec"
+        },
+        {
+          "library": "full",
+          "id": "ex--0d31aaec"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p050",
+      "bookName": "板栗烧肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "板栗烧肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-30a0defa"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "板栗烧肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-30a0defa"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p051",
+      "bookName": "红烧狮子头",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "红烧狮子头",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2d89c6ad"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "红烧狮子头",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2d89c6ad"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p053",
+      "bookName": "家常热味肘子",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "家常热味肘子",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-1c14ba60"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "家常热味肘子",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-1c14ba60"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p054",
+      "bookName": "醋蒸猪头肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "醋蒸猪头肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-410712d2"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "醋蒸猪头肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-410712d2"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p055",
+      "bookName": "水煮烧白",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "水煮烧白",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-32e7a7b0"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "水煮烧白",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-32e7a7b0"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p056",
+      "bookName": "豆瓣肘子",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "豆瓣肘子",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-418a7bd5"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "豆瓣肘子",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-418a7bd5"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p057",
+      "bookName": "姜汁蹄花",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "姜汁蹄花",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2a812592"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "姜汁蹄花",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2a812592"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p058",
+      "bookName": "五香卤肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "五香卤肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-260369ea"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "五香卤肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-260369ea"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p060",
+      "bookName": "蒜泥白肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "蒜泥白肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3def8735"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "蒜泥白肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3def8735"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p061",
+      "bookName": "姜汁拐肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "姜汁拐肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2a7be05e"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "姜汁拐肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2a7be05e"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p062",
+      "bookName": "连锅子",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "连锅子",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-022e7749"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "连锅子",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-022e7749"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p063",
+      "bookName": "白菜丸子",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "白菜丸子",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-37d56d57"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "白菜丸子",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-37d56d57"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p065",
+      "bookName": "肉片汤",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "肉片汤",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-01f0c546"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "肉片汤",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-01f0c546"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p066",
+      "bookName": "炖酥肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "炖酥肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-01b8beda"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "炖酥肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-01b8beda"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p068",
+      "bookName": "清汤丸子",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "清汤丸子",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-33a3cf57"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "清汤丸子",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-33a3cf57"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p070",
+      "bookName": "清蒸肘子",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "清蒸肘子",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-34053c4b"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "清蒸肘子",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-34053c4b"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p071",
+      "bookName": "夹沙肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "夹沙肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--0fd31741"
+          },
+          {
+            "library": "full",
+            "id": "ex--0fd31741"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "夹沙肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--0fd31741"
+        },
+        {
+          "library": "full",
+          "id": "ex--0fd31741"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p073",
+      "bookName": "咸烧白",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "咸烧白",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--10cdbeaf"
+          },
+          {
+            "library": "full",
+            "id": "ex--10cdbeaf"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "咸烧白",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--10cdbeaf"
+        },
+        {
+          "library": "full",
+          "id": "ex--10cdbeaf"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p074",
+      "bookName": "粉蒸肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "粉蒸肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--ec5d7e15"
+          },
+          {
+            "library": "full",
+            "id": "ex--ec5d7e15"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "粉蒸肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--ec5d7e15"
+        },
+        {
+          "library": "full",
+          "id": "ex--ec5d7e15"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p076",
+      "bookName": "荷叶蒸肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "荷叶蒸肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--0b5f9f77"
+          },
+          {
+            "library": "full",
+            "id": "ex--0b5f9f77"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "荷叶蒸肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--0b5f9f77"
+        },
+        {
+          "library": "full",
+          "id": "ex--0b5f9f77"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p078",
+      "bookName": "韭黄肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "韭黄肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-4773a16b"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "韭黄肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-4773a16b"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p079",
+      "bookName": "锅粑肉片",
+      "sourceProjectMatchBefore": {
+        "classification": "confirmed-alias",
+        "projectName": "锅巴肉片",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--3235554e"
+          },
+          {
+            "library": "full",
+            "id": "ex--3235554e"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "confirmed-alias",
+      "projectName": "锅巴肉片",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--3235554e"
+        },
+        {
+          "library": "full",
+          "id": "ex--3235554e"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "目录“粑”与项目“巴”为该菜名的明确字形/写法差异，其余文字完全一致。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p081",
+      "bookName": "榨菜肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "榨菜肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-320630e8"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "榨菜肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-320630e8"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p082",
+      "bookName": "青椒肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "青椒肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-46639ab4"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "青椒肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-46639ab4"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p083",
+      "bookName": "甜椒肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "甜椒肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-36d670aa"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "甜椒肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-36d670aa"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p085",
+      "bookName": "肉焖鲜豌豆",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "肉焖鲜豌豆",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-49107249"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "肉焖鲜豌豆",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-49107249"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p086",
+      "bookName": "家常肉丝干豇",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "家常肉丝干豇",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-1517f9f5"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "家常肉丝干豇",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-1517f9f5"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p087",
+      "bookName": "南瓜炒肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "南瓜炒肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-32c1afbf"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "南瓜炒肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-32c1afbf"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p088",
+      "bookName": "肉焖青豆",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "肉焖青豆",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3c2929a1"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "肉焖青豆",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3c2929a1"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p089",
+      "bookName": "肉末炒泡豇豆",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "肉末炒泡豇豆",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-38c07670"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "肉末炒泡豇豆",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-38c07670"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p090",
+      "bookName": "腊肉烧菜头",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p091",
+      "bookName": "豌豆焖肉",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p093",
+      "bookName": "红烧丸子",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "红烧丸子",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3b420d5d"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "红烧丸子",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3b420d5d"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p095",
+      "bookName": "豆筋烧肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "豆筋烧肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-41a0c707"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "豆筋烧肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-41a0c707"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p096",
+      "bookName": "蒜苔炒腊肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "蒜苔炒腊肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-761bd027"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "蒜苔炒腊肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-761bd027"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p097",
+      "bookName": "明笋焖肉片",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "明笋焖肉片",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-28362569"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "明笋焖肉片",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-28362569"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p098",
+      "bookName": "洋葱炒肉丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "洋葱炒肉丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3e87bc40"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "洋葱炒肉丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3e87bc40"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p099",
+      "bookName": "黄瓜肉片",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "黄瓜肉片",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-49f26b76"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "黄瓜肉片",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-49f26b76"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p100",
+      "bookName": "豆芽肉饼汤",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p101",
+      "bookName": "酸菜肉丝汤",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p102",
+      "bookName": "粉蒸排骨",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "粉蒸排骨",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3a9b2ae5"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "粉蒸排骨",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3a9b2ae5"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p104",
+      "bookName": "鱼香排骨",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "鱼香排骨",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-496f82b3"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "鱼香排骨",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-496f82b3"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p105",
+      "bookName": "糖醋排骨",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "糖醋排骨",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3aee4f8b"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "糖醋排骨",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3aee4f8b"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p106",
+      "bookName": "家常排骨",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "家常排骨",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2b1eda18"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "家常排骨",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2b1eda18"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p107",
+      "bookName": "苤蓝烧牛肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "苤蓝烧牛肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-72980f9c"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "苤蓝烧牛肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-72980f9c"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p109",
+      "bookName": "干拌牛肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "干拌牛肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2c6feda8"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "干拌牛肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2c6feda8"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p110",
+      "bookName": "麻辣牛肉干",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "麻辣牛肉干",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-002ad6a4"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "麻辣牛肉干",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-002ad6a4"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p111",
+      "bookName": "水煮牛肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "水煮牛肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-32e7dec8"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "水煮牛肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-32e7dec8"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p113",
+      "bookName": "牛肉末炒芹菜花",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "牛肉末炒芹菜花",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-72b49627"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "牛肉末炒芹菜花",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-72b49627"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p115",
+      "bookName": "粉蒸牛肉",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "粉蒸牛肉",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3a9cdb1d"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "粉蒸牛肉",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3a9cdb1d"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p117",
+      "bookName": "小烧十锦",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "小烧十锦",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2b8b72bd"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "小烧十锦",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2b8b72bd"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p119",
+      "bookName": "白油猪肝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "白油猪肝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--addb85f5"
+          },
+          {
+            "library": "full",
+            "id": "ex--addb85f5"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "白油猪肝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--addb85f5"
+        },
+        {
+          "library": "full",
+          "id": "ex--addb85f5"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p121",
+      "bookName": "豌豆肥肠汤",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "豌豆肥肠汤",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-053fc891"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "豌豆肥肠汤",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-053fc891"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p122",
+      "bookName": "蒜烧肚条",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p123",
+      "bookName": "清蒸杂烩",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "清蒸杂烩",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3402407a"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "清蒸杂烩",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3402407a"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p125",
+      "bookName": "火爆腰花",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "火爆腰花",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-34d66b7c"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "火爆腰花",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-34d66b7c"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p127",
+      "bookName": "大蒜烧肥肠",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p129",
+      "bookName": "凉拌猪肺",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p130",
+      "bookName": "蕃茄丝瓜肉片汤",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p131",
+      "bookName": "麻辣兔丁",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p132",
+      "bookName": "青笋烧兔",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p135",
+      "bookName": "盐水仔鸡",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p136",
+      "bookName": "棒棒鸡丝",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "棒棒鸡丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--5b35a2c1"
+          },
+          {
+            "library": "full",
+            "id": "ex--5b35a2c1"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "棒棒鸡丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--5b35a2c1"
+        },
+        {
+          "library": "full",
+          "id": "ex--5b35a2c1"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p137",
+      "bookName": "椒麻鸡块",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p138",
+      "bookName": "红油鸡块",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p139",
+      "bookName": "辣子鸡丁",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "辣子鸡丁",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--b540e64d"
+          },
+          {
+            "library": "full",
+            "id": "ex--b540e64d"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "辣子鸡丁",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--b540e64d"
+        },
+        {
+          "library": "full",
+          "id": "ex--b540e64d"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p141",
+      "bookName": "热味姜汁鸡",
+      "sourceProjectMatchBefore": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "热窝姜汁鸡",
+        "reviewRequired": true
+      },
+      "proposedClassification": "probable-match-needs-review",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": "热窝姜汁鸡",
+      "candidateProjectIds": [
+        {
+          "library": "full",
+          "id": "ex--832d7c5d"
+        }
+      ],
+      "evidence": [
+        "两个名称仅一字不同且项目候选唯一，但“味/窝”不是可直接等同的字形规范化。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": true,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p142",
+      "bookName": "香菌烧鸡",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p143",
+      "bookName": "当归炖鸡",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p144",
+      "bookName": "黄焖鸭子",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p145",
+      "bookName": "蘑芋烧鸭",
+      "sourceProjectMatchBefore": {
+        "classification": "confirmed-alias",
+        "projectName": "魔芋烧鸭",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--56a6ad20"
+          },
+          {
+            "library": "full",
+            "id": "ex--56a6ad20"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "proposedClassification": "confirmed-alias",
+      "projectName": "魔芋烧鸭",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--56a6ad20"
+        },
+        {
+          "library": "full",
+          "id": "ex--56a6ad20"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "“蘑芋/魔芋”指向同一食材，烹调法与主料完全一致。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p147",
+      "bookName": "芋儿烧鸭",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p149",
+      "bookName": "青豆焖鸭条",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p151",
+      "bookName": "椿芽烘蛋",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "椿芽烘蛋",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--24b2a22b"
+          },
+          {
+            "library": "full",
+            "id": "ex--24b2a22b"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "椿芽烘蛋",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--24b2a22b"
+        },
+        {
+          "library": "full",
+          "id": "ex--24b2a22b"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p152",
+      "bookName": "番茄炒蛋",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "番茄炒蛋",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-tomato-egg"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "番茄炒蛋",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-tomato-egg"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p153",
+      "bookName": "绍子蒸蛋",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p154",
+      "bookName": "酸辣蛋花汤",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p155",
+      "bookName": "芹黄炒什件",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p157",
+      "bookName": "炒鸭肝",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p159",
+      "bookName": "烧鸭血",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p161",
+      "bookName": "拌鸡血",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p162",
+      "bookName": "豆瓣鱼",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p164",
+      "bookName": "干烧鲫鱼",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "干烧鲫鱼",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--497d6220"
+          },
+          {
+            "library": "full",
+            "id": "ex--497d6220"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "干烧鲫鱼",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--497d6220"
+        },
+        {
+          "library": "full",
+          "id": "ex--497d6220"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p166",
+      "bookName": "泡菜鱼",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "泡菜鱼",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--a276fea5"
+          },
+          {
+            "library": "full",
+            "id": "ex--a276fea5"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "泡菜鱼",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--a276fea5"
+        },
+        {
+          "library": "full",
+          "id": "ex--a276fea5"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p168",
+      "bookName": "豆腐鱼",
+      "sourceProjectMatchBefore": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "豆腐鲫鱼",
+        "reviewRequired": true
+      },
+      "proposedClassification": "probable-match-needs-review",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": "豆腐鲫鱼",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--8aec747f"
+        },
+        {
+          "library": "full",
+          "id": "ex--8aec747f"
+        }
+      ],
+      "evidence": [
+        "项目名增加了鱼种“鲫”，需要正文主料确认。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": true,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p170",
+      "bookName": "葱酥鱼",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "葱酥鱼",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "ex--baed7d9b"
+          },
+          {
+            "library": "full",
+            "id": "ex--baed7d9b"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "葱酥鱼",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--baed7d9b"
+        },
+        {
+          "library": "full",
+          "id": "ex--baed7d9b"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p171",
+      "bookName": "大蒜烧鳝鱼",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p173",
+      "bookName": "干煸鳝鱼丝",
+      "sourceProjectMatchBefore": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "干煸鳝鱼",
+        "reviewRequired": true
+      },
+      "proposedClassification": "probable-match-needs-review",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": "干煸鳝鱼",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--efa871b1"
+        },
+        {
+          "library": "full",
+          "id": "ex--efa871b1"
+        }
+      ],
+      "evidence": [
+        "项目名省略形态词“丝”，需要正文刀工与成品确认。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": true,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p177",
+      "bookName": "麻辣豆腐",
+      "sourceProjectMatchBefore": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "麻婆豆腐",
+        "reviewRequired": true
+      },
+      "proposedClassification": "probable-match-needs-review",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": "麻婆豆腐",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "fam-mapo-tofu"
+        }
+      ],
+      "evidence": [
+        "菜式高度相关但名称语义并不等值，需要正文调味和做法确认。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": true,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p179",
+      "bookName": "家常豆腐",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "家常豆腐",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-homestyle-tofu"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "家常豆腐",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-homestyle-tofu"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p180",
+      "bookName": "干炒豆腐",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p181",
+      "bookName": "鱼香油菜苔",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p183",
+      "bookName": "酱烧苦瓜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p184",
+      "bookName": "麻辣明笋丝",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p185",
+      "bookName": "麻酱青笋尖",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p186",
+      "bookName": "蒜泥拌黄瓜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p187",
+      "bookName": "糖醋子姜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p188",
+      "bookName": "姜汁蕹菜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p189",
+      "bookName": "醋渍胡豆",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p191",
+      "bookName": "炒野鸡红",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p193",
+      "bookName": "鱼香茄子",
+      "sourceProjectMatchBefore": {
+        "classification": "exact-name",
+        "projectName": "鱼香茄子",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-yuxiang-eggplant"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "exact-name",
+      "projectName": "鱼香茄子",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-yuxiang-eggplant"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "书名与项目菜名规范化后逐字相同（名称证据，优先级1）。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p194",
+      "bookName": "家常芋头",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p195",
+      "bookName": "干煸苦瓜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p196",
+      "bookName": "醋熘白菜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p197",
+      "bookName": "家常四季豆",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p198",
+      "bookName": "酱烧茄子",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p199",
+      "bookName": "干煸四季豆",
+      "sourceProjectMatchBefore": {
+        "classification": "confirmed-alias",
+        "projectName": "干煸豆角",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-dry-fried-beans"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "confirmed-alias",
+      "projectName": "干煸豆角",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-dry-fried-beans"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "“四季豆/豆角”为明确同义食材称呼，烹调法一致。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p200",
+      "bookName": "炒土豆泥",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p201",
+      "bookName": "炝黄瓜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p202",
+      "bookName": "白油鲜笋",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p203",
+      "bookName": "炝绿豆芽",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p204",
+      "bookName": "炒豌豆尖",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p205",
+      "bookName": "青椒炒大头菜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p206",
+      "bookName": "烧拌莴笋",
+      "sourceProjectMatchBefore": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "烧拌鲜笋",
+        "reviewRequired": true
+      },
+      "proposedClassification": "probable-match-needs-review",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": "烧拌鲜笋",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--57fd9bbb"
+        },
+        {
+          "library": "full",
+          "id": "ex--57fd9bbb"
+        }
+      ],
+      "evidence": [
+        "烹调法相同但“莴笋/鲜笋”可能指不同原料，需要正文确认。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": true,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p207",
+      "bookName": "炝莲花白",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p208",
+      "bookName": "炒土豆丝",
+      "sourceProjectMatchBefore": {
+        "classification": "confirmed-alias",
+        "projectName": "土豆丝",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-potato-shreds"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "confirmed-alias",
+      "projectName": "土豆丝",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-potato-shreds"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "项目名仅省略目录中的烹调动词“炒”，核心菜名唯一。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p209",
+      "bookName": "拌素三丝",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p210",
+      "bookName": "青椒拌皮蛋",
+      "sourceProjectMatchBefore": {
+        "classification": "confirmed-alias",
+        "projectName": "青椒皮蛋",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-pepper-century-egg"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "confirmed-alias",
+      "projectName": "青椒皮蛋",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-pepper-century-egg"
+        }
+      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "项目名仅省略目录中的“拌”，原料组合完整一致。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p211",
+      "bookName": "花仁萝卜干",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p212",
+      "bookName": "糖醋萝卜丝",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p213",
+      "bookName": "青笋拌折耳根",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p215",
+      "bookName": "拌辣菜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p216",
+      "bookName": "拌盐白菜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p217",
+      "bookName": "米汤煮青菜",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "needs-source-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p218",
+      "bookName": "酸菜豆瓣汤",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p219",
+      "bookName": "过浆豆花",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p221",
+      "bookName": "蒜泥蚕豆",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p222",
+      "bookName": "酱胡豆",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p223",
+      "bookName": "熏豆腐干",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p224",
+      "bookName": "拌鱼香豌豆",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p225",
+      "bookName": "熏豆筋",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "alternate-source-required",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    },
+    {
+      "entryId": "dz1979-p226",
+      "bookName": "蛋酥花仁",
+      "sourceProjectMatchBefore": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "proposedClassification": "book-only",
+      "projectName": null,
+      "projectIds": [],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
+      "evidence": [
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
+      ],
+      "sourceQuality": "ready-for-later-promotion-review",
+      "reviewRequired": false,
+      "manyToOne": null,
+      "collision": null
+    }
+  ]
+}
