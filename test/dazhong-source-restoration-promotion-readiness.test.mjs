@@ -305,7 +305,7 @@ test('source, crosswalk, canonical, and production data are unchanged by this pl
   const promoted = new Set(readiness.summary.promotedNewRecipeIds);
   const promotedInProduction = productionIds.filter((id) => id.startsWith('dz1979-'));
   assert.deepEqual(promotedInProduction.sort(), [...promoted].sort());
-  assert.equal(promoted.size, 15);
+  assert.equal(promoted.size, 20);
 });
 
 test('proposed stable IDs are unique and do not collide with production prefixes', () => {
@@ -331,8 +331,8 @@ test('manifest asserts no promotion and no production writes', () => {
 
 test('promotionState marks exactly the promoted batch and keeps dispositions stable', () => {
   const promotedIds = new Set(readiness.summary.promotedNewRecipeIds);
-  assert.equal(readiness.summary.promotedNewRecipeCount, 15);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 24);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 20);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 19);
   assert.deepEqual(promotedIds, new Set([
     'dz1979-p143',
     'dz1979-p180',
@@ -349,6 +349,11 @@ test('promotionState marks exactly the promoted batch and keeps dispositions sta
     'dz1979-p216',
     'dz1979-p218',
     'dz1979-p221',
+    'dz1979-p183',
+    'dz1979-p198',
+    'dz1979-p153',
+    'dz1979-p209',
+    'dz1979-p223',
   ]));
   const promotedEntries = readiness.entries.filter((entry) => promotedIds.has(entry.entryId));
   for (const entry of promotedEntries) {

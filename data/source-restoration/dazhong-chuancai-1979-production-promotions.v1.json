@@ -330,6 +330,115 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b04",
+      "status": "promoted",
+      "baselineCommit": "a11c076a60f9c1568fc8a30fd6b7239d58cb0e9d",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch4-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch4-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p183",
+          "productionId": "dz1979-p183",
+          "name": "酱烧苦瓜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p183",
+            "bookName": "酱烧苦瓜",
+            "bookPage": 183,
+            "pdfPage": 196,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p198",
+          "productionId": "dz1979-p198",
+          "name": "酱烧茄子",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p198",
+            "bookName": "酱烧茄子",
+            "bookPage": 198,
+            "pdfPage": 211,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p153",
+          "productionId": "dz1979-p153",
+          "name": "绍子蒸蛋",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p153",
+            "bookName": "绍子蒸蛋",
+            "bookPage": 153,
+            "pdfPage": 166,
+            "category": "禽蛋鱼类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p209",
+          "productionId": "dz1979-p209",
+          "name": "拌素三丝",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p209",
+            "bookName": "拌素三丝",
+            "bookPage": 209,
+            "pdfPage": 222,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p223",
+          "productionId": "dz1979-p223",
+          "name": "熏豆腐干",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p223",
+            "bookName": "熏豆腐干",
+            "bookPage": 223,
+            "pdfPage": 236,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }

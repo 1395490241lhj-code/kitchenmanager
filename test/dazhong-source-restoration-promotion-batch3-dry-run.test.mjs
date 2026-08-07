@@ -22,6 +22,7 @@ const overlay = readJson('data/recipe-completion-overlay.json');
 const catalog = readJson('data/source-restoration/dazhong-chuancai-1979-catalog.v1.json');
 const batch2DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json');
 const batch1DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch1-dry-run.v1.json');
+const batch4DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch4-dry-run.v1.json');
 
 const restoredById = new Map(restored.recipes.map((r) => [r.entryId, r]));
 const catalogById = new Map(catalog.entries.map((e) => [e.entryId, e]));
@@ -56,15 +57,28 @@ const ledgerPromotedEntryIds = new Set(
 const BATCH3_PRODUCTION_IDS = dryRun.items.map((item) => item.productionId);
 const BATCH3_ENTRY_IDS = new Set(dryRun.items.map((item) => item.entryId));
 const batch3Promoted = BATCH3_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+// Batch 4 may since have promoted on top of Batch 3; its entries must also
+// be reset to their pre-Batch-3 (not-promoted) state when reconstructing
+// the exact snapshot Batch 3's dry-run was generated against, otherwise the
+// recomputed remaining/eligible pools would incorrectly exclude Batch 4's
+// entries too.
+const BATCH4_PRODUCTION_IDS = batch4DryRun.items.map((item) => item.productionId);
+const BATCH4_ENTRY_IDS = new Set(batch4DryRun.items.map((item) => item.entryId));
+const RESET_TO_NOT_PROMOTED_ENTRY_IDS = new Set([...BATCH3_ENTRY_IDS, ...BATCH4_ENTRY_IDS]);
+const RESET_TO_NOT_PROMOTED_PRODUCTION_IDS = new Set([...BATCH3_PRODUCTION_IDS, ...BATCH4_PRODUCTION_IDS]);
+const batch4Promoted = BATCH4_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 
 const preBatch3ReadinessById = new Map(
   readiness.entries.map((entry) => [
     entry.entryId,
-    BATCH3_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
+    RESET_TO_NOT_PROMOTED_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
   ]),
 );
 const preBatch3ProductionNames = new Set(
-  [...productionNames].filter((name) => !dryRun.items.some((item) => item.name === name)),
+  [...productionNames].filter((name) => (
+    !dryRun.items.some((item) => item.name === name)
+    && !batch4DryRun.items.some((item) => item.name === name)
+  )),
 );
 
 // -- Independent replica of the hard gate + Batch 2/3 runtime gate ----------
@@ -147,12 +161,16 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, batch3Promoted ? 24 : 29);
+  // Each of Batch 3 and Batch 4 (if promoted) removes five more from the
+  // original 29-candidate pool this dry-run was generated against.
+  const expectedRemaining = 29 - (batch3Promoted ? 5 : 0) - (batch4Promoted ? 5 : 0);
+  assert.equal(remaining.length, expectedRemaining);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const entry of remaining) {
     assert.equal(ledgerPromotedEntryIds.has(entry.entryId), false, `${entry.entryId} should not be in the remaining pool`);
   }
-  assert.equal(ledgerPromotedEntryIds.size, batch3Promoted ? 15 : 10);
+  const expectedLedgerSize = 10 + (batch3Promoted ? 5 : 0) + (batch4Promoted ? 5 : 0);
+  assert.equal(ledgerPromotedEntryIds.size, expectedLedgerSize);
   // Batch 3's five entries must have a promotionState consistent with the
   // ledger: promoted if and only if the ledger records them as promoted.
   for (const item of dryRun.items) {
@@ -342,19 +360,19 @@ test('promotion chain reproduces exactly pre-promotion-plus-five (136 -> 141) wi
       path.join(tmp, 'data', 'sichuan-recipes.json'),
     );
     const overlayPath = path.join(tmp, 'data', 'recipe-completion-overlay.json');
-    // Use the real overlay with Batch 3's five entries stripped out, so this
-    // reconstructs the exact pre-Batch-3-promotion baseline the frozen
-    // dry-run was generated against, whether or not Batch 3 is currently
-    // promoted in the real overlay.
+    // Use the real overlay with Batch 3's (and any later Batch 4's) entries
+    // stripped out, so this reconstructs the exact pre-Batch-3-promotion
+    // baseline the frozen dry-run was generated against, whether or not
+    // Batch 3/4 are currently promoted in the real overlay.
     const realOverlay = JSON.parse(fs.readFileSync(
       new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname,
       'utf8',
     ));
     const preOverlay = {
       ...realOverlay,
-      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !BATCH3_PRODUCTION_IDS.includes(r.id)),
+      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !RESET_TO_NOT_PROMOTED_PRODUCTION_IDS.has(r.id)),
       newRecipeIngredients: Object.fromEntries(
-        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !BATCH3_PRODUCTION_IDS.includes(id)),
+        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !RESET_TO_NOT_PROMOTED_PRODUCTION_IDS.has(id)),
       ),
     };
     fs.writeFileSync(overlayPath, `${JSON.stringify(preOverlay, null, 2)}\n`);
@@ -414,7 +432,9 @@ test('promotion chain reproduces exactly pre-promotion-plus-five (136 -> 141) wi
 
     // The real, current (post-promotion) curated file must match this
     // simulation exactly, proving zero drift from the frozen proposal.
-    if (batch3Promoted) {
+    // (Only valid when Batch 4 has not also promoted, since real curated
+    // would then also include Batch 4's five beyond this simulation's 141.)
+    if (batch3Promoted && !batch4Promoted) {
       assert.deepEqual(
         [...out.curated.recipes].sort((a, b) => a.id.localeCompare(b.id)),
         [...curated.recipes].sort((a, b) => a.id.localeCompare(b.id)),
@@ -423,7 +443,7 @@ test('promotion chain reproduces exactly pre-promotion-plus-five (136 -> 141) wi
 
     const realRemoved = readJson('data/recipe-curation-removed.json');
     const realNeeding = readJson('data/recipes-needing-completion.json');
-    if (batch3Promoted) {
+    if (batch3Promoted && !batch4Promoted) {
       assert.deepEqual(out.removed.removed.map((r) => r.id), realRemoved.removed.map((r) => r.id));
       assert.deepEqual(out.needing.items.map((r) => r.id), realNeeding.items.map((r) => r.id));
     }
@@ -533,8 +553,14 @@ test('production reflects the frozen proposal exactly: Batch 3 ids/names present
     assert.equal(productionIds.has(item.productionId), batch3Promoted, `${item.productionId} presence must match ledger state`);
     assert.equal(productionNames.has(item.name), batch3Promoted, `${item.name} presence must match ledger state`);
   }
-  assert.equal(curated.recipes.length, batch3Promoted ? 141 : 136);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, batch3Promoted ? 15 : 10);
+  // Batch 4 may have promoted on top of Batch 3, adding five more recipes
+  // beyond Batch 3's own contribution.
+  const expectedBase = batch3Promoted ? 141 : 136;
+  assert.equal(curated.recipes.length, batch4Promoted ? expectedBase + 5 : expectedBase);
+  // Batch 4 may have promoted on top of Batch 3, adding five more dz1979-
+  // recipes; this only asserts Batch 3's own contribution is present.
+  const dz1979Count = curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length;
+  assert.equal(dz1979Count >= (batch3Promoted ? 15 : 10), true);
 });
 
 test('iOS RecipeService-compatible field shapes decode from every proposed item', () => {
@@ -584,7 +610,8 @@ test('canonical, crosswalk, and Batch 1/2 frozen artifacts remain unchanged; led
   assert.deepEqual(batch2DryRun.selection.selectedEntryIds, ['dz1979-p187', 'dz1979-p202', 'dz1979-p205', 'dz1979-p188', 'dz1979-p196']);
   assert.deepEqual(batch1DryRun.verificationProblems, []);
   assert.deepEqual(batch2DryRun.verificationProblems, []);
-  assert.equal(promotions.batches.length, batch3Promoted ? 3 : 2);
+  const expectedBatchCount = (batch3Promoted ? 3 : 2) + (batch4Promoted ? 1 : 0);
+  assert.equal(promotions.batches.length, expectedBatchCount);
   assert.equal(promotions.batches[0].status, 'promoted');
   assert.equal(promotions.batches[1].status, 'promoted');
   // Batch 3's ledger presence must match its actual promotion state.

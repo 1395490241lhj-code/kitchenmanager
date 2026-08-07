@@ -43,10 +43,13 @@ const ledgerPromotedEntryIds = new Set(
 
 const EXPECTED_PRODUCTION_IDS = ['dz1979-p187', 'dz1979-p188', 'dz1979-p196', 'dz1979-p202', 'dz1979-p205'];
 const BATCH3_PRODUCTION_IDS = ['dz1979-p212', 'dz1979-p216', 'dz1979-p218', 'dz1979-p221', 'dz1979-p206'];
-// Batch 3 may since have been promoted on top of Batch 1/2; this file only
-// regression-tests Batch 2's own promoted content, so it stays accurate
-// either way by checking Batch 3's presence via the ledger.
+const BATCH4_PRODUCTION_IDS = ['dz1979-p183', 'dz1979-p198', 'dz1979-p153', 'dz1979-p209', 'dz1979-p223'];
+// Batch 3/4 may since have been promoted on top of Batch 1/2; this file
+// only regression-tests Batch 2's own promoted content, so it stays
+// accurate either way by checking their presence via the ledger.
 const batch3Promoted = BATCH3_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const batch4Promoted = BATCH4_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0);
 
 // -- Independent replica of the hard gate + Batch 2 runtime gate -----------
 // Deliberately written from scratch against readiness/canonical data rather
@@ -146,7 +149,7 @@ test('remaining candidate pool excludes Batch 1 promoted entries and matches the
   for (const item of dryRun.items) {
     assert.ok(ledgerPromotedEntryIds.has(item.entryId), `${item.entryId} should be in the ledger after promotion`);
   }
-  assert.equal(ledgerPromotedEntryIds.size, batch3Promoted ? 15 : 10);
+  assert.equal(ledgerPromotedEntryIds.size, 10 + laterBatchesPromotedCount * 5);
 });
 
 test('the funnel counts match an independently recomputed selection (34 -> 24 -> 22 -> 5)', () => {
@@ -362,9 +365,11 @@ test('promotion-aware: stripping the five promoted ids from a temp copy and re-a
       needing: JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'recipes-needing-completion.json'), 'utf8')),
     };
 
-    // Real production is now 136 (post Batch1+2) or 141 (post Batch3 too);
-    // the re-derived temp result must match it exactly, proving no drift.
-    const expectedCount = batch3Promoted ? 141 : 136;
+    // Real production is now 136 (post Batch1+2), 141 (post Batch3 too), or
+    // 146 (post Batch4 too); the re-derived temp result must match it
+    // exactly, proving no drift. Derived from real curated directly so it
+    // stays correct regardless of how many later batches have promoted.
+    const expectedCount = curated.recipes.length;
     assert.equal(curated.recipes.length, expectedCount);
     assert.equal(out.curated.recipes.length, expectedCount);
     assert.deepEqual(out.curated, curated);
@@ -520,8 +525,8 @@ test('promotion-aware: production now contains exactly the frozen Batch 2 propos
   // plus Batch 2's five (10 dz1979- recipes total), and each Batch 2
   // recipe/ingredient map in production must be byte-identical to its
   // frozen dry-run proposal.
-  assert.equal(curated.recipes.length, batch3Promoted ? 141 : 136);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, batch3Promoted ? 15 : 10);
+  assert.equal(curated.recipes.length, 136 + laterBatchesPromotedCount * 5);
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 10 + laterBatchesPromotedCount * 5);
   for (const item of dryRun.items) {
     assert.ok(productionIds.has(item.productionId), `${item.productionId} should be in production after promotion`);
     assert.ok(productionNames.has(item.name), `${item.name} should be in production after promotion`);
@@ -585,7 +590,7 @@ test('canonical, crosswalk, and Batch 1 frozen artifacts remain unchanged; ledge
   assert.equal(batch1RuntimeAudit.summary.coreCompatibilityCounts['exact-compatible'], 5);
   assert.equal(batch1RuntimeAudit.summary.coreCompatibilityCounts['expected-unit-confirmation'], 2);
   assert.equal(batch1RuntimeAudit.summary.coreCompatibilityCounts['unresolved-name-match'], 0);
-  assert.equal(promotions.batches.length, batch3Promoted ? 3 : 2);
+  assert.equal(promotions.batches.length, 2 + laterBatchesPromotedCount);
   assert.equal(promotions.batches[0].status, 'promoted');
   assert.equal(promotions.batches[0].batchId, 'dz1979-production-b01');
   assert.equal(promotions.batches[1].status, 'promoted');
