@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import { normalizeIngredientAmount } from '../src/ingredients.js';
+
 const readJson = (relativePath) => JSON.parse(
   fs.readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8'),
 );
@@ -31,6 +33,10 @@ const VALID_DISPOSITIONS = new Set([
 
 const crosswalkById = new Map(crosswalk.entries.map((e) => [e.entryId, e]));
 const catalogById = new Map(catalog.entries.map((e) => [e.entryId, e]));
+
+const newCandidates = () => readiness.entries.filter(
+  (entry) => entry.promotionDisposition === 'new-recipe-candidate',
+);
 
 test('manifest covers exactly 147 entries with no duplicates', () => {
   const ids = readiness.entries.map((entry) => entry.entryId);
@@ -144,7 +150,7 @@ test('every new-recipe-candidate carries the full conversion preview', () => {
     'provenanceStrategy',
     'schemaGapNotes',
     'methodPreview',
-    'ingredientPreview',
+    'productionIngredientPlan',
   ];
   const candidates = readiness.entries.filter((e) => e.promotionDisposition === 'new-recipe-candidate');
   assert.ok(candidates.length > 0);
@@ -158,8 +164,151 @@ test('every new-recipe-candidate carries the full conversion preview', () => {
     assert.equal(entry.proposedName, catalogById.get(entry.entryId).bookName, entry.entryId);
     assert.ok(entry.proposedIdStrategy.length > 0, entry.entryId);
     assert.ok(entry.methodPreview.length > 0, entry.entryId);
-    assert.ok(entry.ingredientPreview.length > 0, entry.entryId);
+    assert.ok(entry.productionIngredientPlan.inventoryIngredients.length > 0, entry.entryId);
+    assert.ok(['exact-comparable', 'mixed', 'display-only']
+      .includes(entry.productionIngredientPlan.quantityReadiness), entry.entryId);
   }
+});
+
+test('exact-mass ingredients convert to numeric string qty with unit g', () => {
+  for (const entry of newCandidates()) {
+    for (const ingredient of entry.productionIngredientPlan.inventoryIngredients) {
+      if (!ingredient.inventoryComparable) continue;
+      const conversion = ingredient.conversionReason;
+      if (conversion.startsWith('exact-mass')) {
+        assert.equal(ingredient.unit, 'g', entry.entryId);
+        assert.ok(/^\d+(\.\d+)?$/.test(ingredient.qty), `${entry.entryId} qty not numeric string`);
+        assert.equal(ingredient.displayQuantity, null, entry.entryId);
+      }
+    }
+  }
+});
+
+test('exact-count ingredients convert to numeric string qty with the real count unit', () => {
+  let seen = 0;
+  for (const entry of newCandidates()) {
+    for (const ingredient of entry.productionIngredientPlan.inventoryIngredients) {
+      if (!ingredient.conversionReason.startsWith('exact-count')) continue;
+      seen += 1;
+      assert.equal(ingredient.inventoryComparable, true, entry.entryId);
+      assert.ok(/^\d+(\.\d+)?$/.test(ingredient.qty), entry.entryId);
+      assert.ok(ingredient.unit && ingredient.unit !== 'g', `${entry.entryId} unit=${ingredient.unit}`);
+      assert.equal(ingredient.displayQuantity, null, entry.entryId);
+    }
+  }
+  assert.ok(seen > 0, 'expected at least one exact-count conversion');
+});
+
+test('non-exact quantities are never fabricated as exact', () => {
+  for (const entry of newCandidates()) {
+    for (const ingredient of entry.productionIngredientPlan.inventoryIngredients) {
+      if (ingredient.inventoryComparable) continue;
+      assert.equal(ingredient.qty, null, entry.entryId);
+      assert.equal(ingredient.unit, null, entry.entryId);
+      assert.ok(ingredient.displayQuantity, entry.entryId);
+      assert.ok(/exact-mass|exact-count/.test(ingredient.conversionReason) === false, entry.entryId);
+    }
+  }
+});
+
+test('unallocated group totals are never split into per-member quantities', () => {
+  // No unallocated-group-total ingredient exists in the 39 candidates, but
+  // if one ever appears the plan must not assign qty to it.
+  for (const entry of newCandidates()) {
+    for (const ingredient of entry.productionIngredientPlan.inventoryIngredients) {
+      if (!ingredient.conversionReason.includes('unallocated-group-total')) continue;
+      assert.equal(ingredient.qty, null, entry.entryId);
+      assert.equal(ingredient.unit, null, entry.entryId);
+      assert.equal(ingredient.inventoryComparable, false, entry.entryId);
+    }
+  }
+});
+
+test('every inventoryComparable plan item normalizes to finite qty and non-empty unit', () => {
+  for (const entry of newCandidates()) {
+    for (const ingredient of entry.productionIngredientPlan.inventoryIngredients) {
+      if (!ingredient.inventoryComparable) continue;
+      const normalized = normalizeIngredientAmount(ingredient.qty, ingredient.unit);
+      assert.ok(Number.isFinite(Number(normalized.qty)), `${entry.entryId} ${ingredient.productionItem}`);
+      assert.ok(normalized.unit, `${entry.entryId} ${ingredient.productionItem} empty unit`);
+    }
+  }
+});
+
+test('素菜 tag is never auto-added from category alone', () => {
+  for (const entry of newCandidates()) {
+    if (entry.category !== '蔬菜类') continue;
+    if (!entry.proposedTags.includes('素菜')) continue;
+    const items = [
+      ...entry.productionIngredientPlan.inventoryIngredients.map((i) => i.productionItem),
+      ...entry.productionIngredientPlan.methodOnlyAnalysis.map((i) => i.sourceRawItemText),
+    ];
+    assert.ok(items.length > 0, entry.entryId);
+  }
+});
+
+test('animal-derived recipes never carry the 素菜 tag', () => {
+  const animalKeywords = [
+    '猪', '牛', '羊', '鸡', '鸭', '鹅', '鱼', '虾', '蟹', '兔',
+    '蛋', '骨', '血', '肝', '腰', '肚', '肠', '肺', '髓',
+    '火腿', '腊肉', '香肠', '肉丝', '肉片', '肉末', '猪油', '化猪油',
+  ];
+  for (const entry of newCandidates()) {
+    const items = [
+      ...entry.productionIngredientPlan.inventoryIngredients.map((i) => i.productionItem),
+      ...entry.productionIngredientPlan.methodOnlyAnalysis.map((i) => i.sourceRawItemText),
+    ];
+    const hasAnimal = items.some((item) => animalKeywords.some((keyword) => item.includes(keyword)));
+    if (hasAnimal) {
+      assert.ok(!entry.proposedTags.includes('素菜'), entry.entryId);
+    }
+  }
+});
+
+test('39 new-recipe-candidates are unchanged', () => {
+  assert.equal(readiness.summary.newRecipeCandidateCount, 39);
+  assert.equal(
+    readiness.entries.filter((e) => e.promotionDisposition === 'new-recipe-candidate').length,
+    39,
+  );
+});
+
+test('disposition statistics stay 50/39/45/12/1', () => {
+  assert.deepEqual(readiness.summary.dispositionCounts, {
+    'existing-project-match': 50,
+    'new-recipe-candidate': 39,
+    'blocked-source-review': 45,
+    'blocked-alternate-source': 12,
+    'blocked-crosswalk': 1,
+  });
+});
+
+test('source, crosswalk, canonical, and production data are unchanged by this plan', () => {
+  assert.deepEqual(crosswalk.summary.classificationCounts, {
+    'exact-name': 74,
+    'confirmed-alias': 7,
+    'probable-match-needs-review': 1,
+    'book-only': 65,
+  });
+  const restored = readJson(
+    'data/source-restoration/dazhong-chuancai-1979-recipes.v1.json',
+  );
+  assert.equal(restored.applicationReady, false);
+  assert.deepEqual(
+    restored.recipes.find((r) => r.entryId === 'dz1979-p173').projectMatch,
+    {
+      classification: 'probable-match-needs-review',
+      projectName: null,
+      projectIds: [],
+      candidateProjectName: '干煸鳝鱼',
+      reviewRequired: true,
+    },
+  );
+  const productionIds = [
+    ...curated.recipes.map((r) => r.id),
+    ...full.recipes.map((r) => r.id),
+  ];
+  assert.equal(productionIds.some((id) => id.startsWith('dz1979-')), false);
 });
 
 test('proposed stable IDs are unique and do not collide with production prefixes', () => {

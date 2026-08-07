@@ -36,9 +36,11 @@ dz1979-p129 凉拌猪肺、p130 蕃茄丝瓜肉片汤、p137 椒麻鸡块、p143
 ## 转换预览规则
 
 - production name: 使用 catalog bookName。
-- proposed tags: 机械映射 `['川菜', category]` + 主料关键词（如 猪肉/牛肉/鸡肉/鱼/豆腐/蛋）+ 蔬菜类追加 `素菜`。
+- proposed tags: 默认安全 tags 只生成 `['川菜', 原书category]`；其他 tags 仅当可从实际 ingredients 明确证明时追加（主料关键词如 猪肉/牛肉/鸡肉/鱼/豆腐/蛋；`素菜` 仅在全部原料为植物性且无任何动物性原料时添加）。不再按 category=蔬菜类 机械添加素菜。
 - stable ID: `dz1979-p<bookPage>`（如 dz1979-p212），与 entryId 同源、不撞现有 ex-/fam-/comp-/static-/hoc- 前缀。
-- ingredients: 写入 `recipe_ingredients[id]`，`item=rawItemText`、`qty=rawQuantityText` 字符串、`unit=null`；不得写入 normalized 数值。
+- ingredients（productionIngredientPlan）: 写入 `recipe_ingredients[id]`。exact-mass 转 `qty=String(qty)` + `unit="g"`；exact-count 转 `qty=String(qty)` + 真实计数单位；same-for-each 安全拆成 members 并继承相同精确 qty/unit；unallocated-group-total 不擅自分配。range/approximate/qualitative/unresolved 不伪造精确数值，保留 rawQuantityText 为 displayQuantity，`inventoryComparable=false`。
+- methodOnlyIngredients: 汤/水/清洗材料等烹调介质不入库存；核心食材但数量无法安全表示时标记 conversion warning（不静默遗漏，需人工确认）。
+- 每道 new candidate 记录 `productionQuantityReadiness`：exact-comparable / mixed / display-only。
 - method: 由 `methodSummary.steps` 拼接 `"order. summary"` 换行文本（methodPreview），经 completion overlay `recipes{id:{method}}` 或 curated JSON `recipe.method` 落地。
 - provenance: 新建独立 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），production schema 无对应字段。
 
@@ -55,6 +57,17 @@ dz1979-p129 凉拌猪肺、p130 蕃茄丝瓜肉片汤、p137 椒麻鸡块、p143
 
 基本菜谱（`{id,name,tags,method}` + `recipe_ingredients`）可直接容纳 new-recipe-candidate，**无需扩展 production schema**。不可直接承载的 source 字段：characteristicsSummary、uncertainties、confirmedReadings、confidence、sourceQuality、normalized 数值数量（production 仅字符串 qty/unit）、书页 provenance —— 这些应保留在独立 provenance 侧文件，不改现有 schema。
 
+## 转换能力统计（39 道 new-recipe-candidate）
+
+- productionQuantityReadiness: exact-comparable **36** ／ mixed **3** ／ display-only **0**
+- mixed（含非精确数量）: dz1979-p201 炝黄瓜、p203 炝绿豆芽、p207 炝莲花白（均为花椒“十余粒”）
+- methodOnly 核心食材数量警告: dz1979-p129 凉拌猪肺（姜、花椒）、p130 蕃茄丝瓜肉片汤（胡椒面）——需人工确认后决定是否入库存
+- 素菜 tag 修正: 不再按蔬菜类机械添加；经实际原料证明后仅植物性原料菜谱带素菜，任何含肉/禽/鱼/蛋/内脏/动物油脂的菜谱绝无素菜（校验 0 违规）
+
+## ID 兼容性结论
+
+`dz1979-pXXX` 与现有 330 个 production ID（curated 126 + full 264 + overlay newRecipes）无冲突；PWA 的 recipe merge/detail/plan 链仅对 `creative-`/`adhoc_` 前缀特判（用户/AI 内容，与 production 库无关），ex-/comp-/fam-/static-/hoc- 只生成不解析；iOS `Recipe.id` 按普通 String 处理。结论：可安全采用，无需修改 runtime 代码。
+
 ## 下一步建议
 
 建议最小 promotion batch 为 **5-8 道** new-recipe-candidate，逐批人工复核后先经 completion overlay 链落地，再物化 curated JSON（复刻 curate-recipes.js 合并逻辑），确保 PWA 与 iOS 同时可见。B 类 12 道与 blocked-source-review 45 道不进入任何 batch。
@@ -68,4 +81,7 @@ dz1979-p129 凉拌猪肺、p130 蕃茄丝瓜肉片汤、p137 椒麻鸡块、p143
 - alternate 12 道全部 blocked-alternate-source：通过
 - needs-source-review 不进入 new-recipe-candidate：通过
 - 无 dangling project ID、applicationReady=false：通过
+- productionQuantityReadiness 统计（36/3/0）：通过
+- 素菜 tag 无动物性违规（0 例）：通过
+- dz1979- ID 与 330 个 production ID 无冲突、runtime 无前缀依赖：通过
 - 未修改 Curated/Full/HOC、production recipe 数据、UI/cache、canonical source、name-matches、adjudication audit

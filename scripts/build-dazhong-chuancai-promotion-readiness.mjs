@@ -65,6 +65,23 @@ const productionChainAudit = {
   minimalPromotionBatchSuggestion: '建议每批 5-8 道 new-recipe-candidate，逐批人工复核后落地，先经 overlay 链再物化 curated JSON。',
 };
 
+// -- ID compatibility audit (read-only runtime code inspection) ------------
+
+const idCompatibilityAudit = {
+  proposedIdPattern: 'dz1979-p<bookPage>',
+  collisionWithProductionIds: false,
+  collisionCheckBasis: 'curated 126 + full 264 + completion overlay newRecipes，共 330 个现有 production ID，无 dz1979-/dz- 前缀。',
+  pwaPrefixDependencies: {
+    found: false,
+    note: 'PWA 仅对 creative-（AI 菜）与 adhoc_（临时计划项）做前缀特判，与 production 库无关；ex-/comp-/fam-/static-/hoc- 前缀只生成不解析，recipe merge/detail/plan 链按普通字符串处理 ID。',
+  },
+  iosIdHandling: {
+    plainString: true,
+    note: 'RemoteRecipe.id 按 String 解码（Int 自动转 String），无前缀解析。',
+  },
+  conclusion: 'dz1979-pXXX 与现有 production ID 无冲突；PWA merge/detail/plan 链与 iOS 均按普通字符串处理 recipe ID，可安全采用，无需修改 runtime 代码。',
+};
+
 // -- Disposition rules -----------------------------------------------------
 // Priority: alternate-source > source-review > crosswalk > existing/new.
 
@@ -84,13 +101,31 @@ const MAIN_INGREDIENT_TAGS = [
   ['虾', '虾'],
 ];
 
+// Animal-derived detection for the 素菜 tag. 菜油/香油/麻油/辣椒油 are
+// plant oils and are deliberately not matched by the generic keywords here.
+const ANIMAL_KEYWORDS = [
+  '猪', '牛', '羊', '鸡', '鸭', '鹅', '鱼', '虾', '蟹', '兔',
+  '蛋', '骨', '血', '肝', '腰', '肚', '肠', '肺', '髓',
+  '火腿', '腊肉', '香肠', '肉丝', '肉片', '肉末', '猪油', '化猪油',
+];
+
+function isAnimalDerived(text) {
+  return ANIMAL_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
 function proposedTagsFor(entryId, category) {
   const recipe = recipeByEntryId.get(entryId);
   const tags = ['川菜', category];
-  const firstItem = recipe?.ingredients?.[0]?.rawItemText ?? '';
-  const match = MAIN_INGREDIENT_TAGS.find(([keyword]) => firstItem.includes(keyword));
+  const items = [
+    ...(recipe?.ingredients ?? []).map((ingredient) => ingredient.rawItemText),
+    ...(recipe?.methodOnlyIngredients ?? []).map((ingredient) => ingredient.rawItemText),
+  ];
+  const match = MAIN_INGREDIENT_TAGS.find(([keyword]) => (
+    items.some((item) => item.includes(keyword))
+  ));
   if (match) tags.push(match[1]);
-  if (category === '蔬菜类') tags.push('素菜');
+  const allPlant = items.length > 0 && items.every((item) => !isAnimalDerived(item));
+  if (allPlant) tags.push('素菜');
   return tags;
 }
 
@@ -100,13 +135,129 @@ function methodPreviewFor(entryId) {
   return steps.map((step) => `${step.order}. ${step.summary}`).join('\n');
 }
 
-function ingredientPreviewFor(entryId) {
-  const recipe = recipeByEntryId.get(entryId);
-  return (recipe?.ingredients ?? []).map((ingredient) => ({
-    item: ingredient.rawItemText,
-    qty: ingredient.rawQuantityText ?? null,
+// -- Production ingredient plan -------------------------------------------
+// exact quantities convert to production qty/unit strings; everything else
+// stays display-only with inventoryComparable=false.
+
+function ingredientToProductionPlan(ingredient) {
+  const quantity = ingredient.normalizedQuantity ?? {};
+  const rawItem = ingredient.rawItemText;
+  const rawQuantity = ingredient.rawQuantityText ?? null;
+  const base = {
+    sourceRawItemText: rawItem,
+    sourceRawQuantityText: rawQuantity,
+  };
+
+  if (ingredient.memberQuantityMode === 'unallocated-group-total') {
+    return [{
+      ...base,
+      productionItem: rawItem,
+      qty: null,
+      unit: null,
+      displayQuantity: rawQuantity,
+      inventoryComparable: false,
+      conversionReason: 'unallocated-group-total：组内数量未分配，不得擅自拆分，保留原文展示。',
+    }];
+  }
+
+  if (ingredient.memberQuantityMode === 'same-for-each') {
+    return (ingredient.members ?? []).map((member) => {
+      const exact = quantity.kind === 'exact-mass' || quantity.kind === 'exact-count';
+      return {
+        sourceRawItemText: member.item,
+        sourceRawQuantityText: rawQuantity,
+        productionItem: member.item,
+        qty: exact ? String(quantity.qty) : null,
+        unit: exact ? (quantity.kind === 'exact-mass' ? 'g' : quantity.unit) : null,
+        displayQuantity: exact ? null : rawQuantity,
+        inventoryComparable: exact,
+        conversionReason: `same-for-each：组“${rawItem}”每项 ${quantity.qty}${quantity.unit}，安全拆分继承。`,
+      };
+    });
+  }
+
+  if (quantity.kind === 'exact-mass') {
+    return [{
+      ...base,
+      productionItem: rawItem,
+      qty: String(quantity.qty),
+      unit: 'g',
+      displayQuantity: null,
+      inventoryComparable: true,
+      conversionReason: `exact-mass：${rawQuantity} 折算 ${quantity.qty}g。`,
+    }];
+  }
+
+  if (quantity.kind === 'exact-count') {
+    return [{
+      ...base,
+      productionItem: rawItem,
+      qty: String(quantity.qty),
+      unit: quantity.unit,
+      displayQuantity: null,
+      inventoryComparable: true,
+      conversionReason: `exact-count：${rawQuantity} 折算 ${quantity.qty}${quantity.unit ?? ''}。`,
+    }];
+  }
+
+  return [{
+    ...base,
+    productionItem: rawItem,
+    qty: null,
     unit: null,
-  }));
+    displayQuantity: rawQuantity,
+    inventoryComparable: false,
+    conversionReason: `${quantity.kind}：不伪造精确数值，保留原文“${rawQuantity}”作为 displayQuantity。`,
+  }];
+}
+
+function productionIngredientPlanFor(entryId) {
+  const recipe = recipeByEntryId.get(entryId);
+  const inventoryIngredients = (recipe?.ingredients ?? [])
+    .flatMap((ingredient) => ingredientToProductionPlan(ingredient));
+
+  const methodOnlyAnalysis = (recipe?.methodOnlyIngredients ?? []).map((moi) => {
+    const text = moi.rawItemText;
+    const isCookingMedium = /汤|开水|水$|水，/.test(text);
+    if (isCookingMedium) {
+      return {
+        sourceRawItemText: text,
+        sourceRawQuantityText: moi.rawQuantityText ?? null,
+        classification: 'cooking-medium',
+        includedInProduction: false,
+        conversionWarning: null,
+        reason: '汤/水为烹调介质，不入库存。',
+      };
+    }
+    const isOptionalAlternative = /替代|如无|可加|可选|附注/.test(moi.use ?? '');
+    if (isOptionalAlternative) {
+      return {
+        sourceRawItemText: text,
+        sourceRawQuantityText: moi.rawQuantityText ?? null,
+        classification: 'optional-alternative',
+        includedInProduction: false,
+        conversionWarning: null,
+        reason: moi.use ?? '可选/替代项，非核心库存食材。',
+      };
+    }
+    return {
+      sourceRawItemText: text,
+      sourceRawQuantityText: moi.rawQuantityText ?? null,
+      classification: 'core-no-quantity',
+      includedInProduction: false,
+      conversionWarning: `做法中的核心食材但数量无法安全表示（rawQuantityText=${moi.rawQuantityText ?? 'null'}），需人工确认后决定是否入库存。`,
+      reason: moi.use ?? '',
+    };
+  });
+
+  const exactCount = inventoryIngredients.filter((ingredient) => ingredient.inventoryComparable).length;
+  const displayOnlyCount = inventoryIngredients.filter((ingredient) => !ingredient.inventoryComparable).length;
+  let quantityReadiness;
+  if (exactCount > 0 && displayOnlyCount === 0) quantityReadiness = 'exact-comparable';
+  else if (displayOnlyCount > 0 && exactCount === 0) quantityReadiness = 'display-only';
+  else quantityReadiness = 'mixed';
+
+  return { inventoryIngredients, methodOnlyAnalysis, quantityReadiness };
 }
 
 const entries = [];
@@ -161,17 +312,18 @@ for (const catalogEntry of catalog.entries) {
     item.proposedName = bookName;
     item.proposedTags = proposedTagsFor(entryId, category);
     item.proposedIdStrategy = `dz1979-p${bookPage}`;
-    item.ingredientTarget = 'data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。';
+    item.ingredientTarget = 'data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。';
     item.methodTarget = 'recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。';
     item.provenanceStrategy = '新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。';
     item.schemaGapNotes = [
       '基本 recipe + recipe_ingredients 无需 schema 扩展。',
       'characteristicsSummary 无 production 字段（可保留于 provenance 层）。',
       'uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。',
-      'normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。',
+      'normalized 数值数量转 qty/unit 数字字符串；range/approximate/qualitative/unresolved 不伪造精确值，仅保留 displayQuantity。',
+      'methodOnlyIngredients 中核心食材若数量无法安全表示，需人工确认后再入库存（见 methodOnlyAnalysis）。',
     ];
     item.methodPreview = methodPreviewFor(entryId);
-    item.ingredientPreview = ingredientPreviewFor(entryId);
+    item.productionIngredientPlan = productionIngredientPlanFor(entryId);
   }
 
   entries.push(item);
@@ -181,8 +333,19 @@ for (const catalogEntry of catalog.entries) {
 
 const problems = [];
 const dispositionCounts = {};
+const quantityReadinessCounts = { 'exact-comparable': 0, mixed: 0, 'display-only': 0 };
+const mixedQuantityCandidates = [];
+const conversionWarningCandidates = [];
 for (const entry of entries) {
   dispositionCounts[entry.promotionDisposition] = (dispositionCounts[entry.promotionDisposition] ?? 0) + 1;
+  if (entry.promotionDisposition === 'new-recipe-candidate') {
+    const readiness = entry.productionIngredientPlan.quantityReadiness;
+    quantityReadinessCounts[readiness] += 1;
+    if (readiness === 'mixed') mixedQuantityCandidates.push(entry.entryId);
+    const warnings = entry.productionIngredientPlan.methodOnlyAnalysis
+      .filter((item) => item.conversionWarning);
+    if (warnings.length > 0) conversionWarningCandidates.push(entry.entryId);
+  }
 }
 
 const uniqueIds = new Set(entries.map((entry) => entry.entryId));
@@ -258,6 +421,7 @@ const output = {
   },
   dispositionPriority: 'alternate-source > source-review > crosswalk > existing-match/new-candidate',
   productionChainAudit,
+  idCompatibilityAudit,
   summary: {
     totalEntries: entries.length,
     dispositionCounts,
@@ -268,6 +432,9 @@ const output = {
     blockedSourceReviewCount: dispositionCounts['blocked-source-review'],
     blockedAlternateSourceCount: dispositionCounts['blocked-alternate-source'],
     blockedCrosswalkCount: dispositionCounts['blocked-crosswalk'],
+    quantityReadinessCounts,
+    mixedQuantityCandidateIds: mixedQuantityCandidates.sort(),
+    methodOnlyConversionWarningCandidateIds: conversionWarningCandidates.sort(),
     schemaExtensionNeeded: false,
     verificationProblems: problems,
   },
