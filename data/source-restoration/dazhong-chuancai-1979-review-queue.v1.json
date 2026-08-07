@@ -1,0 +1,3260 @@
+{
+  "schema": "kitchenmanager.source-restoration.review-queue.v1",
+  "generatedAt": "2026-08-07T02:12:03Z",
+  "purpose": "人工复核队列：从已完成的《大众川菜》1979年来源恢复数据（147/147，11/11批次）中筛选并去重需要人工复核的条目，供人工复核阶段使用。不解决疑难项，不重新解释旧词，不修改147道来源数据。",
+  "source": {
+    "assembledFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+    "workerFiles": "data/source-restoration/dz1979-b*-worker.json",
+    "chunkFiles": "data/source-restoration/b*-chunks/*.json",
+    "baselineCommit": "63e6701"
+  },
+  "scope": {
+    "assembledRecipeCount": 147,
+    "completedBatchCount": 11,
+    "applicationReady": false,
+    "crosswalkOrPromotionPerformed": false
+  },
+  "scanCriteria": [
+    "projectMatch.reviewRequired=true",
+    "contentMissing=true",
+    "contentIncomplete=true",
+    "uncertainties非空",
+    "confidence.recognition或confidence.conversion未达high（含整体、原料级、methodSummary级、dialectOrOldTerms级、titleVisualCheck级）"
+  ],
+  "priorityPolicy": {
+    "high": "可能改变原料、数量、菜名、做法主体或项目匹配的问题",
+    "medium": "缺失正文/特点栏、模糊字（unclear-glyph）、旧词语义（old-term）等不影响已提取事实但需要澄清的问题",
+    "low": "不影响菜谱事实的元数据或轻微记录问题"
+  },
+  "summary": {
+    "dedupedReviewItemCount": 59,
+    "priorityCounts": {
+      "high": 46,
+      "medium": 13
+    },
+    "needsScanRecheckCount": 25,
+    "crosswalkOnlyCount": 34
+  },
+  "items": [
+    {
+      "entryId": "dz1979-p038",
+      "bookName": "鱼香碎滑肉",
+      "batch": "dz1979-b01",
+      "source": {
+        "pdfStartPage": 51,
+        "pdfEndPage": 52,
+        "bookStartPage": 38,
+        "bookEndPage": 39
+      },
+      "reviewReasons": [
+        "整体confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "overallConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「鱼香碎滑肉」，与目录一致（confidence=high）",
+        "原料栏已记录 13 项",
+        "特点栏文字已保留",
+        "projectMatch=exact-name，已匹配「鱼香碎滑肉」"
+      ],
+      "unresolvedQuestions": [
+        "整体confidence={'recognition': 'medium', 'conversion': 'high'}"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p038].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p041",
+      "bookName": "花椒肉",
+      "batch": "dz1979-b01",
+      "source": {
+        "pdfStartPage": 54,
+        "pdfEndPage": 54,
+        "bookStartPage": 41,
+        "bookEndPage": 41
+      },
+      "reviewReasons": [
+        "整体confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "overallConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「花椒肉」，与目录一致（confidence=high）",
+        "原料栏已记录 9 项",
+        "特点栏文字已保留",
+        "projectMatch=exact-name，已匹配「花椒肉」"
+      ],
+      "unresolvedQuestions": [
+        "整体confidence={'recognition': 'medium', 'conversion': 'high'}"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p041].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p042",
+      "bookName": "东坡肉",
+      "batch": "dz1979-b01",
+      "source": {
+        "pdfStartPage": 55,
+        "pdfEndPage": 56,
+        "bookStartPage": 42,
+        "bookEndPage": 43
+      },
+      "reviewReasons": [
+        "整体confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "overallConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「东坡肉」，与目录一致（confidence=high）",
+        "原料栏已记录 10 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第3步及附注 — 「下垫篾巴」",
+        "projectMatch=exact-name，已匹配「东坡肉」"
+      ],
+      "unresolvedQuestions": [
+        "整体confidence={'recognition': 'medium', 'conversion': 'high'}"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p042].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p049",
+      "bookName": "红枣煨肘",
+      "batch": "dz1979-b02",
+      "source": {
+        "pdfStartPage": 62,
+        "pdfEndPage": 62,
+        "bookStartPage": 49,
+        "bookEndPage": 49
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「红枣煨肘」，与目录一致（confidence=high）",
+        "原料栏已记录 4 项",
+        "特点栏文字已保留",
+        "projectMatch=exact-name，已匹配「红枣煨肘」"
+      ],
+      "unresolvedQuestions": [
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 做法第2–3步：一两冰糖炒成糖汁；再放冰糖"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p049].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p050",
+      "bookName": "板栗烧肉",
+      "batch": "dz1979-b02",
+      "source": {
+        "pdfStartPage": 63,
+        "pdfEndPage": 63,
+        "bookStartPage": 50,
+        "bookEndPage": 50
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「板栗烧肉」，与目录一致（confidence=high）",
+        "原料栏已记录 8 项",
+        "特点栏文字已保留",
+        "projectMatch=exact-name，已匹配「板栗烧肉」"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 做法第2步：然后□入锅内",
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 做法第1–2步：锅内下菜油一两；加入五钱冰糖"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p050].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p051",
+      "bookName": "红烧狮子头",
+      "batch": "dz1979-b02",
+      "source": {
+        "pdfStartPage": 64,
+        "pdfEndPage": 65,
+        "bookStartPage": 51,
+        "bookEndPage": 52
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "整体confidence.recognition或confidence.conversion未达high",
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "overallConfidenceLow",
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「红烧狮子头」，与目录一致（confidence=high）",
+        "原料栏已记录 14 项",
+        "特点栏文字已保留",
+        "projectMatch=exact-name，已匹配「红烧狮子头」"
+      ],
+      "unresolvedQuestions": [
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 做法第2、4步：酱油（二钱）；加酱油",
+        "原料「化猪油 一斤半二两」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：1斤 + 半斤 + 2两 = 500g + 250g + 100g",
+        "整体confidence={'recognition': 'high', 'conversion': 'medium'}"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p051].confidence",
+        "recipes[entryId=dz1979-p051].ingredients[1].confidence",
+        "recipes[entryId=dz1979-p051].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p066",
+      "bookName": "炖酥肉",
+      "batch": "dz1979-b03",
+      "source": {
+        "pdfStartPage": 79,
+        "pdfEndPage": 80,
+        "bookStartPage": 66,
+        "bookEndPage": 67
+      },
+      "reviewReasons": [
+        "整体confidence.recognition或confidence.conversion未达high",
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "overallConfidenceLow",
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「炖酥肉」，与目录一致（confidence=high）",
+        "原料栏已记录 10 项",
+        "特点栏文字已保留",
+        "已确认读法：做法 — 「泡泡肉」",
+        "已确认读法：做法 — 「豆分」",
+        "已确认读法：原料栏 — 「菜油 二斤耗二两」",
+        "projectMatch=exact-name，已匹配「炖酥肉」"
+      ],
+      "unresolvedQuestions": [
+        "原料「菜油 二斤耗二两」置信度未达high（{'recognition': 'high', 'conversion': 'low'}）：原文“二斤耗二两”：投入二斤=1000g，实际耗用二两=100g，总投入与耗用分别保存",
+        "整体confidence={'recognition': 'high', 'conversion': 'low'}"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p066].confidence",
+        "recipes[entryId=dz1979-p066].ingredients[1].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b03",
+            "detail": {
+              "entryId": "dz1979-p066",
+              "location": "原料栏",
+              "type": "unresolved-quantity",
+              "rawText": "菜油 二斤耗二两",
+              "candidates": [
+                {
+                  "qty": 1000,
+                  "unit": "g",
+                  "assumption": "投入二斤",
+                  "accepted": false
+                },
+                {
+                  "qty": 100,
+                  "unit": "g",
+                  "assumption": "耗用二两",
+                  "accepted": false
+                }
+              ],
+              "treatment": "原书同时写投入量和耗用量，未证明可用同一数值表示。"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p079",
+      "bookName": "锅粑肉片",
+      "batch": "dz1979-b03",
+      "source": {
+        "pdfStartPage": 92,
+        "pdfEndPage": 93,
+        "bookStartPage": 79,
+        "bookEndPage": 80
+      },
+      "reviewReasons": [
+        "整体confidence.recognition或confidence.conversion未达high",
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "overallConfidenceLow",
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「锅粑肉片」，与目录一致（confidence=high）",
+        "原料栏已记录 16 项",
+        "特点栏文字已保留",
+        "已确认读法：做法 — 「锅粑」",
+        "已确认读法：做法 — 「马耳朵节子」",
+        "已确认读法：做法 — 「散籽」",
+        "已确认读法：原料栏 — 「菜油 一斤五两耗油约一两八钱」"
+      ],
+      "unresolvedQuestions": [
+        "原料「菜油 一斤五两耗油约一两八钱」置信度未达high（{'recognition': 'high', 'conversion': 'low'}）：原文“一斤五两耗油约一两八钱”：投入一斤五两=750g，约耗一两八钱=约90g，总投入与约耗分别保存",
+        "整体confidence={'recognition': 'high', 'conversion': 'low'}"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p079].confidence",
+        "recipes[entryId=dz1979-p079].ingredients[9].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b03",
+            "detail": {
+              "entryId": "dz1979-p079",
+              "location": "原料栏",
+              "type": "unresolved-quantity",
+              "rawText": "菜油 一斤五两耗油约一两八钱",
+              "candidates": [
+                {
+                  "qty": 750,
+                  "unit": "g",
+                  "assumption": "投入一斤五两",
+                  "accepted": false
+                },
+                {
+                  "qty": 90,
+                  "unit": "g",
+                  "assumption": "耗油约一两八钱",
+                  "accepted": false
+                }
+              ],
+              "treatment": "同时写投入和耗用，未把二者压成单值。"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p082",
+      "bookName": "青椒肉丝",
+      "batch": "dz1979-b03",
+      "source": {
+        "pdfStartPage": 95,
+        "pdfEndPage": 95,
+        "bookStartPage": 82,
+        "bookEndPage": 82
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「青椒肉丝」，与目录一致（confidence=high）",
+        "原料栏已记录 8 项",
+        "特点栏文字已保留",
+        "已确认读法：做法 — 「二粗丝」",
+        "已确认读法：做法 — 「出新不久」",
+        "projectMatch=exact-name，已匹配「青椒肉丝」"
+      ],
+      "unresolvedQuestions": [
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 附注：出新不久的青辣椒",
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料与做法：水豆粉一两五钱"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p082].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b03",
+            "detail": {
+              "entryId": "dz1979-p082",
+              "location": "附注",
+              "type": "old-term",
+              "rawText": "出新不久的青辣椒",
+              "candidates": [],
+              "treatment": "字形可确认；该时代用语语义未作现代化改写。"
+            }
+          },
+          {
+            "batchId": "dz1979-b03",
+            "detail": {
+              "entryId": "dz1979-p082",
+              "location": "原料与做法",
+              "type": "allocation-unknown",
+              "rawText": "水豆粉一两五钱",
+              "candidates": [],
+              "treatment": "总量明确但未分配拌肉与兑滋汁各用量。"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p086",
+      "bookName": "家常肉丝干豇",
+      "batch": "dz1979-b04",
+      "source": {
+        "pdfStartPage": 99,
+        "pdfEndPage": 99,
+        "bookStartPage": 86,
+        "bookEndPage": 86
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "整体confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "overallConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「家常肉丝干豇」，与目录一致（confidence=high）",
+        "原料栏已记录 7 项",
+        "特点栏文字已保留",
+        "已确认读法：标题 — 「家常肉丝干豇」",
+        "projectMatch=exact-name，已匹配「家常肉丝干豇」"
+      ],
+      "unresolvedQuestions": [
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 标题：干豇",
+        "整体confidence={'recognition': 'medium', 'conversion': 'high'}"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p086].confidence",
+        "recipes[entryId=dz1979-p086].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b04",
+            "detail": {
+              "entryId": "dz1979-p086",
+              "location": "标题",
+              "issue": "目录识别置信度 medium；正文图像直接确认为“家常肉丝干豇”。"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p093",
+      "bookName": "红烧丸子",
+      "batch": "dz1979-b04",
+      "source": {
+        "pdfStartPage": 106,
+        "pdfEndPage": 107,
+        "bookStartPage": 93,
+        "bookEndPage": 94
+      },
+      "reviewReasons": [
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「红烧丸子」，与目录一致（confidence=high）",
+        "原料栏已记录 13 项",
+        "特点栏文字已保留",
+        "已确认读法：原料栏 — 「菜油 一斤耗二两」",
+        "projectMatch=exact-name，已匹配「红烧丸子」"
+      ],
+      "unresolvedQuestions": [
+        "原料「菜油 一斤耗二两」置信度未达high（{'recognition': 'high', 'conversion': 'low'}）：原文\"一斤耗二两\"：投入一斤=500g，实际耗用二两=100g，总投入与耗用分别保存"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p093].ingredients[6].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b04",
+            "detail": {
+              "entryId": "dz1979-p093",
+              "location": "原料及做法",
+              "issue": "原料“花椒面”与做法“胡椒面”分别保留；菜油“一斤耗二两”不换算。"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p100",
+      "bookName": "豆芽肉饼汤",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 113,
+        "pdfEndPage": 113,
+        "bookStartPage": 100,
+        "bookEndPage": 100
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "methodSummary.confidence未达high",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "methodConfidenceLow",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「豆芽肉饼汤」，与目录一致（confidence=high）",
+        "原料栏已记录 9 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「肥二瘦八」",
+        "已确认读法：做法第2步 — 「豆芽掐足洗净」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 特点：页面在做法第2步“加盐、酱油、胡椒等调味）。”后留白结束",
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 做法与原料栏：盐、酱油分别在肉饼调制和汤内调味中出现",
+        "methodSummary整体confidence=medium",
+        "旧词/方言用语「赶入盘中」confidence=medium（字形确认；该时代用语语义未作现代化改写。）",
+        "旧词/方言用语「掐足」confidence=medium（字形确认，语义保留原词。）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p100].methodSummary.confidence",
+        "recipes[entryId=dz1979-p100].methodSummary.dialectOrOldTerms[1]",
+        "recipes[entryId=dz1979-p100].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk1.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "特点",
+              "type": "page-boundary",
+              "rawText": "页面在做法第2步“加盐、酱油、胡椒等调味）。”后留白结束",
+              "candidates": [],
+              "treatment": "本页未见“三 特点”段落，下一页已是另一道菜标题；不猜测缺失内容。",
+              "entryId": "dz1979-p100"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "做法与原料栏",
+              "type": "allocation-unknown",
+              "rawText": "盐、酱油分别在肉饼调制和汤内调味中出现",
+              "candidates": [],
+              "treatment": "原料栏只给总量，未分配肉饼与汤各自用量。",
+              "entryId": "dz1979-p100"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p101",
+      "bookName": "酸菜肉丝汤",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 114,
+        "pdfEndPage": 114,
+        "bookStartPage": 101,
+        "bookEndPage": 101
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「酸菜肉丝汤」，与目录一致（confidence=high）",
+        "原料栏已记录 7 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「切成二粗丝」",
+        "已确认读法：做法第2步 — 「烧至汤内有泡青菜味」"
+      ],
+      "unresolvedQuestions": [
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料与做法：盐三分分别用于汤内调味和肉丝码味",
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 做法第1步：鸡蛋用蛋清和干豆粉调成蛋清豆粉"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p101].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk1.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料与做法",
+              "type": "allocation-unknown",
+              "rawText": "盐三分分别用于汤内调味和肉丝码味",
+              "candidates": [],
+              "treatment": "原料栏只给总量，做法两处用盐未分配各自用量。",
+              "entryId": "dz1979-p101"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "做法第1步",
+              "type": "old-term",
+              "rawText": "鸡蛋用蛋清和干豆粉调成蛋清豆粉",
+              "candidates": [],
+              "treatment": "原料栏列“鸡蛋一个”，做法只用蛋清；蛋黄去向未印出，不推断。",
+              "entryId": "dz1979-p101"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p102",
+      "bookName": "粉蒸排骨",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 115,
+        "pdfEndPage": 116,
+        "bookStartPage": 102,
+        "bookEndPage": 103
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「粉蒸排骨」，与目录一致（confidence=high）",
+        "原料栏已记录 12 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「砍成长约一寸二节子」",
+        "已确认读法：做法第2步 — 「合铡成细末」",
+        "已确认读法：做法第4步 — 「用旺火沸水将肉蒸至酥烂」",
+        "projectMatch=exact-name，已匹配「粉蒸排骨」"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 原料栏与做法第3步：原料栏“甜椒 三钱”与做法“甜酱”",
+        "[unclear-glyph（字形无法稳定判定）] 原料栏：醪糟汁 五钱",
+        "[unresolved-quantity（数量表述未能精确折算）] 原料栏：花椒 二十余粒",
+        "原料「花椒 二十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“二十余粒”为约数计数，保留参考值20粒和“余”限定，不作为精确值，也不换算为质量",
+        "原料「甜椒 三钱」置信度未达high（{'recognition': 'medium', 'conversion': 'high'}）：三钱 × 5g = 15g",
+        "原料「醪糟汁 五钱」置信度未达high（{'recognition': 'medium', 'conversion': 'high'}）：五钱 × 5g = 25g；按原书质量单位保存为g，不推测毫升"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p102].ingredients[3].confidence",
+        "recipes[entryId=dz1979-p102].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk1.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏与做法第3步",
+              "type": "unclear-glyph",
+              "rawText": "原料栏“甜椒 三钱”与做法“甜酱”",
+              "candidates": [
+                "甜椒",
+                "甜酱"
+              ],
+              "treatment": "原料栏字形读作“甜椒”，做法中出现“甜酱”；两处分别保留，不统一改写。",
+              "entryId": "dz1979-p102"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "unclear-glyph",
+              "rawText": "醪糟汁 五钱",
+              "candidates": [
+                "醪糟汁"
+              ],
+              "treatment": "首字扫描较重，按上下文与做法第3步同名项确认为“醪糟汁”，置信度记为medium。",
+              "entryId": "dz1979-p102"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "unresolved-quantity",
+              "rawText": "花椒 二十余粒",
+              "candidates": [],
+              "treatment": "“余”为约数限定，保留参考值20粒，不作为精确计数，也不换算为质量。",
+              "entryId": "dz1979-p102"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p104",
+      "bookName": "鱼香排骨",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 117,
+        "pdfEndPage": 117,
+        "bookStartPage": 104,
+        "bookEndPage": 104
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「鱼香排骨」，与目录一致（confidence=high）",
+        "原料栏已记录 10 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步 — 「煸干水汽（除血腥味）」",
+        "已确认读法：做法第2步 — 「葱花（用一半）同炒」",
+        "已确认读法：做法第2步 — 「肉松散能与骨脱离」",
+        "projectMatch=exact-name，已匹配「鱼香排骨」"
+      ],
+      "unresolvedQuestions": [
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料与做法：蒜米、葱花各一两；做法“蒜和葱花（用一半）同炒”，起锅再加葱花",
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 做法第2步：锅内放油"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p104].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk2.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料与做法",
+              "type": "allocation-unknown",
+              "rawText": "蒜米、葱花各一两；做法“蒜和葱花（用一半）同炒”，起锅再加葱花",
+              "candidates": [],
+              "treatment": "原书明确葱花分两次使用且第一次为一半，但未印出各次具体重量；保留总量与“用一半”原文，不折算数值。",
+              "entryId": "dz1979-p104"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "做法第2步",
+              "type": "old-term",
+              "rawText": "锅内放油",
+              "candidates": [
+                "化猪油"
+              ],
+              "treatment": "原料栏仅列化猪油一两；做法只写“油”，未证实是否全部为化猪油，不改写。",
+              "entryId": "dz1979-p104"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p105",
+      "bookName": "糖醋排骨",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 118,
+        "pdfEndPage": 118,
+        "bookStartPage": 105,
+        "bookEndPage": 105
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「糖醋排骨」，与目录一致（confidence=high）",
+        "原料栏已记录 11 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步 — 「下排骨煸干水气」",
+        "已确认读法：做法第2步 — 「如有绍酒可加绍酒一两」",
+        "已确认读法：做法第3步 — 「视排骨入味肉软时」",
+        "projectMatch=exact-name，已匹配「糖醋排骨」"
+      ],
+      "unresolvedQuestions": [
+        "[unresolved-quantity（数量表述未能精确折算）] 原料栏：醋 一两二",
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料栏：姜、蒜片 五钱",
+        "原料「醋 一两二」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“一两二”按一两二钱读，50g + 2 × 5g = 60g；末级单位省略，转换置信度记为medium"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p105].ingredients[3].confidence",
+        "recipes[entryId=dz1979-p105].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk2.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "unresolved-quantity",
+              "rawText": "醋 一两二",
+              "candidates": [
+                {
+                  "qty": 60,
+                  "unit": "g",
+                  "assumption": "读作一两二钱",
+                  "accepted": true
+                }
+              ],
+              "treatment": "原书省略末级单位；按同页其他条目的钱位惯例读作一两二钱，转换置信度记为medium。",
+              "entryId": "dz1979-p105"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "allocation-unknown",
+              "rawText": "姜、蒜片 五钱",
+              "candidates": [],
+              "treatment": "无“各”字，只保存合计25g，不向姜与蒜片分配。",
+              "entryId": "dz1979-p105"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p106",
+      "bookName": "家常排骨",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 119,
+        "pdfEndPage": 119,
+        "bookStartPage": 106,
+        "bookEndPage": 106
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "至少一项原料confidence.recognition或confidence.conversion未达high",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "ingredientConfidenceLow",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「家常排骨」，与目录一致（confidence=high）",
+        "原料栏已记录 10 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「宽厚八分的块子」",
+        "已确认读法：做法第2步 — 「下排骨煸干水汽」",
+        "已确认读法：做法第2步 — 「到肉㸆、菜熟时」",
+        "projectMatch=exact-name，已匹配「家常排骨」"
+      ],
+      "unresolvedQuestions": [
+        "[unresolved-quantity（数量表述未能精确折算）] 原料栏：花椒 十余粒",
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料栏：葱姜 六钱",
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 做法第2步：到肉㸆、菜熟时",
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
+        "旧词/方言用语「肉㸆」confidence=medium（字形可辨但该时代用语语义未作现代化改写。）"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p106].ingredients[3].confidence",
+        "recipes[entryId=dz1979-p106].methodSummary.dialectOrOldTerms[1]",
+        "recipes[entryId=dz1979-p106].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk2.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "unresolved-quantity",
+              "rawText": "花椒 十余粒",
+              "candidates": [],
+              "treatment": "“余”为约数限定，保留参考值10粒，不作为精确计数，也不换算为质量。",
+              "entryId": "dz1979-p106"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "allocation-unknown",
+              "rawText": "葱姜 六钱",
+              "candidates": [],
+              "treatment": "无“各”字，只保存合计30g，不向葱与姜分配。",
+              "entryId": "dz1979-p106"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "做法第2步",
+              "type": "old-term",
+              "rawText": "到肉㸆、菜熟时",
+              "candidates": [],
+              "treatment": "“㸆”字形可辨，为川菜火候用语；语义未作现代化改写。",
+              "entryId": "dz1979-p106"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p107",
+      "bookName": "苤蓝烧牛肉",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 120,
+        "pdfEndPage": 121,
+        "bookStartPage": 107,
+        "bookEndPage": 108
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "至少一项原料confidence.recognition或confidence.conversion未达high",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "ingredientConfidenceLow",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「苤蓝烧牛肉」，与目录一致（confidence=high）",
+        "原料栏已记录 11 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「将牛的肋条肉洗净，宰成七分大小的块子」",
+        "已确认读法：做法第2步 — 「水以淹没牛肉一寸左右为宜」",
+        "已确认读法：做法第2步 — 「沥去豆瓣渣不用，只将豆瓣汁水倒入」",
+        "projectMatch=exact-name，已匹配「苤蓝烧牛肉」"
+      ],
+      "unresolvedQuestions": [
+        "[unresolved-quantity（数量表述未能精确折算）] 原料栏：花椒 十余粒",
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料栏：葱姜 五钱",
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 做法第2步：放在小火上㸆至七成㸆时",
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 做法第2步：做法统称“香料”",
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
+        "旧词/方言用语「㸆」confidence=medium（川菜火候用语，字形可辨；语义未作现代化改写。）"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p107].ingredients[2].confidence",
+        "recipes[entryId=dz1979-p107].methodSummary.dialectOrOldTerms[1]",
+        "recipes[entryId=dz1979-p107].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk3.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "unresolved-quantity",
+              "rawText": "花椒 十余粒",
+              "candidates": [],
+              "treatment": "“余”为约数限定，保留参考值10粒，不作为精确计数，也不换算为质量。",
+              "entryId": "dz1979-p107"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "allocation-unknown",
+              "rawText": "葱姜 五钱",
+              "candidates": [],
+              "treatment": "无“各”字，只保存合计25g，不向葱与姜分配。",
+              "entryId": "dz1979-p107"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "做法第2步",
+              "type": "old-term",
+              "rawText": "放在小火上㸆至七成㸆时",
+              "candidates": [],
+              "treatment": "“㸆”字形可辨，为川菜火候用语；语义未作现代化改写。",
+              "entryId": "dz1979-p107"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "做法第2步",
+              "type": "allocation-unknown",
+              "rawText": "做法统称“香料”",
+              "candidates": [
+                "三奈",
+                "八角",
+                "草果"
+              ],
+              "treatment": "原料栏分列三奈、八角、草果；做法只写“香料”，对应关系未印出，不合并。",
+              "entryId": "dz1979-p107"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p109",
+      "bookName": "干拌牛肉",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 122,
+        "pdfEndPage": 122,
+        "bookStartPage": 109,
+        "bookEndPage": 109
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「干拌牛肉」，与目录一致（confidence=high）",
+        "原料栏已记录 9 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「捞起晾冷后切成片」",
+        "已确认读法：做法第1步 — 「葱切八分节」",
+        "projectMatch=exact-name，已匹配「干拌牛肉」"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 原料栏：炒花生米 十余颗",
+        "[unresolved-quantity（数量表述未能精确折算）] 原料栏：炒花生米 十余颗",
+        "原料「炒花生米 十余颗」置信度未达high（{'recognition': 'medium', 'conversion': 'medium'}）：“十余颗”为约数计数，保留参考值10颗和“余”限定，不作为精确值，也不换算为质量"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p109].ingredients[3].confidence",
+        "recipes[entryId=dz1979-p109].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk3.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "unclear-glyph",
+              "rawText": "炒花生米 十余颗",
+              "candidates": [
+                "颗",
+                "粒"
+              ],
+              "treatment": "量词字形受墨迹影响，读作“颗”；与同批其他条目的“粒”并存，不强行统一。",
+              "entryId": "dz1979-p109"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "unresolved-quantity",
+              "rawText": "炒花生米 十余颗",
+              "candidates": [],
+              "treatment": "“余”为约数限定，保留参考值10，不作为精确计数，也不换算为质量。",
+              "entryId": "dz1979-p109"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p110",
+      "bookName": "麻辣牛肉干",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 123,
+        "pdfEndPage": 123,
+        "bookStartPage": 110,
+        "bookEndPage": 110
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「麻辣牛肉干」，与目录一致（confidence=high）",
+        "原料栏已记录 9 项",
+        "特点栏文字已保留",
+        "已确认读法：原料栏 — 「菜油 一斤耗二两」",
+        "已确认读法：做法第2步 — 「油炸进皮则滗去大部分炸油」",
+        "已确认读法：做法第2步 — 「汤干亮油」",
+        "projectMatch=exact-name，已匹配「麻辣牛肉干」"
+      ],
+      "unresolvedQuestions": [
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料栏：酱油、葱姜 各六钱",
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 做法第2步：油炸进皮则滗去大部分炸油",
+        "旧词/方言用语「油炸进皮」confidence=medium（字形可辨；该时代炸制程度用语，语义未作现代化改写。）"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p110].methodSummary.dialectOrOldTerms[0]",
+        "recipes[entryId=dz1979-p110].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk4.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "allocation-unknown",
+              "rawText": "酱油、葱姜 各六钱",
+              "candidates": [],
+              "treatment": "“各”只作用于“酱油”与“葱姜”两个并列项；“葱姜”内部未印出葱与姜的分配，不再细分。",
+              "entryId": "dz1979-p110"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "做法第2步",
+              "type": "old-term",
+              "rawText": "油炸进皮则滗去大部分炸油",
+              "candidates": [],
+              "treatment": "“炸进皮”为该时代炸制程度用语，字形可辨；语义未作现代化改写，“大部分”亦不量化。",
+              "entryId": "dz1979-p110"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p111",
+      "bookName": "水煮牛肉",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 124,
+        "pdfEndPage": 125,
+        "bookStartPage": 111,
+        "bookEndPage": 112
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「水煮牛肉」，与目录一致（confidence=high）",
+        "原料栏已记录 13 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「在锅里炕脆」",
+        "已确认读法：做法第1步 — 「在菜板上铡细」",
+        "已确认读法：做法第2步 — 「用筷子轻轻拨散」",
+        "projectMatch=exact-name，已匹配「水煮牛肉」"
+      ],
+      "unresolvedQuestions": [
+        "[unresolved-quantity（数量表述未能精确折算）] 原料栏：花椒 十余粒",
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料与做法：菜油二两分三次使用：炕辣椒“少许”、煸蔬菜“少许”、烧豆瓣及最后淋油“少许”",
+        "[page-boundary（页边界/印刷缺失）] 做法第2步：掺汤烧开",
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p111].ingredients[8].confidence",
+        "recipes[entryId=dz1979-p111].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk4.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料栏",
+              "type": "unresolved-quantity",
+              "rawText": "花椒 十余粒",
+              "candidates": [],
+              "treatment": "“余”为约数限定，保留参考值10粒，不作为精确计数，也不换算为质量。",
+              "entryId": "dz1979-p111"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料与做法",
+              "type": "allocation-unknown",
+              "rawText": "菜油二两分三次使用：炕辣椒“少许”、煸蔬菜“少许”、烧豆瓣及最后淋油“少许”",
+              "candidates": [],
+              "treatment": "原料栏只给总量二两，做法各次均写“少许”，未印出分配，不折算数值。",
+              "entryId": "dz1979-p111"
+            }
+          },
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "做法第2步",
+              "type": "page-boundary",
+              "rawText": "掺汤烧开",
+              "candidates": [],
+              "treatment": "做法中掺汤，但原料栏未列汤及其数量，不推测用量。",
+              "entryId": "dz1979-p111"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p113",
+      "bookName": "牛肉末炒芹菜花",
+      "batch": "dz1979-b05",
+      "source": {
+        "pdfStartPage": 126,
+        "pdfEndPage": 127,
+        "bookStartPage": 113,
+        "bookEndPage": 114
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「牛肉末炒芹菜花」，与目录一致（confidence=high）",
+        "原料栏已记录 11 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「切成约一分长的颗子」",
+        "已确认读法：做法第2步 — 「剔去白筋，剁成细粒」",
+        "已确认读法：做法第3步 — 「烧至干酥时」",
+        "projectMatch=exact-name，已匹配「牛肉末炒芹菜花」"
+      ],
+      "unresolvedQuestions": [
+        "[allocation-unknown（用量在原料栏与做法间的归属未确认）] 原料与做法：盐二分；做法第1步“用少许盐拌匀”，第3步再加盐"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p113].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b05-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b05-chunks/dz1979-b05-chunk4.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b05",
+            "detail": {
+              "location": "原料与做法",
+              "type": "allocation-unknown",
+              "rawText": "盐二分；做法第1步“用少许盐拌匀”，第3步再加盐",
+              "candidates": [],
+              "treatment": "原料栏只给总量，做法两处用盐未分配各自用量，且第1步写“少许”，不折算数值。",
+              "entryId": "dz1979-p113"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p115",
+      "bookName": "粉蒸牛肉",
+      "batch": "dz1979-b06",
+      "source": {
+        "pdfStartPage": 128,
+        "pdfEndPage": 129,
+        "bookStartPage": 115,
+        "bookEndPage": 116
+      },
+      "reviewReasons": [
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「粉蒸牛肉」，与目录一致（confidence=high）",
+        "原料栏已记录 10 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「切成长约一寸二、宽约八分的片子」",
+        "已确认读法：做法第2步 — 「铡成细末」",
+        "已确认读法：做法第4步 — 「用旺火沸水蒸炬」",
+        "projectMatch=exact-name，已匹配「粉蒸牛肉」"
+      ],
+      "unresolvedQuestions": [
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p115].ingredients[3].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b06-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b06-chunks/dz1979-b06-chunk1.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p121",
+      "bookName": "豌豆肥肠汤",
+      "batch": "dz1979-b06",
+      "source": {
+        "pdfStartPage": 134,
+        "pdfEndPage": 134,
+        "bookStartPage": 121,
+        "bookEndPage": 121
+      },
+      "reviewReasons": [
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「豌豆肥肠汤」，与目录一致（confidence=high）",
+        "原料栏已记录 6 项",
+        "特点栏文字已保留",
+        "已确认读法：原料栏 — 「味精、胡椒 各三分」",
+        "已确认读法：做法第3步 — 「炖至七成炬时，捞起肥肠」",
+        "projectMatch=exact-name，已匹配「豌豆肥肠汤」"
+      ],
+      "unresolvedQuestions": [
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p121].ingredients[1].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b06-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b06-chunks/dz1979-b06-chunk2.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p122",
+      "bookName": "蒜烧肚条",
+      "batch": "dz1979-b06",
+      "source": {
+        "pdfStartPage": 135,
+        "pdfEndPage": 135,
+        "bookStartPage": 122,
+        "bookEndPage": 122
+      },
+      "reviewReasons": [
+        "contentMissing=true（本页在扫描件中完全无正文）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "整体confidence.recognition或confidence.conversion未达high",
+        "methodSummary.confidence未达high"
+      ],
+      "reviewReasonKeys": [
+        "contentMissing",
+        "uncertaintiesNonEmpty",
+        "overallConfidenceLow",
+        "methodConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「蒜烧肚条」，与目录一致（confidence=high）",
+        "已确认读法：页面标题（PDF第135页/书内第122页） — 「蒜烧肚条」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 整页：PDF第135页仅印有标题“蒜烧肚条”，标题下方及全页其余区域经像素级复核（200dpi与600dpi两次渲染，全页扫描无任何字迹墨点，仅有边角散布的扫描噪点，尺寸2-4像素、位置与文字笔画不符）确认无正文印刷内容",
+        "methodSummary整体confidence=None"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p122].confidence",
+        "recipes[entryId=dz1979-p122].contentMissing",
+        "recipes[entryId=dz1979-p122].methodSummary.confidence",
+        "recipes[entryId=dz1979-p122].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b06-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b06-chunks/dz1979-b06-chunk2.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b06",
+            "detail": {
+              "location": "整页",
+              "type": "page-boundary",
+              "rawText": "PDF第135页仅印有标题“蒜烧肚条”，标题下方及全页其余区域经像素级复核（200dpi与600dpi两次渲染，全页扫描无任何字迹墨点，仅有边角散布的扫描噪点，尺寸2-4像素、位置与文字笔画不符）确认无正文印刷内容",
+              "candidates": [],
+              "treatment": "仅记录本来源可证实的事实：当前PDF扫描件对应页面标题下方及全页无可见正文（原料、做法、特点栏均未印出）。不对成因作出判断（不断言为原书印刷缺页、扫描遗漏或其他原因），contentMissing=true，ingredients/methodSummary保持为空，待人工核对原始纸质版本或Opus review确认成因与是否可补全。",
+              "entryId": "dz1979-p122",
+              "reasonCode": "scan-page-blank"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p123",
+      "bookName": "清蒸杂烩",
+      "batch": "dz1979-b06",
+      "source": {
+        "pdfStartPage": 136,
+        "pdfEndPage": 137,
+        "bookStartPage": 123,
+        "bookEndPage": 124
+      },
+      "reviewReasons": [
+        "至少一项原料confidence.recognition或confidence.conversion未达high",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "ingredientConfidenceLow",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「清蒸杂烩」，与目录一致（confidence=high）",
+        "原料栏已记录 16 项",
+        "特点栏文字已保留",
+        "已确认读法：正文标题（PDF第136页/书内第123页） — 「清蒸杂烩」",
+        "已确认读法：原料栏 — 「菜油 一斤五两耗一两」",
+        "已确认读法：做法第7步 — 「上笼蒸至酥肉泡发，翻倒入碗内灌汤」",
+        "projectMatch=exact-name，已匹配「清蒸杂烩」"
+      ],
+      "unresolvedQuestions": [
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
+        "旧词/方言用语「泡泡肉」confidence=medium（字形确认，语义按上下文推断保留原词）",
+        "旧词/方言用语「渣渣肉」confidence=medium（字形确认，语义按上下文推断保留原词）"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p123].ingredients[12].confidence",
+        "recipes[entryId=dz1979-p123].methodSummary.dialectOrOldTerms[0]"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b06-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b06-chunks/dz1979-b06-chunk3.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p127",
+      "bookName": "大蒜烧肥肠",
+      "batch": "dz1979-b06",
+      "source": {
+        "pdfStartPage": 140,
+        "pdfEndPage": 141,
+        "bookStartPage": 127,
+        "bookEndPage": 128
+      },
+      "reviewReasons": [
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「大蒜烧肥肠」，与目录一致（confidence=high）",
+        "原料栏已记录 10 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第3步 — 「白糖炒化，掺水少许，炒成不深不浅的糖汁」",
+        "已确认读法：做法第4步 — 「用小火煨至七成炬时加大蒜，直至全炬后加味精」"
+      ],
+      "unresolvedQuestions": [
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p127].ingredients[2].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b06-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b06-chunks/dz1979-b06-chunk3.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p131",
+      "bookName": "麻辣兔丁",
+      "batch": "dz1979-b06",
+      "source": {
+        "pdfStartPage": 144,
+        "pdfEndPage": 144,
+        "bookStartPage": 131,
+        "bookEndPage": 131
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "整体confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "overallConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「麻辣兔丁」，与目录一致（confidence=high）",
+        "原料栏已记录 8 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「砍成五分见方的兔丁」",
+        "已确认读法：做法第1步 — 「豆豉在菜板上用力压成豆豉酱」",
+        "已确认读法：三 特点 — 「麻辣味匝，酒饭皆宜」"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 三 特点：麻辣味匝，酒饭皆宜",
+        "整体confidence={'recognition': 'medium', 'conversion': 'high'}"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p131].confidence",
+        "recipes[entryId=dz1979-p131].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b06-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b06-chunks/dz1979-b06-chunk4.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b06",
+            "detail": {
+              "location": "三 特点",
+              "type": "unclear-glyph",
+              "rawText": "麻辣味匝，酒饭皆宜",
+              "candidates": [
+                "匝",
+                "厚"
+              ],
+              "treatment": "该字印刷较淡，按笔画结构读作“匝”（味匝：味道均匀浓郁），不排除为形近字；保留原字形读音，不改写为其他推测字。",
+              "entryId": "dz1979-p131"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p135",
+      "bookName": "盐水仔鸡",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 148,
+        "pdfEndPage": 148,
+        "bookStartPage": 135,
+        "bookEndPage": 135
+      },
+      "reviewReasons": [
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「盐水仔鸡」，与目录一致（confidence=high）",
+        "原料栏已记录 7 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「用盐和花椒在鸡的里外抹匀」",
+        "已确认读法：做法第2步 — 「上笼蒸三小时」"
+      ],
+      "unresolvedQuestions": [
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p135].ingredients[4].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk1.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p138",
+      "bookName": "红油鸡块",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 151,
+        "pdfEndPage": 151,
+        "bookStartPage": 138,
+        "bookEndPage": 138
+      },
+      "reviewReasons": [
+        "contentMissing=true（本页在扫描件中完全无正文）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "整体confidence.recognition或confidence.conversion未达high",
+        "methodSummary.confidence未达high",
+        "titleVisualCheck.confidence未达high"
+      ],
+      "reviewReasonKeys": [
+        "contentMissing",
+        "uncertaintiesNonEmpty",
+        "overallConfidenceLow",
+        "methodConfidenceLow",
+        "titleVisualLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「（页面无可见标题）按目录页序归位为红油鸡块」，与目录一致（confidence=medium）"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 整页：PDF第151页经220dpi与600dpi两次渲染确认全页无任何可见印刷内容（标题、原料栏、做法栏、特点栏均未印出）",
+        "methodSummary整体confidence=None",
+        "标题视觉核对confidence=medium：PDF第151页经220dpi与600dpi两次渲染确认全页空白，无任何标题文字；本条目归属仅依据目录页序（书内第138页），非页面可见标题。"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p138].confidence",
+        "recipes[entryId=dz1979-p138].contentMissing",
+        "recipes[entryId=dz1979-p138].methodSummary.confidence",
+        "recipes[entryId=dz1979-p138].titleVisualCheck.confidence",
+        "recipes[entryId=dz1979-p138].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk2.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b07",
+            "detail": {
+              "location": "整页",
+              "type": "page-boundary",
+              "rawText": "PDF第151页经220dpi与600dpi两次渲染确认全页无任何可见印刷内容（标题、原料栏、做法栏、特点栏均未印出）",
+              "candidates": [],
+              "treatment": "仅记录本来源可证实的事实：当前PDF扫描件对应页面全页空白（标题、原料、做法、特点栏均未印出）。不对成因作出判断（不断言为原书印刷缺页、扫描遗漏或其他原因），contentMissing=true，ingredients/methodSummary保持为空，待人工核对原始纸质版本确认。",
+              "reasonCode": "scan-page-blank",
+              "entryId": "dz1979-p138"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p141",
+      "bookName": "热味姜汁鸡",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 154,
+        "pdfEndPage": 154,
+        "bookStartPage": 141,
+        "bookEndPage": 141
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「热味姜汁鸡」，与目录一致（confidence=high）",
+        "原料栏已记录 7 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「姜剁成细米，葱切细花」",
+        "已确认读法：做法第2步 — 「临起锅时下醋及葱花合匀入盘即成」"
+      ],
+      "unresolvedQuestions": [
+        "projectMatch候选「热窝姜汁鸡」（classification=probable-match-needs-review）尚待人工确认是否为同一项目"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p141].projectMatch.reviewRequired"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk2b.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p142",
+      "bookName": "香菌烧鸡",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 155,
+        "pdfEndPage": 155,
+        "bookStartPage": 142,
+        "bookEndPage": 142
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）",
+        "contentIncomplete=true（正文在扫描件中中途截断/缺失部分栏目）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "methodSummary.confidence未达high"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired",
+        "contentIncomplete",
+        "uncertaintiesNonEmpty",
+        "methodConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「香菌烧鸡」，与目录一致（confidence=high）",
+        "原料栏已记录 9 项",
+        "已确认读法：做法第1步 — 「香菌用温热水泡胀洗净」",
+        "已确认读法：原料栏 — 「汤 二斤五两」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 做法第2步起及特点栏：当前扫描件PDF第155页正文在做法第1步后结束，页面底部为空白；其后PDF第156页为下一条目“当归炖鸡”的起始页，无本条目连续正文",
+        "projectMatch classification=book-only，尚无匹配项目，待人工确认（book-only 或需补建）",
+        "methodSummary整体confidence=medium"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p142].contentIncomplete",
+        "recipes[entryId=dz1979-p142].methodSummary.confidence",
+        "recipes[entryId=dz1979-p142].projectMatch.reviewRequired",
+        "recipes[entryId=dz1979-p142].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk3.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b07",
+            "detail": {
+              "location": "做法第2步起及特点栏",
+              "type": "page-boundary",
+              "rawText": "当前扫描件PDF第155页正文在做法第1步后结束，页面底部为空白；其后PDF第156页为下一条目“当归炖鸡”的起始页，无本条目连续正文",
+              "candidates": [],
+              "treatment": "仅记录当前扫描件可证实的事实：本来源正文在做法第1步后中断，后续页面（含PDF第156页）无本条目的连续正文，第2步及以后的做法与“特点”栏在本扫描件中不可见。已保留页面实际可见的全部原料与第1步做法，不伪造第2步以后内容或特点；contentIncomplete=true。不对成因作出判断（不断言所有纸质版本都存在印刷缺失），待人工核对原始纸质版本确认。",
+              "reasonCode": "source-content-missing",
+              "entryId": "dz1979-p142"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p145",
+      "bookName": "蘑芋烧鸭",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 158,
+        "pdfEndPage": 159,
+        "bookStartPage": 145,
+        "bookEndPage": 146
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）",
+        "contentIncomplete=true（正文在扫描件中中途截断/缺失部分栏目）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "整体confidence.recognition或confidence.conversion未达high",
+        "methodSummary.confidence未达high",
+        "titleVisualCheck.confidence未达high"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired",
+        "contentIncomplete",
+        "uncertaintiesNonEmpty",
+        "overallConfidenceLow",
+        "methodConfidenceLow",
+        "titleVisualLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「（起始页无可见标题）按目录页序归位为蘑芋烧鸭」，与目录一致（confidence=medium）",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步（续存正文） — 「烧至七成粑」",
+        "已确认读法：特点栏 — 「色泽红亮，味浓而鲜」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 标题、原料栏、做法起始（含第1步前半）：PDF第158页经220dpi与600dpi两次渲染确认全页空白；PDF第159页仅存本条目的连续正文尾部（第1步后半起）、特点与附注",
+        "projectMatch classification=confirmed-alias，尚无匹配项目，待人工确认（book-only 或需补建）",
+        "methodSummary整体confidence=medium",
+        "标题视觉核对confidence=medium：PDF第158页经220dpi与600dpi两次渲染确认全页空白，标题、原料栏与做法起始均未印出；本条目归属仅依据目录页序（书内第145页）及PDF第159页的连续正文推断。"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p145].confidence",
+        "recipes[entryId=dz1979-p145].contentIncomplete",
+        "recipes[entryId=dz1979-p145].methodSummary.confidence",
+        "recipes[entryId=dz1979-p145].projectMatch.reviewRequired",
+        "recipes[entryId=dz1979-p145].titleVisualCheck.confidence",
+        "recipes[entryId=dz1979-p145].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk4.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b07",
+            "detail": {
+              "location": "标题、原料栏、做法起始（含第1步前半）",
+              "type": "page-boundary",
+              "rawText": "PDF第158页经220dpi与600dpi两次渲染确认全页空白；PDF第159页仅存本条目的连续正文尾部（第1步后半起）、特点与附注",
+              "candidates": [],
+              "treatment": "仅记录当前扫描件可证实的事实：起始页全页空白，标题、原料栏与做法起始在本扫描件中不可见；续存页仅存第1步后半以后的正文。已保留页面实际可见的做法片段、特点与附注，不伪造缺失部分；ingredients保持为空（原料栏不可见），contentIncomplete=true。不对成因作出判断（不断言所有纸质版本都存在印刷缺失），待人工核对原始纸质版本确认。",
+              "reasonCode": "source-content-missing",
+              "entryId": "dz1979-p145"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p147",
+      "bookName": "芋儿烧鸭",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 160,
+        "pdfEndPage": 161,
+        "bookStartPage": 147,
+        "bookEndPage": 148
+      },
+      "reviewReasons": [
+        "至少一项原料confidence.recognition或confidence.conversion未达high"
+      ],
+      "reviewReasonKeys": [
+        "ingredientConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「芋儿烧鸭」，与目录一致（confidence=high）",
+        "原料栏已记录 11 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步 — 「撇去浮沫，移小火上加盖煨起」",
+        "已确认读法：做法第3步 — 「烧至全粑，即拈去姜、葱不用」"
+      ],
+      "unresolvedQuestions": [
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p147].ingredients[6].confidence"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk4b.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p149",
+      "bookName": "青豆焖鸭条",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 162,
+        "pdfEndPage": 163,
+        "bookStartPage": 149,
+        "bookEndPage": 150
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "至少一项原料confidence.recognition或confidence.conversion未达high",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "ingredientConfidenceLow",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「青豆焖鸭条」，与目录一致（confidence=high）",
+        "原料栏已记录 12 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「内脏整理后，可加葱、姜、蒜、泡红辣椒等，用油炒成鸭什件」",
+        "已确认读法：附注 — 「如不喜欢吃辣味的，可稍加泡红辣椒短节，不用豆瓣」"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 做法第3步（五成炬/全炬）：炬",
+        "原料「花椒 十余粒」置信度未达high（{'recognition': 'high', 'conversion': 'medium'}）：“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
+        "旧词/方言用语「炬」confidence=medium（字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；字形与语义均未得到来源独立佐证，不作语义推断）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p149].ingredients[2].confidence",
+        "recipes[entryId=dz1979-p149].methodSummary.dialectOrOldTerms[0]",
+        "recipes[entryId=dz1979-p149].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk4c.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b07",
+            "detail": {
+              "raw": "炬",
+              "location": "做法第3步（五成炬/全炬）",
+              "reasonCode": "unclear-glyph",
+              "notes": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换",
+              "entryId": "dz1979-p149"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p152",
+      "bookName": "番茄炒蛋",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 165,
+        "pdfEndPage": 165,
+        "bookStartPage": 152,
+        "bookEndPage": 152
+      },
+      "reviewReasons": [
+        "contentMissing=true（本页在扫描件中完全无正文）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "整体confidence.recognition或confidence.conversion未达high",
+        "methodSummary.confidence未达high",
+        "titleVisualCheck.confidence未达high"
+      ],
+      "reviewReasonKeys": [
+        "contentMissing",
+        "uncertaintiesNonEmpty",
+        "overallConfidenceLow",
+        "methodConfidenceLow",
+        "titleVisualLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「（页面无可见标题）按目录页序归位为番茄炒蛋」，与目录一致（confidence=medium）",
+        "projectMatch=exact-name，已匹配「番茄炒蛋」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 整页：PDF第165页经220dpi与600dpi两次渲染确认全页无任何可见印刷内容（标题、原料栏、做法栏、特点栏均未印出）",
+        "methodSummary整体confidence=None",
+        "标题视觉核对confidence=medium：PDF第165页经220dpi与600dpi两次渲染确认全页空白，无任何标题文字；本条目归属仅依据目录页序（书内第152页），非页面可见标题。PDF第166页为下一批次条目“绍子蒸蛋”的起始页，无本条目内容。"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p152].confidence",
+        "recipes[entryId=dz1979-p152].contentMissing",
+        "recipes[entryId=dz1979-p152].methodSummary.confidence",
+        "recipes[entryId=dz1979-p152].titleVisualCheck.confidence",
+        "recipes[entryId=dz1979-p152].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk5.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b07",
+            "detail": {
+              "location": "整页",
+              "type": "page-boundary",
+              "rawText": "PDF第165页经220dpi与600dpi两次渲染确认全页无任何可见印刷内容（标题、原料栏、做法栏、特点栏均未印出）",
+              "candidates": [],
+              "treatment": "仅记录本来源可证实的事实：当前PDF扫描件对应页面全页空白（标题、原料、做法、特点栏均未印出）。不对成因作出判断（不断言为原书印刷缺页、扫描遗漏或其他原因），contentMissing=true，ingredients/methodSummary保持为空，待人工核对原始纸质版本确认。",
+              "reasonCode": "scan-page-blank",
+              "entryId": "dz1979-p152"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p155",
+      "bookName": "芹黄炒什件",
+      "batch": "dz1979-b08",
+      "source": {
+        "pdfStartPage": 168,
+        "pdfEndPage": 169,
+        "bookStartPage": 155,
+        "bookEndPage": 156
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）",
+        "contentIncomplete=true（正文在扫描件中中途截断/缺失部分栏目）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired",
+        "contentIncomplete",
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「芹黄炒什件」，与目录一致（confidence=high）",
+        "原料栏已记录 12 项",
+        "已确认读法：做法第2步 — 「葱和泡红辣椒切“马耳朵”节」",
+        "已确认读法：做法第4步（正文中断处逐字保留） — 「炒锅内油烧至六成热时，把盐、剩下的水豆粉跟鸡」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 做法第4步及以后、特点栏：PDF第168页做法第4步在“把盐、剩下的水豆粉跟鸡”后行末中断；PDF第169页仅存本条目做法第3-4步的延续正文（与168页第3-4步重复对应，无更多新内容），该页下方大片空白，其后PDF第170页为下一条目“炒鸭肝”的起始页，无本条目连续正文",
+        "projectMatch classification=book-only，尚无匹配项目，待人工确认（book-only 或需补建）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p155].contentIncomplete",
+        "recipes[entryId=dz1979-p155].projectMatch.reviewRequired",
+        "recipes[entryId=dz1979-p155].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b08-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b08-chunks/dz1979-b08-chunk1.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b08",
+            "detail": {
+              "location": "做法第4步及以后、特点栏",
+              "type": "page-boundary",
+              "rawText": "PDF第168页做法第4步在“把盐、剩下的水豆粉跟鸡”后行末中断；PDF第169页仅存本条目做法第3-4步的延续正文（与168页第3-4步重复对应，无更多新内容），该页下方大片空白，其后PDF第170页为下一条目“炒鸭肝”的起始页，无本条目连续正文",
+              "candidates": [],
+              "treatment": "仅记录本来源可证实的事实：本条目做法正文在第4步“跟鸡”后中断，第4步后续内容与“特点”栏在本扫描件中不可见。已保留页面实际可见的全部原料与完整的第1-3步及第4步中断前的原文，不猜测或伪造中断后的内容；characteristicsSummary保持为null，contentIncomplete=true。不对成因作出判断（不断言为原书印刷缺失、装订错页或其他原因），待人工核对原始纸质版本确认。",
+              "reasonCode": "source-content-missing",
+              "entryId": "dz1979-p155"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p157",
+      "bookName": "炒鸭肝",
+      "batch": "dz1979-b08",
+      "source": {
+        "pdfStartPage": 170,
+        "pdfEndPage": 171,
+        "bookStartPage": 157,
+        "bookEndPage": 158
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "整体confidence.recognition或confidence.conversion未达high",
+        "至少一项原料confidence.recognition或confidence.conversion未达high",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "overallConfidenceLow",
+        "ingredientConfidenceLow",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「炒鸭肝」，与目录一致（confidence=high）",
+        "原料栏已记录 14 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「注意不要片烂」",
+        "已确认读法：做法第3步 — 「烹时调料要搅匀」"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 原料栏：姜二钱、蒜二钱",
+        "原料「姜 二钱」置信度未达high（{'recognition': 'medium', 'conversion': 'high'}）：二钱 × 5g = 10g",
+        "原料「蒜 二钱」置信度未达high（{'recognition': 'medium', 'conversion': 'high'}）：二钱 × 5g = 10g",
+        "旧词/方言用语「散籽」confidence=medium（）",
+        "整体confidence={'recognition': 'medium', 'conversion': 'high'}"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p157].confidence",
+        "recipes[entryId=dz1979-p157].ingredients[2].confidence",
+        "recipes[entryId=dz1979-p157].methodSummary.dialectOrOldTerms[0]",
+        "recipes[entryId=dz1979-p157].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b08-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b08-chunks/dz1979-b08-chunk2.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b08",
+            "detail": {
+              "raw": "姜二钱、蒜二钱",
+              "location": "原料栏",
+              "reasonCode": "unclear-glyph",
+              "notes": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为“二钱”，不完全排除为其他数字的可能",
+              "entryId": "dz1979-p157"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p168",
+      "bookName": "豆腐鱼",
+      "batch": "dz1979-b08",
+      "source": {
+        "pdfStartPage": 181,
+        "pdfEndPage": 182,
+        "bookStartPage": 168,
+        "bookEndPage": 169
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「豆腐鱼」，与目录一致（confidence=high）",
+        "原料栏已记录 12 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第3步 — 「用原油将豆瓣煵酥」"
+      ],
+      "unresolvedQuestions": [
+        "projectMatch候选「豆腐鲫鱼」（classification=probable-match-needs-review）尚待人工确认是否为同一项目"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p168].projectMatch.reviewRequired"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b08-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b08-chunks/dz1979-b08-chunk5.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p171",
+      "bookName": "大蒜烧鳝鱼",
+      "batch": "dz1979-b08",
+      "source": {
+        "pdfStartPage": 184,
+        "pdfEndPage": 185,
+        "bookStartPage": 171,
+        "bookEndPage": 172
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）",
+        "contentIncomplete=true（正文在扫描件中中途截断/缺失部分栏目）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired",
+        "contentIncomplete",
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「大蒜烧鳝鱼」，与目录一致（confidence=high）",
+        "原料栏已记录 12 项",
+        "已确认读法：做法第2步 — 「煵至鳝鱼不粘锅、吐油时铲起」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 特点栏：PDF第185页做法第3步结束于“撒上花椒面即可。”句后，页面下方约三分之二为大片空白，未见“三 特点”标题及正文；其后PDF第186页为下一条目“干煸鳝鱼丝”的起始页，无本条目连续正文",
+        "projectMatch classification=book-only，尚无匹配项目，待人工确认（book-only 或需补建）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p171].contentIncomplete",
+        "recipes[entryId=dz1979-p171].projectMatch.reviewRequired",
+        "recipes[entryId=dz1979-p171].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b08-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b08-chunks/dz1979-b08-chunk5.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b08",
+            "detail": {
+              "location": "特点栏",
+              "type": "page-boundary",
+              "rawText": "PDF第185页做法第3步结束于“撒上花椒面即可。”句后，页面下方约三分之二为大片空白，未见“三 特点”标题及正文；其后PDF第186页为下一条目“干煸鳝鱼丝”的起始页，无本条目连续正文",
+              "candidates": [],
+              "treatment": "仅记录本来源可证实的事实：本条目做法在第3步完整收尾，但“特点”栏标题与正文在本扫描件中不可见，且页面留有大片空白，与前后条目均在同页紧接“特点”栏的排版不同。已保留完整的原料与做法正文，不猜测或伪造特点内容；characteristicsSummary保持为null。不对成因作出判断（不断言为原书印刷缺失、排版跳栏或其他原因），待人工核对原始纸质版本确认。",
+              "reasonCode": "source-content-missing",
+              "entryId": "dz1979-p171",
+              "notes": "原料与做法本身完整可见，与典型contentIncomplete（做法中途截断）不同，故不设置contentIncomplete=true，仅记录特点栏缺失作为不确定性"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p173",
+      "bookName": "干煸鳝鱼丝",
+      "batch": "dz1979-b08",
+      "source": {
+        "pdfStartPage": 186,
+        "pdfEndPage": 189,
+        "bookStartPage": 173,
+        "bookEndPage": 176
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「干煸鳝鱼丝」，与目录一致（confidence=high）",
+        "原料栏已记录 12 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步 — 「以煸干水汽，鳝鱼吐油为度」"
+      ],
+      "unresolvedQuestions": [
+        "projectMatch候选「干煸鳝鱼」（classification=probable-match-needs-review）尚待人工确认是否为同一项目"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p173].projectMatch.reviewRequired"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b08-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b08-chunks/dz1979-b08-chunk6.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p177",
+      "bookName": "麻辣豆腐",
+      "batch": "dz1979-b09",
+      "source": {
+        "pdfStartPage": 190,
+        "pdfEndPage": 191,
+        "bookStartPage": 177,
+        "bookEndPage": 178
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「麻辣豆腐」，与目录一致（confidence=high）",
+        "原料栏已记录 12 项",
+        "特点栏文字已保留",
+        "已确认读法：特点栏后附注 — 「附注：若有牛、羊肉，按上述作法做成的豆腐也很可口。」"
+      ],
+      "unresolvedQuestions": [
+        "projectMatch候选「麻婆豆腐」（classification=probable-match-needs-review）尚待人工确认是否为同一项目"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p177].projectMatch.reviewRequired"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b09-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b09-chunks/dz1979-b09-chunk1.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p181",
+      "bookName": "鱼香油菜苔",
+      "batch": "dz1979-b09",
+      "source": {
+        "pdfStartPage": 194,
+        "pdfEndPage": 195,
+        "bookStartPage": 181,
+        "bookEndPage": 182
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）",
+        "contentIncomplete=true（正文在扫描件中中途截断/缺失部分栏目）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired",
+        "contentIncomplete",
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「鱼香油菜苔」，与目录一致（confidence=high）",
+        "原料栏已记录 11 项",
+        "已确认读法：做法第3步（本条目正文在本扫描件中的最后一句完整可见） — 「炒锅置旺火上烧热，下油菜苔（加盐少许）炒至熟而带脆（不炒烂）时铲起。」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 做法第4步及以后、特点栏：PDF第195页顶部延续做法第3步末句“炒锅置旺火上烧热，下油菜苔（加盐少许）炒至熟而带脆（不炒烂）时铲起。”，其后一行“4.锅内放菜油烧至……”起始文字因印墨严重褪色、字形大面积缺损而不可辨认；该行以下页面大片空白，未见后续做法正文与“三 特点”标题及内容；其后PDF第196页为下一条目“酱烧苦瓜”的起始页，无本条目连续正文",
+        "projectMatch classification=book-only，尚无匹配项目，待人工确认（book-only 或需补建）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p181].contentIncomplete",
+        "recipes[entryId=dz1979-p181].projectMatch.reviewRequired",
+        "recipes[entryId=dz1979-p181].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b09-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b09-chunks/dz1979-b09-chunk2.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b09",
+            "detail": {
+              "location": "做法第4步及以后、特点栏",
+              "type": "page-boundary",
+              "rawText": "PDF第195页顶部延续做法第3步末句“炒锅置旺火上烧热，下油菜苔（加盐少许）炒至熟而带脆（不炒烂）时铲起。”，其后一行“4.锅内放菜油烧至……”起始文字因印墨严重褪色、字形大面积缺损而不可辨认；该行以下页面大片空白，未见后续做法正文与“三 特点”标题及内容；其后PDF第196页为下一条目“酱烧苦瓜”的起始页，无本条目连续正文",
+              "candidates": [],
+              "treatment": "仅记录本来源可证实的事实：做法第4步起始行因印刷墨迹褪色不可辨认（已尝试600/1200/2400/3600/4800 dpi多次局部裁切复核，仍无法确认字形），第4步后续内容与“特点”栏在本扫描件中不可见。已保留完整可辨的原料与第1-3步全部正文，不猜测或伪造不可辨认部分的内容；characteristicsSummary保持为null，contentIncomplete=true。不对成因作出判断（不断言为原书印刷缺失、装订错页或其他原因），待人工核对原始纸质版本确认。",
+              "reasonCode": "source-content-missing",
+              "entryId": "dz1979-p181"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p206",
+      "bookName": "烧拌莴笋",
+      "batch": "dz1979-b10",
+      "source": {
+        "pdfStartPage": 219,
+        "pdfEndPage": 219,
+        "bookStartPage": 206,
+        "bookEndPage": 206
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「烧拌莴笋」，与目录一致（confidence=high）",
+        "原料栏已记录 7 项",
+        "特点栏文字已保留"
+      ],
+      "unresolvedQuestions": [
+        "projectMatch候选「烧拌鲜笋」（classification=probable-match-needs-review）尚待人工确认是否为同一项目"
+      ],
+      "needsScanRecheck": false,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p206].projectMatch.reviewRequired"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b10-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b10-chunks/dz1979-b10-chunk4.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p217",
+      "bookName": "米汤煮青菜",
+      "batch": "dz1979-b11",
+      "source": {
+        "pdfStartPage": 230,
+        "pdfEndPage": 230,
+        "bookStartPage": 217,
+        "bookEndPage": 217
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "至少一项原料confidence.recognition或confidence.conversion未达high",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "ingredientConfidenceLow",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「米汤煮青菜」，与目录一致（confidence=high）",
+        "原料栏已记录 5 项",
+        "特点栏文字已保留",
+        "已确认读法：特点栏后附注 — 「如用苔菜，即为“米汤煮苔菜”。作法是：选新鲜苔菜尖洗净，用油煸炒后，掺汤煮炬时，加盐和味精、葱花即可。」"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 原料栏：味精 [印墨磨损数量]",
+        "原料「味精 五分」置信度未达high（{'recognition': 'medium', 'conversion': 'high'}）：印刷墨迹磨损，字形按“五分”读出（与本页“盐 五钱”笔画结构比对一致），五分 × 0.5g = 2.5g",
+        "旧词/方言用语「煮炬」confidence=medium（“炬”字形可辨；该时代火候用语，语义未作现代化改写，与b06/b07/b09/b10已记录“炬”字用法一致）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p217].ingredients[4].confidence",
+        "recipes[entryId=dz1979-p217].methodSummary.dialectOrOldTerms[0]",
+        "recipes[entryId=dz1979-p217].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b11-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b11-chunks/dz1979-b11-chunk3.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b11",
+            "detail": {
+              "location": "原料栏",
+              "type": "unclear-glyph",
+              "rawText": "味精 [印墨磨损数量]",
+              "candidates": [
+                "五分"
+              ],
+              "treatment": "味精一行数量因印刷墨迹磨损，笔画残缺，与本页“盐 五钱”行首字形比对后按“五分”读出，但字迹本身残损程度较高，不足以视为与其余清晰印刷条目同等确信；保留候选“五分”但不作为无保留的确定读法",
+              "reasonCode": "unclear-glyph",
+              "entryId": "dz1979-p217"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p225",
+      "bookName": "熏豆筋",
+      "batch": "dz1979-b11",
+      "source": {
+        "pdfStartPage": 238,
+        "pdfEndPage": 238,
+        "bookStartPage": 225,
+        "bookEndPage": 225
+      },
+      "reviewReasons": [
+        "projectMatch.reviewRequired=true（项目匹配待人工确认）",
+        "contentIncomplete=true（正文在扫描件中中途截断/缺失部分栏目）",
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "projectMatchReviewRequired",
+        "contentIncomplete",
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「熏豆筋」，与目录一致（confidence=high）",
+        "原料栏已记录 10 项",
+        "已确认读法：做法第2步（本条目正文在本扫描件中的最后一句完整可见） — 「用中火烧至汤干亮油时，加味精香油合匀，起锅装盘。」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 特点栏及以后：PDF第238页正文在做法第2步末句“……用中火烧至汤干亮油时，加味精香油合匀，起锅装盘。”后结束，页面底部大片空白，未见“三 特点”标题及正文，也未见书内页码footer；其后PDF第239页为下一条目“蛋酥花仁”的起始页，无本条目连续正文",
+        "projectMatch classification=book-only，尚无匹配项目，待人工确认（book-only 或需补建）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "high",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p225].contentIncomplete",
+        "recipes[entryId=dz1979-p225].projectMatch.reviewRequired",
+        "recipes[entryId=dz1979-p225].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b11-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b11-chunks/dz1979-b11-chunk7.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b11",
+            "detail": {
+              "location": "特点栏及以后",
+              "type": "page-boundary",
+              "rawText": "PDF第238页正文在做法第2步末句后结束，页面底部大片空白，未见“三 特点”标题及正文，也未见书内页码footer",
+              "candidates": [],
+              "treatment": "仅记录当前扫描件可证实的事实：本条目原料与做法第1-2步已完整印出并可辨，但“特点”栏标题、正文及页码footer在本扫描件中均不可见。已保留完整可见的原料与做法正文，不猜测或伪造“特点”内容；characteristicsSummary保持为null，contentIncomplete=true。不对成因作出判断，待人工核对原始纸质版本确认。",
+              "reasonCode": "source-content-missing",
+              "entryId": "dz1979-p225"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p071",
+      "bookName": "夹沙肉",
+      "batch": "dz1979-b03",
+      "source": {
+        "pdfStartPage": 84,
+        "pdfEndPage": 85,
+        "bookStartPage": 71,
+        "bookEndPage": 72
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「夹沙肉」，与目录一致（confidence=high）",
+        "原料栏已记录 7 项",
+        "特点栏文字已保留",
+        "已确认读法：做法 — 「保肋」",
+        "已确认读法：做法 — 「干沙」",
+        "已确认读法：做法 — 「刀子形（篦）」",
+        "projectMatch=exact-name，已匹配「夹沙肉」"
+      ],
+      "unresolvedQuestions": [
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 原料栏：干沙"
+      ],
+      "needsScanRecheck": false,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p071].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b03",
+            "detail": {
+              "entryId": "dz1979-p071",
+              "location": "原料栏",
+              "type": "old-term",
+              "rawText": "干沙",
+              "candidates": [
+                "豆沙"
+              ],
+              "treatment": "字形确认但词义未证实，不替换为候选词。"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p090",
+      "bookName": "腊肉烧菜头",
+      "batch": "dz1979-b04",
+      "source": {
+        "pdfStartPage": 103,
+        "pdfEndPage": 103,
+        "bookStartPage": 90,
+        "bookEndPage": 90
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「腊肉烧菜头」，与目录一致（confidence=high）",
+        "原料栏已记录 8 项",
+        "特点栏文字已保留"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 做法第1步：切成长一寸八、宽一寸、厚二",
+        "旧词/方言用语「一寸八、宽一寸」confidence=medium（原文末端被页面截断）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p090].methodSummary.dialectOrOldTerms[0]",
+        "recipes[entryId=dz1979-p090].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b04",
+            "detail": {
+              "entryId": "dz1979-p090",
+              "location": "做法第1步",
+              "issue": "页面在菜头尺寸句中截断，后续做法和特点未见。"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p091",
+      "bookName": "豌豆焖肉",
+      "batch": "dz1979-b04",
+      "source": {
+        "pdfStartPage": 104,
+        "pdfEndPage": 105,
+        "bookStartPage": 91,
+        "bookEndPage": 92
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「豌豆焖肉」，与目录一致（confidence=high）",
+        "原料栏已记录 14 项",
+        "特点栏文字已保留"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 附注俗称：洗手橙",
+        "旧词/方言用语「洗手橙」confidence=medium（附注中的俗称字形需复核）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p091].methodSummary.dialectOrOldTerms[3]",
+        "recipes[entryId=dz1979-p091].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b04",
+            "detail": {
+              "entryId": "dz1979-p091",
+              "location": "附注俗称",
+              "issue": "“洗手蒸”俗称字形/词义需保留候选。"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p097",
+      "bookName": "明笋焖肉片",
+      "batch": "dz1979-b04",
+      "source": {
+        "pdfStartPage": 110,
+        "pdfEndPage": 110,
+        "bookStartPage": 97,
+        "bookEndPage": 97
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「明笋焖肉片」，与目录一致（confidence=high）",
+        "原料栏已记录 7 项",
+        "特点栏文字已保留",
+        "projectMatch=exact-name，已匹配「明笋焖肉片」"
+      ],
+      "unresolvedQuestions": [
+        "[old-term（旧词/方言用语，字形已确认但词义未证实或未现代化改写）] 附注：明笋若不切片，可用手撕每根撕成两半"
+      ],
+      "needsScanRecheck": false,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p097].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": false,
+        "workerFile": null,
+        "presentInChunkFile": false,
+        "chunkFile": null,
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p132",
+      "bookName": "青笋烧兔",
+      "batch": "dz1979-b06",
+      "source": {
+        "pdfStartPage": 145,
+        "pdfEndPage": 147,
+        "bookStartPage": 132,
+        "bookEndPage": 134,
+        "catalogPdfEndPage": 147,
+        "catalogBookEndPage": 134,
+        "actualContentPdfEndPage": 145,
+        "actualContentBookEndPage": 132,
+        "sourceNotes": [
+          "PDF第146-147页/书内第133-134页为下一分类\"禽蛋鱼类\"的分隔图案页与其空白背页，不含本条目正文；本条目正文（原料、做法、特点）已在PDF第145页/书内第132页完整结束。",
+          "source.pdfEndPage/bookEndPage按目录推算规则（取下一目录条目起始页减一）保留147/134，用于批次页码范围连续性；实际正文结束页见actualContentPdfEndPage/actualContentBookEndPage。"
+        ]
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「青笋烧兔」，与目录一致（confidence=high）",
+        "原料栏已记录 10 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步 — 「煸至油呈红色时下酱油、盐、葱姜及鲜汤一起烧」",
+        "已确认读法：做法第2步 — 「待兔肉烧炬即下味精、水豆粉，收浓汁起锅即成」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] source range：PDF第146-147页为下一分类\"禽蛋鱼类\"的分隔页（图案页）与空白背页，不含本条目正文"
+      ],
+      "needsScanRecheck": true,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p132].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b06-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b06-chunks/dz1979-b06-chunk4.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p139",
+      "bookName": "辣子鸡丁",
+      "batch": "dz1979-b07",
+      "source": {
+        "pdfStartPage": 152,
+        "pdfEndPage": 153,
+        "bookStartPage": 139,
+        "bookEndPage": 140
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「辣子鸡丁」，与目录一致（confidence=high）",
+        "原料栏已记录 12 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第1步 — 「用刀后尖戳十余下（皮向下）」",
+        "已确认读法：做法（原印刷编号3.） — 「见油出红色时」",
+        "projectMatch=exact-name，已匹配「辣子鸡丁」"
+      ],
+      "unresolvedQuestions": [
+        "[page-boundary（页边界/印刷缺失）] 做法编号2.：印刷页面仅见做法编号“1.”与“3.”，编号“2.”及其正文未印出；PDF第152页与153页之间无空白页，正文由152页第1步直接接续至153页编号3."
+      ],
+      "needsScanRecheck": true,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p139].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b07-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b07-chunks/dz1979-b07-chunk2b.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b07",
+            "detail": {
+              "location": "做法编号2.",
+              "type": "page-boundary",
+              "rawText": "印刷页面仅见做法编号“1.”与“3.”，编号“2.”及其正文未印出；PDF第152页与153页之间无空白页，正文由152页第1步直接接续至153页编号3.",
+              "candidates": [],
+              "treatment": "仅记录当前扫描件可证实的事实：印刷做法编号自1.跳至3.，编号2.的正文在本来源中不可见。已将两段可见正文保存为连续步骤1-2，并在第二步注明“（原印刷编号3.）”，不猜测编号2.的内容。不对成因作出判断（不断言为原书印刷缺失），待人工核对原始纸质版本确认。",
+              "reasonCode": "source-content-missing",
+              "entryId": "dz1979-p139"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p154",
+      "bookName": "酸辣蛋花汤",
+      "batch": "dz1979-b08",
+      "source": {
+        "pdfStartPage": 167,
+        "pdfEndPage": 167,
+        "bookStartPage": 154,
+        "bookEndPage": 154
+      },
+      "reviewReasons": [
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「酸辣蛋花汤」，与目录一致（confidence=high）",
+        "原料栏已记录 9 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步 — 「用水豆粉勾成清二流芡」",
+        "已确认读法：附注 — 「葱花、醋、味精先放于碗内亦可」"
+      ],
+      "unresolvedQuestions": [
+        "旧词/方言用语「清二流芡」confidence=medium（）"
+      ],
+      "needsScanRecheck": false,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p154].methodSummary.dialectOrOldTerms[0]"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b08-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b08-chunks/dz1979-b08-chunk1.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p184",
+      "bookName": "麻辣明笋丝",
+      "batch": "dz1979-b09",
+      "source": {
+        "pdfStartPage": 197,
+        "pdfEndPage": 197,
+        "bookStartPage": 184,
+        "bookEndPage": 184
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「麻辣明笋丝」，与目录一致（confidence=high）",
+        "原料栏已记录 8 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步（字形确认为“余”，语义存疑，已在uncertainties记录） — 「在开水锅中余两次」"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 做法第2步：在开水锅中余两次",
+        "旧词/方言用语「余两次」confidence=medium（字形按“余”确认；语义是否等同于“煮/焯”未得到来源独立佐证，不作解释）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p184].methodSummary.dialectOrOldTerms[0]",
+        "recipes[entryId=dz1979-p184].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b09-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b09-chunks/dz1979-b09-chunk3.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b09",
+            "detail": {
+              "location": "做法第2步",
+              "type": "unclear-glyph",
+              "rawText": "在开水锅中余两次",
+              "candidates": [
+                "煮两次",
+                "余（渌/煠）两次"
+              ],
+              "treatment": "字形按“余”读出并逐字保留；因该字在此语境下的确切含义（是否为“煮”的方言简写或印刷讹字）无法仅凭本页确认，不替换为候选字，不作语义推断",
+              "reasonCode": "unclear-glyph",
+              "entryId": "dz1979-p184"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p189",
+      "bookName": "醋渍胡豆",
+      "batch": "dz1979-b09",
+      "source": {
+        "pdfStartPage": 202,
+        "pdfEndPage": 203,
+        "bookStartPage": 189,
+        "bookEndPage": 190
+      },
+      "reviewReasons": [
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「醋渍胡豆」，与目录一致（confidence=high）",
+        "原料栏已记录 11 项",
+        "特点栏文字已保留",
+        "已确认读法：做法第2步：原料栏“生菜油”合计一两，做法第2步先用五钱调入调料碗，第3步注明“余下的生菜油”用于最后浇淋，两处均逐字保留，不合并为单一数量 — 「生菜油（五钱）」"
+      ],
+      "unresolvedQuestions": [
+        "旧词/方言用语「泡红辣椒切“鱼眼睛”」confidence=None（指将泡红辣椒切成鱼眼睛大小的碎粒，保留原书比喻用语）"
+      ],
+      "needsScanRecheck": false,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p189].methodSummary.dialectOrOldTerms[0]"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b09-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b09-chunks/dz1979-b09-chunk6.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p191",
+      "bookName": "炒野鸡红",
+      "batch": "dz1979-b09",
+      "source": {
+        "pdfStartPage": 204,
+        "pdfEndPage": 205,
+        "bookStartPage": 191,
+        "bookEndPage": 192
+      },
+      "reviewReasons": [
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「炒野鸡红」，与目录一致（confidence=high）",
+        "原料栏已记录 11 项",
+        "特点栏文字已保留",
+        "已确认读法：特点栏后附注 — 「附注：如用牛肉丝烹制，味道更觉鲜美。」"
+      ],
+      "unresolvedQuestions": [
+        "旧词/方言用语「二粗丝」confidence=None（肉丝、萝卜丝的粗细分级用语，与b07/b08已记录术语一致，保留原书表达，不扩写精确定义）"
+      ],
+      "needsScanRecheck": false,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p191].methodSummary.dialectOrOldTerms[0]"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b09-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b09-chunks/dz1979-b09-chunk7.json",
+        "batchReviewUnresolvedRefs": []
+      }
+    },
+    {
+      "entryId": "dz1979-p194",
+      "bookName": "家常芋头",
+      "batch": "dz1979-b09",
+      "source": {
+        "pdfStartPage": 207,
+        "pdfEndPage": 207,
+        "bookStartPage": 194,
+        "bookEndPage": 194
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「家常芋头」，与目录一致（confidence=high）",
+        "原料栏已记录 9 项",
+        "特点栏文字已保留"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 做法第2步：烧至芋头炬时",
+        "旧词/方言用语「烧至芋头炬时」confidence=medium（“炬”字形可辨，但语义是否等同“耙/糯”未得到来源独立佐证，不作解释）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p194].methodSummary.dialectOrOldTerms[0]",
+        "recipes[entryId=dz1979-p194].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b09-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b09-chunks/dz1979-b09-chunk8.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b09",
+            "detail": {
+              "location": "做法第2步",
+              "type": "unclear-glyph",
+              "rawText": "烧至芋头炬时",
+              "candidates": [
+                "烧至芋头耙时",
+                "烧至芋头糯时"
+              ],
+              "treatment": "字形按“炬”读出并逐字保留；因该字在此语境下的确切含义无法仅凭本页字形完全确认，不替换为候选字，不作语义推断",
+              "reasonCode": "unclear-glyph",
+              "entryId": "dz1979-p194"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p197",
+      "bookName": "家常四季豆",
+      "batch": "dz1979-b10",
+      "source": {
+        "pdfStartPage": 210,
+        "pdfEndPage": 210,
+        "bookStartPage": 197,
+        "bookEndPage": 197
+      },
+      "reviewReasons": [
+        "uncertainties非空（含未解决的字形/数量/归属/页边界问题）",
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "uncertaintiesNonEmpty",
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「家常四季豆」，与目录一致（confidence=high）",
+        "原料栏已记录 8 项",
+        "特点栏文字已保留"
+      ],
+      "unresolvedQuestions": [
+        "[unclear-glyph（字形无法稳定判定）] 做法第2步：焖至豆炬",
+        "旧词/方言用语「焖至豆炬」confidence=medium（“炬”字形清晰可辨，但在此语境下的确切含义（是否为“耙/糯”一类软烂状态的方言用字）未在本页得到独立佐证，与b06/b07/b09已记录“炬”字用法一致；不作语义推断）"
+      ],
+      "needsScanRecheck": true,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p197].methodSummary.dialectOrOldTerms[0]",
+        "recipes[entryId=dz1979-p197].uncertainties"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b10-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b10-chunks/dz1979-b10-chunk1.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b10",
+            "detail": {
+              "location": "做法第2步",
+              "type": "unclear-glyph",
+              "rawText": "焖至豆炬",
+              "candidates": [
+                "焖至豆耙",
+                "焖至豆糯"
+              ],
+              "treatment": "字形按“炬”读出并逐字保留；因该字在此语境下的确切含义无法仅凭本页字形完全确认，不替换为候选字，不作语义推断，与b09-p194“烧至芋头炬时”记录方式一致",
+              "reasonCode": "unclear-glyph",
+              "entryId": "dz1979-p197"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "entryId": "dz1979-p215",
+      "bookName": "拌辣菜",
+      "batch": "dz1979-b11",
+      "source": {
+        "pdfStartPage": 228,
+        "pdfEndPage": 228,
+        "bookStartPage": 215,
+        "bookEndPage": 215
+      },
+      "reviewReasons": [
+        "dialectOrOldTerms中至少一项confidence未达high或缺失confidence字段"
+      ],
+      "reviewReasonKeys": [
+        "dialectTermConfidenceLow"
+      ],
+      "confirmedFacts": [
+        "标题经视觉核对为「拌辣菜」，与目录一致（confidence=high）",
+        "原料栏已记录 7 项",
+        "特点栏文字已保留",
+        "已确认读法：特点栏 — 「此菜为我省民间小菜，味麻辣冲鼻，故又名“冲菜”。」",
+        "已确认读法：特点栏后附注 — 「此为大份量，家庭吃时可根据情况面定。吃多少拌多少，下者一定要依盐严，调料量也要酌情面用。」"
+      ],
+      "unresolvedQuestions": [
+        "旧词/方言用语「情况面定」confidence=medium（字形清晰可辨为“面”；该字在“可根据情况面定”“调料量也要酌情面用”两处的确切语法功能（是否等同于“而”类连接用法）未在本页得到独立佐证，不作语义推断，逐字保留原文）"
+      ],
+      "needsScanRecheck": false,
+      "priority": "medium",
+      "evidenceFieldPaths": [
+        "recipes[entryId=dz1979-p215].methodSummary.dialectOrOldTerms[0]"
+      ],
+      "crossReference": {
+        "presentInWorkerFile": true,
+        "workerFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/dz1979-b11-worker.json",
+        "presentInChunkFile": true,
+        "chunkFile": "/Users/lianghongjing/Code/kitchenmanager/data/source-restoration/b11-chunks/dz1979-b11-chunk2.json",
+        "batchReviewUnresolvedRefs": [
+          {
+            "batchId": "dz1979-b11",
+            "detail": {
+              "location": "特点栏后附注",
+              "type": "unclear-glyph",
+              "rawText": "情况面定",
+              "candidates": [],
+              "treatment": "字形清晰可辨为“面”；该字在“可根据情况面定”“调料量也要酌情面用”两处的确切语法功能未在本页得到独立佐证，不作语义推断，逐字保留原文",
+              "reasonCode": "unclear-glyph",
+              "entryId": "dz1979-p215"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
