@@ -23425,11 +23425,16 @@
       ],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "probable-match-needs-review",
-        "projectName": null,
-        "projectIds": [],
-        "candidateProjectName": "热窝姜汁鸡",
-        "reviewRequired": true
+        "classification": "confirmed-alias",
+        "projectName": "热窝姜汁鸡",
+        "projectIds": [
+          {
+            "library": "full",
+            "id": "ex--832d7c5d"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
       "confidence": {
         "recognition": "high",
@@ -27878,11 +27883,11 @@
       ],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "probable-match-needs-review",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
-        "candidateProjectName": "豆腐鲫鱼",
-        "reviewRequired": true
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
       "confidence": {
         "recognition": "high",
@@ -28996,11 +29001,16 @@
       ],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "probable-match-needs-review",
-        "projectName": null,
-        "projectIds": [],
-        "candidateProjectName": "麻婆豆腐",
-        "reviewRequired": true
+        "classification": "confirmed-alias",
+        "projectName": "麻婆豆腐",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-mapo-tofu"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
       "confidence": {
         "recognition": "high",
@@ -33837,11 +33847,11 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "probable-match-needs-review",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
-        "candidateProjectName": "烧拌鲜笋",
-        "reviewRequired": true
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
       "confidence": {
         "recognition": "high",

@@ -262,13 +262,18 @@
         }
       ],
       "uncertainties": [],
-  "projectMatch": {
-    "classification": "probable-match-needs-review",
-    "projectName": null,
-    "projectIds": [],
-    "candidateProjectName": "麻婆豆腐",
-    "reviewRequired": true
-  },
+      "projectMatch": {
+        "classification": "confirmed-alias",
+        "projectName": "麻婆豆腐",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-mapo-tofu"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
       "confidence": {
         "recognition": "high",
         "conversion": "high"

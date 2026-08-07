@@ -1,0 +1,142 @@
+{
+  "schema": "kitchenmanager.source-restoration.apply-crosswalk-adjudications.v1",
+  "generatedAt": "2026-08-07",
+  "purpose": "将 crosswalk-probable-review 中 4 个已完成正文复核判断写回 canonical source-restoration projectMatch（chunk/worker/assembled 三层），并保持 name-matches 历史 name-only baseline 不变。不做 production promotion，不修改 applicationReady。",
+  "applicationReady": false,
+  "sourceOverlays": [
+    "data/source-restoration/dazhong-chuancai-1979-crosswalk-probable-review.v1.json"
+  ],
+  "unchangedByDesign": {
+    "remainProbable": [
+      {
+        "entryId": "dz1979-p173",
+        "bookName": "干煸鳝鱼丝",
+        "reason": "probable-review decision=remain-probable，正文刀工（丝 vs 段）与调味差异未消除，维持 probable-match-needs-review 与 candidate=干煸鳝鱼，projectIds=[]，reviewRequired=true。"
+      }
+    ]
+  },
+  "entries": [
+    {
+      "entryId": "dz1979-p141",
+      "bookName": "热味姜汁鸡",
+      "decisionSource": "crosswalk-probable-review: dz1979-p141, decision=confirmed-alias, confidence=high",
+      "previousProjectMatch": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "热窝姜汁鸡",
+        "reviewRequired": true
+      },
+      "appliedProjectMatch": {
+        "classification": "confirmed-alias",
+        "projectName": "热窝姜汁鸡",
+        "projectIds": [
+          {
+            "library": "full",
+            "id": "ex--832d7c5d"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "evidenceSummary": "正文结构逐项一致：盐酱油醋姜汁味型、七成热油煸鸡块姜米葱花→焖烧→水豆粉收汁→临起锅下醋；公鸡/母鸡与尺寸差异为版本级变体。",
+      "layersUpdated": [
+        "worker(dz1979-b07-worker.json)",
+        "chunk(b07-chunks/dz1979-b07-chunk2b.json)",
+        "assembled"
+      ]
+    },
+    {
+      "entryId": "dz1979-p168",
+      "bookName": "豆腐鱼",
+      "decisionSource": "crosswalk-probable-review: dz1979-p168, decision=reject-candidate, confidence=high",
+      "previousProjectMatch": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "豆腐鲫鱼",
+        "reviewRequired": true
+      },
+      "appliedProjectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "evidenceSummary": "候选正文为姜蒜白汤奶白炖制，原书为豆瓣甜酱醪糟金红收汁挂鱼，核心调味、关键工艺与成品形态实质冲突，候选不成立。",
+      "layersUpdated": [
+        "worker(dz1979-b08-worker.json)",
+        "chunk(b08-chunks/dz1979-b08-chunk5.json)",
+        "assembled"
+      ]
+    },
+    {
+      "entryId": "dz1979-p177",
+      "bookName": "麻辣豆腐",
+      "decisionSource": "crosswalk-probable-review: dz1979-p177, decision=confirmed-alias, confidence=high",
+      "previousProjectMatch": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "麻婆豆腐",
+        "reviewRequired": true
+      },
+      "appliedProjectMatch": {
+        "classification": "confirmed-alias",
+        "projectName": "麻婆豆腐",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-mapo-tofu"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "evidenceSummary": "豆腐+肉末+豆瓣+辣椒面+花椒面+豆豉+蒜苗+水豆粉组合、豆瓣红油调味、焯水→炒肉→炒红油→掺汤烧→勾芡→撒花椒面步骤与麻辣烫鲜特点逐项吻合，差异为猪肉/牛肉等家常变体。",
+      "layersUpdated": [
+        "worker(dz1979-b09-worker.json)",
+        "chunk(b09-chunks/dz1979-b09-chunk1.json)",
+        "assembled"
+      ]
+    },
+    {
+      "entryId": "dz1979-p206",
+      "bookName": "烧拌莴笋",
+      "decisionSource": "crosswalk-probable-review: dz1979-p206, decision=reject-candidate, confidence=high",
+      "previousProjectMatch": {
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": "烧拌鲜笋",
+        "reviewRequired": true
+      },
+      "appliedProjectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "evidenceSummary": "莴笋（茎用莴苣）与鲜笋（竹笋）非同义食材，烹调（灰火烧 vs 焯水煮）与调味（糊辣干辣椒香油 vs 蒜泥醋花椒面）亦冲突，候选不成立。",
+      "layersUpdated": [
+        "worker(dz1979-b10-worker.json)",
+        "chunk(b10-chunks/dz1979-b10-chunk4.json)",
+        "assembled"
+      ]
+    }
+  ],
+  "verification": {
+    "assemblerCommand": "node scripts/assemble-dazhong-chuancai-recipes.mjs data/source-restoration/dz1979-b05-worker.json data/source-restoration/dz1979-b06-worker.json data/source-restoration/dz1979-b07-worker.json data/source-restoration/dz1979-b08-worker.json data/source-restoration/dz1979-b09-worker.json data/source-restoration/dz1979-b10-worker.json data/source-restoration/dz1979-b11-worker.json",
+    "assemblerResult": "147/147 recipes from 11/11 reviewed batches",
+    "nameMatchesUnchanged": true,
+    "applicationReadyRemainsFalse": true,
+    "canonicalClassificationCounts": {
+      "exact-name": 74,
+      "confirmed-alias": 7,
+      "probable-match-needs-review": 1,
+      "book-only": 65
+    }
+  }
+}

@@ -258,12 +258,11 @@
       ],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "probable-match-needs-review",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
-        "candidateProjectName": "豆腐鲫鱼",
-        "reviewRequired": true,
-        "notes": "本条目原料栏主料印刷为“鲜鱼”，未指定鱼种；项目候选名“豆腐鲫鱼”额外增加了鱼种“鲫”，本来源正文未证实该菜必用鲫鱼，故仍需人工复核后再确定是否等同或改为独立收录。"
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
       "confidence": { "recognition": "high", "conversion": "high" }
     },

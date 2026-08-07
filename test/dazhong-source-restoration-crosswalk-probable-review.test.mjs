@@ -12,6 +12,9 @@ const review = readJson(
 const crosswalk = readJson(
   'data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json',
 );
+const nameMatches = readJson(
+  'data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json',
+);
 
 const VALID_DECISIONS = new Set([
   'confirmed-alias',
@@ -21,13 +24,16 @@ const VALID_DECISIONS = new Set([
 
 const VALID_CONFIDENCE = new Set(['high', 'medium', 'low']);
 
+// The probable review adjudicated the historical probable set (the five
+// name-only suspected_match entries), not only the entries that remain
+// probable after adjudication.
 const EXPECTED_ENTRY_IDS = new Set(
-  crosswalk.entries
-    .filter((e) => e.proposedClassification === 'probable-match-needs-review')
+  nameMatches.bookMatches
+    .filter((e) => e.classification.id === 'suspected_match')
     .map((e) => e.entryId),
 );
 
-test('probable review covers exactly the 5 current probable entries with no duplicates', () => {
+test('probable review covers exactly the 5 historical probable entries with no duplicates', () => {
   const ids = review.items.map((item) => item.entryId);
   assert.equal(ids.length, 5);
   assert.equal(new Set(ids).size, 5);
@@ -114,16 +120,22 @@ test('review candidates are consistent with the unchanged crosswalk probable ent
   for (const item of review.items) {
     const crosswalkEntry = crosswalkById.get(item.entryId);
     assert.ok(crosswalkEntry, `${item.entryId} missing in crosswalk`);
-    assert.equal(
-      crosswalkEntry.proposedClassification,
-      'probable-match-needs-review',
-      `${item.entryId} crosswalk classification changed`,
-    );
-    assert.equal(
-      crosswalkEntry.candidateProjectName,
-      item.candidateProjectName,
-      `${item.entryId} candidate mismatch`,
-    );
+    if (item.decision === 'confirmed-alias') {
+      assert.equal(crosswalkEntry.proposedClassification, 'confirmed-alias', item.entryId);
+      assert.equal(crosswalkEntry.projectName, item.candidateProjectName, item.entryId);
+      assert.equal(crosswalkEntry.candidateProjectName, null, item.entryId);
+      assert.ok(crosswalkEntry.projectIds.length > 0, item.entryId);
+    } else if (item.decision === 'reject-candidate') {
+      assert.equal(crosswalkEntry.proposedClassification, 'book-only', item.entryId);
+      assert.equal(crosswalkEntry.projectName, null, item.entryId);
+      assert.equal(crosswalkEntry.candidateProjectName, null, item.entryId);
+      assert.deepEqual(crosswalkEntry.projectIds, [], item.entryId);
+      assert.deepEqual(crosswalkEntry.candidateProjectIds, [], item.entryId);
+    } else {
+      assert.equal(crosswalkEntry.proposedClassification, 'probable-match-needs-review', item.entryId);
+      assert.equal(crosswalkEntry.candidateProjectName, item.candidateProjectName, item.entryId);
+      assert.equal(crosswalkEntry.reviewRequired, true, item.entryId);
+    }
   }
 });
 

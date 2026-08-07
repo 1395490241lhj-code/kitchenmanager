@@ -1,7 +1,7 @@
 {
   "schema": "kitchenmanager.source-restoration.crosswalk-dry-run.v1",
   "generatedAt": "2026-08-07",
-  "purpose": "《大众川菜》1979 147道source-restoration entryId与项目Curated/Full真实菜谱ID之间的crosswalk dry-run审计。仅审计/映射，不做production promotion，不修改canonical147道worker/chunk/assembled、name-matches、review overlay/audit、Curated/Full/HOC或applicationReady。",
+  "purpose": "《大众川菜》1979 147道source-restoration entryId与项目Curated/Full真实菜谱ID之间的crosswalk dry-run审计。仅审计/映射，不做production promotion，不修改canonical147道worker/chunk/assembled、name-matches、review overlay/audit、Curated/Full/HOC或applicationReady。正文复核结论来自 crosswalk-probable-review artifact；name-matches 仅作为历史 name-only baseline。",
   "scope": {
     "totalEntries": 147,
     "sourceCatalog": "data/source-restoration/dazhong-chuancai-1979-catalog.v1.json",
@@ -11,6 +11,7 @@
     "sourceR1Results": "data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-results.v1.json",
     "sourceR2Results": "data/source-restoration/dazhong-chuancai-1979-review-resolution-r2-results.v1.json",
     "sourceApplyAudit": "data/source-restoration/dazhong-chuancai-1979-apply-review-resolutions-audit.v1.json",
+    "sourceProbableReview": "data/source-restoration/dazhong-chuancai-1979-crosswalk-probable-review.v1.json",
     "targetCuratedLibrary": "data/sichuan-recipes.curated.json",
     "targetFullLibrary": "data/sichuan-recipes.json"
   },
@@ -56,13 +57,13 @@
     "totalEntries": 147,
     "classificationCounts": {
       "exact-name": 74,
-      "confirmed-alias": 5,
-      "probable-match-needs-review": 5,
-      "book-only": 63
+      "confirmed-alias": 7,
+      "probable-match-needs-review": 1,
+      "book-only": 65
     },
-    "confirmedProjectMappingTotal": 79,
-    "probableCandidateCount": 5,
-    "bookOnlyCount": 63,
+    "confirmedProjectMappingTotal": 81,
+    "probableCandidateCount": 1,
+    "bookOnlyCount": 65,
     "sourceQualityCounts": {
       "ready-for-later-promotion-review": 90,
       "needs-source-review": 45,
@@ -70,35 +71,16 @@
     },
     "collisionCount": 0,
     "manyToOneCount": 0,
-    "consistencyProblemsCount": 0
+    "consistencyProblemsCount": 0,
+    "adjudicatedEntryIds": [
+      "dz1979-p141",
+      "dz1979-p168",
+      "dz1979-p173",
+      "dz1979-p177",
+      "dz1979-p206"
+    ]
   },
   "probableCandidates": [
-    {
-      "entryId": "dz1979-p141",
-      "bookName": "热味姜汁鸡",
-      "candidateProjectName": "热窝姜汁鸡",
-      "candidateProjectIds": [
-        {
-          "library": "full",
-          "id": "ex--832d7c5d"
-        }
-      ]
-    },
-    {
-      "entryId": "dz1979-p168",
-      "bookName": "豆腐鱼",
-      "candidateProjectName": "豆腐鲫鱼",
-      "candidateProjectIds": [
-        {
-          "library": "curated",
-          "id": "ex--8aec747f"
-        },
-        {
-          "library": "full",
-          "id": "ex--8aec747f"
-        }
-      ]
-    },
     {
       "entryId": "dz1979-p173",
       "bookName": "干煸鳝鱼丝",
@@ -111,32 +93,6 @@
         {
           "library": "full",
           "id": "ex--efa871b1"
-        }
-      ]
-    },
-    {
-      "entryId": "dz1979-p177",
-      "bookName": "麻辣豆腐",
-      "candidateProjectName": "麻婆豆腐",
-      "candidateProjectIds": [
-        {
-          "library": "curated",
-          "id": "fam-mapo-tofu"
-        }
-      ]
-    },
-    {
-      "entryId": "dz1979-p206",
-      "bookName": "烧拌莴笋",
-      "candidateProjectName": "烧拌鲜笋",
-      "candidateProjectIds": [
-        {
-          "library": "curated",
-          "id": "ex--57fd9bbb"
-        },
-        {
-          "library": "full",
-          "id": "ex--57fd9bbb"
         }
       ]
     }
@@ -3038,28 +2994,34 @@
       "entryId": "dz1979-p141",
       "bookName": "热味姜汁鸡",
       "sourceProjectMatchBefore": {
-        "classification": "probable-match-needs-review",
-        "projectName": null,
-        "projectIds": [],
-        "candidateProjectName": "热窝姜汁鸡",
-        "reviewRequired": true
+        "classification": "confirmed-alias",
+        "projectName": "热窝姜汁鸡",
+        "projectIds": [
+          {
+            "library": "full",
+            "id": "ex--832d7c5d"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
-      "proposedClassification": "probable-match-needs-review",
-      "projectName": null,
-      "projectIds": [],
-      "candidateProjectName": "热窝姜汁鸡",
-      "candidateProjectIds": [
+      "proposedClassification": "confirmed-alias",
+      "projectName": "热窝姜汁鸡",
+      "projectIds": [
         {
           "library": "full",
           "id": "ex--832d7c5d"
         }
       ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
       "evidence": [
+        "正文证据确认同菜异名（依据 crosswalk-probable-review，decision=confirmed-alias，confidence=high）。",
         "两个名称仅一字不同且项目候选唯一，但“味/窝”不是可直接等同的字形规范化。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
       "sourceQualityReasons": [],
-      "reviewRequired": true,
+      "reviewRequired": false,
       "manyToOne": null,
       "collision": null
     },
@@ -3593,32 +3555,24 @@
       "entryId": "dz1979-p168",
       "bookName": "豆腐鱼",
       "sourceProjectMatchBefore": {
-        "classification": "probable-match-needs-review",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
-        "candidateProjectName": "豆腐鲫鱼",
-        "reviewRequired": true
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
-      "proposedClassification": "probable-match-needs-review",
+      "proposedClassification": "book-only",
       "projectName": null,
       "projectIds": [],
-      "candidateProjectName": "豆腐鲫鱼",
-      "candidateProjectIds": [
-        {
-          "library": "curated",
-          "id": "ex--8aec747f"
-        },
-        {
-          "library": "full",
-          "id": "ex--8aec747f"
-        }
-      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
       "evidence": [
-        "项目名增加了鱼种“鲫”，需要正文主料确认。"
+        "候选经正文复核不成立（依据 crosswalk-probable-review，decision=reject-candidate，confidence=high），回到book-only。",
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
       "sourceQualityReasons": [],
-      "reviewRequired": true,
+      "reviewRequired": false,
       "manyToOne": null,
       "collision": null
     },
@@ -3729,28 +3683,34 @@
       "entryId": "dz1979-p177",
       "bookName": "麻辣豆腐",
       "sourceProjectMatchBefore": {
-        "classification": "probable-match-needs-review",
-        "projectName": null,
-        "projectIds": [],
-        "candidateProjectName": "麻婆豆腐",
-        "reviewRequired": true
+        "classification": "confirmed-alias",
+        "projectName": "麻婆豆腐",
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "fam-mapo-tofu"
+          }
+        ],
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
-      "proposedClassification": "probable-match-needs-review",
-      "projectName": null,
-      "projectIds": [],
-      "candidateProjectName": "麻婆豆腐",
-      "candidateProjectIds": [
+      "proposedClassification": "confirmed-alias",
+      "projectName": "麻婆豆腐",
+      "projectIds": [
         {
           "library": "curated",
           "id": "fam-mapo-tofu"
         }
       ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
       "evidence": [
+        "正文证据确认同菜异名（依据 crosswalk-probable-review，decision=confirmed-alias，confidence=high）。",
         "菜式高度相关但名称语义并不等值，需要正文调味和做法确认。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
       "sourceQualityReasons": [],
-      "reviewRequired": true,
+      "reviewRequired": false,
       "manyToOne": null,
       "collision": null
     },
@@ -4386,32 +4346,24 @@
       "entryId": "dz1979-p206",
       "bookName": "烧拌莴笋",
       "sourceProjectMatchBefore": {
-        "classification": "probable-match-needs-review",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
-        "candidateProjectName": "烧拌鲜笋",
-        "reviewRequired": true
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
-      "proposedClassification": "probable-match-needs-review",
+      "proposedClassification": "book-only",
       "projectName": null,
       "projectIds": [],
-      "candidateProjectName": "烧拌鲜笋",
-      "candidateProjectIds": [
-        {
-          "library": "curated",
-          "id": "ex--57fd9bbb"
-        },
-        {
-          "library": "full",
-          "id": "ex--57fd9bbb"
-        }
-      ],
+      "candidateProjectName": null,
+      "candidateProjectIds": [],
       "evidence": [
-        "烹调法相同但“莴笋/鲜笋”可能指不同原料，需要正文确认。"
+        "候选经正文复核不成立（依据 crosswalk-probable-review，decision=reject-candidate，confidence=high），回到book-only。",
+        "当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。"
       ],
       "sourceQuality": "ready-for-later-promotion-review",
       "sourceQualityReasons": [],
-      "reviewRequired": true,
+      "reviewRequired": false,
       "manyToOne": null,
       "collision": null
     },

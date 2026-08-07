@@ -18,6 +18,9 @@ const recipes = readJson(
 const nameMatches = readJson(
   'data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json',
 );
+const probableReview = readJson(
+  'data/source-restoration/dazhong-chuancai-1979-crosswalk-probable-review.v1.json',
+);
 const applyAudit = readJson(
   'data/source-restoration/dazhong-chuancai-1979-apply-review-resolutions-audit.v1.json',
 );
@@ -242,6 +245,9 @@ test('probable-match-needs-review does not by itself cause needs-source-review',
 });
 
 test('crosswalk classification is consistent with canonical recipes and name-matches', () => {
+  const reviewDecisionById = new Map(
+    probableReview.items.map((item) => [item.entryId, item]),
+  );
   for (const entry of crosswalk.entries) {
     const recipe = recipeByEntryId.get(entry.entryId);
     const nameMatch = nameMatchByEntryId.get(entry.entryId);
@@ -253,11 +259,22 @@ test('crosswalk classification is consistent with canonical recipes and name-mat
       recipe.projectMatch.classification,
       `${entry.entryId} sourceProjectMatchBefore drift`,
     );
-    assert.equal(
-      entry.proposedClassification,
-      NAME_MATCH_TO_CROSSWALK[nameMatch.classification.id],
-      `${entry.entryId} classification mismatch vs name-matches`,
-    );
+    const nameOnlyClass = NAME_MATCH_TO_CROSSWALK[nameMatch.classification.id];
+    if (nameOnlyClass === entry.proposedClassification) continue;
+    // Divergence from the name-only baseline is only allowed where the
+    // probable-review artifact adjudicated the body evidence at high
+    // confidence.
+    const adjudication = reviewDecisionById.get(entry.entryId);
+    assert.ok(adjudication, `${entry.entryId} unexplained classification drift`);
+    if (entry.proposedClassification === 'confirmed-alias') {
+      assert.equal(adjudication.decision, 'confirmed-alias', entry.entryId);
+      assert.equal(adjudication.confidence, 'high', entry.entryId);
+    } else if (entry.proposedClassification === 'book-only') {
+      assert.equal(adjudication.decision, 'reject-candidate', entry.entryId);
+      assert.equal(adjudication.confidence, 'high', entry.entryId);
+    } else {
+      assert.fail(`${entry.entryId} unexpected drift target ${entry.proposedClassification}`);
+    }
   }
 });
 

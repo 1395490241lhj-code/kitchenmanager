@@ -357,11 +357,11 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "probable-match-needs-review",
+        "classification": "book-only",
         "projectName": null,
         "projectIds": [],
-        "candidateProjectName": "烧拌鲜笋",
-        "reviewRequired": true
+        "candidateProjectName": null,
+        "reviewRequired": false
       },
       "confidence": {
         "recognition": "high",

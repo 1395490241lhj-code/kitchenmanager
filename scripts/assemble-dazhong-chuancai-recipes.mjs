@@ -22,6 +22,10 @@ const nameMatchesPath = path.join(
   repoRoot,
   'data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json',
 );
+const probableReviewPath = path.join(
+  repoRoot,
+  'data/source-restoration/dazhong-chuancai-1979-crosswalk-probable-review.v1.json',
+);
 const pilotPath = path.join(
   repoRoot,
   'data/source-restoration/dazhong-chuancai-1979-pilot.v1.json',
@@ -35,11 +39,12 @@ if (inputBatchFiles.length === 0) {
 const readJson = async (inputPath) => JSON.parse(await readFile(inputPath, 'utf8'));
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
-const [catalogBuffer, catalog, batchPlan, nameMatches, pilot] = await Promise.all([
+const [catalogBuffer, catalog, batchPlan, nameMatches, probableReview, pilot] = await Promise.all([
   readFile(catalogPath),
   readJson(catalogPath),
   readJson(batchPlanPath),
   readJson(nameMatchesPath),
+  readJson(probableReviewPath),
   readJson(pilotPath),
 ]);
 
@@ -69,6 +74,31 @@ const batchById = new Map(batchPlan.batches.map((batch) => [batch.batchId, batch
 const catalogIndexByEntryId = new Map(
   catalog.entries.map((entry, index) => [entry.entryId, index]),
 );
+
+// Body-evidence adjudications from the probable-review layer. These override
+// the name-only baseline from name-matches for entries whose bodies were
+// reviewed. name-matches stays untouched as the historical name-only
+// baseline; the probable-review artifact is the evidence source.
+const adjudicatedProjectMatchByEntryId = new Map();
+for (const item of probableReview.items ?? []) {
+  if (item.decision === 'confirmed-alias' && item.confidence === 'high') {
+    adjudicatedProjectMatchByEntryId.set(item.entryId, {
+      classification: 'confirmed-alias',
+      projectName: item.candidateProjectName,
+      projectIds: item.candidateProjectIds,
+      candidateProjectName: null,
+      reviewRequired: false,
+    });
+  } else if (item.decision === 'reject-candidate' && item.confidence === 'high') {
+    adjudicatedProjectMatchByEntryId.set(item.entryId, {
+      classification: 'book-only',
+      projectName: null,
+      projectIds: [],
+      candidateProjectName: null,
+      reviewRequired: false,
+    });
+  }
+}
 
 const sourceRangeFor = (entryId) => {
   const index = catalogIndexByEntryId.get(entryId);
@@ -306,7 +336,8 @@ const validateRecipe = (recipe, expectedEntryId, batchId) => {
       throw new Error(`${expectedEntryId}.nonIngredientMaterials.${key} must be an array.`);
     }
   }
-  const projectMatch = projectMatchFor(expectedEntryId);
+  const projectMatch = adjudicatedProjectMatchByEntryId.get(expectedEntryId)
+    ?? projectMatchFor(expectedEntryId);
   return {
     ...recipe,
     projectMatch: contentIncompleteVerified

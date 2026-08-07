@@ -27,6 +27,7 @@ const nameMatches = readJson('data/source-restoration/dazhong-chuancai-1979-name
 const r1Results = readJson('data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-results.v1.json');
 const r2Results = readJson('data/source-restoration/dazhong-chuancai-1979-review-resolution-r2-results.v1.json');
 const applyAudit = readJson('data/source-restoration/dazhong-chuancai-1979-apply-review-resolutions-audit.v1.json');
+const probableReview = readJson('data/source-restoration/dazhong-chuancai-1979-crosswalk-probable-review.v1.json');
 
 const curated = readJson('data/sichuan-recipes.curated.json');
 const full = readJson('data/sichuan-recipes.json');
@@ -141,6 +142,26 @@ const nameMatchClassificationMap = {
   book_only: 'book-only',
 };
 
+// Body-evidence adjudications from the probable-review artifact. name-matches
+// remains the historical name-only baseline; only entries with a high
+// confidence confirmed-alias or reject-candidate decision may diverge from
+// that baseline in canonical/crosswalk classification.
+const adjudicationByEntryId = new Map(
+  (probableReview.items ?? []).map((item) => [item.entryId, item]),
+);
+
+function isExplainedBaselineDifference(entryId, classification) {
+  const adjudication = adjudicationByEntryId.get(entryId);
+  if (!adjudication) return false;
+  if (classification === 'confirmed-alias') {
+    return adjudication.decision === 'confirmed-alias' && adjudication.confidence === 'high';
+  }
+  if (classification === 'book-only') {
+    return adjudication.decision === 'reject-candidate' && adjudication.confidence === 'high';
+  }
+  return false;
+}
+
 function verifyProjectIds(entryId, projectIds) {
   const verified = [];
   const problems = [];
@@ -196,9 +217,11 @@ for (const catalogEntry of catalog.entries) {
   if (nameMatch) {
     const nmClass = nameMatchClassificationMap[nameMatch.classification?.id];
     if (nmClass && nmClass !== classification) {
-      problemsFound.push(
-        `classification-conflict-recipes-vs-name-matches:${entryId}:${classification}!=${nmClass}`,
-      );
+      if (!isExplainedBaselineDifference(entryId, classification)) {
+        problemsFound.push(
+          `classification-conflict-recipes-vs-name-matches:${entryId}:${classification}!=${nmClass}`,
+        );
+      }
     }
   }
 
@@ -216,6 +239,7 @@ for (const catalogEntry of catalog.entries) {
   let candidateProjectIds = [];
   let reviewRequired = false;
   const evidence = [];
+  const adjudication = adjudicationByEntryId.get(entryId);
 
   if (classification === 'exact-name' || classification === 'confirmed-alias') {
     const { verified, problems } = verifyProjectIds(entryId, pm.projectIds ?? []);
@@ -233,7 +257,14 @@ for (const catalogEntry of catalog.entries) {
     if (classification === 'exact-name') {
       evidence.push('书名与项目菜名规范化后逐字相同（名称证据，优先级1）。');
     } else {
-      evidence.push(nameMatch?.basis ?? '仓库既有证据判定为同菜明确别名（名称/历史名证据，优先级1）。');
+      if (adjudication?.decision === 'confirmed-alias') {
+        evidence.push(
+          `正文证据确认同菜异名（依据 crosswalk-probable-review，decision=confirmed-alias，confidence=${adjudication.confidence}）。`,
+        );
+        if (nameMatch?.basis) evidence.push(nameMatch.basis);
+      } else {
+        evidence.push(nameMatch?.basis ?? '仓库既有证据判定为同菜明确别名（名称/历史名证据，优先级1）。');
+      }
     }
   } else if (classification === 'probable-match-needs-review') {
     reviewRequired = true;
@@ -251,6 +282,11 @@ for (const catalogEntry of catalog.entries) {
     }
     evidence.push(nameMatch?.basis ?? '存在合理候选但无法无歧义证明为同一道菜，需人工复核（未确认绑定）。');
   } else if (classification === 'book-only') {
+    if (adjudication?.decision === 'reject-candidate') {
+      evidence.push(
+        `候选经正文复核不成立（依据 crosswalk-probable-review，decision=reject-candidate，confidence=${adjudication.confidence}），回到book-only。`,
+      );
+    }
     evidence.push('当前项目Curated/Full库中未找到可靠对应菜谱，未强行配对。');
   } else {
     problemsFound.push(`unknown-classification:${entryId}:${classification}`);
@@ -349,6 +385,11 @@ const alternateSourceRequiredList = entries
   .filter((e) => e.sourceQuality === 'alternate-source-required')
   .map((e) => ({ entryId: e.entryId, bookName: e.bookName }));
 
+const adjudicatedEntryIds = entries
+  .filter((e) => adjudicationByEntryId.has(e.entryId))
+  .map((e) => e.entryId)
+  .sort();
+
 if (alternateSourceRequiredList.length !== 12) {
   problemsFound.push(`alternate-source-required-count-not-12:${alternateSourceRequiredList.length}`);
 }
@@ -376,7 +417,7 @@ if (uniqueEntryIds.size !== 147 || entries.length !== 147) {
 const output = {
   schema: 'kitchenmanager.source-restoration.crosswalk-dry-run.v1',
   generatedAt: new Date().toISOString().slice(0, 10),
-  purpose: '《大众川菜》1979 147道source-restoration entryId与项目Curated/Full真实菜谱ID之间的crosswalk dry-run审计。仅审计/映射，不做production promotion，不修改canonical147道worker/chunk/assembled、name-matches、review overlay/audit、Curated/Full/HOC或applicationReady。',
+  purpose: '《大众川菜》1979 147道source-restoration entryId与项目Curated/Full真实菜谱ID之间的crosswalk dry-run审计。仅审计/映射，不做production promotion，不修改canonical147道worker/chunk/assembled、name-matches、review overlay/audit、Curated/Full/HOC或applicationReady。正文复核结论来自 crosswalk-probable-review artifact；name-matches 仅作为历史 name-only baseline。',
   scope: {
     totalEntries: 147,
     sourceCatalog: 'data/source-restoration/dazhong-chuancai-1979-catalog.v1.json',
@@ -386,6 +427,7 @@ const output = {
     sourceR1Results: 'data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-results.v1.json',
     sourceR2Results: 'data/source-restoration/dazhong-chuancai-1979-review-resolution-r2-results.v1.json',
     sourceApplyAudit: 'data/source-restoration/dazhong-chuancai-1979-apply-review-resolutions-audit.v1.json',
+    sourceProbableReview: 'data/source-restoration/dazhong-chuancai-1979-crosswalk-probable-review.v1.json',
     targetCuratedLibrary: 'data/sichuan-recipes.curated.json',
     targetFullLibrary: 'data/sichuan-recipes.json',
   },
@@ -412,6 +454,7 @@ const output = {
     collisionCount: collisions.length,
     manyToOneCount: manyToOnes.length,
     consistencyProblemsCount: problemsFound.length,
+    adjudicatedEntryIds,
   },
   probableCandidates,
   collisions,

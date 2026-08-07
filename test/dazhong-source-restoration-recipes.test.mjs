@@ -18,10 +18,24 @@ const matches = readJson(
 const restored = readJson(
   'data/source-restoration/dazhong-chuancai-1979-recipes.v1.json',
 );
+const probableReview = readJson(
+  'data/source-restoration/dazhong-chuancai-1979-crosswalk-probable-review.v1.json',
+);
 
 const catalogById = new Map(catalog.entries.map((entry) => [entry.entryId, entry]));
 const matchById = new Map(matches.bookMatches.map((entry) => [entry.entryId, entry]));
 const planById = new Map(plan.batches.map((batch) => [batch.batchId, batch]));
+
+// Entries whose canonical projectMatch legitimately diverges from the
+// name-matches name-only baseline because body evidence adjudicated them.
+const adjudicatedByEntryId = new Map(
+  probableReview.items
+    .filter((item) => (
+      (item.decision === 'confirmed-alias' || item.decision === 'reject-candidate')
+      && item.confidence === 'high'
+    ))
+    .map((item) => [item.entryId, item]),
+);
 
 const expectedProjectClassification = (matchId) => ({
   exact_name: 'exact-name',
@@ -129,29 +143,44 @@ test('every processed recipe keeps visual source, method, material, and mapping 
 
     const sourceMatch = matchById.get(recipe.entryId);
     assert.ok(allowedClassifications.has(recipe.projectMatch.classification));
-    assert.equal(
-      recipe.projectMatch.classification,
-      expectedProjectClassification(sourceMatch.classification.id),
-    );
-    if (recipe.projectMatch.classification === 'probable-match-needs-review') {
-      assert.equal(recipe.projectMatch.projectName, null);
-      assert.deepEqual(recipe.projectMatch.projectIds, []);
-      assert.equal(recipe.projectMatch.candidateProjectName, sourceMatch.projectName);
-      assert.equal(recipe.projectMatch.reviewRequired, true);
-    } else if (recipe.projectMatch.classification === 'book-only') {
+    const adjudication = adjudicatedByEntryId.get(recipe.entryId);
+    if (adjudication?.decision === 'confirmed-alias') {
+      assert.equal(recipe.projectMatch.classification, 'confirmed-alias');
+      assert.equal(recipe.projectMatch.projectName, adjudication.candidateProjectName);
+      assert.deepEqual(recipe.projectMatch.projectIds, adjudication.candidateProjectIds);
+      assert.equal(recipe.projectMatch.candidateProjectName, null);
+      assert.equal(recipe.projectMatch.reviewRequired, false);
+    } else if (adjudication?.decision === 'reject-candidate') {
+      assert.equal(recipe.projectMatch.classification, 'book-only');
       assert.equal(recipe.projectMatch.projectName, null);
       assert.deepEqual(recipe.projectMatch.projectIds, []);
       assert.equal(recipe.projectMatch.candidateProjectName, null);
-      if (isVerifiedContentIncomplete) {
-        assert.equal(recipe.projectMatch.reviewRequired, true);
-      }
+      assert.equal(recipe.projectMatch.reviewRequired, false);
     } else {
-      assert.equal(recipe.projectMatch.projectName, sourceMatch.projectName);
-      assert.ok(recipe.projectMatch.projectIds.length > 0);
-      if (isVerifiedContentIncomplete) {
+      assert.equal(
+        recipe.projectMatch.classification,
+        expectedProjectClassification(sourceMatch.classification.id),
+      );
+      if (recipe.projectMatch.classification === 'probable-match-needs-review') {
+        assert.equal(recipe.projectMatch.projectName, null);
+        assert.deepEqual(recipe.projectMatch.projectIds, []);
+        assert.equal(recipe.projectMatch.candidateProjectName, sourceMatch.projectName);
         assert.equal(recipe.projectMatch.reviewRequired, true);
+      } else if (recipe.projectMatch.classification === 'book-only') {
+        assert.equal(recipe.projectMatch.projectName, null);
+        assert.deepEqual(recipe.projectMatch.projectIds, []);
+        assert.equal(recipe.projectMatch.candidateProjectName, null);
+        if (isVerifiedContentIncomplete) {
+          assert.equal(recipe.projectMatch.reviewRequired, true);
+        }
       } else {
-        assert.equal(recipe.projectMatch.reviewRequired, false);
+        assert.equal(recipe.projectMatch.projectName, sourceMatch.projectName);
+        assert.ok(recipe.projectMatch.projectIds.length > 0);
+        if (isVerifiedContentIncomplete) {
+          assert.equal(recipe.projectMatch.reviewRequired, true);
+        } else {
+          assert.equal(recipe.projectMatch.reviewRequired, false);
+        }
       }
     }
   }
