@@ -1608,8 +1608,7 @@
       "proposedName": "蕃茄丝瓜肉片汤",
       "proposedTags": [
         "川菜",
-        "肉食类",
-        "猪肉"
+        "肉食类"
       ],
       "proposedIdStrategy": "dz1979-p130",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -1826,8 +1825,7 @@
       "proposedName": "椒麻鸡块",
       "proposedTags": [
         "川菜",
-        "禽蛋鱼类",
-        "鸡肉"
+        "禽蛋鱼类"
       ],
       "proposedIdStrategy": "dz1979-p137",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -2016,8 +2014,7 @@
       "proposedName": "当归炖鸡",
       "proposedTags": [
         "川菜",
-        "禽蛋鱼类",
-        "鸡肉"
+        "禽蛋鱼类"
       ],
       "proposedIdStrategy": "dz1979-p143",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -2090,8 +2087,7 @@
       "proposedName": "黄焖鸭子",
       "proposedTags": [
         "川菜",
-        "禽蛋鱼类",
-        "鸭肉"
+        "禽蛋鱼类"
       ],
       "proposedIdStrategy": "dz1979-p144",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -2326,8 +2322,7 @@
       "proposedName": "绍子蒸蛋",
       "proposedTags": [
         "川菜",
-        "禽蛋鱼类",
-        "猪肉"
+        "禽蛋鱼类"
       ],
       "proposedIdStrategy": "dz1979-p153",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -2492,8 +2487,7 @@
       "proposedName": "烧鸭血",
       "proposedTags": [
         "川菜",
-        "禽蛋鱼类",
-        "鸭肉"
+        "禽蛋鱼类"
       ],
       "proposedIdStrategy": "dz1979-p159",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -2647,8 +2641,7 @@
       "proposedName": "拌鸡血",
       "proposedTags": [
         "川菜",
-        "禽蛋鱼类",
-        "鸡肉"
+        "禽蛋鱼类"
       ],
       "proposedIdStrategy": "dz1979-p161",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -2782,8 +2775,7 @@
       "proposedName": "豆瓣鱼",
       "proposedTags": [
         "川菜",
-        "禽蛋鱼类",
-        "鱼"
+        "禽蛋鱼类"
       ],
       "proposedIdStrategy": "dz1979-p162",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -2981,8 +2973,7 @@
       "proposedName": "豆腐鱼",
       "proposedTags": [
         "川菜",
-        "禽蛋鱼类",
-        "鱼"
+        "禽蛋鱼类"
       ],
       "proposedIdStrategy": "dz1979-p168",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -3220,9 +3211,7 @@
       "proposedName": "干炒豆腐",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "豆腐",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p180",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -3319,8 +3308,7 @@
       "proposedName": "酱烧苦瓜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p183",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -3459,8 +3447,7 @@
       "proposedName": "麻酱青笋尖",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p185",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -3574,8 +3561,7 @@
       "proposedName": "蒜泥拌黄瓜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p186",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -3679,8 +3665,7 @@
       "proposedName": "糖醋子姜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p187",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -3764,8 +3749,7 @@
       "proposedName": "姜汁蕹菜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p188",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -3923,8 +3907,7 @@
       "proposedName": "干煸苦瓜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p195",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -3998,8 +3981,7 @@
       "proposedName": "醋熘白菜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p196",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -4118,8 +4100,7 @@
       "proposedName": "酱烧茄子",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p198",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -4334,8 +4315,7 @@
       "proposedName": "炝黄瓜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p201",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -4572,8 +4552,7 @@
       "proposedName": "炝绿豆芽",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p203",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -4657,8 +4636,7 @@
       "proposedName": "炒豌豆尖",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p204",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -4722,8 +4700,7 @@
       "proposedName": "青椒炒大头菜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p205",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -4817,8 +4794,7 @@
       "proposedName": "烧拌莴笋",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p206",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -4922,8 +4898,7 @@
       "proposedName": "炝莲花白",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p207",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -5084,9 +5059,7 @@
       "proposedName": "拌素三丝",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "豆腐",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p209",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -5228,8 +5201,7 @@
       "proposedName": "花仁萝卜干",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p211",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -5363,8 +5335,7 @@
       "proposedName": "糖醋萝卜丝",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p212",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -5468,8 +5439,7 @@
       "proposedName": "青笋拌折耳根",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p213",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -5628,8 +5598,7 @@
       "proposedName": "拌盐白菜",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p216",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -5852,8 +5821,7 @@
       "proposedName": "过浆豆花",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p219",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -5977,8 +5945,7 @@
       "proposedName": "蒜泥蚕豆",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p221",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -6082,8 +6049,7 @@
       "proposedName": "酱胡豆",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p222",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -6176,9 +6142,7 @@
       "proposedName": "熏豆腐干",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "豆腐",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p223",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -6312,8 +6276,7 @@
       "proposedName": "拌鱼香豌豆",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "素菜"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p224",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",
@@ -6470,8 +6433,7 @@
       "proposedName": "蛋酥花仁",
       "proposedTags": [
         "川菜",
-        "蔬菜类",
-        "鸡肉"
+        "蔬菜类"
       ],
       "proposedIdStrategy": "dz1979-p226",
       "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；精确数量转 qty/unit 数字字符串，非精确数量保留 displayQuantity 且 inventoryComparable=false（见 productionIngredientPlan）。",

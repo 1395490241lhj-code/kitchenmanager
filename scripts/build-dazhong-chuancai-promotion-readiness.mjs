@@ -89,44 +89,11 @@ const alt12Ids = new Set(
   crosswalk.alternateSourceRequiredList.map((entry) => entry.entryId),
 );
 
-const MAIN_INGREDIENT_TAGS = [
-  ['猪肉', '猪肉'],
-  ['牛肉', '牛肉'],
-  ['鸡', '鸡肉'],
-  ['鸭', '鸭肉'],
-  ['鱼', '鱼'],
-  ['兔', '兔肉'],
-  ['豆腐', '豆腐'],
-  ['蛋', '鸡蛋'],
-  ['虾', '虾'],
-];
-
-// Animal-derived detection for the 素菜 tag. 菜油/香油/麻油/辣椒油 are
-// plant oils and are deliberately not matched by the generic keywords here.
-const ANIMAL_KEYWORDS = [
-  '猪', '牛', '羊', '鸡', '鸭', '鹅', '鱼', '虾', '蟹', '兔',
-  '蛋', '骨', '血', '肝', '腰', '肚', '肠', '肺', '髓',
-  '火腿', '腊肉', '香肠', '肉丝', '肉片', '肉末', '猪油', '化猪油',
-];
-
-function isAnimalDerived(text) {
-  return ANIMAL_KEYWORDS.some((keyword) => text.includes(keyword));
-}
-
+// Promotion-stage tags stay source-safe: only 川菜 + the original book
+// category. Semantic tags (素菜, main-ingredient, etc.) are deferred to a
+// separate curation pass and are never inferred from ingredients here.
 function proposedTagsFor(entryId, category) {
-  const recipe = recipeByEntryId.get(entryId);
-  const tags = ['川菜', category];
-  const items = [
-    ...(recipe?.ingredients ?? []).map((ingredient) => ingredient.rawItemText),
-    ...(recipe?.methodOnlyIngredients ?? []).map((ingredient) => ingredient.rawItemText),
-  ];
-  const match = MAIN_INGREDIENT_TAGS.find(([keyword]) => (
-    items.some((item) => item.includes(keyword))
-  ));
-  if (match) tags.push(match[1]);
-  const allPlant = items.length > 0 && items.every((item) => !isAnimalDerived(item));
-  if (allPlant) tags.push('素菜');
-  return tags;
+  return ['川菜', category];
 }
 
 function methodPreviewFor(entryId) {

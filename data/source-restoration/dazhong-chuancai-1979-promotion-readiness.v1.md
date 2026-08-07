@@ -36,7 +36,7 @@ dz1979-p129 凉拌猪肺、p130 蕃茄丝瓜肉片汤、p137 椒麻鸡块、p143
 ## 转换预览规则
 
 - production name: 使用 catalog bookName。
-- proposed tags: 默认安全 tags 只生成 `['川菜', 原书category]`；其他 tags 仅当可从实际 ingredients 明确证明时追加（主料关键词如 猪肉/牛肉/鸡肉/鱼/豆腐/蛋；`素菜` 仅在全部原料为植物性且无任何动物性原料时添加）。不再按 category=蔬菜类 机械添加素菜。
+- proposed tags: 所有 new-recipe-candidate 的自动 tags 严格只生成 `['川菜', 原书category]`。本阶段禁止自动增加素菜、猪肉/牛肉/鸡肉/鸭肉/鱼/豆腐/鸡蛋等语义 tag 或任何按原料推断的额外 tag；语义 tag 留待后续单独 curation，不与 source promotion 绑定。
 - stable ID: `dz1979-p<bookPage>`（如 dz1979-p212），与 entryId 同源、不撞现有 ex-/fam-/comp-/static-/hoc- 前缀。
 - ingredients（productionIngredientPlan）: 写入 `recipe_ingredients[id]`。exact-mass 转 `qty=String(qty)` + `unit="g"`；exact-count 转 `qty=String(qty)` + 真实计数单位；same-for-each 安全拆成 members 并继承相同精确 qty/unit；unallocated-group-total 不擅自分配。range/approximate/qualitative/unresolved 不伪造精确数值，保留 rawQuantityText 为 displayQuantity，`inventoryComparable=false`。
 - methodOnlyIngredients: 汤/水/清洗材料等烹调介质不入库存；核心食材但数量无法安全表示时标记 conversion warning（不静默遗漏，需人工确认）。
@@ -62,7 +62,7 @@ dz1979-p129 凉拌猪肺、p130 蕃茄丝瓜肉片汤、p137 椒麻鸡块、p143
 - productionQuantityReadiness: exact-comparable **36** ／ mixed **3** ／ display-only **0**
 - mixed（含非精确数量）: dz1979-p201 炝黄瓜、p203 炝绿豆芽、p207 炝莲花白（均为花椒“十余粒”）
 - methodOnly 核心食材数量警告: dz1979-p129 凉拌猪肺（姜、花椒）、p130 蕃茄丝瓜肉片汤（胡椒面）——需人工确认后决定是否入库存
-- 素菜 tag 修正: 不再按蔬菜类机械添加；经实际原料证明后仅植物性原料菜谱带素菜，任何含肉/禽/鱼/蛋/内脏/动物油脂的菜谱绝无素菜（校验 0 违规）
+- tag 修正: 不再按蔬菜类机械添加素菜，也不再做任何主料/素菜语义推断；全部 39 道 new-candidate 的 proposedTags 严格等于 `['川菜', 原书category]`（校验 39/39）
 
 ## ID 兼容性结论
 
@@ -82,6 +82,6 @@ dz1979-p129 凉拌猪肺、p130 蕃茄丝瓜肉片汤、p137 椒麻鸡块、p143
 - needs-source-review 不进入 new-recipe-candidate：通过
 - 无 dangling project ID、applicationReady=false：通过
 - productionQuantityReadiness 统计（36/3/0）：通过
-- 素菜 tag 无动物性违规（0 例）：通过
+- 39 道 new-candidate 的 proposedTags 均严格等于 `['川菜', category]`、无自动素菜/主料 tag：通过
 - dz1979- ID 与 330 个 production ID 无冲突、runtime 无前缀依赖：通过
 - 未修改 Curated/Full/HOC、production recipe 数据、UI/cache、canonical source、name-matches、adjudication audit

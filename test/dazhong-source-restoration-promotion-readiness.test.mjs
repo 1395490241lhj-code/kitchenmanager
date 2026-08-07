@@ -235,32 +235,24 @@ test('every inventoryComparable plan item normalizes to finite qty and non-empty
   }
 });
 
-test('素菜 tag is never auto-added from category alone', () => {
-  for (const entry of newCandidates()) {
-    if (entry.category !== '蔬菜类') continue;
-    if (!entry.proposedTags.includes('素菜')) continue;
-    const items = [
-      ...entry.productionIngredientPlan.inventoryIngredients.map((i) => i.productionItem),
-      ...entry.productionIngredientPlan.methodOnlyAnalysis.map((i) => i.sourceRawItemText),
-    ];
-    assert.ok(items.length > 0, entry.entryId);
+test('proposed tags are strictly ["川菜", category] for every new candidate', () => {
+  const candidates = newCandidates();
+  assert.ok(candidates.length > 0);
+  for (const entry of candidates) {
+    assert.deepEqual(
+      entry.proposedTags,
+      ['川菜', entry.category],
+      entry.entryId,
+    );
   }
 });
 
-test('animal-derived recipes never carry the 素菜 tag', () => {
-  const animalKeywords = [
-    '猪', '牛', '羊', '鸡', '鸭', '鹅', '鱼', '虾', '蟹', '兔',
-    '蛋', '骨', '血', '肝', '腰', '肚', '肠', '肺', '髓',
-    '火腿', '腊肉', '香肠', '肉丝', '肉片', '肉末', '猪油', '化猪油',
-  ];
+test('no automatic 素菜 or main-ingredient tags are inferred', () => {
   for (const entry of newCandidates()) {
-    const items = [
-      ...entry.productionIngredientPlan.inventoryIngredients.map((i) => i.productionItem),
-      ...entry.productionIngredientPlan.methodOnlyAnalysis.map((i) => i.sourceRawItemText),
-    ];
-    const hasAnimal = items.some((item) => animalKeywords.some((keyword) => item.includes(keyword)));
-    if (hasAnimal) {
-      assert.ok(!entry.proposedTags.includes('素菜'), entry.entryId);
+    assert.ok(!entry.proposedTags.includes('素菜'), entry.entryId);
+    const semanticTags = ['猪肉', '牛肉', '鸡肉', '鸭肉', '鱼', '兔肉', '豆腐', '鸡蛋', '虾'];
+    for (const tag of semanticTags) {
+      assert.ok(!entry.proposedTags.includes(tag), `${entry.entryId} inferred ${tag}`);
     }
   }
 });
