@@ -1,0 +1,476 @@
+{
+  "batchId": "dz1979-b11",
+  "chunkIndex": 2,
+  "recipes": [
+    {
+      "entryId": "dz1979-p213",
+      "batchId": "dz1979-b11",
+      "bookName": "青笋拌折耳根",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 226,
+        "pdfEndPage": 227,
+        "bookStartPage": 213,
+        "bookEndPage": 214
+      },
+      "titleVisualCheck": {
+        "observedText": "青笋拌折耳根",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "青笋",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "折耳根",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "四分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，四分 × 0.5g = 2g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三钱 × 5g = 15g，不推算毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "姜",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 10,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "德阳酱油",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "香油",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三钱 × 5g = 15g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 10,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "泡红辣椒",
+          "rawQuantityText": "三根",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 3,
+            "unit": "根",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "计数单位保留为根，不换算成克",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "青笋去皮，洗净，切成长约二寸、宽约五分的薄片，用盐少许拌匀；折耳根去脚及老叶，洗净也用盐少许码过；姜、蒜切片；葱、泡红辣椒（去籽）均切成马耳朵节。",
+            "measureMentions": [
+              {
+                "raw": "长约二寸、宽约五分",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "青笋切法尺寸，不是重量"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "拌过的青笋片及折耳根先用冷水淘洗，挤干水份，装入碗内，然后将酱油、味精、醋、香油、姜、蒜片、葱、泡红辣椒等一起拌合，拌匀后拈入盘内即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "马耳朵节",
+            "modernSummary": "斜切成形似马耳的段",
+            "confidence": "high",
+            "notes": "与b05/b06已记录用法一致"
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "味清鲜，富有民间风味，为下饭好菜。附注：如要吃红油味，可加辣椒油而不用香油、姜、蒜及泡红辣椒等。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": [
+          "碗",
+          "盘"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "洗净折耳根所用水",
+          "淘洗青笋片及折耳根所用冷水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "如要吃红油味，可加辣椒油而不用香油、姜、蒜及泡红辣椒等。",
+          "location": "特点栏后附注"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    },
+    {
+      "entryId": "dz1979-p215",
+      "batchId": "dz1979-b11",
+      "bookName": "拌辣菜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 228,
+        "pdfEndPage": 228,
+        "bookStartPage": 215,
+        "bookEndPage": 215
+      },
+      "titleVisualCheck": {
+        "observedText": "拌辣菜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "青菜头尖子",
+          "rawQuantityText": "三斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三斤 × 500g = 1500g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "熟油辣椒、酱油",
+          "rawQuantityText": "各三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "each-item",
+            "qualifier": null
+          },
+          "memberQuantityMode": "same-for-each",
+          "members": [
+            {
+              "item": "熟油辣椒",
+              "qty": 150,
+              "unit": "g"
+            },
+            {
+              "item": "酱油",
+              "qty": 150,
+              "unit": "g"
+            }
+          ],
+          "conversionBasis": "原文有各；每项 三两 × 50g = 150g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "花椒面",
+          "rawQuantityText": "二钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 10,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二钱 × 5g = 10g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "一钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一钱 × 5g = 5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g，不推算毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "将青菜头尖子洗净、晾干水份，切成比绿豆稍大的细颗，葱切细花。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "洗净炒锅置旺火上烧热，将青菜颗下锅炒，炒至半熟，铲入盆内，用菜叶盖严，不使漏气，放置约五、六小时。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "吃时取青菜颗装碗内，加各味调料拌合均匀即可。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "情况面定",
+            "modernSummary": null,
+            "confidence": "medium",
+            "notes": "字形清晰可辨为“面”；该字在“可根据情况面定”“调料量也要酌情面用”两处的确切语法功能（是否等同于“而”类连接用法）未在本页得到独立佐证，不作语义推断，逐字保留原文"
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "此菜为我省民间小菜，味麻辣冲鼻，故又名“冲菜”。附注：此为大份量，家庭吃时可根据情况面定。吃多少拌多少，下者一定要依盐严，调料量也要酌情面用。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [
+          "盆",
+          "碗"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": [
+          "菜叶（盖严用）"
+        ]
+      },
+      "confirmedReadings": [
+        {
+          "raw": "此菜为我省民间小菜，味麻辣冲鼻，故又名“冲菜”。",
+          "location": "特点栏"
+        },
+        {
+          "raw": "此为大份量，家庭吃时可根据情况面定。吃多少拌多少，下者一定要依盐严，调料量也要酌情面用。",
+          "location": "特点栏后附注"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    }
+  ]
+}

@@ -1,0 +1,353 @@
+{
+  "batchId": "dz1979-b11",
+  "chunkIndex": 3,
+  "recipes": [
+    {
+      "entryId": "dz1979-p216",
+      "batchId": "dz1979-b11",
+      "bookName": "拌盐白菜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 229,
+        "pdfEndPage": 229,
+        "bookStartPage": 216,
+        "bookEndPage": 216
+      },
+      "titleVisualCheck": {
+        "observedText": "拌盐白菜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "黄秧白",
+          "rawQuantityText": "五斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五斤 × 500g = 2500g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "四两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 200,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "四两 × 50g = 200g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "花椒",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "熟油辣椒",
+          "rawQuantityText": "四两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 200,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "四两 × 50g = 200g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三两 × 50g = 150g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "三两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 150,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三两 × 50g = 150g，不推算毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "黄秧白去掉老叶及根部，用水洗净，晾干后，用盐、花椒把一片片白菜抹匀，再一层一层地码在盆内（如叶大可改小），腌三天即可食用。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "吃时，取出白菜，切成细丝，挤干盐水，拌以各种调料即可。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "此菜是成都市家常小菜，经济方便，现吃现拌，味厚可口，最宜下饭。附注：此配料为大份量作法，食用时要根据具体情况面定，吃多少拌多少。不吃辣味者，可不拌调料，直接取食也行。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [],
+        "containers": [
+          "盆"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "洗净黄秧白所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "此菜是成都市家常小菜，经济方便，现吃现拌，味厚可口，最宜下饭。",
+          "location": "特点栏"
+        },
+        {
+          "raw": "此配料为大份量作法，食用时要根据具体情况面定，吃多少拌多少。不吃辣味者，可不拌调料，直接取食也行。",
+          "location": "特点栏后附注"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    },
+    {
+      "entryId": "dz1979-p217",
+      "batchId": "dz1979-b11",
+      "bookName": "米汤煮青菜",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 230,
+        "pdfEndPage": 230,
+        "bookStartPage": 217,
+        "bookEndPage": 217
+      },
+      "titleVisualCheck": {
+        "observedText": "米汤煮青菜",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "青菜心",
+          "rawQuantityText": "二斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1000,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二斤 × 500g = 1000g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "米汤",
+          "rawQuantityText": "三斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三斤 × 500g = 1500g；原书按质量给出，保存为g，不推测毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "化猪油",
+          "rawQuantityText": "一两五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 75,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两五钱 = 一两×50g + 五钱×5g = 50g + 25g = 75g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "印刷墨迹磨损，字形按“五分”读出（与本页“盐 五钱”笔画结构比对一致），五分 × 0.5g = 2.5g",
+          "confidence": {
+            "recognition": "medium",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "青菜心去筋，洗净。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "锅置旺火上，下猪油烧至六成熟，下青菜心煸炒几下，即掺米汤、放盐，青菜煮炬，下味精起锅即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "煮炬",
+            "modernSummary": null,
+            "confidence": "medium",
+            "notes": "“炬”字形可辨；该时代火候用语，语义未作现代化改写，与b06/b07/b09/b10已记录“炬”字用法一致"
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "味清香，吃时也可蘸豆瓣。附注：如用苔菜，即为“米汤煮苔菜”。作法是：选新鲜苔菜尖洗净，用油煸炒后，掺汤煮炬时，加盐和味精、葱花即可。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [
+          "洗净青菜心所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "如用苔菜，即为“米汤煮苔菜”。作法是：选新鲜苔菜尖洗净，用油煸炒后，掺汤煮炬时，加盐和味精、葱花即可。",
+          "location": "特点栏后附注"
+        }
+      ],
+      "uncertainties": [
+        {
+          "location": "原料栏",
+          "type": "unclear-glyph",
+          "rawText": "味精 [印墨磨损数量]",
+          "candidates": [
+            "五分"
+          ],
+          "treatment": "味精一行数量因印刷墨迹磨损，笔画残缺，与本页“盐 五钱”行首字形比对后按“五分”读出，但字迹本身残损程度较高，不足以视为与其余清晰印刷条目同等确信；保留候选“五分”但不作为无保留的确定读法"
+        }
+      ],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    }
+  ]
+}

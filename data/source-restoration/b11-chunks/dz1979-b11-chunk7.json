@@ -1,0 +1,413 @@
+{
+  "batchId": "dz1979-b11",
+  "chunkIndex": 7,
+  "recipes": [
+    {
+      "entryId": "dz1979-p225",
+      "batchId": "dz1979-b11",
+      "bookName": "熏豆筋",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 238,
+        "pdfEndPage": 238,
+        "bookStartPage": 225,
+        "bookEndPage": 225
+      },
+      "titleVisualCheck": {
+        "observedText": "熏豆筋",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题；本条目正文在做法第2步后页面即告结束"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "干豆筋",
+          "rawQuantityText": "五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五两 × 50g = 250g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "葱",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "泡红辣椒",
+          "rawQuantityText": "八根",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 8,
+            "unit": "根",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "计数单位保留为根，不换算成克",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "三分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，三分 × 0.5g = 1.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "六钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 30,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "六钱 × 5g = 30g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "绍酒",
+          "rawQuantityText": "三钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 15,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "三钱 × 5g = 15g，不推算毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "香油",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "汤",
+          "rawQuantityText": "六两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 300,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "六两 × 50g = 300g；原书按质量给出，保存为g，不推测毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "将豆筋洗净，用水泡胀，对剖成长约一寸二的节，下开水锅内煮两次（每次约一分钟），打起沥干水份；葱和泡红辣椒均切长约一寸五的节。",
+            "measureMentions": [
+              {
+                "raw": "长约一寸二",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "豆筋切法尺寸，不是重量"
+              },
+              {
+                "raw": "长约一寸五",
+                "dimension": "length",
+                "normalized": null,
+                "reason": "葱、泡红辣椒切法尺寸，不是重量"
+              }
+            ]
+          },
+          {
+            "order": 2,
+            "summary": "菜油在炒锅内烧至六成热时，将豆筋、葱、泡红辣椒下锅炒几下，然后下酱油、盐、绍酒和汤等，用中火烧至汤干亮油时，加味精香油合匀，起锅装盘。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": null,
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "炒锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [
+          "洗净及煮豆筋所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "用中火烧至汤干亮油时，加味精香油合匀，起锅装盘。",
+          "location": "做法第2步（本条目正文在本扫描件中的最后一句完整可见）"
+        }
+      ],
+      "uncertainties": [
+        {
+          "location": "特点栏及以后",
+          "type": "page-boundary",
+          "rawText": "PDF第238页正文在做法第2步末句“……用中火烧至汤干亮油时，加味精香油合匀，起锅装盘。”后结束，页面底部大片空白，未见“三 特点”标题及正文，也未见书内页码footer；其后PDF第239页为下一条目“蛋酥花仁”的起始页，无本条目连续正文",
+          "candidates": [],
+          "treatment": "仅记录当前扫描件可证实的事实：本条目原料与做法第1-2步已完整印出并可辨，但“特点”栏标题、正文及页码footer在本扫描件中均不可见，页面留有大片空白。已保留完整可见的原料与做法正文，不猜测或伪造“特点”内容；characteristicsSummary保持为null，contentIncomplete=true。不对成因作出判断（不断言为原书印刷缺失、装订错页或其他原因），待人工核对原始纸质版本确认。",
+          "reasonCode": "source-content-missing"
+        }
+      ],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": true
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      },
+      "contentMissing": false,
+      "contentIncomplete": true
+    },
+    {
+      "entryId": "dz1979-p226",
+      "batchId": "dz1979-b11",
+      "bookName": "蛋酥花仁",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 239,
+        "pdfEndPage": 239,
+        "bookStartPage": 226,
+        "bookEndPage": 226
+      },
+      "titleVisualCheck": {
+        "observedText": "蛋酥花仁",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "花生米",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "鸡蛋",
+          "rawQuantityText": "四个",
+          "normalizedQuantity": {
+            "kind": "exact-count",
+            "qty": 4,
+            "unit": "个",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "计数单位保留为个，不换算成克",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一斤耗二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null,
+            "consumedQty": 100,
+            "consumedUnit": "g"
+          },
+          "conversionBasis": "投料一斤 × 500g = 500g；原书明确标注耗二两，即耗用 二两 × 50g = 100g；投入量与耗用量分别保存",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "干豆粉",
+          "rawQuantityText": "一斤耗四两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null,
+            "consumedQty": 200,
+            "consumedUnit": "g"
+          },
+          "conversionBasis": "投料一斤 × 500g = 500g；原书明确标注耗四两，即耗用 四两 × 50g = 200g；投入量与耗用量分别保存",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "花生米择除发霉者盛筲箕内，用鲜开水边淋边搅，淋均匀后放盐拌匀上味；鸡蛋去壳加干豆粉三两调成蛋豆粉（也可加少许盐）；剩下的干豆粉用擀面杖擀细。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "先将花生米倒入蛋豆粉中拌匀，再将细豆粉撒在花生米上，边撒边搅，直到花生米上的豆粉呈颗粒互不粘连。",
+            "measureMentions": []
+          },
+          {
+            "order": 3,
+            "summary": "菜油在炒锅内烧至七、八成热时，慢慢地将花生米下锅炸。炸至花生米呈现金色时，捞起晾冷即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "色泽金黄，香酥可口，宜于佐酒。附注：细豆粉不能裹得过厚，炸花生仁时，油温不能过高。如油温高时，可将炒锅端离火口，降温后再炸。如菜油少时，可分几次炸，但炸时要注意掌握火候。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "筲箕",
+          "擀面杖",
+          "炒锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "细豆粉不能裹得过厚，炸花生仁时，油温不能过高。如油温高时，可将炒锅端离火口，降温后再炸。如菜油少时，可分几次炸，但炸时要注意掌握火候。",
+          "location": "特点栏后附注"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    }
+  ]
+}

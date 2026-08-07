@@ -1,7 +1,7 @@
 {
   "schema": "kitchenmanager.source-restoration.batch-plan.v1",
   "createdAt": "2026-08-04",
-  "status": "in-progress",
+  "status": "completed-primary-reviewed",
   "applicationReady": false,
   "purpose": "Plan later recipe-body extraction in 10–15 dish batches after the catalog index; no recipe body is extracted in this artifact.",
   "constraints": {
@@ -11,7 +11,7 @@
     "keepCategoryBoundaries": true,
     "recipeBodyExtractionStarted": true,
     "productionRecipeGenerated": false,
-    "recipeBodyExtractionCompleted": false
+    "recipeBodyExtractionCompleted": true
   },
   "inputs": {
     "catalog": {
@@ -54,9 +54,9 @@
         "count": 3
       }
     ],
-    "processedRecipeCount": 133,
-    "remainingRecipeCount": 14,
-    "completedBatchCount": 10
+    "processedRecipeCount": 147,
+    "remainingRecipeCount": 0,
+    "completedBatchCount": 11
   },
   "batches": [
     {
@@ -1002,7 +1002,7 @@
     },
     {
       "batchId": "dz1979-b11",
-      "status": "planned-not-started",
+      "status": "completed-primary-reviewed",
       "applicationReady": false,
       "category": "蔬菜类",
       "entryCount": 14,
@@ -1056,6 +1056,35 @@
         "required": false,
         "uncertainEntryIds": [],
         "suspectedMatchEntryIds": []
+      },
+      "processedAt": "2026-08-06T21:55:00.000Z",
+      "processedEntryCount": 14,
+      "processing": {
+        "workerVisualReview": true,
+        "primaryVisualReview": true,
+        "ocrUsedAsAuthority": false,
+        "renderedPdfPages": [
+          224,
+          225,
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          232,
+          233,
+          234,
+          235,
+          236,
+          237,
+          238,
+          239
+        ],
+        "ingredientEntryCount": 110,
+        "unresolvedRecipeCount": 2,
+        "reviewResult": "completed-with-recorded-uncertainties",
+        "correctionsApplied": []
       }
     }
   ]

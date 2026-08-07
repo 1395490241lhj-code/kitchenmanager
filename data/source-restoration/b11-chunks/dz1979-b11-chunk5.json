@@ -1,0 +1,352 @@
+{
+  "batchId": "dz1979-b11",
+  "chunkIndex": 5,
+  "recipes": [
+    {
+      "entryId": "dz1979-p221",
+      "batchId": "dz1979-b11",
+      "bookName": "蒜泥蚕豆",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 234,
+        "pdfEndPage": 234,
+        "bookStartPage": 221,
+        "bookEndPage": 221
+      },
+      "titleVisualCheck": {
+        "observedText": "蒜泥蚕豆",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "嫩蚕豆",
+          "rawQuantityText": "五两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 250,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五两 × 50g = 250g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "四分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，四分 × 0.5g = 2g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "蒜",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "熟油辣子",
+          "rawQuantityText": "一两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 50,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一两 × 50g = 50g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "味精",
+          "rawQuantityText": "二分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 1,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，二分 × 0.5g = 1g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "酱油",
+          "rawQuantityText": "五钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 25,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "五钱 × 5g = 25g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "醋",
+          "rawQuantityText": "一钱",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一钱 × 5g = 5g，不推算毫升",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "把出新的嫩胡豆淘洗干净后，在开水锅内煮熟，打起装筲箕内，待水分稍干时下二分盐拌匀、使之上味，蒜舂成泥。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "将盐（二分）、酱油、蒜泥、熟油辣椒、醋、味精等盛碗内调成滋汁，倒入蚕豆中，拌合均匀即成。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "筲箕",
+            "modernSummary": "带孔的竹编沥水器具",
+            "confidence": "high",
+            "notes": "与b08-p161已记录用法一致"
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "蚕豆清新鲜嫩，蒜味突出，酒饭均宜。",
+      "methodOnlyIngredients": [],
+      "nonIngredientMaterials": {
+        "tools": [
+          "筲箕"
+        ],
+        "containers": [
+          "碗"
+        ],
+        "fuels": [],
+        "cleaningMaterials": [
+          "淘洗嫩胡豆所用水"
+        ],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [
+        {
+          "raw": "把出新的嫩胡豆淘洗干净后",
+          "location": "做法第1步：原料栏“嫩蚕豆”与做法“嫩胡豆”为同一物的两种称法，均逐字保留，不统一改写"
+        }
+      ],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    },
+    {
+      "entryId": "dz1979-p222",
+      "batchId": "dz1979-b11",
+      "bookName": "酱胡豆",
+      "category": "蔬菜类",
+      "source": {
+        "pdfStartPage": 235,
+        "pdfEndPage": 235,
+        "bookStartPage": 222,
+        "bookEndPage": 222
+      },
+      "titleVisualCheck": {
+        "observedText": "酱胡豆",
+        "matchesCatalog": true,
+        "confidence": "high",
+        "notes": "直接查看扫描页标题"
+      },
+      "ingredients": [
+        {
+          "rawItemText": "干胡豆",
+          "rawQuantityText": "一斤",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "一斤 × 500g = 500g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "甜酱",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "红糖",
+          "rawQuantityText": "二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 100,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "二两 × 50g = 100g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "菜油",
+          "rawQuantityText": "一斤耗二两",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 500,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null,
+            "consumedQty": 100,
+            "consumedUnit": "g"
+          },
+          "conversionBasis": "投料一斤 × 500g = 500g；原书明确标注耗二两，即耗用 二两 × 50g = 100g；投入量与耗用量分别保存",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        },
+        {
+          "rawItemText": "盐",
+          "rawQuantityText": "五分",
+          "normalizedQuantity": {
+            "kind": "exact-mass",
+            "qty": 2.5,
+            "unit": "g",
+            "appliesTo": "item",
+            "qualifier": null
+          },
+          "conversionBasis": "原料栏重量语境，五分 × 0.5g = 2.5g",
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      ],
+      "methodSummary": {
+        "steps": [
+          {
+            "order": 1,
+            "summary": "干胡豆用温热水泡胀后，用刀将每个胡豆嘴划破，然后分几次在油锅内（油温要掌握在八成热）炸酥，打起，滗干油。",
+            "measureMentions": []
+          },
+          {
+            "order": 2,
+            "summary": "炒锅置中火上，下菜油五钱、水二两、甜酱（要稀合）、红糖、盐炒至六成热时，将锅端离火口，再把胡豆放入，不停地翻动，直到合匀，胡豆裹上酱，冷了起锅装盘。",
+            "measureMentions": []
+          }
+        ],
+        "dialectOrOldTerms": [
+          {
+            "raw": "滗干油",
+            "modernSummary": "倾去多余的炸油",
+            "confidence": "high",
+            "notes": "与b05-p110“滗去大部分炸油”已记录用法一致"
+          }
+        ],
+        "confidence": "high"
+      },
+      "characteristicsSummary": "胡豆酥香，味带甜咸，宜佐酒。",
+      "methodOnlyIngredients": [
+        {
+          "rawItemText": "水",
+          "rawQuantityText": "二两",
+          "use": "做法第2步：与菜油、甜酱、红糖、盐同炒",
+          "quantityHandling": "水未列入原料栏，仅在做法中出现，单列为method-only ingredient；二两 × 50g = 100g，不推算毫升",
+          "confidence": "high"
+        }
+      ],
+      "nonIngredientMaterials": {
+        "tools": [
+          "刀",
+          "炒锅"
+        ],
+        "containers": [],
+        "fuels": [],
+        "cleaningMaterials": [],
+        "nonEdiblePackaging": []
+      },
+      "confirmedReadings": [],
+      "uncertainties": [],
+      "projectMatch": {
+        "classification": "book-only",
+        "projectName": null,
+        "projectIds": [],
+        "candidateProjectName": null,
+        "reviewRequired": false
+      },
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
+    }
+  ]
+}
