@@ -1163,9 +1163,9 @@
             "appliesTo": "item",
             "qualifier": null
           },
-          "conversionBasis": "印刷墨迹磨损，字形按“五分”读出（与本页“盐 五钱”笔画结构比对一致），五分 × 0.5g = 2.5g",
+          "conversionBasis": "印刷墨迹磨损，经与本页“盐 五钱”行首“五”字笔画结构对照放大后确认为“五分”，五分 × 0.5g = 2.5g",
           "confidence": {
-            "recognition": "medium",
+            "recognition": "high",
             "conversion": "high"
           }
         }
@@ -1210,19 +1210,13 @@
         {
           "raw": "如用苔菜，即为“米汤煮苔菜”。作法是：选新鲜苔菜尖洗净，用油煸炒后，掺汤煮炬时，加盐和味精、葱花即可。",
           "location": "特点栏后附注"
-        }
-      ],
-      "uncertainties": [
+        },
         {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "味精 [印墨磨损数量]",
-          "candidates": [
-            "五分"
-          ],
-          "treatment": "味精一行数量因印刷墨迹磨损，笔画残缺，与本页“盐 五钱”行首字形比对后按“五分”读出，但字迹本身残损程度较高，不足以视为与其余清晰印刷条目同等确信；保留候选“五分”但不作为无保留的确定读法"
+          "raw": "味精 五分",
+          "location": "原料栏"
         }
       ],
+      "uncertainties": [],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,

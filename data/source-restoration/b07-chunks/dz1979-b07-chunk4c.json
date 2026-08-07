@@ -252,13 +252,13 @@
             ]
           }
         ],
-    "dialectOrOldTerms": [
-      {
-        "raw": "炬",
-        "modernSummary": null,
-        "confidence": "medium",
-        "notes": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；字形与语义均未得到来源独立佐证，不作语义推断"
-      },
+        "dialectOrOldTerms": [
+          {
+            "raw": "炬",
+            "modernSummary": null,
+            "confidence": "medium",
+            "notes": "字形经视觉复核确认为“炬”；该字在此语境下的现代语义（是否对应某种火候程度用语）未获来源独立佐证，不作语义推断"
+          },
           {
             "raw": "拈",
             "modernSummary": "用手指夹取、拣出",
@@ -312,19 +312,13 @@
         {
           "raw": "如不喜欢吃辣味的，可稍加泡红辣椒短节，不用豆瓣",
           "location": "附注"
-        }
-      ],
-      "uncertainties": [
+        },
         {
-          "location": "做法第3步（五成炬/全炬）",
-          "type": "unclear-glyph",
-          "rawText": "炬",
-          "candidates": [],
-          "treatment": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换",
-          "reasonCode": "unclear-glyph",
-          "entryId": "dz1979-p149"
+          "raw": "炬",
+          "location": "做法第3步（五成炬/全炬）"
         }
       ],
+      "uncertainties": [],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,

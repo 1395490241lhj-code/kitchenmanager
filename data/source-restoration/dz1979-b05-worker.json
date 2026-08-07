@@ -1167,28 +1167,17 @@
         {
           "raw": "用旺火沸水将肉蒸至酥烂",
           "location": "做法第4步"
+        },
+        {
+          "raw": "原料栏“甜椒 三钱”，做法第3步“甜酱”，二者为原文不同词，不作统一改写",
+          "location": "原料栏与做法第3步"
+        },
+        {
+          "raw": "醪糟汁 五钱",
+          "location": "原料栏"
         }
       ],
       "uncertainties": [
-        {
-          "location": "原料栏与做法第3步",
-          "type": "unclear-glyph",
-          "rawText": "原料栏“甜椒 三钱”与做法“甜酱”",
-          "candidates": [
-            "甜椒",
-            "甜酱"
-          ],
-          "treatment": "原料栏字形读作“甜椒”，做法中出现“甜酱”；两处分别保留，不统一改写。"
-        },
-        {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "醪糟汁 五钱",
-          "candidates": [
-            "醪糟汁"
-          ],
-          "treatment": "首字扫描较重，按上下文与做法第3步同名项确认为“醪糟汁”，置信度记为medium。"
-        },
         {
           "location": "原料栏",
           "type": "unresolved-quantity",
@@ -2847,19 +2836,13 @@
         {
           "raw": "葱切八分节",
           "location": "做法第1步"
+        },
+        {
+          "raw": "炒花生米 十余颗",
+          "location": "原料栏"
         }
       ],
       "uncertainties": [
-        {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "炒花生米 十余颗",
-          "candidates": [
-            "颗",
-            "粒"
-          ],
-          "treatment": "量词字形受墨迹影响，读作“颗”；与同批其他条目的“粒”并存，不强行统一。"
-        },
         {
           "location": "原料栏",
           "type": "unresolved-quantity",

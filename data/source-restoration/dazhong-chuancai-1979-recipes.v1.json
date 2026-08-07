@@ -1,7 +1,7 @@
 {
   "schema": "kitchenmanager.source-restoration.recipes.v1",
   "createdAt": "2026-08-04T20:30:14.979Z",
-  "updatedAt": "2026-08-07T01:59:04.107Z",
+  "updatedAt": "2026-08-07T12:51:22.167Z",
   "status": "complete-reviewed-intermediate-only",
   "applicationReady": false,
   "purpose": "Restore all 147 recipes from rendered pages while preserving source wording, uncertainty, and non-production boundaries.",
@@ -69,7 +69,7 @@
         "count": 50
       }
     ],
-    "unresolvedRecipeCount": 38
+    "unresolvedRecipeCount": 34
   },
   "completedBatchIds": [
     "dz1979-b01",
@@ -5399,18 +5399,13 @@
         "cleaningMaterials": [],
         "nonEdiblePackaging": []
       },
-      "confirmedReadings": [],
-      "uncertainties": [
+      "confirmedReadings": [
         {
-          "location": "做法第2步",
-          "type": "unclear-glyph",
-          "rawText": "然后□入锅内",
-          "candidates": [
-            "煨",
-            "冒"
-          ],
-          "treatment": "图像中该字形无法稳定判定；摘要仅写搅匀后入锅，未擅自定字。"
-        },
+          "raw": "然后舀入锅内",
+          "location": "做法第2步"
+        }
+      ],
+      "uncertainties": [
         {
           "location": "做法第1–2步",
           "type": "allocation-unknown",
@@ -13770,10 +13765,10 @@
             "notes": null
           },
           {
-            "raw": "洗手橙",
+            "raw": "洗手楂",
             "modernSummary": null,
             "confidence": "medium",
-            "notes": "附注中的俗称字形需复核"
+            "notes": "附注引号内俗称经视觉复核确认字形为“楂”（与菜名“豌豆焖肉”附注同段的“楂”字同形），非“橙”亦非“蒸”；俗称本身的现代含义不作解释"
           }
         ],
         "confidence": "high"
@@ -13802,18 +13797,13 @@
         "cleaningMaterials": [],
         "nonEdiblePackaging": []
       },
-      "confirmedReadings": [],
-      "uncertainties": [
+      "confirmedReadings": [
         {
-          "location": "附注俗称",
-          "type": "unclear-glyph",
-          "rawText": "洗手橙",
-          "candidates": [
-            "洗手橙"
-          ],
-          "treatment": "b04/page-105 附注引号内俗称经页面图像确认应为\"洗手橙\"；不再保留候选。"
+          "raw": "俗称\"洗手楂\"",
+          "location": "附注"
         }
       ],
+      "uncertainties": [],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,
@@ -16154,28 +16144,17 @@
         {
           "raw": "用旺火沸水将肉蒸至酥烂",
           "location": "做法第4步"
+        },
+        {
+          "raw": "原料栏“甜椒 三钱”，做法第3步“甜酱”，二者为原文不同词，不作统一改写",
+          "location": "原料栏与做法第3步"
+        },
+        {
+          "raw": "醪糟汁 五钱",
+          "location": "原料栏"
         }
       ],
       "uncertainties": [
-        {
-          "location": "原料栏与做法第3步",
-          "type": "unclear-glyph",
-          "rawText": "原料栏“甜椒 三钱”与做法“甜酱”",
-          "candidates": [
-            "甜椒",
-            "甜酱"
-          ],
-          "treatment": "原料栏字形读作“甜椒”，做法中出现“甜酱”；两处分别保留，不统一改写。"
-        },
-        {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "醪糟汁 五钱",
-          "candidates": [
-            "醪糟汁"
-          ],
-          "treatment": "首字扫描较重，按上下文与做法第3步同名项确认为“醪糟汁”，置信度记为medium。"
-        },
         {
           "location": "原料栏",
           "type": "unresolved-quantity",
@@ -17834,19 +17813,13 @@
         {
           "raw": "葱切八分节",
           "location": "做法第1步"
+        },
+        {
+          "raw": "炒花生米 十余颗",
+          "location": "原料栏"
         }
       ],
       "uncertainties": [
-        {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "炒花生米 十余颗",
-          "candidates": [
-            "颗",
-            "粒"
-          ],
-          "treatment": "量词字形受墨迹影响，读作“颗”；与同批其他条目的“粒”并存，不强行统一。"
-        },
         {
           "location": "原料栏",
           "type": "unresolved-quantity",
@@ -24830,7 +24803,7 @@
             "raw": "炬",
             "modernSummary": null,
             "confidence": "medium",
-            "notes": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；字形与语义均未得到来源独立佐证，不作语义推断"
+            "notes": "字形经视觉复核确认为“炬”；该字在此语境下的现代语义（是否对应某种火候程度用语）未获来源独立佐证，不作语义推断"
           },
           {
             "raw": "拈",
@@ -24885,19 +24858,13 @@
         {
           "raw": "如不喜欢吃辣味的，可稍加泡红辣椒短节，不用豆瓣",
           "location": "附注"
-        }
-      ],
-      "uncertainties": [
+        },
         {
-          "location": "做法第3步（五成炬/全炬）",
-          "type": "unclear-glyph",
-          "rawText": "炬",
-          "candidates": [],
-          "treatment": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换",
-          "reasonCode": "unclear-glyph",
-          "entryId": "dz1979-p149"
+          "raw": "炬",
+          "location": "做法第3步（五成炬/全炬）"
         }
       ],
+      "uncertainties": [],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,
@@ -25993,10 +25960,10 @@
           },
           "conversionBasis": "二钱 × 5g = 10g",
           "confidence": {
-            "recognition": "medium",
+            "recognition": "high",
             "conversion": "high"
           },
-          "notes": "原书该行印刷模糊近似“二”字，按栏内上下数值合理性判读为二钱"
+          "notes": "原书姜、蒜两行数字经多级放大视觉复核确认为“二”字，笔画结构与同页“一两”“三钱”对照一致"
         },
         {
           "rawItemText": "葱",
@@ -26026,10 +25993,10 @@
           },
           "conversionBasis": "二钱 × 5g = 10g",
           "confidence": {
-            "recognition": "medium",
+            "recognition": "high",
             "conversion": "high"
           },
-          "notes": "原书该行印刷模糊近似“二”字，按栏内上下数值合理性判读为二钱"
+          "notes": "原书姜、蒜两行数字经多级放大视觉复核确认为“二”字，笔画结构与同页“一两”“三钱”对照一致"
         },
         {
           "rawItemText": "化猪油",
@@ -26229,19 +26196,13 @@
         {
           "raw": "烹时调料要搅匀",
           "location": "做法第3步"
-        }
-      ],
-      "uncertainties": [
+        },
         {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "姜二钱、蒜二钱",
-          "candidates": [],
-          "treatment": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为“二钱”，不完全排除为其他数字的可能",
-          "reasonCode": "unclear-glyph",
-          "entryId": "dz1979-p157"
+          "raw": "姜 二钱、蒜 二钱",
+          "location": "原料栏"
         }
       ],
+      "uncertainties": [],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,
@@ -35796,9 +35757,9 @@
             "appliesTo": "item",
             "qualifier": null
           },
-          "conversionBasis": "印刷墨迹磨损，字形按“五分”读出（与本页“盐 五钱”笔画结构比对一致），五分 × 0.5g = 2.5g",
+          "conversionBasis": "印刷墨迹磨损，经与本页“盐 五钱”行首“五”字笔画结构对照放大后确认为“五分”，五分 × 0.5g = 2.5g",
           "confidence": {
-            "recognition": "medium",
+            "recognition": "high",
             "conversion": "high"
           }
         }
@@ -35843,19 +35804,13 @@
         {
           "raw": "如用苔菜，即为“米汤煮苔菜”。作法是：选新鲜苔菜尖洗净，用油煸炒后，掺汤煮炬时，加盐和味精、葱花即可。",
           "location": "特点栏后附注"
-        }
-      ],
-      "uncertainties": [
+        },
         {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "味精 [印墨磨损数量]",
-          "candidates": [
-            "五分"
-          ],
-          "treatment": "味精一行数量因印刷墨迹磨损，笔画残缺，与本页“盐 五钱”行首字形比对后按“五分”读出，但字迹本身残损程度较高，不足以视为与其余清晰印刷条目同等确信；保留候选“五分”但不作为无保留的确定读法"
+          "raw": "味精 五分",
+          "location": "原料栏"
         }
       ],
+      "uncertainties": [],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,

@@ -1,0 +1,262 @@
+{
+  "schema": "kitchenmanager.source-restoration.apply-review-resolutions-audit.v1",
+  "generatedAt": "2026-08-07T12:47:55.814Z",
+  "purpose": "审计记录：将R1/R2视觉复核overlay中status=resolved的7道菜写回canonical worker/chunk/assembled三层source-restoration数据。仅回写overlay明确支持的事实，不做crosswalk/production promotion。",
+  "sourceOverlays": [
+    "data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-results.v1.json",
+    "data/source-restoration/dazhong-chuancai-1979-review-resolution-r2-results.v1.json"
+  ],
+  "applicationReady": false,
+  "entries": [
+    {
+      "entryId": "dz1979-p050",
+      "bookName": "板栗烧肉",
+      "overlaySource": "R1",
+      "oldValue": {
+        "uncertainty": {
+          "type": "unclear-glyph",
+          "rawText": "然后□入锅内",
+          "candidates": ["煨", "冒"]
+        }
+      },
+      "newValue": {
+        "confirmedReadings": [{ "raw": "然后舀入锅内", "location": "做法第2步" }]
+      },
+      "removedUncertainty": [
+        {
+          "location": "做法第2步",
+          "type": "unclear-glyph",
+          "rawText": "然后□入锅内",
+          "candidates": ["煨", "冒"]
+        }
+      ],
+      "remainingUncertainties": [
+        {
+          "location": "做法第1–2步",
+          "type": "allocation-unknown",
+          "rawText": "锅内下菜油一两；加入五钱冰糖"
+        }
+      ],
+      "confidenceChanges": [],
+      "layersUpdated": ["assembled"],
+      "notes": "b02批次无独立worker/chunk文件（历史上assembled-only），仅需回写assembled层。"
+    },
+    {
+      "entryId": "dz1979-p102",
+      "bookName": "粉蒸排骨",
+      "overlaySource": "R1",
+      "oldValue": {
+        "uncertainties": [
+          {
+            "type": "unclear-glyph",
+            "rawText": "原料栏“甜椒 三钱”与做法“甜酱”"
+          },
+          {
+            "type": "unclear-glyph",
+            "rawText": "醪糟汁 五钱"
+          }
+        ]
+      },
+      "newValue": {
+        "confirmedReadings": [
+          { "raw": "原料栏“甜椒 三钱”，做法第3步“甜酱”，二者为原文不同词，不作统一改写", "location": "原料栏与做法第3步" },
+          { "raw": "醪糟汁 五钱", "location": "原料栏" }
+        ]
+      },
+      "removedUncertainty": [
+        {
+          "location": "原料栏与做法第3步",
+          "type": "unclear-glyph",
+          "rawText": "原料栏“甜椒 三钱”与做法“甜酱”",
+          "candidates": ["甜椒", "甜酱"]
+        },
+        {
+          "location": "原料栏",
+          "type": "unclear-glyph",
+          "rawText": "醪糟汁 五钱",
+          "candidates": ["醪糟汁"]
+        }
+      ],
+      "remainingUncertainties": [
+        {
+          "location": "原料栏",
+          "type": "unresolved-quantity",
+          "rawText": "花椒 二十余粒"
+        }
+      ],
+      "confidenceChanges": [],
+      "layersUpdated": ["worker(dz1979-b05-worker.json)", "chunk(b05-chunks/dz1979-b05-chunk1.json)", "assembled"],
+      "notes": "甜椒与甜酱未合并为同一词；醪糟汁字形按已确认读法原样保存，未调整置信度（overlay未要求提升）。"
+    },
+    {
+      "entryId": "dz1979-p109",
+      "bookName": "干拌牛肉",
+      "overlaySource": "R1",
+      "oldValue": {
+        "uncertainty": {
+          "type": "unclear-glyph",
+          "rawText": "炒花生米 十余颗",
+          "candidates": ["颗", "粒"]
+        }
+      },
+      "newValue": {
+        "confirmedReadings": [{ "raw": "炒花生米 十余颗", "location": "原料栏" }]
+      },
+      "removedUncertainty": [
+        {
+          "location": "原料栏",
+          "type": "unclear-glyph",
+          "rawText": "炒花生米 十余颗",
+          "candidates": ["颗", "粒"]
+        }
+      ],
+      "remainingUncertainties": [
+        {
+          "location": "原料栏",
+          "type": "unresolved-quantity",
+          "rawText": "炒花生米 十余颗"
+        }
+      ],
+      "confidenceChanges": [],
+      "layersUpdated": ["worker(dz1979-b05-worker.json)", "chunk(b05-chunks/dz1979-b05-chunk3.json)", "assembled"],
+      "notes": "量词字形确认为“颗”；数量仍保留approximate-count（十余颗，referenceQty=10），未因字形确认变为exact-count。"
+    },
+    {
+      "entryId": "dz1979-p149",
+      "bookName": "青豆焖鸭条",
+      "overlaySource": "R1",
+      "oldValue": {
+        "uncertainty": {
+          "type": "unclear-glyph",
+          "rawText": "炬",
+          "candidates": []
+        },
+        "dialectOrOldTermsNote": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；字形与语义均未得到来源独立佐证，不作语义推断"
+      },
+      "newValue": {
+        "confirmedReadings": [{ "raw": "炬", "location": "做法第3步（五成炬/全炬）" }],
+        "dialectOrOldTermsNote": "字形经视觉复核确认为“炬”；该字在此语境下的现代语义（是否对应某种火候程度用语）未获来源独立佐证，不作语义推断"
+      },
+      "removedUncertainty": [
+        {
+          "location": "做法第3步（五成炬/全炬）",
+          "type": "unclear-glyph",
+          "rawText": "炬",
+          "candidates": []
+        }
+      ],
+      "remainingUncertainties": [],
+      "confidenceChanges": [],
+      "layersUpdated": ["worker(dz1979-b07-worker.json)", "chunk(b07-chunks/dz1979-b07-chunk4c.json)", "assembled"],
+      "notes": "只解决字形uncertainty；dialectOrOldTerms[\"炬\"].modernSummary保持null，未写入熟软/耙/糯等现代语义解释。"
+    },
+    {
+      "entryId": "dz1979-p091",
+      "bookName": "豌豆焖肉",
+      "overlaySource": "R2",
+      "oldValue": {
+        "uncertainty": {
+          "type": "unclear-glyph",
+          "rawText": "洗手橙",
+          "candidates": ["洗手橙"]
+        },
+        "dialectOrOldTerm": { "raw": "洗手橙", "confidence": "medium" }
+      },
+      "newValue": {
+        "confirmedReadings": [{ "raw": "俗称\"洗手楂\"", "location": "附注" }],
+        "dialectOrOldTerm": { "raw": "洗手楂", "confidence": "medium" }
+      },
+      "removedUncertainty": [
+        {
+          "location": "附注俗称",
+          "type": "unclear-glyph",
+          "rawText": "洗手橙",
+          "candidates": ["洗手橙"]
+        }
+      ],
+      "remainingUncertainties": [],
+      "confidenceChanges": [],
+      "layersUpdated": ["assembled"],
+      "notes": "R2 overlay视觉证据显示先前记录字形（洗手橙）本身有误，实际应为“洗手楂”，已按overlay订正raw文本；不解释该俗称现代含义，dialectOrOldTerms confidence保持medium未擅自提升（overlay仅确认字形，未要求提升confidence）。b04批次无独立worker/chunk文件，仅需回写assembled层。"
+    },
+    {
+      "entryId": "dz1979-p157",
+      "bookName": "炒鸭肝",
+      "overlaySource": "R2",
+      "oldValue": {
+        "uncertainty": {
+          "type": "unclear-glyph",
+          "rawText": "姜二钱、蒜二钱"
+        },
+        "ingredientConfidence": { "姜": "medium", "蒜": "medium" }
+      },
+      "newValue": {
+        "confirmedReadings": [{ "raw": "姜 二钱、蒜 二钱", "location": "原料栏" }],
+        "ingredientConfidence": { "姜": "high", "蒜": "high" }
+      },
+      "removedUncertainty": [
+        {
+          "location": "原料栏",
+          "type": "unclear-glyph",
+          "rawText": "姜二钱、蒜二钱",
+          "candidates": []
+        }
+      ],
+      "remainingUncertainties": [],
+      "confidenceChanges": [
+        { "field": "ingredients[姜].confidence.recognition", "from": "medium", "to": "high" },
+        { "field": "ingredients[蒜].confidence.recognition", "from": "medium", "to": "high" }
+      ],
+      "layersUpdated": ["worker(dz1979-b08-worker.json)", "chunk(b08-chunks/dz1979-b08-chunk2.json)", "assembled"],
+      "notes": "confidence提升仅限overlay明确视觉确认的姜/蒜两项数量字形，未扩大到本菜其他uncertainty（如“散籽”旧词语义，属dialectOrOldTerms非uncertainties数组，保持不变）。"
+    },
+    {
+      "entryId": "dz1979-p217",
+      "bookName": "米汤煮青菜",
+      "overlaySource": "R2",
+      "oldValue": {
+        "uncertainty": {
+          "type": "unclear-glyph",
+          "rawText": "味精 [印墨磨损数量]",
+          "candidates": ["五分"]
+        },
+        "ingredientConfidence": { "味精": "medium" }
+      },
+      "newValue": {
+        "confirmedReadings": [{ "raw": "味精 五分", "location": "原料栏" }],
+        "ingredientConfidence": { "味精": "high" }
+      },
+      "removedUncertainty": [
+        {
+          "location": "原料栏",
+          "type": "unclear-glyph",
+          "rawText": "味精 [印墨磨损数量]",
+          "candidates": ["五分"]
+        }
+      ],
+      "remainingUncertainties": [],
+      "confidenceChanges": [
+        { "field": "ingredients[味精].confidence.recognition", "from": "medium", "to": "high" }
+      ],
+      "layersUpdated": ["worker(dz1979-b11-worker.json)", "chunk(b11-chunks/dz1979-b11-chunk3.json)", "assembled"],
+      "notes": "confidence提升仅限overlay明确视觉确认的味精数量项；本菜dialectOrOldTerms「煮炬」的modernSummary/confidence未改动（属semantic-only范畴，不在本轮范围）。"
+    }
+  ],
+  "unchangedByDesign": {
+    "confirmedUnresolved": ["dz1979-p131", "dz1979-p111"],
+    "semanticOnly": ["dz1979-p184", "dz1979-p194", "dz1979-p197"],
+    "alternateSourceRequired": [
+      "dz1979-p122", "dz1979-p138", "dz1979-p152", "dz1979-p142", "dz1979-p145",
+      "dz1979-p155", "dz1979-p171", "dz1979-p181", "dz1979-p225", "dz1979-p100",
+      "dz1979-p139", "dz1979-p090"
+    ],
+    "crosswalkOrStructuralJudgment": ["dz1979-p132"]
+  },
+  "verification": {
+    "assemblerRegenerationMatchesManualEdits": true,
+    "assemblerCommand": "node scripts/assemble-dazhong-chuancai-recipes.mjs data/source-restoration/dz1979-b05-worker.json data/source-restoration/dz1979-b06-worker.json data/source-restoration/dz1979-b07-worker.json data/source-restoration/dz1979-b08-worker.json data/source-restoration/dz1979-b09-worker.json data/source-restoration/dz1979-b10-worker.json data/source-restoration/dz1979-b11-worker.json",
+    "sourceRestorationTestSuite": "node --test test/dazhong-source-restoration-*.test.mjs",
+    "sourceRestorationTestResult": "55/55 passed",
+    "applicationReadyRemainsFalse": true
+  }
+}

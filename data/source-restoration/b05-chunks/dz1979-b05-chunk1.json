@@ -2,7 +2,13 @@
   "chunkId": "dz1979-b05-chunk1",
   "batchId": "dz1979-b05",
   "applicationReady": false,
-  "pdfPages": [112, 113, 114, 115, 116],
+  "pdfPages": [
+    112,
+    113,
+    114,
+    115,
+    116
+  ],
   "recipes": [
     {
       "entryId": "dz1979-p099",
@@ -33,7 +39,10 @@
             "qualifier": null
           },
           "conversionBasis": "三两 × 50g = 150g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "菜油",
@@ -46,7 +55,10 @@
             "qualifier": null
           },
           "conversionBasis": "一两 × 50g + 五钱 × 5g = 50g + 25g = 75g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "木耳",
@@ -59,7 +71,10 @@
             "qualifier": null
           },
           "conversionBasis": "一钱 × 5g = 5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "蒜、姜",
@@ -73,11 +88,22 @@
           },
           "memberQuantityMode": "same-for-each",
           "members": [
-            { "item": "蒜", "qty": 15, "unit": "g" },
-            { "item": "姜", "qty": 15, "unit": "g" }
+            {
+              "item": "蒜",
+              "qty": 15,
+              "unit": "g"
+            },
+            {
+              "item": "姜",
+              "qty": 15,
+              "unit": "g"
+            }
           ],
           "conversionBasis": "原文有“各”；每项三钱 × 5g = 15g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "黄瓜",
@@ -90,7 +116,10 @@
             "qualifier": null
           },
           "conversionBasis": "五两 × 50g = 250g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "泡红辣椒",
@@ -103,7 +132,10 @@
             "qualifier": null
           },
           "conversionBasis": "计数单位“根”按原书保留，不换算为质量",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "盐",
@@ -116,7 +148,10 @@
             "qualifier": null
           },
           "conversionBasis": "四分 × 0.5g = 2g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油、葱",
@@ -130,11 +165,22 @@
           },
           "memberQuantityMode": "same-for-each",
           "members": [
-            { "item": "酱油", "qty": 25, "unit": "g" },
-            { "item": "葱", "qty": 25, "unit": "g" }
+            {
+              "item": "酱油",
+              "qty": 25,
+              "unit": "g"
+            },
+            {
+              "item": "葱",
+              "qty": 25,
+              "unit": "g"
+            }
           ],
           "conversionBasis": "原文有“各”；每项五钱 × 5g = 25g；酱油按原书质量单位保存为g，不推测毫升",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "水豆粉",
@@ -147,7 +193,10 @@
             "qualifier": null
           },
           "conversionBasis": "二两 × 50g = 100g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
       "methodSummary": {
@@ -208,25 +257,43 @@
         }
       ],
       "nonIngredientMaterials": {
-        "tools": ["锅"],
+        "tools": [
+          "锅"
+        ],
         "containers": [],
         "fuels": [],
-        "cleaningMaterials": ["发胀并淘洗木耳所用水"],
+        "cleaningMaterials": [
+          "发胀并淘洗木耳所用水"
+        ],
         "nonEdiblePackaging": []
       },
       "confirmedReadings": [
-        { "raw": "切马耳朵节子", "location": "做法第1步" },
-        { "raw": "炒散籽", "location": "做法第3步" }
+        {
+          "raw": "切马耳朵节子",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "炒散籽",
+          "location": "做法第3步"
+        }
       ],
       "uncertainties": [],
       "projectMatch": {
         "classification": "exact-name",
         "projectName": "黄瓜肉片",
-        "projectIds": [{ "library": "curated", "id": "comp-49f26b76" }],
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-49f26b76"
+          }
+        ],
         "candidateProjectName": null,
         "reviewRequired": false
       },
-      "confidence": { "recognition": "high", "conversion": "high" }
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     },
     {
       "entryId": "dz1979-p100",
@@ -257,7 +324,10 @@
             "qualifier": null
           },
           "conversionBasis": "五两 × 50g = 250g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "冬菜尖、干豆粉",
@@ -271,11 +341,22 @@
           },
           "memberQuantityMode": "same-for-each",
           "members": [
-            { "item": "冬菜尖", "qty": 50, "unit": "g" },
-            { "item": "干豆粉", "qty": 50, "unit": "g" }
+            {
+              "item": "冬菜尖",
+              "qty": 50,
+              "unit": "g"
+            },
+            {
+              "item": "干豆粉",
+              "qty": 50,
+              "unit": "g"
+            }
           ],
           "conversionBasis": "原文有“各”；每项一两 × 50g = 50g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油、葱花",
@@ -289,11 +370,22 @@
           },
           "memberQuantityMode": "same-for-each",
           "members": [
-            { "item": "酱油", "qty": 25, "unit": "g" },
-            { "item": "葱花", "qty": 25, "unit": "g" }
+            {
+              "item": "酱油",
+              "qty": 25,
+              "unit": "g"
+            },
+            {
+              "item": "葱花",
+              "qty": 25,
+              "unit": "g"
+            }
           ],
           "conversionBasis": "原文有“各”；每项五钱 × 5g = 25g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "鸡蛋",
@@ -306,7 +398,10 @@
             "qualifier": null
           },
           "conversionBasis": "计数单位“个”按原书保留，不换算为质量",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "姜米",
@@ -319,7 +414,10 @@
             "qualifier": null
           },
           "conversionBasis": "一钱 × 5g = 5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "黄豆芽",
@@ -332,7 +430,10 @@
             "qualifier": null
           },
           "conversionBasis": "四两 × 50g = 200g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "胡椒、味精",
@@ -346,11 +447,22 @@
           },
           "memberQuantityMode": "same-for-each",
           "members": [
-            { "item": "胡椒", "qty": 1, "unit": "g" },
-            { "item": "味精", "qty": 1, "unit": "g" }
+            {
+              "item": "胡椒",
+              "qty": 1,
+              "unit": "g"
+            },
+            {
+              "item": "味精",
+              "qty": 1,
+              "unit": "g"
+            }
           ],
           "conversionBasis": "原文有“各”；每项二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "盐",
@@ -363,7 +475,10 @@
             "qualifier": null
           },
           "conversionBasis": "四分 × 0.5g = 2g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "汤",
@@ -376,7 +491,10 @@
             "qualifier": null
           },
           "conversionBasis": "二斤 × 500g = 1000g；原书按质量给出，保存为g，不推测毫升",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
       "methodSummary": {
@@ -452,15 +570,28 @@
         }
       ],
       "nonIngredientMaterials": {
-        "tools": ["锅"],
-        "containers": ["大碗", "盘"],
+        "tools": [
+          "锅"
+        ],
+        "containers": [
+          "大碗",
+          "盘"
+        ],
         "fuels": [],
-        "cleaningMaterials": ["洗净豆芽及淘净冬菜所用水"],
+        "cleaningMaterials": [
+          "洗净豆芽及淘净冬菜所用水"
+        ],
         "nonEdiblePackaging": []
       },
       "confirmedReadings": [
-        { "raw": "肥二瘦八", "location": "做法第1步" },
-        { "raw": "豆芽掐足洗净", "location": "做法第2步" }
+        {
+          "raw": "肥二瘦八",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "豆芽掐足洗净",
+          "location": "做法第2步"
+        }
       ],
       "uncertainties": [
         {
@@ -485,7 +616,10 @@
         "candidateProjectName": null,
         "reviewRequired": false
       },
-      "confidence": { "recognition": "high", "conversion": "high" }
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     },
     {
       "entryId": "dz1979-p101",
@@ -516,7 +650,10 @@
             "qualifier": null
           },
           "conversionBasis": "五两 × 50g = 250g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "盐",
@@ -529,7 +666,10 @@
             "qualifier": null
           },
           "conversionBasis": "三分 × 0.5g = 1.5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "胡椒",
@@ -542,7 +682,10 @@
             "qualifier": null
           },
           "conversionBasis": "二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "味精",
@@ -555,7 +698,10 @@
             "qualifier": null
           },
           "conversionBasis": "二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "泡青菜",
@@ -568,7 +714,10 @@
             "qualifier": null
           },
           "conversionBasis": "三两 × 50g = 150g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "鸡蛋",
@@ -581,7 +730,10 @@
             "qualifier": null
           },
           "conversionBasis": "计数单位“个”按原书保留，不换算为质量",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "干豆粉",
@@ -594,7 +746,10 @@
             "qualifier": null
           },
           "conversionBasis": "一两 × 50g = 50g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
       "methodSummary": {
@@ -663,15 +818,26 @@
         }
       ],
       "nonIngredientMaterials": {
-        "tools": ["锅", "筷子"],
-        "containers": ["碗"],
+        "tools": [
+          "锅",
+          "筷子"
+        ],
+        "containers": [
+          "碗"
+        ],
         "fuels": [],
         "cleaningMaterials": [],
         "nonEdiblePackaging": []
       },
       "confirmedReadings": [
-        { "raw": "切成二粗丝", "location": "做法第1步" },
-        { "raw": "烧至汤内有泡青菜味", "location": "做法第2步" }
+        {
+          "raw": "切成二粗丝",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "烧至汤内有泡青菜味",
+          "location": "做法第2步"
+        }
       ],
       "uncertainties": [
         {
@@ -696,7 +862,10 @@
         "candidateProjectName": null,
         "reviewRequired": false
       },
-      "confidence": { "recognition": "high", "conversion": "high" }
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     },
     {
       "entryId": "dz1979-p102",
@@ -727,7 +896,10 @@
             "qualifier": null
           },
           "conversionBasis": "一斤 × 500g + 五两 × 50g = 500g + 250g = 750g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "盐",
@@ -740,7 +912,10 @@
             "qualifier": null
           },
           "conversionBasis": "五分 × 0.5g = 2.5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "葱",
@@ -753,7 +928,10 @@
             "qualifier": null
           },
           "conversionBasis": "五钱 × 5g = 25g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "花椒",
@@ -767,7 +945,10 @@
             "referenceQty": 20
           },
           "conversionBasis": "“二十余粒”为约数计数，保留参考值20粒和“余”限定，不作为精确值，也不换算为质量",
-          "confidence": { "recognition": "high", "conversion": "medium" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "medium"
+          }
         },
         {
           "rawItemText": "甜椒",
@@ -780,7 +961,10 @@
             "qualifier": null
           },
           "conversionBasis": "三钱 × 5g = 15g",
-          "confidence": { "recognition": "medium", "conversion": "high" }
+          "confidence": {
+            "recognition": "medium",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "红糖",
@@ -793,7 +977,10 @@
             "qualifier": null
           },
           "conversionBasis": "五钱 × 5g = 25g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "米粉",
@@ -806,7 +993,10 @@
             "qualifier": null
           },
           "conversionBasis": "二两 × 50g = 100g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油",
@@ -819,7 +1009,10 @@
             "qualifier": null
           },
           "conversionBasis": "六钱 × 5g = 30g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "姜",
@@ -832,7 +1025,10 @@
             "qualifier": null
           },
           "conversionBasis": "一钱 × 5g = 5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "豆腐乳水",
@@ -845,7 +1041,10 @@
             "qualifier": null
           },
           "conversionBasis": "五钱 × 5g = 25g；按原书质量单位保存为g，不推测毫升",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "醪糟汁",
@@ -858,7 +1057,10 @@
             "qualifier": null
           },
           "conversionBasis": "五钱 × 5g = 25g；按原书质量单位保存为g，不推测毫升",
-          "confidence": { "recognition": "medium", "conversion": "high" }
+          "confidence": {
+            "recognition": "medium",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "五香面",
@@ -871,7 +1073,10 @@
             "qualifier": null
           },
           "conversionBasis": "一钱 × 5g = 5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
       "methodSummary": {
@@ -945,32 +1150,42 @@
         }
       ],
       "nonIngredientMaterials": {
-        "tools": ["蒸具"],
-        "containers": ["容器", "蒸碗"],
+        "tools": [
+          "蒸具"
+        ],
+        "containers": [
+          "容器",
+          "蒸碗"
+        ],
         "fuels": [],
-        "cleaningMaterials": ["洗净排骨所用水"],
+        "cleaningMaterials": [
+          "洗净排骨所用水"
+        ],
         "nonEdiblePackaging": []
       },
       "confirmedReadings": [
-        { "raw": "砍成长约一寸二节子", "location": "做法第1步" },
-        { "raw": "合铡成细末", "location": "做法第2步" },
-        { "raw": "用旺火沸水将肉蒸至酥烂", "location": "做法第4步" }
+        {
+          "raw": "砍成长约一寸二节子",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "合铡成细末",
+          "location": "做法第2步"
+        },
+        {
+          "raw": "用旺火沸水将肉蒸至酥烂",
+          "location": "做法第4步"
+        },
+        {
+          "raw": "原料栏“甜椒 三钱”，做法第3步“甜酱”，二者为原文不同词，不作统一改写",
+          "location": "原料栏与做法第3步"
+        },
+        {
+          "raw": "醪糟汁 五钱",
+          "location": "原料栏"
+        }
       ],
       "uncertainties": [
-        {
-          "location": "原料栏与做法第3步",
-          "type": "unclear-glyph",
-          "rawText": "原料栏“甜椒 三钱”与做法“甜酱”",
-          "candidates": ["甜椒", "甜酱"],
-          "treatment": "原料栏字形读作“甜椒”，做法中出现“甜酱”；两处分别保留，不统一改写。"
-        },
-        {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "醪糟汁 五钱",
-          "candidates": ["醪糟汁"],
-          "treatment": "首字扫描较重，按上下文与做法第3步同名项确认为“醪糟汁”，置信度记为medium。"
-        },
         {
           "location": "原料栏",
           "type": "unresolved-quantity",
@@ -982,11 +1197,19 @@
       "projectMatch": {
         "classification": "exact-name",
         "projectName": "粉蒸排骨",
-        "projectIds": [{ "library": "curated", "id": "comp-3a9b2ae5" }],
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-3a9b2ae5"
+          }
+        ],
         "candidateProjectName": null,
         "reviewRequired": false
       },
-      "confidence": { "recognition": "high", "conversion": "high" }
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     }
   ]
 }

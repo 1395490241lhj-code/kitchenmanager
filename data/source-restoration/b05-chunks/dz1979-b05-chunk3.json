@@ -2,7 +2,11 @@
   "chunkId": "dz1979-b05-chunk3",
   "batchId": "dz1979-b05",
   "applicationReady": false,
-  "pdfPages": [120, 121, 122],
+  "pdfPages": [
+    120,
+    121,
+    122
+  ],
   "recipes": [
     {
       "entryId": "dz1979-p107",
@@ -33,7 +37,10 @@
             "qualifier": null
           },
           "conversionBasis": "一斤 × 500g + 五两 × 50g = 500g + 250g = 750g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "郫县豆瓣",
@@ -46,7 +53,10 @@
             "qualifier": null
           },
           "conversionBasis": "一两 × 50g + 五钱 × 5g = 50g + 25g = 75g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "花椒",
@@ -60,7 +70,10 @@
             "referenceQty": 10
           },
           "conversionBasis": "“十余粒”为约数计数，保留参考值10粒和“余”限定，不作为精确值，也不换算为质量",
-          "confidence": { "recognition": "high", "conversion": "medium" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "medium"
+          }
         },
         {
           "rawItemText": "盐",
@@ -73,7 +86,10 @@
             "qualifier": null
           },
           "conversionBasis": "四分 × 0.5g = 2g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "三奈",
@@ -86,7 +102,10 @@
             "qualifier": null
           },
           "conversionBasis": "一钱 × 5g = 5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "汤",
@@ -99,7 +118,10 @@
             "qualifier": null
           },
           "conversionBasis": "二斤 × 500g + 五两 × 50g = 1000g + 250g = 1250g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "苤蓝",
@@ -112,7 +134,10 @@
             "qualifier": null
           },
           "conversionBasis": "一斤 × 500g = 500g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "葱姜",
@@ -125,13 +150,27 @@
             "qualifier": null
           },
           "memberQuantityMode": "unallocated-group-total",
-          "groupTotal": { "qty": 25, "unit": "g" },
+          "groupTotal": {
+            "qty": 25,
+            "unit": "g"
+          },
           "members": [
-            { "item": "葱", "qty": null, "unit": null },
-            { "item": "姜", "qty": null, "unit": null }
+            {
+              "item": "葱",
+              "qty": null,
+              "unit": null
+            },
+            {
+              "item": "姜",
+              "qty": null,
+              "unit": null
+            }
           ],
           "conversionBasis": "原文无“各”；五钱 × 5g = 25g 为两项合计，未分配到单项",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "八角",
@@ -144,7 +183,10 @@
             "qualifier": null
           },
           "conversionBasis": "一钱 × 5g = 5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "草果",
@@ -157,7 +199,10 @@
             "qualifier": null
           },
           "conversionBasis": "五分 × 0.5g = 2.5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油",
@@ -170,7 +215,10 @@
             "qualifier": null
           },
           "conversionBasis": "六钱 × 5g = 30g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
       "methodSummary": {
@@ -277,16 +325,31 @@
         }
       ],
       "nonIngredientMaterials": {
-        "tools": ["铝锅", "炒锅", "锅盖"],
+        "tools": [
+          "铝锅",
+          "炒锅",
+          "锅盖"
+        ],
         "containers": [],
         "fuels": [],
-        "cleaningMaterials": ["洗净牛肉所用水"],
+        "cleaningMaterials": [
+          "洗净牛肉所用水"
+        ],
         "nonEdiblePackaging": []
       },
       "confirmedReadings": [
-        { "raw": "将牛的肋条肉洗净，宰成七分大小的块子", "location": "做法第1步" },
-        { "raw": "水以淹没牛肉一寸左右为宜", "location": "做法第2步" },
-        { "raw": "沥去豆瓣渣不用，只将豆瓣汁水倒入", "location": "做法第2步" }
+        {
+          "raw": "将牛的肋条肉洗净，宰成七分大小的块子",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "水以淹没牛肉一寸左右为宜",
+          "location": "做法第2步"
+        },
+        {
+          "raw": "沥去豆瓣渣不用，只将豆瓣汁水倒入",
+          "location": "做法第2步"
+        }
       ],
       "uncertainties": [
         {
@@ -314,18 +377,30 @@
           "location": "做法第2步",
           "type": "allocation-unknown",
           "rawText": "做法统称“香料”",
-          "candidates": ["三奈", "八角", "草果"],
+          "candidates": [
+            "三奈",
+            "八角",
+            "草果"
+          ],
           "treatment": "原料栏分列三奈、八角、草果；做法只写“香料”，对应关系未印出，不合并。"
         }
       ],
       "projectMatch": {
         "classification": "exact-name",
         "projectName": "苤蓝烧牛肉",
-        "projectIds": [{ "library": "curated", "id": "comp-72980f9c" }],
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-72980f9c"
+          }
+        ],
         "candidateProjectName": null,
         "reviewRequired": false
       },
-      "confidence": { "recognition": "high", "conversion": "high" }
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     },
     {
       "entryId": "dz1979-p109",
@@ -356,7 +431,10 @@
             "qualifier": null
           },
           "conversionBasis": "一斤 × 500g + 五两 × 50g = 500g + 250g = 750g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "酱油",
@@ -369,7 +447,10 @@
             "qualifier": null
           },
           "conversionBasis": "四两 × 50g = 200g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "葱",
@@ -382,7 +463,10 @@
             "qualifier": null
           },
           "conversionBasis": "五钱 × 5g = 25g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "炒花生米",
@@ -396,7 +480,10 @@
             "referenceQty": 10
           },
           "conversionBasis": "“十余颗”为约数计数，保留参考值10颗和“余”限定，不作为精确值，也不换算为质量",
-          "confidence": { "recognition": "medium", "conversion": "medium" }
+          "confidence": {
+            "recognition": "medium",
+            "conversion": "medium"
+          }
         },
         {
           "rawItemText": "熟油辣椒",
@@ -409,7 +496,10 @@
             "qualifier": null
           },
           "conversionBasis": "一两 × 50g = 50g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "盐",
@@ -422,7 +512,10 @@
             "qualifier": null
           },
           "conversionBasis": "六分 × 0.5g = 3g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "白糖",
@@ -435,7 +528,10 @@
             "qualifier": null
           },
           "conversionBasis": "一钱 × 5g = 5g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "花椒面",
@@ -448,7 +544,10 @@
             "qualifier": null
           },
           "conversionBasis": "二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         },
         {
           "rawItemText": "味精",
@@ -461,7 +560,10 @@
             "qualifier": null
           },
           "conversionBasis": "二分 × 0.5g = 1g",
-          "confidence": { "recognition": "high", "conversion": "high" }
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
         }
       ],
       "methodSummary": {
@@ -518,24 +620,34 @@
         }
       ],
       "nonIngredientMaterials": {
-        "tools": ["锅"],
-        "containers": ["碗", "盘"],
+        "tools": [
+          "锅"
+        ],
+        "containers": [
+          "碗",
+          "盘"
+        ],
         "fuels": [],
-        "cleaningMaterials": ["洗净牛肉所用水"],
+        "cleaningMaterials": [
+          "洗净牛肉所用水"
+        ],
         "nonEdiblePackaging": []
       },
       "confirmedReadings": [
-        { "raw": "捞起晾冷后切成片", "location": "做法第1步" },
-        { "raw": "葱切八分节", "location": "做法第1步" }
+        {
+          "raw": "捞起晾冷后切成片",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "葱切八分节",
+          "location": "做法第1步"
+        },
+        {
+          "raw": "炒花生米 十余颗",
+          "location": "原料栏"
+        }
       ],
       "uncertainties": [
-        {
-          "location": "原料栏",
-          "type": "unclear-glyph",
-          "rawText": "炒花生米 十余颗",
-          "candidates": ["颗", "粒"],
-          "treatment": "量词字形受墨迹影响，读作“颗”；与同批其他条目的“粒”并存，不强行统一。"
-        },
         {
           "location": "原料栏",
           "type": "unresolved-quantity",
@@ -547,11 +659,19 @@
       "projectMatch": {
         "classification": "exact-name",
         "projectName": "干拌牛肉",
-        "projectIds": [{ "library": "curated", "id": "comp-2c6feda8" }],
+        "projectIds": [
+          {
+            "library": "curated",
+            "id": "comp-2c6feda8"
+          }
+        ],
         "candidateProjectName": null,
         "reviewRequired": false
       },
-      "confidence": { "recognition": "high", "conversion": "high" }
+      "confidence": {
+        "recognition": "high",
+        "conversion": "high"
+      }
     }
   ]
 }

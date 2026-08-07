@@ -847,10 +847,10 @@
           },
           "conversionBasis": "二钱 × 5g = 10g",
           "confidence": {
-            "recognition": "medium",
+            "recognition": "high",
             "conversion": "high"
           },
-          "notes": "原书该行印刷模糊近似“二”字，按栏内上下数值合理性判读为二钱"
+          "notes": "原书姜、蒜两行数字经多级放大视觉复核确认为“二”字，笔画结构与同页“一两”“三钱”对照一致"
         },
         {
           "rawItemText": "葱",
@@ -880,10 +880,10 @@
           },
           "conversionBasis": "二钱 × 5g = 10g",
           "confidence": {
-            "recognition": "medium",
+            "recognition": "high",
             "conversion": "high"
           },
-          "notes": "原书该行印刷模糊近似“二”字，按栏内上下数值合理性判读为二钱"
+          "notes": "原书姜、蒜两行数字经多级放大视觉复核确认为“二”字，笔画结构与同页“一两”“三钱”对照一致"
         },
         {
           "rawItemText": "化猪油",
@@ -1083,19 +1083,13 @@
         {
           "raw": "烹时调料要搅匀",
           "location": "做法第3步"
+        },
+        {
+          "raw": "姜 二钱、蒜 二钱",
+          "location": "原料栏"
         }
       ],
-  "uncertainties": [
-    {
-      "location": "原料栏",
-      "type": "unclear-glyph",
-      "rawText": "姜二钱、蒜二钱",
-      "candidates": [],
-      "treatment": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为“二钱”，不完全排除为其他数字的可能",
-      "reasonCode": "unclear-glyph",
-      "entryId": "dz1979-p157"
-    }
-  ],
+      "uncertainties": [],
       "projectMatch": {
         "classification": "book-only",
         "projectName": null,

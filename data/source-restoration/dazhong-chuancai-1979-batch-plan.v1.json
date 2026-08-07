@@ -429,7 +429,7 @@
           111
         ],
         "ingredientEntryCount": 107,
-        "unresolvedRecipeCount": 4,
+        "unresolvedRecipeCount": 3,
         "reviewResult": "completed-external-review",
         "correctionsApplied": [],
         "externalVisualReview": {
@@ -709,7 +709,7 @@
           165
         ],
         "ingredientEntryCount": 91,
-        "unresolvedRecipeCount": 6,
+        "unresolvedRecipeCount": 5,
         "reviewResult": "completed-with-recorded-uncertainties",
         "correctionsApplied": []
       }
@@ -807,7 +807,7 @@
           189
         ],
         "ingredientEntryCount": 144,
-        "unresolvedRecipeCount": 3,
+        "unresolvedRecipeCount": 2,
         "reviewResult": "completed-with-recorded-uncertainties",
         "correctionsApplied": []
       }
@@ -1082,7 +1082,7 @@
           239
         ],
         "ingredientEntryCount": 110,
-        "unresolvedRecipeCount": 2,
+        "unresolvedRecipeCount": 1,
         "reviewResult": "completed-with-recorded-uncertainties",
         "correctionsApplied": []
       }
