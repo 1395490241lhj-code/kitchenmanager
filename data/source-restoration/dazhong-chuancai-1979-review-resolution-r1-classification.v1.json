@@ -1,0 +1,105 @@
+{
+  "schema": "kitchenmanager.source-restoration.review-resolution.classification.v1",
+  "generatedAt": "2026-08-07T11:51:02Z",
+  "purpose": "R1人工复核阶段：对review queue中25道needsScanRecheck条目做A/B/C分流，不修改review queue本身，不做crosswalk/promotion。",
+  "sourceReviewQueueFile": "data/source-restoration/dazhong-chuancai-1979-review-queue.v1.json",
+  "sourceReviewQueueEntryCount": 59,
+  "needsScanRecheckCount": 25,
+  "classificationCriteria": {
+    "A_local-scan-recheck": "当前PDF同页或紧邻页仍可能通过重新查看/局部高dpi裁切解决的unclear-glyph、unresolved-quantity等问题，无页面截断或空白。",
+    "B_alternate-source-required": "当前PDF页面本身内容缺失（scan-page-blank/contentMissing）、正文被截断且相邻页无续文、或已经过高分辨率复核仍不可辨认，重复查看同一PDF无法恢复。",
+    "C_no-visual-recheck": "问题本质是crosswalk/结构判断（如确认分隔页范围），不需要再次查看图像。"
+  },
+  "counts": {
+    "A": 12,
+    "B": 12,
+    "C": 1
+  },
+  "classification": {
+    "A_local-scan-recheck": [
+      "dz1979-p050",
+      "dz1979-p102",
+      "dz1979-p109",
+      "dz1979-p111",
+      "dz1979-p131",
+      "dz1979-p149",
+      "dz1979-p157",
+      "dz1979-p217",
+      "dz1979-p091",
+      "dz1979-p184",
+      "dz1979-p194",
+      "dz1979-p197"
+    ],
+    "B_alternate-source-required": [
+      "dz1979-p122",
+      "dz1979-p138",
+      "dz1979-p152",
+      "dz1979-p142",
+      "dz1979-p145",
+      "dz1979-p155",
+      "dz1979-p171",
+      "dz1979-p181",
+      "dz1979-p225",
+      "dz1979-p100",
+      "dz1979-p139",
+      "dz1979-p090"
+    ],
+    "C_no-visual-recheck": [
+      "dz1979-p132"
+    ]
+  },
+  "classificationNotes": [
+    {
+      "entryId": "dz1979-p122",
+      "reason": "contentMissing=true；PDF第135页经200/600dpi两次渲染确认全页除标题外无正文，扫描件本身空白，归B，不重复视觉调用。"
+    },
+    {
+      "entryId": "dz1979-p138",
+      "reason": "contentMissing=true；PDF第151页经220/600dpi两次渲染确认全页空白（含标题），归B，不重复视觉调用。"
+    },
+    {
+      "entryId": "dz1979-p152",
+      "reason": "contentMissing=true；扫描页完全空白，归B，不重复视觉调用（用户已在任务说明中明确此三例）。"
+    },
+    {
+      "entryId": "dz1979-p142",
+      "reason": "做法在第1步后中断，后续页（PDF156页）为下一条目起始页，无本条目续文，归B。"
+    },
+    {
+      "entryId": "dz1979-p145",
+      "reason": "起始页（PDF158）经220/600dpi两次渲染确认全页空白，续存页（159）仅有正文尾部，归B。"
+    },
+    {
+      "entryId": "dz1979-p155",
+      "reason": "做法第4步中断，续页（169）仅重复第3-4步无新内容，其后（170）为下一条目起始页，归B。"
+    },
+    {
+      "entryId": "dz1979-p171",
+      "reason": "特点栏在做法完整收尾后缺失，页面下方大片空白，其后页（186）为下一条目起始页，归B。"
+    },
+    {
+      "entryId": "dz1979-p181",
+      "reason": "做法第4步起始行印墨严重褪色，已尝试600/1200/2400/3600/4800dpi多次局部裁切复核仍不可辨认，归B。"
+    },
+    {
+      "entryId": "dz1979-p225",
+      "reason": "特点栏在做法第2步完整收尾后缺失，页面底部大片空白，其后页（239）为下一条目起始页，归B。"
+    },
+    {
+      "entryId": "dz1979-p100",
+      "reason": "特点栏缺失，页面在做法第2步后留白结束，下一页已是另一道菜标题，归B。"
+    },
+    {
+      "entryId": "dz1979-p139",
+      "reason": "印刷做法编号自1.跳至3.，编号2.正文在本扫描件中原本不存在（非页面截断/空白），重复查看同一PDF无法补全，归B。"
+    },
+    {
+      "entryId": "dz1979-p090",
+      "reason": "做法第1步在菜头尺寸句中截断，后续做法和特点在本扫描件中未见，归B。"
+    },
+    {
+      "entryId": "dz1979-p132",
+      "reason": "唯一unresolvedQuestion是确认PDF第146-147页为下一分类的分隔页/空白背页，不含本条目正文——这是crosswalk/结构判断，不需要再次查看图像，归C。"
+    }
+  ]
+}

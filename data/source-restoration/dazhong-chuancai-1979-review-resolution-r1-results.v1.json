@@ -1,0 +1,178 @@
+{
+  "schema": "kitchenmanager.source-restoration.review-resolution.r1-visual-review.v1",
+  "generatedAt": "2026-08-07T11:51:51Z",
+  "purpose": "R1视觉复核结果overlay，仅记录本轮复核结论，不修改147道source-restoration原始数据，不修改review queue。",
+  "reviewer": "anthropic/claude-sonnet-5（主代理直接查看，未创建子代理）",
+  "sourcePdf": {
+    "path": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf",
+    "sha256": "d7d5d62ea1585bbc1cba3f78eeda4e1ffddbae702180af5ea7fef25cd65f3c41"
+  },
+  "sourceReviewQueueFile": "data/source-restoration/dazhong-chuancai-1979-review-queue.v1.json",
+  "sourceClassificationFile": "data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-classification.v1.json",
+  "selectionRule": "从A类(local-scan-recheck)中按review queue原有priority选取最多5道；本轮5道均为priority=high。",
+  "itemsReviewedCount": 5,
+  "resultCounts": {
+    "resolved": 3,
+    "confirmed-unresolved": 2,
+    "needs-alternate-source": 0
+  },
+  "items": [
+    {
+      "entryId": "dz1979-p050",
+      "bookName": "板栗烧肉",
+      "priority": "high",
+      "status": "resolved",
+      "pagesUsed": {
+        "pdfPage": 63,
+        "bookPage": 50
+      },
+      "cropsUsed": [
+        "p63_300-063.png(300dpi全页)",
+        "p63_600-063.png(600dpi)",
+        "p63_1200-063.png(1200dpi)",
+        "p63_2400-063.png(2400dpi局部)",
+        "crop_p63_word4.png(2400dpi裁切，含前后文)"
+      ],
+      "location": "做法第2步：搅匀，然后□入锅内",
+      "oldValue": {
+        "type": "unclear-glyph",
+        "rawText": "然后□入锅内",
+        "candidates": [
+          "煨",
+          "冒"
+        ],
+        "treatment": "图像中该字形无法稳定判定；摘要仅写搅匀后入锅，未擅自定字。"
+      },
+      "visualEvidence": "PDF第63页（书内第50页）经300/600/1200/2400dpi多级渲染，在2400dpi局部裁切（crop_p63_word4.png）中该字笔画清晰完整可辨：上部为'臼'形框架，中间横笔，下部'臼'形收尾，笔画结构与候选'煨''冒'均不匹配，与'舀'字（爪+臼结构）笔画完全吻合。",
+      "confirmedValue": "舀（读作yǎo，意为舀取/盛取）",
+      "confirmedText": "然后舀入锅内",
+      "remainingUncertainty": null,
+      "notes": "语义上'舀入锅内'（把调好的芡汁舀入锅内）与上下文'搅匀，然后舀入锅内，放冰糖'完全通顺，与做法逻辑一致。此确认仅记录于本resolution overlay，不直接写入147道assembled/worker/chunk源数据。"
+    },
+    {
+      "entryId": "dz1979-p102",
+      "bookName": "粉蒸排骨",
+      "priority": "high",
+      "status": "resolved",
+      "pagesUsed": {
+        "pdfPage": 115,
+        "bookPage": 102
+      },
+      "cropsUsed": [
+        "p115_300-115.png(300dpi全页)",
+        "p115_800-115.png(800dpi全页)",
+        "crop_top.png(800dpi原料栏裁切)",
+        "crop_line3_v3.png(800dpi做法第3步裁切)",
+        "crop_tianjiang_zoom2.png(800dpi局部裁切)",
+        "crop_laozaozhi_row2.png(800dpi局部裁切)"
+      ],
+      "location": "原料栏「甜椒 三钱」与做法第3步「甜酱」；原料栏「醪糟汁 五钱」",
+      "oldValue": {
+        "type": "unclear-glyph",
+        "rawText": "原料栏'甜椒 三钱'与做法'甜酱'；原料栏'醪糟汁 五钱'",
+        "candidates": [
+          "甜椒",
+          "甜酱",
+          "醪糟汁"
+        ],
+        "treatment": "原料栏字形读作'甜椒'，做法中出现'甜酱'；两处分别保留，不统一改写。醪糟汁首字扫描较重，按上下文确认，置信度medium。"
+      },
+      "visualEvidence": "原料栏行（crop_top.png）清晰可辨为'甜椒 三钱'。做法第3步整行（crop_line3_v3.png，800dpi）清晰读出'3.在容器内将盐、酱油、红糖、甜酱、豆腐乳水、醪...'；局部裁切（crop_tianjiang_zoom2.png）进一步确认该字为'酱'字（酉部+将字上部结构），与原料栏'椒'字（木部+叔字结构）笔画明显不同，两者确系不同字/词，不是同一处印刷差异。'醪糟汁'在做法延续行（crop_line4.png）读作'糟汁'，与原料栏（crop_laozaozhi_row2.png）'醪糟'两字连续可辨，字形一致。",
+      "confirmedValue": "原料栏确认为'甜椒'，做法第3步确认为'甜酱'，两者为原文本身不同的词，非误读；'醪糟汁'字形确认无误。",
+      "confirmedText": null,
+      "remainingUncertainty": null,
+      "notes": "原有记录的'两处分别保留，不统一改写'处理方式经视觉复核证实是正确判断——两处原文本来就是不同字（甜椒 vs 甜酱），不是同一字的两种读法冲突。花椒'二十余粒'字形也在本次复核中重新确认清晰，与原记录一致。"
+    },
+    {
+      "entryId": "dz1979-p109",
+      "bookName": "干拌牛肉",
+      "priority": "high",
+      "status": "resolved",
+      "pagesUsed": {
+        "pdfPage": 122,
+        "bookPage": 109
+      },
+      "cropsUsed": [
+        "p122_300-122.png(300dpi全页)",
+        "p122_800-122.png(800dpi全页)",
+        "crop_p122_huashengmi.png(800dpi裁切)"
+      ],
+      "location": "原料栏：炒花生米 十余颗",
+      "oldValue": {
+        "type": "unclear-glyph/unresolved-quantity",
+        "rawText": "炒花生米 十余颗",
+        "candidates": [
+          "颗",
+          "粒"
+        ],
+        "treatment": "量词字形受墨迹影响，读作'颗'；与同批其他条目的'粒'并存，不强行统一。"
+      },
+      "visualEvidence": "PDF第122页（书内第109页）800dpi裁切（crop_p122_huashengmi.png）中'炒花生米 十余颗'一行完整清晰可辨，量词字形为'颗'（页/顶部结构+页字旁），笔画清楚无墨迹遮挡，与候选'粒'（米字旁）字形结构明显不同。",
+      "confirmedValue": "颗",
+      "confirmedText": "炒花生米 十余颗",
+      "remainingUncertainty": null,
+      "notes": "字形本身已清晰确认为'颗'；原记录'与同批其他条目的粒并存，不强行统一'的处理方式正确，不同条目使用不同量词是原书本身的用词差异，不是识别错误。"
+    },
+    {
+      "entryId": "dz1979-p131",
+      "bookName": "麻辣兔丁",
+      "priority": "high",
+      "status": "confirmed-unresolved",
+      "pagesUsed": {
+        "pdfPage": 144,
+        "bookPage": 131
+      },
+      "cropsUsed": [
+        "p144_300-144.png(300dpi全页)",
+        "p144_800-144.png(800dpi全页)",
+        "crop_p144_teqin2.png(800dpi裁切)",
+        "crop_p144_char.png(800dpi局部裁切)",
+        "p144_1600-144.png(1600dpi渲染)",
+        "crop_p144_char_hires.png(1600dpi局部裁切)"
+      ],
+      "location": "三 特点：麻辣味匝，酒饭皆宜",
+      "oldValue": {
+        "type": "unclear-glyph",
+        "rawText": "麻辣味匝，酒饭皆宜",
+        "candidates": [
+          "匝",
+          "厚"
+        ],
+        "treatment": "该字印刷较淡，按笔画结构读作'匝'（味匝：味道均匀浓郁），不排除为形近字；保留原字形读音，不改写为其他推测字。"
+      },
+      "visualEvidence": "PDF第144页（书内第131页）经800dpi（crop_p144_char.png）与1600dpi（crop_p144_char_hires.png）两次局部裁切复核：该字呈现框形结构，内部有横向笔画，但右下角部分因印刷墨迹晕染/字迹磨损，笔画边界不够锐利，无法排除笔画细节被墨迹遮盖的可能性。已达到同一疑难字最多2次必要裁切放大的复核上限。",
+      "confirmedValue": null,
+      "confirmedText": null,
+      "remainingUncertainty": "字形整体轮廓与'匝'字的框架结构基本吻合，但右下角笔画因印刷墨迹晕染无法达到与本批次其他清晰印刷条目同等确信度；不排除为形近字'厚'或其他候选。保留原有uncertainty记录，不做进一步猜测。",
+      "notes": "本次复核未能提升原有置信度，也未发现足以推翻原候选集的新证据；按规则保留原uncertainty，不重复消耗视觉复核额度。"
+    },
+    {
+      "entryId": "dz1979-p149",
+      "bookName": "青豆焖鸭条",
+      "priority": "high",
+      "status": "resolved",
+      "pagesUsed": {
+        "pdfPage": 163,
+        "bookPage": 150
+      },
+      "cropsUsed": [
+        "p163_300-163.png(300dpi全页)",
+        "p163_800-163.png(800dpi全页)",
+        "crop_p163_line5b.png(800dpi裁切)",
+        "crop_p163_char2.png(800dpi局部裁切)"
+      ],
+      "location": "做法第3步（五成炬/全炬）：炬",
+      "oldValue": {
+        "type": "unclear-glyph",
+        "rawText": "炬",
+        "candidates": [],
+        "treatment": "字形较模糊，无法完全确认是否为'炬''焐'或其他近似字；按上下文语义保留字面读音相近的'炬'并标注不确定性，不作猜测性替换"
+      },
+      "visualEvidence": "PDF第163页（书内第150页）800dpi局部裁切（crop_p163_char2.png）中'至鸭条五成炬时'一句完整清晰可辨，'炬'字火字旁与'巨'字结构笔画分明、印刷清晰、无墨迹晕染或磨损，与候选'焐'（火字旁+吾）字形明显不同。该页整体印刷质量优于此前复核的部分页面，字迹锐利。",
+      "confirmedValue": "炬",
+      "confirmedText": "至鸭条五成炬时……一直焖到鸭条全炬时",
+      "remainingUncertainty": null,
+      "notes": "字形本身在本页印刷清晰，可确认为'炬'；该字在1979年印刷语境下的确切引申含义（是否等同某种火候程度用语）仍为方言/旧词语义问题，不属于字形识别范畴，不在本轮字形复核结论内重新解释。"
+    }
+  ]
+}
