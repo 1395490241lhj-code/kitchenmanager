@@ -1,0 +1,182 @@
+{
+  "schema": "kitchenmanager.source-restoration.review-resolution.r2-visual-review.v1",
+  "generatedAt": "2026-08-07T12:30:00Z",
+  "purpose": "R2人工复核阶段：处理R1分类A集合中剩余尚未复核的条目（p091/p111/p157/p217/p184/p194/p197），仅记录本轮复核结论，不修改147道source-restoration原始数据，不修改review queue，不修改R1文件，不做crosswalk/promotion。",
+  "reviewer": "anthropic/claude-sonnet-5（主代理直接查看，未创建子代理）",
+  "sourcePdf": {
+    "path": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf"
+  },
+  "sourceReviewQueueFile": "data/source-restoration/dazhong-chuancai-1979-review-queue.v1.json",
+  "sourceClassificationFile": "data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-classification.v1.json",
+  "priorRoundResultsFile": "data/source-restoration/dazhong-chuancai-1979-review-resolution-r1-results.v1.json",
+  "priorRoundNote": "R1已复核并resolved：dz1979-p050、dz1979-p102、dz1979-p109、dz1979-p149；R1已复核并confirmed-unresolved：dz1979-p131。以上5条本轮不重复复核，R1文件不做任何修改。",
+  "remainingACount": 7,
+  "remainingAEntries": [
+    "dz1979-p091",
+    "dz1979-p111",
+    "dz1979-p157",
+    "dz1979-p217",
+    "dz1979-p184",
+    "dz1979-p194",
+    "dz1979-p197"
+  ],
+  "semanticOnlyExclusions": [
+    {
+      "entryId": "dz1979-p184",
+      "bookName": "麻辣明笋丝",
+      "reason": "R1批次记录（batchReviewUnresolvedRefs）已确认字形为'余'（做法第2步：在开水锅中余两次），本轮review queue的unresolvedQuestions明确标注'字形按余确认，语义存疑'。剩余问题仅为该字在此语境下是否等同'煮/焯'的现代语义解释，不是字形可辨识度问题，重新查看同一PDF页面无法产生新证据。",
+      "disposition": "semantic-only / no-further-visual",
+      "modernSummary": null,
+      "action": "本轮不调用视觉模型，不猜测'煮/焯'等现代解释，不修改原有unclear-glyph记录。"
+    },
+    {
+      "entryId": "dz1979-p194",
+      "bookName": "家常芋头",
+      "reason": "R1批次记录已确认字形为'炬'（做法第2步：烧至芋头炬时），review queue明确标注'炬字形可辨，但语义是否等同耙/糯未得到来源独立佐证'。剩余问题是该时代火候用语的现代语义对应，不是字形辨识问题。",
+      "disposition": "semantic-only / no-further-visual",
+      "modernSummary": null,
+      "action": "本轮不调用视觉模型，不猜测'耙/糯/熟软'等现代解释，不修改原有unclear-glyph记录。"
+    },
+    {
+      "entryId": "dz1979-p197",
+      "bookName": "家常四季豆",
+      "reason": "R1批次记录已确认字形为'炬'（做法第2步：焖至豆炬），review queue明确标注该字形与b06/b07/b09已记录用法一致，仅语境含义未获独立佐证。与p194属于同一类型的已确字形、待语义问题，不需要再次视觉复核。",
+      "disposition": "semantic-only / no-further-visual",
+      "modernSummary": null,
+      "action": "本轮不调用视觉模型，不猜测'耙/糯/熟软'等现代解释，不修改原有unclear-glyph记录。"
+    }
+  ],
+  "selectionRule": "从R1分类A集合中排除semantic-only的3项（p184/p194/p197）及R1已复核的5项（p050/p102/p109/p131/p149）后，剩余4项为本轮实际视觉复核目标：p091、p111、p157、p217。",
+  "itemsReviewedCount": 4,
+  "resultCounts": {
+    "resolved": 3,
+    "confirmed-unresolved": 1,
+    "needs-alternate-source": 0
+  },
+  "items": [
+    {
+      "entryId": "dz1979-p091",
+      "bookName": "豌豆楂肉",
+      "priority": "medium",
+      "status": "resolved",
+      "pagesUsed": {
+        "pdfPage": 105,
+        "bookPage": 92
+      },
+      "cropsUsed": [
+        "p105_300-105.png(300dpi全页)",
+        "p105_800-105.png(800dpi全页)",
+        "crop_p105_fuzhu.png(800dpi附注行裁切)",
+        "crop_p105_char_zoom2.png(800dpi局部裁切，含引号内三字)",
+        "crop_p105_char3_zoom.png(800dpi局部裁切，单字放大)"
+      ],
+      "location": "附注：如不用笼蒸，可在锅内烹制，俗称「洗手□」",
+      "oldValue": {
+        "type": "unclear-glyph",
+        "rawText": "俗称\"洗手□\"",
+        "candidates": [
+          "洗手橙",
+          "洗手蒸"
+        ],
+        "treatment": "附注中的俗称字形需复核，候选字保留，不作确定读法。"
+      },
+      "visualEvidence": "PDF第105页（书内第92页）800dpi局部裁切（crop_p105_char3_zoom.png）中该字笔画完整清晰可辨：左侧为木字旁，右侧为'且'形部件，与'橙'（木+登）、'蒸'（艹+烝）的部首结构均不匹配，与'楂'字（木+且）笔画完全吻合。该字与本条目菜名标题「豌豆楂肉」中的'楂'字为同一字形，两处笔画结构一致。",
+      "confirmedValue": "楂",
+      "confirmedText": "俗称\"洗手楂\"",
+      "remainingUncertainty": null,
+      "notes": "本条目原review queue记录为'洗手蒸'俗称，候选包含'洗手橙'；经视觉复核确认实际字形为'楂'（与菜名'豌豆楂肉'的'楂'字同形），既非'橙'也非'蒸'。此确认仅记录于本resolution overlay，不直接写入147道assembled/worker/chunk源数据。"
+    },
+    {
+      "entryId": "dz1979-p111",
+      "bookName": "水煮牛肉",
+      "priority": "high",
+      "status": "confirmed-unresolved",
+      "pagesUsed": {
+        "pdfPage": 124,
+        "bookPage": 111
+      },
+      "cropsUsed": [
+        "p124_300-124.png(300dpi全页)",
+        "p125_300-125.png(300dpi全页，续页)"
+      ],
+      "location": "原料栏：花椒 十余粒；原料与做法：菜油二两分三次使用；做法第2步：掺汤烧开",
+      "oldValue": {
+        "type": "unresolved-quantity/allocation-unknown/page-boundary",
+        "rawText": "花椒 十余粒；菜油二两分三次使用（各处均写\"少许\"）；掺汤烧开（原料栏未列汤及数量）",
+        "candidates": [],
+        "treatment": "\"余\"为约数限定，保留参考值10粒，不作为精确计数；菜油分配未印出具体数值，不折算；汤未在原料栏列出数量，不推测用量。"
+      },
+      "visualEvidence": "PDF第124-125页（书内第111-112页）经300dpi全页渲染确认：全篇原料栏、做法第1-3步、特点栏内容完整无缺失，页面无截断、无空白、无印墨磨损遮挡相关文字。'花椒 十余粒'为原书本身使用的约数表述，非字形不清；菜油'少许'的分次用量与掺汤的具体分量均为原书未印出的信息，不是本页字迹可辨识度问题。",
+      "confirmedValue": null,
+      "confirmedText": null,
+      "remainingUncertainty": "三项不确定性的性质经复核确认均为原书文本本身未提供精确数值或未列出归属分配，不是扫描件字形模糊或页面残缺导致；重复查看同一PDF页面无法进一步精确化这些数值，保留原有uncertainty记录。",
+      "notes": "本次复核确认页面完整、字迹清晰，但三项不确定性属于原书写作方式（约数、笼统分配、未列具体量），不属于可通过视觉复核解决的问题类别；未消耗额外高dpi复核额度，未发现新证据可推翻或精确化原记录。"
+    },
+    {
+      "entryId": "dz1979-p157",
+      "bookName": "炒鸭肝",
+      "priority": "high",
+      "status": "resolved",
+      "pagesUsed": {
+        "pdfPage": 170,
+        "bookPage": 157
+      },
+      "cropsUsed": [
+        "p170_300-170.png(300dpi全页)",
+        "p170_800-170.png(800dpi全页)",
+        "crop_p170_jiangsuan.png(800dpi原料栏姜/葱/蒜行裁切)",
+        "p170_1600-170.png(1600dpi渲染)",
+        "crop_p170_jiang_char.png(1600dpi局部裁切)",
+        "crop_p170_suan_char.png(1600dpi局部裁切)",
+        "crop_p170_3rows.png(1600dpi三行对照裁切，含菜心一两/葱三钱作参照)"
+      ],
+      "location": "原料栏：姜 二钱、蒜 二钱",
+      "oldValue": {
+        "type": "unclear-glyph",
+        "rawText": "姜二钱、蒜二钱",
+        "candidates": [],
+        "treatment": "原书姜、蒜两行数字印刷较模糊，按笔画结构与常见配比读为\"二钱\"，不完全排除为其他数字的可能。"
+      },
+      "visualEvidence": "PDF第170页（书内第157页）经800dpi（crop_p170_jiangsuan.png）与1600dpi（crop_p170_jiang_char.png、crop_p170_suan_char.png、crop_p170_3rows.png）多级局部裁切复核：姜、蒜两行的数字部件均呈现两道厚重带勾横笔的印刷字形，与同页'一两'（单横笔）、'三钱'（三横笔）的笔画数目对照后，确认该字形笔画数与结构均与该版本印刷体的'二'字（非手写楷体'二'）完全一致，非其他数字。",
+      "confirmedValue": "二",
+      "confirmedText": "姜 二钱、蒜 二钱",
+      "remainingUncertainty": null,
+      "notes": "原有记录\"按笔画结构与常见配比读为二钱\"的判断经多级放大对照笔画数确认无误；本条目另一unresolvedQuestion（\"散籽\"旧词/方言用语confidence=medium）属于语义问题，本次复核在同页续页（PDF171页）确认该词字形本身清晰可辨（'至散籽即依次下姜、葱、蒜...'），字形无争议，语义现代化解释不在本轮字形复核范围内。"
+    },
+    {
+      "entryId": "dz1979-p217",
+      "bookName": "米汤煮青菜",
+      "priority": "high",
+      "status": "resolved",
+      "pagesUsed": {
+        "pdfPage": 230,
+        "bookPage": 217
+      },
+      "cropsUsed": [
+        "p230_300-230.png(300dpi全页)",
+        "p230_800-230.png(800dpi全页)",
+        "crop_p230_yanweijing.png(800dpi原料栏化猪油/盐/味精三行裁切)",
+        "crop_p230_weijing_char.png(800dpi局部裁切放大)",
+        "crop_p230_wu_char.png(800dpi同页'五钱'行对照放大)"
+      ],
+      "location": "原料栏：味精 五分",
+      "oldValue": {
+        "type": "unclear-glyph",
+        "rawText": "味精 [印墨磨损数量]",
+        "candidates": [
+          "五分"
+        ],
+        "treatment": "味精一行数量因印刷墨迹磨损，笔画残缺，与本页\"盐 五钱\"行首字形比对后按\"五分\"读出，但字迹本身残损程度较高，不足以视为与其余清晰印刷条目同等确信。"
+      },
+      "visualEvidence": "PDF第230页（书内第217页）800dpi局部裁切（crop_p230_weijing_char.png）与同页'盐 五钱'行的'五'字对照放大（crop_p230_wu_char.png）：两者笔画结构完全一致——三道横笔加中间一道竖笔贯穿，均为该印刷体'五'字的标准写法，未见笔画残缺或墨迹遮盖导致的结构性缺失。",
+      "confirmedValue": "五分",
+      "confirmedText": "味精 五分",
+      "remainingUncertainty": null,
+      "notes": "原有'五分'候选经与同页清晰'五'字对照后确认无误，字形完整可辨，未见残损到影响判读的程度；原记录的谨慎保留态度经本轮复核可以提升为确定读法。"
+    }
+  ],
+  "visualReviewStatus": {
+    "allACategoryVisualCandidatesReviewedOrExcluded": true,
+    "note": "R1分类A集合共12项：5项已在R1复核完成（4 resolved / 1 confirmed-unresolved），3项（p184/p194/p197）本轮排除为semantic-only不需要视觉复核，4项（p091/p111/p157/p217）本轮完成视觉复核（3 resolved / 1 confirmed-unresolved）。A集合当前PDF视觉复核任务已全部处理完毕。B类（12项，需替代来源）与C类（1项，crosswalk/结构判断）均不在本轮视觉复核范围内，按R1分类结论维持不变。"
+  }
+}
