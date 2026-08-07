@@ -114,8 +114,27 @@ test('Curated and Full name matching partitions both sides without guessing', ()
   assert.equal(json.matches.scope.sourceDatasetsModified, false);
 
   assert.equal(json.matches.inputs.catalog.sha256, sha256(buffers.catalog));
-  assert.equal(json.matches.inputs.curated.sha256, sha256(buffers.curated));
   assert.equal(json.matches.inputs.full.sha256, sha256(buffers.full));
+  // The curated file is allowed to drift from the name-matches baseline only
+  // through the recorded production promotion batches. The recorded sha
+  // describes the historical pre-promotion curated; today's curated must be
+  // exactly the recorded baseline count plus the five promoted entries.
+  const promotions = JSON.parse(
+    fs.readFileSync(new URL('../data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json', import.meta.url), 'utf8'),
+  );
+  const promotedIds = new Set(
+    (promotions.batches ?? []).flatMap((batch) => (
+      (batch.entries ?? []).map((entry) => entry.productionId)
+    )),
+  );
+  assert.equal(json.matches.inputs.curated.recipeCount, 126);
+  assert.equal(json.curated.recipes.length, 126 + promotedIds.size);
+  const curatedPromoted = json.curated.recipes
+    .filter((recipe) => recipe.id.startsWith('dz1979-'))
+    .map((recipe) => recipe.id)
+    .sort();
+  assert.deepEqual(curatedPromoted, [...promotedIds].sort());
+  assert.equal(json.curated.recipes.filter((recipe) => promotedIds.has(recipe.id)).length, promotedIds.size);
 
   assert.equal(json.matches.bookMatches.length, 147);
   assert.equal(new Set(json.matches.bookMatches.map((entry) => entry.entryId)).size, 147);
@@ -183,12 +202,24 @@ test('Curated and Full name matching partitions both sides without guessing', ()
   const projectOnlyNames = new Set(
     json.matches.projectOnlyEntries.map((entry) => entry.projectName),
   );
-  assert.equal(projectUnion.size, 330);
+  const promotedProductionNames = new Set(
+    (promotions.batches ?? []).flatMap((batch) => (
+      (batch.entries ?? []).map((entry) => entry.name)
+    )),
+  );
+  // The historical name-matches partition predates the promotion; promoted
+  // production names are an explicit third partition accounted separately.
+  assert.equal(projectUnion.size, 330 + promotedProductionNames.size);
   assert.equal(matchedProjectNames.size, 84);
   assert.equal(projectOnlyNames.size, 246);
-  assert.equal(new Set([...matchedProjectNames, ...projectOnlyNames]).size, projectUnion.size);
+  const accounted = new Set([
+    ...matchedProjectNames,
+    ...projectOnlyNames,
+    ...promotedProductionNames,
+  ]);
+  assert.equal(accounted.size, projectUnion.size);
   for (const name of projectUnion) {
-    assert.ok(matchedProjectNames.has(name) || projectOnlyNames.has(name));
+    assert.ok(accounted.has(name));
   }
 });
 

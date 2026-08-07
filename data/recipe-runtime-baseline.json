@@ -4,8 +4,8 @@
   "sources": {
     "curated": {
       "file": "data/sichuan-recipes.curated.json",
-      "count": 126,
-      "idSha256": "ca2a3694a6f05938d8c08149d5b85bcaf914d22fc4d9e4a8542ed5540c2a75b3"
+      "count": 131,
+      "idSha256": "986135f95cb79a1d60446b3f8d89e573dffb37cd144094aab1d5d57d6f710639"
     },
     "full": {
       "file": "data/sichuan-recipes.json",

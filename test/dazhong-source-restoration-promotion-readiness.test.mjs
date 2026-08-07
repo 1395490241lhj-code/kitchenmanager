@@ -300,7 +300,12 @@ test('source, crosswalk, canonical, and production data are unchanged by this pl
     ...curated.recipes.map((r) => r.id),
     ...full.recipes.map((r) => r.id),
   ];
-  assert.equal(productionIds.some((id) => id.startsWith('dz1979-')), false);
+  // The promoted Batch 1 ids are the only dz1979- ids present in production,
+  // and they correspond exactly to the promoted readiness entries.
+  const promoted = new Set(readiness.summary.promotedNewRecipeIds);
+  const promotedInProduction = productionIds.filter((id) => id.startsWith('dz1979-'));
+  assert.deepEqual(promotedInProduction.sort(), [...promoted].sort());
+  assert.equal(promoted.size, 5);
 });
 
 test('proposed stable IDs are unique and do not collide with production prefixes', () => {
@@ -322,4 +327,36 @@ test('manifest asserts no promotion and no production writes', () => {
   assert.ok(readiness.productionChainAudit.ingredientStorage);
   assert.ok(readiness.productionChainAudit.iosConsumer);
   assert.ok(readiness.productionChainAudit.minimalPromotionBatchSuggestion);
+});
+
+test('promotionState marks exactly the promoted batch and keeps dispositions stable', () => {
+  const promotedIds = new Set(readiness.summary.promotedNewRecipeIds);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 5);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 34);
+  assert.deepEqual(promotedIds, new Set([
+    'dz1979-p143',
+    'dz1979-p180',
+    'dz1979-p195',
+    'dz1979-p200',
+    'dz1979-p204',
+  ]));
+  const promotedEntries = readiness.entries.filter((entry) => promotedIds.has(entry.entryId));
+  for (const entry of promotedEntries) {
+    assert.equal(entry.promotionState, 'promoted', entry.entryId);
+    // Disposition stays the pre-promotion source/matching classification.
+    assert.equal(entry.promotionDisposition, 'new-recipe-candidate', entry.entryId);
+    assert.equal(entry.sourceQuality, 'ready-for-later-promotion-review', entry.entryId);
+  }
+  const nonPromoted = readiness.entries.filter((entry) => !promotedIds.has(entry.entryId));
+  for (const entry of nonPromoted) {
+    assert.equal(entry.promotionState, 'not-promoted', entry.entryId);
+  }
+  assert.deepEqual(readiness.summary.dispositionCounts, {
+    'existing-project-match': 50,
+    'new-recipe-candidate': 39,
+    'blocked-source-review': 45,
+    'blocked-alternate-source': 12,
+    'blocked-crosswalk': 1,
+  });
+  assert.equal(readiness.futureBatchSelectionRule.excludePromotionState, 'promoted');
 });

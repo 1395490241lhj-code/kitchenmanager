@@ -17,7 +17,8 @@ import {
   sortedRecipeIds,
   validateManifest
 } from '../scripts/recipe-runtime-quality.mjs';
-import { RECIPE_UNIT_WHITELIST } from '../src/ingredients.js';
+import { normalizeIngredientAmount, RECIPE_UNIT_WHITELIST } from '../src/ingredients.js';
+import { getStockCoverageAnalysis } from '../src/inventory.js';
 
 const root = process.cwd();
 
@@ -43,8 +44,34 @@ const CURATED_QTY_UNIT_RECORDS = new Map([
   ...CURATED_QTY_UNIT_BATCH.map(record => [`${record.id}:${record.item}`, record])
 ]);
 
+// Batch 1 promotion quantities are reviewed through the source-restoration
+// pipeline, not the production method-text pipeline. The records come from
+// the Batch 1 quantity review artifact (never hand-copied here).
+const BATCH1_QUANTITY_REVIEW = readJson(
+  'data/source-restoration/dazhong-chuancai-1979-promotion-batch1-quantity-review.v1.json',
+);
+const DAZHONG_PROMOTION_QTY_UNIT_RECORDS = new Map(
+  (BATCH1_QUANTITY_REVIEW.records ?? []).map((record) => [
+    `${record.productionId}:${record.item}`,
+    {
+      id: record.productionId,
+      name: record.recipeName,
+      item: record.item,
+      qty: record.qty,
+      unit: record.unit,
+      evidence: new RegExp(record.item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    },
+  ]),
+);
+
+// Unified reviewed qty/unit registry: 11 method-backed + 19 source-restoration-backed.
+const CURATED_QTY_UNIT_RECORDS_ALL = new Map([
+  ...CURATED_QTY_UNIT_RECORDS,
+  ...DAZHONG_PROMOTION_QTY_UNIT_RECORDS,
+]);
+
 function hasReviewedIngredientShape(id, entry) {
-  const reviewed = CURATED_QTY_UNIT_RECORDS.get(`${id}:${entry.item}`);
+  const reviewed = CURATED_QTY_UNIT_RECORDS_ALL.get(`${id}:${entry.item}`);
   if (reviewed) {
     return entry.qty === reviewed.qty
       && entry.unit === reviewed.unit
@@ -197,22 +224,22 @@ test('default runtime quality covers the final Curated and Full merge chain', as
   });
 
   assert.deepEqual(report.modes.curated.stats, {
-    recipes: 403,
-    methodsReady: 403,
+    recipes: 408,
+    methodsReady: 408,
     missingMethods: 0,
-    ingredientMaps: 403,
+    ingredientMaps: 408,
     missingIngredientMaps: 0,
-    ingredientEntries: 2281,
+    ingredientEntries: 2300,
     duplicateIds: 0,
     duplicateNames: 0,
     orphanIngredientMaps: 0
   });
-  assert.equal(report.modes.full.stats.recipes, 526);
-  assert.equal(report.modes.full.stats.methodsReady, 403);
+  assert.equal(report.modes.full.stats.recipes, 531);
+  assert.equal(report.modes.full.stats.methodsReady, 408);
   assert.equal(report.modes.full.stats.missingMethods, 123);
-  assert.equal(report.modes.full.stats.ingredientMaps, 524);
+  assert.equal(report.modes.full.stats.ingredientMaps, 529);
   assert.equal(report.modes.full.stats.missingIngredientMaps, 2);
-  assert.equal(report.modes.full.stats.ingredientEntries, 1803);
+  assert.equal(report.modes.full.stats.ingredientEntries, 1822);
   assert.equal(report.modes.full.stats.duplicateIds, 0);
   assert.equal(report.modes.full.stats.duplicateNames, 0);
   assert.equal(report.modes.full.stats.orphanIngredientMaps, 0);
@@ -265,8 +292,8 @@ test('Curated qty/unit pilot records only final-method-backed egg counts', async
     assert.equal(RECIPE_UNIT_WHITELIST.includes(egg.unit), true);
   }
 
-  assert.equal(runtime.packs.curated.recipes.length, 403);
-  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 403);
+  assert.equal(runtime.packs.curated.recipes.length, 408);
+  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 408);
 });
 
 test('Curated final qty/unit batch adds exactly nine reviewed records and preserves all other map shapes', async () => {
@@ -287,19 +314,99 @@ test('Curated final qty/unit batch adds exactly nine reviewed records and preser
       .filter(hasConcreteQtyUnit)
       .map(entry => ({ key: `${id}:${entry.item}`, entry }))
   );
-  assert.equal(structured.length, 11, 'Curated must have exactly the two pilots plus nine final-batch records');
+  assert.equal(
+    structured.length,
+    CURATED_QTY_UNIT_RECORDS_ALL.size,
+    'Curated must have exactly the 11 method-backed plus 19 source-restoration-backed records',
+  );
   assert.deepEqual(
     structured.map(({ key }) => key).sort(),
-    [...CURATED_QTY_UNIT_RECORDS.keys()].sort()
+    [...CURATED_QTY_UNIT_RECORDS_ALL.keys()].sort()
   );
 
   for (const [id, entries] of Object.entries(runtime.packs.curated.recipe_ingredients)) {
     for (const entry of entries) {
-      const reviewed = CURATED_QTY_UNIT_RECORDS.get(`${id}:${entry.item}`);
+      const reviewed = CURATED_QTY_UNIT_RECORDS_ALL.get(`${id}:${entry.item}`);
       if (reviewed) assert.deepEqual(entry, { item: reviewed.item, qty: reviewed.qty, unit: reviewed.unit });
       else assert.equal(hasConcreteQtyUnit(entry), false, `${id}:${entry.item} must remain quantity-free`);
     }
   }
+});
+
+test('Batch 1 quantity review registry has 19 unique source-restoration records', () => {
+  const records = BATCH1_QUANTITY_REVIEW.records || [];
+  assert.equal(records.length, 19);
+  assert.equal(DAZHONG_PROMOTION_QTY_UNIT_RECORDS.size, 19);
+  assert.equal(CURATED_QTY_UNIT_RECORDS_ALL.size, 30);
+  const keys = new Set();
+  for (const record of records) {
+    const key = `${record.productionId}:${record.item}`;
+    assert.ok(!keys.has(key), `duplicate key ${key}`);
+    keys.add(key);
+    assert.equal(record.reviewStatus, 'approved', key);
+    assert.equal(record.evidenceType, 'source-restoration', key);
+    assert.ok(['exact-mass', 'exact-count'].includes(record.normalizedQuantity.kind), key);
+    assert.equal(record.qty, String(record.normalizedQuantity.qty), key);
+    if (record.normalizedQuantity.kind === 'exact-mass') {
+      assert.equal(record.unit, 'g', key);
+    }
+    assert.ok(RECIPE_UNIT_WHITELIST.includes(record.unit), `${key} unit ${record.unit}`);
+    const normalized = normalizeIngredientAmount(record.qty, record.unit);
+    assert.ok(Number.isFinite(Number(normalized.qty)), `${key} non-finite qty`);
+    assert.ok(normalized.unit, `${key} empty unit`);
+  }
+  assert.equal(BATCH1_QUANTITY_REVIEW.summary.unitCounts['g'], 17);
+  assert.equal(BATCH1_QUANTITY_REVIEW.summary.unitCounts['个'], 1);
+  assert.equal(BATCH1_QUANTITY_REVIEW.summary.unitCounts['只'], 1);
+});
+
+test('every structured curated qty/unit entry is a reviewed record (no unreviewed 31st)', async () => {
+  const runtime = await buildDefaultRuntimePacks();
+  const structured = Object.entries(runtime.packs.curated.recipe_ingredients).flatMap(([id, entries]) =>
+    entries
+      .filter(hasConcreteQtyUnit)
+      .map(entry => ({ key: `${id}:${entry.item}`, entry }))
+  );
+  for (const { key, entry } of structured) {
+    const reviewed = CURATED_QTY_UNIT_RECORDS_ALL.get(key);
+    assert.ok(reviewed, `${key} is an unreviewed qty/unit entry`);
+    assert.deepEqual(entry, { item: reviewed.item, qty: reviewed.qty, unit: reviewed.unit }, key);
+  }
+  const promotedKeys = [...DAZHONG_PROMOTION_QTY_UNIT_RECORDS.keys()].sort();
+  const structuredKeys = structured.map(({ key }) => key).sort();
+  assert.deepEqual(
+    structuredKeys.filter((key) => promotedKeys.includes(key)).sort(),
+    promotedKeys,
+    'all 19 promoted records must be present in the curated runtime',
+  );
+});
+
+test('Batch 1 g-unit and count-unit quantities normalize into inventory coverage', async () => {
+  const runtime = await buildDefaultRuntimePacks();
+  const assertCoverage = (id, item, qty, unit) => {
+    const ingredients = runtime.packs.curated.recipe_ingredients[id];
+    const entry = ingredients.find((ingredient) => ingredient.item === item);
+    assert.deepEqual(entry, { item, qty, unit }, `${id}:${item}`);
+    const normalized = normalizeIngredientAmount(qty, unit);
+    assert.ok(Number.isFinite(Number(normalized.qty)), `${id}:${item} non-finite`);
+    assert.ok(normalized.unit, `${id}:${item} empty unit`);
+    // Coverage analysis with an empty inventory must return 'none' cleanly,
+    // and with a matching same-unit stock it must return 'exact' — no crash
+    // and no unit mismatch from the new production data.
+    const empty = getStockCoverageAnalysis([], item, qty, unit);
+    assert.equal(empty.confidence, 'none', `${id}:${item}`);
+    const stocked = getStockCoverageAnalysis(
+      [{ name: item, qty, unit, stockStatus: 'ok' }],
+      item,
+      qty,
+      unit,
+    );
+    assert.equal(stocked.confidence, 'exact', `${id}:${item}`);
+  };
+  // count-unit recipe: 当归炖鸡 仔母鸡 1只
+  assertCoverage('dz1979-p143', '仔母鸡', '1', '只');
+  // g-unit recipe: 炒豌豆尖 豌豆尖 1000g
+  assertCoverage('dz1979-p204', '豌豆尖', '1000', 'g');
 });
 
 test('ID baseline and deterministic empty manifest cover the completed runtime map set', async () => {
@@ -718,7 +825,7 @@ test('Final manifest batch preserves exact runtime maps and clears the curated g
   const runtime = await buildDefaultRuntimePacks();
   const manifest = readJson(MANIFEST_PATH);
   assert.deepEqual(manifest, []);
-  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 403);
+  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 408);
   for (const [id, name, expectedItems] of FINAL_MANIFEST_BATCH_REPAIRS) {
     const recipe = runtime.packs.curated.recipes.find(item => item.id === id);
     assert.equal(recipe?.name, name);
@@ -915,7 +1022,7 @@ test('curated and full base id sets and counts are unchanged by the ordering fix
     full: readJson(join(root, 'data', 'sichuan-recipes.json'))
   };
 
-  const expectedCounts = { curated: 126, full: 264 };
+  const expectedCounts = { curated: 131, full: 264 };
   for (const mode of ['curated', 'full']) {
     const ids = packs[mode].recipes.map(recipe => String(recipe?.id || ''));
     assert.equal(ids.length, expectedCounts[mode]);

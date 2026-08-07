@@ -1,0 +1,117 @@
+{
+  "schema": "kitchenmanager.source-restoration.production-promotions.v1",
+  "applicationReady": false,
+  "partialPromotion": true,
+  "purpose": "记录《大众川菜》1979 source-restoration 主动 promotion 进入 production 的 recipe，与历史 crosswalk/projectMatch（name-matches baseline 派生）区分。本文件不修改 canonical projectMatch、name-matches 或 crosswalk。",
+  "batches": [
+    {
+      "batchId": "dz1979-production-b01",
+      "status": "promoted",
+      "baselineCommit": "7ad674d548f2d4749e183383a668f63461150842",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch1-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch1-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p143",
+          "productionId": "dz1979-p143",
+          "name": "当归炖鸡",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p143",
+            "bookName": "当归炖鸡",
+            "bookPage": 143,
+            "pdfPage": 156,
+            "category": "禽蛋鱼类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p204",
+          "productionId": "dz1979-p204",
+          "name": "炒豌豆尖",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p204",
+            "bookName": "炒豌豆尖",
+            "bookPage": 204,
+            "pdfPage": 217,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p195",
+          "productionId": "dz1979-p195",
+          "name": "干煸苦瓜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p195",
+            "bookName": "干煸苦瓜",
+            "bookPage": 195,
+            "pdfPage": 208,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p200",
+          "productionId": "dz1979-p200",
+          "name": "炒土豆泥",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p200",
+            "bookName": "炒土豆泥",
+            "bookPage": 200,
+            "pdfPage": 213,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p180",
+          "productionId": "dz1979-p180",
+          "name": "干炒豆腐",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p180",
+            "bookName": "干炒豆腐",
+            "bookPage": 180,
+            "pdfPage": 193,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
+    }
+  ]
+}

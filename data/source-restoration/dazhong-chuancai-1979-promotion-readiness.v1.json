@@ -4,6 +4,16 @@
   "purpose": "《大众川菜》1979 production promotion readiness：机械生成 147 道 promotionDisposition 清单与 new-recipe-candidate 转换预览。只制定可执行候选清单，不修改任何生产数据，不做 production promotion。",
   "applicationReady": false,
   "productionPromotion": false,
+  "promotionStateDefinitions": {
+    "promoted": "已由 source-restoration 主动 promotion 进入 production 的 recipe（见 production-promotions ledger）。",
+    "not-promoted": "尚未 promotion 的 recipe。"
+  },
+  "promotionLedgerSource": "data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json",
+  "promotionStateNote": "promotionDisposition 保持 promotion 前的来源/匹配分类（50/39/45/12/1），不因已 promotion 重分类；promotionState 为独立维度。future batch 选择必须排除 promotionState=promoted。",
+  "futureBatchSelectionRule": {
+    "excludePromotionState": "promoted",
+    "collisionRule": "若 ID/name 碰撞来自 promotion ledger 中同一 entryId -> productionId -> name 且 production 内容一致，视为 expected promoted match；其他任何碰撞仍报错。"
+  },
   "dispositionDefinitions": {
     "existing-project-match": "exact-name/confirmed-alias 且已有真实 project ID；复用现有 recipe，不创建重复。",
     "new-recipe-candidate": "book-only 且 sourceQuality=ready；后续真正可能新增到 production 的集合。",
@@ -133,6 +143,15 @@
       "dz1979-p129",
       "dz1979-p130"
     ],
+    "promotedNewRecipeCount": 5,
+    "promotedNewRecipeIds": [
+      "dz1979-p143",
+      "dz1979-p180",
+      "dz1979-p195",
+      "dz1979-p200",
+      "dz1979-p204"
+    ],
+    "remainingNewRecipeCandidateCount": 34,
     "schemaExtensionNeeded": false,
     "verificationProblems": []
   },
@@ -154,6 +173,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -172,6 +192,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -190,6 +211,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -208,6 +230,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -226,6 +249,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -244,6 +268,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -262,6 +287,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -280,6 +306,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "confidence.recognition=medium"
@@ -299,6 +326,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -317,6 +345,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "confidence.recognition=medium"
@@ -336,6 +365,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "confidence.recognition=medium"
@@ -355,6 +385,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -373,6 +404,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -391,6 +423,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -413,6 +446,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=allocation-unknown"
@@ -432,6 +466,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=allocation-unknown"
@@ -451,6 +486,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=allocation-unknown",
@@ -472,6 +508,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -490,6 +527,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -508,6 +546,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -526,6 +565,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -544,6 +584,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -562,6 +603,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -580,6 +622,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -598,6 +641,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -616,6 +660,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -634,6 +679,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -652,6 +698,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -670,6 +717,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "confidence.conversion=low",
@@ -690,6 +738,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -708,6 +757,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[0].modernSummary=null"
@@ -731,6 +781,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=old-term",
@@ -755,6 +806,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -777,6 +829,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[0].modernSummary=null"
@@ -800,6 +853,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[0].modernSummary=null"
@@ -819,6 +873,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -841,6 +896,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "confidence.conversion=low",
@@ -861,6 +917,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -879,6 +936,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=old-term",
@@ -899,6 +957,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -917,6 +976,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -935,6 +995,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=old-term",
@@ -955,6 +1016,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -973,6 +1035,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -991,6 +1054,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1004,6 +1068,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -1017,6 +1082,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[3].modernSummary=null",
@@ -1037,6 +1103,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "ingredients[6].confidence.conversion=low"
@@ -1056,6 +1123,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1074,6 +1142,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1092,6 +1161,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=old-term"
@@ -1111,6 +1181,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1129,6 +1200,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1142,6 +1214,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -1155,6 +1228,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=allocation-unknown",
@@ -1175,6 +1249,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unresolved-quantity",
@@ -1196,6 +1271,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=allocation-unknown",
@@ -1216,6 +1292,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unresolved-quantity",
@@ -1237,6 +1314,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unresolved-quantity",
@@ -1258,6 +1336,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unresolved-quantity",
@@ -1279,6 +1358,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unresolved-quantity",
@@ -1300,6 +1380,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=allocation-unknown",
@@ -1321,6 +1402,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unresolved-quantity",
@@ -1342,6 +1424,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=allocation-unknown"
@@ -1361,6 +1444,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "ingredients[3].confidence.conversion=medium"
@@ -1380,6 +1464,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1402,6 +1487,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1420,6 +1506,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "ingredients[1].confidence.conversion=medium"
@@ -1434,6 +1521,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -1452,6 +1540,7 @@
         }
       ],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "ingredients[12].confidence.conversion=medium",
@@ -1473,6 +1562,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1486,6 +1576,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "ingredients[2].confidence.conversion=medium"
@@ -1500,6 +1591,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "凉拌猪肺",
@@ -1603,6 +1695,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "蕃茄丝瓜肉片汤",
@@ -1754,6 +1847,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unclear-glyph",
@@ -1770,6 +1864,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=page-boundary"
@@ -1784,6 +1879,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "ingredients[4].confidence.conversion=medium"
@@ -1807,6 +1903,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1820,6 +1917,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "椒麻鸡块",
@@ -1943,6 +2041,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -1965,6 +2064,7 @@
         }
       ],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -1983,6 +2083,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -1996,6 +2097,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -2009,6 +2111,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "当归炖鸡",
@@ -2082,6 +2185,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "黄焖鸭子",
@@ -2234,6 +2338,7 @@
         }
       ],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -2247,6 +2352,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "ingredients[6].confidence.conversion=medium"
@@ -2261,6 +2367,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "ingredients[2].confidence.conversion=medium",
@@ -2286,6 +2393,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -2304,6 +2412,7 @@
         }
       ],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -2317,6 +2426,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "绍子蒸蛋",
@@ -2440,6 +2550,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[0].confidence=medium"
@@ -2454,6 +2565,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -2467,6 +2579,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "confidence.recognition=medium",
@@ -2482,6 +2595,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "烧鸭血",
@@ -2636,6 +2750,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "拌鸡血",
@@ -2770,6 +2885,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "豆瓣鱼",
@@ -2933,6 +3049,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -2955,6 +3072,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -2968,6 +3086,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "豆腐鱼",
@@ -3131,6 +3250,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -3144,6 +3264,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -3157,6 +3278,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "blocked-crosswalk",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "classification=probable-match-needs-review：正文复核未确认，reviewRequired=true。"
       ],
@@ -3175,6 +3297,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -3193,6 +3316,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -3206,6 +3330,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "干炒豆腐",
@@ -3290,6 +3415,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -3303,6 +3429,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "酱烧苦瓜",
@@ -3426,6 +3553,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unclear-glyph",
@@ -3442,6 +3570,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "麻酱青笋尖",
@@ -3556,6 +3685,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "蒜泥拌黄瓜",
@@ -3660,6 +3790,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "糖醋子姜",
@@ -3744,6 +3875,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "姜汁蕹菜",
@@ -3838,6 +3970,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[0].modernSummary=null",
@@ -3853,6 +3986,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[0].modernSummary=null",
@@ -3873,6 +4007,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -3886,6 +4021,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unclear-glyph",
@@ -3902,6 +4038,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "干煸苦瓜",
@@ -3976,6 +4113,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "醋熘白菜",
@@ -4079,6 +4217,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "uncertainties[0].type=unclear-glyph",
@@ -4095,6 +4234,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "酱烧茄子",
@@ -4223,6 +4363,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -4236,6 +4377,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "炒土豆泥",
@@ -4310,6 +4452,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "炝黄瓜",
@@ -4453,6 +4596,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "白油鲜笋",
@@ -4547,6 +4691,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "炝绿豆芽",
@@ -4631,6 +4776,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "炒豌豆尖",
@@ -4695,6 +4841,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "青椒炒大头菜",
@@ -4789,6 +4936,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "烧拌莴笋",
@@ -4893,6 +5041,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "炝莲花白",
@@ -5041,6 +5190,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -5054,6 +5204,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "拌素三丝",
@@ -5183,6 +5334,7 @@
         }
       ],
       "promotionDisposition": "existing-project-match",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
       ],
@@ -5196,6 +5348,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "花仁萝卜干",
@@ -5330,6 +5483,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "糖醋萝卜丝",
@@ -5434,6 +5588,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "青笋拌折耳根",
@@ -5578,6 +5733,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[0].modernSummary=null",
@@ -5593,6 +5749,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "拌盐白菜",
@@ -5697,6 +5854,7 @@
       "sourceQuality": "needs-source-review",
       "projectIds": [],
       "promotionDisposition": "blocked-source-review",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=needs-source-review：来源保真问题未解决。",
         "methodSummary.dialectOrOldTerms[0].modernSummary=null",
@@ -5712,6 +5870,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "酸菜豆瓣汤",
@@ -5816,6 +5975,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "过浆豆花",
@@ -5940,6 +6100,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "蒜泥蚕豆",
@@ -6044,6 +6205,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "酱胡豆",
@@ -6137,6 +6299,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "熏豆腐干",
@@ -6271,6 +6434,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "拌鱼香豌豆",
@@ -6415,6 +6579,7 @@
       "sourceQuality": "alternate-source-required",
       "projectIds": [],
       "promotionDisposition": "blocked-alternate-source",
+      "promotionState": "not-promoted",
       "blockingReasons": [
         "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
       ],
@@ -6428,6 +6593,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
+      "promotionState": "not-promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "蛋酥花仁",

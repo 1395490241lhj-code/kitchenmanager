@@ -22,8 +22,14 @@ const readJson = (relativePath) => JSON.parse(
 const catalog = readJson('data/source-restoration/dazhong-chuancai-1979-catalog.v1.json');
 const crosswalk = readJson('data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json');
 const recipes = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
+const promotions = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
 
 const recipeByEntryId = new Map(recipes.recipes.map((r) => [r.entryId, r]));
+const promotedEntryIds = new Set(
+  (promotions.batches ?? []).flatMap((batch) => (
+    (batch.entries ?? []).map((entry) => entry.entryId)
+  )),
+);
 
 // -- Production chain audit (read-only facts, current repo state) ----------
 
@@ -271,6 +277,7 @@ for (const catalogEntry of catalog.entries) {
     sourceQuality,
     projectIds: walk.projectIds,
     promotionDisposition: disposition,
+    promotionState: promotedEntryIds.has(entryId) ? 'promoted' : 'not-promoted',
     blockingReasons,
     proposedProductionAction,
   };
@@ -366,6 +373,20 @@ if (needsInNewCandidate.length > 0) {
   problems.push(`needs-source-review-in-new-candidate:${needsInNewCandidate.map((e) => e.entryId).join(',')}`);
 }
 
+const promotedEntries = entries.filter((entry) => entry.promotionState === 'promoted');
+const promotedNotCandidate = promotedEntries.filter((entry) => (
+  entry.promotionDisposition !== 'new-recipe-candidate'
+));
+if (promotedNotCandidate.length > 0) {
+  problems.push(`promoted-not-new-candidate:${promotedNotCandidate.map((e) => e.entryId).join(',')}`);
+}
+const promotedNewCount = promotedEntries.length;
+const remainingNewCandidateCount = newCandidateIds.size - promotedNewCount;
+if (promotedNewCount !== 5) problems.push(`promoted-new-count-not-5:${promotedNewCount}`);
+if (remainingNewCandidateCount !== 34) {
+  problems.push(`remaining-new-candidate-not-34:${remainingNewCandidateCount}`);
+}
+
 const dangling = entries.flatMap((entry) => (
   entry.projectIds
     .filter(({ id }) => !id)
@@ -379,6 +400,16 @@ const output = {
   purpose: '《大众川菜》1979 production promotion readiness：机械生成 147 道 promotionDisposition 清单与 new-recipe-candidate 转换预览。只制定可执行候选清单，不修改任何生产数据，不做 production promotion。',
   applicationReady: false,
   productionPromotion: false,
+  promotionStateDefinitions: {
+    promoted: '已由 source-restoration 主动 promotion 进入 production 的 recipe（见 production-promotions ledger）。',
+    'not-promoted': '尚未 promotion 的 recipe。',
+  },
+  promotionLedgerSource: 'data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json',
+  promotionStateNote: 'promotionDisposition 保持 promotion 前的来源/匹配分类（50/39/45/12/1），不因已 promotion 重分类；promotionState 为独立维度。future batch 选择必须排除 promotionState=promoted。',
+  futureBatchSelectionRule: {
+    excludePromotionState: 'promoted',
+    collisionRule: '若 ID/name 碰撞来自 promotion ledger 中同一 entryId -> productionId -> name 且 production 内容一致，视为 expected promoted match；其他任何碰撞仍报错。',
+  },
   dispositionDefinitions: {
     'existing-project-match': 'exact-name/confirmed-alias 且已有真实 project ID；复用现有 recipe，不创建重复。',
     'new-recipe-candidate': 'book-only 且 sourceQuality=ready；后续真正可能新增到 production 的集合。',
@@ -402,6 +433,9 @@ const output = {
     quantityReadinessCounts,
     mixedQuantityCandidateIds: mixedQuantityCandidates.sort(),
     methodOnlyConversionWarningCandidateIds: conversionWarningCandidates.sort(),
+    promotedNewRecipeCount: promotedNewCount,
+    promotedNewRecipeIds: promotedEntries.map((entry) => entry.entryId).sort(),
+    remainingNewRecipeCandidateCount: remainingNewCandidateCount,
     schemaExtensionNeeded: false,
     verificationProblems: problems,
   },

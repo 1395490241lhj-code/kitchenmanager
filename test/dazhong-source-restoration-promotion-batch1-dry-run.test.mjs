@@ -15,6 +15,7 @@ const dryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion
 const readiness = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json');
 const crosswalk = readJson('data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json');
 const restored = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
+const promotions = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
 const curated = readJson('data/sichuan-recipes.curated.json');
 const full = readJson('data/sichuan-recipes.json');
 const overlay = readJson('data/recipe-completion-overlay.json');
@@ -33,6 +34,12 @@ const productionIds = new Set([
   ...full.recipes.map((r) => r.id),
   ...(overlay.newRecipes ?? []).map((r) => r.id),
 ]);
+
+const ledgerPromotedEntryIds = new Set(
+  (promotions.batches ?? []).flatMap((batch) => (
+    (batch.entries ?? []).map((entry) => entry.entryId)
+  )),
+);
 
 // -- Mechanical selection replica ------------------------------------------
 
@@ -61,7 +68,7 @@ function passesSelection(entryId) {
     if ('consumedQty' in quantity || 'consumedReferenceQty' in quantity) return false;
     if ('consumedQualifier' in quantity || 'consumedUnit' in quantity) return false;
   }
-  if (productionNames.has(entry.bookName)) return false;
+  if (productionNames.has(entry.bookName) && !ledgerPromotedEntryIds.has(entryId)) return false;
   return true;
 }
 
@@ -107,8 +114,17 @@ function makeTempRepo(withBatch) {
     new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname,
     overlayPath,
   );
+  const batchIds = new Set(dryRun.items.map((item) => item.productionId));
   if (withBatch) {
     const tmpOverlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
+    // The real overlay now already contains the promoted batch; strip it so
+    // the simulation reproduces the pre-promotion baseline before re-adding.
+    tmpOverlay.newRecipes = (tmpOverlay.newRecipes ?? [])
+      .filter((recipe) => !batchIds.has(recipe.id));
+    tmpOverlay.newRecipeIngredients = Object.fromEntries(
+      Object.entries(tmpOverlay.newRecipeIngredients ?? {})
+        .filter(([id]) => !batchIds.has(id)),
+    );
     tmpOverlay.newRecipes = [
       ...(tmpOverlay.newRecipes ?? []),
       ...dryRun.items.map((item) => item.proposedOverlayRecipe),
@@ -150,13 +166,26 @@ test('the five selected entries are exactly the mechanical top five', () => {
 });
 
 test('every selected item fully satisfies the promotion gate', () => {
+  const ledgerMatches = new Map(
+    (promotions.batches ?? []).flatMap((batch) => (
+      (batch.entries ?? []).map((entry) => [
+        entry.entryId,
+        { productionId: entry.productionId, name: entry.name },
+      ])
+    )),
+  );
   for (const item of dryRun.items) {
     assert.equal(passesSelection(item.entryId), true, item.entryId);
     assert.equal(item.productionId, `dz1979-p${catalogById.get(item.entryId).bookPage}`, item.entryId);
     assert.equal(item.name, catalogById.get(item.entryId).bookName, item.entryId);
     assert.deepEqual(item.tags, ['川菜', catalogById.get(item.entryId).category], item.entryId);
-    assert.ok(!productionIds.has(item.productionId), `${item.productionId} id conflict`);
-    assert.ok(!productionNames.has(item.name), `${item.name} name conflict`);
+    const expected = ledgerMatches.get(item.entryId);
+    const expectedPromoted = expected
+      && expected.productionId === item.productionId
+      && expected.name === item.name;
+    if (productionIds.has(item.productionId) || productionNames.has(item.name)) {
+      assert.equal(expectedPromoted, true, `${item.productionId}/${item.name} unexplained production collision`);
+    }
   }
 });
 
@@ -217,25 +246,50 @@ test('ingredients reuse the audited productionIngredientPlan exactly', () => {
   }
 });
 
-test('temp curate result is strictly current curated plus exactly five', () => {
+test('temp promotion from dry-run proposals reproduces current curated exactly', () => {
   const tmp = makeTempRepo(true);
   try {
     const out = runCurate(tmp);
-    const headIds = new Set(curated.recipes.map((r) => r.id));
-    const tmpIds = new Set(out.curated.recipes.map((r) => r.id));
-    assert.equal(out.curated.recipes.length, curated.recipes.length + 5);
-    assert.deepEqual([...tmpIds].filter((id) => !headIds.has(id)).sort(), dryRun.items.map((i) => i.productionId).sort());
-    assert.equal([...headIds].filter((id) => !tmpIds.has(id)).length, 0);
-    const headById = new Map(curated.recipes.map((r) => [r.id, r]));
-    const tmpById = new Map(out.curated.recipes.map((r) => [r.id, r]));
-    for (const id of headIds) {
-      assert.deepEqual(tmpById.get(id), headById.get(id), `${id} object modified`);
-      assert.deepEqual(out.curated.recipe_ingredients[id], curated.recipe_ingredients[id], `${id} ingredients modified`);
-    }
+    // Stripped to the pre-promotion baseline and re-added from the dry-run,
+    // the simulated output must equal the actual promoted curated file.
+    assert.deepEqual(out.curated.recipes, curated.recipes);
+    assert.deepEqual(out.curated.recipe_ingredients, curated.recipe_ingredients);
     for (const id of dryRun.items.map((i) => i.productionId)) {
-      assert.ok(tmpById.get(id).method, `${id} missing method`);
-      assert.ok(tmpById.get(id).tags, `${id} missing tags`);
+      const recipe = out.curated.recipes.find((r) => r.id === id);
+      assert.ok(recipe.method, `${id} missing method`);
+      assert.ok(recipe.tags, `${id} missing tags`);
       assert.ok(out.curated.recipe_ingredients[id].length >= 2, `${id} incomplete map`);
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('pre-promotion baseline is exactly the current curated minus the five batch recipes', () => {
+  const tmp = makeTempRepo(false);
+  try {
+    const overlayPath = path.join(tmp, 'data', 'recipe-completion-overlay.json');
+    const tmpOverlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
+    const batchIds = new Set(dryRun.items.map((item) => item.productionId));
+    tmpOverlay.newRecipes = (tmpOverlay.newRecipes ?? [])
+      .filter((recipe) => !batchIds.has(recipe.id));
+    tmpOverlay.newRecipeIngredients = Object.fromEntries(
+      Object.entries(tmpOverlay.newRecipeIngredients ?? {})
+        .filter(([id]) => !batchIds.has(id)),
+    );
+    fs.writeFileSync(overlayPath, `${JSON.stringify(tmpOverlay, null, 2)}\n`);
+    const out = runCurate(tmp);
+    assert.equal(out.curated.recipes.length, curated.recipes.length - 5);
+    assert.equal(out.curated.recipes.some((r) => batchIds.has(r.id)), false);
+    const expectedIds = new Set(
+      curated.recipes.map((r) => r.id).filter((id) => !batchIds.has(id)),
+    );
+    assert.deepEqual(new Set(out.curated.recipes.map((r) => r.id)), expectedIds);
+    const currentById = new Map(curated.recipes.map((r) => [r.id, r]));
+    const baselineById = new Map(out.curated.recipes.map((r) => [r.id, r]));
+    for (const id of expectedIds) {
+      assert.deepEqual(baselineById.get(id), currentById.get(id), `${id} drifted`);
+      assert.deepEqual(out.curated.recipe_ingredients[id], curated.recipe_ingredients[id], `${id} ingredients drifted`);
     }
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -257,23 +311,31 @@ test('temp curate keeps removed and needing reports semantically unchanged', () 
   }
 });
 
-test('PWA runtime overlay merge surfaces all five batch recipes', async () => {
+test('PWA runtime packs contain all five batch recipes exactly once', async () => {
   const runtime = await buildDefaultRuntimePacks();
-  // Simulate the batch overlay additions against the committed overlay copy.
   const mergedIds = new Set(runtime.packs.full.recipes.map((r) => r.id));
   for (const item of dryRun.items) {
-    assert.ok(!mergedIds.has(item.productionId), `${item.productionId} already present pre-promotion`);
+    assert.ok(mergedIds.has(item.productionId), `${item.productionId} missing in full runtime`);
+    assert.ok(runtime.packs.curated.recipes.some((r) => r.id === item.productionId), `${item.productionId} missing in curated runtime`);
+    const occurrences = runtime.packs.full.recipes.filter((r) => r.id === item.productionId).length;
+    assert.equal(occurrences, 1, `${item.productionId} duplicated in full runtime`);
   }
 });
 
-test('batch additions are unique and invisible in real production files', () => {
+test('batch additions are unique and visible in exactly the promoted production files', () => {
   const ids = dryRun.items.map((item) => item.productionId);
   assert.equal(new Set(ids).size, 5);
   const names = dryRun.items.map((item) => item.name);
   assert.equal(new Set(names).size, 5);
-  assert.equal(curated.recipes.length, 126);
-  assert.equal(overlay.newRecipes.some((r) => ids.includes(r.id)), false);
-  assert.equal(curated.recipe_ingredients['dz1979-p143'], undefined);
+  assert.equal(curated.recipes.length, 131);
+  for (const id of ids) {
+    assert.ok(overlay.newRecipes.some((r) => r.id === id), `${id} missing in overlay newRecipes`);
+    assert.ok(overlay.newRecipeIngredients[id], `${id} missing overlay ingredients`);
+    assert.ok(curated.recipe_ingredients[id], `${id} missing curated ingredients`);
+  }
+  const overlayNewIds = overlay.newRecipes.map((r) => r.id).filter((id) => id.startsWith('dz1979-'));
+  assert.deepEqual(overlayNewIds.sort(), ids.slice().sort());
+  assert.equal(full.recipes.some((r) => ids.includes(r.id)), false);
 });
 
 test('iOS RecipeService-compatible field shapes decode from temp curated output', () => {
