@@ -284,9 +284,9 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "exact_name",
+        "classification": "exact-name",
         "projectName": "鱼香茄子",
-        "projectIds": ["curated:fam-yuxiang-eggplant"],
+        "projectIds": [{"library": "curated", "id": "fam-yuxiang-eggplant"}],
         "candidateProjectName": null,
         "reviewRequired": false
       },

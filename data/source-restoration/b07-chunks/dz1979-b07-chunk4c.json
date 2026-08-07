@@ -252,13 +252,13 @@
             ]
           }
         ],
-        "dialectOrOldTerms": [
-          {
-            "raw": "炬",
-            "modernSummary": "炖煮至软烂入味的程度（原文用于描述焖制熟度，如“五成炬”“全炬”）",
-            "confidence": "medium",
-            "notes": "字形似“炉”或“焐”，按上下文推断为描述焖熟程度的用字，具体字形有不确定性"
-          },
+    "dialectOrOldTerms": [
+      {
+        "raw": "炬",
+        "modernSummary": null,
+        "confidence": "medium",
+        "notes": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；字形与语义均未得到来源独立佐证，不作语义推断"
+      },
           {
             "raw": "拈",
             "modernSummary": "用手指夹取、拣出",
@@ -316,10 +316,13 @@
       ],
       "uncertainties": [
         {
-          "raw": "炬",
           "location": "做法第3步（五成炬/全炬）",
+          "type": "unclear-glyph",
+          "rawText": "炬",
+          "candidates": [],
+          "treatment": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换",
           "reasonCode": "unclear-glyph",
-          "notes": "字形较模糊，无法完全确认是否为“炬”“焐”或其他近似字；按上下文语义保留字面读音相近的“炬”并标注不确定性，不作猜测性替换"
+          "entryId": "dz1979-p149"
         }
       ],
       "projectMatch": {

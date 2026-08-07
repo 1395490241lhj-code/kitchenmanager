@@ -44,32 +44,11 @@ const allowedUncertaintyTypes = new Set([
   'page-boundary',
 ]);
 
-// These entries have the same "unexplained gloss for an unresolved glyph"
-// shape that dz1979-b10-p197 was found to have and was fixed for in the
-// 2026-08-06 legacy-metadata cleanup, but each is out of THIS task's
-// explicitly approved scope (only dz1979-b09-p177/p179/p193/p184/p181 and
-// the b07-p149/b08-p157 uncertainty *shape* were named as fixes to make).
-// Left untouched here and called out in the final report as follow-up
-// candidates rather than silently fixed or silently ignored:
-//  - b07-p149 "炬": modernSummary asserts a resolved meaning for a glyph
-//    the uncertainty entry says is genuinely unclear (only p149's
-//    uncertainty *object shape* was in scope for this task, not this
-//    gloss content).
-//  - b09-p184 "余两次": dialectOrOldTerms entry is missing the standard
-//    confidence/modernSummary fields entirely (only p184's non-standard
-//    uncertainty.type was in scope for this task).
-//  - b09-p194 "烧至芋头炬时": same pattern as b10-p197 (medium confidence,
-//    modernSummary + step-text bracket gloss for an unconfirmed glyph).
-const uncorroboratedGlossExceptions = new Set([
-  'dz1979-b07-worker.json:dz1979-p149',
-  'dz1979-b09-worker.json:dz1979-p184',
-  'dz1979-b09-worker.json:dz1979-p194',
-]);
-
 // As of the 2026-08-06 legacy-metadata cleanup, every batch worker file on
-// disk (b05-b10) uses the standard schema shapes with no remaining
-// allowlisted exceptions. Any drift found from here on should be fixed at
-// the source rather than reintroducing a whitelist.
+// disk (b05-b10) uses the standard schema shapes, and every check below
+// (including the unresolved-glyph gloss check) runs uniformly against every
+// worker with no per-entry exceptions. Any drift found from here on should
+// be fixed at the source rather than reintroducing a whitelist.
 
 for (const fileName of workerFiles) {
   test(`${fileName} recipes use the standard extraction schema shapes`, () => {
@@ -119,20 +98,18 @@ for (const fileName of workerFiles) {
       // the drift this guards against is specifically inventing a
       // resolved-sounding gloss for a character the source itself could
       // not visually confirm.
-      if (!uncorroboratedGlossExceptions.has(label)) {
-        const unclearGlyphRawTexts = recipe.uncertainties
-          .filter((u) => u.type === 'unclear-glyph')
-          .map((u) => u.rawText);
-        for (const term of recipe.methodSummary.dialectOrOldTerms) {
-          const tiedToUnclearGlyph = unclearGlyphRawTexts
-            .some((rawText) => rawText.includes(term.raw) || term.raw.includes(rawText));
-          if (tiedToUnclearGlyph) {
-            assert.equal(term.modernSummary, null,
-              `${label} unresolved-glyph dialect term '${term.raw}' must not carry a modernSummary gloss`);
-            for (const step of recipe.methodSummary.steps) {
-              assert.ok(!step.summary.includes(`${term.raw}（`),
-                `${label} step summary must not append an unauthenticated bracket gloss after unresolved-glyph term '${term.raw}'`);
-            }
+      const unclearGlyphRawTexts = recipe.uncertainties
+        .filter((u) => u.type === 'unclear-glyph')
+        .map((u) => u.rawText);
+      for (const term of recipe.methodSummary.dialectOrOldTerms) {
+        const tiedToUnclearGlyph = unclearGlyphRawTexts
+          .some((rawText) => rawText.includes(term.raw) || term.raw.includes(rawText));
+        if (tiedToUnclearGlyph) {
+          assert.equal(term.modernSummary, null,
+            `${label} unresolved-glyph dialect term '${term.raw}' must not carry a modernSummary gloss`);
+          for (const step of recipe.methodSummary.steps) {
+            assert.ok(!step.summary.includes(`${term.raw}（`),
+              `${label} step summary must not append an unauthenticated bracket gloss after unresolved-glyph term '${term.raw}'`);
           }
         }
       }

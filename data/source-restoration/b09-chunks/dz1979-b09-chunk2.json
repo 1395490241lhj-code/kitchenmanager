@@ -223,13 +223,6 @@
           "use": "做法第2步：兑滋汁时加少许汤",
           "quantityHandling": "原料栏未列；保留“少许”，不标准化为精确值",
           "confidence": "high"
-        },
-        {
-          "rawItemText": "盐",
-          "rawQuantityText": "少许",
-          "use": "做法第3步：炒油菜苔时另加盐少许",
-          "quantityHandling": "原料栏已列盐三分为整道用量；做法第3步另注“加盐少许”，两处均逐字保留，不合并猜测分配",
-          "confidence": "high"
         }
       ],
       "nonIngredientMaterials": {

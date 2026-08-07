@@ -145,9 +145,9 @@
       ],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "suspected_match",
-        "projectName": "麻婆豆腐",
-        "projectIds": ["curated:fam-mapo-tofu"],
+        "classification": "probable-match-needs-review",
+        "projectName": null,
+        "projectIds": [],
         "candidateProjectName": "麻婆豆腐",
         "reviewRequired": true
       },
@@ -279,9 +279,9 @@
       "confirmedReadings": [],
       "uncertainties": [],
       "projectMatch": {
-        "classification": "exact_name",
+        "classification": "exact-name",
         "projectName": "家常豆腐",
-        "projectIds": ["curated:fam-homestyle-tofu"],
+        "projectIds": [{"library": "curated", "id": "fam-homestyle-tofu"}],
         "candidateProjectName": null,
         "reviewRequired": false
       },

@@ -212,7 +212,7 @@
           },
           {
             "order": 2,
-            "summary": "将明笋用手撕成粗丝子后，用刀切成二至三段的短节，在开水锅中余（煮）两次，捞起沥干。",
+            "summary": "将明笋用手撕成粗丝子后，用刀切成二至三段的短节，在开水锅中余两次，捞起沥干。",
             "measureMentions": []
           },
           {
@@ -222,7 +222,7 @@
           }
         ],
         "dialectOrOldTerms": [
-          { "raw": "余两次", "notes": "疑为“煮两次”或类似方言写法的印刷简省，字形按“余”确认，摘要在括注中补充“（煮）”以说明动作语义，不改动原字判读" }
+          { "raw": "余两次", "modernSummary": null, "confidence": "medium", "notes": "字形按“余”确认；语义是否等同于“煮/焯”未得到来源独立佐证，不作解释" }
         ],
         "confidence": "high"
       },
@@ -252,17 +252,8 @@
           "type": "unclear-glyph",
           "rawText": "在开水锅中余两次",
           "candidates": ["煮两次", "余（渌/煠）两次"],
-          "treatment": "字形按“余”读出并逐字保留；因该字在此语境下的确切含义（是否为“煮”的方言简写或印刷讹字）无法仅凭本页确认，不替换为候选字，仅在方法摘要括注补充语义提示",
+          "treatment": "字形按“余”读出并逐字保留；因该字在此语境下的确切含义（是否为“煮”的方言简写或印刷讹字）无法仅凭本页确认，不替换为候选字，不作语义推断",
           "reasonCode": "unclear-glyph",
-          "entryId": "dz1979-p184"
-        },
-        {
-          "location": "原料栏 vs 做法第3步",
-          "type": "ingredient-mismatch",
-          "rawText": "原料栏仅列“葱白”，做法第3步写“加……葱蒜拌匀”",
-          "candidates": [],
-          "treatment": "原料栏未列蒜，做法提到蒜；按规则做法中才出现的原料单列为method-only mention，不臆测蒜的数量或将其并入葱白项",
-          "reasonCode": "source-content-missing",
           "entryId": "dz1979-p184"
         }
       ],
