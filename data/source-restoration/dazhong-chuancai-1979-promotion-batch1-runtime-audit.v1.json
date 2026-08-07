@@ -21,27 +21,14 @@
     "nonCoreIngredientCount": 12,
     "coreCompatibilityCounts": {
       "exact-compatible": 5,
-      "expected-unit-confirmation": 1,
-      "unresolved-name-match": 1
+      "expected-unit-confirmation": 2,
+      "unresolved-name-match": 0
     },
     "affectedRecipes": [
       "dz1979-p143",
       "dz1979-p180"
     ],
-    "unresolvedDetails": [
-      {
-        "productionId": "dz1979-p143",
-        "item": "仔母鸡",
-        "failedPairs": [
-          "仔母鸡 vs 鸡肉",
-          "仔母鸡 vs 仔鸡",
-          "仔母鸡 vs 老母鸡",
-          "仔母鸡 vs 土鸡",
-          "仔母鸡 vs 公鸡",
-          "仔母鸡 vs 三黄鸡"
-        ]
-      }
-    ],
+    "unresolvedDetails": [],
     "roleBreakdown": {
       "core": 7,
       "seasoning": 12,
@@ -55,9 +42,9 @@
       "item": "仔母鸡",
       "qty": "1",
       "unit": "只",
-      "canonical": "仔母鸡",
+      "canonical": "鸡肉",
       "role": "core",
-      "ingredientFamilyKey": null,
+      "ingredientFamilyKey": "chicken",
       "guessKitchenUnit": "份",
       "sourceRawQuantityText": "一只（约重三斤五两）",
       "normalizedQuantitySource": {
@@ -72,19 +59,61 @@
         "finite": true
       },
       "identityMatch": {
-        "probeName": "仔母鸡",
+        "probeName": "鸡肉",
         "coverageWithProductionUnit": "exact"
       },
       "probes": [
         {
-          "probeName": "仔母鸡",
+          "probeName": "鸡肉",
           "strictNameMatch": true,
           "softNameMatch": true,
           "coverageWithProductionUnit": "exact",
           "coverageWithDefaultUnit": "unit-mismatch"
         },
         {
-          "probeName": "鸡肉",
+          "probeName": "鸡脯肉",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "鸡腿",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "鸡翅",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "肉",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "猪肉",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "牛肉",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "羊肉",
           "strictNameMatch": false,
           "softNameMatch": false,
           "coverageWithProductionUnit": "none",
@@ -92,17 +121,17 @@
         },
         {
           "probeName": "仔鸡",
-          "strictNameMatch": false,
-          "softNameMatch": false,
-          "coverageWithProductionUnit": "none",
-          "coverageWithDefaultUnit": "none"
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
         },
         {
           "probeName": "母鸡",
           "strictNameMatch": false,
-          "softNameMatch": true,
-          "coverageWithProductionUnit": "exact",
-          "coverageWithDefaultUnit": "unit-mismatch"
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
         },
         {
           "probeName": "老母鸡",
@@ -113,30 +142,29 @@
         },
         {
           "probeName": "土鸡",
-          "strictNameMatch": false,
-          "softNameMatch": false,
-          "coverageWithProductionUnit": "none",
-          "coverageWithDefaultUnit": "none"
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
         },
         {
           "probeName": "公鸡",
-          "strictNameMatch": false,
-          "softNameMatch": false,
-          "coverageWithProductionUnit": "none",
-          "coverageWithDefaultUnit": "none"
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
         },
         {
           "probeName": "三黄鸡",
-          "strictNameMatch": false,
-          "softNameMatch": false,
-          "coverageWithProductionUnit": "none",
-          "coverageWithDefaultUnit": "none"
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
         }
       ],
-      "compatibility": "unresolved-name-match",
+      "compatibility": "expected-unit-confirmation",
       "reasons": [
-        "现有 canonicalization 无法把该 production item 解析到任何常见用户库存名称（严格名称层失败）。",
-        "仅存在 contains 级脆弱匹配（不可靠）：母鸡。"
+        "名称可解析，但 production unit「只」与常用库存单位「份」无可安全换算，需用户按 production unit 录入库存或人工确认。"
       ]
     },
     {

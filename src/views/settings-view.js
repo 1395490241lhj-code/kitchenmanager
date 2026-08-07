@@ -1,9 +1,9 @@
-import { S, STORAGE_WRITE_FAILED_MESSAGE, mustSave, todayISO } from '../storage.js?v=236';
-import { apiUrl, CUSTOM_AI } from '../config.js?v=236';
-import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=236';
-import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=236';
-import { getSavedTheme, saveTheme } from '../theme.js?v=236';
-import { createRecipePackSettingsPatch, getDefaultEnabledRecipePackIds, getEnabledRecipePackIds, getRecipePacks } from '../recipe-packs.js?v=236';
+import { S, STORAGE_WRITE_FAILED_MESSAGE, mustSave, todayISO } from '../storage.js?v=237';
+import { apiUrl, CUSTOM_AI } from '../config.js?v=237';
+import { buildKitchenBackup, downloadJsonFile, importKitchenBackup, loadOverlay, markKitchenBackupExported, saveOverlay, validateKitchenBackup } from '../backup.js?v=237';
+import { setInlineStatus, escapeHtml, showToast } from '../components/status.js?v=237';
+import { getSavedTheme, saveTheme } from '../theme.js?v=237';
+import { createRecipePackSettingsPatch, getDefaultEnabledRecipePackIds, getEnabledRecipePackIds, getRecipePacks } from '../recipe-packs.js?v=237';
 
 // 渐进式展现：「高级与数据设置」面板的展开状态，记忆在模块作用域（同次会话内保持）。
 let advancedOpen = false;

@@ -54,20 +54,18 @@ test('audited items match the production curated ingredient maps exactly', () =>
   }
 });
 
-test('unresolved-name-match records the concrete failing name pairs', () => {
-  const unresolved = audit.coreCompatibility.filter((entry) => entry.compatibility === 'unresolved-name-match');
-  assert.equal(unresolved.length, 1);
-  const entry = unresolved[0];
-  assert.equal(entry.productionId, 'dz1979-p143');
-  assert.equal(entry.item, '仔母鸡');
-  const failed = new Set(entry.probes
-    .filter((probe) => !probe.strictNameMatch)
-    .map((probe) => probe.probeName));
-  assert.ok(failed.has('鸡肉'), 'missing 仔母鸡 vs 鸡肉 pair');
-  assert.ok(failed.has('仔鸡'), 'missing 仔母鸡 vs 仔鸡 pair');
-  const details = audit.summary.unresolvedDetails.find((detail) => detail.item === '仔母鸡');
-  assert.ok(details.failedPairs.includes('仔母鸡 vs 鸡肉'));
-  assert.ok(details.failedPairs.includes('仔母鸡 vs 仔鸡'));
+test('no unresolved-name-match remains after the 仔母鸡 alias fix', () => {
+  assert.equal(audit.summary.coreCompatibilityCounts['unresolved-name-match'], 0);
+  assert.deepEqual(audit.summary.unresolvedDetails, []);
+  const hen = audit.coreCompatibility.find((entry) => entry.item === '仔母鸡');
+  assert.ok(hen, 'missing 仔母鸡 audit entry');
+  assert.equal(hen.compatibility, 'expected-unit-confirmation');
+  assert.equal(hen.canonical, '鸡肉');
+  assert.equal(hen.ingredientFamilyKey, 'chicken');
+  const chicken = hen.probes.find((probe) => probe.probeName === '鸡肉');
+  assert.ok(chicken && chicken.strictNameMatch, '仔母鸡 vs 鸡肉 must strictly match');
+  const youngRooster = hen.probes.find((probe) => probe.probeName === '仔鸡');
+  assert.ok(youngRooster && youngRooster.strictNameMatch, '仔母鸡 vs 仔鸡 must strictly match');
 });
 
 test('unit mismatch is never disguised as exact-compatible', () => {
@@ -97,8 +95,8 @@ test('summary counts are internally consistent and core-only', () => {
   assert.equal(summary.nonCoreIngredientCount, 12);
   const { coreCompatibilityCounts } = summary;
   assert.equal(coreCompatibilityCounts['exact-compatible'], 5);
-  assert.equal(coreCompatibilityCounts['expected-unit-confirmation'], 1);
-  assert.equal(coreCompatibilityCounts['unresolved-name-match'], 1);
+  assert.equal(coreCompatibilityCounts['expected-unit-confirmation'], 2);
+  assert.equal(coreCompatibilityCounts['unresolved-name-match'], 0);
   assert.equal(
     Object.values(coreCompatibilityCounts).reduce((sum, n) => sum + n, 0),
     audit.coreCompatibility.length,
@@ -156,8 +154,8 @@ test('non-core observations never enter the three-way classification', () => {
     assert.ok(entry.sourceRawQuantityText, `${entry.productionId}:${entry.item}`);
   }
   assert.equal(audit.summary.coreCompatibilityCounts['exact-compatible'], 5);
-  assert.equal(audit.summary.coreCompatibilityCounts['expected-unit-confirmation'], 1);
-  assert.equal(audit.summary.coreCompatibilityCounts['unresolved-name-match'], 1);
+  assert.equal(audit.summary.coreCompatibilityCounts['expected-unit-confirmation'], 2);
+  assert.equal(audit.summary.coreCompatibilityCounts['unresolved-name-match'], 0);
 });
 
 test('audit artifact asserts no production writes', () => {

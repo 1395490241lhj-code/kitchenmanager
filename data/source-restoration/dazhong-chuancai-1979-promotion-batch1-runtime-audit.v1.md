@@ -13,20 +13,21 @@
 - non-core（seasoning/non-stock，仅 quantity provenance）: **12**
 - coreCompatibilityCounts（三分类只用于 core）:
   - exact-compatible: **5**
-  - expected-unit-confirmation: **1**（豆腐）
-  - unresolved-name-match: **1**（仔母鸡）
+  - expected-unit-confirmation: **2**（仔母鸡、豆腐）
+  - unresolved-name-match: **0**
 - affectedRecipes: **dz1979-p143 当归炖鸡、dz1979-p180 干炒豆腐**
 
 exact-compatible 的判定必须有真实证据：名称严格可解析，且存在 production unit 下真实 `getStockCoverageAnalysis=exact` 的 probe；不再仅因 `unit=g` 判定。
 
-## 真正需要关注的 name 问题
+## 名称修复：仔母鸡 归入鸡肉
 
-### dz1979-p143 仔母鸡（1 只）→ unresolved-name-match
+`src/ingredients.js` 的「鸡肉」aliases 仅新增 `仔母鸡`（未加母鸡/老母鸡）：
 
-- canonical(`仔母鸡`) = `仔母鸡`，现有鸡肉 aliases（仔鸡/公鸡/嫩鸡/土鸡/三黄鸡）与 family（鸡肉/鸡脯肉/鸡腿/鸡翅）都无法严格解析该名称。
-- 明确失败的 name pairs：**仔母鸡 vs 鸡肉**、**仔母鸡 vs 仔鸡**（以及 老母鸡/土鸡/公鸡/三黄鸡）。
-- 仅存在 contains 级脆弱匹配：`仔母鸡` 包含 `母鸡`，`isSmartIngredientMatch` 的 contains 分支会命中，但这是脆弱匹配，严格名称层不成立。
-- 这是真正的 name bug：食谱需求名称对用户库存词汇不可见。本轮**不新增 alias**，仅记录；后续应单独评估把 `仔母鸡` 归入鸡肉 alias 或家庭（作为独立 curation 变更）。
+- `getCanonicalName('仔母鸡')` = `鸡肉`
+- `仔母鸡` 进入 chicken family
+- 仔母鸡 vs 鸡肉、仔母鸡 vs 仔鸡 strict match=true；vs 鸭肉/母鸡/老母鸡 strict=false（无错误匹配）
+- 仔母鸡仍为 core ingredient；production item 仍是「仔母鸡」（overlay/curated 未改）
+- 结果：仔母鸡从 unresolved-name-match 变为 **expected-unit-confirmation**（名称已解决，production 只 与常见默认单位 份 无可安全换算，需确认）
 
 ## 只是无法安全换算的 unit confirmation
 

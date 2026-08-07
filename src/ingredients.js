@@ -11,7 +11,7 @@ export const INGREDIENT_ALIASES = {
   "牛肉": ["黄牛肉", "嫩牛肉", "牛肉片", "牛肉丝", "牛柳", "肥牛"],
   "牛腩": ["牛肋条"],
   "羊肉": ["羊肉片", "羊肉卷"],
-  "鸡肉": ["仔鸡", "公鸡", "嫩鸡", "土鸡", "三黄鸡", "鸡块", "鸡丁", "鸡丝", "鸡条", "生鸡肉"],
+  "鸡肉": ["仔鸡", "公鸡", "嫩鸡", "土鸡", "三黄鸡", "鸡块", "鸡丁", "鸡丝", "鸡条", "生鸡肉", "仔母鸡"],
   "鸡脯肉": ["鸡脯", "鸡胸", "鸡胸肉", "鸡柳", "生鸡脯", "熟鸡脯"],
   "鸡腿": ["大鸡腿", "小鸡腿", "琵琶腿", "鸡腿肉", "熟鸡腿"],
   "鸡翅": ["鸡翅膀", "鸡中翅", "翅尖"],
@@ -685,7 +685,7 @@ export function normalizeKitchenAmount(name, qty, unit, options = {}) {
   return { name: n, qty: Math.round(q * 100) / 100, unit: u };
 }
 
-import { perfMeasure as __perfMeasure } from './utils/perf.js?v=236';
+import { perfMeasure as __perfMeasure } from './utils/perf.js?v=237';
 export function buildCatalog(pack) {
   return __perfMeasure('buildCatalog', () => buildCatalogImpl(pack));
 }

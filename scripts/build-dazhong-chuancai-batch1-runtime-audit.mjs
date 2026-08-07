@@ -248,11 +248,11 @@ if (coreRoleCount + nonCoreRoleCount !== 19) {
 if (coreRoleCount !== 7) problems.push(`core-count-not-7:${coreRoleCount}`);
 if (nonCoreRoleCount !== 12) problems.push(`non-core-count-not-12:${nonCoreRoleCount}`);
 if (counts.exactCompatible !== 5) problems.push(`exact-count-not-5:${counts.exactCompatible}`);
-if (counts.expectedUnitConfirmation !== 1) {
-  problems.push(`unit-confirm-count-not-1:${counts.expectedUnitConfirmation}`);
+if (counts.expectedUnitConfirmation !== 2) {
+  problems.push(`unit-confirm-count-not-2:${counts.expectedUnitConfirmation}`);
 }
-if (counts.unresolvedNameMatch !== 1) {
-  problems.push(`unresolved-count-not-1:${counts.unresolvedNameMatch}`);
+if (counts.unresolvedNameMatch !== 0) {
+  problems.push(`unresolved-count-not-0:${counts.unresolvedNameMatch}`);
 }
 if (entries.some((entry) => entry.normalizedQuantity.finite === false)) {
   problems.push('non-finite-normalized-quantity');

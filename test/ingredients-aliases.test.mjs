@@ -56,3 +56,13 @@ test('软浆叶 / 落葵 / malabar spinach 归一为木耳菜，且不混淆木�
   assert.equal(isSeasoning(muerCai), false);
   assert.equal(getIngredientFamilyKey(muerCai), 'leafy');
 });
+
+test('仔母鸡 归入鸡肉且不误伤其它 poultry 名称', () => {
+  assert.equal(getCanonicalName('仔母鸡'), '鸡肉');
+  assert.equal(getCanonicalName('母鸡'), '母鸡');
+  assert.equal(getCanonicalName('老母鸡'), '老母鸡');
+  assert.equal(getIngredientFamilyKey('仔母鸡'), 'chicken');
+  // 名称修复只新增 仔母鸡；母鸡/老母鸡 仍保持独立，不因 contains 被错误归一。
+  assert.equal(isSeasoning('仔母鸡'), false);
+  assert.equal(classifyRecipeIngredient('仔母鸡').role, 'core');
+});
