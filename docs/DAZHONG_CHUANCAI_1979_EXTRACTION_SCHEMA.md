@@ -167,7 +167,10 @@ UI 或生产 schema。
 
 ## 项目名称映射
 
-从当前 `dazhong-chuancai-1979-name-matches.v1.json` 读取名称候选，并转换为本任务分类：
+`dazhong-chuancai-1979-name-matches.v1.json` 是历史 name-only baseline：只依据菜名
+建立候选，不经正文复核，且始终保持历史原貌、不回写。
+
+默认 `projectMatch` 仍由该 baseline 派生（assembler 的 `projectMatchFor`），映射关系：
 
 - `exact_name` -> `exact-name`
 - `clear_alias` -> `confirmed-alias`
@@ -177,5 +180,18 @@ UI 或生产 schema。
 `exact-name` 与 `confirmed-alias` 记录 Curated/Full 中所有对应 ID。
 `probable-match-needs-review` 不绑定项目 ID：`projectName` 为 null、`projectIds=[]`，
 只在 `candidateProjectName` 保存候选名称。
+
+正文复核结论作为后续证据层存在：`crosswalk-probable-review.v1.json` 中
+`confirmed-alias`（confidence=high）或 `reject-candidate`（confidence=high）的判断
+可以覆盖 baseline 派生值：
+
+- `confirmed-alias` -> canonical `projectMatch.classification=confirmed-alias`
+- `reject-candidate` -> canonical `projectMatch.classification=book-only`
+- `remain-probable` 不覆盖，维持 baseline 的 `probable-match-needs-review`
+
+上述覆盖仅影响 canonical `projectMatch`（chunk/worker/assembled 三层一致），
+`name-matches` 本身不回写。所有内容仍属 source-restoration intermediate：
+`applicationReady=false`，不得用于 production promotion。本流程不声称未经来源
+正文证明的“历史写法”等同关系；确认为同菜时依据正文证据表述，例如“正文证据确认同菜异名”。
 
 内容一致性（原料、做法、候选用途）在最终 crosswalk 阶段统一计算，提取批次不得覆盖生产数据。

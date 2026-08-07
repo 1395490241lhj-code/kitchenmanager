@@ -1,0 +1,289 @@
+#!/usr/bin/env node
+// Builds the 《大众川菜》1979 production promotion readiness manifest.
+//
+// READ-ONLY with respect to canonical source-restoration data, crosswalk,
+// and all production recipe data. Produces one new artifact:
+//   data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json
+//
+// No production patch is generated, no production data is modified, and
+// applicationReady stays false.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '..');
+
+const readJson = (relativePath) => JSON.parse(
+  fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'),
+);
+
+const catalog = readJson('data/source-restoration/dazhong-chuancai-1979-catalog.v1.json');
+const crosswalk = readJson('data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json');
+const recipes = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
+
+const recipeByEntryId = new Map(recipes.recipes.map((r) => [r.entryId, r]));
+
+// -- Production chain audit (read-only facts, current repo state) ----------
+
+const productionChainAudit = {
+  recipeEntitySchema: {
+    files: [
+      'data/sichuan-recipes.curated.json',
+      'data/sichuan-recipes.json',
+    ],
+    fields: 'id, name, tags, method(仅curated库在recipe对象内；full库无method字段)',
+  },
+  ingredientStorage: {
+    location: '同文件顶层 recipe_ingredients[id]',
+    shape: '[{ "item": string, "qty": string|null, "unit": string|null }]',
+    note: 'qty/unit 为字符串（如“一斤”或 null），不支持 source-restoration 的 normalized 数值量纲。',
+  },
+  methodStorage: [
+    'curated库 recipe.method 字段（curate-recipes.js 物化）',
+    'data/recipe-methods.js window.RECIPE_METHODS（按菜名，PWA 静态合并）',
+    'data/recipe-completion-overlay.json recipes{id:{method}} 与 newRecipes（PWA applyCompletionOverlay）',
+  ],
+  overlayChain: 'data/recipe-completion-overlay.json：recipes{id:{method}}、recipe_ingredients、newRecipes[{id,name,tags,method}]、newRecipeIngredients',
+  pwaConsumer: 'app.js loadBasePack -> src/recipe-library.js mergeRecipeSources/applyCompletionOverlay/mergeRecipeMethods -> 用户 overlay',
+  iosConsumer: 'ios RecipeService.fetchRecipes 拉取 data/sichuan-recipes.{curated,full}.json，解码 recipes(id,name,method?,tags) + recipe_ingredients，不应用 completion overlay',
+  idConventions: {
+    full: 'ex--<8-hex>',
+    curatedFamily: 'fam-<slug>',
+    completionNew: 'comp-<8-hex>',
+    static: 'static-<digits>',
+    hoc: 'hoc-<digits>',
+  },
+  schemaExtensionNeeded: false,
+  schemaGapSummary: [
+    '基本菜谱 {id,name,tags,method} 与 recipe_ingredients 可直接容纳 new-recipe-candidate，无需扩展 production schema。',
+    'source 的 characteristicsSummary、uncertainties、confirmedReadings、confidence、sourceQuality 无 production 字段。',
+    'source 的 normalized 数值数量无法直接写入 production（qty/unit 仅字符串），需用 rawQuantityText 原始文本形式。',
+    'provenance（entryId/bookPage/pdfPage/来源书页）无 production 字段，需独立 provenance 侧文件承载。',
+  ],
+  minimalPromotionBatchSuggestion: '建议每批 5-8 道 new-recipe-candidate，逐批人工复核后落地，先经 overlay 链再物化 curated JSON。',
+};
+
+// -- Disposition rules -----------------------------------------------------
+// Priority: alternate-source > source-review > crosswalk > existing/new.
+
+const alt12Ids = new Set(
+  crosswalk.alternateSourceRequiredList.map((entry) => entry.entryId),
+);
+
+const MAIN_INGREDIENT_TAGS = [
+  ['猪肉', '猪肉'],
+  ['牛肉', '牛肉'],
+  ['鸡', '鸡肉'],
+  ['鸭', '鸭肉'],
+  ['鱼', '鱼'],
+  ['兔', '兔肉'],
+  ['豆腐', '豆腐'],
+  ['蛋', '鸡蛋'],
+  ['虾', '虾'],
+];
+
+function proposedTagsFor(entryId, category) {
+  const recipe = recipeByEntryId.get(entryId);
+  const tags = ['川菜', category];
+  const firstItem = recipe?.ingredients?.[0]?.rawItemText ?? '';
+  const match = MAIN_INGREDIENT_TAGS.find(([keyword]) => firstItem.includes(keyword));
+  if (match) tags.push(match[1]);
+  if (category === '蔬菜类') tags.push('素菜');
+  return tags;
+}
+
+function methodPreviewFor(entryId) {
+  const recipe = recipeByEntryId.get(entryId);
+  const steps = recipe?.methodSummary?.steps ?? [];
+  return steps.map((step) => `${step.order}. ${step.summary}`).join('\n');
+}
+
+function ingredientPreviewFor(entryId) {
+  const recipe = recipeByEntryId.get(entryId);
+  return (recipe?.ingredients ?? []).map((ingredient) => ({
+    item: ingredient.rawItemText,
+    qty: ingredient.rawQuantityText ?? null,
+    unit: null,
+  }));
+}
+
+const entries = [];
+for (const catalogEntry of catalog.entries) {
+  const { entryId, bookName, category, bookPage } = catalogEntry;
+  const walk = crosswalk.entries.find((entry) => entry.entryId === entryId);
+  if (!walk) throw new Error(`missing crosswalk entry: ${entryId}`);
+
+  const classification = walk.proposedClassification;
+  const sourceQuality = walk.sourceQuality;
+
+  let disposition;
+  const blockingReasons = [];
+  if (sourceQuality === 'alternate-source-required') {
+    disposition = 'blocked-alternate-source';
+    blockingReasons.push('sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。');
+  } else if (sourceQuality === 'needs-source-review') {
+    disposition = 'blocked-source-review';
+    blockingReasons.push('sourceQuality=needs-source-review：来源保真问题未解决。');
+    blockingReasons.push(...walk.sourceQualityReasons.slice(0, 3));
+  } else if (classification === 'probable-match-needs-review') {
+    disposition = 'blocked-crosswalk';
+    blockingReasons.push('classification=probable-match-needs-review：正文复核未确认，reviewRequired=true。');
+  } else if (classification === 'exact-name' || classification === 'confirmed-alias') {
+    disposition = 'existing-project-match';
+    blockingReasons.push('已有真实 project ID，复用现有 production recipe，不创建重复菜谱。');
+  } else {
+    disposition = 'new-recipe-candidate';
+  }
+
+  const proposedProductionAction = {
+    'existing-project-match': '复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。',
+    'new-recipe-candidate': '后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。',
+    'blocked-source-review': '待 source 保真问题解决后重新评估 promotion。',
+    'blocked-alternate-source': '需替代来源补全正文后重新评估 promotion。',
+    'blocked-crosswalk': '待正文 adjudication 确认（remain-probable 升级或 reject 回 book-only）后重新评估。',
+  }[disposition];
+
+  const item = {
+    entryId,
+    bookName,
+    category,
+    classification,
+    sourceQuality,
+    projectIds: walk.projectIds,
+    promotionDisposition: disposition,
+    blockingReasons,
+    proposedProductionAction,
+  };
+
+  if (disposition === 'new-recipe-candidate') {
+    item.proposedName = bookName;
+    item.proposedTags = proposedTagsFor(entryId, category);
+    item.proposedIdStrategy = `dz1979-p${bookPage}`;
+    item.ingredientTarget = 'data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。';
+    item.methodTarget = 'recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。';
+    item.provenanceStrategy = '新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。';
+    item.schemaGapNotes = [
+      '基本 recipe + recipe_ingredients 无需 schema 扩展。',
+      'characteristicsSummary 无 production 字段（可保留于 provenance 层）。',
+      'uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。',
+      'normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。',
+    ];
+    item.methodPreview = methodPreviewFor(entryId);
+    item.ingredientPreview = ingredientPreviewFor(entryId);
+  }
+
+  entries.push(item);
+}
+
+// -- Verification ----------------------------------------------------------
+
+const problems = [];
+const dispositionCounts = {};
+for (const entry of entries) {
+  dispositionCounts[entry.promotionDisposition] = (dispositionCounts[entry.promotionDisposition] ?? 0) + 1;
+}
+
+const uniqueIds = new Set(entries.map((entry) => entry.entryId));
+if (entries.length !== 147 || uniqueIds.size !== 147) {
+  problems.push(`entry-count-mismatch:${entries.length}/${uniqueIds.size}`);
+}
+if (Object.values(dispositionCounts).reduce((sum, n) => sum + n, 0) !== 147) {
+  problems.push('disposition-sum-not-147');
+}
+
+const confirmedIds = new Set(
+  entries.filter((entry) => (
+    entry.classification === 'exact-name' || entry.classification === 'confirmed-alias'
+  )).map((entry) => entry.entryId),
+);
+const newCandidateIds = new Set(
+  entries.filter((entry) => entry.promotionDisposition === 'new-recipe-candidate')
+    .map((entry) => entry.entryId),
+);
+if (confirmedIds.size !== 81) problems.push(`confirmed-count-not-81:${confirmedIds.size}`);
+const overlap = [...confirmedIds].filter((id) => newCandidateIds.has(id));
+if (overlap.length > 0) problems.push(`confirmed-in-new-candidate:${overlap.join(',')}`);
+
+const bookOnlyReadyIds = new Set(
+  entries.filter((entry) => (
+    entry.classification === 'book-only'
+    && entry.sourceQuality === 'ready-for-later-promotion-review'
+  )).map((entry) => entry.entryId),
+);
+if (bookOnlyReadyIds.size !== newCandidateIds.size
+  || [...bookOnlyReadyIds].some((id) => !newCandidateIds.has(id))) {
+  problems.push('new-recipe-candidate-not-equal-book-only-and-ready');
+}
+
+const p173 = entries.find((entry) => entry.entryId === 'dz1979-p173');
+if (!p173 || p173.promotionDisposition !== 'blocked-crosswalk') {
+  problems.push('p173-not-blocked-crosswalk');
+}
+
+const altBlocked = entries.filter((entry) => entry.sourceQuality === 'alternate-source-required');
+if (altBlocked.length !== 12
+  || altBlocked.some((entry) => entry.promotionDisposition !== 'blocked-alternate-source')) {
+  problems.push('alternate-source-12-not-all-blocked');
+}
+
+const needsInNewCandidate = entries.filter((entry) => (
+  entry.sourceQuality === 'needs-source-review'
+  && entry.promotionDisposition === 'new-recipe-candidate'
+));
+if (needsInNewCandidate.length > 0) {
+  problems.push(`needs-source-review-in-new-candidate:${needsInNewCandidate.map((e) => e.entryId).join(',')}`);
+}
+
+const dangling = entries.flatMap((entry) => (
+  entry.projectIds
+    .filter(({ id }) => !id)
+    .map(() => entry.entryId)
+));
+if (dangling.length > 0) problems.push(`dangling-project-ids:${dangling.join(',')}`);
+
+const output = {
+  schema: 'kitchenmanager.source-restoration.promotion-readiness.v1',
+  generatedAt: new Date().toISOString().slice(0, 10),
+  purpose: '《大众川菜》1979 production promotion readiness：机械生成 147 道 promotionDisposition 清单与 new-recipe-candidate 转换预览。只制定可执行候选清单，不修改任何生产数据，不做 production promotion。',
+  applicationReady: false,
+  productionPromotion: false,
+  dispositionDefinitions: {
+    'existing-project-match': 'exact-name/confirmed-alias 且已有真实 project ID；复用现有 recipe，不创建重复。',
+    'new-recipe-candidate': 'book-only 且 sourceQuality=ready；后续真正可能新增到 production 的集合。',
+    'blocked-source-review': 'sourceQuality=needs-source-review 且非 alternate；来源保真问题未解决。',
+    'blocked-alternate-source': 'sourceQuality=alternate-source-required；需替代来源。',
+    'blocked-crosswalk': 'probable-match-needs-review；正文复核未确认，即使 ready 也不得 promotion。',
+  },
+  dispositionPriority: 'alternate-source > source-review > crosswalk > existing-match/new-candidate',
+  productionChainAudit,
+  summary: {
+    totalEntries: entries.length,
+    dispositionCounts,
+    confirmedProjectMappingTotal: confirmedIds.size,
+    newRecipeCandidateCount: newCandidateIds.size,
+    newRecipeCandidateIds: [...newCandidateIds].sort(),
+    existingProjectMatchCount: dispositionCounts['existing-project-match'],
+    blockedSourceReviewCount: dispositionCounts['blocked-source-review'],
+    blockedAlternateSourceCount: dispositionCounts['blocked-alternate-source'],
+    blockedCrosswalkCount: dispositionCounts['blocked-crosswalk'],
+    schemaExtensionNeeded: false,
+    verificationProblems: problems,
+  },
+  entries,
+};
+
+const outPath = path.join(
+  repoRoot,
+  'data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json',
+);
+fs.writeFileSync(outPath, `${JSON.stringify(output, null, 2)}\n`);
+
+console.log(`Wrote ${outPath}`);
+console.log(`dispositionCounts: ${JSON.stringify(dispositionCounts)}`);
+console.log(`verificationProblems: ${problems.length}`);
+if (problems.length > 0) {
+  console.log(problems);
+  process.exitCode = 1;
+}

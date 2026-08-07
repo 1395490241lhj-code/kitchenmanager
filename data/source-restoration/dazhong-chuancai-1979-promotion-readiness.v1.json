@@ -1,0 +1,4695 @@
+{
+  "schema": "kitchenmanager.source-restoration.promotion-readiness.v1",
+  "generatedAt": "2026-08-07",
+  "purpose": "《大众川菜》1979 production promotion readiness：机械生成 147 道 promotionDisposition 清单与 new-recipe-candidate 转换预览。只制定可执行候选清单，不修改任何生产数据，不做 production promotion。",
+  "applicationReady": false,
+  "productionPromotion": false,
+  "dispositionDefinitions": {
+    "existing-project-match": "exact-name/confirmed-alias 且已有真实 project ID；复用现有 recipe，不创建重复。",
+    "new-recipe-candidate": "book-only 且 sourceQuality=ready；后续真正可能新增到 production 的集合。",
+    "blocked-source-review": "sourceQuality=needs-source-review 且非 alternate；来源保真问题未解决。",
+    "blocked-alternate-source": "sourceQuality=alternate-source-required；需替代来源。",
+    "blocked-crosswalk": "probable-match-needs-review；正文复核未确认，即使 ready 也不得 promotion。"
+  },
+  "dispositionPriority": "alternate-source > source-review > crosswalk > existing-match/new-candidate",
+  "productionChainAudit": {
+    "recipeEntitySchema": {
+      "files": [
+        "data/sichuan-recipes.curated.json",
+        "data/sichuan-recipes.json"
+      ],
+      "fields": "id, name, tags, method(仅curated库在recipe对象内；full库无method字段)"
+    },
+    "ingredientStorage": {
+      "location": "同文件顶层 recipe_ingredients[id]",
+      "shape": "[{ \"item\": string, \"qty\": string|null, \"unit\": string|null }]",
+      "note": "qty/unit 为字符串（如“一斤”或 null），不支持 source-restoration 的 normalized 数值量纲。"
+    },
+    "methodStorage": [
+      "curated库 recipe.method 字段（curate-recipes.js 物化）",
+      "data/recipe-methods.js window.RECIPE_METHODS（按菜名，PWA 静态合并）",
+      "data/recipe-completion-overlay.json recipes{id:{method}} 与 newRecipes（PWA applyCompletionOverlay）"
+    ],
+    "overlayChain": "data/recipe-completion-overlay.json：recipes{id:{method}}、recipe_ingredients、newRecipes[{id,name,tags,method}]、newRecipeIngredients",
+    "pwaConsumer": "app.js loadBasePack -> src/recipe-library.js mergeRecipeSources/applyCompletionOverlay/mergeRecipeMethods -> 用户 overlay",
+    "iosConsumer": "ios RecipeService.fetchRecipes 拉取 data/sichuan-recipes.{curated,full}.json，解码 recipes(id,name,method?,tags) + recipe_ingredients，不应用 completion overlay",
+    "idConventions": {
+      "full": "ex--<8-hex>",
+      "curatedFamily": "fam-<slug>",
+      "completionNew": "comp-<8-hex>",
+      "static": "static-<digits>",
+      "hoc": "hoc-<digits>"
+    },
+    "schemaExtensionNeeded": false,
+    "schemaGapSummary": [
+      "基本菜谱 {id,name,tags,method} 与 recipe_ingredients 可直接容纳 new-recipe-candidate，无需扩展 production schema。",
+      "source 的 characteristicsSummary、uncertainties、confirmedReadings、confidence、sourceQuality 无 production 字段。",
+      "source 的 normalized 数值数量无法直接写入 production（qty/unit 仅字符串），需用 rawQuantityText 原始文本形式。",
+      "provenance（entryId/bookPage/pdfPage/来源书页）无 production 字段，需独立 provenance 侧文件承载。"
+    ],
+    "minimalPromotionBatchSuggestion": "建议每批 5-8 道 new-recipe-candidate，逐批人工复核后落地，先经 overlay 链再物化 curated JSON。"
+  },
+  "summary": {
+    "totalEntries": 147,
+    "dispositionCounts": {
+      "existing-project-match": 50,
+      "blocked-source-review": 45,
+      "blocked-alternate-source": 12,
+      "new-recipe-candidate": 39,
+      "blocked-crosswalk": 1
+    },
+    "confirmedProjectMappingTotal": 81,
+    "newRecipeCandidateCount": 39,
+    "newRecipeCandidateIds": [
+      "dz1979-p129",
+      "dz1979-p130",
+      "dz1979-p137",
+      "dz1979-p143",
+      "dz1979-p144",
+      "dz1979-p153",
+      "dz1979-p159",
+      "dz1979-p161",
+      "dz1979-p162",
+      "dz1979-p168",
+      "dz1979-p180",
+      "dz1979-p183",
+      "dz1979-p185",
+      "dz1979-p186",
+      "dz1979-p187",
+      "dz1979-p188",
+      "dz1979-p195",
+      "dz1979-p196",
+      "dz1979-p198",
+      "dz1979-p200",
+      "dz1979-p201",
+      "dz1979-p202",
+      "dz1979-p203",
+      "dz1979-p204",
+      "dz1979-p205",
+      "dz1979-p206",
+      "dz1979-p207",
+      "dz1979-p209",
+      "dz1979-p211",
+      "dz1979-p212",
+      "dz1979-p213",
+      "dz1979-p216",
+      "dz1979-p218",
+      "dz1979-p219",
+      "dz1979-p221",
+      "dz1979-p222",
+      "dz1979-p223",
+      "dz1979-p224",
+      "dz1979-p226"
+    ],
+    "existingProjectMatchCount": 50,
+    "blockedSourceReviewCount": 45,
+    "blockedAlternateSourceCount": 12,
+    "blockedCrosswalkCount": 1,
+    "schemaExtensionNeeded": false,
+    "verificationProblems": []
+  },
+  "entries": [
+    {
+      "entryId": "dz1979-p027",
+      "bookName": "回锅肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--4f93c5ac"
+        },
+        {
+          "library": "full",
+          "id": "ex--4f93c5ac"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p029",
+      "bookName": "白油肉片",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3784c1ba"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p031",
+      "bookName": "鱼香肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-4972b811"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p033",
+      "bookName": "炒盐煎肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-34f829f9"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p034",
+      "bookName": "宫保肉丁",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2ae72baa"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p036",
+      "bookName": "炒酱肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-355dc613"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p037",
+      "bookName": "干煸肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2ca8867a"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p038",
+      "bookName": "鱼香碎滑肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-1b3534d7"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "confidence.recognition=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p040",
+      "bookName": "酱爆肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-02304874"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p041",
+      "bookName": "花椒肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-01f7d428"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "confidence.recognition=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p042",
+      "bookName": "东坡肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-01304c64"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "confidence.recognition=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p044",
+      "bookName": "樱桃肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-019bc297"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p046",
+      "bookName": "香糟肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-025036e3"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p048",
+      "bookName": "红烧排蹄",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3b44d637"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p049",
+      "bookName": "红枣煨肘",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--0d31aaec"
+        },
+        {
+          "library": "full",
+          "id": "ex--0d31aaec"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=allocation-unknown"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p050",
+      "bookName": "板栗烧肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-30a0defa"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=allocation-unknown"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p051",
+      "bookName": "红烧狮子头",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2d89c6ad"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=allocation-unknown",
+        "confidence.conversion=medium",
+        "ingredients[1].confidence.conversion=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p053",
+      "bookName": "家常热味肘子",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-1c14ba60"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p054",
+      "bookName": "醋蒸猪头肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-410712d2"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p055",
+      "bookName": "水煮烧白",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-32e7a7b0"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p056",
+      "bookName": "豆瓣肘子",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-418a7bd5"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p057",
+      "bookName": "姜汁蹄花",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2a812592"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p058",
+      "bookName": "五香卤肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-260369ea"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p060",
+      "bookName": "蒜泥白肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3def8735"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p061",
+      "bookName": "姜汁拐肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2a7be05e"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p062",
+      "bookName": "连锅子",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-022e7749"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p063",
+      "bookName": "白菜丸子",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-37d56d57"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p065",
+      "bookName": "肉片汤",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-01f0c546"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p066",
+      "bookName": "炖酥肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-01b8beda"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "confidence.conversion=low",
+        "ingredients[1].confidence.conversion=low"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p068",
+      "bookName": "清汤丸子",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-33a3cf57"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p070",
+      "bookName": "清蒸肘子",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-34053c4b"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p071",
+      "bookName": "夹沙肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--0fd31741"
+        },
+        {
+          "library": "full",
+          "id": "ex--0fd31741"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=old-term",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p073",
+      "bookName": "咸烧白",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--10cdbeaf"
+        },
+        {
+          "library": "full",
+          "id": "ex--10cdbeaf"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p074",
+      "bookName": "粉蒸肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--ec5d7e15"
+        },
+        {
+          "library": "full",
+          "id": "ex--ec5d7e15"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p076",
+      "bookName": "荷叶蒸肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--0b5f9f77"
+        },
+        {
+          "library": "full",
+          "id": "ex--0b5f9f77"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p078",
+      "bookName": "韭黄肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-4773a16b"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p079",
+      "bookName": "锅粑肉片",
+      "category": "肉食类",
+      "classification": "confirmed-alias",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--3235554e"
+        },
+        {
+          "library": "full",
+          "id": "ex--3235554e"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "confidence.conversion=low",
+        "ingredients[9].confidence.conversion=low"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p081",
+      "bookName": "榨菜肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-320630e8"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p082",
+      "bookName": "青椒肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-46639ab4"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=old-term",
+        "uncertainties[1].type=allocation-unknown"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p083",
+      "bookName": "甜椒肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-36d670aa"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p085",
+      "bookName": "肉焖鲜豌豆",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-49107249"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p086",
+      "bookName": "家常肉丝干豇",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-1517f9f5"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=old-term",
+        "confidence.recognition=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p087",
+      "bookName": "南瓜炒肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-32c1afbf"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p088",
+      "bookName": "肉焖青豆",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3c2929a1"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p089",
+      "bookName": "肉末炒泡豇豆",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-38c07670"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p090",
+      "bookName": "腊肉烧菜头",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p091",
+      "bookName": "豌豆焖肉",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[3].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[3].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p093",
+      "bookName": "红烧丸子",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3b420d5d"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "ingredients[6].confidence.conversion=low"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p095",
+      "bookName": "豆筋烧肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-41a0c707"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p096",
+      "bookName": "蒜苔炒腊肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-761bd027"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p097",
+      "bookName": "明笋焖肉片",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-28362569"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=old-term"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p098",
+      "bookName": "洋葱炒肉丝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3e87bc40"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p099",
+      "bookName": "黄瓜肉片",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-49f26b76"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p100",
+      "bookName": "豆芽肉饼汤",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p101",
+      "bookName": "酸菜肉丝汤",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=allocation-unknown",
+        "uncertainties[1].type=old-term"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p102",
+      "bookName": "粉蒸排骨",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3a9b2ae5"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unresolved-quantity",
+        "ingredients[3].confidence.conversion=medium",
+        "ingredients[4].confidence.recognition=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p104",
+      "bookName": "鱼香排骨",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-496f82b3"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=allocation-unknown",
+        "uncertainties[1].type=old-term"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p105",
+      "bookName": "糖醋排骨",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3aee4f8b"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unresolved-quantity",
+        "uncertainties[1].type=allocation-unknown",
+        "ingredients[3].confidence.conversion=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p106",
+      "bookName": "家常排骨",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2b1eda18"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unresolved-quantity",
+        "uncertainties[1].type=allocation-unknown",
+        "uncertainties[2].type=old-term"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p107",
+      "bookName": "苤蓝烧牛肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-72980f9c"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unresolved-quantity",
+        "uncertainties[1].type=allocation-unknown",
+        "uncertainties[2].type=old-term"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p109",
+      "bookName": "干拌牛肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2c6feda8"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unresolved-quantity",
+        "ingredients[3].confidence.recognition=medium",
+        "ingredients[3].confidence.conversion=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p110",
+      "bookName": "麻辣牛肉干",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-002ad6a4"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=allocation-unknown",
+        "uncertainties[1].type=old-term",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p111",
+      "bookName": "水煮牛肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-32e7dec8"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unresolved-quantity",
+        "uncertainties[1].type=allocation-unknown",
+        "uncertainties[2].type=page-boundary"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p113",
+      "bookName": "牛肉末炒芹菜花",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-72b49627"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=allocation-unknown"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p115",
+      "bookName": "粉蒸牛肉",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3a9cdb1d"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "ingredients[3].confidence.conversion=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p117",
+      "bookName": "小烧十锦",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-2b8b72bd"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p119",
+      "bookName": "白油猪肝",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--addb85f5"
+        },
+        {
+          "library": "full",
+          "id": "ex--addb85f5"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p121",
+      "bookName": "豌豆肥肠汤",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-053fc891"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "ingredients[1].confidence.conversion=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p122",
+      "bookName": "蒜烧肚条",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p123",
+      "bookName": "清蒸杂烩",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-3402407a"
+        }
+      ],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "ingredients[12].confidence.conversion=medium",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium",
+        "methodSummary.dialectOrOldTerms[1].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p125",
+      "bookName": "火爆腰花",
+      "category": "肉食类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "comp-34d66b7c"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p127",
+      "bookName": "大蒜烧肥肠",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "ingredients[2].confidence.conversion=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p129",
+      "bookName": "凉拌猪肺",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "凉拌猪肺",
+      "proposedTags": [
+        "川菜",
+        "肉食类"
+      ],
+      "proposedIdStrategy": "dz1979-p129",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 猪肺洗净，在开水锅中“出水”，然后另用开水加葱、姜、花椒煮熟，煮至软和时捞起，用刀切片；冬菜淘净切成细末。\n2. 将肺片盛于碗内，依次放酱油、味精、熟油辣椒、冬菜末、葱花等，拌匀即成。",
+      "ingredientPreview": [
+        {
+          "item": "猪肺",
+          "qty": "二斤",
+          "unit": null
+        },
+        {
+          "item": "葱花",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "一两五钱",
+          "unit": null
+        },
+        {
+          "item": "冬菜",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": "一两二钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p130",
+      "bookName": "蕃茄丝瓜肉片汤",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "蕃茄丝瓜肉片汤",
+      "proposedTags": [
+        "川菜",
+        "肉食类",
+        "猪肉"
+      ],
+      "proposedIdStrategy": "dz1979-p130",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 丝瓜刮去粗皮洗净；蕃茄在沸水中烫后去皮去籽；丝瓜、蕃茄均切成薄片；净瘦猪肉也切成薄片。\n2. 炒锅置旺火上，盛入汤或开水，加少许葱节、姜块（拍松）烧开，煮出味后去掉葱、姜，随即下丝瓜、蕃茄片，煮至熟软时，将肉片用盐、绍酒、水豆粉拌合均匀，用筷子少而慢地拨于锅内，并轻轻拨散，不使粘结。\n3. 汤内下胡椒面、酱油、味精调匀，待锅内汤沸，起锅即成。",
+      "ingredientPreview": [
+        {
+          "item": "猪肉",
+          "qty": "五两",
+          "unit": null
+        },
+        {
+          "item": "丝瓜",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "绍酒",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "蕃茄",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "葱节、姜",
+          "qty": "各三钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "八分",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "四钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p131",
+      "bookName": "麻辣兔丁",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unclear-glyph",
+        "confidence.recognition=medium",
+        "R1-confirmed-unresolved"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p132",
+      "bookName": "青笋烧兔",
+      "category": "肉食类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=page-boundary"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p135",
+      "bookName": "盐水仔鸡",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "ingredients[4].confidence.conversion=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p136",
+      "bookName": "棒棒鸡丝",
+      "category": "禽蛋鱼类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--5b35a2c1"
+        },
+        {
+          "library": "full",
+          "id": "ex--5b35a2c1"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p137",
+      "bookName": "椒麻鸡块",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "椒麻鸡块",
+      "proposedTags": [
+        "川菜",
+        "禽蛋鱼类",
+        "鸡肉"
+      ],
+      "proposedIdStrategy": "dz1979-p137",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 选子公鸡杀后去毛及内脏，用水洗净，在开水锅内（锅内加姜、葱）煮至刚熟时，捞起晾冷。再砍成长约一寸二、宽约四分的条块，盛于碗内。\n2. 将花椒、葱叶、盐在菜板上铡细（铡时加几滴香油）后，盛于碗内。加酱油、味精、香油调成椒麻滋汁（如味咸，可加少许冷汤）。\n3. 将椒麻滋汁淋在鸡块上，拌匀上味即成。",
+      "ingredientPreview": [
+        {
+          "item": "子公鸡",
+          "qty": "一只（约三斤）",
+          "unit": null
+        },
+        {
+          "item": "葱叶",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "生花椒",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "八分",
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": "三钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p138",
+      "bookName": "红油鸡块",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p139",
+      "bookName": "辣子鸡丁",
+      "category": "禽蛋鱼类",
+      "classification": "exact-name",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--b540e64d"
+        },
+        {
+          "library": "full",
+          "id": "ex--b540e64d"
+        }
+      ],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p141",
+      "bookName": "热味姜汁鸡",
+      "category": "禽蛋鱼类",
+      "classification": "confirmed-alias",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "full",
+          "id": "ex--832d7c5d"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p142",
+      "bookName": "香菌烧鸡",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p143",
+      "bookName": "当归炖鸡",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "当归炖鸡",
+      "proposedTags": [
+        "川菜",
+        "禽蛋鱼类",
+        "鸡肉"
+      ],
+      "proposedIdStrategy": "dz1979-p143",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 仔母鸡杀后去毛及内脏，洗净。在开水锅内煮去血水捞起，再用水清洗一下。当归宜用秦归，用水洗过。\n2. 用一铝锅（或沙罐），装水三斤，将鸡放入，同时下醪糟汁、当归，盖严锅口，在旺火上烧开，用小火炖约三小时即成。",
+      "ingredientPreview": [
+        {
+          "item": "仔母鸡",
+          "qty": "一只（约重三斤五两）",
+          "unit": null
+        },
+        {
+          "item": "当归",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "醪糟汁",
+          "qty": "三两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p144",
+      "bookName": "黄焖鸭子",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "黄焖鸭子",
+      "proposedTags": [
+        "川菜",
+        "禽蛋鱼类",
+        "鸭肉"
+      ],
+      "proposedIdStrategy": "dz1979-p144",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 将水盆鸭先用水洗净，再砍成八分见方的块子。姜拍松，葱挽结，笋子（明笋、玉兰片均可）切成六分长的条。\n2. 炒锅内下猪油，烧至六成热时下鸭块，煸走一些水汽时，即下绍酒（如无绍酒，用醪糟汁也可）、酱油、姜、葱、盐、笋子和开水（用汤更好）二斤，在旺火上烧开，然后用小火烧约三小时，待鸭块粑时，去掉姜、葱，下水豆粉、味精，收浓起锅即成。",
+      "ingredientPreview": [
+        {
+          "item": "水盆鸭",
+          "qty": "一只（约一斤五两）",
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": "一两五钱",
+          "unit": null
+        },
+        {
+          "item": "姜、葱",
+          "qty": "各五钱",
+          "unit": null
+        },
+        {
+          "item": "笋子",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "绍酒、酱油",
+          "qty": "各一两",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "一两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p145",
+      "bookName": "蘑芋烧鸭",
+      "category": "禽蛋鱼类",
+      "classification": "confirmed-alias",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--56a6ad20"
+        },
+        {
+          "library": "full",
+          "id": "ex--56a6ad20"
+        }
+      ],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p147",
+      "bookName": "芋儿烧鸭",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "ingredients[6].confidence.conversion=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p149",
+      "bookName": "青豆焖鸭条",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "ingredients[2].confidence.conversion=medium",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p151",
+      "bookName": "椿芽烘蛋",
+      "category": "禽蛋鱼类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--24b2a22b"
+        },
+        {
+          "library": "full",
+          "id": "ex--24b2a22b"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p152",
+      "bookName": "番茄炒蛋",
+      "category": "禽蛋鱼类",
+      "classification": "exact-name",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-tomato-egg"
+        }
+      ],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p153",
+      "bookName": "绍子蒸蛋",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "绍子蒸蛋",
+      "proposedTags": [
+        "川菜",
+        "禽蛋鱼类",
+        "鸡肉"
+      ],
+      "proposedIdStrategy": "dz1979-p153",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 将去皮肥瘦猪肉剁成细粒。冬菜淘洗干净，切细末，葱切细花。\n2. 炒锅置旺火上，放入猪油，油烧热后放猪肉粒下锅煸散，煸干水汽。加冬菜末、酱油、葱花，炒至上色出香味时，铲起盛于碗内。\n3. 鸡蛋打于碗中，放少许盐，用筷子搅打均匀，成蛋汁，再加少许冷汤同蛋汁一起调匀，放入蒸具，用旺火约蒸五分钟，蛋熟而不老，取出，蛋面放上绍子即成。",
+      "ingredientPreview": [
+        {
+          "item": "鸡蛋",
+          "qty": "三个",
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "冬菜",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "猪肉",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": "六两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p154",
+      "bookName": "酸辣蛋花汤",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p155",
+      "bookName": "芹黄炒什件",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p157",
+      "bookName": "炒鸭肝",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "confidence.recognition=medium",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p159",
+      "bookName": "烧鸭血",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "烧鸭血",
+      "proposedTags": [
+        "川菜",
+        "禽蛋鱼类",
+        "鸭肉"
+      ],
+      "proposedIdStrategy": "dz1979-p159",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 鸭血用开水略煮一下，捞起用冷水漂起，再切成五分见方的丁。姜、蒜切末，葱切细花，豆瓣剁细。\n2. 炒锅置中火上，下菜油烧至六成热时，下豆瓣、姜、蒜米及葱花（只用一半）入锅煵炒。煵出香味，油现红色时掺汤，加酱油、盐，最后下鸭血，约烧五分钟，下水豆粉，将汁收浓亮油，下味精、葱花合匀，起锅入碗。吃时菜面上撒花椒面即可。",
+      "ingredientPreview": [
+        {
+          "item": "鸭血",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "郫县豆瓣",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": "五两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p161",
+      "bookName": "拌鸡血",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "拌鸡血",
+      "proposedTags": [
+        "川菜",
+        "禽蛋鱼类",
+        "鸡肉"
+      ],
+      "proposedIdStrategy": "dz1979-p161",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 将鸡血（或鸭血）切成四分见方的丁，用开水煮一煮（不能煮久，否则要老），打入筲箕内沥干水。姜、蒜切米，葱切细花。\n2. 用碗将姜米、蒜米、葱花、味精、熟油辣椒、花椒面、酱油等调料放入，再加鸡血丁拌匀上味即可。",
+      "ingredientPreview": [
+        {
+          "item": "鸡血",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": "二分",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p162",
+      "bookName": "豆瓣鱼",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "豆瓣鱼",
+      "proposedTags": [
+        "川菜",
+        "禽蛋鱼类",
+        "鱼"
+      ],
+      "proposedIdStrategy": "dz1979-p162",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 鲜鱼剖腹，去鳞，抠鳃，去内脏后洗净。用刀在鱼身两面划数刀，抹上少许盐。葱切细花，姜、蒜均剁成米，豆瓣剁细。\n2. 炒锅内放油烧至六成热时，放入鱼，待两面煎成浅黄色时，用锅铲将鱼拨在锅边。下豆瓣、姜、蒜米及葱花（用一半）一起煵，煵到出香味，油呈红色时，再加酱油及汤。\n3. 随即把鱼推入汤中，盖上锅盖，在小火上慢烧约五分钟（在烧的过程中加白糖），一直烧到鱼入味，用筷子把鱼拈入盘内。锅内下水豆粉，汁浓亮油起锅。起锅时放醋和葱花拌匀，将汁淋在鱼上即成。",
+      "ingredientPreview": [
+        {
+          "item": "鲜鱼",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "二两五钱",
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "一两二钱",
+          "unit": null
+        },
+        {
+          "item": "郫县豆瓣",
+          "qty": "一两二钱",
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "七钱",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": "一斤五两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p164",
+      "bookName": "干烧鲫鱼",
+      "category": "禽蛋鱼类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--497d6220"
+        },
+        {
+          "library": "full",
+          "id": "ex--497d6220"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p166",
+      "bookName": "泡菜鱼",
+      "category": "禽蛋鱼类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--a276fea5"
+        },
+        {
+          "library": "full",
+          "id": "ex--a276fea5"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p168",
+      "bookName": "豆腐鱼",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "豆腐鱼",
+      "proposedTags": [
+        "川菜",
+        "禽蛋鱼类",
+        "鱼"
+      ],
+      "proposedIdStrategy": "dz1979-p168",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 鲜鱼剖腹，去鳞、腮、内脏并洗净。在鱼身两面划三刀，抹少许盐。葱切六分节，豆瓣剁细。\n2. 豆腐切成长约一寸五、宽约一寸、厚约五分的块子。在开水锅内煮约两分钟（煮时放少许盐），打起沥去水。\n3. 炒锅置旺火上，放猪油烧至六成热，下鱼煎得两面都呈浅黄色时，把炒锅放斜，将鱼拨在锅边。用原油将豆瓣煵酥，再将炒锅放正，把鱼拨入锅中。随即加酱油、汤、葱白和豆腐，下锅同鱼一起合烧十分钟左右，再放醪糟汁、甜酱、味精合匀上味，接着先将鱼拈入盘内。锅内下水豆粉收浓滋汁，然后把豆腐连汁一同挂在鱼上即成。",
+      "ingredientPreview": [
+        {
+          "item": "鲜鱼",
+          "qty": "七两",
+          "unit": null
+        },
+        {
+          "item": "豆腐",
+          "qty": "四个",
+          "unit": null
+        },
+        {
+          "item": "葱白",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "一分",
+          "unit": null
+        },
+        {
+          "item": "醪糟汁",
+          "qty": "一两五钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "豆瓣",
+          "qty": "一两二钱",
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": "二两五钱",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "一两五钱",
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": "一斤五两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p170",
+      "bookName": "葱酥鱼",
+      "category": "禽蛋鱼类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "ex--baed7d9b"
+        },
+        {
+          "library": "full",
+          "id": "ex--baed7d9b"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p171",
+      "bookName": "大蒜烧鳝鱼",
+      "category": "禽蛋鱼类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p173",
+      "bookName": "干煸鳝鱼丝",
+      "category": "禽蛋鱼类",
+      "classification": "probable-match-needs-review",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-crosswalk",
+      "blockingReasons": [
+        "classification=probable-match-needs-review：正文复核未确认，reviewRequired=true。"
+      ],
+      "proposedProductionAction": "待正文 adjudication 确认（remain-probable 升级或 reject 回 book-only）后重新评估。"
+    },
+    {
+      "entryId": "dz1979-p177",
+      "bookName": "麻辣豆腐",
+      "category": "蔬菜类",
+      "classification": "confirmed-alias",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-mapo-tofu"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p179",
+      "bookName": "家常豆腐",
+      "category": "蔬菜类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-homestyle-tofu"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p180",
+      "bookName": "干炒豆腐",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "干炒豆腐",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "豆腐",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p180",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 豆腐洗净沥干水，盛碗内用锅铲铲碎。\n2. 炒锅置中火上，放入菜油，烧至六成热时，将碗内豆腐倒锅中炒散，至豆腐无生气味时，放盐、味精炒匀，待水汽炒干、表皮现黄色，豆腐收成小颗粒时，放入葱花，炒转起锅即成。",
+      "ingredientPreview": [
+        {
+          "item": "豆腐",
+          "qty": "六个",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两五钱",
+          "unit": null
+        },
+        {
+          "item": "葱花",
+          "qty": "四钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p181",
+      "bookName": "鱼香油菜苔",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p183",
+      "bookName": "酱烧苦瓜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "酱烧苦瓜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p183",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 苦瓜用水洗净，切去两头蒂把尖细部份，对剖两开，挖去瓜瓤，切成长约八分、宽约四分的条子。\n2. 炒锅置中火上，放入菜油烧至六成热时，下甜酱在油中炒散，炒香；接着下盐、白糖合炒几下，加苦瓜合转（使其粘满甜酱），然后掺汤（三两）再烧，直至苦瓜上色入味时，加味精，勾水豆粉收汁起锅即成。",
+      "ingredientPreview": [
+        {
+          "item": "苦瓜",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "一两二钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p184",
+      "bookName": "麻辣明笋丝",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unclear-glyph",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p185",
+      "bookName": "麻酱青笋尖",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "麻酱青笋尖",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p185",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 只取青笋尖部（约二寸长），去掉外层老叶，淘洗干净，细的用刀切成四牙，粗的六牙。先用盐腌渍约一小时，再用清水淘一次，装入筲箕内放少许白糖和盐拌匀，沥干，除掉湿味。\n2. 将笋尖装入碗内，用熟油辣椒合转。然后依次放入酱油、花椒面、白糖、蒜（剁成泥）、芝麻酱，拌合均匀即成。",
+      "ingredientPreview": [
+        {
+          "item": "青笋尖",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "芝麻酱",
+          "qty": "一两五钱",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": "一分",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "三钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p186",
+      "bookName": "蒜泥拌黄瓜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "蒜泥拌黄瓜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p186",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 黄瓜用清水洗后削去两头及青皮，再用刀切成“梳子背”块形，蒜剥泥。\n2. 将黄瓜盛筲箕内，用盐腌约十分钟，入味后，用清水淘一次，将水沥干。\n3. 用一碗装黄瓜，先下熟油辣椒合转，然后加盐、白糖、花椒面、蒜泥、醋拌匀即成。",
+      "ingredientPreview": [
+        {
+          "item": "黄瓜",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": "七钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": "一分",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "三钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p187",
+      "bookName": "糖醋子姜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "糖醋子姜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p187",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 将子姜刮去外层筋皮，清洗干净切成薄片，然后用盐腌数分钟，再淘洗一次，将水沥干。\n2. 子姜片装碗内，加盐、白糖、醋和香油拌匀即成。",
+      "ingredientPreview": [
+        {
+          "item": "子姜",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "四钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p188",
+      "bookName": "姜汁蕹菜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "姜汁蕹菜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p188",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 选用新鲜蕹菜，择其茎叶鲜嫩部份，茎管掐约寸长左右，并将其捏破，在清水中淘洗干净，姜去皮、切碎，舂茸成汁。\n2. 将蕹菜在开水中汆熟后，捞起盛筲箕内晾开，散热，滴干水。\n3. 用碗装蕹菜，先用菜油拌匀，然后加盐、姜汁、香油等拌合均匀，临吃时放醋，以免蕹菜发黑。",
+      "ingredientPreview": [
+        {
+          "item": "蕹菜",
+          "qty": "一斤五两",
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "六钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p189",
+      "bookName": "醋渍胡豆",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=undefined"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p191",
+      "bookName": "炒野鸡红",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=undefined"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p193",
+      "bookName": "鱼香茄子",
+      "category": "蔬菜类",
+      "classification": "exact-name",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-yuxiang-eggplant"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p194",
+      "bookName": "家常芋头",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unclear-glyph",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p195",
+      "bookName": "干煸苦瓜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "干煸苦瓜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p195",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 大白苦瓜去两头，对剖两开去瓤，洗净后打斜切成长约一寸二、厚约半分的片子；青椒去蒂去籽洗净，切成粗丝。\n2. 炒锅烧热（不用油），下苦瓜干煸，煸干水分后铲起；然后再煸青椒，煸蔫时加苦瓜同煸，煸得干香后下菜油，再煸几下，放盐合匀起锅。",
+      "ingredientPreview": [
+        {
+          "item": "苦瓜",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "青椒",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "八分",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p196",
+      "bookName": "醋熘白菜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "醋熘白菜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p196",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 莲花白（卷心白也可）除去老叶及梗，洗后切约一寸二见方的片，加盐（二分）合匀腌约一分钟。\n2. 用碗将酱油、盐（三分）、醋、水豆粉等调成滋汁。\n3. 炒锅置旺火上烧热，下菜油烧至七成热时，下白菜炒熟，加汤（一两五钱）烹下滋汁，将汁收浓起锅。",
+      "ingredientPreview": [
+        {
+          "item": "莲花白",
+          "qty": "一斤五两",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "一两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p197",
+      "bookName": "家常四季豆",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "uncertainties[0].type=unclear-glyph",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p198",
+      "bookName": "酱烧茄子",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "酱烧茄子",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p198",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 茄子去把去皮清洗后，切成长约一寸五、宽约八分、厚约五分的条；葱切长约八分的节。\n2. 炒锅内下菜油，烧至七成热时，将茄条下锅煸炒一下（炒走茄子的一些水分）。然后下甜酱、白糖、酱油、葱及汤（四两）与茄条同烧约二、三分钟，勾水豆粉，下味精，滋汁收浓，茄条巴味起锅。",
+      "ingredientPreview": [
+        {
+          "item": "茄子",
+          "qty": "一斤五两",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两五钱",
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "五钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p199",
+      "bookName": "干煸四季豆",
+      "category": "蔬菜类",
+      "classification": "confirmed-alias",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-dry-fried-beans"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p200",
+      "bookName": "炒土豆泥",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "炒土豆泥",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p200",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 土豆洗净上笼（或用水煮）蒸熟取出去皮，在炒锅（不要放在火上）内用锅铲按成泥后打起；葱切细花。\n2. 炒锅置中火上，下猪油烧至六成热时，放土豆泥和盐下锅炒，边炒边翻，约三分钟，再下葱花合匀起锅。",
+      "ingredientPreview": [
+        {
+          "item": "土豆",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "五钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p201",
+      "bookName": "炝黄瓜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "炝黄瓜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p201",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 黄瓜削去两头，去籽清洗后，切“骨牌片”，同盐（一分）拌匀腌几分钟（去涩水）；干辣椒切六分节。\n2. 用碗将盐（一分）、白糖、醋、酱油、味精、水豆粉及汤（五钱）兑成滋汁。\n3. 炒锅内菜油烧至六成热时，下辣椒节和花椒炸呈棕色，即放黄瓜片约炒一分钟。烹下滋汁，汁收浓起锅即成。",
+      "ingredientPreview": [
+        {
+          "item": "黄瓜",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": "四根",
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": "十余粒",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "四分",
+          "unit": null
+        },
+        {
+          "item": "白糖、酱油",
+          "qty": "各三钱",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "五钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p202",
+      "bookName": "白油鲜笋",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "白油鲜笋",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p202",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 将鲜笋剥去外壳，用刀修去老皮，切成“梳子背”形。\n2. 炒锅内下猪油，烧至五成热时，放入鲜笋稍煸几下，掺汤，吃味（下盐）。约烧四分钟下水豆粉、味精，滋汁收浓起锅。",
+      "ingredientPreview": [
+        {
+          "item": "鲜笋",
+          "qty": "一斤五两",
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": "一斤二两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p203",
+      "bookName": "炝绿豆芽",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "炝绿豆芽",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p203",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 绿豆芽择去根、须，洗净；干辣椒切成与豆芽同样粗细的丝子。\n2. 炒锅内菜油烧至六成热，下干辣椒丝和花椒。干辣椒丝炸至呈棕红色时，下绿豆芽同炒几下，放盐炒匀。待绿豆芽熟而带脆，上味即起锅入盘。",
+      "ingredientPreview": [
+        {
+          "item": "绿豆芽",
+          "qty": "五两",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": "三根",
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": "十余粒",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p204",
+      "bookName": "炒豌豆尖",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "炒豌豆尖",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p204",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 豌豆尖择去须根，洗净。\n2. 炒锅内菜油烧至七成热时，先下盐炒匀，即下豌豆尖迅速翻炒几下起锅即可。",
+      "ingredientPreview": [
+        {
+          "item": "豌豆尖",
+          "qty": "二斤",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p205",
+      "bookName": "青椒炒大头菜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "青椒炒大头菜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p205",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 青椒洗净去蒂，切成四分长的短节；大头菜削去老皮，切成三分见方的小颗；葱白也切同样大小的颗。\n2. 锅置旺火上，下青椒煸炒（炒时放盐）；青椒煸熟，下菜油、豆豉同炒；待炒出香味后，加大头菜；最后下葱颗一起炒，炒匀起锅。",
+      "ingredientPreview": [
+        {
+          "item": "青椒",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "大头菜",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "豆豉",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "葱白",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "一分",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p206",
+      "bookName": "烧拌莴笋",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "烧拌莴笋",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p206",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 将莴笋洗净，用干净菜叶在其外包裹两层，放于子母火中（即柴灶的灰火中），围严烧起。烧至莴笋水分蒸发，笋体变软已熟时，从灰中取出。\n2. 去掉包裹莴笋的菜叶，用刀削去表皮后将其拍松，切成不规则的筷子条，盛于菜盘中。\n3. 干辣椒切节在锅内炕起，待其炕出糊香味时，铲起用刀铡细，盛入碗内加酱油、盐、辣椒油、味精、香油调匀，然后淋于盘中的莴笋上即成。",
+      "ingredientPreview": [
+        {
+          "item": "莴笋",
+          "qty": "七两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "四分",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "辣椒油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": "四根",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p207",
+      "bookName": "炝莲花白",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "炝莲花白",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p207",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 莲花白嫩叶洗净，切二寸方片；干辣椒切成约八分节。\n2. 用碗将盐、酱油、白糖、醋、味精、水豆粉和汤（五钱）兑成滋汁。\n3. 菜油在炒锅内烧至七成热，下干辣椒节和花椒入油中，炸至呈棕红色时，将莲花白入锅翻炒。待莲花白稍软即烹下滋汁，收浓起锅即成。",
+      "ingredientPreview": [
+        {
+          "item": "莲花白",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "干辣椒",
+          "qty": "四根",
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": "十余粒",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "酱油、醋",
+          "qty": "各三钱",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "水豆粉",
+          "qty": "四钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p208",
+      "bookName": "炒土豆丝",
+      "category": "蔬菜类",
+      "classification": "confirmed-alias",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-potato-shreds"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p209",
+      "bookName": "拌素三丝",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "拌素三丝",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "豆腐",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p209",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 豆腐干洗净，切粗丝。青笋（去皮）、红萝卜洗净均切成二粗丝（这两样先用二分盐拌匀码过，拌时挤干水分）。葱切粗丝。\n2. 用碗将酱油、盐（一分）、醋、熟油辣椒、味精等调成滋汁，合上三丝，拌匀入味装盘，菜面上放葱丝即成。",
+      "ingredientPreview": [
+        {
+          "item": "豆腐干",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "青笋",
+          "qty": "五两",
+          "unit": null
+        },
+        {
+          "item": "红萝卜",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "四分",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": "一两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p210",
+      "bookName": "青椒拌皮蛋",
+      "category": "蔬菜类",
+      "classification": "confirmed-alias",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [
+        {
+          "library": "curated",
+          "id": "fam-pepper-century-egg"
+        }
+      ],
+      "promotionDisposition": "existing-project-match",
+      "blockingReasons": [
+        "已有真实 project ID，复用现有 production recipe，不创建重复菜谱。"
+      ],
+      "proposedProductionAction": "复用现有 project recipe；未来 source-enrichment 候选单独记录，本轮不改现有 production recipe。"
+    },
+    {
+      "entryId": "dz1979-p211",
+      "bookName": "花仁萝卜干",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "花仁萝卜干",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p211",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 红萝卜干洗净，挤干水气，切成三分见方的小颗；炒花仁去衣，铡成同萝卜干同样大小的颗子；葱白切颗。\n2. 将萝卜干、花仁、葱白放碗内加盐拌匀后，再将酱油、白糖、味精、熟油辣椒、花椒面和醋等一齐加入拌匀，上味即成。",
+      "ingredientPreview": [
+        {
+          "item": "红萝卜干",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "酱油、葱白",
+          "qty": "各五钱",
+          "unit": null
+        },
+        {
+          "item": "炒花仁",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "一钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": "一分",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p212",
+      "bookName": "糖醋萝卜丝",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "糖醋萝卜丝",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p212",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 除去萝卜缨及根须，洗净切成二粗丝，用二分盐码起待用；葱白切细丝。\n2. 将码过的萝卜丝用冷开水淘洗后，挤去涩水，同葱丝盛于碗内；然后下二分盐和味精、醋、白糖等拌匀入味，再拈入盘内，菜上面淋香油（或熟菜油）即成。",
+      "ingredientPreview": [
+        {
+          "item": "萝卜",
+          "qty": "五两",
+          "unit": null
+        },
+        {
+          "item": "葱白",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": "三钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p213",
+      "bookName": "青笋拌折耳根",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "青笋拌折耳根",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p213",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 青笋去皮，洗净，切成长约二寸、宽约五分的薄片，用盐少许拌匀；折耳根去脚及老叶，洗净也用盐少许码过；姜、蒜切片；葱、泡红辣椒（去籽）均切成马耳朵节。\n2. 拌过的青笋片及折耳根先用冷水淘洗，挤干水份，装入碗内，然后将酱油、味精、醋、香油、姜、蒜片、葱、泡红辣椒等一起拌合，拌匀后拈入盘内即成。",
+      "ingredientPreview": [
+        {
+          "item": "青笋",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "折耳根",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "四分",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "德阳酱油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "泡红辣椒",
+          "qty": "三根",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p215",
+      "bookName": "拌辣菜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p216",
+      "bookName": "拌盐白菜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "拌盐白菜",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p216",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 黄秧白去掉老叶及根部，用水洗净，晾干后，用盐、花椒把一片片白菜抹匀，再一层一层地码在盆内（如叶大可改小），腌三天即可食用。\n2. 吃时，取出白菜，切成细丝，挤干盐水，拌以各种调料即可。",
+      "ingredientPreview": [
+        {
+          "item": "黄秧白",
+          "qty": "五斤",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "四两",
+          "unit": null
+        },
+        {
+          "item": "花椒",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": "四两",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "五分",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p217",
+      "bookName": "米汤煮青菜",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "needs-source-review",
+      "projectIds": [],
+      "promotionDisposition": "blocked-source-review",
+      "blockingReasons": [
+        "sourceQuality=needs-source-review：来源保真问题未解决。",
+        "methodSummary.dialectOrOldTerms[0].modernSummary=null",
+        "methodSummary.dialectOrOldTerms[0].confidence=medium"
+      ],
+      "proposedProductionAction": "待 source 保真问题解决后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p218",
+      "bookName": "酸菜豆瓣汤",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "酸菜豆瓣汤",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p218",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 干胡豆用温热水泡胀（得需十二小时）后用清水淘洗，剥去壳，将胡豆分成两瓣，再将色正、味好的陈泡青菜，用刀切成短丝子，把盐水挤一挤（不要挤得太干），葱切细花。\n2. 炒锅置旺火上，放入猪油烧热，先下泡青菜丝炒一下，再下胡豆瓣合炒，接着掺汤，加盐煮约十五分钟，煮至酸菜出味，汤色发白，起锅盛入碗中，放葱花，最后放味精即成。",
+      "ingredientPreview": [
+        {
+          "item": "干胡豆",
+          "qty": "五两",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "泡青菜（酸菜）",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "一钱",
+          "unit": null
+        },
+        {
+          "item": "化猪油",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": "二斤",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p219",
+      "bookName": "过浆豆花",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "过浆豆花",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p219",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 将干黄豆用水泡约六小时（中间换两、三次水）后，用石磨磨成浆，滤去豆渣，在锅内烧开，而后下生菜油散去泡子，另用一盆加三两水将石膏粉化开，再将烧开去泡的豆浆冲入盆内，然后用盖盖好，一小时后成团即可。\n2. 将酱油、花椒面、豆豉（用刀按成酱）、熟油辣椒、味精、葱（切细花）在碗内调好，再分成若干小碟。\n3. 吃时，将豆花盛碗中，调料每人一碟，拈豆花蘸碟子里的调料。",
+      "ingredientPreview": [
+        {
+          "item": "干黄豆",
+          "qty": "二斤",
+          "unit": null
+        },
+        {
+          "item": "生菜油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "四两",
+          "unit": null
+        },
+        {
+          "item": "花椒面",
+          "qty": "三分",
+          "unit": null
+        },
+        {
+          "item": "豆豉",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "熟油辣椒",
+          "qty": "三两",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "一钱",
+          "unit": null
+        },
+        {
+          "item": "熟石膏粉",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "二两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p221",
+      "bookName": "蒜泥蚕豆",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "蒜泥蚕豆",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p221",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 把出新的嫩胡豆淘洗干净后，在开水锅内煮熟，打起装筲箕内，待水分稍干时下二分盐拌匀、使之上味，蒜舂成泥。\n2. 将盐（二分）、酱油、蒜泥、熟油辣椒、醋、味精等盛碗内调成滋汁，倒入蚕豆中，拌合均匀即成。",
+      "ingredientPreview": [
+        {
+          "item": "嫩蚕豆",
+          "qty": "五两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "四分",
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "熟油辣子",
+          "qty": "一两",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "一钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p222",
+      "bookName": "酱胡豆",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "酱胡豆",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p222",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 干胡豆用温热水泡胀后，用刀将每个胡豆嘴划破，然后分几次在油锅内（油温要掌握在八成热）炸酥，打起，滗干油。\n2. 炒锅置中火上，下菜油五钱、水二两、甜酱（要稀合）、红糖、盐炒至六成热时，将锅端离火口，再把胡豆放入，不停地翻动，直到合匀，胡豆裹上酱，冷了起锅装盘。",
+      "ingredientPreview": [
+        {
+          "item": "干胡豆",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "甜酱",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "红糖",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一斤耗二两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p223",
+      "bookName": "熏豆腐干",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "熏豆腐干",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "豆腐",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p223",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 豆腐干洗净后，先切成约一寸二见方的块，再对角切成三角形，姜拍松，葱切寸节。\n2. 炒锅内菜油烧至七成热时，将豆腐干下锅炒，炒干水气即下姜、葱、酱油、白糖及汤，在中火上收至汤干亮油时，下味精、香油合匀起锅即成。",
+      "ingredientPreview": [
+        {
+          "item": "豆腐干",
+          "qty": "五两",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "二两",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "香油",
+          "qty": "五钱",
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "汤",
+          "qty": "四两",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p224",
+      "bookName": "拌鱼香豌豆",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "拌鱼香豌豆",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p224",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 鲜豌豆洗净，装筲箕内，用刀砍过（砍一刀，刀口即巴上几颗，取下装碗内，再砍再装）。然后在油锅内（油温保持在八成热）炸酥脆后打起，姜、蒜均切米，葱切细花，泡红辣椒剁细。\n2. 用碗将各味调料调好，倒入酥豌豆中拌合入味即成。",
+      "ingredientPreview": [
+        {
+          "item": "鲜豌豆",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "五分",
+          "unit": null
+        },
+        {
+          "item": "姜",
+          "qty": "二钱",
+          "unit": null
+        },
+        {
+          "item": "葱",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "蒜",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一斤耗二两",
+          "unit": null
+        },
+        {
+          "item": "白糖",
+          "qty": "六钱",
+          "unit": null
+        },
+        {
+          "item": "泡红辣椒",
+          "qty": "八钱",
+          "unit": null
+        },
+        {
+          "item": "味精",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "酱油",
+          "qty": "三钱",
+          "unit": null
+        },
+        {
+          "item": "醋",
+          "qty": "五钱",
+          "unit": null
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p225",
+      "bookName": "熏豆筋",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "alternate-source-required",
+      "projectIds": [],
+      "promotionDisposition": "blocked-alternate-source",
+      "blockingReasons": [
+        "sourceQuality=alternate-source-required：需替代来源补全正文后重新评估。"
+      ],
+      "proposedProductionAction": "需替代来源补全正文后重新评估 promotion。"
+    },
+    {
+      "entryId": "dz1979-p226",
+      "bookName": "蛋酥花仁",
+      "category": "蔬菜类",
+      "classification": "book-only",
+      "sourceQuality": "ready-for-later-promotion-review",
+      "projectIds": [],
+      "promotionDisposition": "new-recipe-candidate",
+      "blockingReasons": [],
+      "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
+      "proposedName": "蛋酥花仁",
+      "proposedTags": [
+        "川菜",
+        "蔬菜类",
+        "素菜"
+      ],
+      "proposedIdStrategy": "dz1979-p226",
+      "ingredientTarget": "data/sichuan-recipes.{curated,full}.json 的 recipe_ingredients[id]（或 completion overlay newRecipeIngredients）；qty/unit 用 rawQuantityText 字符串，不用 normalized 数值。",
+      "methodTarget": "recipe method 文本：由 methodSummary.steps 拼接“order. summary”换行（见 methodPreview）；经 completion overlay recipes{id:{method}} 或 curated JSON recipe.method 落地。",
+      "provenanceStrategy": "新建 provenance 侧文件（productionId -> entryId/bookPage/pdfPage/characteristicsSummary/uncertainties/confidence），现有 production schema 无对应字段。",
+      "schemaGapNotes": [
+        "基本 recipe + recipe_ingredients 无需 schema 扩展。",
+        "characteristicsSummary 无 production 字段（可保留于 provenance 层）。",
+        "uncertainties/confirmedReadings/confidence/sourceQuality 无 production 字段。",
+        "normalized 数值数量不能直接写入 production（qty/unit 仅字符串）。"
+      ],
+      "methodPreview": "1. 花生米择除发霉者盛筲箕内，用鲜开水边淋边搅，淋均匀后放盐拌匀上味；鸡蛋去壳加干豆粉三两调成蛋豆粉（也可加少许盐）；剩下的干豆粉用擀面杖擀细。\n2. 先将花生米倒入蛋豆粉中拌匀，再将细豆粉撒在花生米上，边撒边搅，直到花生米上的豆粉呈颗粒互不粘连。\n3. 菜油在炒锅内烧至七、八成热时，慢慢地将花生米下锅炸。炸至花生米呈现金色时，捞起晾冷即成。",
+      "ingredientPreview": [
+        {
+          "item": "花生米",
+          "qty": "一斤",
+          "unit": null
+        },
+        {
+          "item": "鸡蛋",
+          "qty": "四个",
+          "unit": null
+        },
+        {
+          "item": "菜油",
+          "qty": "一斤耗二两",
+          "unit": null
+        },
+        {
+          "item": "盐",
+          "qty": "二分",
+          "unit": null
+        },
+        {
+          "item": "干豆粉",
+          "qty": "一斤耗四两",
+          "unit": null
+        }
+      ]
+    }
+  ]
+}
