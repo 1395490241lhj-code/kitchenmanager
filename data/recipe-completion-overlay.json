@@ -520,7 +520,34 @@
         "qty": null,
         "unit": null
       }
+    ],
+    "ex--36f76a55": [
+      {
+        "item": "虾饼"
+      },
+      {
+        "item": "虾仁"
+      }
+    ],
+    "ex--9f93d3f9": [
+      {
+        "item": "豆芽"
+      },
+      {
+        "item": "鸡蛋"
+      }
     ]
+  },
+  "recipeIngredientOverrides": {
+    "ex--0b5f9f77": "replace",
+    "ex--0d31aaec": "replace",
+    "ex--0fd31741": "replace",
+    "ex--3235554e": "replace",
+    "ex--4f93c5ac": "replace",
+    "ex--addb85f5": "replace",
+    "ex--ec5d7e15": "replace",
+    "ex--36f76a55": "replace",
+    "ex--9f93d3f9": "replace"
   },
   "newRecipes": [
     {
@@ -3600,5 +3627,5 @@
       }
     ]
   },
-  "updatedAt": "2026-06-08T19:27:12.502Z"
+  "updatedAt": "2026-08-07T00:00:00.000Z"
 }

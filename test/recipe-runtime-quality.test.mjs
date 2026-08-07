@@ -212,7 +212,7 @@ test('default runtime quality covers the final Curated and Full merge chain', as
   assert.equal(report.modes.full.stats.missingMethods, 123);
   assert.equal(report.modes.full.stats.ingredientMaps, 524);
   assert.equal(report.modes.full.stats.missingIngredientMaps, 2);
-  assert.equal(report.modes.full.stats.ingredientEntries, 1762);
+  assert.equal(report.modes.full.stats.ingredientEntries, 1803);
   assert.equal(report.modes.full.stats.duplicateIds, 0);
   assert.equal(report.modes.full.stats.duplicateNames, 0);
   assert.equal(report.modes.full.stats.orphanIngredientMaps, 0);

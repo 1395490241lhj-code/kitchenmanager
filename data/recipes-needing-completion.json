@@ -14,8 +14,7 @@
       "id": "ex--c04a4822",
       "name": "水煮肉片",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "川菜代表作，最高频家常麻辣菜，base 无做法，需补现代摘要步骤",
       "suggestedPriority": "high"
@@ -24,8 +23,7 @@
       "id": "ex--5b35a2c1",
       "name": "棒棒鸡丝",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "凉拌鸡丝，夏季家常，食材常见",
       "suggestedPriority": "medium"
@@ -34,8 +32,7 @@
       "id": "ex--c6115523",
       "name": "葱末肝片",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "爆炒猪肝家常做法，需补步骤",
       "suggestedPriority": "medium"
@@ -44,8 +41,7 @@
       "id": "ex--66aec1b8",
       "name": "怪味鸡",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "川味凉菜经典，调味可标准化",
       "suggestedPriority": "medium"
@@ -64,8 +60,7 @@
       "id": "ex--e39f0328",
       "name": "家常鸡丝",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "家常快手鸡丝，食材常见",
       "suggestedPriority": "medium"
@@ -74,8 +69,7 @@
       "id": "ex--77fcc44c",
       "name": "萝卜连锅",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "连锅汤，萝卜炖肉家常汤菜",
       "suggestedPriority": "medium"
@@ -84,8 +78,7 @@
       "id": "ex--4d22a38d",
       "name": "小滑肉",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "滑肉汤，川南家常蒸/煮肉",
       "suggestedPriority": "medium"
@@ -94,8 +87,7 @@
       "id": "ex--8ba1874a",
       "name": "陈皮肉",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "陈皮牛/猪肉干香，偏小吃",
       "suggestedPriority": "low"
@@ -104,8 +96,7 @@
       "id": "ex--0b0bd95b",
       "name": "大南瓜蒸肉",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "南瓜粉蒸肉，与粉蒸肉相近",
       "suggestedPriority": "low"
@@ -114,8 +105,7 @@
       "id": "ex--17b58243",
       "name": "豆芽拌鸡丝",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "凉拌鸡丝配豆芽，家常凉菜",
       "suggestedPriority": "low"
@@ -124,8 +114,7 @@
       "id": "ex--656a7835",
       "name": "自拌鸡丝",
       "missing": [
-        "method",
-        "ingredients"
+        "method"
       ],
       "reason": "自制凉拌鸡丝，与棒棒鸡相近",
       "suggestedPriority": "low"

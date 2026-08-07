@@ -82,9 +82,12 @@ export async function applyCompletionOverlay(basePack) {
 
   // ── 2. Patch existing ingredient lists by id ───────────────────────────────
   const ingPatches = overlay.recipe_ingredients || {};
+  const ingredientOverrides = overlay.recipeIngredientOverrides || {};
   for (const [id, list] of Object.entries(ingPatches)) {
     const existing = ingMap[id] || [];
-    if (isCoarseOrEmpty(existing)) {
+    // Explicit replace overrides win even when the base list already has 2+
+    // items; everything else keeps the coarse fallback.
+    if (ingredientOverrides[id] === 'replace' || isCoarseOrEmpty(existing)) {
       ingMap[id] = list.slice();
       patchIngById++;
     }

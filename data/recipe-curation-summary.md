@@ -16,7 +16,7 @@
 | **移出** | **204** |
 | **待补全（needing-completion）** | **13** |
 | 从 overlay 补全 method 的菜 | 105 |
-| 从 overlay 补全 ingredients 的菜 | 66 |
+| 从 overlay 补全 ingredients 的菜 | 68 |
 | 移出中的重复菜 | 4 |
 
 ## 移出原因分类

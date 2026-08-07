@@ -171,7 +171,8 @@ for (const [id, p] of Object.entries(overlay.recipes || {})) {
   }
 }
 for (const [id, l] of Object.entries(overlay.recipe_ingredients || {})) {
-  if (coarse(ing[id])) { ing[id] = l.slice(); ingFromOverlay.add(id); }
+  const forceReplace = (overlay.recipeIngredientOverrides || {})[id] === 'replace';
+  if (forceReplace || coarse(ing[id])) { ing[id] = l.slice(); ingFromOverlay.add(id); }
 }
 const nIng = overlay.newRecipeIngredients || {};
 for (const r of (overlay.newRecipes || [])) {

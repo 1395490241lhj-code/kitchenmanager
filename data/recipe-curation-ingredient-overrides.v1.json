@@ -1,0 +1,71 @@
+{
+  "schema": "kitchenmanager.recipeCurationIngredientOverrides.v1",
+  "generatedAt": "2026-08-07",
+  "purpose": "记录 recipe-completion-overlay.json 中 recipeIngredientOverrides 的显式 replace 依据。这些 ID 的 overlay.recipe_ingredients 列表是无条件替换 base 的已审校完整清单，不再依赖数量 heuristic。",
+  "semantics": "recipeIngredientOverrides[id]==='replace' 时，overlay.recipe_ingredients[id] 无条件替换 base ingredients；未标记 ID 维持原有 coarse（0/1 项）fallback 行为。",
+  "items": [
+    {
+      "id": "ex--0b5f9f77",
+      "name": "荷叶蒸肉",
+      "mode": "replace",
+      "acceptedIngredientList": ["猪肉", "米粉子", "五香面", "鲜荷叶", "鲜黄豆", "花椒", "醪糟", "甜酱", "豆腐乳水", "红糖"],
+      "basis": "current accepted curated ingredients 与既有 reviewed overlay.recipe_ingredients 逐项一致；base 为 530e5f9 split 后的较粗列表。"
+    },
+    {
+      "id": "ex--0d31aaec",
+      "name": "红枣煨肘",
+      "mode": "replace",
+      "acceptedIngredientList": ["猪肘", "冰糖", "红枣", "汤"],
+      "basis": "current accepted curated ingredients 与既有 reviewed overlay.recipe_ingredients 逐项一致；base 为 530e5f9 split 后的较粗列表。"
+    },
+    {
+      "id": "ex--0fd31741",
+      "name": "夹沙肉",
+      "mode": "replace",
+      "acceptedIngredientList": ["猪肉", "红糖", "糯米", "化猪油", "干沙", "白糖", "红酱油"],
+      "basis": "current accepted curated ingredients 与既有 reviewed overlay.recipe_ingredients 逐项一致；base 为 530e5f9 split 后的较粗列表。"
+    },
+    {
+      "id": "ex--3235554e",
+      "name": "锅巴肉片",
+      "mode": "replace",
+      "acceptedIngredientList": ["猪肉", "混合油", "盐", "姜葱", "小白菜心", "猪油", "白糖", "味精", "锅巴", "泡红辣椒", "醋", "水发木耳", "水豆粉", "汤"],
+      "basis": "current accepted curated ingredients 与既有 reviewed overlay.recipe_ingredients 逐项一致；base 为 530e5f9 split 后的较粗列表。"
+    },
+    {
+      "id": "ex--4f93c5ac",
+      "name": "回锅肉",
+      "mode": "replace",
+      "acceptedIngredientList": ["猪肉", "蒜苗", "猪油", "豆瓣", "甜面酱", "红酱油", "姜", "花椒"],
+      "basis": "current accepted curated ingredients 与既有 reviewed overlay.recipe_ingredients 逐项一致；base 为 530e5f9 split 后的较粗列表。"
+    },
+    {
+      "id": "ex--addb85f5",
+      "name": "白油猪肝",
+      "mode": "replace",
+      "acceptedIngredientList": ["猪肝", "木耳", "红酱油", "葱", "花椒面", "化猪油", "小白菜心", "姜蒜", "水豆粉", "泡红辣椒"],
+      "basis": "current accepted curated ingredients 与既有 reviewed overlay.recipe_ingredients 逐项一致；base 为 530e5f9 split 后的较粗列表。"
+    },
+    {
+      "id": "ex--ec5d7e15",
+      "name": "粉蒸肉",
+      "mode": "replace",
+      "acceptedIngredientList": ["猪肉", "米粉子", "红薯", "花椒", "葱姜", "醪糟汁", "甜酱", "豆瓣乳水", "酱油"],
+      "basis": "current accepted curated ingredients 与既有 reviewed overlay.recipe_ingredients 逐项一致；base 为 530e5f9 split 后的较粗列表。"
+    },
+    {
+      "id": "ex--36f76a55",
+      "name": "椒盐虾饼",
+      "mode": "replace",
+      "acceptedIngredientList": ["虾饼", "虾仁"],
+      "basis": "accepted curated review commit 111301d 明确加入的 reviewed ingredient omissions（虾仁）；非《大众川菜》原书或其他 source 证据。"
+    },
+    {
+      "id": "ex--9f93d3f9",
+      "name": "炸豆芽饼",
+      "mode": "replace",
+      "acceptedIngredientList": ["豆芽", "鸡蛋"],
+      "basis": "accepted curated review commit 111301d 明确加入的 reviewed ingredient omissions（鸡蛋）；非《大众川菜》原书或其他 source 证据。"
+    }
+  ]
+}
