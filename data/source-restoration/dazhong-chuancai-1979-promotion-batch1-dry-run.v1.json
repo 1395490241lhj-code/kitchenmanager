@@ -1,0 +1,589 @@
+{
+  "schema": "kitchenmanager.source-restoration.promotion-batch1-dry-run.v1",
+  "generatedAt": "2026-08-07",
+  "baseline": {
+    "main": "0ffd35d6b1ba15f066b7f9fa749f4402f362107d",
+    "applicationReady": false
+  },
+  "purpose": "《大众川菜》1979 Production Batch 1 dry-run：机械选出最安全的 5 道 new-recipe-candidate，给出 overlay -> curate -> provenance 的可复现 promotion 链预览，并在临时目录用真实 curate-recipes.js 模拟完整链路。不写任何 workspace production 文件，不做真实 promotion。",
+  "selection": {
+    "criteria": [
+      "promotionDisposition=new-recipe-candidate",
+      "sourceQuality=ready-for-later-promotion-review",
+      "productionQuantityReadiness=exact-comparable",
+      "所有 production ingredients inventoryComparable=true",
+      "无 methodOnly conversionWarning",
+      "无 unallocated-group-total / same-for-each 组合数量",
+      "无 range/approximate/qualitative/unresolved",
+      "无 consumedQty/consumedReferenceQty/consumedQualifier/consumedUnit",
+      "canonical uncertainties=[]、contentMissing/contentIncomplete=false",
+      "recognition/conversion/methodSummary/titleVisualCheck/ingredient confidence 均 high",
+      "production ID/name 无冲突"
+    ],
+    "order": "ingredient特殊结构最少 -> ingredient数量较少 -> method步骤较少 -> entryId升序",
+    "eligiblePoolCount": 29,
+    "excludedSpecialRisks": {
+      "methodOnlyConversionWarning": [
+        "dz1979-p129",
+        "dz1979-p130"
+      ],
+      "nonExactOrMixedQuantity": [
+        "dz1979-p201",
+        "dz1979-p203",
+        "dz1979-p207"
+      ],
+      "consumedDualQuantity": [
+        "dz1979-p222",
+        "dz1979-p224",
+        "dz1979-p226"
+      ],
+      "sameForEachCombinedQuantity": [
+        "dz1979-p144",
+        "dz1979-p211"
+      ]
+    },
+    "selectedEntryIds": [
+      "dz1979-p143",
+      "dz1979-p204",
+      "dz1979-p195",
+      "dz1979-p200",
+      "dz1979-p180"
+    ],
+    "note": "本轮机械结果与上轮一致（p143/p204/p195/p200/p180），直接复用同一筛选规则与排序。"
+  },
+  "items": [
+    {
+      "entryId": "dz1979-p143",
+      "productionId": "dz1979-p143",
+      "name": "当归炖鸡",
+      "tags": [
+        "川菜",
+        "禽蛋鱼类"
+      ],
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p143",
+        "name": "当归炖鸡",
+        "tags": [
+          "川菜",
+          "禽蛋鱼类"
+        ],
+        "method": "1. 仔母鸡杀后去毛及内脏，洗净。在开水锅内煮去血水捞起，再用水清洗一下。当归宜用秦归，用水洗过。\n2. 用一铝锅（或沙罐），装水三斤，将鸡放入，同时下醪糟汁、当归，盖严锅口，在旺火上烧开，用小火炖约三小时即成。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p143": [
+          {
+            "item": "仔母鸡",
+            "qty": "1",
+            "unit": "只"
+          },
+          {
+            "item": "当归",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "醪糟汁",
+            "qty": "150",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p143",
+        "name": "当归炖鸡",
+        "tags": [
+          "川菜",
+          "禽蛋鱼类"
+        ],
+        "method": "1. 仔母鸡杀后去毛及内脏，洗净。在开水锅内煮去血水捞起，再用水清洗一下。当归宜用秦归，用水洗过。\n2. 用一铝锅（或沙罐），装水三斤，将鸡放入，同时下醪糟汁、当归，盖严锅口，在旺火上烧开，用小火炖约三小时即成。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p143": [
+          {
+            "item": "仔母鸡",
+            "qty": "1",
+            "unit": "只"
+          },
+          {
+            "item": "当归",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "醪糟汁",
+            "qty": "150",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p143",
+        "bookName": "当归炖鸡",
+        "bookPage": 143,
+        "pdfPage": 156,
+        "category": "禽蛋鱼类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "汤鲜肉粑，补血活血。此菜用于冬季，最宜老人、产妇食用。",
+        "uncertainties": [],
+        "confirmedReadings": [
+          {
+            "raw": "当归宜用秦归",
+            "location": "做法第1步"
+          },
+          {
+            "raw": "用小火炖约三小时即成",
+            "location": "做法第2步"
+          }
+        ],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。",
+        "methodOnly「水」→ cooking-medium"
+      ]
+    },
+    {
+      "entryId": "dz1979-p204",
+      "productionId": "dz1979-p204",
+      "name": "炒豌豆尖",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p204",
+        "name": "炒豌豆尖",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 豌豆尖择去须根，洗净。\n2. 炒锅内菜油烧至七成热时，先下盐炒匀，即下豌豆尖迅速翻炒几下起锅即可。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p204": [
+          {
+            "item": "豌豆尖",
+            "qty": "1000",
+            "unit": "g"
+          },
+          {
+            "item": "菜油",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "2.5",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p204",
+        "name": "炒豌豆尖",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 豌豆尖择去须根，洗净。\n2. 炒锅内菜油烧至七成热时，先下盐炒匀，即下豌豆尖迅速翻炒几下起锅即可。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p204": [
+          {
+            "item": "豌豆尖",
+            "qty": "1000",
+            "unit": "g"
+          },
+          {
+            "item": "菜油",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "2.5",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p204",
+        "bookName": "炒豌豆尖",
+        "bookPage": 204,
+        "pdfPage": 217,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "鲜嫩，清香。",
+        "uncertainties": [],
+        "confirmedReadings": [],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ]
+    },
+    {
+      "entryId": "dz1979-p195",
+      "productionId": "dz1979-p195",
+      "name": "干煸苦瓜",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p195",
+        "name": "干煸苦瓜",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 大白苦瓜去两头，对剖两开去瓤，洗净后打斜切成长约一寸二、厚约半分的片子；青椒去蒂去籽洗净，切成粗丝。\n2. 炒锅烧热（不用油），下苦瓜干煸，煸干水分后铲起；然后再煸青椒，煸蔫时加苦瓜同煸，煸得干香后下菜油，再煸几下，放盐合匀起锅。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p195": [
+          {
+            "item": "苦瓜",
+            "qty": "500",
+            "unit": "g"
+          },
+          {
+            "item": "青椒",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "菜油",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "4",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p195",
+        "name": "干煸苦瓜",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 大白苦瓜去两头，对剖两开去瓤，洗净后打斜切成长约一寸二、厚约半分的片子；青椒去蒂去籽洗净，切成粗丝。\n2. 炒锅烧热（不用油），下苦瓜干煸，煸干水分后铲起；然后再煸青椒，煸蔫时加苦瓜同煸，煸得干香后下菜油，再煸几下，放盐合匀起锅。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p195": [
+          {
+            "item": "苦瓜",
+            "qty": "500",
+            "unit": "g"
+          },
+          {
+            "item": "青椒",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "菜油",
+            "qty": "50",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "4",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p195",
+        "bookName": "干煸苦瓜",
+        "bookPage": 195,
+        "pdfPage": 208,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "味苦而干香，家常风味菜之一。",
+        "uncertainties": [],
+        "confirmedReadings": [],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ]
+    },
+    {
+      "entryId": "dz1979-p200",
+      "productionId": "dz1979-p200",
+      "name": "炒土豆泥",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p200",
+        "name": "炒土豆泥",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 土豆洗净上笼（或用水煮）蒸熟取出去皮，在炒锅（不要放在火上）内用锅铲按成泥后打起；葱切细花。\n2. 炒锅置中火上，下猪油烧至六成热时，放土豆泥和盐下锅炒，边炒边翻，约三分钟，再下葱花合匀起锅。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p200": [
+          {
+            "item": "土豆",
+            "qty": "500",
+            "unit": "g"
+          },
+          {
+            "item": "化猪油",
+            "qty": "100",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "40",
+            "unit": "g"
+          },
+          {
+            "item": "葱",
+            "qty": "25",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p200",
+        "name": "炒土豆泥",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 土豆洗净上笼（或用水煮）蒸熟取出去皮，在炒锅（不要放在火上）内用锅铲按成泥后打起；葱切细花。\n2. 炒锅置中火上，下猪油烧至六成热时，放土豆泥和盐下锅炒，边炒边翻，约三分钟，再下葱花合匀起锅。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p200": [
+          {
+            "item": "土豆",
+            "qty": "500",
+            "unit": "g"
+          },
+          {
+            "item": "化猪油",
+            "qty": "100",
+            "unit": "g"
+          },
+          {
+            "item": "盐",
+            "qty": "40",
+            "unit": "g"
+          },
+          {
+            "item": "葱",
+            "qty": "25",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p200",
+        "bookName": "炒土豆泥",
+        "bookPage": 200,
+        "pdfPage": 213,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "白中带绿，味清鲜，可下饭亦可单吃。",
+        "uncertainties": [],
+        "confirmedReadings": [],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ]
+    },
+    {
+      "entryId": "dz1979-p180",
+      "productionId": "dz1979-p180",
+      "name": "干炒豆腐",
+      "tags": [
+        "川菜",
+        "蔬菜类"
+      ],
+      "proposedOverlayRecipe": {
+        "id": "dz1979-p180",
+        "name": "干炒豆腐",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 豆腐洗净沥干水，盛碗内用锅铲铲碎。\n2. 炒锅置中火上，放入菜油，烧至六成热时，将碗内豆腐倒锅中炒散，至豆腐无生气味时，放盐、味精炒匀，待水汽炒干、表皮现黄色，豆腐收成小颗粒时，放入葱花，炒转起锅即成。"
+      },
+      "proposedOverlayIngredients": {
+        "dz1979-p180": [
+          {
+            "item": "豆腐",
+            "qty": "6",
+            "unit": "个"
+          },
+          {
+            "item": "盐",
+            "qty": "2.5",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g"
+          },
+          {
+            "item": "菜油",
+            "qty": "75",
+            "unit": "g"
+          },
+          {
+            "item": "葱花",
+            "qty": "20",
+            "unit": "g"
+          }
+        ]
+      },
+      "proposedCuratedRecipe": {
+        "id": "dz1979-p180",
+        "name": "干炒豆腐",
+        "tags": [
+          "川菜",
+          "蔬菜类"
+        ],
+        "method": "1. 豆腐洗净沥干水，盛碗内用锅铲铲碎。\n2. 炒锅置中火上，放入菜油，烧至六成热时，将碗内豆腐倒锅中炒散，至豆腐无生气味时，放盐、味精炒匀，待水汽炒干、表皮现黄色，豆腐收成小颗粒时，放入葱花，炒转起锅即成。"
+      },
+      "proposedCuratedIngredients": {
+        "dz1979-p180": [
+          {
+            "item": "豆腐",
+            "qty": "6",
+            "unit": "个"
+          },
+          {
+            "item": "盐",
+            "qty": "2.5",
+            "unit": "g"
+          },
+          {
+            "item": "味精",
+            "qty": "1",
+            "unit": "g"
+          },
+          {
+            "item": "菜油",
+            "qty": "75",
+            "unit": "g"
+          },
+          {
+            "item": "葱花",
+            "qty": "20",
+            "unit": "g"
+          }
+        ]
+      },
+      "provenanceRecord": {
+        "entryId": "dz1979-p180",
+        "bookName": "干炒豆腐",
+        "bookPage": 180,
+        "pdfPage": 193,
+        "category": "蔬菜类",
+        "sourceQuality": "ready-for-later-promotion-review",
+        "classification": "book-only",
+        "characteristicsSummary": "豆腐呈碎颗粒状，咸鲜无汁，干香有味，宜下酒饭。",
+        "uncertainties": [],
+        "confirmedReadings": [],
+        "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+      },
+      "sourceToProductionTransformNotes": [
+        "method 仅由 canonical methodSummary.steps 拼接（2 步），未补写书中没有的信息。",
+        "ingredients 直接复用 readiness 已审核 productionIngredientPlan，qty/unit 未重新推算。"
+      ]
+    }
+  ],
+  "promotionChain": [
+    "1. recipe-completion-overlay.json：newRecipes + newRecipeIngredients 追加 5 道（recipeIngredientOverrides 保持不变）",
+    "2. 重跑 scripts/curate-recipes.js：物化到 data/sichuan-recipes.curated.json",
+    "3. provenance 独立侧文件承载书页/置信/特点等 source 信息",
+    "4. 不修改 data/sichuan-recipes.json（Full 库）"
+  ],
+  "simulation": {
+    "tempCurateResult": {
+      "headCuratedCount": 126,
+      "simulatedCuratedCount": 131,
+      "newRecipeIds": [
+        "dz1979-p143",
+        "dz1979-p180",
+        "dz1979-p195",
+        "dz1979-p200",
+        "dz1979-p204"
+      ],
+      "newRecipeCount": 5,
+      "existingDeleted": 0,
+      "existingRecipeObjectModified": 0,
+      "existingIngredientMapModified": 0,
+      "newRecipesHaveMethod": true,
+      "newRecipesHaveTags": true,
+      "newIngredientMapsComplete": true,
+      "strictCurrentPlusFive": true
+    },
+    "auxiliaryGeneratedFiles": {
+      "recipeCurationRemoved": {
+        "changes": "unchanged",
+        "note": "Batch 1 的 5 道均有 method，curate 直接保留，不进入 removed；既有 removed 决定不变。"
+      },
+      "recipesNeedingCompletion": {
+        "changes": "unchanged",
+        "note": "Batch 1 不改变任何既有 needing 决定。"
+      },
+      "recipeCurationSummaryMd": {
+        "changes": "expected count changes from the 5 additions",
+        "expectedLineChanges": [
+          "原始菜谱（有效集）: 322 -> 327",
+          "overlay 新增/补全净增: 58 -> 63",
+          "curated 保留: 126 -> 131",
+          "从有效集保留（有做法）: 105 -> 110",
+          "从 overlay 补全 method: 105 -> 110",
+          "从 overlay 补全 ingredients: 68 -> 73"
+        ]
+      }
+    }
+  },
+  "pwaVisibilityAudit": {
+    "overlayFetch": {
+      "url": "./data/recipe-completion-overlay.json",
+      "cacheMode": "fetch(..., { cache: 'no-store' })",
+      "note": "src/recipe-completion.js 每次页面加载直接取最新 overlay。"
+    },
+    "basePackFetch": {
+      "url": "data/sichuan-recipes.{curated,full}.json?v=<releaseVersion>",
+      "cacheMode": "fetch(..., { cache: 'no-store' })",
+      "note": "app.js loadBasePack 按当前 ?v= 版本取基包，无 HTTP 缓存。"
+    },
+    "serviceWorker": {
+      "strategy": "data/*.json 命中 sw.v18.js isDataJson -> networkFirst（在线总是取最新，离线回退缓存）",
+      "cacheBumpRequired": false,
+      "note": "数据内容变更不要求同步更新 cache-bust/version/service-worker 版本；只有 JS/CSS/SW 资产改动才需要发布版本更新。"
+    },
+    "conclusion": "真实 promotion 后，在线用户经 networkFirst 立即获得新 overlay 与 curated JSON，无需同步更新 cache-bust/version/SW 相关版本。"
+  },
+  "iosDecodeAudit": {
+    "recipeShape": "recipes[]: { id: string, name: string, method?: string, tags?: string[] }",
+    "ingredientShape": "recipe_ingredients[id]: [{ item: string, qty?: string, unit?: string }]",
+    "batch1Compatible": true,
+    "note": "RecipeService.RemoteRecipe/RemoteIngredient 可直接解码上述结构。"
+  },
+  "verificationProblems": []
+}
