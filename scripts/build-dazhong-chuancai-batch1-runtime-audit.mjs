@@ -86,7 +86,8 @@ function simulateProbe(item, qty, unit, probeName, stockUnit) {
   };
 }
 
-const entries = [];
+const coreCompatibility = [];
+const nonCoreObservations = [];
 for (const id of [...promotedIds].sort()) {
   const recipe = curated.recipes.find((entry) => entry.id === id);
   if (!recipe) throw new Error(`missing promoted recipe ${id}`);
@@ -127,25 +128,9 @@ for (const id of [...promotedIds].sort()) {
     const unitNatural = unit === 'g' || unit === guessUnit;
     const normalized = normalizeIngredientAmount(qty, unit);
 
-    let compatibility;
+    let compatibility = null;
     const reasons = [];
-    if (!strictResolved) {
-      compatibility = 'unresolved-name-match';
-      const containsOnly = userProbes.filter((probe) => probe.softNameMatch && !probe.strictNameMatch)
-        .map((probe) => probe.probeName);
-      reasons.push('现有 canonicalization 无法把该 production item 解析到任何常见用户库存名称（严格名称层失败）。');
-      if (containsOnly.length > 0) {
-        reasons.push(`仅存在 contains 级脆弱匹配（不可靠）：${containsOnly.join('、')}。`);
-      }
-    } else if (unitNatural) {
-      compatibility = 'exact-compatible';
-      reasons.push(`production unit「${unit}」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。`);
-    } else {
-      compatibility = 'expected-unit-confirmation';
-      reasons.push(`名称可解析，但 production unit「${unit}」与常用库存单位「${guessUnit}」无可安全换算，需用户按 production unit 录入库存或人工确认。`);
-    }
-
-    entries.push({
+    const baseRecord = {
       productionId: id,
       recipeName: recipe.name,
       item,
@@ -165,11 +150,50 @@ for (const id of [...promotedIds].sort()) {
         unit: normalized.unit,
         finite: Number.isFinite(Number(normalized.qty)),
       },
+    };
+
+    if (role !== 'core') {
+      // Seasoning / non-stock items never enter the inventory compatibility
+      // classification; keep them only for quantity provenance.
+      nonCoreObservations.push({
+        ...baseRecord,
+        observation: `role=${role}，不参与库存名称兼容三分类；qty/unit 仍受 quantity-review 质量门禁约束。`,
+      });
+      continue;
+    }
+
+    const canonicalProbe = probes.find((probe) => probe.isIdentity && probe.probeName === canonical);
+    const evidenceProbes = canonicalProbe
+      ? [canonicalProbe, ...userProbes]
+      : [...userProbes];
+    const exactEvidence = evidenceProbes.some((probe) => probe.coverageWithStockUnit === 'exact');
+
+    if (!strictResolved) {
+      compatibility = 'unresolved-name-match';
+      const containsOnly = userProbes.filter((probe) => probe.softNameMatch && !probe.strictNameMatch)
+        .map((probe) => probe.probeName);
+      reasons.push('现有 canonicalization 无法把该 production item 解析到任何常见用户库存名称（严格名称层失败）。');
+      if (containsOnly.length > 0) {
+        reasons.push(`仅存在 contains 级脆弱匹配（不可靠）：${containsOnly.join('、')}。`);
+      }
+    } else if (!unitNatural) {
+      compatibility = 'expected-unit-confirmation';
+      reasons.push(`名称可解析，但 production unit「${unit}」与常用库存单位「${guessUnit}」无可安全换算，需用户按 production unit 录入库存或人工确认。`);
+    } else if (exactEvidence) {
+      compatibility = 'exact-compatible';
+      reasons.push('名称严格可解析，且存在 production unit 下真实 getStockCoverageAnalysis=exact 的证据（非仅因 unit=g 判定）。');
+    } else {
+      compatibility = 'expected-unit-confirmation';
+      reasons.push('名称可解析且 unit 自然，但缺少真实 coverage=exact 证据，需人工确认。');
+    }
+
+    coreCompatibility.push({
+      ...baseRecord,
       identityMatch: identityProbe ? {
         probeName: identityProbe.probeName,
         coverageWithProductionUnit: identityProbe.coverageWithStockUnit,
       } : null,
-      probes: userProbes.map((probe) => ({
+      probes: evidenceProbes.map((probe) => ({
         probeName: probe.probeName,
         strictNameMatch: probe.strictNameMatch,
         softNameMatch: probe.softNameMatch,
@@ -181,6 +205,8 @@ for (const id of [...promotedIds].sort()) {
     });
   }
 }
+
+const entries = coreCompatibility;
 
 // -- Summary / verification -------------------------------------------------
 
@@ -214,15 +240,32 @@ const unresolvedDetails = entries
   }));
 
 const problems = [];
-const coreRoleCount = entries.filter((entry) => entry.role === 'core').length;
-if (entries.length !== 19) problems.push(`audited-count-not-19:${entries.length}`);
+const coreRoleCount = coreCompatibility.length;
+const nonCoreRoleCount = nonCoreObservations.length;
+if (coreRoleCount + nonCoreRoleCount !== 19) {
+  problems.push(`audited-count-not-19:${coreRoleCount + nonCoreRoleCount}`);
+}
+if (coreRoleCount !== 7) problems.push(`core-count-not-7:${coreRoleCount}`);
+if (nonCoreRoleCount !== 12) problems.push(`non-core-count-not-12:${nonCoreRoleCount}`);
+if (counts.exactCompatible !== 5) problems.push(`exact-count-not-5:${counts.exactCompatible}`);
+if (counts.expectedUnitConfirmation !== 1) {
+  problems.push(`unit-confirm-count-not-1:${counts.expectedUnitConfirmation}`);
+}
+if (counts.unresolvedNameMatch !== 1) {
+  problems.push(`unresolved-count-not-1:${counts.unresolvedNameMatch}`);
+}
 if (entries.some((entry) => entry.normalizedQuantity.finite === false)) {
   problems.push('non-finite-normalized-quantity');
 }
-const recipesWithResults = new Set(entries.map((entry) => entry.productionId));
+const allEntries = [...coreCompatibility, ...nonCoreObservations];
+const recipesWithResults = new Set(allEntries.map((entry) => entry.productionId));
 if (recipesWithResults.size !== 5) problems.push(`recipes-covered-not-5:${recipesWithResults.size}`);
 if (!entries.every((entry) => ['exact-compatible', 'expected-unit-confirmation', 'unresolved-name-match'].includes(entry.compatibility))) {
   problems.push('invalid-compatibility-value');
+}
+const nonCoreInClassification = nonCoreObservations.length;
+if (nonCoreInClassification > 0 && nonCoreObservations.some((entry) => entry.compatibility)) {
+  problems.push('non-core-entry-with-compatibility');
 }
 
 const output = {
@@ -231,25 +274,36 @@ const output = {
   baselineCommit: '4305bcd52c4247e2cc0e154c09f18e63166ee4c2',
   purpose: '审计 Batch 1 正式上线后的真实库存/推荐兼容性：对 5 道全部 production ingredient，经现有 canonicalization（getCanonicalName / aliases / families / isSmartIngredientMatch）与库存匹配（getStockCoverageAnalysis）模拟用户库存名称/单位行为。只审计，不修改 production/runtime。',
   compatibilityDefinitions: {
-    'exact-compatible': '常见用户库存名称可严格解析，且 production unit 为该食材自然单位（g 或 guessKitchenUnit），同 unit 可 exact 匹配。',
+    'exact-compatible': 'core ingredient：名称严格可解析，production unit 为该食材自然单位（g 或 guessKitchenUnit），且存在真实 getStockCoverageAnalysis=exact 证据（不因 unit=g 单独判定）。',
     'expected-unit-confirmation': '名称可解析，但 production unit 与常用库存单位无可安全换算，需要用户按 production unit 录入或人工确认；不是 bug，禁止新增换算。',
     'unresolved-name-match': '现有 canonicalization 无法把 production item 解析到常见用户库存名称；需记录具体 name pair，本轮不新增 alias。',
   },
+  scopeNote: 'compatibility 三分类只应用于 role=core 的 ingredient（库存/推荐仅对 core 做匹配）；seasoning/non-stock 归入 nonCoreObservations，仅保留 quantity provenance，不计入三分类或 Batch2 gate。',
+  batch2GateRules: [
+    '只检查 candidate 的 core ingredients。',
+    '任何 core unresolved-name-match 阻塞 promotion。',
+    'core expected-unit-confirmation 不阻塞，但必须记录。',
+    'seasoning 不参与库存名称兼容 gate，但 qty/unit 仍受已有 quantity-review 质量门禁约束。',
+  ],
   summary: {
-    auditedIngredientCount: entries.length,
+    auditedIngredientCount: coreCompatibility.length + nonCoreObservations.length,
     coreIngredientCount: coreRoleCount,
-    exactCompatibleCount: counts.exactCompatible,
-    expectedUnitConfirmationCount: counts.expectedUnitConfirmation,
-    unresolvedNameMatchCount: counts.unresolvedNameMatch,
+    nonCoreIngredientCount: nonCoreRoleCount,
+    coreCompatibilityCounts: {
+      'exact-compatible': counts.exactCompatible,
+      'expected-unit-confirmation': counts.expectedUnitConfirmation,
+      'unresolved-name-match': counts.unresolvedNameMatch,
+    },
     affectedRecipes,
     unresolvedDetails,
     roleBreakdown: {
       core: coreRoleCount,
-      seasoning: entries.filter((entry) => entry.role === 'seasoning').length,
-      'non-stock': entries.filter((entry) => entry.role === 'non-stock').length,
+      seasoning: nonCoreObservations.filter((entry) => entry.role === 'seasoning').length,
+      'non-stock': nonCoreObservations.filter((entry) => entry.role === 'non-stock').length,
     },
   },
-  entries,
+  coreCompatibility,
+  nonCoreObservations,
   verificationProblems: problems,
 };
 
