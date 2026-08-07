@@ -1,0 +1,254 @@
+{
+  "schema": "kitchenmanager.source-restoration.crosswalk-probable-review.v1",
+  "generatedAt": "2026-08-07",
+  "baseline": {
+    "main": "a99eef6982a8a0cc414f862a9e4e705ae905e84b",
+    "originMain": "a99eef6982a8a0cc414f862a9e4e705ae905e84b",
+    "applicationReady": false,
+    "crosswalkClassificationCounts": {
+      "exact-name": 74,
+      "confirmed-alias": 5,
+      "probable-match-needs-review": 5,
+      "book-only": 63
+    },
+    "crosswalkSourceQualityCounts": {
+      "ready-for-later-promotion-review": 90,
+      "needs-source-review": 45,
+      "alternate-source-required": 12
+    }
+  },
+  "purpose": "复核《大众川菜》1979 crosswalk 中仅剩的 5 个 probable-match-needs-review 候选，逐项对照 canonical source 正文与项目 Curated/Full 候选菜谱正文，给出 confirmed-alias / remain-probable / reject-candidate 之一。本轮只记录判断，不把判断写回 canonical source、name-matches、crosswalk、Curated/Full/HOC，不修改 applicationReady，不开始 promotion。",
+  "method": [
+    "不读取 PDF，不调用视觉模型，不重新审 147 道。",
+    "source 正文取自 data/source-restoration/dazhong-chuancai-1979-recipes.v1.json（titleVisualCheck / ingredients / methodSummary / characteristicsSummary，均为高置信度已核读字段）。",
+    "candidate 正文：Curated 库条目取 data/sichuan-recipes.curated.json 的 method 字段；Full 库条目 method 不在 recipe 对象内，热窝姜汁鸡取 data/recipe-methods.js 同名条目正文，其余 Full 候选与 Curated 同 ID 共享 Curated method。",
+    "同一 ID 同时存在于 Curated/Full 的候选（ex--8aec747f、ex--efa871b1、ex--57fd9bbb）经 recipe_ingredients 比对确认是同一 project recipe 实体。",
+    "比较维度：主料身份、主料形态/刀工、核心辅料、核心调味结构、关键烹调步骤与顺序、成品特点。",
+    "名称相似不作为确认依据；确认必须由正文证据支持（confirmed-alias 必须 confidence=high）。",
+    "reject-candidate 表示正文实质冲突，候选清空，后续回到 book-only 或另寻候选。"
+  ],
+  "decisionDefinitions": {
+    "confirmed-alias": "正文证据足以证明是同一道菜；必须 confidence=high。",
+    "remain-probable": "高度相似但仍存在无法解释的差异；不升级映射。",
+    "reject-candidate": "正文出现实质冲突，不能视为同一道菜；候选清空。"
+  },
+  "confidenceDefinitions": {
+    "high": "证据明确、无实质冲突。",
+    "medium": "方向可信但存在未消除差异。",
+    "low": "证据薄弱。"
+  },
+  "summary": {
+    "reviewed": 5,
+    "confirmedAlias": 2,
+    "remainProbable": 1,
+    "rejectCandidate": 2,
+    "byEntry": {
+      "dz1979-p141": "confirmed-alias",
+      "dz1979-p168": "reject-candidate",
+      "dz1979-p173": "remain-probable",
+      "dz1979-p177": "confirmed-alias",
+      "dz1979-p206": "reject-candidate"
+    }
+  },
+  "items": [
+    {
+      "entryId": "dz1979-p141",
+      "bookName": "热味姜汁鸡",
+      "candidateProjectName": "热窝姜汁鸡",
+      "candidateProjectIds": [
+        {
+          "library": "full",
+          "id": "ex--832d7c5d"
+        }
+      ],
+      "candidateEntityNote": "Full 库 ex--832d7c5d；Full recipe 对象无 method 字段，正文取自 data/recipe-methods.js「热窝姜汁鸡」条目（含同名原料表）。Curated 库无此 ID。",
+      "sourceEvidence": [
+        "标题：热味姜汁鸡（titleVisualCheck=high）。",
+        "原料：熟公鸡肉一斤；葱、酱油各五钱；盐四分；醋六钱；菜油一两五钱；水豆粉、姜各一两；汤八两。",
+        "做法：熟公鸡肉砍成八分见方块，姜剁细米、葱切细花；菜油烧至七成热，下鸡块、姜米、葱花（用一半）煸约一分钟，加盐、酱油、汤焖烧约五分钟，下水豆粉收浓滋汁，临起锅下醋及葱花合匀入盘。",
+        "特点：姜醋味浓，酒饭均宜。附注：如吃辣可在煸鸡时下郫县豆瓣，或收浓滋汁时下辣椒油五钱。"
+      ],
+      "candidateEvidence": [
+        "项目名：热窝姜汁鸡。",
+        "原料（recipe-methods.js）：肥嫩母鸡、菜油、姜米、葱、盐、酱油、二汤、醋、水豆粉、净辣椒油。",
+        "做法：选煮熟的肥嫩母鸡约整鸡五分之三，去腿骨，砍成一寸四长、五分宽的条块；姜切姜米、葱切细花；菜油烧至七成热，把鸡块、姜米、葱炒均匀，加盐、酱油、二汤焖烧八分钟入味，加醋和水豆粉搅匀起锅，起锅时再放净辣椒油。"
+      ],
+      "similarities": [
+        "主料同为熟鸡块（熟鸡肉砍块）配姜米、葱花。",
+        "核心调味结构一致：盐、酱油、醋、汤/二汤的姜醋味型，是这道菜的身份核心。",
+        "关键步骤与顺序逐项一致：菜油七成热 → 下鸡块+姜米+葱花煸炒 → 加盐酱油汤焖烧 → 水豆粉收浓滋汁 → 临起锅下醋。",
+        "项目版起锅放净辣椒油，对应原书附注中的辣椒油变法。"
+      ],
+      "differences": [
+        "主料禽别：原书「熟公鸡肉」vs 项目「肥嫩母鸡」。",
+        "刀工尺寸：原书八分见方块 vs 项目一寸四长五分宽条块（均为带骨砍块）。",
+        "焖烧时长：约五分钟 vs 八分钟。",
+        "辣椒油：原书为附注可选变法，项目版为固定起锅步骤。"
+      ],
+      "decision": "confirmed-alias",
+      "confidence": "high",
+      "rationale": "正文结构证明成立而非字形猜测：两份正文的调味体系（姜醋汁+盐酱油）、步骤顺序（七成热油煸鸡块姜米葱花→焖烧→水豆粉收汁→临起锅下醋）与成品（姜醋味浓）逐项一致；公鸡/母鸡与尺寸差异属同菜版本级变体，可解释。热味/热窝为该姜汁鸡菜名的历史写法差异。",
+      "crosswalkImpact": "可从 probable-match-needs-review 升级为 confirmed-alias，绑定 full ex--832d7c5d（仅 Full 库存在）。本轮不写回。"
+    },
+    {
+      "entryId": "dz1979-p168",
+      "bookName": "豆腐鱼",
+      "candidateProjectName": "豆腐鲫鱼",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--8aec747f"
+        },
+        {
+          "library": "full",
+          "id": "ex--8aec747f"
+        }
+      ],
+      "candidateEntityNote": "ex--8aec747f 同时存在于 Curated/Full，recipe_ingredients 均为鲫鱼+豆腐，确认为同一 project recipe 实体；正文取 Curated 版 method。",
+      "sourceEvidence": [
+        "标题：豆腐鱼。原料：鲜鱼七两（原书未指定鱼种）；豆腐四个；葱白八钱；盐；醪糟汁一两五钱；味精；豆瓣一两二钱；化猪油二两五钱；酱油一两；甜酱五钱；水豆粉一两五钱；汤一斤五两。",
+        "做法：鲜鱼剖腹去鳞腮内脏洗净，两面划三刀抹盐；豆腐切块开水煮约两分钟沥水；猪油六成热下鱼煎至两面浅黄，拨锅边用原油把豆瓣煵酥，加酱油、汤、葱白和豆腐合烧约十分钟，再放醪糟汁、甜酱、味精上味；鱼先拈入盘，锅内下水豆粉收浓滋汁，把豆腐连汁一同挂在鱼上。",
+        "特点：色泽金红，味厚，豆腐嫩而不烂，入口鲜美。"
+      ],
+      "candidateEvidence": [
+        "项目名：豆腐鲫鱼。原料：鲫鱼、豆腐。",
+        "做法：鲫鱼治净，两面煎至微黄定型，豆腐切块；爆香姜蒜，加足量热水大火烧开，滚出奶白鱼汤；下豆腐同煮，小火炖至入味、汤色乳白；加盐调味，撒葱花（喜辣可加少许泡椒）起锅。"
+      ],
+      "similarities": [
+        "主料组合同为「鱼+豆腐」。",
+        "鱼均先煎（原书两面浅黄 / 项目两面微黄定型）。",
+        "菜名同为「豆腐+鱼」结构。"
+      ],
+      "differences": [
+        "核心调味结构冲突：原书为豆瓣+甜酱+醪糟汁+酱油的厚味红味；项目为姜蒜+盐的清汤白味，无豆瓣、甜酱、醪糟。",
+        "关键步骤冲突：原书合烧后收芡，豆腐连汁挂于鱼上（家常红烧/干烧形态）；项目大火滚出奶白鱼汤再小火炖（汤菜形态）。",
+        "成品特点冲突：原书「色泽金红、味厚」vs 项目「汤色乳白」。",
+        "鱼种：原书未指定（鲜鱼），项目指定鲫鱼。"
+      ],
+      "decision": "reject-candidate",
+      "confidence": "high",
+      "rationale": "「豆腐鱼」看似对应「豆腐鲫鱼」，但两份正文在核心调味结构（豆瓣甜酱醪糟红味 vs 姜蒜白汤）、关键工艺（收芡挂汁 vs 滚汤炖制）与成品形态（金红厚味 vs 乳白清汤）上实质冲突，不能视为同一道菜。",
+      "crosswalkImpact": "候选应清空，条目回到 book-only。当前项目鲫鱼菜仅凉粉鲫鱼、干烧鲫鱼、豆腐鲫鱼，均非豆瓣豆腐红烧形态，暂无更合适候选可指。"
+    },
+    {
+      "entryId": "dz1979-p173",
+      "bookName": "干煸鳝鱼丝",
+      "candidateProjectName": "干煸鳝鱼",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--efa871b1"
+        },
+        {
+          "library": "full",
+          "id": "ex--efa871b1"
+        }
+      ],
+      "candidateEntityNote": "ex--efa871b1 同时存在于 Curated/Full，recipe_ingredients 均为鳝鱼，确认为同一 project recipe 实体；正文取 Curated 版 method。",
+      "sourceEvidence": [
+        "标题：干煸鳝鱼丝。原料：鳝鱼二斤；姜五钱；葱五钱；蒜八钱；酱油八钱；醋三钱；芹菜三两；郫县豆瓣六钱；菜油三两；醪糟汁一两；花椒面五分；味精二分。",
+        "做法：选肚黄肉厚的大鳝鱼，去头尾、骨刺洗净，打斜切成长约一寸半、宽约二分的丝；芹菜切九分丝，姜葱蒜切细丝；旺火七成热下鳝鱼丝煸炒约五分钟（以煸干水汽、鳝鱼吐油为度），加豆瓣煵出红油，下姜蒜及酱油，再加芹菜、葱丝，烹醋及味精，炒匀起锅，菜上撒花椒面。",
+        "特点：麻辣干香，鲜美可口，佐酒佳肴。"
+      ],
+      "candidateEvidence": [
+        "项目名：干煸鳝鱼。原料：鳝鱼。",
+        "做法：鳝鱼治净去骨，切段沥干水分；锅下油，中火把鳝鱼段煸炒至水汽收干、边缘微焦酥香；下姜蒜、干辣椒、花椒、豆瓣炒香，可加芹菜或蒜苗同煸；烹少许料酒、酱油，翻炒至干香入味起锅。"
+      ],
+      "similarities": [
+        "主料同为鳝鱼，核心技法同为干煸（煸至水汽收干/吐油、干香）。",
+        "核心调味共有豆瓣（炒出红油）与姜蒜。",
+        "芹菜在两份正文均出现（原书固定，项目可选）。"
+      ],
+      "differences": [
+        "刀工/成品形态：原书明确切「丝」（一寸半长二分宽），项目明确切「段」。",
+        "调味细节：原书用醪糟汁+醋+花椒面（起锅撒面），干辣椒/花椒不入锅；项目用料酒+干辣椒+花椒入锅，无醋与撒面花椒面。",
+        "命名：项目名省略形态词「丝」。"
+      ],
+      "decision": "remain-probable",
+      "confidence": "medium",
+      "rationale": "干煸技法与豆瓣主调一致，同属干煸鳝鱼家族，但项目正文明确为「切段」形态，与原书「切丝」形态及醪糟/醋/花椒面调味组合存在无法消除的差异，不能无歧义确认为同一道菜。",
+      "crosswalkImpact": "维持 probable-match-needs-review，reviewRequired=true，不升级绑定。"
+    },
+    {
+      "entryId": "dz1979-p177",
+      "bookName": "麻辣豆腐",
+      "candidateProjectName": "麻婆豆腐",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "fam-mapo-tofu"
+        }
+      ],
+      "candidateEntityNote": "fam-mapo-tofu 仅存在于 Curated 库；两份正文（Curated method 与 recipe-methods.js 同名条目）一并核对。",
+      "sourceEvidence": [
+        "标题：麻辣豆腐。原料：豆腐一斤；猪肉二两；菜油一两五钱；郫县豆瓣一两；盐三分；花椒面二分；蒜苗一两五钱；豆豉十余粒；酱油五钱；辣椒面四钱；水豆粉一两五钱；汤八两。",
+        "做法：选石膏豆腐打成五分见方的颗，开水煮后沥干；瘦多肥少的猪肉剁碎粒，蒜苗切五分段，豆豉按细；中火五成热下碎肉炒干水气，下豆瓣、豆豉炒香，下辣椒面炒出红油，放盐酱油掺汤下豆腐烧约三分钟，下蒜苗轻铲至变色，水豆粉勾芡起锅装碗，汤面撒花椒面。",
+        "特点：色深、味厚，麻辣烫鲜。"
+      ],
+      "candidateEvidence": [
+        "项目名：麻婆豆腐（curated fam-mapo-tofu）。",
+        "Curated 正文：嫩豆腐切块入淡盐水焯约1分钟沥干；热油下肉末炒散出油，加豆瓣酱姜蒜末炒出红油；加清水或高汤烧开，下豆腐轻推烧2-3分钟入味；分两次淋水淀粉勾芡至浓稠；起锅装盘撒花椒粉和葱花。",
+        "recipe-methods.js 正文：牛肉剁细末、豆豉剁碎、蒜苗切节、豆腐切方块沸盐水焯烫沥干；牛肉末炒至酥香，加豆瓣酱、辣椒粉炒出红油加姜蒜末，掺鲜汤；下豆腐加酱油盐糖小火烧透；第一次勾芡、加蒜苗、第二次勾芡收汁，淋红油撒花椒粉起锅。"
+      ],
+      "similarities": [
+        "主料组合一致：豆腐+肉末+豆瓣+辣椒面+花椒面+豆豉+蒜苗+水豆粉/水淀粉（recipe-methods 版豆豉、蒜苗齐全）。",
+        "核心调味结构一致：豆瓣炒红油+辣椒面+豆豉+花椒面的麻辣组合。",
+        "关键步骤顺序一致：豆腐焯水 → 肉末炒干/酥 → 豆瓣辣椒面炒出红油 → 掺汤下豆腐烧 → 勾芡 → 撒花椒面。",
+        "成品特点一致：麻辣烫鲜（经典麻婆豆腐「麻辣烫香酥嫩」）。"
+      ],
+      "differences": [
+        "肉末种类：原书猪肉 vs 经典正文牛肉末（家常变体常见）。",
+        "勾芡次数：原书一次 vs 经典正文两次。",
+        "原书未列姜蒜末与糖；经典正文含姜蒜末、糖。",
+        "项目 Curated 短版未列豆豉、蒜苗（recipe-methods 经典版含）。"
+      ],
+      "decision": "confirmed-alias",
+      "confidence": "high",
+      "rationale": "「麻辣豆腐」是《大众川菜》1979 对麻婆豆腐的写法：正文在原料组合、麻辣调味结构、关键工序顺序与成品特点上逐项吻合，差异（猪肉/牛肉、勾芡次数、糖与姜蒜有无）均为同菜家常变体级差异，证据足以确认同一道菜。",
+      "crosswalkImpact": "可从 probable-match-needs-review 升级为 confirmed-alias，绑定 curated fam-mapo-tofu（仅 Curated 库存在）。本轮不写回。"
+    },
+    {
+      "entryId": "dz1979-p206",
+      "bookName": "烧拌莴笋",
+      "candidateProjectName": "烧拌鲜笋",
+      "candidateProjectIds": [
+        {
+          "library": "curated",
+          "id": "ex--57fd9bbb"
+        },
+        {
+          "library": "full",
+          "id": "ex--57fd9bbb"
+        }
+      ],
+      "candidateEntityNote": "ex--57fd9bbb 同时存在于 Curated/Full，recipe_ingredients 均为鲜笋，确认为同一 project recipe 实体；正文取 Curated 版 method。",
+      "sourceEvidence": [
+        "标题：烧拌莴笋。原料：莴笋七两；盐四分；酱油三钱；香油三钱；辣椒油五钱；味精二分；干辣椒四根。",
+        "做法：莴笋洗净，用干净菜叶包裹两层，放于柴灶灰火（子母火）中烧至水分蒸发、笋体变软已熟取出；去叶削皮拍松，切不规则筷子条盛盘；干辣椒切节干锅炕香铡细，加酱油、盐、辣椒油、味精、香油调匀，淋于莴笋上。",
+        "特点：农村传统做法，菜脆嫩，味香辣。"
+      ],
+      "candidateEvidence": [
+        "项目名：烧拌鲜笋。原料：鲜笋。",
+        "做法：鲜笋处理干净，焯水或煮熟后晾凉；改刀装盘；蒜泥、生抽、醋、辣椒油、花椒面等调成味汁淋在笋上；浇一勺热油激香，拌匀即可。"
+      ],
+      "similarities": [
+        "菜名结构同为「烧拌+笋」。",
+        "成品均为凉拌形态、香辣味。"
+      ],
+      "differences": [
+        "主料身份冲突：莴笋（茎用莴苣）≠ 鲜笋（竹笋），非默认同义食材。",
+        "烹调方法：原书灰火包裹烧熟 vs 项目焯水/水煮。",
+        "调味结构：原书糊辣干辣椒+香油 vs 项目蒜泥+醋+花椒面+热油激香。"
+      ],
+      "decision": "reject-candidate",
+      "confidence": "high",
+      "rationale": "原书主料为莴笋（茎用莴苣），项目主料为鲜笋（竹笋），两者不是同一食材且无同义关系；烹调法与调味结构亦不同，正文出现实质冲突，不能视为同一道菜。当前项目库无任何「莴笋」菜谱。",
+      "crosswalkImpact": "候选应清空，条目回到 book-only；项目无其他烧拌莴笋类候选可指。"
+    }
+  ],
+  "verificationNotes": [
+    "5 项均为当前 crosswalk 中 probable-match-needs-review 的全部条目，无遗漏、无重复。",
+    "confirmed-alias 2 项 confidence 均为 high；remain-probable/reject 未产生任何 confirmed projectIds。",
+    "本文件仅记录判断；crosswalk dry-run 原文件、name-matches、canonical source recipes、Curated/Full/HOC、applicationReady 均未修改。"
+  ]
+}
