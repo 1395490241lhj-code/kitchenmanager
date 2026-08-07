@@ -12,8 +12,8 @@
   "selectionRule": "从A类(local-scan-recheck)中按review queue原有priority选取最多5道；本轮5道均为priority=high。",
   "itemsReviewedCount": 5,
   "resultCounts": {
-    "resolved": 3,
-    "confirmed-unresolved": 2,
+    "resolved": 4,
+    "confirmed-unresolved": 1,
     "needs-alternate-source": 0
   },
   "items": [
