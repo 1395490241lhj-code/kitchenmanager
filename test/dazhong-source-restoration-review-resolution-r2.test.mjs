@@ -22,6 +22,13 @@ const r2Results = readJson(
   'data/source-restoration/dazhong-chuancai-1979-review-resolution-r2-results.v1.json',
 );
 
+const catalog = readJson(
+  'data/source-restoration/dazhong-chuancai-1979-catalog.v1.json',
+);
+const catalogBookNameByEntryId = new Map(
+  catalog.entries.map((entry) => [entry.entryId, entry.bookName]),
+);
+
 const queueEntryIds = new Set(queue.items.map((item) => item.entryId));
 
 const VALID_STATUSES = new Set([
@@ -156,4 +163,34 @@ test('dz1979-p131 remains confirmed-unresolved in R1 and is absent from R2', () 
   assert.equal(p131.status, 'confirmed-unresolved');
   const r2Ids = new Set(r2Results.items.map((item) => item.entryId));
   assert.ok(!r2Ids.has('dz1979-p131'), 'dz1979-p131 should not reappear in R2');
+});
+
+test('every R1/R2 item bookName matches the catalog bookName for its entryId', () => {
+  for (const item of r1Results.items) {
+    const expected = catalogBookNameByEntryId.get(item.entryId);
+    assert.ok(expected, `${item.entryId} must exist in the catalog`);
+    assert.equal(
+      item.bookName,
+      expected,
+      `R1 ${item.entryId} bookName "${item.bookName}" must match catalog bookName "${expected}"`,
+    );
+  }
+  for (const item of r2Results.items) {
+    const expected = catalogBookNameByEntryId.get(item.entryId);
+    assert.ok(expected, `${item.entryId} must exist in the catalog`);
+    assert.equal(
+      item.bookName,
+      expected,
+      `R2 ${item.entryId} bookName "${item.bookName}" must match catalog bookName "${expected}"`,
+    );
+  }
+  for (const entry of r2Results.semanticOnlyExclusions) {
+    const expected = catalogBookNameByEntryId.get(entry.entryId);
+    assert.ok(expected, `${entry.entryId} must exist in the catalog`);
+    assert.equal(
+      entry.bookName,
+      expected,
+      `R2 semanticOnlyExclusions ${entry.entryId} bookName "${entry.bookName}" must match catalog bookName "${expected}"`,
+    );
+  }
 });
