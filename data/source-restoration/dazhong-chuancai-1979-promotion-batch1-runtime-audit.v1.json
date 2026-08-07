@@ -1,0 +1,874 @@
+{
+  "schema": "kitchenmanager.source-restoration.promotion-batch1-runtime-audit.v1",
+  "generatedAt": "2026-08-07",
+  "baselineCommit": "4305bcd52c4247e2cc0e154c09f18e63166ee4c2",
+  "purpose": "审计 Batch 1 正式上线后的真实库存/推荐兼容性：对 5 道全部 production ingredient，经现有 canonicalization（getCanonicalName / aliases / families / isSmartIngredientMatch）与库存匹配（getStockCoverageAnalysis）模拟用户库存名称/单位行为。只审计，不修改 production/runtime。",
+  "compatibilityDefinitions": {
+    "exact-compatible": "常见用户库存名称可严格解析，且 production unit 为该食材自然单位（g 或 guessKitchenUnit），同 unit 可 exact 匹配。",
+    "expected-unit-confirmation": "名称可解析，但 production unit 与常用库存单位无可安全换算，需要用户按 production unit 录入或人工确认；不是 bug，禁止新增换算。",
+    "unresolved-name-match": "现有 canonicalization 无法把 production item 解析到常见用户库存名称；需记录具体 name pair，本轮不新增 alias。"
+  },
+  "summary": {
+    "auditedIngredientCount": 19,
+    "coreIngredientCount": 7,
+    "exactCompatibleCount": 17,
+    "expectedUnitConfirmationCount": 1,
+    "unresolvedNameMatchCount": 1,
+    "affectedRecipes": [
+      "dz1979-p143",
+      "dz1979-p180"
+    ],
+    "unresolvedDetails": [
+      {
+        "productionId": "dz1979-p143",
+        "item": "仔母鸡",
+        "failedPairs": [
+          "仔母鸡 vs 鸡肉",
+          "仔母鸡 vs 仔鸡",
+          "仔母鸡 vs 老母鸡",
+          "仔母鸡 vs 土鸡",
+          "仔母鸡 vs 公鸡",
+          "仔母鸡 vs 三黄鸡"
+        ]
+      }
+    ],
+    "roleBreakdown": {
+      "core": 7,
+      "seasoning": 12,
+      "non-stock": 0
+    }
+  },
+  "entries": [
+    {
+      "productionId": "dz1979-p143",
+      "recipeName": "当归炖鸡",
+      "item": "仔母鸡",
+      "qty": "1",
+      "unit": "只",
+      "canonical": "仔母鸡",
+      "role": "core",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "一只（约重三斤五两）",
+      "normalizedQuantitySource": {
+        "kind": "exact-count",
+        "qty": 1,
+        "unit": "只"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「一只（约重三斤五两）」→ exact-count 1只），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 1,
+        "unit": "只",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "仔母鸡",
+        "coverageWithProductionUnit": "exact"
+      },
+      "probes": [
+        {
+          "probeName": "鸡肉",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "仔鸡",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "母鸡",
+          "strictNameMatch": false,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "老母鸡",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "土鸡",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "公鸡",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "三黄鸡",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        }
+      ],
+      "compatibility": "unresolved-name-match",
+      "reasons": [
+        "现有 canonicalization 无法把该 production item 解析到任何常见用户库存名称（严格名称层失败）。",
+        "仅存在 contains 级脆弱匹配（不可靠）：母鸡。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p143",
+      "recipeName": "当归炖鸡",
+      "item": "当归",
+      "qty": "50",
+      "unit": "g",
+      "canonical": "当归",
+      "role": "core",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "一两",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 50,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「一两」→ exact-mass 50g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 50,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "当归",
+        "coverageWithProductionUnit": "exact"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p143",
+      "recipeName": "当归炖鸡",
+      "item": "醪糟汁",
+      "qty": "150",
+      "unit": "g",
+      "canonical": "醪糟",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "三两",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 150,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「三两」→ exact-mass 150g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 150,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "醪糟",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p180",
+      "recipeName": "干炒豆腐",
+      "item": "豆腐",
+      "qty": "6",
+      "unit": "个",
+      "canonical": "豆腐",
+      "role": "core",
+      "ingredientFamilyKey": "tofu",
+      "guessKitchenUnit": "盒",
+      "sourceRawQuantityText": "六个",
+      "normalizedQuantitySource": {
+        "kind": "exact-count",
+        "qty": 6,
+        "unit": "个"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「六个」→ exact-count 6个），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 6,
+        "unit": "个",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "豆腐",
+        "coverageWithProductionUnit": "exact"
+      },
+      "probes": [
+        {
+          "probeName": "豆制品",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "豆干",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "豆皮",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "腐竹",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        }
+      ],
+      "compatibility": "expected-unit-confirmation",
+      "reasons": [
+        "名称可解析，但 production unit「个」与常用库存单位「盒」无可安全换算，需用户按 production unit 录入库存或人工确认。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p180",
+      "recipeName": "干炒豆腐",
+      "item": "盐",
+      "qty": "2.5",
+      "unit": "g",
+      "canonical": "盐",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "五分",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 2.5,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「五分」→ exact-mass 2.5g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 2.5,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "盐",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p180",
+      "recipeName": "干炒豆腐",
+      "item": "味精",
+      "qty": "1",
+      "unit": "g",
+      "canonical": "味精",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "二分",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 1,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「二分」→ exact-mass 1g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 1,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "味精",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p180",
+      "recipeName": "干炒豆腐",
+      "item": "菜油",
+      "qty": "75",
+      "unit": "g",
+      "canonical": "菜油",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "瓶",
+      "sourceRawQuantityText": "一两五钱",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 75,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「一两五钱」→ exact-mass 75g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 75,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "菜油",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p180",
+      "recipeName": "干炒豆腐",
+      "item": "葱花",
+      "qty": "20",
+      "unit": "g",
+      "canonical": "葱",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "把",
+      "sourceRawQuantityText": "四钱",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 20,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「四钱」→ exact-mass 20g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 20,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "葱",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p195",
+      "recipeName": "干煸苦瓜",
+      "item": "苦瓜",
+      "qty": "500",
+      "unit": "g",
+      "canonical": "苦瓜",
+      "role": "core",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "一斤",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 500,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「一斤」→ exact-mass 500g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 500,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "苦瓜",
+        "coverageWithProductionUnit": "exact"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p195",
+      "recipeName": "干煸苦瓜",
+      "item": "青椒",
+      "qty": "50",
+      "unit": "g",
+      "canonical": "青椒",
+      "role": "core",
+      "ingredientFamilyKey": "pepper",
+      "guessKitchenUnit": "个",
+      "sourceRawQuantityText": "一两",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 50,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「一两」→ exact-mass 50g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 50,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "青椒",
+        "coverageWithProductionUnit": "exact"
+      },
+      "probes": [
+        {
+          "probeName": "菜椒",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "甜椒",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "尖椒",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "螺丝椒",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "灯笼椒",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "青辣椒",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        }
+      ],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p195",
+      "recipeName": "干煸苦瓜",
+      "item": "菜油",
+      "qty": "50",
+      "unit": "g",
+      "canonical": "菜油",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "瓶",
+      "sourceRawQuantityText": "一两",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 50,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「一两」→ exact-mass 50g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 50,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "菜油",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p195",
+      "recipeName": "干煸苦瓜",
+      "item": "盐",
+      "qty": "4",
+      "unit": "g",
+      "canonical": "盐",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "八分",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 4,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「八分」→ exact-mass 4g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 4,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "盐",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p200",
+      "recipeName": "炒土豆泥",
+      "item": "土豆",
+      "qty": "500",
+      "unit": "g",
+      "canonical": "土豆",
+      "role": "core",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "个",
+      "sourceRawQuantityText": "一斤",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 500,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「一斤」→ exact-mass 500g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 500,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "土豆",
+        "coverageWithProductionUnit": "exact"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p200",
+      "recipeName": "炒土豆泥",
+      "item": "化猪油",
+      "qty": "100",
+      "unit": "g",
+      "canonical": "化猪油",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "瓶",
+      "sourceRawQuantityText": "二两",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 100,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「二两」→ exact-mass 100g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 100,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "化猪油",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p200",
+      "recipeName": "炒土豆泥",
+      "item": "盐",
+      "qty": "40",
+      "unit": "g",
+      "canonical": "盐",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "八钱",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 40,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「八钱」→ exact-mass 40g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 40,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "盐",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p200",
+      "recipeName": "炒土豆泥",
+      "item": "葱",
+      "qty": "25",
+      "unit": "g",
+      "canonical": "葱",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "把",
+      "sourceRawQuantityText": "五钱",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 25,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「五钱」→ exact-mass 25g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 25,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "葱",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p204",
+      "recipeName": "炒豌豆尖",
+      "item": "豌豆尖",
+      "qty": "1000",
+      "unit": "g",
+      "canonical": "豌豆尖",
+      "role": "core",
+      "ingredientFamilyKey": "leafy",
+      "guessKitchenUnit": "把",
+      "sourceRawQuantityText": "二斤",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 1000,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「二斤」→ exact-mass 1000g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 1000,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "豌豆尖",
+        "coverageWithProductionUnit": "exact"
+      },
+      "probes": [
+        {
+          "probeName": "青菜",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "绿叶菜",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "菠菜",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "空心菜",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "木耳菜",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "苋菜",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "茼蒿",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "芥兰",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "油麦菜",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "A菜",
+          "strictNameMatch": false,
+          "softNameMatch": false,
+          "coverageWithProductionUnit": "none",
+          "coverageWithDefaultUnit": "none"
+        },
+        {
+          "probeName": "小白菜",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "上海青",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "油菜",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        },
+        {
+          "probeName": "生菜",
+          "strictNameMatch": true,
+          "softNameMatch": true,
+          "coverageWithProductionUnit": "exact",
+          "coverageWithDefaultUnit": "unit-mismatch"
+        }
+      ],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p204",
+      "recipeName": "炒豌豆尖",
+      "item": "菜油",
+      "qty": "50",
+      "unit": "g",
+      "canonical": "菜油",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "瓶",
+      "sourceRawQuantityText": "一两",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 50,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「一两」→ exact-mass 50g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 50,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "菜油",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    },
+    {
+      "productionId": "dz1979-p204",
+      "recipeName": "炒豌豆尖",
+      "item": "盐",
+      "qty": "2.5",
+      "unit": "g",
+      "canonical": "盐",
+      "role": "seasoning",
+      "ingredientFamilyKey": null,
+      "guessKitchenUnit": "份",
+      "sourceRawQuantityText": "五分",
+      "normalizedQuantitySource": {
+        "kind": "exact-mass",
+        "qty": 2.5,
+        "unit": "g"
+      },
+      "quantityProvenanceNote": "qty/unit 来自 source-restoration canonical 数量（raw「五分」→ exact-mass 2.5g），未经人工改值。",
+      "normalizedQuantity": {
+        "qty": 2.5,
+        "unit": "g",
+        "finite": true
+      },
+      "identityMatch": {
+        "probeName": "盐",
+        "coverageWithProductionUnit": "none"
+      },
+      "probes": [],
+      "compatibility": "exact-compatible",
+      "reasons": [
+        "production unit「g」为该食材自然库存单位，常见名称 + production unit 可 exact 匹配。"
+      ]
+    }
+  ],
+  "verificationProblems": []
+}
