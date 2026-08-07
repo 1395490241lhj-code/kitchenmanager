@@ -221,6 +221,115 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b03",
+      "status": "promoted",
+      "baselineCommit": "156315241822c3655fe6867d7d945a007e402b1c",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p212",
+          "productionId": "dz1979-p212",
+          "name": "糖醋萝卜丝",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p212",
+            "bookName": "糖醋萝卜丝",
+            "bookPage": 212,
+            "pdfPage": 225,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p216",
+          "productionId": "dz1979-p216",
+          "name": "拌盐白菜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p216",
+            "bookName": "拌盐白菜",
+            "bookPage": 216,
+            "pdfPage": 229,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p218",
+          "productionId": "dz1979-p218",
+          "name": "酸菜豆瓣汤",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p218",
+            "bookName": "酸菜豆瓣汤",
+            "bookPage": 218,
+            "pdfPage": 231,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p221",
+          "productionId": "dz1979-p221",
+          "name": "蒜泥蚕豆",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p221",
+            "bookName": "蒜泥蚕豆",
+            "bookPage": 221,
+            "pdfPage": 234,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p206",
+          "productionId": "dz1979-p206",
+          "name": "烧拌莴笋",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p206",
+            "bookName": "烧拌莴笋",
+            "bookPage": 206,
+            "pdfPage": 219,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }

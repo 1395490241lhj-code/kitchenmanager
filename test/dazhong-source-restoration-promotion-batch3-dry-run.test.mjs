@@ -43,13 +43,37 @@ const ledgerPromotedEntryIds = new Set(
   )),
 );
 
+// Batch 3 may since have been promoted (dz1979-production-b03 in the
+// ledger). This file is a regression test on the frozen dry-run artifact
+// itself, so it stays promotion-aware: it reconstructs the exact
+// pre-Batch-3-promotion readiness/production view the dry-run was
+// generated against (treating only Batch 3's own five entries as
+// not-yet-promoted / not-yet-in-production) to validate the funnel and
+// hard/runtime gates were computed correctly, while separately asserting
+// current production matches the frozen proposal with zero drift. The
+// frozen dry-run/quantity-review artifacts and every gate rule are
+// unchanged; nothing here weakens a gate.
+const BATCH3_PRODUCTION_IDS = dryRun.items.map((item) => item.productionId);
+const BATCH3_ENTRY_IDS = new Set(dryRun.items.map((item) => item.entryId));
+const batch3Promoted = BATCH3_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+
+const preBatch3ReadinessById = new Map(
+  readiness.entries.map((entry) => [
+    entry.entryId,
+    BATCH3_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
+  ]),
+);
+const preBatch3ProductionNames = new Set(
+  [...productionNames].filter((name) => !dryRun.items.some((item) => item.name === name)),
+);
+
 // -- Independent replica of the hard gate + Batch 2/3 runtime gate ----------
 // Deliberately written from scratch against readiness/canonical data rather
 // than importing the generator, so the test cannot silently pass a bug the
 // generator itself introduced.
 
-function passesHardGates(entryId) {
-  const entry = readinessById.get(entryId);
+function passesHardGates(entryId, { readinessSource = readinessById, namesSource = productionNames } = {}) {
+  const entry = readinessSource.get(entryId);
   const recipe = restoredById.get(entryId);
   if (!entry || entry.promotionDisposition !== 'new-recipe-candidate') return false;
   if (entry.promotionState !== 'not-promoted') return false;
@@ -74,12 +98,12 @@ function passesHardGates(entryId) {
     if ('consumedQty' in quantity || 'consumedReferenceQty' in quantity) return false;
     if ('consumedQualifier' in quantity || 'consumedUnit' in quantity) return false;
   }
-  if (productionNames.has(entry.bookName)) return false;
+  if (namesSource.has(entry.bookName)) return false;
   return true;
 }
 
-function auditRuntimeGate(entryId) {
-  const entry = readinessById.get(entryId);
+function auditRuntimeGate(entryId, { readinessSource = readinessById } = {}) {
+  const entry = readinessSource.get(entryId);
   const coreResults = [];
   for (const ing of entry.productionIngredientPlan.inventoryIngredients) {
     const result = classifyIngredientCompatibility(ing.productionItem, ing.qty, ing.unit);
@@ -90,23 +114,26 @@ function auditRuntimeGate(entryId) {
   return { unresolvedCount, unitConfirmationCount, blocked: unresolvedCount > 0 };
 }
 
-function complexityKey(entryId) {
+function complexityKey(entryId, opts) {
   const recipe = restoredById.get(entryId);
-  const audit = auditRuntimeGate(entryId);
+  const audit = auditRuntimeGate(entryId, opts);
   const special = recipe.ingredients.filter((ing) => ing.memberQuantityMode).length;
   return [audit.unitConfirmationCount, special, recipe.ingredients.length, recipe.methodSummary?.steps?.length ?? 0, entryId];
 }
 
 function mechanicalFunnel() {
-  const remaining = readiness.entries
+  // Recomputed against the pre-Batch-3-promotion snapshot, matching the
+  // exact input the frozen dry-run was generated from.
+  const opts = { readinessSource: preBatch3ReadinessById, namesSource: preBatch3ProductionNames };
+  const remaining = [...preBatch3ReadinessById.values()]
     .filter((e) => e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted')
     .map((e) => e.entryId);
-  const hardGateSurvivors = remaining.filter(passesHardGates);
-  const eligible = hardGateSurvivors.filter((id) => !auditRuntimeGate(id).blocked);
-  const blocked = hardGateSurvivors.filter((id) => auditRuntimeGate(id).blocked);
+  const hardGateSurvivors = remaining.filter((id) => passesHardGates(id, opts));
+  const eligible = hardGateSurvivors.filter((id) => !auditRuntimeGate(id, opts).blocked);
+  const blocked = hardGateSurvivors.filter((id) => auditRuntimeGate(id, opts).blocked);
   const top5 = [...eligible].sort((a, b) => {
-    const ka = complexityKey(a);
-    const kb = complexityKey(b);
+    const ka = complexityKey(a, opts);
+    const kb = complexityKey(b, opts);
     for (let i = 0; i < ka.length; i += 1) {
       if (ka[i] < kb[i]) return -1;
       if (ka[i] > kb[i]) return 1;
@@ -116,21 +143,22 @@ function mechanicalFunnel() {
   return { remaining, hardGateSurvivors, eligible, blocked, top5 };
 }
 
-test('remaining candidate pool excludes Batch 1/2 promoted entries and matches the ledger', () => {
+test('remaining candidate pool excludes all promoted entries and matches the ledger', () => {
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, 29);
+  assert.equal(remaining.length, batch3Promoted ? 24 : 29);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const entry of remaining) {
     assert.equal(ledgerPromotedEntryIds.has(entry.entryId), false, `${entry.entryId} should not be in the remaining pool`);
   }
-  assert.equal(ledgerPromotedEntryIds.size, 10);
-  // Batch 3 has not been promoted; its five entries must still be
-  // not-promoted new-recipe-candidates in the remaining pool.
+  assert.equal(ledgerPromotedEntryIds.size, batch3Promoted ? 15 : 10);
+  // Batch 3's five entries must have a promotionState consistent with the
+  // ledger: promoted if and only if the ledger records them as promoted.
   for (const item of dryRun.items) {
-    assert.equal(readinessById.get(item.entryId).promotionState, 'not-promoted', item.entryId);
-    assert.equal(ledgerPromotedEntryIds.has(item.entryId), false, item.entryId);
+    const expectedState = batch3Promoted ? 'promoted' : 'not-promoted';
+    assert.equal(readinessById.get(item.entryId).promotionState, expectedState, item.entryId);
+    assert.equal(ledgerPromotedEntryIds.has(item.entryId), batch3Promoted, item.entryId);
   }
 });
 
@@ -175,11 +203,14 @@ test('runtime name gate blocks exactly dz1979-p137 and dz1979-p161 on their unre
   assert.equal(selectedIds.includes('dz1979-p161'), false);
 });
 
-test('every selected item is not-promoted, fully satisfies both gates, and has zero unit-confirmation core ingredients', () => {
+test('every selected item satisfied both gates pre-promotion and has zero unit-confirmation core ingredients', () => {
+  const opts = { readinessSource: preBatch3ReadinessById, namesSource: preBatch3ProductionNames };
   for (const item of dryRun.items) {
-    assert.equal(readinessById.get(item.entryId).promotionState, 'not-promoted', item.entryId);
-    assert.equal(passesHardGates(item.entryId), true, item.entryId);
-    const audit = auditRuntimeGate(item.entryId);
+    // Pre-promotion, every selected item must have been not-promoted and
+    // pass both gates against the exact snapshot the dry-run used.
+    assert.equal(preBatch3ReadinessById.get(item.entryId).promotionState, 'not-promoted', item.entryId);
+    assert.equal(passesHardGates(item.entryId, opts), true, item.entryId);
+    const audit = auditRuntimeGate(item.entryId, opts);
     assert.equal(audit.blocked, false, item.entryId);
     assert.equal(audit.unresolvedCount, 0, item.entryId);
     assert.equal(item.coreRuntimeCompatibility.gatePassed, true, item.entryId);
@@ -189,6 +220,9 @@ test('every selected item is not-promoted, fully satisfies both gates, and has z
     assert.equal(item.name, catalogById.get(item.entryId).bookName, item.entryId);
     assert.equal(item.category, catalogById.get(item.entryId).category, item.entryId);
     assert.deepEqual(item.tags, ['川菜', catalogById.get(item.entryId).category], item.entryId);
+    // Post-promotion, current readiness state must match the ledger.
+    const expectedState = batch3Promoted ? 'promoted' : 'not-promoted';
+    assert.equal(readinessById.get(item.entryId).promotionState, expectedState, item.entryId);
   }
 });
 
@@ -294,7 +328,7 @@ test('coreRuntimeCompatibility results only classify core ingredients and never 
   }
 });
 
-test('temp-simulated promotion chain reproduces exactly current-plus-five (136 -> 141) with zero drift', () => {
+test('promotion chain reproduces exactly pre-promotion-plus-five (136 -> 141) with zero drift', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dz1979-batch3-test-'));
   try {
     fs.mkdirSync(path.join(tmp, 'scripts'));
@@ -308,10 +342,26 @@ test('temp-simulated promotion chain reproduces exactly current-plus-five (136 -
       path.join(tmp, 'data', 'sichuan-recipes.json'),
     );
     const overlayPath = path.join(tmp, 'data', 'recipe-completion-overlay.json');
-    fs.copyFileSync(
+    // Use the real overlay with Batch 3's five entries stripped out, so this
+    // reconstructs the exact pre-Batch-3-promotion baseline the frozen
+    // dry-run was generated against, whether or not Batch 3 is currently
+    // promoted in the real overlay.
+    const realOverlay = JSON.parse(fs.readFileSync(
       new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname,
-      overlayPath,
-    );
+      'utf8',
+    ));
+    const preOverlay = {
+      ...realOverlay,
+      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !BATCH3_PRODUCTION_IDS.includes(r.id)),
+      newRecipeIngredients: Object.fromEntries(
+        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !BATCH3_PRODUCTION_IDS.includes(id)),
+      ),
+    };
+    fs.writeFileSync(overlayPath, `${JSON.stringify(preOverlay, null, 2)}\n`);
+    execFileSync('node', [path.join(tmp, 'scripts', 'curate-recipes.js')], { cwd: tmp, stdio: 'pipe' });
+    const preCurated = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'sichuan-recipes.curated.json'), 'utf8'));
+    assert.equal(preCurated.recipes.length, 136);
+
     const tmpOverlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
     const overridesBefore = tmpOverlay.recipeIngredientOverrides;
     tmpOverlay.newRecipes = [
@@ -334,21 +384,20 @@ test('temp-simulated promotion chain reproduces exactly current-plus-five (136 -
       needing: JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'recipes-needing-completion.json'), 'utf8')),
     };
 
-    assert.equal(curated.recipes.length, 136);
     assert.equal(out.curated.recipes.length, 141);
 
-    const newIds = out.curated.recipes.map((r) => r.id).filter((id) => !curated.recipes.some((r2) => r2.id === id));
+    const newIds = out.curated.recipes.map((r) => r.id).filter((id) => !preCurated.recipes.some((r2) => r2.id === id));
     assert.equal(newIds.length, 5);
     assert.deepEqual(newIds.sort(), dryRun.items.map((item) => item.productionId).sort());
 
-    const existingIds = curated.recipes.map((r) => r.id);
+    const existingIds = preCurated.recipes.map((r) => r.id);
     const existingModified = existingIds.filter((id) => {
-      const before = curated.recipes.find((r) => r.id === id);
+      const before = preCurated.recipes.find((r) => r.id === id);
       const after = out.curated.recipes.find((r) => r.id === id);
       return JSON.stringify(before) !== JSON.stringify(after);
     });
     const existingIngredientModified = existingIds.filter((id) => (
-      JSON.stringify(curated.recipe_ingredients[id]) !== JSON.stringify(out.curated.recipe_ingredients[id])
+      JSON.stringify(preCurated.recipe_ingredients[id]) !== JSON.stringify(out.curated.recipe_ingredients[id])
     ));
     const existingDeleted = existingIds.filter((id) => !out.curated.recipes.some((r) => r.id === id));
     assert.equal(existingModified.length, 0);
@@ -363,10 +412,21 @@ test('temp-simulated promotion chain reproduces exactly current-plus-five (136 -
       assert.equal(out.curated.recipes.filter((r) => r.id === id).length, 1, `${id} duplicated`);
     }
 
+    // The real, current (post-promotion) curated file must match this
+    // simulation exactly, proving zero drift from the frozen proposal.
+    if (batch3Promoted) {
+      assert.deepEqual(
+        [...out.curated.recipes].sort((a, b) => a.id.localeCompare(b.id)),
+        [...curated.recipes].sort((a, b) => a.id.localeCompare(b.id)),
+      );
+    }
+
     const realRemoved = readJson('data/recipe-curation-removed.json');
     const realNeeding = readJson('data/recipes-needing-completion.json');
-    assert.deepEqual(out.removed.removed.map((r) => r.id), realRemoved.removed.map((r) => r.id));
-    assert.deepEqual(out.needing.items.map((r) => r.id), realNeeding.items.map((r) => r.id));
+    if (batch3Promoted) {
+      assert.deepEqual(out.removed.removed.map((r) => r.id), realRemoved.removed.map((r) => r.id));
+      assert.deepEqual(out.needing.items.map((r) => r.id), realNeeding.items.map((r) => r.id));
+    }
 
     // recipeIngredientOverrides untouched.
     const afterOverlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
@@ -375,7 +435,6 @@ test('temp-simulated promotion chain reproduces exactly current-plus-five (136 -
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
-
 test('temp curate run is deterministic across two consecutive invocations (byte-identical)', () => {
   function runOnce() {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dz1979-batch3-repro-'));
@@ -469,13 +528,13 @@ test('PWA runtime packs built from the temp-simulated overlay contain all five b
   }
 });
 
-test('real production is untouched: no Batch 3 ids/names present anywhere in workspace production files', () => {
+test('production reflects the frozen proposal exactly: Batch 3 ids/names present iff promoted, matching the ledger', () => {
   for (const item of dryRun.items) {
-    assert.equal(productionIds.has(item.productionId), false, `${item.productionId} must not be in real production yet`);
-    assert.equal(productionNames.has(item.name), false, `${item.name} must not be in real production yet`);
+    assert.equal(productionIds.has(item.productionId), batch3Promoted, `${item.productionId} presence must match ledger state`);
+    assert.equal(productionNames.has(item.name), batch3Promoted, `${item.name} presence must match ledger state`);
   }
-  assert.equal(curated.recipes.length, 136);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 10);
+  assert.equal(curated.recipes.length, batch3Promoted ? 141 : 136);
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, batch3Promoted ? 15 : 10);
 });
 
 test('iOS RecipeService-compatible field shapes decode from every proposed item', () => {
@@ -505,7 +564,7 @@ test('dry-run reports no verification problems and no production writes', () => 
   assert.equal(dryRun.pwaVisibilityAudit.serviceWorker.cacheBumpRequired, false);
 });
 
-test('canonical, crosswalk, and Batch 1/2 frozen artifacts remain unchanged; ledger still records exactly two promoted batches', () => {
+test('canonical, crosswalk, and Batch 1/2 frozen artifacts remain unchanged; ledger records the expected number of promoted batches', () => {
   const crosswalk = readJson('data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json');
   assert.equal(restored.applicationReady, false);
   assert.deepEqual(crosswalk.summary.classificationCounts, {
@@ -525,9 +584,13 @@ test('canonical, crosswalk, and Batch 1/2 frozen artifacts remain unchanged; led
   assert.deepEqual(batch2DryRun.selection.selectedEntryIds, ['dz1979-p187', 'dz1979-p202', 'dz1979-p205', 'dz1979-p188', 'dz1979-p196']);
   assert.deepEqual(batch1DryRun.verificationProblems, []);
   assert.deepEqual(batch2DryRun.verificationProblems, []);
-  assert.equal(promotions.batches.length, 2);
+  assert.equal(promotions.batches.length, batch3Promoted ? 3 : 2);
   assert.equal(promotions.batches[0].status, 'promoted');
   assert.equal(promotions.batches[1].status, 'promoted');
-  // Batch 3 must not be in the ledger yet (dry-run only).
-  assert.equal(promotions.batches.some((b) => b.batchId === 'dz1979-production-b03'), false);
+  // Batch 3's ledger presence must match its actual promotion state.
+  assert.equal(promotions.batches.some((b) => b.batchId === 'dz1979-production-b03'), batch3Promoted);
+  if (batch3Promoted) {
+    const batch3 = promotions.batches.find((b) => b.batchId === 'dz1979-production-b03');
+    assert.equal(batch3.status, 'promoted');
+  }
 });

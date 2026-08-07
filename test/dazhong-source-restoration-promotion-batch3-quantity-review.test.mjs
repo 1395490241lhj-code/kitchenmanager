@@ -71,9 +71,14 @@ test('artifact reports zero verification problems and applicationReady=false', (
   assert.equal(quantityReview.applicationReady, false);
 });
 
-test('the frozen Batch 3 dry-run itself reports zero verification problems and is not yet promoted', () => {
+test('the frozen Batch 3 dry-run itself reports zero verification problems and matches the ledger promotion state', () => {
   assert.deepEqual(dryRun.selection.selectedEntryIds, ['dz1979-p212', 'dz1979-p216', 'dz1979-p218', 'dz1979-p221', 'dz1979-p206']);
   assert.deepEqual(dryRun.verificationProblems, []);
   const promotions = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
-  assert.equal(promotions.batches.some((b) => b.batchId === 'dz1979-production-b03'), false);
+  const productionIds = dryRun.items.map((item) => item.productionId);
+  const ledgerPromotedIds = new Set(
+    (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
+  );
+  const batch3Promoted = productionIds.every((id) => ledgerPromotedIds.has(id));
+  assert.equal(promotions.batches.some((b) => b.batchId === 'dz1979-production-b03'), batch3Promoted);
 });
