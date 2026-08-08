@@ -20,7 +20,12 @@
 
 ## 2. 原始扫描页 / 本地 PDF
 
-`data/reference/dazhong-chuancai.pdf` 及对应 `tmp/pdfs/dazhong-full` 渲染页在本地**不可用**（已渲染页范围止于 b04=page-111，p129/p130 对应 pdfPage 142/143 未被渲染，也未找到源 PDF 文件）。本轮未能做像素级页面复核，以已冻结、`confidence=high` 的 canonical 提取作为唯一可核实来源。这是本轮的一个已知限制，不影响下方基于现有已验证数据的机械结论。
+`data/reference/dazhong-chuancai.pdf` 及对应 `tmp/pdfs/dazhong-full` 渲染页在本地不含 pdfPage 142/143（已渲染页范围止于 b04=page-111）。**2026-08-08 补做人工像素级复核**：在真实原始扫描件 `/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf` 上用 `pdftoppm -png -r 200 -f 142 -l 143` 渲染第 142/143 页并目视核对，结论如下：
+
+- **第142页（书页129）**：原料栏仅列猪肺二斤、葱花一两、酱油一两五钱、冬菜一两、味精二分、熟油辣椒一两二钱——**无姜、无花椒**。作法第1步原文："...然后另用开水加葱、姜、花椒煮熟..."，姜、花椒**确实只出现在作法文字**，原料栏与作法文字均**未给出数量**。
+- **第143页（书页130）**：原料栏列有猪肉五两、丝瓜二两、绍酒五钱、味精三分、蕃茄三两、葱节·姜各三钱、盐八分、水豆粉一两、酱油四钱——**无胡椒面**。作法第2步末尾原文："汤内下胡椒面、酱油、味精调匀，待锅内汤沸，起锅即成。"，胡椒面**确实只出现在作法文字**，原料栏与作法文字均**未给出数量**。
+
+**两页扫描均与冻结 canonical source-restoration 数据完全一致，未发现任何冲突。**
 
 ## 3. 方法文字是否真的提到这些 ingredient
 
@@ -76,7 +81,7 @@
 
 ## 结论
 
-**安全（safeToAllow=true）**。p129/p130 的 methodOnly blocker 在满足上述逐条确认前提下可以解锁，但本轮仅完成分析，不实施 remediation、不 promotion、不修改任何 production/ledger/readiness 文件。
+**安全（safeToAllow=true），已通过人工原始扫描复核确认，无冲突。** p129/p130 的 methodOnly blocker 在满足上述逐条确认前提下可以解锁，但本轮仅完成分析，不实施 remediation、不 promotion、不修改任何 production/ledger/readiness 文件。
 
 ## 停止点
 

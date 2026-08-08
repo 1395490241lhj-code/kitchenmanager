@@ -79,14 +79,53 @@ function reviewEntry(entryId) {
     };
   });
 
+// -- Manual visual scan verification (frozen fact, 2026-08-08) --------------
+// A human performed a pixel-level visual check against the real source PDF
+// (pdftoppm -png -r 200 -f 142 -l 143 against the original scan) since
+// tmp/pdfs/dazhong-full does not include rendered pages 142/143. This is
+// recorded as a frozen manual finding (not re-derivable mechanically on
+// every run) so the artifact stays byte-for-byte reproducible if
+// regenerated, while still reflecting the completed human verification.
+const VISUAL_VERIFICATION = {
+  'dz1979-p129': {
+    verifiedAt: '2026-08-08',
+    pdfSource: '/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf',
+    renderedPage: 142,
+    bookPage: 129,
+    ingredientListConfirmed: ['猪肺二斤', '葱花一两', '酱油一两五钱', '冬菜一两', '味精二分', '熟油辣椒一两二钱'],
+    ingredientListContainsTargetItems: false,
+    methodTextConfirmedQuote: '然后另用开水加葱、姜、花椒煮熟，煮至软和时捞起，用刀切片',
+    targetItemsQuantityGivenAnywhere: false,
+    matchesCanonical: true,
+  },
+  'dz1979-p130': {
+    verifiedAt: '2026-08-08',
+    pdfSource: '/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf',
+    renderedPage: 143,
+    bookPage: 130,
+    ingredientListConfirmed: ['猪肉五两', '丝瓜二两', '绍酒五钱', '味精三分', '蕃茄三两', '葱节、姜各三钱', '盐八分', '水豆粉一两', '酱油四钱'],
+    ingredientListContainsTargetItems: false,
+    methodTextConfirmedQuote: '汤内下胡椒面、酱油、味精调匀，待锅内汤沸，起锅即成',
+    targetItemsQuantityGivenAnywhere: false,
+    matchesCanonical: true,
+  },
+};
+
+const VISUAL_NOTE_PREFIX = '2026-08-08 人工像素级复核：使用 pdftoppm 200dpi 渲染原始 PDF（/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf）第 142/143 页并目视核对。';
+const VISUAL_NOTES = {
+  'dz1979-p129': `${VISUAL_NOTE_PREFIX} 第142页（书页129）原料栏仅列：猪肺二斤、葱花一两、酱油一两五钱、冬菜一两、味精二分、熟油辣椒一两二钱——无姜、无花椒。作法第1步原文："...然后另用开水加葱、姜、花椒煮熟..."，姜、花椒确实只出现在作法文字中，原料栏和作法文字均未给出姜/花椒的数量。与 canonical rawQuantityText=null 完全一致，无冲突。`,
+  'dz1979-p130': `${VISUAL_NOTE_PREFIX} 第143页（书页130）原料栏列有：猪肉五两、丝瓜二两、绍酒五钱、味精三分、蕃茄三两、葱节、姜各三钱、盐八分、水豆粉一两、酱油四钱——无胡椒面。作法第2步末尾原文："汤内下胡椒面、酱油、味精调匀，待锅内汤沸，起锅即成。"，胡椒面确实只出现在作法文字中，原料栏和作法文字均未给出胡椒面的数量。与 canonical rawQuantityText=null 完全一致，无冲突。`,
+};
+
   return {
     entryId,
     name: catalogEntry.bookName,
     bookPage: catalogEntry.bookPage,
     pdfPage: catalogEntry.pdfPage,
     quantityReadiness: plan.quantityReadiness,
-    localPdfPageRendered: false,
-    localPdfPageNote: 'data/reference/dazhong-chuancai.pdf 与对应 tmp/pdfs 渲染页在本地不可用（tmp/pdfs/dazhong-full 缺少 page-142/page-143），本轮以已冻结、high-confidence 的 canonical source-restoration 提取（rawItemText/rawQuantityText/methodSummary 逐句引用）作为唯一可核实来源；未能补做像素级页面复核。',
+    localPdfPageRendered: true,
+    localPdfPageNote: VISUAL_NOTES[entryId],
+    visualVerification: VISUAL_VERIFICATION[entryId],
     items,
     allItemsGenuinelyMentionedNoQuantity: items.every((i) => i.genuinelyMentionedInMethod && i.genuinelyNoQuantityInSource),
     allSplitItemsNonCore: items.every((i) => i.allNonCore),
@@ -160,6 +199,13 @@ const output = {
       '需要新增测试：recipe-runtime-quality strict 模式下 missing-qty-unit warning 计数按预期 +N，不产生新 error。',
     ],
   } : null,
+  visualScanVerification: {
+    performedAt: '2026-08-08',
+    pdfSource: '/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf',
+    method: 'pdftoppm -png -r 200 -f 142 -l 143',
+    conclusion: '两页扫描均与冻结 canonical source-restoration 数据完全一致：姜/花椒（p129）与胡椒面（p130）确实只出现在作法文字、原料栏未列、无任何数量信息。未发现任何冲突。',
+    conflictFound: false,
+  },
   verificationProblems: problems,
 };
 

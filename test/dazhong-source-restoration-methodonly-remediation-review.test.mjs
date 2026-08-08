@@ -22,6 +22,22 @@ test('artifact reports zero verification problems and applicationReady=false', (
   assert.equal(review.applicationReady, false);
 });
 
+test('original scan was visually verified against the real source PDF with no conflict found', () => {
+  assert.ok(review.visualScanVerification, 'visualScanVerification must be present');
+  assert.equal(review.visualScanVerification.conflictFound, false);
+  assert.match(review.visualScanVerification.pdfSource, /大众川菜/);
+  for (const item of review.items) {
+    assert.equal(item.localPdfPageRendered, true, item.entryId);
+    assert.ok(item.visualVerification, `${item.entryId} missing visualVerification`);
+    assert.equal(item.visualVerification.matchesCanonical, true, item.entryId);
+    assert.equal(item.visualVerification.ingredientListContainsTargetItems, false, item.entryId);
+    assert.equal(item.visualVerification.targetItemsQuantityGivenAnywhere, false, item.entryId);
+  }
+  const byId = new Map(review.items.map((i) => [i.entryId, i]));
+  assert.equal(byId.get('dz1979-p129').visualVerification.renderedPage, 142);
+  assert.equal(byId.get('dz1979-p130').visualVerification.renderedPage, 143);
+});
+
 test('review covers exactly p129 and p130, no more', () => {
   assert.deepEqual(review.scope.reviewedEntryIds, ['dz1979-p129', 'dz1979-p130']);
   assert.equal(review.items.length, 2);
