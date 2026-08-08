@@ -597,6 +597,55 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b07",
+      "status": "promoted",
+      "baselineCommit": "241b760c033dcc4b29352623665b274d5c6a84ff",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch7-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch7-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p211",
+          "productionId": "dz1979-p211",
+          "name": "花仁萝卜干",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p211",
+            "bookName": "花仁萝卜干",
+            "bookPage": 211,
+            "pdfPage": 224,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p144",
+          "productionId": "dz1979-p144",
+          "name": "黄焖鸭子",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p144",
+            "bookName": "黄焖鸭子",
+            "bookPage": 144,
+            "pdfPage": 157,
+            "category": "禽蛋鱼类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }

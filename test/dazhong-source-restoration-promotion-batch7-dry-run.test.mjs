@@ -26,12 +26,33 @@ const productionNames = new Set([
   ...full.recipes.map((r) => r.name),
 ]);
 
+const ledgerPromotedEntryIds = new Set(
+  (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
+);
+const BATCH7_PRODUCTION_IDS = dryRun.items.map((item) => item.productionId);
+const BATCH7_ENTRY_IDS = new Set(dryRun.items.map((item) => item.entryId));
+const batch7Promoted = BATCH7_PRODUCTION_IDS.length > 0
+  && BATCH7_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+
+// Pre-Batch-7 snapshot: reset Batch 7's own entries to not-promoted so the
+// funnel/gate recomputation below matches the exact input the frozen
+// dry-run was generated from, whether or not Batch 7 has since promoted.
+const preBatch7ReadinessById = new Map(
+  readiness.entries.map((entry) => [
+    entry.entryId,
+    BATCH7_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
+  ]),
+);
+const preBatch7ProductionNames = new Set(
+  [...productionNames].filter((name) => !dryRun.items.some((item) => item.name === name)),
+);
+
 // -- Independent replica of the Batch 7 remediated hard gate + Batch 2-6
 // runtime gate. Deliberately written from scratch so the test cannot
 // silently pass a bug the generator itself introduced.
 
-function passesHardGateRemediated(entryId) {
-  const entry = readinessById.get(entryId);
+function passesHardGateRemediated(entryId, { readinessSource = readinessById, namesSource = productionNames } = {}) {
+  const entry = readinessSource.get(entryId);
   const recipe = restoredById.get(entryId);
   if (!entry || entry.promotionDisposition !== 'new-recipe-candidate') return false;
   if (entry.promotionState !== 'not-promoted') return false;
@@ -54,23 +75,23 @@ function passesHardGateRemediated(entryId) {
     if (!['exact-mass', 'exact-count'].includes(quantity.kind)) return false;
     // Only same-for-each is allowed through; unallocated-group-total still blocks.
     if (ing.memberQuantityMode === 'unallocated-group-total') return false;
-    if ('consumedQty' in quantity || 'consumedReferenceQty' in quantity) return false;
+  if ('consumedQty' in quantity || 'consumedReferenceQty' in quantity) return false;
     if ('consumedQualifier' in quantity || 'consumedUnit' in quantity) return false;
   }
-  if (productionNames.has(entry.bookName)) return false;
+  if (namesSource.has(entry.bookName)) return false;
   return true;
 }
 
 // Legacy gate (Batch 1-6): ANY memberQuantityMode hard-blocks.
-function passesHardGateLegacy(entryId) {
-  if (!passesHardGateRemediated(entryId)) return false;
+function passesHardGateLegacy(entryId, opts) {
+  if (!passesHardGateRemediated(entryId, opts)) return false;
   const recipe = restoredById.get(entryId);
   if (recipe.ingredients?.some((ing) => ing.memberQuantityMode)) return false;
   return true;
 }
 
-function auditRuntimeGate(entryId) {
-  const entry = readinessById.get(entryId);
+function auditRuntimeGate(entryId, { readinessSource = readinessById } = {}) {
+  const entry = readinessSource.get(entryId);
   const coreResults = [];
   for (const ing of entry.productionIngredientPlan.inventoryIngredients) {
     const result = classifyIngredientCompatibility(ing.productionItem, ing.qty, ing.unit);
@@ -81,23 +102,24 @@ function auditRuntimeGate(entryId) {
   return { unresolvedCount, unitConfirmationCount, blocked: unresolvedCount > 0 };
 }
 
-function complexityKey(entryId) {
+function complexityKey(entryId, opts) {
   const recipe = restoredById.get(entryId);
-  const audit = auditRuntimeGate(entryId);
+  const audit = auditRuntimeGate(entryId, opts);
   const special = recipe.ingredients.filter((ing) => ing.memberQuantityMode).length;
   return [audit.unitConfirmationCount, special, recipe.ingredients.length, recipe.methodSummary?.steps?.length ?? 0, entryId];
 }
 
 function mechanicalFunnel() {
-  const remaining = readiness.entries
+  const opts = { readinessSource: preBatch7ReadinessById, namesSource: preBatch7ProductionNames };
+  const remaining = [...preBatch7ReadinessById.values()]
     .filter((e) => e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted')
     .map((e) => e.entryId);
-  const hardGateSurvivors = remaining.filter((id) => passesHardGateRemediated(id));
-  const eligible = hardGateSurvivors.filter((id) => !auditRuntimeGate(id).blocked);
-  const blocked = hardGateSurvivors.filter((id) => auditRuntimeGate(id).blocked);
+  const hardGateSurvivors = remaining.filter((id) => passesHardGateRemediated(id, opts));
+  const eligible = hardGateSurvivors.filter((id) => !auditRuntimeGate(id, opts).blocked);
+  const blocked = hardGateSurvivors.filter((id) => auditRuntimeGate(id, opts).blocked);
   const ranked = [...eligible].sort((a, b) => {
-    const ka = complexityKey(a);
-    const kb = complexityKey(b);
+    const ka = complexityKey(a, opts);
+    const kb = complexityKey(b, opts);
     for (let i = 0; i < ka.length; i += 1) {
       if (ka[i] < kb[i]) return -1;
       if (ka[i] > kb[i]) return 1;
@@ -107,12 +129,16 @@ function mechanicalFunnel() {
   return { remaining, hardGateSurvivors, eligible, blocked, top5: ranked.slice(0, 5) };
 }
 
-test('remaining candidate pool is exactly the 12 not-promoted new-recipe-candidates', () => {
+test('remaining candidate pool excludes all promoted entries and matches the ledger', () => {
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, 12);
+  assert.equal(remaining.length, batch7Promoted ? 10 : 12);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
+  for (const item of dryRun.items) {
+    const expectedState = batch7Promoted ? 'promoted' : 'not-promoted';
+    assert.equal(readinessById.get(item.entryId).promotionState, expectedState, item.entryId);
+  }
 });
 
 test('dry-run records remediationPolicy = allow-safe-same-for-each', () => {
@@ -164,9 +190,10 @@ test('the two selected entries are exactly p211/p144 in that order', () => {
 });
 
 test('same-for-each remediation: p211 and p144 pass the remediated gate but fail the legacy gate', () => {
+  const opts = { readinessSource: preBatch7ReadinessById, namesSource: preBatch7ProductionNames };
   for (const id of ['dz1979-p211', 'dz1979-p144']) {
-    assert.equal(passesHardGateRemediated(id), true, id);
-    assert.equal(passesHardGateLegacy(id), false, id);
+    assert.equal(passesHardGateRemediated(id, opts), true, id);
+    assert.equal(passesHardGateLegacy(id, opts), false, id);
     const recipe = restoredById.get(id);
     assert.ok(recipe.ingredients.some((ing) => ing.memberQuantityMode === 'same-for-each'), id);
   }
@@ -289,7 +316,22 @@ test('promotion chain reproduces exactly pre-promotion-plus-two (153 -> 155) wit
     fs.copyFileSync(new URL('../scripts/curate-recipes.js', import.meta.url).pathname, path.join(tmp, 'scripts', 'curate-recipes.js'));
     fs.copyFileSync(new URL('../data/sichuan-recipes.json', import.meta.url).pathname, path.join(tmp, 'data', 'sichuan-recipes.json'));
     const overlayPath = path.join(tmp, 'data', 'recipe-completion-overlay.json');
-    fs.copyFileSync(new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname, overlayPath);
+    // Use the real overlay with Batch 7's entries stripped out, so this
+    // reconstructs the exact pre-Batch-7-promotion baseline the frozen
+    // dry-run was generated against, whether or not Batch 7 is currently
+    // promoted in the real overlay.
+    const realOverlay = JSON.parse(fs.readFileSync(
+      new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname,
+      'utf8',
+    ));
+    const preOverlay = {
+      ...realOverlay,
+      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !BATCH7_PRODUCTION_IDS.includes(r.id)),
+      newRecipeIngredients: Object.fromEntries(
+        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !BATCH7_PRODUCTION_IDS.includes(id)),
+      ),
+    };
+    fs.writeFileSync(overlayPath, `${JSON.stringify(preOverlay, null, 2)}\n`);
     execFileSync('node', [path.join(tmp, 'scripts', 'curate-recipes.js')], { cwd: tmp, stdio: 'pipe' });
     const preCurated = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'sichuan-recipes.curated.json'), 'utf8'));
     assert.equal(preCurated.recipes.length, 153);
@@ -438,7 +480,7 @@ test('Batch 1-6 frozen dry-run artifacts are untouched (byte-identical to commit
     const artifact = readJson(`data/source-restoration/dazhong-chuancai-1979-promotion-batch${n}-dry-run.v1.json`);
     assert.deepEqual(artifact.verificationProblems, [], `batch${n} should still report zero problems`);
   }
-  assert.equal(promotions.batches.length, 6);
+  assert.equal(promotions.batches.length, batch7Promoted ? 7 : 6);
   for (const batch of promotions.batches) {
     assert.equal(batch.status, 'promoted');
   }

@@ -30,15 +30,22 @@ const BATCH3_IDS = ['dz1979-p212', 'dz1979-p216', 'dz1979-p218', 'dz1979-p221', 
 const BATCH4_IDS = ['dz1979-p183', 'dz1979-p198', 'dz1979-p153', 'dz1979-p209', 'dz1979-p223'];
 const BATCH5_IDS = ['dz1979-p162', 'dz1979-p186', 'dz1979-p185', 'dz1979-p219', 'dz1979-p213'];
 const itemsById = new Map(dryRun.items.map((item) => [item.productionId, item]));
+const BATCH7_IDS = ['dz1979-p211', 'dz1979-p144'];
+// Batch 7 may since have been promoted on top of Batch 1-6; this file only
+// regression-tests Batch 6's own promoted content, so it stays accurate
+// either way by checking Batch 7's presence via the ledger.
+const batch7Promoted = BATCH7_IDS.every((id) => (
+  ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
+));
 
 test('overlay contains exactly the twenty-seven Batch1+2+3+4+5+6 promoted recipes, all matching their dry-runs', () => {
   const overlayIds = overlay.newRecipes
     .filter((recipe) => recipe.id.startsWith('dz1979-'))
     .map((recipe) => recipe.id)
     .sort();
-  assert.deepEqual(overlayIds, [...BATCH1_IDS, ...BATCH2_IDS, ...BATCH3_IDS, ...BATCH4_IDS, ...BATCH5_IDS, ...EXPECTED_IDS].sort());
-  assert.equal(overlay.newRecipes.length, 85);
-  assert.equal(Object.keys(overlay.newRecipeIngredients).length, 85);
+  assert.deepEqual(overlayIds, [...BATCH1_IDS, ...BATCH2_IDS, ...BATCH3_IDS, ...BATCH4_IDS, ...BATCH5_IDS, ...EXPECTED_IDS, ...(batch7Promoted ? BATCH7_IDS : [])].sort());
+  assert.equal(overlay.newRecipes.length, 85 + (batch7Promoted ? 2 : 0));
+  assert.equal(Object.keys(overlay.newRecipeIngredients).length, 85 + (batch7Promoted ? 2 : 0));
   for (const id of EXPECTED_IDS) {
     const expected = itemsById.get(id).proposedOverlayRecipe;
     const actual = overlay.newRecipes.find((recipe) => recipe.id === id);
@@ -55,8 +62,8 @@ test('overlay contains exactly the twenty-seven Batch1+2+3+4+5+6 promoted recipe
 });
 
 test('curated contains exactly the twenty-seven Batch1+2+3+4+5+6 promoted recipes with full content (151 -> 153)', () => {
-  assert.equal(curated.recipes.length, 153);
-  assert.equal(curated.recipes.filter((recipe) => recipe.id.startsWith('dz1979-')).length, 27);
+  assert.equal(curated.recipes.length, 153 + (batch7Promoted ? 2 : 0));
+  assert.equal(curated.recipes.filter((recipe) => recipe.id.startsWith('dz1979-')).length, 27 + (batch7Promoted ? 2 : 0));
   for (const id of EXPECTED_IDS) {
     const recipe = curated.recipes.find((entry) => entry.id === id);
     assert.deepEqual(recipe, itemsById.get(id).proposedCuratedRecipe, id);
@@ -86,18 +93,19 @@ test('recipe-curation-summary.md reflects exactly the dry-run-predicted mechanic
     new URL('../data/recipe-curation-summary.md', import.meta.url),
     'utf8',
   );
-  assert.match(summary, /原始菜谱（base \+ overlay 合并后的有效集）\s*\|\s*349/);
-  assert.match(summary, /overlay 新增\/补全后净增\s*\|\s*85/);
-  assert.match(summary, /curated 保留\*\*\s*\|\s*\*\*153/);
-  assert.match(summary, /从有效集保留（有做法直接保留）\s*\|\s*132/);
-  assert.match(summary, /从 overlay 补全 method 的菜\s*\|\s*132/);
-  assert.match(summary, /从 overlay 补全 ingredients 的菜\s*\|\s*95/);
+  const n = batch7Promoted ? 2 : 0;
+  assert.match(summary, new RegExp(`原始菜谱（base \\+ overlay 合并后的有效集）\\s*\\|\\s*${349 + n}`));
+  assert.match(summary, new RegExp(`overlay 新增/补全后净增\\s*\\|\\s*${85 + n}`));
+  assert.match(summary, new RegExp(`curated 保留\\*\\*\\s*\\|\\s*\\*\\*${153 + n}`));
+  assert.match(summary, new RegExp(`从有效集保留（有做法直接保留）\\s*\\|\\s*${132 + n}`));
+  assert.match(summary, new RegExp(`从 overlay 补全 method 的菜\\s*\\|\\s*${132 + n}`));
+  assert.match(summary, new RegExp(`从 overlay 补全 ingredients 的菜\\s*\\|\\s*${95 + n}`));
 });
 
 test('promotion ledger records Batch 6 with full provenance while keeping Batch 1/2/3/4/5 intact', () => {
   assert.equal(ledger.applicationReady, false);
   assert.equal(ledger.partialPromotion, true);
-  assert.equal(ledger.batches.length, 6);
+  assert.equal(ledger.batches.length, 6 + (batch7Promoted ? 1 : 0));
   const batch1 = ledger.batches.find((b) => b.batchId === 'dz1979-production-b01');
   const batch2 = ledger.batches.find((b) => b.batchId === 'dz1979-production-b02');
   const batch3 = ledger.batches.find((b) => b.batchId === 'dz1979-production-b03');
@@ -136,11 +144,11 @@ test('promotion ledger records Batch 6 with full provenance while keeping Batch 
 });
 
 test('readiness marks twenty-seven promoted (5+5+5+5+5+2), remaining drops to 12, and preserves classification stats', () => {
-  assert.equal(readiness.summary.promotedNewRecipeCount, 27);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 12);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 27 + (batch7Promoted ? 2 : 0));
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 12 - (batch7Promoted ? 2 : 0));
   assert.deepEqual(
     readiness.summary.promotedNewRecipeIds.sort(),
-    [...BATCH1_IDS, ...BATCH2_IDS, ...BATCH3_IDS, ...BATCH4_IDS, ...BATCH5_IDS, ...EXPECTED_IDS].sort(),
+    [...BATCH1_IDS, ...BATCH2_IDS, ...BATCH3_IDS, ...BATCH4_IDS, ...BATCH5_IDS, ...EXPECTED_IDS, ...(batch7Promoted ? BATCH7_IDS : [])].sort(),
   );
   assert.deepEqual(readiness.summary.dispositionCounts, {
     'existing-project-match': 50,
@@ -282,7 +290,7 @@ test('iOS RecipeService-compatible shapes decode across the full 153-recipe cura
       assert.ok(ing.unit === null || ing.unit === undefined || typeof ing.unit === 'string', recipe.id);
     }
   }
-  assert.equal(curated.recipes.length, 153);
+  assert.equal(curated.recipes.length, 153 + (batch7Promoted ? 2 : 0));
 });
 
 test('applicationReady stays false across every Batch 6 promotion surface', () => {

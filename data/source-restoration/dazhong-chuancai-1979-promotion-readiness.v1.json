@@ -143,9 +143,10 @@
       "dz1979-p129",
       "dz1979-p130"
     ],
-    "promotedNewRecipeCount": 27,
+    "promotedNewRecipeCount": 29,
     "promotedNewRecipeIds": [
       "dz1979-p143",
+      "dz1979-p144",
       "dz1979-p153",
       "dz1979-p159",
       "dz1979-p162",
@@ -165,6 +166,7 @@
       "dz1979-p205",
       "dz1979-p206",
       "dz1979-p209",
+      "dz1979-p211",
       "dz1979-p212",
       "dz1979-p213",
       "dz1979-p216",
@@ -173,7 +175,7 @@
       "dz1979-p221",
       "dz1979-p223"
     ],
-    "remainingNewRecipeCandidateCount": 12,
+    "remainingNewRecipeCandidateCount": 10,
     "schemaExtensionNeeded": false,
     "verificationProblems": []
   },
@@ -2207,7 +2209,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "黄焖鸭子",
@@ -5370,7 +5372,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "花仁萝卜干",

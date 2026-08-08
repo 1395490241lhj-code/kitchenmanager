@@ -24,6 +24,17 @@ const EXPECTED_IDS = [
   'dz1979-p201', 'dz1979-p203', 'dz1979-p207', 'dz1979-p211', 'dz1979-p222',
   'dz1979-p224', 'dz1979-p226',
 ];
+// The triage artifact is a frozen point-in-time snapshot of the 12 that
+// were remaining when it was generated. Batch 7 has since mechanically
+// promoted two of them (p144/p211) via the confirmed mechanical-fix-
+// candidate remediation; this file stays accurate either way by checking
+// their actual current promotion state via the ledger rather than assuming
+// they are still unpromoted.
+const ledgerPromotedEntryIds = new Set(
+  (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
+);
+const MECHANICAL_FIX_IDS = ['dz1979-p144', 'dz1979-p211'];
+const mechanicalFixPromotedCount = MECHANICAL_FIX_IDS.filter((id) => ledgerPromotedEntryIds.has(id)).length;
 
 test('artifact reports zero verification problems and applicationReady=false', () => {
   assert.deepEqual(triage.verificationProblems, []);
@@ -34,14 +45,15 @@ test('exactly the twelve remaining candidates are covered, no duplicates, no omi
   const ids = triage.items.map((i) => i.entryId).sort();
   assert.deepEqual(ids, EXPECTED_IDS.slice().sort());
   assert.equal(new Set(ids).size, 12);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 12);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 12 - mechanicalFixPromotedCount);
 });
 
 test('the remaining candidate pool independently recomputed from readiness matches exactly', () => {
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   )).map((e) => e.entryId).sort();
-  assert.deepEqual(remaining, EXPECTED_IDS.slice().sort());
+  const expectedRemaining = EXPECTED_IDS.filter((id) => !ledgerPromotedEntryIds.has(id)).sort();
+  assert.deepEqual(remaining, expectedRemaining);
 });
 
 test('blocker union matches the frozen Batch 6 dry-run hardGateExclusions and runtimeNameGateBlocked exactly', () => {
@@ -222,22 +234,24 @@ test('prioritization groups partition the twelve items with no overlap and match
   assert.deepEqual(triage.prioritization.nextMechanicalBatchCandidates.sort(), groups['mechanical-fix-candidate'].sort());
 });
 
-test('this round does not touch any of the 27 already-promoted entries or production files', () => {
-  const promotedIds = new Set(
-    (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
-  );
-  assert.equal(promotedIds.size, 27);
+test('production and ledger reflect the triage snapshot plus any subsequent mechanical-fix-candidate promotions only', () => {
+  assert.equal(ledgerPromotedEntryIds.size, 27 + mechanicalFixPromotedCount);
   for (const item of triage.items) {
-    assert.equal(promotedIds.has(item.entryId), false, `${item.entryId} must not already be promoted`);
+    const expectedPromoted = MECHANICAL_FIX_IDS.includes(item.entryId) && ledgerPromotedEntryIds.has(item.entryId);
+    assert.equal(ledgerPromotedEntryIds.has(item.entryId), expectedPromoted, `${item.entryId} promotion state must match ledger`);
   }
-  assert.equal(curated.recipes.length, 153);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 27);
+  assert.equal(curated.recipes.length, 153 + mechanicalFixPromotedCount);
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 27 + mechanicalFixPromotedCount);
   const curatedIds = new Set(curated.recipes.map((r) => r.id));
   for (const item of triage.items) {
     // Each blocked entry's would-be production id (dz1979-pNNN) must not
-    // exist in curated or full yet.
+    // exist in full (Batch 7's mechanical fix only ever targets curated,
+    // never Full); items not covered by the mechanical-fix remediation must
+    // also still be absent from curated.
     const productionId = `dz1979-p${item.bookPage}`;
-    assert.equal(curatedIds.has(productionId), false, `${productionId} must not be promoted`);
+    if (!MECHANICAL_FIX_IDS.includes(item.entryId)) {
+      assert.equal(curatedIds.has(productionId), false, `${productionId} must not be promoted`);
+    }
     assert.equal(full.recipes.some((r) => r.id === productionId), false, `${productionId} must not be in full`);
   }
 });
@@ -250,8 +264,8 @@ test('readiness disposition/quantity-readiness stats are unchanged and applicati
     'blocked-alternate-source': 12,
     'blocked-crosswalk': 1,
   });
-  assert.equal(readiness.summary.promotedNewRecipeCount, 27);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 12);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 27 + mechanicalFixPromotedCount);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 12 - mechanicalFixPromotedCount);
   assert.equal(readiness.applicationReady, false);
 });
 

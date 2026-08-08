@@ -234,22 +234,22 @@ test('default runtime quality covers the final Curated and Full merge chain', as
   });
 
   assert.deepEqual(report.modes.curated.stats, {
-    recipes: 430,
-    methodsReady: 430,
+    recipes: 432,
+    methodsReady: 432,
     missingMethods: 0,
-    ingredientMaps: 430,
+    ingredientMaps: 432,
     missingIngredientMaps: 0,
-    ingredientEntries: 2478,
+    ingredientEntries: 2498,
     duplicateIds: 0,
     duplicateNames: 0,
     orphanIngredientMaps: 0
   });
-  assert.equal(report.modes.full.stats.recipes, 553);
-  assert.equal(report.modes.full.stats.methodsReady, 430);
+  assert.equal(report.modes.full.stats.recipes, 555);
+  assert.equal(report.modes.full.stats.methodsReady, 432);
   assert.equal(report.modes.full.stats.missingMethods, 123);
-  assert.equal(report.modes.full.stats.ingredientMaps, 551);
+  assert.equal(report.modes.full.stats.ingredientMaps, 553);
   assert.equal(report.modes.full.stats.missingIngredientMaps, 2);
-  assert.equal(report.modes.full.stats.ingredientEntries, 2000);
+  assert.equal(report.modes.full.stats.ingredientEntries, 2020);
   assert.equal(report.modes.full.stats.duplicateIds, 0);
   assert.equal(report.modes.full.stats.duplicateNames, 0);
   assert.equal(report.modes.full.stats.orphanIngredientMaps, 0);
@@ -302,8 +302,8 @@ test('Curated qty/unit pilot records only final-method-backed egg counts', async
     assert.equal(RECIPE_UNIT_WHITELIST.includes(egg.unit), true);
   }
 
-  assert.equal(runtime.packs.curated.recipes.length, 430);
-  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 430);
+  assert.equal(runtime.packs.curated.recipes.length, 432);
+  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 432);
 });
 
 test('Curated final qty/unit batch adds exactly nine reviewed records and preserves all other map shapes', async () => {
@@ -370,13 +370,13 @@ test('every promoted batch quantity review artifact contributes unique, well-for
   assert.equal(DAZHONG_PROMOTION_QTY_UNIT_RECORDS.size, totalRecords);
   assert.equal(CURATED_QTY_UNIT_RECORDS_ALL.size, CURATED_QTY_UNIT_RECORDS.size + totalRecords);
   // Locks in the current known state: Batch 1 (19) + Batch 2 (29) +
-  // Batch 3 (35) + Batch 4 (43) + Batch 5 (47) + Batch 6 (24) = 197
-  // source-restoration records, plus 11 method-backed = 208 total. Derived
+  // Batch 3 (35) + Batch 4 (43) + Batch 5 (47) + Batch 6 (24) + Batch 7 (20)
+  // = 217 source-restoration records, plus 11 method-backed = 228 total. Derived
   // from the ledger's promoted batches, not hardcoded to a fixed batch
   // list, so a future promoted batch only needs this comment/count updated
   // alongside it.
-  assert.equal(totalRecords, 197);
-  assert.equal(CURATED_QTY_UNIT_RECORDS_ALL.size, 208);
+  assert.equal(totalRecords, 217);
+  assert.equal(CURATED_QTY_UNIT_RECORDS_ALL.size, 228);
 });
 
 test('every structured curated qty/unit entry is a reviewed record (no unreviewed 60th)', async () => {
@@ -845,7 +845,7 @@ test('Final manifest batch preserves exact runtime maps and clears the curated g
   const runtime = await buildDefaultRuntimePacks();
   const manifest = readJson(MANIFEST_PATH);
   assert.deepEqual(manifest, []);
-  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 430);
+  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 432);
   for (const [id, name, expectedItems] of FINAL_MANIFEST_BATCH_REPAIRS) {
     const recipe = runtime.packs.curated.recipes.find(item => item.id === id);
     assert.equal(recipe?.name, name);
@@ -1042,7 +1042,7 @@ test('curated and full base id sets and counts are unchanged by the ordering fix
     full: readJson(join(root, 'data', 'sichuan-recipes.json'))
   };
 
-  const expectedCounts = { curated: 153, full: 264 };
+  const expectedCounts = { curated: 155, full: 264 };
   for (const mode of ['curated', 'full']) {
     const ids = packs[mode].recipes.map(recipe => String(recipe?.id || ''));
     assert.equal(ids.length, expectedCounts[mode]);
