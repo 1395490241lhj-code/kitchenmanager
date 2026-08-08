@@ -143,8 +143,10 @@
       "dz1979-p129",
       "dz1979-p130"
     ],
-    "promotedNewRecipeCount": 29,
+    "promotedNewRecipeCount": 31,
     "promotedNewRecipeIds": [
+      "dz1979-p129",
+      "dz1979-p130",
       "dz1979-p143",
       "dz1979-p144",
       "dz1979-p153",
@@ -175,7 +177,7 @@
       "dz1979-p221",
       "dz1979-p223"
     ],
-    "remainingNewRecipeCandidateCount": 10,
+    "remainingNewRecipeCandidateCount": 8,
     "schemaExtensionNeeded": false,
     "verificationProblems": []
   },
@@ -1615,7 +1617,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "凉拌猪肺",
@@ -1719,7 +1721,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "蕃茄丝瓜肉片汤",

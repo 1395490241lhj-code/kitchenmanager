@@ -28,6 +28,27 @@ const productionNames = new Set([
   ...full.recipes.map((r) => r.name),
 ]);
 
+const ledgerPromotedEntryIds = new Set(
+  (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
+);
+const BATCH8_PRODUCTION_IDS = dryRun.items.map((item) => item.productionId);
+const BATCH8_ENTRY_IDS = new Set(dryRun.items.map((item) => item.entryId));
+const batch8Promoted = BATCH8_PRODUCTION_IDS.length > 0
+  && BATCH8_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+
+// Pre-Batch-8 snapshot: reset Batch 8's own entries to not-promoted so the
+// funnel/gate recomputation below matches the exact input the frozen
+// dry-run was generated from, whether or not Batch 8 has since promoted.
+const preBatch8ReadinessById = new Map(
+  readiness.entries.map((entry) => [
+    entry.entryId,
+    BATCH8_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
+  ]),
+);
+const preBatch8ProductionNames = new Set(
+  [...productionNames].filter((name) => !dryRun.items.some((item) => item.name === name)),
+);
+
 const REVIEWED_ALLOWLIST = new Map([
   ['dz1979-p129', new Set(['姜', '花椒'])],
   ['dz1979-p130', new Set(['胡椒面'])],
@@ -38,8 +59,8 @@ const REVIEWED_ALLOWLIST = new Map([
 // from scratch so the test cannot silently pass a bug the generator itself
 // introduced.
 
-function passesSameForEachGate(entryId, { skipMethodOnlyCheck = false } = {}) {
-  const entry = readinessById.get(entryId);
+function passesSameForEachGate(entryId, { skipMethodOnlyCheck = false, readinessSource = readinessById, namesSource = productionNames } = {}) {
+  const entry = readinessSource.get(entryId);
   const recipe = restoredById.get(entryId);
   if (!entry || entry.promotionDisposition !== 'new-recipe-candidate') return false;
   if (entry.promotionState !== 'not-promoted') return false;
@@ -64,13 +85,13 @@ function passesSameForEachGate(entryId, { skipMethodOnlyCheck = false } = {}) {
     if ('consumedQty' in quantity || 'consumedReferenceQty' in quantity) return false;
     if ('consumedQualifier' in quantity || 'consumedUnit' in quantity) return false;
   }
-  if (productionNames.has(entry.bookName)) return false;
+  if (namesSource.has(entry.bookName)) return false;
   return true;
 }
 
-function passesMethodOnlyNullGate(entryId, allowlist = REVIEWED_ALLOWLIST) {
-  if (!passesSameForEachGate(entryId, { skipMethodOnlyCheck: true })) return false;
-  const plan = readinessById.get(entryId).productionIngredientPlan;
+function passesMethodOnlyNullGate(entryId, allowlist = REVIEWED_ALLOWLIST, opts = {}) {
+  if (!passesSameForEachGate(entryId, { ...opts, skipMethodOnlyCheck: true })) return false;
+  const plan = (opts.readinessSource ?? readinessById).get(entryId).productionIngredientPlan;
   const allowedItems = allowlist.get(entryId) ?? new Set();
   for (const moi of plan.methodOnlyAnalysis) {
     if (!moi.conversionWarning) continue;
@@ -80,8 +101,8 @@ function passesMethodOnlyNullGate(entryId, allowlist = REVIEWED_ALLOWLIST) {
   return true;
 }
 
-function auditRuntimeGate(entryId) {
-  const entry = readinessById.get(entryId);
+function auditRuntimeGate(entryId, { readinessSource = readinessById } = {}) {
+  const entry = readinessSource.get(entryId);
   const coreResults = [];
   for (const ing of entry.productionIngredientPlan.inventoryIngredients) {
     const result = classifyIngredientCompatibility(ing.productionItem, ing.qty, ing.unit);
@@ -91,12 +112,16 @@ function auditRuntimeGate(entryId) {
   return { unresolvedCount, blocked: unresolvedCount > 0 };
 }
 
-test('remaining candidate pool is exactly the 10 not-promoted new-recipe-candidates', () => {
+test('remaining candidate pool excludes all promoted entries and matches the ledger', () => {
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, 10);
+  assert.equal(remaining.length, batch8Promoted ? 8 : 10);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
+  for (const item of dryRun.items) {
+    const expectedState = batch8Promoted ? 'promoted' : 'not-promoted';
+    assert.equal(readinessById.get(item.entryId).promotionState, expectedState, item.entryId);
+  }
 });
 
 test('dry-run records the composite remediationPolicy and exact reviewed allowlist', () => {
@@ -114,12 +139,13 @@ test('the frozen methodOnly review artifact still confirms safe-to-allow with ze
 });
 
 test('the funnel counts match an independently recomputed selection (10 -> hard-blocked 6 -> after-hard-gates 4 -> runtime-blocked 2 -> eligible 2 -> selected 2)', () => {
-  const remaining = readiness.entries
+  const opts = { readinessSource: preBatch8ReadinessById, namesSource: preBatch8ProductionNames };
+  const remaining = [...preBatch8ReadinessById.values()]
     .filter((e) => e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted')
     .map((e) => e.entryId);
-  const hardGateSurvivors = remaining.filter((id) => passesMethodOnlyNullGate(id));
-  const eligible = hardGateSurvivors.filter((id) => !auditRuntimeGate(id).blocked);
-  const blocked = hardGateSurvivors.filter((id) => auditRuntimeGate(id).blocked);
+  const hardGateSurvivors = remaining.filter((id) => passesMethodOnlyNullGate(id, REVIEWED_ALLOWLIST, opts));
+  const eligible = hardGateSurvivors.filter((id) => !auditRuntimeGate(id, opts).blocked);
+  const blocked = hardGateSurvivors.filter((id) => auditRuntimeGate(id, opts).blocked);
   assert.equal(remaining.length, 10);
   assert.equal(hardGateSurvivors.length, 4);
   assert.equal(eligible.length, 2);
@@ -152,17 +178,18 @@ test('the two selected entries are exactly p129/p130', () => {
 });
 
 test('only the exact reviewed (entryId, item) combinations unlock; any other methodOnly item still hard-blocks', () => {
+  const opts = { readinessSource: preBatch8ReadinessById, namesSource: preBatch8ProductionNames };
   // p129/p130 pass with the real allowlist.
-  assert.equal(passesMethodOnlyNullGate('dz1979-p129'), true);
-  assert.equal(passesMethodOnlyNullGate('dz1979-p130'), true);
+  assert.equal(passesMethodOnlyNullGate('dz1979-p129', REVIEWED_ALLOWLIST, opts), true);
+  assert.equal(passesMethodOnlyNullGate('dz1979-p130', REVIEWED_ALLOWLIST, opts), true);
   // With an EMPTY allowlist, both must fail (proving the gate genuinely
   // depends on the reviewed allowlist, not on some other relaxed rule).
-  assert.equal(passesMethodOnlyNullGate('dz1979-p129', new Map()), false);
-  assert.equal(passesMethodOnlyNullGate('dz1979-p130', new Map()), false);
+  assert.equal(passesMethodOnlyNullGate('dz1979-p129', new Map(), opts), false);
+  assert.equal(passesMethodOnlyNullGate('dz1979-p130', new Map(), opts), false);
   // With a WRONG/partial allowlist (missing one of the two p129 items),
   // p129 must still fail — proving partial matches are not enough.
   const partialAllowlist = new Map([['dz1979-p129', new Set(['姜'])]]);
-  assert.equal(passesMethodOnlyNullGate('dz1979-p129', partialAllowlist), false);
+  assert.equal(passesMethodOnlyNullGate('dz1979-p129', partialAllowlist, opts), false);
 });
 
 test('any other methodOnly core-no-quantity candidate outside the allowlist remains hard-blocked (no global relaxation)', () => {
@@ -177,9 +204,10 @@ test('any other methodOnly core-no-quantity candidate outside the allowlist rema
 });
 
 test('unallocated-group-total continues to hard-block regardless of the new methodOnly-null policy', () => {
+  const opts = { readinessSource: preBatch8ReadinessById, namesSource: preBatch8ProductionNames };
   const fakeId = '__unallocated_probe__';
-  readinessById.set(fakeId, {
-    ...readinessById.get('dz1979-p129'),
+  preBatch8ReadinessById.set(fakeId, {
+    ...preBatch8ReadinessById.get('dz1979-p129'),
     promotionDisposition: 'new-recipe-candidate',
     promotionState: 'not-promoted',
     bookName: '__unallocated_probe_name__',
@@ -193,9 +221,9 @@ test('unallocated-group-total continues to hard-block regardless of the new meth
     )),
   };
   restoredById.set(fakeId, probeRecipe);
-  assert.equal(passesMethodOnlyNullGate(fakeId), false, 'unallocated-group-total must still block even with the methodOnly-null policy active');
+  assert.equal(passesMethodOnlyNullGate(fakeId, REVIEWED_ALLOWLIST, opts), false, 'unallocated-group-total must still block even with the methodOnly-null policy active');
   restoredById.delete(fakeId);
-  readinessById.delete(fakeId);
+  preBatch8ReadinessById.delete(fakeId);
 });
 
 test('the 3 reviewed methodOnly-null items appear with qty=null/unit=null in the proposed production ingredients', () => {
@@ -234,8 +262,9 @@ test('姜/花椒/胡椒面 independently classify as role=seasoning (never core)
 });
 
 test('p129 and p130 pass the runtime gate safely with zero unresolved-name-match and no new errors', () => {
+  const opts = { readinessSource: preBatch8ReadinessById };
   for (const id of ['dz1979-p129', 'dz1979-p130']) {
-    const audit = auditRuntimeGate(id);
+    const audit = auditRuntimeGate(id, opts);
     assert.equal(audit.blocked, false, id);
     assert.equal(audit.unresolvedCount, 0, id);
   }
@@ -256,12 +285,13 @@ test('p137 and p161 remain runtime-blocked, unchanged from Batch 2-7', () => {
 });
 
 test('p201/p203/p207 (non-exact) and p222/p224/p226 (consumed-dual) remain hard-blocked', () => {
+  const opts = { readinessSource: preBatch8ReadinessById, namesSource: preBatch8ProductionNames };
   for (const id of ['dz1979-p201', 'dz1979-p203', 'dz1979-p207']) {
-    assert.equal(passesMethodOnlyNullGate(id), false, id);
+    assert.equal(passesMethodOnlyNullGate(id, REVIEWED_ALLOWLIST, opts), false, id);
     assert.notEqual(readinessById.get(id).productionIngredientPlan.quantityReadiness, 'exact-comparable', id);
   }
   for (const id of ['dz1979-p222', 'dz1979-p224', 'dz1979-p226']) {
-    assert.equal(passesMethodOnlyNullGate(id), false, id);
+    assert.equal(passesMethodOnlyNullGate(id, REVIEWED_ALLOWLIST, opts), false, id);
     const recipe = restoredById.get(id);
     assert.ok(recipe.ingredients.some((ing) => (
       'consumedQty' in (ing.normalizedQuantity ?? {}) || 'consumedReferenceQty' in (ing.normalizedQuantity ?? {})
@@ -277,7 +307,22 @@ test('promotion chain reproduces exactly pre-promotion-plus-two (155 -> 157) wit
     fs.copyFileSync(new URL('../scripts/curate-recipes.js', import.meta.url).pathname, path.join(tmp, 'scripts', 'curate-recipes.js'));
     fs.copyFileSync(new URL('../data/sichuan-recipes.json', import.meta.url).pathname, path.join(tmp, 'data', 'sichuan-recipes.json'));
     const overlayPath = path.join(tmp, 'data', 'recipe-completion-overlay.json');
-    fs.copyFileSync(new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname, overlayPath);
+    // Use the real overlay with Batch 8's entries stripped out, so this
+    // reconstructs the exact pre-Batch-8-promotion baseline the frozen
+    // dry-run was generated against, whether or not Batch 8 is currently
+    // promoted in the real overlay.
+    const realOverlay = JSON.parse(fs.readFileSync(
+      new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname,
+      'utf8',
+    ));
+    const preOverlay = {
+      ...realOverlay,
+      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !BATCH8_PRODUCTION_IDS.includes(r.id)),
+      newRecipeIngredients: Object.fromEntries(
+        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !BATCH8_PRODUCTION_IDS.includes(id)),
+      ),
+    };
+    fs.writeFileSync(overlayPath, `${JSON.stringify(preOverlay, null, 2)}\n`);
     execFileSync('node', [path.join(tmp, 'scripts', 'curate-recipes.js')], { cwd: tmp, stdio: 'pipe' });
     const preCurated = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'sichuan-recipes.curated.json'), 'utf8'));
     assert.equal(preCurated.recipes.length, 155);
@@ -426,7 +471,7 @@ test('Batch 1-7 frozen dry-run artifacts are untouched (byte-identical to commit
     const artifact = readJson(`data/source-restoration/dazhong-chuancai-1979-promotion-batch${n}-dry-run.v1.json`);
     assert.deepEqual(artifact.verificationProblems, [], `batch${n} should still report zero problems`);
   }
-  assert.equal(promotions.batches.length, 7);
+  assert.equal(promotions.batches.length, batch8Promoted ? 8 : 7);
   for (const batch of promotions.batches) {
     assert.equal(batch.status, 'promoted');
   }

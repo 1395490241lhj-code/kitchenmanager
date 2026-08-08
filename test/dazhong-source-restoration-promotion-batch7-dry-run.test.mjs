@@ -34,17 +34,38 @@ const BATCH7_ENTRY_IDS = new Set(dryRun.items.map((item) => item.entryId));
 const batch7Promoted = BATCH7_PRODUCTION_IDS.length > 0
   && BATCH7_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 
+// IDs promoted by Batch 7 or any later batch (e.g. Batch 8+), so the
+// pre-Batch-7 overlay reconstruction below strips exactly back to the
+// Batch 1-6 baseline regardless of how many batches have since promoted
+// on top of Batch 7.
+const BATCH_NUMBER_RE = /^dz1979-production-b(\d+)$/;
+const idsFromBatch7Onward = new Set(
+  (promotions.batches ?? [])
+    .filter((batch) => {
+      const match = BATCH_NUMBER_RE.exec(batch.batchId ?? '');
+      return match && Number(match[1]) >= 7;
+    })
+    .flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
+);
+
 // Pre-Batch-7 snapshot: reset Batch 7's own entries to not-promoted so the
 // funnel/gate recomputation below matches the exact input the frozen
 // dry-run was generated from, whether or not Batch 7 has since promoted.
 const preBatch7ReadinessById = new Map(
   readiness.entries.map((entry) => [
     entry.entryId,
-    BATCH7_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
+    (BATCH7_ENTRY_IDS.has(entry.entryId) || idsFromBatch7Onward.has(entry.entryId))
+      ? { ...entry, promotionState: 'not-promoted' }
+      : entry,
   ]),
 );
 const preBatch7ProductionNames = new Set(
-  [...productionNames].filter((name) => !dryRun.items.some((item) => item.name === name)),
+  [...productionNames].filter((name) => (
+    !dryRun.items.some((item) => item.name === name)
+    && ![...idsFromBatch7Onward].some((id) => (
+      readiness.entries.find((e) => e.entryId === id)?.bookName === name
+    ))
+  )),
 );
 
 // -- Independent replica of the Batch 7 remediated hard gate + Batch 2-6
@@ -133,7 +154,7 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, batch7Promoted ? 10 : 12);
+  assert.equal(remaining.length, 12 - idsFromBatch7Onward.size);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const item of dryRun.items) {
     const expectedState = batch7Promoted ? 'promoted' : 'not-promoted';
@@ -326,9 +347,9 @@ test('promotion chain reproduces exactly pre-promotion-plus-two (153 -> 155) wit
     ));
     const preOverlay = {
       ...realOverlay,
-      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !BATCH7_PRODUCTION_IDS.includes(r.id)),
+      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !idsFromBatch7Onward.has(r.id)),
       newRecipeIngredients: Object.fromEntries(
-        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !BATCH7_PRODUCTION_IDS.includes(id)),
+        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !idsFromBatch7Onward.has(id)),
       ),
     };
     fs.writeFileSync(overlayPath, `${JSON.stringify(preOverlay, null, 2)}\n`);
@@ -480,7 +501,11 @@ test('Batch 1-6 frozen dry-run artifacts are untouched (byte-identical to commit
     const artifact = readJson(`data/source-restoration/dazhong-chuancai-1979-promotion-batch${n}-dry-run.v1.json`);
     assert.deepEqual(artifact.verificationProblems, [], `batch${n} should still report zero problems`);
   }
-  assert.equal(promotions.batches.length, batch7Promoted ? 7 : 6);
+  const batchesFromBatch7Onward = promotions.batches.filter((batch) => {
+    const match = BATCH_NUMBER_RE.exec(batch.batchId ?? '');
+    return match && Number(match[1]) >= 7;
+  }).length;
+  assert.equal(promotions.batches.length, 6 + batchesFromBatch7Onward);
   for (const batch of promotions.batches) {
     assert.equal(batch.status, 'promoted');
   }

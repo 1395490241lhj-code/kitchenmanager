@@ -646,6 +646,55 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b08",
+      "status": "promoted",
+      "baselineCommit": "297877d55eae76baf61fadbb19378091cd570a44",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch8-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch8-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p129",
+          "productionId": "dz1979-p129",
+          "name": "凉拌猪肺",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p129",
+            "bookName": "凉拌猪肺",
+            "bookPage": 129,
+            "pdfPage": 142,
+            "category": "肉食类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p130",
+          "productionId": "dz1979-p130",
+          "name": "蕃茄丝瓜肉片汤",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p130",
+            "bookName": "蕃茄丝瓜肉片汤",
+            "bookPage": 130,
+            "pdfPage": 143,
+            "category": "肉食类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }

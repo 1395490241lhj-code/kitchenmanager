@@ -107,7 +107,10 @@ test('precedent: qty=null/unit=null is an already-supported, load-bearing produc
       if (ing.qty === null && ing.unit === null) count += 1;
     }
   }
-  assert.equal(review.precedent.existingNullQtyUnitCurratedRecordCount, count);
+  // The frozen review artifact recorded this precedent count before Batch 8
+  // itself promoted, which added its own 3 reviewed null qty/unit items
+  // (姜/花椒/胡椒面); the live count is the frozen precedent plus those 3.
+  assert.equal(review.precedent.existingNullQtyUnitCurratedRecordCount + 3, count);
   assert.ok(count > 0, 'curated must already contain qty=null/unit=null entries as precedent');
 });
 
@@ -129,26 +132,26 @@ test('minimal implementation plan is present because the conclusion is safe', ()
   assert.ok(review.minimalImplementationPlanIfSafe.risksAndTests.length > 0);
 });
 
-test('this round performed no promotion, no production/ledger/readiness modification, and did not touch the other 8 blockers', () => {
+test('Batch 8 promoted exactly p129/p130 and did not touch the other 8 blockers', () => {
   const promotedIds = new Set(
     (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
   );
-  assert.equal(promotedIds.size, 29);
-  assert.equal(promotedIds.has('dz1979-p129'), false);
-  assert.equal(promotedIds.has('dz1979-p130'), false);
-  assert.equal(readiness.summary.promotedNewRecipeCount, 29);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 10);
+  assert.equal(promotedIds.size, 31);
+  assert.equal(promotedIds.has('dz1979-p129'), true);
+  assert.equal(promotedIds.has('dz1979-p130'), true);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 31);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 8);
   assert.equal(readiness.applicationReady, false);
-  // p129/p130 promotionState must remain not-promoted.
-  assert.equal(readinessByEntryId.get('dz1979-p129').promotionState, 'not-promoted');
-  assert.equal(readinessByEntryId.get('dz1979-p130').promotionState, 'not-promoted');
+  // p129/p130 are now promoted by Batch 8.
+  assert.equal(readinessByEntryId.get('dz1979-p129').promotionState, 'promoted');
+  assert.equal(readinessByEntryId.get('dz1979-p130').promotionState, 'promoted');
   // The other 8 blockers remain untouched (still not-promoted, still blocked).
   const otherBlockedIds = ['dz1979-p137', 'dz1979-p161', 'dz1979-p201', 'dz1979-p203', 'dz1979-p207', 'dz1979-p222', 'dz1979-p224', 'dz1979-p226'];
   for (const id of otherBlockedIds) {
     assert.equal(readinessByEntryId.get(id).promotionState, 'not-promoted', id);
   }
-  assert.equal(curated.recipes.length, 155);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 29);
+  assert.equal(curated.recipes.length, 157);
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 31);
 });
 
 test('readiness disposition counts are unchanged', () => {

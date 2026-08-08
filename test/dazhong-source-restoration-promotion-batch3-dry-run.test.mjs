@@ -26,6 +26,7 @@ const batch4DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-pro
 const batch5DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch5-dry-run.v1.json');
 const batch6DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch6-dry-run.v1.json');
 const batch7DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch7-dry-run.v1.json');
+const batch8DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch8-dry-run.v1.json');
 
 const restoredById = new Map(restored.recipes.map((r) => [r.entryId, r]));
 const catalogById = new Map(catalog.entries.map((e) => [e.entryId, e]));
@@ -80,8 +81,11 @@ const batch6Promoted = BATCH6_PRODUCTION_IDS.every((id) => ledgerPromotedEntryId
 const BATCH7_PRODUCTION_IDS = batch7DryRun.items.map((item) => item.productionId);
 const BATCH7_ENTRY_IDS = new Set(batch7DryRun.items.map((item) => item.entryId));
 const batch7Promoted = BATCH7_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
-const RESET_TO_NOT_PROMOTED_ENTRY_IDS = new Set([...BATCH3_ENTRY_IDS, ...BATCH4_ENTRY_IDS, ...BATCH5_ENTRY_IDS, ...BATCH6_ENTRY_IDS, ...BATCH7_ENTRY_IDS]);
-const RESET_TO_NOT_PROMOTED_PRODUCTION_IDS = new Set([...BATCH3_PRODUCTION_IDS, ...BATCH4_PRODUCTION_IDS, ...BATCH5_PRODUCTION_IDS, ...BATCH6_PRODUCTION_IDS, ...BATCH7_PRODUCTION_IDS]);
+const BATCH8_PRODUCTION_IDS = batch8DryRun.items.map((item) => item.productionId);
+const BATCH8_ENTRY_IDS = new Set(batch8DryRun.items.map((item) => item.entryId));
+const batch8Promoted = BATCH8_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const RESET_TO_NOT_PROMOTED_ENTRY_IDS = new Set([...BATCH3_ENTRY_IDS, ...BATCH4_ENTRY_IDS, ...BATCH5_ENTRY_IDS, ...BATCH6_ENTRY_IDS, ...BATCH7_ENTRY_IDS, ...BATCH8_ENTRY_IDS]);
+const RESET_TO_NOT_PROMOTED_PRODUCTION_IDS = new Set([...BATCH3_PRODUCTION_IDS, ...BATCH4_PRODUCTION_IDS, ...BATCH5_PRODUCTION_IDS, ...BATCH6_PRODUCTION_IDS, ...BATCH7_PRODUCTION_IDS, ...BATCH8_PRODUCTION_IDS]);
 
 const preBatch3ReadinessById = new Map(
   readiness.entries.map((entry) => [
@@ -181,13 +185,13 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   ));
   // Each of Batch 3, 4, and 5 (if promoted) removes five more from the
   // original 29-candidate pool this dry-run was generated against.
-  const expectedRemaining = 29 - (batch3Promoted ? 5 : 0) - (batch4Promoted ? 5 : 0) - (batch5Promoted ? 5 : 0) - (batch6Promoted ? 2 : 0) - (batch7Promoted ? 2 : 0);
+  const expectedRemaining = 29 - (batch3Promoted ? 5 : 0) - (batch4Promoted ? 5 : 0) - (batch5Promoted ? 5 : 0) - (batch6Promoted ? 2 : 0) - (batch7Promoted ? 2 : 0) - (batch8Promoted ? 2 : 0);
   assert.equal(remaining.length, expectedRemaining);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const entry of remaining) {
     assert.equal(ledgerPromotedEntryIds.has(entry.entryId), false, `${entry.entryId} should not be in the remaining pool`);
   }
-  const expectedLedgerSize = 10 + (batch3Promoted ? 5 : 0) + (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0);
+  const expectedLedgerSize = 10 + (batch3Promoted ? 5 : 0) + (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0);
   assert.equal(ledgerPromotedEntryIds.size, expectedLedgerSize);
   // Batch 3's five entries must have a promotionState consistent with the
   // ledger: promoted if and only if the ledger records them as promoted.
@@ -574,7 +578,7 @@ test('production reflects the frozen proposal exactly: Batch 3 ids/names present
   // Batch 4/5/6 may have promoted on top of Batch 3, each adding more
   // recipes beyond Batch 3's own contribution.
   const expectedBase = batch3Promoted ? 141 : 136;
-  const laterRecipeCount = (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0);
+  const laterRecipeCount = (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0);
   assert.equal(curated.recipes.length, expectedBase + laterRecipeCount);
   // Batch 4/5/6 may have promoted on top of Batch 3, adding more dz1979-
   // recipes; this only asserts Batch 3's own contribution is present.
@@ -629,7 +633,7 @@ test('canonical, crosswalk, and Batch 1/2 frozen artifacts remain unchanged; led
   assert.deepEqual(batch2DryRun.selection.selectedEntryIds, ['dz1979-p187', 'dz1979-p202', 'dz1979-p205', 'dz1979-p188', 'dz1979-p196']);
   assert.deepEqual(batch1DryRun.verificationProblems, []);
   assert.deepEqual(batch2DryRun.verificationProblems, []);
-  const expectedBatchCount = (batch3Promoted ? 3 : 2) + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0) + (batch7Promoted ? 1 : 0);
+  const expectedBatchCount = (batch3Promoted ? 3 : 2) + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0) + (batch7Promoted ? 1 : 0) + (batch8Promoted ? 1 : 0);
   assert.equal(promotions.batches.length, expectedBatchCount);
   assert.equal(promotions.batches[0].status, 'promoted');
   assert.equal(promotions.batches[1].status, 'promoted');
