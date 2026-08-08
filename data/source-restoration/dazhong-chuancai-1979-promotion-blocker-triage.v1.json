@@ -1,0 +1,1775 @@
+{
+  "schema": "kitchenmanager.source-restoration.promotion-blocker-triage.v1",
+  "generatedAt": "2026-08-08",
+  "purpose": "对 remaining 12 道 not-promoted new-recipe-candidate 的现有 blocker 做只读机械分类与最低风险解锁方式分析。本轮不实施任何 remediation、不 promotion、不新增 alias/unit conversion/schema，仅基于已冻结的 canonical/readiness/runtime 数据给出结构化建议。",
+  "applicationReady": false,
+  "baseline": {
+    "main": "5b737cf8bc418a8e8c8cd1b057783a1500302b56",
+    "promotedBatches": 6,
+    "promotedCount": 27,
+    "remainingCount": 12,
+    "curatedCount": 153
+  },
+  "dispositionDefinitions": {
+    "mechanical-fix-candidate": "仅需现有已验证机械规则（如 same-for-each 拆分）放宽 hard gate 即可解锁，无 source 重新解读、无信息损失、无需 alias/schema 变更。",
+    "targeted-review-required": "需要人工确认（如 alias/canonicalization 决策），有明确、有限范围的 review 任务。",
+    "schema-or-policy-required": "现有 production schema（{item, qty, unit} 单值）无法无损表达该语义（近似量、双数量），需先做 schema 或 policy 决策。",
+    "keep-blocked": "暂无已识别的安全解锁路径，维持 blocked。"
+  },
+  "items": [
+    {
+      "entryId": "dz1979-p129",
+      "name": "凉拌猪肺",
+      "category": "肉食类",
+      "bookPage": 129,
+      "blockers": [
+        "methodOnly"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": [
+          {
+            "sourceRawItemText": "姜、花椒",
+            "conversionWarning": "做法中的核心食材但数量无法安全表示（rawQuantityText=null），需人工确认后决定是否入库存。",
+            "reason": "另用开水同煮猪肺至软和"
+          }
+        ]
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "猪肺",
+            "sourceRawQuantityText": "二斤",
+            "productionItem": "猪肺",
+            "qty": "1000",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二斤 折算 1000g。"
+          },
+          {
+            "sourceRawItemText": "葱花",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "葱花",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "一两五钱",
+            "productionItem": "酱油",
+            "qty": "75",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两五钱 折算 75g。"
+          },
+          {
+            "sourceRawItemText": "冬菜",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "冬菜",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "味精",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "熟油辣椒",
+            "sourceRawQuantityText": "一两二钱",
+            "productionItem": "熟油辣椒",
+            "qty": "60",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两二钱 折算 60g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 3,
+        "exactCompatibleCount": 3,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "Fabricating a qty/unit for an ingredient the book never quantifies would misrepresent the source; must stay display-only or reviewed."
+      ],
+      "minimalRemediation": [
+        "human-source-review: confirm whether the book truly gives no quantity for these method-only items; if confirmed, either allow qty=null/unit=null production entries for core-no-quantity method-only ingredients (a conservative policy change, not a source reinterpretation) or leave them out of production ingredients entirely as today."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": false,
+      "requiresHumanSourceReview": true,
+      "recommendedDisposition": "targeted-review-required"
+    },
+    {
+      "entryId": "dz1979-p130",
+      "name": "蕃茄丝瓜肉片汤",
+      "category": "肉食类",
+      "bookPage": 130,
+      "blockers": [
+        "methodOnly",
+        "same-for-each"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [
+          {
+            "rawItemText": "葱节、姜",
+            "rawQuantityText": "各三钱",
+            "members": [
+              "葱节",
+              "姜"
+            ],
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 15,
+              "unit": "g",
+              "appliesTo": "each-item",
+              "qualifier": null
+            }
+          }
+        ],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": [
+          {
+            "sourceRawItemText": "胡椒面",
+            "conversionWarning": "做法中的核心食材但数量无法安全表示（rawQuantityText=null），需人工确认后决定是否入库存。",
+            "reason": "汤内调味"
+          }
+        ]
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "猪肉",
+            "sourceRawQuantityText": "五两",
+            "productionItem": "猪肉",
+            "qty": "250",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五两 折算 250g。"
+          },
+          {
+            "sourceRawItemText": "丝瓜",
+            "sourceRawQuantityText": "二两",
+            "productionItem": "丝瓜",
+            "qty": "100",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二两 折算 100g。"
+          },
+          {
+            "sourceRawItemText": "绍酒",
+            "sourceRawQuantityText": "五钱",
+            "productionItem": "绍酒",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五钱 折算 25g。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "三分",
+            "productionItem": "味精",
+            "qty": "1.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三分 折算 1.5g。"
+          },
+          {
+            "sourceRawItemText": "蕃茄",
+            "sourceRawQuantityText": "三两",
+            "productionItem": "蕃茄",
+            "qty": "150",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三两 折算 150g。"
+          },
+          {
+            "sourceRawItemText": "葱节",
+            "sourceRawQuantityText": "各三钱",
+            "productionItem": "葱节",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“葱节、姜”每项 15g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "姜",
+            "sourceRawQuantityText": "各三钱",
+            "productionItem": "姜",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“葱节、姜”每项 15g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "八分",
+            "productionItem": "盐",
+            "qty": "4",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：八分 折算 4g。"
+          },
+          {
+            "sourceRawItemText": "水豆粉",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "水豆粉",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "四钱",
+            "productionItem": "酱油",
+            "qty": "20",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：四钱 折算 20g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 4,
+        "exactCompatibleCount": 3,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [
+          "葱节"
+        ],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "Fabricating a qty/unit for an ingredient the book never quantifies would misrepresent the source; must stay display-only or reviewed.",
+        "same-for-each split is lossless: \"葱节、姜各三钱\" becomes 葱节=15g and 姜=15g, exactly what the book states."
+      ],
+      "minimalRemediation": [
+        "human-source-review: confirm whether the book truly gives no quantity for these method-only items; if confirmed, either allow qty=null/unit=null production entries for core-no-quantity method-only ingredients (a conservative policy change, not a source reinterpretation) or leave them out of production ingredients entirely as today.",
+        "same-for-each alone would not unblock this entry; it is also blocked by: methodOnly."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": false,
+      "requiresHumanSourceReview": true,
+      "recommendedDisposition": "targeted-review-required"
+    },
+    {
+      "entryId": "dz1979-p137",
+      "name": "椒麻鸡块",
+      "category": "禽蛋鱼类",
+      "bookPage": 137,
+      "blockers": [
+        "runtime-unresolved-name"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "子公鸡",
+            "sourceRawQuantityText": "一只（约三斤）",
+            "productionItem": "子公鸡",
+            "qty": "1",
+            "unit": "只",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-count：一只（约三斤） 折算 1只。"
+          },
+          {
+            "sourceRawItemText": "葱叶",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "葱叶",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "生花椒",
+            "sourceRawQuantityText": "三钱",
+            "productionItem": "生花椒",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三钱 折算 15g。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "八分",
+            "productionItem": "盐",
+            "qty": "4",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：八分 折算 4g。"
+          },
+          {
+            "sourceRawItemText": "香油",
+            "sourceRawQuantityText": "五钱",
+            "productionItem": "香油",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五钱 折算 25g。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "酱油",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "味精",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "姜",
+            "sourceRawQuantityText": "三钱",
+            "productionItem": "姜",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三钱 折算 15g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 3,
+        "exactCompatibleCount": 1,
+        "unresolvedItems": [
+          "子公鸡"
+        ],
+        "unitConfirmationItems": [
+          "生花椒"
+        ],
+        "blocked": true
+      },
+      "semanticRisk": [
+        "子公鸡 is a young-rooster-specific term; mapping it into the existing 鸡肉 family/POULTRY_PROBES list without review risks either under-matching (still unresolved) or over-broad matching if merged incorrectly with a different member."
+      ],
+      "minimalRemediation": [
+        "targeted-review-required: decide whether \"子公鸡\" should be (a) added as its own new canonical/family entry (safest, no cross-contamination risk) or (b) mapped into an existing family/probe (needs explicit human confirmation the semantics match); either path is an alias/canonicalization change and is out of scope for this triage round."
+      ],
+      "requiresAliasChange": true,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": false,
+      "requiresHumanSourceReview": true,
+      "recommendedDisposition": "targeted-review-required"
+    },
+    {
+      "entryId": "dz1979-p144",
+      "name": "黄焖鸭子",
+      "category": "禽蛋鱼类",
+      "bookPage": 144,
+      "blockers": [
+        "same-for-each"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [
+          {
+            "rawItemText": "姜、葱",
+            "rawQuantityText": "各五钱",
+            "members": [
+              "姜",
+              "葱"
+            ],
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 25,
+              "unit": "g",
+              "appliesTo": "each-item",
+              "qualifier": null
+            }
+          },
+          {
+            "rawItemText": "绍酒、酱油",
+            "rawQuantityText": "各一两",
+            "members": [
+              "绍酒",
+              "酱油"
+            ],
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 50,
+              "unit": "g",
+              "appliesTo": "each-item",
+              "qualifier": null
+            }
+          }
+        ],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "水盆鸭",
+            "sourceRawQuantityText": "一只（约一斤五两）",
+            "productionItem": "水盆鸭",
+            "qty": "1",
+            "unit": "只",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-count：一只（约一斤五两） 折算 1只。"
+          },
+          {
+            "sourceRawItemText": "化猪油",
+            "sourceRawQuantityText": "一两五钱",
+            "productionItem": "化猪油",
+            "qty": "75",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两五钱 折算 75g。"
+          },
+          {
+            "sourceRawItemText": "姜",
+            "sourceRawQuantityText": "各五钱",
+            "productionItem": "姜",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“姜、葱”每项 25g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "葱",
+            "sourceRawQuantityText": "各五钱",
+            "productionItem": "葱",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“姜、葱”每项 25g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "笋子",
+            "sourceRawQuantityText": "三两",
+            "productionItem": "笋子",
+            "qty": "150",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三两 折算 150g。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "三分",
+            "productionItem": "盐",
+            "qty": "1.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三分 折算 1.5g。"
+          },
+          {
+            "sourceRawItemText": "绍酒",
+            "sourceRawQuantityText": "各一两",
+            "productionItem": "绍酒",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“绍酒、酱油”每项 50g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "各一两",
+            "productionItem": "酱油",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“绍酒、酱油”每项 50g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "味精",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "水豆粉",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "水豆粉",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 2,
+        "exactCompatibleCount": 1,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [
+          "水盆鸭"
+        ],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "same-for-each split is lossless: \"葱节、姜各三钱\" becomes 葱节=15g and 姜=15g, exactly what the book states."
+      ],
+      "minimalRemediation": [
+        "mechanical-gate-change: relax the Batch 1 hard gate to allow memberQuantityMode===\"same-for-each\" (keep unallocated-group-total blocked) — the same-for-each split logic already exists in scripts/build-dazhong-chuancai-promotion-readiness.mjs and is proven correct."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": false,
+      "requiresHumanSourceReview": false,
+      "recommendedDisposition": "mechanical-fix-candidate"
+    },
+    {
+      "entryId": "dz1979-p161",
+      "name": "拌鸡血",
+      "category": "禽蛋鱼类",
+      "bookPage": 161,
+      "blockers": [
+        "runtime-unresolved-name"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "鸡血",
+            "sourceRawQuantityText": "一斤",
+            "productionItem": "鸡血",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "葱",
+            "sourceRawQuantityText": "五钱",
+            "productionItem": "葱",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五钱 折算 25g。"
+          },
+          {
+            "sourceRawItemText": "姜",
+            "sourceRawQuantityText": "三钱",
+            "productionItem": "姜",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三钱 折算 15g。"
+          },
+          {
+            "sourceRawItemText": "蒜",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "蒜",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "醋",
+            "sourceRawQuantityText": "六钱",
+            "productionItem": "醋",
+            "qty": "30",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：六钱 折算 30g。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "五分",
+            "productionItem": "盐",
+            "qty": "2.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五分 折算 2.5g。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "五钱",
+            "productionItem": "酱油",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五钱 折算 25g。"
+          },
+          {
+            "sourceRawItemText": "熟油辣椒",
+            "sourceRawQuantityText": "六钱",
+            "productionItem": "熟油辣椒",
+            "qty": "30",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：六钱 折算 30g。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "味精",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "花椒面",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "花椒面",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 3,
+        "exactCompatibleCount": 1,
+        "unresolvedItems": [
+          "鸡血"
+        ],
+        "unitConfirmationItems": [
+          "花椒面"
+        ],
+        "blocked": true
+      },
+      "semanticRisk": [
+        "鸡血 (chicken blood) is a distinct product category from all poultry meat family members and probes; forcing it into the chicken family risks cross-matching blood against meat stock or vice versa."
+      ],
+      "minimalRemediation": [
+        "targeted-review-required: decide whether \"鸡血\" should be (a) added as its own new canonical/family entry (safest, no cross-contamination risk) or (b) mapped into an existing family/probe (needs explicit human confirmation the semantics match); either path is an alias/canonicalization change and is out of scope for this triage round."
+      ],
+      "requiresAliasChange": true,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": false,
+      "requiresHumanSourceReview": true,
+      "recommendedDisposition": "targeted-review-required"
+    },
+    {
+      "entryId": "dz1979-p201",
+      "name": "炝黄瓜",
+      "category": "蔬菜类",
+      "bookPage": 201,
+      "blockers": [
+        "same-for-each",
+        "non-exact-quantity"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [
+          {
+            "rawItemText": "白糖、酱油",
+            "rawQuantityText": "各三钱",
+            "members": [
+              "白糖",
+              "酱油"
+            ],
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 15,
+              "unit": "g",
+              "appliesTo": "each-item",
+              "qualifier": null
+            }
+          }
+        ],
+        "nonExactIngredients": [
+          {
+            "rawItemText": "花椒",
+            "rawQuantityText": "十余粒",
+            "normalizedQuantity": {
+              "kind": "approximate-count",
+              "qty": null,
+              "unit": "粒",
+              "appliesTo": "item",
+              "qualifier": "十余"
+            },
+            "inventoryComparable": false,
+            "displayQuantity": "十余粒"
+          }
+        ],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "mixed",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "黄瓜",
+            "sourceRawQuantityText": "一斤",
+            "productionItem": "黄瓜",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "菜油",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "菜油",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "干辣椒",
+            "sourceRawQuantityText": "四根",
+            "productionItem": "干辣椒",
+            "qty": "4",
+            "unit": "根",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-count：四根 折算 4根。"
+          },
+          {
+            "sourceRawItemText": "花椒",
+            "sourceRawQuantityText": "十余粒",
+            "productionItem": "花椒",
+            "qty": null,
+            "unit": null,
+            "displayQuantity": "十余粒",
+            "inventoryComparable": false,
+            "conversionReason": "approximate-count：不伪造精确数值，保留原文“十余粒”作为 displayQuantity。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "味精",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "四分",
+            "productionItem": "盐",
+            "qty": "2",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：四分 折算 2g。"
+          },
+          {
+            "sourceRawItemText": "白糖",
+            "sourceRawQuantityText": "各三钱",
+            "productionItem": "白糖",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“白糖、酱油”每项 15g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "各三钱",
+            "productionItem": "酱油",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“白糖、酱油”每项 15g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "醋",
+            "sourceRawQuantityText": "二钱",
+            "productionItem": "醋",
+            "qty": "10",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二钱 折算 10g。"
+          },
+          {
+            "sourceRawItemText": "水豆粉",
+            "sourceRawQuantityText": "五钱",
+            "productionItem": "水豆粉",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五钱 折算 25g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 1,
+        "exactCompatibleCount": 1,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "same-for-each split is lossless: \"葱节、姜各三钱\" becomes 葱节=15g and 姜=15g, exactly what the book states.",
+        "Converting \"十余粒\" (approximate) to any single number would misstate the source; current schema also cannot store the approximate text alongside null qty without a field addition."
+      ],
+      "minimalRemediation": [
+        "same-for-each alone would not unblock this entry; it is also blocked by: non-exact-quantity.",
+        "policy-decision: either (a) accept qty=null/unit=null for approximate-count items (loses the \"十余粒\" text but is honest, not fabricated) and promote with only the exact-comparable ingredients carrying real numbers, or (b) extend the curated ingredient schema with a display-only quantity field before promoting so \"十余粒\" is not silently dropped. Neither is a mechanical converter change."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": true,
+      "requiresHumanSourceReview": false,
+      "recommendedDisposition": "schema-or-policy-required"
+    },
+    {
+      "entryId": "dz1979-p203",
+      "name": "炝绿豆芽",
+      "category": "蔬菜类",
+      "bookPage": 203,
+      "blockers": [
+        "non-exact-quantity"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [],
+        "nonExactIngredients": [
+          {
+            "rawItemText": "花椒",
+            "rawQuantityText": "十余粒",
+            "normalizedQuantity": {
+              "kind": "approximate-count",
+              "qty": null,
+              "unit": "粒",
+              "appliesTo": "item",
+              "qualifier": "十余"
+            },
+            "inventoryComparable": false,
+            "displayQuantity": "十余粒"
+          }
+        ],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "mixed",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "绿豆芽",
+            "sourceRawQuantityText": "五两",
+            "productionItem": "绿豆芽",
+            "qty": "250",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五两 折算 250g。"
+          },
+          {
+            "sourceRawItemText": "菜油",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "菜油",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "干辣椒",
+            "sourceRawQuantityText": "三根",
+            "productionItem": "干辣椒",
+            "qty": "3",
+            "unit": "根",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-count：三根 折算 3根。"
+          },
+          {
+            "sourceRawItemText": "花椒",
+            "sourceRawQuantityText": "十余粒",
+            "productionItem": "花椒",
+            "qty": null,
+            "unit": null,
+            "displayQuantity": "十余粒",
+            "inventoryComparable": false,
+            "conversionReason": "approximate-count：不伪造精确数值，保留原文“十余粒”作为 displayQuantity。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "五分",
+            "productionItem": "盐",
+            "qty": "2.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五分 折算 2.5g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 1,
+        "exactCompatibleCount": 1,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "Converting \"十余粒\" (approximate) to any single number would misstate the source; current schema also cannot store the approximate text alongside null qty without a field addition."
+      ],
+      "minimalRemediation": [
+        "policy-decision: either (a) accept qty=null/unit=null for approximate-count items (loses the \"十余粒\" text but is honest, not fabricated) and promote with only the exact-comparable ingredients carrying real numbers, or (b) extend the curated ingredient schema with a display-only quantity field before promoting so \"十余粒\" is not silently dropped. Neither is a mechanical converter change."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": true,
+      "requiresHumanSourceReview": false,
+      "recommendedDisposition": "schema-or-policy-required"
+    },
+    {
+      "entryId": "dz1979-p207",
+      "name": "炝莲花白",
+      "category": "蔬菜类",
+      "bookPage": 207,
+      "blockers": [
+        "same-for-each",
+        "non-exact-quantity"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [
+          {
+            "rawItemText": "酱油、醋",
+            "rawQuantityText": "各三钱",
+            "members": [
+              "酱油",
+              "醋"
+            ],
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 15,
+              "unit": "g",
+              "appliesTo": "each-item",
+              "qualifier": null
+            }
+          }
+        ],
+        "nonExactIngredients": [
+          {
+            "rawItemText": "花椒",
+            "rawQuantityText": "十余粒",
+            "normalizedQuantity": {
+              "kind": "approximate-count",
+              "qty": null,
+              "unit": "粒",
+              "appliesTo": "item",
+              "qualifier": "十余"
+            },
+            "inventoryComparable": false,
+            "displayQuantity": "十余粒"
+          }
+        ],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "mixed",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "莲花白",
+            "sourceRawQuantityText": "一斤",
+            "productionItem": "莲花白",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "菜油",
+            "sourceRawQuantityText": "八钱",
+            "productionItem": "菜油",
+            "qty": "40",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：八钱 折算 40g。"
+          },
+          {
+            "sourceRawItemText": "干辣椒",
+            "sourceRawQuantityText": "四根",
+            "productionItem": "干辣椒",
+            "qty": "4",
+            "unit": "根",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-count：四根 折算 4根。"
+          },
+          {
+            "sourceRawItemText": "花椒",
+            "sourceRawQuantityText": "十余粒",
+            "productionItem": "花椒",
+            "qty": null,
+            "unit": null,
+            "displayQuantity": "十余粒",
+            "inventoryComparable": false,
+            "conversionReason": "approximate-count：不伪造精确数值，保留原文“十余粒”作为 displayQuantity。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "五分",
+            "productionItem": "盐",
+            "qty": "2.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五分 折算 2.5g。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "各三钱",
+            "productionItem": "酱油",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“酱油、醋”每项 15g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "醋",
+            "sourceRawQuantityText": "各三钱",
+            "productionItem": "醋",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“酱油、醋”每项 15g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "白糖",
+            "sourceRawQuantityText": "五钱",
+            "productionItem": "白糖",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五钱 折算 25g。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "味精",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "水豆粉",
+            "sourceRawQuantityText": "四钱",
+            "productionItem": "水豆粉",
+            "qty": "20",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：四钱 折算 20g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 1,
+        "exactCompatibleCount": 1,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "same-for-each split is lossless: \"葱节、姜各三钱\" becomes 葱节=15g and 姜=15g, exactly what the book states.",
+        "Converting \"十余粒\" (approximate) to any single number would misstate the source; current schema also cannot store the approximate text alongside null qty without a field addition."
+      ],
+      "minimalRemediation": [
+        "same-for-each alone would not unblock this entry; it is also blocked by: non-exact-quantity.",
+        "policy-decision: either (a) accept qty=null/unit=null for approximate-count items (loses the \"十余粒\" text but is honest, not fabricated) and promote with only the exact-comparable ingredients carrying real numbers, or (b) extend the curated ingredient schema with a display-only quantity field before promoting so \"十余粒\" is not silently dropped. Neither is a mechanical converter change."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": true,
+      "requiresHumanSourceReview": false,
+      "recommendedDisposition": "schema-or-policy-required"
+    },
+    {
+      "entryId": "dz1979-p211",
+      "name": "花仁萝卜干",
+      "category": "蔬菜类",
+      "bookPage": 211,
+      "blockers": [
+        "same-for-each"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [
+          {
+            "rawItemText": "酱油、葱白",
+            "rawQuantityText": "各五钱",
+            "members": [
+              "酱油",
+              "葱白"
+            ],
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 25,
+              "unit": "g",
+              "appliesTo": "each-item",
+              "qualifier": null
+            }
+          }
+        ],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "红萝卜干",
+            "sourceRawQuantityText": "三两",
+            "productionItem": "红萝卜干",
+            "qty": "150",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三两 折算 150g。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "各五钱",
+            "productionItem": "酱油",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“酱油、葱白”每项 25g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "葱白",
+            "sourceRawQuantityText": "各五钱",
+            "productionItem": "葱白",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "same-for-each：组“酱油、葱白”每项 25g，安全拆分继承。"
+          },
+          {
+            "sourceRawItemText": "炒花仁",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "炒花仁",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "三分",
+            "productionItem": "盐",
+            "qty": "1.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三分 折算 1.5g。"
+          },
+          {
+            "sourceRawItemText": "熟油辣椒",
+            "sourceRawQuantityText": "一两",
+            "productionItem": "熟油辣椒",
+            "qty": "50",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一两 折算 50g。"
+          },
+          {
+            "sourceRawItemText": "白糖",
+            "sourceRawQuantityText": "三钱",
+            "productionItem": "白糖",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三钱 折算 15g。"
+          },
+          {
+            "sourceRawItemText": "醋",
+            "sourceRawQuantityText": "一钱",
+            "productionItem": "醋",
+            "qty": "5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一钱 折算 5g。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "味精",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "花椒面",
+            "sourceRawQuantityText": "一分",
+            "productionItem": "花椒面",
+            "qty": "0.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一分 折算 0.5g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 4,
+        "exactCompatibleCount": 3,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [
+          "花椒面"
+        ],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "same-for-each split is lossless: \"葱节、姜各三钱\" becomes 葱节=15g and 姜=15g, exactly what the book states."
+      ],
+      "minimalRemediation": [
+        "mechanical-gate-change: relax the Batch 1 hard gate to allow memberQuantityMode===\"same-for-each\" (keep unallocated-group-total blocked) — the same-for-each split logic already exists in scripts/build-dazhong-chuancai-promotion-readiness.mjs and is proven correct."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": false,
+      "requiresHumanSourceReview": false,
+      "recommendedDisposition": "mechanical-fix-candidate"
+    },
+    {
+      "entryId": "dz1979-p222",
+      "name": "酱胡豆",
+      "category": "蔬菜类",
+      "bookPage": 222,
+      "blockers": [
+        "consumed-dual-quantity"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [
+          {
+            "rawItemText": "菜油",
+            "rawQuantityText": "一斤耗二两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 500,
+              "unit": "g",
+              "appliesTo": "item",
+              "qualifier": null,
+              "consumedQty": 100,
+              "consumedUnit": "g"
+            }
+          }
+        ],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "干胡豆",
+            "sourceRawQuantityText": "一斤",
+            "productionItem": "干胡豆",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "甜酱",
+            "sourceRawQuantityText": "二两",
+            "productionItem": "甜酱",
+            "qty": "100",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二两 折算 100g。"
+          },
+          {
+            "sourceRawItemText": "红糖",
+            "sourceRawQuantityText": "二两",
+            "productionItem": "红糖",
+            "qty": "100",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二两 折算 100g。"
+          },
+          {
+            "sourceRawItemText": "菜油",
+            "sourceRawQuantityText": "一斤耗二两",
+            "productionItem": "菜油",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤耗二两 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "五分",
+            "productionItem": "盐",
+            "qty": "2.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五分 折算 2.5g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 1,
+        "exactCompatibleCount": 1,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "Single qty/unit cannot represent \"500g bought, ~100g consumed\" without silently discarding one of the two book-stated numbers."
+      ],
+      "minimalRemediation": [
+        "schema-or-policy-required: production ingredient schema needs either a second consumed-quantity field, or a documented policy on which of {input qty, consumed qty} the single qty field should represent for consumption-based (耗) ingredients, before this class of ingredient can promote without semantic loss."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": true,
+      "requiresHumanSourceReview": false,
+      "recommendedDisposition": "schema-or-policy-required"
+    },
+    {
+      "entryId": "dz1979-p224",
+      "name": "拌鱼香豌豆",
+      "category": "蔬菜类",
+      "bookPage": 224,
+      "blockers": [
+        "consumed-dual-quantity"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [
+          {
+            "rawItemText": "菜油",
+            "rawQuantityText": "一斤耗二两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 500,
+              "unit": "g",
+              "appliesTo": "item",
+              "qualifier": null,
+              "consumedQty": 100,
+              "consumedUnit": "g"
+            }
+          }
+        ],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "鲜豌豆",
+            "sourceRawQuantityText": "一斤",
+            "productionItem": "鲜豌豆",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "五分",
+            "productionItem": "盐",
+            "qty": "2.5",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五分 折算 2.5g。"
+          },
+          {
+            "sourceRawItemText": "姜",
+            "sourceRawQuantityText": "二钱",
+            "productionItem": "姜",
+            "qty": "10",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二钱 折算 10g。"
+          },
+          {
+            "sourceRawItemText": "葱",
+            "sourceRawQuantityText": "六钱",
+            "productionItem": "葱",
+            "qty": "30",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：六钱 折算 30g。"
+          },
+          {
+            "sourceRawItemText": "蒜",
+            "sourceRawQuantityText": "八钱",
+            "productionItem": "蒜",
+            "qty": "40",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：八钱 折算 40g。"
+          },
+          {
+            "sourceRawItemText": "菜油",
+            "sourceRawQuantityText": "一斤耗二两",
+            "productionItem": "菜油",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤耗二两 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "白糖",
+            "sourceRawQuantityText": "六钱",
+            "productionItem": "白糖",
+            "qty": "30",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：六钱 折算 30g。"
+          },
+          {
+            "sourceRawItemText": "泡红辣椒",
+            "sourceRawQuantityText": "八钱",
+            "productionItem": "泡红辣椒",
+            "qty": "40",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：八钱 折算 40g。"
+          },
+          {
+            "sourceRawItemText": "味精",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "味精",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "酱油",
+            "sourceRawQuantityText": "三钱",
+            "productionItem": "酱油",
+            "qty": "15",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：三钱 折算 15g。"
+          },
+          {
+            "sourceRawItemText": "醋",
+            "sourceRawQuantityText": "五钱",
+            "productionItem": "醋",
+            "qty": "25",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：五钱 折算 25g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 2,
+        "exactCompatibleCount": 1,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [
+          "泡红辣椒"
+        ],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "Single qty/unit cannot represent \"500g bought, ~100g consumed\" without silently discarding one of the two book-stated numbers."
+      ],
+      "minimalRemediation": [
+        "schema-or-policy-required: production ingredient schema needs either a second consumed-quantity field, or a documented policy on which of {input qty, consumed qty} the single qty field should represent for consumption-based (耗) ingredients, before this class of ingredient can promote without semantic loss."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": true,
+      "requiresHumanSourceReview": false,
+      "recommendedDisposition": "schema-or-policy-required"
+    },
+    {
+      "entryId": "dz1979-p226",
+      "name": "蛋酥花仁",
+      "category": "蔬菜类",
+      "bookPage": 226,
+      "blockers": [
+        "consumed-dual-quantity"
+      ],
+      "sourceFacts": {
+        "sameForEachIngredients": [],
+        "nonExactIngredients": [],
+        "consumedDualQuantityIngredients": [
+          {
+            "rawItemText": "菜油",
+            "rawQuantityText": "一斤耗二两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 500,
+              "unit": "g",
+              "appliesTo": "item",
+              "qualifier": null,
+              "consumedQty": 100,
+              "consumedUnit": "g"
+            }
+          },
+          {
+            "rawItemText": "干豆粉",
+            "rawQuantityText": "一斤耗四两",
+            "normalizedQuantity": {
+              "kind": "exact-mass",
+              "qty": 500,
+              "unit": "g",
+              "appliesTo": "item",
+              "qualifier": null,
+              "consumedQty": 200,
+              "consumedUnit": "g"
+            }
+          }
+        ],
+        "methodOnlyCoreNoQuantity": []
+      },
+      "currentProductionPlan": {
+        "quantityReadiness": "exact-comparable",
+        "inventoryIngredients": [
+          {
+            "sourceRawItemText": "花生米",
+            "sourceRawQuantityText": "一斤",
+            "productionItem": "花生米",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "鸡蛋",
+            "sourceRawQuantityText": "四个",
+            "productionItem": "鸡蛋",
+            "qty": "4",
+            "unit": "个",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-count：四个 折算 4个。"
+          },
+          {
+            "sourceRawItemText": "菜油",
+            "sourceRawQuantityText": "一斤耗二两",
+            "productionItem": "菜油",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤耗二两 折算 500g。"
+          },
+          {
+            "sourceRawItemText": "盐",
+            "sourceRawQuantityText": "二分",
+            "productionItem": "盐",
+            "qty": "1",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：二分 折算 1g。"
+          },
+          {
+            "sourceRawItemText": "干豆粉",
+            "sourceRawQuantityText": "一斤耗四两",
+            "productionItem": "干豆粉",
+            "qty": "500",
+            "unit": "g",
+            "displayQuantity": null,
+            "inventoryComparable": true,
+            "conversionReason": "exact-mass：一斤耗四两 折算 500g。"
+          }
+        ]
+      },
+      "runtimeStatus": {
+        "coreCount": 3,
+        "exactCompatibleCount": 2,
+        "unresolvedItems": [],
+        "unitConfirmationItems": [
+          "干豆粉"
+        ],
+        "blocked": false
+      },
+      "semanticRisk": [
+        "Single qty/unit cannot represent \"500g bought, ~100g consumed\" without silently discarding one of the two book-stated numbers."
+      ],
+      "minimalRemediation": [
+        "schema-or-policy-required: production ingredient schema needs either a second consumed-quantity field, or a documented policy on which of {input qty, consumed qty} the single qty field should represent for consumption-based (耗) ingredients, before this class of ingredient can promote without semantic loss."
+      ],
+      "requiresAliasChange": false,
+      "requiresConversionChange": false,
+      "requiresSchemaChange": true,
+      "requiresHumanSourceReview": false,
+      "recommendedDisposition": "schema-or-policy-required"
+    }
+  ],
+  "prioritization": {
+    "mechanicalFixCandidates": [
+      {
+        "entryId": "dz1979-p144",
+        "name": "黄焖鸭子"
+      },
+      {
+        "entryId": "dz1979-p211",
+        "name": "花仁萝卜干"
+      }
+    ],
+    "targetedReviewRequired": [
+      {
+        "entryId": "dz1979-p129",
+        "name": "凉拌猪肺"
+      },
+      {
+        "entryId": "dz1979-p130",
+        "name": "蕃茄丝瓜肉片汤"
+      },
+      {
+        "entryId": "dz1979-p137",
+        "name": "椒麻鸡块"
+      },
+      {
+        "entryId": "dz1979-p161",
+        "name": "拌鸡血"
+      }
+    ],
+    "schemaOrPolicyRequired": [
+      {
+        "entryId": "dz1979-p201",
+        "name": "炝黄瓜"
+      },
+      {
+        "entryId": "dz1979-p203",
+        "name": "炝绿豆芽"
+      },
+      {
+        "entryId": "dz1979-p207",
+        "name": "炝莲花白"
+      },
+      {
+        "entryId": "dz1979-p222",
+        "name": "酱胡豆"
+      },
+      {
+        "entryId": "dz1979-p224",
+        "name": "拌鱼香豌豆"
+      },
+      {
+        "entryId": "dz1979-p226",
+        "name": "蛋酥花仁"
+      }
+    ],
+    "keepBlocked": [],
+    "nextMechanicalBatchCandidates": [
+      "dz1979-p144",
+      "dz1979-p211"
+    ],
+    "note": "优先级顺序：mechanical-fix-candidate（无 source reinterpretation、无信息损失）> targeted-review-required（范围有限的人工确认）> schema-or-policy-required（需先决策）> keep-blocked。不为了多 promotion 而降低任何 gate 标准；此处只给出分析，不改代码。"
+  },
+  "ifNothingChanges": {
+    "statement": "如果本轮不做任何代码/policy 改动，12 道全部维持 blocked 是当前唯一正确状态：所有 12 道都命中至少一个真实存在的语义完整性风险或未解决的 runtime name gate，现有 hard gate/runtime gate 均未误判。",
+    "verifiedBy": "blocker union 与 Batch 6 冻结 dry-run 的 hardGateExclusions + runtimeNameGateBlocked 完全一致（见 verificationProblems）。"
+  },
+  "verificationProblems": []
+}
