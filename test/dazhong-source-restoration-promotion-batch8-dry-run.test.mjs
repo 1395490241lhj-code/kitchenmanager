@@ -411,6 +411,7 @@ test('iOS RecipeService-compatible shapes decode from every proposed item, inclu
 
 test('dry-run reports no verification problems and Batch 1-7 stay marked promoted', () => {
   assert.deepEqual(dryRun.verificationProblems, []);
+  assert.equal(dryRun.baseline.main, 'e9101fe990309f263c6cd1cdb249656d24ab6d61');
   assert.equal(dryRun.baseline.applicationReady, false);
   assert.equal(dryRun.baseline.batch1Promoted, true);
   assert.equal(dryRun.baseline.batch6Promoted, true);

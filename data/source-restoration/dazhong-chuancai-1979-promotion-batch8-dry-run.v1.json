@@ -2,7 +2,7 @@
   "schema": "kitchenmanager.source-restoration.promotion-batch8-dry-run.v1",
   "generatedAt": "2026-08-08",
   "baseline": {
-    "main": "ac7aebbe79e7c326834a77b11eb548437fbc8c56",
+    "main": "e9101fe990309f263c6cd1cdb249656d24ab6d61",
     "applicationReady": false,
     "batch1Promoted": true,
     "batch2Promoted": true,
