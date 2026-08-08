@@ -1,0 +1,892 @@
+{
+  "schema": "kitchenmanager.source-restoration.runtime-name-blocker-review.v1",
+  "generatedAt": "2026-08-08",
+  "purpose": "《大众川菜》1979 runtime-name blocker targeted review。只读分析 p137 子公鸡与 p161 鸡血；不 promotion、不修改 production/ledger/readiness、不新增 alias/canonical/unit conversion。",
+  "baseline": {
+    "commit": "06b2324a4aeca3db915d3c223e758ffa13eff890",
+    "curatedCount": 157,
+    "promotedCount": 31,
+    "remainingCount": 8,
+    "applicationReady": false
+  },
+  "scope": {
+    "reviewedEntryIds": [
+      "dz1979-p137",
+      "dz1979-p161"
+    ],
+    "excludedEntryIds": [
+      "dz1979-p201",
+      "dz1979-p203",
+      "dz1979-p207",
+      "dz1979-p222",
+      "dz1979-p224",
+      "dz1979-p226"
+    ],
+    "originalPdf": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf",
+    "sourceReviewMethod": "原始扫描页由 pdftoppm 渲染后目视核对；canonical/readiness/runtime 证据由本 generator 读取并复算。"
+  },
+  "downstreamCodePaths": [
+    "src/ingredients.js: canonical aliases, family candidates, isSmartIngredientMatch",
+    "src/inventory.js: getMatchingInventoryItems/getStockCoverageAnalysis",
+    "src/recommendations.js: core-only inventory coverage, missing ingredients, target matching",
+    "src/shopping.js: addShoppingItem/mergeShoppingItems canonicalize shopping names"
+  ],
+  "productionInvariants": {
+    "curatedCount": 157,
+    "fullCount": 264,
+    "promotedCount": 31,
+    "remainingCount": 8,
+    "applicationReady": false,
+    "reviewedIdsAbsentFromCurated": true,
+    "reviewedIdsAbsentFromFull": true,
+    "reviewedIdsAbsentFromLedger": true,
+    "readinessStates": {
+      "dz1979-p137": "not-promoted",
+      "dz1979-p161": "not-promoted"
+    }
+  },
+  "items": [
+    {
+      "entryId": "dz1979-p137",
+      "name": "椒麻鸡块",
+      "source": {
+        "bookPage": 137,
+        "pdfPage": 150,
+        "title": "椒麻鸡块",
+        "ingredientQuote": "子公鸡一只（约三斤）",
+        "methodQuote": "选子公鸡杀后去毛及内脏……煮至刚熟时，捞起晾冷。",
+        "visualFinding": "原料栏明确列出子公鸡；扫描页与冻结 canonical source-restoration 一致。",
+        "catalogEntry": {
+          "entryId": "dz1979-p137",
+          "bookName": "椒麻鸡块",
+          "category": "禽蛋鱼类",
+          "catalogPdfPage": 9,
+          "bookPage": 137,
+          "pdfPage": 150,
+          "recognitionConfidence": "high",
+          "notes": null
+        },
+        "canonicalEntry": {
+          "entryId": "dz1979-p137",
+          "batchId": "dz1979-b07",
+          "bookName": "椒麻鸡块",
+          "category": "禽蛋鱼类",
+          "source": {
+            "pdfStartPage": 150,
+            "pdfEndPage": 150,
+            "bookStartPage": 137,
+            "bookEndPage": 137
+          },
+          "titleVisualCheck": {
+            "observedText": "椒麻鸡块",
+            "matchesCatalog": true,
+            "confidence": "high",
+            "notes": "直接查看扫描页标题"
+          },
+          "ingredients": [
+            {
+              "rawItemText": "子公鸡",
+              "rawQuantityText": "一只（约三斤）",
+              "normalizedQuantity": {
+                "kind": "exact-count",
+                "qty": 1,
+                "unit": "只",
+                "appliesTo": "item",
+                "qualifier": "约三斤"
+              },
+              "conversionBasis": "计数单位“只”按原书保留；括注“约三斤”为参考重量，不替代计数单位",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "葱叶",
+              "rawQuantityText": "一两",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 50,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "一两 × 50g = 50g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "生花椒",
+              "rawQuantityText": "三钱",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 15,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "三钱 × 5g = 15g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "盐",
+              "rawQuantityText": "八分",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 4,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "八分 × 0.5g = 4g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "香油",
+              "rawQuantityText": "五钱",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 25,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "五钱 × 5g = 25g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "酱油",
+              "rawQuantityText": "一两",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 50,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "一两 × 50g = 50g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "味精",
+              "rawQuantityText": "二分",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 1,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "二分 × 0.5g = 1g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "姜",
+              "rawQuantityText": "三钱",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 15,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "三钱 × 5g = 15g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            }
+          ],
+          "methodSummary": {
+            "steps": [
+              {
+                "order": 1,
+                "summary": "选子公鸡杀后去毛及内脏，用水洗净，在开水锅内（锅内加姜、葱）煮至刚熟时，捞起晾冷。再砍成长约一寸二、宽约四分的条块，盛于碗内。",
+                "measureMentions": [
+                  {
+                    "raw": "长约一寸二、宽约四分",
+                    "dimension": "length",
+                    "normalized": null,
+                    "reason": "鸡块尺寸"
+                  }
+                ]
+              },
+              {
+                "order": 2,
+                "summary": "将花椒、葱叶、盐在菜板上铡细（铡时加几滴香油）后，盛于碗内。加酱油、味精、香油调成椒麻滋汁（如味咸，可加少许冷汤）。",
+                "measureMentions": []
+              },
+              {
+                "order": 3,
+                "summary": "将椒麻滋汁淋在鸡块上，拌匀上味即成。",
+                "measureMentions": []
+              }
+            ],
+            "dialectOrOldTerms": [
+              {
+                "raw": "铡",
+                "modernSummary": "用刀上下按压切碎",
+                "confidence": "high",
+                "notes": null
+              },
+              {
+                "raw": "刚熟",
+                "modernSummary": "恰好煮熟、未过火",
+                "confidence": "high",
+                "notes": null
+              }
+            ],
+            "confidence": "high"
+          },
+          "characteristicsSummary": "肉细嫩，葱、椒味突出，为佐酒好菜。附注：花椒铡得越细越好。并且只能用生花椒，以保持其香味。",
+          "methodOnlyIngredients": [
+            {
+              "rawItemText": "冷汤",
+              "rawQuantityText": "少许",
+              "use": "附条件可选：如味咸，可加少许冷汤",
+              "quantityHandling": "原料栏未列；保留“少许”，不标准化为精确值",
+              "confidence": "high"
+            }
+          ],
+          "nonIngredientMaterials": {
+            "tools": [
+              "开水锅",
+              "菜板"
+            ],
+            "containers": [
+              "碗"
+            ],
+            "fuels": [],
+            "cleaningMaterials": [
+              "洗净鸡所用水"
+            ],
+            "nonEdiblePackaging": []
+          },
+          "confirmedReadings": [
+            {
+              "raw": "在菜板上铡细",
+              "location": "做法第2步"
+            },
+            {
+              "raw": "只能用生花椒，以保持其香味",
+              "location": "附注"
+            }
+          ],
+          "uncertainties": [],
+          "projectMatch": {
+            "classification": "book-only",
+            "projectName": null,
+            "projectIds": [],
+            "candidateProjectName": null,
+            "reviewRequired": false
+          },
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      },
+      "currentVocabulary": {
+        "raw": "子公鸡",
+        "canonical": "子公鸡",
+        "aliases": [],
+        "familyKey": null,
+        "familyCandidates": [
+          "子公鸡"
+        ],
+        "matchNames": [
+          "子公鸡"
+        ],
+        "role": "core"
+      },
+      "currentRuntime": {
+        "role": "core",
+        "canonical": "子公鸡",
+        "familyKey": null,
+        "guessKitchenUnit": "份",
+        "normalizedQuantity": {
+          "qty": 1,
+          "unit": "只",
+          "finite": true
+        },
+        "identityMatch": {
+          "probeName": "子公鸡",
+          "coverageWithProductionUnit": "exact"
+        },
+        "probes": [
+          {
+            "probeName": "子公鸡",
+            "strictNameMatch": true,
+            "softNameMatch": true,
+            "coverageWithProductionUnit": "exact",
+            "coverageWithDefaultUnit": "unit-mismatch"
+          },
+          {
+            "probeName": "鸡肉",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "仔鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "母鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "老母鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "土鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "公鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "三黄鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          }
+        ],
+        "compatibility": "unresolved-name-match",
+        "reasons": [
+          "现有 canonicalization 无法把该 production item 解析到任何常见用户库存名称（严格名称层失败）。"
+        ],
+        "observation": null
+      },
+      "semanticEquivalence": {
+        "existingEquivalentCanonical": "鸡肉",
+        "evidence": "现有 INGREDIENT_ALIASES 已把仔鸡、公鸡、土鸡、三黄鸡、仔母鸡归入鸡肉；子公鸡是其中同一“幼年公鸡/整鸡肉”语义的未覆盖词形。判断依据是既有逐词 alias 约定，不是因为字符串含有“鸡”就自动扩 family。",
+        "nonEquivalentCandidates": [
+          "鸡脯肉",
+          "鸡腿",
+          "鸡翅"
+        ]
+      },
+      "options": {
+        "exactAlias": {
+          "status": "recommended",
+          "change": "仅新增 INGREDIENT_ALIASES[\"鸡肉\"] 中的精确 alias “子公鸡”；不改 chicken family broad/members。",
+          "hypotheticalCanonical": "鸡肉",
+          "chickenFamily": {
+            "raw": "鸡肉",
+            "canonical": "鸡肉",
+            "aliases": [
+              "仔鸡",
+              "公鸡",
+              "嫩鸡",
+              "土鸡",
+              "三黄鸡",
+              "鸡块",
+              "鸡丁",
+              "鸡丝",
+              "鸡条",
+              "生鸡肉",
+              "仔母鸡"
+            ],
+            "familyKey": "chicken",
+            "familyCandidates": [
+              "鸡肉",
+              "鸡脯肉",
+              "鸡腿",
+              "鸡翅"
+            ],
+            "matchNames": [
+              "鸡肉",
+              "鸡脯肉",
+              "鸡腿",
+              "鸡翅"
+            ],
+            "role": "core"
+          },
+          "stockProbes": [
+            {
+              "stockName": "鸡肉",
+              "strictNameMatch": true,
+              "coverage": "exact"
+            },
+            {
+              "stockName": "仔鸡",
+              "strictNameMatch": true,
+              "coverage": "exact"
+            },
+            {
+              "stockName": "公鸡",
+              "strictNameMatch": true,
+              "coverage": "exact"
+            },
+            {
+              "stockName": "土鸡",
+              "strictNameMatch": true,
+              "coverage": "exact"
+            }
+          ],
+          "effect": "getStockCoverageAnalysis 会让鸡肉/仔鸡/公鸡/土鸡库存满足该 recipe；推荐目标会沿现有鸡肉 family 展开；购物清单会把子公鸡 canonicalize 为鸡肉，丢失“幼公鸡”标签。",
+          "risk": "现有 chicken broad family 本来就允许鸡肉与鸡脯肉/鸡腿/鸡翅的 sibling match；alias 会把该新词纳入既有宽口径，但不会扩大 family 定义。"
+        },
+        "independentCanonical": {
+          "status": "lower-compatibility",
+          "effect": "保留子公鸡独立，库存/推荐/购物清单只精确识别子公鸡，避免鸡肉 family 的宽匹配；但用户已有鸡肉/仔鸡库存不会满足 recipe。"
+        },
+        "keepBlocked": {
+          "status": "safe-now",
+          "effect": "不改变任何运行时行为，但保留已确认的词汇缺口。"
+        }
+      },
+      "recommendation": "exact-alias-to-鸡肉",
+      "safeToUnlockAfterReview": true,
+      "safeToUnlockNow": false,
+      "minimumCodeChange": "只加一个精确 alias，并补 matcher/inventory/recommendation/shopping 回归；不新增 family member、不做 contains heuristic、不改 unit conversion。"
+    },
+    {
+      "entryId": "dz1979-p161",
+      "name": "拌鸡血",
+      "source": {
+        "bookPage": 161,
+        "pdfPage": 174,
+        "title": "拌鸡血",
+        "ingredientQuote": "鸡血一斤",
+        "methodQuote": "将鸡血（或鸭血）切成四分见方的丁……",
+        "visualFinding": "原料栏明确列出鸡血；做法的“或鸭血”是烹调替代说明，不是鸡血与鸭血的 canonical 等价。",
+        "catalogEntry": {
+          "entryId": "dz1979-p161",
+          "bookName": "拌鸡血",
+          "category": "禽蛋鱼类",
+          "catalogPdfPage": 10,
+          "bookPage": 161,
+          "pdfPage": 174,
+          "recognitionConfidence": "high",
+          "notes": null
+        },
+        "canonicalEntry": {
+          "entryId": "dz1979-p161",
+          "batchId": "dz1979-b08",
+          "bookName": "拌鸡血",
+          "category": "禽蛋鱼类",
+          "source": {
+            "pdfStartPage": 174,
+            "pdfEndPage": 174,
+            "bookStartPage": 161,
+            "bookEndPage": 161
+          },
+          "titleVisualCheck": {
+            "observedText": "拌鸡血",
+            "matchesCatalog": true,
+            "confidence": "high",
+            "notes": "直接查看扫描页标题"
+          },
+          "ingredients": [
+            {
+              "rawItemText": "鸡血",
+              "rawQuantityText": "一斤",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 500,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "一斤 × 500g = 500g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "葱",
+              "rawQuantityText": "五钱",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 25,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "五钱 × 5g = 25g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "姜",
+              "rawQuantityText": "三钱",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 15,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "三钱 × 5g = 15g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "蒜",
+              "rawQuantityText": "一两",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 50,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "一两 × 50g = 50g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "醋",
+              "rawQuantityText": "六钱",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 30,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "六钱 × 5g = 30g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "盐",
+              "rawQuantityText": "五分",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 2.5,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "五分 × 0.5g = 2.5g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "酱油",
+              "rawQuantityText": "五钱",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 25,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "五钱 × 5g = 25g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "熟油辣椒",
+              "rawQuantityText": "六钱",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 30,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "六钱 × 5g = 30g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "味精",
+              "rawQuantityText": "二分",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 1,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "二分 × 0.5g = 1g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            },
+            {
+              "rawItemText": "花椒面",
+              "rawQuantityText": "二分",
+              "normalizedQuantity": {
+                "kind": "exact-mass",
+                "qty": 1,
+                "unit": "g",
+                "appliesTo": "item",
+                "qualifier": null
+              },
+              "conversionBasis": "二分 × 0.5g = 1g",
+              "confidence": {
+                "recognition": "high",
+                "conversion": "high"
+              }
+            }
+          ],
+          "methodSummary": {
+            "steps": [
+              {
+                "order": 1,
+                "summary": "将鸡血（或鸭血）切成四分见方的丁，用开水煮一煮（不能煮久，否则要老），打入筲箕内沥干水。姜、蒜切米，葱切细花。",
+                "measureMentions": []
+              },
+              {
+                "order": 2,
+                "summary": "用碗将姜米、蒜米、葱花、味精、熟油辣椒、花椒面、酱油等调料放入，再加鸡血丁拌匀上味即可。",
+                "measureMentions": []
+              }
+            ],
+            "dialectOrOldTerms": [
+              {
+                "raw": "筲箕",
+                "modernSummary": "带孔的竹编沥水器具",
+                "confidence": "high",
+                "notes": null
+              }
+            ],
+            "confidence": "high"
+          },
+          "characteristicsSummary": "麻辣鲜香，酒饭均宜。",
+          "methodOnlyIngredients": [],
+          "nonIngredientMaterials": {
+            "tools": [
+              "筲箕"
+            ],
+            "containers": [
+              "碗"
+            ],
+            "fuels": [],
+            "cleaningMaterials": [
+              "煮鸡血所用开水"
+            ],
+            "nonEdiblePackaging": []
+          },
+          "confirmedReadings": [
+            {
+              "raw": "不能煮久，否则要老",
+              "location": "做法第1步"
+            }
+          ],
+          "uncertainties": [],
+          "projectMatch": {
+            "classification": "book-only",
+            "projectName": null,
+            "projectIds": [],
+            "candidateProjectName": null,
+            "reviewRequired": false
+          },
+          "confidence": {
+            "recognition": "high",
+            "conversion": "high"
+          }
+        }
+      },
+      "currentVocabulary": {
+        "raw": "鸡血",
+        "canonical": "鸡血",
+        "aliases": [],
+        "familyKey": null,
+        "familyCandidates": [
+          "鸡血"
+        ],
+        "matchNames": [
+          "鸡血"
+        ],
+        "role": "core"
+      },
+      "currentRuntime": {
+        "role": "core",
+        "canonical": "鸡血",
+        "familyKey": null,
+        "guessKitchenUnit": "份",
+        "normalizedQuantity": {
+          "qty": 500,
+          "unit": "g",
+          "finite": true
+        },
+        "identityMatch": {
+          "probeName": "鸡血",
+          "coverageWithProductionUnit": "exact"
+        },
+        "probes": [
+          {
+            "probeName": "鸡血",
+            "strictNameMatch": true,
+            "softNameMatch": true,
+            "coverageWithProductionUnit": "exact",
+            "coverageWithDefaultUnit": "unit-mismatch"
+          },
+          {
+            "probeName": "鸡肉",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "仔鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "母鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "老母鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "土鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "公鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          },
+          {
+            "probeName": "三黄鸡",
+            "strictNameMatch": false,
+            "softNameMatch": false,
+            "coverageWithProductionUnit": "none",
+            "coverageWithDefaultUnit": "none"
+          }
+        ],
+        "compatibility": "unresolved-name-match",
+        "reasons": [
+          "现有 canonicalization 无法把该 production item 解析到任何常见用户库存名称（严格名称层失败）。"
+        ],
+        "observation": null
+      },
+      "semanticEquivalence": {
+        "existingEquivalentCanonical": null,
+        "rejectedMappings": [
+          {
+            "candidate": "鸡肉",
+            "reason": "不同组织；鸡血不得映射鸡肉。"
+          },
+          {
+            "candidate": "鸭血",
+            "reason": "不同物种；扫描中的“或鸭血”是 recipe 替代原料说明，不是 canonical 等价。"
+          }
+        ],
+        "evidence": "当前没有血类 family；鸡血和鸭血都作为各自 raw canonical 回退，库存 matcher 对两者已能精确区分。"
+      },
+      "options": {
+        "exactAlias": {
+          "status": "rejected",
+          "effect": "不存在安全的现有 canonical alias 目标；映射鸡肉或鸭血都会造成跨组织/跨物种库存、推荐和购物清单污染。"
+        },
+        "independentCanonical": {
+          "status": "recommended",
+          "change": "显式保留独立 canonical “鸡血”，加入窄范围 runtime recognition；不加入 chicken family，不加入 duck-blood alias，不改变 matcher 的 exact species boundary。",
+          "hypotheticalCanonical": "鸡血",
+          "stockProbes": [
+            {
+              "stockName": "鸡血",
+              "strictNameMatch": true,
+              "coverage": "exact"
+            },
+            {
+              "stockName": "鸭血",
+              "strictNameMatch": false,
+              "coverage": "none"
+            },
+            {
+              "stockName": "鸡肉",
+              "strictNameMatch": false,
+              "coverage": "none"
+            }
+          ],
+          "effect": "鸡血库存可满足 p161；鸭血、鸡肉均不能满足；推荐与购物清单保留鸡血名称，不跨物种合并。",
+          "risk": "需要 runtime gate 识别独立血类 canonical；仅新增 alias 表 key 或保留 raw fallback 本身不足以解决当前“含鸡即 poultry” gate。"
+        },
+        "keepBlocked": {
+          "status": "safe-now",
+          "effect": "不改变任何运行时行为，继续阻止 promotion，避免错误映射。"
+        }
+      },
+      "recommendation": "new-independent-canonical-鸡血",
+      "safeToUnlockAfterReview": true,
+      "safeToUnlockNow": false,
+      "minimumCodeChange": "新增独立鸡血 canonical/runtime 分类路径，并补 exact 鸡血、拒绝鸭血/鸡肉的 inventory/recommendation/shopping 回归；不新增 alias 到任何既有 canonical。"
+    }
+  ],
+  "conclusion": {
+    "p137": "建议 exact alias 子公鸡 -> 鸡肉；理由是已有仔鸡/公鸡等同义 alias 约定，且不改 chicken family 定义。修复后仍保留只/份的 unit confirmation，不应借此扩大 unit policy。",
+    "p161": "建议新建独立 canonical 鸡血并增加窄 runtime recognition；绝不 alias 到鸡肉或鸭血。当前 raw canonical 已可精确匹配鸡血库存，但 gate 规则错误地把含鸡词当作 poultry meat vocabulary。",
+    "safeToUnlock": "两条均可在各自最小修复及回归测试后安全解锁；本轮不实施，因此当前仍 blocked。"
+  },
+  "writeTargets": [
+    "data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.json",
+    "data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.md"
+  ],
+  "verificationProblems": []
+}
