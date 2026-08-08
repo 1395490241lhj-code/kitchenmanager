@@ -45,13 +45,16 @@ const EXPECTED_PRODUCTION_IDS = ['dz1979-p187', 'dz1979-p188', 'dz1979-p196', 'd
 const BATCH3_PRODUCTION_IDS = ['dz1979-p212', 'dz1979-p216', 'dz1979-p218', 'dz1979-p221', 'dz1979-p206'];
 const BATCH4_PRODUCTION_IDS = ['dz1979-p183', 'dz1979-p198', 'dz1979-p153', 'dz1979-p209', 'dz1979-p223'];
 const BATCH5_PRODUCTION_IDS = ['dz1979-p162', 'dz1979-p186', 'dz1979-p185', 'dz1979-p219', 'dz1979-p213'];
-// Batch 3/4/5 may since have been promoted on top of Batch 1/2; this file
+const BATCH6_PRODUCTION_IDS = ['dz1979-p159', 'dz1979-p168'];
+// Batch 3/4/5/6 may since have been promoted on top of Batch 1/2; this file
 // only regression-tests Batch 2's own promoted content, so it stays
 // accurate either way by checking their presence via the ledger.
 const batch3Promoted = BATCH3_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 const batch4Promoted = BATCH4_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 const batch5Promoted = BATCH5_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
-const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0);
+const batch6Promoted = BATCH6_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0);
+const laterBatchesRecipeCount = (batch3Promoted ? 5 : 0) + (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0);
 
 // -- Independent replica of the hard gate + Batch 2 runtime gate -----------
 // Deliberately written from scratch against readiness/canonical data rather
@@ -151,7 +154,7 @@ test('remaining candidate pool excludes Batch 1 promoted entries and matches the
   for (const item of dryRun.items) {
     assert.ok(ledgerPromotedEntryIds.has(item.entryId), `${item.entryId} should be in the ledger after promotion`);
   }
-  assert.equal(ledgerPromotedEntryIds.size, 10 + laterBatchesPromotedCount * 5);
+  assert.equal(ledgerPromotedEntryIds.size, 10 + laterBatchesRecipeCount);
 });
 
 test('the funnel counts match an independently recomputed selection (34 -> 24 -> 22 -> 5)', () => {
@@ -527,8 +530,8 @@ test('promotion-aware: production now contains exactly the frozen Batch 2 propos
   // plus Batch 2's five (10 dz1979- recipes total), and each Batch 2
   // recipe/ingredient map in production must be byte-identical to its
   // frozen dry-run proposal.
-  assert.equal(curated.recipes.length, 136 + laterBatchesPromotedCount * 5);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 10 + laterBatchesPromotedCount * 5);
+  assert.equal(curated.recipes.length, 136 + laterBatchesRecipeCount);
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 10 + laterBatchesRecipeCount);
   for (const item of dryRun.items) {
     assert.ok(productionIds.has(item.productionId), `${item.productionId} should be in production after promotion`);
     assert.ok(productionNames.has(item.name), `${item.name} should be in production after promotion`);

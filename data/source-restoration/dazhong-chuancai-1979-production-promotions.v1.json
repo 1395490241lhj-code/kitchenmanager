@@ -548,6 +548,55 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b06",
+      "status": "promoted",
+      "baselineCommit": "da6f8bc5a079f086a5545a6368c678a92d174250",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch6-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch6-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p159",
+          "productionId": "dz1979-p159",
+          "name": "烧鸭血",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p159",
+            "bookName": "烧鸭血",
+            "bookPage": 159,
+            "pdfPage": 172,
+            "category": "禽蛋鱼类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p168",
+          "productionId": "dz1979-p168",
+          "name": "豆腐鱼",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p168",
+            "bookName": "豆腐鱼",
+            "bookPage": 168,
+            "pdfPage": 181,
+            "category": "禽蛋鱼类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }

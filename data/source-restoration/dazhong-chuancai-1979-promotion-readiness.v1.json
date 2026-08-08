@@ -143,11 +143,13 @@
       "dz1979-p129",
       "dz1979-p130"
     ],
-    "promotedNewRecipeCount": 25,
+    "promotedNewRecipeCount": 27,
     "promotedNewRecipeIds": [
       "dz1979-p143",
       "dz1979-p153",
+      "dz1979-p159",
       "dz1979-p162",
+      "dz1979-p168",
       "dz1979-p180",
       "dz1979-p183",
       "dz1979-p185",
@@ -171,7 +173,7 @@
       "dz1979-p221",
       "dz1979-p223"
     ],
-    "remainingNewRecipeCandidateCount": 14,
+    "remainingNewRecipeCandidateCount": 12,
     "schemaExtensionNeeded": false,
     "verificationProblems": []
   },
@@ -2615,7 +2617,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "烧鸭血",
@@ -3106,7 +3108,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "豆腐鱼",

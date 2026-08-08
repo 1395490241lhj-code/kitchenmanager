@@ -28,13 +28,19 @@ const BATCH1_IDS = ['dz1979-p143', 'dz1979-p180', 'dz1979-p195', 'dz1979-p200', 
 const BATCH2_IDS = ['dz1979-p187', 'dz1979-p202', 'dz1979-p205', 'dz1979-p188', 'dz1979-p196'];
 const BATCH3_IDS = ['dz1979-p212', 'dz1979-p216', 'dz1979-p218', 'dz1979-p221', 'dz1979-p206'];
 const BATCH5_IDS = ['dz1979-p162', 'dz1979-p186', 'dz1979-p185', 'dz1979-p219', 'dz1979-p213'];
+const BATCH6_IDS = ['dz1979-p159', 'dz1979-p168'];
 const itemsById = new Map(dryRun.items.map((item) => [item.productionId, item]));
-// Batch 5 may since have been promoted on top of Batch 1/2/3/4; this file
+// Batch 5/6 may since have been promoted on top of Batch 1/2/3/4; this file
 // only regression-tests Batch 4's own promoted content, so it stays
-// accurate either way by checking Batch 5's presence via the ledger.
+// accurate either way by checking their presence via the ledger.
 const batch5Promoted = BATCH5_IDS.every((id) => (
   ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
 ));
+const batch6Promoted = BATCH6_IDS.every((id) => (
+  ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
+));
+const laterBatchesRecipeCount = (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0);
+const laterBatchesLedgerCount = (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0);
 
 test('overlay contains exactly the twenty Batch1+2+3+4 promoted recipes, all matching their dry-runs', () => {
   const overlayIds = overlay.newRecipes
@@ -47,9 +53,10 @@ test('overlay contains exactly the twenty Batch1+2+3+4 promoted recipes, all mat
     ...BATCH3_IDS,
     ...EXPECTED_IDS,
     ...(batch5Promoted ? BATCH5_IDS : []),
+    ...(batch6Promoted ? BATCH6_IDS : []),
   ];
   assert.deepEqual(overlayIds, expectedOverlayIds.sort());
-  const expectedOverlayCount = 78 + (batch5Promoted ? 5 : 0);
+  const expectedOverlayCount = 78 + laterBatchesRecipeCount;
   assert.equal(overlay.newRecipes.length, expectedOverlayCount);
   assert.equal(Object.keys(overlay.newRecipeIngredients).length, expectedOverlayCount);
   for (const id of EXPECTED_IDS) {
@@ -68,8 +75,8 @@ test('overlay contains exactly the twenty Batch1+2+3+4 promoted recipes, all mat
 });
 
 test('curated contains exactly the twenty Batch1+2+3+4 promoted recipes with full content (141 -> 146)', () => {
-  assert.equal(curated.recipes.length, 146 + (batch5Promoted ? 5 : 0));
-  assert.equal(curated.recipes.filter((recipe) => recipe.id.startsWith('dz1979-')).length, 20 + (batch5Promoted ? 5 : 0));
+  assert.equal(curated.recipes.length, 146 + laterBatchesRecipeCount);
+  assert.equal(curated.recipes.filter((recipe) => recipe.id.startsWith('dz1979-')).length, 20 + laterBatchesRecipeCount);
   for (const id of EXPECTED_IDS) {
     const recipe = curated.recipes.find((entry) => entry.id === id);
     assert.deepEqual(recipe, itemsById.get(id).proposedCuratedRecipe, id);
@@ -99,19 +106,19 @@ test('recipe-curation-summary.md reflects exactly the dry-run-predicted mechanic
     new URL('../data/recipe-curation-summary.md', import.meta.url),
     'utf8',
   );
-  const n = batch5Promoted ? 1 : 0;
-  assert.match(summary, new RegExp(`原始菜谱（base \\+ overlay 合并后的有效集）\\s*\\|\\s*${342 + n * 5}`));
-  assert.match(summary, new RegExp(`overlay 新增/补全后净增\\s*\\|\\s*${78 + n * 5}`));
-  assert.match(summary, new RegExp(`curated 保留\\*\\*\\s*\\|\\s*\\*\\*${146 + n * 5}`));
-  assert.match(summary, new RegExp(`从有效集保留（有做法直接保留）\\s*\\|\\s*${125 + n * 5}`));
-  assert.match(summary, new RegExp(`从 overlay 补全 method 的菜\\s*\\|\\s*${125 + n * 5}`));
-  assert.match(summary, new RegExp(`从 overlay 补全 ingredients 的菜\\s*\\|\\s*${88 + n * 5}`));
+  const n = laterBatchesRecipeCount;
+  assert.match(summary, new RegExp(`原始菜谱（base \\+ overlay 合并后的有效集）\\s*\\|\\s*${342 + n}`));
+  assert.match(summary, new RegExp(`overlay 新增/补全后净增\\s*\\|\\s*${78 + n}`));
+  assert.match(summary, new RegExp(`curated 保留\\*\\*\\s*\\|\\s*\\*\\*${146 + n}`));
+  assert.match(summary, new RegExp(`从有效集保留（有做法直接保留）\\s*\\|\\s*${125 + n}`));
+  assert.match(summary, new RegExp(`从 overlay 补全 method 的菜\\s*\\|\\s*${125 + n}`));
+  assert.match(summary, new RegExp(`从 overlay 补全 ingredients 的菜\\s*\\|\\s*${88 + n}`));
 });
 
 test('promotion ledger records Batch 4 with full provenance while keeping Batch 1/2/3 intact', () => {
   assert.equal(ledger.applicationReady, false);
   assert.equal(ledger.partialPromotion, true);
-  assert.equal(ledger.batches.length, 4 + (batch5Promoted ? 1 : 0));
+  assert.equal(ledger.batches.length, 4 + laterBatchesLedgerCount);
   const batch1 = ledger.batches.find((b) => b.batchId === 'dz1979-production-b01');
   const batch2 = ledger.batches.find((b) => b.batchId === 'dz1979-production-b02');
   const batch3 = ledger.batches.find((b) => b.batchId === 'dz1979-production-b03');
@@ -144,11 +151,11 @@ test('promotion ledger records Batch 4 with full provenance while keeping Batch 
 });
 
 test('readiness marks twenty promoted (5+5+5+5), remaining drops to 19, and preserves classification stats', () => {
-  assert.equal(readiness.summary.promotedNewRecipeCount, 20 + (batch5Promoted ? 5 : 0));
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 19 - (batch5Promoted ? 5 : 0));
+  assert.equal(readiness.summary.promotedNewRecipeCount, 20 + laterBatchesRecipeCount);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 19 - laterBatchesRecipeCount);
   assert.deepEqual(
     readiness.summary.promotedNewRecipeIds.sort(),
-    [...BATCH1_IDS, ...BATCH2_IDS, ...BATCH3_IDS, ...EXPECTED_IDS, ...(batch5Promoted ? BATCH5_IDS : [])].sort(),
+    [...BATCH1_IDS, ...BATCH2_IDS, ...BATCH3_IDS, ...EXPECTED_IDS, ...(batch5Promoted ? BATCH5_IDS : []), ...(batch6Promoted ? BATCH6_IDS : [])].sort(),
   );
   assert.deepEqual(readiness.summary.dispositionCounts, {
     'existing-project-match': 50,
@@ -287,7 +294,7 @@ test('iOS RecipeService-compatible shapes decode across the full curated pack', 
       assert.ok(ing.unit === null || ing.unit === undefined || typeof ing.unit === 'string', recipe.id);
     }
   }
-  assert.equal(curated.recipes.length, 146 + (batch5Promoted ? 5 : 0));
+  assert.equal(curated.recipes.length, 146 + laterBatchesRecipeCount);
 });
 
 test('applicationReady stays false across every Batch 4 promotion surface', () => {

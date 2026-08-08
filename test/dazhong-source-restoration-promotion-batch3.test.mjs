@@ -28,17 +28,22 @@ const BATCH1_IDS = ['dz1979-p143', 'dz1979-p180', 'dz1979-p195', 'dz1979-p200', 
 const BATCH2_IDS = ['dz1979-p187', 'dz1979-p202', 'dz1979-p205', 'dz1979-p188', 'dz1979-p196'];
 const BATCH4_IDS = ['dz1979-p183', 'dz1979-p198', 'dz1979-p153', 'dz1979-p209', 'dz1979-p223'];
 const BATCH5_IDS = ['dz1979-p162', 'dz1979-p186', 'dz1979-p185', 'dz1979-p219', 'dz1979-p213'];
+const BATCH6_IDS = ['dz1979-p159', 'dz1979-p168'];
 const itemsById = new Map(dryRun.items.map((item) => [item.productionId, item]));
-// Batch 4/5 may since have been promoted on top of Batch 1/2/3; this file
+// Batch 4/5/6 may since have been promoted on top of Batch 1/2/3; this file
 // only regression-tests Batch 3's own promoted content, so it stays
-// accurate either way by checking Batch 4/5's presence via the ledger.
+// accurate either way by checking Batch 4/5/6's presence via the ledger.
 const batch4Promoted = BATCH4_IDS.every((id) => (
   ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
 ));
 const batch5Promoted = BATCH5_IDS.every((id) => (
   ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
 ));
-const laterBatchesPromotedCount = (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0);
+const batch6Promoted = BATCH6_IDS.every((id) => (
+  ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
+));
+const laterBatchesPromotedCount = (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0);
+const laterBatchesRecipeCount = (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0);
 
 test('overlay contains exactly the fifteen Batch1+2+3 promoted recipes, all matching their dry-runs', () => {
   const overlayIds = overlay.newRecipes
@@ -51,9 +56,10 @@ test('overlay contains exactly the fifteen Batch1+2+3 promoted recipes, all matc
     ...EXPECTED_IDS,
     ...(batch4Promoted ? BATCH4_IDS : []),
     ...(batch5Promoted ? BATCH5_IDS : []),
+    ...(batch6Promoted ? BATCH6_IDS : []),
   ];
   assert.deepEqual(overlayIds, expectedOverlayIds.sort());
-  const expectedOverlayCount = 73 + laterBatchesPromotedCount * 5;
+  const expectedOverlayCount = 73 + laterBatchesRecipeCount;
   assert.equal(overlay.newRecipes.length, expectedOverlayCount);
   assert.equal(Object.keys(overlay.newRecipeIngredients).length, expectedOverlayCount);
   for (const id of EXPECTED_IDS) {
@@ -72,8 +78,8 @@ test('overlay contains exactly the fifteen Batch1+2+3 promoted recipes, all matc
 });
 
 test('curated contains exactly the fifteen Batch1+2+3 promoted recipes with full content (136 -> 141)', () => {
-  assert.equal(curated.recipes.length, 141 + laterBatchesPromotedCount * 5);
-  assert.equal(curated.recipes.filter((recipe) => recipe.id.startsWith('dz1979-')).length, 15 + laterBatchesPromotedCount * 5);
+  assert.equal(curated.recipes.length, 141 + laterBatchesRecipeCount);
+  assert.equal(curated.recipes.filter((recipe) => recipe.id.startsWith('dz1979-')).length, 15 + laterBatchesRecipeCount);
   for (const id of EXPECTED_IDS) {
     const recipe = curated.recipes.find((entry) => entry.id === id);
     assert.deepEqual(recipe, itemsById.get(id).proposedCuratedRecipe, id);
@@ -103,13 +109,13 @@ test('recipe-curation-summary.md reflects exactly the dry-run-predicted mechanic
     new URL('../data/recipe-curation-summary.md', import.meta.url),
     'utf8',
   );
-  const n = laterBatchesPromotedCount;
-  assert.match(summary, new RegExp(`原始菜谱（base \\+ overlay 合并后的有效集）\\s*\\|\\s*${337 + n * 5}`));
-  assert.match(summary, new RegExp(`overlay 新增/补全后净增\\s*\\|\\s*${73 + n * 5}`));
-  assert.match(summary, new RegExp(`curated 保留\\*\\*\\s*\\|\\s*\\*\\*${141 + n * 5}`));
-  assert.match(summary, new RegExp(`从有效集保留（有做法直接保留）\\s*\\|\\s*${120 + n * 5}`));
-  assert.match(summary, new RegExp(`从 overlay 补全 method 的菜\\s*\\|\\s*${120 + n * 5}`));
-  assert.match(summary, new RegExp(`从 overlay 补全 ingredients 的菜\\s*\\|\\s*${83 + n * 5}`));
+  const n = laterBatchesRecipeCount;
+  assert.match(summary, new RegExp(`原始菜谱（base \\+ overlay 合并后的有效集）\\s*\\|\\s*${337 + n}`));
+  assert.match(summary, new RegExp(`overlay 新增/补全后净增\\s*\\|\\s*${73 + n}`));
+  assert.match(summary, new RegExp(`curated 保留\\*\\*\\s*\\|\\s*\\*\\*${141 + n}`));
+  assert.match(summary, new RegExp(`从有效集保留（有做法直接保留）\\s*\\|\\s*${120 + n}`));
+  assert.match(summary, new RegExp(`从 overlay 补全 method 的菜\\s*\\|\\s*${120 + n}`));
+  assert.match(summary, new RegExp(`从 overlay 补全 ingredients 的菜\\s*\\|\\s*${83 + n}`));
 });
 
 test('promotion ledger records Batch 3 with full provenance while keeping Batch 1/2 intact', () => {
@@ -145,14 +151,15 @@ test('promotion ledger records Batch 3 with full provenance while keeping Batch 
 });
 
 test('readiness marks fifteen promoted (5+5+5), remaining drops to 24, and preserves classification stats', () => {
-  assert.equal(readiness.summary.promotedNewRecipeCount, 15 + laterBatchesPromotedCount * 5);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 24 - laterBatchesPromotedCount * 5);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 15 + laterBatchesRecipeCount);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 24 - laterBatchesRecipeCount);
   const expectedPromotedIds = [
     ...BATCH1_IDS,
     ...BATCH2_IDS,
     ...EXPECTED_IDS,
     ...(batch4Promoted ? BATCH4_IDS : []),
     ...(batch5Promoted ? BATCH5_IDS : []),
+    ...(batch6Promoted ? BATCH6_IDS : []),
   ];
   assert.deepEqual(readiness.summary.promotedNewRecipeIds.sort(), expectedPromotedIds.sort());
   assert.deepEqual(readiness.summary.dispositionCounts, {
@@ -292,7 +299,7 @@ test('iOS RecipeService-compatible shapes decode across the full 141-recipe cura
       assert.ok(ing.unit === null || ing.unit === undefined || typeof ing.unit === 'string', recipe.id);
     }
   }
-  assert.equal(curated.recipes.length, 141 + laterBatchesPromotedCount * 5);
+  assert.equal(curated.recipes.length, 141 + laterBatchesRecipeCount);
 });
 
 test('applicationReady stays false across every Batch 3 promotion surface', () => {
