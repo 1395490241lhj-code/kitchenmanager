@@ -439,6 +439,115 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b05",
+      "status": "promoted",
+      "baselineCommit": "e2a92b1242e3efe84d8e2cb7a7c4664e8357e1a6",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch5-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch5-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p162",
+          "productionId": "dz1979-p162",
+          "name": "豆瓣鱼",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p162",
+            "bookName": "豆瓣鱼",
+            "bookPage": 162,
+            "pdfPage": 175,
+            "category": "禽蛋鱼类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p186",
+          "productionId": "dz1979-p186",
+          "name": "蒜泥拌黄瓜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p186",
+            "bookName": "蒜泥拌黄瓜",
+            "bookPage": 186,
+            "pdfPage": 199,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p185",
+          "productionId": "dz1979-p185",
+          "name": "麻酱青笋尖",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p185",
+            "bookName": "麻酱青笋尖",
+            "bookPage": 185,
+            "pdfPage": 198,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p219",
+          "productionId": "dz1979-p219",
+          "name": "过浆豆花",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p219",
+            "bookName": "过浆豆花",
+            "bookPage": 219,
+            "pdfPage": 232,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p213",
+          "productionId": "dz1979-p213",
+          "name": "青笋拌折耳根",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p213",
+            "bookName": "青笋拌折耳根",
+            "bookPage": 213,
+            "pdfPage": 226,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }

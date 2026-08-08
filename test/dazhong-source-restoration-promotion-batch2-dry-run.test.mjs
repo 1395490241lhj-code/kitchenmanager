@@ -44,12 +44,14 @@ const ledgerPromotedEntryIds = new Set(
 const EXPECTED_PRODUCTION_IDS = ['dz1979-p187', 'dz1979-p188', 'dz1979-p196', 'dz1979-p202', 'dz1979-p205'];
 const BATCH3_PRODUCTION_IDS = ['dz1979-p212', 'dz1979-p216', 'dz1979-p218', 'dz1979-p221', 'dz1979-p206'];
 const BATCH4_PRODUCTION_IDS = ['dz1979-p183', 'dz1979-p198', 'dz1979-p153', 'dz1979-p209', 'dz1979-p223'];
-// Batch 3/4 may since have been promoted on top of Batch 1/2; this file
+const BATCH5_PRODUCTION_IDS = ['dz1979-p162', 'dz1979-p186', 'dz1979-p185', 'dz1979-p219', 'dz1979-p213'];
+// Batch 3/4/5 may since have been promoted on top of Batch 1/2; this file
 // only regression-tests Batch 2's own promoted content, so it stays
 // accurate either way by checking their presence via the ledger.
 const batch3Promoted = BATCH3_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 const batch4Promoted = BATCH4_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
-const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0);
+const batch5Promoted = BATCH5_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0);
 
 // -- Independent replica of the hard gate + Batch 2 runtime gate -----------
 // Deliberately written from scratch against readiness/canonical data rather

@@ -22,6 +22,7 @@ const catalog = readJson('data/source-restoration/dazhong-chuancai-1979-catalog.
 const batch3DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json');
 const batch2DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json');
 const batch1DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch1-dry-run.v1.json');
+const batch5DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch5-dry-run.v1.json');
 
 const restoredById = new Map(restored.recipes.map((r) => [r.entryId, r]));
 const catalogById = new Map(catalog.entries.map((e) => [e.entryId, e]));
@@ -43,21 +44,31 @@ const ledgerPromotedEntryIds = new Set(
   )),
 );
 
-// Batch 4 has not been promoted in this round (dry-run only); this file
-// mirrors the Batch 3 test's promotion-aware pattern so it stays correct if
-// Batch 4 is later promoted with the exact frozen dry-run.
+// Batch 4's own promotion state is checked below; this file mirrors the
+// Batch 3 test's promotion-aware pattern, additionally resetting Batch 5's
+// entries so the recomputed funnel matches the exact pre-Batch-4 snapshot
+// the frozen dry-run was generated against, whether or not Batch 5 has
+// since promoted on top of Batch 4.
 const BATCH4_PRODUCTION_IDS = dryRun.items.map((item) => item.productionId);
 const BATCH4_ENTRY_IDS = new Set(dryRun.items.map((item) => item.entryId));
 const batch4Promoted = BATCH4_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const BATCH5_PRODUCTION_IDS = batch5DryRun.items.map((item) => item.productionId);
+const BATCH5_ENTRY_IDS = new Set(batch5DryRun.items.map((item) => item.entryId));
+const batch5Promoted = BATCH5_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const RESET_TO_NOT_PROMOTED_ENTRY_IDS = new Set([...BATCH4_ENTRY_IDS, ...BATCH5_ENTRY_IDS]);
+const RESET_TO_NOT_PROMOTED_PRODUCTION_IDS = new Set([...BATCH4_PRODUCTION_IDS, ...BATCH5_PRODUCTION_IDS]);
 
 const preBatch4ReadinessById = new Map(
   readiness.entries.map((entry) => [
     entry.entryId,
-    BATCH4_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
+    RESET_TO_NOT_PROMOTED_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
   ]),
 );
 const preBatch4ProductionNames = new Set(
-  [...productionNames].filter((name) => !dryRun.items.some((item) => item.name === name)),
+  [...productionNames].filter((name) => (
+    !dryRun.items.some((item) => item.name === name)
+    && !batch5DryRun.items.some((item) => item.name === name)
+  )),
 );
 
 // -- Independent replica of the hard gate + Batch 2/3/4 runtime gate --------
@@ -140,12 +151,12 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, batch4Promoted ? 19 : 24);
+  assert.equal(remaining.length, 24 - (batch4Promoted ? 5 : 0) - (batch5Promoted ? 5 : 0));
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const entry of remaining) {
     assert.equal(ledgerPromotedEntryIds.has(entry.entryId), false, `${entry.entryId} should not be in the remaining pool`);
   }
-  assert.equal(ledgerPromotedEntryIds.size, batch4Promoted ? 20 : 15);
+  assert.equal(ledgerPromotedEntryIds.size, 15 + (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0));
   // Batch 4's five entries must have a promotionState consistent with the
   // ledger: promoted if and only if the ledger records them as promoted.
   for (const item of dryRun.items) {
@@ -335,19 +346,19 @@ test('promotion chain reproduces exactly pre-promotion-plus-five (141 -> 146) wi
       path.join(tmp, 'data', 'sichuan-recipes.json'),
     );
     const overlayPath = path.join(tmp, 'data', 'recipe-completion-overlay.json');
-    // Use the real overlay with Batch 4's five entries stripped out, so this
-    // reconstructs the exact pre-Batch-4-promotion baseline the frozen
-    // dry-run was generated against, whether or not Batch 4 is currently
-    // promoted in the real overlay.
+    // Use the real overlay with Batch 4's (and any later Batch 5's) entries
+    // stripped out, so this reconstructs the exact pre-Batch-4-promotion
+    // baseline the frozen dry-run was generated against, whether or not
+    // Batch 4/5 are currently promoted in the real overlay.
     const realOverlay = JSON.parse(fs.readFileSync(
       new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname,
       'utf8',
     ));
     const preOverlay = {
       ...realOverlay,
-      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !BATCH4_PRODUCTION_IDS.includes(r.id)),
+      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !RESET_TO_NOT_PROMOTED_PRODUCTION_IDS.has(r.id)),
       newRecipeIngredients: Object.fromEntries(
-        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !BATCH4_PRODUCTION_IDS.includes(id)),
+        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !RESET_TO_NOT_PROMOTED_PRODUCTION_IDS.has(id)),
       ),
     };
     fs.writeFileSync(overlayPath, `${JSON.stringify(preOverlay, null, 2)}\n`);
@@ -407,7 +418,9 @@ test('promotion chain reproduces exactly pre-promotion-plus-five (141 -> 146) wi
 
     // The real, current (post-promotion) curated file must match this
     // simulation exactly, proving zero drift from the frozen proposal.
-    if (batch4Promoted) {
+    // (Only valid when Batch 5 has not also promoted, since real curated
+    // would then also include Batch 5's five beyond this simulation's 146.)
+    if (batch4Promoted && !batch5Promoted) {
       assert.deepEqual(
         [...out.curated.recipes].sort((a, b) => a.id.localeCompare(b.id)),
         [...curated.recipes].sort((a, b) => a.id.localeCompare(b.id)),
@@ -416,7 +429,7 @@ test('promotion chain reproduces exactly pre-promotion-plus-five (141 -> 146) wi
 
     const realRemoved = readJson('data/recipe-curation-removed.json');
     const realNeeding = readJson('data/recipes-needing-completion.json');
-    if (batch4Promoted) {
+    if (batch4Promoted && !batch5Promoted) {
       assert.deepEqual(out.removed.removed.map((r) => r.id), realRemoved.removed.map((r) => r.id));
       assert.deepEqual(out.needing.items.map((r) => r.id), realNeeding.items.map((r) => r.id));
     }
@@ -526,8 +539,8 @@ test('production reflects the frozen proposal exactly: Batch 4 ids/names present
     assert.equal(productionIds.has(item.productionId), batch4Promoted, `${item.productionId} presence must match ledger state`);
     assert.equal(productionNames.has(item.name), batch4Promoted, `${item.name} presence must match ledger state`);
   }
-  assert.equal(curated.recipes.length, batch4Promoted ? 146 : 141);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, batch4Promoted ? 20 : 15);
+  assert.equal(curated.recipes.length, 141 + (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0));
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 15 + (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0));
 });
 
 test('iOS RecipeService-compatible field shapes decode from every proposed item', () => {
@@ -580,7 +593,7 @@ test('canonical, crosswalk, and Batch 1/2/3 frozen artifacts remain unchanged; l
   assert.deepEqual(batch1DryRun.verificationProblems, []);
   assert.deepEqual(batch2DryRun.verificationProblems, []);
   assert.deepEqual(batch3DryRun.verificationProblems, []);
-  assert.equal(promotions.batches.length, batch4Promoted ? 4 : 3);
+  assert.equal(promotions.batches.length, 3 + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0));
   assert.equal(promotions.batches[0].status, 'promoted');
   assert.equal(promotions.batches[1].status, 'promoted');
   assert.equal(promotions.batches[2].status, 'promoted');

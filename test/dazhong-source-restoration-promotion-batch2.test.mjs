@@ -27,8 +27,9 @@ const EXPECTED_IDS = ['dz1979-p187', 'dz1979-p202', 'dz1979-p205', 'dz1979-p188'
 const BATCH1_IDS = ['dz1979-p143', 'dz1979-p180', 'dz1979-p195', 'dz1979-p200', 'dz1979-p204'];
 const BATCH3_IDS = ['dz1979-p212', 'dz1979-p216', 'dz1979-p218', 'dz1979-p221', 'dz1979-p206'];
 const BATCH4_IDS = ['dz1979-p183', 'dz1979-p198', 'dz1979-p153', 'dz1979-p209', 'dz1979-p223'];
+const BATCH5_IDS = ['dz1979-p162', 'dz1979-p186', 'dz1979-p185', 'dz1979-p219', 'dz1979-p213'];
 const itemsById = new Map(dryRun.items.map((item) => [item.productionId, item]));
-// Batch 3/4 may since have been promoted on top of Batch 1/2; this file
+// Batch 3/4/5 may since have been promoted on top of Batch 1/2; this file
 // only regression-tests Batch 2's own promoted content, so it stays
 // accurate either way by checking their presence rather than assuming
 // absence.
@@ -38,7 +39,10 @@ const batch3Promoted = BATCH3_IDS.every((id) => (
 const batch4Promoted = BATCH4_IDS.every((id) => (
   ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
 ));
-const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0);
+const batch5Promoted = BATCH5_IDS.every((id) => (
+  ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
+));
+const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0);
 
 test('overlay contains exactly the ten Batch1+Batch2 promoted recipes, all matching their dry-runs', () => {
   const overlayIds = overlay.newRecipes
@@ -50,6 +54,7 @@ test('overlay contains exactly the ten Batch1+Batch2 promoted recipes, all match
     ...EXPECTED_IDS,
     ...(batch3Promoted ? BATCH3_IDS : []),
     ...(batch4Promoted ? BATCH4_IDS : []),
+    ...(batch5Promoted ? BATCH5_IDS : []),
   ];
   assert.deepEqual(overlayIds, expectedOverlayIds.sort());
   const expectedOverlayCount = 68 + laterBatchesPromotedCount * 5;
@@ -151,6 +156,7 @@ test('readiness marks ten promoted (5+5), remaining drops to 29, and preserves c
     ...EXPECTED_IDS,
     ...(batch3Promoted ? BATCH3_IDS : []),
     ...(batch4Promoted ? BATCH4_IDS : []),
+    ...(batch5Promoted ? BATCH5_IDS : []),
   ];
   assert.deepEqual(readiness.summary.promotedNewRecipeIds.sort(), expectedPromotedIds.sort());
   assert.deepEqual(readiness.summary.dispositionCounts, {
