@@ -157,11 +157,12 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   }
 });
 
-test('the funnel counts match an independently recomputed selection (19 -> 9 -> 2 -> 7 -> 5)', () => {
+test('the funnel counts match an independently recomputed selection (19 -> hard-blocked 10 -> after-hard-gates 9 -> runtime-blocked 2 -> eligible 7 -> selected 5)', () => {
   const recomputed = mechanicalFunnel();
   assert.deepEqual(dryRun.selection.funnel, {
     remainingNotPromotedCandidates: 19,
     afterHardGates: 9,
+    hardGateBlocked: 10,
     blockedByRuntimeNameGate: 2,
     eligible: 7,
     selected: 5,
@@ -172,6 +173,41 @@ test('the funnel counts match an independently recomputed selection (19 -> 9 -> 
   assert.deepEqual(recomputed.top5.sort(), dryRun.selection.selectedEntryIds.slice().sort());
   assert.equal(dryRun.selection.selectedEntryIds.length, 5);
   assert.deepEqual(dryRun.selection.selectedEntryIds, dryRun.items.map((item) => item.entryId));
+});
+
+test('hard-gate blocked count is mechanically consistent both ways and the funnel destinations sum to remaining (10 + 2 + 7 = 19)', () => {
+  const recomputed = mechanicalFunnel();
+  // Way 1: remaining - afterHardGates (survivors).
+  const blockedByDifference = recomputed.remaining.length - recomputed.hardGateSurvivors.length;
+  assert.equal(blockedByDifference, 10);
+  // Way 2: unique union of all hardGateExclusions reason buckets.
+  const uniqueBlockedIds = [...new Set(Object.values(dryRun.selection.hardGateExclusions).flat())];
+  assert.equal(uniqueBlockedIds.length, 10);
+  // Both derivations must agree with each other and with the funnel field.
+  assert.equal(blockedByDifference, uniqueBlockedIds.length);
+  assert.equal(dryRun.selection.funnel.hardGateBlocked, 10);
+  assert.equal(dryRun.selection.funnel.hardGateBlocked, blockedByDifference);
+  assert.equal(dryRun.selection.funnel.hardGateBlocked, uniqueBlockedIds.length);
+  // The recorded unique-entryId list matches the independently recomputed one.
+  assert.deepEqual(
+    [...dryRun.selection.hardGateBlockedUniqueEntryIds].sort(),
+    uniqueBlockedIds.sort(),
+  );
+  assert.deepEqual(uniqueBlockedIds.sort(), [
+    'dz1979-p129', 'dz1979-p130', 'dz1979-p144', 'dz1979-p201', 'dz1979-p203',
+    'dz1979-p207', 'dz1979-p211', 'dz1979-p222', 'dz1979-p224', 'dz1979-p226',
+  ]);
+  // Full funnel arithmetic: remaining(19) = afterHardGates(9) + hardGateBlocked(10).
+  assert.equal(dryRun.selection.funnel.afterHardGates + dryRun.selection.funnel.hardGateBlocked, dryRun.selection.funnel.remainingNotPromotedCandidates);
+  // afterHardGates(9) - runtimeBlocked(2) = eligible(7).
+  assert.equal(dryRun.selection.funnel.afterHardGates - dryRun.selection.funnel.blockedByRuntimeNameGate, dryRun.selection.funnel.eligible);
+  // selected = 5.
+  assert.equal(dryRun.selection.funnel.selected, 5);
+  // Complete destination arithmetic: hardBlocked + runtimeBlocked + eligible = remaining.
+  assert.equal(
+    dryRun.selection.funnel.hardGateBlocked + dryRun.selection.funnel.blockedByRuntimeNameGate + dryRun.selection.funnel.eligible,
+    dryRun.selection.funnel.remainingNotPromotedCandidates,
+  );
 });
 
 test('the five selected entries are exactly p162/p186/p185/p219/p213', () => {

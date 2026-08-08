@@ -37,6 +37,7 @@
     "funnel": {
       "remainingNotPromotedCandidates": 19,
       "afterHardGates": 9,
+      "hardGateBlocked": 10,
       "blockedByRuntimeNameGate": 2,
       "eligible": 7,
       "selected": 5
@@ -64,6 +65,18 @@
         "dz1979-p226"
       ]
     },
+    "hardGateBlockedUniqueEntryIds": [
+      "dz1979-p129",
+      "dz1979-p130",
+      "dz1979-p144",
+      "dz1979-p201",
+      "dz1979-p203",
+      "dz1979-p207",
+      "dz1979-p211",
+      "dz1979-p222",
+      "dz1979-p224",
+      "dz1979-p226"
+    ],
     "runtimeNameGateBlocked": [
       {
         "entryId": "dz1979-p137",

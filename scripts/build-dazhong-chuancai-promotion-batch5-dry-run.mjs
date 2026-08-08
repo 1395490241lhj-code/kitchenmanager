@@ -171,6 +171,21 @@ for (const [id, audit] of runtimeAudits) {
 
 const eligible = hardGateSurvivors.filter((id) => !runtimeAudits.get(id).blocked);
 
+// -- Hard-gate blocked count: mechanically derived two independent ways ----
+// so a documentation/summary mismatch (like the one this fix addresses)
+// cannot silently happen again. Both must agree with each other and with
+// the funnel arithmetic below.
+const hardGateBlockedByDifference = remainingCandidates.length - hardGateSurvivors.length;
+const hardGateBlockedUniqueIds = [...new Set(Object.values(gateExclusions.hardGate).flat())];
+const hardGateBlockedByUnion = hardGateBlockedUniqueIds.length;
+if (hardGateBlockedByDifference !== hardGateBlockedByUnion) {
+  throw new Error(
+    `hard-gate blocked count mismatch: remaining-minus-survivors=${hardGateBlockedByDifference} `
+    + `!= unique-exclusion-union=${hardGateBlockedByUnion}`,
+  );
+}
+const hardGateBlockedCount = hardGateBlockedByUnion;
+
 // -- Mechanical ranking ------------------------------------------------------
 
 function rankKey(entryId) {
@@ -585,6 +600,15 @@ for (const record of quantityReviewRecords) {
   if (!UNIT_WHITELIST.test(record.unit)) problems.push(`unit-not-whitelisted:${record.productionId}:${record.item}:${record.unit}`);
   if (!['exact-mass', 'exact-count'].includes(record.normalizedQuantity.kind)) problems.push(`non-exact-kind:${record.productionId}:${record.item}`);
 }
+if (hardGateBlockedCount !== remainingCandidates.length - hardGateSurvivors.length) {
+  problems.push('hard-gate-blocked-count-mismatch-difference');
+}
+if (hardGateBlockedCount !== hardGateBlockedUniqueIds.length) {
+  problems.push('hard-gate-blocked-count-mismatch-union');
+}
+if (hardGateBlockedCount + gateExclusions.runtimeNameGate.length + eligible.length !== remainingCandidates.length) {
+  problems.push('funnel-destination-arithmetic-mismatch');
+}
 
 const output = {
   schema: 'kitchenmanager.source-restoration.promotion-batch5-dry-run.v1',
@@ -625,11 +649,13 @@ const output = {
     funnel: {
       remainingNotPromotedCandidates: remainingCandidates.length,
       afterHardGates: hardGateSurvivors.length,
+      hardGateBlocked: hardGateBlockedCount,
       blockedByRuntimeNameGate: gateExclusions.runtimeNameGate.length,
       eligible: eligible.length,
       selected: selected.length,
     },
     hardGateExclusions: gateExclusions.hardGate,
+    hardGateBlockedUniqueEntryIds: hardGateBlockedUniqueIds.sort(),
     runtimeNameGateBlocked: gateExclusions.runtimeNameGate.map((id) => ({
       entryId: id,
       bookName: readinessByEntryId.get(id).bookName,
@@ -665,7 +691,7 @@ const outPath = path.join(
 fs.writeFileSync(outPath, `${JSON.stringify(output, null, 2)}\n`);
 
 console.log(`Wrote ${outPath}`);
-console.log(`funnel: ${remainingCandidates.length} -> hard ${hardGateSurvivors.length} -> runtime-blocked ${gateExclusions.runtimeNameGate.length} -> eligible ${eligible.length} -> selected ${selected.length}`);
+console.log(`funnel: ${remainingCandidates.length} -> hard-blocked ${hardGateBlockedCount} -> after-hard-gates ${hardGateSurvivors.length} -> runtime-blocked ${gateExclusions.runtimeNameGate.length} -> eligible ${eligible.length} -> selected ${selected.length}`);
 console.log(`selected: ${selected.join(', ')}`);
 console.log(`runtime-blocked: ${gateExclusions.runtimeNameGate.join(', ')}`);
 console.log(`simulation.strictCurrentPlusN: ${simulation.tempCurateResult.strictCurrentPlusN}`);

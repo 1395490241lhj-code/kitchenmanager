@@ -6,18 +6,20 @@
 
 本轮仅产出 dry-run artifact，不写任何 workspace production 文件，不执行真实 promotion。临时目录中用真实 `scripts/curate-recipes.js` 完整模拟 overlay -> curate 链。
 
-## 候选漏斗（19 -> 9 -> 7 -> 5）
+## 候选漏斗（19 -> hard-blocked 10 -> after-hard-gates 9 -> runtime-blocked 2 -> eligible 7 -> selected 5）
 
 - 剩余 not-promoted new-recipe-candidate：**19** 道（39 - Batch 1/2/3/4 已 promotion 20）。
-- Batch 1 硬性 gate（frozen readiness 规则原样复用）后：**9** 道。
+- Batch 1 硬性 gate（frozen readiness 规则原样复用）阻塞 **10** 道（unique union，去重后），剩余 **9** 道通过硬性 gate（afterHardGates=19-10=9）：
   - methodOnly conversionWarning：p129 凉拌猪肺、p130 蕃茄丝瓜肉片汤
   - same-for-each 组合数量：p130 蕃茄丝瓜肉片汤、p144 黄焖鸭子、p201 炝黄瓜、p207 炝莲花白、p211 花仁萝卜干
   - 非精确/mixed 数量（quantityReadiness≠exact-comparable）：p201 炝黄瓜、p203 炝绿豆芽、p207 炝莲花白
   - consumed 双数量语义：p222 酱胡豆、p224 拌鱼香豌豆、p226 蛋酥花仁
-  - （p130/p201/p207 同时命中多类原因）
+  - （p130/p201/p207 同时命中多类原因；按分类计数总和为 13，去重后 unique entryId 为 **10**：p129/p130/p144/p201/p203/p207/p211/p222/p224/p226）
 - Batch 2/3/4 已验证 runtime gate（仅 core ingredients，复用 `scripts/dazhong-runtime-compatibility.mjs`）后：**7** 道 eligible。
   - 被 unresolved-name-match 阻塞：**p137 椒麻鸡块（子公鸡）**、**p161 拌鸡血（鸡血）**（本轮不修，按要求排除在候选之外，与 Batch 2/3/4 结论一致）
 - 机械排序（expected-unit-confirmation 少 -> 特殊结构少 -> ingredient 少 -> method 步骤少 -> entryId 升序）取前 **5**（eligible=7，充足，无需降低 gate）。
+
+完整漏斗去向核算：hard-blocked 10 + runtime-blocked 2 + eligible 7 = remaining 19。
 
 ## 机械入选 5 道
 
@@ -88,7 +90,7 @@
 ## Batch 5 之后剩余安全 candidate 预告
 
 - 本轮 eligible 池共 7 道，取 5，剩余 **2** 道（p159、p168）已通过现有全部 gate（hard gate + runtime gate），可直接作为下一轮（Batch 6）安全候选，但结果需 Batch 6 重新机械计算，不得直接沿用。
-- 19 道剩余 candidate 的完整去向：9 道被 Batch 1 硬性 gate 阻塞（methodOnly warning / same-for-each / 非精确数量 / consumed 双数量等），2 道被 runtime name gate 阻塞（p137/p161，本轮沿用不处理），7 道 eligible（本轮取 5，剩 2）。
+- 19 道剩余 candidate 的完整去向：**10** 道被 Batch 1 硬性 gate 阻塞（methodOnly warning / same-for-each / 非精确数量 / consumed 双数量等，unique union 去重后为 10：p129/p130/p144/p201/p203/p207/p211/p222/p224/p226），2 道被 runtime name gate 阻塞（p137/p161，本轮沿用不处理），7 道 eligible（本轮取 5，剩 2）。10 + 2 + 7 = 19，算术闭合。
 
 ## 停止点
 
