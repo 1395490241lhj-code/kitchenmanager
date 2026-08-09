@@ -1,345 +1,51 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-08-09
+## Last verified
 
-## AI service incident (2026-08-01)
+- Date: 2026-08-09
+- Commit: `8606831` (`data: close out dazhong source restoration audit`)
+- Branch: `main`
+- Repository state at verification: `HEAD` and `origin/main` had `0 0` divergence.
 
-- Real iOS App verification reached the Render backend: `/health` and the
-  minimal text `/api/ai-chat` request returned 200.
-- The real receipt/vision request returned HTTP 404 with sanitized upstream
-  code `model_not_found` while Render used a deprecated Groq Llama 4 model;
-  this caused the receipt “AI unavailable” symptom.
-- Local source now uses `qwen/qwen3.6-27b` as the default vision model. Render
-  environment configuration and post-fix live image verification remain
-  external deployment steps.
+## Current release posture
 
-## In progress
+- Kitchen Manager is a **Production Go Candidate with conditions**, not Production Enabled.
+- Every actual release stage remains **No-Go** until its operational prerequisites are closed; see [`docs/V1_RELEASE_BLOCKERS.md`](docs/V1_RELEASE_BLOCKERS.md).
+- PWA and iOS core local features remain usable in Guest mode.
+- Inventory sync and Guest merge are implemented and substantially validated, but all committed sync, merge, smoke, dogfood and diagnostics flags remain `NO`.
+- There is no production cohort, production Supabase project, live crash/alert provider or App Store/TestFlight distribution path.
 
-- UI-5B2B-B2B safe editing of recorded conflict choices is implemented,
-  validated, committed, and submitted in Draft PR #19 pending review and merge,
-  on `claude/ios-merge-choice-editing-ui5b2bb2b`. The preview now
-  offers a real pre-confirm conflict entry — previously no production path
-  recorded a choice before the first confirm — and recorded choices can be
-  changed until any confirm attempt, after which the review is read-only.
-  A same-record keepBoth reservation is retained across edits and only an
-  *active* fork participates in upload. No schema, migration, API, transport,
-  `SyncCoordinator` or flag change.
-  Validation on frozen base `9642b1a6`: npm 1100/1100; full non-hosted iOS UI
-  130 executed / 129 passed / 1 hosted skipped / 0 failed; Debug and isolated
-  Release builds succeed; the Release binary contains none of the DEBUG-only
-  test seams; 13 screenshots reviewed. The full iOS unit suite is **not** all
-  green — `SyncTransportTests.test429MapsToRateLimitedAndCarriesRetryAfterSeconds`
-  fails, reproduced on clean frozen `main` with this phase stashed, so it is a
-  pre-existing base defect outside this scope.
-  See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2B.md`.
+## Active workstreams
 
-- UI-5B2B-B2A preview summaries and resolved visibility is being implemented on
-  `claude/ios-merge-summary-ui5b2bb2a`; changes remain uncommitted. It corrects
-  the conflict-reason counts (which previously included resolved conflicts),
-  surfaces 保留家庭/本次跳过/仍待处理, adds a read-only 查看处理结果 screen, and
-  makes the confirm copy match what would actually upload — including a neutral,
-  session-aware wording for a merge that already confirmed once and returned to
-  the preview with leftover conflicts resolved. Read-only: choice
-  semantics and every write path are unchanged. Re-editing, plus the fork-id and
-  status-guard safety fixes the B2 audit identified, are UI-5B2B-B2B. See
-  `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2A.md`.
+- Production-enablement preparation: environment isolation, distribution signing/App Store Connect, monitoring and a shared rate-limit store.
+- Hosted AI repair verification: source defaults to vision model `qwen/qwen3.6-27b`; the deployed Render environment and live receipt-image path still require external confirmation after deployment.
+- Recipe/source data quality: current 《大众川菜》 source-restoration scope is closed, while its accepted source limitations and App-readiness work remain separate follow-ups.
 
-- UI-5B2B-B1 conflict choice presentation correctness is being implemented on
-  `claude/ios-merge-conflict-ui5b2bb1`; changes remain uncommitted. The
-  conflict screen no longer displays 保留家庭 as a phantom default, and each
-  option now states its actual consequence. Choice persistence, conflict
-  resolution, and upload semantics are unchanged; re-editing, the deferred
-  section, and the preview summary are UI-5B2B-B2. The
-  `previewRequiresRemoteFingerprint` cleanup remains a separate maintenance
-  item. See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB1.md`.
+## Current blockers / operational gaps
 
-- UI-5B2B-A explicit merge-preview boundary and persisted-plan safety is being
-  implemented on `claude/ios-merge-preview-ui5b2ba`; changes remain
-  uncommitted. Account and inline prompt rendering remain local-only, while
-  preview reads occur only after the user opens the sheet. See
-  `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BA.md`.
+- A separate production Supabase project has not been provisioned; the existing project is the development environment.
+- Distribution-class signing, an App Store Connect app record and uploaded TestFlight build do not exist.
+- Crash reporting ships only a no-op provider; no SDK/DSN sends events. Backend metrics/logging exist, but no alert provider or dashboard is connected.
+- `/api/sync/*` rate limiting uses an in-memory store suitable only for the current single-instance Stage 1 boundary.
+- Account deletion is implemented and locally validated against disposable Supabase, but hosted-development and production completion remain unverified.
+- Public recipe-import diagnostics still need the documented privacy-hardening pass before production exposure.
+- Render's earlier vision model produced `model_not_found`; repository defaults are corrected, but hosted configuration and live image verification are outside this checkout.
 
-- UI-5B2A sync status and recoverable-error presentation is implemented on
-  branch `claude/ios-sync-status-ui5b2a`; changes remain uncommitted. The
-  work is presentation-only, with a DEBUG-only credential-free fixture for
-  deterministic UI validation. Sync, merge, persistence, and household
-  semantics remain unchanged. See `docs/IOS_ACCOUNT_LIFECYCLE_UI5B2A.md`.
+## Next milestones
 
-This is the single current-state snapshot for humans and AI agents. It is
-not a changelog and must remain concise. Implementation detail, test-count
-history, device-validation narratives, and bug investigations belong in
-`CHANGELOG.md` and the focused documents under `docs/`.
+1. Provision and validate the separate production Supabase project without enabling client sync flags.
+2. Complete Apple Developer/App Store Connect prerequisites and produce a distribution-class signed archive before Internal TestFlight.
+3. Integrate production monitoring choices: crash provider/consent, alert routing and shared sync rate-limit storage.
+4. Validate hosted account deletion and the deployed receipt-image AI path with isolated test data.
+5. Complete diagnostics privacy hardening before broader production rollout.
 
-## Current release state
+## Completed capability summary
 
-- **Production Go Candidate With Conditions.** Feature-correctness blockers
-  for Inventory Sync / Guest Merge are closed and physical-device-validated;
-  the surrounding operational readiness is not.
-- All sync/merge/dogfood/diagnostic/smoke feature flags remain `NO` in
-  every committed configuration and every Release build.
-- **Not Production Enabled** — no production cohort, no production Supabase
-  project, no production monitoring, and no distribution pipeline exist yet.
-
-## Completed
-
-- The 1979 《大众川菜》 scanned-source restoration is closed for the current
-  source scope: all 147 entries have unique, explainable dispositions; all
-  39/39 source-ready new-recipe-candidates were promoted through Batch 1–11;
-  50 entries reuse existing project recipes; and 58 remain explicitly blocked
-  (45 source review, 12 alternate source, 1 crosswalk adjudication). Promotion
-  and source-restoration accounting are complete, but `applicationReady=false`
-  remains correct because canonical quantities are source-equivalent evidence,
-  not serving-scaled App data, and blocked limitations remain unresolved. The
-  quantity sidecar remains isolated from current PWA/iOS consumers. See
-  `data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md`.
-
-- Native iOS SwiftUI app with SwiftData persistence for the core kitchen
-  modules (inventory, shopping, today plan, consumption, weekly plan, user
-  recipes), alongside the original Web/PWA surface (no build pipeline,
-  `localStorage`-backed).
-- Guest-first email/password auth, Keychain session restore, and
-  authenticated `/api/me` household loading (Supabase + Express); sign-in
-  never clears/uploads/reassigns local Guest data.
-- Inventory sync foundation: authenticated bootstrap/pull/mutation APIs,
-  household/user scope separation, idempotency ledger, optimistic version
-  conflicts, soft-delete tombstones and change feed.
-- Guest inventory merge: remote preview, explicit per-conflict choices,
-  identity forking for keep-both, manual sync, rollback, diagnostics, and a
-  bounded mutation queue.
-- Conflict UI and Rollback both re-validated against a physical device.
-- Minimum-app-version enforcement gate for `/api/sync/*` (server + iOS
-  client), fail-closed on misconfiguration.
-- `/api/sync/*` rate limiting (read + mutation limiters, per-user), backed
-  by an in-memory store explicitly scoped to Stage-1 single-instance use.
-- Crash-reporting abstraction (iOS `CrashReporting` protocol, event/metadata
-  allowlists, no-op default provider) and basic backend observability
-  (structured JSON logging, request-correlation id, in-process sync
-  metrics, `/health` and `/ready`), all offline-tested and validated against
-  a locally-run instance of the code pointed at the real development
-  Supabase project.
-- Production Supabase topology decision: separate dev+prod project
-  recommended; shared project accepted for Stage 1 only (no production
-  project created). Migration history and schema/RLS/RPC shape re-verified
-  read-only against the development project; environment-misconnection
-  safety guards added on both iOS and backend.
-- Local Docker-based migration replay and pgTAP execution now pass (2
-  independent rounds, 96/96 assertions, zero schema drift) — closes a
-  verification gap open since Phase 0.5. No production project involved.
-- iOS release pipeline designed and locally validated: shared Xcode
-  scheme, unintended macOS/visionOS platform footprint removed, version/
-  build-number tooling, pre-archive safety guard, `PrivacyInfo.xcprivacy`,
-  App Store metadata/review/TestFlight-workflow templates, and a manual
-  CI validation workflow. A real Release archive was built and signed
-  locally (development-class signing) — not a distribution-class signed
-  archive, no App Store Connect app record exists, nothing was uploaded.
-  See `docs/IOS_RELEASE_PIPELINE.md`, `docs/IOS_SIGNING_AND_ARCHIVE.md`,
-  `docs/TESTFLIGHT_ROLLOUT_PLAN.md`, `docs/PHASE2D1_VALIDATION.md`. The
-  committed 1024×1024 AppIcon asset now satisfies the local archive guard;
-  its project configuration is limited to the explicit AppIcon selection,
-  with no application-category metadata or alternate-icon include flag.
-  Real distribution still requires the separate signing and App Store
-  Connect prerequisites below.
-- Account deletion implemented and locally validated (Docker-based
-  Supabase): server-side identity deletion with household-ownership
-  transfer/resolution, business-data anonymization, and an iOS
-  Settings/Account/Delete Account flow. Its backend now fails closed before
-  any deletion state is created when the server-only Auth Admin capability
-  is absent; `/ready` reports that capability without exposing a secret.
-  Real email/password reauthentication is required before deletion; the
-  backend verifies Supabase-signed recent password AMR metadata and consumes
-  a short-lived, single-use proof. Hosted/production validation remains open. See
-  `docs/ACCOUNT_DELETION_DESIGN.md`, `docs/ACCOUNT_DATA_LIFECYCLE.md`,
-  `docs/PHASE2D2_VALIDATION.md`.
-- iOS Home Dashboard Phase 1 now makes today's plan the first visual layer,
-  exposes exactly one state-derived prominent action, and shows at most one
-  aggregated reminder (stock-in, expired, expiring, shopping, low-stock
-  priority). Local data is never gated by auth restoration; existing tabs,
-  write paths, stock-in/consumption flows, sync boundaries, and default-off
-  flags remain unchanged. See `docs/IOS_HOME_DASHBOARD.md`.
-- iOS UI Foundation Phase UI-0 now provides presentation-only feedback
-  semantics, correct Inventory success/error iconography, an accurate Home
-  Smart Import accessibility label, receipt compact-row selection semantics,
-  and a Dynamic-Type-safe receipt fallback. Business state, persistence,
-  navigation, sync, and import contracts remain unchanged. See
-  `docs/IOS_UI_FOUNDATION_PHASE0.md`.
-- iOS Home UI Phase UI-1 now gives Home a calmer native hierarchy: greeting,
-  Today Plan, one existing-priority reminder, compact clipboard banner, then
-  local issues. Home keeps the existing Smart Import entry, moves Settings
-  access to the existing 我的 tab, and adds a contextual Today Plan add action
-  without changing Home decisions, stores, navigation, clipboard privacy, or
-  import behavior. See `docs/IOS_HOME_UI_PHASE1.md`.
-- iOS Inventory Experience Phase UI-3 now presents local food inventory as a
-  searchable native list with a quiet availability summary, clear add action,
-  adaptive item rows, and focused empty/search/error treatment. Page chrome
-  (title, summary, headers, toolbar glyphs) is bounded at Accessibility sizes
-  via `InventoryChromeMetrics` while food content keeps unrestricted Dynamic
-  Type, and one list-level bottom inset keeps the last row, last search result,
-  and pantry empty-state CTA clear of the floating tab bar. Existing inventory
-  rules, persistence, scan/import paths, sync boundaries, and navigation remain
-  unchanged. See `docs/IOS_INVENTORY_EXPERIENCE_PHASE3.md`.
-- Inventory UI Phase UI-3 has been revalidated after a normal merge with the
-  latest `main` (`817b29f3c5962d7ee2cde28e54b8cb9fb23e2886`); the only conflicts
-  were documentation files. Home/Clipboard/Recipe presentation and native
-  paste-control behavior remain intact, with Debug/Release builds and focused
-  and full iOS/Node validation passing. The PR remains Draft and unmerged.
-- iOS Home UI Phase UI-1B resolves the follow-up simulator findings without
-  changing those boundaries: Today Plan CTAs are presentation-derived from plan
-  state rather than stock-in priority, the date and native paste presentation
-  are Chinese, Header chrome is more compact, and Home content safely scrolls
-  above the floating tab bar. See `docs/IOS_HOME_UI_PHASE1B_VISUAL_FIXES.md`.
-- iOS recipe detail now supports session-only serving scaling and ingredient
-  checks, plus a native Cooking Mode with step navigation, foreground timer,
-  temporary screen-awake behavior, and explicit Today Plan completion. It
-  never auto-deducts inventory or syncs cooking progress; see
-  `docs/IOS_RECIPE_COOKING_MODE.md`.
-- iOS Recipe Experience Phase 2 now gives the Recipe list, detail, and Cooking
-  Mode a calmer native hierarchy: recipe names and current cooking steps lead,
-  metadata and secondary controls recede, and the existing Start Cooking action
-  remains the sole prominent detail action. It is presentation-only; existing
-  Recipe behavior, data, imports, navigation, auth, and sync remain unchanged.
-  The branch has been revalidated against the latest `main`; post-main visual
-  evidence shows no material Recipe, Home, or native paste-control regression.
-  See `docs/IOS_RECIPE_EXPERIENCE_PHASE2.md`.
-- iOS Shopping Phase UI-4 now presents one searchable, category-first native
-  list with a quiet adaptive summary, count-aware section headers, accessible
-  purchase rows, a direct empty-state add action, collapsible purchased items,
-  guarded bulk actions, and a session-only Shopping Mode. It preserves the
-  existing recipe shortfall, purchased-stock-in, SwiftData, navigation, auth,
-  and sync semantics. Active searches now render only matching purchased
-  content, and stock-in confirmation uses a neutral default action because it
-  changes inventory rather than deleting data; see
-  `docs/IOS_SHOPPING_EXPERIENCE.md`.
-- iOS Settings Phase UI-5A reworked the 我的 information architecture: the account
-  area leads with `游客模式`, states that all local features are available, and
-  names its action; the sync/merge qualification moved to the section footer.
-  `管理常备货架` moved out of 提醒 into its own 常备食材 section, and
-  `清除全部本地数据` moved out of 数据 into its own trailing section so a destructive
-  action no longer neighbours an ordinary one. Adds stable row identifiers, a
-  Form-level bottom inset that clears the expanded floating tab bar, and
-  vertical-at-every-size account presentation with unrestricted Dynamic Type for
-  text. **Frozen and unchanged:** authentication, sign-in/sign-up, session and
-  Keychain handling, account error handling, sync, guest merge, household,
-  reminder permissions/scheduling/persisted values, appearance persistence,
-  recipe-library persistence, backup export/import/payload/restore, and the
-  clear-local-data mutation scope and confirmation semantics. No model,
-  persistence, SwiftData, migration, or project-configuration change. Presentation
-  only; see `docs/IOS_SETTINGS_EXPERIENCE_UI5A.md`.
-  **Deferred to UI-5B:** signed-in lifecycle presentation (account/household/sync
-  status, sign-out, deletion, reauthentication). UI-5A adds no deterministic
-  signed-in fixture and makes no claim about signed-in coverage.
-- iOS Share Import Phase 1 added a native Share Extension
-  (`KitchenManagerShareExtension`) so a recipe **URL** shared from Safari,
-  Xiaohongshu, YouTube, or any share-sheet-capable app can be handed to
-  Kitchen Manager. Scope is URL-only: a plain-text share with no
-  http/https URL anywhere in it is rejected inside the extension with a
-  clear error and is never queued or handed to the main app — this was
-  tightened during review after an earlier draft let bare text through to
-  a "no valid link" failure inside Smart Import. The extension only
-  classifies input and writes a small request into a new App Group
-  (`group.com.lianghongjing.kitchenmanager`, the project's first App
-  Group/entitlements usage); it never runs AI parsing, touches SwiftData,
-  or accesses the main app's auth session. The main app reads the request
-  on next launch/foreground and hands it to the existing, unmodified
-  `ImportRecipeView` Smart Import flow (one additive `initialURLText`
-  prefill parameter — no second import UI); any request lacking a URL is
-  treated as legacy/invalid and discarded rather than presented. Text-only
-  AI import is deferred to Share Import Phase 2. See
-  `docs/IOS_SHARE_IMPORT.md`.
-- Share Extension URL handoff now auto-starts the existing AI import
-  pipeline instead of requiring an extra manual "开始导入" tap. Manual
-  Smart Import remains user-triggered as before. Draft review and the
-  final save remain manual in both cases.
-- Active recipe-import network requests are cancelled when the import sheet
-  disappears. Cancellation is treated as a silent lifecycle event, not as
-  an import failure. Retry, draft review, manual save, and pending-share
-  queue semantics remain unchanged.
-- iOS Clipboard Recipe Import Phase 1 detects only the system's probable-URL
-  clipboard pattern while Home is active, without reading clipboard contents.
-  A lightweight Home prompt lets the user explicitly paste through the native
-  system paste control, then reuses the existing URL parser and
-  `ImportRecipeView` auto-start/cancel/Retry/draft/manual-save pipeline. The
-  clipboard version is deduplicated in memory; Share Extension requests keep
-  priority and their App Group queue behavior is unchanged. No clipboard
-  content is automatically read, stored, queued, or imported. Debug and Release
-  both use the production system detector; real cross-app detection and paste
-  permission behavior remain manual device validation. See `docs/IOS_SHARE_IMPORT.md`.
-- Xiaohongshu video import now uses a stricter page-completeness gate before
-  skipping media processing: a long page with broad action words is not enough;
-  it must contain multiple independent action segments, multi-stage coverage
-  including real cooking, and concrete recipe evidence. Complete page recipes
-  remain page-first, ordinary web behavior and no-video fallback are preserved,
-  and existing media limits, models, ranking, and cache policies are unchanged.
-- Xiaohongshu AI-failure fallback is now evidence-grounded and conservative.
-  It isolates transcript/OCR evidence from page recommendations, rejects
-  incidental dish-name and compound-word substring collisions, preserves only
-  traceable action sentences, leaves missing quantities blank, and always marks
-  low-evidence drafts for review. The former dish-specific method templates and
-  fabricated `1份`/`1适量` defaults are removed; media extraction, ASR/OCR,
-  ranking, cache, and normal AI-success behavior are unchanged.
-- Normal final AI recipe results now deterministically retain any structured
-  main ingredients or seasonings omitted by the model, appending only exact
-  missing evidence items with blank unknown quantities. Existing model details
-  win, no names/actions/raw media text are scanned for inference, and bounded
-  input inspection, per-item/aggregate budgets, control-character filtering,
-  and count/boolean-only preservation diagnostics prevent abnormal evidence
-  from creating unbounded response growth. Low-evidence and grounded fallback
-  behavior remain unchanged.
-
-## Remaining rollout conditions
-
-1. A real crash-reporting SDK is not integrated — only the abstraction and
-   a selected future provider (Sentry) exist; no DSN, no real event has ever
-   been sent anywhere.
-2. Production monitoring/alerting is not live — alert rules are documented,
-   no provider/dashboard is connected, nothing pages anyone.
-3. No production Supabase project exists yet — the topology decision is
-   made (separate dev+prod recommended), but provisioning it requires
-   explicit future approval and must happen before Stage 2.
-4. ~~Local Docker-based pgTAP execution~~ — done; all pgTAP passes locally
-   and against dev-project read-only checks. Remaining: nothing local left
-   to close for this item.
-5. ~~No TestFlight/App Store Connect distribution pipeline exists~~ — the
-   pipeline is now designed and locally validated (see "Completed"
-   above); remaining before real distribution: an App Store Connect app
-   record, a distribution-class signed archive, and the
-   account-level Apple Developer/App Store Connect prerequisites listed
-   in `docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3.
-6. The sync rate limiter needs a shared/multi-instance store (Redis/Upstash
-   or equivalent) before GA — today's in-memory store is Stage-1-only.
-7. A consent/opt-out UI and privacy-label decision for crash reporting is
-   not yet designed — deferred until a real provider is chosen, since the
-   no-op provider sends nothing.
-8. Account deletion (App Store Guideline 5.1.1(v)) is implemented, locally
-   validated, and requires real email/password reauthentication, but is not
-   hosted/production-validated — hosted validation remains required before
-   External TestFlight/App Store submission. See
-   `docs/ACCOUNT_DELETION_DESIGN.md` §11.
-9. **Phase 1C-E Public Diagnostics Privacy Hardening** remains required for
-   pre-existing recipe-import diagnostics: audit all consumers, separate
-   internal state from the public response, redact sensitive URL query values,
-   and remove or replace raw/trusted/excluded source-text previews without
-   breaking canonical URL identity, duplicate detection, source display, PWA
-   behavior, or iOS decoding. This debt predates Phase 1C-D.1; its new
-   evidence-preservation diagnostics are strictly finite numbers or booleans
-   and do not expand that exposure.
-
-A full static production-readiness audit and a stage-by-stage v1 blocker
-list now exist: `docs/V1_STATIC_READINESS_AUDIT.md` and
-`docs/V1_RELEASE_BLOCKERS.md`. Every release stage (Internal TestFlight,
-External TestFlight, App Store, Production) is currently **No-Go**, with
-named blockers (IDs like `SIGN-DIST-001`, `AUTH-REAUTH-001`). No new code
-defect was found in the audit; the app builds Debug/Release green and passes
-the local release checks, while distribution prerequisites remain.
-
-## Next recommended phase
-
-Provision the separate production Supabase project (topology already
-decided; local migration/pgTAP validation now proven repeatable) — this is
-the remaining prerequisite, independent of further engineering work, before
-any real crash-reporting SDK or shared rate-limit store is worth
-configuring. In parallel, the user can complete the manual Apple Developer/
-App Store Connect prerequisites (`docs/TESTFLIGHT_ROLLOUT_PLAN.md` §3), which
-remain required before Internal TestFlight can actually start, independent
-of the Supabase provisioning work. Feature
-expansion to additional synchronized entities should not jump ahead of
-this operational readiness work.
+- Web/PWA: native HTML/CSS/JavaScript application with `localStorage`, Service Worker, inventory, planning, recipes, shopping, recommendations, AI-assisted imports and backup/restore.
+- Native iOS: SwiftUI/SwiftData client for the core kitchen flows, Keychain-backed account sessions, accessible native Home/Inventory/Recipe/Shopping/Settings experiences, Cooking Mode and URL Share Extension import.
+- Auth/sync: Guest-first email/password auth, `/api/me`, household/user scope separation, authenticated inventory bootstrap/pull/mutations, idempotency, version conflicts, tombstones and change feed.
+- Guest merge: remote read-only preview, explicit conflict choices, stable keep-both identity, manual sync, bounded/coalesced mutations, diagnostics and scoped rollback.
+- Safety/operations: minimum-app-version gate, sync rate limiting, structured backend logging/request IDs/health checks, no-op crash-reporting abstraction, local migration replay/pgTAP and release/archive guards.
+- Account lifecycle: account deletion, ownership handling, anonymization, real email/password reauthentication and fail-closed Admin-capability checks are implemented; hosted validation remains open.
+- Recipe quality: recommendation matching/session behavior, import grounding, evidence preservation and deterministic runtime checks are present in current main.
+- 《大众川菜》当前来源范围已收尾：147 条均有归属，39/39 source-ready new-recipe-candidates were promoted，58 remain explicitly blocked，`applicationReady=false`；详细证据见 [`data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md`](data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md)。

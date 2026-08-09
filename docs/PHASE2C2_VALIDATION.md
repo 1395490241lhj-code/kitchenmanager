@@ -12,17 +12,17 @@ ignored/untracked, no stray zip/DerivedData/xcresult/log/screenshot/credential
 artifacts.
 
 **Note on unrelated concurrent changes**: during this phase's session, an
-unrelated, clearly deliberate documentation restructuring of `AGENTS.md`,
-`CLAUDE.md`, `CODING_RULES.md`, `PROJECT_GUIDE.md`, `PROJECT_GUIDE.zh.md`,
-`PROJECT_WORKFLOW.md`, `README.md`, `TESTING_RULES.md`, `.cursorrules`,
-`package.json`'s description field, and new files under `scripts/*.md` /
+unrelated, clearly deliberate restructuring of repository guidance (now
+consolidated under `docs/product/`, `docs/architecture/` and
+`docs/development/`), plus `AGENTS.md`, `CLAUDE.md`, `README.md`,
+`.cursorrules`, `package.json`'s description field, and new files under `scripts/*.md` /
 `scripts/package.json` appeared in the working tree (dated 2026-07-16,
 today). This was **not** made by this Phase 2C-2 work and is left completely
 untouched and uncommitted — only the specific files this phase created or
-intentionally modified were staged. `PROJECT_STATUS.md` and `AI_CONTEXT.md`
-were also touched by that same concurrent restructuring; this phase's edits
-to both were written to match their new (already-changed) structure rather
-than assuming the prior verbose-narrative format.
+intentionally modified were staged. `PROJECT_STATUS.md` and the product
+principles source were also touched by that same concurrent restructuring;
+this phase's edits matched their new structure rather than assuming the prior
+verbose-narrative format.
 
 ## 2. Pre-implementation audit findings
 

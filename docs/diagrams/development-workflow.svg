@@ -39,7 +39,7 @@
     <circle cx="112" cy="205" r="21" fill="#2563eb"/>
     <text x="105" y="213" class="badge">1</text>
     <text x="150" y="215" class="card-title">准备</text>
-    <text x="105" y="278" class="card-text">阅读 PROJECT_WORKFLOW.md</text>
+    <text x="105" y="278" class="card-text">阅读 docs/development/WORKFLOW.md</text>
     <text x="105" y="318" class="card-text">确认任务范围</text>
     <text x="105" y="358" class="card-text">git status / git pull</text>
   </g>

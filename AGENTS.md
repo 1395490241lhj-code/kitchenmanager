@@ -1,163 +1,100 @@
 # AGENTS.md
 
-This file is the single entry point for every AI coding agent working on Kitchen Manager: Codex, Claude Code, Cursor, Cline, Copilot, Gemini CLI, and future tools.
-
-Its purpose is to route an agent to the smallest relevant context, not to duplicate the entire repository history.
-
-All agents must follow [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md) for incremental test selection, test escalation, failure retry limits, concise test output, and when to suggest starting a new conversation. Keep detailed commands and platform matrices in `TESTING_RULES.md`.
-
-Last reorganized: 2026-07-16.
+This is the single instruction entry point for every AI coding agent working on Kitchen Manager. Route to the smallest relevant context; do not preload phase history.
 
 ## 1. Source of truth
 
 When sources disagree, use this order:
 
-1. Actual code, committed configuration, database migrations, generated project files, and executable tests.
-2. `PROJECT_STATUS.md` for the current project state and release posture.
-3. `PROJECT_GUIDE.zh.md` for the canonical detailed architecture and constraints.
-4. Scoped design/contract/validation documents under `docs/` for the subsystem being changed.
-5. `CODING_RULES.md` and `TESTING_RULES.md`.
-6. `PROJECT_WORKFLOW.md`.
-7. `PROJECT_GUIDE.md` as the English companion summary.
-8. `README.md` for human onboarding.
-9. `CHANGELOG.md` and historical phase documents for change history only.
-10. Chat history, model memory, or prior summaries.
+1. Actual code, committed configuration, migrations, generated project files, and executable tests.
+2. `PROJECT_STATUS.md` for current state and release posture.
+3. `docs/product/PRINCIPLES.md` and `docs/architecture/OVERVIEW.md` for stable product and architecture rules.
+4. The directly relevant contract, runbook, decision, or validation document under `docs/`.
+5. `docs/development/CODING.md`, `docs/development/TESTING.md`, and `docs/development/WORKFLOW.md`.
+6. `README.md` for human onboarding.
+7. `CHANGELOG.md` and historical evidence for past changes only.
+8. Chat history or model memory.
 
-Repository facts always beat AI memory. A historical validation document proves what was tested at that time; it does not automatically describe current code after later changes.
+Historical evidence proves what was checked then; it does not override current code.
 
-## 2. Minimum reading before any change
+## 2. Minimum reading
 
-Always read:
+For an ordinary task, read only:
 
-- `AGENTS.md`
-- `docs/AI_WORKFLOW.md`
-- `PROJECT_STATUS.md`
-- `package.json`
-- the directly affected source files
-- the directly affected tests
+- `AGENTS.md`;
+- `PROJECT_STATUS.md`;
+- `package.json`;
+- directly affected code;
+- directly affected tests;
+- at most one or two relevant topic documents below.
 
-Then read only the relevant route below.
+Inspect the current branch, worktree, call chain, feature flags, environment and data-loss risk before editing. Preserve unrelated work.
 
-### PWA / browser / localStorage task
+## 3. Task routing
 
-Read:
+### PWA / browser / localStorage
 
-- relevant sections of `PROJECT_GUIDE.zh.md`
-- `CODING_RULES.md` PWA, data, UI, security, and cache sections
-- `TESTING_RULES.md` PWA section
-- `src/storage.js` when persistence is touched
-- `src/migrations.js` and `src/backup.js` when a stored shape changes
-- the relevant `src/views/*`, `src/components/*`, and domain modules
+Choose the relevant sections of:
 
-### Native iOS / SwiftUI / SwiftData task
+- `docs/architecture/OVERVIEW.md`;
+- `docs/development/CODING.md` or `docs/development/TESTING.md`.
 
-Read:
+When persistence changes, inspect `src/storage.js`, `src/migrations.js`, `src/backup.js`, affected views/components and focused tests.
 
-- `AI_CONTEXT.md`
-- relevant sections of `PROJECT_GUIDE.zh.md`
-- `CODING_RULES.md` iOS, persistence, auth, and security sections
-- `TESTING_RULES.md` iOS section
-- the affected Swift model, persistence protocol/record, store/controller, view, and XCTest/XCUITest files
+### Native iOS / SwiftUI / SwiftData
 
-### Server / AI / media / extraction task
+Choose the relevant sections of:
 
-Read:
+- `docs/architecture/OVERVIEW.md`;
+- `docs/development/CODING.md` or `docs/development/TESTING.md`.
 
-- `server.js`
-- the related modules under `src/server/**`
-- relevant security and AI rules in `CODING_RULES.md`
-- related Node tests
+Inspect the affected View, business model, persistence protocol/record, store/controller and XCTest/XCUITest files.
 
-Preserve SSRF protection, rate limits, timeout/error handling, and secret redaction.
+### Server / AI / media / extraction
 
-### Auth / Supabase / sync task
+Read `server.js`, affected `src/server/**` modules and tests, plus at most one of:
 
-In addition to the affected code and tests, read the relevant documents among:
+- `docs/development/CODING.md`;
+- the focused service contract/design document.
 
-- `docs/AUTH_SYNC_ARCHITECTURE.md`
-- `docs/SYNC_SCHEMA_PHASE2A.md`
-- `docs/INVENTORY_MERGE_CONTRACT.md`
-- `docs/INVENTORY_MUTATION_COALESCING.md`
-- `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`
-- `docs/SYNC_API_RATE_LIMITING.md`
-- `docs/PRODUCTION_ENABLEMENT_READINESS.md`
-- the latest validation document for the exact phase or behavior
+Preserve SSRF protection, limits, timeouts, redaction and safe errors.
 
-Do not read every phase document by default. Read the contract plus the latest directly relevant evidence.
+### Auth / Supabase / sync
 
-### Documentation-only task
+Read the affected code/tests and select only the relevant long-term contract, normally one of:
 
-Read the code/configuration that the document claims to describe. Do not “synchronize” stale statements across many files without first verifying the implementation.
+- `docs/AUTH_SYNC_ARCHITECTURE.md`;
+- `docs/SYNC_API_CONTRACT.md`;
+- `docs/INVENTORY_MERGE_CONTRACT.md`;
+- `docs/INVENTORY_MUTATION_COALESCING.md`;
+- `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`;
+- `docs/SYNC_API_RATE_LIMITING.md`.
 
-## 3. Project facts that must not be forgotten
+Use a latest validation document only when the task depends on its exact evidence. Do not read every Phase file.
 
-Kitchen Manager is a Guest-first, Local-first, dual-client kitchen product.
+### Documentation-only
 
-- Web/PWA: plain HTML, CSS, and native JavaScript ES modules; no frontend framework or bundler.
-- PWA persistence: browser `localStorage`, centralized through `src/storage.js` and `S.keys`.
-- Native iOS: SwiftUI, SwiftData, Keychain, and `supabase-swift`.
-- Server: Node/Express for static hosting, AI/link/media services, auth, and sync endpoints.
-- Cloud foundation: Supabase Auth/Postgres/RLS in the linked development environment.
-- Tests: Node built-in test runner plus XCTest/XCUITest.
-- Package manager: npm with `package-lock.json`.
-- Core local features must remain usable in Guest mode.
-- Inventory sync/Guest merge infrastructure exists and has substantial validation, but committed feature flags remain off by default and the feature is not broadly production-enabled.
-
-“Local-first” does not mean “cloud code does not exist.” It means local use and data ownership remain primary, and cloud behavior must be explicit, scoped, reviewable, and safely disabled.
+Read the code/config/history that the document claims to describe. Verify links and ownership using `docs/README.md`; do not synchronize stale claims across multiple files.
 
 ## 4. Hard boundaries
 
-Do not change these without explicit user approval and a migration/compatibility plan where applicable:
+Do not change these without explicit approval and a compatibility/migration plan where applicable:
 
-- PWA hash-route meanings or bottom navigation semantics.
-- Existing `S.keys` strings, PWA schema, migration behavior, or backup contract.
-- User recipe Overlay precedence or base recipe immutability.
-- iOS business-model/SwiftData migration compatibility.
-- Keychain/session handling or secret-storage assumptions.
-- Household/user scope semantics, RLS assumptions, sync cursor/version/idempotency/tombstone contracts.
-- Default-off sync, merge, smoke, dogfood, diagnostics, or production-safety flags.
-- Automatic/startup/background sync behavior.
-- Authentication identity derivation: server identity comes from the verified JWT, never a client-supplied user id.
-- GitHub Pages or Service Worker strategy.
-- Package manager, lockfile strategy, or major folder structure.
-- A broad architecture/framework migration.
+- PWA hash routes, bottom navigation, `S.keys`, schema, migrations or backup contract;
+- user-recipe Overlay precedence or base-recipe immutability;
+- iOS business-model/SwiftData migration compatibility;
+- Keychain/session/secret-storage assumptions;
+- household/user scope, RLS, cursor/version/idempotency/tombstone contracts;
+- default-off sync, merge, smoke, dogfood, diagnostics or production-safety flags;
+- startup, login, timer, background or Realtime sync behavior;
+- verified-JWT identity derivation;
+- GitHub Pages, Service Worker, package manager, lockfile, major folders or framework architecture.
 
-Never silently enable production writes, point tests at an unapproved environment, use a service-role key in client code, or treat a development smoke result as production rollout approval.
+Never silently enable production writes, target an unapproved environment, use service-role credentials in clients, expose secrets, or describe development evidence as production rollout approval.
 
-## 5. Working contract
+Do not commit, push, open a PR, deploy, apply migrations, change hosted configuration, enable flags or touch real user data unless explicitly requested.
 
-For every task:
-
-1. Inspect repository state and the relevant call chain before editing.
-2. Classify the affected surface: PWA, iOS, server, database, sync, shared data contract, tests, or docs.
-3. State the smallest safe implementation plan when the task is non-trivial.
-4. Preserve unrelated behavior and avoid opportunistic refactors.
-5. Add or update tests for logic, persistence, security, migrations, or regressions.
-6. Select the verification scope with `docs/AI_WORKFLOW.md`, then run the relevant matrix in `TESTING_RULES.md`; never overstate coverage.
-7. Check secrets, feature flags, environment targeting, and data-loss risk.
-8. Update documentation only where responsibility belongs.
-9. Report exact files, commands, results, manual checks, assumptions, and remaining risks.
-
-Commit, push, deploy, change hosted configuration, apply a migration, enable a feature flag, or touch real user data only when the user explicitly requested that action.
-
-## 6. Documentation ownership
-
-- `PROJECT_STATUS.md`: current snapshot only; no long phase narrative.
-- `CHANGELOG.md`: concise history of notable changes.
-- `docs/*PHASE*` and validation files: immutable or append-only engineering evidence for that phase.
-- `PROJECT_GUIDE.zh.md`: stable architecture and invariant rules.
-- `CODING_RULES.md`: coding constraints.
-- `TESTING_RULES.md`: verification policy and commands.
-- `docs/AI_WORKFLOW.md`: agent incremental test selection, escalation thresholds, retry limits, and conversation handoff rules.
-- `README.md`: human onboarding.
-- `AI_CONTEXT.md`: stable product intent and decision boundaries.
-- `CLAUDE.md` and `.cursorrules`: thin pointers to this file; do not duplicate project facts there.
-
-Do not paste the same phase report into `PROJECT_STATUS.md`, `AI_CONTEXT.md`, `PROJECT_WORKFLOW.md`, and `CHANGELOG.md`.
-
-## 7. Required final report
-
-Use this structure after a code or documentation change:
+## 5. Required final report
 
 ```text
 Summary:
@@ -182,4 +119,4 @@ Documentation updated:
 - CHANGELOG.md: yes/no/not applicable
 ```
 
-If a test was not run, say why and provide the exact next command. Never replace “not run” with an inferred pass based on an older report.
+List unrun tests and the exact next command. Never infer a pass from an older report.

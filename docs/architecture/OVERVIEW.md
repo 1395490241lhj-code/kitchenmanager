@@ -1,8 +1,6 @@
-# PROJECT_GUIDE.zh.md — Kitchen Manager 架构与开发约束（权威中文版）
+# Kitchen Manager 架构概览
 
-> 本文件是稳定架构和工程约束的权威中文指南。当前状态看 `PROJECT_STATUS.md`，历史看 `CHANGELOG.md` 和 `docs/`，命令级验证看 `TESTING_RULES.md`。英文 `PROJECT_GUIDE.md` 是伴随摘要，不应包含本文件没有的独有规则。
-
-最后重组：2026-07-16。
+> 本文件是稳定架构和工程约束的权威指南。当前状态看 [`PROJECT_STATUS.md`](../../PROJECT_STATUS.md)，产品原则看 [`docs/product/PRINCIPLES.md`](../product/PRINCIPLES.md)，命令级验证看 [`docs/development/TESTING.md`](../development/TESTING.md)。
 
 ## 1. 一句话架构
 
@@ -13,7 +11,7 @@ Kitchen Manager 是一个 **Guest-first、Local-first 的双客户端厨房管�
 - Express 提供静态托管、AI/抓取/媒体处理、认证和同步 API；
 - Supabase 提供开发环境中的 Auth、Postgres、RLS 和受控同步 RPC。
 
-账号与库存同步已经实现并验证，但默认关闭、尚未全面生产启用。不要把“仓库中存在云代码”误解成“Local-first 已被取消”，也不要把“开发环境验证通过”误写成“生产已上线”。
+账号与库存同步已经实现，但默认关闭、尚未全面生产启用。不要把“仓库中存在云代码”误解成“Local-first 已被取消”，也不要把“开发环境验证通过”误写成“生产已上线”。
 
 ## 2. 产品闭环
 
@@ -150,7 +148,7 @@ Kitchen Manager 是一个 **Guest-first、Local-first 的双客户端厨房管�
 
 ## 6. 同步协议约束
 
-同步是高风险协议，不是普通 CRUD 封装。
+同步是高风险协议，不是普通 CRUD 封装。长期细节见 [`SYNC_API_CONTRACT.md`](../SYNC_API_CONTRACT.md)、[`INVENTORY_MERGE_CONTRACT.md`](../INVENTORY_MERGE_CONTRACT.md) 和 [`INVENTORY_MUTATION_COALESCING.md`](../INVENTORY_MUTATION_COALESCING.md)。
 
 ### 6.1 身份和作用域
 
@@ -251,11 +249,9 @@ Kitchen Manager 是一个 **Guest-first、Local-first 的双客户端厨房管�
 ## 11. 文档维护
 
 - 当前事实只写入 `PROJECT_STATUS.md`。
-- 稳定架构规则写在本文件和 `CODING_RULES.md`。
-- 命令和选择矩阵写在 `TESTING_RULES.md`。
-- 一次任务流程写在 `PROJECT_WORKFLOW.md`。
+- 稳定产品原则、架构、开发规则、测试命令分别写入本目录结构中的权威文件。
 - 变更摘要写 `CHANGELOG.md`。
-- 详细设计与验证写 `docs/`。
-- 不在五个文件中复制同一段 Phase 测试报告。
+- 详细设计、长期契约和历史证据写入其 focused doc。
+- 不在多个文件中复制同一段阶段测试报告。
 
-当代码改变架构或契约时，更新对应权威文档；普通修复不需要机械修改所有文档。
+完整归属规则见 [`docs/README.md`](../README.md)。

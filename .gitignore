@@ -27,6 +27,16 @@ supabase/.branches/
 # Logs
 *.log
 
+# Generated build and report output
+DerivedData/
+*.xcresult
+*.xcarchive
+.build/
+artifacts/
+reports/generated/
+tmp/
+dist/
+
 # Local reference material (copyrighted scanned book; kept locally, not committed)
 data/reference/
 

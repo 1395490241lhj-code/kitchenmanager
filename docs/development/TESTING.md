@@ -1,4 +1,4 @@
-# TESTING_RULES.md
+# 测试规则
 
 A task is complete only when the changed behavior has appropriate evidence. Kitchen Manager is a multi-surface repository; `npm test` alone is not a full-project regression.
 
@@ -20,7 +20,7 @@ Passing one category does not imply another.
 
 ## 2. Available commands
 
-Run commands from the repository root and select the smallest applicable set according to `docs/AI_WORKFLOW.md`.
+Run commands from the repository root and select the smallest applicable set according to [`WORKFLOW.md`](WORKFLOW.md).
 
 Initial setup or dependency refresh:
 
@@ -65,7 +65,7 @@ Required:
 - validate JSON or config files that were edited;
 - run `git diff --check`.
 
-Use the lightweight documentation checks in `docs/AI_WORKFLOW.md`. Do not claim application behavior was manually verified if only Markdown changed. If a document is parsed by a test, script, build step, or semantic guard, use the relevant command from this file.
+Use the lightweight documentation checks in [`WORKFLOW.md`](WORKFLOW.md). Do not claim application behavior was manually verified if only Markdown changed. If a document is parsed by a test, script, build step, or semantic guard, use the relevant command from this file.
 
 ### PWA domain logic
 
@@ -92,7 +92,7 @@ Run:
 npm start
 ```
 
-Use a focused regression check when one covers the affected path. Follow `docs/AI_WORKFLOW.md` for whether any broader suite is appropriate.
+Use a focused regression check when one covers the affected path. Follow [`WORKFLOW.md`](WORKFLOW.md) for whether any broader suite is appropriate.
 
 Manual checks:
 
@@ -158,7 +158,7 @@ Record the exact environment and whether any hosted data was created. Never run 
 
 ### Sync server/database contract
 
-Run focused Node tests. Follow `docs/AI_WORKFLOW.md` for broader-suite selection. When the task changes migration/RLS/RPC/route contract and hosted verification is authorized:
+Run focused Node tests. Follow [`WORKFLOW.md`](WORKFLOW.md) for broader-suite selection. When the task changes migration/RLS/RPC/route contract and hosted verification is authorized:
 
 ```bash
 npm run verify:sync-db
@@ -258,12 +258,12 @@ Test:
 - in-memory and production schema parity
 - failure/rollback or self-heal semantics
 
-Use the focused XCTest commands from §4. Follow `docs/AI_WORKFLOW.md` for broader-suite selection.
+Use the focused XCTest commands from §4. Follow [`WORKFLOW.md`](WORKFLOW.md) for broader-suite selection.
 
 ### SwiftUI change
 
 - focused XCUITest/regression if the behavior is automation-relevant
-- use the focused XCUITest command from §4 for automation-relevant behavior; follow `docs/AI_WORKFLOW.md` for broader-suite selection
+- use the focused XCUITest command from §4 for automation-relevant behavior; follow [`WORKFLOW.md`](WORKFLOW.md) for broader-suite selection
 - manual simulator check for layout, dark mode, Dynamic Type, VoiceOver labels, hit targets, destructive confirmation, and error states
 
 ### Auth/Keychain/network change
@@ -299,7 +299,7 @@ At minimum cover the affected invariants among:
 - no Guest data scan/upload without explicit confirmation
 - no automatic sync call site added
 
-Use the focused XCTest/XCUITest commands from §4 for the affected invariants. Follow `docs/AI_WORKFLOW.md` for broader-suite selection.
+Use the focused XCTest/XCUITest commands from §4 for the affected invariants. Follow [`WORKFLOW.md`](WORKFLOW.md) for broader-suite selection.
 
 ## 6. Hosted iOS smoke rules
 

@@ -1,4 +1,4 @@
-# CODING_RULES.md
+# 编码规则
 
 These rules apply to Kitchen Manager across Web/PWA, native iOS, Express, Supabase, authentication, and synchronization.
 
@@ -194,7 +194,7 @@ Keep `package-lock.json` consistent with npm changes. Do not mix package manager
 ## 10. Test and delivery rules
 
 - add a focused regression test for a confirmed bug when practical;
-- run the matrix in `TESTING_RULES.md` for every affected subsystem;
+- run the matrix in [`TESTING.md`](TESTING.md) for every affected subsystem;
 - do not shrink a suite or delete coverage merely to make CI pass;
 - distinguish local, simulator, hosted-development, physical-device, and production evidence;
 - report exact commands, results, skipped tests, flags, environment, remote writes, cleanup, and untested areas;

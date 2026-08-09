@@ -25,7 +25,7 @@ resolved.**
   `status`, `account`, `accountMessage`). **It does not touch any
   SwiftData** — `SyncMetadataRecord`, `PendingMutationRecord`,
   `SyncCursorRecord`, or any domain persistence record. This is
-  intentional per existing `CODING_RULES.md` ("login/logout must not
+  intentional per existing [`development/CODING.md`](development/CODING.md) ("login/logout must not
   auto-upload, clear, or switch local kitchen data").
 - **SwiftData**: three sync-bookkeeping `@Model` types
   (`SyncMetadataRecord`, `PendingMutationRecord`, `SyncCursorRecord`) plus
@@ -292,7 +292,7 @@ codebase.
   service-role — never leaks into a request body).
 - The service-role key is used in exactly **one** place in the entire
   backend: `createSupabaseAccountDeletionAdmin` (this phase, new) — never
-  for ordinary business reads, matching `CODING_RULES.md`'s "never use a
+  for ordinary business reads, matching [`development/CODING.md`](development/CODING.md)'s "never use a
   service-role key in the PWA or iOS app" and extending it to "never use
   it for anything but this one privileged admin operation" on the
   backend.

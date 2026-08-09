@@ -1,13 +1,8 @@
-Use `AGENTS.md` as the single source of repository instructions for Cursor.
+Use `AGENTS.md` as the single repository instruction entry point for Cursor.
 
-Required start:
-- Read `AGENTS.md`.
-- Read `PROJECT_STATUS.md`.
-- Follow the task-specific reading route in `AGENTS.md`.
-- Inspect the affected implementation and tests before editing.
+Before editing:
+- Read `AGENTS.md` completely.
+- Follow its minimum-reading and task-routing rules.
+- Inspect affected code, tests and current worktree state.
 
-Do not duplicate or infer project facts from this file. Kitchen Manager currently includes a native-JS PWA, a SwiftUI/SwiftData iOS app, an Express backend, and Supabase auth/sync infrastructure. Sync-related features remain gated off by default unless an approved task explicitly changes that state.
-
-Follow `CODING_RULES.md`, `TESTING_RULES.md`, and `PROJECT_WORKFLOW.md`. Keep changes focused, preserve user data and Guest-mode behavior, protect secrets and environment boundaries, and report exact validation.
-
-Do not commit, push, deploy, apply migrations, enable flags, or perform hosted writes unless explicitly requested.
+Do not duplicate project facts or phase status here. Follow the authorization boundaries and final-report format in `AGENTS.md`.
