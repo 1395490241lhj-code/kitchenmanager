@@ -1,13 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { analyzeRecipeInventory } from '../src/recommendations.js';
 import { getCanonicalName } from '../src/ingredients.js';
 import { classifyRecipeIngredient } from '../src/utils/recipe-sanitizer.js';
 import { installLocalStorageStub, resetLocalStorage } from './helpers/localstorage-stub.mjs';
 
-const repoRoot = new URL('..', import.meta.url).pathname;
 const readJson = (file) => JSON.parse(fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8'));
 const review = readJson('data/source-restoration/dazhong-chuancai-1979-dual-quantity-contract-review.v1.json');
 const canonical = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
@@ -134,12 +132,13 @@ test('real old recommendation inventory behavior is unchanged when a sidecar pro
   assert.deepEqual(withoutSidecar.missing, []);
 });
 
-test('protected production, overlay, ledger, and readiness files equal baseline bytes', () => {
-  for (const file of review.protectedArtifacts) {
-    const baseline = execFileSync('git', ['show', `${review.baseline.commit}:${file}`], {
-      cwd: repoRoot,
-      maxBuffer: 32 * 1024 * 1024,
-    });
-    assert.deepEqual(fs.readFileSync(new URL('../' + file, import.meta.url)), baseline, file);
-  }
+test('review preserves its historical protected-file scope after the approved promotion', () => {
+  assert.deepEqual(review.protectedArtifacts, [
+    'data/sichuan-recipes.json',
+    'data/sichuan-recipes.curated.json',
+    'data/recipe-completion-overlay.json',
+    'data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json',
+    'data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json',
+  ]);
+  assert.equal(review.baseline.commit, '6f6b94ba9efa5b02bb90f3eef5fec22ff9d3a48b');
 });

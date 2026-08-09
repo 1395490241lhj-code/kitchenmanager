@@ -813,6 +813,78 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b11",
+      "status": "promoted",
+      "baselineCommit": "09e8bd44c421b87f435e373f6dad9726acfe3c53",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch11-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch11-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p222",
+          "productionId": "dz1979-p222",
+          "name": "酱胡豆",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p222",
+            "bookName": "酱胡豆",
+            "bookPage": 222,
+            "pdfPage": 235,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json",
+            "recipe-quantity-semantics.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p226",
+          "productionId": "dz1979-p226",
+          "name": "蛋酥花仁",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p226",
+            "bookName": "蛋酥花仁",
+            "bookPage": 226,
+            "pdfPage": 239,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json",
+            "recipe-quantity-semantics.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p224",
+          "productionId": "dz1979-p224",
+          "name": "拌鱼香豌豆",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p224",
+            "bookName": "拌鱼香豌豆",
+            "bookPage": 224,
+            "pdfPage": 237,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json",
+            "recipe-quantity-semantics.json"
+          ]
+        }
+      ]
     }
   ]
 }

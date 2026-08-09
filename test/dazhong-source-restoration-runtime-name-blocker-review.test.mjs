@@ -30,10 +30,10 @@ test('review artifact is read-only, baseline-pinned, and covers only p137/p161',
 });
 
 test('frozen review evidence stays intact after later promotions', () => {
-  assert.equal(curated.recipes.length, 162);
+  assert.equal(curated.recipes.length, 165);
   assert.equal(full.recipes.length, 264);
-  assert.equal(readiness.summary.promotedNewRecipeCount, 36);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 3);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 39);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 0);
   assert.equal(readiness.applicationReady, false);
   for (const id of ['dz1979-p137', 'dz1979-p161']) {
     assert.equal(readiness.entries.find((entry) => entry.entryId === id)?.promotionState, 'promoted', id);

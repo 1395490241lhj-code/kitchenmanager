@@ -9,6 +9,7 @@ const readJson = (file) => JSON.parse(fs.readFileSync(path.join(repoRoot, file),
 const BASELINE = '204646b66a0fe0ed804cac4611a30845e655e837';
 const SELECTED = ['dz1979-p203', 'dz1979-p201', 'dz1979-p207'];
 const BLOCKED = ['dz1979-p222', 'dz1979-p224', 'dz1979-p226'];
+const BATCH11 = ['dz1979-p222', 'dz1979-p226', 'dz1979-p224'];
 const dryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch10-dry-run.v1.json');
 const quantityReview = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch10-quantity-review.v1.json');
 const curated = readJson('data/sichuan-recipes.curated.json');
@@ -26,21 +27,21 @@ test('production is exactly frozen Batch10 +3 recipes/+3 maps with zero existing
   const before = baselineJson('data/sichuan-recipes.curated.json');
   const beforeOverlay = baselineJson('data/recipe-completion-overlay.json');
   assert.equal(before.recipes.length, 159);
-  assert.equal(curated.recipes.length, 162);
-  assert.equal(Object.keys(curated.recipe_ingredients).length, Object.keys(before.recipe_ingredients).length + 3);
+  assert.equal(curated.recipes.length, 165);
+  assert.equal(Object.keys(curated.recipe_ingredients).length, Object.keys(before.recipe_ingredients).length + 6);
   assert.deepEqual(
     curated.recipes
       .filter((recipe) => !before.recipes.some((old) => old.id === recipe.id))
       .map((recipe) => recipe.id)
       .sort(),
-    [...SELECTED].sort(),
+    [...SELECTED, ...BATCH11].sort(),
   );
   for (const recipe of before.recipes) {
     assert.deepEqual(curated.recipes.find((entry) => entry.id === recipe.id), recipe, recipe.id);
     assert.deepEqual(curated.recipe_ingredients[recipe.id], before.recipe_ingredients[recipe.id], recipe.id + ':map');
   }
   assert.deepEqual(overlay.newRecipes.slice(0, beforeOverlay.newRecipes.length), beforeOverlay.newRecipes);
-  assert.deepEqual(overlay.newRecipes.slice(-3), dryRun.items.map((item) => item.proposedOverlayRecipe));
+  for (const item of dryRun.items) assert.deepEqual(overlay.newRecipes.find((recipe) => recipe.id === item.productionId), item.proposedOverlayRecipe);
   for (const [id, ingredients] of Object.entries(beforeOverlay.newRecipeIngredients)) {
     assert.deepEqual(overlay.newRecipeIngredients[id], ingredients, id + ':existing-overlay-map');
   }
@@ -64,8 +65,8 @@ test('the only Batch10 null ingredients are the three reviewed 花椒 pairs', ()
 });
 
 test('ledger records dz1979-production-b10 with the requested baseline and frozen artifacts', () => {
-  assert.equal(ledger.batches.length, 10);
-  const batch = ledger.batches.at(-1);
+  assert.equal(ledger.batches.length, 11);
+  const batch = ledger.batches.find((entry) => entry.batchId === 'dz1979-production-b10');
   assert.equal(batch.batchId, 'dz1979-production-b10');
   assert.equal(batch.status, 'promoted');
   assert.equal(batch.baselineCommit, BASELINE);
@@ -77,33 +78,33 @@ test('ledger records dz1979-production-b10 with the requested baseline and froze
   assert.equal(ledger.partialPromotion, true);
 });
 
-test('readiness is 36 promoted / 3 remaining and consumed-dual entries stay blocked', () => {
-  assert.equal(readiness.summary.promotedNewRecipeCount, 36);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 3);
+test('readiness keeps Batch10 and marks the consumed-dual entries promoted by Batch11', () => {
+  assert.equal(readiness.summary.promotedNewRecipeCount, 39);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 0);
   assert.equal(readiness.applicationReady, false);
   assert.deepEqual(
     readiness.entries
       .filter((entry) => entry.promotionDisposition === 'new-recipe-candidate' && entry.promotionState === 'not-promoted')
       .map((entry) => entry.entryId)
       .sort(),
-    [...BLOCKED].sort(),
+    [],
   );
   for (const id of BLOCKED) {
     const entry = readiness.entries.find((candidate) => candidate.entryId === id);
-    assert.equal(entry.promotionState, 'not-promoted', id);
+    assert.equal(entry.promotionState, 'promoted', id);
     const canonical = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json')
       .recipes.find((recipe) => recipe.entryId === id);
     assert.ok(canonical.ingredients.some((ingredient) => 'consumedQty' in (ingredient.normalizedQuantity ?? {})), id);
-    assert.equal(curated.recipes.some((recipe) => recipe.id === id), false, id);
+    assert.equal(curated.recipes.some((recipe) => recipe.id === id), true, id);
   }
 });
 
-test('structured reviewed registry grows 262 -> 284 with no unreviewed Batch10 qty/unit', () => {
+test('structured reviewed registry reaches 305 with Batch10 quantities intact', () => {
   const sourceRecords = ledger.batches.flatMap((batch) => readJson(batch.quantityReviewArtifact).records ?? []);
   const keys = new Set(sourceRecords.map((record) => record.productionId + ':' + record.item));
-  assert.equal(sourceRecords.length, 273);
-  assert.equal(keys.size, 273);
-  assert.equal(sourceRecords.length + 11, 284);
+  assert.equal(sourceRecords.length, 294);
+  assert.equal(keys.size, 294);
+  assert.equal(sourceRecords.length + 11, 305);
   for (const id of SELECTED) {
     for (const ingredient of curated.recipe_ingredients[id]) {
       if (ingredient.qty === null && ingredient.unit === null) continue;
@@ -138,10 +139,10 @@ test('Full/removed/needing/canonical/crosswalk/name-matches and frozen reviews/a
   }
 });
 
-test('runtime baseline and curation summary reflect exactly 162 curated recipes', () => {
-  assert.equal(runtimeBaseline.sources.curated.count, 162);
+test('runtime baseline and curation summary reflect exactly 165 curated recipes', () => {
+  assert.equal(runtimeBaseline.sources.curated.count, 165);
   assert.equal(runtimeBaseline.sources.full.count, 264);
   const summary = fs.readFileSync(path.join(repoRoot, 'data/recipe-curation-summary.md'), 'utf8');
-  assert.match(summary, /原始菜谱（base \+ overlay 合并后的有效集） \| 358/);
-  assert.match(summary, /\*\*curated 保留\*\* \| \*\*162\*\*/);
+  assert.match(summary, /原始菜谱（base \+ overlay 合并后的有效集） \| 361/);
+  assert.match(summary, /\*\*curated 保留\*\* \| \*\*165\*\*/);
 });

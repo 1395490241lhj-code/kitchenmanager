@@ -33,6 +33,7 @@ const BATCH7_IDS = ['dz1979-p211', 'dz1979-p144'];
 const BATCH8_IDS = ['dz1979-p129', 'dz1979-p130'];
 const BATCH9_IDS = ['dz1979-p161', 'dz1979-p137'];
 const BATCH10_IDS = ['dz1979-p203', 'dz1979-p201', 'dz1979-p207'];
+const BATCH11_IDS = ['dz1979-p222', 'dz1979-p226', 'dz1979-p224'];
 const itemsById = new Map(dryRun.items.map((item) => [item.productionId, item]));
 // Batch 5/6/7 may since have been promoted on top of Batch 1/2/3/4; this file
 // only regression-tests Batch 4's own promoted content, so it stays
@@ -55,8 +56,11 @@ const batch9Promoted = BATCH9_IDS.every((id) => (
 const batch10Promoted = BATCH10_IDS.every((id) => (
   ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
 ));
-const laterBatchesRecipeCount = (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0);
-const laterBatchesLedgerCount = (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0) + (batch7Promoted ? 1 : 0) + (batch8Promoted ? 1 : 0) + (batch9Promoted ? 1 : 0) + (batch10Promoted ? 1 : 0);
+const batch11Promoted = BATCH11_IDS.every((id) => (
+  ledger.batches.some((b) => (b.entries ?? []).some((e) => e.entryId === id))
+));
+const laterBatchesRecipeCount = (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0) + (batch11Promoted ? 3 : 0);
+const laterBatchesLedgerCount = (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0) + (batch7Promoted ? 1 : 0) + (batch8Promoted ? 1 : 0) + (batch9Promoted ? 1 : 0) + (batch10Promoted ? 1 : 0) + (batch11Promoted ? 1 : 0);
 
 test('overlay contains exactly the twenty Batch1+2+3+4 promoted recipes, all matching their dry-runs', () => {
   const overlayIds = overlay.newRecipes
@@ -72,7 +76,7 @@ test('overlay contains exactly the twenty Batch1+2+3+4 promoted recipes, all mat
     ...(batch6Promoted ? BATCH6_IDS : []),
     ...(batch7Promoted ? BATCH7_IDS : []),
     ...(batch8Promoted ? BATCH8_IDS : []),
-    ...(batch9Promoted ? BATCH9_IDS : []), ...(batch10Promoted ? BATCH10_IDS : []),
+    ...(batch9Promoted ? BATCH9_IDS : []), ...(batch10Promoted ? BATCH10_IDS : []), ...(batch11Promoted ? BATCH11_IDS : []),
   ];
   assert.deepEqual(overlayIds, expectedOverlayIds.sort());
   const expectedOverlayCount = 78 + laterBatchesRecipeCount;
@@ -174,7 +178,7 @@ test('readiness marks twenty promoted (5+5+5+5), remaining drops to 19, and pres
   assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 19 - laterBatchesRecipeCount);
   assert.deepEqual(
     readiness.summary.promotedNewRecipeIds.sort(),
-    [...BATCH1_IDS, ...BATCH2_IDS, ...BATCH3_IDS, ...EXPECTED_IDS, ...(batch5Promoted ? BATCH5_IDS : []), ...(batch6Promoted ? BATCH6_IDS : []), ...(batch7Promoted ? BATCH7_IDS : []), ...(batch8Promoted ? BATCH8_IDS : []), ...(batch9Promoted ? BATCH9_IDS : []), ...(batch10Promoted ? BATCH10_IDS : [])].sort(),
+    [...BATCH1_IDS, ...BATCH2_IDS, ...BATCH3_IDS, ...EXPECTED_IDS, ...(batch5Promoted ? BATCH5_IDS : []), ...(batch6Promoted ? BATCH6_IDS : []), ...(batch7Promoted ? BATCH7_IDS : []), ...(batch8Promoted ? BATCH8_IDS : []), ...(batch9Promoted ? BATCH9_IDS : []), ...(batch10Promoted ? BATCH10_IDS : []), ...(batch11Promoted ? BATCH11_IDS : [])].sort(),
   );
   assert.deepEqual(readiness.summary.dispositionCounts, {
     'existing-project-match': 50,

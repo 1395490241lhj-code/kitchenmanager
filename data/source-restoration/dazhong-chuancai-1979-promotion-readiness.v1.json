@@ -143,7 +143,7 @@
       "dz1979-p129",
       "dz1979-p130"
     ],
-    "promotedNewRecipeCount": 36,
+    "promotedNewRecipeCount": 39,
     "promotedNewRecipeIds": [
       "dz1979-p129",
       "dz1979-p130",
@@ -180,9 +180,12 @@
       "dz1979-p218",
       "dz1979-p219",
       "dz1979-p221",
-      "dz1979-p223"
+      "dz1979-p222",
+      "dz1979-p223",
+      "dz1979-p224",
+      "dz1979-p226"
     ],
-    "remainingNewRecipeCandidateCount": 3,
+    "remainingNewRecipeCandidateCount": 0,
     "schemaExtensionNeeded": false,
     "verificationProblems": []
   },
@@ -6236,7 +6239,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "酱胡豆",
@@ -6465,7 +6468,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "拌鱼香豌豆",
@@ -6624,7 +6627,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "蛋酥花仁",

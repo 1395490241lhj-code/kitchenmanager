@@ -132,15 +132,15 @@ test('minimal implementation plan is present because the conclusion is safe', ()
   assert.ok(review.minimalImplementationPlanIfSafe.risksAndTests.length > 0);
 });
 
-test('Batch 8/9 promotions stay intact while Batch 10 leaves only consumed-dual blocked', () => {
+test('Batch 8-10 promotions stay intact and Batch11 promotes the consumed-dual entries', () => {
   const promotedIds = new Set(
     (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
   );
-  assert.equal(promotedIds.size, 36);
+  assert.equal(promotedIds.size, 39);
   assert.equal(promotedIds.has('dz1979-p129'), true);
   assert.equal(promotedIds.has('dz1979-p130'), true);
-  assert.equal(readiness.summary.promotedNewRecipeCount, 36);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 3);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 39);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 0);
   assert.equal(readiness.applicationReady, false);
   // p129/p130 are now promoted by Batch 8.
   assert.equal(readinessByEntryId.get('dz1979-p129').promotionState, 'promoted');
@@ -150,13 +150,13 @@ test('Batch 8/9 promotions stay intact while Batch 10 leaves only consumed-dual 
   for (const id of ['dz1979-p201', 'dz1979-p203', 'dz1979-p207']) {
     assert.equal(readinessByEntryId.get(id).promotionState, 'promoted', id);
   }
-  // Only the three consumed-dual blockers remain untouched.
+  // Batch11 promotes the three consumed-dual entries without changing their disposition.
   const otherBlockedIds = ['dz1979-p222', 'dz1979-p224', 'dz1979-p226'];
   for (const id of otherBlockedIds) {
-    assert.equal(readinessByEntryId.get(id).promotionState, 'not-promoted', id);
+    assert.equal(readinessByEntryId.get(id).promotionState, 'promoted', id);
   }
-  assert.equal(curated.recipes.length, 162);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 36);
+  assert.equal(curated.recipes.length, 165);
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 39);
 });
 
 test('readiness disposition counts are unchanged', () => {

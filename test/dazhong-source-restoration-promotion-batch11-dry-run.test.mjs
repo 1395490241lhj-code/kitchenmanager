@@ -157,33 +157,32 @@ test('temp curate is exactly 162 to 165 and auxiliary files do not drift', () =>
   });
 });
 
-test('Batch11 generators are deterministic and never create the real sidecar', () => {
+test('Batch11 generators are deterministic and never modify the real sidecar', () => {
   const artifactPaths = [
     dryRunFile,
     'data/source-restoration/dazhong-chuancai-1979-promotion-batch11-dry-run.v1.md',
     'data/source-restoration/dazhong-chuancai-1979-promotion-batch11-quantity-review.v1.json',
   ];
+  const sidecarPath = path.join(repoRoot, 'data/recipe-quantity-semantics.json');
+  const sidecarBefore = fs.existsSync(sidecarPath) ? fs.readFileSync(sidecarPath) : null;
   const before = artifactPaths.map((file) => fs.readFileSync(path.join(repoRoot, file)));
   execFileSync('node', ['scripts/build-dazhong-chuancai-promotion-batch11-dry-run.mjs'], { cwd: repoRoot });
   execFileSync('node', ['scripts/build-dazhong-chuancai-batch11-quantity-review.mjs'], { cwd: repoRoot });
   const after = artifactPaths.map((file) => fs.readFileSync(path.join(repoRoot, file)));
   assert.deepEqual(after, before);
-  assert.equal(fs.existsSync(path.join(repoRoot, 'data/recipe-quantity-semantics.json')), false);
+  const sidecarAfter = fs.existsSync(sidecarPath) ? fs.readFileSync(sidecarPath) : null;
+  assert.deepEqual(sidecarAfter, sidecarBefore);
 });
 
-test('production and frozen source-restoration evidence is byte-identical to baseline', () => {
+test('frozen source-restoration evidence is byte-identical to baseline after promotion', () => {
   const sourceDir = path.join(repoRoot, 'data/source-restoration');
   const protectedPaths = fs.readdirSync(sourceDir)
     .filter((name) => /^dazhong-chuancai-1979-promotion-batch(?:[1-9]|10)-/.test(name))
     .map((name) => `data/source-restoration/${name}`);
   protectedPaths.push(
     'data/sichuan-recipes.json',
-    'data/sichuan-recipes.curated.json',
-    'data/recipe-completion-overlay.json',
     'data/recipe-curation-removed.json',
     'data/recipes-needing-completion.json',
-    'data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json',
-    'data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.md',
     'data/source-restoration/dazhong-chuancai-1979-final-quantity-blocker-review.v1.json',

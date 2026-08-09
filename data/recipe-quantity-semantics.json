@@ -1,0 +1,93 @@
+{
+  "schema": "kitchenmanager.recipe-quantity-semantics.v1",
+  "recipes": {
+    "dz1979-p222": {
+      "ingredients": {
+        "菜油": {
+          "input": {
+            "qty": 500,
+            "unit": "g"
+          },
+          "consumed": {
+            "qty": 100,
+            "unit": "g",
+            "referenceQty": null,
+            "qualifier": null
+          },
+          "rawQuantityText": "一斤耗二两",
+          "provenance": {
+            "sourceId": "dazhong-chuancai-1979",
+            "entryId": "dz1979-p222",
+            "pdfPage": 235,
+            "bookPage": 222
+          }
+        }
+      }
+    },
+    "dz1979-p226": {
+      "ingredients": {
+        "菜油": {
+          "input": {
+            "qty": 500,
+            "unit": "g"
+          },
+          "consumed": {
+            "qty": 100,
+            "unit": "g",
+            "referenceQty": null,
+            "qualifier": null
+          },
+          "rawQuantityText": "一斤耗二两",
+          "provenance": {
+            "sourceId": "dazhong-chuancai-1979",
+            "entryId": "dz1979-p226",
+            "pdfPage": 239,
+            "bookPage": 226
+          }
+        },
+        "干豆粉": {
+          "input": {
+            "qty": 500,
+            "unit": "g"
+          },
+          "consumed": {
+            "qty": 200,
+            "unit": "g",
+            "referenceQty": null,
+            "qualifier": null
+          },
+          "rawQuantityText": "一斤耗四两",
+          "provenance": {
+            "sourceId": "dazhong-chuancai-1979",
+            "entryId": "dz1979-p226",
+            "pdfPage": 239,
+            "bookPage": 226
+          }
+        }
+      }
+    },
+    "dz1979-p224": {
+      "ingredients": {
+        "菜油": {
+          "input": {
+            "qty": 500,
+            "unit": "g"
+          },
+          "consumed": {
+            "qty": 100,
+            "unit": "g",
+            "referenceQty": null,
+            "qualifier": null
+          },
+          "rawQuantityText": "一斤耗二两",
+          "provenance": {
+            "sourceId": "dazhong-chuancai-1979",
+            "entryId": "dz1979-p224",
+            "pdfPage": 237,
+            "bookPage": 224
+          }
+        }
+      }
+    }
+  }
+}

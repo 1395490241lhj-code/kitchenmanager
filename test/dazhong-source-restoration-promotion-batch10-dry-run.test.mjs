@@ -212,7 +212,7 @@ test('Batch 1-10 frozen artifacts and non-target source/runtime evidence are byt
     assert.deepEqual(fs.readFileSync(path.join(repoRoot, file)), baseline, file);
   }
   assert.equal(batch10Promoted, true);
-  assert.equal(readiness.summary.promotedNewRecipeCount, 36);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 3);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 39);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 0);
   assert.equal(readiness.applicationReady, false);
 });

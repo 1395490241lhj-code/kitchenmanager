@@ -28,6 +28,7 @@ const batch7DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-pro
 const batch8DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch8-dry-run.v1.json');
 const batch9DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch9-dry-run.v1.json');
 const batch10DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch10-dry-run.v1.json');
+const batch11DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch11-dry-run.v1.json');
 
 const restoredById = new Map(restored.recipes.map((r) => [r.entryId, r]));
 const catalogById = new Map(catalog.entries.map((e) => [e.entryId, e]));
@@ -74,10 +75,13 @@ const BATCH9_PRODUCTION_IDS = batch9DryRun.items.map((item) => item.productionId
 const BATCH9_ENTRY_IDS = new Set(batch9DryRun.items.map((item) => item.entryId));
 const BATCH10_PRODUCTION_IDS = batch10DryRun.items.map((item) => item.productionId);
 const BATCH10_ENTRY_IDS = new Set(batch10DryRun.items.map((item) => item.entryId));
+const BATCH11_PRODUCTION_IDS = batch11DryRun.items.map((item) => item.productionId);
+const BATCH11_ENTRY_IDS = new Set(batch11DryRun.items.map((item) => item.entryId));
 const batch9Promoted = BATCH9_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 const batch10Promoted = BATCH10_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
-const RESET_TO_NOT_PROMOTED_ENTRY_IDS = new Set([...BATCH5_ENTRY_IDS, ...BATCH6_ENTRY_IDS, ...BATCH7_ENTRY_IDS, ...BATCH8_ENTRY_IDS, ...BATCH9_ENTRY_IDS, ...BATCH10_ENTRY_IDS]);
-const RESET_TO_NOT_PROMOTED_PRODUCTION_IDS = new Set([...BATCH5_PRODUCTION_IDS, ...BATCH6_PRODUCTION_IDS, ...BATCH7_PRODUCTION_IDS, ...BATCH8_PRODUCTION_IDS, ...BATCH9_PRODUCTION_IDS, ...BATCH10_PRODUCTION_IDS]);
+const batch11Promoted = BATCH11_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const RESET_TO_NOT_PROMOTED_ENTRY_IDS = new Set([...BATCH5_ENTRY_IDS, ...BATCH6_ENTRY_IDS, ...BATCH7_ENTRY_IDS, ...BATCH8_ENTRY_IDS, ...BATCH9_ENTRY_IDS, ...BATCH10_ENTRY_IDS, ...BATCH11_ENTRY_IDS]);
+const RESET_TO_NOT_PROMOTED_PRODUCTION_IDS = new Set([...BATCH5_PRODUCTION_IDS, ...BATCH6_PRODUCTION_IDS, ...BATCH7_PRODUCTION_IDS, ...BATCH8_PRODUCTION_IDS, ...BATCH9_PRODUCTION_IDS, ...BATCH10_PRODUCTION_IDS, ...BATCH11_PRODUCTION_IDS]);
 
 const preBatch5ReadinessById = new Map(
   readiness.entries.map((entry) => [
@@ -93,6 +97,7 @@ const preBatch5ProductionNames = new Set(
     && !batch8DryRun.items.some((item) => item.name === name)
     && !batch9DryRun.items.some((item) => item.name === name)
     && !batch10DryRun.items.some((item) => item.name === name)
+    && !batch11DryRun.items.some((item) => item.name === name)
   )),
 );
 
@@ -176,12 +181,12 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, 19 - (batch5Promoted ? 5 : 0) - (batch6Promoted ? 2 : 0) - (batch7Promoted ? 2 : 0) - (batch8Promoted ? 2 : 0) - (batch9Promoted ? 2 : 0) - (batch10Promoted ? 3 : 0));
+  assert.equal(remaining.length, 19 - (batch5Promoted ? 5 : 0) - (batch6Promoted ? 2 : 0) - (batch7Promoted ? 2 : 0) - (batch8Promoted ? 2 : 0) - (batch9Promoted ? 2 : 0) - (batch10Promoted ? 3 : 0) - (batch11Promoted ? 3 : 0));
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const entry of remaining) {
     assert.equal(ledgerPromotedEntryIds.has(entry.entryId), false, `${entry.entryId} should not be in the remaining pool`);
   }
-  assert.equal(ledgerPromotedEntryIds.size, 20 + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0));
+  assert.equal(ledgerPromotedEntryIds.size, 20 + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0) + (batch11Promoted ? 3 : 0));
   // Batch 5's five entries must have a promotionState consistent with the
   // ledger: promoted if and only if the ledger records them as promoted.
   for (const item of dryRun.items) {
@@ -608,8 +613,8 @@ test('production reflects the frozen proposal exactly: Batch 5 ids/names present
     assert.equal(productionIds.has(item.productionId), batch5Promoted, `${item.productionId} presence must match ledger state`);
     assert.equal(productionNames.has(item.name), batch5Promoted, `${item.name} presence must match ledger state`);
   }
-  assert.equal(curated.recipes.length, 146 + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0));
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 20 + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0));
+  assert.equal(curated.recipes.length, 146 + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0) + (batch11Promoted ? 3 : 0));
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 20 + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0) + (batch11Promoted ? 3 : 0));
 });
 
 test('iOS RecipeService-compatible field shapes decode from every proposed item', () => {
@@ -665,7 +670,7 @@ test('canonical, crosswalk, and Batch 1/2/3/4 frozen artifacts remain unchanged;
   assert.deepEqual(batch2DryRun.verificationProblems, []);
   assert.deepEqual(batch3DryRun.verificationProblems, []);
   assert.deepEqual(batch4DryRun.verificationProblems, []);
-  assert.equal(promotions.batches.length, 4 + (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0) + (batch7Promoted ? 1 : 0) + (batch8Promoted ? 1 : 0) + (batch9Promoted ? 1 : 0) + (batch10Promoted ? 1 : 0));
+  assert.equal(promotions.batches.length, 4 + (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0) + (batch7Promoted ? 1 : 0) + (batch8Promoted ? 1 : 0) + (batch9Promoted ? 1 : 0) + (batch10Promoted ? 1 : 0) + (batch11Promoted ? 1 : 0));
   assert.equal(promotions.batches[0].status, 'promoted');
   assert.equal(promotions.batches[1].status, 'promoted');
   assert.equal(promotions.batches[2].status, 'promoted');

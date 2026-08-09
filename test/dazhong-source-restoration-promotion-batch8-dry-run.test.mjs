@@ -15,6 +15,7 @@ const readJson = (relativePath) => JSON.parse(
 const dryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch8-dry-run.v1.json');
 const batch9DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch9-dry-run.v1.json');
 const batch10DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch10-dry-run.v1.json');
+const batch11DryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch11-dry-run.v1.json');
 const readiness = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json');
 const restored = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
 const promotions = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
@@ -39,12 +40,16 @@ const BATCH9_PRODUCTION_IDS = batch9DryRun.items.map((item) => item.productionId
 const BATCH9_ENTRY_IDS = new Set(batch9DryRun.items.map((item) => item.entryId));
 const BATCH10_PRODUCTION_IDS = batch10DryRun.items.map((item) => item.productionId);
 const BATCH10_ENTRY_IDS = new Set(batch10DryRun.items.map((item) => item.entryId));
+const BATCH11_PRODUCTION_IDS = batch11DryRun.items.map((item) => item.productionId);
+const BATCH11_ENTRY_IDS = new Set(batch11DryRun.items.map((item) => item.entryId));
 const batch8Promoted = BATCH8_PRODUCTION_IDS.length > 0
   && BATCH8_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 const batch9Promoted = BATCH9_PRODUCTION_IDS.length > 0
   && BATCH9_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 const batch10Promoted = BATCH10_PRODUCTION_IDS.length > 0
   && BATCH10_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const batch11Promoted = BATCH11_PRODUCTION_IDS.length > 0
+  && BATCH11_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 
 // Pre-Batch-8 snapshot: reset Batch 8's own entries to not-promoted so the
 // funnel/gate recomputation below matches the exact input the frozen
@@ -54,6 +59,7 @@ const preBatch8ReadinessById = new Map(
     entry.entryId,
     BATCH8_ENTRY_IDS.has(entry.entryId) || BATCH9_ENTRY_IDS.has(entry.entryId)
       || BATCH10_ENTRY_IDS.has(entry.entryId)
+      || BATCH11_ENTRY_IDS.has(entry.entryId)
       ? { ...entry, promotionState: 'not-promoted' }
       : entry,
   ]),
@@ -63,6 +69,7 @@ const preBatch8ProductionNames = new Set(
     !dryRun.items.some((item) => item.name === name)
     && !batch9DryRun.items.some((item) => item.name === name)
     && !batch10DryRun.items.some((item) => item.name === name)
+    && !batch11DryRun.items.some((item) => item.name === name)
   )),
 );
 
@@ -133,7 +140,7 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, batch10Promoted ? 3 : batch9Promoted ? 6 : batch8Promoted ? 8 : 10);
+  assert.equal(remaining.length, batch11Promoted ? 0 : batch10Promoted ? 3 : batch9Promoted ? 6 : batch8Promoted ? 8 : 10);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const item of dryRun.items) {
     const expectedState = batch8Promoted ? 'promoted' : 'not-promoted';
@@ -338,11 +345,13 @@ test('promotion chain reproduces exactly pre-promotion-plus-two (155 -> 157) wit
       newRecipes: (realOverlay.newRecipes ?? []).filter((r) => (
         !BATCH8_PRODUCTION_IDS.includes(r.id) && !BATCH9_PRODUCTION_IDS.includes(r.id)
           && !BATCH10_PRODUCTION_IDS.includes(r.id)
+          && !BATCH11_PRODUCTION_IDS.includes(r.id)
       )),
       newRecipeIngredients: Object.fromEntries(
         Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => (
           !BATCH8_PRODUCTION_IDS.includes(id) && !BATCH9_PRODUCTION_IDS.includes(id)
             && !BATCH10_PRODUCTION_IDS.includes(id)
+            && !BATCH11_PRODUCTION_IDS.includes(id)
         )),
       ),
     };
@@ -495,7 +504,7 @@ test('Batch 1-7 frozen dry-run artifacts are untouched (byte-identical to commit
     const artifact = readJson(`data/source-restoration/dazhong-chuancai-1979-promotion-batch${n}-dry-run.v1.json`);
     assert.deepEqual(artifact.verificationProblems, [], `batch${n} should still report zero problems`);
   }
-  assert.equal(promotions.batches.length, batch10Promoted ? 10 : batch9Promoted ? 9 : batch8Promoted ? 8 : 7);
+  assert.equal(promotions.batches.length, batch11Promoted ? 11 : batch10Promoted ? 10 : batch9Promoted ? 9 : batch8Promoted ? 8 : 7);
   for (const batch of promotions.batches) {
     assert.equal(batch.status, 'promoted');
   }

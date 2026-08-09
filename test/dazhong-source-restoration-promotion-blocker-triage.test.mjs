@@ -44,7 +44,9 @@ const BATCH9_FIX_IDS = ['dz1979-p161', 'dz1979-p137'];
 const batch9FixPromotedCount = BATCH9_FIX_IDS.filter((id) => ledgerPromotedEntryIds.has(id)).length;
 const BATCH10_FIX_IDS = ['dz1979-p201', 'dz1979-p203', 'dz1979-p207'];
 const batch10FixPromotedCount = BATCH10_FIX_IDS.filter((id) => ledgerPromotedEntryIds.has(id)).length;
-const totalTriagePromotedCount = mechanicalFixPromotedCount + batch8FixPromotedCount + batch9FixPromotedCount + batch10FixPromotedCount;
+const BATCH11_FIX_IDS = ['dz1979-p222', 'dz1979-p224', 'dz1979-p226'];
+const batch11FixPromotedCount = BATCH11_FIX_IDS.filter((id) => ledgerPromotedEntryIds.has(id)).length;
+const totalTriagePromotedCount = mechanicalFixPromotedCount + batch8FixPromotedCount + batch9FixPromotedCount + batch10FixPromotedCount + batch11FixPromotedCount;
 
 test('artifact reports zero verification problems and applicationReady=false', () => {
   assert.deepEqual(triage.verificationProblems, []);
@@ -247,7 +249,7 @@ test('prioritization groups partition the twelve items with no overlap and match
 test('production and ledger reflect the triage snapshot plus subsequent reviewed promotions', () => {
   assert.equal(ledgerPromotedEntryIds.size, 27 + totalTriagePromotedCount);
   for (const item of triage.items) {
-    const expectedPromoted = [...MECHANICAL_FIX_IDS, ...BATCH8_FIX_IDS, ...BATCH9_FIX_IDS, ...BATCH10_FIX_IDS].includes(item.entryId) && ledgerPromotedEntryIds.has(item.entryId);
+    const expectedPromoted = [...MECHANICAL_FIX_IDS, ...BATCH8_FIX_IDS, ...BATCH9_FIX_IDS, ...BATCH10_FIX_IDS, ...BATCH11_FIX_IDS].includes(item.entryId) && ledgerPromotedEntryIds.has(item.entryId);
     assert.equal(ledgerPromotedEntryIds.has(item.entryId), expectedPromoted, `${item.entryId} promotion state must match ledger`);
   }
   assert.equal(curated.recipes.length, 153 + totalTriagePromotedCount);
@@ -259,7 +261,7 @@ test('production and ledger reflect the triage snapshot plus subsequent reviewed
     // never Full); items not covered by the mechanical-fix remediation must
     // also still be absent from curated.
     const productionId = `dz1979-p${item.bookPage}`;
-    if (![...MECHANICAL_FIX_IDS, ...BATCH8_FIX_IDS, ...BATCH9_FIX_IDS, ...BATCH10_FIX_IDS].includes(item.entryId)) {
+    if (![...MECHANICAL_FIX_IDS, ...BATCH8_FIX_IDS, ...BATCH9_FIX_IDS, ...BATCH10_FIX_IDS, ...BATCH11_FIX_IDS].includes(item.entryId)) {
       assert.equal(curatedIds.has(productionId), false, `${productionId} must not be promoted`);
     }
     assert.equal(full.recipes.some((r) => r.id === productionId), false, `${productionId} must not be in full`);

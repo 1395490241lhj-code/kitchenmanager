@@ -18,6 +18,21 @@ const DRY_RUN_FILE = 'data/source-restoration/dazhong-chuancai-1979-promotion-ba
 const CONTRACT_REVIEW_FILE = 'data/source-restoration/dazhong-chuancai-1979-dual-quantity-contract-review.v1.json';
 const UNIT_WHITELIST = /^(g|ml|个|只|颗|枚|根|条|片|块|瓣|张|把|棵|头|支|份|盒|袋|包|瓶|罐|听)$/;
 
+const ledger = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
+if (ledger.batches.some((batch) => batch.batchId === 'dz1979-production-b11')) {
+  const frozen = readJson(DRY_RUN_FILE);
+  const sidecar = readJson('data/recipe-quantity-semantics.json');
+  const production = readJson('data/sichuan-recipes.curated.json');
+  if (JSON.stringify(frozen.selection.selectedEntryIds) !== JSON.stringify(['dz1979-p222', 'dz1979-p226', 'dz1979-p224'])
+    || frozen.verificationProblems.length
+    || JSON.stringify(sidecar) !== JSON.stringify(frozen.proposedQuantitySemanticsSidecar)
+    || assertValidRecipeQuantitySemantics(sidecar, production).joins.length !== 4) {
+    throw new Error('Promoted Batch11 does not match its frozen dry-run and sidecar.');
+  }
+  console.log('Batch11 already promoted; frozen dry-run and actual sidecar verified without rewriting.');
+  process.exit(0);
+}
+
 const catalog = readJson('data/source-restoration/dazhong-chuancai-1979-catalog.v1.json');
 const readiness = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json');
 const canonical = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
@@ -354,6 +369,7 @@ const expectedFunnel = {
 };
 const expectedSet = ['dz1979-p222', 'dz1979-p224', 'dz1979-p226'];
 const problems = [];
+if (fs.existsSync(path.join(repoRoot, 'data/recipe-quantity-semantics.json'))) problems.push('real-sidecar-exists');
 if (JSON.stringify(funnel) !== JSON.stringify(expectedFunnel)) problems.push(`funnel-mismatch:${JSON.stringify(funnel)}`);
 if (JSON.stringify([...selected].sort()) !== JSON.stringify(expectedSet)) problems.push(`selected-set-mismatch:${selected.join(',')}`);
 if (!simulation.tempCurateResult.strictCurrentPlusN) problems.push('temp-curate-not-strict-current-plus-n');
@@ -361,7 +377,6 @@ if (simulation.auxiliaryGeneratedFiles.recipeCurationRemoved !== 'unchanged'
   || simulation.auxiliaryGeneratedFiles.recipesNeedingCompletion !== 'unchanged') problems.push('auxiliary-data-drift');
 if (!simulation.auxiliaryGeneratedFiles.overlayUpdatedAtPreserved) problems.push('overlay-updatedAt-drift');
 if (sidecarValidation.joins.length !== 4) problems.push(`sidecar-join-count:${sidecarValidation.joins.length}`);
-if (fs.existsSync(path.join(repoRoot, 'data/recipe-quantity-semantics.json'))) problems.push('real-sidecar-exists');
 for (const record of quantityReviewRecords) {
   if (!UNIT_WHITELIST.test(record.unit)) problems.push(`unit-not-whitelisted:${record.productionId}:${record.item}`);
   if (Object.keys(record.normalizedQuantity).some((key) => key.startsWith('consumed'))) {
