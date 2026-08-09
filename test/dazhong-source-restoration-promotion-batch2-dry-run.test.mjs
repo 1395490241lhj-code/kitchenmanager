@@ -49,6 +49,7 @@ const BATCH6_PRODUCTION_IDS = ['dz1979-p159', 'dz1979-p168'];
 const BATCH7_PRODUCTION_IDS = ['dz1979-p211', 'dz1979-p144'];
 const BATCH8_PRODUCTION_IDS = ['dz1979-p129', 'dz1979-p130'];
 const BATCH9_PRODUCTION_IDS = ['dz1979-p161', 'dz1979-p137'];
+const BATCH10_PRODUCTION_IDS = ['dz1979-p203', 'dz1979-p201', 'dz1979-p207'];
 // Batch 3/4/5/6/7 may since have been promoted on top of Batch 1/2; this file
 // only regression-tests Batch 2's own promoted content, so it stays
 // accurate either way by checking their presence via the ledger.
@@ -59,8 +60,9 @@ const batch6Promoted = BATCH6_PRODUCTION_IDS.every((id) => ledgerPromotedEntryId
 const batch7Promoted = BATCH7_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 const batch8Promoted = BATCH8_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 const batch9Promoted = BATCH9_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
-const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0) + (batch7Promoted ? 1 : 0) + (batch8Promoted ? 1 : 0) + (batch9Promoted ? 1 : 0);
-const laterBatchesRecipeCount = (batch3Promoted ? 5 : 0) + (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0);
+const batch10Promoted = BATCH10_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const laterBatchesPromotedCount = (batch3Promoted ? 1 : 0) + (batch4Promoted ? 1 : 0) + (batch5Promoted ? 1 : 0) + (batch6Promoted ? 1 : 0) + (batch7Promoted ? 1 : 0) + (batch8Promoted ? 1 : 0) + (batch9Promoted ? 1 : 0) + (batch10Promoted ? 1 : 0);
+const laterBatchesRecipeCount = (batch3Promoted ? 5 : 0) + (batch4Promoted ? 5 : 0) + (batch5Promoted ? 5 : 0) + (batch6Promoted ? 2 : 0) + (batch7Promoted ? 2 : 0) + (batch8Promoted ? 2 : 0) + (batch9Promoted ? 2 : 0) + (batch10Promoted ? 3 : 0);
 const idsFromLaterBatches = [
   ...(batch3Promoted ? BATCH3_PRODUCTION_IDS : []),
   ...(batch4Promoted ? BATCH4_PRODUCTION_IDS : []),
@@ -68,7 +70,7 @@ const idsFromLaterBatches = [
   ...(batch6Promoted ? BATCH6_PRODUCTION_IDS : []),
   ...(batch7Promoted ? BATCH7_PRODUCTION_IDS : []),
   ...(batch8Promoted ? BATCH8_PRODUCTION_IDS : []),
-  ...(batch9Promoted ? BATCH9_PRODUCTION_IDS : []),
+  ...(batch9Promoted ? BATCH9_PRODUCTION_IDS : []), ...(batch10Promoted ? BATCH10_PRODUCTION_IDS : []),
 ];
 
 // -- Independent replica of the hard gate + Batch 2 runtime gate -----------

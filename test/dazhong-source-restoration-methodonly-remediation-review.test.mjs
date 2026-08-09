@@ -108,9 +108,9 @@ test('precedent: qty=null/unit=null is an already-supported, load-bearing produc
     }
   }
   // The frozen review artifact recorded this precedent count before Batch 8
-  // itself promoted, which added its own 3 reviewed null qty/unit items
-  // (姜/花椒/胡椒面); the live count is the frozen precedent plus those 3.
-  assert.equal(review.precedent.existingNullQtyUnitCurratedRecordCount + 3, count);
+  // itself promoted. Batch 8 added 3 reviewed method-only null items and
+  // Batch 10 added 3 reviewed non-exact 花椒 items.
+  assert.equal(review.precedent.existingNullQtyUnitCurratedRecordCount + 6, count);
   assert.ok(count > 0, 'curated must already contain qty=null/unit=null entries as precedent');
 });
 
@@ -132,28 +132,31 @@ test('minimal implementation plan is present because the conclusion is safe', ()
   assert.ok(review.minimalImplementationPlanIfSafe.risksAndTests.length > 0);
 });
 
-test('Batch 8 promotion stays intact while Batch 9 leaves the final 6 blockers untouched', () => {
+test('Batch 8/9 promotions stay intact while Batch 10 leaves only consumed-dual blocked', () => {
   const promotedIds = new Set(
     (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
   );
-  assert.equal(promotedIds.size, 33);
+  assert.equal(promotedIds.size, 36);
   assert.equal(promotedIds.has('dz1979-p129'), true);
   assert.equal(promotedIds.has('dz1979-p130'), true);
-  assert.equal(readiness.summary.promotedNewRecipeCount, 33);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 6);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 36);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 3);
   assert.equal(readiness.applicationReady, false);
   // p129/p130 are now promoted by Batch 8.
   assert.equal(readinessByEntryId.get('dz1979-p129').promotionState, 'promoted');
   assert.equal(readinessByEntryId.get('dz1979-p130').promotionState, 'promoted');
   assert.equal(readinessByEntryId.get('dz1979-p137').promotionState, 'promoted');
   assert.equal(readinessByEntryId.get('dz1979-p161').promotionState, 'promoted');
-  // The final 6 quantity blockers remain untouched.
-  const otherBlockedIds = ['dz1979-p201', 'dz1979-p203', 'dz1979-p207', 'dz1979-p222', 'dz1979-p224', 'dz1979-p226'];
+  for (const id of ['dz1979-p201', 'dz1979-p203', 'dz1979-p207']) {
+    assert.equal(readinessByEntryId.get(id).promotionState, 'promoted', id);
+  }
+  // Only the three consumed-dual blockers remain untouched.
+  const otherBlockedIds = ['dz1979-p222', 'dz1979-p224', 'dz1979-p226'];
   for (const id of otherBlockedIds) {
     assert.equal(readinessByEntryId.get(id).promotionState, 'not-promoted', id);
   }
-  assert.equal(curated.recipes.length, 159);
-  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 33);
+  assert.equal(curated.recipes.length, 162);
+  assert.equal(curated.recipes.filter((r) => r.id.startsWith('dz1979-')).length, 36);
 });
 
 test('readiness disposition counts are unchanged', () => {

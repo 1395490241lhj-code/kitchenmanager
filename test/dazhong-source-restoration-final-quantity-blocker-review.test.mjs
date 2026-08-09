@@ -67,13 +67,9 @@ test('consumed-dual source pairs remain distinct and all three stay blocked', ()
   assert.equal(classifyRecipeIngredient('干豆粉').role, 'core');
 });
 
-test('production, ledger, readiness, canonical, crosswalk, and name matches are byte-identical to baseline', () => {
+test('frozen source inputs remain byte-identical to the review baseline', () => {
   const protectedPaths = [
-    'data/sichuan-recipes.curated.json',
     'data/sichuan-recipes.json',
-    'data/recipe-completion-overlay.json',
-    'data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json',
-    'data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-recipes.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json',

@@ -19,12 +19,13 @@ const dryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion
 const review = readJson('data/source-restoration/dazhong-chuancai-1979-final-quantity-blocker-review.v1.json');
 const recipes = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
 const readiness = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json');
-const curated = readJson('data/sichuan-recipes.curated.json');
+const promotions = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
 const recipeById = new Map(recipes.recipes.map((recipe) => [recipe.entryId, recipe]));
 const readinessById = new Map(readiness.entries.map((entry) => [entry.entryId, entry]));
-const BASELINE = '151de3b45d22ed328835ae2165564117fbcf8cb2';
+const PROMOTION_BASELINE = '204646b66a0fe0ed804cac4611a30845e655e837';
 const SELECTED = ['dz1979-p203', 'dz1979-p201', 'dz1979-p207'];
 const CONSUMED = ['dz1979-p222', 'dz1979-p224', 'dz1979-p226'];
+const batch10Promoted = promotions.batches.some((batch) => batch.batchId === 'dz1979-production-b10');
 
 function reviewedGate(entryId, allowlist = review.reviewedNonExactNullAllowlist) {
   const recipe = recipeById.get(entryId);
@@ -128,7 +129,11 @@ function curateWithProposal() {
     fs.mkdirSync(path.join(tmp, 'data'));
     fs.copyFileSync(path.join(repoRoot, 'scripts/curate-recipes.js'), path.join(tmp, 'scripts/curate-recipes.js'));
     fs.copyFileSync(path.join(repoRoot, 'data/sichuan-recipes.json'), path.join(tmp, 'data/sichuan-recipes.json'));
-    const overlay = readJson('data/recipe-completion-overlay.json');
+    const overlay = JSON.parse(execFileSync(
+      'git',
+      ['show', PROMOTION_BASELINE + ':data/recipe-completion-overlay.json'],
+      { cwd: repoRoot, maxBuffer: 32 * 1024 * 1024 },
+    ));
     overlay.newRecipes.push(...dryRun.items.map((item) => item.proposedOverlayRecipe));
     Object.assign(overlay.newRecipeIngredients, Object.fromEntries(
       dryRun.items.map((item) => [item.productionId, item.proposedOverlayIngredients[item.productionId]]),
@@ -145,17 +150,22 @@ function curateWithProposal() {
   }
 }
 
-test('two real temp curate runs are byte-identical and produce exactly current +3 with zero existing drift', () => {
+test('two real temp curate runs are byte-identical and reproduce frozen baseline +3 with zero existing drift', () => {
   const first = curateWithProposal();
   const second = curateWithProposal();
   assert.deepEqual(first, second);
   const simulated = JSON.parse(first.curated);
-  assert.equal(curated.recipes.length, 159);
+  const baselineCurated = JSON.parse(execFileSync(
+    'git',
+    ['show', PROMOTION_BASELINE + ':data/sichuan-recipes.curated.json'],
+    { cwd: repoRoot, maxBuffer: 32 * 1024 * 1024 },
+  ));
+  assert.equal(baselineCurated.recipes.length, 159);
   assert.equal(simulated.recipes.length, 162);
-  assert.equal(Object.keys(simulated.recipe_ingredients).length, Object.keys(curated.recipe_ingredients).length + 3);
-  for (const recipe of curated.recipes) {
+  assert.equal(Object.keys(simulated.recipe_ingredients).length, Object.keys(baselineCurated.recipe_ingredients).length + 3);
+  for (const recipe of baselineCurated.recipes) {
     assert.deepEqual(simulated.recipes.find((entry) => entry.id === recipe.id), recipe, recipe.id);
-    assert.deepEqual(simulated.recipe_ingredients[recipe.id], curated.recipe_ingredients[recipe.id], recipe.id + ':map');
+    assert.deepEqual(simulated.recipe_ingredients[recipe.id], baselineCurated.recipe_ingredients[recipe.id], recipe.id + ':map');
   }
   assert.deepEqual(JSON.parse(first.removed), readJson('data/recipe-curation-removed.json'));
   assert.deepEqual(JSON.parse(first.needing), readJson('data/recipes-needing-completion.json'));
@@ -179,10 +189,10 @@ test('PWA/iOS proposal shapes pass and dry-run reports no problems', () => {
   });
 });
 
-test('Batch 1-9, final review, runtime review, and all production/readiness inputs are byte-identical to review commit', () => {
+test('Batch 1-10 frozen artifacts and non-target source/runtime evidence are byte-identical to promotion baseline', () => {
   const sourceDir = path.join(repoRoot, 'data/source-restoration');
   const protectedPaths = fs.readdirSync(sourceDir)
-    .filter((name) => /^dazhong-chuancai-1979-promotion-batch[1-9]-/.test(name))
+    .filter((name) => /^dazhong-chuancai-1979-promotion-batch(?:[1-9]|10)-/.test(name))
     .map((name) => 'data/source-restoration/' + name);
   protectedPaths.push(
     'data/source-restoration/dazhong-chuancai-1979-final-quantity-blocker-review.v1.json',
@@ -191,21 +201,18 @@ test('Batch 1-9, final review, runtime review, and all production/readiness inpu
     'data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.md',
     'data/source-restoration/dazhong-chuancai-1979-recipes.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-catalog.v1.json',
-    'data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json',
-    'data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json',
-    'data/sichuan-recipes.curated.json',
     'data/sichuan-recipes.json',
-    'data/recipe-completion-overlay.json',
     'data/recipe-curation-removed.json',
     'data/recipes-needing-completion.json',
   );
   for (const file of protectedPaths) {
-    const baseline = execFileSync('git', ['show', BASELINE + ':' + file], { cwd: repoRoot, maxBuffer: 32 * 1024 * 1024 });
+    const baseline = execFileSync('git', ['show', PROMOTION_BASELINE + ':' + file], { cwd: repoRoot, maxBuffer: 32 * 1024 * 1024 });
     assert.deepEqual(fs.readFileSync(path.join(repoRoot, file)), baseline, file);
   }
-  assert.equal(readiness.summary.promotedNewRecipeCount, 33);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 6);
+  assert.equal(batch10Promoted, true);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 36);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 3);
   assert.equal(readiness.applicationReady, false);
 });

@@ -744,6 +744,75 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b10",
+      "status": "promoted",
+      "baselineCommit": "204646b66a0fe0ed804cac4611a30845e655e837",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch10-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch10-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p203",
+          "productionId": "dz1979-p203",
+          "name": "炝绿豆芽",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p203",
+            "bookName": "炝绿豆芽",
+            "bookPage": 203,
+            "pdfPage": 216,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p201",
+          "productionId": "dz1979-p201",
+          "name": "炝黄瓜",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p201",
+            "bookName": "炝黄瓜",
+            "bookPage": 201,
+            "pdfPage": 214,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p207",
+          "productionId": "dz1979-p207",
+          "name": "炝莲花白",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p207",
+            "bookName": "炝莲花白",
+            "bookPage": 207,
+            "pdfPage": 220,
+            "category": "蔬菜类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }
