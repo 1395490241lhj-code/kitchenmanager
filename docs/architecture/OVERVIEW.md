@@ -148,7 +148,7 @@ Kitchen Manager 是一个 **Guest-first、Local-first 的双客户端厨房管�
 
 ## 6. 同步协议约束
 
-同步是高风险协议，不是普通 CRUD 封装。长期细节见 [`SYNC_API_CONTRACT.md`](../SYNC_API_CONTRACT.md)、[`INVENTORY_MERGE_CONTRACT.md`](../INVENTORY_MERGE_CONTRACT.md) 和 [`INVENTORY_MUTATION_COALESCING.md`](../INVENTORY_MUTATION_COALESCING.md)。
+同步是高风险协议，不是普通 CRUD 封装。长期细节见 [`SYNC_API_CONTRACT.md`](../contracts/SYNC_API_CONTRACT.md)、[`INVENTORY_MERGE_CONTRACT.md`](../contracts/INVENTORY_MERGE_CONTRACT.md) 和 [`INVENTORY_MUTATION_COALESCING.md`](../contracts/INVENTORY_MUTATION_COALESCING.md)。
 
 ### 6.1 身份和作用域
 

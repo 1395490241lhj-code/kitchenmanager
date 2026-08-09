@@ -63,12 +63,12 @@ Preserve SSRF protection, limits, timeouts, redaction and safe errors.
 
 Read the affected code/tests and select only the relevant long-term contract, normally one of:
 
-- `docs/AUTH_SYNC_ARCHITECTURE.md`;
-- `docs/SYNC_API_CONTRACT.md`;
-- `docs/INVENTORY_MERGE_CONTRACT.md`;
-- `docs/INVENTORY_MUTATION_COALESCING.md`;
-- `docs/MINIMUM_APP_VERSION_ENFORCEMENT.md`;
-- `docs/SYNC_API_RATE_LIMITING.md`.
+- `docs/architecture/AUTH_SYNC_ARCHITECTURE.md`;
+- `docs/contracts/SYNC_API_CONTRACT.md`;
+- `docs/contracts/INVENTORY_MERGE_CONTRACT.md`;
+- `docs/contracts/INVENTORY_MUTATION_COALESCING.md`;
+- `docs/contracts/MINIMUM_APP_VERSION_ENFORCEMENT.md`;
+- `docs/contracts/SYNC_API_RATE_LIMITING.md`.
 
 Use a latest validation document only when the task depends on its exact evidence. Do not read every Phase file.
 

@@ -199,7 +199,7 @@ function checkAppIconPresence(assetsRoot = path.join(IOS_ROOT, 'KitchenManager')
   walk(assetsRoot);
 
   if (appIconDirs.length === 0) {
-    return { ok: false, detail: 'no AppIcon.appiconset found at all (no Assets.xcassets/asset catalog exists yet) — a real App Store archive requires a 1024x1024 app icon; this is a known, documented pending item (see docs/IOS_SIGNING_AND_ARCHIVE.md), not fixed by this script' };
+    return { ok: false, detail: 'no AppIcon.appiconset found at all (no Assets.xcassets/asset catalog exists yet) — a real App Store archive requires a 1024x1024 app icon; this is a known, documented pending item (see docs/archive/release/IOS_SIGNING_AND_ARCHIVE.md), not fixed by this script' };
   }
 
   const svgFiles = appIconDirs.flatMap((dir) => fs.readdirSync(dir).filter((name) => /\.svg$/i.test(name)).map((name) => path.join(dir, name)));
@@ -216,7 +216,7 @@ function checkAppIconPresence(assetsRoot = path.join(IOS_ROOT, 'KitchenManager')
     ok,
     detail: ok
       ? 'an AppIcon asset with real, non-trivial image content exists'
-      : `an AppIcon.appiconset exists but contains no image at least ${MIN_APP_ICON_DIMENSION}x${MIN_APP_ICON_DIMENSION}px (found ${pngFiles.length} PNG(s), ${svgFiles.length} SVG(s)) — a trivial/placeholder/empty image does not satisfy this check; this is a known, documented pending item (see docs/IOS_SIGNING_AND_ARCHIVE.md), not fixed by this script`
+      : `an AppIcon.appiconset exists but contains no image at least ${MIN_APP_ICON_DIMENSION}x${MIN_APP_ICON_DIMENSION}px (found ${pngFiles.length} PNG(s), ${svgFiles.length} SVG(s)) — a trivial/placeholder/empty image does not satisfy this check; this is a known, documented pending item (see docs/archive/release/IOS_SIGNING_AND_ARCHIVE.md), not fixed by this script`
   };
 }
 

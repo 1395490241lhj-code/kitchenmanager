@@ -481,7 +481,7 @@ test('28. the rollback/merge-confirm mutation path (same POST /api/sync/mutation
   // "this batch is an ordinary confirm/CRUD sync" — both travel through the
   // identical endpoint and payload shape, so there is exactly one mutation
   // limiter covering all of them uniformly (documented in
-  // docs/SYNC_API_RATE_LIMITING.md).
+  // docs/contracts/SYNC_API_RATE_LIMITING.md).
   const { app, routes } = fakeApp();
   const store = createMemoryWindowStore();
   registerSyncRoutes(app, {

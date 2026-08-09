@@ -18,7 +18,7 @@ Only notable changes that have entered `main` are recorded here. Current state b
 
 ## 2026-08-03
 
-- Added safe pre-confirm editing of Guest-merge conflict choices, retained stable same-record keep-both reservations and made review read-only after any confirm attempt. See [`docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2B.md`](docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2B.md).
+- Added safe pre-confirm editing of Guest-merge conflict choices, retained stable same-record keep-both reservations and made review read-only after any confirm attempt. See [`docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2B.md`](docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2B.md).
 
 ## 2026-08-01
 
@@ -28,12 +28,12 @@ Only notable changes that have entered `main` are recorded here. Current state b
 ## 2026-07-31
 
 - Corrected Guest-merge conflict presentation so no option appears selected before a user choice and each choice describes its real consequence.
-- Corrected merge-preview summaries, surfaced resolved/skipped/deferred outcomes and added a read-only results review. See [`docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB1.md`](docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB1.md) and [`docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2A.md`](docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2A.md).
+- Corrected merge-preview summaries, surfaced resolved/skipped/deferred outcomes and added a read-only results review. See [`docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2BB1.md`](docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2BB1.md) and [`docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2A.md`](docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2BB2A.md).
 
 ## 2026-07-30
 
 - Moved remote Guest-merge preview reads behind the explicit user action and hardened persisted-plan safety.
-- Added clear signed-in inventory sync status and recoverable-error presentation without changing sync semantics. See [`docs/IOS_ACCOUNT_LIFECYCLE_UI5B2A.md`](docs/IOS_ACCOUNT_LIFECYCLE_UI5B2A.md) and [`docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BA.md`](docs/IOS_ACCOUNT_LIFECYCLE_UI5B2BA.md).
+- Added clear signed-in inventory sync status and recoverable-error presentation without changing sync semantics. See [`docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2A.md`](docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2A.md) and [`docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2BA.md`](docs/archive/ios/IOS_ACCOUNT_LIFECYCLE_UI5B2BA.md).
 
 ## 2026-07-29
 
@@ -68,7 +68,7 @@ Only notable changes that have entered `main` are recorded here. Current state b
 
 ## 2026-07-16
 
-- Added account deletion with ownership handling, business-data anonymization, recent password reauthentication and fail-closed server Admin-capability checks. See [`docs/ACCOUNT_DELETION_DESIGN.md`](docs/ACCOUNT_DELETION_DESIGN.md).
+- Added account deletion with ownership handling, business-data anonymization, recent password reauthentication and fail-closed server Admin-capability checks. See [`docs/contracts/ACCOUNT_DELETION_DESIGN.md`](docs/contracts/ACCOUNT_DELETION_DESIGN.md).
 - Added the iOS release scheme, privacy manifest, version/build tooling, archive guard and manual release-check workflow; no App Store upload path was added.
 - Replayed Supabase migrations locally and established pgTAP plus remote-parity verification.
 - Recorded the separate dev/prod Supabase topology decision and added environment-misconnection guards.

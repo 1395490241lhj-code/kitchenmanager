@@ -21,14 +21,14 @@
 - [`IOS_HOME_DASHBOARD.md`](IOS_HOME_DASHBOARD.md)：Home 产品决策。
 - [`IOS_RECIPE_COOKING_MODE.md`](IOS_RECIPE_COOKING_MODE.md)：Cooking Mode 行为边界。
 - [`IOS_SHARE_IMPORT.md`](IOS_SHARE_IMPORT.md)：分享导入范围与限制。
+- [`IOS_SHOPPING_EXPERIENCE.md`](IOS_SHOPPING_EXPERIENCE.md)：Shopping 体验范围。
 
 ### Architecture
 
 - [`architecture/OVERVIEW.md`](architecture/OVERVIEW.md)：跨客户端与服务端总览。
-- [`AUTH_SYNC_ARCHITECTURE.md`](AUTH_SYNC_ARCHITECTURE.md)：认证与同步架构。
-- [`BACKEND_OBSERVABILITY.md`](BACKEND_OBSERVABILITY.md)：服务端可观测性。
-- [`CRASH_REPORTING.md`](CRASH_REPORTING.md)：iOS crash-reporting 抽象。
-- [`SUPABASE_ENVIRONMENT_TOPOLOGY.md`](SUPABASE_ENVIRONMENT_TOPOLOGY.md)：Supabase 环境拓扑决策记录。
+- [`architecture/AUTH_SYNC_ARCHITECTURE.md`](architecture/AUTH_SYNC_ARCHITECTURE.md)：认证与同步架构。
+- [`architecture/BACKEND_OBSERVABILITY.md`](architecture/BACKEND_OBSERVABILITY.md)：服务端可观测性。
+- [`architecture/CRASH_REPORTING.md`](architecture/CRASH_REPORTING.md)：iOS crash-reporting 抽象。
 
 ### Development
 
@@ -39,35 +39,44 @@
 
 ### Contracts
 
-长期契约目前仍保留在 `docs/` 根部，后续只在有独立迁移任务时移动：
+长期有效的数据、API、同步和兼容性契约：
 
-- [`SYNC_API_CONTRACT.md`](SYNC_API_CONTRACT.md)
-- [`INVENTORY_MERGE_CONTRACT.md`](INVENTORY_MERGE_CONTRACT.md)
-- [`INVENTORY_MUTATION_COALESCING.md`](INVENTORY_MUTATION_COALESCING.md)
-- [`ACCOUNT_DATA_LIFECYCLE.md`](ACCOUNT_DATA_LIFECYCLE.md)
-- [`MINIMUM_APP_VERSION_ENFORCEMENT.md`](MINIMUM_APP_VERSION_ENFORCEMENT.md)
-- [`SYNC_API_RATE_LIMITING.md`](SYNC_API_RATE_LIMITING.md)
+- [`contracts/SYNC_API_CONTRACT.md`](contracts/SYNC_API_CONTRACT.md)
+- [`contracts/INVENTORY_MERGE_CONTRACT.md`](contracts/INVENTORY_MERGE_CONTRACT.md)
+- [`contracts/INVENTORY_MUTATION_COALESCING.md`](contracts/INVENTORY_MUTATION_COALESCING.md)
+- [`contracts/ACCOUNT_DATA_LIFECYCLE.md`](contracts/ACCOUNT_DATA_LIFECYCLE.md)
+- [`contracts/ACCOUNT_DELETION_DESIGN.md`](contracts/ACCOUNT_DELETION_DESIGN.md)
+- [`contracts/MINIMUM_APP_VERSION_ENFORCEMENT.md`](contracts/MINIMUM_APP_VERSION_ENFORCEMENT.md)
+- [`contracts/SYNC_API_RATE_LIMITING.md`](contracts/SYNC_API_RATE_LIMITING.md)
 
 新增长期 API、数据、备份或同步契约应放入 `docs/contracts/`。
 
 ### Runbooks
 
-- [`ACCOUNT_DELETION_RUNBOOK.md`](ACCOUNT_DELETION_RUNBOOK.md)
-- [`INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md`](INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md)
-- [`INVENTORY_SYNC_ROLLBACK_PLAYBOOK.md`](INVENTORY_SYNC_ROLLBACK_PLAYBOOK.md)
-- [`PRODUCTION_ROLLBACK_RUNBOOK.md`](PRODUCTION_ROLLBACK_RUNBOOK.md)
-- [`TESTFLIGHT_ROLLOUT_PLAN.md`](TESTFLIGHT_ROLLOUT_PLAN.md)
+- [`runbooks/ACCOUNT_DELETION_RUNBOOK.md`](runbooks/ACCOUNT_DELETION_RUNBOOK.md)
+- [`runbooks/INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md`](runbooks/INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md)
+- [`runbooks/INVENTORY_SYNC_ROLLBACK_PLAYBOOK.md`](runbooks/INVENTORY_SYNC_ROLLBACK_PLAYBOOK.md)
+- [`runbooks/PRODUCTION_ROLLBACK_RUNBOOK.md`](runbooks/PRODUCTION_ROLLBACK_RUNBOOK.md)
+- [`runbooks/PRODUCTION_ROLLOUT_PLAN.md`](runbooks/PRODUCTION_ROLLOUT_PLAN.md)
+- [`runbooks/IOS_RELEASE_PIPELINE.md`](runbooks/IOS_RELEASE_PIPELINE.md)
+- [`runbooks/TESTFLIGHT_ROLLOUT_PLAN.md`](runbooks/TESTFLIGHT_ROLLOUT_PLAN.md)
+- [`runbooks/APP_STORE_METADATA_TEMPLATE.md`](runbooks/APP_STORE_METADATA_TEMPLATE.md)
+- [`runbooks/APP_STORE_REVIEW_CHECKLIST.md`](runbooks/APP_STORE_REVIEW_CHECKLIST.md)
 
 新增长期发布、回滚、账号删除或事故操作步骤应放入 `docs/runbooks/`。
 
 ### Decisions
 
-现有长期决策仍由其专题文档承载，例如 [`SUPABASE_ENVIRONMENT_TOPOLOGY.md`](SUPABASE_ENVIRONMENT_TOPOLOGY.md)。新的长期且难以逆转的架构决定使用 `docs/decisions/ADR-*.md`，记录背景、决定、后果和替代方案。
+- [`decisions/SUPABASE_ENVIRONMENT_TOPOLOGY.md`](decisions/SUPABASE_ENVIRONMENT_TOPOLOGY.md)：Supabase 环境拓扑决策记录。
+
+新的长期且难以逆转的架构决定使用 `docs/decisions/ADR-*.md`，记录背景、决定、后果和替代方案。没有真正的决策文档时不为了目录结构创建占位文件。
 
 ### Archive
 
 - [`archive/README.md`](archive/README.md)：归档标准。
-- 现有 `*PHASE*`、`*VALIDATION*`、物理设备结果和 closeout audit 是历史证据；本次不批量移动，以免破坏活动引用或开放 PR。
+- `archive/ios/`、`archive/sync/`、`archive/release/`、`archive/production/`：按主题分类的已完成 Phase、Validation、物理设备结果和 readiness/go-no-go 历史工程证据。
+- archive 中的文件是历史证据，不代表当前实现；当前行为以代码、测试及 active documentation 为准。
+- 部分开放 PR 正在修改的文档（如 `IOS_SHARE_IMPORT.md`）本轮暂留在 `docs/` 根部，避免增加 rebase 冲突。
 - 《大众川菜》当前来源范围的总证据：[`../data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md`](../data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md)。活动文档应优先链接该 closeout，而不是要求默认读取 Batch 1–11。
 
 ## 信息归属

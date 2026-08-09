@@ -61,7 +61,7 @@ REGISTER_APP_GROUPS = YES;          // no App Group is used anywhere in the code
 This is Xcode's newer multiplatform-app-template default, never pruned —
 there is no Mac Catalyst or visionOS-specific code, UI adaptation, or
 testing anywhere in this codebase, and the product architecture
-([`architecture/OVERVIEW.md`](architecture/OVERVIEW.md)) describes an iPhone/iPad app.
+([`architecture/OVERVIEW.md`](../../architecture/OVERVIEW.md)) describes an iPhone/iPad app.
 Shipping an App Store build that silently also claims macOS/visionOS
 support, with zero adaptation or testing on either, is a real review-risk
 and user-experience risk (the app would install and likely misbehave on

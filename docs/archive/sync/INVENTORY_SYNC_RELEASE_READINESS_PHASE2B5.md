@@ -82,7 +82,7 @@ are the reason the current conclusion is **No-Go** — see
   **simulator-only status; physical-device validation pending.**
 - Hosted development-environment dogfood smoke (section 二十四) not run.
 - Feature-flag staged-rollout doc content exists in
-  [`INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md`](INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md)
+  [`INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md`](../../runbooks/INVENTORY_SYNC_DOGFOOD_PLAYBOOK.md)
   but has not been exercised even at Stage 1.
 
 Nothing above is a data-loss or safety regression — every flag remains `NO`,

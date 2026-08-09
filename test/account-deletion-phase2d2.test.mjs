@@ -441,7 +441,7 @@ test('the sync guard fails open (never blocks sync) on its own network/config er
 // existing JWT is rejected by Supabase's own token verification once the
 // user record is gone) — not something this backend's own code re-implements
 // or can meaningfully unit-test without a real Supabase Auth instance; see
-// docs/PHASE2D2_VALIDATION.md for the hosted-development check of this.
+// docs/archive/release/PHASE2D2_VALIDATION.md for the hosted-development check of this.
 
 // ── 17. no service-role leakage ────────────────────────────────────────────
 
@@ -511,7 +511,7 @@ test('the rate limiter middleware is consulted and can block preview/confirm', a
 // ── 20. version gate applied ────────────────────────────────────────────────
 // Account deletion is not a /api/sync/* route and is not subject to the
 // minimum-app-version gate by design (deleting one's account should not be
-// blockable by an outdated client) — documented in docs/ACCOUNT_DELETION_DESIGN.md,
+// blockable by an outdated client) — documented in docs/contracts/ACCOUNT_DELETION_DESIGN.md,
 // not applicable here.
 
 // ── 21. user A cannot delete user B / 22. no cross-household deletion ─────

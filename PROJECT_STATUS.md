@@ -10,7 +10,7 @@
 ## Current release posture
 
 - Kitchen Manager is a **Production Go Candidate with conditions**, not Production Enabled.
-- Every actual release stage remains **No-Go** until its operational prerequisites are closed; see [`docs/V1_RELEASE_BLOCKERS.md`](docs/V1_RELEASE_BLOCKERS.md).
+- Every actual release stage remains **No-Go** until its operational prerequisites are closed; see [`docs/archive/release/V1_RELEASE_BLOCKERS.md`](docs/archive/release/V1_RELEASE_BLOCKERS.md).
 - PWA and iOS core local features remain usable in Guest mode.
 - Inventory sync and Guest merge are implemented and substantially validated, but all committed sync, merge, smoke, dogfood and diagnostics flags remain `NO`.
 - There is no production cohort, production Supabase project, live crash/alert provider or App Store/TestFlight distribution path.

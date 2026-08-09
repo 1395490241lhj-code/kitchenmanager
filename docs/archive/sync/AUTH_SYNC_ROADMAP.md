@@ -1,7 +1,7 @@
 # Kitchen Manager 账户与同步实施路线图
 
 状态：待产品/安全评审，不是已启动工程
-依赖设计：[`AUTH_SYNC_ARCHITECTURE.md`](./AUTH_SYNC_ARCHITECTURE.md)
+依赖设计：[`AUTH_SYNC_ARCHITECTURE.md`](../../architecture/AUTH_SYNC_ARCHITECTURE.md)
 
 ## Phase 0：决策与契约冻结
 
