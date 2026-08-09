@@ -1,0 +1,469 @@
+{
+  "schema": "kitchenmanager.source-restoration.final-quantity-blocker-review.v1",
+  "generatedAt": "2026-08-08",
+  "generator": "scripts/build-dazhong-final-quantity-blocker-review.mjs",
+  "baseline": {
+    "commit": "24c6d4a4a7f4bbcff3feba63e833007bc91602a3",
+    "curated": 159,
+    "promoted": 33,
+    "remaining": 6,
+    "applicationReady": false
+  },
+  "purpose": "Final read-only review of the six remaining quantity blockers. No promotion or consumed-dual remediation.",
+  "scope": {
+    "reviewedEntryIds": [
+      "dz1979-p201",
+      "dz1979-p203",
+      "dz1979-p207",
+      "dz1979-p222",
+      "dz1979-p224",
+      "dz1979-p226"
+    ],
+    "originalPdf": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf"
+  },
+  "downstreamCodePaths": [
+    "src/utils/recipe-sanitizer.js: classifyRecipeIngredient role",
+    "src/inventory.js: getStockCoverageAnalysis single qty/unit",
+    "src/recommendations.js: core-only coverage/missing/recommendation/shopping shortfall",
+    "src/shopping.js: single qty/unit merge and add semantics",
+    "scripts/recipe-runtime-quality.mjs: missing qty/unit is warning-only"
+  ],
+  "productionInvariants": {
+    "curatedCount": 159,
+    "fullCount": 264,
+    "promotedCount": 33,
+    "remainingCount": 6,
+    "applicationReady": false,
+    "reviewedIdsAbsentFromCurated": true,
+    "reviewedIdsAbsentFromFull": true,
+    "reviewedIdsAbsentFromLedger": true
+  },
+  "precedent": {
+    "curatedNullQtyUnitRecordCount": 610,
+    "shapeSupported": true
+  },
+  "lunaWorkerEvidence": {
+    "role": "auxiliary-independent-read-only-audit",
+    "nonExactConclusion": "scan-authentic; 花椒 is seasoning; exact entryId+item null/null allowlist is safe",
+    "consumedDualConclusion": "A/B/C each loses or misstates semantics; D is the only lossless future direction; E is lowest risk now",
+    "authoritativeDecision": "main-agent-independent-scan-and-code-review"
+  },
+  "reviewedNonExactNullAllowlist": {
+    "dz1979-p201": [
+      "花椒"
+    ],
+    "dz1979-p203": [
+      "花椒"
+    ],
+    "dz1979-p207": [
+      "花椒"
+    ]
+  },
+  "safeToAllow": true,
+  "items": [
+    {
+      "entryId": "dz1979-p201",
+      "name": "炝黄瓜",
+      "blockerType": "non-exact-quantity",
+      "sourceEvidence": {
+        "originalPdf": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf",
+        "pdfPage": 214,
+        "bookPage": 201,
+        "scanQuote": "花椒 十余粒",
+        "visuallyConfirmed": true,
+        "matchesCanonical": true,
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "readinessSourceFile": "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json"
+      },
+      "quantityStructure": {
+        "rawItemText": "花椒",
+        "rawQuantityText": "十余粒",
+        "normalizedQuantity": {
+          "kind": "approximate-count",
+          "qty": null,
+          "unit": "粒",
+          "appliesTo": "item",
+          "qualifier": "十余"
+        },
+        "readinessProjection": {
+          "sourceRawItemText": "花椒",
+          "sourceRawQuantityText": "十余粒",
+          "productionItem": "花椒",
+          "qty": null,
+          "unit": null,
+          "displayQuantity": "十余粒",
+          "inventoryComparable": false,
+          "conversionReason": "approximate-count：不伪造精确数值，保留原文“十余粒”作为 displayQuantity。"
+        }
+      },
+      "runtimeRole": {
+        "name": "花椒",
+        "role": "seasoning",
+        "reason": "seasoning"
+      },
+      "downstreamImpact": {
+        "inventoryCoverage": "none: classifyRecipeIngredient role=seasoning is excluded from core coverage",
+        "missingIngredients": "none: missing calculation iterates core ingredients only",
+        "recommendations": "none: score and target matching use core ingredients only",
+        "shopping": "none: recipe shortfall shopping is derived from missing core ingredients",
+        "runtimeQuality": "adds one existing missing-qty-unit warning; no error"
+      },
+      "recommendation": "allow-reviewed-nonexact-null",
+      "productionProjection": {
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      },
+      "safeToUnlock": true,
+      "schemaExtensionNeeded": false,
+      "displayTradeoff": "production does not retain/display “十余粒”; canonical and review provenance retain it"
+    },
+    {
+      "entryId": "dz1979-p203",
+      "name": "炝绿豆芽",
+      "blockerType": "non-exact-quantity",
+      "sourceEvidence": {
+        "originalPdf": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf",
+        "pdfPage": 216,
+        "bookPage": 203,
+        "scanQuote": "花椒 十余粒",
+        "visuallyConfirmed": true,
+        "matchesCanonical": true,
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "readinessSourceFile": "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json"
+      },
+      "quantityStructure": {
+        "rawItemText": "花椒",
+        "rawQuantityText": "十余粒",
+        "normalizedQuantity": {
+          "kind": "approximate-count",
+          "qty": null,
+          "unit": "粒",
+          "appliesTo": "item",
+          "qualifier": "十余"
+        },
+        "readinessProjection": {
+          "sourceRawItemText": "花椒",
+          "sourceRawQuantityText": "十余粒",
+          "productionItem": "花椒",
+          "qty": null,
+          "unit": null,
+          "displayQuantity": "十余粒",
+          "inventoryComparable": false,
+          "conversionReason": "approximate-count：不伪造精确数值，保留原文“十余粒”作为 displayQuantity。"
+        }
+      },
+      "runtimeRole": {
+        "name": "花椒",
+        "role": "seasoning",
+        "reason": "seasoning"
+      },
+      "downstreamImpact": {
+        "inventoryCoverage": "none: classifyRecipeIngredient role=seasoning is excluded from core coverage",
+        "missingIngredients": "none: missing calculation iterates core ingredients only",
+        "recommendations": "none: score and target matching use core ingredients only",
+        "shopping": "none: recipe shortfall shopping is derived from missing core ingredients",
+        "runtimeQuality": "adds one existing missing-qty-unit warning; no error"
+      },
+      "recommendation": "allow-reviewed-nonexact-null",
+      "productionProjection": {
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      },
+      "safeToUnlock": true,
+      "schemaExtensionNeeded": false,
+      "displayTradeoff": "production does not retain/display “十余粒”; canonical and review provenance retain it"
+    },
+    {
+      "entryId": "dz1979-p207",
+      "name": "炝莲花白",
+      "blockerType": "non-exact-quantity",
+      "sourceEvidence": {
+        "originalPdf": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf",
+        "pdfPage": 220,
+        "bookPage": 207,
+        "scanQuote": "花椒 十余粒",
+        "visuallyConfirmed": true,
+        "matchesCanonical": true,
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "readinessSourceFile": "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json"
+      },
+      "quantityStructure": {
+        "rawItemText": "花椒",
+        "rawQuantityText": "十余粒",
+        "normalizedQuantity": {
+          "kind": "approximate-count",
+          "qty": null,
+          "unit": "粒",
+          "appliesTo": "item",
+          "qualifier": "十余"
+        },
+        "readinessProjection": {
+          "sourceRawItemText": "花椒",
+          "sourceRawQuantityText": "十余粒",
+          "productionItem": "花椒",
+          "qty": null,
+          "unit": null,
+          "displayQuantity": "十余粒",
+          "inventoryComparable": false,
+          "conversionReason": "approximate-count：不伪造精确数值，保留原文“十余粒”作为 displayQuantity。"
+        }
+      },
+      "runtimeRole": {
+        "name": "花椒",
+        "role": "seasoning",
+        "reason": "seasoning"
+      },
+      "downstreamImpact": {
+        "inventoryCoverage": "none: classifyRecipeIngredient role=seasoning is excluded from core coverage",
+        "missingIngredients": "none: missing calculation iterates core ingredients only",
+        "recommendations": "none: score and target matching use core ingredients only",
+        "shopping": "none: recipe shortfall shopping is derived from missing core ingredients",
+        "runtimeQuality": "adds one existing missing-qty-unit warning; no error"
+      },
+      "recommendation": "allow-reviewed-nonexact-null",
+      "productionProjection": {
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      },
+      "safeToUnlock": true,
+      "schemaExtensionNeeded": false,
+      "displayTradeoff": "production does not retain/display “十余粒”; canonical and review provenance retain it"
+    },
+    {
+      "entryId": "dz1979-p222",
+      "name": "酱胡豆",
+      "blockerType": "consumed-dual-quantity",
+      "sourceEvidence": {
+        "originalPdf": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf",
+        "pdfPage": 235,
+        "bookPage": 222,
+        "scanQuote": "菜油 一斤耗二两",
+        "visuallyConfirmed": true,
+        "matchesCanonical": true,
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "readinessSourceFile": "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json"
+      },
+      "quantityStructure": [
+        {
+          "item": "菜油",
+          "rawQuantityText": "一斤耗二两",
+          "input": {
+            "qty": 500,
+            "unit": "g"
+          },
+          "consumed": {
+            "qty": 100,
+            "referenceQty": null,
+            "qualifier": null,
+            "unit": "g"
+          },
+          "runtimeRole": {
+            "name": "菜油",
+            "role": "seasoning",
+            "reason": "seasoning"
+          }
+        }
+      ],
+      "downstreamImpact": {
+        "productionContract": "current ingredient shape has only item/qty/unit",
+        "inventoryCoverage": "single qty/unit is interpreted as the full required amount for core ingredients",
+        "missingIngredients": "shortfall is computed from that same single required amount",
+        "recommendations": "coverage and score inherit the same single required amount",
+        "shopping": "missing quantity is copied from the same single required amount"
+      },
+      "options": {
+        "A": {
+          "proposal": "store-input-qty",
+          "risk": "consumed amount disappears from production and the one number is treated as the full requirement"
+        },
+        "B": {
+          "proposal": "store-consumed-qty",
+          "risk": "input/frying/coating amount disappears and purchasing may be understated"
+        },
+        "C": {
+          "proposal": "store-null-with-source-provenance",
+          "risk": "avoids choosing a false single value but removes structured quantity; unsafe for core 干豆粉 in p226"
+        },
+        "D": {
+          "proposal": "extend-production-schema",
+          "risk": "lowest-loss future design, but requires an explicit consumer contract for input versus consumed fields"
+        },
+        "E": {
+          "proposal": "continue-blocked",
+          "risk": "no production behavior change and no semantic loss"
+        }
+      },
+      "recommendation": "continue-blocked-until-dual-quantity-contract",
+      "safeToUnlock": false,
+      "schemaExtensionNeeded": true
+    },
+    {
+      "entryId": "dz1979-p224",
+      "name": "拌鱼香豌豆",
+      "blockerType": "consumed-dual-quantity",
+      "sourceEvidence": {
+        "originalPdf": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf",
+        "pdfPage": 237,
+        "bookPage": 224,
+        "scanQuote": "菜油 一斤耗二两",
+        "visuallyConfirmed": true,
+        "matchesCanonical": true,
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "readinessSourceFile": "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json"
+      },
+      "quantityStructure": [
+        {
+          "item": "菜油",
+          "rawQuantityText": "一斤耗二两",
+          "input": {
+            "qty": 500,
+            "unit": "g"
+          },
+          "consumed": {
+            "qty": 100,
+            "referenceQty": null,
+            "qualifier": null,
+            "unit": "g"
+          },
+          "runtimeRole": {
+            "name": "菜油",
+            "role": "seasoning",
+            "reason": "seasoning"
+          }
+        }
+      ],
+      "downstreamImpact": {
+        "productionContract": "current ingredient shape has only item/qty/unit",
+        "inventoryCoverage": "single qty/unit is interpreted as the full required amount for core ingredients",
+        "missingIngredients": "shortfall is computed from that same single required amount",
+        "recommendations": "coverage and score inherit the same single required amount",
+        "shopping": "missing quantity is copied from the same single required amount"
+      },
+      "options": {
+        "A": {
+          "proposal": "store-input-qty",
+          "risk": "consumed amount disappears from production and the one number is treated as the full requirement"
+        },
+        "B": {
+          "proposal": "store-consumed-qty",
+          "risk": "input/frying/coating amount disappears and purchasing may be understated"
+        },
+        "C": {
+          "proposal": "store-null-with-source-provenance",
+          "risk": "avoids choosing a false single value but removes structured quantity; unsafe for core 干豆粉 in p226"
+        },
+        "D": {
+          "proposal": "extend-production-schema",
+          "risk": "lowest-loss future design, but requires an explicit consumer contract for input versus consumed fields"
+        },
+        "E": {
+          "proposal": "continue-blocked",
+          "risk": "no production behavior change and no semantic loss"
+        }
+      },
+      "recommendation": "continue-blocked-until-dual-quantity-contract",
+      "safeToUnlock": false,
+      "schemaExtensionNeeded": true
+    },
+    {
+      "entryId": "dz1979-p226",
+      "name": "蛋酥花仁",
+      "blockerType": "consumed-dual-quantity",
+      "sourceEvidence": {
+        "originalPdf": "/Users/lianghongjing/Documents/大众川菜 (刘建成等编) (Z-Library).pdf",
+        "pdfPage": 239,
+        "bookPage": 226,
+        "scanQuote": "菜油 一斤耗二两；干豆粉 一斤耗四两",
+        "visuallyConfirmed": true,
+        "matchesCanonical": true,
+        "canonicalSourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "readinessSourceFile": "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json"
+      },
+      "quantityStructure": [
+        {
+          "item": "菜油",
+          "rawQuantityText": "一斤耗二两",
+          "input": {
+            "qty": 500,
+            "unit": "g"
+          },
+          "consumed": {
+            "qty": 100,
+            "referenceQty": null,
+            "qualifier": null,
+            "unit": "g"
+          },
+          "runtimeRole": {
+            "name": "菜油",
+            "role": "seasoning",
+            "reason": "seasoning"
+          }
+        },
+        {
+          "item": "干豆粉",
+          "rawQuantityText": "一斤耗四两",
+          "input": {
+            "qty": 500,
+            "unit": "g"
+          },
+          "consumed": {
+            "qty": 200,
+            "referenceQty": null,
+            "qualifier": null,
+            "unit": "g"
+          },
+          "runtimeRole": {
+            "name": "干豆粉",
+            "role": "core",
+            "reason": "default-core"
+          }
+        }
+      ],
+      "downstreamImpact": {
+        "productionContract": "current ingredient shape has only item/qty/unit",
+        "inventoryCoverage": "single qty/unit is interpreted as the full required amount for core ingredients",
+        "missingIngredients": "shortfall is computed from that same single required amount",
+        "recommendations": "coverage and score inherit the same single required amount",
+        "shopping": "missing quantity is copied from the same single required amount"
+      },
+      "options": {
+        "A": {
+          "proposal": "store-input-qty",
+          "risk": "consumed amount disappears from production and the one number is treated as the full requirement"
+        },
+        "B": {
+          "proposal": "store-consumed-qty",
+          "risk": "input/frying/coating amount disappears and purchasing may be understated"
+        },
+        "C": {
+          "proposal": "store-null-with-source-provenance",
+          "risk": "avoids choosing a false single value but removes structured quantity; unsafe for core 干豆粉 in p226"
+        },
+        "D": {
+          "proposal": "extend-production-schema",
+          "risk": "lowest-loss future design, but requires an explicit consumer contract for input versus consumed fields"
+        },
+        "E": {
+          "proposal": "continue-blocked",
+          "risk": "no production behavior change and no semantic loss"
+        }
+      },
+      "recommendation": "continue-blocked-until-dual-quantity-contract",
+      "safeToUnlock": false,
+      "schemaExtensionNeeded": true
+    }
+  ],
+  "conclusion": {
+    "nonExact": "safe-to-unlock-only-the-three-reviewed-(entryId,花椒)-pairs-as-qty-null-unit-null",
+    "consumedDual": "keep-p222-p224-p226-hard-blocked; do not implement in this round",
+    "schemaExtension": "not needed for reviewed non-exact null projection; needed before lossless consumed-dual production support"
+  },
+  "writeTargets": [
+    "data/source-restoration/dazhong-chuancai-1979-final-quantity-blocker-review.v1.json",
+    "data/source-restoration/dazhong-chuancai-1979-final-quantity-blocker-review.v1.md"
+  ],
+  "verificationProblems": []
+}
