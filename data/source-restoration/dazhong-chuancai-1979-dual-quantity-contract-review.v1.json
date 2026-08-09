@@ -1,0 +1,393 @@
+{
+  "schema": "kitchenmanager.source-restoration.dual-quantity-contract-review.v1",
+  "generatedAt": "2026-08-09",
+  "baseline": {
+    "commit": "6f6b94ba9efa5b02bb90f3eef5fec22ff9d3a48b",
+    "curated": 162,
+    "full": 264,
+    "promoted": 36,
+    "remaining": 3,
+    "remainingEntryIds": [
+      "dz1979-p222",
+      "dz1979-p224",
+      "dz1979-p226"
+    ],
+    "applicationReady": false
+  },
+  "purpose": "Architecture/design and compatibility proof for the final three consumed-dual quantity blockers. No promotion, production-data change, schema change, or runtime change.",
+  "applicationReady": false,
+  "sourceSemantics": [
+    {
+      "entryId": "dz1979-p222",
+      "name": "酱胡豆",
+      "source": {
+        "pdfPage": 235,
+        "bookPage": 222,
+        "visuallyConfirmedByMainAgent": true
+      },
+      "dualQuantityIngredients": [
+        {
+          "item": "菜油",
+          "rawQuantityText": "一斤耗二两",
+          "input": { "qty": 500, "unit": "g" },
+          "consumed": { "qty": 100, "unit": "g", "referenceQty": null, "qualifier": null },
+          "role": "seasoning/cooking-medium",
+          "singleQuantityLoss": "500g preserves the on-hand frying requirement but loses 100g actual oil use; 100g preserves use but understates the amount required to perform the frying step."
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p224",
+      "name": "拌鱼香豌豆",
+      "source": {
+        "pdfPage": 237,
+        "bookPage": 224,
+        "visuallyConfirmedByMainAgent": true
+      },
+      "dualQuantityIngredients": [
+        {
+          "item": "菜油",
+          "rawQuantityText": "一斤耗二两",
+          "input": { "qty": 500, "unit": "g" },
+          "consumed": { "qty": 100, "unit": "g", "referenceQty": null, "qualifier": null },
+          "role": "seasoning/cooking-medium",
+          "singleQuantityLoss": "500g preserves the on-hand frying requirement but loses 100g actual oil use; 100g preserves use but understates the amount required to perform the frying step."
+        }
+      ]
+    },
+    {
+      "entryId": "dz1979-p226",
+      "name": "蛋酥花仁",
+      "source": {
+        "pdfPage": 239,
+        "bookPage": 226,
+        "visuallyConfirmedByMainAgent": true
+      },
+      "dualQuantityIngredients": [
+        {
+          "item": "菜油",
+          "rawQuantityText": "一斤耗二两",
+          "input": { "qty": 500, "unit": "g" },
+          "consumed": { "qty": 100, "unit": "g", "referenceQty": null, "qualifier": null },
+          "role": "seasoning/cooking-medium",
+          "singleQuantityLoss": "500g preserves the on-hand frying requirement but loses 100g actual oil use; 100g preserves use but understates the amount required to perform the frying step."
+        },
+        {
+          "item": "干豆粉",
+          "rawQuantityText": "一斤耗四两",
+          "input": { "qty": 500, "unit": "g" },
+          "consumed": { "qty": 200, "unit": "g", "referenceQty": null, "qualifier": null },
+          "role": "source-significant coating; current runtime canonicalizes to 豆粉 and classifies as seasoning/starch",
+          "singleQuantityLoss": "The method uses three liang in egg batter and the remaining flour for coating. The source contract needs both 500g working input and 200g actual use. Current missing/recommendation/shopping ignores this row because its effective runtime role is seasoning; the dual values are still required for source fidelity and future consumption, cost, nutrition, and decrement semantics."
+        }
+      ]
+    }
+  ],
+  "lunaWorkerAudits": {
+    "writeChain": {
+      "conclusion": "Canonical worker/chunk and assembler preserve consumed fields, but readiness productionIngredientPlan, promotion dry-runs, quantity-review registries, and build-recipe-overlay use explicit projections that drop them. curate-recipes itself preserves fields already present.",
+      "recommendation": "Use a separate sidecar so existing production ingredient objects, frozen artifacts, and historical promotions remain unchanged.",
+      "evidence": [
+        "docs/DAZHONG_CHUANCAI_1979_EXTRACTION_SCHEMA.md:130",
+        "scripts/assemble-dazhong-chuancai-recipes.mjs:175",
+        "scripts/build-dazhong-chuancai-promotion-readiness.mjs:115",
+        "scripts/build-dazhong-chuancai-promotion-batch10-dry-run.mjs:398",
+        "scripts/build-dazhong-chuancai-batch10-quantity-review.mjs:20",
+        "scripts/build-recipe-overlay.js:87",
+        "scripts/curate-recipes.js:155"
+      ]
+    },
+    "consumerChain": {
+      "conclusion": "For runtime core ingredients, qty/unit is required input for availability, missing, recommendation, and shopping. These three recipes' dual rows canonicalize to seasoning (菜油 or 豆粉), so current core/missing/recommendation/shopping ignores them; recipe display still shows input. qty/unit must not silently become actual consumed for inventory decrement. PWA accepts unknown fields on load but some projections and tests strip/forbid them; iOS safely ignores unknown fields but cannot consume them.",
+      "recommendation": "Keep old consumers on qty/unit and make future actual-consumption features explicitly opt in to the sidecar.",
+      "evidence": [
+        "src/inventory.js:93",
+        "src/inventory.js:434",
+        "src/recommendations.js:193",
+        "src/recommendations.js:398",
+        "src/views/recipe-detail-view.js:62",
+        "src/recipe-library.js:13",
+        "src/utils/recipe-sanitizer.js:95",
+        "test/recipe-runtime-quality.test.mjs:83",
+        "ios-native/Kitchen Manager/KitchenManager/RecipeService.swift:82",
+        "ios-native/Kitchen Manager/KitchenManager/InventoryConsumption.swift:50"
+      ]
+    }
+  },
+  "mainAgentIndependentConclusion": {
+    "canonicalMatchesScan": true,
+    "p226HasCoreDualQuantityIngredient": false,
+    "p226HasSourceSignificantCoatingIngredient": true,
+    "p226DryFlourRuntimePath": {
+      "directRawClassifier": "core/default-core",
+      "canonicalItem": "豆粉",
+      "effectiveClassifier": "seasoning/starch",
+      "currentCoreMissingRecommendationShopping": false
+    },
+    "wrongValueRisks": {
+      "inputAsActualConsumed": "Would overstate exact consumption: 500g instead of 100g oil or 200g flour.",
+      "consumedAsRequiredInput": "Would erase the source distinction between the 500g working input and 200g actual use; current missing/recommendation/shopping is unchanged because 豆粉 is seasoning.",
+      "nullForP226DryFlour": "Would erase a source-proven exact working quantity even though current runtime excludes 豆粉 from core missing/recommendation/shopping."
+    },
+    "decision": "Keep qty/unit as required input and preserve actual consumed semantics separately."
+  },
+  "designScoreScale": "1=worst, 5=best; migrationCost, historicalDataChurn, and testingBurden score higher when cost/churn/burden is lower.",
+  "designs": [
+    {
+      "id": "A",
+      "name": "embedded-optional-consumed-fields",
+      "shape": "{item,qty,unit,consumedQty?,consumedUnit?,consumedReferenceQty?,consumedQualifier?}",
+      "scores": {
+        "sourceFidelity": 5,
+        "backwardCompatibility": 3,
+        "pwaImpact": 3,
+        "iosImpact": 3,
+        "inventoryCorrectness": 5,
+        "recommendationCorrectness": 5,
+        "shoppingCorrectness": 5,
+        "displayFidelity": 5,
+        "migrationCost": 1,
+        "futureMaintainability": 3,
+        "historicalDataChurn": 3,
+        "testingBurden": 1
+      },
+      "verdict": "Lossless in principle, but current writer projections and runtime-quality gates would require broad coordinated changes. Unknown-field tolerance alone is insufficient because several paths strip fields."
+    },
+    {
+      "id": "B",
+      "name": "independent-dual-quantity-sidecar",
+      "shape": "recipes[recipeId].ingredients[exactProductionItem] -> input + consumed + raw + provenance",
+      "scores": {
+        "sourceFidelity": 5,
+        "backwardCompatibility": 5,
+        "pwaImpact": 5,
+        "iosImpact": 5,
+        "inventoryCorrectness": 5,
+        "recommendationCorrectness": 5,
+        "shoppingCorrectness": 5,
+        "displayFidelity": 4,
+        "migrationCost": 4,
+        "futureMaintainability": 4,
+        "historicalDataChurn": 5,
+        "testingBurden": 4
+      },
+      "verdict": "Recommended. It preserves full source semantics without changing existing ingredient bytes or old consumers. Display remains input-only until a consumer explicitly opts in."
+    },
+    {
+      "id": "C",
+      "name": "permanent-source-restoration-only",
+      "shape": "No production representation; keep all three recipes blocked forever.",
+      "scores": {
+        "sourceFidelity": 5,
+        "backwardCompatibility": 5,
+        "pwaImpact": 5,
+        "iosImpact": 5,
+        "inventoryCorrectness": 1,
+        "recommendationCorrectness": 1,
+        "shoppingCorrectness": 1,
+        "displayFidelity": 1,
+        "migrationCost": 5,
+        "futureMaintainability": 2,
+        "historicalDataChurn": 5,
+        "testingBurden": 5
+      },
+      "verdict": "Safe as the current temporary state, but not a production contract and does not complete the restoration."
+    }
+  ],
+  "recommendedDesign": "B",
+  "proposedContract": {
+    "futureFile": "data/recipe-quantity-semantics.json",
+    "schema": "kitchenmanager.recipe-quantity-semantics.v1",
+    "identity": {
+      "path": "recipes[recipeId].ingredients[exactProductionItem]",
+      "arrayIndexAllowed": false,
+      "rules": [
+        "recipeId must be the stable production recipe id.",
+        "The ingredient key must exactly equal one and only one recipe_ingredients[recipeId][].item value.",
+        "Duplicate item values within one recipe are a hard failure; do not guess by array index.",
+        "Renaming an ingredient requires an atomic base+sidecar update and compatibility test."
+      ]
+    },
+    "entryShape": {
+      "input": { "qty": "finite positive number", "unit": "non-empty string" },
+      "consumed": {
+        "qty": "finite positive number for exact source, otherwise null",
+        "unit": "non-empty string",
+        "referenceQty": "finite positive number for approximate source, otherwise null",
+        "qualifier": "non-empty source qualifier for approximate source, otherwise null"
+      },
+      "rawQuantityText": "non-empty source text",
+      "provenance": {
+        "sourceId": "dazhong-chuancai-1979",
+        "entryId": "source restoration entry id",
+        "pdfPage": "positive integer",
+        "bookPage": "positive integer"
+      }
+    },
+    "invariants": [
+      "Base ingredient qty/unit remains required input/on-hand requirement.",
+      "Sidecar input must exactly equal the base ingredient qty/unit after numeric normalization.",
+      "Exact consumed uses consumed.qty and null referenceQty/qualifier.",
+      "Approximate consumed uses null qty plus referenceQty and qualifier.",
+      "Old consumers must not auto-load or reinterpret the sidecar.",
+      "Actual-consumption consumers must explicitly join by recipeId+item and define fallback behavior."
+    ],
+    "prototype": {
+      "schema": "kitchenmanager.recipe-quantity-semantics.v1",
+      "recipes": {
+        "dz1979-p222": {
+          "ingredients": {
+            "菜油": {
+              "input": { "qty": 500, "unit": "g" },
+              "consumed": { "qty": 100, "unit": "g", "referenceQty": null, "qualifier": null },
+              "rawQuantityText": "一斤耗二两",
+              "provenance": { "sourceId": "dazhong-chuancai-1979", "entryId": "dz1979-p222", "pdfPage": 235, "bookPage": 222 }
+            }
+          }
+        },
+        "dz1979-p224": {
+          "ingredients": {
+            "菜油": {
+              "input": { "qty": 500, "unit": "g" },
+              "consumed": { "qty": 100, "unit": "g", "referenceQty": null, "qualifier": null },
+              "rawQuantityText": "一斤耗二两",
+              "provenance": { "sourceId": "dazhong-chuancai-1979", "entryId": "dz1979-p224", "pdfPage": 237, "bookPage": 224 }
+            }
+          }
+        },
+        "dz1979-p226": {
+          "ingredients": {
+            "菜油": {
+              "input": { "qty": 500, "unit": "g" },
+              "consumed": { "qty": 100, "unit": "g", "referenceQty": null, "qualifier": null },
+              "rawQuantityText": "一斤耗二两",
+              "provenance": { "sourceId": "dazhong-chuancai-1979", "entryId": "dz1979-p226", "pdfPage": 239, "bookPage": 226 }
+            },
+            "干豆粉": {
+              "input": { "qty": 500, "unit": "g" },
+              "consumed": { "qty": 200, "unit": "g", "referenceQty": null, "qualifier": null },
+              "rawQuantityText": "一斤耗四两",
+              "provenance": { "sourceId": "dazhong-chuancai-1979", "entryId": "dz1979-p226", "pdfPage": 239, "bookPage": 226 }
+            }
+          }
+        }
+      }
+    }
+  },
+  "consumerSemanticsMatrix": [
+    { "consumer": "inventory availability", "quantity": "input qty/unit for runtime core ingredients", "reason": "The three dual rows are currently seasoning after canonicalization and do not participate." },
+    { "consumer": "missing ingredients", "quantity": "input qty/unit for runtime core ingredients", "reason": "p226 干豆粉 canonicalizes to 豆粉/seasoning, so current missing remains empty." },
+    { "consumer": "recommendation coverage", "quantity": "input qty/unit for runtime core ingredients", "reason": "The three dual rows currently do not affect core recommendation coverage." },
+    { "consumer": "shopping quantity", "quantity": "input qty/unit for runtime core ingredients", "reason": "The three dual rows currently do not generate recipe-missing shopping items." },
+    { "consumer": "recipe display", "quantity": "input plus consumed/raw when sidecar-aware", "reason": "Old display remains operationally safe but source-incomplete; new display should show both." },
+    { "consumer": "inventory decrement", "quantity": "confirmed actual consumed, seeded from sidecar consumed", "reason": "Deducting input would overstate use for frying/coating media." },
+    { "consumer": "purchase cash outlay", "quantity": "input/purchased", "reason": "Cash outlay follows acquisition, not retained food mass." },
+    { "consumer": "dish cost and loss accounting", "quantity": "consumed", "reason": "Actual dish use/loss follows consumed amount." },
+    { "consumer": "actual nutrition/intake", "quantity": "consumed", "reason": "Only incorporated/consumed quantity belongs in actual intake." },
+    { "consumer": "theoretical recipe nutrition", "quantity": "input with explicit yield model", "reason": "A theoretical formula may start from input but must not imply actual absorption." },
+    { "consumer": "finished-product absorption/oil use/yield", "quantity": "consumed", "reason": "These are exactly the semantics expressed by 耗." }
+  ],
+  "migrationPlan": [
+    "Phase 0 (this review): keep all three blocked and applicationReady=false; add no production sidecar.",
+    "Phase 1: add data/recipe-quantity-semantics.json with only the three reviewed recipes and validate recipeId+item uniqueness plus input/base equality.",
+    "Phase 2: promote the three recipes through a future explicitly approved batch; write required input to the unchanged ingredient shape and consumed/raw/provenance to the sidecar atomically.",
+    "Phase 3: leave PWA/iOS old consumers unchanged; add sidecar reads only when a concrete display or actual-consumption feature is approved.",
+    "Phase 4: if duplicate ingredient names become necessary, stop and design a stable ingredient id before adding those entries; never fall back to array index."
+  ],
+  "backwardCompatibilityPlan": {
+    "pwa": "Existing loaders and consumers continue reading only recipe_ingredients item/qty/unit; no sidecar fetch is required.",
+    "ios": "RecipeService continues decoding item/qty/unit and does not need a model or Codable migration.",
+    "writers": "Historical readiness, promotion, quantity-review, overlay, and curated writers remain unchanged; a future promotion writes the sidecar as a separate artifact.",
+    "frozenArtifacts": "No historical promotion or production recipe artifact is rewritten.",
+    "fallback": "If sidecar is absent, old behavior is exactly unchanged; sidecar-aware actual-consumption features must surface absence instead of treating input as consumed."
+  },
+  "compatibilityProof": {
+    "test": "test/dazhong-dual-quantity-contract-review.test.mjs",
+    "prototypeBaseRecipeIngredients": {
+      "legacy-normal": [{ "item": "豆腐", "qty": 300, "unit": "g" }],
+      "dz1979-p222": [{ "item": "菜油", "qty": 500, "unit": "g" }],
+      "dz1979-p224": [{ "item": "菜油", "qty": 500, "unit": "g" }],
+      "dz1979-p226": [
+        { "item": "菜油", "qty": 500, "unit": "g" },
+        { "item": "干豆粉", "qty": 500, "unit": "g" }
+      ]
+    },
+    "claims": [
+      "Base ingredient JSON is byte-stable when sidecar data is round-tripped.",
+      "Old recommendation inventory analysis is identical whether the unrelated sidecar property is present or absent.",
+      "Input and consumed quantities remain separate and exact through JSON round-trip.",
+      "All sidecar entries resolve to exactly one ingredient by recipeId+item; no array index is used.",
+      "Protected production, overlay, ledger, and readiness files equal their baseline commit bytes."
+    ]
+  },
+  "futureImplementationFiles": {
+    "requiredForPromotion": [
+      "data/recipe-quantity-semantics.json",
+      "data/recipe-completion-overlay.json",
+      "data/sichuan-recipes.curated.json",
+      "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json",
+      "data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json",
+      "scripts/build-dazhong-chuancai-promotion-batch11-dry-run.mjs",
+      "scripts/build-dazhong-chuancai-batch11-quantity-review.mjs",
+      "scripts/apply-dazhong-batch11-promotion.mjs",
+      "scripts/apply-dazhong-batch11-ledger-update.mjs",
+      "test/dazhong-source-restoration-promotion-batch11-dry-run.test.mjs",
+      "test/dazhong-source-restoration-promotion-batch11-quantity-review.test.mjs",
+      "test/dazhong-source-restoration-promotion-batch11.test.mjs"
+    ],
+    "onlyWhenAConsumedAwareFeatureIsApproved": [
+      "src/views/recipe-detail-view.js",
+      "src/views/home/cooked-meal-modal.js",
+      "ios-native/Kitchen Manager/KitchenManager/RecipeService.swift",
+      "ios-native/Kitchen Manager/KitchenManager/InventoryConsumption.swift"
+    ],
+    "mustRemainUnchanged": [
+      "data/sichuan-recipes.json",
+      "historical batch1-batch10 dry-run/quantity-review/promotion artifacts and scripts"
+    ]
+  },
+  "testsRequired": [
+    "Sidecar schema validation, exact-vs-approximate consumed exclusivity, positive numbers, and provenance fields.",
+    "Per-recipe exact item uniqueness and sidecar input equality with base qty/unit.",
+    "Old PWA recommendation, missing, shopping, and display regression without a sidecar fetch.",
+    "PWA/iOS actual-consumption tests before any consumer opts in.",
+    "Curated reproducibility and frozen historical promotion tests.",
+    "JSON parse, node --check, targeted Dazhong regressions, and git diff --check."
+  ],
+  "risks": [
+    "The sidecar duplicates input qty/unit for consistency proof; atomic generation and equality validation are mandatory.",
+    "recipeId+item becomes ambiguous if one recipe contains duplicate exact item strings.",
+    "A sidecar-aware consumer could accidentally fall back from missing consumed data to input and over-decrement inventory.",
+    "Old clients remain source-display-incomplete because they intentionally show input only.",
+    "Approximate consumed values must never be promoted to exact consumed.qty."
+  ],
+  "goNoGoCriteria": {
+    "go": [
+      "A future implementation is explicitly approved.",
+      "Every sidecar entry resolves to exactly one base ingredient by recipeId+item.",
+      "Sidecar input equals base qty/unit after normalization.",
+      "Exact and approximate consumed variants validate without coercion.",
+      "Old PWA/iOS behavior and all frozen historical artifacts remain green.",
+      "Actual-consumption consumers use consumed or explicit user confirmation, never silent input fallback."
+    ],
+    "noGo": [
+      "Any duplicate item makes identity ambiguous.",
+      "Any writer requires array index to associate metadata.",
+      "Any production or historical artifact changes outside the approved future batch.",
+      "Any old consumer begins treating required input as actual consumed.",
+      "applicationReady is proposed true before promotion and consumer gates pass."
+    ]
+  },
+  "protectedArtifacts": [
+    "data/sichuan-recipes.json",
+    "data/sichuan-recipes.curated.json",
+    "data/recipe-completion-overlay.json",
+    "data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json",
+    "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json"
+  ],
+  "writeTargets": [
+    "data/source-restoration/dazhong-chuancai-1979-dual-quantity-contract-review.v1.json",
+    "data/source-restoration/dazhong-chuancai-1979-dual-quantity-contract-review.v1.md",
+    "test/dazhong-dual-quantity-contract-review.test.mjs"
+  ]
+}
