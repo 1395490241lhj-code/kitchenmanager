@@ -234,22 +234,22 @@ test('default runtime quality covers the final Curated and Full merge chain', as
   });
 
   assert.deepEqual(report.modes.curated.stats, {
-    recipes: 434,
-    methodsReady: 434,
+    recipes: 436,
+    methodsReady: 436,
     missingMethods: 0,
-    ingredientMaps: 434,
+    ingredientMaps: 436,
     missingIngredientMaps: 0,
-    ingredientEntries: 2517,
+    ingredientEntries: 2535,
     duplicateIds: 0,
     duplicateNames: 0,
     orphanIngredientMaps: 0
   });
-  assert.equal(report.modes.full.stats.recipes, 557);
-  assert.equal(report.modes.full.stats.methodsReady, 434);
+  assert.equal(report.modes.full.stats.recipes, 559);
+  assert.equal(report.modes.full.stats.methodsReady, 436);
   assert.equal(report.modes.full.stats.missingMethods, 123);
-  assert.equal(report.modes.full.stats.ingredientMaps, 555);
+  assert.equal(report.modes.full.stats.ingredientMaps, 557);
   assert.equal(report.modes.full.stats.missingIngredientMaps, 2);
-  assert.equal(report.modes.full.stats.ingredientEntries, 2039);
+  assert.equal(report.modes.full.stats.ingredientEntries, 2057);
   assert.equal(report.modes.full.stats.duplicateIds, 0);
   assert.equal(report.modes.full.stats.duplicateNames, 0);
   assert.equal(report.modes.full.stats.orphanIngredientMaps, 0);
@@ -302,8 +302,8 @@ test('Curated qty/unit pilot records only final-method-backed egg counts', async
     assert.equal(RECIPE_UNIT_WHITELIST.includes(egg.unit), true);
   }
 
-  assert.equal(runtime.packs.curated.recipes.length, 434);
-  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 434);
+  assert.equal(runtime.packs.curated.recipes.length, 436);
+  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 436);
 });
 
 test('Curated final qty/unit batch adds exactly nine reviewed records and preserves all other map shapes', async () => {
@@ -371,16 +371,16 @@ test('every promoted batch quantity review artifact contributes unique, well-for
   assert.equal(CURATED_QTY_UNIT_RECORDS_ALL.size, CURATED_QTY_UNIT_RECORDS.size + totalRecords);
   // Locks in the current known state: Batch 1 (19) + Batch 2 (29) +
   // Batch 3 (35) + Batch 4 (43) + Batch 5 (47) + Batch 6 (24) + Batch 7 (20)
-  // + Batch 8 (16) = 233 source-restoration records, plus 11 method-backed
-  // = 244 total. Derived
+  // + Batch 8 (16) + Batch 9 (18) = 251 source-restoration records,
+  // plus 11 method-backed = 262 total. Derived
   // from the ledger's promoted batches, not hardcoded to a fixed batch
   // list, so a future promoted batch only needs this comment/count updated
   // alongside it.
-  assert.equal(totalRecords, 233);
-  assert.equal(CURATED_QTY_UNIT_RECORDS_ALL.size, 244);
+  assert.equal(totalRecords, 251);
+  assert.equal(CURATED_QTY_UNIT_RECORDS_ALL.size, 262);
 });
 
-test('every structured curated qty/unit entry is a reviewed record (no unreviewed 60th)', async () => {
+test('every structured curated qty/unit entry is a reviewed record', async () => {
   const runtime = await buildDefaultRuntimePacks();
   const structured = Object.entries(runtime.packs.curated.recipe_ingredients).flatMap(([id, entries]) =>
     entries
@@ -846,7 +846,7 @@ test('Final manifest batch preserves exact runtime maps and clears the curated g
   const runtime = await buildDefaultRuntimePacks();
   const manifest = readJson(MANIFEST_PATH);
   assert.deepEqual(manifest, []);
-  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 434);
+  assert.equal(Object.keys(runtime.packs.curated.recipe_ingredients).length, 436);
   for (const [id, name, expectedItems] of FINAL_MANIFEST_BATCH_REPAIRS) {
     const recipe = runtime.packs.curated.recipes.find(item => item.id === id);
     assert.equal(recipe?.name, name);
@@ -1043,7 +1043,7 @@ test('curated and full base id sets and counts are unchanged by the ordering fix
     full: readJson(join(root, 'data', 'sichuan-recipes.json'))
   };
 
-  const expectedCounts = { curated: 157, full: 264 };
+  const expectedCounts = { curated: 159, full: 264 };
   for (const mode of ['curated', 'full']) {
     const ids = packs[mode].recipes.map(recipe => String(recipe?.id || ''));
     assert.equal(ids.length, expectedCounts[mode]);

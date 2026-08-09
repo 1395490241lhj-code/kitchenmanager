@@ -17,9 +17,11 @@ const restored = readJson('data/source-restoration/dazhong-chuancai-1979-recipes
 const promotions = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
 const curated = readJson('data/sichuan-recipes.curated.json');
 const full = readJson('data/sichuan-recipes.json');
+const overlay = readJson('data/recipe-completion-overlay.json');
 const methodOnlyReview = readJson('data/source-restoration/dazhong-chuancai-1979-methodonly-remediation-review.v1.json');
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 const runtimeFixBaseline = '0e7e1d5de768cdd4be19f042f5d861087577f8e7';
+const promotionBaseline = '532f19f37d76193e266bfd459d78a07cbeebf032';
 
 const restoredById = new Map(restored.recipes.map((r) => [r.entryId, r]));
 const readinessById = new Map(readiness.entries.map((e) => [e.entryId, e]));
@@ -117,8 +119,8 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(batch9Promoted, false);
-  assert.equal(remaining.length, 8);
+  assert.equal(batch9Promoted, true);
+  assert.equal(remaining.length, 6);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const item of dryRun.items) {
     const expectedState = batch9Promoted ? 'promoted' : 'not-promoted';
@@ -318,9 +320,13 @@ test('temp curate run is deterministic across two consecutive invocations (byte-
       const overlayPath = path.join(tmp, 'data', 'recipe-completion-overlay.json');
       fs.copyFileSync(new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname, overlayPath);
       const tmpOverlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
-      tmpOverlay.newRecipes = [...(tmpOverlay.newRecipes ?? []), ...dryRun.items.map((item) => item.proposedOverlayRecipe)];
+      tmpOverlay.newRecipes = [
+        ...(tmpOverlay.newRecipes ?? []).filter((recipe) => !BATCH9_PRODUCTION_IDS.includes(recipe.id)),
+        ...dryRun.items.map((item) => item.proposedOverlayRecipe),
+      ];
       tmpOverlay.newRecipeIngredients = {
-        ...(tmpOverlay.newRecipeIngredients ?? {}),
+        ...Object.fromEntries(Object.entries(tmpOverlay.newRecipeIngredients ?? {})
+          .filter(([id]) => !BATCH9_PRODUCTION_IDS.includes(id))),
         ...Object.fromEntries(dryRun.items.map((item) => [item.productionId, item.proposedOverlayIngredients[item.productionId]])),
       };
       fs.writeFileSync(overlayPath, `${JSON.stringify(tmpOverlay, null, 2)}\n`);
@@ -396,40 +402,37 @@ test('dry-run reports no verification problems and Batch 1-8 stay marked promote
   assert.equal(dryRun.simulation.tempCurateResult.simulatedCuratedCount, 159);
 });
 
-test('Batch 1-8 frozen dry-run artifacts remain valid and the ledger stays at eight promoted batches', () => {
-  for (let n = 1; n <= 8; n += 1) {
+test('Batch 1-9 frozen dry-run artifacts remain valid and the ledger records nine promoted batches', () => {
+  for (let n = 1; n <= 9; n += 1) {
     const artifact = readJson(`data/source-restoration/dazhong-chuancai-1979-promotion-batch${n}-dry-run.v1.json`);
     assert.deepEqual(artifact.verificationProblems, [], `batch${n} should still report zero problems`);
   }
-  assert.equal(promotions.batches.length, 8);
-  assert.equal(promotions.batches.some((batch) => batch.batchId === 'dz1979-production-b09'), false);
+  assert.equal(promotions.batches.length, 9);
+  assert.equal(promotions.batches.some((batch) => batch.batchId === 'dz1979-production-b09'), true);
   for (const batch of promotions.batches) {
     assert.equal(batch.status, 'promoted');
   }
 });
 
-test('frozen artifacts, review evidence, and production workspace are byte-identical to the runtime-fix baseline', () => {
+test('frozen artifacts, review evidence, runtime fix, and non-target production files are unchanged', () => {
   const sourceRestorationDir = path.join(repoRoot, 'data/source-restoration');
   const frozenBatchArtifacts = fs.readdirSync(sourceRestorationDir)
-    .filter((name) => /^dazhong-chuancai-1979-promotion-batch[1-8]-/.test(name))
+    .filter((name) => /^dazhong-chuancai-1979-promotion-batch[1-9]-/.test(name))
     .map((name) => `data/source-restoration/${name}`);
   const protectedPaths = [
     ...frozenBatchArtifacts,
     'data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.md',
-    'data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json',
-    'data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json',
     'data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json',
     'data/sichuan-recipes.json',
-    'data/sichuan-recipes.curated.json',
-    'data/recipe-completion-overlay.json',
     'data/recipe-curation-removed.json',
     'data/recipes-needing-completion.json',
-    'data/recipe-curation-summary.md',
+    'src/ingredients.js',
+    'scripts/dazhong-runtime-compatibility.mjs',
   ];
   for (const relativePath of protectedPaths) {
-    const baseline = execFileSync('git', ['show', `${runtimeFixBaseline}:${relativePath}`], {
+    const baseline = execFileSync('git', ['show', `${promotionBaseline}:${relativePath}`], {
       cwd: repoRoot,
       maxBuffer: 16 * 1024 * 1024,
     });
@@ -438,11 +441,54 @@ test('frozen artifacts, review evidence, and production workspace are byte-ident
   const canonicalPath = 'data/source-restoration/dazhong-chuancai-1979-recipes.v1.json';
   const canonicalBaseline = JSON.parse(execFileSync(
     'git',
-    ['show', `${runtimeFixBaseline}:${canonicalPath}`],
+    ['show', `${promotionBaseline}:${canonicalPath}`],
     { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 },
   ));
   const canonicalCurrent = JSON.parse(fs.readFileSync(path.join(repoRoot, canonicalPath), 'utf8'));
   delete canonicalBaseline.updatedAt;
   delete canonicalCurrent.updatedAt;
   assert.deepEqual(canonicalCurrent, canonicalBaseline, `${canonicalPath} semantic drift`);
+});
+
+test('production is exactly baseline plus the two frozen Batch 9 proposals with zero existing drift', () => {
+  const baselineCurated = JSON.parse(execFileSync(
+    'git', ['show', `${promotionBaseline}:data/sichuan-recipes.curated.json`],
+    { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 },
+  ));
+  const baselineOverlay = JSON.parse(execFileSync(
+    'git', ['show', `${promotionBaseline}:data/recipe-completion-overlay.json`],
+    { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 },
+  ));
+  assert.equal(curated.recipes.length, 159);
+  assert.equal(curated.recipes.length, baselineCurated.recipes.length + 2);
+  for (const recipe of baselineCurated.recipes) {
+    assert.deepEqual(curated.recipes.find((entry) => entry.id === recipe.id), recipe, recipe.id);
+    assert.deepEqual(curated.recipe_ingredients[recipe.id], baselineCurated.recipe_ingredients[recipe.id], `${recipe.id}:map`);
+  }
+  for (const item of dryRun.items) {
+    assert.deepEqual(curated.recipes.find((entry) => entry.id === item.productionId), item.proposedCuratedRecipe, item.productionId);
+    assert.deepEqual(curated.recipe_ingredients[item.productionId], item.proposedCuratedIngredients[item.productionId], `${item.productionId}:map`);
+  }
+  assert.deepEqual(overlay.newRecipes.slice(0, baselineOverlay.newRecipes.length), baselineOverlay.newRecipes);
+  for (const [id, ingredients] of Object.entries(baselineOverlay.newRecipeIngredients)) {
+    assert.deepEqual(overlay.newRecipeIngredients[id], ingredients, `${id}:overlay-map`);
+  }
+  assert.deepEqual(overlay.newRecipes.slice(-2), dryRun.items.map((item) => item.proposedOverlayRecipe));
+});
+
+test('Batch 9 ledger/readiness invariants are exact and six quantity blockers remain', () => {
+  const batch = promotions.batches.at(-1);
+  assert.equal(batch.batchId, 'dz1979-production-b09');
+  assert.equal(batch.baselineCommit, promotionBaseline);
+  assert.equal(batch.dryRunArtifact, 'data/source-restoration/dazhong-chuancai-1979-promotion-batch9-dry-run.v1.json');
+  assert.equal(batch.quantityReviewArtifact, 'data/source-restoration/dazhong-chuancai-1979-promotion-batch9-quantity-review.v1.json');
+  assert.deepEqual(batch.entries.map((entry) => entry.entryId), ['dz1979-p161', 'dz1979-p137']);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 33);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 6);
+  assert.equal(readiness.applicationReady, false);
+  const remaining = readiness.entries
+    .filter((entry) => entry.promotionDisposition === 'new-recipe-candidate' && entry.promotionState === 'not-promoted')
+    .map((entry) => entry.entryId)
+    .sort();
+  assert.deepEqual(remaining, ['dz1979-p201', 'dz1979-p203', 'dz1979-p207', 'dz1979-p222', 'dz1979-p224', 'dz1979-p226']);
 });

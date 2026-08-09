@@ -71,9 +71,11 @@ test('artifact reports zero verification problems and applicationReady=false', (
   assert.equal(quantityReview.applicationReady, false);
 });
 
-test('the frozen Batch 9 dry-run reports zero problems and remains absent from the production ledger', () => {
+test('the frozen Batch 9 dry-run reports zero problems and is referenced by the production ledger', () => {
   assert.deepEqual(dryRun.selection.selectedEntryIds.slice().sort(), ['dz1979-p137', 'dz1979-p161']);
   assert.deepEqual(dryRun.verificationProblems, []);
   const promotions = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
-  assert.equal(promotions.batches.some((b) => b.batchId === 'dz1979-production-b09'), false);
+  const batch = promotions.batches.find((b) => b.batchId === 'dz1979-production-b09');
+  assert.ok(batch);
+  assert.equal(batch.quantityReviewArtifact, 'data/source-restoration/dazhong-chuancai-1979-promotion-batch9-quantity-review.v1.json');
 });

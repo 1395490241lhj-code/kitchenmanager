@@ -29,19 +29,19 @@ test('review artifact is read-only, baseline-pinned, and covers only p137/p161',
   ]);
 });
 
-test('production, ledger, and readiness remain unchanged for the reviewed blockers', () => {
-  assert.equal(curated.recipes.length, 157);
+test('frozen review evidence stays intact after the reviewed blockers promote in Batch 9', () => {
+  assert.equal(curated.recipes.length, 159);
   assert.equal(full.recipes.length, 264);
-  assert.equal(readiness.summary.promotedNewRecipeCount, 31);
-  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 8);
+  assert.equal(readiness.summary.promotedNewRecipeCount, 33);
+  assert.equal(readiness.summary.remainingNewRecipeCandidateCount, 6);
   assert.equal(readiness.applicationReady, false);
   for (const id of ['dz1979-p137', 'dz1979-p161']) {
-    assert.equal(readiness.entries.find((entry) => entry.entryId === id)?.promotionState, 'not-promoted', id);
-    assert.equal(curated.recipes.some((recipe) => recipe.id === id), false, id);
+    assert.equal(readiness.entries.find((entry) => entry.entryId === id)?.promotionState, 'promoted', id);
+    assert.equal(curated.recipes.some((recipe) => recipe.id === id), true, id);
     assert.equal(full.recipes.some((recipe) => recipe.id === id), false, id);
     assert.equal(
       (ledger.batches ?? []).some((batch) => (batch.entries ?? []).some((entry) => entry.entryId === id)),
-      false,
+      true,
       id,
     );
   }

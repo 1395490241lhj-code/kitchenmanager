@@ -1,6 +1,6 @@
 {
   "schema": "kitchenmanager.source-restoration.promotion-readiness.v1",
-  "generatedAt": "2026-08-08",
+  "generatedAt": "2026-08-09",
   "purpose": "《大众川菜》1979 production promotion readiness：机械生成 147 道 promotionDisposition 清单与 new-recipe-candidate 转换预览。只制定可执行候选清单，不修改任何生产数据，不做 production promotion。",
   "applicationReady": false,
   "productionPromotion": false,
@@ -143,14 +143,16 @@
       "dz1979-p129",
       "dz1979-p130"
     ],
-    "promotedNewRecipeCount": 31,
+    "promotedNewRecipeCount": 33,
     "promotedNewRecipeIds": [
       "dz1979-p129",
       "dz1979-p130",
+      "dz1979-p137",
       "dz1979-p143",
       "dz1979-p144",
       "dz1979-p153",
       "dz1979-p159",
+      "dz1979-p161",
       "dz1979-p162",
       "dz1979-p168",
       "dz1979-p180",
@@ -177,7 +179,7 @@
       "dz1979-p221",
       "dz1979-p223"
     ],
-    "remainingNewRecipeCandidateCount": 8,
+    "remainingNewRecipeCandidateCount": 6,
     "schemaExtensionNeeded": false,
     "verificationProblems": []
   },
@@ -1943,7 +1945,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "椒麻鸡块",
@@ -2776,7 +2778,7 @@
       "sourceQuality": "ready-for-later-promotion-review",
       "projectIds": [],
       "promotionDisposition": "new-recipe-candidate",
-      "promotionState": "not-promoted",
+      "promotionState": "promoted",
       "blockingReasons": [],
       "proposedProductionAction": "后续真正可新增到 production 的候选：按下方转换预览新建 recipe（本轮不生成 patch）。",
       "proposedName": "拌鸡血",

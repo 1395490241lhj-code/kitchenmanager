@@ -695,6 +695,55 @@
           ]
         }
       ]
+    },
+    {
+      "batchId": "dz1979-production-b09",
+      "status": "promoted",
+      "baselineCommit": "532f19f37d76193e266bfd459d78a07cbeebf032",
+      "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch9-dry-run.v1.json",
+      "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch9-quantity-review.v1.json",
+      "entries": [
+        {
+          "entryId": "dz1979-p161",
+          "productionId": "dz1979-p161",
+          "name": "拌鸡血",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p161",
+            "bookName": "拌鸡血",
+            "bookPage": 161,
+            "pdfPage": 174,
+            "category": "禽蛋鱼类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        },
+        {
+          "entryId": "dz1979-p137",
+          "productionId": "dz1979-p137",
+          "name": "椒麻鸡块",
+          "sourceQuality": "ready-for-later-promotion-review",
+          "originalClassification": "book-only",
+          "promotedFromDryRun": true,
+          "provenanceRecord": {
+            "entryId": "dz1979-p137",
+            "bookName": "椒麻鸡块",
+            "bookPage": 137,
+            "pdfPage": 150,
+            "category": "禽蛋鱼类",
+            "sourceFile": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json"
+          },
+          "productionTargets": [
+            "recipe-completion-overlay.json",
+            "sichuan-recipes.curated.json"
+          ]
+        }
+      ]
     }
   ]
 }
