@@ -166,7 +166,7 @@ test('dry-run records remediationPolicy = allow-safe-same-for-each', () => {
   assert.equal(dryRun.remediationPolicy, 'allow-safe-same-for-each');
 });
 
-test('the funnel counts match an independently recomputed selection (12 -> hard-blocked 8 -> after-hard-gates 4 -> runtime-blocked 2 -> eligible 2 -> selected 2)', () => {
+test('the frozen funnel stays unchanged while current runtime remediation adds p137/p161 eligibility', () => {
   const recomputed = mechanicalFunnel();
   assert.deepEqual(dryRun.selection.funnel, {
     remainingNotPromotedCandidates: 12,
@@ -178,8 +178,9 @@ test('the funnel counts match an independently recomputed selection (12 -> hard-
   });
   assert.equal(recomputed.remaining.length, 12);
   assert.equal(recomputed.hardGateSurvivors.length, 4);
-  assert.equal(recomputed.eligible.length, 2);
-  assert.deepEqual(recomputed.top5.sort(), dryRun.selection.selectedEntryIds.slice().sort());
+  assert.equal(recomputed.eligible.length, 4);
+  assert.ok(recomputed.eligible.includes('dz1979-p137'));
+  assert.ok(recomputed.eligible.includes('dz1979-p161'));
   assert.equal(dryRun.selection.selectedEntryIds.length, 2);
   assert.deepEqual(dryRun.selection.selectedEntryIds, dryRun.items.map((item) => item.entryId));
 });

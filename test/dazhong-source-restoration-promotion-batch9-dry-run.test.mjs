@@ -6,19 +6,20 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 import { classifyIngredientCompatibility } from '../scripts/dazhong-runtime-compatibility.mjs';
-import { classifyRecipeIngredient } from '../src/utils/recipe-sanitizer.js';
 
 const readJson = (relativePath) => JSON.parse(
   fs.readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8'),
 );
 
-const dryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch8-dry-run.v1.json');
+const dryRun = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-batch9-dry-run.v1.json');
 const readiness = readJson('data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json');
 const restored = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
 const promotions = readJson('data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json');
 const curated = readJson('data/sichuan-recipes.curated.json');
 const full = readJson('data/sichuan-recipes.json');
 const methodOnlyReview = readJson('data/source-restoration/dazhong-chuancai-1979-methodonly-remediation-review.v1.json');
+const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
+const runtimeFixBaseline = '0e7e1d5de768cdd4be19f042f5d861087577f8e7';
 
 const restoredById = new Map(restored.recipes.map((r) => [r.entryId, r]));
 const readinessById = new Map(readiness.entries.map((e) => [e.entryId, e]));
@@ -31,21 +32,21 @@ const productionNames = new Set([
 const ledgerPromotedEntryIds = new Set(
   (promotions.batches ?? []).flatMap((batch) => (batch.entries ?? []).map((entry) => entry.entryId)),
 );
-const BATCH8_PRODUCTION_IDS = dryRun.items.map((item) => item.productionId);
-const BATCH8_ENTRY_IDS = new Set(dryRun.items.map((item) => item.entryId));
-const batch8Promoted = BATCH8_PRODUCTION_IDS.length > 0
-  && BATCH8_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
+const BATCH9_PRODUCTION_IDS = dryRun.items.map((item) => item.productionId);
+const BATCH9_ENTRY_IDS = new Set(dryRun.items.map((item) => item.entryId));
+const batch9Promoted = BATCH9_PRODUCTION_IDS.length > 0
+  && BATCH9_PRODUCTION_IDS.every((id) => ledgerPromotedEntryIds.has(id));
 
-// Pre-Batch-8 snapshot: reset Batch 8's own entries to not-promoted so the
+// Pre-Batch-9 snapshot: reset Batch 9's own entries to not-promoted so the
 // funnel/gate recomputation below matches the exact input the frozen
-// dry-run was generated from, whether or not Batch 8 has since promoted.
-const preBatch8ReadinessById = new Map(
+// dry-run was generated from, whether or not Batch 9 has since promoted.
+const preBatch9ReadinessById = new Map(
   readiness.entries.map((entry) => [
     entry.entryId,
-    BATCH8_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
+    BATCH9_ENTRY_IDS.has(entry.entryId) ? { ...entry, promotionState: 'not-promoted' } : entry,
   ]),
 );
-const preBatch8ProductionNames = new Set(
+const preBatch9ProductionNames = new Set(
   [...productionNames].filter((name) => !dryRun.items.some((item) => item.name === name)),
 );
 
@@ -54,8 +55,8 @@ const REVIEWED_ALLOWLIST = new Map([
   ['dz1979-p130', new Set(['胡椒面'])],
 ]);
 
-// -- Independent replica of the Batch 8 gate: Batch 7 same-for-each
-// remediation + the new methodOnly-null allowlist. Deliberately written
+// -- Independent replica of the Batch 9 gate: inherited Batch 7 same-for-each
+// remediation + frozen Batch 8 methodOnly-null allowlist. Deliberately written
 // from scratch so the test cannot silently pass a bug the generator itself
 // introduced.
 
@@ -116,19 +117,25 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   const remaining = readiness.entries.filter((e) => (
     e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted'
   ));
-  assert.equal(remaining.length, batch8Promoted ? 8 : 10);
+  assert.equal(batch9Promoted, false);
+  assert.equal(remaining.length, 8);
   assert.equal(remaining.length, readiness.summary.remainingNewRecipeCandidateCount);
   for (const item of dryRun.items) {
-    const expectedState = batch8Promoted ? 'promoted' : 'not-promoted';
+    const expectedState = batch9Promoted ? 'promoted' : 'not-promoted';
     assert.equal(readinessById.get(item.entryId).promotionState, expectedState, item.entryId);
   }
 });
 
-test('dry-run records the composite remediationPolicy and exact reviewed allowlist', () => {
+test('dry-run inherits the frozen policies without expansion', () => {
   assert.equal(dryRun.remediationPolicy, 'allow-safe-same-for-each+allow-reviewed-methodonly-null');
   assert.deepEqual(dryRun.reviewedMethodOnlyNullAllowlist, {
     'dz1979-p129': ['姜', '花椒'],
     'dz1979-p130': ['胡椒面'],
+  });
+  assert.deepEqual(dryRun.remediationPolicies, {
+    inheritedFromBatch7: 'allow-safe-same-for-each',
+    inheritedFromBatch8: 'allow-reviewed-methodonly-null',
+    newThisRound: 'none',
   });
   assert.equal(dryRun.methodOnlyReviewArtifact, 'data/source-restoration/dazhong-chuancai-1979-methodonly-remediation-review.v1.json');
 });
@@ -138,31 +145,30 @@ test('the frozen methodOnly review artifact still confirms safe-to-allow with ze
   assert.deepEqual(methodOnlyReview.verificationProblems, []);
 });
 
-test('the frozen funnel stays unchanged while current runtime remediation adds p137/p161 eligibility', () => {
-  const opts = { readinessSource: preBatch8ReadinessById, namesSource: preBatch8ProductionNames };
-  const remaining = [...preBatch8ReadinessById.values()]
+test('the funnel matches an independent mechanical recomputation (8 -> 6 -> 2 -> 0 -> 2)', () => {
+  const opts = { readinessSource: preBatch9ReadinessById, namesSource: preBatch9ProductionNames };
+  const remaining = [...preBatch9ReadinessById.values()]
     .filter((e) => e.promotionDisposition === 'new-recipe-candidate' && e.promotionState === 'not-promoted')
     .map((e) => e.entryId);
   const hardGateSurvivors = remaining.filter((id) => passesMethodOnlyNullGate(id, REVIEWED_ALLOWLIST, opts));
   const eligible = hardGateSurvivors.filter((id) => !auditRuntimeGate(id, opts).blocked);
   const blocked = hardGateSurvivors.filter((id) => auditRuntimeGate(id, opts).blocked);
-  assert.equal(remaining.length, 10);
-  assert.equal(hardGateSurvivors.length, 4);
-  assert.equal(eligible.length, 4);
+  assert.equal(remaining.length, 8);
+  assert.equal(hardGateSurvivors.length, 2);
+  assert.equal(eligible.length, 2);
   assert.equal(blocked.length, 0);
-  assert.ok(eligible.includes('dz1979-p137'));
-  assert.ok(eligible.includes('dz1979-p161'));
   assert.deepEqual(dryRun.selection.funnel, {
-    remainingNotPromotedCandidates: 10,
-    afterHardGates: 4,
+    remainingNotPromotedCandidates: 8,
+    afterHardGates: 2,
     hardGateBlocked: 6,
-    blockedByRuntimeNameGate: 2,
+    blockedByRuntimeNameGate: 0,
     eligible: 2,
     selected: 2,
   });
+  assert.deepEqual(eligible.sort(), dryRun.selection.selectedEntryIds.slice().sort());
 });
 
-test('hard-gate blocked count is mechanically consistent and funnel destinations sum to remaining (6 + 2 + 2 = 10)', () => {
+test('hard-gate blocked count is mechanically consistent and funnel destinations sum to remaining (6 + 0 + 2 = 8)', () => {
   const uniqueBlockedIds = [...new Set(Object.values(dryRun.selection.hardGateExclusions).flat())];
   assert.equal(uniqueBlockedIds.length, 6);
   assert.deepEqual(uniqueBlockedIds.sort(), [
@@ -174,119 +180,41 @@ test('hard-gate blocked count is mechanically consistent and funnel destinations
   );
 });
 
-test('the two selected entries are exactly p129/p130', () => {
-  assert.deepEqual(dryRun.items.map((item) => item.productionId).sort(), ['dz1979-p129', 'dz1979-p130']);
+test('the two mechanically selected entries are exactly p137/p161', () => {
+  assert.deepEqual(dryRun.items.map((item) => item.productionId).sort(), ['dz1979-p137', 'dz1979-p161']);
 });
 
-test('only the exact reviewed (entryId, item) combinations unlock; any other methodOnly item still hard-blocks', () => {
-  const opts = { readinessSource: preBatch8ReadinessById, namesSource: preBatch8ProductionNames };
-  // p129/p130 pass with the real allowlist.
-  assert.equal(passesMethodOnlyNullGate('dz1979-p129', REVIEWED_ALLOWLIST, opts), true);
-  assert.equal(passesMethodOnlyNullGate('dz1979-p130', REVIEWED_ALLOWLIST, opts), true);
-  // With an EMPTY allowlist, both must fail (proving the gate genuinely
-  // depends on the reviewed allowlist, not on some other relaxed rule).
-  assert.equal(passesMethodOnlyNullGate('dz1979-p129', new Map(), opts), false);
-  assert.equal(passesMethodOnlyNullGate('dz1979-p130', new Map(), opts), false);
-  // With a WRONG/partial allowlist (missing one of the two p129 items),
-  // p129 must still fail — proving partial matches are not enough.
-  const partialAllowlist = new Map([['dz1979-p129', new Set(['姜'])]]);
-  assert.equal(passesMethodOnlyNullGate('dz1979-p129', partialAllowlist, opts), false);
-});
-
-test('any other methodOnly core-no-quantity candidate outside the allowlist remains hard-blocked (no global relaxation)', () => {
-  // None of the other 8 remaining candidates have a methodOnly
-  // conversionWarning item, so this test asserts the gate would still
-  // reject a hypothetical unreviewed methodOnly item by construction:
-  // simulating an entry with a conversionWarning item not in the allowlist.
-  for (const id of ['dz1979-p201', 'dz1979-p203', 'dz1979-p207', 'dz1979-p222', 'dz1979-p224', 'dz1979-p226', 'dz1979-p137', 'dz1979-p161']) {
-    const entry = readinessById.get(id);
-    assert.equal(entry.productionIngredientPlan.methodOnlyAnalysis.some((m) => m.conversionWarning), false, `${id} unexpectedly has a methodOnly conversionWarning (would need its own review)`);
-  }
-});
-
-test('unallocated-group-total continues to hard-block regardless of the new methodOnly-null policy', () => {
-  const opts = { readinessSource: preBatch8ReadinessById, namesSource: preBatch8ProductionNames };
-  const fakeId = '__unallocated_probe__';
-  preBatch8ReadinessById.set(fakeId, {
-    ...preBatch8ReadinessById.get('dz1979-p129'),
-    promotionDisposition: 'new-recipe-candidate',
-    promotionState: 'not-promoted',
-    bookName: '__unallocated_probe_name__',
-  });
-  const probeRecipe = {
-    ...restoredById.get('dz1979-p130'),
-    ingredients: restoredById.get('dz1979-p130').ingredients.map((ing) => (
-      ing.memberQuantityMode === 'same-for-each'
-        ? { ...ing, memberQuantityMode: 'unallocated-group-total' }
-        : ing
-    )),
-  };
-  restoredById.set(fakeId, probeRecipe);
-  assert.equal(passesMethodOnlyNullGate(fakeId, REVIEWED_ALLOWLIST, opts), false, 'unallocated-group-total must still block even with the methodOnly-null policy active');
-  restoredById.delete(fakeId);
-  preBatch8ReadinessById.delete(fakeId);
-});
-
-test('the 3 reviewed methodOnly-null items appear with qty=null/unit=null in the proposed production ingredients', () => {
-  const byId = new Map(dryRun.items.map((item) => [item.entryId, item]));
-  const p129Ings = byId.get('dz1979-p129').proposedCuratedIngredients['dz1979-p129'];
-  const p130Ings = byId.get('dz1979-p130').proposedCuratedIngredients['dz1979-p130'];
-  for (const item of ['姜', '花椒']) {
-    const ing = p129Ings.find((i) => i.item === item);
-    assert.ok(ing, `p129 missing ${item}`);
-    assert.equal(ing.qty, null, item);
-    assert.equal(ing.unit, null, item);
-  }
-  const hujiaomianIng = p130Ings.find((i) => i.item === '胡椒面');
-  assert.ok(hujiaomianIng, 'p130 missing 胡椒面');
-  assert.equal(hujiaomianIng.qty, null);
-  assert.equal(hujiaomianIng.unit, null);
-});
-
-test('the 3 null-quantity seasoning items do not add to structured reviewed qty/unit records', () => {
+test('quantity review preview contains only real non-null qty/unit records', () => {
   const preview = dryRun.quantityReviewPreview.records;
-  assert.equal(dryRun.quantityReviewPreview.recordCount, 16);
-  assert.equal(preview.length, 16);
-  assert.equal(preview.some((r) => r.entryId === 'dz1979-p129' && ['姜', '花椒'].includes(r.item)), false);
-  assert.equal(preview.some((r) => r.entryId === 'dz1979-p130' && r.item === '胡椒面'), false);
+  assert.equal(dryRun.quantityReviewPreview.recordCount, 18);
+  assert.equal(preview.length, 18);
   for (const record of preview) {
     assert.ok(record.qty !== null && record.unit !== null, `${record.entryId}:${record.item} should be a real structured record`);
   }
 });
 
-test('姜/花椒/胡椒面 independently classify as role=seasoning (never core) via the unmodified real classifier', () => {
-  for (const item of ['姜', '花椒', '胡椒面']) {
-    const result = classifyRecipeIngredient(item);
-    assert.equal(result.role, 'seasoning', item);
-    assert.notEqual(result.role, 'core', item);
-  }
-});
-
-test('p129 and p130 pass the runtime gate safely with zero unresolved-name-match and no new errors', () => {
-  const opts = { readinessSource: preBatch8ReadinessById };
-  for (const id of ['dz1979-p129', 'dz1979-p130']) {
+test('p137/p161 pass the runtime gate while preserving source ingredient names', () => {
+  const opts = { readinessSource: preBatch9ReadinessById };
+  for (const id of ['dz1979-p137', 'dz1979-p161']) {
     const audit = auditRuntimeGate(id, opts);
     assert.equal(audit.blocked, false, id);
     assert.equal(audit.unresolvedCount, 0, id);
   }
   const byId = new Map(dryRun.items.map((item) => [item.entryId, item]));
-  for (const id of ['dz1979-p129', 'dz1979-p130']) {
+  for (const id of ['dz1979-p137', 'dz1979-p161']) {
     const item = byId.get(id);
     assert.equal(item.coreRuntimeCompatibility.gatePassed, true, id);
     assert.equal(item.coreRuntimeCompatibility.counts['unresolved-name-match'], 0, id);
   }
-});
-
-test('p137 and p161 remain runtime-blocked, unchanged from Batch 2-7', () => {
-  const blocked = dryRun.selection.runtimeNameGateBlocked;
-  assert.equal(blocked.length, 2);
-  const byId = new Map(blocked.map((b) => [b.entryId, b]));
-  assert.deepEqual(byId.get('dz1979-p137')?.unresolvedItems, ['子公鸡']);
-  assert.deepEqual(byId.get('dz1979-p161')?.unresolvedItems, ['鸡血']);
+  assert.deepEqual(dryRun.selection.runtimeNameGateBlocked, []);
+  const p137Ingredients = byId.get('dz1979-p137').proposedCuratedIngredients['dz1979-p137'];
+  const p161Ingredients = byId.get('dz1979-p161').proposedCuratedIngredients['dz1979-p161'];
+  assert.deepEqual(p137Ingredients.find((ing) => ing.item === '子公鸡'), { item: '子公鸡', qty: '1', unit: '只' });
+  assert.deepEqual(p161Ingredients.find((ing) => ing.item === '鸡血'), { item: '鸡血', qty: '500', unit: 'g' });
 });
 
 test('p201/p203/p207 (non-exact) and p222/p224/p226 (consumed-dual) remain hard-blocked', () => {
-  const opts = { readinessSource: preBatch8ReadinessById, namesSource: preBatch8ProductionNames };
+  const opts = { readinessSource: preBatch9ReadinessById, namesSource: preBatch9ProductionNames };
   for (const id of ['dz1979-p201', 'dz1979-p203', 'dz1979-p207']) {
     assert.equal(passesMethodOnlyNullGate(id, REVIEWED_ALLOWLIST, opts), false, id);
     assert.notEqual(readinessById.get(id).productionIngredientPlan.quantityReadiness, 'exact-comparable', id);
@@ -300,17 +228,17 @@ test('p201/p203/p207 (non-exact) and p222/p224/p226 (consumed-dual) remain hard-
   }
 });
 
-test('promotion chain reproduces exactly pre-promotion-plus-two (155 -> 157) with zero drift', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dz1979-b8-test-'));
+test('promotion chain reproduces exactly current-plus-two (157 -> 159) with zero drift', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dz1979-b9-test-'));
   try {
     fs.mkdirSync(path.join(tmp, 'scripts'));
     fs.mkdirSync(path.join(tmp, 'data'));
     fs.copyFileSync(new URL('../scripts/curate-recipes.js', import.meta.url).pathname, path.join(tmp, 'scripts', 'curate-recipes.js'));
     fs.copyFileSync(new URL('../data/sichuan-recipes.json', import.meta.url).pathname, path.join(tmp, 'data', 'sichuan-recipes.json'));
     const overlayPath = path.join(tmp, 'data', 'recipe-completion-overlay.json');
-    // Use the real overlay with Batch 8's entries stripped out, so this
-    // reconstructs the exact pre-Batch-8-promotion baseline the frozen
-    // dry-run was generated against, whether or not Batch 8 is currently
+    // Use the real overlay with Batch 9's entries stripped out, so this
+    // reconstructs the exact pre-Batch-9-promotion baseline the frozen
+    // dry-run was generated against, whether or not Batch 9 is currently
     // promoted in the real overlay.
     const realOverlay = JSON.parse(fs.readFileSync(
       new URL('../data/recipe-completion-overlay.json', import.meta.url).pathname,
@@ -318,15 +246,15 @@ test('promotion chain reproduces exactly pre-promotion-plus-two (155 -> 157) wit
     ));
     const preOverlay = {
       ...realOverlay,
-      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !BATCH8_PRODUCTION_IDS.includes(r.id)),
+      newRecipes: (realOverlay.newRecipes ?? []).filter((r) => !BATCH9_PRODUCTION_IDS.includes(r.id)),
       newRecipeIngredients: Object.fromEntries(
-        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !BATCH8_PRODUCTION_IDS.includes(id)),
+        Object.entries(realOverlay.newRecipeIngredients ?? {}).filter(([id]) => !BATCH9_PRODUCTION_IDS.includes(id)),
       ),
     };
     fs.writeFileSync(overlayPath, `${JSON.stringify(preOverlay, null, 2)}\n`);
     execFileSync('node', [path.join(tmp, 'scripts', 'curate-recipes.js')], { cwd: tmp, stdio: 'pipe' });
     const preCurated = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'sichuan-recipes.curated.json'), 'utf8'));
-    assert.equal(preCurated.recipes.length, 155);
+    assert.equal(preCurated.recipes.length, 157);
 
     const tmpOverlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
     const overridesBefore = tmpOverlay.recipeIngredientOverrides;
@@ -342,7 +270,7 @@ test('promotion chain reproduces exactly pre-promotion-plus-two (155 -> 157) wit
       removed: JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'recipe-curation-removed.json'), 'utf8')),
       needing: JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'recipes-needing-completion.json'), 'utf8')),
     };
-    assert.equal(out.curated.recipes.length, 157);
+    assert.equal(out.curated.recipes.length, 159);
     const newIds = out.curated.recipes.map((r) => r.id).filter((id) => !preCurated.recipes.some((r2) => r2.id === id));
     assert.equal(newIds.length, 2);
     assert.deepEqual(newIds.sort(), dryRun.items.map((item) => item.productionId).sort());
@@ -381,7 +309,7 @@ test('promotion chain reproduces exactly pre-promotion-plus-two (155 -> 157) wit
 
 test('temp curate run is deterministic across two consecutive invocations (byte-identical)', () => {
   function runOnce() {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dz1979-b8-repro-'));
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dz1979-b9-repro-'));
     try {
       fs.mkdirSync(path.join(tmp, 'scripts'));
       fs.mkdirSync(path.join(tmp, 'data'));
@@ -455,25 +383,66 @@ test('iOS RecipeService-compatible shapes decode from every proposed item, inclu
   }
 });
 
-test('dry-run reports no verification problems and Batch 1-7 stay marked promoted', () => {
+test('dry-run reports no verification problems and Batch 1-8 stay marked promoted', () => {
   assert.deepEqual(dryRun.verificationProblems, []);
-  assert.equal(dryRun.baseline.main, 'e9101fe990309f263c6cd1cdb249656d24ab6d61');
+  assert.equal(dryRun.baseline.main, runtimeFixBaseline);
   assert.equal(dryRun.baseline.applicationReady, false);
   assert.equal(dryRun.baseline.batch1Promoted, true);
   assert.equal(dryRun.baseline.batch6Promoted, true);
   assert.equal(dryRun.baseline.batch7Promoted, true);
+  assert.equal(dryRun.baseline.batch8Promoted, true);
   assert.equal(dryRun.simulation.tempCurateResult.strictCurrentPlusN, true);
-  assert.equal(dryRun.simulation.tempCurateResult.headCuratedCount, 155);
-  assert.equal(dryRun.simulation.tempCurateResult.simulatedCuratedCount, 157);
+  assert.equal(dryRun.simulation.tempCurateResult.headCuratedCount, 157);
+  assert.equal(dryRun.simulation.tempCurateResult.simulatedCuratedCount, 159);
 });
 
-test('Batch 1-7 frozen dry-run artifacts are untouched (byte-identical to committed state)', () => {
-  for (let n = 1; n <= 7; n += 1) {
+test('Batch 1-8 frozen dry-run artifacts remain valid and the ledger stays at eight promoted batches', () => {
+  for (let n = 1; n <= 8; n += 1) {
     const artifact = readJson(`data/source-restoration/dazhong-chuancai-1979-promotion-batch${n}-dry-run.v1.json`);
     assert.deepEqual(artifact.verificationProblems, [], `batch${n} should still report zero problems`);
   }
-  assert.equal(promotions.batches.length, batch8Promoted ? 8 : 7);
+  assert.equal(promotions.batches.length, 8);
+  assert.equal(promotions.batches.some((batch) => batch.batchId === 'dz1979-production-b09'), false);
   for (const batch of promotions.batches) {
     assert.equal(batch.status, 'promoted');
   }
+});
+
+test('frozen artifacts, review evidence, and production workspace are byte-identical to the runtime-fix baseline', () => {
+  const sourceRestorationDir = path.join(repoRoot, 'data/source-restoration');
+  const frozenBatchArtifacts = fs.readdirSync(sourceRestorationDir)
+    .filter((name) => /^dazhong-chuancai-1979-promotion-batch[1-8]-/.test(name))
+    .map((name) => `data/source-restoration/${name}`);
+  const protectedPaths = [
+    ...frozenBatchArtifacts,
+    'data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.json',
+    'data/source-restoration/dazhong-chuancai-1979-runtime-name-blocker-review.v1.md',
+    'data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json',
+    'data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json',
+    'data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json',
+    'data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json',
+    'data/sichuan-recipes.json',
+    'data/sichuan-recipes.curated.json',
+    'data/recipe-completion-overlay.json',
+    'data/recipe-curation-removed.json',
+    'data/recipes-needing-completion.json',
+    'data/recipe-curation-summary.md',
+  ];
+  for (const relativePath of protectedPaths) {
+    const baseline = execFileSync('git', ['show', `${runtimeFixBaseline}:${relativePath}`], {
+      cwd: repoRoot,
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    assert.deepEqual(fs.readFileSync(path.join(repoRoot, relativePath)), baseline, relativePath);
+  }
+  const canonicalPath = 'data/source-restoration/dazhong-chuancai-1979-recipes.v1.json';
+  const canonicalBaseline = JSON.parse(execFileSync(
+    'git',
+    ['show', `${runtimeFixBaseline}:${canonicalPath}`],
+    { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 },
+  ));
+  const canonicalCurrent = JSON.parse(fs.readFileSync(path.join(repoRoot, canonicalPath), 'utf8'));
+  delete canonicalBaseline.updatedAt;
+  delete canonicalCurrent.updatedAt;
+  assert.deepEqual(canonicalCurrent, canonicalBaseline, `${canonicalPath} semantic drift`);
 });

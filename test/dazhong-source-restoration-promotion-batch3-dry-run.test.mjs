@@ -202,7 +202,7 @@ test('remaining candidate pool excludes all promoted entries and matches the led
   }
 });
 
-test('the funnel counts match an independently recomputed selection (29 -> 19 -> 17 -> 5)', () => {
+test('the frozen funnel stays unchanged while current runtime remediation adds p137/p161 eligibility', () => {
   const recomputed = mechanicalFunnel();
   assert.deepEqual(dryRun.selection.funnel, {
     remainingNotPromotedCandidates: 29,
@@ -213,8 +213,9 @@ test('the funnel counts match an independently recomputed selection (29 -> 19 ->
   });
   assert.equal(recomputed.remaining.length, 29);
   assert.equal(recomputed.hardGateSurvivors.length, 19);
-  assert.equal(recomputed.eligible.length, 17);
-  assert.deepEqual(recomputed.top5.sort(), dryRun.selection.selectedEntryIds.slice().sort());
+  assert.equal(recomputed.eligible.length, 19);
+  assert.ok(recomputed.eligible.includes('dz1979-p137'));
+  assert.ok(recomputed.eligible.includes('dz1979-p161'));
   assert.equal(dryRun.selection.selectedEntryIds.length, 5);
   assert.deepEqual(dryRun.selection.selectedEntryIds, dryRun.items.map((item) => item.entryId));
 });

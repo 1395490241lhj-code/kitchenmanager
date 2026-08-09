@@ -193,13 +193,13 @@ test('methodOnly: p129/p130 core-no-quantity method-only items genuinely have no
   }
 });
 
-test('runtime-unresolved-name: p137 (子公鸡) and p161 (鸡血) are independently reproduced as unresolved-name-match', () => {
+test('runtime-unresolved-name remains frozen in triage while current remediation resolves p137/p161', () => {
   const byId = new Map(triage.items.map((i) => [i.entryId, i]));
   const cases = [
-    { id: 'dz1979-p137', item: '子公鸡', qty: '1', unit: '只' },
-    { id: 'dz1979-p161', item: '鸡血', qty: '500', unit: 'g' },
+    { id: 'dz1979-p137', item: '子公鸡', qty: '1', unit: '只', compatibility: 'expected-unit-confirmation' },
+    { id: 'dz1979-p161', item: '鸡血', qty: '500', unit: 'g', compatibility: 'exact-compatible' },
   ];
-  for (const { id, item, qty, unit } of cases) {
+  for (const { id, item, qty, unit, compatibility } of cases) {
     const triageItem = byId.get(id);
     assert.ok(triageItem.blockers.includes('runtime-unresolved-name'), id);
     assert.equal(triageItem.recommendedDisposition, 'targeted-review-required', id);
@@ -207,7 +207,7 @@ test('runtime-unresolved-name: p137 (子公鸡) and p161 (鸡血) are independen
     assert.ok(triageItem.runtimeStatus.unresolvedItems.includes(item), id);
     const result = classifyIngredientCompatibility(item, qty, unit);
     assert.equal(result.role, 'core', id);
-    assert.equal(result.compatibility, 'unresolved-name-match', id);
+    assert.equal(result.compatibility, compatibility, id);
   }
 });
 
