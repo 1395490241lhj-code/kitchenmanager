@@ -28,6 +28,13 @@ import { classifyRecipeIngredient } from '../src/utils/recipe-sanitizer.js';
 // ingredient itself may not canonicalize to any of these.
 export const POULTRY_PROBES = ['鸡肉', '仔鸡', '母鸡', '老母鸡', '土鸡', '公鸡', '三黄鸡'];
 
+function isPoultryMeatVocabulary(item) {
+  const canonical = getCanonicalName(item);
+  return getIngredientFamilyKey(canonical) === 'chicken'
+    || POULTRY_PROBES.includes(item)
+    || POULTRY_PROBES.includes(canonical);
+}
+
 export function userRealisticProbes(item) {
   const canonical = getCanonicalName(item);
   const probes = new Set();
@@ -48,7 +55,7 @@ export function userRealisticProbes(item) {
       for (const name of familyNames) probes.add(name);
     }
   }
-  if (item.includes('鸡') || canonical.includes('鸡')) {
+  if (isPoultryMeatVocabulary(item)) {
     for (const name of POULTRY_PROBES) probes.add(name);
   }
   probes.add(item); // identity probe, flagged separately
@@ -127,7 +134,7 @@ export function classifyIngredientCompatibility(item, qty, unit) {
     };
   }
 
-  const isPoultryLike = item.includes('鸡') || canonical.includes('鸡');
+  const isPoultryLike = isPoultryMeatVocabulary(item);
   // Name resolution rules:
   //  - family items: a strict match against a user-realistic family name is
   //    required (the family is the user-facing vocabulary).
