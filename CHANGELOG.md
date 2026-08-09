@@ -4,6 +4,21 @@ All notable project changes should be documented here.
 
 Keep entries concise. Use this file for what changed, not for long design discussion. Put current project state in `PROJECT_STATUS.md`.
 
+## 2026-08-09 (《大众川菜》1979 source-restoration closeout)
+
+### Data
+
+- Closed the current scanned-source accounting with all 147 entries partitioned
+  as 50 existing-project matches, 39 promoted new recipes, 45 source-review
+  blockers, 12 alternate-source blockers, and 1 crosswalk blocker.
+- Recorded `promotionComplete=true`, `sourceRestorationComplete=true`, and
+  `applicationReady=false`: all 39/39 eligible new recipes are promoted and all
+  source entries have explainable dispositions, while 58 unresolved source or
+  mapping limitations remain non-production follow-ups.
+- Added a reproducible closeout audit covering Batch1–11 provenance, 294
+  reviewed quantities plus 6 narrowly approved null rows, and the isolated
+  3-recipe/4-record dual-quantity sidecar. No production/runtime data changed.
+
 ## 2026-08-04 (首页库存推荐换批)
 
 ### Fixed

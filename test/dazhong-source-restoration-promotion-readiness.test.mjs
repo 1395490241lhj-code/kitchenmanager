@@ -300,7 +300,7 @@ test('source, crosswalk, canonical, and production data are unchanged by this pl
     ...curated.recipes.map((r) => r.id),
     ...full.recipes.map((r) => r.id),
   ];
-  // The promoted Batch 1 ids are the only dz1979- ids present in production,
+  // The promoted Batch 1-11 ids are the only dz1979- ids present in production,
   // and they correspond exactly to the promoted readiness entries.
   const promoted = new Set(readiness.summary.promotedNewRecipeIds);
   const promotedInProduction = productionIds.filter((id) => id.startsWith('dz1979-'));

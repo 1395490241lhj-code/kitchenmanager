@@ -1,6 +1,6 @@
 # Kitchen Manager — Current Project Status
 
-Last updated: 2026-08-04
+Last updated: 2026-08-09
 
 ## AI service incident (2026-08-01)
 
@@ -14,26 +14,6 @@ Last updated: 2026-08-04
   external deployment steps.
 
 ## In progress
-
-- The 1979 《大众川菜》 scanned-source restoration pilot has passed user review.
-  Five single-page recipes were visually reviewed by luna_workers and the main
-  agent; the requested quantity/readings corrections and machine-readable
-  grouped-ingredient semantics are recorded in intermediate data. Its
-  applicationReady flag remains false: gram values are source-equivalent
-  conversions, not household servings or App-ready quantities. Production
-  recipes, schemas, serving sizes, and cache stamps are unchanged. The seven
-  catalog pages now have a visually reviewed 147-name index, Curated/Full name
-  matching, and an 11-batch (10–15 dishes each) extraction plan. Batch one
-  (`dz1979-b01`, 肉食类, book pages 27–47) is `completed-primary-reviewed`:
-  13 of 147 recipes were extracted by luna_worker from rendered pages and then
-  re-checked page by page by the main agent, with seven corrections applied and
-  zero unresolved readings. 134 recipes remain and batch two has not started —
-  no page beyond the batch-one range has been read. These 13 recipes are
-  intermediate-only data: no production recipe, schema, patch, cache stamp, or
-  UI change was made. See
-  `docs/DAZHONG_CHUANCAI_1979_SOURCE_RESTORATION.md`,
-  `docs/DAZHONG_CHUANCAI_1979_CATALOG_INDEX.md` and
-  `docs/DAZHONG_CHUANCAI_1979_EXTRACTION_SCHEMA.md`.
 
 - UI-5B2B-B2B safe editing of recorded conflict choices is implemented,
   validated, committed, and submitted in Draft PR #19 pending review and merge,
@@ -101,6 +81,17 @@ history, device-validation narratives, and bug investigations belong in
   project, no production monitoring, and no distribution pipeline exist yet.
 
 ## Completed
+
+- The 1979 《大众川菜》 scanned-source restoration is closed for the current
+  source scope: all 147 entries have unique, explainable dispositions; all
+  39/39 source-ready new-recipe-candidates were promoted through Batch 1–11;
+  50 entries reuse existing project recipes; and 58 remain explicitly blocked
+  (45 source review, 12 alternate source, 1 crosswalk adjudication). Promotion
+  and source-restoration accounting are complete, but `applicationReady=false`
+  remains correct because canonical quantities are source-equivalent evidence,
+  not serving-scaled App data, and blocked limitations remain unresolved. The
+  quantity sidecar remains isolated from current PWA/iOS consumers. See
+  `data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md`.
 
 - Native iOS SwiftUI app with SwiftData persistence for the core kitchen
   modules (inventory, shopping, today plan, consumption, weekly plan, user

@@ -1,0 +1,808 @@
+{
+  "schema": "kitchenmanager.source-restoration.closeout-audit.v1",
+  "generatedAt": "2026-08-09",
+  "generator": "scripts/build-dazhong-chuancai-closeout-audit.mjs",
+  "baseline": {
+    "commit": "0116009dfd35f1fde3eeedcee9bae1771d8db965",
+    "sourceEntryCount": 147,
+    "curatedCount": 165,
+    "promotedCandidateCount": 39,
+    "remainingPromotionCandidateCount": 0
+  },
+  "accounting": {
+    "totalEntries": 147,
+    "matrix": [
+      {
+        "status": "existing-project-match",
+        "count": 50,
+        "entryIds": [
+          "dz1979-p027",
+          "dz1979-p029",
+          "dz1979-p031",
+          "dz1979-p033",
+          "dz1979-p034",
+          "dz1979-p036",
+          "dz1979-p037",
+          "dz1979-p040",
+          "dz1979-p044",
+          "dz1979-p046",
+          "dz1979-p048",
+          "dz1979-p053",
+          "dz1979-p054",
+          "dz1979-p055",
+          "dz1979-p056",
+          "dz1979-p057",
+          "dz1979-p058",
+          "dz1979-p060",
+          "dz1979-p061",
+          "dz1979-p062",
+          "dz1979-p063",
+          "dz1979-p065",
+          "dz1979-p068",
+          "dz1979-p073",
+          "dz1979-p078",
+          "dz1979-p081",
+          "dz1979-p083",
+          "dz1979-p085",
+          "dz1979-p087",
+          "dz1979-p088",
+          "dz1979-p089",
+          "dz1979-p095",
+          "dz1979-p096",
+          "dz1979-p098",
+          "dz1979-p099",
+          "dz1979-p117",
+          "dz1979-p119",
+          "dz1979-p125",
+          "dz1979-p136",
+          "dz1979-p141",
+          "dz1979-p151",
+          "dz1979-p164",
+          "dz1979-p166",
+          "dz1979-p170",
+          "dz1979-p177",
+          "dz1979-p179",
+          "dz1979-p193",
+          "dz1979-p199",
+          "dz1979-p208",
+          "dz1979-p210"
+        ]
+      },
+      {
+        "status": "promoted-new-recipe-candidate",
+        "count": 39,
+        "entryIds": [
+          "dz1979-p129",
+          "dz1979-p130",
+          "dz1979-p137",
+          "dz1979-p143",
+          "dz1979-p144",
+          "dz1979-p153",
+          "dz1979-p159",
+          "dz1979-p161",
+          "dz1979-p162",
+          "dz1979-p168",
+          "dz1979-p180",
+          "dz1979-p183",
+          "dz1979-p185",
+          "dz1979-p186",
+          "dz1979-p187",
+          "dz1979-p188",
+          "dz1979-p195",
+          "dz1979-p196",
+          "dz1979-p198",
+          "dz1979-p200",
+          "dz1979-p201",
+          "dz1979-p202",
+          "dz1979-p203",
+          "dz1979-p204",
+          "dz1979-p205",
+          "dz1979-p206",
+          "dz1979-p207",
+          "dz1979-p209",
+          "dz1979-p211",
+          "dz1979-p212",
+          "dz1979-p213",
+          "dz1979-p216",
+          "dz1979-p218",
+          "dz1979-p219",
+          "dz1979-p221",
+          "dz1979-p222",
+          "dz1979-p223",
+          "dz1979-p224",
+          "dz1979-p226"
+        ]
+      },
+      {
+        "status": "blocked-source-review",
+        "count": 45,
+        "entryIds": [
+          "dz1979-p038",
+          "dz1979-p041",
+          "dz1979-p042",
+          "dz1979-p049",
+          "dz1979-p050",
+          "dz1979-p051",
+          "dz1979-p066",
+          "dz1979-p070",
+          "dz1979-p071",
+          "dz1979-p074",
+          "dz1979-p076",
+          "dz1979-p079",
+          "dz1979-p082",
+          "dz1979-p086",
+          "dz1979-p091",
+          "dz1979-p093",
+          "dz1979-p097",
+          "dz1979-p101",
+          "dz1979-p102",
+          "dz1979-p104",
+          "dz1979-p105",
+          "dz1979-p106",
+          "dz1979-p107",
+          "dz1979-p109",
+          "dz1979-p110",
+          "dz1979-p111",
+          "dz1979-p113",
+          "dz1979-p115",
+          "dz1979-p121",
+          "dz1979-p123",
+          "dz1979-p127",
+          "dz1979-p131",
+          "dz1979-p132",
+          "dz1979-p135",
+          "dz1979-p147",
+          "dz1979-p149",
+          "dz1979-p154",
+          "dz1979-p157",
+          "dz1979-p184",
+          "dz1979-p189",
+          "dz1979-p191",
+          "dz1979-p194",
+          "dz1979-p197",
+          "dz1979-p215",
+          "dz1979-p217"
+        ]
+      },
+      {
+        "status": "blocked-alternate-source",
+        "count": 12,
+        "entryIds": [
+          "dz1979-p090",
+          "dz1979-p100",
+          "dz1979-p122",
+          "dz1979-p138",
+          "dz1979-p139",
+          "dz1979-p142",
+          "dz1979-p145",
+          "dz1979-p152",
+          "dz1979-p155",
+          "dz1979-p171",
+          "dz1979-p181",
+          "dz1979-p225"
+        ]
+      },
+      {
+        "status": "blocked-crosswalk",
+        "count": 1,
+        "entryIds": [
+          "dz1979-p173"
+        ]
+      }
+    ],
+    "uniqueAndComplete": true
+  },
+  "promotionSummary": {
+    "batchCount": 11,
+    "promotedRecipeCount": 39,
+    "batches": [
+      {
+        "batchId": "dz1979-production-b01",
+        "baselineCommit": "7ad674d548f2d4749e183383a668f63461150842",
+        "dryRunBaselineCommit": "0ffd35d6b1ba15f066b7f9fa749f4402f362107d",
+        "promotionCommit": "4305bcd52c4247e2cc0e154c09f18e63166ee4c2",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch1-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch1-quantity-review.v1.json",
+        "entryCount": 5,
+        "entryIds": [
+          "dz1979-p143",
+          "dz1979-p204",
+          "dz1979-p195",
+          "dz1979-p200",
+          "dz1979-p180"
+        ],
+        "quantityReviewRecordCount": 19,
+        "quantityReviewUnitCounts": {
+          "只": 1,
+          "g": 17,
+          "个": 1
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b02",
+        "baselineCommit": "f794e475bdd32e9c372ff5abe012b5c75164e988",
+        "dryRunBaselineCommit": "b047f629498f1cabaa624d61b693e64dbf074c69",
+        "promotionCommit": "f0603ce34dd41838b4a963007e1b5cb815425bce",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch2-quantity-review.v1.json",
+        "entryCount": 5,
+        "entryIds": [
+          "dz1979-p187",
+          "dz1979-p202",
+          "dz1979-p205",
+          "dz1979-p188",
+          "dz1979-p196"
+        ],
+        "quantityReviewRecordCount": 29,
+        "quantityReviewUnitCounts": {
+          "g": 29
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b03",
+        "baselineCommit": "156315241822c3655fe6867d7d945a007e402b1c",
+        "dryRunBaselineCommit": "f0603ce34dd41838b4a963007e1b5cb815425bce",
+        "promotionCommit": "fc73285763feb5039658f88dad48d31a6d80ba38",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch3-quantity-review.v1.json",
+        "entryCount": 5,
+        "entryIds": [
+          "dz1979-p212",
+          "dz1979-p216",
+          "dz1979-p218",
+          "dz1979-p221",
+          "dz1979-p206"
+        ],
+        "quantityReviewRecordCount": 35,
+        "quantityReviewUnitCounts": {
+          "g": 34,
+          "根": 1
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b04",
+        "baselineCommit": "a11c076a60f9c1568fc8a30fd6b7239d58cb0e9d",
+        "dryRunBaselineCommit": "fc73285763feb5039658f88dad48d31a6d80ba38",
+        "promotionCommit": "af6a9e80a60610fb094bf55531f6532f512f27e2",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch4-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch4-quantity-review.v1.json",
+        "entryCount": 5,
+        "entryIds": [
+          "dz1979-p183",
+          "dz1979-p198",
+          "dz1979-p153",
+          "dz1979-p209",
+          "dz1979-p223"
+        ],
+        "quantityReviewRecordCount": 43,
+        "quantityReviewUnitCounts": {
+          "g": 42,
+          "个": 1
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b05",
+        "baselineCommit": "e2a92b1242e3efe84d8e2cb7a7c4664e8357e1a6",
+        "dryRunBaselineCommit": "af6a9e80a60610fb094bf55531f6532f512f27e2",
+        "promotionCommit": "6474ef7e30db4b321faea33aace5152474c55709",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch5-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch5-quantity-review.v1.json",
+        "entryCount": 5,
+        "entryIds": [
+          "dz1979-p162",
+          "dz1979-p186",
+          "dz1979-p185",
+          "dz1979-p219",
+          "dz1979-p213"
+        ],
+        "quantityReviewRecordCount": 47,
+        "quantityReviewUnitCounts": {
+          "g": 46,
+          "根": 1
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b06",
+        "baselineCommit": "da6f8bc5a079f086a5545a6368c678a92d174250",
+        "dryRunBaselineCommit": "6474ef7e30db4b321faea33aace5152474c55709",
+        "promotionCommit": "5b737cf8bc418a8e8c8cd1b057783a1500302b56",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch6-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch6-quantity-review.v1.json",
+        "entryCount": 2,
+        "entryIds": [
+          "dz1979-p159",
+          "dz1979-p168"
+        ],
+        "quantityReviewRecordCount": 24,
+        "quantityReviewUnitCounts": {
+          "g": 23,
+          "个": 1
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b07",
+        "baselineCommit": "241b760c033dcc4b29352623665b274d5c6a84ff",
+        "dryRunBaselineCommit": "ac7aebbe79e7c326834a77b11eb548437fbc8c56",
+        "promotionCommit": "759d617a32039ead44a18fd469ba48e1434e0cb0",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch7-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch7-quantity-review.v1.json",
+        "entryCount": 2,
+        "entryIds": [
+          "dz1979-p211",
+          "dz1979-p144"
+        ],
+        "quantityReviewRecordCount": 20,
+        "quantityReviewUnitCounts": {
+          "g": 19,
+          "只": 1
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b08",
+        "baselineCommit": "297877d55eae76baf61fadbb19378091cd570a44",
+        "dryRunBaselineCommit": "e9101fe990309f263c6cd1cdb249656d24ab6d61",
+        "promotionCommit": "06b2324a4aeca3db915d3c223e758ffa13eff890",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch8-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch8-quantity-review.v1.json",
+        "entryCount": 2,
+        "entryIds": [
+          "dz1979-p129",
+          "dz1979-p130"
+        ],
+        "quantityReviewRecordCount": 16,
+        "quantityReviewUnitCounts": {
+          "g": 16
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b09",
+        "baselineCommit": "532f19f37d76193e266bfd459d78a07cbeebf032",
+        "dryRunBaselineCommit": "0e7e1d5de768cdd4be19f042f5d861087577f8e7",
+        "promotionCommit": "24c6d4a4a7f4bbcff3feba63e833007bc91602a3",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch9-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch9-quantity-review.v1.json",
+        "entryCount": 2,
+        "entryIds": [
+          "dz1979-p161",
+          "dz1979-p137"
+        ],
+        "quantityReviewRecordCount": 18,
+        "quantityReviewUnitCounts": {
+          "g": 17,
+          "只": 1
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b10",
+        "baselineCommit": "204646b66a0fe0ed804cac4611a30845e655e837",
+        "dryRunBaselineCommit": "151de3b45d22ed328835ae2165564117fbcf8cb2",
+        "promotionCommit": "6f6b94ba9efa5b02bb90f3eef5fec22ff9d3a48b",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch10-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch10-quantity-review.v1.json",
+        "entryCount": 3,
+        "entryIds": [
+          "dz1979-p203",
+          "dz1979-p201",
+          "dz1979-p207"
+        ],
+        "quantityReviewRecordCount": 22,
+        "quantityReviewUnitCounts": {
+          "g": 19,
+          "根": 3
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      },
+      {
+        "batchId": "dz1979-production-b11",
+        "baselineCommit": "09e8bd44c421b87f435e373f6dad9726acfe3c53",
+        "dryRunBaselineCommit": "c4d2a7b74090bdbee70e1e3fa81d749e786739bd",
+        "promotionCommit": "0116009dfd35f1fde3eeedcee9bae1771d8db965",
+        "dryRunArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch11-dry-run.v1.json",
+        "quantityReviewArtifact": "data/source-restoration/dazhong-chuancai-1979-promotion-batch11-quantity-review.v1.json",
+        "entryCount": 3,
+        "entryIds": [
+          "dz1979-p222",
+          "dz1979-p226",
+          "dz1979-p224"
+        ],
+        "quantityReviewRecordCount": 21,
+        "quantityReviewUnitCounts": {
+          "g": 20,
+          "个": 1
+        },
+        "baselineExists": true,
+        "baselineAncestorOfPromotion": true,
+        "previousPromotionAncestorOfBaseline": true,
+        "dryRunBaselineAncestorOfLedgerBaseline": true
+      }
+    ],
+    "baselineChainValid": true
+  },
+  "productionIntegrity": {
+    "curatedCount": 165,
+    "fullCount": 264,
+    "promotedIdsUnique": true,
+    "promotedNamesUnique": true,
+    "promotedPresentExactlyOnceInCuratedAndOverlay": true,
+    "existingProjectMatchesNotDuplicated": true,
+    "blockedEntriesAbsentFromLedger": true,
+    "runtimeBaselineMatches": true,
+    "fullRemovedNeedingStable": true,
+    "prePromotionBaseline": "7ad674d548f2d4749e183383a668f63461150842",
+    "prePromotionCuratedCount": 126,
+    "prePromotionOverlayNewRecipeCount": 58,
+    "existingPrePromotionRecipesAndMapsUnchanged": true,
+    "exactPromotedDelta": 39,
+    "prePromotionStableFiles": [
+      {
+        "file": "data/sichuan-recipes.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/recipe-curation-removed.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/recipes-needing-completion.json",
+        "byteEqual": true
+      }
+    ],
+    "baselineIntegrity": [
+      {
+        "file": "data/sichuan-recipes.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/recipe-completion-overlay.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/sichuan-recipes.curated.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/recipe-curation-removed.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/recipes-needing-completion.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/recipe-runtime-baseline.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/recipe-quantity-semantics.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/source-restoration/dazhong-chuancai-1979-recipes.v1.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/source-restoration/dazhong-chuancai-1979-crosswalk-dry-run.v1.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/source-restoration/dazhong-chuancai-1979-production-promotions.v1.json",
+        "byteEqual": true
+      },
+      {
+        "file": "data/source-restoration/dazhong-chuancai-1979-promotion-readiness.v1.json",
+        "byteEqual": true
+      }
+    ]
+  },
+  "quantityPolicy": {
+    "sourceRestorationReviewedRecordCount": 294,
+    "promotedIngredientRowCount": 300,
+    "reviewedKeysUnique": true,
+    "baseQtyUnitMatchesReviewedRecords": true,
+    "approvedNullRule": "Only exact entryId+item pairs from the frozen methodOnly and final non-exact quantity reviews may use qty=null/unit=null.",
+    "approvedNullRows": [
+      {
+        "productionId": "dz1979-p129",
+        "item": "姜",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "productionId": "dz1979-p129",
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "productionId": "dz1979-p130",
+        "item": "胡椒面",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "productionId": "dz1979-p203",
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "productionId": "dz1979-p201",
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      },
+      {
+        "productionId": "dz1979-p207",
+        "item": "花椒",
+        "qty": null,
+        "unit": null
+      }
+    ],
+    "approvedNullCount": 6,
+    "consumedFieldsAbsentFromBaseAndQuantityReview": true
+  },
+  "sidecarSummary": {
+    "schema": "kitchenmanager.recipe-quantity-semantics.v1",
+    "recipeCount": 3,
+    "dualRecordCount": 4,
+    "joins": [
+      {
+        "recipeId": "dz1979-p222",
+        "item": "菜油",
+        "input": {
+          "qty": 500,
+          "unit": "g"
+        },
+        "consumed": {
+          "qty": 100,
+          "unit": "g",
+          "referenceQty": null,
+          "qualifier": null
+        }
+      },
+      {
+        "recipeId": "dz1979-p226",
+        "item": "菜油",
+        "input": {
+          "qty": 500,
+          "unit": "g"
+        },
+        "consumed": {
+          "qty": 100,
+          "unit": "g",
+          "referenceQty": null,
+          "qualifier": null
+        }
+      },
+      {
+        "recipeId": "dz1979-p226",
+        "item": "干豆粉",
+        "input": {
+          "qty": 500,
+          "unit": "g"
+        },
+        "consumed": {
+          "qty": 200,
+          "unit": "g",
+          "referenceQty": null,
+          "qualifier": null
+        }
+      },
+      {
+        "recipeId": "dz1979-p224",
+        "item": "菜油",
+        "input": {
+          "qty": 500,
+          "unit": "g"
+        },
+        "consumed": {
+          "qty": 100,
+          "unit": "g",
+          "referenceQty": null,
+          "qualifier": null
+        }
+      }
+    ],
+    "inputMatchesBaseQtyUnit": true,
+    "identity": "recipeId + exact production item; array index forbidden",
+    "currentPwaIosConsumersLoadSidecar": false,
+    "consumerReferenceFiles": []
+  },
+  "unresolvedSourceLimitations": {
+    "totalCount": 58,
+    "blockedSourceReview": {
+      "count": 45,
+      "entryIds": [
+        "dz1979-p038",
+        "dz1979-p041",
+        "dz1979-p042",
+        "dz1979-p049",
+        "dz1979-p050",
+        "dz1979-p051",
+        "dz1979-p066",
+        "dz1979-p070",
+        "dz1979-p071",
+        "dz1979-p074",
+        "dz1979-p076",
+        "dz1979-p079",
+        "dz1979-p082",
+        "dz1979-p086",
+        "dz1979-p091",
+        "dz1979-p093",
+        "dz1979-p097",
+        "dz1979-p101",
+        "dz1979-p102",
+        "dz1979-p104",
+        "dz1979-p105",
+        "dz1979-p106",
+        "dz1979-p107",
+        "dz1979-p109",
+        "dz1979-p110",
+        "dz1979-p111",
+        "dz1979-p113",
+        "dz1979-p115",
+        "dz1979-p121",
+        "dz1979-p123",
+        "dz1979-p127",
+        "dz1979-p131",
+        "dz1979-p132",
+        "dz1979-p135",
+        "dz1979-p147",
+        "dz1979-p149",
+        "dz1979-p154",
+        "dz1979-p157",
+        "dz1979-p184",
+        "dz1979-p189",
+        "dz1979-p191",
+        "dz1979-p194",
+        "dz1979-p197",
+        "dz1979-p215",
+        "dz1979-p217"
+      ],
+      "entriesWithRecordedUncertainty": 22,
+      "finalMeaning": "Current canonical extraction is preserved, but source-fidelity uncertainty remains. This is an accepted closeout disposition for the current scan, not approval for production; targeted source review is required before any future promotion."
+    },
+    "blockedAlternateSource": {
+      "count": 12,
+      "entryIds": [
+        "dz1979-p090",
+        "dz1979-p100",
+        "dz1979-p122",
+        "dz1979-p138",
+        "dz1979-p139",
+        "dz1979-p142",
+        "dz1979-p145",
+        "dz1979-p152",
+        "dz1979-p155",
+        "dz1979-p171",
+        "dz1979-p181",
+        "dz1979-p225"
+      ],
+      "contentMissingCount": 3,
+      "contentIncompleteCount": 6,
+      "otherSourceGapCount": 3,
+      "finalMeaning": "The current scan cannot supply all required source content. Its visible evidence is fully preserved; another edition, copy, or primary source is required before reconsideration."
+    },
+    "blockedCrosswalk": {
+      "count": 1,
+      "entryIds": [
+        "dz1979-p173"
+      ],
+      "finalMeaning": "Source extraction is usable, but the probable project mapping remains unadjudicated. Keep blocked until the p173 crosswalk decision is resolved."
+    }
+  },
+  "historicalArtifactFields": [
+    {
+      "field": "promotion dry-run baseline.curated/promoted/remaining/applicationReady",
+      "meaning": "Point-in-time pre-promotion snapshot; frozen evidence, not current state."
+    },
+    {
+      "field": "promotion dry-run productionWrites=false",
+      "meaning": "The dry-run generator did not write production; it does not claim the proposal was never later promoted."
+    },
+    {
+      "field": "quantity-review applicationReady=false",
+      "meaning": "The frozen review artifact itself is non-production evidence."
+    },
+    {
+      "field": "readiness productionPromotion=false",
+      "meaning": "Generator behavior flag; current promotion truth comes from the ledger."
+    },
+    {
+      "field": "historical review production invariants and remaining counts",
+      "meaning": "Review-time snapshots must remain frozen after later batches."
+    }
+  ],
+  "finalStatusDefinitions": {
+    "promotionComplete": "All 39/39 source-ready new-recipe-candidates are recorded in the ledger and production.",
+    "sourceRestorationComplete": "All 147 catalog entries are extracted/accounted for and have a final explainable disposition for the current scanned-source scope; blocked limitations may remain.",
+    "applicationReady": "The restoration dataset itself is safe for direct application consumption with serving/runtime semantics."
+  },
+  "promotionComplete": true,
+  "sourceRestorationComplete": true,
+  "applicationReady": false,
+  "statusFieldAudit": {
+    "ledgerPartialPromotion": {
+      "value": true,
+      "stale": false,
+      "meaning": "The ledger records only the 39 source-restoration-created recipes, a selective subset of the 147-entry corpus; it is not the remaining-candidate counter."
+    },
+    "readinessProductionPromotion": {
+      "value": false,
+      "stale": false,
+      "meaning": "This flag describes the readiness artifact generator as non-promoting/read-only; the separate ledger is the authority for completed production promotions."
+    },
+    "readinessSchemaExtensionNeeded": {
+      "value": false,
+      "stale": false,
+      "meaning": "The existing base recipe shape required no extension. Dual consumed quantities live in the separate sidecar contract and are not loaded by current consumers."
+    },
+    "readinessApplicationReady": {
+      "value": false,
+      "stale": false,
+      "meaning": "Zero remaining promotion candidates does not make source-equivalent quantities, unresolved source limitations, or the intermediate restoration pack application-ready."
+    },
+    "restorationApplicationReady": {
+      "value": false,
+      "stale": false,
+      "meaning": "Canonical restoration remains intermediate-only source evidence, not a serving-scaled application data pack."
+    }
+  },
+  "remainingFollowUps": [
+    {
+      "category": "blocked-source-review",
+      "count": 45,
+      "requirement": "Resolve recorded recognition/conversion/allocation/old-term source-fidelity issues before reconsidering individual entries."
+    },
+    {
+      "category": "blocked-alternate-source",
+      "count": 12,
+      "requirement": "Obtain another authoritative source for missing, incomplete, or otherwise unavailable content."
+    },
+    {
+      "category": "blocked-crosswalk",
+      "count": 1,
+      "requirement": "Adjudicate dz1979-p173 probable mapping before any promotion decision."
+    }
+  ],
+  "verificationProblems": []
+}
