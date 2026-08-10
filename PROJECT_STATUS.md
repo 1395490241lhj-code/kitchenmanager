@@ -2,10 +2,11 @@
 
 ## Last verified
 
-- Date: 2026-08-09
-- Commit: `8606831` (`data: close out dazhong source restoration audit`)
+- Date: 2026-08-10
+- Commit: `bfcf07f` (`docs: archive superseded product journey diagram`) — repository cleanup closeout checkpoint
 - Branch: `main`
 - Repository state at verification: `HEAD` and `origin/main` had `0 0` divergence.
+- Verification scope: repository cleanup and reference / archive / configuration consistency closeout only; this does not re-run the full production release verification. Current release posture and blockers are unchanged this round.
 
 ## Current release posture
 
