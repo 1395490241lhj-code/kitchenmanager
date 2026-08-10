@@ -4,7 +4,7 @@
 目录索引、Curated/Full 匹配和 10–15 道批次规划已完成，但尚未开始正文提取。
 
 机器可读中间数据位于
-[dazhong-chuancai-1979-pilot.v1.json](../data/source-restoration/dazhong-chuancai-1979-pilot.v1.json)。
+[dazhong-chuancai-1979-pilot.v1.json](../../../data/source-restoration/dazhong-chuancai-1979-pilot.v1.json)。
 该文件没有任何生产读取链路。
 
 ## 1. 来源身份与读取方式

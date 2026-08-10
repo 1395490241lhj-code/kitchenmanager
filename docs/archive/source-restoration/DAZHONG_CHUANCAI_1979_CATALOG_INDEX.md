@@ -12,10 +12,10 @@
 
 机器可读产物：
 
-- [目录索引 JSON](../data/source-restoration/dazhong-chuancai-1979-catalog.v1.json)
-- [Curated/Full 名称匹配 JSON](../data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json)
-- [10–15 道批次规划 JSON](../data/source-restoration/dazhong-chuancai-1979-batch-plan.v1.json)
-- [可重复生成匹配与批次的脚本](../scripts/build-dazhong-chuancai-index.mjs)
+- [目录索引 JSON](../../../data/source-restoration/dazhong-chuancai-1979-catalog.v1.json)
+- [Curated/Full 名称匹配 JSON](../../../data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json)
+- [10–15 道批次规划 JSON](../../../data/source-restoration/dazhong-chuancai-1979-batch-plan.v1.json)
+- [可重复生成匹配与批次的脚本](../../../scripts/build-dazhong-chuancai-index.mjs)
 
 ## 2. 索引概况
 
