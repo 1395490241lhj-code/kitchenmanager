@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "kitchenmanager",
-      "runtimeExecutable": "/opt/homebrew/bin/node",
+      "runtimeExecutable": "node",
       "runtimeArgs": ["server.js"],
       "port": 3000
     }
