@@ -32,6 +32,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # 归档/历史校验测试用 `git show <commit>:<path>` 核对旧 baseline 是否
+          # 字节一致，默认的浅克隆（fetch-depth: 1）拿不到那些历史 commit，会让
+          # 这类测试失败。这里取完整历史，换取校验门禁能真正跑通。
+          fetch-depth: 0
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
