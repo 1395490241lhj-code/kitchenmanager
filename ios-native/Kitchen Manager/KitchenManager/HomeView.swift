@@ -153,7 +153,7 @@ struct HomeView: View {
         }
         .overlay(alignment: .bottom) {
             if let toastMessage {
-                HomeFeedbackToast(message: toastMessage, style: toastStyle, reduceMotion: reduceMotion)
+                FeedbackToast(message: toastMessage, style: toastStyle)
             }
         }
         .onAppear {
@@ -414,26 +414,6 @@ struct HomeView: View {
         }
     }
 }
-
-/// Home's dark toast surface intentionally keeps the whole label white. The
-/// SF Symbol shape and VoiceOver prefix still distinguish feedback states,
-/// while text remains readable in every appearance and contrast setting.
-private struct HomeFeedbackToast: View {
-    let message: String
-    let style: AppFeedbackStyle
-    let reduceMotion: Bool
-
-    var body: some View {
-        AppFeedbackView(message: message, style: style, foregroundColor: .white)
-            .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
-            .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
-            .padding(.bottom, 18)
-            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-    }
-}
-
 private struct ClipboardRecipeImportPrompt: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -1023,20 +1003,20 @@ private struct HomeModuleIssues: View {
 }
 
 #Preview("首页 Toast — 成功") {
-    HomeFeedbackToast(message: "已保存到菜谱库", style: .success, reduceMotion: false)
+    FeedbackToast(message: "已保存到菜谱库", style: .success)
         .padding()
         .background(Color(.systemGroupedBackground))
 }
 
 #Preview("首页 Toast — 提醒 / 深色") {
-    HomeFeedbackToast(message: "请先完成当前的导入操作", style: .warning, reduceMotion: false)
+    FeedbackToast(message: "请先完成当前的导入操作", style: .warning)
         .padding()
         .background(Color(.systemGroupedBackground))
         .preferredColorScheme(.dark)
 }
 
 #Preview("首页 Toast — 错误 / 大字号") {
-    HomeFeedbackToast(message: "库存保存失败，请稍后重试。", style: .error, reduceMotion: true)
+    FeedbackToast(message: "库存保存失败，请稍后重试。", style: .error)
         .padding()
         .background(Color(.systemGroupedBackground))
         .dynamicTypeSize(.accessibility3)
@@ -1193,6 +1173,7 @@ struct TodayPlanDetailView: View {
     @State private var isShowingWeeklyPlanner = false
     @State private var isShowingShoppingGeneration = false
     @State private var toastMessage: String?
+    @State private var toastStyle: AppFeedbackStyle = .success
     @State private var selectedRecipePlan: MealPlanItem?
 
     private enum TodayPlanSheet: Identifiable {
@@ -1331,14 +1312,7 @@ struct TodayPlanDetailView: View {
         }
         .overlay(alignment: .bottom) {
             if let toastMessage {
-                Text(toastMessage)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 11)
-                    .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
-                    .padding(.bottom, 18)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                FeedbackToast(message: toastMessage, style: toastStyle)
             }
         }
     }
@@ -1351,8 +1325,8 @@ struct TodayPlanDetailView: View {
         return "已安排 \(plan.days.count) 天 · \(dishCount) 道菜"
     }
 
-    private func showToast(_ message: String) {
-        withAnimation { toastMessage = message }
+    private func showToast(_ message: String, style: AppFeedbackStyle = .success) {
+        withAnimation { toastMessage = message; toastStyle = style }
         Task {
             try? await Task.sleep(for: .seconds(1.8))
             await MainActor.run { withAnimation { toastMessage = nil } }
@@ -1369,6 +1343,7 @@ struct RecipeRecommendationBrowserView: View {
 
     @State private var selectedRecipe: Recipe?
     @State private var toastMessage: String?
+    @State private var toastStyle: AppFeedbackStyle = .success
     @FocusState private var isSearchFocused: Bool
 
     private var sourceRecipes: [Recipe] {
@@ -1476,14 +1451,7 @@ struct RecipeRecommendationBrowserView: View {
         }
         .overlay(alignment: .bottom) {
             if let toastMessage {
-                Text(toastMessage)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 11)
-                    .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
-                    .padding(.bottom, 18)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                FeedbackToast(message: toastMessage, style: toastStyle)
             }
         }
     }
@@ -1591,7 +1559,7 @@ struct RecipeRecommendationBrowserView: View {
                         showToast("已减少类似推荐")
                     }
                     Button("推荐有问题", systemImage: "exclamationmark.bubble") {
-                        showToast("感谢反馈")
+                        showToast("感谢反馈", style: .informational)
                     }
                     Divider()
                     Button("从本次推荐移除", systemImage: "trash", role: .destructive) {
@@ -1718,11 +1686,11 @@ struct RecipeRecommendationBrowserView: View {
         UINotificationFeedbackGenerator().notificationOccurred(
             alreadyAdded ? .warning : .success
         )
-        showToast(alreadyAdded ? "已在今天" : "已加入今天")
+        showToast(alreadyAdded ? "已在今天" : "已加入今天", style: alreadyAdded ? .warning : .success)
     }
 
-    private func showToast(_ message: String) {
-        withAnimation { toastMessage = message }
+    private func showToast(_ message: String, style: AppFeedbackStyle = .success) {
+        withAnimation { toastMessage = message; toastStyle = style }
         Task {
             try? await Task.sleep(for: .seconds(1.8))
             await MainActor.run { withAnimation { toastMessage = nil } }

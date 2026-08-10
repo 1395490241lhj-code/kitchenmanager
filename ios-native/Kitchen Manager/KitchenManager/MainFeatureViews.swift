@@ -367,16 +367,10 @@ private struct InventoryNoticeOverlay: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        AppFeedbackView(
+        FeedbackToast(
             message: notice,
             style: InventoryNoticePresentation.style(for: notice)
         )
-        .font(.subheadline.weight(.semibold))
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .background(.regularMaterial, in: Capsule())
-        .padding(.bottom, 12)
-        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         .task(id: notice) {
             try? await Task.sleep(for: .seconds(2.2))
             guard !Task.isCancelled else { return }

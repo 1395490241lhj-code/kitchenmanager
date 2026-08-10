@@ -98,3 +98,26 @@ struct AppFeedbackView: View {
             }
     }
 }
+
+// MARK: - Shared transient feedback toast
+
+/// Dark high-contrast toast wrapping AppFeedbackView. Always white-on-dark
+/// so text remains readable on every background.  The SF Symbol shape and
+/// VoiceOver prefix carried by AppFeedbackView distinguish feedback states.
+/// Caller manages show/dismiss lifetime via conditional overlay.
+struct FeedbackToast: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let message: String
+    let style: AppFeedbackStyle
+
+    var body: some View {
+        AppFeedbackView(message: message, style: style, foregroundColor: .white)
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard))
+            .padding(.bottom, 18)
+            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+    }
+}

@@ -906,6 +906,7 @@ struct WeeklyMenuResultView: View {
     @State private var viewingRecipe: Recipe?
     @State private var saveErrorMessage: String?
     @State private var toastMessage: String?
+    @State private var toastStyle: AppFeedbackStyle = .success
 
     var body: some View {
         List {
@@ -936,7 +937,7 @@ struct WeeklyMenuResultView: View {
                     .disabled(store.isGenerating)
                     Button("保存本周计划", systemImage: "square.and.arrow.down") {
                         store.savePlan(kitchenStore: kitchenStore)
-                        toastMessage = "已保存本周计划"
+                        showToast("已保存本周计划")
                     }
                     .disabled(store.generatedPlan == nil)
                     Button("生成本周购物清单", systemImage: "cart.badge.plus") {
@@ -947,7 +948,7 @@ struct WeeklyMenuResultView: View {
                         Button("复制为下一周", systemImage: "doc.on.doc") {
                             if let copy = kitchenStore.duplicateWeeklyPlanForNextWeek() {
                                 store.generatedPlan = copy
-                                toastMessage = "已复制为下一周计划"
+                                showToast("已复制为下一周计划")
                             }
                         }
                         Button("删除本周计划", systemImage: "trash", role: .destructive) {
@@ -969,18 +970,7 @@ struct WeeklyMenuResultView: View {
         }
         .overlay(alignment: .bottom) {
             if let toastMessage {
-                Text(toastMessage)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 11)
-                    .background(.black.opacity(0.82), in: Capsule())
-                    .padding(.bottom, 18)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .task(id: toastMessage) {
-                        try? await Task.sleep(for: .seconds(1.8))
-                        self.toastMessage = nil
-                    }
+                FeedbackToast(message: toastMessage, style: toastStyle)
             }
         }
         .alert("重新生成整周菜单？", isPresented: $isShowingRegenerateConfirm) {
@@ -1036,7 +1026,7 @@ struct WeeklyMenuResultView: View {
                 Button("把今天加入计划") {
                     store.addDayToTodayPlan(dayIndex: todayIndex, kitchenStore: kitchenStore)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    toastMessage = "已加入今天的计划"
+                    showToast("已加入今天的计划")
                 }
             }
         }
@@ -1132,7 +1122,7 @@ struct WeeklyMenuResultView: View {
                     Button(isAdded ? "已在今天" : "加入今日计划", systemImage: "calendar.badge.plus") {
                         store.addRecipeToTodayPlan(recipe, kitchenStore: kitchenStore)
                         UINotificationFeedbackGenerator().notificationOccurred(isAdded ? .warning : .success)
-                        toastMessage = isAdded ? "已在今天" : "已加入今天"
+                        showToast(isAdded ? "已在今天" : "已加入今天", style: isAdded ? .warning : .success)
                     }
                     .disabled(isAdded)
                     Divider()
@@ -1169,21 +1159,32 @@ struct WeeklyMenuResultView: View {
             Button("加入买菜清单（\(plan.shoppingItems.count)）") {
                 store.addShoppingItems(plan.shoppingItems, kitchenStore: kitchenStore)
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
-                toastMessage = "已加入买菜清单"
+                showToast("已加入买菜清单")
             }
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.primary)
         }
+
     }
+
 
     private func attemptSaveToLibrary(_ recipe: WeeklyMealPlanRecipe) {
         do {
             try store.saveRecipeToLibrary(recipe, recipeStore: recipeStore)
-            toastMessage = "已保存到菜谱库"
+            showToast("已保存到菜谱库")
         } catch {
             saveErrorMessage = error.localizedDescription
         }
     }
+
+    private func showToast(_ message: String, style: AppFeedbackStyle = .success) {
+        withAnimation { toastMessage = message; toastStyle = style }
+        Task {
+            try? await Task.sleep(for: .seconds(1.8))
+            await MainActor.run { withAnimation { toastMessage = nil } }
+        }
+    }
+
 
     private func recipeForDetail(_ recipe: WeeklyMealPlanRecipe) -> Recipe {
         if let existingID = recipe.existingRecipeID,
