@@ -33,22 +33,66 @@ enum AppTheme {
     /// reachable at every Dynamic Type size.
     static let minimumHitTarget: CGFloat = 44
 
+    // MARK: Accent boundaries
+    //
+    // Kitchen Manager maintains two distinct accent colours. They look
+    // different and carry different semantic weight — do not collapse them
+    // into a single accent.
+    //
+    // `primary` (blue):  Inventory, Shopping, Settings, and
+    //   administrative/system-level actions.
+    // `brand` (green):   Home, Recommendation, Today Plan, Recipe, Cooking
+    //   Mode — the cooking-journey path.
+
+    /// Administrative blue: Inventory, Shopping, Settings, system actions.
     static let primary = adaptive(light: 0x007AFF, dark: 0x0A84FF)
-    static let primaryDark = adaptive(light: 0x005ECB, dark: 0x409CFF)
-    static let primarySoft = adaptive(light: 0xEAF4FF, dark: 0x10243A)
-    static let success = adaptive(light: 0x34C759, dark: 0x30D158)
-    static let warning = adaptive(light: 0xFF9500, dark: 0xFFB340)
-    static let shopping = adaptive(light: 0x14B8A6, dark: 0x2DD4BF)
-    /// The single brand accent used by the redesigned Home screen (primary CTA, the
-    /// header "+" smart-import entry, brand marks). Deliberately separate from
-    /// `primary` (still blue) rather than re-tinting the whole app, since the Home
-    /// redesign's brief scopes the green accent to Home only.
+
+    /// Cooking-journey green: Home, Recommendations, Plan, Recipe, Cooking.
+    /// Deliberately separate from `primary` so the cooking path and admin
+    /// path each carry their own visual signature.
     static let brand = adaptive(light: 0x2F6F4E, dark: 0x4E9970)
+
+    // MARK: Semantic tokens
+    //
+    // `success` means a genuine completed / achieved / confirmed state.
+    // Source attribution labels ("AI recommended", "from 大众川菜") and
+    // origin tags are NOT success; use `neutral` or a low-emphasis `brand`
+    // presentation for those.
+
+    /// Genuine success, completion, or confirmed state only.
+    static let success = adaptive(light: 0x34C759, dark: 0x30D158)
+
+    /// Caution / upcoming / attention — unchanged from existing semantics.
+    static let warning = adaptive(light: 0xFF9500, dark: 0xFFB340)
+
+    /// Destruction, irreversible actions, hard errors.
+    /// Domain tokens (e.g. `inventoryExpired`) reference this rather than
+    /// duplicating the colour values.
+    static let danger = adaptive(light: 0xD92D2A, dark: 0xFF6961)
+
+    // MARK: Neutral palette
+
     static let textPrimary = adaptive(light: 0x1D1D1F, dark: 0xF5F5F7)
     static let textSecondary = adaptive(light: 0x6E6E73, dark: 0xC7C7CC)
     static let surface = adaptive(light: 0xFFFFFF, dark: 0x1C1C1E)
     static let secondarySurface = adaptive(light: 0xF5F5F7, dark: 0x2C2C2E)
     static let separator = adaptive(light: 0xD2D2D7, dark: 0x48484A)
+
+    // MARK: Radius tokens
+    //
+    // Three sizes only. No new arbitrary values.
+
+    /// Compact controls, search fields, small chips, pill buttons. 10pt.
+    static let radiusCompact: CGFloat = 10
+    /// Cards, panels, toasts, medium containers. 16pt.
+    static let radiusCard: CGFloat = 16
+    /// Primary hero/dashboard card only. 20pt. Do not spread to other surfaces.
+    static let radiusHero: CGFloat = 20
+
+    // MARK: Inventory lifecycle domain tokens
+    //
+    // Mirror the PWA's calm green → amber → orange → red hierarchy while
+    // retaining contrast in both system appearances.
 
     // Inventory lifecycle surfaces mirror the PWA's calm green → amber → orange
     // → red hierarchy, while retaining contrast in both system appearances.
@@ -60,7 +104,11 @@ enum AppTheme {
     static let inventoryUnknownBackground = adaptive(light: 0xF2F2F7, dark: 0x2C2C2E)
     static let inventoryUpcoming = adaptive(light: 0xC58B00, dark: 0xFFD60A)
     static let inventoryToday = adaptive(light: 0xD95C1A, dark: 0xFF9F0A)
-    static let inventoryExpired = adaptive(light: 0xD92D2A, dark: 0xFF6961)
+    /// Domain alias for `danger`. Keep the domain name so callers express
+    /// intent ("expired") rather than colour opinion ("red").
+    static let inventoryExpired = danger
+
+    // MARK: Helpers
 
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
         Color(uiColor: UIColor { traits in

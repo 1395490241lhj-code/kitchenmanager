@@ -2,28 +2,18 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// Shared presentation limits for the Inventory screen's *chrome* only — the
-/// navigation title, availability summary, section headers, filter menu, and
-/// toolbar glyphs. Food names, quantities, and status text keep unrestricted
-/// Dynamic Type; without these caps an Accessibility XXXL first screen is
-/// consumed entirely by headings before a single ingredient is readable.
-enum InventoryChromeMetrics {
-    /// Availability summary: still clearly enlarged, but bounded so the
-    /// overview can never outgrow the list it summarizes.
+/// Unified presentation limits for shared screen chrome — navigation titles,
+/// summaries, section headers, filter bars, toolbar/tab glyphs, and the
+/// floating (iOS 26) tab-bar clearance. Content text (food names, quantities,
+/// status labels) keeps unrestricted Dynamic Type.
+enum ChromeMetrics {
     static let summaryTypeLimit = DynamicTypeSize.accessibility1
-    /// Section headers and the staple filter stay at a heading/body weight
-    /// rather than scaling into display-title territory.
     static let headerTypeLimit = DynamicTypeSize.accessibility1
-    /// Symbols (row status glyph, toolbar icons) grow with text up to this
-    /// point and then hold, so they stay inside their 44pt hit targets.
     static let symbolTypeLimit = DynamicTypeSize.xxLarge
-    /// Clearance for the floating (iOS 26) tab bar, so the final row, the staple
-    /// empty-state text, and any CTA come to rest fully above the bar in its
-    /// *expanded* state — `.tabBarMinimizeBehavior(.onScrollDown)` shrinks it
-    /// while scrolling, and sizing for the shrunken bar leaves content covered
-    /// once it expands again. Added once in the bottom safe area, never per row,
-    /// and a fixed inset rather than a screen-height calculation.
+    /// Bottom clearance for the expanded floating (iOS 26) tab bar.
     static let bottomClearance: CGFloat = 72
+    /// Minimum row height for Settings rows. Matches `AppTheme.minimumHitTarget`.
+    static let minimumRowHeight: CGFloat = 44
 }
 
 struct InventoryView: View {
@@ -202,7 +192,7 @@ struct InventoryView: View {
                             } label: {
                                 Text(stapleFilter.rawValue)
                                     .font(.subheadline)
-                                    .dynamicTypeSize(...InventoryChromeMetrics.headerTypeLimit)
+                                    .dynamicTypeSize(...ChromeMetrics.headerTypeLimit)
                                     .frame(minHeight: 44)
                             }
                             .textCase(nil)
@@ -274,7 +264,7 @@ struct InventoryView: View {
         // result can all come to rest fully above the expanded bar.
         .safeAreaInset(edge: .bottom) {
             Color.clear
-                .frame(height: InventoryChromeMetrics.bottomClearance)
+                .frame(height: ChromeMetrics.bottomClearance)
                 .accessibilityHidden(true)
         }
         .navigationTitle("食材")
@@ -302,7 +292,7 @@ struct InventoryView: View {
                     recordMode = .manual
                 }
                 .frame(minWidth: 44, minHeight: 44)
-                .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+                .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                 .accessibilityIdentifier("inventory.add.button")
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -317,7 +307,7 @@ struct InventoryView: View {
                     // Clamp the glyph only — the menu's own rows keep full
                     // Dynamic Type.
                     Label("更多食材操作", systemImage: "ellipsis.circle")
-                        .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+                        .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                         .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityIdentifier("inventory.more.button")
@@ -449,7 +439,7 @@ private struct InventorySummaryRow: View {
         // The summary is a derived overview of the sections below it, so it is
         // capped: still visibly enlarged, but it cannot push the ingredients it
         // describes off the first screen.
-        .dynamicTypeSize(...InventoryChromeMetrics.summaryTypeLimit)
+        .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(summaryAccessibilityLabel)
     }
@@ -516,7 +506,7 @@ private struct InventorySectionHeader: View {
         .textCase(nil)
         // Headers stay at a heading weight instead of scaling into display-title
         // sizes that would dwarf the rows beneath them.
-        .dynamicTypeSize(...InventoryChromeMetrics.headerTypeLimit)
+        .dynamicTypeSize(...ChromeMetrics.headerTypeLimit)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -608,7 +598,7 @@ private struct InventoryFoodCard: View {
             .foregroundStyle(statusColor)
             // Glyph tracks text size up to a limit and then holds, so it stays
             // inside its fixed slot instead of crowding out the food name.
-            .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
             .frame(width: 28, height: 28)
             .accessibilityHidden(true)
     }
@@ -631,13 +621,6 @@ private struct InventoryFoodCard: View {
             .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
             .accessibilityHidden(true)
     }
-}
-
-enum ShoppingChromeMetrics {
-    static let summaryTypeLimit = DynamicTypeSize.accessibility1
-    static let headerTypeLimit = DynamicTypeSize.accessibility1
-    static let symbolTypeLimit = DynamicTypeSize.xxLarge
-    static let bottomClearance: CGFloat = 72
 }
 
 struct ShoppingView: View {
@@ -785,7 +768,7 @@ struct ShoppingView: View {
         .listStyle(.insetGrouped)
         .safeAreaInset(edge: .bottom) {
             Color.clear
-                .frame(height: ShoppingChromeMetrics.bottomClearance)
+                .frame(height: ChromeMetrics.bottomClearance)
                 .accessibilityHidden(true)
         }
         .navigationTitle("买菜")
@@ -846,7 +829,7 @@ struct ShoppingView: View {
         .listStyle(.insetGrouped)
         .safeAreaInset(edge: .bottom) {
             Color.clear
-                .frame(height: ShoppingChromeMetrics.bottomClearance)
+                .frame(height: ChromeMetrics.bottomClearance)
                 .accessibilityHidden(true)
         }
         .accessibilityIdentifier("shopping.mode.container")
@@ -871,7 +854,7 @@ struct ShoppingView: View {
                 if isShoppingMode {
                     Button("退出", systemImage: "xmark") { isShoppingMode = false }
                         .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
-                        .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
+                        .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                         .accessibilityIdentifier("shopping.mode.exit")
                 }
             }
@@ -881,7 +864,7 @@ struct ShoppingView: View {
                 }
                 .disabled(!isShoppingMode && store.shoppingItems.isEmpty)
                 .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
-                .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
+                .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                 .accessibilityIdentifier("shopping.mode.toggle")
             }
             if !isShoppingMode {
@@ -924,7 +907,7 @@ struct ShoppingView: View {
                     .accessibilityIdentifier("shopping.bulk.collapsePurchased")
                 } label: {
                     Label("购物清单批量操作", systemImage: "ellipsis.circle")
-                        .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
+                        .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                         .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
                 }
                 .accessibilityIdentifier("shopping.bulk.menu")
@@ -934,7 +917,7 @@ struct ShoppingView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("添加", systemImage: "plus") { isShowingAddItem = true }
                     .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
-                    .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                     .accessibilityIdentifier("shopping.add.button")
                     .accessibilityLabel("添加买菜项目")
             }
@@ -1008,7 +991,7 @@ private struct ShoppingSummaryRow: View {
                 }
             }
         }
-        .dynamicTypeSize(...ShoppingChromeMetrics.summaryTypeLimit)
+        .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
         .accessibilityElement(children: .contain)
     }
 
@@ -1047,7 +1030,7 @@ private struct ShoppingSectionHeader: View {
                 .foregroundStyle(.secondary)
         }
         .font(.subheadline.weight(.medium))
-        .dynamicTypeSize(...ShoppingChromeMetrics.headerTypeLimit)
+        .dynamicTypeSize(...ChromeMetrics.headerTypeLimit)
         .textCase(nil)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title)，\(count) 项")
@@ -1065,7 +1048,7 @@ private struct ShoppingItemRow: View {
             Image(systemName: isPurchased ? "checkmark.circle.fill" : "circle")
                 .font(.title3)
                 .foregroundStyle(isPurchased ? Color.secondary : AppTheme.primary)
-                .dynamicTypeSize(...ShoppingChromeMetrics.symbolTypeLimit)
+                .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
 
@@ -1139,7 +1122,7 @@ private struct ShoppingModeHeader: View {
                 }
             }
         }
-        .dynamicTypeSize(...ShoppingChromeMetrics.summaryTypeLimit)
+        .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
         .accessibilityElement(children: .contain)
     }
 
@@ -1287,21 +1270,6 @@ private struct AddShoppingItemView: View {
     }
 }
 
-/// Presentation limits for the Settings screen only.
-///
-/// Deliberately separate from `InventoryChromeMetrics` rather than importing an
-/// Inventory-named type into Settings; the bottom clearance intentionally matches
-/// it, because both screens sit under the same floating tab bar.
-enum SettingsChromeMetrics {
-    /// Row symbols track text size up to this point and then hold, so they stay
-    /// inside their slot instead of crowding out the row's text.
-    static let symbolTypeLimit = DynamicTypeSize.xxLarge
-    static let minimumRowHeight: CGFloat = 44
-    /// Clearance for the expanded floating (iOS 26) tab bar, added once at the
-    /// Form level rather than per row.
-    static let bottomClearance: CGFloat = 72
-}
-
 /// Wraps a Settings row's text in a `Label` with a leading decorative symbol at
 /// normal sizes, and drops the symbol entirely at Accessibility sizes.
 ///
@@ -1324,7 +1292,7 @@ private struct SettingsRowLabel<Content: View>: View {
                 content
             } icon: {
                 Image(systemName: symbol)
-                    .dynamicTypeSize(...SettingsChromeMetrics.symbolTypeLimit)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                     .accessibilityHidden(true)
             }
         }
@@ -1356,7 +1324,7 @@ private struct SettingsAccountRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+        .frame(minHeight: ChromeMetrics.minimumRowHeight)
         .accessibilityElement(children: .combine)
     }
 }
@@ -1521,7 +1489,7 @@ struct SettingsView: View {
                         Text("管理常备货架")
                     }
                 }
-                .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+                .frame(minHeight: ChromeMetrics.minimumRowHeight)
                 .accessibilityIdentifier("settings.pantry.manage.link")
             }
 
@@ -1533,7 +1501,7 @@ struct SettingsView: View {
                         Text("备份与恢复")
                     }
                 }
-                .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+                .frame(minHeight: ChromeMetrics.minimumRowHeight)
                 .accessibilityIdentifier("settings.backup.link")
             }
 
@@ -1550,7 +1518,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+                .frame(minHeight: ChromeMetrics.minimumRowHeight)
                 .accessibilityIdentifier("settings.aiDiagnostics.link")
             }
 
@@ -1569,7 +1537,7 @@ struct SettingsView: View {
                 Button("清除全部本地数据", role: .destructive) {
                     isShowingClearDataAlert = true
                 }
-                .frame(minHeight: SettingsChromeMetrics.minimumRowHeight)
+                .frame(minHeight: ChromeMetrics.minimumRowHeight)
                 .accessibilityIdentifier("settings.cleardata.button")
             } footer: {
                 Text("此操作无法撤销，且不会影响远端菜谱库。")
@@ -1600,7 +1568,7 @@ struct SettingsView: View {
         // come to rest above the floating tab bar instead of under it.
         .safeAreaInset(edge: .bottom) {
             Color.clear
-                .frame(height: SettingsChromeMetrics.bottomClearance)
+                .frame(height: ChromeMetrics.bottomClearance)
                 .accessibilityHidden(true)
         }
         .navigationTitle("我的")

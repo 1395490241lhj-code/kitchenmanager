@@ -22,7 +22,7 @@ enum AppFeedbackStyle: Equatable {
         switch self {
         case .success: AppTheme.success
         case .warning: AppTheme.warning
-        case .error: AppTheme.inventoryExpired
+        case .error: AppTheme.danger
         case .informational: AppTheme.primary
         }
     }

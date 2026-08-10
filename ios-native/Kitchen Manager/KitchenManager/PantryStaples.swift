@@ -127,7 +127,7 @@ struct PantryStapleRow: View {
             .foregroundStyle(item.stapleStatus.color)
             // Glyph tracks text size up to a limit and then holds, matching the
             // fresh-inventory rows, so it never crowds out the staple name.
-            .dynamicTypeSize(...InventoryChromeMetrics.symbolTypeLimit)
+            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
             .frame(width: 28)
     }
 
