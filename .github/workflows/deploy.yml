@@ -19,15 +19,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 完整校验门禁：Node 18 / 22 双跑 npm ci → 测试 → 菜谱包校验 → 生产依赖高危审计。
+  # 完整校验门禁：Node 22 / 24 双跑 npm ci → 测试 → 菜谱包校验 → 生产依赖高危审计。
   # 任一 Node 版本、任一步骤失败，都不构建、不部署（build/deploy 都 needs 这个 job）。
-  # package.json engines 声明 node >=18，axios/express/ffmpeg-static 也都兼容 18，
-  # 因此矩阵保留 18，不自行收窄兼容目标。
+  # Node 18 已 EOL（2025-04-30），不再纳入矩阵；当前受支持 LTS 为 22 与 24。
   test:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['18', '22']
+        node-version: ['22', '24']
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

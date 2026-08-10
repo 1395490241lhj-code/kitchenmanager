@@ -50,7 +50,7 @@
 
 ### 2.2 后端
 
-- 框架：Node.js 18+、Express 4、CommonJS。
+- 框架：Node.js 22+、Express 4、CommonJS。
 - 部署：当前线上地址为 Render Web Service；同一进程托管静态文件和 `/api/*`。
 - 数据库：无。
 - ORM / migration：无数据库 ORM、数据库 schema 或数据库 migration 工具。

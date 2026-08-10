@@ -21,7 +21,7 @@
     "ios:archive:guard": "node scripts/ios-archive-guard.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
     "axios": "^1.7.7",

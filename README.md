@@ -24,7 +24,7 @@ Kitchen Manager 帮助个人或小家庭管理库存、临期食材、菜谱、�
 
 ## 运行 Web / PWA
 
-要求：Node.js 18 或更高版本、npm。
+要求：Node.js 22 或更高版本、npm。
 
 ```bash
 npm install

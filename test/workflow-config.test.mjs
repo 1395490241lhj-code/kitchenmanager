@@ -1,6 +1,6 @@
 // test/workflow-config.test.mjs
 // CI 门禁回归：.github/workflows/deploy.yml 必须在 main push / PR 上都跑完整校验
-// （npm ci → npm test → 两个菜谱包校验 → 生产依赖高危审计），Node 18/22 双跑，
+// （npm ci → npm test → 两个菜谱包校验 → 生产依赖高危审计），Node 22/24 双跑，
 // 且 GitHub Pages 的 build/deploy 必须依赖这个校验 job、且不在 PR 上部署。
 //
 // 没有引入 YAML 解析库（保持零新增依赖）：先做一个不依赖第三方库的结构性检查
@@ -56,13 +56,13 @@ test('deploy.yml：并发组按 ref 区分，PR 校验跑不会取消 main 部�
   assert.match(source, /group:\s*"pages-\$\{\{\s*github\.ref\s*\}\}"/);
 });
 
-test('deploy.yml：test job 使用 Node 18/22 矩阵（package.json engines 与依赖都兼容 18，不能自行收窄）', () => {
+test('deploy.yml：test job 使用 Node 22/24 矩阵（package.json engines 与受支持 LTS 一致）', () => {
   const pkg = JSON.parse(read('package.json'));
-  assert.equal(pkg.engines?.node, '>=18', 'package.json 仍应声明兼容 Node 18');
+  assert.equal(pkg.engines?.node, '>=22', 'package.json 应声明兼容受支持的 LTS 最低版本');
 
   const source = read(WORKFLOW_PATH);
   const testJob = source.slice(source.indexOf('\n  test:'), source.indexOf('\n  build:'));
-  assert.match(testJob, /node-version:\s*\[\s*'18'\s*,\s*'22'\s*\]/);
+  assert.match(testJob, /node-version:\s*\[\s*'22'\s*,\s*'24'\s*\]/);
   assert.match(testJob, /fail-fast:\s*false/, '矩阵应该 fail-fast:false，两个 Node 版本的结果都要看到');
 });
 
