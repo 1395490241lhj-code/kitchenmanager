@@ -76,6 +76,7 @@
 - [`archive/README.md`](archive/README.md)：归档标准。
 - `archive/ios/`、`archive/sync/`、`archive/release/`、`archive/production/`：按主题分类的已完成 Phase、Validation、物理设备结果和 readiness/go-no-go 历史工程证据。
 - `archive/source-restoration/`：已完成的《大众川菜》来源恢复阶段方法/索引证据（阶段文档、目录索引与名称匹配过程）。当前最终状态以 `data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md` 为准。
+- `archive/recipe-method-completion/`：已完成的菜谱做法补全阶段文档（全库/剩余候选人工审核、补全状态与工作流）。这些是历史过程证据，不再描述当前实现。
 - archive 中的文件是历史证据，不代表当前实现；当前行为以代码、测试及 active documentation 为准。
 - 部分开放 PR 正在修改的文档（如 `IOS_SHARE_IMPORT.md`）本轮暂留在 `docs/` 根部，避免增加 rebase 冲突。
 - 《大众川菜》当前来源范围的总证据：[`../data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md`](../data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md)。活动文档应优先链接该 closeout，而不是要求默认读取 Batch 1–11。
