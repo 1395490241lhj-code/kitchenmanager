@@ -42,7 +42,9 @@ const unitCounts = {};
 for (const record of records) unitCounts[record.unit] = (unitCounts[record.unit] ?? 0) + 1;
 const output = {
   schema: 'kitchenmanager.source-restoration.promotion-batch11-quantity-review.v1',
-  generatedAt: new Date().toISOString().slice(0, 10),
+  // Inherit the frozen dry-run's date instead of the wall-clock UTC date so a
+  // regenerated artifact is byte-for-byte stable regardless of the run day.
+  generatedAt: dryRun.generatedAt,
   purpose: 'Batch11 proposed base production qty/unit source-restoration review. All values are copied mechanically from dry-run input records; consumed semantics are excluded and remain in the proposed sidecar.',
   applicationReady: false,
   evidencePolicy: 'qty/unit means source-backed required input; consumed 100/200g is not a quantity-review field.',
