@@ -112,26 +112,45 @@ test('assembler rejects an ordinary recipe with empty ingredients/steps even whe
 test('assembler accepts the real contentMissing exceptions across b05-b07', () => {
   // Re-running the assembler against the real (corrected) worker files
   // must succeed and must not change which entry is treated as missing.
-  const canonicalPath = new URL('../data/source-restoration/dazhong-chuancai-1979-recipes.v1.json', import.meta.url);
-  const planPath = new URL('../data/source-restoration/dazhong-chuancai-1979-batch-plan.v1.json', import.meta.url);
-  const originalCanonical = fs.readFileSync(canonicalPath);
-  const originalPlan = fs.readFileSync(planPath);
-  let rebuilt;
+  const repoRoot = new URL('..', import.meta.url).pathname;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dz1979-assembler-test-'));
   try {
-    execFileSync('node', [
-      new URL('../scripts/assemble-dazhong-chuancai-recipes.mjs', import.meta.url).pathname,
+    const tempFiles = [
+      'scripts/assemble-dazhong-chuancai-recipes.mjs',
+      'scripts/lib/content-missing.mjs',
+      'data/source-restoration/dazhong-chuancai-1979-batch-plan.v1.json',
+      'data/source-restoration/dazhong-chuancai-1979-catalog.v1.json',
+      'data/source-restoration/dazhong-chuancai-1979-crosswalk-probable-review.v1.json',
+      'data/source-restoration/dazhong-chuancai-1979-name-matches.v1.json',
+      'data/source-restoration/dazhong-chuancai-1979-pilot.v1.json',
+      'data/source-restoration/dazhong-chuancai-1979-recipes.v1.json',
       'data/source-restoration/dz1979-b05-worker.json',
       'data/source-restoration/dz1979-b06-worker.json',
       'data/source-restoration/dz1979-b07-worker.json',
-    ], { cwd: new URL('..', import.meta.url).pathname, stdio: 'pipe' });
-    rebuilt = readJson('data/source-restoration/dazhong-chuancai-1979-recipes.v1.json');
+    ];
+    for (const relativePath of tempFiles) {
+      const destination = path.join(tmpDir, relativePath);
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(path.join(repoRoot, relativePath), destination);
+    }
+
+    execFileSync('node', [
+      path.join(tmpDir, 'scripts/assemble-dazhong-chuancai-recipes.mjs'),
+      path.join(tmpDir, 'data/source-restoration/dz1979-b05-worker.json'),
+      path.join(tmpDir, 'data/source-restoration/dz1979-b06-worker.json'),
+      path.join(tmpDir, 'data/source-restoration/dz1979-b07-worker.json'),
+    ], { cwd: tmpDir, stdio: 'pipe' });
+    const rebuilt = JSON.parse(fs.readFileSync(
+      path.join(tmpDir, 'data/source-restoration/dazhong-chuancai-1979-recipes.v1.json'),
+      'utf8',
+    ));
+
+    const missingEntries = rebuilt.recipes.filter((recipe) => recipe.contentMissing === true);
+    assert.deepEqual(
+      missingEntries.map((recipe) => recipe.entryId),
+      ['dz1979-p122', 'dz1979-p138', 'dz1979-p152'],
+    );
   } finally {
-    fs.writeFileSync(canonicalPath, originalCanonical);
-    fs.writeFileSync(planPath, originalPlan);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-  const missingEntries = rebuilt.recipes.filter((recipe) => recipe.contentMissing === true);
-  assert.deepEqual(
-    missingEntries.map((recipe) => recipe.entryId),
-    ['dz1979-p122', 'dz1979-p138', 'dz1979-p152'],
-  );
 });
