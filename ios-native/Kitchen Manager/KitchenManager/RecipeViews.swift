@@ -176,6 +176,7 @@ struct RecipeDetailView: View {
     @State private var isEditing = false
     @State private var isShowingDeleteAlert = false
     @State private var isShowingCookingMode = false
+    @State private var isShowingConsumptionConfirmation = false
     @State private var errorMessage: String?
     @StateObject private var cookingSession: RecipeCookingSession
 
@@ -274,10 +275,22 @@ struct RecipeDetailView: View {
         .navigationDestination(isPresented: $isEditing) { RecipeEditView(recipe: recipe) }
         .fullScreenCover(isPresented: $isShowingCookingMode) {
             RecipeCookingModeView(recipe: recipe, session: cookingSession, todayPlan: todayPlan) {
-                if let todayPlan { kitchenStore.markPlanCooked(todayPlan) }
                 isShowingCookingMode = false
+                isShowingConsumptionConfirmation = true
             } onExit: { isShowingCookingMode = false }
             .environmentObject(kitchenStore)
+        }
+        .sheet(isPresented: $isShowingConsumptionConfirmation) {
+            CookConsumptionConfirmationView(
+                title: recipe.title,
+                planIDs: todayPlan.map { kitchenStore.hasConsumedPlan($0.id) ? [] : [$0.id] } ?? [],
+                recipeID: recipe.id,
+                recipeName: recipe.title,
+                recipe: todayPlan == nil ? recipe : nil,
+                servings: cookingSession.servings
+            ) {
+                if let todayPlan { kitchenStore.markPlanCooked(todayPlan) }
+            }
         }
         .alert(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置这份菜谱？" : "删除这份菜谱？", isPresented: $isShowingDeleteAlert) {
             Button(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置" : "删除", role: .destructive) { do { try recipeStore.deleteUserRecipe(id: recipe.id) } catch { errorMessage = error.localizedDescription } }

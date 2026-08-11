@@ -185,6 +185,46 @@ final class ConsumptionPersistenceTests: XCTestCase {
         XCTAssertEqual(try inventory.loadInventory().first?.quantity, 5)
     }
 
+    func testConfirmationReportsFailureWhenConsumptionIsNotPersisted() {
+        let inventory = InventoryPersistenceFactory.isolatedInMemory()
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        let kitchenStore = KitchenStore(
+            userDefaults: UserDefaults(suiteName: UUID().uuidString)!,
+            inventoryPersistence: inventory,
+            shoppingListPersistence: bundle.shoppingList,
+            todayPlanPersistence: bundle.todayPlan,
+            consumptionPersistence: FailingTestConsumptionPersistence()
+        )
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipe = Recipe(
+            id: "failure-recipe",
+            title: "番茄料理",
+            cookingTime: nil,
+            difficulty: nil,
+            tags: [],
+            ingredients: ["番茄 2个"],
+            steps: ["完成"]
+        )
+        kitchenStore.addInventory(name: "番茄", quantity: 5, unit: "个", expiryDate: nil)
+        let store = CookConsumptionStore()
+        store.buildDrafts(
+            planIDs: [],
+            recipe: recipe,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        )
+
+        XCTAssertFalse(store.confirm(
+            planIDs: [],
+            recipeID: recipe.id,
+            recipeName: recipe.title,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        ))
+        XCTAssertFalse(store.didConfirm)
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 5)
+    }
+
     func testUndoFailureDoesNotMarkRecordUndoneOrChangeInventory() throws {
         let inventory = InventoryPersistenceFactory.isolatedInMemory()
         let bundle = KitchenPersistenceFactory.isolatedInMemory()

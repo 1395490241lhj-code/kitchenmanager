@@ -51,6 +51,15 @@ final class RecipeCookingModeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["sync-smoke-status"].exists)
     }
 
+    func testCookingCompletionOpensExistingInventoryConfirmation() throws {
+        let app = launchRecipes()
+        app.buttons["recipe.detail.startCooking"].tap()
+        app.buttons["recipe.cooking.finish"].tap()
+
+        XCTAssertTrue(app.navigationBars.staticTexts["确认本次食材消耗"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["更新冰箱"].exists)
+    }
+
     func testRecipeSearchShowsAQuietNoResultsState() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_RECIPE_COOKING"]

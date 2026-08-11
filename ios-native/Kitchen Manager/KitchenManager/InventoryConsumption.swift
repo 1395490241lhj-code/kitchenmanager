@@ -347,13 +347,24 @@ final class CookConsumptionStore: ObservableObject {
 
     private let planner = InventoryConsumptionPlanner()
     private let restockEngine = RestockSuggestionEngine()
+    private var isDirectRecipeConsumption = false
 
-    func buildDrafts(planIDs: [UUID], kitchenStore: KitchenStore, recipeStore: RecipeStore) {
+    func buildDrafts(
+        planIDs: [UUID],
+        recipe: Recipe? = nil,
+        servings: Int = 1,
+        kitchenStore: KitchenStore,
+        recipeStore: RecipeStore
+    ) {
         var inputs: [InventoryConsumptionPlanner.RecipeConsumptionInput] = []
         var unresolved: [String] = []
-        for id in planIDs {
+        isDirectRecipeConsumption = recipe != nil && planIDs.isEmpty
+        if let recipe, isDirectRecipeConsumption {
+            inputs.append(.init(recipe: recipe, servings: servings))
+        }
+        for id in planIDs where !kitchenStore.hasConsumedPlan(id) {
             guard let plan = kitchenStore.plans.first(where: { $0.id == id }) else { continue }
-            guard let recipe = recipeStore.recipes.first(where: { $0.id == plan.recipeID }) else {
+            guard let recipe = recipeStore.recipe(id: plan.recipeID) else {
                 unresolved.append(plan.recipeName)
                 continue
             }
@@ -390,21 +401,24 @@ final class CookConsumptionStore: ObservableObject {
         drafts[index].isSelected = false
     }
 
+    @discardableResult
     func confirm(
         planIDs: [UUID],
         recipeID: String?,
         recipeName: String,
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore
-    ) {
+    ) -> Bool {
+        let unconsumedPlanIDs = planIDs.filter { !kitchenStore.hasConsumedPlan($0) }
+        guard isDirectRecipeConsumption || !unconsumedPlanIDs.isEmpty else { return false }
         let record = kitchenStore.applyConsumption(
             drafts,
-            planIDs: planIDs,
+            planIDs: unconsumedPlanIDs,
             recipeID: recipeID,
             recipeName: recipeName
         )
         guard kitchenStore.consumptionRecords.contains(where: { $0.id == record.id }) else {
-            return
+            return false
         }
         restockSuggestions = restockEngine.generate(
             kitchenStore: kitchenStore,
@@ -412,6 +426,7 @@ final class CookConsumptionStore: ObservableObject {
             justConsumed: record.items
         )
         didConfirm = true
+        return true
     }
 }
 
@@ -431,6 +446,8 @@ struct CookConsumptionConfirmationView: View {
     let planIDs: [UUID]
     let recipeID: String?
     let recipeName: String
+    var recipe: Recipe? = nil
+    var servings = 1
     let onConfirm: () -> Void
 
     var body: some View {
@@ -484,20 +501,26 @@ struct CookConsumptionConfirmationView: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("更新冰箱") {
-                            store.confirm(
+                            guard store.confirm(
                                 planIDs: planIDs,
                                 recipeID: recipeID,
                                 recipeName: recipeName,
                                 kitchenStore: kitchenStore,
                                 recipeStore: recipeStore
-                            )
+                            ) else { return }
                             onConfirm()
                         }
                     }
                 }
             }
             .task {
-                store.buildDrafts(planIDs: planIDs, kitchenStore: kitchenStore, recipeStore: recipeStore)
+                store.buildDrafts(
+                    planIDs: planIDs,
+                    recipe: recipe,
+                    servings: servings,
+                    kitchenStore: kitchenStore,
+                    recipeStore: recipeStore
+                )
             }
         }
     }

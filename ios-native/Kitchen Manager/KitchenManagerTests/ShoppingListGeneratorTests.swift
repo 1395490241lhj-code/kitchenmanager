@@ -82,6 +82,22 @@ final class ShoppingListGeneratorTests: XCTestCase {
         XCTAssertEqual(draft.missingItems[0].availableQuantity, 2)
     }
 
+    func test_todayPlan_resolvesBundledSampleWhenStoreIsEmpty() {
+        let sample = Recipe.samples[0]
+        let draft = generator.generate(
+            source: .todayPlans([
+                MealPlanItem(recipeID: sample.id, recipeName: sample.title)
+            ]),
+            inventory: [],
+            existingShoppingItems: [],
+            recipeStore: recipeStore
+        )
+
+        XCTAssertEqual(draft.recipeCount, 1)
+        XCTAssertFalse(draft.missingItems.isEmpty)
+        XCTAssertTrue(draft.warnings.isEmpty)
+    }
+
     func test_singleRecipe_inventoryExactlyCoversRequirement() {
         let draft = generate(
             recipe(title: "番茄炒蛋", ingredients: ["番茄 3个"]),

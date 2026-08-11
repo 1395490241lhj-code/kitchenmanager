@@ -231,6 +231,10 @@ final class RecipeStore: ObservableObject {
         return userRecipes + remoteRecipes.filter { !userIDs.contains($0.id) }
     }
 
+    func recipe(id: String) -> Recipe? {
+        recipes.first { $0.id == id } ?? Recipe.samples.first { $0.id == id }
+    }
+
     init(
         userDefaults: UserDefaults = .standard,
         userRecipePersistence: UserRecipePersistenceProtocol? = nil,

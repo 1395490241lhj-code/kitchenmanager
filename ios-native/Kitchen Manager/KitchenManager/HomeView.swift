@@ -1283,7 +1283,7 @@ struct TodayPlanDetailView: View {
             ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
         }
         .navigationDestination(item: $selectedRecipePlan) { plan in
-            if let recipe = recipeStore.recipes.first(where: { $0.id == plan.recipeID }) ?? Recipe.samples.first(where: { $0.id == plan.recipeID }) {
+            if let recipe = recipeStore.recipe(id: plan.recipeID) {
                 RecipeDetailView(recipe: recipe, todayPlan: plan)
             } else {
                 ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text("这份计划保留不变，可以稍后重试。"))

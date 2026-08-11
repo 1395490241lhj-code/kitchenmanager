@@ -288,6 +288,47 @@ final class TodayPlanPersistenceTests: XCTestCase {
         XCTAssertFalse(restarted.consumptionRecords.isEmpty)
     }
 
+    func testSamePlanCannotConsumeInventoryTwice() throws {
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let savedRecipe = recipe()
+        try recipeStore.saveUserRecipe(savedRecipe)
+        let kitchenStore = makeStore(defaults: defaults, bundle: bundle)
+        kitchenStore.addInventory(name: "番茄", quantity: 5, unit: "个", expiryDate: nil)
+        kitchenStore.addPlan(recipe: savedRecipe)
+        let plan = try XCTUnwrap(kitchenStore.plans.first)
+
+        let first = CookConsumptionStore()
+        first.buildDrafts(planIDs: [plan.id], kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertTrue(first.confirm(
+            planIDs: [plan.id],
+            recipeID: savedRecipe.id,
+            recipeName: savedRecipe.title,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        ))
+        kitchenStore.markPlanCooked(plan)
+        let quantityAfterFirstConfirmation = try XCTUnwrap(kitchenStore.inventory.first).quantity
+        XCTAssertEqual(quantityAfterFirstConfirmation, 3)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 1)
+
+        let second = CookConsumptionStore()
+        second.buildDrafts(planIDs: [plan.id], kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertTrue(second.drafts.isEmpty)
+        XCTAssertFalse(second.confirm(
+            planIDs: [plan.id],
+            recipeID: savedRecipe.id,
+            recipeName: savedRecipe.title,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        ))
+
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, quantityAfterFirstConfirmation)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 1)
+        XCTAssertTrue(kitchenStore.plans.first?.isCooked == true)
+    }
+
     func testBackupRestorePersistsPlansAndKeepsBackupShape() throws {
         let bundle = KitchenPersistenceFactory.isolatedInMemory()
         let defaults = UserDefaults(suiteName: UUID().uuidString)!

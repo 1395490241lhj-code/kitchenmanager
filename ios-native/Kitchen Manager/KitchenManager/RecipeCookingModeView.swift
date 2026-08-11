@@ -86,7 +86,7 @@ struct RecipeCookingModeView: View {
             Button("保留进度") { onExit() }
             Button(todayPlan == nil ? "结束烹饪" : "完成今日计划") { finishCooking() }
             Button("取消", role: .cancel) {}
-        } message: { Text("保留进度会返回详情；结束烹饪不会自动扣减库存。") }
+        } message: { Text("保留进度会返回详情；完成后会先确认本次食材消耗。") }
         .sheet(isPresented: $isShowingIngredientSheet) {
             NavigationStack {
                 List {

@@ -39,6 +39,46 @@ final class InventoryConsumptionPlannerTests: XCTestCase {
         XCTAssertEqual(drafts.count, 2)
     }
 
+    func test_directRecipeConfirmationUpdatesInventoryWithoutTodayPlan() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(userDefaults: defaults)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let directRecipe = recipe(title: "番茄料理", ingredients: ["番茄 2个"])
+        kitchenStore.addInventory(name: "番茄", quantity: 5, unit: "个", expiryDate: nil)
+        let store = CookConsumptionStore()
+
+        store.buildDrafts(
+            planIDs: [],
+            recipe: directRecipe,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        )
+        XCTAssertTrue(store.confirm(
+            planIDs: [],
+            recipeID: directRecipe.id,
+            recipeName: directRecipe.title,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        ))
+
+        XCTAssertEqual(try XCTUnwrap(kitchenStore.inventory.first).quantity, 3)
+        XCTAssertEqual(try XCTUnwrap(kitchenStore.consumptionRecords.first).planIDs, [])
+    }
+
+    func test_todayPlanConsumptionResolvesBundledSampleWhenStoreIsEmpty() throws {
+        let kitchenStore = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let sample = Recipe.samples[0]
+        kitchenStore.addPlan(recipe: sample)
+        let planID = try XCTUnwrap(kitchenStore.plans.first?.id)
+        let store = CookConsumptionStore()
+
+        store.buildDrafts(planIDs: [planID], kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        XCTAssertFalse(store.drafts.isEmpty)
+        XCTAssertTrue(store.unresolvedPlanNames.isEmpty)
+    }
+
     func test_multipleRecipes_shareDeductionOfSameIngredient() {
         let drafts = planner.plan(
             for: [

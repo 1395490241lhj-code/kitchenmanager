@@ -483,7 +483,7 @@ struct ShoppingListGenerator {
         case .todayPlans(let plans):
             var warnings: [String] = []
             let resolved: [(Recipe, Int)] = plans.compactMap { plan in
-                guard let recipe = recipeStore.recipes.first(where: { $0.id == plan.recipeID }) else {
+                guard let recipe = recipeStore.recipe(id: plan.recipeID) else {
                     warnings.append("「\(plan.recipeName)」的菜谱信息缺失，已跳过")
                     return nil
                 }
