@@ -191,7 +191,11 @@ struct RecipeCookingModeView: View {
             }
         }
         .padding(16)
-        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+        }
     }
 
     private var timerText: String { String(format: "%02d:%02d", timer.state.remainingSeconds / 60, timer.state.remainingSeconds % 60) }

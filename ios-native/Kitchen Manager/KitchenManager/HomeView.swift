@@ -432,7 +432,11 @@ private struct ClipboardRecipeImportPrompt: View {
             }
         }
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.clipboard.import.prompt")
     }
@@ -551,7 +555,7 @@ private struct HomeDashboardHeader: View {
                 .frame(width: AppTheme.minimumHitTarget, height: AppTheme.minimumHitTarget)
                 .background {
                     Circle()
-                        .fill(Color(.secondarySystemGroupedBackground))
+                        .fill(AppTheme.secondarySurface)
                         .frame(width: 40, height: 40)
                 }
                 .accessibilityIdentifier("home.import.add.button")
@@ -635,16 +639,12 @@ private struct TodayPlanSummaryCard: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            dashboard.todayPlanState == .completed
-                ? Color(uiColor: .secondarySystemGroupedBackground)
-                : Color(uiColor: .systemBackground),
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
+        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusHero, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: AppTheme.radiusHero, style: .continuous)
                 .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
         }
+        .shadow(color: AppTheme.cardShadow(opacity: 0.035), radius: 9, y: 4)
     }
 
     @ViewBuilder
@@ -766,7 +766,11 @@ private struct HomeAttentionReminderRow: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 15)
         .padding(.vertical, 12)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+        }
         .accessibilityIdentifier(identifier)
         .accessibilityLabel("\(title)，\(subtitle)")
         .accessibilityHint("双击查看并处理")
@@ -842,7 +846,11 @@ private struct HomeModuleIssues: View {
                 }
             }
             .padding(12)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+            .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+                    .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+            }
         }
     }
 
@@ -1484,7 +1492,7 @@ struct RecipeRecommendationBrowserView: View {
             }
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
 
             Button(action: performRecommendationSearch) {
                 Group {
@@ -1498,7 +1506,7 @@ struct RecipeRecommendationBrowserView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(minWidth: 54, minHeight: 44)
-                .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(recommendationStore.isSearchingRecommendations
@@ -1594,7 +1602,7 @@ struct RecipeRecommendationBrowserView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 40)
-                .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
                 .opacity(isAdded ? 0.62 : 1)
                 .disabled(isAdded)
 
@@ -1602,15 +1610,15 @@ struct RecipeRecommendationBrowserView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.brand)
                     .frame(maxWidth: .infinity, minHeight: 40)
-                    .background(AppTheme.brand.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .background(AppTheme.brand.opacity(0.12), in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
             }
             .buttonStyle(.plain)
         }
         .padding(16)
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(AppTheme.textPrimary.opacity(0.05), lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
         }
         .shadow(color: AppTheme.cardShadow(opacity: 0.035), radius: 9, y: 4)
     }

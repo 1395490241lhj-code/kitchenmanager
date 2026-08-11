@@ -382,7 +382,11 @@ private struct RecipeDetailSection<Content: View>: View {
             }
         }
         .padding(16)
-        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+        }
     }
 }
 
