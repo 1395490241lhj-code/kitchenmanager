@@ -776,7 +776,7 @@ struct ShoppingListGenerationView: View {
                 if let warning = item.wrappedValue.warning {
                     Label(warning, systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(AppTheme.warning)
                 }
             }
         }
@@ -789,4 +789,5 @@ struct ShoppingListGenerationView: View {
         }
         return "库存足够"
     }
+
 }

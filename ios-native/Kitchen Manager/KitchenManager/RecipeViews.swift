@@ -398,7 +398,7 @@ private struct RecipeStepRow: View {
         HStack(alignment: .top, spacing: 12) {
             Text("\(number)")
                 .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(AppTheme.brand)
+                .foregroundStyle(.secondary)
                 .frame(width: 28, height: 28)
                 .background(AppTheme.secondarySurface, in: Circle())
             Text(text)

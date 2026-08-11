@@ -792,7 +792,7 @@ struct WeeklyMenuPlannerView: View {
                 if !store.input.allowNewAIRecipes && recipeStore.recipes.isEmpty {
                     Label("菜谱库是空的，建议先添加几道菜谱，或者允许 AI 生成新菜。", systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(AppTheme.warning)
                 }
             } header: {
                 Text("菜谱来源")
@@ -1028,6 +1028,7 @@ struct WeeklyMenuResultView: View {
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                     showToast("已加入今天的计划")
                 }
+                .tint(AppTheme.brand)
             }
         }
     }
@@ -1058,10 +1059,10 @@ struct WeeklyMenuResultView: View {
                     if recipe.source == .ai {
                         Text("AI 新菜")
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.success)
+                            .foregroundStyle(AppTheme.textSecondary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(AppTheme.success.opacity(0.12), in: Capsule())
+                            .background(AppTheme.textSecondary.opacity(0.12), in: Capsule())
                     }
                 }
                 if !recipe.tags.isEmpty {

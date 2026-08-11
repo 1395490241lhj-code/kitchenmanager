@@ -115,7 +115,7 @@ struct RecipeCookingModeView: View {
                     .foregroundStyle(.secondary)
             }
             ProgressView(value: Double(session.currentStepIndex + 1), total: Double(steps.count))
-                .tint(AppTheme.brand)
+                .tint(AppTheme.textSecondary)
                 .accessibilityLabel("烹饪进度 \(session.currentStepIndex + 1) / \(steps.count)")
         }
     }
@@ -133,12 +133,12 @@ struct RecipeCookingModeView: View {
         HStack(spacing: 12) {
             Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
                 .buttonStyle(.bordered)
-                .tint(AppTheme.brand)
+                .tint(AppTheme.textSecondary)
                 .disabled(session.currentStepIndex == 0)
                 .accessibilityIdentifier("recipe.cooking.previous")
             Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
                 .buttonStyle(.bordered)
-                .tint(AppTheme.brand)
+                .tint(AppTheme.textSecondary)
                 .accessibilityIdentifier("recipe.cooking.ingredients")
             Button("下一步", systemImage: "chevron.right") { session.next(stepCount: steps.count) }
                 .buttonStyle(.borderedProminent)
@@ -159,12 +159,12 @@ struct RecipeCookingModeView: View {
             HStack(spacing: 12) {
                 Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
                     .buttonStyle(.bordered)
-                    .tint(AppTheme.brand)
+                    .tint(AppTheme.textSecondary)
                     .disabled(session.currentStepIndex == 0)
                     .accessibilityIdentifier("recipe.cooking.previous")
                 Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
                     .buttonStyle(.bordered)
-                    .tint(AppTheme.brand)
+                    .tint(AppTheme.textSecondary)
                     .accessibilityIdentifier("recipe.cooking.ingredients")
             }
         }
@@ -180,8 +180,8 @@ struct RecipeCookingModeView: View {
                     ForEach([1, 3, 5, 10, 15, 20, 30], id: \.self) { minutes in Button("\(minutes) 分钟") { timer.start(seconds: minutes * 60) } }
                 }
                 .buttonStyle(.bordered)
+                .tint(AppTheme.textSecondary)
                 .accessibilityIdentifier("recipe.cooking.timer.start")
-                .tint(AppTheme.brand)
             } else {
                 HStack {
                     Button(timer.state.status == .running ? "暂停" : "继续") { timer.state.status == .running ? timer.pause() : timer.resume() }

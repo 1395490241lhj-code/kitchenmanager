@@ -445,7 +445,7 @@ private struct ClipboardRecipeImportPrompt: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "doc.on.clipboard")
                 .font(.title3)
-                .foregroundStyle(AppTheme.brand)
+                .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 promptText
@@ -473,7 +473,7 @@ private struct ClipboardRecipeImportPrompt: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "doc.on.clipboard")
                 .font(.title3)
-                .foregroundStyle(AppTheme.brand)
+                .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 promptText
@@ -502,7 +502,7 @@ private struct ClipboardRecipeImportPrompt: View {
 
         Button("忽略", action: onIgnore)
             .buttonStyle(.plain)
-            .foregroundStyle(AppTheme.brand)
+            .foregroundStyle(.secondary)
             .frame(minHeight: AppTheme.minimumHitTarget)
             .accessibilityIdentifier("home.clipboard.ignore.button")
     }
@@ -561,7 +561,6 @@ private struct HomeDashboardHeader: View {
                 .accessibilityIdentifier("home.import.add.button")
                 .accessibilityLabel("导入与添加")
                 .accessibilityHint("打开菜谱、收据和食材添加选项")
-                .tint(AppTheme.brand)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
         .accessibilityElement(children: .contain)
@@ -596,7 +595,7 @@ private struct TodayPlanSummaryCard: View {
                 ForEach(dashboard.displayedPlans) { plan in
                     HStack(spacing: 12) {
                         Image(systemName: plan.isCooked ? "checkmark.circle" : "fork.knife.circle.fill")
-                            .foregroundStyle(plan.isCooked ? Color.secondary : AppTheme.brand)
+                            .foregroundStyle(AppTheme.textSecondary)
                             .font(.title3)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
@@ -625,7 +624,7 @@ private struct TodayPlanSummaryCard: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(AppTheme.brand)
+            .tint(primaryActionTint)
             .controlSize(.large)
             .accessibilityIdentifier("home.primary.action.button")
 
@@ -709,7 +708,7 @@ private struct TodayPlanSummaryCard: View {
                 .frame(minHeight: AppTheme.minimumHitTarget)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(AppTheme.brand)
+        .foregroundStyle(.secondary)
         .accessibilityIdentifier("home.today.plan.add.button")
         .accessibilityLabel("添加今日菜品")
         .accessibilityHint("打开菜谱推荐并添加到今日计划")
@@ -731,6 +730,10 @@ private struct TodayPlanSummaryCard: View {
         case .viewTodayPlan: "查看今日计划"
         case .browseRecipes: "浏览菜谱"
         }
+    }
+
+    private var primaryActionTint: Color {
+        primaryAction == .stockInPurchased ? AppTheme.primary : AppTheme.brand
     }
 }
 
@@ -808,10 +811,10 @@ private struct HomeAttentionReminderRow: View {
 
     private var tint: Color {
         switch reminder {
-        case .purchasedAwaitingStockIn: AppTheme.brand
+        case .purchasedAwaitingStockIn: AppTheme.primary
         case .expiredInventory: AppTheme.inventoryExpired
         case .expiringInventory: AppTheme.warning
-        case .pendingShopping: AppTheme.brand
+        case .pendingShopping: AppTheme.primary
         case .lowStock: AppTheme.warning
         }
     }
@@ -1062,7 +1065,7 @@ struct SmartImportSheet: View {
                             title: "从小红书导入菜谱",
                             subtitle: "粘贴链接，智能提取食材与步骤",
                             systemImage: "sparkles.rectangle.stack.fill",
-                            isPrimary: true
+                            accent: AppTheme.brand
                         )
                     }
                     .accessibilityIdentifier("home.import.recipe.xiaohongshu")
@@ -1071,7 +1074,7 @@ struct SmartImportSheet: View {
                             title: "手动创建菜谱",
                             subtitle: "记录自己的菜谱",
                             systemImage: "square.and.pencil",
-                            isPrimary: false
+                            accent: nil
                         )
                     }
                     .accessibilityIdentifier("home.import.recipe.manual")
@@ -1083,7 +1086,7 @@ struct SmartImportSheet: View {
                             title: "扫描购物小票",
                             subtitle: "拍照智能识别商品并加入库存",
                             systemImage: "camera.viewfinder",
-                            isPrimary: true
+                            accent: AppTheme.primary
                         )
                     }
                     .accessibilityIdentifier("home.import.food.receipt")
@@ -1092,7 +1095,7 @@ struct SmartImportSheet: View {
                             title: "手动添加食材",
                             subtitle: "快速记录食材库存",
                             systemImage: "shippingbox",
-                            isPrimary: false
+                            accent: nil
                         )
                     }
                     .accessibilityIdentifier("home.import.food.manual")
@@ -1132,16 +1135,16 @@ private struct SmartImportRow: View {
     let title: String
     let subtitle: String
     let systemImage: String
-    let isPrimary: Bool
+    let accent: Color?
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(isPrimary ? .white : AppTheme.textSecondary)
+                .foregroundStyle(accent == nil ? AppTheme.textSecondary : .white)
                 .frame(width: 36, height: 36)
                 .background(
-                    isPrimary ? AppTheme.brand : AppTheme.textSecondary.opacity(0.12),
+                    accent ?? AppTheme.textSecondary.opacity(0.12),
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                 )
                 .accessibilityHidden(true)
@@ -1149,15 +1152,15 @@ private struct SmartImportRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(title)
-                        .font(.subheadline.weight(isPrimary ? .semibold : .regular))
+                        .font(.subheadline.weight(accent == nil ? .regular : .semibold))
                         .foregroundStyle(.primary)
-                    if isPrimary {
+                    if accent != nil {
                         Text("智能")
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(AppTheme.brand)
+                            .foregroundStyle(AppTheme.textSecondary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(AppTheme.brand.opacity(0.12), in: Capsule())
+                            .background(AppTheme.textSecondary.opacity(0.12), in: Capsule())
                     }
                 }
                 Text(subtitle)
@@ -1212,7 +1215,7 @@ struct TodayPlanDetailView: View {
                                 HStack(spacing: 12) {
                                     Image(systemName: plan.isCooked ? "checkmark.circle.fill" : "fork.knife.circle")
                                         .font(.title2)
-                                        .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.warning)
+                                        .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(plan.recipeName).font(.headline)
                                         Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份 · 今天")
@@ -1223,7 +1226,11 @@ struct TodayPlanDetailView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            if !plan.isCooked { Button("做好了") { activeSheet = .cook(plan) }.font(.caption.bold()) }
+                            if !plan.isCooked {
+                                Button("做好了") { activeSheet = .cook(plan) }
+                                    .font(.caption.bold())
+                                    .tint(AppTheme.brand)
+                            }
                         }
                         .contextMenu {
                             Button("移出计划", role: .destructive) { planPendingRemoval = plan }
@@ -1233,8 +1240,11 @@ struct TodayPlanDetailView: View {
 
                 if !kitchenStore.pendingTodayPlans.isEmpty {
                     Section {
-                        Button("全部做完", systemImage: "checkmark.circle") {
+                        Button {
                             activeSheet = .cookAll
+                        } label: {
+                            Label("全部做完", systemImage: "checkmark.circle")
+                                .foregroundStyle(AppTheme.brand)
                         }
                     }
                 }
@@ -1252,7 +1262,7 @@ struct TodayPlanDetailView: View {
                 } label: {
                     HStack {
                         Image(systemName: "calendar.badge.clock")
-                            .foregroundStyle(AppTheme.success)
+                            .foregroundStyle(.secondary)
                         VStack(alignment: .leading) {
                             Text(kitchenStore.weeklyPlan == nil ? "规划本周菜单" : "查看本周计划")
                                 .font(.subheadline.bold())
@@ -1431,7 +1441,7 @@ struct RecipeRecommendationBrowserView: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.bordered)
-                    .tint(AppTheme.brand)
+                    .tint(AppTheme.textSecondary)
                     .disabled(recommendationStore.isSearchingRecommendations
                               || recommendationStore.isGeneratingRecommendations)
                 }
@@ -1539,14 +1549,14 @@ struct RecipeRecommendationBrowserView: View {
             HStack {
                 Label(recommendation.source == .ai ? "AI 推荐" : "今日推荐", systemImage: "sparkles")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.success)
+                    .foregroundStyle(AppTheme.textSecondary)
                 Spacer()
                 Text(recommendation.source == .ai ? "新灵感" : recommendationBadge(recipe))
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(AppTheme.success)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
-                    .background(AppTheme.success.opacity(0.10), in: Capsule())
+                    .background(AppTheme.textSecondary.opacity(0.10), in: Capsule())
                 Menu {
                     Button("加入今天", systemImage: "calendar.badge.plus") {
                         addRecommendationToPlan(recipe)
@@ -1608,9 +1618,9 @@ struct RecipeRecommendationBrowserView: View {
 
                 Button("查看") { selectedRecipe = recipe }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.brand)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .frame(maxWidth: .infinity, minHeight: 40)
-                    .background(AppTheme.brand.opacity(0.12), in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
+                    .background(AppTheme.textSecondary.opacity(0.12), in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
             }
             .buttonStyle(.plain)
         }
@@ -1772,7 +1782,6 @@ private struct ExpirySheet: View {
 
                         Button("用它") { onUseIngredient(item) }
                             .buttonStyle(.bordered)
-                            .tint(AppTheme.brand)
                     }
                 }
             }
@@ -1814,7 +1823,7 @@ private struct PendingShoppingSheet: View {
                     Button("去买菜清单", action: onGoShopping)
                         .frame(maxWidth: .infinity)
                         .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.brand)
+                        .tint(AppTheme.primary)
                 }
             }
         }
