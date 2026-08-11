@@ -57,7 +57,7 @@ test("inventory row communicates amount and a single expiry phrase as text plus 
 test("inventory chrome is capped at accessibility sizes while food content is not", () => {
   // Page chrome (title, summary, headers, symbols) is bounded in one place;
   // names, quantities, and status text keep unrestricted Dynamic Type.
-  assert.match(features, /enum InventoryChromeMetrics/);
+  assert.match(features, /enum ChromeMetrics/);
   assert.match(features, /static let summaryTypeLimit = DynamicTypeSize\.accessibility1/);
   assert.match(features, /static let headerTypeLimit = DynamicTypeSize\.accessibility1/);
   assert.match(features, /static let symbolTypeLimit = DynamicTypeSize\.xxLarge/);
@@ -81,7 +81,7 @@ test("inventory chrome is capped at accessibility sizes while food content is no
   // The staple row gets the same accessibility-size fallback, with the current
   // quantity and the minimum split onto their own full-width lines.
   assert.match(pantry, /dynamicTypeSize\.isAccessibilitySize/);
-  assert.match(pantry, /\.dynamicTypeSize\(\.\.\.InventoryChromeMetrics\.symbolTypeLimit\)/);
+  assert.match(pantry, /\.dynamicTypeSize\(\.\.\.ChromeMetrics\.symbolTypeLimit\)/);
   assert.match(pantry, /private var detailLines: \[String\]/);
   assert.match(pantry, /return \["当前 \\\(item\.quantity\.formatted\(\)\) \\\(item\.unit\)", "最低 \\\(minimumText\)"\]/);
   assert.doesNotMatch(pantry, /\.minimumScaleFactor\(/);
@@ -93,7 +93,7 @@ test("inventory list reserves one bottom inset for the floating tab bar", () => 
   // a screen-height calculation.
   assert.match(
     features,
-    /\.safeAreaInset\(edge: \.bottom\) \{\s*Color\.clear\s*\.frame\(height: InventoryChromeMetrics\.bottomClearance\)/
+    /\.safeAreaInset\(edge: \.bottom\) \{\s*Color\.clear\s*\.frame\(height: ChromeMetrics\.bottomClearance\)/
   );
   assert.doesNotMatch(features, /GeometryReader/);
   assert.match(uiTests, /func testInventoryBottomContentClearsFloatingTabBar\(\)/);
