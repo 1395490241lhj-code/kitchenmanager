@@ -6,6 +6,7 @@ struct RecipeCookingModeView: View {
     let todayPlan: MealPlanItem?
     let onFinish: () -> Void
     let onExit: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var timer = CookingTimerController()
     @State private var screenAwake = ScreenAwakeController()
@@ -50,6 +51,9 @@ struct RecipeCookingModeView: View {
 
                             timerPanel
                             stepControls
+                            if dynamicTypeSize.isAccessibilitySize {
+                                finishCookingAction
+                            }
                         }
                         .padding(.horizontal)
                         .padding(.vertical, 24)
@@ -73,7 +77,9 @@ struct RecipeCookingModeView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                finishCookingAction
+                if !dynamicTypeSize.isAccessibilitySize || steps.isEmpty {
+                    finishCookingAction
+                }
             }
         }
         .onAppear { screenAwake.activate() }
@@ -121,9 +127,16 @@ struct RecipeCookingModeView: View {
     }
 
     @ViewBuilder private var stepControls: some View {
-        ViewThatFits(in: .horizontal) {
-            stepControlsHorizontal
-            stepControlsVertical
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                stepControlsVertical
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    stepControlsHorizontal
+                        .fixedSize(horizontal: true, vertical: false)
+                    stepControlsVertical
+                }
+            }
         }
         .padding(.horizontal)
         .padding(.vertical, 4)
@@ -156,17 +169,15 @@ struct RecipeCookingModeView: View {
                 .tint(AppTheme.brand)
                 .disabled(session.currentStepIndex >= steps.count - 1)
                 .accessibilityIdentifier("recipe.cooking.next")
-            HStack(spacing: 12) {
-                Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
-                    .buttonStyle(.bordered)
-                    .tint(AppTheme.textSecondary)
-                    .disabled(session.currentStepIndex == 0)
-                    .accessibilityIdentifier("recipe.cooking.previous")
-                Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
-                    .buttonStyle(.bordered)
-                    .tint(AppTheme.textSecondary)
-                    .accessibilityIdentifier("recipe.cooking.ingredients")
-            }
+            Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.textSecondary)
+                .disabled(session.currentStepIndex == 0)
+                .accessibilityIdentifier("recipe.cooking.previous")
+            Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.textSecondary)
+                .accessibilityIdentifier("recipe.cooking.ingredients")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

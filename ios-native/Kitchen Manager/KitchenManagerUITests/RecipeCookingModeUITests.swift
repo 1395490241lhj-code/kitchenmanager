@@ -171,8 +171,26 @@ final class RecipeCookingModeUITests: XCTestCase {
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
         ]
         cooking.launch()
-        XCTAssertTrue(cooking.buttons["recipe.cooking.next"].waitForExistence(timeout: 8))
+        let next = cooking.buttons["recipe.cooking.next"]
+        let previous = cooking.buttons["recipe.cooking.previous"]
+        let ingredients = cooking.buttons["recipe.cooking.ingredients"]
+        let finish = cooking.buttons["recipe.cooking.finish"]
+        XCTAssertTrue(next.waitForExistence(timeout: 8))
         attachScreenshot(of: cooking, named: "final-cooking-mode-accessibility")
+
+        for _ in 0..<16 where !finish.isHittable {
+            cooking.swipeUp()
+        }
+        XCTAssertTrue(previous.isHittable)
+        XCTAssertTrue(ingredients.isHittable)
+        XCTAssertTrue(finish.isHittable)
+        XCTAssertLessThanOrEqual(next.frame.maxY, previous.frame.minY)
+        XCTAssertLessThanOrEqual(previous.frame.maxY, ingredients.frame.minY)
+        XCTAssertLessThanOrEqual(ingredients.frame.maxY, finish.frame.minY)
+        for button in [next, previous, ingredients, finish] {
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44)
+        }
+        attachScreenshot(of: cooking, named: "final-cooking-mode-accessibility-bottom")
     }
 
     func testVisualReviewDarkModeUsesSemanticSurfaces() throws {
