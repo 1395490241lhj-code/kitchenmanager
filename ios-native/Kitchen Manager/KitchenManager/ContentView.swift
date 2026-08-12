@@ -211,6 +211,34 @@ struct KitchenManagerApp: App {
 
 #if DEBUG
 private enum RecipeUITestSeed {
+    static let accessibilityRecommendationOne = Recipe(
+        id: "ui-test-accessibility-recommendation-one",
+        title: "超长名称的番茄香草鸡腿家庭晚餐蔬菜炖锅",
+        cookingTime: 55,
+        difficulty: "中等",
+        tags: ["家庭晚餐"],
+        ingredients: [
+            "超长进口有机高山蔬菜组合 1 份",
+            "新鲜香草番茄家庭料理配料 2 份",
+            "去骨鸡腿肉 4 块"
+        ],
+        steps: ["准备食材并慢炖至入味。"]
+    )
+
+    static let accessibilityRecommendationTwo = Recipe(
+        id: "ui-test-accessibility-recommendation-two",
+        title: "周末慢炖牛肉番茄根茎蔬菜家庭分享锅",
+        cookingTime: 70,
+        difficulty: "中等",
+        tags: ["周末料理"],
+        ingredients: [
+            "高山根茎蔬菜家庭组合 1 份",
+            "番茄洋葱香草调味配料 2 份",
+            "牛腩肉 500 克"
+        ],
+        steps: ["准备食材并慢炖至软嫩。"]
+    )
+
     static let longRecipe = Recipe(
         id: "ui-test-recipe-long",
         title: "周末慢炖番茄香草鸡腿蔬菜锅",
@@ -426,6 +454,22 @@ struct ContentView: View {
                 category: "乳制品"
             )
             navigationStore.selectedTab = .inventory
+        }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION") else { return }
+            kitchenStore.clearAllLocalData()
+            recipeStore.clearLocalData()
+            recipeStore.add(RecipeUITestSeed.accessibilityRecommendationOne)
+            recipeStore.add(RecipeUITestSeed.accessibilityRecommendationTwo)
+            kitchenStore.importInventory([
+                InventoryImportItem(
+                    name: "超长进口有机高山蔬菜组合",
+                    quantity: 1,
+                    unit: "份",
+                    expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: Date())
+                )
+            ])
+            navigationStore.selectedTab = .today
         }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_HOME") else { return }

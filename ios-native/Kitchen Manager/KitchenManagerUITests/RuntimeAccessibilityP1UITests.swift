@@ -115,6 +115,79 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
         }
     }
 
+    func testRecommendationCardsAdaptWithoutClipping() throws {
+        let recipeID = "ui-test-accessibility-recommendation-one"
+        let cases = [
+            ("normal", "UICTContentSizeCategoryL", false),
+            ("accessibilityXXXL", "UICTContentSizeCategoryAccessibilityXXXL", true)
+        ]
+
+        for (name, size, isAccessibility) in cases {
+            let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: size)
+            let primaryAction = app.buttons["home.primary.action.button"]
+            XCTAssertTrue(primaryAction.waitForExistence(timeout: 5), "\(name): 首页主操作缺失")
+            primaryAction.tap()
+            XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5), "\(name): 推荐页未打开")
+
+            let title = app.staticTexts["recommendation.\(recipeID).title"]
+            let ingredients = app.staticTexts["recommendation.\(recipeID).ingredients"]
+            let reason = app.staticTexts["recommendation.\(recipeID).reason"]
+            let addPlan = app.buttons["recommendation.\(recipeID).addPlan"]
+            let viewRecipe = app.buttons["recommendation.\(recipeID).view"]
+            let regenerate = app.buttons["recommendation.regenerate.button"]
+            XCTAssertTrue(title.waitForExistence(timeout: 5), "\(name): 推荐标题缺失")
+            XCTAssertTrue(ingredients.exists, "\(name): 配料摘要缺失")
+            XCTAssertTrue(reason.exists, "\(name): 推荐理由缺失")
+            XCTAssertTrue(addPlan.exists, "\(name): 加入计划按钮缺失")
+            XCTAssertTrue(viewRecipe.exists, "\(name): 查看按钮缺失")
+            XCTAssertTrue(regenerate.exists, "\(name): AI 换几道入口缺失")
+
+            if isAccessibility {
+                XCTAssertFalse(
+                    app.descendants(matching: .any)["recommendation.pager"].exists,
+                    "XXXL: 不应使用固定高度分页容器"
+                )
+                for (element, label) in [
+                    (title, "XXXL 推荐标题"),
+                    (ingredients, "XXXL 配料摘要"),
+                    (reason, "XXXL 推荐理由")
+                ] {
+                    XCTAssertTrue(scrollUntilFullyVisible(element, in: app), "\(label) 不可完整滚动到")
+                    assertFullyOnScreen(element, in: app, label: label)
+                }
+                for (element, label) in [
+                    (addPlan, "XXXL 加入计划"),
+                    (viewRecipe, "XXXL 查看")
+                ] {
+                    XCTAssertTrue(scrollUntilFullyHittable(element, in: app), "\(label) 不可点击")
+                    assertFullyOnScreen(element, in: app, label: label)
+                    XCTAssertGreaterThanOrEqual(element.frame.height, 43.5, "\(label) 点击高度不足 44pt")
+                }
+                XCTAssertEqual(title.label, "超长名称的番茄香草鸡腿家庭晚餐蔬菜炖锅")
+                XCTAssertEqual(ingredients.label, "超长进口有机高山蔬菜组合 · 新鲜香草番茄家庭料理配料 · 去骨鸡腿肉")
+                XCTAssertFalse(title.frame.intersects(ingredients.frame), "XXXL: 标题与配料摘要重叠")
+                XCTAssertFalse(ingredients.frame.intersects(reason.frame), "XXXL: 配料摘要与理由重叠")
+                XCTAssertTrue(scrollUntilFullyHittable(regenerate, in: app), "XXXL: AI 换几道不可点击")
+                assertFullyOnScreen(regenerate, in: app, label: "XXXL AI 换几道")
+            } else {
+                let pager = app.descendants(matching: .any)["recommendation.pager"]
+                XCTAssertTrue(pager.waitForExistence(timeout: 5), "Normal: 分页容器缺失")
+                XCTAssertTrue(
+                    app.descendants(matching: .any)["recommendation.pageIndicator"].exists,
+                    "Normal: 分页状态缺失"
+                )
+                assertFullyOnScreen(addPlan, in: app, label: "Normal 加入计划")
+                assertFullyOnScreen(viewRecipe, in: app, label: "Normal 查看")
+                XCTAssertTrue(addPlan.isHittable, "Normal: 加入计划不可点击")
+                XCTAssertTrue(viewRecipe.isHittable, "Normal: 查看不可点击")
+                assertFullyOnScreen(regenerate, in: app, label: "Normal AI 换几道")
+                XCTAssertTrue(regenerate.isHittable, "Normal: AI 换几道不可点击")
+            }
+
+            app.terminate()
+        }
+    }
+
     private func launch(_ seed: String, size: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [seed, "-UIPreferredContentSizeCategoryName", size]

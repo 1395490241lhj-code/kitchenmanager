@@ -1397,6 +1397,7 @@ struct TodayPlanDetailView: View {
 // MARK: - Recommendation browser (secondary page)
 
 struct RecipeRecommendationBrowserView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var recommendationStore: HomeRecommendationStore
@@ -1431,6 +1432,13 @@ struct RecipeRecommendationBrowserView: View {
 
                 if recommendationStore.recommendedRecipes.isEmpty {
                     recommendationEmptyState
+                } else if dynamicTypeSize.isAccessibilitySize {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        ForEach(recommendationStore.recommendedRecipes) { recommendation in
+                            recommendationCard(recommendation)
+                                .padding(.horizontal, 1)
+                        }
+                    }
                 } else {
                     TabView(selection: $recommendationStore.currentRecommendationIndex) {
                         ForEach(
@@ -1444,6 +1452,7 @@ struct RecipeRecommendationBrowserView: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     .frame(height: 300)
+                    .accessibilityIdentifier("recommendation.pager")
                     .animation(.easeInOut(duration: 0.18), value: recommendationStore.currentRecommendationIndex)
 
                     if recommendationStore.recommendedRecipes.count > 1 {
@@ -1462,11 +1471,15 @@ struct RecipeRecommendationBrowserView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .accessibilityElement(children: .ignore)
+                        .accessibilityIdentifier("recommendation.pageIndicator")
                         .accessibilityLabel(
                             "第 \(recommendationStore.currentRecommendationIndex + 1) 道，共 \(recommendationStore.recommendedRecipes.count) 道"
                         )
                     }
 
+                }
+
+                if !recommendationStore.recommendedRecipes.isEmpty {
                     Button {
                         generateAIRecommendations()
                     } label: {
@@ -1484,6 +1497,7 @@ struct RecipeRecommendationBrowserView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(AppTheme.textSecondary)
+                    .accessibilityIdentifier("recommendation.regenerate.button")
                     .disabled(recommendationStore.isSearchingRecommendations
                               || recommendationStore.isGeneratingRecommendations)
                 }
@@ -1635,15 +1649,18 @@ struct RecipeRecommendationBrowserView: View {
             Text(recipe.title)
                 .font(.title2.weight(.bold))
                 .foregroundStyle(.primary)
-                .lineLimit(2)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .accessibilityIdentifier("recommendation.\(recipe.id).title")
             Text(ingredientSummary(recipe))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .accessibilityIdentifier("recommendation.\(recipe.id).ingredients")
             Text(recommendation.reason ?? recommendationReason(recipe))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .accessibilityIdentifier("recommendation.\(recipe.id).reason")
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
 
             Spacer(minLength: 0)
 
@@ -1657,12 +1674,14 @@ struct RecipeRecommendationBrowserView: View {
                 .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
                 .opacity(isAdded ? 0.62 : 1)
                 .disabled(isAdded)
+                .accessibilityIdentifier("recommendation.\(recipe.id).addPlan")
 
                 Button("查看") { selectedRecipe = recipe }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.textSecondary)
                     .frame(maxWidth: .infinity, minHeight: 40)
                     .background(AppTheme.textSecondary.opacity(0.12), in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
+                    .accessibilityIdentifier("recommendation.\(recipe.id).view")
             }
             .buttonStyle(.plain)
         }
