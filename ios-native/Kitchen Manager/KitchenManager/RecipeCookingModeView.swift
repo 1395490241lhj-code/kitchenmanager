@@ -28,7 +28,7 @@ struct RecipeCookingModeView: View {
 
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("第 \(session.currentStepIndex + 1) 步")
-                                    .font(.headline)
+                                    .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                 Text(currentStep)
                                     .font(.title2.weight(.semibold))
@@ -121,7 +121,7 @@ struct RecipeCookingModeView: View {
                     .foregroundStyle(.secondary)
             }
             ProgressView(value: Double(session.currentStepIndex + 1), total: Double(steps.count))
-                .tint(AppTheme.textSecondary)
+                .tint(AppTheme.brand)
                 .accessibilityLabel("烹饪进度 \(session.currentStepIndex + 1) / \(steps.count)")
         }
     }
@@ -138,7 +138,6 @@ struct RecipeCookingModeView: View {
                 }
             }
         }
-        .padding(.horizontal)
         .padding(.vertical, 4)
     }
 
@@ -147,15 +146,18 @@ struct RecipeCookingModeView: View {
             Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 .disabled(session.currentStepIndex == 0)
                 .accessibilityIdentifier("recipe.cooking.previous")
             Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 .accessibilityIdentifier("recipe.cooking.ingredients")
             Button("下一步", systemImage: "chevron.right") { session.next(stepCount: steps.count) }
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.brand)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 .disabled(session.currentStepIndex >= steps.count - 1)
                 .accessibilityIdentifier("recipe.cooking.next")
         }
@@ -167,16 +169,19 @@ struct RecipeCookingModeView: View {
             Button("下一步", systemImage: "chevron.right") { session.next(stepCount: steps.count) }
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.brand)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 .disabled(session.currentStepIndex >= steps.count - 1)
                 .accessibilityIdentifier("recipe.cooking.next")
             Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 .disabled(session.currentStepIndex == 0)
                 .accessibilityIdentifier("recipe.cooking.previous")
             Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 .accessibilityIdentifier("recipe.cooking.ingredients")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -211,9 +216,13 @@ struct RecipeCookingModeView: View {
 
     private var timerText: String { String(format: "%02d:%02d", timer.state.remainingSeconds / 60, timer.state.remainingSeconds % 60) }
     private var finishCookingAction: some View {
-        Button(todayPlan == nil ? "结束烹饪" : "完成今日计划") { finishCooking() }
+        Button { finishCooking() } label: {
+            Text(todayPlan == nil ? "结束烹饪" : "完成今日计划")
+                .frame(maxWidth: .infinity)
+        }
             .buttonStyle(.bordered)
             .tint(AppTheme.brand)
+            .controlSize(.large)
             .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
             .padding(.horizontal)
             .padding(.vertical, 8)

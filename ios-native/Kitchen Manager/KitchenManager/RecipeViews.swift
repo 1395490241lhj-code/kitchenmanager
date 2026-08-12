@@ -326,7 +326,7 @@ struct RecipeDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 28) {
                 recipeHero
 
                 RecipeDetailSection("份量", systemImage: "person.2") {
@@ -380,13 +380,25 @@ struct RecipeDetailView: View {
                     }
                 }
 
-                startCookingAction
             }
             .padding(.horizontal)
             .padding(.top, 20)
-            .padding(.bottom, 16)
+            .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemBackground))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                Divider()
+                startCookingAction
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    // Local compact gap above the floating tab bar. The inset already
+                    // clears the tab bar's safe area, so this must NOT reuse the
+                    // scrolling-content clearance token (72pt) or the bar re-bloats.
+                    .padding(.bottom, 20)
+            }
+            .background(.bar)
+        }
         .navigationTitle("菜谱详情").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -441,12 +453,6 @@ struct RecipeDetailView: View {
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !recipe.tags.isEmpty {
-                Text(recipe.tags.joined(separator: " · "))
-                    .font(dynamicTypeSize.isAccessibilitySize ? .caption : .subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
             if dynamicTypeSize.isAccessibilitySize {
                 recipeMetadataVertical
             } else {
@@ -454,6 +460,13 @@ struct RecipeDetailView: View {
                     recipeMetadataHorizontal
                     recipeMetadataVertical
                 }
+            }
+
+            if !recipe.tags.isEmpty {
+                Text(recipe.tags.joined(separator: " · "))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -464,8 +477,7 @@ struct RecipeDetailView: View {
             if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
             if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
         }
-        .font(dynamicTypeSize.isAccessibilitySize ? .caption2 : .subheadline)
-        .imageScale(dynamicTypeSize.isAccessibilitySize ? .small : .medium)
+        .font(.subheadline)
         .foregroundStyle(.secondary)
     }
 
@@ -475,18 +487,20 @@ struct RecipeDetailView: View {
             if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
             if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
         }
-        .font(dynamicTypeSize.isAccessibilitySize ? .caption2 : .subheadline)
-        .imageScale(dynamicTypeSize.isAccessibilitySize ? .small : .medium)
+        .font(.subheadline)
         .foregroundStyle(.secondary)
     }
 
     private var startCookingAction: some View {
-        Button("开始烹饪", systemImage: "flame.fill") { isShowingCookingMode = true }
+        Button { isShowingCookingMode = true } label: {
+            Label("开始烹饪", systemImage: "flame.fill")
+                .frame(maxWidth: .infinity)
+        }
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.brand)
             .font(.headline)
+            .controlSize(.large)
             .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
-            .padding(.top, 8)
             .accessibilityIdentifier("recipe.detail.startCooking")
     }
 
@@ -502,8 +516,8 @@ struct RecipeDetailView: View {
             }
         }
         .buttonStyle(.plain)
+        .frame(minHeight: AppTheme.minimumHitTarget)
         .contentShape(Rectangle())
-        .padding(.vertical, 3)
         .accessibilityIdentifier("recipe.detail.ingredient.\(index)")
         .accessibilityLabel("\(RecipeServingScaler.scaledText(value, multiplier: Double(cookingSession.servings)))，\(cookingSession.checkedIngredientIndexes.contains(index) ? "已准备" : "未准备")")
     }
@@ -525,16 +539,12 @@ private struct RecipeDetailSection<Content: View>: View {
             Label(title, systemImage: systemImage)
                 .font(.headline)
                 .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
             VStack(alignment: .leading, spacing: 12) {
                 content
             }
         }
-        .padding(16)
-        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

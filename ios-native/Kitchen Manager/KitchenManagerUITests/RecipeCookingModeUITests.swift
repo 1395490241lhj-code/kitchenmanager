@@ -27,7 +27,9 @@ final class RecipeCookingModeUITests: XCTestCase {
         app.swipeDown()
         attachScreenshot(of: app, named: "final-recipe-detail-standard")
         app.buttons["recipe.detail.servings-Increment"].tap()
-        app.buttons["recipe.detail.ingredient.0"].tap()
+        let ingredient0 = app.buttons["recipe.detail.ingredient.0"]
+        XCTAssertGreaterThanOrEqual(ingredient0.frame.height, 44)
+        ingredient0.tap()
         app.swipeUp()
         XCTAssertTrue(app.buttons["recipe.detail.startCooking"].waitForExistence(timeout: 5))
         app.buttons["recipe.detail.startCooking"].tap()
@@ -158,28 +160,37 @@ final class RecipeCookingModeUITests: XCTestCase {
         recipe.tap()
         attachScreenshot(of: app, named: "final-recipe-detail-long-top")
 
+        let startCooking = app.buttons["recipe.detail.startCooking"]
+        XCTAssertTrue(startCooking.waitForExistence(timeout: 5))
+        XCTAssertTrue(startCooking.isHittable)
+        XCTAssertGreaterThanOrEqual(startCooking.frame.height, 44)
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.exists)
+        XCTAssertLessThanOrEqual(startCooking.frame.maxY, tabBar.frame.minY)
+        let ctaToTabGap = tabBar.frame.minY - startCooking.frame.maxY
+        XCTAssertGreaterThanOrEqual(ctaToTabGap, 8, "pinned CTA overlaps floating tab bar (gap \(ctaToTabGap)pt)")
+        XCTAssertLessThanOrEqual(ctaToTabGap, 28, "pinned CTA bar re-bloated (gap \(ctaToTabGap)pt)")
+
         let finalStep = app.descendants(matching: .any)["recipe.detail.step.9"]
         for _ in 0..<12 {
             guard finalStep.exists else {
                 app.swipeUp()
                 continue
             }
-            if finalStep.frame.maxY < app.frame.maxY {
+            if finalStep.frame.maxY <= startCooking.frame.minY {
                 break
             }
             app.swipeUp()
         }
         XCTAssertTrue(finalStep.exists)
-        XCTAssertLessThan(finalStep.frame.maxY, app.frame.maxY)
+        XCTAssertLessThanOrEqual(finalStep.frame.maxY, startCooking.frame.minY,
+            "final step hidden behind pinned CTA: step.maxY \(finalStep.frame.maxY), cta.minY \(startCooking.frame.minY)")
 
-        let startCooking = app.buttons["recipe.detail.startCooking"]
         for _ in 0..<6 where !startCooking.isHittable {
             app.swipeUp()
         }
         XCTAssertTrue(startCooking.isHittable)
 
-        let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.exists)
         XCTAssertLessThanOrEqual(startCooking.frame.maxY, tabBar.frame.minY)
         attachScreenshot(of: app, named: "final-recipe-detail-long-bottom")
     }
