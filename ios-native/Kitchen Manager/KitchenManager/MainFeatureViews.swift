@@ -92,9 +92,13 @@ struct InventoryView: View {
                 Section {
                     LabeledContent {
                         Button("清除") { navigationStore.inventoryFocus = .all }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .frame(minHeight: AppTheme.minimumHitTarget)
                     } label: {
                         Label("正在查看：\(navigationStore.inventoryFocus.title)", systemImage: "line.3.horizontal.decrease.circle")
+                            .fontWeight(.medium)
+                            .foregroundStyle(AppTheme.primary)
                     }
                     .font(.subheadline)
                     .accessibilityElement(children: .contain)
@@ -133,6 +137,8 @@ struct InventoryView: View {
                     Button("添加食材", systemImage: "plus") {
                         recordMode = .manual
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("inventory.empty.add.button")
                 }
@@ -211,6 +217,7 @@ struct InventoryView: View {
                             description: Text("把常用食材设为常备，库存不足时会提醒补货。")
                         )
                         Button("添加常备食材") { isShowingAddStaple = true }
+                            .buttonStyle(.bordered)
                             .frame(minHeight: 44)
                             .accessibilityIdentifier("inventory.staple.empty.add.button")
                     }
@@ -255,7 +262,8 @@ struct InventoryView: View {
                                 .frame(minHeight: AppTheme.minimumHitTarget)
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppTheme.primary)
                             .accessibilityIdentifier("inventory.restock.addAll.button")
                         }
                     }
@@ -393,7 +401,7 @@ struct InventoryView: View {
                 .frame(minHeight: AppTheme.minimumHitTarget)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.bordered)
         .accessibilityIdentifier("inventory.restock.add.button")
     }
 }
@@ -504,14 +512,29 @@ private struct InventorySummaryRow: View {
 
     @ViewBuilder
     private var secondaryStatus: some View {
+        if expiringCount > 0 || lowStockCount > 0 {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 4) { statusLabels }
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 12) { statusLabels }
+                        VStack(alignment: .leading, spacing: 4) { statusLabels }
+                    }
+                }
+            }
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var statusLabels: some View {
         if expiringCount > 0 {
             Label("\(expiringCount) 项即将到期", systemImage: "calendar.badge.exclamationmark")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
-        } else if lowStockCount > 0 {
+        }
+        if lowStockCount > 0 {
             Label("\(lowStockCount) 项需补货", systemImage: "cart.badge.minus")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -530,11 +553,12 @@ private struct InventorySectionHeader: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(title)
+                .font(.subheadline.weight(.semibold))
             Text("\(count) 项")
+                .font(.footnote.weight(.medium))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
         }
-        .font(.subheadline.weight(.semibold))
         .textCase(nil)
         // Headers stay at a heading weight instead of scaling into display-title
         // sizes that would dwarf the rows beneath them.
@@ -585,20 +609,19 @@ private struct InventoryFoodCard: View {
     private var standardLayout: some View {
         HStack(alignment: .center, spacing: 12) {
             statusIcon
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(item.name)
                         .font(.body.weight(.medium))
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-
-                    statusLabel
+                    Spacer(minLength: 12)
+                    // Higher layout priority so a long ingredient name wraps
+                    // rather than squeezing the quantity out of the row.
+                    quantityLabel.layoutPriority(1)
                 }
-                Spacer(minLength: 12)
-                // Higher layout priority so a long ingredient name wraps rather
-                // than squeezing the quantity out of the row.
-                quantityLabel.layoutPriority(1)
+                statusLabel
             }
         }
     }
@@ -645,8 +668,8 @@ private struct InventoryFoodCard: View {
 
     private var quantityLabel: some View {
         Text("\(item.quantity.formatted()) \(item.unit)")
-            .font(.body.weight(.medium))
-            .foregroundStyle(.primary)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
             .monospacedDigit()
             // Trailing only in the default side-by-side layout; at Accessibility
             // sizes the quantity is a left-aligned line in the main column.
