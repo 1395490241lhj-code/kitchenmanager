@@ -77,7 +77,75 @@ final class RecipeCookingModeUITests: XCTestCase {
         searchField.typeText("不存在的菜谱")
 
         XCTAssertTrue(app.staticTexts["没有找到匹配菜谱"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["recipe.search.clear"].isHittable)
         attachScreenshot(of: app, named: "final-recipe-search-empty")
+    }
+
+    func testRecipeFilterShowsActiveStateAndClearRestoresResults() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_RECIPE_COOKING"]
+        app.launch()
+
+        let filterMenu = app.buttons["recipe.filter.menu"]
+        XCTAssertTrue(filterMenu.waitForExistence(timeout: 8))
+        filterMenu.tap()
+        app.buttons["收藏"].tap()
+
+        XCTAssertTrue(app.otherElements["recipe.filter.active"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["没有符合筛选的菜谱"].exists)
+
+        let clear = app.buttons["recipe.filter.clear"]
+        XCTAssertTrue(clear.exists)
+        XCTAssertTrue(clear.isHittable)
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 43.5)
+        clear.tap()
+
+        XCTAssertFalse(app.otherElements["recipe.filter.active"].exists)
+        XCTAssertTrue(
+            app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "recipe.list."))
+                .firstMatch.waitForExistence(timeout: 5)
+        )
+    }
+
+    func testRecipeCardKeepsDecisionMetadataReadable() throws {
+        assertRecipeCardMetadata(contentSize: "UICTContentSizeCategoryLarge", requiresVerticalLayout: false)
+    }
+
+    func testRecipeCardKeepsDecisionMetadataReadableAtAccessibilityXXXL() throws {
+        assertRecipeCardMetadata(contentSize: "UICTContentSizeCategoryAccessibilityXXXL", requiresVerticalLayout: true)
+    }
+
+    private func assertRecipeCardMetadata(contentSize: String, requiresVerticalLayout: Bool) {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "UITEST_SEED_RECIPE_LONG",
+            "-UIPreferredContentSizeCategoryName", contentSize
+        ]
+        app.launch()
+
+        let recipeRow = app.buttons["recipe.list.ui-test-recipe-long"]
+        XCTAssertTrue(recipeRow.waitForExistence(timeout: 8), "目标菜谱行缺失")
+        let title = recipeRow.staticTexts["周末慢炖番茄香草鸡腿蔬菜锅"]
+        let metadata = recipeRow.staticTexts["75 分钟 · 中等"]
+        let availability = recipeRow.staticTexts["缺少较多"]
+        XCTAssertTrue(title.waitForExistence(timeout: 8), "菜谱标题缺失")
+        XCTAssertTrue(metadata.exists, "时间/难度信息缺失")
+        XCTAssertTrue(availability.exists, "库存适配信息缺失")
+        XCTAssertGreaterThan(availability.frame.width, 40, "库存适配文字退化为仅图标：\(availability.frame)")
+        XCTAssertFalse(metadata.frame.intersects(availability.frame), "决策信息发生重叠")
+        XCTAssertLessThanOrEqual(metadata.frame.maxX, app.windows.firstMatch.frame.maxX, "metadata 被裁出屏幕")
+        XCTAssertLessThanOrEqual(availability.frame.maxX, app.windows.firstMatch.frame.maxX, "库存状态被裁出屏幕")
+        if requiresVerticalLayout {
+            XCTAssertGreaterThanOrEqual(
+                availability.frame.minY,
+                metadata.frame.maxY - 1,
+                "Accessibility XXXL: metadata 与库存状态应纵向排列"
+            )
+        }
+        attachScreenshot(
+            of: app,
+            named: requiresVerticalLayout ? "final-recipe-list-accessibility" : "final-recipe-list-polished"
+        )
     }
 
     func testLongRecipeKeepsFinalStepAndCookingActionReachableAboveTabBar() throws {

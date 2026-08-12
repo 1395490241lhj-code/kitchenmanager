@@ -15,6 +15,7 @@ private enum RecipeAvailabilityFilter: String, CaseIterable, Identifiable {
 }
 
 struct RecipeListView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var store: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @State private var searchText = ""
@@ -27,6 +28,21 @@ struct RecipeListView: View {
 
     private var sourceRecipes: [Recipe] { store.recipes.isEmpty ? Recipe.samples : store.recipes }
     private var tags: [String] { ["全部标签"] + Array(Set(sourceRecipes.flatMap(\.tags))).sorted() }
+    private var hasActiveFilters: Bool {
+        filter != .all
+            || selectedTag != "全部标签"
+            || selectedDifficulty != "全部难度"
+            || maximumTime != nil
+    }
+
+    private var activeFilterDescription: String {
+        var values: [String] = []
+        if filter != .all { values.append(filter.rawValue) }
+        if selectedTag != "全部标签" { values.append(selectedTag) }
+        if selectedDifficulty != "全部难度" { values.append(selectedDifficulty) }
+        if let maximumTime { values.append("\(maximumTime) 分钟内") }
+        return values.joined(separator: " · ")
+    }
 
     private var recipes: [Recipe] {
         sourceRecipes.filter { recipe in
@@ -52,12 +68,58 @@ struct RecipeListView: View {
 
     var body: some View {
         List {
+            if hasActiveFilters {
+                Section {
+                    LabeledContent {
+                        Button {
+                            clearFilters()
+                        } label: {
+                            Text("清除")
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(AppTheme.brand.opacity(0.08), in: Capsule())
+                                .frame(minHeight: AppTheme.minimumHitTarget)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(AppTheme.brand)
+                        .accessibilityIdentifier("recipe.filter.clear")
+                    } label: {
+                        Label(activeFilterDescription, systemImage: "line.3.horizontal.decrease.circle")
+                            .fontWeight(.medium)
+                            .foregroundStyle(AppTheme.brand)
+                    }
+                    .font(.subheadline)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("recipe.filter.active")
+                }
+            }
+
             if recipes.isEmpty {
-                ContentUnavailableView(
-                    searchText.isEmpty ? "暂时没有菜谱" : "没有找到匹配菜谱",
-                    systemImage: searchText.isEmpty ? "book.closed" : "magnifyingglass",
-                    description: Text(searchText.isEmpty ? "添加一份菜谱，下一餐就有了开始。" : "试试菜名、食材或其他筛选条件。")
-                )
+                ContentUnavailableView {
+                    Label(
+                        emptyStateTitle,
+                        systemImage: searchText.isEmpty && !hasActiveFilters ? "book.closed" : "magnifyingglass"
+                    )
+                } description: {
+                    Text(emptyStateDescription)
+                } actions: {
+                    if !searchText.isEmpty {
+                        Button("清除搜索") {
+                            searchText = ""
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.brand)
+                        .accessibilityIdentifier("recipe.search.clear")
+                    } else if !hasActiveFilters {
+                        Button("添加菜谱", systemImage: "plus") {
+                            route = .manual
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.brand)
+                        .accessibilityIdentifier("recipe.empty.add")
+                    }
+                }
                 .listRowBackground(Color.clear)
             } else {
                 Section {
@@ -71,7 +133,7 @@ struct RecipeListView: View {
                         .accessibilityIdentifier("recipe.list.\(recipe.id)")
                     }
                 } header: {
-                    Text(searchText.isEmpty ? "全部菜谱 · \(recipes.count) 道" : "搜索结果 · \(recipes.count) 道")
+                    Text(resultSectionTitle)
                         .textCase(nil)
                 }
             }
@@ -79,8 +141,21 @@ struct RecipeListView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
+        .safeAreaInset(edge: .bottom) {
+            Color.clear
+                .frame(height: ChromeMetrics.bottomClearance)
+                .accessibilityHidden(true)
+        }
         .navigationTitle("菜谱")
-        .searchable(text: $searchText, isPresented: $isSearchPresented, prompt: "搜索菜名、食材或标签")
+        .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
+        .searchable(
+            text: $searchText,
+            isPresented: $isSearchPresented,
+            placement: dynamicTypeSize.isAccessibilitySize
+                ? .navigationBarDrawer(displayMode: .always)
+                : .automatic,
+            prompt: "搜索菜名、食材或标签"
+        )
         .refreshable { await store.loadRecipes() }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -96,6 +171,7 @@ struct RecipeListView: View {
                     }
                 } label: { Image(systemName: "line.3.horizontal.decrease.circle") }
                 .accessibilityLabel("筛选菜谱")
+                .accessibilityIdentifier("recipe.filter.menu")
 
                 Menu {
                     Button { route = .manual } label: { Label("手动添加", systemImage: "square.and.pencil") }
@@ -134,35 +210,94 @@ struct RecipeListView: View {
         let count = missingCoreIngredientCount(recipe)
         return count == 0 ? "可直接做" : count <= 2 ? "缺 \(count) 样" : "缺少较多"
     }
+
+    private var emptyStateTitle: String {
+        if !searchText.isEmpty { return "没有找到匹配菜谱" }
+        if hasActiveFilters { return "没有符合筛选的菜谱" }
+        return "暂时没有菜谱"
+    }
+
+    private var emptyStateDescription: String {
+        if !searchText.isEmpty || hasActiveFilters {
+            return "试试菜名、食材，或清除部分筛选条件。"
+        }
+        return "添加一份菜谱，下一餐就有了开始。"
+    }
+
+    private var resultSectionTitle: String {
+        if !searchText.isEmpty { return "搜索结果 · \(recipes.count) 道" }
+        if hasActiveFilters { return "筛选结果 · \(recipes.count) 道" }
+        return "全部菜谱 · \(recipes.count) 道"
+    }
+
+    private func clearFilters() {
+        filter = .all
+        selectedTag = "全部标签"
+        selectedDifficulty = "全部难度"
+        maximumTime = nil
+    }
 }
 
 private struct RecipeListRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let recipe: Recipe
     let availability: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(recipe.title)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(.primary)
-                .lineLimit(2)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
 
-            HStack(spacing: 8) {
-                Text(recipe.summaryText)
-                Text(availability)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 5) {
+                        metadata
+                        availabilityStatus
+                    }
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            metadata
+                            Spacer(minLength: 8)
+                            availabilityStatus
+                        }
+                        VStack(alignment: .leading, spacing: 5) {
+                            metadata
+                            availabilityStatus
+                        }
+                    }
+                }
             }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
 
             if !recipe.tags.isEmpty {
                 Text(recipe.tags.prefix(2).joined(separator: " · "))
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+    }
+
+    private var metadata: some View {
+        Text(recipe.summaryText)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var availabilityStatus: some View {
+        HStack(spacing: 4) {
+            Image(systemName: availability == "可直接做" ? "checkmark.circle.fill" : "basket")
+                .accessibilityHidden(true)
+            Text(availability)
+        }
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(availability == "可直接做" ? AppTheme.brand : AppTheme.textSecondary)
+            .fixedSize(horizontal: true, vertical: false)
     }
 }
 
