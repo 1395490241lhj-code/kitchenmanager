@@ -104,7 +104,7 @@ final class InventoryNavigationUITests: XCTestCase {
             // row's frame — the cell wrapper carries no label of its own.
             let lastRow = app.buttons["最近消耗"]
             XCTAssertTrue(
-                scrollUntilVisible(lastRow, in: app),
+                scrollUntilClearsTabBar(lastRow, in: app, tabBarTop: tabBarTop),
                 "未能滚动到列表末尾的「最近消耗」（\(contentSize)）"
             )
             assertClearsTabBar(lastRow, tabBarTop: tabBarTop, label: "列表最后一行（\(contentSize)）")
@@ -123,6 +123,27 @@ final class InventoryNavigationUITests: XCTestCase {
             }
             app.terminate()
         }
+    }
+
+    @discardableResult
+    private func scrollUntilClearsTabBar(
+        _ target: XCUIElement,
+        in app: XCUIApplication,
+        tabBarTop: CGFloat,
+        swipes: Int = 12
+    ) -> Bool {
+        let scrollable = inventoryList(of: app)
+        guard scrollable.exists else {
+            XCTFail("库存列表不存在，无法滚动")
+            return false
+        }
+        for _ in 0..<swipes {
+            if target.exists && target.isHittable && target.frame.maxY <= tabBarTop {
+                return true
+            }
+            scrollable.swipeUp()
+        }
+        return target.exists && target.isHittable && target.frame.maxY <= tabBarTop
     }
 
     /// Phase UI-3 blocking fix: at Accessibility sizes the `.searchable` field
@@ -224,6 +245,111 @@ final class InventoryNavigationUITests: XCTestCase {
         XCTAssertLessThanOrEqual(quantity.frame.maxX, app.windows.firstMatch.frame.maxX, "数量被挤出屏幕")
 
         attachScreenshot(of: app, named: "inventory-accessibility-xxxl")
+    }
+
+    func testFilteredInventoryClearButtonPublishesMinimumHitTarget() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_HOME_DASHBOARD"]
+        app.launch()
+
+        let expiredReminder = app.buttons["home.inventory.expired.button"]
+        XCTAssertTrue(expiredReminder.waitForExistence(timeout: 5))
+        expiredReminder.tap()
+
+        let clear = app.buttons["清除"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        XCTAssertTrue(clear.isHittable, "筛选清除按钮不可点击")
+        XCTAssertGreaterThanOrEqual(
+            clear.frame.height,
+            43.5,
+            "筛选清除按钮发布的实际可点击高度不足 44pt：\(clear.frame)"
+        )
+    }
+
+    func testDualRiskSummaryUsesSingleLineColumnsOrTrueVerticalFallback() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_INVENTORY_LARGE"]
+        app.launch()
+
+        let expiring = app.staticTexts["2 项即将到期"]
+        let restock = app.staticTexts["1 项需补货"]
+        XCTAssertTrue(expiring.waitForExistence(timeout: 5), "临期摘要缺失")
+        XCTAssertTrue(restock.exists, "补货摘要缺失")
+
+        let sameRow = abs(expiring.frame.midY - restock.frame.midY) < 2
+        let verticallyStacked = restock.frame.minY >= expiring.frame.maxY - 1
+        XCTAssertTrue(
+            sameRow || verticallyStacked,
+            "双风险摘要既非同一单行，也非真正纵向排列：临期=\(expiring.frame)，补货=\(restock.frame)"
+        )
+        XCTAssertFalse(expiring.frame.intersects(restock.frame), "双风险摘要发生重叠")
+
+        if sameRow {
+            XCTAssertLessThan(expiring.frame.height, 30, "横向临期摘要发生内部换行：\(expiring.frame)")
+            XCTAssertLessThan(restock.frame.height, 30, "横向补货摘要发生内部换行：\(restock.frame)")
+        } else {
+            XCTAssertEqual(expiring.frame.minX, restock.frame.minX, accuracy: 2, "纵向风险摘要未左对齐")
+        }
+    }
+
+    func testFilteredDualRiskSummaryKeepsCompleteText() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_INVENTORY_LARGE"]
+        app.launch()
+        assertFilteredDualRiskSummary(in: app)
+        attachScreenshot(of: app, named: "inventory-filtered-dual-risk")
+    }
+
+    func testFilteredDualRiskSummaryKeepsCompleteTextAtAccessibilityXXXL() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "UITEST_SEED_INVENTORY_LARGE",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+        assertFilteredDualRiskSummary(in: app)
+    }
+
+    private func assertFilteredDualRiskSummary(
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        // Follow the real Home reminder path so Inventory is entered with
+        // inventoryFocus != .all rather than relying on test-only state.
+        let homeTab = app.tabBars.buttons["首页"]
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 5), "首页 Tab 缺失", file: file, line: line)
+        homeTab.tap()
+
+        let expiringReminder = app.buttons["home.inventory.expiring.button"]
+        XCTAssertTrue(expiringReminder.waitForExistence(timeout: 5), "首页临期提醒缺失", file: file, line: line)
+        expiringReminder.tap()
+
+        let expiring = app.staticTexts["2 项即将到期"]
+        let restock = app.staticTexts["1 项需补货"]
+        XCTAssertTrue(expiring.waitForExistence(timeout: 5), "筛选状态下临期摘要缺失", file: file, line: line)
+        XCTAssertTrue(restock.waitForExistence(timeout: 5), "筛选状态下补货摘要缺失", file: file, line: line)
+
+        XCTAssertEqual(expiring.label, "2 项即将到期", "临期摘要文字不完整", file: file, line: line)
+        XCTAssertEqual(restock.label, "1 项需补货", "补货摘要文字不完整", file: file, line: line)
+        XCTAssertFalse(expiring.frame.intersects(restock.frame), "筛选状态下双风险摘要发生重叠", file: file, line: line)
+        XCTAssertLessThanOrEqual(expiring.frame.maxX, app.windows.firstMatch.frame.maxX, "临期摘要被裁出屏幕", file: file, line: line)
+        XCTAssertLessThanOrEqual(restock.frame.maxX, app.windows.firstMatch.frame.maxX, "补货摘要被裁出屏幕", file: file, line: line)
+
+        let sameRow = abs(expiring.frame.midY - restock.frame.midY) < 2
+        let verticallyStacked = restock.frame.minY >= expiring.frame.maxY - 1
+        XCTAssertTrue(
+            sameRow || verticallyStacked,
+            "筛选状态下双风险摘要既非完整横排，也非真正纵排：临期=\(expiring.frame)，补货=\(restock.frame)",
+            file: file,
+            line: line
+        )
+        if sameRow {
+            XCTAssertLessThan(expiring.frame.height, 30, "筛选状态下临期摘要发生内部换行：\(expiring.frame)", file: file, line: line)
+            XCTAssertLessThan(restock.frame.height, 30, "筛选状态下补货摘要发生内部换行：\(restock.frame)", file: file, line: line)
+        } else {
+            XCTAssertEqual(expiring.frame.minX, restock.frame.minX, accuracy: 4, "筛选状态下纵向风险摘要未左对齐", file: file, line: line)
+        }
     }
 
     /// The pantry empty state's CTA is the only way into the staple flow from

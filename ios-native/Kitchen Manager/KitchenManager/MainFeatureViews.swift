@@ -91,10 +91,18 @@ struct InventoryView: View {
             if navigationStore.inventoryFocus != .all {
                 Section {
                     LabeledContent {
-                        Button("清除") { navigationStore.inventoryFocus = .all }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .frame(minHeight: AppTheme.minimumHitTarget)
+                        Button {
+                            navigationStore.inventoryFocus = .all
+                        } label: {
+                            Text("清除")
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(AppTheme.primary.opacity(0.08), in: Capsule())
+                                .frame(minHeight: AppTheme.minimumHitTarget)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(AppTheme.primary)
                     } label: {
                         Label("正在查看：\(navigationStore.inventoryFocus.title)", systemImage: "line.3.horizontal.decrease.circle")
                             .fontWeight(.medium)
@@ -463,15 +471,16 @@ private struct InventorySummaryRow: View {
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 4) {
-                    primaryCount
-                    secondaryStatus
-                }
+                verticalSummary
             } else {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    primaryCount
-                    Spacer(minLength: 12)
-                    secondaryStatus
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        primaryCount
+                            .fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 12)
+                        horizontalStatus
+                    }
+                    verticalSummary
                 }
             }
         }
@@ -510,17 +519,22 @@ private struct InventorySummaryRow: View {
         }
     }
 
+    private var verticalSummary: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            primaryCount
+            verticalStatus
+        }
+    }
+
     @ViewBuilder
-    private var secondaryStatus: some View {
+    private var horizontalStatus: some View {
         if expiringCount > 0 || lowStockCount > 0 {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 4) { statusLabels }
-                } else {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 12) { statusLabels }
-                        VStack(alignment: .leading, spacing: 4) { statusLabels }
-                    }
+            HStack(spacing: 12) {
+                if expiringCount > 0 {
+                    riskItem("\(expiringCount) 项即将到期", systemImage: "calendar.badge.exclamationmark")
+                }
+                if lowStockCount > 0 {
+                    riskItem("\(lowStockCount) 项需补货", systemImage: "cart.badge.minus")
                 }
             }
             .font(.footnote.weight(.medium))
@@ -529,13 +543,31 @@ private struct InventorySummaryRow: View {
     }
 
     @ViewBuilder
-    private var statusLabels: some View {
-        if expiringCount > 0 {
-            Label("\(expiringCount) 项即将到期", systemImage: "calendar.badge.exclamationmark")
+    private var verticalStatus: some View {
+        if expiringCount > 0 || lowStockCount > 0 {
+            VStack(alignment: .leading, spacing: 4) {
+                if expiringCount > 0 {
+                    riskItem("\(expiringCount) 项即将到期", systemImage: "calendar.badge.exclamationmark")
+                }
+                if lowStockCount > 0 {
+                    riskItem("\(lowStockCount) 项需补货", systemImage: "cart.badge.minus")
+                }
+            }
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
         }
-        if lowStockCount > 0 {
-            Label("\(lowStockCount) 项需补货", systemImage: "cart.badge.minus")
+    }
+
+    private func riskItem(_ text: String, systemImage: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .accessibilityHidden(true)
+            Text(text)
         }
+        // Keep the icon and its complete text together in either candidate.
+        // Label can collapse to its icon when ViewThatFits measures a
+        // filtered List row with a tight proposal.
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var summaryAccessibilityLabel: String {
