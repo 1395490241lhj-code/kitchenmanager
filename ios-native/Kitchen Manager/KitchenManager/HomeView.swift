@@ -77,7 +77,7 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 20) {
                 HomeDashboardHeader(
                     displayName: displayName,
                     householdName: householdName,
@@ -431,11 +431,11 @@ private struct ClipboardRecipeImportPrompt: View {
                 }
             }
         }
-        .padding(12)
+        .padding(10)
         .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+                .stroke(AppTheme.separator.opacity(0.22), lineWidth: 0.5)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.clipboard.import.prompt")
@@ -531,7 +531,7 @@ private struct HomeDashboardHeader: View {
                     .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     .foregroundStyle(.secondary)
                 Text(model.title)
-                    .font(dynamicTypeSize.isAccessibilitySize ? .title3.weight(.semibold) : .title2.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                     .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     .foregroundStyle(.primary)
                     .accessibilityAddTraits(.isHeader)
@@ -578,7 +578,7 @@ private struct TodayPlanSummaryCard: View {
     let onViewPlan: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             cardHeader
 
             switch dashboard.todayPlanState {
@@ -636,14 +636,14 @@ private struct TodayPlanSummaryCard: View {
                     .accessibilityIdentifier("home.today.plan.viewAll")
             }
         }
-        .padding(18)
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusHero, style: .continuous))
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppTheme.radiusHero, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppTheme.radiusHero, style: .continuous)
-                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+                .stroke(AppTheme.separator.opacity(0.34), lineWidth: 0.5)
         }
-        .shadow(color: AppTheme.cardShadow(opacity: 0.035), radius: 9, y: 4)
+        .shadow(color: AppTheme.cardShadow(opacity: 0.04), radius: 8, y: 3)
     }
 
     @ViewBuilder
@@ -676,10 +676,10 @@ private struct TodayPlanSummaryCard: View {
     private var headerTitleAndProgressHorizontal: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("今日计划")
-                .font(.headline)
+                .font(.title3.weight(.semibold))
             if dashboard.totalPlanCount > 0 {
                 Text(planProgressText)
-                    .font(.subheadline.weight(.medium))
+                    .font(.footnote.weight(.medium))
                     .foregroundStyle(.secondary)
             }
         }
@@ -688,10 +688,10 @@ private struct TodayPlanSummaryCard: View {
     private var headerTitleAndProgressVertical: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("今日计划")
-                .font(.headline)
+                .font(.title3.weight(.semibold))
             if dashboard.totalPlanCount > 0 {
                 Text(planProgressText)
-                    .font(.subheadline.weight(.medium))
+                    .font(.footnote.weight(.medium))
                     .foregroundStyle(.secondary)
             }
         }
@@ -707,8 +707,8 @@ private struct TodayPlanSummaryCard: View {
                 .font(.subheadline.weight(.semibold))
                 .frame(minHeight: AppTheme.minimumHitTarget)
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
+        .buttonStyle(.bordered)
+        .tint(AppTheme.brand)
         .accessibilityIdentifier("home.today.plan.add.button")
         .accessibilityLabel("添加今日菜品")
         .accessibilityHint("打开菜谱推荐并添加到今日计划")
@@ -745,7 +745,7 @@ private struct HomeAttentionReminderRow: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
-                    .font(.title3)
+                    .font(.body.weight(.semibold))
                     .foregroundStyle(tint)
                     .frame(width: 28)
                     .accessibilityHidden(true)
@@ -763,16 +763,16 @@ private struct HomeAttentionReminderRow: View {
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
-            .frame(minHeight: 56)
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 15)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+                .stroke(AppTheme.separator.opacity(0.22), lineWidth: 0.5)
         }
         .accessibilityIdentifier(identifier)
         .accessibilityLabel("\(title)，\(subtitle)")
@@ -848,11 +848,11 @@ private struct HomeModuleIssues: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(10)
             .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                    .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+                    .stroke(AppTheme.separator.opacity(0.22), lineWidth: 0.5)
             }
         }
     }
