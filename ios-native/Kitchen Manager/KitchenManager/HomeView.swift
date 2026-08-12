@@ -1177,6 +1177,7 @@ private struct SmartImportRow: View {
 // MARK: - Today plan detail (secondary page)
 
 struct TodayPlanDetailView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @State private var activeSheet: TodayPlanSheet?
@@ -1208,28 +1209,17 @@ struct TodayPlanDetailView: View {
             } else {
                 Section("今天 \(kitchenStore.todayPlans.count) 道菜") {
                     ForEach(kitchenStore.todayPlans) { plan in
-                        HStack(spacing: 12) {
-                            Button {
-                                selectedRecipePlan = plan
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: plan.isCooked ? "checkmark.circle.fill" : "fork.knife.circle")
-                                        .font(.title2)
-                                        .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(plan.recipeName).font(.headline)
-                                        Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份 · 今天")
-                                            .font(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
+                        Group {
+                            if dynamicTypeSize.isAccessibilitySize {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    planDetailButton(plan)
+                                    completionButton(plan)
                                 }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            if !plan.isCooked {
-                                Button("做好了") { activeSheet = .cook(plan) }
-                                    .font(.caption.bold())
-                                    .tint(AppTheme.brand)
+                            } else {
+                                HStack(spacing: 12) {
+                                    planDetailButton(plan)
+                                    completionButton(plan)
+                                }
                             }
                         }
                         .contextMenu {
@@ -1332,6 +1322,58 @@ struct TodayPlanDetailView: View {
             if let toastMessage {
                 FeedbackToast(message: toastMessage, style: toastStyle)
             }
+        }
+    }
+
+    private func planDetailButton(_ plan: MealPlanItem) -> some View {
+        Button {
+            selectedRecipePlan = plan
+        } label: {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(plan.recipeName)
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份 · 今天")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack(spacing: 12) {
+                        Image(systemName: plan.isCooked ? "checkmark.circle.fill" : "fork.knife.circle")
+                            .font(.title2)
+                            .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(plan.recipeName).font(.headline)
+                            Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份 · 今天")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func completionButton(_ plan: MealPlanItem) -> some View {
+        if !plan.isCooked {
+            Button {
+                activeSheet = .cook(plan)
+            } label: {
+                Text("做好了")
+                    .font(.caption.bold())
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .contentShape(Rectangle())
+            }
+            .tint(AppTheme.brand)
+            .accessibilityIdentifier("today.plan.complete.button")
         }
     }
 

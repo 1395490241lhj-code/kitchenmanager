@@ -398,6 +398,36 @@ struct ContentView: View {
             navigationStore.selectedTab = .today
         }
         .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_ACCESSIBILITY_TODAY_PLAN") else { return }
+            kitchenStore.clearAllLocalData()
+            kitchenStore.addPlan(recipe: Recipe(
+                id: "uitest-accessibility-today-plan",
+                title: "超长名称的番茄牛腩炖土豆配时令蔬菜家庭晚餐",
+                cookingTime: 45,
+                difficulty: "简单",
+                tags: [],
+                ingredients: ["番茄 2 个"],
+                steps: ["炖熟。"]
+            ), servings: 4)
+            navigationStore.selectedTab = .today
+        }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_ACCESSIBILITY_RESTOCK") else { return }
+            kitchenStore.clearAllLocalData()
+            try? kitchenStore.saveStaple(
+                id: nil,
+                name: "超市自有品牌低脂高钙纯牛奶家庭装",
+                quantity: 0,
+                unit: "箱",
+                minimumQuantity: 2,
+                defaultRestockQuantity: 2,
+                autoSuggestRestock: true,
+                note: nil,
+                category: "乳制品"
+            )
+            navigationStore.selectedTab = .inventory
+        }
+        .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_HOME") else { return }
             kitchenStore.clearAllLocalData()
             navigationStore.selectedTab = .today

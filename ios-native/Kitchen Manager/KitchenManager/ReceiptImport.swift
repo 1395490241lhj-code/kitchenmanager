@@ -299,6 +299,7 @@ final class ReceiptImportStore: ObservableObject {
 }
 
 struct RecordFoodSheet: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
@@ -318,14 +319,7 @@ struct RecordFoodSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Picker("录入方式", selection: $inputMode) {
-                    ForEach(FoodInputMode.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-
-                if inputMode == .receipt { receiptContent } else { manualContent }
-            }
+            formContent
             .navigationTitle("记食材")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -375,12 +369,17 @@ struct RecordFoodSheet: View {
             }
             .onDisappear { receiptStore.cancel() }
             #if DEBUG
-            // UI-test-only seed hook: lets receipt UI tests exercise both a
-            // compact scrolling list and a stable long-name selection toggle
-            // without a real camera + OCR round trip.
+            // UI-test-only seeds for manual-entry accessibility and receipt
+            // confirmation, without keyboard, camera, or OCR dependencies.
             .onAppear {
                 let arguments = ProcessInfo.processInfo.arguments
                 guard receiptStore.items.isEmpty else { return }
+                if arguments.contains("UITEST_SEED_MANUAL_ACCESSIBILITY") {
+                    inputMode = .manual
+                    manualText = "超市自有品牌低脂高钙纯牛奶家庭装2箱"
+                    refreshManualDrafts()
+                    return
+                }
                 if arguments.contains("UITEST_SEED_RECEIPT_SELECTION") {
                     receiptStore.seedForUITest([
                         ReceiptItemDraft(
@@ -411,6 +410,17 @@ struct RecordFoodSheet: View {
                 })
             }
             #endif
+        }
+    }
+
+    private var formContent: some View {
+        Form {
+            Picker("录入方式", selection: $inputMode) {
+                ForEach(FoodInputMode.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            if inputMode == .receipt { receiptContent } else { manualContent }
         }
     }
 
@@ -521,22 +531,18 @@ struct RecordFoodSheet: View {
             Section("确认入库信息") {
                 ForEach($manualDrafts) { $draft in
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            TextField("食材名", text: $draft.name)
-                            TextField("数量", value: $draft.quantity, format: .number)
-                                .keyboardType(.decimalPad)
-                            TextField("单位", text: $draft.unit)
-                                .frame(width: 52)
-                        }
+                        manualDraftFields($draft)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            DatePicker("保质期", selection: $draft.expiryDate, displayedComponents: .date)
-                                .onChange(of: draft.expiryDate) { _, _ in
-                                    draft.hasUserEditedExpiry = true
-                                }
+                            if dynamicTypeSize.isAccessibilitySize {
+                                expiryDatePicker($draft, isAccessibilitySize: true)
+                            } else {
+                                expiryDatePicker($draft, isAccessibilitySize: false)
+                            }
                             Text("系统根据食材类型自动建议，可手动调整")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .accessibilityIdentifier("manualInventoryExpiryHint")
                         }
                     }
                 }
@@ -553,6 +559,69 @@ struct RecordFoodSheet: View {
             }
             .disabled(manualDrafts.isEmpty)
         }
+    }
+
+    @ViewBuilder
+    private func expiryDatePicker(
+        _ draft: Binding<ManualInventoryDraft>,
+        isAccessibilitySize: Bool
+    ) -> some View {
+        if isAccessibilitySize {
+            datePicker(draft)
+                .datePickerStyle(.wheel)
+        } else {
+            datePicker(draft)
+        }
+    }
+
+    private func datePicker(_ draft: Binding<ManualInventoryDraft>) -> some View {
+        DatePicker("保质期", selection: draft.expiryDate, displayedComponents: .date)
+            .accessibilityLabel("保质期")
+            .accessibilityIdentifier("manualInventoryExpiryDatePicker")
+            .onChange(of: draft.wrappedValue.expiryDate) { _, _ in
+                draft.wrappedValue.hasUserEditedExpiry = true
+            }
+    }
+
+    @ViewBuilder
+    private func manualDraftFields(_ draft: Binding<ManualInventoryDraft>) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                manualNameField(draft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                manualQuantityField(draft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                manualUnitField(draft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack {
+                manualNameField(draft)
+                manualQuantityField(draft)
+                manualUnitField(draft)
+                    .frame(width: 52)
+            }
+        }
+    }
+
+    private func manualNameField(_ draft: Binding<ManualInventoryDraft>) -> some View {
+        TextField("食材名", text: draft.name)
+            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? AppTheme.minimumHitTarget : nil)
+            .accessibilityIdentifier("manualInventoryName")
+    }
+
+    private func manualQuantityField(_ draft: Binding<ManualInventoryDraft>) -> some View {
+        TextField("数量", value: draft.quantity, format: .number)
+            .keyboardType(.decimalPad)
+            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? AppTheme.minimumHitTarget : nil)
+            .accessibilityIdentifier("manualInventoryQuantity")
+    }
+
+    private func manualUnitField(_ draft: Binding<ManualInventoryDraft>) -> some View {
+        TextField("单位", text: draft.unit)
+            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? AppTheme.minimumHitTarget : nil)
+            .accessibilityIdentifier("manualInventoryUnit")
     }
 
     private var manualItems: [InventoryImportItem] {

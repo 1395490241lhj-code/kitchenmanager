@@ -219,18 +219,19 @@ struct InventoryView: View {
                 if !hasSearchQuery && !restockSuggestions.isEmpty {
                     Section("补货建议") {
                         ForEach(restockSuggestions) { suggestion in
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(suggestion.name)
-                                    Text(suggestion.reason)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                            Group {
+                                if dynamicTypeSize.isAccessibilitySize {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        restockSuggestionLabels(suggestion)
+                                        restockSuggestionButton(suggestion)
+                                    }
+                                } else {
+                                    HStack(spacing: 12) {
+                                        restockSuggestionLabels(suggestion)
+                                        Spacer(minLength: 12)
+                                        restockSuggestionButton(suggestion)
+                                    }
                                 }
-                                Spacer(minLength: 12)
-                                Button("加入清单") {
-                                    addSuggestion(suggestion)
-                                }
-                                .buttonStyle(.borderless)
                             }
                             .frame(minHeight: 44)
                         }
@@ -239,9 +240,23 @@ struct InventoryView: View {
                             Button {
                                 stapleSuggestions.forEach(addSuggestion)
                             } label: {
-                                Label("加入 \(stapleSuggestions.count) 项常备补货", systemImage: "cart.badge.plus")
+                                Group {
+                                    if dynamicTypeSize.isAccessibilitySize {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Image(systemName: "cart.badge.plus")
+                                                .accessibilityHidden(true)
+                                            Text("加入 \(stapleSuggestions.count) 项常备补货")
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    } else {
+                                        Label("加入 \(stapleSuggestions.count) 项常备补货", systemImage: "cart.badge.plus")
+                                    }
+                                }
+                                .frame(minHeight: AppTheme.minimumHitTarget)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.borderless)
+                            .accessibilityIdentifier("inventory.restock.addAll.button")
                         }
                     }
                 }
@@ -357,6 +372,29 @@ struct InventoryView: View {
             unit: suggestion.unit ?? "份",
             source: suggestion.source == .pantryStaple ? "来自常备货架" : "补货建议"
         )
+    }
+
+    private func restockSuggestionLabels(_ suggestion: RestockSuggestion) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(suggestion.name)
+                .accessibilityIdentifier("inventory.restock.name")
+            Text(suggestion.reason)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func restockSuggestionButton(_ suggestion: RestockSuggestion) -> some View {
+        Button {
+            addSuggestion(suggestion)
+        } label: {
+            Text("加入清单")
+                .frame(minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier("inventory.restock.add.button")
     }
 }
 
