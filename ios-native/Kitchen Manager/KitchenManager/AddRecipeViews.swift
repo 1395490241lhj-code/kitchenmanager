@@ -5,6 +5,9 @@ struct AIGeneratorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
+    #if DEBUG
+    @EnvironmentObject private var recipeStore: RecipeStore
+    #endif
     @StateObject private var generatorStore = AIRecipeGeneratorStore()
     @State private var isShowingConfirmation = false
 
@@ -114,6 +117,33 @@ struct AIGeneratorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             generatorStore.prepareInventory(kitchenStore.availableInventory)
+            #if DEBUG
+            // Deterministic UI-test seeds for the confirmation screen, which
+            // normally requires a real AI generation. A valid draft exercises
+            // the save success path; a draft without ingredients makes
+            // `makeRecipe()` throw synchronously so the failure path can be
+            // observed without calling the AI service.
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("UITEST_SEED_AI_CONFIRMATION") {
+                // The success fixture's title/ingredients are fixed, so a
+                // prior run's saved recipe (persisted across app launches)
+                // would otherwise make the fingerprint-based duplicate guard
+                // in `saveUserRecipe` reject a second save.
+                recipeStore.clearLocalData()
+                generatorStore.generatedDraft = EditableRecipeDraft(
+                    title: "番茄炒蛋（UI 测试）",
+                    ingredientsText: "鸡蛋\n番茄",
+                    stepsText: "鸡蛋打散备用\n番茄切块后与鸡蛋同炒"
+                )
+                isShowingConfirmation = true
+            }
+            if arguments.contains("UITEST_SEED_AI_CONFIRMATION_FAILURE") {
+                generatorStore.generatedDraft = EditableRecipeDraft(
+                    title: "缺食材测试菜谱"
+                )
+                isShowingConfirmation = true
+            }
+            #endif
         }
         .onDisappear {
             generatorStore.cancelGeneration()
@@ -220,7 +250,11 @@ private struct AIRecipeConfirmationView: View {
     @ObservedObject var generatorStore: AIRecipeGeneratorStore
     let onFinish: (AppTab) -> Void
 
-    @State private var isPerformingAction = false
+    private enum ConfirmationAction {
+        case saveAndPlan, saveOnly, addToPlan
+    }
+
+    @State private var performingAction: ConfirmationAction?
 
     var body: some View {
         Form {
@@ -248,19 +282,19 @@ private struct AIRecipeConfirmationView: View {
                     Button {
                         Task { await saveAndAddToPlan() }
                     } label: {
-                        actionLabel("保存并加入计划", systemImage: "checkmark.circle")
+                        actionLabel("保存并加入计划", systemImage: "checkmark.circle", isActive: performingAction == .saveAndPlan)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppTheme.primary)
-                    .disabled(isPerformingAction || generatorStore.isGenerating)
+                    .disabled(performingAction != nil || generatorStore.isGenerating)
 
                     Button {
                         Task { await saveOnly() }
                     } label: {
-                        actionLabel("仅保存", systemImage: "square.and.arrow.down")
+                        actionLabel("仅保存", systemImage: "square.and.arrow.down", isActive: performingAction == .saveOnly)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(isPerformingAction || generatorStore.isGenerating)
+                    .disabled(performingAction != nil || generatorStore.isGenerating)
                 }
 
                 Section {
@@ -287,7 +321,7 @@ private struct AIRecipeConfirmationView: View {
                     } label: {
                         Label("更多操作", systemImage: "ellipsis.circle")
                     }
-                    .disabled(isPerformingAction || generatorStore.isGenerating)
+                    .disabled(performingAction != nil || generatorStore.isGenerating)
                 }
             } else {
                 ContentUnavailableView(
@@ -333,10 +367,10 @@ private struct AIRecipeConfirmationView: View {
         )
     }
 
-    private func actionLabel(_ title: String, systemImage: String) -> some View {
+    private func actionLabel(_ title: String, systemImage: String, isActive: Bool) -> some View {
         HStack {
             Spacer()
-            if isPerformingAction {
+            if isActive {
                 ProgressView()
             } else {
                 Label(title, systemImage: systemImage)
@@ -347,8 +381,8 @@ private struct AIRecipeConfirmationView: View {
 
     @MainActor
     private func saveOnly() async {
-        guard !isPerformingAction else { return }
-        isPerformingAction = true
+        guard performingAction == nil else { return }
+        performingAction = .saveOnly
         await Task.yield()
         do {
             _ = try generatorStore.save(into: recipeStore)
@@ -356,14 +390,14 @@ private struct AIRecipeConfirmationView: View {
             finish(at: .recipes)
         } catch {
             generatorStore.errorMessage = error.localizedDescription
-            isPerformingAction = false
+            performingAction = nil
         }
     }
 
     @MainActor
     private func addToPlanOnly() async {
-        guard !isPerformingAction else { return }
-        isPerformingAction = true
+        guard performingAction == nil else { return }
+        performingAction = .addToPlan
         await Task.yield()
         do {
             _ = try generatorStore.addToPlan(kitchenStore)
@@ -371,14 +405,14 @@ private struct AIRecipeConfirmationView: View {
             finish(at: .today)
         } catch {
             generatorStore.errorMessage = error.localizedDescription
-            isPerformingAction = false
+            performingAction = nil
         }
     }
 
     @MainActor
     private func saveAndAddToPlan() async {
-        guard !isPerformingAction else { return }
-        isPerformingAction = true
+        guard performingAction == nil else { return }
+        performingAction = .saveAndPlan
         await Task.yield()
         do {
             let recipe = try generatorStore.save(into: recipeStore)
@@ -387,7 +421,7 @@ private struct AIRecipeConfirmationView: View {
             finish(at: .today)
         } catch {
             generatorStore.errorMessage = error.localizedDescription
-            isPerformingAction = false
+            performingAction = nil
         }
     }
 
@@ -501,7 +535,7 @@ struct ImportRecipeView: View {
                     HStack {
                         Spacer()
                         if let importStage {
-                            ProgressView()
+                            ProgressView().tint(.white)
                             Text(importStage.rawValue)
                         } else {
                             Label("开始导入", systemImage: "square.and.arrow.down")
@@ -509,6 +543,8 @@ struct ImportRecipeView: View {
                         Spacer()
                     }
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.primary)
                 .disabled(
                     urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     || isImporting
