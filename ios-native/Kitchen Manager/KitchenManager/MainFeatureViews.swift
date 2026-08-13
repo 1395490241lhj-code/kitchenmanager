@@ -720,6 +720,7 @@ struct ShoppingView: View {
     @State private var searchText = ""
     @State private var isPurchasedExpanded = false
     @State private var isShoppingMode = false
+    @State private var isShoppingModePurchasedExpanded = false
 
     init(previewSearchText: String = "", previewPurchasedExpanded: Bool = false, previewShoppingMode: Bool = false) {
         _searchText = State(initialValue: previewSearchText)
@@ -789,12 +790,19 @@ struct ShoppingView: View {
                 }
             } else if hasSearchQuery && !hasSearchResults {
                 Section {
-                    ContentUnavailableView(
-                        "没有找到匹配项目",
-                        systemImage: "magnifyingglass",
-                        description: Text("尝试使用更短的名称，或清除搜索。")
-                    )
-                        .accessibilityIdentifier("shopping.search.empty")
+                    ContentUnavailableView {
+                        Label("没有找到匹配项目", systemImage: "magnifyingglass")
+                    } description: {
+                        Text("尝试使用更短的名称，或清除搜索。")
+                    } actions: {
+                        Button("清除搜索") {
+                            searchText = ""
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.primary)
+                        .controlSize(.large)
+                        .accessibilityIdentifier("shopping.search.clear")
+                    }
                 }
             } else {
                 ForEach(pendingSections, id: \.0) { category, items in
@@ -899,17 +907,36 @@ struct ShoppingView: View {
             let completed = ShoppingListPresentation.purchasedItems(items: store.shoppingItems, query: "")
             if !completed.isEmpty {
                 Section {
-                    ForEach(completed) { item in
-                        Button { store.toggleShopping(item) } label: {
-                            ShoppingItemRow(item: item, isPurchased: true)
+                    Button {
+                        isShoppingModePurchasedExpanded.toggle()
+                    } label: {
+                        HStack {
+                            Label("已购买", systemImage: "checkmark.circle")
+                                .font(.body.weight(.medium))
+                            Spacer()
+                            Text("\(completed.count) 项")
+                                .foregroundStyle(.secondary)
+                            Image(systemName: isShoppingModePurchasedExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("shopping.mode.item.\(item.id.uuidString)")
-                        .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: true))
-                        .accessibilityHint("双击取消购买状态")
                     }
-                } header: {
-                    ShoppingSectionHeader(title: "已购买", count: completed.count)
+                    .foregroundStyle(.primary)
+                    .accessibilityIdentifier("shopping.mode.purchased.toggle")
+                    .accessibilityLabel("已购买，\(completed.count) 项，\(isShoppingModePurchasedExpanded ? "已展开" : "已折叠")")
+                    .accessibilityHint("双击以\(isShoppingModePurchasedExpanded ? "折叠" : "展开")已购买项目")
+
+                    if isShoppingModePurchasedExpanded {
+                        ForEach(completed) { item in
+                            Button { store.toggleShopping(item) } label: {
+                                ShoppingItemRow(item: item, isPurchased: true)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("shopping.mode.item.\(item.id.uuidString)")
+                            .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: true))
+                            .accessibilityHint("双击取消购买状态")
+                        }
+                    }
                 }
             }
         }
@@ -1219,7 +1246,7 @@ private struct ShoppingModeHeader: View {
     }
 
     private var status: some View {
-        Text(presentation.isCompleted ? "已全部买齐" : "剩余 \(presentation.remainingCount) 项")
+        Text(presentation.isCompleted ? "已全部买齐" : "剩余 \(presentation.remainingCount) / 共 \(presentation.totalCount) 项")
             .font(.subheadline)
             .foregroundStyle(presentation.isCompleted ? AppTheme.success : .secondary)
             .accessibilityIdentifier("shopping.mode.remaining")

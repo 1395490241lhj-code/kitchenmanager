@@ -18,7 +18,9 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["shopping.add.button"].isHittable)
         XCTAssertTrue(app.buttons["shopping.mode.toggle"].isHittable)
         XCTAssertTrue(app.buttons["shopping.bulk.menu"].isHittable)
-        XCTAssertTrue(app.buttons["番茄，2 个，未购买"].exists)
+        let tomatoRow = app.buttons["番茄，2 个，未购买"]
+        XCTAssertTrue(tomatoRow.exists)
+        XCTAssertGreaterThanOrEqual(tomatoRow.frame.height, 44)
     }
 
     func testSearchShowsMatchingShoppingItem() throws {
@@ -30,6 +32,22 @@ final class ShoppingExperienceUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["番茄"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["大米"].exists)
+    }
+
+    func testSearchNoResultsOffersClearSearch() throws {
+        let app = launchShopping()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("不存在的项目")
+
+        let clear = app.buttons["shopping.search.clear"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        XCTAssertTrue(clear.isHittable)
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44)
+        clear.tap()
+
+        XCTAssertTrue(app.staticTexts["番茄"].waitForExistence(timeout: 5))
     }
 
     func testPendingOnlySearchHidesUnrelatedPurchasedSection() throws {
@@ -135,7 +153,17 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(element("shopping.mode.remaining", in: app).waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["shopping.bulk.menu"].exists)
         app.buttons["番茄，2 个，未购买"].tap()
+        let purchasedToggle = app.buttons["shopping.mode.purchased.toggle"]
+        XCTAssertTrue(purchasedToggle.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(purchasedToggle.frame.height, 44)
+        // Purchased items start collapsed, so an already-bought item must not be
+        // on screen until the toggle is used — and must hide again after it.
+        XCTAssertFalse(app.staticTexts["牛奶"].exists, "已购买分组应默认折叠")
+        purchasedToggle.tap()
         XCTAssertTrue(app.staticTexts["牛奶"].exists)
+        app.buttons["shopping.mode.purchased.toggle"].tap()
+        XCTAssertFalse(app.staticTexts["牛奶"].exists, "再次折叠后已购买项目应隐藏")
+        app.buttons["shopping.mode.purchased.toggle"].tap()
         app.buttons["shopping.mode.exit"].tap()
         XCTAssertFalse(element("shopping.mode.container", in: app).exists)
         XCTAssertTrue(app.buttons["shopping.bulk.menu"].waitForExistence(timeout: 5))
