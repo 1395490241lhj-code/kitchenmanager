@@ -67,6 +67,7 @@ const {
   sendAiUpstreamError,
   isRateLimitExceeded,
   isJsonValidateFailedError,
+  getRecipeDraftResponseFormat,
   getAiMessageContent,
   summarizeAiResponse,
   postChatCompletion,
@@ -1367,7 +1368,8 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
       { role: 'system', content: useSimpleImportPrompt ? IMPORT_SIMPLE_SYSTEM_PROMPT : IMPORT_SYSTEM_PROMPT },
       { role: 'user', content: recipeInstruction }
     ],
-    temperature: 0.2
+    temperature: 0.2,
+    responseFormat: getRecipeDraftResponseFormat({ model: OPENAI_IMPORT_MODEL })
   });
   if (!content) throw createAiParsePipelineError(502, 'empty_response', 'AI 没有返回内容，请稍后重试。');
 

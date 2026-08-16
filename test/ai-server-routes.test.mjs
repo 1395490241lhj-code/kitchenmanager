@@ -615,6 +615,8 @@ test('/api/ai-parse 图片请求也使用 OPENAI_VISION_MODEL', async () => {
   assert.match(capturedPayloads[0].messages[0].content, /observedActions/);
   assert.match(capturedPayloads[0].messages[0].content, /有"水"不等于加水焖煮/);
   assert.equal(capturedPayloads[1].model, 'openai/gpt-oss-20b');
+  assert.equal(capturedPayloads[1].response_format?.type, 'json_schema');
+  assert.equal(capturedPayloads[1].response_format?.json_schema?.strict, true);
   assert.match(capturedPayloads[1].messages[1].content, /evidence JSON/);
   assert.match(capturedPayloads[1].messages[1].content, /sourceDiagnostics/);
   assert.equal(res.body.diagnostics.sourceConfidence, 'low');
@@ -1866,9 +1868,10 @@ test('/api/recipe-import-from-url 超过导入桶上限返回 429，前 10 次�
   assert.equal(blocked.body.code, 'rate_limited');
 });
 
-test('/api/recipe-import-from-url 全程使用普通 chat completion，不发送 response_format', async () => {
+test('/api/recipe-import-from-url 对 Groq GPT-OSS 的 RecipeDraft 发送 strict JSON Schema', async () => {
   const payloads = [];
   const { app } = loadServerWithMocks({
+    env: { OPENAI_IMPORT_MODEL: 'openai/gpt-oss-120b' },
     dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
     axiosGet: async () => ({
       status: 200,
@@ -1877,8 +1880,6 @@ test('/api/recipe-import-from-url 全程使用普通 chat completion，不发送
     }),
     axiosPost: async (_url, payload) => {
       payloads.push(payload);
-      // 导入链路（证据抽取 + 最终菜谱）绝不使用 Groq 的强制 JSON 模式，从根源规避 json_validate_failed。
-      assert.equal(payload.response_format, undefined);
       const isEvidence = /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '');
       if (isEvidence) {
         return {
@@ -1930,10 +1931,100 @@ test('/api/recipe-import-from-url 全程使用普通 chat completion，不发送
   const finalPayloads = payloads.filter(payload => /Kitchen Manager 的菜谱导入助手/.test(payload.messages?.[0]?.content || ''));
   assert.equal(evidencePayloads.length, 1);
   assert.equal(finalPayloads.length, 1);
-  assert.ok(payloads.every(payload => payload.response_format === undefined));
+  assert.equal(finalPayloads[0].model, 'openai/gpt-oss-120b');
+  assert.equal(evidencePayloads[0].response_format, undefined);
+  const format = finalPayloads[0].response_format;
+  assert.equal(format.type, 'json_schema');
+  assert.equal(format.json_schema.name, 'recipe_draft');
+  assert.equal(format.json_schema.strict, true);
+  const schema = format.json_schema.schema;
+  assert.equal(schema.type, 'object');
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual(Object.keys(schema.properties), ['name', 'tags', 'ingredients', 'seasonings', 'method', 'warnings', 'needsReview']);
+  assert.deepEqual(schema.required, Object.keys(schema.properties));
+  for (const field of ['ingredients', 'seasonings']) {
+    const row = schema.properties[field].items;
+    assert.equal(row.type, 'object');
+    assert.equal(row.additionalProperties, false);
+    assert.deepEqual(Object.keys(row.properties), ['item', 'qty', 'unit']);
+    assert.deepEqual(row.required, Object.keys(row.properties));
+  }
   assert.equal(res.body.diagnostics.preservedMainIngredientCount, 0);
   assert.equal(res.body.diagnostics.preservedSeasoningCount, 0);
   assert.equal(res.body.diagnostics.finalModelOmittedEvidenceItems, false);
+});
+
+test('/api/ai-parse 对不支持 strict 的 provider 或 model 保持普通 chat completion', async () => {
+  for (const env of [
+    { OPENAI_BASE_URL: 'https://example.test/v1', OPENAI_IMPORT_MODEL: 'openai/gpt-oss-20b' },
+    { OPENAI_BASE_URL: 'https://api.groq.com/openai/v1', OPENAI_IMPORT_MODEL: 'llama-3.3-70b-versatile' }
+  ]) {
+    const payloads = [];
+    const { app } = loadServerWithMocks({
+      env,
+      axiosPost: async (_url, payload) => {
+        payloads.push(payload);
+        const isEvidence = /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '');
+        const content = isEvidence
+          ? JSON.stringify({
+              dishNameCandidates: ['番茄炒蛋'],
+              observedMainIngredients: ['番茄', '鸡蛋'],
+              observedActions: [{ order: 1, action: '番茄和鸡蛋下锅炒熟', evidenceText: '番茄和鸡蛋下锅炒熟', confidence: 'high' }],
+              sourceConfidence: 'high'
+            })
+          : JSON.stringify({
+              name: '番茄炒蛋',
+              tags: ['家常菜'],
+              ingredients: [{ item: '番茄', qty: '', unit: '' }, { item: '鸡蛋', qty: '', unit: '' }],
+              seasonings: [],
+              method: ['番茄和鸡蛋下锅炒熟。'],
+              warnings: [],
+              needsReview: false
+            });
+        return { data: { choices: [{ message: { content } }] } };
+      }
+    });
+
+    const res = await runPost(app, '/api/ai-parse', { text: '番茄和鸡蛋下锅炒熟。', sourceType: 'manual' });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.recipe.name, '番茄炒蛋');
+    assert.ok(payloads.every(payload => payload.response_format === undefined));
+  }
+});
+
+test('/api/ai-parse strict fallback 不重试真实上游或 schema 请求错误', async () => {
+  for (const { status, code } of [
+    { status: 400, code: 'invalid_request_error' },
+    { status: 401, code: 'invalid_api_key' },
+    { status: 403, code: 'permission_denied' },
+    { status: 429, code: 'rate_limit_exceeded' },
+    { status: 500, code: 'internal_server_error' }
+  ]) {
+    let finalRequestCount = 0;
+    const { app } = loadServerWithMocks({
+      axiosPost: async (_url, payload) => {
+        if (/菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')) {
+          return { data: { choices: [{ message: { content: JSON.stringify({
+            dishNameCandidates: ['番茄炒蛋'],
+            observedMainIngredients: ['番茄', '鸡蛋'],
+            observedActions: [{ order: 1, action: '番茄和鸡蛋下锅炒熟', evidenceText: '番茄和鸡蛋下锅炒熟', confidence: 'high' }],
+            sourceConfidence: 'high'
+          }) } }] } };
+        }
+        finalRequestCount += 1;
+        const err = new Error(code);
+        err.response = { status, data: { error: { code, message: code } } };
+        throw err;
+      }
+    });
+
+    const res = await runPost(app, '/api/ai-parse', { text: '番茄和鸡蛋下锅炒熟。', sourceType: 'manual' });
+
+    assert.equal(res.statusCode, status);
+    assert.equal(res.body.code, code);
+    assert.equal(finalRequestCount, 1);
+  }
 });
 
 test('/api/recipe-import-from-url 上游 json_validate_failed 不透传 400，有视频文字时返回 fallback 草稿', async () => {

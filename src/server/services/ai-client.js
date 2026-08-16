@@ -6,6 +6,68 @@ const {
 } = require('../config');
 const { safeParseModelJson } = require('../utils/json');
 
+const RECIPE_DRAFT_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string' },
+    tags: { type: 'array', items: { type: 'string' } },
+    ingredients: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          item: { type: 'string' },
+          qty: { type: 'string' },
+          unit: { type: 'string' }
+        },
+        required: ['item', 'qty', 'unit']
+      }
+    },
+    seasonings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          item: { type: 'string' },
+          qty: { type: 'string' },
+          unit: { type: 'string' }
+        },
+        required: ['item', 'qty', 'unit']
+      }
+    },
+    method: { type: 'array', items: { type: 'string' } },
+    warnings: { type: 'array', items: { type: 'string' } },
+    needsReview: { type: 'boolean' }
+  },
+  required: ['name', 'tags', 'ingredients', 'seasonings', 'method', 'warnings', 'needsReview']
+};
+
+function supportsRecipeDraftStrictStructuredOutputs({ baseUrl = OPENAI_BASE_URL, model } = {}) {
+  let hostname = '';
+  try {
+    hostname = new URL(String(baseUrl || '')).hostname.toLowerCase();
+  } catch (_) {
+    return false;
+  }
+  return /(^|\.)groq\.com$/.test(hostname)
+    && ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'].includes(String(model || '').trim());
+}
+
+function getRecipeDraftResponseFormat({ baseUrl = OPENAI_BASE_URL, model } = {}) {
+  if (!supportsRecipeDraftStrictStructuredOutputs({ baseUrl, model })) return null;
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: 'recipe_draft',
+      strict: true,
+      schema: RECIPE_DRAFT_JSON_SCHEMA
+    }
+  };
+}
+
 function resolveChatUrl(base) {
   const b = String(base || '').trim().replace(/\/+$/, '');
   if (/\/chat\/completions$/.test(b)) return b;
@@ -145,7 +207,7 @@ async function postChatCompletion({ model, messages, temperature = 0.2, response
     messages,
     temperature
   };
-  if (responseFormat) payload.response_format = { type: 'json_object' };
+  if (responseFormat) payload.response_format = responseFormat === true ? { type: 'json_object' } : responseFormat;
   return axios.post(
     resolveChatUrl(OPENAI_BASE_URL),
     payload,
@@ -156,17 +218,14 @@ async function postChatCompletion({ model, messages, temperature = 0.2, response
   );
 }
 
-async function postJsonChatContentWithFallback({ model, messages, temperature = 0.2, timeout = 45000, useJsonMode = false }) {
-  // 默认走普通 chat completion（不带 response_format）。Groq 的 json_object / json_schema 强制模式
-  // 会在模型输出不满足校验时返回 400 json_validate_failed；「视频文字 → 菜谱 JSON」这一步改为普通
-  // 输出 + safeParseModelJson 解析，从根源上规避该错误，不再依赖强制 JSON 模式。
-  if (!useJsonMode) {
+async function postJsonChatContentWithFallback({ model, messages, temperature = 0.2, timeout = 45000, useJsonMode = false, responseFormat = null }) {
+  const enforcedResponseFormat = responseFormat || (useJsonMode ? true : null);
+  if (!enforcedResponseFormat) {
     const resp = await postChatCompletion({ model, messages, temperature, responseFormat: false, timeout });
     return getAiMessageContent(resp);
   }
-  // 兜底保留：万一某处仍需强制 JSON，遇到 json_validate_failed 时自动改普通输出重试一次。
   try {
-    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: true, timeout });
+    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: enforcedResponseFormat, timeout });
     return getAiMessageContent(resp);
   } catch (err) {
     if (!isJsonValidateFailedError(err)) throw err;
@@ -209,6 +268,8 @@ module.exports = {
   sendAiUpstreamError,
   isRateLimitExceeded,
   isJsonValidateFailedError,
+  supportsRecipeDraftStrictStructuredOutputs,
+  getRecipeDraftResponseFormat,
   getAiMessageContent,
   summarizeAiResponse,
   postChatCompletion,
