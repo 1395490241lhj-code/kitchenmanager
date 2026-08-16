@@ -17,6 +17,41 @@ const OPENAI_IMPORT_MODEL = process.env.OPENAI_IMPORT_MODEL
 const DEFAULT_OPENAI_VISION_MODEL = 'qwen/qwen3.6-27b';
 const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || DEFAULT_OPENAI_VISION_MODEL;
 const OPENAI_TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+
+function normalizeAiProvider(value) {
+  return String(value || '').trim().toLowerCase() === 'gemini' ? 'gemini' : 'groq';
+}
+
+const AI_CHAT_PROVIDER = normalizeAiProvider(process.env.AI_CHAT_PROVIDER || 'groq');
+const AI_IMPORT_PROVIDER = normalizeAiProvider(process.env.AI_IMPORT_PROVIDER || 'groq');
+const AI_PROVIDER_CONFIGS = Object.freeze({
+  groq: Object.freeze({
+    provider: 'groq',
+    apiKey: OPENAI_API_KEY,
+    baseURL: OPENAI_BASE_URL,
+    chatModel: OPENAI_MODEL,
+    importModel: OPENAI_IMPORT_MODEL
+  }),
+  gemini: Object.freeze({
+    provider: 'gemini',
+    apiKey: GEMINI_API_KEY,
+    baseURL: GEMINI_BASE_URL,
+    chatModel: GEMINI_MODEL,
+    importModel: GEMINI_MODEL
+  })
+});
+
+function resolveAiProviderConfig(provider, { purpose = 'chat', model } = {}) {
+  const normalizedProvider = normalizeAiProvider(provider);
+  const config = AI_PROVIDER_CONFIGS[normalizedProvider];
+  return {
+    ...config,
+    model: model || (purpose === 'import' ? config.importModel : config.chatModel)
+  };
+}
 
 const AI_PROMPT_MAX_CHARS = 12000;
 const AI_IMAGE_MAX_BASE64_BYTES = 4 * 1024 * 1024;
@@ -230,6 +265,13 @@ module.exports = {
   DEFAULT_OPENAI_VISION_MODEL,
   OPENAI_VISION_MODEL,
   OPENAI_TRANSCRIBE_MODEL,
+  GEMINI_API_KEY,
+  GEMINI_BASE_URL,
+  GEMINI_MODEL,
+  AI_CHAT_PROVIDER,
+  AI_IMPORT_PROVIDER,
+  normalizeAiProvider,
+  resolveAiProviderConfig,
   AI_PROMPT_MAX_CHARS,
   AI_IMAGE_MAX_BASE64_BYTES,
   AI_RATE_LIMIT_WINDOW_MS,

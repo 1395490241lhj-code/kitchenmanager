@@ -5,8 +5,8 @@
  * - /api/xhs-extract：服务端抓取小红书/网页菜谱文案，绕过浏览器 CORS。
  *     跟随 302 短链（xhslink.com → 真实长链）、伪造移动端 UA、正则提取
  *     window.__INITIAL_STATE__ / og:title / description 等文案，返回纯文本 JSON。
- * - /api/ai-chat：默认 AI 代理（密钥/Base URL 来自环境变量），前端不需要本地 API Key。
- * - /api/ai-parse：后端统一呼叫 AI（文本菜谱导入用 OPENAI_IMPORT_MODEL，图片用 OPENAI_VISION_MODEL），
+ * - /api/ai-chat：文本可选 Groq/Gemini，图片固定 Groq vision；前端不需要本地 API Key。
+ * - /api/ai-parse：文本 evidence/RecipeDraft 可选 Groq/Gemini，图片 evidence 固定 Groq vision，
  *     返回模型 JSON 原文。
  *
  * 环境变量（Render）：完整清单和安全边界见 .env.example；Supabase service-role 仅允许存在于服务端环境。
@@ -32,6 +32,10 @@ const {
   OPENAI_IMPORT_MODEL,
   OPENAI_VISION_MODEL,
   OPENAI_TRANSCRIBE_MODEL,
+  GEMINI_API_KEY,
+  AI_CHAT_PROVIDER,
+  AI_IMPORT_PROVIDER,
+  resolveAiProviderConfig,
   AI_PROMPT_MAX_CHARS,
   AI_IMAGE_MAX_BASE64_BYTES,
   AI_RATE_LIMIT_WINDOW_MS,
@@ -1164,27 +1168,40 @@ function sanitizeRecipe(recipe, options = {}) {
 }
 
 app.get('/api/ai-status', (req, res) => {
-  const baseUrlConfigured = Boolean(String(OPENAI_BASE_URL || '').trim());
-  const apiKeyConfigured = Boolean(String(OPENAI_API_KEY || '').trim());
-  const rawTextModelConfigured = Boolean(String(OPENAI_MODEL || '').trim());
+  const chatConfig = resolveAiProviderConfig(AI_CHAT_PROVIDER);
+  const importConfig = resolveAiProviderConfig(AI_IMPORT_PROVIDER, { purpose: 'import' });
+  const isProviderConfigured = config => Boolean(
+    String(config.apiKey || '').trim()
+    && String(config.baseURL || '').trim()
+    && String(config.model || '').trim()
+  );
+  const chatConfigured = isProviderConfigured(chatConfig);
+  const importConfigured = isProviderConfigured(importConfig);
+  const baseUrlConfigured = Boolean(String(chatConfig.baseURL || '').trim() && String(importConfig.baseURL || '').trim());
   const rawVisionModelConfigured = Boolean(String(OPENAI_VISION_MODEL || '').trim());
-  const textModelConfigured = apiKeyConfigured && rawTextModelConfigured;
-  const visionModelConfigured = apiKeyConfigured && rawVisionModelConfigured;
-  const available = apiKeyConfigured && baseUrlConfigured && rawTextModelConfigured && rawVisionModelConfigured;
+  const visionModelConfigured = Boolean(String(OPENAI_API_KEY || '').trim()) && rawVisionModelConfigured;
+  const textModelConfigured = chatConfigured;
+  const available = chatConfigured;
   let code = '';
-  let message = available ? '内置 AI 服务已配置' : '内置 AI 服务暂不可用';
-  if (!apiKeyConfigured) {
-    code = 'missing_api_key';
-    message = '内置 AI 服务未配置';
+  const unavailableCapabilities = [
+    ...(!importConfigured ? ['菜谱导入'] : []),
+    ...(!visionModelConfigured ? ['图片识别'] : [])
+  ];
+  let message = available && unavailableCapabilities.length
+    ? `AI 聊天已配置，${unavailableCapabilities.join('、')}暂不可用`
+    : available ? '内置 AI 服务已配置' : '内置 AI 服务暂不可用';
+  const missingConfig = !chatConfigured ? chatConfig : !importConfigured ? importConfig : null;
+  if (missingConfig && !String(missingConfig.apiKey || '').trim()) {
+    code = missingConfig.provider === 'gemini' ? 'missing_gemini_api_key' : 'missing_api_key';
+    if (!chatConfigured) {
+      message = missingConfig.provider === 'gemini' ? 'Gemini AI 服务未配置' : '内置 AI 服务未配置';
+    }
   } else if (!baseUrlConfigured) {
     code = 'missing_base_url';
     message = '内置 AI 服务地址未配置';
-  } else if (!rawTextModelConfigured) {
+  } else if (missingConfig) {
     code = 'missing_text_model';
     message = '文本模型未配置';
-  } else if (!rawVisionModelConfigured) {
-    code = 'missing_vision_model';
-    message = '图片识别模型未配置';
   }
   res.json({
     available,
@@ -1194,6 +1211,11 @@ app.get('/api/ai-status', (req, res) => {
     baseUrlConfigured,
     modelConfigured: textModelConfigured,
     imageMaxBase64Bytes: AI_IMAGE_MAX_BASE64_BYTES,
+    chatProvider: AI_CHAT_PROVIDER,
+    importProvider: AI_IMPORT_PROVIDER,
+    chatConfigured,
+    importConfigured,
+    geminiConfigured: Boolean(String(GEMINI_API_KEY || '').trim()),
     ...(code ? { code } : {}),
     message
   });
@@ -1217,12 +1239,16 @@ function cleanAiChatContent(content) {
 
 app.post('/api/ai-chat', async (req, res) => {
   if (isAiRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。');
-  if (!OPENAI_API_KEY) return sendAiJsonError(res, 503, 'missing_api_key', 'AI 服务暂时不可用。');
 
   const body = req.body || {};
   const prompt = String(body.prompt || '').trim();
   const imageBase64 = body.imageBase64 ? String(body.imageBase64) : '';
   const taskType = String(body.taskType || 'general').trim().slice(0, 40) || 'general';
+  const chatConfig = resolveAiProviderConfig(imageBase64 ? 'groq' : AI_CHAT_PROVIDER, {
+    model: imageBase64 ? OPENAI_VISION_MODEL : undefined
+  });
+
+  if (!chatConfig.apiKey) return sendAiJsonError(res, 503, 'missing_api_key', 'AI 服务暂时不可用。');
 
   if (!prompt) return sendAiJsonError(res, 400, 'missing_prompt', '缺少 prompt。');
   if (prompt.length > AI_PROMPT_MAX_CHARS) return sendAiJsonError(res, 413, 'prompt_too_large', 'prompt 过长。', { maxChars: AI_PROMPT_MAX_CHARS });
@@ -1233,9 +1259,8 @@ app.post('/api/ai-chat', async (req, res) => {
   const userContent = imageBase64
     ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageBase64 } }]
     : prompt;
-  const model = imageBase64 ? OPENAI_VISION_MODEL : OPENAI_MODEL;
   const aiPayload = {
-    model,
+    model: chatConfig.model,
     messages: [
       { role: 'system', content: `Kitchen Manager task: ${taskType}. Return only the requested content.` },
       { role: 'user', content: userContent }
@@ -1245,14 +1270,23 @@ app.post('/api/ai-chat', async (req, res) => {
   if (imageBase64) aiPayload.reasoning_effort = 'none';
 
   try {
-    const resp = await axios.post(
-      resolveChatUrl(OPENAI_BASE_URL),
-      aiPayload,
-      {
-        timeout: 45000,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
-      }
-    );
+    const resp = imageBase64
+      ? await axios.post(
+          resolveChatUrl(OPENAI_BASE_URL),
+          aiPayload,
+          {
+            timeout: 45000,
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+          }
+        )
+      : await postChatCompletion({
+          provider: chatConfig.provider,
+          model: chatConfig.model,
+          messages: aiPayload.messages,
+          temperature: aiPayload.temperature,
+          responseFormat: false,
+          timeout: 45000
+        });
     const content = getAiMessageContent(resp);
     const cleaned = cleanAiChatContent(content);
     if (!cleaned) {
@@ -1310,12 +1344,17 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
   const evidenceUserContent = imageBase64
     ? [{ type: 'text', text: evidenceInstruction }, { type: 'image_url', image_url: { url: imageBase64 } }]
     : evidenceInstruction;
+  const importConfig = resolveAiProviderConfig(AI_IMPORT_PROVIDER, { purpose: 'import' });
+  const evidenceConfig = imageBase64
+    ? resolveAiProviderConfig('groq', { model: OPENAI_VISION_MODEL })
+    : importConfig;
 
   let evidenceContent = '';
   let evidence = null;
   try {
     evidenceContent = await postJsonChatContentWithFallback({
-      model: imageBase64 ? OPENAI_VISION_MODEL : OPENAI_IMPORT_MODEL,
+      provider: evidenceConfig.provider,
+      model: evidenceConfig.model,
       messages: [
         { role: 'system', content: RECIPE_EVIDENCE_SYSTEM_PROMPT },
         { role: 'user', content: evidenceUserContent }
@@ -1365,20 +1404,21 @@ async function parseRecipeDraftWithAi({ text = '', imageBase64 = null, sourceTyp
     ? `根据下面 evidence 和 sourceDiagnostics 生成可编辑菜谱草稿。只输出一个 JSON 对象，不要 markdown，不要解释，不要代码块。method 必须覆盖 observedActions；不确定内容放 warnings。\n\n${finalPromptPayload}`
     : `请根据下面的 evidence JSON 和 sourceDiagnostics 生成最终菜谱 JSON。method 必须按 observedActions 顺序生成；不要新增 evidence 不支持的关键动作。若 sourceDiagnostics.sourceConfidence 为 low，只生成证据支持的 draft，并在 warnings 中提示信息不足。\n\n${finalPromptPayload}`;
   const content = await postJsonChatContentWithFallback({
-    model: OPENAI_IMPORT_MODEL,
+    provider: importConfig.provider,
+    model: importConfig.model,
     messages: [
       { role: 'system', content: useSimpleImportPrompt ? IMPORT_SIMPLE_SYSTEM_PROMPT : IMPORT_SYSTEM_PROMPT },
       { role: 'user', content: recipeInstruction }
     ],
     temperature: 0.2,
-    responseFormat: getRecipeDraftResponseFormat({ model: OPENAI_IMPORT_MODEL })
+    responseFormat: getRecipeDraftResponseFormat(importConfig)
   });
   if (!content) throw createAiParsePipelineError(502, 'empty_response', 'AI 没有返回内容，请稍后重试。');
 
   let parsed = safeParseModelJson(content);
   if (!parsed) {
     try {
-      parsed = await repairRecipeJsonContent(content);
+      parsed = await repairRecipeJsonContent(content, importConfig);
     } catch (_) {
       parsed = null;
     }
@@ -1464,7 +1504,9 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
   const rawUrl = String(req.body?.url || '').trim();
   const userText = String(req.body?.userText || '').trim();
   if (!rawUrl) return sendAiJsonError(res, 400, 'missing_url', '缺少链接。');
-  if (!OPENAI_API_KEY) return sendAiJsonError(res, 503, 'missing_api_key', '后端未配置 AI 密钥（OPENAI_API_KEY）。');
+  if (!resolveAiProviderConfig(AI_IMPORT_PROVIDER, { purpose: 'import' }).apiKey) {
+    return sendAiJsonError(res, 503, 'missing_api_key', '后端未配置 AI 密钥。');
+  }
 
   let sourcePayload;
   try {
@@ -1685,7 +1727,7 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
   }
 });
 
-// AI 解析路由：文本菜谱导入用 OPENAI_IMPORT_MODEL，图片用 OPENAI_VISION_MODEL，密钥来自 Render 环境变量。
+// AI 解析路由：文本与最终草稿使用 import provider；图片 evidence 固定使用 Groq vision。
 app.post('/api/ai-parse', async (req, res) => {
   if (isAiRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。');
   const text = String((req.body && req.body.text) || '').trim();
@@ -1694,7 +1736,10 @@ app.post('/api/ai-parse', async (req, res) => {
     ? req.body.sourceMetadata
     : null;
   if (!text && !imageBase64) return sendAiJsonError(res, 400, 'missing_input', '缺少待解析的文案或图片。');
-  if (!OPENAI_API_KEY) return sendAiJsonError(res, 503, 'missing_api_key', '后端未配置 AI 密钥（OPENAI_API_KEY）。');
+  const importConfig = resolveAiProviderConfig(AI_IMPORT_PROVIDER, { purpose: 'import' });
+  if (!importConfig.apiKey || (imageBase64 && !OPENAI_API_KEY)) {
+    return sendAiJsonError(res, 503, 'missing_api_key', '后端未配置 AI 密钥。');
+  }
   if (estimateBase64EncodedBytes(imageBase64) > AI_IMAGE_MAX_BASE64_BYTES) {
     return sendAiJsonError(res, 413, 'image_too_large', '图片过大。', { maxBase64Bytes: AI_IMAGE_MAX_BASE64_BYTES });
   }

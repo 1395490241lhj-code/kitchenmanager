@@ -14,6 +14,20 @@ const THEME_OPTIONS = [
   { key: 'dark', label: '深色' }
 ];
 
+export function buildCloudAiStatusViewModel(data = {}) {
+  const legacyTextConfigured = Boolean(data?.textModelConfigured ?? data?.modelConfigured);
+  const chatConfigured = typeof data?.chatConfigured === 'boolean' ? data.chatConfigured : legacyTextConfigured;
+  const importConfigured = typeof data?.importConfigured === 'boolean' ? data.importConfigured : legacyTextConfigured;
+  const providerLabel = provider => provider === 'gemini' ? 'Gemini' : provider === 'groq' ? 'Groq' : 'AI';
+  return {
+    available: typeof data?.available === 'boolean' ? data.available : chatConfigured && importConfigured,
+    chatConfigured,
+    importConfigured,
+    visionConfigured: Boolean(data?.visionModelConfigured),
+    textStatus: `聊天（${providerLabel(data?.chatProvider)}）${chatConfigured ? '已配置' : '未配置'} · 导入（${providerLabel(data?.importProvider)}）${importConfigured ? '已配置' : '未配置'}`
+  };
+}
+
 // Temporary UI bridge: keep this pack definition list aligned with data/recipe-packs.json
 // until the browser app has a single JSON data loading path for formal recipe pack data.
 const RECIPE_PACK_PREFERENCE_DATA = {
@@ -423,9 +437,8 @@ export function renderSettings() {
   const cloudAiVisionStatus = div.querySelector('#cloudAiVisionStatus');
   const testCloudAiBtn = div.querySelector('#testCloudAiBtn');
   const setCloudAiStatus = (data = null, state = 'unknown') => {
-    const available = Boolean(data?.available);
-    const textConfigured = Boolean(data?.textModelConfigured ?? data?.modelConfigured);
-    const visionConfigured = Boolean(data?.visionModelConfigured);
+    const status = buildCloudAiStatusViewModel(data || {});
+    const available = status.available;
     const code = String(data?.code || '').trim();
     const message = String(data?.message || '').trim();
     const displayState = state === 'checking' ? 'checking' : available ? 'ok' : data ? 'bad' : 'unknown';
@@ -438,10 +451,12 @@ export function renderSettings() {
         : displayState === 'bad'
           ? '暂不可用'
           : '未检测';
-    cloudAiTextStatus.textContent = data ? (textConfigured ? '已配置' : '未配置') : '未检测';
-    cloudAiVisionStatus.textContent = data ? (visionConfigured ? '已配置' : '未配置') : '未检测';
+    cloudAiTextStatus.textContent = data ? status.textStatus : '未检测';
+    cloudAiVisionStatus.textContent = data ? (status.visionConfigured ? '已配置（Groq）' : '未配置（Groq）') : '未检测';
     const reason = code === 'missing_api_key'
       ? '后端未配置 API Key'
+      : code === 'missing_gemini_api_key'
+        ? '后端未配置 Gemini API Key'
       : code === 'missing_vision_model'
         ? '图片识别模型未配置'
         : code === 'missing_text_model'

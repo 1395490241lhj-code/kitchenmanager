@@ -2,7 +2,9 @@ const OpenAI = require('openai');
 const {
   OPENAI_API_KEY,
   OPENAI_BASE_URL,
-  OPENAI_IMPORT_MODEL
+  OPENAI_IMPORT_MODEL,
+  GEMINI_API_KEY,
+  resolveAiProviderConfig
 } = require('../config');
 const { safeParseModelJson } = require('../utils/json');
 
@@ -45,7 +47,8 @@ const RECIPE_DRAFT_JSON_SCHEMA = {
   required: ['name', 'tags', 'ingredients', 'seasonings', 'method', 'warnings', 'needsReview']
 };
 
-function supportsRecipeDraftStrictStructuredOutputs({ baseUrl = OPENAI_BASE_URL, model } = {}) {
+function supportsRecipeDraftStrictStructuredOutputs({ provider = 'groq', baseUrl = OPENAI_BASE_URL, model } = {}) {
+  if (provider === 'gemini') return true;
   let hostname = '';
   try {
     hostname = new URL(String(baseUrl || '')).hostname.toLowerCase();
@@ -56,8 +59,8 @@ function supportsRecipeDraftStrictStructuredOutputs({ baseUrl = OPENAI_BASE_URL,
     && ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'].includes(String(model || '').trim());
 }
 
-function getRecipeDraftResponseFormat({ baseUrl = OPENAI_BASE_URL, model } = {}) {
-  if (!supportsRecipeDraftStrictStructuredOutputs({ baseUrl, model })) return null;
+function getRecipeDraftResponseFormat({ provider = 'groq', baseUrl = OPENAI_BASE_URL, model } = {}) {
+  if (!supportsRecipeDraftStrictStructuredOutputs({ provider, baseUrl, model })) return null;
   return {
     type: 'json_schema',
     json_schema: {
@@ -71,6 +74,7 @@ function getRecipeDraftResponseFormat({ baseUrl = OPENAI_BASE_URL, model } = {})
 function resolveChatUrl(base) {
   const b = String(base || '').trim().replace(/\/+$/, '');
   if (/\/chat\/completions$/.test(b)) return b;
+  if (/\/v1beta\/openai$/.test(b)) return `${b}/chat/completions`;
   if (/\/v\d+$/.test(b)) return `${b}/chat/completions`;
   return `${b}/v1/chat/completions`;
 }
@@ -79,16 +83,17 @@ function resolveOpenAIBaseURL(base) {
   return resolveChatUrl(base).replace(/\/chat\/completions$/, '');
 }
 
-let openAIClient = null;
-function getOpenAIClient() {
-  if (!openAIClient) {
-    openAIClient = new OpenAI({
-      apiKey: OPENAI_API_KEY,
-      baseURL: resolveOpenAIBaseURL(OPENAI_BASE_URL),
+const openAIClients = new Map();
+function getOpenAIClient(provider = 'groq') {
+  const config = resolveAiProviderConfig(provider);
+  if (!openAIClients.has(config.provider)) {
+    openAIClients.set(config.provider, new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: resolveOpenAIBaseURL(config.baseURL),
       maxRetries: 0
-    });
+    }));
   }
-  return openAIClient;
+  return openAIClients.get(config.provider);
 }
 
 function resolveAudioTranscriptionsUrl(base) {
@@ -110,6 +115,7 @@ function estimateBase64EncodedBytes(value) {
 function redactSecret(value) {
   let text = String(value || '');
   if (OPENAI_API_KEY) text = text.replaceAll(OPENAI_API_KEY, '[redacted]');
+  if (GEMINI_API_KEY) text = text.replaceAll(GEMINI_API_KEY, '[redacted]');
   return text.slice(0, 500);
 }
 
@@ -243,14 +249,15 @@ function summarizeAiResponse(resp) {
   };
 }
 
-async function postChatCompletion({ model, messages, temperature = 0.2, responseFormat = true, timeout = 45000 }) {
+async function postChatCompletion({ provider = 'groq', model, messages, temperature = 0.2, responseFormat = true, timeout = 45000 }) {
+  const config = resolveAiProviderConfig(provider, { model });
   const payload = {
-    model,
-    messages,
-    temperature
+    model: config.model,
+    messages
   };
+  if (config.provider !== 'gemini' || config.model !== 'gemini-3.6-flash') payload.temperature = temperature;
   if (responseFormat) payload.response_format = responseFormat === true ? { type: 'json_object' } : responseFormat;
-  const { data, response, request_id: requestId } = await getOpenAIClient()
+  const { data, response, request_id: requestId } = await getOpenAIClient(config.provider)
     .chat.completions.create(payload, { timeout })
     .withResponse();
   return {
@@ -263,26 +270,27 @@ async function postChatCompletion({ model, messages, temperature = 0.2, response
   };
 }
 
-async function postJsonChatContentWithFallback({ model, messages, temperature = 0.2, timeout = 45000, useJsonMode = false, responseFormat = null }) {
+async function postJsonChatContentWithFallback({ provider = 'groq', model, messages, temperature = 0.2, timeout = 45000, useJsonMode = false, responseFormat = null }) {
   const enforcedResponseFormat = responseFormat || (useJsonMode ? true : null);
   if (!enforcedResponseFormat) {
-    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: false, timeout });
+    const resp = await postChatCompletion({ provider, model, messages, temperature, responseFormat: false, timeout });
     return getAiMessageContent(resp);
   }
   try {
-    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: enforcedResponseFormat, timeout });
+    const resp = await postChatCompletion({ provider, model, messages, temperature, responseFormat: enforcedResponseFormat, timeout });
     return getAiMessageContent(resp);
   } catch (err) {
     if (!isJsonValidateFailedError(err)) throw err;
-    const resp = await postChatCompletion({ model, messages, temperature, responseFormat: false, timeout });
+    const resp = await postChatCompletion({ provider, model, messages, temperature, responseFormat: false, timeout });
     return getAiMessageContent(resp);
   }
 }
 
-async function repairRecipeJsonContent(rawContent) {
+async function repairRecipeJsonContent(rawContent, { provider = 'groq', model = OPENAI_IMPORT_MODEL } = {}) {
   const repairPrompt = `请把下面内容修复为合法 JSON 对象。字段必须为 name, tags, ingredients, seasonings, method, warnings, needsReview。不要补充内容，只修复格式。只输出 JSON 对象，不要 markdown，不要解释。\n\n${String(rawContent || '').slice(0, 12000)}`;
   const resp = await postChatCompletion({
-    model: OPENAI_IMPORT_MODEL,
+    provider,
+    model,
     messages: [
       { role: 'system', content: 'You repair malformed recipe JSON. Return only one valid JSON object.' },
       { role: 'user', content: repairPrompt }
@@ -316,6 +324,7 @@ module.exports = {
   isJsonValidateFailedError,
   supportsRecipeDraftStrictStructuredOutputs,
   getRecipeDraftResponseFormat,
+  getOpenAIClient,
   getAiMessageContent,
   summarizeAiResponse,
   postChatCompletion,

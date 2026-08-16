@@ -23,6 +23,7 @@ import {
   extractFirstHttpUrl
 } from '../src/components/recipe-import-modal.js';
 import { S } from '../src/storage.js';
+import { buildCloudAiStatusViewModel } from '../src/views/settings-view.js';
 
 const root = process.cwd();
 const oldLocalStorage = global.localStorage;
@@ -1079,10 +1080,47 @@ test('设置页默认展示内置 AI 服务，并只在 BYOK 区域展示高级�
   assert.match(settings, /id="cloudAiStatusCard"/);
   assert.match(settings, /id="testCloudAiBtn"/);
   assert.match(settings, /fetch\(apiUrl\('\/api\/ai-status'\), \{ cache: 'no-store' \}\)/);
-  assert.match(settings, /textModelConfigured/);
+  assert.match(settings, /chatConfigured/);
+  assert.match(settings, /importConfigured/);
   assert.match(settings, /visionModelConfigured/);
   assert.match(settings, /byokAiBox\.hidden = !isByok;/);
   assert.match(settings, /aiProviderMode: 'byok'/);
+});
+
+test('设置页按 provider-aware 字段展示 chat/import，并兼容旧 status payload', () => {
+  const gemini = buildCloudAiStatusViewModel({
+    available: true,
+    chatProvider: 'gemini',
+    importProvider: 'gemini',
+    chatConfigured: true,
+    importConfigured: true,
+    visionModelConfigured: false
+  });
+  assert.equal(gemini.available, true);
+  assert.equal(gemini.textStatus, '聊天（Gemini）已配置 · 导入（Gemini）已配置');
+  assert.equal(gemini.visionConfigured, false);
+
+  const mixed = buildCloudAiStatusViewModel({
+    available: true,
+    chatProvider: 'gemini',
+    importProvider: 'groq',
+    chatConfigured: true,
+    importConfigured: false,
+    visionModelConfigured: false
+  });
+  assert.equal(mixed.available, true);
+  assert.equal(mixed.textStatus, '聊天（Gemini）已配置 · 导入（Groq）未配置');
+  assert.equal(mixed.visionConfigured, false);
+
+  const legacy = buildCloudAiStatusViewModel({
+    available: true,
+    textModelConfigured: true,
+    visionModelConfigured: true
+  });
+  assert.equal(legacy.chatConfigured, true);
+  assert.equal(legacy.importConfigured, true);
+  assert.equal(legacy.visionConfigured, true);
+  assert.equal(legacy.textStatus, '聊天（AI）已配置 · 导入（AI）已配置');
 });
 
 test('设置页 AI 模式 radio 不继承通用输入框宽度', () => {
@@ -1133,7 +1171,8 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   assert.match(aiClient, /code,/);
   assert.match(server, /request_too_large/);
   assert.match(server, /bad_json/);
-  assert.match(aiChatRoute, /const model = imageBase64 \? OPENAI_VISION_MODEL : OPENAI_MODEL;/);
+  assert.match(aiChatRoute, /resolveAiProviderConfig\(imageBase64 \? 'groq' : AI_CHAT_PROVIDER/);
+  assert.match(aiChatRoute, /postChatCompletion\(\{/);
   assert.match(aiChatRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiChatRoute, /sendAiUpstreamError\(res, err\)/);
   assert.doesNotMatch(aiChatRoute, /OPENAI_API_KEY[^\n]*res\.json|res\.json\([^)]*OPENAI_API_KEY/);
@@ -1155,10 +1194,10 @@ test('/api/ai-parse 图片路径同样使用视觉模型', () => {
   assert.match(server, /observedActions/);
   assert.match(server, /有"水"不等于加水焖煮/);
   assert.match(aiParsePipeline, /postJsonChatContentWithFallback/);
-  assert.match(aiParsePipeline, /model: imageBase64 \? OPENAI_VISION_MODEL : OPENAI_IMPORT_MODEL/);
+  assert.match(aiParsePipeline, /resolveAiProviderConfig\('groq', \{ model: OPENAI_VISION_MODEL \}\)/);
   assert.match(aiParsePipeline, /IMPORT_SIMPLE_SYSTEM_PROMPT/);
-  assert.match(aiParsePipeline, /model: OPENAI_IMPORT_MODEL/);
-  assert.match(aiParsePipeline, /repairRecipeJsonContent\(content\)/);
+  assert.match(aiParsePipeline, /model: importConfig\.model/);
+  assert.match(aiParsePipeline, /repairRecipeJsonContent\(content, importConfig\)/);
   assert.match(aiParsePipeline, /buildBoundedFinalPromptEvidence\(evidence\)/);
   assert.doesNotMatch(aiParsePipeline, /JSON\.stringify\(\{ evidence, sourceDiagnostics:/);
   assert.match(aiParsePipeline, /sanitizeRecipe\(parsed, \{ sourceText: evidenceSourceText, evidence, diagnostics: initialDiagnostics \}\)/);

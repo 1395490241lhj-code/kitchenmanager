@@ -97,17 +97,17 @@ function loadServerWithMocks({ axiosPost, axiosGet, openAiCreate, dnsLookup, env
             openAiRequests.push({ payload, requestOptions });
             return {
               withResponse: async () => {
-                const base = String(process.env.OPENAI_BASE_URL || '').trim().replace(/\/+$/, '');
+                const base = String(options.baseURL || '').trim().replace(/\/+$/, '');
                 const url = /\/chat\/completions$/.test(base)
                   ? base
-                  : /\/v\d+$/.test(base)
+                  : /\/v\d+$/.test(base) || /\/v1beta\/openai$/.test(base)
                     ? `${base}/chat/completions`
                     : `${base}/v1/chat/completions`;
                 const result = openAiCreate
                   ? await openAiCreate(payload, requestOptions)
                   : await axiosMock.post(url, payload, {
                       timeout: requestOptions.timeout,
-                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY || ''}` }
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${options.apiKey || ''}` }
                     });
                 if (result && result.response) return result;
                 const headers = new Headers(result?.headers || {});
@@ -225,6 +225,7 @@ test('OpenAI SDK baseURL normalization 保持现有 endpoint 兼容语义', () =
   assert.equal(resolveOpenAIBaseURL('https://api.groq.com/openai'), 'https://api.groq.com/openai/v1');
   assert.equal(resolveOpenAIBaseURL('https://api.groq.com/openai/v1'), 'https://api.groq.com/openai/v1');
   assert.equal(resolveOpenAIBaseURL('https://api.groq.com/openai/v1/chat/completions'), 'https://api.groq.com/openai/v1');
+  assert.equal(resolveOpenAIBaseURL('https://generativelanguage.googleapis.com/v1beta/openai/'), 'https://generativelanguage.googleapis.com/v1beta/openai');
   assert.equal(resolveOpenAIBaseURL('https://example.test/chat/completions'), 'https://example.test');
 });
 
@@ -259,6 +260,215 @@ test('postChatCompletion 通过 SDK 保持 payload、timeout、retry 和 respons
   assert.equal(response.data.choices[0].message.content, '{"ok":true}');
   assert.equal(response.headers['x-groq-id'], 'groq-request-id');
   assert.equal(summarizeAiResponse(response).upstreamRequestId, 'groq-request-id');
+});
+
+test('provider 默认和无效值安全回退到 Groq', async () => {
+  const { app, openAiClientOptions, openAiRequests } = loadServerWithMocks({
+    env: {
+      AI_CHAT_PROVIDER: 'not-a-provider',
+      AI_IMPORT_PROVIDER: 'GEMINI-ish',
+      GEMINI_API_KEY: 'gemini-secret'
+    }
+  });
+  const config = require(resolve(root, 'src/server/config.js'));
+
+  assert.equal(config.AI_CHAT_PROVIDER, 'groq');
+  assert.equal(config.AI_IMPORT_PROVIDER, 'groq');
+  assert.equal(config.resolveAiProviderConfig().provider, 'groq');
+
+  const res = await runPost(app, '/api/ai-chat', { prompt: '测试默认 provider' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(openAiClientOptions[0].apiKey, 'test-key');
+  assert.equal(openAiClientOptions[0].baseURL, 'https://api.groq.com/openai/v1');
+  assert.equal(openAiRequests[0].payload.model, 'openai/gpt-oss-120b');
+});
+
+test('Gemini client 使用独立 key/baseURL/model 且 3.6 Flash 不发送采样参数', async () => {
+  const messages = [{ role: 'user', content: '测试 Gemini' }];
+  const { openAiClientOptions, openAiRequests } = loadServerWithMocks({
+    env: {
+      GEMINI_API_KEY: 'gemini-secret',
+      GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      GEMINI_MODEL: 'gemini-3.6-flash'
+    }
+  });
+  const { postChatCompletion } = require(resolve(root, 'src/server/services/ai-client.js'));
+
+  await postChatCompletion({
+    provider: 'gemini',
+    messages,
+    temperature: 0.2,
+    responseFormat: false
+  });
+
+  assert.deepEqual(openAiClientOptions, [{
+    apiKey: 'gemini-secret',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    maxRetries: 0
+  }]);
+  assert.deepEqual(openAiRequests[0], {
+    payload: { model: 'gemini-3.6-flash', messages },
+    requestOptions: { timeout: 45000 }
+  });
+  assert.equal(Object.hasOwn(openAiRequests[0].payload, 'top_p'), false);
+  assert.equal(Object.hasOwn(openAiRequests[0].payload, 'top_k'), false);
+});
+
+test('/api/ai-chat 文本可切 Gemini，图片仍强制走 Groq vision', async () => {
+  const textServer = loadServerWithMocks({
+    env: { OPENAI_API_KEY: '', AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    axiosPost: async () => ({ data: { choices: [{ message: { content: 'Gemini 文本回复' } }] } })
+  });
+  const textRes = await runPost(textServer.app, '/api/ai-chat', { prompt: '文本请求' });
+
+  assert.equal(textRes.statusCode, 200);
+  assert.equal(textRes.body.content, 'Gemini 文本回复');
+  assert.equal(textServer.openAiClientOptions[0].apiKey, 'gemini-secret');
+  assert.equal(textServer.openAiRequests[0].payload.model, 'gemini-3.6-flash');
+  assert.equal(Object.hasOwn(textServer.openAiRequests[0].payload, 'temperature'), false);
+
+  let visionRequest;
+  const imageServer = loadServerWithMocks({
+    env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    axiosPost: async (url, payload, options) => {
+      visionRequest = { url, payload, options };
+      return { data: { choices: [{ message: { content: '{"items":[]}' } }] } };
+    }
+  });
+  const imageRes = await runPost(imageServer.app, '/api/ai-chat', {
+    prompt: '识别图片',
+    imageBase64: 'data:image/jpeg;base64,abcd'
+  });
+
+  assert.equal(imageRes.statusCode, 200);
+  assert.equal(visionRequest.url, 'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(visionRequest.payload.model, 'qwen/qwen3.6-27b');
+  assert.equal(visionRequest.payload.reasoning_effort, 'none');
+  assert.equal(visionRequest.options.headers.Authorization, 'Bearer test-key');
+  assert.equal(imageServer.openAiRequests.length, 0);
+});
+
+function createRecipeProviderResponse(payload) {
+  const content = /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')
+    ? JSON.stringify({
+        dishNameCandidates: ['番茄炒蛋'],
+        observedMainIngredients: ['番茄', '鸡蛋'],
+        observedSeasonings: ['盐'],
+        observedActions: [
+          { order: 1, action: '番茄切块', evidenceText: '番茄切块', confidence: 'high' },
+          { order: 2, action: '鸡蛋打散后下锅炒熟', evidenceText: '鸡蛋打散后下锅炒熟', confidence: 'high' }
+        ],
+        sourceConfidence: 'high'
+      })
+    : JSON.stringify({
+        name: '番茄炒蛋',
+        tags: ['家常菜'],
+        ingredients: [{ item: '番茄', qty: '2', unit: '个' }, { item: '鸡蛋', qty: '2', unit: '个' }],
+        seasonings: [{ item: '盐', qty: '', unit: '' }],
+        method: ['番茄切块。', '鸡蛋打散后下锅炒熟。'],
+        warnings: [],
+        needsReview: false
+      });
+  return { data: { choices: [{ message: { content } }] } };
+}
+
+test('文本 recipe import 的 evidence 与最终 RecipeDraft 均可走 Gemini structured output', async () => {
+  const { app, openAiClientOptions, openAiRequests } = loadServerWithMocks({
+    env: { OPENAI_API_KEY: '', AI_IMPORT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    openAiCreate: async (payload) => createRecipeProviderResponse(payload)
+  });
+
+  const res = await runPost(app, '/api/ai-parse', { text: '番茄切块，鸡蛋打散后下锅炒熟，加盐。' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.recipe.name, '番茄炒蛋');
+  assert.deepEqual(openAiClientOptions, [{
+    apiKey: 'gemini-secret',
+    baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    maxRetries: 0
+  }]);
+  assert.equal(openAiRequests.length, 2);
+  assert.ok(openAiRequests.every(request => request.payload.model === 'gemini-3.6-flash'));
+  assert.ok(openAiRequests.every(request => !Object.hasOwn(request.payload, 'temperature')));
+  assert.equal(openAiRequests[0].payload.response_format, undefined);
+  const format = openAiRequests[1].payload.response_format;
+  assert.equal(format.type, 'json_schema');
+  assert.equal(format.json_schema.name, 'recipe_draft');
+  assert.equal(format.json_schema.strict, true);
+  assert.deepEqual(format.json_schema.schema.required, ['name', 'tags', 'ingredients', 'seasonings', 'method', 'warnings', 'needsReview']);
+});
+
+test('图片 recipe import 的 evidence 走 Groq，最终 RecipeDraft 可走 Gemini', async () => {
+  const { app, openAiClientOptions, openAiRequests } = loadServerWithMocks({
+    env: { AI_IMPORT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    openAiCreate: async (payload) => createRecipeProviderResponse(payload)
+  });
+
+  const res = await runPost(app, '/api/ai-parse', { imageBase64: 'data:image/jpeg;base64,abcd' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(openAiRequests[0].payload.model, 'qwen/qwen3.6-27b');
+  assert.equal(openAiRequests[0].payload.temperature, 0.2);
+  assert.equal(openAiRequests[1].payload.model, 'gemini-3.6-flash');
+  assert.equal(Object.hasOwn(openAiRequests[1].payload, 'temperature'), false);
+  assert.deepEqual(openAiClientOptions.map(options => options.apiKey), ['test-key', 'gemini-secret']);
+});
+
+test('Gemini provider 缺 key 只让对应请求安全失败，server 仍可启动', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { AI_CHAT_PROVIDER: 'gemini', AI_IMPORT_PROVIDER: 'gemini', GEMINI_API_KEY: '' }
+  });
+
+  const chatRes = await runPost(app, '/api/ai-chat', { prompt: '测试' });
+  const importRes = await runPost(app, '/api/ai-parse', { text: '番茄炒蛋' });
+  const statusRes = await runGet(app, '/api/ai-status');
+
+  assert.equal(chatRes.statusCode, 503);
+  assert.equal(chatRes.body.code, 'missing_api_key');
+  assert.equal(importRes.statusCode, 503);
+  assert.equal(importRes.body.code, 'missing_api_key');
+  assert.equal(statusRes.statusCode, 200);
+  assert.equal(statusRes.body.geminiConfigured, false);
+  assert.equal(openAiRequests.length, 0);
+});
+
+test('Gemini 400/401/429/5xx/timeout 保留现有公开错误语义且不重试', async () => {
+  for (const { status, code } of [
+    { status: 400, code: 'invalid_request_error' },
+    { status: 401, code: 'invalid_api_key' },
+    { status: 429, code: 'rate_limit_exceeded' },
+    { status: 500, code: 'internal_server_error' },
+    { status: 504, code: 'ECONNABORTED' }
+  ]) {
+    let requestCount = 0;
+    const { app } = loadServerWithMocks({
+      env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+      openAiCreate: async () => {
+        requestCount += 1;
+        const err = new Error(`failed with gemini-secret: ${code}`);
+        if (code === 'ECONNABORTED') err.code = code;
+        else {
+          err.status = status;
+          err.error = { code, message: err.message };
+        }
+        throw err;
+      }
+    });
+
+    const res = await runPost(app, '/api/ai-chat', { prompt: `错误 ${code}` });
+    assert.equal(res.statusCode, status);
+    assert.equal(res.body.code, code);
+    assert.equal(requestCount, 1);
+    assert.doesNotMatch(JSON.stringify(res.body), /gemini-secret/);
+  }
+});
+
+test('secret redaction 同时覆盖 Groq 与 Gemini key', () => {
+  loadServerWithMocks({ env: { GEMINI_API_KEY: 'gemini-secret' } });
+  const { redactSecret } = require(resolve(root, 'src/server/services/ai-client.js'));
+
+  const redacted = redactSecret('keys: test-key and gemini-secret');
+  assert.equal(redacted, 'keys: [redacted] and [redacted]');
 });
 
 test('/api/recipe-import-from-url 在 normal final AI 遗漏全部 evidence items 时确定性补回', async () => {
@@ -490,7 +700,79 @@ test('/api/ai-status 配置完整时返回可用状态且不泄露 API Key', asy
   assert.equal(res.body.textModelConfigured, true);
   assert.equal(res.body.visionModelConfigured, true);
   assert.equal(res.body.baseUrlConfigured, true);
+  assert.equal(res.body.chatProvider, 'groq');
+  assert.equal(res.body.importProvider, 'groq');
+  assert.equal(res.body.chatConfigured, true);
+  assert.equal(res.body.importConfigured, true);
+  assert.equal(res.body.geminiConfigured, false);
   assert.equal(res.body.message, '内置 AI 服务已配置');
+  assert.doesNotMatch(JSON.stringify(res.body), /test-key|Authorization|Bearer/);
+});
+
+test('/api/ai-status Gemini 文本能力与 Groq Vision 独立报告', async () => {
+  for (const { openAiKey, visionConfigured } of [
+    { openAiKey: 'test-key', visionConfigured: true },
+    { openAiKey: '', visionConfigured: false }
+  ]) {
+    const { app } = loadServerWithMocks({
+      env: {
+        OPENAI_API_KEY: openAiKey,
+        AI_CHAT_PROVIDER: 'gemini',
+        AI_IMPORT_PROVIDER: 'gemini',
+        GEMINI_API_KEY: 'gemini-secret'
+      }
+    });
+
+    const res = await runGet(app, '/api/ai-status');
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.available, true);
+    assert.equal(res.body.textModelConfigured, true);
+    assert.equal(res.body.chatConfigured, true);
+    assert.equal(res.body.importConfigured, true);
+    assert.equal(res.body.visionModelConfigured, visionConfigured);
+    assert.equal(res.body.chatProvider, 'gemini');
+    assert.equal(res.body.importProvider, 'gemini');
+    assert.doesNotMatch(JSON.stringify(res.body), /test-key|gemini-secret|generativelanguage/);
+  }
+});
+
+test('/api/ai-status Gemini chat 不被缺失的 Groq import/vision 误判为不可用', async () => {
+  const { app } = loadServerWithMocks({
+    env: {
+      OPENAI_API_KEY: '',
+      AI_CHAT_PROVIDER: 'gemini',
+      AI_IMPORT_PROVIDER: 'groq',
+      GEMINI_API_KEY: 'gemini-secret'
+    }
+  });
+
+  const res = await runGet(app, '/api/ai-status');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.available, true);
+  assert.equal(res.body.textModelConfigured, true);
+  assert.equal(res.body.chatConfigured, true);
+  assert.equal(res.body.importConfigured, false);
+  assert.equal(res.body.visionModelConfigured, false);
+  assert.equal(res.body.code, 'missing_api_key');
+  assert.equal(res.body.message, 'AI 聊天已配置，菜谱导入、图片识别暂不可用');
+});
+
+test('/api/ai-status Gemini key 缺失时返回明确安全状态', async () => {
+  const { app } = loadServerWithMocks({
+    env: {
+      AI_CHAT_PROVIDER: 'gemini',
+      AI_IMPORT_PROVIDER: 'gemini',
+      GEMINI_API_KEY: ''
+    }
+  });
+
+  const res = await runGet(app, '/api/ai-status');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.available, false);
+  assert.equal(res.body.chatConfigured, false);
+  assert.equal(res.body.importConfigured, false);
+  assert.equal(res.body.code, 'missing_gemini_api_key');
+  assert.equal(res.body.message, 'Gemini AI 服务未配置');
   assert.doesNotMatch(JSON.stringify(res.body), /test-key|Authorization|Bearer/);
 });
 
