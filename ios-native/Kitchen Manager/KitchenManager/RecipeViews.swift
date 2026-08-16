@@ -620,7 +620,7 @@ private struct RecipeEditView: View {
     var body: some View {
         Form { RecipeDraftEditorSections(draft: $draft, showsExtendedFields: true) }
             .navigationTitle("编辑菜谱").navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button("保存") { do { try store.replaceUserRecipe(draft.makeRecipe()); dismiss() } catch { errorMessage = error.localizedDescription } } }
+            .toolbar { Button("保存") { do { try store.replaceUserRecipe(draft.makeRecipe()); dismiss() } catch { errorMessage = error.localizedDescription } }.disabled(!draft.isSaveEligible) }
             .alert("无法保存", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("好", role: .cancel) {} } message: { Text(errorMessage ?? "请检查内容。") }
     }
 }

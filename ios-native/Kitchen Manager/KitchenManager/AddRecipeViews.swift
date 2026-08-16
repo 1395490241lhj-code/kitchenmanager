@@ -120,9 +120,8 @@ struct AIGeneratorView: View {
             #if DEBUG
             // Deterministic UI-test seeds for the confirmation screen, which
             // normally requires a real AI generation. A valid draft exercises
-            // the save success path; a draft without ingredients makes
-            // `makeRecipe()` throw synchronously so the failure path can be
-            // observed without calling the AI service.
+            // the save success path; a draft without ingredients verifies
+            // invalid save and plan actions stay disabled.
             let arguments = ProcessInfo.processInfo.arguments
             if arguments.contains("UITEST_SEED_AI_CONFIRMATION") {
                 // The success fixture's title/ingredients are fixed, so a
@@ -286,7 +285,7 @@ private struct AIRecipeConfirmationView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppTheme.primary)
-                    .disabled(performingAction != nil || generatorStore.isGenerating)
+                    .disabled(performingAction != nil || generatorStore.isGenerating || !isDraftSaveEligible)
 
                     Button {
                         Task { await saveOnly() }
@@ -294,7 +293,7 @@ private struct AIRecipeConfirmationView: View {
                         actionLabel("仅保存", systemImage: "square.and.arrow.down", isActive: performingAction == .saveOnly)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(performingAction != nil || generatorStore.isGenerating)
+                    .disabled(performingAction != nil || generatorStore.isGenerating || !isDraftSaveEligible)
                 }
 
                 Section {
@@ -302,7 +301,7 @@ private struct AIRecipeConfirmationView: View {
                         Button("仅加入今日计划", systemImage: "calendar.badge.plus") {
                             Task { await addToPlanOnly() }
                         }
-                        .disabled(generatorStore.hasAddedCurrentDraftToPlan)
+                        .disabled(generatorStore.hasAddedCurrentDraftToPlan || !isDraftSaveEligible)
 
                         Button("重新生成", systemImage: "arrow.clockwise") {
                             Task {
@@ -365,6 +364,10 @@ private struct AIRecipeConfirmationView: View {
             get: { generatorStore.errorMessage != nil },
             set: { if !$0 { generatorStore.errorMessage = nil } }
         )
+    }
+
+    private var isDraftSaveEligible: Bool {
+        generatorStore.generatedDraft?.isSaveEligible == true
     }
 
     private func actionLabel(_ title: String, systemImage: String, isActive: Bool) -> some View {
@@ -669,7 +672,7 @@ struct ImportRecipeView: View {
 
     private var canSave: Bool {
         guard let editableDraft else { return false }
-        return !editableDraft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return editableDraft.isSaveEligible
     }
 
     @MainActor
@@ -817,7 +820,7 @@ struct ManualRecipeView: View {
         .navigationTitle("手动添加")
         .toolbar {
             Button("保存") { save() }
-                .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!draft.isSaveEligible)
         }
         .alert("无法保存菜谱", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("好", role: .cancel) {}

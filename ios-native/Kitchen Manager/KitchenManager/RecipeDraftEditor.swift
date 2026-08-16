@@ -13,6 +13,8 @@ struct EditableRecipeDraft: Equatable {
     var tipsText = ""
     var source: RecipeSourceMetadata?
 
+    var isSaveEligible: Bool { (try? makeRecipe()) != nil }
+
     func makeRecipe() throws -> Recipe {
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanTitle.isEmpty else {

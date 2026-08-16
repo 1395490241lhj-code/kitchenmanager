@@ -55,6 +55,10 @@ test("inventory row communicates amount and a single expiry phrase as text plus 
 });
 
 test("inventory chrome is capped at accessibility sizes while food content is not", () => {
+  const foodCard = features.slice(
+    features.indexOf("private struct InventoryFoodCard"),
+    features.indexOf("struct ShoppingView")
+  );
   // Page chrome (title, summary, headers, symbols) is bounded in one place;
   // names, quantities, and status text keep unrestricted Dynamic Type.
   assert.match(features, /enum ChromeMetrics/);
@@ -67,10 +71,8 @@ test("inventory chrome is capped at accessibility sizes while food content is no
     /\.navigationBarTitleDisplayMode\(dynamicTypeSize\.isAccessibilitySize \? \.inline : \.large\)/
   );
   // At accessibility sizes the row is one explicit left-aligned column in a
-  // fixed order — name, status, quantity — beside the icon. `ViewThatFits` was
-  // replaced: it kept trying the side-by-side arrangement first, which pushed the
-  // quantity to the trailing edge and wrapped it onto its own line.
-  assert.doesNotMatch(features, /ViewThatFits/);
+  // fixed order — name, status, quantity — beside the icon.
+  assert.doesNotMatch(foodCard, /ViewThatFits/);
   assert.match(
     features,
     /private var accessibilityLayout: some View \{\s*HStack\(alignment: \.top, spacing: 12\) \{\s*statusIcon\s*VStack\(alignment: \.leading, spacing: 6\) \{\s*Text\(item\.name\)[\s\S]*?statusLabel\s*quantityLabel/

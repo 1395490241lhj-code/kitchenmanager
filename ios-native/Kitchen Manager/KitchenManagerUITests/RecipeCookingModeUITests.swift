@@ -312,17 +312,27 @@ final class RecipeCookingModeUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_RECIPE_COOKING"]
         app.launch()
 
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "recipe.list."))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 8))
-        let finalRow = rows.element(boundBy: rows.count - 1)
+        // The seed clears the store and injects a fixed 19-recipe fixture, so the
+        // first row proves the deterministic list is in place before any scrolling
+        // — the remote library is not loaded under this seed. Waiting on the final
+        // row directly is not possible: an off-screen List cell is not in the
+        // accessibility hierarchy yet.
+        let firstRow = app.buttons["recipe.list.ui-test-recipe-cooking-01"]
+        let finalRow = app.buttons["recipe.list.ui-test-recipe-list-final"]
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "确定性菜谱 fixture 未注入")
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.exists)
 
-        for _ in 0..<3 {
+        // Bounded scroll instead of a fixed swipe count: the number of swipes that
+        // reaches the last of 19 rows differs between 375pt and 402pt widths.
+        var swipes = 0
+        while swipes < 12 && !(finalRow.exists && finalRow.isHittable) {
             app.swipeUp()
+            swipes += 1
         }
 
-        XCTAssertTrue(finalRow.isHittable)
+        XCTAssertFalse(firstRow.isHittable, "长列表应发生真实滚动，首行仍可见")
+        XCTAssertTrue(finalRow.isHittable, "\(swipes) 次滑动后仍未到达固定末行")
         XCTAssertLessThanOrEqual(
             finalRow.frame.maxY,
             tabBar.frame.minY,

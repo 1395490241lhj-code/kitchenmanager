@@ -517,7 +517,7 @@ struct RecipeImageImportView: View {
 
     private var canSave: Bool {
         guard let draft = store.draft else { return false }
-        return !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return draft.isSaveEligible
     }
 
     private func attemptSave() {
@@ -531,7 +531,7 @@ struct RecipeImageImportView: View {
     }
 
     private func performSave() {
-        guard let draft = store.draft, !isSaving, !isSaved else { return }
+        guard let draft = store.draft, draft.isSaveEligible, !isSaving, !isSaved else { return }
         isSaving = true
         saveErrorMessage = nil
         Task {

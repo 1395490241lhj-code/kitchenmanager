@@ -13,6 +13,7 @@ const pantry = read("PantryStaples.swift");
 const kitchen = read("KitchenStore.swift");
 const service = read("RecipeService.swift");
 const editor = read("RecipeDraftEditor.swift");
+const addRecipe = read("AddRecipeViews.swift");
 const generator = read("AIRecipeGenerator.swift");
 const imageImport = read("RecipeImageImport.swift");
 const server = read("../../../server.js");
@@ -91,6 +92,16 @@ test("recipe editor supports user-controlled moves between ingredient buckets", 
   assert.match(editor, /移到调料与辅料/);
   assert.match(editor, /移到食材/);
   assert.match(editor, /Button\("删除"/);
+});
+
+test("all editable recipe save and plan entries share draft eligibility", () => {
+  assert.match(editor, /var isSaveEligible: Bool \{ \(try\? makeRecipe\(\)\) != nil \}/);
+  assert.match(addRecipe, /return editableDraft\.isSaveEligible/);
+  assert.match(addRecipe, /\.disabled\(!draft\.isSaveEligible\)/);
+  assert.match(addRecipe, /generatorStore\.isGenerating \|\| !isDraftSaveEligible/);
+  assert.match(addRecipe, /hasAddedCurrentDraftToPlan \|\| !isDraftSaveEligible/);
+  assert.match(imageImport, /return draft\.isSaveEligible/);
+  assert.match(recipes, /\.disabled\(!draft\.isSaveEligible\)/);
 });
 
 test("home quick actions share one sheet navigation stack for recipe import", () => {

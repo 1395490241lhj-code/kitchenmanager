@@ -194,15 +194,10 @@ final class ClipboardRecipeImportUITests: XCTestCase {
         return app
     }
 
-    /// P2-6 regression: the confirmation actions keep their normal labels while
-    /// one action is performing, and a synchronous save failure must reset the
-    /// action state (no stuck spinner, buttons usable again). Uses the
-    /// `UITEST_SEED_AI_CONFIRMATION_FAILURE` seed whose draft has no
-    /// ingredients, so `save` throws synchronously without any AI/network call.
-    func testAIConfirmationFailureResetsActionState() {
+    func testAIConfirmationInvalidDraftDisablesSaveAndPlanActions() {
         for (name, extra) in [
-            ("ai-confirm-failure-normal", []),
-            ("ai-confirm-failure-accessibility", ["-UIPreferredContentSizeCategoryName",
+            ("ai-confirm-invalid-normal", []),
+            ("ai-confirm-invalid-accessibility", ["-UIPreferredContentSizeCategoryName",
                                                   "UICTContentSizeCategoryAccessibilityXXXL"])
         ] {
             let app = launchAIConfirmation(
@@ -214,30 +209,10 @@ final class ClipboardRecipeImportUITests: XCTestCase {
             let saveOnly = app.buttons["仅保存"]
             XCTAssertTrue(saveAndPlan.waitForExistence(timeout: 5))
             XCTAssertTrue(saveOnly.waitForExistence(timeout: 5))
-            XCTAssertTrue(saveAndPlan.isEnabled, "\(name): 主操作应可用")
-            XCTAssertTrue(saveOnly.isEnabled, "\(name): 次操作应可用")
+            XCTAssertFalse(saveAndPlan.isEnabled, "\(name): 缺食材时主操作必须禁用")
+            XCTAssertFalse(saveOnly.isEnabled, "\(name): 缺食材时次操作必须禁用")
             XCTAssertGreaterThanOrEqual(saveAndPlan.frame.height, 43.5, "\(name): 主操作点击区域应至少 44pt")
-            XCTAssertTrue(saveAndPlan.isHittable, "\(name): 主操作不可点击")
             attachScreenshot(of: app, named: name)
-
-            // Synchronous failure: the draft has no ingredients.
-            saveOnly.tap()
-            let alert = app.alerts["无法完成操作"]
-            XCTAssertTrue(alert.waitForExistence(timeout: 5), "\(name): 保存失败应弹出错误提示")
-            XCTAssertTrue(
-                alert.staticTexts["请至少保留一种食材。"].waitForExistence(timeout: 3),
-                "\(name): 错误文案应为可读的产品文案"
-            )
-            alert.buttons.firstMatch.tap()
-
-            // Recovery: both actions usable again, no leftover spinner.
-            XCTAssertTrue(saveAndPlan.isEnabled, "\(name): 失败后主操作应恢复可用")
-            XCTAssertTrue(saveOnly.isEnabled, "\(name): 失败后次操作应恢复可用")
-            XCTAssertFalse(saveOnly.label.isEmpty, "\(name): 失败后按钮文字消失（icon-only）")
-            XCTAssertFalse(
-                app.activityIndicators.firstMatch.exists,
-                "\(name): 失败后仍有残留 spinner"
-            )
             app.terminate()
         }
     }

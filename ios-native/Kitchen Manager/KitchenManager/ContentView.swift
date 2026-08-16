@@ -211,6 +211,39 @@ struct KitchenManagerApp: App {
 
 #if DEBUG
 private enum RecipeUITestSeed {
+    static var isolatesRecipeStore: Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        return [
+            "UITEST_SEED_EMPTY_HOME",
+            "UITEST_SEED_RECIPE_COOKING",
+            "UITEST_SEED_RECIPE_LONG",
+            "UITEST_RECIPE_EMPTY_SCREENSHOT",
+            "UITEST_SEED_ACCESSIBILITY_RECOMMENDATION"
+        ].contains { arguments.contains($0) }
+    }
+
+    static let cookingRecipes: [Recipe] = (1...18).map { index in
+        Recipe(
+            id: String(format: "ui-test-recipe-cooking-%02d", index),
+            title: "UI 测试家常菜 " + String(index),
+            cookingTime: 15 + index,
+            difficulty: "简单",
+            tags: ["UI 测试"],
+            ingredients: ["鸡蛋 2 个", "番茄 1 个"],
+            steps: ["准备食材。", "下锅翻炒。", "调味后出锅。"]
+        )
+    } + [
+        Recipe(
+            id: "ui-test-recipe-list-final",
+            title: "UI 测试固定最后一行",
+            cookingTime: 30,
+            difficulty: "简单",
+            tags: ["UI 测试"],
+            ingredients: ["豆腐 1 块"],
+            steps: ["豆腐切块。", "下锅烧熟。"]
+        )
+    ]
+
     static let accessibilityRecommendationOne = Recipe(
         id: "ui-test-accessibility-recommendation-one",
         title: "超长名称的番茄香草鸡腿家庭晚餐蔬菜炖锅",
@@ -346,6 +379,9 @@ struct ContentView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
             await authStore.start()
+            #if DEBUG
+            guard !RecipeUITestSeed.isolatesRecipeStore else { return }
+            #endif
             if recipeStore.remoteRecipes.isEmpty {
                 await recipeStore.loadRecipes()
             }
@@ -474,6 +510,7 @@ struct ContentView: View {
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_HOME") else { return }
             kitchenStore.clearAllLocalData()
+            recipeStore.clearLocalData()
             navigationStore.selectedTab = .today
         }
         .task {
@@ -502,12 +539,17 @@ struct ContentView: View {
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_COOKING") else { return }
             kitchenStore.clearAllLocalData()
+            recipeStore.clearLocalData()
+            for recipe in RecipeUITestSeed.cookingRecipes.reversed() {
+                recipeStore.add(recipe)
+            }
             navigationStore.selectedTab = .recipes
         }
         #if DEBUG
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_EMPTY_SCREENSHOT") else { return }
             kitchenStore.clearAllLocalData()
+            recipeStore.clearLocalData()
             navigationStore.selectedTab = .recipes
         }
         .task {

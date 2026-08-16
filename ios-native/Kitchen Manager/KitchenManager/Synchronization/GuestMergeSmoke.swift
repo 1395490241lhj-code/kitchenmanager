@@ -173,7 +173,7 @@ final class GuestMergeSmokeRunner {
             consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
             weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
         )
-        let recipeStore = RecipeStore()
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: "guest-merge-smoke-\(marker)")!)
         let guestBefore = GuestBoundarySnapshot(kitchenStore: kitchenStore, recipeStore: recipeStore)
 
         // Every entity id this run creates remotely, tracked so a thrown

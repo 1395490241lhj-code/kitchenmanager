@@ -24,7 +24,10 @@ final class GuestMergeTests: XCTestCase {
         kitchen.addInventory(name: "土豆", quantity: 3, unit: "个", expiryDate: nil)
         kitchen.addInventory(name: "洋葱", quantity: 2, unit: "个", expiryDate: nil)
         let before = kitchen.inventory
-        let summary = GuestDatasetDetector.summary(kitchenStore: kitchen, recipeStore: RecipeStore())
+        let summary = GuestDatasetDetector.summary(
+            kitchenStore: kitchen,
+            recipeStore: RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        )
         XCTAssertEqual(summary.inventoryCount, 2)
         XCTAssertTrue(summary.hasMergeableInventory)
         XCTAssertEqual(kitchen.inventory, before, "detection must never mutate Guest inventory")
@@ -33,7 +36,10 @@ final class GuestMergeTests: XCTestCase {
     func testDetectionReportsOtherModulesButNoInventoryIsNotMergeable() {
         let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
         kitchen.addShoppingItems([KitchenShoppingItem(name: "牛奶", quantity: 1, unit: "盒")])
-        let summary = GuestDatasetDetector.summary(kitchenStore: kitchen, recipeStore: RecipeStore())
+        let summary = GuestDatasetDetector.summary(
+            kitchenStore: kitchen,
+            recipeStore: RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        )
         XCTAssertTrue(summary.hasAnyGuestData)
         XCTAssertFalse(summary.hasMergeableInventory, "Phase 2B-1 only offers a merge path for inventory")
     }
