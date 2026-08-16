@@ -10,6 +10,7 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const Module = require('node:module');
+const OpenAI = require('openai');
 const originalLoad = Module._load;
 const root = process.cwd();
 const serverPath = resolve(root, 'server.js');
@@ -78,15 +79,55 @@ function createRes() {
   };
 }
 
-function loadServerWithMocks({ axiosPost, axiosGet, dnsLookup, env = {}, childProcessMock, ffmpegStatic = '/mock/ffmpeg' } = {}) {
+function loadServerWithMocks({ axiosPost, axiosGet, openAiCreate, dnsLookup, env = {}, childProcessMock, ffmpegStatic = '/mock/ffmpeg' } = {}) {
   const expressMock = createExpressMock();
+  const openAiClientOptions = [];
+  const openAiRequests = [];
   const axiosMock = {
     post: axiosPost || (async () => ({ data: { choices: [{ message: { content: 'ok' } }] } })),
     get: axiosGet || (async () => ({ status: 200, headers: {}, data: '' }))
   };
+  class APIConnectionTimeoutError extends Error {}
+  class OpenAIMock {
+    constructor(options) {
+      openAiClientOptions.push(options);
+      this.chat = {
+        completions: {
+          create: (payload, requestOptions) => {
+            openAiRequests.push({ payload, requestOptions });
+            return {
+              withResponse: async () => {
+                const base = String(process.env.OPENAI_BASE_URL || '').trim().replace(/\/+$/, '');
+                const url = /\/chat\/completions$/.test(base)
+                  ? base
+                  : /\/v\d+$/.test(base)
+                    ? `${base}/chat/completions`
+                    : `${base}/v1/chat/completions`;
+                const result = openAiCreate
+                  ? await openAiCreate(payload, requestOptions)
+                  : await axiosMock.post(url, payload, {
+                      timeout: requestOptions.timeout,
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY || ''}` }
+                    });
+                if (result && result.response) return result;
+                const headers = new Headers(result?.headers || {});
+                return {
+                  data: result?.data ?? result,
+                  response: { headers },
+                  request_id: headers.get('x-request-id')
+                };
+              }
+            };
+          }
+        }
+      };
+    }
+  }
+  OpenAIMock.APIConnectionTimeoutError = APIConnectionTimeoutError;
   Module._load = function mockedLoad(request, parent, isMain) {
     if (request === 'express') return expressMock;
     if (request === 'axios') return axiosMock;
+    if (request === 'openai') return OpenAIMock;
     if (request === 'dns' && dnsLookup) return { promises: { lookup: dnsLookup } };
     if (request === 'ffmpeg-static') return ffmpegStatic;
     if (request === 'child_process' && childProcessMock) return childProcessMock;
@@ -103,7 +144,7 @@ function loadServerWithMocks({ axiosPost, axiosGet, dnsLookup, env = {}, childPr
   };
   clearServerRequireCache();
   require(serverPath);
-  return { app: expressMock.latestApp, axiosMock };
+  return { app: expressMock.latestApp, axiosMock, openAiClientOptions, openAiRequests, APIConnectionTimeoutError };
 }
 
 async function runPost(app, path, body = {}) {
@@ -175,6 +216,49 @@ afterEach(() => {
   process.env = { ...originalEnv };
   globalThis.fetch = originalFetch;
   clearServerRequireCache();
+});
+
+test('OpenAI SDK baseURL normalization 保持现有 endpoint 兼容语义', () => {
+  loadServerWithMocks();
+  const { resolveOpenAIBaseURL } = require(resolve(root, 'src/server/services/ai-client.js'));
+
+  assert.equal(resolveOpenAIBaseURL('https://api.groq.com/openai'), 'https://api.groq.com/openai/v1');
+  assert.equal(resolveOpenAIBaseURL('https://api.groq.com/openai/v1'), 'https://api.groq.com/openai/v1');
+  assert.equal(resolveOpenAIBaseURL('https://api.groq.com/openai/v1/chat/completions'), 'https://api.groq.com/openai/v1');
+  assert.equal(resolveOpenAIBaseURL('https://example.test/chat/completions'), 'https://example.test');
+});
+
+test('postChatCompletion 通过 SDK 保持 payload、timeout、retry 和 response contract', async () => {
+  const messages = [{ role: 'user', content: '测试' }];
+  const { openAiClientOptions, openAiRequests } = loadServerWithMocks({
+    openAiCreate: async () => ({
+      data: { model: 'openai/gpt-oss-20b', choices: [{ message: { content: '{"ok":true}' } }] },
+      response: { headers: new Headers({ 'x-groq-id': 'groq-request-id' }) },
+      request_id: 'openai-request-id'
+    })
+  });
+  const { postChatCompletion, summarizeAiResponse } = require(resolve(root, 'src/server/services/ai-client.js'));
+
+  const response = await postChatCompletion({
+    model: 'openai/gpt-oss-20b',
+    messages,
+    temperature: 0.2,
+    responseFormat: false,
+    timeout: 1234
+  });
+
+  assert.deepEqual(openAiClientOptions, [{
+    apiKey: 'test-key',
+    baseURL: 'https://api.groq.com/openai/v1',
+    maxRetries: 0
+  }]);
+  assert.deepEqual(openAiRequests, [{
+    payload: { model: 'openai/gpt-oss-20b', messages, temperature: 0.2 },
+    requestOptions: { timeout: 1234 }
+  }]);
+  assert.equal(response.data.choices[0].message.content, '{"ok":true}');
+  assert.equal(response.headers['x-groq-id'], 'groq-request-id');
+  assert.equal(summarizeAiResponse(response).upstreamRequestId, 'groq-request-id');
 });
 
 test('/api/recipe-import-from-url 在 normal final AI 遗漏全部 evidence items 时确定性补回', async () => {
@@ -411,7 +495,7 @@ test('/api/ai-status 配置完整时返回可用状态且不泄露 API Key', asy
 });
 
 test('/api/ai-status 缺少 OPENAI_API_KEY 时返回安全 code', async () => {
-  const { app } = loadServerWithMocks({
+  const { app, openAiClientOptions } = loadServerWithMocks({
     env: {
       OPENAI_API_KEY: '',
       OPENAI_BASE_URL: 'https://api.groq.com/openai/v1',
@@ -429,6 +513,7 @@ test('/api/ai-status 缺少 OPENAI_API_KEY 时返回安全 code', async () => {
   assert.equal(res.body.textModelConfigured, false);
   assert.equal(res.body.visionModelConfigured, false);
   assert.equal(res.body.baseUrlConfigured, true);
+  assert.equal(openAiClientOptions.length, 0);
   assert.doesNotMatch(JSON.stringify(res.body), /test-key|Authorization|Bearer/);
 });
 
@@ -1870,7 +1955,7 @@ test('/api/recipe-import-from-url 超过导入桶上限返回 429，前 10 次�
 
 test('/api/recipe-import-from-url 对 Groq GPT-OSS 的 RecipeDraft 发送 strict JSON Schema', async () => {
   const payloads = [];
-  const { app } = loadServerWithMocks({
+  const { app, openAiClientOptions, openAiRequests } = loadServerWithMocks({
     env: { OPENAI_IMPORT_MODEL: 'openai/gpt-oss-120b' },
     dnsLookup: async () => [{ address: '93.184.216.34', family: 4 }],
     axiosGet: async () => ({
@@ -1931,7 +2016,15 @@ test('/api/recipe-import-from-url 对 Groq GPT-OSS 的 RecipeDraft 发送 strict
   const finalPayloads = payloads.filter(payload => /Kitchen Manager 的菜谱导入助手/.test(payload.messages?.[0]?.content || ''));
   assert.equal(evidencePayloads.length, 1);
   assert.equal(finalPayloads.length, 1);
+  assert.deepEqual(openAiClientOptions, [{
+    apiKey: 'test-key',
+    baseURL: 'https://api.groq.com/openai/v1',
+    maxRetries: 0
+  }]);
+  assert.equal(openAiRequests.length, 2);
+  assert.ok(openAiRequests.every(request => request.requestOptions.timeout === 45000));
   assert.equal(finalPayloads[0].model, 'openai/gpt-oss-120b');
+  assert.equal(finalPayloads[0].temperature, 0.2);
   assert.equal(evidencePayloads[0].response_format, undefined);
   const format = finalPayloads[0].response_format;
   assert.equal(format.type, 'json_schema');
@@ -1993,7 +2086,7 @@ test('/api/ai-parse 对不支持 strict 的 provider 或 model 保持普通 chat
   }
 });
 
-test('/api/ai-parse strict fallback 不重试真实上游或 schema 请求错误', async () => {
+test('/api/ai-parse strict fallback 不重试 SDK 上游或 schema 请求错误', async () => {
   for (const { status, code } of [
     { status: 400, code: 'invalid_request_error' },
     { status: 401, code: 'invalid_api_key' },
@@ -2003,7 +2096,7 @@ test('/api/ai-parse strict fallback 不重试真实上游或 schema 请求错误
   ]) {
     let finalRequestCount = 0;
     const { app } = loadServerWithMocks({
-      axiosPost: async (_url, payload) => {
+      openAiCreate: async (payload) => {
         if (/菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')) {
           return { data: { choices: [{ message: { content: JSON.stringify({
             dishNameCandidates: ['番茄炒蛋'],
@@ -2013,9 +2106,12 @@ test('/api/ai-parse strict fallback 不重试真实上游或 schema 请求错误
           }) } }] } };
         }
         finalRequestCount += 1;
-        const err = new Error(code);
-        err.response = { status, data: { error: { code, message: code } } };
-        throw err;
+        throw OpenAI.APIError.generate(
+          status,
+          { error: { code, message: code } },
+          code,
+          new Headers()
+        );
       }
     });
 
@@ -2025,6 +2121,99 @@ test('/api/ai-parse strict fallback 不重试真实上游或 schema 请求错误
     assert.equal(res.body.code, code);
     assert.equal(finalRequestCount, 1);
   }
+});
+
+test('/api/ai-parse SDK json_validate_failed 只 fallback 一次并保留 plain payload', async () => {
+  let finalRequestCount = 0;
+  const { app } = loadServerWithMocks({
+    openAiCreate: async (payload) => {
+      if (/菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')) {
+        return { data: { choices: [{ message: { content: JSON.stringify({
+          dishNameCandidates: ['番茄炒蛋'],
+          observedMainIngredients: ['番茄', '鸡蛋'],
+          observedActions: [{ order: 1, action: '番茄和鸡蛋下锅炒熟', evidenceText: '番茄和鸡蛋下锅炒熟', confidence: 'high' }],
+          sourceConfidence: 'high'
+        }) } }] } };
+      }
+      finalRequestCount += 1;
+      if (payload.response_format) {
+        throw OpenAI.APIError.generate(
+          400,
+          { error: { code: 'json_validate_failed', message: 'JSON schema validation failed' } },
+          'JSON schema validation failed',
+          new Headers()
+        );
+      }
+      assert.equal(payload.response_format, undefined);
+      return { data: { choices: [{ message: { content: JSON.stringify({
+        name: '番茄炒蛋',
+        tags: ['家常菜'],
+        ingredients: [{ item: '番茄', qty: '', unit: '' }, { item: '鸡蛋', qty: '', unit: '' }],
+        seasonings: [],
+        method: ['番茄和鸡蛋下锅炒熟。'],
+        warnings: [],
+        needsReview: false
+      }) } }] } };
+    }
+  });
+
+  const res = await runPost(app, '/api/ai-parse', { text: '番茄和鸡蛋下锅炒熟。', sourceType: 'manual' });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.recipe.name, '番茄炒蛋');
+  assert.equal(finalRequestCount, 2);
+});
+
+test('/api/ai-parse 保留 SDK APIError.requestID diagnostics', async () => {
+  const { app } = loadServerWithMocks({
+    openAiCreate: async (payload) => {
+      if (/菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')) {
+        return { data: { choices: [{ message: { content: JSON.stringify({
+          dishNameCandidates: ['番茄炒蛋'],
+          observedMainIngredients: ['番茄', '鸡蛋'],
+          observedActions: [],
+          sourceConfidence: 'high'
+        }) } }] } };
+      }
+      const err = OpenAI.APIError.generate(
+        401,
+        { error: { code: 'invalid_api_key', message: 'bad key' } },
+        'bad key',
+        new Headers()
+      );
+      err.requestID = 'sdk-error-id';
+      throw err;
+    }
+  });
+
+  const res = await runPost(app, '/api/ai-parse', { text: '番茄和鸡蛋下锅炒熟。', sourceType: 'manual' });
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.upstreamRequestId, 'sdk-error-id');
+});
+
+test('/api/ai-parse SDK timeout 保持 504/ECONNABORTED 且不重试', async () => {
+  let finalRequestCount = 0;
+  const { app } = loadServerWithMocks({
+    openAiCreate: async (payload) => {
+      if (/菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')) {
+        return { data: { choices: [{ message: { content: JSON.stringify({
+          dishNameCandidates: ['番茄炒蛋'],
+          observedMainIngredients: ['番茄', '鸡蛋'],
+          observedActions: [{ order: 1, action: '番茄和鸡蛋下锅炒熟', evidenceText: '番茄和鸡蛋下锅炒熟', confidence: 'high' }],
+          sourceConfidence: 'high'
+        }) } }] } };
+      }
+      finalRequestCount += 1;
+      throw new OpenAI.APIConnectionTimeoutError();
+    }
+  });
+
+  const res = await runPost(app, '/api/ai-parse', { text: '番茄和鸡蛋下锅炒熟。', sourceType: 'manual' });
+
+  assert.equal(res.statusCode, 504);
+  assert.equal(res.body.code, 'ECONNABORTED');
+  assert.equal(finalRequestCount, 1);
 });
 
 test('/api/recipe-import-from-url 上游 json_validate_failed 不透传 400，有视频文字时返回 fallback 草稿', async () => {
@@ -2755,6 +2944,7 @@ test('后端上游错误响应保留 status/code，并且不泄露 API Key', asy
       const err = new Error('request failed');
       err.response = {
         status: 404,
+        headers: { 'x-groq-id': 'axios-error-id' },
         data: {
           error: {
             code: 'model_not_found',
@@ -2777,5 +2967,25 @@ test('后端上游错误响应保留 status/code，并且不泄露 API Key', asy
   assert.equal(res.body.code, 'model_not_found');
   assert.equal(res.body.upstreamStatus, 404);
   assert.equal(res.body.upstreamCode, 'model_not_found');
+  assert.equal(res.body.upstreamRequestId, 'axios-error-id');
   assert.doesNotMatch(JSON.stringify(res.body), /test-key/);
+});
+
+test('上游错误没有 request-id 时保持原有错误响应形状', async () => {
+  const { app } = loadServerWithMocks({
+    axiosPost: async () => {
+      const err = new Error('request failed');
+      err.response = {
+        status: 502,
+        data: { error: { code: 'upstream_error', message: 'bad gateway' } }
+      };
+      throw err;
+    }
+  });
+
+  const res = await runPost(app, '/api/ai-chat', { prompt: '测试' });
+
+  assert.equal(res.statusCode, 502);
+  assert.equal(res.body.code, 'upstream_error');
+  assert.equal(Object.hasOwn(res.body, 'upstreamRequestId'), false);
 });

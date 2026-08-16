@@ -1,4 +1,4 @@
-const axios = require('axios');
+const OpenAI = require('openai');
 const {
   OPENAI_API_KEY,
   OPENAI_BASE_URL,
@@ -75,6 +75,22 @@ function resolveChatUrl(base) {
   return `${b}/v1/chat/completions`;
 }
 
+function resolveOpenAIBaseURL(base) {
+  return resolveChatUrl(base).replace(/\/chat\/completions$/, '');
+}
+
+let openAIClient = null;
+function getOpenAIClient() {
+  if (!openAIClient) {
+    openAIClient = new OpenAI({
+      apiKey: OPENAI_API_KEY,
+      baseURL: resolveOpenAIBaseURL(OPENAI_BASE_URL),
+      maxRetries: 0
+    });
+  }
+  return openAIClient;
+}
+
 function resolveAudioTranscriptionsUrl(base) {
   const b = String(base || '').trim().replace(/\/+$/, '');
   if (/\/audio\/transcriptions$/.test(b)) return b;
@@ -108,11 +124,19 @@ function sendAiJsonError(res, status, code, error, extra = {}) {
 }
 
 function getUpstreamAiErrorInfo(err) {
+  const isSdkTimeout = (typeof OpenAI.APIConnectionTimeoutError === 'function' && err instanceof OpenAI.APIConnectionTimeoutError)
+    || err?.constructor?.name === 'APIConnectionTimeoutError';
   const status = err && err.response && Number.isInteger(err.response.status)
     ? err.response.status
-    : (err && err.code === 'ECONNABORTED' ? 504 : 502);
+    : err && Number.isInteger(err.status)
+      ? err.status
+      : (err && (err.code === 'ECONNABORTED' || isSdkTimeout) ? 504 : 502);
   const data = err && err.response ? err.response.data : null;
-  const upstreamError = data && typeof data === 'object' ? data.error : null;
+  const upstreamError = data && typeof data === 'object' && data.error
+    ? data.error
+    : err && err.error && typeof err.error === 'object'
+      ? err.error
+      : null;
   const code = upstreamError && typeof upstreamError === 'object' && upstreamError.code
     ? upstreamError.code
     : (upstreamError && typeof upstreamError === 'object' && upstreamError.type)
@@ -121,7 +145,11 @@ function getUpstreamAiErrorInfo(err) {
         ? data.code
         : err && err.code
           ? err.code
-          : 'upstream_error';
+          : err && err.type
+            ? err.type
+            : isSdkTimeout
+              ? 'ECONNABORTED'
+              : 'upstream_error';
   const detail = upstreamError && typeof upstreamError === 'object' && upstreamError.message
     ? upstreamError.message
     : data && typeof data === 'object' && data.message
@@ -131,10 +159,23 @@ function getUpstreamAiErrorInfo(err) {
         : err && err.message
           ? err.message
           : '上游 AI 服务请求失败。';
+  const headers = err?.response?.headers;
+  const headerRequestId = (name) => {
+    if (typeof headers?.get === 'function') return headers.get(name);
+    const key = Object.keys(headers || {}).find((candidate) => candidate.toLowerCase() === name);
+    return key ? headers[key] : null;
+  };
   return {
     status,
     code: String(code || 'upstream_error').slice(0, 80),
-    detail: redactSecret(detail)
+    detail: redactSecret(detail),
+    upstreamRequestId: String(
+      headerRequestId('x-groq-id')
+      || headerRequestId('x-request-id')
+      || headerRequestId('x-trace-id')
+      || err?.requestID
+      || ''
+    ).slice(0, 160) || null
   };
 }
 
@@ -142,7 +183,8 @@ function sendAiUpstreamError(res, err, error = 'AI 服务暂时不可用。') {
   const info = getUpstreamAiErrorInfo(err);
   const payload = {
     upstreamStatus: info.status,
-    upstreamCode: info.code
+    upstreamCode: info.code,
+    ...(info.upstreamRequestId ? { upstreamRequestId: info.upstreamRequestId } : {})
   };
   if (process.env.NODE_ENV !== 'production') payload.detail = info.detail;
   return sendAiJsonError(res, info.status, info.code, error, payload);
@@ -208,14 +250,17 @@ async function postChatCompletion({ model, messages, temperature = 0.2, response
     temperature
   };
   if (responseFormat) payload.response_format = responseFormat === true ? { type: 'json_object' } : responseFormat;
-  return axios.post(
-    resolveChatUrl(OPENAI_BASE_URL),
-    payload,
-    {
-      timeout,
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
+  const { data, response, request_id: requestId } = await getOpenAIClient()
+    .chat.completions.create(payload, { timeout })
+    .withResponse();
+  return {
+    data,
+    headers: {
+      'x-groq-id': response.headers.get('x-groq-id'),
+      'x-request-id': requestId || data?._request_id || response.headers.get('x-request-id'),
+      'x-trace-id': response.headers.get('x-trace-id')
     }
-  );
+  };
 }
 
 async function postJsonChatContentWithFallback({ model, messages, temperature = 0.2, timeout = 45000, useJsonMode = false, responseFormat = null }) {
@@ -260,6 +305,7 @@ function createPublicApiError(status, error, code = '') {
 module.exports = {
   createPublicApiError,
   resolveChatUrl,
+  resolveOpenAIBaseURL,
   resolveAudioTranscriptionsUrl,
   estimateBase64EncodedBytes,
   redactSecret,

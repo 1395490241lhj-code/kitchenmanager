@@ -1287,12 +1287,14 @@ function sendAiParsePipelineError(res, err, fallback = 'AI 解析请求失败，
     return sendAiJsonError(res, 429, 'rate_limit_exceeded', 'AI 服务请求过于频繁，请稍后再试。', {
       upstreamStatus: info.status,
       upstreamCode: info.code,
+      ...(info.upstreamRequestId ? { upstreamRequestId: info.upstreamRequestId } : {}),
       ...extra
     });
   }
   return sendAiJsonError(res, info.status, info.code, fallback, {
     upstreamStatus: info.status,
     upstreamCode: info.code,
+    ...(info.upstreamRequestId ? { upstreamRequestId: info.upstreamRequestId } : {}),
     ...(process.env.NODE_ENV !== 'production' ? { detail: info.detail } : {}),
     ...extra
   });
