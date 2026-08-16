@@ -147,17 +147,20 @@ struct RecipeCookingModeView: View {
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
                 .disabled(session.currentStepIndex == 0)
                 .accessibilityIdentifier("recipe.cooking.previous")
             Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
                 .accessibilityIdentifier("recipe.cooking.ingredients")
             Button("下一步", systemImage: "chevron.right") { session.next(stepCount: steps.count) }
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.brand)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
                 .disabled(session.currentStepIndex >= steps.count - 1)
                 .accessibilityIdentifier("recipe.cooking.next")
         }
@@ -170,18 +173,21 @@ struct RecipeCookingModeView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.brand)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
                 .disabled(session.currentStepIndex >= steps.count - 1)
                 .accessibilityIdentifier("recipe.cooking.next")
             Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
                 .disabled(session.currentStepIndex == 0)
                 .accessibilityIdentifier("recipe.cooking.previous")
             Button("查看食材", systemImage: "basket") { isShowingIngredientSheet = true }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
                 .accessibilityIdentifier("recipe.cooking.ingredients")
         }
         .frame(maxWidth: .infinity, alignment: .leading)

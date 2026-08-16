@@ -110,6 +110,8 @@ struct RecipeListView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(AppTheme.brand)
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .contentShape(Rectangle())
                         .accessibilityIdentifier("recipe.search.clear")
                     } else if !hasActiveFilters {
                         Button("添加菜谱", systemImage: "plus") {

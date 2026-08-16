@@ -79,7 +79,9 @@ final class RecipeCookingModeUITests: XCTestCase {
         searchField.typeText("不存在的菜谱")
 
         XCTAssertTrue(app.staticTexts["没有找到匹配菜谱"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["recipe.search.clear"].isHittable)
+        let clear = app.buttons["recipe.search.clear"]
+        XCTAssertTrue(clear.isHittable)
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44)
         attachScreenshot(of: app, named: "final-recipe-search-empty")
     }
 
@@ -204,6 +206,9 @@ final class RecipeCookingModeUITests: XCTestCase {
         let next = app.buttons["recipe.cooking.next"]
         let complete = app.buttons["recipe.cooking.step.complete"]
         XCTAssertTrue(complete.waitForExistence(timeout: 5))
+        for control in [previous, ingredients, next] {
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+        }
         XCTAssertFalse(previous.isEnabled)
         XCTAssertTrue(ingredients.isEnabled)
         XCTAssertTrue(next.isEnabled)
@@ -236,9 +241,20 @@ final class RecipeCookingModeUITests: XCTestCase {
         attachScreenshot(of: detail, named: "final-recipe-detail-accessibility-top")
 
         let startCooking = detail.buttons["recipe.detail.startCooking"]
-        for _ in 0..<16 where !startCooking.isHittable {
+        let finalStep = detail.descendants(matching: .any)["recipe.detail.step.9"]
+        XCTAssertTrue(finalStep.waitForExistence(timeout: 8))
+        let topFinalStepFrame = finalStep.frame
+        detail.swipeUp()
+        for _ in 0..<20 {
+            if finalStep.isHittable && finalStep.frame.maxY <= startCooking.frame.minY {
+                break
+            }
             detail.swipeUp()
         }
+        XCTAssertNotEqual(finalStep.frame, topFinalStepFrame, "Detail bottom screenshot 未发生实际滚动")
+        XCTAssertTrue(finalStep.isHittable, "Detail final step 未滚动到可见位置")
+        XCTAssertLessThanOrEqual(finalStep.frame.maxY, startCooking.frame.minY,
+            "Detail final step 被 pinned CTA 遮挡")
         XCTAssertTrue(startCooking.isHittable)
         attachScreenshot(of: detail, named: "final-recipe-detail-accessibility-bottom")
 
@@ -274,7 +290,7 @@ final class RecipeCookingModeUITests: XCTestCase {
 
     func testVisualReviewDarkModeUsesSemanticSurfaces() throws {
         let list = XCUIApplication()
-        list.launchArguments = ["UITEST_SEED_RECIPE_COOKING", "-AppleInterfaceStyle", "Dark"]
+        list.launchArguments = ["UITEST_SEED_RECIPE_COOKING", "UITEST_FORCE_DARK_APPEARANCE"]
         list.launch()
 
         let recipe = list.buttons.matching(
@@ -285,9 +301,32 @@ final class RecipeCookingModeUITests: XCTestCase {
         list.terminate()
 
         let detail = XCUIApplication()
-        detail.launchArguments = ["UITEST_RECIPE_DETAIL_SCREENSHOT", "-AppleInterfaceStyle", "Dark"]
+        detail.launchArguments = ["UITEST_RECIPE_DETAIL_SCREENSHOT", "UITEST_FORCE_DARK_APPEARANCE"]
         detail.launch()
         XCTAssertTrue(detail.staticTexts["周末慢炖番茄香草鸡腿蔬菜锅"].waitForExistence(timeout: 8))
         attachScreenshot(of: detail, named: "final-recipe-detail-dark")
+    }
+
+    func testRecipeListFinalRowClearsFloatingTabBar() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_RECIPE_COOKING"]
+        app.launch()
+
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "recipe.list."))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 8))
+        let finalRow = rows.element(boundBy: rows.count - 1)
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.exists)
+
+        for _ in 0..<3 {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(finalRow.isHittable)
+        XCTAssertLessThanOrEqual(
+            finalRow.frame.maxY,
+            tabBar.frame.minY,
+            "Recipes final row 被 floating tab bar 遮挡"
+        )
     }
 }
