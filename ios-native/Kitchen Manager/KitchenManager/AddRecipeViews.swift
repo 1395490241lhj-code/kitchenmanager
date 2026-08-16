@@ -538,7 +538,8 @@ struct ImportRecipeView: View {
                             ProgressView().tint(.white)
                             Text(importStage.rawValue)
                         } else {
-                            Label("开始导入", systemImage: "square.and.arrow.down")
+                            Image(systemName: "square.and.arrow.down")
+                            Text("开始导入")
                         }
                         Spacer()
                     }
