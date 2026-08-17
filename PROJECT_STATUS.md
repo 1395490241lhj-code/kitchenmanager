@@ -2,11 +2,27 @@
 
 ## Last verified
 
-- Date: 2026-08-10
-- Commit: `bfcf07f` (`docs: archive superseded product journey diagram`) — repository cleanup closeout checkpoint
+- Date: 2026-08-16
+- Commit: `21500bc` (`fix(ios): make imported recipe save flow verifiable`) — stable P3 delivery checkpoint
 - Branch: `main`
-- Repository state at verification: `HEAD` and `origin/main` had `0 0` divergence.
-- Verification scope: repository cleanup and reference / archive / configuration consistency closeout only; this does not re-run the full production release verification. Current release posture and blockers are unchanged this round.
+- Repository state at verification: `HEAD` and `origin/main` had `0 0` divergence; tracked files were clean. The existing untracked `.agents/` workspace remains outside the tracked project state.
+- Verification scope: P3 delivery closeout; production release posture and hosted verification gaps remain unchanged.
+
+## P3 delivery checkpoint
+
+P3-A, P3-B and P3-C are sealed at `21500bc`:
+
+- P3-A: shared `EditableRecipeDraft` save eligibility, deterministic Recipe/Cooking fixtures, GuestMerge persistence isolation and restored `npm test` baseline.
+- P3-B: parallel Groq/Gemini text providers; `/api/ai-chat` text and vision use the unified OpenAI SDK transport; vision remains Groq-only. `maxRetries: 0`, 45-second timeout, request-id propagation and safe error contract are preserved.
+- P3-C: deterministic post-extraction Import seed, real “保存到菜谱库” flow verification, Normal and Accessibility XXXL hit-target verification, and zero-network/zero-paid-AI UI coverage.
+
+Deferred backlog:
+
+- `Recipe.samples` onboarding/product decision.
+- Media OCR frame direct Axios POST.
+- Dead `RecipeImportOptionsView` cleanup.
+- Repo-wide accessibility-identifier cleanup.
+- Hosted Groq/Gemini verification.
 
 ## Current release posture
 
@@ -19,7 +35,7 @@
 ## Active workstreams
 
 - Production-enablement preparation: environment isolation, distribution signing/App Store Connect, monitoring and a shared rate-limit store.
-- Hosted AI repair verification: source defaults to vision model `qwen/qwen3.6-27b`; the deployed Render environment and live receipt-image path still require external confirmation after deployment.
+- Hosted Groq/Gemini verification remains deferred; the deployed environment and live receipt-image path require external confirmation outside this checkout.
 - Recipe/source data quality: current 《大众川菜》 source-restoration scope is closed, while its accepted source limitations and App-readiness work remain separate follow-ups.
 
 ## Current blockers / operational gaps
@@ -30,7 +46,7 @@
 - `/api/sync/*` rate limiting uses an in-memory store suitable only for the current single-instance Stage 1 boundary.
 - Account deletion is implemented and locally validated against disposable Supabase, but hosted-development and production completion remain unverified.
 - Public recipe-import diagnostics still need the documented privacy-hardening pass before production exposure.
-- Render's earlier vision model produced `model_not_found`; repository defaults are corrected, but hosted configuration and live image verification are outside this checkout.
+- Hosted Groq/Gemini configuration and live image verification remain outside this checkout.
 
 ## Next milestones
 

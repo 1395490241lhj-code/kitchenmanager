@@ -2,6 +2,11 @@
 
 Only notable changes that have entered `main` are recorded here. Current state belongs in [`PROJECT_STATUS.md`](PROJECT_STATUS.md); detailed evidence belongs in focused documents or Git history.
 
+## 2026-08-16
+
+- Closed the P3 delivery phase at stable checkpoint `21500bc`: P3-A aligned shared recipe-draft eligibility and deterministic fixture isolation; P3-B completed Groq/Gemini text routing and unified `/api/ai-chat` text/vision SDK transport with Groq-only vision; P3-C made post-extraction Import save deterministic and verified at Normal and Accessibility XXXL sizes without network or paid AI.
+- Deferred by scope: `Recipe.samples` onboarding/product decision, media OCR frame direct Axios POST, dead `RecipeImportOptionsView`, repo-wide identifier cleanup and hosted Groq/Gemini verification.
+
 ## 2026-08-09
 
 - Completed the 《大众川菜》1979 source-restoration closeout for the current scanned-source scope: all 147 entries have an explainable disposition, all 39 eligible new-recipe candidates are promoted, and `applicationReady=false` remains explicit. See the [closeout audit](data/source-restoration/dazhong-chuancai-1979-closeout-audit.v1.md).
