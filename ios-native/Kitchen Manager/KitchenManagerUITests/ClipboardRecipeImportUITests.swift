@@ -28,6 +28,49 @@ final class ClipboardRecipeImportUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.staticTexts["导入菜谱"].waitForExistence(timeout: 5))
     }
 
+    private func launchPostExtractionResult(
+        extraArguments: [String] = []
+    ) -> XCUIApplication {
+        let app = launchHome(extraArguments: ["UITEST_SEED_IMPORT_RESULT"] + extraArguments)
+        openLinkImport(in: app)
+        // The draft editor only renders once the seed has installed the fixed
+        // draft, and the save Button sits below it in a lazy Form — so anchor on
+        // the first section header before scrolling, rather than spending swipes
+        // while the post-extraction state is still coming up.
+        XCTAssertTrue(
+            app.staticTexts["基本信息"].waitForExistence(timeout: 8),
+            "固定提取结果未进入确认界面"
+        )
+        let save = app.buttons["import.result.save"]
+        for _ in 0..<12 where !save.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(save.isHittable, "保存按钮无法滚动到可点击位置")
+        return app
+    }
+
+    private func assertImportedFixtureExists(in app: XCUIApplication) {
+        XCTAssertTrue(
+            app.buttons["home.primary.action.button"].waitForExistence(timeout: 8),
+            "保存后导入 sheet 未关闭"
+        )
+        XCTAssertFalse(app.alerts.firstMatch.exists, "保存成功不应出现错误弹窗")
+        app.tabBars.buttons["菜谱"].tap()
+        XCTAssertTrue(
+            app.buttons["recipe.list.ui-test-import-result"].waitForExistence(timeout: 5),
+            "RecipeStore 中未出现固定导入菜谱"
+        )
+        XCTAssertTrue(app.staticTexts["零网络导入测试菜谱"].exists)
+    }
+
+    private func clearImportedFixture() {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_EMPTY_HOME"]
+        app.launch()
+        XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
+        app.terminate()
+    }
+
     func testManualSmartImportUsesSystemPasteControlWithoutClipboardDetectorOverride() {
         let app = launchHome()
         openLinkImport(in: app)
@@ -169,6 +212,47 @@ final class ClipboardRecipeImportUITests: XCTestCase {
             XCTAssertTrue(cta.isHittable, "错误后 CTA 不可点击")
             app.terminate()
         }
+    }
+
+    func testPostExtractionSaveUsesRealButtonAndPersistsRecipe() {
+        let app = launchPostExtractionResult()
+        let save = app.buttons["import.result.save"]
+        let frame = save.frame
+        print("=====IMPORT RESULT SAVE NORMAL===== frame=\(frame)")
+
+        XCTAssertEqual(save.label, "保存到菜谱库")
+        XCTAssertGreaterThanOrEqual(frame.height, 43.5, "保存 Button 点击区域应至少 44pt 高")
+        XCTAssertTrue(save.isHittable)
+        attachScreenshot(of: app, named: "import-result-save-normal")
+
+        save.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
+        assertImportedFixtureExists(in: app)
+        clearImportedFixture()
+    }
+
+    func testPostExtractionSaveSurvivesAccessibilityXXXL() {
+        let app = launchPostExtractionResult(
+            extraArguments: [
+                "-UIPreferredContentSizeCategoryName",
+                "UICTContentSizeCategoryAccessibilityXXXL"
+            ]
+        )
+        let save = app.buttons["import.result.save"]
+        let frame = save.frame
+        let window = app.windows.firstMatch.frame
+        print("=====IMPORT RESULT SAVE XXXL===== frame=\(frame)")
+
+        XCTAssertEqual(save.label, "保存到菜谱库")
+        XCTAssertGreaterThanOrEqual(frame.height, 43.5, "XXXL 保存 Button 点击区域应至少 44pt 高")
+        XCTAssertGreaterThan(frame.width, 150, "XXXL 保存文案可用宽度不足")
+        XCTAssertGreaterThanOrEqual(frame.minX, window.minX, "XXXL 保存 Button 左侧被裁切")
+        XCTAssertLessThanOrEqual(frame.maxX, window.maxX, "XXXL 保存 Button 右侧被裁切")
+        XCTAssertTrue(save.isHittable)
+        attachScreenshot(of: app, named: "import-result-save-accessibility-xxxl")
+
+        save.tap()
+        assertImportedFixtureExists(in: app)
+        clearImportedFixture()
     }
 
     private func launchAIConfirmation(

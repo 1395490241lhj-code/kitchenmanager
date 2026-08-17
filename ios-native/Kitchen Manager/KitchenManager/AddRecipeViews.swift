@@ -618,6 +618,7 @@ struct ImportRecipeView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AppTheme.primary)
+                    .accessibilityIdentifier("import.result.save")
                     .disabled(!canSave || isSaving || isSaved)
                 }
             }
@@ -625,6 +626,18 @@ struct ImportRecipeView: View {
         .navigationTitle("导入菜谱")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_IMPORT_RESULT") {
+                editableDraft = EditableRecipeDraft(
+                    id: "ui-test-import-result",
+                    title: "零网络导入测试菜谱",
+                    ingredientsText: "番茄 2 个\n鸡蛋 2 个",
+                    stepsText: "1. 番茄切块\n2. 鸡蛋炒熟后与番茄同炒"
+                )
+                isSaved = false
+                return
+            }
+            #endif
             // Runs once per presentation (SwiftUI keys `.task` to view
             // identity, not to body re-evaluation) — `hasAutoStarted` is
             // still checked explicitly so a re-entrant call can never fire
