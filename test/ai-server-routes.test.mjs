@@ -263,18 +263,30 @@ test('postChatCompletion 通过 SDK 保持 payload、timeout、retry 和 respons
 });
 
 test('provider 默认和无效值安全回退到 Groq', async () => {
-  const { app, openAiClientOptions, openAiRequests } = loadServerWithMocks({
-    env: {
-      AI_CHAT_PROVIDER: 'not-a-provider',
-      AI_IMPORT_PROVIDER: 'GEMINI-ish',
-      GEMINI_API_KEY: 'gemini-secret'
-    }
-  });
+  let warnings = '';
+  const originalWarn = console.warn;
+  console.warn = (...parts) => { warnings += `${parts.join(' ')}\n`; };
+  let server;
+  try {
+    server = loadServerWithMocks({
+      env: {
+        AI_CHAT_PROVIDER: 'not-a-provider',
+        AI_IMPORT_PROVIDER: 'GEMINI-ish',
+        GEMINI_API_KEY: 'gemini-secret'
+      }
+    });
+  } finally {
+    console.warn = originalWarn;
+  }
+  const { app, openAiClientOptions, openAiRequests } = server;
   const config = require(resolve(root, 'src/server/config.js'));
 
   assert.equal(config.AI_CHAT_PROVIDER, 'groq');
   assert.equal(config.AI_IMPORT_PROVIDER, 'groq');
   assert.equal(config.resolveAiProviderConfig().provider, 'groq');
+  assert.match(warnings, /AI_CHAT_PROVIDER must be groq or gemini; falling back to groq/);
+  assert.match(warnings, /AI_IMPORT_PROVIDER must be groq or gemini; falling back to groq/);
+  assert.doesNotMatch(warnings, /not-a-provider|GEMINI-ish|gemini-secret/);
 
   const res = await runPost(app, '/api/ai-chat', { prompt: '测试默认 provider' });
   assert.equal(res.statusCode, 200);
@@ -314,7 +326,7 @@ test('Gemini client 使用独立 key/baseURL/model 且 3.6 Flash 不发送采样
   assert.equal(Object.hasOwn(openAiRequests[0].payload, 'top_k'), false);
 });
 
-test('/api/ai-chat 文本可切 Gemini，图片仍强制走 Groq vision', async () => {
+test('/api/ai-chat 文本可切 Gemini，图片仍强制走 Groq vision SDK', async () => {
   const textServer = loadServerWithMocks({
     env: { OPENAI_API_KEY: '', AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
     axiosPost: async () => ({ data: { choices: [{ message: { content: 'Gemini 文本回复' } }] } })
@@ -327,13 +339,9 @@ test('/api/ai-chat 文本可切 Gemini，图片仍强制走 Groq vision', async 
   assert.equal(textServer.openAiRequests[0].payload.model, 'gemini-3.6-flash');
   assert.equal(Object.hasOwn(textServer.openAiRequests[0].payload, 'temperature'), false);
 
-  let visionRequest;
   const imageServer = loadServerWithMocks({
     env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
-    axiosPost: async (url, payload, options) => {
-      visionRequest = { url, payload, options };
-      return { data: { choices: [{ message: { content: '{"items":[]}' } }] } };
-    }
+    openAiCreate: async () => ({ data: { choices: [{ message: { content: '{"items":[]}' } }] } })
   });
   const imageRes = await runPost(imageServer.app, '/api/ai-chat', {
     prompt: '识别图片',
@@ -341,11 +349,15 @@ test('/api/ai-chat 文本可切 Gemini，图片仍强制走 Groq vision', async 
   });
 
   assert.equal(imageRes.statusCode, 200);
-  assert.equal(visionRequest.url, 'https://api.groq.com/openai/v1/chat/completions');
-  assert.equal(visionRequest.payload.model, 'qwen/qwen3.6-27b');
-  assert.equal(visionRequest.payload.reasoning_effort, 'none');
-  assert.equal(visionRequest.options.headers.Authorization, 'Bearer test-key');
-  assert.equal(imageServer.openAiRequests.length, 0);
+  assert.deepEqual(imageServer.openAiClientOptions, [{
+    apiKey: 'test-key',
+    baseURL: 'https://api.groq.com/openai/v1',
+    maxRetries: 0
+  }]);
+  assert.equal(imageServer.openAiRequests.length, 1);
+  assert.equal(imageServer.openAiRequests[0].payload.model, 'qwen/qwen3.6-27b');
+  assert.equal(imageServer.openAiRequests[0].payload.reasoning_effort, 'none');
+  assert.equal(imageServer.openAiRequests[0].requestOptions.timeout, 45000);
 });
 
 function createRecipeProviderResponse(payload) {
@@ -432,10 +444,11 @@ test('Gemini provider 缺 key 只让对应请求安全失败，server 仍可启�
   assert.equal(openAiRequests.length, 0);
 });
 
-test('Gemini 400/401/429/5xx/timeout 保留现有公开错误语义且不重试', async () => {
+test('Gemini 400/401/403/429/5xx/timeout 保留现有公开错误语义且不重试', async () => {
   for (const { status, code } of [
     { status: 400, code: 'invalid_request_error' },
     { status: 401, code: 'invalid_api_key' },
+    { status: 403, code: 'permission_denied' },
     { status: 429, code: 'rate_limit_exceeded' },
     { status: 500, code: 'internal_server_error' },
     { status: 504, code: 'ECONNABORTED' }
@@ -446,6 +459,7 @@ test('Gemini 400/401/429/5xx/timeout 保留现有公开错误语义且不重试'
       openAiCreate: async () => {
         requestCount += 1;
         const err = new Error(`failed with gemini-secret: ${code}`);
+        err.requestID = `${code}-request-id`;
         if (code === 'ECONNABORTED') err.code = code;
         else {
           err.status = status;
@@ -458,6 +472,7 @@ test('Gemini 400/401/429/5xx/timeout 保留现有公开错误语义且不重试'
     const res = await runPost(app, '/api/ai-chat', { prompt: `错误 ${code}` });
     assert.equal(res.statusCode, status);
     assert.equal(res.body.code, code);
+    assert.equal(res.body.upstreamRequestId, `${code}-request-id`);
     assert.equal(requestCount, 1);
     assert.doesNotMatch(JSON.stringify(res.body), /gemini-secret/);
   }
@@ -799,13 +814,9 @@ test('/api/ai-status 缺少 OPENAI_API_KEY 时返回安全 code', async () => {
   assert.doesNotMatch(JSON.stringify(res.body), /test-key|Authorization|Bearer/);
 });
 
-test('/api/ai-chat 图片请求默认使用 Groq 视觉模型，不回退到文本模型', async () => {
-  let capturedPayload = null;
-  const { app } = loadServerWithMocks({
-    axiosPost: async (_url, payload) => {
-      capturedPayload = payload;
-      return { data: { choices: [{ message: { content: '{"ok":true}' } }] } };
-    },
+test('/api/ai-chat 图片请求通过 SDK 使用 Groq 视觉模型，不回退到文本模型', async () => {
+  const { app, openAiClientOptions, openAiRequests } = loadServerWithMocks({
+    openAiCreate: async () => ({ data: { choices: [{ message: { content: '{"ok":true}' } }] } }),
     env: { OPENAI_VISION_MODEL: '' }
   });
 
@@ -816,6 +827,9 @@ test('/api/ai-chat 图片请求默认使用 Groq 视觉模型，不回退到文�
   });
 
   assert.equal(res.statusCode, 200);
+  assert.equal(openAiClientOptions[0].maxRetries, 0);
+  assert.equal(openAiRequests.length, 1);
+  const capturedPayload = openAiRequests[0].payload;
   assert.equal(capturedPayload.model, 'qwen/qwen3.6-27b');
   assert.notEqual(capturedPayload.model, 'openai/gpt-oss-120b');
   assert.equal(capturedPayload.reasoning_effort, 'none');

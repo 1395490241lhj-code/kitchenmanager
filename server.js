@@ -27,7 +27,6 @@ const {
   PORT,
   MOBILE_UA,
   OPENAI_API_KEY,
-  OPENAI_BASE_URL,
   OPENAI_MODEL,
   OPENAI_IMPORT_MODEL,
   OPENAI_VISION_MODEL,
@@ -62,7 +61,6 @@ const {
   MEDIA_EMPTY_TRANSCRIPT_ERROR
 } = require('./src/server/config');
 const {
-  resolveChatUrl,
   resolveAudioTranscriptionsUrl,
   estimateBase64EncodedBytes,
   redactSecret,
@@ -1259,34 +1257,21 @@ app.post('/api/ai-chat', async (req, res) => {
   const userContent = imageBase64
     ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageBase64 } }]
     : prompt;
-  const aiPayload = {
-    model: chatConfig.model,
-    messages: [
-      { role: 'system', content: `Kitchen Manager task: ${taskType}. Return only the requested content.` },
-      { role: 'user', content: userContent }
-    ],
-    temperature: 0.2
-  };
-  if (imageBase64) aiPayload.reasoning_effort = 'none';
+  const messages = [
+    { role: 'system', content: `Kitchen Manager task: ${taskType}. Return only the requested content.` },
+    { role: 'user', content: userContent }
+  ];
 
   try {
-    const resp = imageBase64
-      ? await axios.post(
-          resolveChatUrl(OPENAI_BASE_URL),
-          aiPayload,
-          {
-            timeout: 45000,
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${OPENAI_API_KEY}` }
-          }
-        )
-      : await postChatCompletion({
-          provider: chatConfig.provider,
-          model: chatConfig.model,
-          messages: aiPayload.messages,
-          temperature: aiPayload.temperature,
-          responseFormat: false,
-          timeout: 45000
-        });
+    const resp = await postChatCompletion({
+      provider: chatConfig.provider,
+      model: chatConfig.model,
+      messages,
+      temperature: 0.2,
+      responseFormat: false,
+      reasoningEffort: imageBase64 ? 'none' : null,
+      timeout: 45000
+    });
     const content = getAiMessageContent(resp);
     const cleaned = cleanAiChatContent(content);
     if (!cleaned) {

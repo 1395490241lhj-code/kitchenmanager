@@ -21,12 +21,16 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_BASE_URL = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai/';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 
-function normalizeAiProvider(value) {
-  return String(value || '').trim().toLowerCase() === 'gemini' ? 'gemini' : 'groq';
+function normalizeAiProvider(value, name = 'AI provider') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized && normalized !== 'groq' && normalized !== 'gemini') {
+    console.warn(`[server] ${name} must be groq or gemini; falling back to groq`);
+  }
+  return normalized === 'gemini' ? 'gemini' : 'groq';
 }
 
-const AI_CHAT_PROVIDER = normalizeAiProvider(process.env.AI_CHAT_PROVIDER || 'groq');
-const AI_IMPORT_PROVIDER = normalizeAiProvider(process.env.AI_IMPORT_PROVIDER || 'groq');
+const AI_CHAT_PROVIDER = normalizeAiProvider(process.env.AI_CHAT_PROVIDER || 'groq', 'AI_CHAT_PROVIDER');
+const AI_IMPORT_PROVIDER = normalizeAiProvider(process.env.AI_IMPORT_PROVIDER || 'groq', 'AI_IMPORT_PROVIDER');
 const AI_PROVIDER_CONFIGS = Object.freeze({
   groq: Object.freeze({
     provider: 'groq',

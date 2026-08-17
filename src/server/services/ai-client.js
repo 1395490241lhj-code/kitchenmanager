@@ -249,7 +249,7 @@ function summarizeAiResponse(resp) {
   };
 }
 
-async function postChatCompletion({ provider = 'groq', model, messages, temperature = 0.2, responseFormat = true, timeout = 45000 }) {
+async function postChatCompletion({ provider = 'groq', model, messages, temperature = 0.2, responseFormat = true, reasoningEffort = null, timeout = 45000 }) {
   const config = resolveAiProviderConfig(provider, { model });
   const payload = {
     model: config.model,
@@ -257,6 +257,7 @@ async function postChatCompletion({ provider = 'groq', model, messages, temperat
   };
   if (config.provider !== 'gemini' || config.model !== 'gemini-3.6-flash') payload.temperature = temperature;
   if (responseFormat) payload.response_format = responseFormat === true ? { type: 'json_object' } : responseFormat;
+  if (reasoningEffort) payload.reasoning_effort = reasoningEffort;
   const { data, response, request_id: requestId } = await getOpenAIClient(config.provider)
     .chat.completions.create(payload, { timeout })
     .withResponse();
