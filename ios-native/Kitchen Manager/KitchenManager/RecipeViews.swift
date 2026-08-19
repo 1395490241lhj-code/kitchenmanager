@@ -394,14 +394,28 @@ struct RecipeDetailView: View {
                 startCookingAction
                     .padding(.horizontal)
                     .padding(.top, 8)
-                    // Local compact gap above the floating tab bar. The inset already
-                    // clears the tab bar's safe area, so this must NOT reuse the
-                    // scrolling-content clearance token (72pt) or the bar re-bloats.
-                    .padding(.bottom, 20)
+                    // Gap between the CTA and the bottom system safe area. The tab
+                    // bar is hidden for this destination, so the inset now sits
+                    // directly on the home indicator inset rather than on the bar —
+                    // the previous 20pt was tuned against the bar and reads as dead
+                    // space without it. Must NOT reuse the scrolling-content
+                    // clearance token (72pt) or the bar re-bloats.
+                    .padding(.bottom, 12)
             }
             .background(.bar)
         }
         .navigationTitle("菜谱详情").navigationBarTitleDisplayMode(.inline)
+        // Recipe Detail is a focused "cook this now" surface pushed onto the 菜谱
+        // tab's own NavigationStack. Without this the floating tab bar stacks
+        // directly under the pinned 开始烹饪 CTA — two rounded bars competing at the
+        // bottom edge, costing 18.3% of an 844pt screen at default Dynamic Type and
+        // 23.3% at Accessibility XXXL, exactly where step text needs the room.
+        //
+        // Same mechanism the Guest Merge flow uses: SwiftUI scopes it to this
+        // destination, so the tab bar returns on its own when Detail is popped —
+        // no route-level state, no dependence on the bar's minimize behavior, and
+        // the bottom system safe area is left intact for the CTA inset above.
+        .toolbarVisibility(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

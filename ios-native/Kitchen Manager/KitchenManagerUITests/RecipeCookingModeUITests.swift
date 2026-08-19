@@ -164,7 +164,7 @@ final class RecipeCookingModeUITests: XCTestCase {
         )
     }
 
-    func testLongRecipeKeepsFinalStepAndCookingActionReachableAboveTabBar() throws {
+    func testLongRecipeKeepsFinalStepAndCookingActionReachableAboveSafeArea() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_RECIPE_LONG"]
         app.launch()
@@ -178,12 +178,15 @@ final class RecipeCookingModeUITests: XCTestCase {
         XCTAssertTrue(startCooking.waitForExistence(timeout: 5))
         XCTAssertTrue(startCooking.isHittable)
         XCTAssertGreaterThanOrEqual(startCooking.frame.height, 44)
-        let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.exists)
-        XCTAssertLessThanOrEqual(startCooking.frame.maxY, tabBar.frame.minY)
-        let ctaToTabGap = tabBar.frame.minY - startCooking.frame.maxY
-        XCTAssertGreaterThanOrEqual(ctaToTabGap, 8, "pinned CTA overlaps floating tab bar (gap \(ctaToTabGap)pt)")
-        XCTAssertLessThanOrEqual(ctaToTabGap, 28, "pinned CTA bar re-bloated (gap \(ctaToTabGap)pt)")
+
+        // Recipe Detail hides the floating tab bar for its own destination, so the
+        // CTA is now measured against the window's bottom edge instead of the bar.
+        XCTAssertEqual(app.tabBars.count, 0, "Recipe Detail 不应显示底部标签栏")
+        let screen = app.windows.firstMatch.frame
+        XCTAssertLessThanOrEqual(startCooking.frame.maxY, screen.maxY, "CTA 越出屏幕底部")
+        let ctaToBottomGap = screen.maxY - startCooking.frame.maxY
+        XCTAssertGreaterThanOrEqual(ctaToBottomGap, 8, "CTA 紧贴屏幕底部 (gap \(ctaToBottomGap)pt)")
+        XCTAssertLessThanOrEqual(ctaToBottomGap, 60, "CTA 底部留白过大 (gap \(ctaToBottomGap)pt)")
 
         let finalStep = app.descendants(matching: .any)["recipe.detail.step.9"]
         for _ in 0..<12 {
@@ -205,8 +208,15 @@ final class RecipeCookingModeUITests: XCTestCase {
         }
         XCTAssertTrue(startCooking.isHittable)
 
-        XCTAssertLessThanOrEqual(startCooking.frame.maxY, tabBar.frame.minY)
+        XCTAssertLessThanOrEqual(startCooking.frame.maxY, screen.maxY)
+        XCTAssertEqual(app.tabBars.count, 0, "滚动后标签栏不应重新出现")
         attachScreenshot(of: app, named: "final-recipe-detail-long-bottom")
+
+        // Hiding the bar is scoped to this destination, so popping back to the list
+        // must restore it without any route-level state.
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(recipe.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 5), "返回菜谱列表后标签栏未恢复")
     }
 
     func testCookingControlsKeepEnabledStatesAndCurrentActionClear() throws {
