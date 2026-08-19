@@ -324,9 +324,9 @@ enum InventoryExpiryStatus: String, Hashable {
         switch self {
         case .expired: return AppTheme.inventoryExpired
         case .today: return AppTheme.inventoryToday
-        case .soon: return AppTheme.warning
+        case .soon: return AppTheme.inventoryExpiring
         case .upcoming: return AppTheme.inventoryUpcoming
-        case .normal: return AppTheme.success
+        case .normal: return AppTheme.inventoryFresh
         case .unknown: return .secondary
         }
     }

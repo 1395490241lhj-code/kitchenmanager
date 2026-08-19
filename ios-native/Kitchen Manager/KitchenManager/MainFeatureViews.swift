@@ -973,13 +973,15 @@ struct ShoppingView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button(isShoppingMode ? "普通模式" : "购物模式", systemImage: isShoppingMode ? "list.bullet" : "cart") {
-                    isShoppingMode.toggle()
+                if !isShoppingMode {
+                    Button("购物模式", systemImage: "cart") {
+                        isShoppingMode = true
+                    }
+                    .disabled(store.shoppingItems.isEmpty)
+                    .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityIdentifier("shopping.mode.toggle")
                 }
-                .disabled(!isShoppingMode && store.shoppingItems.isEmpty)
-                .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
-                .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-                .accessibilityIdentifier("shopping.mode.toggle")
             }
             if !isShoppingMode {
             ToolbarItem(placement: .topBarTrailing) {

@@ -1544,6 +1544,7 @@ struct RecipeRecommendationBrowserView: View {
                 .submitLabel(.search)
                 .focused($isSearchFocused)
                 .onSubmit(performRecommendationSearch)
+                .accessibilityIdentifier("recommendation.search.field")
 
                 if !recommendationStore.searchQuery.isEmpty {
                     Button {
@@ -1553,7 +1554,9 @@ struct RecipeRecommendationBrowserView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
+                    .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
                     .accessibilityLabel("清除搜索")
+                    .accessibilityIdentifier("recommendation.search.clear")
                 }
             }
             .padding(.horizontal, 12)
@@ -1571,10 +1574,14 @@ struct RecipeRecommendationBrowserView: View {
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(minWidth: 54, minHeight: 44)
+                .frame(
+                    minWidth: AppTheme.minimumHitTarget,
+                    minHeight: AppTheme.minimumHitTarget
+                )
                 .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("recommendation.search.button")
             .disabled(recommendationStore.isSearchingRecommendations
                       || recommendationStore.isGeneratingRecommendations)
         }
@@ -1598,7 +1605,7 @@ struct RecipeRecommendationBrowserView: View {
 
     private func recommendationCard(_ recommendation: RecipeRecommendation) -> some View {
         let recipe = recommendation.recipe
-        let isFavorite = recommendationStore.favoriteRecipeIDs.contains(recipe.id)
+        let isFrequent = recipeStore.frequentRecipeIDs.contains(recipe.id)
         let isAdded = kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
 
         return VStack(alignment: .leading, spacing: 12) {
@@ -1622,18 +1629,11 @@ struct RecipeRecommendationBrowserView: View {
                         selectedRecipe = recipe
                     }
                     Button(
-                        isFavorite ? "取消常做" : "设为常做",
-                        systemImage: isFavorite ? "star.slash" : "star"
+                        isFrequent ? "取消常做" : "设为常做",
+                        systemImage: isFrequent ? "star.slash" : "star"
                     ) {
-                        recommendationStore.toggleFavorite(recipeID: recipe.id)
-                        showToast(isFavorite ? "已取消常做" : "已设为常做")
-                    }
-                    Button("不喜欢这道", systemImage: "hand.thumbsdown") {
-                        recommendationStore.removeRecommendation(id: recommendation.id)
-                        showToast("已减少类似推荐")
-                    }
-                    Button("推荐有问题", systemImage: "exclamationmark.bubble") {
-                        showToast("感谢反馈", style: .informational)
+                        recipeStore.toggleFrequent(recipe.id)
+                        showToast(isFrequent ? "已取消常做" : "已设为常做")
                     }
                     Divider()
                     Button("从本次推荐移除", systemImage: "trash", role: .destructive) {
@@ -1643,7 +1643,10 @@ struct RecipeRecommendationBrowserView: View {
                     Image(systemName: "ellipsis.circle")
                         .font(.title3)
                         .foregroundStyle(.primary)
+                        .frame(width: AppTheme.minimumHitTarget, height: AppTheme.minimumHitTarget)
                 }
+                .accessibilityLabel("推荐操作")
+                .accessibilityIdentifier("recommendation.\(recipe.id).menu")
             }
 
             Text(recipe.title)
@@ -1670,7 +1673,7 @@ struct RecipeRecommendationBrowserView: View {
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, minHeight: 40)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 .background(AppTheme.brand, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
                 .opacity(isAdded ? 0.62 : 1)
                 .disabled(isAdded)
@@ -1679,7 +1682,7 @@ struct RecipeRecommendationBrowserView: View {
                 Button("查看") { selectedRecipe = recipe }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.textSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 40)
+                    .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                     .background(AppTheme.textSecondary.opacity(0.12), in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
                     .accessibilityIdentifier("recommendation.\(recipe.id).view")
             }

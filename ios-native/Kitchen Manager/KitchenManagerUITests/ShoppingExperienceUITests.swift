@@ -151,6 +151,8 @@ final class ShoppingExperienceUITests: XCTestCase {
         app.buttons["shopping.mode.toggle"].tap()
         XCTAssertTrue(element("shopping.mode.container", in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(element("shopping.mode.remaining", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["shopping.mode.exit"].isHittable)
+        XCTAssertFalse(app.buttons["shopping.mode.toggle"].exists, "购物模式中只能保留一个退出操作")
         XCTAssertFalse(app.buttons["shopping.bulk.menu"].exists)
         app.buttons["番茄，2 个，未购买"].tap()
         let purchasedToggle = app.buttons["shopping.mode.purchased.toggle"]

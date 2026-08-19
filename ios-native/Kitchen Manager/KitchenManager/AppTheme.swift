@@ -102,8 +102,10 @@ enum AppTheme {
     static let inventoryTodayBackground = adaptive(light: 0xFFE9DF, dark: 0x472018)
     static let inventoryExpiredBackground = adaptive(light: 0xFCE8E6, dark: 0x461E20)
     static let inventoryUnknownBackground = adaptive(light: 0xF2F2F7, dark: 0x2C2C2E)
-    static let inventoryUpcoming = adaptive(light: 0xC58B00, dark: 0xFFD60A)
-    static let inventoryToday = adaptive(light: 0xD95C1A, dark: 0xFF9F0A)
+    static let inventoryFresh = adaptive(light: 0x237A42, dark: 0x30D158)
+    static let inventoryUpcoming = adaptive(light: 0x8A6500, dark: 0xFFD60A)
+    static let inventoryExpiring = adaptive(light: 0xA04B00, dark: 0xFFB340)
+    static let inventoryToday = adaptive(light: 0xB33A00, dark: 0xFF9F0A)
     /// Domain alias for `danger`. Keep the domain name so callers express
     /// intent ("expired") rather than colour opinion ("red").
     static let inventoryExpired = danger

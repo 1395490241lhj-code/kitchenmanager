@@ -12,6 +12,16 @@ const home = read("HomeView.swift");
 const content = read("ContentView.swift");
 const uiTests = read("../KitchenManagerUITests/InventoryNavigationUITests.swift");
 
+function contrastRatio(foreground, background) {
+  const luminance = hex => {
+    const channels = hex.match(/[\da-f]{2}/gi).map(value => parseInt(value, 16) / 255);
+    const linear = channels.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+  const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
 // Phase UI-3 replaced the adaptive `LazyVGrid` of tinted cards with a searchable
 // inset-grouped List. The grid and the per-card `InventoryExpiryProgressBar` are
 // deliberately gone, so the assertions below cover the surviving *wiring* —
@@ -144,6 +154,22 @@ test("inventory colors are dynamic and pantry quantity progress remains separate
   assert.match(store, /var stapleStockProgress: Double\?/);
   assert.match(pantry, /StapleStockProgressBar/);
   assert.match(pantry, /\.frame\(height: 3\)/);
+});
+
+test("inventory lifecycle text colors keep identity and meet normal-text contrast", () => {
+  for (const [name, light, dark] of [
+    ["inventoryFresh", "237A42", "30D158"],
+    ["inventoryUpcoming", "8A6500", "FFD60A"],
+    ["inventoryExpiring", "A04B00", "FFB340"],
+    ["inventoryToday", "B33A00", "FF9F0A"],
+    ["inventoryExpired", "D92D2A", "FF6961"]
+  ]) {
+    assert.match(theme, new RegExp(`static let ${name} = (?:danger|adaptive\\(light: 0x${light}, dark: 0x${dark}\\))`));
+    assert.ok(contrastRatio(light, "FFFFFF") >= 4.5, `${name} light contrast`);
+    assert.ok(contrastRatio(dark, "1C1C1E") >= 4.5, `${name} dark contrast`);
+  }
+  assert.match(store, /case \.normal: return AppTheme\.inventoryFresh/);
+  assert.match(store, /case \.soon: return AppTheme\.inventoryExpiring/);
 });
 
 test("inventory detail is a single value-based push with an editable expiry date", () => {

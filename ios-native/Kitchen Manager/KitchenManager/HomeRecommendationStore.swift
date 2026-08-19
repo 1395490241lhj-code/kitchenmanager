@@ -150,7 +150,6 @@ final class HomeRecommendationStore: ObservableObject {
     @Published private(set) var isSearchingRecommendations = false
     @Published private(set) var isGeneratingRecommendations = false
     @Published private(set) var recommendationError: String?
-    @Published private(set) var favoriteRecipeIDs: Set<String> = []
 
     private let aiService: any AIRecommendationProviding
     private var requestTask: Task<[RecipeRecommendation], Error>?
@@ -349,14 +348,6 @@ final class HomeRecommendationStore: ObservableObject {
     func removeRecommendation(id: String) {
         recommendedRecipes.removeAll { $0.id == id }
         repairIndex()
-    }
-
-    func toggleFavorite(recipeID: String) {
-        if favoriteRecipeIDs.contains(recipeID) {
-            favoriteRecipeIDs.remove(recipeID)
-        } else {
-            favoriteRecipeIDs.insert(recipeID)
-        }
     }
 
     func cancelRequests() {

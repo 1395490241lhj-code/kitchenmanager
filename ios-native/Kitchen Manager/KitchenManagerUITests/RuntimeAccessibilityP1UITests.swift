@@ -188,6 +188,26 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
         }
     }
 
+    func testRecommendationMenuUsesPersistentActionsAndOmitsFakeFeedback() throws {
+        let recipeID = "ui-test-accessibility-recommendation-one"
+        let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: "UICTContentSizeCategoryL")
+        app.buttons["home.primary.action.button"].tap()
+
+        let menu = app.buttons["recommendation.\(recipeID).menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(menu.frame.width, 43.5)
+        XCTAssertGreaterThanOrEqual(menu.frame.height, 43.5)
+        menu.tap()
+
+        XCTAssertFalse(app.buttons["不喜欢这道"].exists)
+        XCTAssertFalse(app.buttons["推荐有问题"].exists)
+        XCTAssertTrue(app.buttons["从本次推荐移除"].exists)
+        app.buttons["设为常做"].tap()
+
+        menu.tap()
+        XCTAssertTrue(app.buttons["取消常做"].waitForExistence(timeout: 5))
+    }
+
     private func launch(_ seed: String, size: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [seed, "-UIPreferredContentSizeCategoryName", size]
