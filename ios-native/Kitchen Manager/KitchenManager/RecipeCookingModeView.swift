@@ -15,6 +15,8 @@ struct RecipeCookingModeView: View {
 
     private var steps: [String] { recipe.steps.filter { !$0.hasPrefix("小贴士：") } }
     private var currentStep: String { steps.indices.contains(session.currentStepIndex) ? steps[session.currentStepIndex] : "这份菜谱还没有制作步骤。" }
+    private var completedStepCount: Int { session.completedStepIndexes.filter { steps.indices.contains($0) }.count }
+    private var isLastStep: Bool { steps.isEmpty || session.currentStepIndex >= steps.count - 1 }
 
     var body: some View {
         NavigationStack {
@@ -50,10 +52,10 @@ struct RecipeCookingModeView: View {
                             }
 
                             timerPanel
-                            stepControls
                             if dynamicTypeSize.isAccessibilitySize {
-                                finishCookingAction
+                                primaryCookingAction
                             }
+                            stepControls
                         }
                         .padding(.horizontal)
                         .padding(.vertical, 24)
@@ -78,7 +80,7 @@ struct RecipeCookingModeView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 if !dynamicTypeSize.isAccessibilitySize || steps.isEmpty {
-                    finishCookingAction
+                    primaryCookingAction
                 }
             }
         }
@@ -86,7 +88,7 @@ struct RecipeCookingModeView: View {
         .onDisappear { screenAwake.deactivate(); timer.cancel() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background { screenAwake.deactivate() }
-            else if phase == .active { screenAwake.activate() }
+            else if phase == .active { screenAwake.activate(); timer.refresh() }
         }
         .confirmationDialog("结束烹饪？", isPresented: $isShowingExitOptions, titleVisibility: .visible) {
             Button("保留进度") { onExit() }
@@ -98,11 +100,22 @@ struct RecipeCookingModeView: View {
                 List {
                     Section("当前份量：\(session.servings) 人份") {
                         ForEach(Array((recipe.ingredients + recipe.seasonings).enumerated()), id: \.offset) { index, ingredient in
-                            Label(RecipeServingScaler.scaledText(ingredient, multiplier: Double(session.servings)), systemImage: session.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle")
+                            Button {
+                                session.toggleIngredient(at: index)
+                            } label: {
+                                Label(
+                                    RecipeServingScaler.scaledText(ingredient, multiplier: Double(session.servings)),
+                                    systemImage: session.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle"
+                                )
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(session.checkedIngredientIndexes.contains(index) ? .isSelected : [])
+                            .accessibilityIdentifier("recipe.cooking.ingredient.\(index)")
                         }
                     }
                 }
-                .navigationTitle("本步食材")
+                .navigationTitle("全部食材")
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("完成") { isShowingIngredientSheet = false } } }
             }
             .presentationDetents([.medium, .large])
@@ -112,17 +125,19 @@ struct RecipeCookingModeView: View {
     private var cookingProgress: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("烹饪进度")
+                Text("已完成步骤")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(session.currentStepIndex + 1) / \(steps.count)")
+                Text("\(completedStepCount) / \(steps.count)")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("recipe.cooking.progress.label")
             }
-            ProgressView(value: Double(session.currentStepIndex + 1), total: Double(steps.count))
+            ProgressView(value: Double(completedStepCount), total: Double(steps.count))
                 .tint(AppTheme.brand)
-                .accessibilityLabel("烹饪进度 \(session.currentStepIndex + 1) / \(steps.count)")
+                .accessibilityLabel("已完成步骤")
+                .accessibilityValue("\(completedStepCount) / \(steps.count)")
         }
     }
 
@@ -156,26 +171,12 @@ struct RecipeCookingModeView: View {
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 .contentShape(Rectangle())
                 .accessibilityIdentifier("recipe.cooking.ingredients")
-            Button("下一步", systemImage: "chevron.right") { session.next(stepCount: steps.count) }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.brand)
-                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
-                .contentShape(Rectangle())
-                .disabled(session.currentStepIndex >= steps.count - 1)
-                .accessibilityIdentifier("recipe.cooking.next")
         }
         .frame(maxWidth: .infinity)
     }
 
     private var stepControlsVertical: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button("下一步", systemImage: "chevron.right") { session.next(stepCount: steps.count) }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.brand)
-                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
-                .contentShape(Rectangle())
-                .disabled(session.currentStepIndex >= steps.count - 1)
-                .accessibilityIdentifier("recipe.cooking.next")
             Button("上一步", systemImage: "chevron.left") { session.previous(stepCount: steps.count) }
                 .buttonStyle(.bordered)
                 .tint(AppTheme.textSecondary)
@@ -195,7 +196,19 @@ struct RecipeCookingModeView: View {
 
     @ViewBuilder private var timerPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack { Label("步骤计时", systemImage: "timer").font(.headline); Spacer(); Text(timerText).monospacedDigit().accessibilityLabel("剩余时间 \(timerText)") }
+            HStack {
+                Label("步骤计时", systemImage: "timer").font(.headline)
+                Spacer()
+                Text(timerText)
+                    .monospacedDigit()
+                    .accessibilityLabel("剩余时间 \(timerText)")
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+            if timer.state.status == .finished {
+                AppFeedbackView(message: "计时结束", style: .success)
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityIdentifier("recipe.cooking.timer.finished")
+            }
             if timer.state.status == .idle || timer.state.status == .finished {
                 Menu("开始计时", systemImage: "play.fill") {
                     if let seconds = RecipeStepTimerSuggestion.seconds(in: currentStep) { Button("按步骤时长（\(seconds / 60) 分钟）") { timer.start(seconds: seconds) } }
@@ -218,23 +231,30 @@ struct RecipeCookingModeView: View {
             RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
                 .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
         }
+        .sensoryFeedback(.success, trigger: timer.state.status) { oldStatus, newStatus in
+            oldStatus != .finished && newStatus == .finished
+        }
     }
 
     private var timerText: String { String(format: "%02d:%02d", timer.state.remainingSeconds / 60, timer.state.remainingSeconds % 60) }
-    private var finishCookingAction: some View {
-        Button { finishCooking() } label: {
-            Text(todayPlan == nil ? "结束烹饪" : "完成今日计划")
+    private var primaryCookingAction: some View {
+        Button(action: performPrimaryAction) {
+            Label(
+                isLastStep ? (todayPlan == nil ? "结束烹饪" : "完成今日计划") : "下一步",
+                systemImage: isLastStep ? "checkmark" : "chevron.right"
+            )
                 .frame(maxWidth: .infinity)
         }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             .tint(AppTheme.brand)
             .controlSize(.large)
             .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
             .padding(.horizontal)
             .padding(.vertical, 8)
             .background(Color(.systemBackground))
-            .accessibilityIdentifier("recipe.cooking.finish")
+            .accessibilityIdentifier(isLastStep ? "recipe.cooking.finish" : "recipe.cooking.next")
     }
+    private func performPrimaryAction() { isLastStep ? finishCooking() : session.next(stepCount: steps.count) }
     private func finishCooking() { screenAwake.deactivate(); timer.cancel(); onFinish() }
 }
 

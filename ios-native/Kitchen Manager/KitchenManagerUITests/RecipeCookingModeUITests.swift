@@ -22,6 +22,18 @@ final class RecipeCookingModeUITests: XCTestCase {
         return app
     }
 
+    private func advanceToFinish(in app: XCUIApplication) -> XCUIElement {
+        let finish = app.buttons["recipe.cooking.finish"]
+        for _ in 0..<20 {
+            if finish.exists { return finish }
+            let next = app.buttons["recipe.cooking.next"]
+            XCTAssertTrue(next.waitForExistence(timeout: 2))
+            next.tap()
+        }
+        XCTFail("未能到达最后一个烹饪步骤")
+        return finish
+    }
+
     func testRecipeDetailSupportsServingChecklistAndCookingNavigation() throws {
         let app = launchRecipes()
         app.swipeDown()
@@ -56,7 +68,7 @@ final class RecipeCookingModeUITests: XCTestCase {
     func testCookingCompletionOpensExistingInventoryConfirmation() throws {
         let app = launchRecipes()
         app.buttons["recipe.detail.startCooking"].tap()
-        app.buttons["recipe.cooking.finish"].tap()
+        advanceToFinish(in: app).tap()
 
         XCTAssertTrue(app.navigationBars.staticTexts["确认本次食材消耗"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["更新冰箱"].exists)
@@ -205,7 +217,9 @@ final class RecipeCookingModeUITests: XCTestCase {
         let ingredients = app.buttons["recipe.cooking.ingredients"]
         let next = app.buttons["recipe.cooking.next"]
         let complete = app.buttons["recipe.cooking.step.complete"]
+        let progress = app.staticTexts["recipe.cooking.progress.label"]
         XCTAssertTrue(complete.waitForExistence(timeout: 5))
+        XCTAssertTrue(progress.label.hasPrefix("0 /"))
         for control in [previous, ingredients, next] {
             XCTAssertGreaterThanOrEqual(control.frame.height, 44)
         }
@@ -216,17 +230,25 @@ final class RecipeCookingModeUITests: XCTestCase {
 
         complete.tap()
         XCTAssertTrue(complete.label.contains("已完成"))
+        XCTAssertTrue(progress.label.hasPrefix("1 /"))
 
         next.tap()
         XCTAssertTrue(previous.isEnabled)
-        XCTAssertTrue(next.isEnabled)
+        XCTAssertTrue(progress.label.hasPrefix("1 /"), "仅导航到下一步不应增加已完成步骤")
         attachScreenshot(of: app, named: "final-cooking-mode-middle")
 
-        for _ in 0..<12 where next.isEnabled {
-            next.tap()
-        }
-        XCTAssertFalse(next.isEnabled)
-        XCTAssertTrue(app.buttons["recipe.cooking.finish"].isHittable)
+        let finish = advanceToFinish(in: app)
+        XCTAssertTrue(finish.isHittable)
+
+        ingredients.tap()
+        let ingredientSheet = app.navigationBars["全部食材"]
+        XCTAssertTrue(ingredientSheet.waitForExistence(timeout: 5))
+        let firstIngredient = app.buttons["recipe.cooking.ingredient.0"]
+        XCTAssertTrue(firstIngredient.exists)
+        XCTAssertGreaterThanOrEqual(firstIngredient.frame.height, 44)
+        firstIngredient.tap()
+        XCTAssertTrue(firstIngredient.isSelected)
+        ingredientSheet.buttons["完成"].tap()
     }
 
     func testVisualReviewAccessibilityLayoutsRemainReadable() throws {
@@ -271,18 +293,19 @@ final class RecipeCookingModeUITests: XCTestCase {
         let ingredients = cooking.buttons["recipe.cooking.ingredients"]
         let finish = cooking.buttons["recipe.cooking.finish"]
         XCTAssertTrue(next.waitForExistence(timeout: 8))
+        XCTAssertGreaterThanOrEqual(next.frame.height, 44)
         attachScreenshot(of: cooking, named: "final-cooking-mode-accessibility")
 
+        _ = advanceToFinish(in: cooking)
         for _ in 0..<16 where !finish.isHittable {
             cooking.swipeUp()
         }
         XCTAssertTrue(previous.isHittable)
         XCTAssertTrue(ingredients.isHittable)
         XCTAssertTrue(finish.isHittable)
-        XCTAssertLessThanOrEqual(next.frame.maxY, previous.frame.minY)
+        XCTAssertLessThanOrEqual(finish.frame.maxY, previous.frame.minY)
         XCTAssertLessThanOrEqual(previous.frame.maxY, ingredients.frame.minY)
-        XCTAssertLessThanOrEqual(ingredients.frame.maxY, finish.frame.minY)
-        for button in [next, previous, ingredients, finish] {
+        for button in [previous, ingredients, finish] {
             XCTAssertGreaterThanOrEqual(button.frame.height, 44)
         }
         attachScreenshot(of: cooking, named: "final-cooking-mode-accessibility-bottom")

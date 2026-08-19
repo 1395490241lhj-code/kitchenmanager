@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import Combine
+import UserNotifications
 
 /// Ephemeral state for a recipe being prepared. It deliberately never mutates
 /// `Recipe`, inventory, or sync metadata.
@@ -64,42 +65,158 @@ enum CookingTimerStatus: Equatable { case idle, running, paused, finished }
 struct CookingTimerState: Equatable {
     private(set) var remainingSeconds = 0
     private(set) var status: CookingTimerStatus = .idle
+    private(set) var endDate: Date?
 
-    mutating func start(seconds: Int) { remainingSeconds = max(seconds, 1); status = .running }
-    mutating func pause() { if status == .running { status = .paused } }
-    mutating func resume() { if status == .paused, remainingSeconds > 0 { status = .running } }
-    mutating func cancel() { remainingSeconds = 0; status = .idle }
-    @discardableResult mutating func advance(seconds: Int = 1) -> Bool {
-        guard status == .running else { return false }
-        remainingSeconds = max(remainingSeconds - max(seconds, 0), 0)
-        if remainingSeconds == 0 { status = .finished; return true }
+    mutating func start(seconds: Int, now: Date = .now) {
+        remainingSeconds = max(seconds, 1)
+        endDate = now.addingTimeInterval(TimeInterval(remainingSeconds))
+        status = .running
+    }
+
+    mutating func pause(now: Date = .now) {
+        guard status == .running else { return }
+        if refresh(now: now) { return }
+        endDate = nil
+        status = .paused
+    }
+
+    mutating func resume(now: Date = .now) {
+        guard status == .paused, remainingSeconds > 0 else { return }
+        endDate = now.addingTimeInterval(TimeInterval(remainingSeconds))
+        status = .running
+    }
+
+    mutating func cancel() {
+        remainingSeconds = 0
+        endDate = nil
+        status = .idle
+    }
+
+    @discardableResult mutating func refresh(now: Date = .now) -> Bool {
+        guard status == .running, let endDate else { return false }
+        remainingSeconds = max(Int(ceil(endDate.timeIntervalSince(now))), 0)
+        if remainingSeconds == 0 {
+            self.endDate = nil
+            status = .finished
+            return true
+        }
         return false
+    }
+}
+
+@MainActor
+private enum CookingTimerNotificationScheduler {
+    private static let identifier = "native-km-cooking-timer"
+
+    static func schedule(at endDate: Date) async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        guard !Task.isCancelled else { return }
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            break
+        default:
+            return
+        }
+
+        let interval = endDate.timeIntervalSinceNow
+        guard interval > 0 else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "计时结束"
+        content.body = "烹饪步骤计时已完成。"
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: identifier,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(interval, 1), repeats: false)
+        )
+        guard !Task.isCancelled else { return }
+        try? await center.add(request)
+    }
+
+    static func cancel() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
     }
 }
 
 @MainActor
 final class CookingTimerController: ObservableObject {
     @Published private(set) var state = CookingTimerState()
-    private var task: Task<Void, Never>?
+    private let scheduleNotification: @MainActor (Date) async -> Void
+    private let cancelNotification: @MainActor () -> Void
+    private var tickTask: Task<Void, Never>?
+    private var notificationTask: Task<Void, Never>?
 
-    deinit { task?.cancel() }
+    init(
+        scheduleNotification: @escaping @MainActor (Date) async -> Void = { endDate in
+            await CookingTimerNotificationScheduler.schedule(at: endDate)
+        },
+        cancelNotification: @escaping @MainActor () -> Void = {
+            CookingTimerNotificationScheduler.cancel()
+        }
+    ) {
+        self.scheduleNotification = scheduleNotification
+        self.cancelNotification = cancelNotification
+    }
 
-    func start(seconds: Int) { state.start(seconds: seconds); scheduleTicks() }
-    func pause() { state.pause(); task?.cancel(); task = nil }
-    func resume() { state.resume(); if state.status == .running { scheduleTicks() } }
-    func cancel() { task?.cancel(); task = nil; state.cancel() }
-    func advanceForTesting(seconds: Int = 1) { if state.advance(seconds: seconds) { task?.cancel(); task = nil } }
+    deinit {
+        tickTask?.cancel()
+        notificationTask?.cancel()
+    }
+
+    func start(seconds: Int, now: Date = .now) {
+        state.start(seconds: seconds, now: now)
+        scheduleRunningTimer()
+    }
+
+    func pause() {
+        state.pause()
+        stopScheduling()
+    }
+
+    func resume() {
+        state.resume()
+        if state.status == .running { scheduleRunningTimer() }
+    }
+
+    func cancel() {
+        stopScheduling()
+        state.cancel()
+    }
+
+    func refresh(now: Date = .now) {
+        guard state.refresh(now: now) else { return }
+        stopScheduling()
+    }
 
     private func scheduleTicks() {
-        task?.cancel()
-        task = Task { [weak self] in
+        tickTask?.cancel()
+        tickTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
-                self?.advanceForTesting()
+                self?.refresh()
                 if self?.state.status != .running { return }
             }
         }
+    }
+
+    private func scheduleRunningTimer() {
+        scheduleTicks()
+        notificationTask?.cancel()
+        cancelNotification()
+        guard let endDate = state.endDate else { return }
+        notificationTask = Task {
+            await scheduleNotification(endDate)
+        }
+    }
+
+    private func stopScheduling() {
+        tickTask?.cancel()
+        tickTask = nil
+        notificationTask?.cancel()
+        notificationTask = nil
+        cancelNotification()
     }
 }
 

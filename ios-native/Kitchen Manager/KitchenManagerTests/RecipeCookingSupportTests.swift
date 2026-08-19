@@ -19,18 +19,69 @@ final class RecipeCookingSupportTests: XCTestCase {
         XCTAssertEqual(session.currentStepIndex, 0)
         session.next(stepCount: 3); session.next(stepCount: 3); session.next(stepCount: 3)
         XCTAssertEqual(session.currentStepIndex, 2)
+        XCTAssertTrue(session.completedStepIndexes.isEmpty)
+        session.toggleStep(at: 2)
+        XCTAssertEqual(session.completedStepIndexes, [2])
         session.moveToStep(8, stepCount: 0)
         XCTAssertEqual(session.currentStepIndex, 0)
     }
 
-    func testTimerPauseResumeCancelAndFinish() {
+    func testTimerUsesAbsoluteEndDateAcrossPauseResumeAndDelayedRefresh() {
+        let start = Date(timeIntervalSince1970: 1_000)
         var state = CookingTimerState()
-        state.start(seconds: 2)
-        state.pause(); XCTAssertFalse(state.advance())
-        state.resume(); XCTAssertFalse(state.advance())
+        state.start(seconds: 120, now: start)
+        XCTAssertEqual(state.endDate, start.addingTimeInterval(120))
+
+        XCTAssertFalse(state.refresh(now: start.addingTimeInterval(65.2)))
+        XCTAssertEqual(state.remainingSeconds, 55)
+        state.pause(now: start.addingTimeInterval(65.2))
+        XCTAssertNil(state.endDate)
+
+        let resumeDate = start.addingTimeInterval(500)
+        state.resume(now: resumeDate)
+        XCTAssertEqual(state.endDate, resumeDate.addingTimeInterval(55))
+        XCTAssertFalse(state.refresh(now: resumeDate.addingTimeInterval(54)))
         XCTAssertEqual(state.remainingSeconds, 1)
-        XCTAssertTrue(state.advance()); XCTAssertEqual(state.status, .finished)
-        state.cancel(); XCTAssertEqual(state.status, .idle); XCTAssertEqual(state.remainingSeconds, 0)
+        XCTAssertTrue(state.refresh(now: resumeDate.addingTimeInterval(55)))
+        XCTAssertEqual(state.status, .finished)
+        XCTAssertNil(state.endDate)
+        XCTAssertFalse(state.refresh(now: resumeDate.addingTimeInterval(80)))
+        XCTAssertEqual(state.status, .finished)
+
+        state.cancel()
+        XCTAssertEqual(state.status, .idle)
+        XCTAssertEqual(state.remainingSeconds, 0)
+    }
+
+    func testTimerControllerResolvesFinishedWhenForegroundRefreshFindsPassedEndDate() {
+        let start = Date(timeIntervalSince1970: 2_000)
+        let controller = CookingTimerController(
+            scheduleNotification: { _ in },
+            cancelNotification: {}
+        )
+
+        controller.start(seconds: 30, now: start)
+        controller.refresh(now: start.addingTimeInterval(31))
+
+        XCTAssertEqual(controller.state.status, .finished)
+        XCTAssertEqual(controller.state.remainingSeconds, 0)
+        XCTAssertNil(controller.state.endDate)
+    }
+
+    func testTimerControllerCancelsBeforeCancelAndRestartScheduling() async {
+        var events: [String] = []
+        let controller = CookingTimerController(
+            scheduleNotification: { _ in events.append("schedule") },
+            cancelNotification: { events.append("cancel") }
+        )
+
+        controller.start(seconds: 60)
+        await Task.yield()
+        controller.cancel()
+        controller.start(seconds: 60)
+        await Task.yield()
+
+        XCTAssertEqual(events, ["cancel", "schedule", "cancel", "cancel", "schedule"])
     }
 
     func testStepTimerSuggestionAcceptsBoundedMinuteTextOnly() {
