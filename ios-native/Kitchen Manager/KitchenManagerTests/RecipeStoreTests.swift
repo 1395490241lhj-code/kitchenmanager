@@ -165,4 +165,42 @@ final class RecipeStoreTests: XCTestCase {
         try? store.saveUserRecipe(recipe(id: "dup-id", title: "菜A"))
         XCTAssertThrowsError(try store.saveUserRecipe(recipe(id: "dup-id", title: "菜B", ingredients: ["完全不同"])))
     }
+
+    // MARK: - Sample fallback disclosure
+
+    /// The loading-state edge: an empty library before any load has failed is
+    /// not a failure. Samples may show, but nothing may claim loading broke.
+    func test_isDisplayingSamples_emptyStoreBeforeAnyLoad_staysNeutral() {
+        XCTAssertTrue(store.recipes.isEmpty)
+        XCTAssertFalse(store.isDisplayingSamples, "初始加载中不应显示加载失败语义")
+        XCTAssertNil(store.errorMessage)
+        // Sample display itself is unchanged — only the labelling is gated.
+        XCTAssertEqual(store.recipesForDisplay.map(\.id), Recipe.samples.map(\.id))
+    }
+
+    func test_isDisplayingSamples_whileLoading_staysNeutral() async {
+        store.isLoading = true
+        XCTAssertTrue(store.recipes.isEmpty)
+        XCTAssertFalse(store.isDisplayingSamples, "加载进行中不应显示回退语义")
+        store.isLoading = false
+    }
+
+    func test_isDisplayingSamples_withUserRecipe_isFalseAndUsesRealLibrary() {
+        try? store.saveUserRecipe(recipe(id: "mine", title: "我的菜"))
+        XCTAssertFalse(store.isDisplayingSamples)
+        XCTAssertEqual(store.recipesForDisplay.map(\.id), ["mine"])
+    }
+
+    func test_loadRecipes_failure_setsSampleFallbackFlag() async {
+        // No network in the test environment, so loadRecipes takes the failure
+        // path and installs Recipe.samples — exactly the state users hit offline.
+        await store.loadRecipes()
+        // Flag and message must agree in both directions, so this holds whether
+        // or not the environment happens to have network.
+        XCTAssertEqual(store.isShowingSampleFallback, store.remoteRecipes.map(\.id) == Recipe.samples.map(\.id))
+        if store.isShowingSampleFallback {
+            XCTAssertTrue(store.isDisplayingSamples)
+            XCTAssertNotNil(store.errorMessage)
+        }
+    }
 }

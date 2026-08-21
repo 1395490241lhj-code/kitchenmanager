@@ -552,6 +552,15 @@ struct ContentView: View {
             recipeStore.clearLocalData()
             navigationStore.selectedTab = .recipes
         }
+        // Deliberately absent from `isolatesRecipeStore`, so the real
+        // `loadRecipes()` runs and fails against the unreachable test backend —
+        // the only way to reach the confirmed sample-fallback state in a UI test.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_LOAD_FAILURE") else { return }
+            kitchenStore.clearAllLocalData()
+            recipeStore.clearLocalData()
+            navigationStore.selectedTab = .recipes
+        }
         .task {
             let arguments = ProcessInfo.processInfo.arguments
             guard arguments.contains("UITEST_RECIPE_DETAIL_SCREENSHOT") || arguments.contains("UITEST_RECIPE_COOKING_SCREENSHOT") else { return }

@@ -5,6 +5,73 @@ enum RecipeRoute: Hashable, Identifiable {
     var id: Self { self }
 }
 
+/// Shown wherever `RecipeStore.isDisplayingSamples` is true, so the built-in
+/// samples are never presented as the user's own library. Layout follows the
+/// existing HomeModuleIssues pattern: stacks vertically at Accessibility sizes
+/// so the retry control never gets squeezed off the row.
+struct SampleFallbackNotice: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    let isRetrying: Bool
+    /// nil where no clean reload path exists (recommendation browser).
+    let onRetry: (() -> Void)?
+
+    private let message = "菜谱没能加载出来，先显示几道示例菜。"
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    label
+                    retryButton
+                }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        label
+                        Spacer(minLength: 8)
+                        retryButton
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        label
+                        retryButton
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("recipe.sampleFallback.notice")
+    }
+
+    private var label: some View {
+        Label {
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.primary)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(AppTheme.warning)
+        }
+        .accessibilityIdentifier("recipe.sampleFallback.message")
+    }
+
+    @ViewBuilder private var retryButton: some View {
+        if let onRetry {
+            if isRetrying {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .accessibilityLabel("正在重新加载")
+            } else {
+                Button("重试", action: onRetry)
+                    .font(.footnote.weight(.semibold))
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .accessibilityIdentifier("recipe.sampleFallback.retry")
+            }
+        }
+    }
+}
+
 private enum RecipeAvailabilityFilter: String, CaseIterable, Identifiable {
     case all = "全部"
     case favorites = "收藏"
@@ -26,7 +93,7 @@ struct RecipeListView: View {
     @State private var selectedDifficulty = "全部难度"
     @State private var maximumTime: Int?
 
-    private var sourceRecipes: [Recipe] { store.recipes.isEmpty ? Recipe.samples : store.recipes }
+    private var sourceRecipes: [Recipe] { store.recipesForDisplay }
     private var tags: [String] { ["全部标签"] + Array(Set(sourceRecipes.flatMap(\.tags))).sorted() }
     private var hasActiveFilters: Bool {
         filter != .all
@@ -68,6 +135,14 @@ struct RecipeListView: View {
 
     var body: some View {
         List {
+            if store.isDisplayingSamples {
+                Section {
+                    SampleFallbackNotice(isRetrying: store.isLoading) {
+                        Task { await store.loadRecipes() }
+                    }
+                }
+            }
+
             if hasActiveFilters {
                 Section {
                     LabeledContent {
@@ -229,6 +304,7 @@ struct RecipeListView: View {
     private var resultSectionTitle: String {
         if !searchText.isEmpty { return "搜索结果 · \(recipes.count) 道" }
         if hasActiveFilters { return "筛选结果 · \(recipes.count) 道" }
+        if store.isDisplayingSamples { return "示例菜谱 · \(recipes.count) 道" }
         return "全部菜谱 · \(recipes.count) 道"
     }
 

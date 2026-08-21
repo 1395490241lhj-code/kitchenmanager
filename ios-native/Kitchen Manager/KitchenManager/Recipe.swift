@@ -214,6 +214,10 @@ final class RecipeStore: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var favoriteRecipeIDs: Set<String> = []
     @Published private(set) var frequentRecipeIDs: Set<String> = []
+    /// True only when `remoteRecipes` holds the built-in `Recipe.samples`
+    /// because an online load failed. The curated-library fallback is a real
+    /// library, not samples, so it deliberately does not set this.
+    @Published private(set) var isShowingSampleFallback = false
 
     private let service = RecipeService()
     private let userRecipePersistence: UserRecipePersistenceProtocol
@@ -230,6 +234,18 @@ final class RecipeStore: ObservableObject {
         let userIDs = Set(userRecipes.map(\.id))
         return userRecipes + remoteRecipes.filter { !userIDs.contains($0.id) }
     }
+
+    /// The single fallback surface every screen reads, replacing the
+    /// `recipes.isEmpty ? Recipe.samples : recipes` expression that used to be
+    /// repeated per view. `isDisplayingSamples` is the matching truth for
+    /// labelling: never present these as the user's loaded library.
+    var recipesForDisplay: [Recipe] { recipes.isEmpty ? Recipe.samples : recipes }
+
+    /// Deliberately `isShowingSampleFallback` alone, never `recipes.isEmpty`.
+    /// An empty library during the initial (or slow) load is not a failure, so
+    /// samples stay neutral until a load actually fails. Otherwise a fresh
+    /// launch would flash "菜谱没能加载出来" before the first load resolved.
+    var isDisplayingSamples: Bool { isShowingSampleFallback }
 
     func recipe(id: String) -> Recipe? {
         recipes.first { $0.id == id } ?? Recipe.samples.first { $0.id == id }
@@ -293,18 +309,30 @@ final class RecipeStore: ObservableObject {
         }
 
         do {
+            #if DEBUG
+            // UI-test-only: forces the real failure path so the confirmed
+            // sample-fallback state is reachable even when the test machine has
+            // working network. Throws into the existing catch below rather than
+            // short-circuiting it, so nothing about the fallback is special-cased.
+            if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_LOAD_FAILURE") {
+                throw RecipeAPIError.invalidResponse
+            }
+            #endif
             remoteRecipes = try await service.fetchRecipes(mode: libraryMode)
+            isShowingSampleFallback = false
         } catch is CancellationError {
             return
         } catch {
             if libraryMode == .full,
                let fallback = try? await service.fetchRecipes(mode: .curated) {
                 remoteRecipes = fallback
+                isShowingSampleFallback = false
                 errorMessage = "完整菜谱库暂时无法加载，已回退到精简日常菜谱库。"
                 return
             }
             if remoteRecipes.isEmpty {
                 remoteRecipes = Recipe.samples
+                isShowingSampleFallback = true
             }
 
             errorMessage = """

@@ -48,7 +48,7 @@ struct HomeView: View {
     }
 
     private var sourceRecipes: [Recipe] {
-        recipeStore.recipes.isEmpty ? Recipe.samples : recipeStore.recipes
+        recipeStore.recipesForDisplay
     }
 
     private var dashboard: HomeDashboardSummary {
@@ -1408,7 +1408,7 @@ struct RecipeRecommendationBrowserView: View {
     @FocusState private var isSearchFocused: Bool
 
     private var sourceRecipes: [Recipe] {
-        recipeStore.recipes.isEmpty ? Recipe.samples : recipeStore.recipes
+        recipeStore.recipesForDisplay
     }
 
     var body: some View {
@@ -1416,8 +1416,15 @@ struct RecipeRecommendationBrowserView: View {
             VStack(alignment: .leading, spacing: 14) {
                 searchBar
 
+                if recipeStore.isDisplayingSamples {
+                    // No retry here: the recommendation list is already built
+                    // from these recipes, and recomputing it cleanly would mean
+                    // clearing the user's active search. The Recipe tab owns retry.
+                    SampleFallbackNotice(isRetrying: recipeStore.isLoading, onRetry: nil)
+                }
+
                 HStack(alignment: .firstTextBaseline) {
-                    Text("推荐")
+                    Text(recipeStore.isDisplayingSamples ? "示例推荐" : "推荐")
                         .font(.headline)
                         .foregroundStyle(.primary)
                     Spacer()
