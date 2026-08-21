@@ -530,6 +530,17 @@ struct ContentView: View {
             }
             navigationStore.selectedTab = .today
         }
+        // Purchased-awaiting-stock-in with no expired inventory, so the
+        // stock-in reminder is the one Home surfaces.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_STOCK_IN_ONLY") else { return }
+            kitchenStore.clearAllLocalData()
+            kitchenStore.addShopping(name: "牛奶", quantity: 1, unit: "盒")
+            if let milk = kitchenStore.shoppingItems.first(where: { $0.name == "牛奶" }) {
+                kitchenStore.toggleShopping(milk)
+            }
+            navigationStore.selectedTab = .today
+        }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_ERROR") else { return }
             kitchenStore.clearAllLocalData()

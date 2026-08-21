@@ -114,7 +114,7 @@ final class HomeDashboardSummaryTests: XCTestCase {
         XCTAssertEqual(summary.primaryAction, .browseRecipes)
     }
 
-    func testPurchasedItemsOverrideAllOtherRemindersAndPrimaryActions() {
+    func testPurchasedItemsDrivePrimaryActionButExpiredWinsTheReminder() {
         let purchased = KitchenShoppingItem(name: "牛奶", isDone: true)
         let summary = HomeDashboardSummary(
             inventory: [
@@ -127,7 +127,42 @@ final class HomeDashboardSummaryTests: XCTestCase {
         )
 
         XCTAssertEqual(summary.primaryAction, .stockInPurchased)
+        // The single reminder slot goes to the time-sensitive item.
+        XCTAssertEqual(summary.highestPriorityReminder, .expiredInventory(count: 1))
+    }
+
+    // MARK: - Expired outranks purchased-awaiting-stock-in
+
+    func testExpiredOnlyShowsExpiredReminder() {
+        let summary = HomeDashboardSummary(
+            inventory: [item(name: "过期", expiryDays: -1)],
+            todayPlans: [],
+            shoppingItems: []
+        )
+
+        XCTAssertEqual(summary.highestPriorityReminder, .expiredInventory(count: 1))
+    }
+
+    func testPurchasedAwaitingStockInOnlyShowsStockInReminder() {
+        let summary = HomeDashboardSummary(
+            inventory: [],
+            todayPlans: [],
+            shoppingItems: [KitchenShoppingItem(name: "牛奶", isDone: true)]
+        )
+
         XCTAssertEqual(summary.highestPriorityReminder, .purchasedAwaitingStockIn(count: 1))
+    }
+
+    func testExpiredOutranksPurchasedAwaitingStockInWhenBothPresent() {
+        let summary = HomeDashboardSummary(
+            inventory: [item(name: "过期", expiryDays: -1)],
+            todayPlans: [],
+            shoppingItems: [KitchenShoppingItem(name: "牛奶", isDone: true)]
+        )
+
+        XCTAssertEqual(summary.highestPriorityReminder, .expiredInventory(count: 1))
+        // Stocking in remains reachable through the primary action.
+        XCTAssertEqual(summary.primaryAction, .stockInPurchased)
     }
 
     func testExpiredReminderPrecedesExpiringShoppingAndLowStock() {

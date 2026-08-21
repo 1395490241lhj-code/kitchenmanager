@@ -80,7 +80,7 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["sync-smoke-status"].exists)
     }
 
-    func testPurchasedItemsKeepTodayPlanActionAndOpenExistingStockInConfirmation() throws {
+    func testExpiredOutranksPurchasedReminderWhileStockInStaysThePrimaryAction() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_HOME_STOCK_IN"]
         app.launch()
@@ -88,10 +88,27 @@ final class HomeDashboardUITests: XCTestCase {
         let primaryAction = app.buttons["home.primary.action.button"]
         XCTAssertTrue(primaryAction.waitForExistence(timeout: 5))
         XCTAssertEqual(primaryAction.label, "添加今日菜品")
-        XCTAssertTrue(app.buttons["home.shopping.stockIn.button"].exists)
+        // This seed has both an expired item and a purchased item awaiting
+        // stock-in. Home shows one reminder, and spoilage takes the slot.
+        XCTAssertTrue(app.buttons["home.inventory.expired.button"].exists)
+        XCTAssertFalse(app.buttons["home.shopping.stockIn.button"].exists)
+
+        app.buttons["home.inventory.expired.button"].tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5))
+    }
+
+    /// Without expired inventory the stock-in reminder still surfaces and still
+    /// opens the existing confirmation — unchanged by the ranking swap.
+    func testPurchasedReminderOpensExistingStockInConfirmationWhenNothingExpired() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_HOME_STOCK_IN_ONLY"]
+        app.launch()
+
+        let stockIn = app.buttons["home.shopping.stockIn.button"]
+        XCTAssertTrue(stockIn.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["home.inventory.expired.button"].exists)
 
-        app.buttons["home.shopping.stockIn.button"].tap()
+        stockIn.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["买菜"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.alerts["全部入库？"].waitForExistence(timeout: 5))
         app.alerts["全部入库？"].buttons["取消"].tap()

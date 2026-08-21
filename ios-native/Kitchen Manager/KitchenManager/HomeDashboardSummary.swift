@@ -67,8 +67,12 @@ struct HomeDashboardSummary: Equatable {
     }
 
     var highestPriorityReminder: HomeAttentionReminder? {
-        if purchasedShoppingCount > 0 { return .purchasedAwaitingStockIn(count: purchasedShoppingCount) }
+        // Spoilage outranks tidying up. Home shows a single reminder, so when
+        // both are eligible the time-sensitive one has to win: groceries waiting
+        // to be put away can wait, food already going bad cannot.
+        // `primaryAction` keeps its own order and is deliberately unchanged.
         if expiredCount > 0 { return .expiredInventory(count: expiredCount) }
+        if purchasedShoppingCount > 0 { return .purchasedAwaitingStockIn(count: purchasedShoppingCount) }
         if expiringSoonCount > 0 { return .expiringInventory(count: expiringSoonCount) }
         if pendingShoppingCount > 0 { return .pendingShopping(count: pendingShoppingCount) }
         if lowStockCount > 0 { return .lowStock(count: lowStockCount) }
