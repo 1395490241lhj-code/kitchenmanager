@@ -16,6 +16,9 @@ ios-native/Kitchen Manager/Config/Local.xcconfig
 node_modules/
 npm-debug.log*
 
+# Agent skills installed by `npx skills` (regenerable from skills-lock.json)
+.agents/
+
 # Local env / secrets
 .env
 .env.local

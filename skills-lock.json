@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "apple-design-skill": {
+      "source": "NutshellEngineering/apple-design-skill",
+      "sourceType": "github",
+      "skillPath": "skills/apple-design-skill/SKILL.md",
+      "computedHash": "d6a1301b18617ff2ce2237a8d49701ad4737dc75f63384133818e07c3acebf39"
+    },
+    "ios-accessibility": {
+      "source": "dadederk/iOS-Accessibility-Agent-Skill",
+      "sourceType": "github",
+      "skillPath": "ios-accessibility/SKILL.md",
+      "computedHash": "d945096b4cf7e46d28b4cdadb6d6b96c6ebf36311212977519d48d3e98e99b35"
+    },
+    "ios-design-agent-skill": {
+      "source": "vermont42/iOS-Design-Agent-Skill",
+      "sourceType": "github",
+      "skillPath": "ios-design-agent-skill/SKILL.md",
+      "computedHash": "d041b128fdf52d3dd1ff05b00860d02e79b533518d7a676b29323eb4a299fc53"
+    },
+    "swiftui-design-principles": {
+      "source": "arjitj2/swiftui-design-principles",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "2692dc771633b2915c1b75000009c1a9198af3e3f994ae46d175b48e008edc57"
+    },
+    "swiftui-design-skill": {
+      "source": "wholiver/swiftui-design-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "e566cd9af70769555a866c11a8037f326a699f600de200a9dde8518122fb0b32"
+    },
+    "swiftui-expert-skill": {
+      "source": "AvdLee/SwiftUI-Agent-Skill",
+      "sourceType": "github",
+      "skillPath": "skills/swiftui-expert-skill/SKILL.md",
+      "computedHash": "352119e45436aa70d5a0d29e275dc55769ab509c2098505b391c2e1347c1118a"
+    }
+  }
+}
