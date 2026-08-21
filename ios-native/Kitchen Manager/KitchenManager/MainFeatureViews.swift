@@ -867,12 +867,6 @@ struct ShoppingView: View {
                 .accessibilityHidden(true)
         }
         .navigationTitle("买菜")
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "搜索买菜项目"
-        )
-        .accessibilityIdentifier("shopping.search")
     }
 
     private var shoppingModeList: some View {
@@ -883,11 +877,23 @@ struct ShoppingView: View {
 
             if shoppingMode.isEmpty {
                 ContentUnavailableView("买菜清单是空的", systemImage: "checklist")
+            } else if hasSearchQuery && !hasSearchResults {
+                ContentUnavailableView {
+                    Label("没有找到匹配项目", systemImage: "magnifyingglass")
+                } description: {
+                    Text("尝试使用更短的名称，或清除搜索。")
+                } actions: {
+                    Button("清除搜索") { searchText = "" }
+                        .buttonStyle(.borderedProminent)
+                        .tint(AppTheme.primary)
+                        .controlSize(.large)
+                        .accessibilityIdentifier("shopping.mode.search.clear")
+                }
             } else if shoppingMode.isCompleted {
                 ContentUnavailableView("已全部买齐", systemImage: "checkmark.circle.fill")
                     .accessibilityIdentifier("shopping.mode.completed")
             } else {
-                ForEach(ShoppingListPresentation.sections(items: store.shoppingItems, query: ""), id: \.0) { category, items in
+                ForEach(pendingSections, id: \.0) { category, items in
                     Section {
                         ForEach(items) { item in
                             Button { store.toggleShopping(item) } label: {
@@ -904,7 +910,7 @@ struct ShoppingView: View {
                 }
             }
 
-            let completed = ShoppingListPresentation.purchasedItems(items: store.shoppingItems, query: "")
+            let completed = purchasedItems
             if !completed.isEmpty {
                 Section {
                     Button {
@@ -959,6 +965,14 @@ struct ShoppingView: View {
         }
         .navigationTitle(isShoppingMode ? "购物模式" : "买菜")
         .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
+        // One searchable for both modes, so Shopping Mode reuses the exact
+        // normal-mode search semantics (`ShoppingListPresentation`) instead of a
+        // mode-specific duplicate. Searching in the aisle is the point.
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "搜索买菜项目"
+        )
         .onAppear(perform: presentRequestedStockInIfNeeded)
         .onChange(of: navigationStore.isShoppingStockInRequested) { _, isRequested in
             if isRequested { presentRequestedStockInIfNeeded() }
@@ -1029,14 +1043,17 @@ struct ShoppingView: View {
                 .accessibilityIdentifier("shopping.bulk.menu")
                 .accessibilityLabel("购物清单批量操作")
             }
+            }
 
+            // Available in both modes: remembering an item mid-aisle is exactly
+            // the Shopping Mode case. Bulk management stays out of the mode; this
+            // is single-item entry through the same sheet.
             ToolbarItem(placement: .topBarTrailing) {
                 Button("添加", systemImage: "plus") { isShowingAddItem = true }
                     .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
                     .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                     .accessibilityIdentifier("shopping.add.button")
                     .accessibilityLabel("添加买菜项目")
-            }
             }
         }
         .sheet(isPresented: $isShowingAddItem) {

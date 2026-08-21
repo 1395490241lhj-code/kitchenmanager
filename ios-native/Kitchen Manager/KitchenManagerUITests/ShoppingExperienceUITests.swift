@@ -154,6 +154,8 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["shopping.mode.exit"].isHittable)
         XCTAssertFalse(app.buttons["shopping.mode.toggle"].exists, "购物模式中只能保留一个退出操作")
         XCTAssertFalse(app.buttons["shopping.bulk.menu"].exists)
+        // Single-item entry stays available in the aisle; bulk management does not.
+        XCTAssertTrue(app.buttons["shopping.add.button"].isHittable, "购物模式中仍应能添加项目")
         app.buttons["番茄，2 个，未购买"].tap()
         let purchasedToggle = app.buttons["shopping.mode.purchased.toggle"]
         XCTAssertTrue(purchasedToggle.waitForExistence(timeout: 5))
@@ -198,6 +200,93 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["番茄，2 个，未购买"].isHittable)
         XCTAssertTrue(app.buttons["shopping.add.button"].isHittable)
         XCTAssertTrue(app.buttons["shopping.mode.toggle"].isHittable)
+    }
+
+    // MARK: - Shopping Mode keeps search and single-item entry
+
+    private func enterShoppingMode(in app: XCUIApplication) {
+        app.buttons["shopping.mode.toggle"].tap()
+        XCTAssertTrue(element("shopping.mode.container", in: app).waitForExistence(timeout: 5))
+    }
+
+    func testShoppingModeSupportsSearchingTheList() throws {
+        let app = launchShopping()
+        enterShoppingMode(in: app)
+
+        // Single exit control, verified before search takes focus.
+        XCTAssertTrue(app.buttons["shopping.mode.exit"].exists)
+        XCTAssertFalse(app.buttons["shopping.mode.toggle"].exists, "购物模式中只能保留一个退出操作")
+
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5), "购物模式中应可搜索")
+        search.tap()
+        search.typeText("番茄")
+
+        XCTAssertTrue(app.buttons["番茄，2 个，未购买"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["大米，1 袋，未购买"].exists, "搜索应过滤掉不匹配项目")
+        let searching = XCTAttachment(screenshot: app.screenshot())
+        searching.name = "shopping-mode-searching"
+        searching.lifetime = .keepAlways
+        add(searching)
+        // Still in Shopping Mode, and bulk management stays out of it.
+        XCTAssertTrue(element("shopping.mode.container", in: app).exists)
+        XCTAssertFalse(app.buttons["shopping.bulk.menu"].exists, "购物模式不应恢复批量菜单")
+    }
+
+    func testShoppingModeSearchWithNoMatchOffersClearSearch() throws {
+        let app = launchShopping()
+        enterShoppingMode(in: app)
+
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("不存在的项目")
+
+        let clear = app.buttons["shopping.mode.search.clear"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5), "无结果时应提供清除搜索")
+        clear.tap()
+        XCTAssertTrue(app.buttons["番茄，2 个，未购买"].waitForExistence(timeout: 5))
+    }
+
+    func testShoppingModeCanAddItemThroughExistingSheet() throws {
+        let app = launchShopping()
+        enterShoppingMode(in: app)
+
+        let add = app.buttons["shopping.add.button"]
+        XCTAssertTrue(add.isHittable, "购物模式中应保留添加项目")
+        add.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["添加买菜项目"].waitForExistence(timeout: 5))
+
+        let nameField = app.textFields.firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
+        nameField.tap()
+        nameField.typeText("酱油")
+        app.buttons["添加"].firstMatch.tap()
+
+        // The new item lands in the mode's category-first list without leaving the mode.
+        XCTAssertTrue(app.buttons["酱油，1 份，未购买"].waitForExistence(timeout: 5), "新项目应出现在购物模式列表中")
+        XCTAssertTrue(element("shopping.mode.container", in: app).exists, "添加后应仍在购物模式")
+        XCTAssertTrue(app.buttons["shopping.mode.exit"].exists)
+    }
+
+    func testShoppingModeAccessibilityXXXLKeepsSearchAndAddReachable() {
+        let app = launchShopping(additionalArguments: [
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ])
+        // Baseline: the same toolbar button in normal mode, for comparison.
+        let normalAddHeight = app.buttons["shopping.add.button"].frame.height
+        enterShoppingMode(in: app)
+
+        let add = app.buttons["shopping.add.button"]
+        XCTAssertTrue(add.isHittable)
+        // Toolbar chrome keeps UIKit's own bar-item metrics at every text size;
+        // Shopping Mode must simply not be worse than normal Shopping.
+        XCTAssertEqual(add.frame.height, normalAddHeight, accuracy: 0.5, "购物模式的添加按钮应与普通模式一致")
+        let exit = app.buttons["shopping.mode.exit"]
+        XCTAssertTrue(exit.isHittable)
+        XCTAssertEqual(exit.frame.height, normalAddHeight, accuracy: 0.5, "退出控件应与其他工具栏控件一致")
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 5))
     }
 
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
