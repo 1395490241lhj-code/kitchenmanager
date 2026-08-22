@@ -144,6 +144,18 @@ struct KitchenManagerApp: App {
                 .environmentObject(authStore)
                 .environmentObject(guestMergeController)
                 .environmentObject(accountDeletionController)
+                // Phase B3: the staple-restock baseline used to be synced from
+                // `KitchenStore.init`'s `inventory` didSet, which made
+                // `App.init` the first code in the process to touch
+                // `UNUserNotificationCenter` — before the first frame. Same
+                // pass, same inputs, just after the first frame instead; the
+                // scheduler's own gate keeps it to one run per process even
+                // though `.task` can restart.
+                .task {
+                    PantryRestockNotificationScheduler.syncInitialIfNeeded(
+                        for: kitchenStore.inventory
+                    )
+                }
                 #if DEBUG
                 .environmentObject(syncSmokeController)
                 // UI-5B2B-B1: writes a deterministic `.conflict` session so the

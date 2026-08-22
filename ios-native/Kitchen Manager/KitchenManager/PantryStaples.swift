@@ -43,6 +43,33 @@ enum PantryRestockNotificationScheduler {
         defaults.set(current, forKey: stateKey)
     }
 
+    /// Phase B3: the startup pass that `KitchenStore.init`'s `inventory`
+    /// `didSet` used to perform synchronously, before the first frame. It is
+    /// the same `sync(for:)` — same defaults keys, same enable/disable
+    /// semantics, same transition rules, same pending-request removal — only
+    /// moved off the launch hot path and gated so it happens exactly once per
+    /// process. The gate matters because the caller is a SwiftUI `.task`,
+    /// which re-runs whenever the view's identity changes or the scene
+    /// reconnects; a second pass would rewrite the baseline in `stateKey` and
+    /// silently swallow a real restock transition.
+    @MainActor private static var didRunInitialSync = false
+
+    @MainActor
+    static func syncInitialIfNeeded(for items: [InventoryItem]) {
+        guard !didRunInitialSync else { return }
+        didRunInitialSync = true
+        sync(for: items)
+    }
+
+    #if DEBUG
+    /// Test-only: the gate is process-wide by design, which would otherwise
+    /// make its own coverage depend on test execution order.
+    @MainActor
+    static func resetInitialSyncGateForTesting() {
+        didRunInitialSync = false
+    }
+    #endif
+
     static func remove(for id: UUID) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(
             withIdentifiers: ["staple-restock-\(id.uuidString)"]

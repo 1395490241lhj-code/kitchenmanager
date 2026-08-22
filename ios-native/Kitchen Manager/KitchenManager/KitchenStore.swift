@@ -398,7 +398,17 @@ final class KitchenStore: ObservableObject {
         didSet {
             persistInventoryIfNeeded()
             Self.rescheduleNotificationsIfEnabled(for: inventory)
-            PantryRestockNotificationScheduler.sync(for: inventory)
+            // Phase B3: skipped during the startup load for the same reason
+            // `persistInventoryIfNeeded()` is — the assignment below in
+            // `init` runs through the `@Published` setter, so this observer
+            // fires on the pre-first-frame main thread and made `App.init`
+            // the first thing in the process to touch
+            // `UNUserNotificationCenter`. The startup pass is not dropped:
+            // the app root runs it once, after the first frame, via
+            // `PantryRestockNotificationScheduler.syncInitialIfNeeded(for:)`.
+            if !isLoading {
+                PantryRestockNotificationScheduler.sync(for: inventory)
+            }
             // Phase 2B-4: a single, generic hook for "ordinary inventory
             // content changed" — deliberately not called during startup load
             // or any of the explicit suppressed-publish paths (consumption,
