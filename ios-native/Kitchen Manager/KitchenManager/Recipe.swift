@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-struct Recipe: Identifiable, Hashable, Codable {
+nonisolated struct Recipe: Identifiable, Hashable, Codable {
     let id: String
     let title: String
     let cookingTime: Int?
@@ -124,7 +124,10 @@ struct Recipe: Identifiable, Hashable, Codable {
     ]
 }
 
-enum RecipeIngredientClassifier {
+/// `nonisolated` so the recipe-pack decode path can classify off the main
+/// actor. Pure string work over its own immutable tables — it touches no UI,
+/// no store and no persistence, so it has nothing to be main-actor-bound to.
+nonisolated enum RecipeIngredientClassifier {
     private static let directSeasoningNames: Set<String> = [
         "盐", "糖", "白糖", "冰糖", "味精", "鸡精", "胡椒粉", "白胡椒", "白胡椒粉", "黑胡椒", "黑胡椒粉",
         "生抽", "老抽", "酱油", "醋", "米醋", "陈醋", "香醋", "料酒", "黄酒", "蚝油", "鱼露", "香油", "芝麻油",
@@ -197,7 +200,7 @@ enum RecipeIngredientClassifier {
     }
 }
 
-struct RecipeSourceMetadata: Hashable, Codable {
+nonisolated struct RecipeSourceMetadata: Hashable, Codable {
     let platform: String
     let originalURL: String
     let canonicalURL: String

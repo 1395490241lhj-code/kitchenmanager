@@ -379,6 +379,14 @@ struct ContentView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
             await authStore.start()
+        }
+        // Deliberately a separate `.task` from the auth restore above rather
+        // than a second `await` inside it. The recipe pack is public and needs
+        // no session, so serializing it behind session restore only delayed the
+        // first request by the whole restore (measured ~265 ms as a guest, and
+        // a signed-in user additionally pays a token refresh plus /api/me).
+        // Both run concurrently now; neither reads the other's state.
+        .task {
             #if DEBUG
             guard !RecipeUITestSeed.isolatesRecipeStore else { return }
             #endif

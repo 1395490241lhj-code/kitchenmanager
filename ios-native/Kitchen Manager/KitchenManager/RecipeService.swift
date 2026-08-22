@@ -1,6 +1,6 @@
 import Foundation
 
-enum RecipeLibraryMode: String, CaseIterable, Identifiable {
+nonisolated enum RecipeLibraryMode: String, CaseIterable, Identifiable {
     case curated
     case full
 
@@ -9,7 +9,7 @@ enum RecipeLibraryMode: String, CaseIterable, Identifiable {
     var filename: String { self == .curated ? "sichuan-recipes.curated.json" : "sichuan-recipes.json" }
 }
 
-struct RecipePackResponse: Decodable {
+nonisolated struct RecipePackResponse: Decodable {
     let recipes: [RemoteRecipe]
     let recipeIngredients: [String: [RemoteIngredient]]
 
@@ -19,7 +19,7 @@ struct RecipePackResponse: Decodable {
     }
 }
 
-struct RemoteRecipe: Decodable {
+nonisolated struct RemoteRecipe: Decodable {
     let id: String
     let name: String
     let method: String?
@@ -79,7 +79,7 @@ struct RemoteRecipe: Decodable {
     }
 }
 
-struct RemoteIngredient: Decodable {
+nonisolated struct RemoteIngredient: Decodable {
     let item: String
     let qty: String?
     let unit: String?
@@ -113,9 +113,21 @@ struct RemoteIngredient: Decodable {
     }
 }
 
-struct RecipeService {
+/// `nonisolated` plus `@concurrent` on `fetchRecipes`: the transport is an
+/// `actor` and everything after it is pure value work, so none of this needs
+/// the main actor.
+///
+/// Both are required. The target sets `SWIFT_DEFAULT_ACTOR_ISOLATION =
+/// MainActor`, which made this type main-actor-bound; and it also sets
+/// `SWIFT_APPROACHABLE_CONCURRENCY = YES`, under which a merely `nonisolated`
+/// async function still runs on the *caller's* actor. So dropping the
+/// isolation alone would have left the ~150 KB recipe-pack decode and the
+/// per-ingredient classification on the main thread during launch, which is
+/// exactly where a Time Profiler sample found them.
+nonisolated struct RecipeService {
     var apiClient: APIClient = .shared
 
+    @concurrent
     func fetchRecipes(mode: RecipeLibraryMode = .curated) async throws -> [Recipe] {
         let endpoint = APIEndpoint.get(
             path: "data/\(mode.filename)",
@@ -233,7 +245,7 @@ struct RecipeService {
     }
 }
 
-enum RecipeAPIError: LocalizedError {
+nonisolated enum RecipeAPIError: LocalizedError {
     case invalidResponse
     case httpStatus(Int)
     case emptyData
