@@ -348,21 +348,31 @@ struct ContentView: View {
             }
 
             Tab("菜谱", systemImage: "book.closed", value: AppTab.recipes) {
-                #if DEBUG
-                if ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_DETAIL_SCREENSHOT") {
-                    NavigationStack {
-                        RecipeDetailView(recipe: RecipeUITestSeed.longRecipe)
+                // Recipes is on the cooking-journey path, which AppTheme assigns
+                // `brand`. This has to sit on the NavigationStack rather than on
+                // the list inside it: toolbar content is hoisted into the
+                // navigation bar and resolves its tint from the navigation
+                // container, so a tint applied further down never reached the
+                // filter and add buttons — they stayed `primary` blue directly
+                // above green filter chips and green empty-state CTAs.
+                Group {
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_DETAIL_SCREENSHOT") {
+                        NavigationStack {
+                            RecipeDetailView(recipe: RecipeUITestSeed.longRecipe)
+                        }
+                    } else {
+                        NavigationStack {
+                            RecipeListView()
+                        }
                     }
-                } else {
+                    #else
                     NavigationStack {
                         RecipeListView()
                     }
+                    #endif
                 }
-                #else
-                NavigationStack {
-                    RecipeListView()
-                }
-                #endif
+                .tint(AppTheme.brand)
             }
 
             Tab("我的", systemImage: "person", value: AppTab.settings) {

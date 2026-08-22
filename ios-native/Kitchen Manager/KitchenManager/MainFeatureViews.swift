@@ -176,7 +176,7 @@ struct InventoryView: View {
                             }
                         }
                     } header: {
-                        InventorySectionHeader(title: "食材", count: displayedFreshInventory.count)
+                        ListSectionHeader(title: "食材", count: displayedFreshInventory.count)
                     }
                 }
 
@@ -197,7 +197,7 @@ struct InventoryView: View {
                         }
                     } header: {
                         HStack {
-                            InventorySectionHeader(title: "常备食材", count: displayedStaples.count)
+                            ListSectionHeader(title: "常备食材", count: displayedStaples.count)
                             Spacer()
                             Menu {
                                 Picker("筛选", selection: $stapleFilter) {
@@ -578,7 +578,14 @@ private struct InventorySummaryRow: View {
     }
 }
 
-private struct InventorySectionHeader: View {
+/// The one "section title + item count" header for every grouped list in the
+/// app. Inventory and Shopping each used to carry their own: same job, but
+/// different title weight (semibold vs medium), different count typography
+/// (footnote vs subheadline), the count adjacent on one screen and pushed to the
+/// trailing edge on the other — and only Inventory's was exposed to VoiceOver as
+/// a heading, so the rotor could skip through Inventory's sections but not
+/// Shopping's.
+private struct ListSectionHeader: View {
     let title: String
     let count: Int
 
@@ -817,7 +824,7 @@ struct ShoppingView: View {
                             .accessibilityHint("双击标记为已购买")
                         }
                     } header: {
-                        ShoppingSectionHeader(title: category.rawValue, count: items.count)
+                        ListSectionHeader(title: category.rawValue, count: items.count)
                     }
                     .accessibilityIdentifier("shopping.section.\(category.id)")
                 }
@@ -905,7 +912,7 @@ struct ShoppingView: View {
                             .accessibilityHint("双击标记为已购买")
                         }
                     } header: {
-                        ShoppingSectionHeader(title: category.rawValue, count: items.count)
+                        ListSectionHeader(title: category.rawValue, count: items.count)
                     }
                 }
             }
@@ -1148,25 +1155,6 @@ private struct ShoppingSummaryRow: View {
         }
         .font(.subheadline)
         .foregroundStyle(.secondary)
-    }
-}
-
-private struct ShoppingSectionHeader: View {
-    let title: String
-    let count: Int
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-            Spacer()
-            Text("\(count) 项")
-                .foregroundStyle(.secondary)
-        }
-        .font(.subheadline.weight(.medium))
-        .dynamicTypeSize(...ChromeMetrics.headerTypeLimit)
-        .textCase(nil)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title)，\(count) 项")
     }
 }
 

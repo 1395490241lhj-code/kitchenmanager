@@ -149,6 +149,11 @@ struct HomeView: View {
         }
         .safeAreaPadding(.bottom, 112)
         .background(Color(.systemGroupedBackground))
+        // Home is the cooking-journey path, which AppTheme assigns `brand`.
+        // Without this the tab container's `primary` tint leaked into the
+        // header's add button, leaving a blue "+" next to the green
+        // "添加菜品" and "查看今日计划" buttons on the same card.
+        .tint(AppTheme.brand)
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(isPresented: $isShowingTodayPlan) {
             TodayPlanDetailView()
@@ -565,8 +570,18 @@ private struct HomeDashboardHeader: View {
             Button(action: onImport) { Image(systemName: "plus") }
                 .frame(width: AppTheme.minimumHitTarget, height: AppTheme.minimumHitTarget)
                 .background {
+                    // `secondarySurface` (#F5F5F7) is all but identical to the
+                    // page's `systemGroupedBackground` (#F2F2F7), so in light
+                    // mode this chip rendered as a bare glyph with no affordance
+                    // at all — it only ever showed up in dark mode. The hairline
+                    // is the same one every other secondary Home surface
+                    // (reminder row, clipboard prompt, module issues) already
+                    // pairs with this fill.
                     Circle()
                         .fill(AppTheme.secondarySurface)
+                        .overlay {
+                            Circle().stroke(AppTheme.separator.opacity(0.34), lineWidth: 0.5)
+                        }
                         .frame(width: 40, height: 40)
                 }
                 .accessibilityIdentifier("home.import.add.button")
@@ -605,8 +620,13 @@ private struct TodayPlanSummaryCard: View {
             case .active, .partial, .completed:
                 ForEach(dashboard.displayedPlans) { plan in
                     HStack(spacing: 12) {
-                        Image(systemName: plan.isCooked ? "checkmark.circle" : "fork.knife.circle.fill")
-                            .foregroundStyle(AppTheme.textSecondary)
+                        // Matched weights: the filled fork glyph made an
+                        // *unfinished* dish the heaviest mark in the card while
+                        // the finished one got the lighter outline, inverting the
+                        // emphasis. Completion is a genuine achieved state, which
+                        // is what AppTheme reserves `success` for.
+                        Image(systemName: plan.isCooked ? "checkmark.circle" : "fork.knife.circle")
+                            .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
                             .font(.title3)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
