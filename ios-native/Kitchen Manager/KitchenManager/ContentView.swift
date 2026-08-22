@@ -326,6 +326,13 @@ struct ContentView: View {
                 NavigationStack {
                     HomeView()
                 }
+                // Home's add button is a real toolbar item now, and toolbar
+                // content resolves its tint from the navigation container rather
+                // than from the view the `.toolbar` modifier is attached to — so
+                // the `brand` tint has to sit here, exactly as it does for the
+                // Recipes tab below. Inside HomeView it would leave the "+" on
+                // the container's `primary` blue.
+                .tint(AppTheme.brand)
             }
 
             Tab("食材", systemImage: "shippingbox", value: AppTab.inventory) {

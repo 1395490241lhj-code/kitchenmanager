@@ -24,6 +24,7 @@ private enum HomeSheet: Identifiable {
 
 struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
@@ -90,10 +91,9 @@ struct HomeView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HomeDashboardHeader(
-                    displayName: displayName,
                     householdName: householdName,
                     isRestoringAccount: authStore.activity == .restoring,
-                    onImport: { activeSheet = .smartImport }
+                    shouldShowHousehold: headerModel.shouldShowHousehold
                 )
 
                 TodayPlanSummaryCard(
@@ -149,12 +149,23 @@ struct HomeView: View {
         }
         .safeAreaPadding(.bottom, 112)
         .background(Color(.systemGroupedBackground))
-        // Home is the cooking-journey path, which AppTheme assigns `brand`.
-        // Without this the tab container's `primary` tint leaked into the
-        // header's add button, leaving a blue "+" next to the green
-        // "添加菜品" and "查看今日计划" buttons on the same card.
-        .tint(AppTheme.brand)
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle(headerModel.title)
+        // Same rule Inventory and Recipes use: large at normal sizes, collapsing
+        // to inline at Accessibility sizes where a large title would otherwise
+        // take most of the first screen. Home used to render its greeting inside
+        // the scroll content at `.title3`, so it stayed small at every size and
+        // could not collapse — the title measured 17.7pt against the 30.0pt
+        // large titles one tab away, and sat 31pt higher on the screen.
+        .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("导入与添加", systemImage: "plus") { activeSheet = .smartImport }
+                    .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityIdentifier("home.import.add.button")
+                    .accessibilityHint("打开菜谱、收据和食材添加选项")
+            }
+        }
         .navigationDestination(isPresented: $isShowingTodayPlan) {
             TodayPlanDetailView()
         }
@@ -316,6 +327,13 @@ struct HomeView: View {
 
     private var householdName: String? {
         authStore.account?.households.first?.name.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmptyHome
+    }
+
+    /// Drives both the navigation title and whether the household line shows.
+    /// Same `HomeDashboardHeaderModel` the header used before it became a real
+    /// `navigationTitle`, so the greeting wording stays under its unit tests.
+    private var headerModel: HomeDashboardHeaderModel {
+        HomeDashboardHeaderModel(displayName: displayName, householdName: householdName)
     }
 
     private func showToast(_ message: String, style: AppFeedbackStyle = .success) {
@@ -526,69 +544,44 @@ private struct ClipboardRecipeImportPrompt: View {
 
 // MARK: - Dashboard V2
 
+/// The date/household/restoring lines that sit under Home's navigation title.
+///
+/// The greeting itself is the real `navigationTitle` and the add button is a
+/// real toolbar item, so Home gets the same large-title metrics, the same
+/// toolbar capsule position and the same scroll-collapse behaviour as
+/// Inventory, Shopping and Recipes instead of hand-rolling a smaller header.
+/// What stays here is what a `navigationTitle` cannot express — and it lands in
+/// the same place Recipes already puts "全部菜谱 · 19 道": a secondary line
+/// directly beneath the title.
 private struct HomeDashboardHeader: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    let displayName: String?
     let householdName: String?
     let isRestoringAccount: Bool
-    let onImport: () -> Void
-
-    private var model: HomeDashboardHeaderModel {
-        HomeDashboardHeaderModel(displayName: displayName, householdName: householdName)
-    }
+    let shouldShowHousehold: Bool
 
     private var dateText: String { HomeDatePresentation.text(for: .now) }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(dateText)
-                    .font(.footnote)
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                    .foregroundStyle(.secondary)
-                Text(model.title)
-                    .font(.title3.weight(.semibold))
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                    .foregroundStyle(.primary)
-                    .accessibilityAddTraits(.isHeader)
-                if model.shouldShowHousehold, let householdName {
-                    Label(householdName, systemImage: "person.2")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                if isRestoringAccount {
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.mini)
-                        Text("正在恢复账号…")
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("home.auth.restoring")
-                }
-            }
-            Spacer(minLength: 8)
-            Button(action: onImport) { Image(systemName: "plus") }
-                .frame(width: AppTheme.minimumHitTarget, height: AppTheme.minimumHitTarget)
-                .background {
-                    // `secondarySurface` (#F5F5F7) is all but identical to the
-                    // page's `systemGroupedBackground` (#F2F2F7), so in light
-                    // mode this chip rendered as a bare glyph with no affordance
-                    // at all — it only ever showed up in dark mode. The hairline
-                    // is the same one every other secondary Home surface
-                    // (reminder row, clipboard prompt, module issues) already
-                    // pairs with this fill.
-                    Circle()
-                        .fill(AppTheme.secondarySurface)
-                        .overlay {
-                            Circle().stroke(AppTheme.separator.opacity(0.34), lineWidth: 0.5)
-                        }
-                        .frame(width: 40, height: 40)
-                }
-                .accessibilityIdentifier("home.import.add.button")
-                .accessibilityLabel("导入与添加")
-                .accessibilityHint("打开菜谱、收据和食材添加选项")
+        VStack(alignment: .leading, spacing: 5) {
+            Text(dateText)
+                .font(.footnote)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .foregroundStyle(.secondary)
+            if shouldShowHousehold, let householdName {
+                Label(householdName, systemImage: "person.2")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            if isRestoringAccount {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("正在恢复账号…")
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("home.auth.restoring")
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.dashboard.header")
     }
@@ -950,7 +943,7 @@ private struct HomeModuleIssues: View {
 
 #Preview("空首页") {
     VStack(alignment: .leading, spacing: 28) {
-        HomeDashboardHeader(displayName: nil, householdName: nil, isRestoringAccount: false, onImport: {})
+        HomeDashboardHeader(householdName: nil, isRestoringAccount: false, shouldShowHousehold: false)
         TodayPlanSummaryCard(
             dashboard: HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: []),
             primaryAction: .addTodayPlan,
@@ -1023,10 +1016,9 @@ private struct HomeModuleIssues: View {
 #Preview("长名称") {
     VStack(alignment: .leading, spacing: 20) {
         HomeDashboardHeader(
-            displayName: "一位名字很长的家庭成员",
             householdName: "一个同样很长、仍需完整理解的家庭名称",
             isRestoringAccount: false,
-            onImport: {}
+            shouldShowHousehold: true
         )
         TodayPlanSummaryCard(
             dashboard: HomeDashboardSummary(
