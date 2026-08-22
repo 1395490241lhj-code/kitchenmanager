@@ -113,8 +113,15 @@ actor ExpressSyncTransport: SyncTransport {
             case 503: return .backendUnavailable
             default: return .transport
             }
+        // `APIClient` throws `.rateLimited` for HTTP 429 *before* the status
+        // can reach the `.server`/`.httpStatus` cases above, so 429 only ever
+        // arrives here. Without this case it collapsed into `.transport` and
+        // the whole rate-limit path (backoff, retry-after, breadcrumb) was
+        // unreachable.
+        case .rateLimited(let retryAfter):
+            return .rateLimited(retryAfterSeconds: retryAfter)
         case .timeout, .transport, .invalidResponse, .invalidURL, .cancelled,
-             .notFound, .validation, .rateLimited:
+             .notFound, .validation:
             return .transport
         }
     }

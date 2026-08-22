@@ -2,11 +2,28 @@
 
 ## Last verified
 
-- Date: 2026-08-16
-- Commit: `21500bc` (`fix(ios): make imported recipe save flow verifiable`) — stable P3 delivery checkpoint
+- Date: 2026-08-21
+- Commit: `b6a669e` (`chore(agents): normalize project skill installs and track skills lock`) — release-readiness audit baseline
 - Branch: `main`
-- Repository state at verification: `HEAD` and `origin/main` had `0 0` divergence; tracked files were clean. The existing untracked `.agents/` workspace remains outside the tracked project state.
-- Verification scope: P3 delivery closeout; production release posture and hosted verification gaps remain unchanged.
+- Repository state at verification: tracked files were clean before this batch's release-readiness edits. The existing untracked `.agents/` workspace remains outside the tracked project state.
+- Verification scope: release-readiness audit plus the deterministic fixes it identified (sync 429 mapping, export-compliance key, blocking archive-guard CI step, stale release docs). Production release posture and hosted verification gaps remain unchanged.
+
+## Release-readiness audit (2026-08-21)
+
+Validated at `b6a669e`: `npm test` 1781/1781 pass; iOS Release build
+succeeds; `npm run ios:release:check` and `npm run ios:archive:guard`
+(all 9 checks) pass.
+
+Resolved since the original `0b162ba` blocker audit:
+
+- APP-ICON-001 — real 1024×1024 AppIcon asset exists; `appIconPresence` PASS.
+- CI-ARCHIVE-GATE-001 — `continue-on-error` removed; the archive guard now gates CI.
+- Sync `429` responses now map to `SyncError.rateLimited` with `retryAfter` preserved (previously collapsed to `.transport`, making the rate-limit backoff path unreachable).
+- `ITSAppUsesNonExemptEncryption = false` declared, so uploads no longer stall on Missing Compliance.
+
+Known open items are unchanged below; additionally
+`ReceiptCompactListUITests/testReceiptList_twentyItems_isCompactAndScrollable`
+is flaky under a full-suite run (passes in isolation) and is not yet addressed.
 
 ## P3 delivery checkpoint
 

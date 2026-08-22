@@ -7,7 +7,8 @@ create a production project, integrate any provider, or change release
 state. It is the authoritative checklist for what stands between the
 current code and each release stage.
 
-Baseline: `HEAD = origin/main = 0b162ba`, workspace clean, all
+Baseline: originally audited at `HEAD = origin/main = 0b162ba`; status
+fields re-verified at `b6a669e` (2026-08-21), workspace clean, all
 sync/merge/dogfood/diagnostics/smoke/crash flags `NO` in every committed
 configuration.
 
@@ -26,13 +27,16 @@ an account-level or manual action outside this repository).
 
 ## P0 — Blocks Internal TestFlight
 
-### APP-ICON-001 — No app icon / no asset catalog exists
+### APP-ICON-001 — No app icon / no asset catalog exists — RESOLVED
 - **Severity**: P0
 - **Affected Stage**: Internal TestFlight, External TestFlight, App Store.
-- **Current Evidence**: `find ios-native -iname "*.xcassets"` returns
-  nothing; `scripts/ios-archive-guard.mjs` `appIconPresence` fails with
-  "no AppIcon.appiconset found at all (no Assets.xcassets/asset catalog
-  exists yet)". There is no `Assets.xcassets` in the project.
+- **Original Evidence (at `0b162ba`)**: `find ios-native -iname "*.xcassets"`
+  returned nothing; `scripts/ios-archive-guard.mjs` `appIconPresence` failed
+  with "no AppIcon.appiconset found at all (no Assets.xcassets/asset catalog
+  exists yet)".
+- **Current Evidence (at `b6a669e`)**: `Assets.xcassets/AppIcon.appiconset`
+  contains a real 1024×1024 `AppIcon-1024.png` (verified via `sips`), and
+  `npm run ios:archive:guard` reports `appIconPresence` PASS.
 - **Exact Risk**: App Store Connect rejects any build during Processing
   without a 1024×1024 marketing icon — this blocks even Internal
   TestFlight, which still uploads a processed build.
@@ -46,8 +50,9 @@ an account-level or manual action outside this repository).
   Organizer "Validate App" passes.
 - **Fallback / Rollback**: None — an icon is mandatory. No rollback needed
   (additive asset).
-- **Status**: OPEN (needs design/artwork — USER-ACTION for the artwork
-  itself).
+- **Status**: DONE (artwork exists; `appIconPresence` PASS). The remaining
+  half of the verification method — Organizer "Validate App" on a signed
+  archive — is tracked by SIGN-DIST-001, not here.
 - **Dependency**: None.
 
 ### SIGN-DIST-001 — Distribution-class signed archive never validated
@@ -371,13 +376,15 @@ an account-level or manual action outside this repository).
 ### CI-ARCHIVE-GATE-001 — Remove `continue-on-error` from the archive-guard CI step once the app icon exists
 - **Severity**: P3
 - **Affected Stage**: CI hygiene.
-- **Current Evidence**: `.github/workflows/ios-release-check.yml:62`
-  `continue-on-error: true` on `npm run ios:archive:guard`. It is safe
-  today **because** the guard's security-critical checks
+- **Original Evidence (at `0b162ba`)**: `.github/workflows/ios-release-check.yml:62`
+  `continue-on-error: true` on `npm run ios:archive:guard`. It was safe
+  then **because** the guard's security-critical checks
   (safe-default flags, no service-role/secrets, shared scheme, signing)
   are independently hard-asserted by the non-soft
   `test/phase2d1-ios-release-scripts.test.mjs` step in the same job
   (lines 208-217). The soft-fail only masks the known app-icon failure.
+- **Current Evidence (at `b6a669e`)**: `continue-on-error` has been removed;
+  the archive-guard step is now blocking and passes for real.
 - **Exact Risk**: Latent fake-green: if someone ever removes those test
   assertions, the soft archive-guard step would no longer surface a new
   security regression.
@@ -388,7 +395,7 @@ an account-level or manual action outside this repository).
   CI job red.
 - **Fallback / Rollback**: Re-add `continue-on-error` if a new legitimate
   soft-fail arises (documented).
-- **Status**: OPEN (blocked on APP-ICON-001).
+- **Status**: DONE (unblocked by APP-ICON-001; guard now self-gates).
 - **Dependency**: APP-ICON-001.
 
 ### IPAD-VALIDATION-001 — iPad layout not visually validated
@@ -427,8 +434,8 @@ an account-level or manual action outside this repository).
 
 | Stage | Verdict | Gating blockers |
 |---|---|---|
-| Internal TestFlight | **No-Go** | APP-ICON-001, SIGN-DIST-001, APPSTORE-CONNECT-001, DEPLOY-SERVICEROLE-001 |
-| External TestFlight | **No-Go** | All P0 + AUTH-REAUTH-001, AUTH-DELETE-HOSTED-001, BACKEND-PROD-001, DB-PROD-001, PRIVACY-POLICY-001, SUPPORT-URL-001 |
+| Internal TestFlight | **No-Go** | SIGN-DIST-001, APPSTORE-CONNECT-001 (APP-ICON-001 and DEPLOY-SERVICEROLE-001 are DONE) |
+| External TestFlight | **No-Go** | All remaining P0 + AUTH-DELETE-HOSTED-001, BACKEND-PROD-001, DB-PROD-001, PRIVACY-POLICY-001, SUPPORT-URL-001 (AUTH-REAUTH-001 is DONE) |
 | App Store Submission | **No-Go** | All External blockers + APPSTORE-METADATA-001, APP-META-VERSION-001 |
 | Production Enablement | **No-Go** | All above + OBS-CRASH-001, OBS-ALERT-001, RATE-SHARED-001, DB-PROD-001, SAGA-RETRY-001 |
 

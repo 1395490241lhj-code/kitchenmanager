@@ -156,6 +156,29 @@ final class SyncTransportTests: NetworkTestCase {
         }
     }
 
+    /// The other half of the 429 path: `APIClient` prefers the `Retry-After`
+    /// header over the body field, and that value must survive the mapping
+    /// into `SyncError.rateLimited` too.
+    func test429RetryAfterHeaderIsPreservedThroughSyncErrorMapping() async {
+        MockURLProtocol.install { _ in .init(
+            statusCode: 429,
+            headers: ["Retry-After": "7"],
+            data: Data(#"{"error":"rate_limited","code":"SYNC_RATE_LIMITED","message":"Too many requests."}"#.utf8)
+        ) }
+        let transport = ExpressSyncTransport(client: apiClient, tokenProvider: FixedSyncTokenProvider(token: "token"))
+        do {
+            _ = try await transport.bootstrap()
+            XCTFail("expected rateLimited")
+        } catch let error as SyncError {
+            guard case .rateLimited(let retryAfterSeconds) = error else {
+                return XCTFail("expected .rateLimited, got \(error)")
+            }
+            XCTAssertEqual(retryAfterSeconds, 7)
+        } catch {
+            XCTFail("expected SyncError, got \(error)")
+        }
+    }
+
     private var bootstrapJSON: String {
         """
         {"schemaVersion":1,"user":{"id":"\(userID)","email":"cook@example.com"},
