@@ -42,12 +42,21 @@ final class SharedImportCoordinator: ObservableObject {
         guard pendingRequest == nil else { return }
         guard let queue else { return }
 
-        for unsupported in queue.peekAll() where !unsupported.hasRequiredURL {
+        // One coordinated read per refresh. This used to read the queue
+        // twice — once to prune, once to pick — and the second read was what
+        // kept just-pruned entries out of `candidates`. With a single read,
+        // `hasRequiredURL` has to be filtered explicitly instead, so a legacy
+        // request without a URL still cannot become `pendingRequest`.
+        let queued = queue.peekAll()
+
+        for unsupported in queued where !unsupported.hasRequiredURL {
             queue.remove(id: unsupported.id)
             snoozedRequestIDs.remove(unsupported.id)
         }
 
-        let candidates = queue.peekAll().filter { !snoozedRequestIDs.contains($0.id) }
+        let candidates = queued.filter {
+            $0.hasRequiredURL && !snoozedRequestIDs.contains($0.id)
+        }
         pendingRequest = candidates.first
     }
 

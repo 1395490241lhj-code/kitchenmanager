@@ -290,6 +290,23 @@ final class SharedImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(queue.peekAll(), [])
     }
 
+    /// `refresh` reads the queue once and prunes from that same snapshot, so
+    /// the explicit `hasRequiredURL` filter — not a second read — is what keeps
+    /// a just-pruned entry out of the candidate list. This pins that with
+    /// legacy entries on both sides of the valid one, in a single refresh.
+    func test_legacyNoURLRequestsAroundAValidOne_arePrunedAndSkippedInOneRefresh() throws {
+        let valid = makeRequest(url: "https://example.com/recipe")
+        try queue.enqueue(makeLegacyTextOnlyRequest(text: "前面的遗留请求"))
+        try queue.enqueue(valid)
+        try queue.enqueue(makeLegacyTextOnlyRequest(text: "后面的遗留请求"))
+
+        let coordinator = SharedImportCoordinator(queue: queue)
+        coordinator.refresh(isAnotherImportFlowPresented: false)
+
+        XCTAssertEqual(coordinator.pendingRequest, valid, "the URL-backed request must still win")
+        XCTAssertEqual(queue.peekAll(), [valid], "both URL-less entries must be pruned in that same refresh")
+    }
+
     func test_validURLRequest_isNeverDiscardedByLegacyPruning() throws {
         let valid = makeRequest(url: "https://example.com/still-valid")
         try queue.enqueue(valid)

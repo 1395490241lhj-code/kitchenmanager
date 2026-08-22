@@ -59,7 +59,10 @@ struct HomeView: View {
         )
     }
 
-    private var todayPlanPrimaryAction: HomePrimaryAction {
+    /// Takes the summary the caller already built instead of reaching for
+    /// `dashboard` again — `dashboard` is computed, so every extra read was a
+    /// second full pass over inventory, plans and the shopping list.
+    private func todayPlanPrimaryAction(for dashboard: HomeDashboardSummary) -> HomePrimaryAction {
         HomeDashboardPresentation.todayPlanPrimaryAction(for: dashboard.todayPlanState)
     }
 
@@ -76,7 +79,15 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // `dashboard` is a computed property: reading it re-filters the whole
+        // inventory, today's plans and the shopping list, and the cost is
+        // linear in inventory size. Body used to read it three times (the
+        // card, the primary action, and the reminder section — four when a
+        // reminder is showing). Building it once here and passing that one
+        // value around keeps every reader on identical data as well.
+        let dashboard = self.dashboard
+        let primaryAction = todayPlanPrimaryAction(for: dashboard)
+        return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HomeDashboardHeader(
                     displayName: displayName,
@@ -87,8 +98,8 @@ struct HomeView: View {
 
                 TodayPlanSummaryCard(
                     dashboard: dashboard,
-                    primaryAction: todayPlanPrimaryAction,
-                    onPrimaryAction: { performTodayPlanAction(todayPlanPrimaryAction) },
+                    primaryAction: primaryAction,
+                    onPrimaryAction: { performTodayPlanAction(primaryAction) },
                     onAddPlan: { isShowingRecommendations = true },
                     onViewPlan: { isShowingTodayPlan = true }
                 )
