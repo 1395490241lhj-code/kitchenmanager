@@ -36,6 +36,8 @@ struct GuestMergePromptView: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.managementActionFill)
+                    .foregroundStyle(AppTheme.onManagementAction)
                     .accessibilityIdentifier("guestMergePromptButton")
                 }
             } footer: {
@@ -499,6 +501,8 @@ struct InventoryMergePreviewView: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(AppTheme.managementActionFill)
+                .foregroundStyle(AppTheme.onManagementAction)
                 // Unchanged: still enabled while conflicts remain — that is the
                 // existing partial-merge path, and this phase only rewords it.
                 .disabled(controller.isBusy || plan == nil || controller.clientUpgradeRequired)

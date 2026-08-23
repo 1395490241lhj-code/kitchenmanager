@@ -57,6 +57,7 @@ struct ClipboardPasteControl: View {
     let accessibilityLabel: String
     var style: ClipboardPasteControlStyle = .iconAndLabel
     var isEnabled = true
+    var usesManagementSecondaryVisual = false
     let onPaste: @MainActor @Sendable (String) -> Void
 
     var body: some View {
@@ -71,12 +72,36 @@ struct ClipboardPasteControl: View {
             .opacity(style.usesCustomVisualLabel ? 0.02 : 1)
 
             if case .customLabeled(let label) = style {
-                Label(label, systemImage: "doc.on.clipboard")
+                Label {
+                    Text(label)
+                        .foregroundStyle(
+                            usesManagementSecondaryVisual
+                                ? AppTheme.textPrimary
+                                : AppTheme.onCookingAction
+                        )
+                } icon: {
+                    Image(systemName: "doc.on.clipboard")
+                        .foregroundStyle(
+                            usesManagementSecondaryVisual
+                                ? AppTheme.managementAccentForeground
+                                : AppTheme.onCookingAction
+                        )
+                }
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .frame(minWidth: style.minimumWidth, minHeight: AppTheme.minimumHitTarget)
-                    .background(AppTheme.brand, in: Capsule())
+                    .background(
+                        usesManagementSecondaryVisual
+                            ? AppTheme.managementAccentForeground.opacity(0.08)
+                            : AppTheme.cookingActionFill,
+                        in: Capsule()
+                    )
+                    .overlay {
+                        if usesManagementSecondaryVisual {
+                            Capsule()
+                                .stroke(AppTheme.managementAccentForeground.opacity(0.25), lineWidth: 0.5)
+                        }
+                    }
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }

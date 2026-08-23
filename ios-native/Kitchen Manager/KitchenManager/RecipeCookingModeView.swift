@@ -246,7 +246,8 @@ struct RecipeCookingModeView: View {
                 .frame(maxWidth: .infinity)
         }
             .buttonStyle(.borderedProminent)
-            .tint(AppTheme.brand)
+            .tint(AppTheme.cookingActionFill)
+            .foregroundStyle(AppTheme.onCookingAction)
             .controlSize(.large)
             .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
             .padding(.horizontal)

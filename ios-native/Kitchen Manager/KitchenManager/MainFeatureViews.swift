@@ -146,7 +146,8 @@ struct InventoryView: View {
                         recordMode = .manual
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
+                    .tint(AppTheme.managementActionFill)
+                    .foregroundStyle(AppTheme.onManagementAction)
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("inventory.empty.add.button")
                 }
@@ -271,7 +272,8 @@ struct InventoryView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.borderedProminent)
-                            .tint(AppTheme.primary)
+                            .tint(AppTheme.managementActionFill)
+                            .foregroundStyle(AppTheme.onManagementAction)
                             .accessibilityIdentifier("inventory.restock.addAll.button")
                         }
                     }
@@ -806,7 +808,8 @@ struct ShoppingView: View {
                             searchText = ""
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.primary)
+                        .tint(AppTheme.managementActionFill)
+                        .foregroundStyle(AppTheme.onManagementAction)
                         .controlSize(.large)
                         .accessibilityIdentifier("shopping.search.clear")
                     }
@@ -892,7 +895,8 @@ struct ShoppingView: View {
                 } actions: {
                     Button("清除搜索") { searchText = "" }
                         .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.primary)
+                        .tint(AppTheme.managementActionFill)
+                        .foregroundStyle(AppTheme.onManagementAction)
                         .controlSize(.large)
                         .accessibilityIdentifier("shopping.mode.search.clear")
                 }
@@ -1255,7 +1259,7 @@ private struct ShoppingModeHeader: View {
     private var status: some View {
         Text(presentation.isCompleted ? "已全部买齐" : "剩余 \(presentation.remainingCount) / 共 \(presentation.totalCount) 项")
             .font(.subheadline)
-            .foregroundStyle(presentation.isCompleted ? AppTheme.success : .secondary)
+            .foregroundStyle(presentation.isCompleted ? AppTheme.successInk : .secondary)
             .accessibilityIdentifier("shopping.mode.remaining")
     }
 }

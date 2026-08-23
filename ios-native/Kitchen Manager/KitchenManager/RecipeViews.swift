@@ -184,7 +184,8 @@ struct RecipeListView: View {
                             searchText = ""
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.brand)
+                        .tint(AppTheme.cookingActionFill)
+                        .foregroundStyle(AppTheme.onCookingAction)
                         .frame(minHeight: AppTheme.minimumHitTarget)
                         .contentShape(Rectangle())
                         .accessibilityIdentifier("recipe.search.clear")
@@ -193,7 +194,8 @@ struct RecipeListView: View {
                             route = .manual
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(AppTheme.brand)
+                        .tint(AppTheme.cookingActionFill)
+                        .foregroundStyle(AppTheme.onCookingAction)
                         .accessibilityIdentifier("recipe.empty.add")
                     }
                 }
@@ -589,7 +591,8 @@ struct RecipeDetailView: View {
                 .frame(maxWidth: .infinity)
         }
             .buttonStyle(.borderedProminent)
-            .tint(AppTheme.brand)
+            .tint(AppTheme.cookingActionFill)
+            .foregroundStyle(AppTheme.onCookingAction)
             .font(.headline)
             .controlSize(.large)
             .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)

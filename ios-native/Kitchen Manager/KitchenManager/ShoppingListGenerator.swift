@@ -731,7 +731,8 @@ struct ShoppingListGenerationView: View {
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(AppTheme.primary)
+                .tint(AppTheme.managementActionFill)
+                .foregroundStyle(AppTheme.onManagementAction)
                 .disabled(store.selectedCount == 0)
                 .padding()
                 .frame(maxWidth: .infinity)
@@ -776,7 +777,7 @@ struct ShoppingListGenerationView: View {
                 if let warning = item.wrappedValue.warning {
                     Label(warning, systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(AppTheme.warning)
+                        .foregroundStyle(AppTheme.warningInk)
                 }
             }
         }

@@ -44,13 +44,23 @@ enum AppTheme {
     // `brand` (green):   Home, Recommendation, Today Plan, Recipe, Cooking
     //   Mode — the cooking-journey path.
 
-    /// Administrative blue: Inventory, Shopping, Settings, system actions.
-    static let primary = adaptive(light: 0x007AFF, dark: 0x0A84FF)
+    /// Interactive foregrounds stay bright enough for links, toolbar items and
+    /// native bordered controls on their surrounding surfaces.
+    static let managementAccentForeground = adaptive(light: 0x007AFF, dark: 0x0A84FF)
+    static let cookingAccentForeground = adaptive(light: 0x386F45, dark: 0x70B77D)
+    static let aiAccentForeground = adaptive(light: 0x5856D6, dark: 0x9290EE)
 
-    /// Cooking-journey green: Home, Recommendations, Plan, Recipe, Cooking.
-    /// Deliberately separate from `primary` so the cooking path and admin
-    /// path each carry their own visual signature.
-    static let brand = adaptive(light: 0x2F6F4E, dark: 0x4E9970)
+    /// Prominent fills are deliberately separate from accent foregrounds: a
+    /// Dark Mode link needs to get lighter, while a fill behind white text must
+    /// stay dark enough to preserve 4.5:1 contrast.
+    static let managementActionFill = adaptive(light: 0x006EDB, dark: 0x006EDB)
+    static let cookingActionFill = adaptive(light: 0x447C4F, dark: 0x4C8052)
+    static let onManagementAction = Color.white
+    static let onCookingAction = Color.white
+
+    /// Compatibility aliases while call sites migrate by semantic role.
+    static let primary = managementAccentForeground
+    static let brand = cookingAccentForeground
 
     // MARK: Semantic tokens
     //
@@ -64,6 +74,11 @@ enum AppTheme {
 
     /// Caution / upcoming / attention — unchanged from existing semantics.
     static let warning = adaptive(light: 0xFF9500, dark: 0xFFB340)
+
+    /// Text-safe status inks. The vivid tokens above remain available for
+    /// symbols and other non-text status accents.
+    static let successInk = adaptive(light: 0x237A42, dark: 0x30D158)
+    static let warningInk = adaptive(light: 0x8A6500, dark: 0xFFB340)
 
     /// Destruction, irreversible actions, hard errors.
     /// Domain tokens (e.g. `inventoryExpired`) reference this rather than

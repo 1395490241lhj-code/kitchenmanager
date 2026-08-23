@@ -278,6 +278,8 @@ struct AIServiceDiagnosticsView: View {
             Section {
                 Button("Run All Tests", systemImage: "play.fill") { Task { await store.runAll() } }
                     .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.managementActionFill)
+                    .foregroundStyle(AppTheme.onManagementAction)
                     .disabled(store.isRunning)
                 Text("所有请求均由当前 iOS App 直接发起；不会显示或保存 Token、API Key、图片或完整响应。")
                     .font(.footnote).foregroundStyle(.secondary)

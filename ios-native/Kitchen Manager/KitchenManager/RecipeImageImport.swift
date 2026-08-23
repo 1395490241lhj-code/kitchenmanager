@@ -374,7 +374,7 @@ struct RecipeImageImportView: View {
                         HStack {
                             Spacer()
                             if isSaving {
-                                ProgressView().tint(.white)
+                                ProgressView().tint(AppTheme.onManagementAction)
                             } else {
                                 Label(
                                     isSaved ? "已保存" : "保存到菜谱库",
@@ -385,7 +385,8 @@ struct RecipeImageImportView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
+                    .tint(AppTheme.managementActionFill)
+                    .foregroundStyle(AppTheme.onManagementAction)
                     .disabled(!canSave || isSaving || isSaved)
                 }
             }

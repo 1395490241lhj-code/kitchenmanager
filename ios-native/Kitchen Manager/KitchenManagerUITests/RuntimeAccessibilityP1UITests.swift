@@ -13,9 +13,10 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
     func testTodayPlanRowAdaptsWithoutClipping() throws {
         for (name, size, isAccessibility) in sizes {
             let app = launch("UITEST_SEED_ACCESSIBILITY_TODAY_PLAN", size: size)
-            let primaryAction = app.buttons["home.primary.action.button"]
-            XCTAssertTrue(primaryAction.waitForExistence(timeout: 5))
-            primaryAction.tap()
+            let viewAll = app.buttons["home.today.plan.viewAll"]
+            XCTAssertTrue(viewAll.waitForExistence(timeout: 5))
+            XCTAssertTrue(scrollUntilFullyHittable(viewAll, in: app))
+            viewAll.tap()
 
             let title = app.staticTexts["超长名称的番茄牛腩炖土豆配时令蔬菜家庭晚餐"]
             let metadata = app.staticTexts["4 人份 · 今天"]
@@ -55,6 +56,33 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
             XCTAssertTrue(scrollUntilVisible(addAll, in: app), "\(name): 汇总 CTA 不可达")
             assertAction(addAll, in: app, label: "\(name) 汇总 CTA")
             XCTAssertTrue(addAll.label.contains("加入 1 项常备补货"), "\(name): 汇总 CTA 文案不完整：\(addAll.label)")
+            app.terminate()
+        }
+    }
+
+    func testHomeInventoryStatusChipsAdaptWithoutClipping() throws {
+        for (name, size, isAccessibility) in sizes {
+            let app = launch("UITEST_SEED_HOME_DASHBOARD", size: size)
+            let chips = [
+                app.buttons["home.inventory.expired.button"],
+                app.buttons["home.inventory.expiring.button"],
+                app.buttons["home.inventory.lowstock.button"]
+            ]
+
+            for (chip, label) in zip(chips, ["已过期", "即将到期", "需补货"]) {
+                XCTAssertTrue(scrollUntilFullyHittable(chip, in: app), "\(name): \(label) chip 不可达")
+                assertAction(chip, in: app, label: "\(name) \(label) chip")
+                XCTAssertLessThan(chip.frame.width, app.windows.firstMatch.frame.width - 32, "\(name): \(label) 不应拉伸为满宽")
+            }
+
+            if isAccessibility {
+                XCTAssertGreaterThan(chips[1].frame.minY, chips[0].frame.minY, "XXXL: 状态 chip 未自然换行")
+                XCTAssertGreaterThan(chips[2].frame.minY, chips[1].frame.minY, "XXXL: 状态 chip 未自然换行")
+            }
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "home-inventory-status-chips-\(name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
             app.terminate()
         }
     }
@@ -124,9 +152,9 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
 
         for (name, size, isAccessibility) in cases {
             let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: size)
-            let primaryAction = app.buttons["home.primary.action.button"]
-            XCTAssertTrue(primaryAction.waitForExistence(timeout: 5), "\(name): 首页主操作缺失")
-            primaryAction.tap()
+            let viewAll = app.buttons["home.recommendation.viewAll"]
+            XCTAssertTrue(viewAll.waitForExistence(timeout: 5), "\(name): 首页查看全部入口缺失")
+            viewAll.tap()
             XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5), "\(name): 推荐页未打开")
 
             let title = app.staticTexts["recommendation.\(recipeID).title"]
@@ -191,7 +219,7 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
     func testRecommendationMenuUsesPersistentActionsAndOmitsFakeFeedback() throws {
         let recipeID = "ui-test-accessibility-recommendation-one"
         let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: "UICTContentSizeCategoryL")
-        app.buttons["home.primary.action.button"].tap()
+        app.buttons["home.recommendation.viewAll"].tap()
 
         let menu = app.buttons["recommendation.\(recipeID).menu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 5))

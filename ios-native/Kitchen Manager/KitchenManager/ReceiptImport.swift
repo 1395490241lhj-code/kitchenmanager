@@ -513,7 +513,8 @@ struct RecordFoodSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(AppTheme.primary)
+                .tint(AppTheme.managementActionFill)
+                .foregroundStyle(AppTheme.onManagementAction)
                 .disabled(receiptStore.selectedCount == 0)
                 .accessibilityIdentifier("receiptConfirmStockIn")
             }

@@ -356,6 +356,21 @@ final class HomeRecommendationStore: ObservableObject {
         isGeneratingRecommendations = false
     }
 
+#if DEBUG
+    func applyHomeUITestStateIfRequested() {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("UITEST_HOME_RECOMMENDATION_LOADING") {
+            recommendedRecipes = []
+            isGeneratingRecommendations = true
+        } else if arguments.contains("UITEST_HOME_RECOMMENDATION_EMPTY") {
+            recommendedRecipes = []
+        } else if arguments.contains("UITEST_HOME_RECOMMENDATION_ERROR") {
+            recommendationError = "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
+        }
+        repairIndex()
+    }
+#endif
+
     private func localRecommendations(
         recipes: [Recipe],
         inventory: [String],

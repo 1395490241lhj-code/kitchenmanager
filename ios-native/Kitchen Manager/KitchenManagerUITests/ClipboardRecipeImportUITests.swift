@@ -5,7 +5,7 @@ final class ClipboardRecipeImportUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME"] + extraArguments
         app.launch()
-        XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 5))
         return app
     }
 
@@ -51,7 +51,7 @@ final class ClipboardRecipeImportUITests: XCTestCase {
 
     private func assertImportedFixtureExists(in app: XCUIApplication) {
         XCTAssertTrue(
-            app.buttons["home.primary.action.button"].waitForExistence(timeout: 8),
+            app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 8),
             "保存后导入 sheet 未关闭"
         )
         XCTAssertFalse(app.alerts.firstMatch.exists, "保存成功不应出现错误弹窗")
@@ -67,7 +67,7 @@ final class ClipboardRecipeImportUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME"]
         app.launch()
-        XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 5))
         app.terminate()
     }
 
@@ -262,7 +262,7 @@ final class ClipboardRecipeImportUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME", seed] + extraArguments
         app.launch()
-        XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 5))
         app.tabBars.buttons["菜谱"].tap()
         app.buttons["添加菜谱"].tap()
         app.buttons["AI 做菜"].tap()

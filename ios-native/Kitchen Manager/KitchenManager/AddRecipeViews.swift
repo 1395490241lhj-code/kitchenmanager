@@ -101,7 +101,7 @@ struct AIGeneratorView: View {
                         Spacer()
                         if generatorStore.isGenerating {
                             ProgressView()
-                                .tint(.white)
+                                .tint(AppTheme.onManagementAction)
                         } else {
                             Label("生成菜谱", systemImage: "sparkles")
                         }
@@ -109,7 +109,8 @@ struct AIGeneratorView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(AppTheme.primary)
+                .tint(AppTheme.managementActionFill)
+                .foregroundStyle(AppTheme.onManagementAction)
                 .disabled(generatorStore.isGenerating)
             }
         }
@@ -268,11 +269,11 @@ private struct AIRecipeConfirmationView: View {
                     Section {
                         if generatorStore.hasSavedCurrentDraft {
                             Label("已保存到菜谱库", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(AppTheme.success)
+                                .foregroundStyle(AppTheme.successInk)
                         }
                         if generatorStore.hasAddedCurrentDraftToPlan {
                             Label("已加入今日计划", systemImage: "calendar.badge.checkmark")
-                                .foregroundStyle(AppTheme.success)
+                                .foregroundStyle(AppTheme.successInk)
                         }
                     }
                 }
@@ -284,7 +285,8 @@ private struct AIRecipeConfirmationView: View {
                         actionLabel("保存并加入计划", systemImage: "checkmark.circle", isActive: performingAction == .saveAndPlan)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
+                    .tint(AppTheme.managementActionFill)
+                    .foregroundStyle(AppTheme.onManagementAction)
                     .disabled(performingAction != nil || generatorStore.isGenerating || !isDraftSaveEligible)
 
                     Button {
@@ -538,7 +540,7 @@ struct ImportRecipeView: View {
                     HStack {
                         Spacer()
                         if let importStage {
-                            ProgressView().tint(.white)
+                            ProgressView().tint(AppTheme.onManagementAction)
                             Text(importStage.rawValue)
                         } else {
                             Image(systemName: "square.and.arrow.down")
@@ -548,7 +550,8 @@ struct ImportRecipeView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(AppTheme.primary)
+                .tint(AppTheme.managementActionFill)
+                .foregroundStyle(AppTheme.onManagementAction)
                 .disabled(
                     urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     || isImporting
@@ -606,7 +609,7 @@ struct ImportRecipeView: View {
                             Spacer()
                             if isSaving {
                                 ProgressView()
-                                    .tint(.white)
+                                    .tint(AppTheme.onManagementAction)
                             } else {
                                 Label(
                                     isSaved ? "已保存" : "保存到菜谱库",
@@ -617,7 +620,8 @@ struct ImportRecipeView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.primary)
+                    .tint(AppTheme.managementActionFill)
+                    .foregroundStyle(AppTheme.onManagementAction)
                     .accessibilityIdentifier("import.result.save")
                     .disabled(!canSave || isSaving || isSaved)
                 }

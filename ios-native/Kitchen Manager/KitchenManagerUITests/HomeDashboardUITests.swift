@@ -19,26 +19,23 @@ final class HomeDashboardUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_HOME_DASHBOARD"]
         app.launch()
-        XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 5))
         return app
     }
 
-    func testPlannedDashboardHasOnePrimaryActionThatNavigatesToFullPlan() throws {
+    func testPlannedDashboardShowsCompactPlanBeforeInlineRecommendation() throws {
         let app = launchSeededDashboard()
-        let primaryAction = app.buttons["home.primary.action.button"]
-        XCTAssertEqual(primaryAction.label, "查看今日计划")
-        XCTAssertEqual(app.buttons.matching(identifier: "home.primary.action.button").count, 1)
-        primaryAction.tap()
-        XCTAssertTrue(app.navigationBars.staticTexts["今天的计划"].waitForExistence(timeout: 5))
-    }
+        let plan = app.descendants(matching: .any)["home.today.plan.card"]
+        let recommendation = app.descendants(matching: .any)["home.recommendation.section"]
+        let inventory = app.descendants(matching: .any)["home.inventory.summary"]
+        XCTAssertTrue(plan.exists)
+        XCTAssertLessThan(plan.frame.minY, recommendation.frame.minY)
+        XCTAssertLessThan(recommendation.frame.minY, inventory.frame.minY)
 
-    func testPlannedDashboardOffersContextualAddPlanAction() throws {
-        let app = launchSeededDashboard()
-        let addPlan = app.buttons["home.today.plan.add.button"]
-        XCTAssertTrue(addPlan.waitForExistence(timeout: 5))
-        XCTAssertEqual(addPlan.label, "添加今日菜品")
-        addPlan.tap()
-        XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
+        let viewAll = app.buttons["home.today.plan.viewAll"]
+        makeHittable(viewAll, in: app)
+        viewAll.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["今天的计划"].waitForExistence(timeout: 5))
     }
 
     /// The Today Plan card's recipe rows are real buttons that open that dish's
@@ -61,18 +58,20 @@ final class HomeDashboardUITests: XCTestCase {
 
         app.navigationBars["菜谱详情"].buttons.element(boundBy: 0).tap()
 
-        XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["home.today.plan.row.sample-mapotofu"].exists)
         XCTAssertFalse(app.navigationBars.staticTexts["菜谱详情"].exists)
     }
 
-    func testOnlyHighestPriorityInventoryReminderIsShownAndOpensMatchingFilter() throws {
+    func testMixedInventoryShowsEveryRelevantCategoryAndOpensMatchingFilter() throws {
         let app = launchSeededDashboard()
-        XCTAssertFalse(app.buttons["home.inventory.expiring.button"].exists)
-        XCTAssertFalse(app.buttons["home.inventory.lowstock.button"].exists)
-        XCTAssertFalse(app.buttons["home.shopping.pending.button"].exists)
-        XCTAssertFalse(app.staticTexts["需要留意"].exists)
-        app.buttons["home.inventory.expired.button"].tap()
+        XCTAssertTrue(app.buttons["home.inventory.expired.button"].exists)
+        XCTAssertTrue(app.buttons["home.inventory.expiring.button"].exists)
+        XCTAssertTrue(app.buttons["home.inventory.lowstock.button"].exists)
+
+        let expired = app.buttons["home.inventory.expired.button"]
+        makeHittable(expired, in: app)
+        expired.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["正在查看：已过期"].waitForExistence(timeout: 5))
     }
@@ -91,39 +90,79 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.staticTexts["我的"].waitForExistence(timeout: 5))
     }
 
-    func testEmptyPlanHasOnePrimaryActionAndOffersRecommendationWithoutDebugUI() throws {
+    func testEmptyPlanStartsWithInlineRecommendationAndNoPlanCard() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME"]
         app.launch()
-        let primaryAction = app.buttons["home.primary.action.button"]
-        XCTAssertTrue(primaryAction.waitForExistence(timeout: 5))
-        XCTAssertEqual(primaryAction.label, "添加今日菜品")
-        XCTAssertEqual(app.buttons.matching(identifier: "home.primary.action.button").count, 1)
-        XCTAssertFalse(app.buttons["home.today.plan.add.button"].exists)
-        primaryAction.tap()
-        XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["home.recommendation.title"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["home.today.plan.card"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["home.inventory.healthy"].exists)
         XCTAssertFalse(app.staticTexts["sync-smoke-status"].exists)
     }
 
-    func testExpiredOutranksPurchasedReminderWhileStockInStaysThePrimaryAction() throws {
+    func testInlineRecommendationCanOpenFullExperienceAndAddToToday() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_EMPTY_HOME"]
+        app.launch()
+
+        let viewAll = app.buttons["home.recommendation.viewAll"]
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 5))
+        viewAll.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
+        app.navigationBars["推荐"].buttons.element(boundBy: 0).tap()
+
+        let add = app.buttons["home.recommendation.addToday"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["home.today.plan.card"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["home.today.plan.row.sample-mapotofu"].exists)
+        XCTAssertEqual(app.staticTexts["home.recommendation.title"].label, "番茄炒鸡蛋")
+        XCTAssertEqual(app.buttons["home.recommendation.addToday"].label, "加入今天")
+    }
+
+    func testAIRefreshRunsOnHomeWithoutNavigatingAway() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_EMPTY_HOME"]
+        app.launch()
+
+        let refresh = app.buttons["home.recommendation.refresh"]
+        XCTAssertTrue(refresh.waitForExistence(timeout: 5))
+        refresh.tap()
+        XCTAssertFalse(app.navigationBars.staticTexts["推荐"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].exists)
+    }
+
+    func testInlineRecommendationLoadingErrorAndEmptyStatesStayOnHome() throws {
+        let cases = [
+            ("UITEST_HOME_RECOMMENDATION_LOADING", "home.recommendation.loading"),
+            ("UITEST_HOME_RECOMMENDATION_ERROR", "home.recommendation.error"),
+            ("UITEST_HOME_RECOMMENDATION_EMPTY", "home.recommendation.empty")
+        ]
+
+        for (argument, identifier) in cases {
+            let app = XCUIApplication()
+            app.launchArguments = ["UITEST_SEED_EMPTY_HOME", argument]
+            app.launch()
+            XCTAssertTrue(app.descendants(matching: .any)[identifier].waitForExistence(timeout: 5))
+            XCTAssertFalse(app.navigationBars.staticTexts["推荐"].exists)
+            app.terminate()
+        }
+    }
+
+    func testExpiredInventoryAndPurchasedStockInAreBothReachable() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_HOME_STOCK_IN"]
         app.launch()
 
-        let primaryAction = app.buttons["home.primary.action.button"]
-        XCTAssertTrue(primaryAction.waitForExistence(timeout: 5))
-        XCTAssertEqual(primaryAction.label, "添加今日菜品")
-        // This seed has both an expired item and a purchased item awaiting
-        // stock-in. Home shows one reminder, and spoilage takes the slot.
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["home.inventory.expired.button"].exists)
-        XCTAssertFalse(app.buttons["home.shopping.stockIn.button"].exists)
+        XCTAssertTrue(app.buttons["home.shopping.stockIn.button"].exists)
 
         app.buttons["home.inventory.expired.button"].tap()
         XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5))
     }
 
-    /// Without expired inventory the stock-in reminder still surfaces and still
-    /// opens the existing confirmation — unchanged by the ranking swap.
+    /// Stock-in remains a separate operational alert below the inventory summary.
     func testPurchasedReminderOpensExistingStockInConfirmationWhenNothingExpired() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_HOME_STOCK_IN_ONLY"]
@@ -139,13 +178,13 @@ final class HomeDashboardUITests: XCTestCase {
         app.alerts["全部入库？"].buttons["取消"].tap()
     }
 
-    func testPurchasedAwaitingStockInKeepsEmptyTodayPlanFocused() throws {
+    func testPurchasedAwaitingStockInDoesNotCreateEmptyTodayPlanCard() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_HOME_STOCK_IN"]
         app.launch()
 
-        XCTAssertEqual(app.buttons["home.primary.action.button"].label, "添加今日菜品")
-        XCTAssertFalse(app.buttons["home.today.plan.add.button"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["home.today.plan.card"].exists)
     }
 
     func testLocalPersistenceIssueIsVisibleWithoutReplacingLocalContent() throws {
@@ -153,7 +192,7 @@ final class HomeDashboardUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_HOME_ERROR"]
         app.launch()
 
-        XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.section"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["库存暂未完全保存"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["查看食材"].exists)
     }
@@ -172,6 +211,7 @@ final class HomeDashboardUITests: XCTestCase {
             "粘贴导入",
             "原生粘贴按钮应播报“粘贴导入”，而不是系统默认的 Paste"
         )
+        makeHittable(pasteControl, in: app)
         XCTAssertTrue(pasteControl.isHittable, "整块粘贴区域应由原生控件接收点击")
         XCTAssertGreaterThanOrEqual(pasteControl.frame.width, 118, "原生控件应覆盖完整中文胶囊")
         XCTAssertGreaterThanOrEqual(pasteControl.frame.height, 43.5, "粘贴控件点击区域应至少 44pt 高")

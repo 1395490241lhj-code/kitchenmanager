@@ -27,6 +27,15 @@ enum AppFeedbackStyle: Equatable {
         }
     }
 
+    var ink: Color {
+        switch self {
+        case .success: AppTheme.successInk
+        case .warning: AppTheme.warningInk
+        case .error: AppTheme.danger
+        case .informational: AppTheme.primary
+        }
+    }
+
     var accessibilityPrefix: String {
         switch self {
         case .success: "成功"
@@ -82,8 +91,13 @@ struct AppFeedbackView: View {
     @State private var announcementGate = FeedbackAnnouncementGate()
 
     var body: some View {
-        Label(message, systemImage: style.systemImage)
-            .foregroundStyle(foregroundColor ?? style.tint)
+        Label {
+            Text(message)
+                .foregroundStyle(foregroundColor ?? style.ink)
+        } icon: {
+            Image(systemName: style.systemImage)
+                .foregroundStyle(foregroundColor ?? style.tint)
+        }
             .accessibilityLabel(style.accessibilityLabel(for: message))
             .task(id: message) { @MainActor in
                 guard UIAccessibility.isVoiceOverRunning,

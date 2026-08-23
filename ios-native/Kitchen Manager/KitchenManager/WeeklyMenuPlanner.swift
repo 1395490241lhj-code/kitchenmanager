@@ -792,7 +792,7 @@ struct WeeklyMenuPlannerView: View {
                 if !store.input.allowNewAIRecipes && recipeStore.recipes.isEmpty {
                     Label("菜谱库是空的，建议先添加几道菜谱，或者允许 AI 生成新菜。", systemImage: "exclamationmark.triangle")
                         .font(.caption)
-                        .foregroundStyle(AppTheme.warning)
+                        .foregroundStyle(AppTheme.warningInk)
                 }
             } header: {
                 Text("菜谱来源")
@@ -817,7 +817,7 @@ struct WeeklyMenuPlannerView: View {
                     HStack {
                         Spacer()
                         if store.isGenerating {
-                            ProgressView().tint(.white)
+                            ProgressView().tint(AppTheme.onManagementAction)
                         } else {
                             Label("生成本周菜单", systemImage: "sparkles")
                         }
@@ -825,7 +825,8 @@ struct WeeklyMenuPlannerView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(AppTheme.primary)
+                .tint(AppTheme.managementActionFill)
+                .foregroundStyle(AppTheme.onManagementAction)
                 .disabled(store.isGenerating)
 
                 if kitchenStore.weeklyPlan != nil {
@@ -1078,11 +1079,11 @@ struct WeeklyMenuResultView: View {
                     }
                     if coverage.uses > 0 {
                         Label("有 \(coverage.uses) 样在库", systemImage: "checkmark.circle")
-                            .font(.caption2).foregroundStyle(AppTheme.success)
+                            .font(.caption2).foregroundStyle(AppTheme.successInk)
                     }
                     if coverage.missing > 0 {
                         Label("缺 \(coverage.missing) 样", systemImage: "cart.badge.plus")
-                            .font(.caption2).foregroundStyle(AppTheme.warning)
+                            .font(.caption2).foregroundStyle(AppTheme.warningInk)
                     }
                 }
             }
@@ -1163,7 +1164,8 @@ struct WeeklyMenuResultView: View {
                 showToast("已加入买菜清单")
             }
             .buttonStyle(.borderedProminent)
-            .tint(AppTheme.primary)
+            .tint(AppTheme.managementActionFill)
+            .foregroundStyle(AppTheme.onManagementAction)
         }
 
     }

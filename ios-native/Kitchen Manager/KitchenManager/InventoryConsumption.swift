@@ -587,7 +587,7 @@ struct CookConsumptionConfirmationView: View {
     private var confirmedSection: some View {
         Section {
             Label("已记录消耗，库存已更新", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(AppTheme.success)
+                .foregroundStyle(AppTheme.successInk)
         }
         if !store.restockSuggestions.isEmpty {
             Section("补货建议") {

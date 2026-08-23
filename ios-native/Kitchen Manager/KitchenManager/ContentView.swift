@@ -492,7 +492,7 @@ struct ContentView: View {
             kitchenStore.addShopping(name: "鸡蛋", quantity: 1, unit: "盒")
             kitchenStore.addShopping(name: "青菜", quantity: 1, unit: "份")
             kitchenStore.addPlans(
-                Recipe.samples.prefix(3).enumerated().map { offset, recipe in
+                Recipe.samples.prefix(1).enumerated().map { offset, recipe in
                     (recipe: recipe, servings: offset + 1)
                 }
             )
