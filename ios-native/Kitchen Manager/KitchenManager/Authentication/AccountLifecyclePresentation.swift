@@ -129,7 +129,7 @@ enum AccountLifecycleConflictFixture: String, CaseIterable {
     case multiple = "UITEST_MERGE_CONFLICT_MULTIPLE"
     case longList = "UITEST_MERGE_CONFLICT_LONG"
 
-    static var active: AccountLifecycleConflictFixture? {
+    nonisolated static var active: AccountLifecycleConflictFixture? {
         let arguments = ProcessInfo.processInfo.arguments
         return allCases.first { arguments.contains($0.rawValue) }
     }
@@ -405,9 +405,9 @@ enum AccountLifecycleSummaryFixture: String, CaseIterable {
 
     /// The second phase of the cold-relaunch fixture. Same household and
     /// session as `choiceEditingRestart`, but seeding is skipped.
-    static let resumeArgument = "UITEST_MERGE_CHOICE_EDITING_RESTART_RESUME"
+    nonisolated static let resumeArgument = "UITEST_MERGE_CHOICE_EDITING_RESTART_RESUME"
 
-    static var active: AccountLifecycleSummaryFixture? {
+    nonisolated static var active: AccountLifecycleSummaryFixture? {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains(resumeArgument) { return .choiceEditingRestart }
         return allCases.first { arguments.contains($0.rawValue) }

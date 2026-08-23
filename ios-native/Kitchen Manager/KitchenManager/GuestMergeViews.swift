@@ -552,7 +552,7 @@ struct InventoryMergePreviewView: View {
 /// plan reference, so it can be unit-tested directly and cannot mutate the
 /// candidate or the plan. Wording avoids fork / hash / remote ID / mutation /
 /// snapshot: it describes the outcome in the user's own terms.
-struct InventoryMergeConflictChoicePresentation: Equatable {
+nonisolated struct InventoryMergeConflictChoicePresentation: Equatable {
     let choice: InventoryMergeConflictChoice
     let title: String
     let consequence: String
