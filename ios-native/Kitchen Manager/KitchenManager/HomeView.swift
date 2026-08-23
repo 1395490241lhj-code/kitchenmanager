@@ -38,6 +38,7 @@ struct HomeView: View {
     @State private var toastStyle: AppFeedbackStyle = .success
     @State private var isShowingTodayPlan = false
     @State private var isShowingRecommendations = false
+    @State private var selectedPlan: MealPlanItem?
     @State private var clipboardPromptState = ClipboardPromptSessionState()
     @State private var clipboardDetectionTask: Task<Void, Never>?
 
@@ -101,7 +102,8 @@ struct HomeView: View {
                     primaryAction: primaryAction,
                     onPrimaryAction: { performTodayPlanAction(primaryAction) },
                     onAddPlan: { isShowingRecommendations = true },
-                    onViewPlan: { isShowingTodayPlan = true }
+                    onViewPlan: { isShowingTodayPlan = true },
+                    onSelectPlan: { selectedPlan = $0 }
                 )
 
                 ForEach(
@@ -171,6 +173,19 @@ struct HomeView: View {
         }
         .navigationDestination(isPresented: $isShowingRecommendations) {
             RecipeRecommendationBrowserView()
+        }
+        // Same pattern TodayPlanDetailView already uses for its rows: an
+        // explicit selection + `navigationDestination(item:)`, never
+        // `NavigationLink(value:)` — see the ExpirySheet note above for why
+        // that form is avoided here. The missing-recipe fallback matches
+        // TodayPlanDetailView's so a plan whose recipe is gone still keeps the
+        // plan intact instead of dead-ending.
+        .navigationDestination(item: $selectedPlan) { plan in
+            if let recipe = recipeStore.recipe(id: plan.recipeID) {
+                RecipeDetailView(recipe: recipe, todayPlan: plan)
+            } else {
+                ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text("这份计划保留不变，可以稍后重试。"))
+            }
         }
         .sheet(item: $activeSheet) { sheet in
             sheetContent(sheet)
@@ -595,6 +610,7 @@ private struct TodayPlanSummaryCard: View {
     let onPrimaryAction: () -> Void
     let onAddPlan: () -> Void
     let onViewPlan: () -> Void
+    let onSelectPlan: (MealPlanItem) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -612,29 +628,37 @@ private struct TodayPlanSummaryCard: View {
                 .accessibilityElement(children: .combine)
             case .active, .partial, .completed:
                 ForEach(dashboard.displayedPlans) { plan in
-                    HStack(spacing: 12) {
-                        // Matched weights: the filled fork glyph made an
-                        // *unfinished* dish the heaviest mark in the card while
-                        // the finished one got the lighter outline, inverting the
-                        // emphasis. Completion is a genuine achieved state, which
-                        // is what AppTheme reserves `success` for.
-                        Image(systemName: plan.isCooked ? "checkmark.circle" : "fork.knife.circle")
-                            .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
-                            .font(.title3)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(plan.recipeName)
-                                .font(plan.isCooked ? .body : .headline)
-                                .foregroundStyle(plan.isCooked ? .secondary : .primary)
-                                .lineLimit(2)
-                            Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                    Button {
+                        onSelectPlan(plan)
+                    } label: {
+                        HStack(spacing: 12) {
+                            // Matched weights: the filled fork glyph made an
+                            // *unfinished* dish the heaviest mark in the card while
+                            // the finished one got the lighter outline, inverting the
+                            // emphasis. Completion is a genuine achieved state, which
+                            // is what AppTheme reserves `success` for.
+                            Image(systemName: plan.isCooked ? "checkmark.circle" : "fork.knife.circle")
+                                .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
+                                .font(.title3)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(plan.recipeName)
+                                    .font(plan.isCooked ? .body : .headline)
+                                    .foregroundStyle(plan.isCooked ? .secondary : .primary)
+                                    .lineLimit(2)
+                                Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
                         }
-                        Spacer()
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .contentShape(Rectangle())
                     }
-                    .accessibilityElement(children: .combine)
+                    .buttonStyle(.plain)
                     .accessibilityLabel("\(plan.recipeName)，\(plan.isCooked ? "已完成" : "\(plan.servings) 人份，未完成")")
+                    .accessibilityHint("打开这道菜的菜谱详情")
+                    .accessibilityIdentifier("home.today.plan.row.\(plan.recipeID)")
                 }
                 if dashboard.additionalPlanCount > 0 {
                     Text("还有 \(dashboard.additionalPlanCount) 道菜")
@@ -935,7 +959,8 @@ private struct HomeModuleIssues: View {
         primaryAction: .viewTodayPlan,
         onPrimaryAction: {},
         onAddPlan: {},
-        onViewPlan: {}
+        onViewPlan: {},
+        onSelectPlan: { _ in }
     )
     .padding()
     .background(Color(.systemGroupedBackground))
@@ -949,7 +974,8 @@ private struct HomeModuleIssues: View {
             primaryAction: .addTodayPlan,
             onPrimaryAction: {},
             onAddPlan: {},
-            onViewPlan: {}
+            onViewPlan: {},
+            onSelectPlan: { _ in }
         )
     }
     .padding()
@@ -973,7 +999,8 @@ private struct HomeModuleIssues: View {
         primaryAction: .viewTodayPlan,
         onPrimaryAction: {},
         onAddPlan: {},
-        onViewPlan: {}
+        onViewPlan: {},
+        onSelectPlan: { _ in }
     )
     .padding()
     .dynamicTypeSize(.accessibility3)
@@ -989,7 +1016,8 @@ private struct HomeModuleIssues: View {
         primaryAction: .browseRecipes,
         onPrimaryAction: {},
         onAddPlan: {},
-        onViewPlan: {}
+        onViewPlan: {},
+        onSelectPlan: { _ in }
     )
     .padding()
     .background(Color(.systemGroupedBackground))
@@ -1029,7 +1057,8 @@ private struct HomeModuleIssues: View {
             primaryAction: .viewTodayPlan,
             onPrimaryAction: {},
             onAddPlan: {},
-            onViewPlan: {}
+            onViewPlan: {},
+            onSelectPlan: { _ in }
         )
     }
     .padding()

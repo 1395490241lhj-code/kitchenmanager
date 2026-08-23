@@ -41,6 +41,31 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
     }
 
+    /// The Today Plan card's recipe rows are real buttons that open that dish's
+    /// detail directly, rather than static summary text. `UITEST_SEED_HOME_DASHBOARD`
+    /// plans `Recipe.samples`, so `RecipeStore.recipe(id:)` resolves them and the
+    /// missing-recipe fallback is not the path under test here.
+    func testTodayPlanRowOpensThatRecipeDetailAndReturnsHome() throws {
+        let app = launchSeededDashboard()
+
+        let row = app.buttons["home.today.plan.row.sample-mapotofu"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertEqual(row.label, "麻婆豆腐，1 人份，未完成")
+        makeHittable(row, in: app)
+        row.tap()
+
+        XCTAssertTrue(app.navigationBars.staticTexts["菜谱详情"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["麻婆豆腐"].exists)
+        XCTAssertTrue(app.buttons["recipe.detail.startCooking"].exists)
+        attachScreenshot(of: app, named: "home-today-plan-row-recipe-detail")
+
+        app.navigationBars["菜谱详情"].buttons.element(boundBy: 0).tap()
+
+        XCTAssertTrue(app.buttons["home.primary.action.button"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["home.today.plan.row.sample-mapotofu"].exists)
+        XCTAssertFalse(app.navigationBars.staticTexts["菜谱详情"].exists)
+    }
+
     func testOnlyHighestPriorityInventoryReminderIsShownAndOpensMatchingFilter() throws {
         let app = launchSeededDashboard()
         XCTAssertFalse(app.buttons["home.inventory.expiring.button"].exists)
