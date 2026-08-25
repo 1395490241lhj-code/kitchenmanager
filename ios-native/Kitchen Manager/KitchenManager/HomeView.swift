@@ -528,11 +528,7 @@ private struct ClipboardRecipeImportPrompt: View {
             }
         }
         .padding(10)
-        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                .stroke(AppTheme.separator.opacity(0.22), lineWidth: 0.5)
-        }
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.clipboard.import.prompt")
     }
@@ -708,11 +704,7 @@ private struct TodayPlanSummaryCard: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                    .stroke(AppTheme.separator.opacity(0.34), lineWidth: 0.5)
-            }
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         }
     }
 
@@ -814,7 +806,7 @@ private struct HomeRecommendationSection: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 88)
-                .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
                 .accessibilityIdentifier("home.recommendation.loading")
             } else {
                 Label("暂时没有合适的推荐", systemImage: "sparkles")
@@ -822,7 +814,7 @@ private struct HomeRecommendationSection: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
                     .padding(.horizontal, 16)
-                    .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
                     .accessibilityIdentifier("home.recommendation.empty")
             }
 
@@ -893,11 +885,7 @@ private struct HomeRecommendationSection: View {
             }
         }
         .padding(16)
-        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
-        }
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
     }
 
     private func recommendationActions(_ recipe: Recipe, axis: Axis) -> some View {
@@ -1093,11 +1081,7 @@ private struct HomeAttentionReminderRow: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 15)
         .padding(.vertical, 8)
-        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                .stroke(AppTheme.separator.opacity(0.22), lineWidth: 0.5)
-        }
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         .accessibilityIdentifier(identifier)
         .accessibilityLabel("\(title)，\(subtitle)")
         .accessibilityHint("双击查看并处理")
@@ -1173,11 +1157,7 @@ private struct HomeModuleIssues: View {
                 }
             }
             .padding(10)
-            .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                    .stroke(AppTheme.separator.opacity(0.22), lineWidth: 0.5)
-            }
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         }
     }
 
