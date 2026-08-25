@@ -15,6 +15,7 @@ import {
 import {
   createHomeRecSession, getRecommendationCardKey, restoreHomeRecSession
 } from '../utils/home-rec-session.js?v=237';
+import { nextTabIndex } from '../utils/tablist-keyboard.js?v=237';
 import { addRecipeToPlanWithMissingCheck } from '../components/plan-missing-check.js?v=237';
 import { callAiCreativeRecipeByIngredients, callAiSearchRecipe, callCloudAI, formatAiErrorMessage, getCreativeDishModeLabel, getReceiptAiFailureCopy, pickNextCreativeDishMode, recognizeReceipt, withTimeout } from '../ai.js?v=237';
 import { escapeHtml, escapeOptionAttr, brieflyConfirmButton, setActionStatus, setInlineStatus, showToast } from '../components/status.js?v=237';
@@ -1813,9 +1814,9 @@ function renderWxStatus({ planCount, expiringCount, shoppingCount, recommendatio
     <p class="wx-greeting">${escapeHtml(greeting)}</p>
     <h2 class="wx-title">${escapeHtml(title)}</h2>
     <p class="wx-sub">${escapeHtml(subtitle)}</p>
-    <div class="wx-summary-stats" aria-label="今日厨房状态">
+    <div class="wx-summary-stats" role="group" aria-label="今日厨房状态">
       ${stats.map(([tone, label, value]) => `
-        <button type="button" class="wx-stat-pill is-${tone}${value ? '' : ' is-empty'}" data-status="${escapeHtml(tone)}" aria-label="查看${escapeHtml(label)}">
+        <button type="button" class="wx-stat-pill is-${tone}${value ? '' : ' is-empty'}" data-status="${escapeHtml(tone)}" aria-label="${escapeHtml(label)} ${escapeHtml(String(value || 0))} 项，查看详情">
           <span>${escapeHtml(label)}</span><b>${escapeHtml(String(value || 0))}</b>
           <span class="wx-stat-chevron" aria-hidden="true">›</span>
         </button>
@@ -1946,10 +1947,10 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   section.className = 'wx-panel glass-panel is-two-tab';
   section.innerHTML = `
     <div class="wx-tabs" role="tablist">
-      <button type="button" class="wx-tab" data-tab="plan" role="tab">📅 计划</button>
-      <button type="button" class="wx-tab" data-tab="recs" role="tab">✨ 推荐</button>
+      <button type="button" class="wx-tab" data-tab="plan" role="tab" id="wxTabPlan" aria-controls="wxTabPanel" aria-selected="false" tabindex="-1">📅 计划</button>
+      <button type="button" class="wx-tab" data-tab="recs" role="tab" id="wxTabRecs" aria-controls="wxTabPanel" aria-selected="false" tabindex="-1">✨ 推荐</button>
     </div>
-    <div class="wx-body" role="tabpanel"></div>
+    <div class="wx-body" role="tabpanel" id="wxTabPanel"></div>
   `;
   const body = section.querySelector('.wx-body');
 
@@ -2067,21 +2068,19 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     }
   };
   const isCardControlTarget = (target) => Boolean(target && target.closest('button, a, input, select, textarea, [data-no-card-swipe]'));
+  // 轻点 / 左右滑动换下一道，是叠在卡片上的补充手势，不是卡片本身的语义。
+  // 这里刻意不给 cardWrap 加 role="button" / tabindex：卡内已经有「加入计划 /
+  // 查看 / 补到买菜 / ⋯」四个真按钮，button 里再嵌 button 违反 ARIA，屏幕阅读器
+  // 会把整卡读成一个按钮并吞掉里面的操作。键盘与读屏用户走下方 wx-actions 里的
+  // 「换一批 ›」——它出现的条件（hasNextLocal）正是 stepRecommendation(1) 会生效
+  // 的条件，两条路径等价。
   const bindRecommendationCycling = (cardWrap) => {
     if (!recsState || !recsState.cards || recsState.cards.length <= 1) return;
     let touchStart = null;
     let lastSwipeAt = 0;
     cardWrap.classList.add('is-cyclable');
-    cardWrap.setAttribute('role', 'button');
-    cardWrap.setAttribute('tabindex', '0');
-    cardWrap.setAttribute('aria-label', '轻点或左右滑动切换下一道推荐');
     cardWrap.onclick = (event) => {
       if (Date.now() - lastSwipeAt < 350 || isCardControlTarget(event.target)) return;
-      stepRecommendation(1);
-    };
-    cardWrap.onkeydown = (event) => {
-      if (event.target !== cardWrap || !['Enter', ' '].includes(event.key)) return;
-      event.preventDefault();
       stepRecommendation(1);
     };
     cardWrap.onpointerdown = (event) => {
@@ -2854,19 +2853,37 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
   };
 
   const TAB_RENDERERS = { plan: renderPlanTab, recs: renderRecsTab };
+  // tab 按钮是静态标记，重渲染的只有 .wx-body，所以这份列表取一次就够，
+  // 不用每次切换或每次按键再查一遍 DOM。
+  const tabs = [...section.querySelectorAll('.wx-tab')];
   const switchTab = (name) => {
     const tab = TAB_RENDERERS[name] ? name : 'plan';
     setHomeTab(tab);
     syncDemoStepFromTab(tab, { onRoute });
-    section.querySelectorAll('.wx-tab').forEach(t => {
+    tabs.forEach(t => {
       const active = t.dataset.tab === tab;
       t.classList.toggle('is-active', active);
       t.setAttribute('aria-selected', String(active));
+      // Roving tabindex：整个 tablist 只占一个 Tab 停靠点，组内用方向键移动。
+      t.tabIndex = active ? 0 : -1;
+      // 面板的名字直接取自选中的那个 tab 元素，不另外维护一张 tab 名 → id 的映射表。
+      if (active) body.setAttribute('aria-labelledby', t.id);
     });
     body.innerHTML = '';
     perfMeasure(`wx-switchTab:${tab}`, () => TAB_RENDERERS[tab]());
   };
-  section.querySelectorAll('.wx-tab').forEach(t => { t.onclick = () => switchTab(t.dataset.tab); });
+  // 方向键 / Home / End 切换并跟随焦点（APG automatic activation）。焦点只在这里
+  // 主动移动——switchTab 还被 AI 流程、弹窗回调等处调用，那些路径不能抢焦点。
+  tabs.forEach((t, index) => {
+    t.onclick = () => switchTab(t.dataset.tab);
+    t.onkeydown = (event) => {
+      const target = nextTabIndex(event.key, index, tabs.length);
+      if (target < 0) return;
+      event.preventDefault();
+      switchTab(tabs[target].dataset.tab);
+      tabs[target].focus();
+    };
+  });
 
   // 默认 tab：优先回答“今天能做什么”；手动切过 tab 时仍尊重记忆的 tab（home-tab-state）。
   const defaultRecCount = getInspirationCached().length;
