@@ -10,13 +10,6 @@ enum HomeDashboardSupplementarySection: Hashable {
 }
 
 enum HomeDashboardPresentation {
-    static func todayPlanPrimaryAction(for state: HomeTodayPlanState) -> HomePrimaryAction {
-        switch state {
-        case .empty: .addTodayPlan
-        case .active, .partial: .viewTodayPlan
-        case .completed: .browseRecipes
-        }
-    }
     static func supplementarySections(
         hasReminder: Bool,
         showsClipboardPrompt: Bool,

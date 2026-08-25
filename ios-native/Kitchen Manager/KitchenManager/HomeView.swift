@@ -658,7 +658,8 @@ private struct TodayPlanSummaryCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("今日计划")
-                        .font(.headline)
+                        .font(.title3.weight(.semibold))
+                        .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier("home.today.plan.card")
                     Text(planProgressText)
                         .font(.footnote)
@@ -830,6 +831,7 @@ private struct HomeRecommendationSection: View {
     private var sectionTitle: some View {
         Text("今日推荐")
             .font(.title3.weight(.semibold))
+            .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("home.recommendation.section")
     }
 
@@ -951,6 +953,7 @@ private struct HomeInventoryAttentionSummary: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("库存待处理")
                 .font(.title3.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("home.inventory.summary")
 
             if reminders.isEmpty {

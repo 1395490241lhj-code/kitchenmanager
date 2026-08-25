@@ -95,14 +95,12 @@ enum AppTheme {
 
     // MARK: Radius tokens
     //
-    // Three sizes only. No new arbitrary values.
+    // Two sizes only. No new arbitrary values.
 
     /// Compact controls, search fields, small chips, pill buttons. 10pt.
     static let radiusCompact: CGFloat = 10
     /// Cards, panels, toasts, medium containers. 16pt.
     static let radiusCard: CGFloat = 16
-    /// Primary hero/dashboard card only. 20pt. Do not spread to other surfaces.
-    static let radiusHero: CGFloat = 20
 
     // MARK: Inventory lifecycle domain tokens
     //
