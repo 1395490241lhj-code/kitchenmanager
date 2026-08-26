@@ -14,10 +14,15 @@ struct HomeDayRhythmRow: View {
     /// Only the meals that differ from the default. `household` is the norm and
     /// is never spelled out here.
     let eatOutSlots: [MealSlot]
+    /// Ready-made portion/carryover phrases, already ordered by the caller.
+    /// These are shown alongside an eat-out meal rather than instead of it: a
+    /// portion already set aside is food that exists, and marking the meal as
+    /// eating out must never make it invisible.
+    var portionSummaries: [String] = []
     let action: () -> Void
 
     private var summaryText: String {
-        ([dayType.homeSummaryTitle] + eatOutSlots.map(\.eatOutSummary))
+        ([dayType.homeSummaryTitle] + eatOutSlots.map(\.eatOutSummary) + portionSummaries)
             .joined(separator: " · ")
     }
 
@@ -33,6 +38,10 @@ struct HomeDayRhythmRow: View {
                 Spacer(minLength: 0)
             }
             .font(.footnote)
+            // Deliberately uncapped: the summary follows the full Dynamic Type
+            // range and is allowed to wrap at Accessibility sizes, pushing the
+            // rest of Home down. Keeping every word legible outranks keeping the
+            // Today Plan card on the first screen at those sizes.
             .foregroundStyle(.secondary)
             .frame(minHeight: AppTheme.minimumHitTarget, alignment: .leading)
             .contentShape(Rectangle())
@@ -51,7 +60,17 @@ struct HomeDayRhythmRow: View {
 /// mode and VoiceOver behaviour instead of introducing a new visual language.
 struct TodayRhythmSheet: View {
     @EnvironmentObject private var dayRhythmStore: DayRhythmStore
+    @EnvironmentObject private var mealPortionStore: MealPortionStore
     @Environment(\.dismiss) private var dismiss
+
+    private var dinnerPlan: MealPortionPlan { mealPortionStore.portionPlan(slot: .dinner) }
+    private var incomingLunch: CarryoverReservation? {
+        mealPortionStore.incomingReservation(slot: .lunch)
+    }
+
+    private var canRestoreDefaults: Bool {
+        dayRhythmStore.isTodayCustomized || !dinnerPlan.isEmpty
+    }
 
     var body: some View {
         NavigationStack {
@@ -75,19 +94,56 @@ struct TodayRhythmSheet: View {
 
                 Section("用餐") {
                     intentPicker(for: .lunch)
+                    // Shown whatever the lunch intent is: food set aside last
+                    // night still exists even if today's lunch is eaten out.
+                    if let incomingLunch {
+                        incomingReservationRow(incomingLunch)
+                    }
                     intentPicker(for: .dinner)
                 }
 
-                if dayRhythmStore.isTodayCustomized {
+                Section {
+                    Stepper(value: currentDinnerPortionsBinding, in: 0...12) {
+                        LabeledContent(
+                            "今晚吃",
+                            value: MealPortionCopy.currentMeal(dinnerPlan.currentMealPortions)
+                        )
+                    }
+                    .frame(minHeight: ChromeMetrics.minimumRowHeight)
+                    .accessibilityIdentifier("today.portions.current.stepper")
+
+                    Stepper(value: reservedPortionsBinding, in: 0...12) {
+                        LabeledContent(
+                            "明天午餐留",
+                            value: MealPortionCopy.reserved(dinnerPlan.reservedForNextLunchPortions)
+                        )
+                    }
+                    .frame(minHeight: ChromeMetrics.minimumRowHeight)
+                    .accessibilityIdentifier("today.portions.reserved.stepper")
+
+                    LabeledContent(
+                        "共需做",
+                        value: MealPortionCopy.total(dinnerPlan.totalPlannedPortions)
+                    )
+                    .frame(minHeight: ChromeMetrics.minimumRowHeight)
+                    .accessibilityIdentifier("today.portions.total.row")
+                } header: {
+                    Text("晚餐份量")
+                } footer: {
+                    Text("份量只用于记录安排，不参与买菜和库存计算。")
+                }
+
+                if canRestoreDefaults {
                     Section {
                         Button("恢复今天默认安排") {
                             dayRhythmStore.resetToday()
+                            mealPortionStore.resetPortions()
                         }
                         .foregroundStyle(AppTheme.brand)
                         .frame(minHeight: ChromeMetrics.minimumRowHeight)
                         .accessibilityIdentifier("today.rhythm.reset.button")
                     } footer: {
-                        Text("恢复后，今天回到本周默认节奏，两餐也回到照常。")
+                        Text("恢复后，今天回到本周默认节奏，两餐回到照常，今晚的份量安排也一并清除。昨晚留给今天的份数不受影响。")
                     }
                 }
             }
@@ -100,6 +156,23 @@ struct TodayRhythmSheet: View {
                 }
             }
         }
+    }
+
+    private func incomingReservationRow(_ reservation: CarryoverReservation) -> some View {
+        HStack {
+            Text(MealPortionCopy.targetDayRow(reservation.portions))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            // All or nothing: editing down to "half a portion left" is leftovers
+            // semantics and deliberately out of scope.
+            Button("取消") {
+                mealPortionStore.cancelIncomingReservation(slot: .lunch)
+            }
+            .foregroundStyle(AppTheme.brand)
+        }
+        .frame(minHeight: ChromeMetrics.minimumRowHeight)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("today.portions.incoming.row")
     }
 
     private func intentPicker(for slot: MealSlot) -> some View {
@@ -132,6 +205,23 @@ struct TodayRhythmSheet: View {
         Binding(
             get: { dayRhythmStore.intent(for: slot) },
             set: { dayRhythmStore.setIntent($0, for: slot) }
+        )
+    }
+
+    /// The stepper works in plain `Int` and uses 0 as its floor, but 0 is only a
+    /// transport value: the store turns it back into "unset" rather than storing
+    /// a zero portion count.
+    private var currentDinnerPortionsBinding: Binding<Int> {
+        Binding(
+            get: { dinnerPlan.currentMealPortions ?? 0 },
+            set: { mealPortionStore.setCurrentMealPortions($0, slot: .dinner) }
+        )
+    }
+
+    private var reservedPortionsBinding: Binding<Int> {
+        Binding(
+            get: { dinnerPlan.reservedForNextLunchPortions },
+            set: { mealPortionStore.setReservedForNextLunchPortions($0) }
         )
     }
 }
@@ -195,6 +285,24 @@ private func previewStore(
     return store
 }
 
+@MainActor
+private func previewPortionStore(
+    currentDinner: Int? = nil,
+    reservedForTomorrow: Int = 0,
+    incomingLunch: Int = 0
+) -> MealPortionStore {
+    let store = MealPortionStore(
+        userDefaults: UserDefaults(suiteName: "preview.mealPortion.\(UUID().uuidString)")!
+    )
+    if let currentDinner { store.setCurrentMealPortions(currentDinner, slot: .dinner) }
+    if reservedForTomorrow > 0 { store.setReservedForNextLunchPortions(reservedForTomorrow) }
+    if incomingLunch > 0 {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        store.setReservedForNextLunchPortions(incomingLunch, from: yesterday)
+    }
+    return store
+}
+
 #Preview("首页节奏行 — 默认") {
     HomeDayRhythmRow(dayType: .flexible, eatOutSlots: [], action: {})
         .padding()
@@ -207,22 +315,64 @@ private func previewStore(
         .background(Color(.systemGroupedBackground))
 }
 
+#Preview("首页节奏行 — 留一份明日午餐") {
+    HomeDayRhythmRow(
+        dayType: .cooking,
+        eatOutSlots: [],
+        portionSummaries: [MealPortionCopy.sourceDaySummary(1)],
+        action: {}
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
+#Preview("首页节奏行 — 外食 + 已留份数") {
+    HomeDayRhythmRow(
+        dayType: .flexible,
+        eatOutSlots: [.lunch],
+        portionSummaries: [MealPortionCopy.targetDaySummary(1)],
+        action: {}
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
 #Preview("首页节奏行 — 大字号") {
-    HomeDayRhythmRow(dayType: .mealPrep, eatOutSlots: [.lunch], action: {})
-        .padding()
-        .background(Color(.systemGroupedBackground))
-        .dynamicTypeSize(.accessibility3)
+    HomeDayRhythmRow(
+        dayType: .mealPrep,
+        eatOutSlots: [.lunch],
+        portionSummaries: [MealPortionCopy.targetDaySummary(1), MealPortionCopy.sourceDaySummary(2)],
+        action: {}
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+    .dynamicTypeSize(.accessibility3)
 }
 
 #Preview("今天怎么安排") {
     TodayRhythmSheet()
         .environmentObject(previewStore(weeklyDefaults: [.wednesday: .cooking], override: .quick, eatOut: [.lunch]))
+        .environmentObject(previewPortionStore(currentDinner: 2, reservedForTomorrow: 1, incomingLunch: 1))
+}
+
+#Preview("今天怎么安排 — 份量未设置") {
+    TodayRhythmSheet()
+        .environmentObject(previewStore())
+        .environmentObject(previewPortionStore())
 }
 
 #Preview("今天怎么安排 — 深色") {
     TodayRhythmSheet()
         .environmentObject(previewStore())
+        .environmentObject(previewPortionStore(currentDinner: 2, reservedForTomorrow: 1))
         .preferredColorScheme(.dark)
+}
+
+#Preview("今天怎么安排 — 大字号") {
+    TodayRhythmSheet()
+        .environmentObject(previewStore(eatOut: [.lunch]))
+        .environmentObject(previewPortionStore(currentDinner: 2, reservedForTomorrow: 1, incomingLunch: 1))
+        .dynamicTypeSize(.accessibility3)
 }
 
 #Preview("每周用餐节奏") {

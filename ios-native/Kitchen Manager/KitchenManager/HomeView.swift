@@ -35,6 +35,7 @@ struct HomeView: View {
     @EnvironmentObject private var authStore: AuthStore
     @EnvironmentObject private var sharedImportCoordinator: SharedImportCoordinator
     @EnvironmentObject private var dayRhythmStore: DayRhythmStore
+    @EnvironmentObject private var mealPortionStore: MealPortionStore
 
     @State private var activeSheet: HomeSheet?
     @State private var toastMessage: String?
@@ -63,6 +64,22 @@ struct HomeView: View {
             todayPlans: kitchenStore.todayPlans,
             shoppingItems: kitchenStore.shoppingItems
         )
+    }
+
+    /// Carryover phrases for the header line, today's food first: what is already
+    /// waiting for this lunch, then what tonight is holding back for tomorrow.
+    /// Independent of the eat-out state — a portion set aside still exists even
+    /// when the meal is marked as eaten out.
+    private var portionSummaries: [String] {
+        var summaries: [String] = []
+        if let incoming = mealPortionStore.incomingReservation(slot: .lunch) {
+            summaries.append(MealPortionCopy.targetDaySummary(incoming.portions))
+        }
+        let dinner = mealPortionStore.portionPlan(slot: .dinner)
+        if dinner.hasReservation {
+            summaries.append(MealPortionCopy.sourceDaySummary(dinner.reservedForNextLunchPortions))
+        }
+        return summaries
     }
 
     private var moduleIssues: [HomeDashboardModuleIssue] {
@@ -97,6 +114,7 @@ struct HomeView: View {
                     shouldShowHousehold: headerModel.shouldShowHousehold,
                     dayType: dayRhythmStore.effectiveDayType(),
                     eatOutSlots: MealSlot.allCases.filter { dayRhythmStore.intent(for: $0) == .eatOut },
+                    portionSummaries: portionSummaries,
                     onOpenDayRhythm: { activeSheet = .todayRhythm }
                 )
 
@@ -226,13 +244,16 @@ struct HomeView: View {
         }
         .onAppear {
             dayRhythmStore.refreshForCurrentDay()
+            mealPortionStore.refreshForCurrentDay()
             scheduleClipboardDetection()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 // Covers the app being backgrounded overnight: yesterday's
-                // override and eat-out meals are dropped before Home re-renders.
+                // override and eat-out meals are dropped, and a carryover whose
+                // day has passed is pruned, before Home re-renders.
                 dayRhythmStore.refreshForCurrentDay()
+                mealPortionStore.refreshForCurrentDay()
                 scheduleClipboardDetection()
             } else {
                 cancelClipboardDetection()
@@ -632,6 +653,7 @@ private struct HomeDashboardHeader: View {
     let shouldShowHousehold: Bool
     let dayType: DayType
     let eatOutSlots: [MealSlot]
+    let portionSummaries: [String]
     let onOpenDayRhythm: () -> Void
 
     private var dateText: String { HomeDatePresentation.text(for: .now) }
@@ -647,6 +669,7 @@ private struct HomeDashboardHeader: View {
             HomeDayRhythmRow(
                 dayType: dayType,
                 eatOutSlots: eatOutSlots,
+                portionSummaries: portionSummaries,
                 action: onOpenDayRhythm
             )
             if shouldShowHousehold, let householdName {
@@ -1254,6 +1277,7 @@ private struct HomeModuleIssues: View {
             shouldShowHousehold: false,
             dayType: .flexible,
             eatOutSlots: [],
+            portionSummaries: [],
             onOpenDayRhythm: {}
         )
         HomeInventoryAttentionSummary(
@@ -1326,6 +1350,7 @@ private struct HomeModuleIssues: View {
             shouldShowHousehold: true,
             dayType: .cooking,
             eatOutSlots: [.lunch, .dinner],
+            portionSummaries: [MealPortionCopy.sourceDaySummary(2)],
             onOpenDayRhythm: {}
         )
         TodayPlanSummaryCard(
