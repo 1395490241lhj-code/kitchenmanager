@@ -1,5 +1,25 @@
 # iOS Home Dashboard
 
+> [!warning] Historical / Superseded — retained for provenance
+> **This document describes the pre-recommendation-first Home design and no longer
+> describes current behavior.** It was last updated on 2026-07-17 (`c1beee8`);
+> `HomeView.swift` has been substantially rewritten since, most significantly by
+> `4992f68` (Home became a Today surface).
+>
+> Specifically superseded: the "Information order" section below states that
+> Today's plan carries **the page's only prominent action**. That is no longer
+> true. Today's Recommendation now occupies first-screen priority, the plan card
+> renders only when a plan exists, and an empty plan starts with the inline
+> recommendation rather than an empty-plan message.
+>
+> **Current Home IA is defined by the implementation and its tests**, not by this
+> file — see `ios-native/Kitchen Manager/KitchenManager/HomeView.swift` and
+> `ios-native/Kitchen Manager/KitchenManagerUITests/HomeDashboardUITests.swift`,
+> which assert the section order directly. Canonical project memory records the
+> same hierarchy and the reasoning behind it.
+>
+> The body below is unchanged and kept as the record of the earlier design.
+
 The iOS home tab is a daily-triage surface, not a catalog of kitchen
 features. It uses existing local `KitchenStore`, recipe, navigation, and auth
 state; it does not initiate sync, network requests, or Guest-data migration.
