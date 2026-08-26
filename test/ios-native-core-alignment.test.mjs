@@ -41,21 +41,16 @@ test("home record-food action opens the existing flow instead of switching tabs"
     home.indexOf("struct HomeView: View"),
     home.indexOf("private struct HomeDashboardHeader")
   );
-  const headerStart = home.indexOf("private struct HomeDashboardHeader: View");
-  const header = home.slice(
-    headerStart,
-    home.indexOf("private struct TodayPlanSummaryCard", headerStart)
+  // 导入入口不再由 HomeDashboardHeader 通过 onImport 闭包注入，而是挂在 HomeView
+  // 自己的 toolbar 上。要守住的仍是行为：它打开既有的 smartImport sheet，不切 tab，
+  // 并保留同一个 accessibility identifier。
+  const importToolbar = homeView.slice(
+    homeView.indexOf(".toolbar {"),
+    homeView.indexOf(".navigationDestination")
   );
-
-  assert.match(
-    homeView,
-    /HomeDashboardHeader\([\s\S]*?onImport:\s*\{\s*activeSheet = \.smartImport\s*\}/
-  );
-  assert.match(header, /let onImport: \(\) -> Void/);
-  assert.match(
-    header,
-    /Button\(action: onImport\) \{[\s\S]*?\.accessibilityIdentifier\("home\.import\.add\.button"\)[\s\S]*?\.accessibilityLabel\("导入与添加"\)/
-  );
+  assert.match(importToolbar, /Button\("导入与添加", systemImage: "plus"\) \{ activeSheet = \.smartImport \}/);
+  assert.match(importToolbar, /\.accessibilityIdentifier\("home\.import\.add\.button"\)/);
+  assert.doesNotMatch(importToolbar, /selectedTab/);
   assert.match(
     homeView,
     /\.sheet\(item: \$activeSheet\) \{ sheet in\s*sheetContent\(sheet\)\s*\}/

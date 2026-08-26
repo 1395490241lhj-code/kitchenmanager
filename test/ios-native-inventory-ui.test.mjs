@@ -38,7 +38,7 @@ test("fresh inventory renders as list rows routed through the explicit detail pu
     features,
     /ForEach\(displayedFreshInventory\) \{ item in\s*Button \{\s*onSelectItem\(item\.id\)\s*\} label: \{\s*InventoryFoodCard\(item: item\)\s*\}/
   );
-  assert.match(features, /InventorySectionHeader\(title: "食材", count: displayedFreshInventory\.count\)/);
+  assert.match(features, /ListSectionHeader\(title: "食材", count: displayedFreshInventory\.count\)/);
   assert.match(content, /NavigationStack\(path: \$inventoryPath\)/);
   assert.match(content, /InventoryView\(onSelectItem:[\s\S]*inventoryPath\.append\(InventoryRoute\.detail\(itemID\)\)/);
   assert.match(features, /\.navigationDestination\(for: InventoryRoute\.self\)/);

@@ -50,14 +50,14 @@ test("native pantry UI, persistence, backup, and settings stay connected", () =>
 
   // UI-3 renamed the in-list section from the old "常备货架" heading to
   // "常备食材" and replaced the bespoke header/metric views with
-  // `InventorySectionHeader`. What must not regress is the *wiring*: the
+  // the shared `ListSectionHeader`. What must not regress is the *wiring*: the
   // staple section, its filter, its rows, and its empty state all still
   // resolve to the same pre-existing pantry flows.
   assert.doesNotMatch(inventoryView, /Text\("常备货架"\)/);
 
   // 1. The staple section and its filter still exist, driven by the same
   //    `PantryStapleFilter` state and `store.pantryStaples` source.
-  assert.match(inventoryView, /InventorySectionHeader\(title: "常备食材", count: displayedStaples\.count\)/);
+  assert.match(inventoryView, /ListSectionHeader\(title: "常备食材", count: displayedStaples\.count\)/);
   assert.match(inventoryView, /@State private var stapleFilter: PantryStapleFilter = \.all/);
   assert.match(inventoryView, /store\.pantryStaples\.filter\(stapleFilter\.includes\)/);
   assert.match(inventoryView, /Picker\("筛选", selection: \$stapleFilter\)[\s\S]*ForEach\(PantryStapleFilter\.allCases\)/);

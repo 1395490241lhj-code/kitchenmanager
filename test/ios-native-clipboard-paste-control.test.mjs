@@ -62,7 +62,10 @@ test("the shared control keeps the native, user-initiated paste path", () => {
 test("custom labeled mode keeps native interaction and owns the visual label", () => {
   assert.match(control, /case customLabeled\(String\)/);
   assert.match(control, /if case \.customLabeled\(let label\) = style/);
-  assert.match(control, /Label\(label, systemImage: "doc\.on\.clipboard"\)/);
+  // 生产代码用 Label { Text } icon: { Image } 的尾随闭包写法（文字和图标要分别上色），
+  // 与 Label(_:systemImage:) 简写等价。这里验证图标与 label 内容，不锁具体语法。
+  assert.match(control, /Image\(systemName: "doc\.on\.clipboard"\)/);
+  assert.match(control, /Text\(label\)/);
   assert.match(control, /\.allowsHitTesting\(false\)/);
   assert.match(control, /\.accessibilityHidden\(true\)/);
   assert.match(control, /\.accessibilityLabel\(accessibilityLabel\)/);
