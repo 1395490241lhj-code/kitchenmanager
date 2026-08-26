@@ -15,6 +15,7 @@ import { applyCompletionOverlay } from './src/recipe-completion.js?v=237';
 import { mergeRecipeMethods, mergeRecipeSources } from './src/recipe-library.js?v=237';
 import { initTheme } from './src/theme.js?v=237';
 import { maybeStartOnboarding } from './src/onboarding.js?v=237';
+import { enterDemoKitchen } from './src/views/home/demo-kitchen.js?v=237';
 import { initPwaInstallPrompt } from './src/pwa-install.js?v=237';
 
 // 尽早应用已保存的外观主题（浅色 / 深色 / 跟随系统），避免首屏闪烁。
@@ -251,4 +252,12 @@ onRoute();
 })();
 
 // 首次进入时启动新手引导（内部已判断 km_onboarded_v1，并略延迟等首屏渲染）。
-maybeStartOnboarding();
+// 「试用示例厨房」的接线放在这里：只有 app.js 同时握有 pack 与 onRoute，
+// 引导本身不需要知道 demo 的任何实现细节，仍由 enterDemoKitchen 独占状态机。
+// 这里刻意不吞异常：进入失败要让引导感知到，从而保持可见并允许重试。
+maybeStartOnboarding({
+  onTryDemoKitchen: async () => {
+    const pack = await getCurrentPack();
+    enterDemoKitchen(pack, { onRoute });
+  }
+});

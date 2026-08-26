@@ -15,7 +15,9 @@ const STEPS = [
     emoji: '🍳',
     title: '先从一次体验开始',
     target: '.home-hero.is-onboarding, #nav-inventory',
-    body: '你可以先用示例厨房走一遍流程，再决定要不要记录自己的食材。'
+    body: '你可以先用示例厨房走一遍流程，再决定要不要记录自己的食材。',
+    // 这一步的文案承诺了示例厨房，入口就只挂在这一步；其余步骤不显示。
+    offersDemo: true
   },
   {
     emoji: '🥚',
@@ -39,7 +41,34 @@ function markOnboarded() {
   try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (e) { /* 隐私模式等：忽略 */ }
 }
 
-export function startOnboarding() {
+const DEMO_BUSY_LABEL = '正在准备示例厨房…';
+const DEMO_RETRY_LABEL = '重试示例厨房';
+
+/**
+ * 「试用示例厨房」的点击流程：先把控制权交给既有的 demo 状态机（onTryDemoKitchen），
+ * 确认进入成功后才 onEntered（写 km_onboarded_v1 + 关闭遮罩）。
+ * 失败时引导保持可见、按钮恢复可点，用户可以重试，不会白白丢掉 onboarding。
+ * 等待期间按钮 disabled，避免重复点击叠加进入 demo。
+ * 独立导出是为了能在没有 DOM 的单测里直接跑成功 / 失败两条路径。
+ */
+export async function runDemoKitchenEntry({ button, onTryDemoKitchen, onEntered }) {
+  if (!button || button.disabled) return false;
+  if (typeof onTryDemoKitchen !== 'function') return false;
+  button.disabled = true;
+  button.textContent = DEMO_BUSY_LABEL;
+  try {
+    await onTryDemoKitchen();
+  } catch (e) {
+    console.error('Demo kitchen entry failed:', e);
+    button.disabled = false;
+    button.textContent = DEMO_RETRY_LABEL;
+    return false;
+  }
+  onEntered?.();
+  return true;
+}
+
+export function startOnboarding({ onTryDemoKitchen = null } = {}) {
   if (document.querySelector('.km-onboard-overlay')) return; // 已在显示
 
   let step = 0;
@@ -55,6 +84,7 @@ export function startOnboarding() {
       <p class="km-onboard-body"></p>
       <div class="km-onboard-dots" aria-hidden="true"></div>
       <button type="button" class="km-onboard-next">下一步</button>
+      <button type="button" class="km-onboard-demo" hidden>试用示例厨房</button>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -67,6 +97,7 @@ export function startOnboarding() {
   const dotsEl = overlay.querySelector('.km-onboard-dots');
   const nextBtn = overlay.querySelector('.km-onboard-next');
   const skipBtn = overlay.querySelector('.km-onboard-skip');
+  const demoBtn = overlay.querySelector('.km-onboard-demo');
 
   const positionRing = () => {
     const sel = STEPS[step].target;
@@ -95,6 +126,8 @@ export function startOnboarding() {
       .map((_, i) => `<span class="km-onboard-dot${i === step ? ' is-active' : ''}"></span>`)
       .join('');
     nextBtn.textContent = step === STEPS.length - 1 ? '开启厨房 ✨' : '下一步';
+    // 没接入回调时（例如直接调用 startOnboarding()）不显示，避免出现点了没反应的死按钮。
+    demoBtn.hidden = !(s.offersDemo && typeof onTryDemoKitchen === 'function');
     positionRing();
   };
 
@@ -113,6 +146,10 @@ export function startOnboarding() {
     else finish();
   };
   skipBtn.onclick = finish;
+  // 试用示例厨房：进入成功才收尾引导（见 runDemoKitchenEntry）。
+  demoBtn.onclick = () => {
+    runDemoKitchenEntry({ button: demoBtn, onTryDemoKitchen, onEntered: finish });
+  };
   // 点击遮罩空白不关闭（引导需走完或主动跳过），避免误触；按 Esc 视为跳过。
   overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') finish(); });
 
@@ -124,8 +161,8 @@ export function startOnboarding() {
 /**
  * 入口调用：仅首次（未写入 km_onboarded_v1）时，等首屏渲染稳定后启动向导。
  */
-export function maybeStartOnboarding() {
+export function maybeStartOnboarding({ onTryDemoKitchen = null } = {}) {
   if (hasOnboarded()) return;
   // 略等首屏视图渲染完成，确保聚焦环能找到 nav / 菜单计划等目标元素。
-  setTimeout(() => { if (!hasOnboarded()) startOnboarding(); }, 450);
+  setTimeout(() => { if (!hasOnboarded()) startOnboarding({ onTryDemoKitchen }); }, 450);
 }

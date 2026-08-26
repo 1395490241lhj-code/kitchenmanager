@@ -7215,6 +7215,36 @@ html[data-theme="dark"] .shopping-clear-btn:active { color: #ff8a80; }
 .km-onboard-next:hover { box-shadow: 0 10px 26px rgba(10, 132, 255, 0.45); }
 .km-onboard-next:active { transform: scale(0.97); }
 
+/* 「试用示例厨房」：与主按钮同宽的次级操作，弱于「下一步」但强于纯文字的「跳过」，
+   沿用引导卡自身的玻璃材质，不引入新的视觉语言。 */
+.km-onboard-demo {
+  width: 100%;
+  margin-top: 10px;
+  /* 12px 上下内边距 -> 约 44px 命中区，与同卡片的 .km-onboard-next 保持同一节奏 */
+  padding: 12px;
+  border: 1px solid rgba(10, 132, 255, 0.28);
+  border-radius: 16px;
+  background: rgba(10, 132, 255, 0.08);
+  color: #0060df;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.2s ease;
+}
+.km-onboard-demo[hidden] { display: none; }
+.km-onboard-demo:hover { background: rgba(10, 132, 255, 0.14); }
+.km-onboard-demo:active { transform: scale(0.97); }
+.km-onboard-demo:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+html[data-theme="dark"] .km-onboard-demo {
+  border-color: rgba(10, 132, 255, 0.42);
+  background: rgba(10, 132, 255, 0.16);
+  color: #6cb6ff;
+}
+
 /* 切步时内容淡入 */
 .km-onboard-card.is-anim .km-onboard-emoji,
 .km-onboard-card.is-anim .km-onboard-title,

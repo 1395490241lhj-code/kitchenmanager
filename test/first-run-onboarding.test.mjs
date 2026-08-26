@@ -3,29 +3,41 @@ import { join } from 'node:path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { runDemoKitchenEntry } from '../src/onboarding.js';
+
 const root = process.cwd();
 
 function read(rel) {
   return readFileSync(join(root, rel), 'utf8');
 }
 
-test('empty inventory home prioritizes demo kitchen, then text entry, then recipes', () => {
-  const home = read('src/views/home-view.js');
+test('first-run onboarding offers a reachable demo-kitchen entry alongside skipping', () => {
+  const onboarding = read('src/onboarding.js');
+  const app = read('app.js');
   const styles = read('styles.css');
 
-  assert.match(home, /今天不知道吃什么？/);
-  assert.match(home, /先用一个示例厨房体验一次：看推荐、安排计划、做完后更新库存。/);
-  assert.match(home, /id="obDemo"/);
-  assert.match(home, /开始示例体验/);
-  assert.match(home, /id="obManual"/);
-  assert.match(home, /记录我的食材/);
-  assert.match(home, /id="obRecipes"/);
-  assert.doesNotMatch(home, /id="obReceipt"/);
-  assert.match(home, /#obManual'\)\.onclick = \(\) => openBatchInputModal\(pack, \{ onRoute, initialTab: 'text' \}\)/);
+  // 入口只挂在那一步的文案真的承诺了示例厨房的地方。
+  assert.match(onboarding, /body: '你可以先用示例厨房走一遍流程，再决定要不要记录自己的食材。'/);
+  assert.match(onboarding, /offersDemo: true/);
+  assert.match(onboarding, /class="km-onboard-demo"/);
+  assert.match(onboarding, /试用示例厨房/);
+  // 只在这一步、且确实接了回调时才显示，避免出现点了没反应的死按钮。
+  assert.match(onboarding, /demoBtn\.hidden = !\(s\.offersDemo && typeof onTryDemoKitchen === 'function'\)/);
+
+  // 复用既有状态机，不在引导里重写 demo 初始化。
+  assert.match(app, /import \{ enterDemoKitchen \}/);
+  assert.match(app, /onTryDemoKitchen/);
+  assert.match(app, /enterDemoKitchen\(pack, \{ onRoute \}\)/);
+  // 引导不 import demo 模块、也不碰 demo 的任何存储键——它只发出一个回调。
+  assert.doesNotMatch(onboarding, /from '[^']*demo-kitchen/);
+  assert.doesNotMatch(onboarding, /DEMO_KITCHEN_ITEMS|demo_snapshot|demo_mode|demo_step/);
   assert.match(read('src/views/home/demo-kitchen.js'), /if \(n > 0\) setHomeTab\('recs'\);/);
 
-  assert.match(styles, /\.home-hero\.is-onboarding \.home-onboarding-demo\.is-primary/);
-  assert.match(styles, /\.home-onboarding-link/);
+  // 跳过 / 走完引导开始自己的厨房，两条路径都保留。
+  assert.match(onboarding, /skipBtn\.onclick = finish;/);
+  assert.match(onboarding, /nextBtn\.textContent = step === STEPS\.length - 1 \? '开启厨房 ✨' : '下一步'/);
+
+  assert.match(styles, /\.km-onboard-demo \{/);
 });
 
 test('first-run onboarding copy explains the cooking flow without product jargon', () => {
@@ -137,4 +149,95 @@ test('first plan add after real entry explains the dinner-close loop without sto
   assert.match(home, /consumeFirstPlanGuideMessage\(added\)/);
   assert.match(home, /showFirstPlanGuideToast\(firstPlanGuide\)/);
   assert.doesNotMatch(storage, /postInventoryGuide|firstInventory|realEntry/);
+});
+
+
+// ── 「试用示例厨房」入口的成功 / 失败两条路径 ────────────────────────────────
+// runDemoKitchenEntry 不碰 DOM API，只读写 button 的 disabled / textContent，
+// 所以这里用一个最小的假按钮直接跑，无需 jsdom。
+
+function fakeDemoButton() {
+  return { disabled: false, textContent: '试用示例厨房' };
+}
+
+function silenceConsoleError() {
+  const original = console.error;
+  const calls = [];
+  console.error = (...args) => calls.push(args);
+  return { calls, restore: () => { console.error = original; } };
+}
+
+test('demo entry finishes onboarding only after the demo actually started', async () => {
+  const button = fakeDemoButton();
+  const order = [];
+
+  const entered = await runDemoKitchenEntry({
+    button,
+    onTryDemoKitchen: async () => { order.push('demo'); },
+    onEntered: () => { order.push('finish'); }
+  });
+
+  assert.equal(entered, true);
+  // 顺序很重要：先真正进入 demo，成功了才写 km_onboarded_v1 / 关遮罩。
+  assert.deepEqual(order, ['demo', 'finish']);
+});
+
+test('failed demo entry keeps onboarding open and lets the user retry', async () => {
+  const button = fakeDemoButton();
+  let finished = 0;
+  const quiet = silenceConsoleError();
+
+  let entered;
+  try {
+    entered = await runDemoKitchenEntry({
+      button,
+      onTryDemoKitchen: async () => { throw new Error('getCurrentPack failed'); },
+      onEntered: () => { finished += 1; }
+    });
+  } finally {
+    quiet.restore();
+  }
+
+  // 引导没有被完成、也没有被关闭——onEntered 根本没被调用。
+  assert.equal(entered, false);
+  assert.equal(finished, 0);
+  assert.equal(quiet.calls.length, 1);
+  // 按钮恢复可点，并且文案提示可以重试。
+  assert.equal(button.disabled, false);
+  assert.match(button.textContent, /重试/);
+
+  // 重试成功后才收尾。
+  const retried = await runDemoKitchenEntry({
+    button,
+    onTryDemoKitchen: async () => {},
+    onEntered: () => { finished += 1; }
+  });
+  assert.equal(retried, true);
+  assert.equal(finished, 1);
+});
+
+test('demo entry ignores repeat clicks while it is still entering', async () => {
+  const button = fakeDemoButton();
+  let attempts = 0;
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+
+  const first = runDemoKitchenEntry({
+    button,
+    onTryDemoKitchen: async () => { attempts += 1; await pending; },
+    onEntered: () => {}
+  });
+
+  // 等待期间按钮已禁用，第二次点击直接被忽略，不会重复进入 demo。
+  assert.equal(button.disabled, true);
+  assert.match(button.textContent, /正在准备/);
+  assert.equal(await runDemoKitchenEntry({
+    button,
+    onTryDemoKitchen: async () => { attempts += 1; },
+    onEntered: () => {}
+  }), false);
+
+  release();
+  assert.equal(await first, true);
+  assert.equal(attempts, 1);
 });

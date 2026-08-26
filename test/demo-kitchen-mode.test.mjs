@@ -34,7 +34,10 @@ test('demo kitchen mode uses centralized keys and snapshots business data', () =
   assert.match(demo, /S\.save\(S\.keys\.demo_snapshot/);
   assert.match(demo, /localStorage\.setItem\(S\.keys\.demo_mode, '1'\)/);
   assert.match(demo, /localStorage\.setItem\(S\.keys\.demo_step, 'recs'\)/);
-  assert.match(home, /section\.querySelector\('#obDemo'\)\.onclick = \(\) => enterDemoKitchen\(pack, \{ onRoute \}\);/);
+  // 入口在真正会运行的首次引导里，由 app.js 接上 pack / onRoute；
+  // 旧 Home 的 #obDemo 屏自 d4b8e5f 起就不再被 renderHome 渲染。
+  assert.match(read('app.js'), /enterDemoKitchen\(pack, \{ onRoute \}\)/);
+  assert.match(read('src/onboarding.js'), /runDemoKitchenEntry\(\{ button: demoBtn, onTryDemoKitchen, onEntered: finish \}\)/);
 });
 
 test('demo kitchen exit restores snapshot without clearing personal settings', () => {
