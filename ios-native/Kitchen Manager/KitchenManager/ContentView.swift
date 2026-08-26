@@ -132,6 +132,12 @@ struct KitchenManagerApp: App {
                 arguments.contains("UITEST_FORCE_DARK_APPEARANCE") ? .dark : .system
             UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
         }
+        // Same reasoning, same place, for the day rhythm: Home's recommendation
+        // slot renders quick-meal assembly on a quick day and ordinary recipe
+        // recommendation otherwise, so a suite that did not pin it would depend
+        // on whatever the simulator had saved. Written before the first body
+        // evaluation, and before `dayRhythmStore` is first read.
+        DayRhythmStore.applyUITestDayTypeIfRequested()
         #endif
     }
 

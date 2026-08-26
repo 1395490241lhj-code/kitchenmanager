@@ -90,6 +90,40 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.staticTexts["我的"].waitForExistence(timeout: 5))
     }
 
+    // MARK: - Which surface occupies the recommendation slot
+    //
+    // Home shows quick-meal assembly on a quick day and ordinary recipe
+    // recommendation otherwise. The day type lives in UserDefaults, so every
+    // launch here pins it — see `DayRhythmStore.applyUITestDayTypeIfRequested`.
+    // These two tests are the pair that proves the pinning works in both
+    // directions rather than passing by accident on a given simulator.
+
+    func testAnOrdinaryDayKeepsRecipeRecommendationWhateverWasSavedBefore() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_EMPTY_HOME"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["home.recommendation.section"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["home.quickMeal.section"].exists)
+    }
+
+    func testAQuickDayShowsQuickMealInsteadOfRecipeRecommendation() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_EMPTY_HOME", "UITEST_FORCE_QUICK_DAY"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["home.quickMeal.section"].waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["home.recommendation.section"].exists,
+            "Home must never show both surfaces at once"
+        )
+        // Section order is unchanged: the quick slot sits where recommendation did.
+        let quickMeal = app.staticTexts["home.quickMeal.section"]
+        let inventory = app.descendants(matching: .any)["home.inventory.healthy"]
+        XCTAssertTrue(inventory.exists)
+        XCTAssertLessThan(quickMeal.frame.minY, inventory.frame.minY)
+    }
+
     func testEmptyPlanStartsWithInlineRecommendationAndNoPlanCard() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME"]

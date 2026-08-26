@@ -229,6 +229,35 @@ final class DayRhythmStore: ObservableObject {
         }
     }
 
+#if DEBUG
+    /// UI-test bootstrap. Pins today's rhythm so a test never inherits whichever
+    /// day type the simulator happened to have saved — Home shows quick-meal
+    /// assembly or ordinary recipe recommendation depending on it, so without
+    /// this a suite could pass or fail purely on leftover state.
+    ///
+    /// Same shape as the appearance hook in `KitchenManagerApp.init`: any
+    /// `UITEST_`-prefixed launch resets to the default, and one explicit flag
+    /// opts into the other surface. Every weekday is written, so the result does
+    /// not depend on which day the test happens to run.
+    ///
+    /// Never runs for a real user: it is compiled out of release entirely, and
+    /// even in debug it does nothing without a `UITEST_` argument.
+    static func applyUITestDayTypeIfRequested(userDefaults: UserDefaults = .standard) {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains(where: { $0.hasPrefix("UITEST_") }) else { return }
+        let dayType: DayType = arguments.contains(uiTestQuickDayArgument) ? .quick : .flexible
+        let store = DayRhythmStore(userDefaults: userDefaults)
+        // Clears any leftover override and eat-out meal as well as the rhythm.
+        store.resetToday()
+        for weekday in Weekday.allCases {
+            store.setWeeklyDefault(dayType, for: weekday)
+        }
+    }
+
+    /// Opt in to the quick-day surface. Absent, a UI-test launch is `.flexible`.
+    static let uiTestQuickDayArgument = "UITEST_FORCE_QUICK_DAY"
+#endif
+
     private func persistTodayState() {
         guard todayOverride != nil || !todayMealIntents.isEmpty else {
             todayStateDate = nil

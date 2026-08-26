@@ -46,6 +46,10 @@ struct HomeView: View {
     @State private var selectedRecipe: Recipe?
     @State private var clipboardPromptState = ClipboardPromptSessionState()
     @State private var clipboardDetectionTask: Task<Void, Never>?
+    /// Which quick-meal suggestion is showing. Ordinary view state on purpose:
+    /// it has to survive a body refresh and the 今天安排 sheet, and it is fine
+    /// for a relaunch to start again from the easiest option.
+    @State private var quickMealIndex = 0
 
     private let clipboardDetector: any ClipboardPatternDetecting
 
@@ -126,22 +130,42 @@ struct HomeView: View {
                     )
                 }
 
-                HomeRecommendationSection(
-                    recommendation: homeRecommendation,
-                    isLoading: recipeStore.isLoading && recommendationStore.recommendedRecipes.isEmpty,
-                    isGenerating: recommendationStore.isGeneratingRecommendations,
-                    errorMessage: recommendationStore.recommendationError,
-                    isDisplayingSamples: recipeStore.isDisplayingSamples,
-                    isAddedToToday: homeRecommendation.map {
-                        recommendation in kitchenStore.todayPlans.contains { $0.recipeID == recommendation.recipe.id }
-                    } ?? false,
-                    inventoryNames: kitchenStore.availableInventory.map(\.name),
-                    expiringNames: kitchenStore.expiringItems.map(\.name),
-                    onAddToToday: addRecommendationToPlan,
-                    onViewRecipe: { selectedRecipe = $0 },
-                    onRefresh: generateAIRecommendations,
-                    onViewAll: { isShowingRecommendations = true }
-                )
+                // A quick day replaces the recommendation slot rather than adding
+                // to it: Home never shows both, and the section order is unchanged.
+                switch HomeRecommendationSlot.slot(for: dayRhythmStore.effectiveDayType()) {
+                case .quickMeal:
+                    let quickMeal = QuickMealAssemblyEngine.assemble(inventory: kitchenStore.inventory)
+                    HomeQuickMealSection(
+                        content: QuickMealHomeContent.resolve(
+                            result: quickMeal,
+                            isEatingOutTonight: dayRhythmStore.intent(for: .dinner) == .eatOut,
+                            storedIndex: quickMealIndex
+                        ),
+                        onRotate: {
+                            quickMealIndex = QuickMealRotation.nextIndex(
+                                stored: quickMealIndex,
+                                count: quickMeal.suggestions.count
+                            )
+                        }
+                    )
+                case .recipeRecommendation:
+                    HomeRecommendationSection(
+                        recommendation: homeRecommendation,
+                        isLoading: recipeStore.isLoading && recommendationStore.recommendedRecipes.isEmpty,
+                        isGenerating: recommendationStore.isGeneratingRecommendations,
+                        errorMessage: recommendationStore.recommendationError,
+                        isDisplayingSamples: recipeStore.isDisplayingSamples,
+                        isAddedToToday: homeRecommendation.map {
+                            recommendation in kitchenStore.todayPlans.contains { $0.recipeID == recommendation.recipe.id }
+                        } ?? false,
+                        inventoryNames: kitchenStore.availableInventory.map(\.name),
+                        expiringNames: kitchenStore.expiringItems.map(\.name),
+                        onAddToToday: addRecommendationToPlan,
+                        onViewRecipe: { selectedRecipe = $0 },
+                        onRefresh: generateAIRecommendations,
+                        onViewAll: { isShowingRecommendations = true }
+                    )
+                }
 
                 HomeInventoryAttentionSummary(dashboard: dashboard) {
                     handleReminder($0)
