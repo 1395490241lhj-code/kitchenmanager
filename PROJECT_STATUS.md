@@ -1,5 +1,17 @@
 # Kitchen Manager — Current Project Status
 
+> [!note] Point-in-time snapshot — not canonical current state
+> This document is a **point-in-time project status snapshot**. Its test counts and
+> implementation status reflect the commit and date recorded in "Last verified" below,
+> not necessarily the current repository state.
+>
+> **Canonical current project state lives in the Obsidian project memory referenced by
+> [`AGENTS.md`](AGENTS.md) section 2 ("Project memory").** Current test runs and repo
+> evidence outrank this snapshot; see `AGENTS.md` section 1 for the full source-of-truth
+> order.
+>
+> The body below is preserved as the audit record it was written to be.
+
 ## Last verified
 
 - Date: 2026-08-21
