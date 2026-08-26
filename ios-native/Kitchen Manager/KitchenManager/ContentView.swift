@@ -20,6 +20,7 @@ struct KitchenManagerApp: App {
     #endif
     @StateObject private var navigationStore = AppNavigationStore()
     @StateObject private var recommendationStore = HomeRecommendationStore()
+    @StateObject private var dayRhythmStore = DayRhythmStore()
     @StateObject private var sharedImportCoordinator = SharedImportCoordinator(queue: SharedImportConfig.makeQueue())
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
 
@@ -140,6 +141,7 @@ struct KitchenManagerApp: App {
                 .environmentObject(kitchenStore)
                 .environmentObject(navigationStore)
                 .environmentObject(recommendationStore)
+                .environmentObject(dayRhythmStore)
                 .environmentObject(sharedImportCoordinator)
                 .environmentObject(authStore)
                 .environmentObject(guestMergeController)

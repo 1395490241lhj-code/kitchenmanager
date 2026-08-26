@@ -10,6 +10,7 @@ private enum HomeSheet: Identifiable {
     case smartImport
     case expiry
     case shopping
+    case todayRhythm
     case clipboardImport(ClipboardImportPresentation)
 
     var id: String {
@@ -17,6 +18,7 @@ private enum HomeSheet: Identifiable {
         case .smartImport: "smart-import"
         case .expiry: "expiry"
         case .shopping: "shopping"
+        case .todayRhythm: "today-rhythm"
         case .clipboardImport(let presentation): "clipboard-import-\(presentation.changeCount)"
         }
     }
@@ -32,6 +34,7 @@ struct HomeView: View {
     @EnvironmentObject private var recommendationStore: HomeRecommendationStore
     @EnvironmentObject private var authStore: AuthStore
     @EnvironmentObject private var sharedImportCoordinator: SharedImportCoordinator
+    @EnvironmentObject private var dayRhythmStore: DayRhythmStore
 
     @State private var activeSheet: HomeSheet?
     @State private var toastMessage: String?
@@ -91,7 +94,10 @@ struct HomeView: View {
                 HomeDashboardHeader(
                     householdName: householdName,
                     isRestoringAccount: authStore.activity == .restoring,
-                    shouldShowHousehold: headerModel.shouldShowHousehold
+                    shouldShowHousehold: headerModel.shouldShowHousehold,
+                    dayType: dayRhythmStore.effectiveDayType(),
+                    eatOutSlots: MealSlot.allCases.filter { dayRhythmStore.intent(for: $0) == .eatOut },
+                    onOpenDayRhythm: { activeSheet = .todayRhythm }
                 )
 
                 if dashboard.totalPlanCount > 0 {
@@ -219,10 +225,14 @@ struct HomeView: View {
             }
         }
         .onAppear {
+            dayRhythmStore.refreshForCurrentDay()
             scheduleClipboardDetection()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
+                // Covers the app being backgrounded overnight: yesterday's
+                // override and eat-out meals are dropped before Home re-renders.
+                dayRhythmStore.refreshForCurrentDay()
                 scheduleClipboardDetection()
             } else {
                 cancelClipboardDetection()
@@ -346,6 +356,10 @@ struct HomeView: View {
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        case .todayRhythm:
+            TodayRhythmSheet()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         case .clipboardImport(let presentation):
             NavigationStack {
                 ImportRecipeView(
@@ -616,6 +630,9 @@ private struct HomeDashboardHeader: View {
     let householdName: String?
     let isRestoringAccount: Bool
     let shouldShowHousehold: Bool
+    let dayType: DayType
+    let eatOutSlots: [MealSlot]
+    let onOpenDayRhythm: () -> Void
 
     private var dateText: String { HomeDatePresentation.text(for: .now) }
 
@@ -625,6 +642,13 @@ private struct HomeDashboardHeader: View {
                 .font(.footnote)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 .foregroundStyle(.secondary)
+            // Today's rhythm belongs to the same secondary line as the date, not
+            // to a card of its own — Home's sections stay exactly as they were.
+            HomeDayRhythmRow(
+                dayType: dayType,
+                eatOutSlots: eatOutSlots,
+                action: onOpenDayRhythm
+            )
             if shouldShowHousehold, let householdName {
                 Label(householdName, systemImage: "person.2")
                     .font(.footnote)
@@ -1224,7 +1248,14 @@ private struct HomeModuleIssues: View {
 
 #Preview("空首页") {
     VStack(alignment: .leading, spacing: 28) {
-        HomeDashboardHeader(householdName: nil, isRestoringAccount: false, shouldShowHousehold: false)
+        HomeDashboardHeader(
+            householdName: nil,
+            isRestoringAccount: false,
+            shouldShowHousehold: false,
+            dayType: .flexible,
+            eatOutSlots: [],
+            onOpenDayRhythm: {}
+        )
         HomeInventoryAttentionSummary(
             dashboard: HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: []),
             action: { _ in }
@@ -1292,7 +1323,10 @@ private struct HomeModuleIssues: View {
         HomeDashboardHeader(
             householdName: "一个同样很长、仍需完整理解的家庭名称",
             isRestoringAccount: false,
-            shouldShowHousehold: true
+            shouldShowHousehold: true,
+            dayType: .cooking,
+            eatOutSlots: [.lunch, .dinner],
+            onOpenDayRhythm: {}
         )
         TodayPlanSummaryCard(
             dashboard: HomeDashboardSummary(

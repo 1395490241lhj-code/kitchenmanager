@@ -1565,6 +1565,20 @@ struct SettingsView: View {
                 }
             }
 
+            // The weekly rhythm is seven values, so it gets its own page rather
+            // than seven permanent pickers in the main form.
+            Section("用餐节奏") {
+                NavigationLink {
+                    WeeklyRhythmSettingsView()
+                } label: {
+                    SettingsRowLabel(symbol: "calendar") {
+                        Text("每周用餐节奏")
+                    }
+                }
+                .frame(minHeight: ChromeMetrics.minimumRowHeight)
+                .accessibilityIdentifier("settings.weeklyRhythm.link")
+            }
+
             Section {
                 Toggle("食材到期提醒", isOn: Binding(
                     get: { notificationsEnabled },
