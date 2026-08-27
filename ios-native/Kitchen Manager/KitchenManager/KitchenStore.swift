@@ -431,11 +431,16 @@ final class KitchenStore: ObservableObject {
     @Published var shoppingItems: [KitchenShoppingItem] = [] { didSet { persistShoppingIfNeeded() } }
     @Published var weeklyPlan: WeeklyMealPlan? { didSet { persistWeeklyPlanIfNeeded() } }
     @Published var consumptionRecords: [InventoryConsumptionRecord] = [] { didSet { persistConsumptionIfNeeded() } }
+    /// Batches made ahead. A separate collection from `inventory` on purpose:
+    /// restock, shopping matching and recipe recommendation all treat an
+    /// `InventoryItem` as a purchasable raw ingredient, which these are not.
+    @Published var preparedComponents: [PreparedComponent] = [] { didSet { persistPreparedComponentsIfNeeded() } }
     @Published var inventoryNotice: String?
     @Published var shoppingNotice: String?
     @Published var planNotice: String?
     @Published var consumptionNotice: String?
     @Published var weeklyPlanNotice: String?
+    @Published var preparedComponentNotice: String?
 
     private let inventoryKey = InventoryMigration.legacyInventoryKey
     private let plansKey = TodayPlanMigration.legacyPlansKey
@@ -448,6 +453,7 @@ final class KitchenStore: ObservableObject {
     private var suppressPlanPersistence = false
     private var suppressConsumptionPersistence = false
     private var suppressWeeklyPlanPersistence = false
+    private var suppressPreparedComponentPersistence = false
     /// Defaults to the real app defaults so every existing call site (`KitchenStore()`)
     /// is unaffected; tests inject an isolated `UserDefaults(suiteName:)` instead.
     private let userDefaults: UserDefaults
@@ -456,6 +462,7 @@ final class KitchenStore: ObservableObject {
     private let todayPlanPersistence: TodayPlanPersistenceProtocol
     private let consumptionPersistence: ConsumptionPersistenceProtocol
     private let weeklyPlanPersistence: WeeklyPlanPersistenceProtocol
+    private let preparedComponentPersistence: PreparedComponentPersistenceProtocol
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -463,10 +470,11 @@ final class KitchenStore: ObservableObject {
         shoppingListPersistence: ShoppingListPersistenceProtocol? = nil,
         todayPlanPersistence: TodayPlanPersistenceProtocol? = nil,
         consumptionPersistence: ConsumptionPersistenceProtocol? = nil,
-        weeklyPlanPersistence: WeeklyPlanPersistenceProtocol? = nil
+        weeklyPlanPersistence: WeeklyPlanPersistenceProtocol? = nil,
+        preparedComponentPersistence: PreparedComponentPersistenceProtocol? = nil
     ) {
         let defaultBundle: KitchenPersistenceBundle?
-        if inventoryPersistence == nil || shoppingListPersistence == nil || todayPlanPersistence == nil || consumptionPersistence == nil || weeklyPlanPersistence == nil {
+        if inventoryPersistence == nil || shoppingListPersistence == nil || todayPlanPersistence == nil || consumptionPersistence == nil || weeklyPlanPersistence == nil || preparedComponentPersistence == nil {
             defaultBundle = KitchenPersistenceFactory.isolatedInMemory()
         } else {
             defaultBundle = nil
@@ -477,6 +485,7 @@ final class KitchenStore: ObservableObject {
         self.todayPlanPersistence = todayPlanPersistence ?? defaultBundle!.todayPlan
         self.consumptionPersistence = consumptionPersistence ?? defaultBundle!.consumption
         self.weeklyPlanPersistence = weeklyPlanPersistence ?? defaultBundle!.weeklyPlan
+        self.preparedComponentPersistence = preparedComponentPersistence ?? defaultBundle!.preparedComponents
         let defaults = userDefaults
         do {
             inventory = try InventoryMigration.migrateIfNeeded(
@@ -536,6 +545,17 @@ final class KitchenStore: ObservableObject {
             consumptionNotice = error.localizedDescription
             #if DEBUG
             print("[ConsumptionMigration] failed: \(error)")
+            #endif
+        }
+        // Brand-new data type: there is no legacy UserDefaults payload to
+        // migrate, so this loads straight from SwiftData with no migration step.
+        do {
+            preparedComponents = try self.preparedComponentPersistence.loadComponents()
+        } catch {
+            preparedComponents = []
+            preparedComponentNotice = "备餐记录暂时无法读取，原始数据仍保留在设备上。"
+            #if DEBUG
+            print("[PreparedComponentPersistence] load failed: \(error)")
             #endif
         }
         isLoading = false
@@ -720,7 +740,9 @@ final class KitchenStore: ObservableObject {
         let previousPlans = plans
         let previousConsumptionRecords = consumptionRecords
         let previousWeeklyPlan = weeklyPlan
+        let previousPreparedComponents = preparedComponents
         do {
+            try preparedComponentPersistence.deleteAll()
             try weeklyPlanPersistence.deleteAll()
             try consumptionPersistence.deleteAll()
             try todayPlanPersistence.deleteAll()
@@ -732,6 +754,7 @@ final class KitchenStore: ObservableObject {
             try? todayPlanPersistence.replacePlans(with: previousPlans)
             try? consumptionPersistence.replaceRecords(with: previousConsumptionRecords)
             try? weeklyPlanPersistence.replacePlan(with: previousWeeklyPlan)
+            try? preparedComponentPersistence.replaceComponents(with: previousPreparedComponents)
             inventoryNotice = "厨房数据暂时无法清除，请稍后重试。"
             #if DEBUG
             print("[KitchenPersistence] clear failed: \(error)")
@@ -753,6 +776,9 @@ final class KitchenStore: ObservableObject {
         suppressConsumptionPersistence = true
         consumptionRecords = []
         suppressConsumptionPersistence = false
+        suppressPreparedComponentPersistence = true
+        preparedComponents = []
+        suppressPreparedComponentPersistence = false
         [inventoryKey, plansKey, shoppingKey, weeklyPlanKey, consumptionRecordsKey].forEach {
             defaults.removeObject(forKey: $0)
         }
@@ -1123,7 +1149,8 @@ final class KitchenStore: ObservableObject {
             plans: plans,
             shoppingItems: shoppingItems,
             weeklyPlan: weeklyPlan,
-            consumptionRecords: consumptionRecords
+            consumptionRecords: consumptionRecords,
+            preparedComponents: preparedComponents
         ))
     }
 
@@ -1169,6 +1196,16 @@ final class KitchenStore: ObservableObject {
                 try? consumptionPersistence.replaceRecords(with: consumptionRecords)
                 throw KitchenBackupError.weeklyPlanPersistenceFailed
             }
+            do {
+                try preparedComponentPersistence.replaceComponents(with: backup.preparedComponents)
+            } catch {
+                try? inventoryPersistence.replaceInventory(with: previousInventory)
+                try? shoppingListPersistence.replaceShoppingItems(with: previousShoppingItems)
+                try? todayPlanPersistence.replacePlans(with: previousPlans)
+                try? consumptionPersistence.replaceRecords(with: consumptionRecords)
+                try? weeklyPlanPersistence.replacePlan(with: weeklyPlan)
+                throw KitchenBackupError.preparedComponentPersistenceFailed
+            }
         } catch {
             if let backupError = error as? KitchenBackupError {
                 throw backupError
@@ -1190,6 +1227,9 @@ final class KitchenStore: ObservableObject {
         suppressConsumptionPersistence = true
         consumptionRecords = backup.consumptionRecords
         suppressConsumptionPersistence = false
+        suppressPreparedComponentPersistence = true
+        preparedComponents = backup.preparedComponents
+        suppressPreparedComponentPersistence = false
     }
 
     func toggleShopping(_ item: KitchenShoppingItem) {
@@ -1344,6 +1384,57 @@ final class KitchenStore: ObservableObject {
         }
     }
 
+    // MARK: - Prepared components
+    //
+    // Deliberately isolated from the inventory lifecycle: none of these touch
+    // restock suggestions, the shopping list, or `InventoryConsumptionRecord`.
+    // A batch is made, portions are taken from it, and it is gone.
+
+    func addPreparedComponent(_ component: PreparedComponent) {
+        guard !component.name.isEmpty else { return }
+        preparedComponents.append(component)
+    }
+
+    func updatePreparedComponent(_ component: PreparedComponent) {
+        guard let index = preparedComponents.firstIndex(where: { $0.id == component.id }),
+              !component.name.isEmpty else { return }
+        preparedComponents[index] = component
+    }
+
+    func removePreparedComponent(id: UUID) {
+        preparedComponents.removeAll { $0.id == id }
+    }
+
+    /// Eating one portion. The last portion removes the batch rather than
+    /// leaving a zero-portion row behind — an empty batch is not a thing that
+    /// exists in the kitchen, and inventory's habit of keeping depleted rows is
+    /// exactly the behaviour this type is meant to avoid.
+    ///
+    /// Returns the batch as it was, so a caller can describe what happened.
+    @discardableResult
+    func consumePreparedPortion(id: UUID) -> PreparedComponent? {
+        guard let index = preparedComponents.firstIndex(where: { $0.id == id }) else { return nil }
+        let previous = preparedComponents[index]
+        if previous.portionsRemaining > 1 {
+            preparedComponents[index].portionsRemaining = previous.portionsRemaining - 1
+        } else {
+            preparedComponents.remove(at: index)
+        }
+        return previous
+    }
+
+    private func persistPreparedComponentsIfNeeded() {
+        guard !isLoading, !suppressPreparedComponentPersistence else { return }
+        do {
+            try preparedComponentPersistence.replaceComponents(with: preparedComponents)
+        } catch {
+            preparedComponentNotice = "备餐记录保存失败，请稍后重试。"
+            #if DEBUG
+            print("[PreparedComponentPersistence] save failed: \(error)")
+            #endif
+        }
+    }
+
     private func persistWeeklyPlanIfNeeded() {
         guard !isLoading, !suppressWeeklyPlanPersistence else { return }
         do {
@@ -1392,9 +1483,14 @@ struct KitchenBackupPayload: Codable {
     var shoppingItems: [KitchenShoppingItem]
     var weeklyPlan: WeeklyMealPlan?
     var consumptionRecords: [InventoryConsumptionRecord]
+    /// Added in P1-B. Decoded with `decodeIfPresent` like every other field, so
+    /// a backup written before prepared components existed restores as empty
+    /// rather than failing.
+    var preparedComponents: [PreparedComponent]
 
     enum CodingKeys: String, CodingKey {
         case format, version, exportedAt, inventory, plans, shoppingItems, weeklyPlan, consumptionRecords
+        case preparedComponents
     }
 
     init(
@@ -1402,13 +1498,15 @@ struct KitchenBackupPayload: Codable {
         plans: [MealPlanItem],
         shoppingItems: [KitchenShoppingItem],
         weeklyPlan: WeeklyMealPlan?,
-        consumptionRecords: [InventoryConsumptionRecord]
+        consumptionRecords: [InventoryConsumptionRecord],
+        preparedComponents: [PreparedComponent] = []
     ) {
         self.inventory = inventory
         self.plans = plans
         self.shoppingItems = shoppingItems
         self.weeklyPlan = weeklyPlan
         self.consumptionRecords = consumptionRecords
+        self.preparedComponents = preparedComponents
     }
 
     init(from decoder: Decoder) throws {
@@ -1421,6 +1519,7 @@ struct KitchenBackupPayload: Codable {
         shoppingItems = try container.decodeIfPresent([KitchenShoppingItem].self, forKey: .shoppingItems) ?? []
         weeklyPlan = try container.decodeIfPresent(WeeklyMealPlan.self, forKey: .weeklyPlan)
         consumptionRecords = try container.decodeIfPresent([InventoryConsumptionRecord].self, forKey: .consumptionRecords) ?? []
+        preparedComponents = try container.decodeIfPresent([PreparedComponent].self, forKey: .preparedComponents) ?? []
     }
 }
 
@@ -1431,6 +1530,7 @@ enum KitchenBackupError: LocalizedError {
     case todayPlanPersistenceFailed
     case consumptionPersistenceFailed
     case weeklyPlanPersistenceFailed
+    case preparedComponentPersistenceFailed
 
     var errorDescription: String? {
         switch self {
@@ -1446,6 +1546,8 @@ enum KitchenBackupError: LocalizedError {
             return "备份中的消耗记录暂时无法保存，请稍后重试。"
         case .weeklyPlanPersistenceFailed:
             return "备份中的周菜单暂时无法保存，请稍后重试。"
+        case .preparedComponentPersistenceFailed:
+            return "备份中的备餐记录暂时无法保存，请稍后重试。"
         }
     }
 }

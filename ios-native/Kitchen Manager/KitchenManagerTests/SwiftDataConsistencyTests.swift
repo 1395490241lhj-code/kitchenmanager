@@ -19,7 +19,16 @@ final class SwiftDataConsistencyTests: XCTestCase {
             shoppingListPersistence: bundle.shoppingList,
             todayPlanPersistence: bundle.todayPlan,
             consumptionPersistence: bundle.consumption,
-            weeklyPlanPersistence: bundle.weeklyPlan
+            weeklyPlanPersistence: bundle.weeklyPlan,
+            preparedComponentPersistence: bundle.preparedComponents
+        )
+    }
+
+    private func preparedComponent() -> PreparedComponent {
+        PreparedComponent(
+            name: "卤鸡腿", portionsRemaining: 5, state: .cooked, storage: .refrigerated,
+            preparedAt: Date(timeIntervalSince1970: 1_700_000_100),
+            expiryDate: Date(timeIntervalSince1970: 1_700_300_100)
         )
     }
 
@@ -51,7 +60,7 @@ final class SwiftDataConsistencyTests: XCTestCase {
         XCTAssertEqual(restored.weeklyPlan, weekly)
     }
 
-    func testClearAllDeletesFiveModulesAndLegacyFallbackDoesNotResurrect() throws {
+    func testClearAllDeletesSixModulesAndLegacyFallbackDoesNotResurrect() throws {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let bundle = KitchenPersistenceFactory.isolatedInMemory()
         let current = store(defaults, bundle)
@@ -59,6 +68,8 @@ final class SwiftDataConsistencyTests: XCTestCase {
         current.addShopping(name: "牛奶")
         current.addPlan(recipe: Recipe.samples[0])
         current.saveWeeklyPlan(weeklyPlan())
+        current.addPreparedComponent(preparedComponent())
+        XCTAssertFalse(current.preparedComponents.isEmpty, "the sixth module really has data to clear")
         current.clearAllLocalData()
 
         let restarted = store(defaults, bundle)
@@ -67,9 +78,40 @@ final class SwiftDataConsistencyTests: XCTestCase {
         XCTAssertTrue(restarted.plans.isEmpty)
         XCTAssertTrue(restarted.consumptionRecords.isEmpty)
         XCTAssertNil(restarted.weeklyPlan)
+        XCTAssertTrue(restarted.preparedComponents.isEmpty)
     }
 
-    func testFullBackupRestoresFiveSwiftDataModulesAcrossRestart() throws {
+    /// Clear-all rolls every module back when any delete fails. The prepared
+    /// components have to take part in the rollback too, not just the delete.
+    func testClearAllFailureRollsBackPreparedComponents() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        struct ClearFailure: Error {}
+        let store = KitchenStore(
+            userDefaults: defaults,
+            inventoryPersistence: bundle.inventory,
+            shoppingListPersistence: bundle.shoppingList,
+            todayPlanPersistence: bundle.todayPlan,
+            consumptionPersistence: bundle.consumption,
+            // Fails during the clear, after prepared components were deleted.
+            weeklyPlanPersistence: FailingWeeklyPlanPersistence(ClearFailure()),
+            preparedComponentPersistence: bundle.preparedComponents
+        )
+        let batch = preparedComponent()
+        store.addPreparedComponent(batch)
+        store.addInventory(name: "鸡蛋", quantity: 2, unit: "个", expiryDate: nil)
+
+        store.clearAllLocalData()
+
+        XCTAssertEqual(store.preparedComponents, [batch], "in-memory state is untouched by a failed clear")
+        XCTAssertEqual(
+            try bundle.preparedComponents.loadComponents(), [batch],
+            "and the persisted batch was restored rather than lost"
+        )
+        XCTAssertFalse(store.inventory.isEmpty)
+    }
+
+    func testFullBackupRestoresSixSwiftDataModulesAcrossRestart() throws {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let bundle = KitchenPersistenceFactory.isolatedInMemory()
         let inventory = InventoryItem(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: nil)
@@ -80,9 +122,10 @@ final class SwiftDataConsistencyTests: XCTestCase {
             planIDs: [plan.id], items: [], isUndone: true
         )
         let weekly = weeklyPlan()
+        let batch = preparedComponent()
         let payload = KitchenBackupPayload(
             inventory: [inventory], plans: [plan], shoppingItems: [shopping],
-            weeklyPlan: weekly, consumptionRecords: [consumption]
+            weeklyPlan: weekly, consumptionRecords: [consumption], preparedComponents: [batch]
         )
         try store(defaults, bundle).restoreBackupData(JSONEncoder().encode(payload))
         let restarted = store(defaults, bundle)
@@ -91,5 +134,25 @@ final class SwiftDataConsistencyTests: XCTestCase {
         XCTAssertEqual(restarted.plans, [plan])
         XCTAssertEqual(restarted.consumptionRecords, [consumption])
         XCTAssertEqual(restarted.weeklyPlan, weekly)
+        XCTAssertEqual(restarted.preparedComponents, [batch])
+    }
+
+    /// A backup written before prepared components existed has no such key.
+    /// It must restore as an empty collection, not fail the whole file.
+    func testABackupWithoutPreparedComponentsRestoresAsEmpty() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        let inventory = InventoryItem(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: nil)
+        let legacyJSON = """
+        {"format":"kitchen-manager-native-backup","version":1,\
+        "inventory":[{"id":"\(inventory.id.uuidString)","name":"鸡蛋","quantity":6,"unit":"个","isStaple":false,\
+        "autoSuggestRestock":false,"stapleTrackingMode":"quantity","stapleAvailabilityStatus":"available"}],\
+        "plans":[],"shoppingItems":[],"consumptionRecords":[]}
+        """.replacingOccurrences(of: "\\\n", with: "")
+
+        let store = store(defaults, bundle)
+        XCTAssertNoThrow(try store.restoreBackupData(Data(legacyJSON.utf8)))
+        XCTAssertEqual(store.inventory.first?.name, "鸡蛋")
+        XCTAssertTrue(store.preparedComponents.isEmpty)
     }
 }

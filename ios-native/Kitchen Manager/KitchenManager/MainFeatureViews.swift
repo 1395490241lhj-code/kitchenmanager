@@ -30,6 +30,7 @@ struct InventoryView: View {
     var onSelectItem: (UUID) -> Void
     @State private var recordMode: FoodInputMode?
     @State private var isShowingAddStaple = false
+    @State private var isShowingPreparedComponents = false
     @State private var stapleFilter: PantryStapleFilter = .all
     @State private var itemPendingDeletion: InventoryItem?
     @State private var searchText = ""
@@ -336,6 +337,11 @@ struct InventoryView: View {
                     Button("添加常备食材", systemImage: "cabinet") {
                         isShowingAddStaple = true
                     }
+                    // Prepared batches live behind their own entry rather than in
+                    // the ingredient list: 卤鸡腿 is not a grocery.
+                    Button("备餐", systemImage: "takeoutbag.and.cup.and.straw") {
+                        isShowingPreparedComponents = true
+                    }
                 } label: {
                     // Clamp the glyph only — the menu's own rows keep full
                     // Dynamic Type.
@@ -352,6 +358,9 @@ struct InventoryView: View {
         }
         .sheet(isPresented: $isShowingAddStaple) {
             AddPantryStapleView()
+        }
+        .navigationDestination(isPresented: $isShowingPreparedComponents) {
+            PreparedComponentsView()
         }
         .navigationDestination(for: InventoryRoute.self) { route in
             switch route {

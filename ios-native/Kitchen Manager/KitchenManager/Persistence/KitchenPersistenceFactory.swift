@@ -10,6 +10,7 @@ struct KitchenPersistenceBundle {
     let weeklyPlan: WeeklyPlanPersistenceProtocol
     let userRecipes: UserRecipePersistenceProtocol
     let recipePreferences: RecipePreferencePersistenceProtocol
+    let preparedComponents: PreparedComponentPersistenceProtocol
     let sync: any SyncPersistenceProtocol
 }
 
@@ -39,6 +40,7 @@ enum KitchenPersistenceFactory {
                 SyncCursorRecord.self,
                 GuestMergeSessionRecord.self,
                 InventorySyncEnrollmentRecord.self,
+                PreparedComponentRecord.self,
                 configurations: configuration
             )
             return KitchenPersistenceBundle(
@@ -49,6 +51,7 @@ enum KitchenPersistenceFactory {
                 weeklyPlan: SwiftDataWeeklyPlanPersistence(container: container),
                 userRecipes: SwiftDataUserRecipePersistence(container: container),
                 recipePreferences: SwiftDataRecipePreferencePersistence(container: container),
+                preparedComponents: SwiftDataPreparedComponentPersistence(container: container),
                 sync: SwiftDataSyncPersistence(modelContainer: container)
             )
         } catch {
@@ -63,6 +66,7 @@ enum KitchenPersistenceFactory {
                 weeklyPlan: FailingWeeklyPlanPersistence(error),
                 userRecipes: FailingUserRecipePersistence(error),
                 recipePreferences: FailingRecipePreferencePersistence(error),
+                preparedComponents: FailingPreparedComponentPersistence(underlyingError: error),
                 sync: FailingSyncPersistence()
             )
         }
