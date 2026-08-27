@@ -7,10 +7,18 @@
 > `4992f68` (Home became a Today surface).
 >
 > Specifically superseded: the "Information order" section below states that
-> Today's plan carries **the page's only prominent action**. That is no longer
-> true. Today's Recommendation now occupies first-screen priority, the plan card
-> renders only when a plan exists, and an empty plan starts with the inline
-> recommendation rather than an empty-plan message.
+> Today's plan carries **the page's only prominent action**. That was first
+> superseded by `4992f68`, which gave Today's Recommendation first-screen
+> priority, made the plan card render only when a plan exists, and started an
+> empty plan with the inline recommendation rather than an empty-plan message.
+>
+> It was superseded again by Home V2 (`0f0404a`), which is the current design:
+> Home is a stateful Today surface ordered `Today Context → one Primary Task →
+> Needs Attention`. Recommendation is the primary task only while nothing is
+> decided; once a Today Plan exists, the plan becomes the primary task and
+> recommendation is demoted to a secondary `想再加一道` link. Current Home
+> behaviour lives in canonical project memory (`Product & IA.md`, `Decisions.md`),
+> not in this file.
 >
 > **Current Home IA is defined by the implementation and its tests**, not by this
 > file — see `ios-native/Kitchen Manager/KitchenManager/HomeView.swift` and

@@ -37,6 +37,16 @@ Known open items are unchanged below; additionally
 `ReceiptCompactListUITests/testReceiptList_twentyItems_isCompactAndScrollable`
 is flaky under a full-suite run (passes in isolation) and is not yet addressed.
 
+> [!warning] Correction (2026-08-27) — the "passes in isolation" half is no longer true
+> The audit sentence above is preserved as written on 2026-08-21. Its characterization
+> has since been disproved. On Xcode 27.0 / iOS 27 simulator the test fails in a full
+> suite run **and** when run on its own, and the same failure reproduces at the same
+> file, line and assertion (`ReceiptCompactListUITests.swift:127`) on an unmodified
+> `4838e8f` baseline worktree build. The sibling test in that file passes on both builds.
+>
+> Correct classification: **pre-existing baseline-reproduced Receipt UI failure**. It is
+> not a Home V2 regression and not a passes-in-isolation flake. Receipt code is unchanged.
+
 ## P3 delivery checkpoint
 
 P3-A, P3-B and P3-C are sealed at `21500bc`:

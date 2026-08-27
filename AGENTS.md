@@ -122,10 +122,23 @@ The vault is Mac-local. It is not in Git and is not synced.
 
 These are stable, not immutable forever. Currently stable:
 
-- recommendation-first Home IA;
+- **iOS Home is a stateful Today surface** — `Today Context → one Primary Task → Needs Attention`,
+  with a fixed `今天` navigation title and the page's state carried by the primary task's own
+  heading. Decision Mode when no Today Plan exists; Execution Mode once one does, where
+  recommendation is demoted to the secondary `想再加一道` rather than removed. Primary-task
+  precedence: `.mealPrep` → dinner `eatOut` → explicit Today Plan → `.quick` → ordinary recipe
+  recommendation. See the Home V2 IA entry in `Decisions.md`;
+- recommendation-first Home IA, **as narrowed by the Home V2 IA Decision** — it continues to
+  protect the empty-plan state (Home must actively help decide, never just report an empty plan)
+  and no longer requires recommendation to hold equal weight once a plan exists;
 - Today Plan card renders only when a plan exists;
 - an empty plan shows no empty Today Plan card ahead of the recommendation;
-- iOS Home section ordering is test-enforced (`KitchenManagerUITests/HomeDashboardUITests.swift`);
+- iOS Home section ordering is test-enforced (`KitchenManagerUITests/HomeDashboardUITests.swift`)
+  — the enforced order is now Today Context → Primary Task → Needs Attention, anchored on leaf
+  accessibility identifiers (a SwiftUI accessibility modifier on a container overrides its
+  descendants', so section-level ids silently erase the ids of the controls inside them);
+- Home attention is one named list — `需要处理` rows name the food; the count chips are gone,
+  and `HomeDashboardSummary.attentionItems` is the only Home attention presentation path;
 - cooking green / management blue / AI indigo remain distinct semantic roles;
 - AI stays visually subordinate to cooking where the current design implements the 0.30 vs 0.45 distinction;
 - a >=4.5:1 contrast floor, test-enforced (`KitchenManagerTests/UIFeedbackTests.swift`);
