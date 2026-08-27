@@ -102,7 +102,27 @@ struct QuickFoodProfile: Equatable {
 // 腌鸡肉 is not), and 米粉 before 大米 (a rice noodle is not rice).
 
 enum QuickFoodProfileClassifier {
-    static func profile(for name: String) -> QuickFoodProfile {
+    /// The single entry point. Callers with a structured preparation state pass
+    /// it in and it wins; callers without one get the name inference unchanged.
+    ///
+    /// One function rather than a second "prepared" classifier on purpose: two
+    /// entry points would drift, and the roles/form half of the answer is
+    /// identical either way — only the preparation axis is ever known better
+    /// from elsewhere.
+    static func profile(
+        for name: String,
+        preparationState: PreparationState? = nil
+    ) -> QuickFoodProfile {
+        var profile = inferredProfile(for: name)
+        if let preparationState {
+            profile.preparationState = preparationState
+        }
+        return profile
+    }
+
+    /// Everything derived from the name alone. Byte-for-byte the behaviour that
+    /// shipped in P0-3C, so an inventory item classifies exactly as before.
+    private static func inferredProfile(for name: String) -> QuickFoodProfile {
         let name = IngredientNormalizer.normalizedName(name)
             .lowercased()
             .filter { !$0.isWhitespace }

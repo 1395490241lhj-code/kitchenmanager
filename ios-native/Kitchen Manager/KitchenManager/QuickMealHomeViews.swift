@@ -121,7 +121,7 @@ struct HomeQuickMealSection: View {
     /// Lighter than the recipe card on purpose: a title, one line of components,
     /// and one secondary action. No image, no primary button, no metadata row.
     private func suggestionCard(_ suggestion: QuickMealSuggestion, canRotate: Bool) -> some View {
-        let components = suggestion.components.map(\.item.name).joined(separator: " · ")
+        let components = suggestion.components.map(\.name).joined(separator: " · ")
         return VStack(alignment: .leading, spacing: 8) {
             Text(suggestion.displayTitle)
                 .font(.headline)

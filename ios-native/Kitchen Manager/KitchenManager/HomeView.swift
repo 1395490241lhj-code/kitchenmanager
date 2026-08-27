@@ -134,7 +134,10 @@ struct HomeView: View {
                 // to it: Home never shows both, and the section order is unchanged.
                 switch HomeRecommendationSlot.slot(for: dayRhythmStore.effectiveDayType()) {
                 case .quickMeal:
-                    let quickMeal = QuickMealAssemblyEngine.assemble(inventory: kitchenStore.inventory)
+                    let quickMeal = QuickMealAssemblyEngine.assemble(
+                        inventory: kitchenStore.inventory,
+                        preparedComponents: kitchenStore.preparedComponents
+                    )
                     HomeQuickMealSection(
                         content: QuickMealHomeContent.resolve(
                             result: quickMeal,

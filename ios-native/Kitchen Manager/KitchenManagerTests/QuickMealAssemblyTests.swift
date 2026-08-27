@@ -131,7 +131,7 @@ final class QuickMealAssemblyEngineTests: XCTestCase {
     }
 
     private func names(_ suggestion: QuickMealSuggestion) -> [String] {
-        suggestion.components.map(\.item.name)
+        suggestion.components.map(\.name)
     }
 
     private func suggestion(
@@ -530,7 +530,7 @@ final class QuickMealAssemblyEngineTests: XCTestCase {
         //食物 must not be offered twice under two names.
         let result = QuickMealAssemblyEngine.assemble(inventory: [item("米饭"), item("腌鸡肉")])
 
-        let itemSets = result.suggestions.map(\.itemIDs)
+        let itemSets = result.suggestions.map(\.componentSources)
         XCTAssertEqual(Set(itemSets).count, itemSets.count)
         XCTAssertEqual(result.suggestions.first?.template, .riceBowl)
     }

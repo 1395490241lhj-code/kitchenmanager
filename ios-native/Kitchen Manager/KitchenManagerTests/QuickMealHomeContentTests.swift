@@ -72,7 +72,7 @@ final class QuickMealHomeContentTests: XCTestCase {
         let shown = shown(content(["挂面", "卤牛肉", "上海青"]))
         XCTAssertEqual(shown?.displayTitle, "牛肉青菜面")
         XCTAssertEqual(
-            shown?.components.map(\.item.name),
+            shown?.components.map(\.name),
             ["挂面", "卤牛肉", "上海青"],
             "the components line shows what is actually being used, in slot order"
         )
