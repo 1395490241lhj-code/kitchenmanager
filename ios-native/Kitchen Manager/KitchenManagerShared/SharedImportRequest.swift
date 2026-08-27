@@ -25,7 +25,14 @@ public enum ShareImportSource: String, Codable, Sendable {
 /// Deliberately Foundation-only: no SwiftUI, SwiftData, networking, or store
 /// types, so it compiles unmodified into both the app and extension targets
 /// and can be unit tested in isolation.
-public struct SharedImportRequest: Codable, Sendable, Identifiable {
+/// `nonisolated` because this value crosses a process boundary: the share
+/// extension writes it to the shared container and the app decodes it later.
+/// It is already `Sendable` and every stored property is an immutable value, so
+/// the app target's `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` was isolating a
+/// type that is never main-actor state — which made its synthesized `Codable`
+/// and `Equatable` conformances unusable from nonisolated code, including the
+/// test target (which does not set that default).
+nonisolated public struct SharedImportRequest: Codable, Sendable, Identifiable {
     /// Bumped whenever the on-disk shape of this type changes, so the queue
     /// can discard requests written by an older/newer version instead of
     /// crashing on decode.
@@ -69,7 +76,7 @@ public struct SharedImportRequest: Codable, Sendable, Identifiable {
     }
 }
 
-extension SharedImportRequest: Equatable {
+nonisolated extension SharedImportRequest: Equatable {
     // Explicit rather than synthesized: comparing `url` by `absoluteString`
     // sidesteps `URL`'s own `Equatable`, which has been observed to disagree
     // with itself for values that survive a JSON encode/decode round trip on

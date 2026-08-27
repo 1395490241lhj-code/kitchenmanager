@@ -1,6 +1,10 @@
 import Foundation
 
-struct LinkExtractResult {
+/// `nonisolated`: a decoded response value, immutable in every stored property
+/// and never main-actor state. The app target's default MainActor isolation had
+/// made reading these properties from nonisolated code — including the test
+/// target, which sets no default — a diagnostic.
+nonisolated struct LinkExtractResult {
     let title: String
     let text: String
     let rawJSON: String
@@ -19,7 +23,8 @@ struct AIParseResponse: Decodable {
     let content: String?
 }
 
-struct AIParsedRecipe: Decodable {
+/// `nonisolated` for the same reason as `LinkExtractResult`: a decoded DTO.
+nonisolated struct AIParsedRecipe: Decodable {
     let name: String
     let tags: [String]?
     let ingredients: [AIRecipeItem]?

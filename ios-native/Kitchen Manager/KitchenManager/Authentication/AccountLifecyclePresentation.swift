@@ -426,7 +426,9 @@ enum AccountLifecycleSummaryFixture: String, CaseIterable {
     /// including the generic account-fixture reset that would otherwise wipe the
     /// inventory and re-add 测试库存 under a brand-new UUID — which is what made
     /// the seeded plan hash stale and forced `regeneratedPreview`.
-    enum RestartLaunchMode {
+    /// `nonisolated`: a payload-free enum whose synthesized `Equatable`
+    /// conformance has to be usable from the nonisolated test target.
+    nonisolated enum RestartLaunchMode {
         case none
         case seed
         case resume

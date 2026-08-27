@@ -137,10 +137,15 @@ final class AIChatServiceTests: XCTestCase {
     }
 
     func test_requestDetailed_retriesRateLimitedRequest_thenSucceeds() async throws {
-        var requestCount = 0
+        // The handler is `@Sendable` and runs on URLSession's loading thread, so
+        // a captured `var` counter would be mutated there and read here — a real
+        // race, and an error in the Swift 6 language mode. `MockURLProtocol`
+        // already records every request under its own lock, and appends the
+        // current one *before* releasing that lock and calling the handler, so
+        // the n-th call sees a count of n. Reading that instead needs no second
+        // piece of shared state.
         MockURLProtocol.install { _ in
-            requestCount += 1
-            if requestCount == 1 {
+            if MockURLProtocol.capturedRequests().count == 1 {
                 return .init(statusCode: 429, headers: ["Retry-After": "0"], data: Data(#"{"code":"rate_limited"}"#.utf8))
             }
             return .init(statusCode: 200, data: Data(#"{"content":"OK"}"#.utf8))
@@ -153,14 +158,15 @@ final class AIChatServiceTests: XCTestCase {
         let result = try await service.requestDetailed(prompt: "p", taskType: "t")
 
         XCTAssertEqual(result.content, "OK")
-        XCTAssertEqual(requestCount, 2)
+        XCTAssertEqual(MockURLProtocol.capturedRequests().count, 2)
     }
 
     func test_requestDetailed_stopsAfterTwoRateLimitRetries() async throws {
-        var requestCount = 0
+        // Same reasoning as the retry test above: no captured counter. This
+        // handler does not branch on the call number at all, so it only ever
+        // needed the count as an observation.
         MockURLProtocol.install { _ in
-            requestCount += 1
-            return .init(statusCode: 429, headers: ["Retry-After": "0"], data: Data(#"{"code":"rate_limited"}"#.utf8))
+            .init(statusCode: 429, headers: ["Retry-After": "0"], data: Data(#"{"code":"rate_limited"}"#.utf8))
         }
         let service = AIChatService(
             apiClient: APIClient(environment: .production, session: .mocked(), defaultTimeout: 60),
@@ -173,6 +179,6 @@ final class AIChatServiceTests: XCTestCase {
         } catch let error as APIError {
             guard case .rateLimited = error else { return XCTFail("expected .rateLimited, got \(error)") }
         }
-        XCTAssertEqual(requestCount, 3, "initial request plus at most two retries")
+        XCTAssertEqual(MockURLProtocol.capturedRequests().count, 3, "initial request plus at most two retries")
     }
 }

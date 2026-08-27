@@ -7,7 +7,10 @@ struct AIChatService {
         try await Task.sleep(nanoseconds: nanoseconds)
     }
 
-    struct DetailedResult: Sendable {
+    /// `nonisolated`: already `Sendable`, both stored properties immutable, and
+    /// returned from an `async` call that callers read wherever they happen to
+    /// be. Nothing about it belongs to the main actor.
+    nonisolated struct DetailedResult: Sendable {
         let content: String
         let metadata: APIClient.ResponseMetadata
     }
