@@ -62,11 +62,14 @@ enum MealPrepBoard {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> String {
-        let days = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: now),
-            to: calendar.startOfDay(for: expiryDate)
-        ).day ?? 0
+        // Shared with Home's urgency policy so "how many days are left" has one
+        // implementation. This function only *phrases* the answer; whether that
+        // number is urgent enough for Home is
+        // `PreparedComponentExpiryPolicy.isUrgentForHomeAttention`, and the
+        // board deliberately does not consult it — a 备餐日 lists every batch.
+        let days = PreparedComponentExpiryPolicy.daysRemaining(
+            until: expiryDate, now: now, calendar: calendar
+        )
 
         switch days {
         case ..<0: return "建议尽快吃完"
@@ -89,60 +92,73 @@ enum MealPrepBoard {
     }
 }
 
-/// Home's meal-prep surface. Stands in the recommendation slot rather than
-/// adding a section, exactly like `HomeQuickMealSection`, so the page keeps its
-/// 今日计划 → 推荐位 → 库存待处理 shape.
+/// Home's meal-prep content.
+///
+/// Home V2: the title moved out (`HomePrimaryHeader` says 今天备的菜 · 先吃快到期的),
+/// each batch became a real row instead of one concatenated line, and 添加备餐
+/// became the prep day's one prominent action — a production day previously had
+/// no primary action at all. It still only records what was made: there is no
+/// prep plan here and this phase does not invent one.
 struct HomeMealPrepBoardSection: View {
     let entries: [MealPrepBoardEntry]
     let onAdd: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("本周备餐")
-                .font(.title3.weight(.semibold))
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("home.mealPrep.section")
-
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(spacing: 0) {
                 if entries.isEmpty {
                     Text("还没有备餐")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
                         .accessibilityIdentifier("home.mealPrep.empty")
                 } else {
-                    ForEach(entries) { entry in
-                        Text(entry.summary)
-                            .font(.subheadline)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("home.mealPrep.entry.\(entry.id.uuidString)")
+                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.name).font(.headline)
+                                Text(entry.expiryText)
+                                    .font(.footnote)
+                                    // Only the batch that is actually next gets
+                                    // the warning ink; the rest stay neutral so
+                                    // "soonest" remains readable at a glance.
+                                    .foregroundStyle(index == 0 ? AppTheme.warningInk : AppTheme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 8)
+                            Text(entry.portionsText)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(entry.summary)
+                        .accessibilityIdentifier("home.mealPrep.entry.\(entry.id.uuidString)")
+                        if index < entries.count - 1 { Divider() }
                     }
                 }
-
-                // Goes to the existing management page; this board never grows
-                // its own editor.
-                Button(action: onAdd) {
-                    HStack(spacing: 4) {
-                        Text("添加备餐")
-                        Image(systemName: "chevron.right")
-                            .font(.footnote)
-                            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .frame(minHeight: AppTheme.minimumHitTarget)
-                    .contentShape(Rectangle())
-                }
-                    .foregroundStyle(AppTheme.brand)
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("home.mealPrep.add")
-                    .accessibilityHint("打开备餐记录")
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                Color(.secondarySystemGroupedBackground),
-                in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-            )
+
+            // Goes to the existing management page; this board never grows its
+            // own editor.
+            Button("记一笔今天做的", action: onAdd)
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.cookingActionFill)
+                .foregroundStyle(AppTheme.onCookingAction)
+                .font(.subheadline.weight(.semibold))
+                .controlSize(.regular)
+                .buttonBorderShape(.capsule)
+                .frame(minHeight: AppTheme.minimumHitTarget)
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("home.mealPrep.add")
+                .accessibilityHint("打开备餐记录")
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+        )
     }
 }
 

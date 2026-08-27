@@ -83,6 +83,22 @@ extension DayType {
         case .flexible: return "自由日"
         }
     }
+
+    /// The one-line, plain-language gloss Home shows under the day's name.
+    ///
+    /// Until Home V2 the app named the four rhythms and never explained any of
+    /// them: the picker offered 做饭 / 快手 / 备餐 / 自由 and Home printed 快手日,
+    /// so the first-time reader had to guess what the day actually changed.
+    /// This sentence is the answer, and it is why the day type stops reading as
+    /// metadata. It describes what today is *for*, never the internal model.
+    var homeExplanation: String {
+        switch self {
+        case .cooking: return "今天按正常做饭安排"
+        case .quick: return "优先用现有食物，少做几步"
+        case .mealPrep: return "今天集中准备未来几天的食物"
+        case .flexible: return "今天没有固定安排"
+        }
+    }
 }
 
 extension MealSlot {

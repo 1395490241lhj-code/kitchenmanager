@@ -60,27 +60,56 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
         }
     }
 
-    func testHomeInventoryStatusChipsAdaptWithoutClipping() throws {
+    /// Home V2 replaced the count chips (即将到期 2) with named rows
+    /// (临期牛奶 · 明天到期). The chip contract asserted that each capsule stayed
+    /// narrower than the screen and wrapped onto its own line at Accessibility
+    /// sizes; rows are list rows, so the equivalent contract is that they stack,
+    /// stay tappable, and carry both halves of their label without truncating
+    /// either. This test replaces `testHomeInventoryStatusChipsAdaptWithoutClipping`.
+    func testHomeAttentionRowsAdaptWithoutClipping() throws {
         for (name, size, isAccessibility) in sizes {
             let app = launch("UITEST_SEED_HOME_DASHBOARD", size: size)
-            let chips = [
-                app.buttons["home.inventory.expired.button"],
-                app.buttons["home.inventory.expiring.button"],
-                app.buttons["home.inventory.lowstock.button"]
+            let rows = [
+                app.buttons["home.attention.expired.过期生菜"],
+                app.buttons["home.attention.expiring.临期牛奶"],
+                app.buttons["home.attention.lowStock.大米"]
+            ]
+            let expectations = [
+                ("过期生菜", "已过期"),
+                ("临期牛奶", "明天到期"),
+                ("大米", "库存偏低")
             ]
 
-            for (chip, label) in zip(chips, ["已过期", "即将到期", "需补货"]) {
-                XCTAssertTrue(scrollUntilFullyHittable(chip, in: app), "\(name): \(label) chip 不可达")
-                assertAction(chip, in: app, label: "\(name) \(label) chip")
-                XCTAssertLessThan(chip.frame.width, app.windows.firstMatch.frame.width - 32, "\(name): \(label) 不应拉伸为满宽")
+            for (row, expectation) in zip(rows, expectations) {
+                XCTAssertTrue(scrollUntilFullyHittable(row, in: app), "\(name): \(expectation.0) 行不可达")
+                assertAction(row, in: app, label: "\(name) \(expectation.0) 行")
+                XCTAssertTrue(
+                    row.label.contains(expectation.0),
+                    "\(name): 行必须点名食材，实际为 \(row.label)"
+                )
+                XCTAssertTrue(
+                    row.label.contains(expectation.1),
+                    "\(name): 行必须保留原因，实际为 \(row.label)"
+                )
             }
 
+            // Rows are always stacked — that is what makes them a list rather
+            // than a chip cloud — at every size.
+            XCTAssertGreaterThan(rows[1].frame.minY, rows[0].frame.minY, "\(name): 待处理行未纵向排列")
+            XCTAssertGreaterThan(rows[2].frame.minY, rows[1].frame.minY, "\(name): 待处理行未纵向排列")
+
             if isAccessibility {
-                XCTAssertGreaterThan(chips[1].frame.minY, chips[0].frame.minY, "XXXL: 状态 chip 未自然换行")
-                XCTAssertGreaterThan(chips[2].frame.minY, chips[1].frame.minY, "XXXL: 状态 chip 未自然换行")
+                // Name and detail stack instead of shrinking or truncating, so
+                // the row gets taller rather than narrower.
+                XCTAssertGreaterThan(
+                    rows[0].frame.height,
+                    2 * 44 - 1,
+                    "XXXL: 行内应堆叠名称与原因，而不是截断"
+                )
             }
+
             let attachment = XCTAttachment(screenshot: app.screenshot())
-            attachment.name = "home-inventory-status-chips-\(name)"
+            attachment.name = "home-attention-rows-\(name)"
             attachment.lifetime = .keepAlways
             add(attachment)
             app.terminate()

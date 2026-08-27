@@ -327,6 +327,13 @@ struct ContentView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var authStore: AuthStore
     @EnvironmentObject private var sharedImportCoordinator: SharedImportCoordinator
+#if DEBUG
+    // Read only by the `UITEST_SEED_*` hooks below, which need to write the
+    // day's rhythm and portion state through the *live* instances rather than a
+    // second store over the same UserDefaults. Compiled out of release.
+    @EnvironmentObject private var dayRhythmStore: DayRhythmStore
+    @EnvironmentObject private var mealPortionStore: MealPortionStore
+#endif
     @Environment(\.scenePhase) private var scenePhase
     @State private var inventoryPath = NavigationPath()
 
@@ -464,6 +471,7 @@ struct ContentView: View {
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_QUICK_MEAL_PREPARED") else { return }
             kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
             let now = Date()
             kitchenStore.importInventory([
                 InventoryImportItem(name: "米饭", quantity: 1, unit: "份", expiryDate: Calendar.current.date(byAdding: .day, value: 3, to: now)),
@@ -483,6 +491,7 @@ struct ContentView: View {
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_COMPONENT_MEAL") else { return }
             kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
             let now = Date()
             kitchenStore.importInventory([
                 InventoryImportItem(name: "红薯", quantity: 2, unit: "份", expiryDate: Calendar.current.date(byAdding: .day, value: 6, to: now)),
@@ -541,6 +550,7 @@ struct ContentView: View {
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_DASHBOARD") else { return }
             kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
             let now = Date()
             kitchenStore.importInventory([
                 InventoryImportItem(name: "临期牛奶", quantity: 1, unit: "盒", expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: now)),
@@ -608,12 +618,122 @@ struct ContentView: View {
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_HOME") else { return }
             kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
             recipeStore.clearLocalData()
+            navigationStore.selectedTab = .today
+        }
+        // Home V2 seeds.
+        //
+        // The exact contradiction Home V2 removes: a dinner marked 外食 while a
+        // Today Plan from earlier in the day is still sitting there. Home must
+        // keep the plan and must not offer a prominent 开始准备 beside 今晚外食.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_EAT_OUT_WITH_PLAN") else { return }
+            kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
+            kitchenStore.addPlans(
+                Recipe.samples.prefix(2).enumerated().map { offset, recipe in
+                    (recipe: recipe, servings: offset + 1)
+                }
+            )
+            dayRhythmStore.setIntent(.eatOut, for: .dinner)
+            navigationStore.selectedTab = .today
+        }
+        // The approved Home V2 quick-day state, kept as a seed so the screen
+        // that was signed off can be re-rendered on demand: a quick day with a
+        // prepared batch the assembly can use, one ingredient going off
+        // tomorrow, one staple running low, and a portion left from last night.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_V2_QUICK") else { return }
+            kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
+            let now = Date()
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "挂面", quantity: 1, unit: "袋", expiryDate: nil),
+                InventoryImportItem(name: "上海青", quantity: 1, unit: "把", expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: now)),
+                InventoryImportItem(name: "鸡蛋", quantity: 2, unit: "个", expiryDate: nil, isStaple: true)
+            ])
+            if let eggIndex = kitchenStore.inventory.firstIndex(where: { $0.name == "鸡蛋" }) {
+                kitchenStore.inventory[eggIndex].lowStockThreshold = 12
+            }
+            // Three days out: usable by the assembly, not yet time sensitive, so
+            // it belongs in the meal and not in 需要处理.
+            kitchenStore.addPreparedComponent(
+                PreparedComponent(
+                    name: "卤牛肉", portionsRemaining: 3, state: .cooked, storage: .refrigerated,
+                    preparedAt: now,
+                    expiryDate: Calendar.current.date(byAdding: .day, value: 3, to: now) ?? now
+                )
+            )
+            if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) {
+                mealPortionStore.setReservedForNextLunchPortions(1, from: yesterday)
+            }
+            navigationStore.selectedTab = .today
+        }
+        // A prepared batch going off, on a day that is *not* a 备餐日. Before
+        // Home V2 this was invisible: 需要处理 only ever saw `InventoryItem`.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_PREPARED_ATTENTION") else { return }
+            kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
+            let now = Date()
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "上海青", quantity: 1, unit: "把", expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: now))
+            ])
+            kitchenStore.addPreparedComponent(
+                PreparedComponent(
+                    name: "卤鸡腿", portionsRemaining: 3, state: .cooked, storage: .refrigerated,
+                    preparedAt: now,
+                    expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
+                )
+            )
+            // Four days out: belongs on the board, never in 需要处理.
+            kitchenStore.addPreparedComponent(
+                PreparedComponent(
+                    name: "腌鸡肉", portionsRemaining: 2, state: .prepped, storage: .refrigerated,
+                    preparedAt: now,
+                    expiryDate: Calendar.current.date(byAdding: .day, value: 4, to: now) ?? now
+                )
+            )
+            navigationStore.selectedTab = .today
+        }
+        // Execution mode with more than one dish, so the plan reads as a list
+        // rather than as a single row with a count beside it.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_TWO_PLANS") else { return }
+            kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
+            let now = Date()
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "上海青", quantity: 1, unit: "把", expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: now)),
+                InventoryImportItem(name: "鸡蛋", quantity: 2, unit: "个", expiryDate: nil, isStaple: true)
+            ])
+            if let eggIndex = kitchenStore.inventory.firstIndex(where: { $0.name == "鸡蛋" }) {
+                kitchenStore.inventory[eggIndex].lowStockThreshold = 12
+            }
+            kitchenStore.addPlans(
+                Recipe.samples.prefix(2).map { (recipe: $0, servings: 2) }
+            )
+            navigationStore.selectedTab = .today
+        }
+        // Both halves of carryover at once, so a test can prove they are shown
+        // in two different places: yesterday's portion is today's food, tonight's
+        // reservation is tomorrow's.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_CARRYOVER") else { return }
+            kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
+            if let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) {
+                mealPortionStore.setReservedForNextLunchPortions(1, from: yesterday)
+            }
+            mealPortionStore.setCurrentMealPortions(2, slot: .dinner)
+            mealPortionStore.setReservedForNextLunchPortions(1)
             navigationStore.selectedTab = .today
         }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_STOCK_IN") else { return }
             kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
             kitchenStore.importInventory([
                 InventoryImportItem(
                     name: "过期生菜",
@@ -633,6 +753,7 @@ struct ContentView: View {
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_STOCK_IN_ONLY") else { return }
             kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
             kitchenStore.addShopping(name: "牛奶", quantity: 1, unit: "盒")
             if let milk = kitchenStore.shoppingItems.first(where: { $0.name == "牛奶" }) {
                 kitchenStore.toggleShopping(milk)

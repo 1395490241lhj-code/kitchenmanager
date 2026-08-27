@@ -87,139 +87,144 @@ final class HomeDashboardSummaryTests: XCTestCase {
         XCTAssertEqual(HomeDashboardModuleIssue.issues(inventoryNotice: "已添加 1 项食材", shoppingNotice: ""), [])
     }
 
-    func testPrimaryActionAddsPlanWhenTodayIsEmpty() {
+    // MARK: - Needs attention (Home V2)
+    //
+    // The chips said 即将到期 2. They could not be acted on from Home and did not
+    // say which food was at risk. These tests pin the replacement: named rows,
+    // one deterministic order, and every fact appearing exactly once.
+
+    private func batch(_ name: String, inDays days: Int, portions: Int = 2) -> PreparedComponent {
+        PreparedComponent(
+            name: name,
+            portionsRemaining: portions,
+            state: .cooked,
+            storage: .refrigerated,
+            preparedAt: Date(),
+            expiryDate: calendar.date(byAdding: .day, value: days, to: Date())!
+        )
+    }
+
+    func testAttentionRowsNameTheFoodInsteadOfCountingIt() {
+        let summary = HomeDashboardSummary(
+            inventory: [item(name: "上海青", expiryDays: 1)],
+            todayPlans: [],
+            shoppingItems: []
+        )
+
+        XCTAssertEqual(summary.attentionItems.map(\.name), ["上海青"])
+        XCTAssertEqual(summary.attentionItems.map(\.detail), ["明天到期"])
+        // The count projection still exists — it is simply no longer what Home
+        // shows.
+        XCTAssertEqual(summary.expiringSoonCount, 1)
+    }
+
+    func testAttentionPriorityPutsSpoilageBeforeTidyingUp() {
+        let summary = HomeDashboardSummary(
+            inventory: [
+                item(name: "过期生菜", expiryDays: -1),
+                item(name: "上海青", expiryDays: 1),
+                item(name: "鸡蛋", quantity: 1, staple: true, threshold: 2)
+            ],
+            todayPlans: [],
+            shoppingItems: [
+                KitchenShoppingItem(name: "牛奶", isDone: true),
+                KitchenShoppingItem(name: "面包")
+            ],
+            preparedComponents: [batch("卤鸡腿", inDays: 1)]
+        )
+
+        XCTAssertEqual(
+            summary.attentionItems.map(\.kind),
+            [
+                .expiredInventory,
+                .preparedExpiring,
+                .expiringInventory,
+                .purchasedAwaitingStockIn,
+                .pendingShopping,
+                .lowStock
+            ],
+            "Food already going bad cannot wait; groceries waiting to be put away can. Low stock is about shopping later, so it comes last."
+        )
+    }
+
+    func testPreparedBatchesAppearOnAnyDayButOnlyWhileTimeSensitive() {
+        let summary = HomeDashboardSummary(
+            inventory: [],
+            todayPlans: [],
+            shoppingItems: [],
+            preparedComponents: [
+                batch("卤鸡腿", inDays: 1),
+                batch("已经过期的卤味", inDays: -2),
+                batch("腌鸡肉", inDays: 4)
+            ]
+        )
+
+        // Nothing here depends on the day type: the projection has no idea one
+        // exists. 腌鸡肉 is four days out and belongs on the board, not here.
+        XCTAssertEqual(summary.attentionItems.map(\.name), ["已经过期的卤味", "卤鸡腿"])
+        XCTAssertEqual(summary.attentionItems.map(\.detail), ["建议尽快吃完", "建议明天前吃完"])
+        XCTAssertTrue(summary.attentionItems.allSatisfy { $0.kind == .preparedExpiring })
+    }
+
+    /// Determinism, not a particular alphabet. The tie-break chain ends in
+    /// `localizedCompare` and then the record id, which is stable on any one
+    /// device — the same chain `MealPrepBoard` already uses — so the assertion
+    /// is that input order cannot change output order, not that a specific
+    /// collation wins.
+    func testAttentionOrderDoesNotDependOnInputOrderWhenItemsShareADate() {
+        let items = [item(name: "菠菜", expiryDays: 1), item(name: "白菜", expiryDays: 1)]
+        let forward = HomeDashboardSummary(inventory: items, todayPlans: [], shoppingItems: [])
+        let reversed = HomeDashboardSummary(inventory: items.reversed(), todayPlans: [], shoppingItems: [])
+
+        XCTAssertEqual(forward.attentionItems.count, 2)
+        XCTAssertEqual(forward.attentionItems.map(\.name), reversed.attentionItems.map(\.name))
+    }
+
+    /// Dates still win over names, whatever the collation does.
+    func testSoonerExpiryAlwaysOutranksLaterExpiry() {
+        let summary = HomeDashboardSummary(
+            inventory: [item(name: "后天", expiryDays: 2), item(name: "明天", expiryDays: 1)],
+            todayPlans: [],
+            shoppingItems: []
+        )
+
+        XCTAssertEqual(summary.attentionItems.map(\.name), ["明天", "后天"])
+    }
+
+    func testAttentionListIsBoundedAndSaysWhatItLeftOut() {
+        let inventory = (1...7).map { item(name: "临期\($0)", expiryDays: $0 % 3) }
+        let summary = HomeDashboardSummary(inventory: inventory, todayPlans: [], shoppingItems: [])
+
+        let task = HomePrimaryTask.resolve(
+            dayType: .cooking, dinnerIntent: .household,
+            planState: .empty, totalPlanCount: 0, completedPlanCount: 0
+        )
+        let shown = task.needsAttention(from: summary.attentionItems)
+
+        XCTAssertEqual(summary.attentionItems.count, 7)
+        XCTAssertEqual(shown.visible.count, HomeDashboardSummary.maximumVisibleAttentionItems)
+        XCTAssertEqual(shown.additional, 3, "A cap that is not reported reads as “that is everything”.")
+    }
+
+    func testHealthyKitchenProducesNoAttentionItems() {
         let summary = HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: [])
 
-        XCTAssertEqual(summary.primaryAction, .addTodayPlan)
+        XCTAssertTrue(summary.attentionItems.isEmpty)
+        XCTAssertFalse(summary.hasInventoryAlerts)
     }
 
-    func testPrimaryActionViewsPlanWhenTodayHasUnfinishedWork() {
+    func testEachInventoryFactProducesExactlyOneRow() {
         let summary = HomeDashboardSummary(
-            inventory: [],
-            todayPlans: [plan("已完成", cooked: true), plan("待完成")],
-            shoppingItems: []
-        )
-
-        XCTAssertEqual(summary.todayPlanState, .partial)
-        XCTAssertEqual(summary.primaryAction, .viewTodayPlan)
-    }
-
-    func testPrimaryActionBrowsesRecipesWhenTodayIsComplete() {
-        let summary = HomeDashboardSummary(
-            inventory: [],
-            todayPlans: [plan("已完成", cooked: true)],
-            shoppingItems: []
-        )
-
-        XCTAssertEqual(summary.primaryAction, .browseRecipes)
-    }
-
-    func testPurchasedItemsDrivePrimaryActionButExpiredWinsTheReminder() {
-        let purchased = KitchenShoppingItem(name: "牛奶", isDone: true)
-        let summary = HomeDashboardSummary(
-            inventory: [
-                item(name: "过期", expiryDays: -1),
-                item(name: "临期", expiryDays: 1),
-                item(name: "米", quantity: 1, staple: true, threshold: 2)
-            ],
-            todayPlans: [],
-            shoppingItems: [purchased, KitchenShoppingItem(name: "鸡蛋")]
-        )
-
-        XCTAssertEqual(summary.primaryAction, .stockInPurchased)
-        // The single reminder slot goes to the time-sensitive item.
-        XCTAssertEqual(summary.highestPriorityReminder, .expiredInventory(count: 1))
-    }
-
-    // MARK: - Expired outranks purchased-awaiting-stock-in
-
-    func testExpiredOnlyShowsExpiredReminder() {
-        let summary = HomeDashboardSummary(
-            inventory: [item(name: "过期", expiryDays: -1)],
+            inventory: [item(name: "过期生菜", expiryDays: -1)],
             todayPlans: [],
             shoppingItems: []
         )
 
-        XCTAssertEqual(summary.highestPriorityReminder, .expiredInventory(count: 1))
+        XCTAssertEqual(summary.attentionItems.count, 1)
+        XCTAssertEqual(Set(summary.attentionItems.map(\.id)).count, summary.attentionItems.count)
     }
 
-    func testPurchasedAwaitingStockInOnlyShowsStockInReminder() {
-        let summary = HomeDashboardSummary(
-            inventory: [],
-            todayPlans: [],
-            shoppingItems: [KitchenShoppingItem(name: "牛奶", isDone: true)]
-        )
-
-        XCTAssertEqual(summary.highestPriorityReminder, .purchasedAwaitingStockIn(count: 1))
-    }
-
-    func testExpiredOutranksPurchasedAwaitingStockInWhenBothPresent() {
-        let summary = HomeDashboardSummary(
-            inventory: [item(name: "过期", expiryDays: -1)],
-            todayPlans: [],
-            shoppingItems: [KitchenShoppingItem(name: "牛奶", isDone: true)]
-        )
-
-        XCTAssertEqual(summary.highestPriorityReminder, .expiredInventory(count: 1))
-        // Stocking in remains reachable through the primary action.
-        XCTAssertEqual(summary.primaryAction, .stockInPurchased)
-    }
-
-    func testExpiredReminderPrecedesExpiringShoppingAndLowStock() {
-        let summary = HomeDashboardSummary(
-            inventory: [
-                item(name: "过期", expiryDays: -1),
-                item(name: "临期", expiryDays: 1),
-                item(name: "米", quantity: 1, staple: true, threshold: 2)
-            ],
-            todayPlans: [],
-            shoppingItems: [KitchenShoppingItem(name: "鸡蛋")]
-        )
-
-        XCTAssertEqual(summary.highestPriorityReminder, .expiredInventory(count: 1))
-    }
-
-    func testExpiringReminderPrecedesPendingShoppingAndLowStock() {
-        let summary = HomeDashboardSummary(
-            inventory: [
-                item(name: "临期一", expiryDays: 1),
-                item(name: "临期二", expiryDays: 2),
-                item(name: "米", quantity: 1, staple: true, threshold: 2)
-            ],
-            todayPlans: [],
-            shoppingItems: [KitchenShoppingItem(name: "鸡蛋")]
-        )
-
-        XCTAssertEqual(summary.highestPriorityReminder, .expiringInventory(count: 2))
-    }
-
-    func testPendingShoppingReminderPrecedesLowStock() {
-        let summary = HomeDashboardSummary(
-            inventory: [item(name: "米", quantity: 1, staple: true, threshold: 2)],
-            todayPlans: [],
-            shoppingItems: [KitchenShoppingItem(name: "鸡蛋"), KitchenShoppingItem(name: "青菜")]
-        )
-
-        XCTAssertEqual(summary.highestPriorityReminder, .pendingShopping(count: 2))
-    }
-
-    func testLowStockIsUsedWhenNoHigherPriorityReminderExists() {
-        let summary = HomeDashboardSummary(
-            inventory: [item(name: "米", quantity: 1, staple: true, threshold: 2)],
-            todayPlans: [],
-            shoppingItems: []
-        )
-
-        XCTAssertEqual(summary.highestPriorityReminder, .lowStock(count: 1))
-    }
-
-    func testNoReminderReturnsNil() {
-        let summary = HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: [])
-
-        XCTAssertNil(summary.highestPriorityReminder)
-    }
-
-    func testPurchasedItemsAreAggregatedWithoutChangingPendingPreview() {
+    func testShoppingAlertsBecomeOneNamedRowEach() {
         let summary = HomeDashboardSummary(
             inventory: [],
             todayPlans: [],
@@ -233,6 +238,33 @@ final class HomeDashboardSummaryTests: XCTestCase {
         XCTAssertEqual(summary.purchasedShoppingCount, 2)
         XCTAssertEqual(summary.pendingShoppingCount, 1)
         XCTAssertEqual(summary.shoppingPreview.map(\.name), ["鸡蛋"])
-        XCTAssertEqual(summary.highestPriorityReminder, .purchasedAwaitingStockIn(count: 2))
+        XCTAssertEqual(
+            summary.attentionItems.map { "\($0.name)·\($0.detail)" },
+            ["已买的 2 项·等待入库", "买菜清单·还有 1 项没买"]
+        )
+    }
+
+    func testInventoryDetailUsesRelativeWordingWhereAPersonWould() {
+        XCTAssertEqual(HomeAttentionCopy.inventoryDetail(for: item(name: "a", expiryDays: -2)), "已过期 2 天")
+        XCTAssertEqual(HomeAttentionCopy.inventoryDetail(for: item(name: "b", expiryDays: 0)), "今天到期")
+        XCTAssertEqual(HomeAttentionCopy.inventoryDetail(for: item(name: "c", expiryDays: 1)), "明天到期")
+        XCTAssertEqual(HomeAttentionCopy.inventoryDetail(for: item(name: "d", expiryDays: 3)), "3 天后到期")
+        XCTAssertEqual(HomeAttentionCopy.inventoryDetail(for: item(name: "e")), "未设置保质期")
+    }
+
+    func testOutOfStockAndLowStockReadDifferently() {
+        let summary = HomeDashboardSummary(
+            inventory: [
+                item(name: "橄榄油", quantity: 0, staple: true, threshold: 2),
+                item(name: "鸡蛋", quantity: 1, staple: true, threshold: 2)
+            ],
+            todayPlans: [],
+            shoppingItems: []
+        )
+
+        XCTAssertEqual(
+            summary.attentionItems.map { "\($0.name)·\($0.detail)" },
+            ["橄榄油·已用完", "鸡蛋·库存偏低"]
+        )
     }
 }

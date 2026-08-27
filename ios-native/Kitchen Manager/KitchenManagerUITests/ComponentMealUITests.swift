@@ -19,7 +19,7 @@ final class ComponentMealUITests: XCTestCase {
         ] + extraArguments
         app.launch()
         XCTAssertTrue(
-            app.staticTexts["home.mealPrep.section"].waitForExistence(timeout: 10),
+            app.buttons["home.mealPrep.add"].waitForExistence(timeout: 10),
             "the meal prep board must be showing before anything else is asserted"
         )
         return app
@@ -69,10 +69,10 @@ final class ComponentMealUITests: XCTestCase {
         let app = launchSeeded()
 
         XCTAssertFalse(
-            app.staticTexts["home.recommendation.section"].exists,
+            app.buttons["home.recommendation.refresh"].exists,
             "the board replaces the slot rather than adding a section"
         )
-        XCTAssertFalse(app.staticTexts["home.quickMeal.section"].exists)
+        XCTAssertFalse(app.staticTexts["home.quickMeal.title"].exists)
         attachScreenshot(of: app, named: "meal-prep-board-standard")
     }
 
@@ -101,7 +101,7 @@ final class ComponentMealUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_EMPTY_KITCHEN", "UITEST_FORCE_MEAL_PREP_DAY"]
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["home.mealPrep.section"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["home.mealPrep.add"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["home.mealPrep.empty"].exists)
         XCTAssertEqual(app.staticTexts["home.mealPrep.empty"].label, "还没有备餐")
         XCTAssertTrue(app.buttons["home.mealPrep.add"].exists)

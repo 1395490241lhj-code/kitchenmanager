@@ -8,25 +8,30 @@ final class HomeDashboardPresentationTests: XCTestCase {
         XCTAssertEqual(HomeDatePresentation.text(for: date, timeZone: TimeZone(secondsFromGMT: 0)!), "7月22日 星期三")
     }
 
-    func testReminderPrecedesClipboardAndModuleIssues() {
+    func testClipboardPromptPrecedesModuleIssues() {
         XCTAssertEqual(
             HomeDashboardPresentation.supplementarySections(
-                hasReminder: true,
                 showsClipboardPrompt: true,
                 hasModuleIssues: true
             ),
-            [.reminder, .clipboardPrompt, .moduleIssues]
+            [.clipboardPrompt, .moduleIssues]
         )
     }
 
     func testAbsentPresentationSectionsAreNotInsertedAsPlaceholders() {
         XCTAssertEqual(
             HomeDashboardPresentation.supplementarySections(
-                hasReminder: false,
                 showsClipboardPrompt: true,
                 hasModuleIssues: false
             ),
             [.clipboardPrompt]
+        )
+        XCTAssertEqual(
+            HomeDashboardPresentation.supplementarySections(
+                showsClipboardPrompt: false,
+                hasModuleIssues: false
+            ),
+            []
         )
     }
 }

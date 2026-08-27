@@ -148,6 +148,32 @@ final class MealPortionStore: ObservableObject {
     /// any reservation it created. A reservation that merely *targets* `date` is
     /// left alone — that food was arranged yesterday and is not today's decision
     /// to reset.
+#if DEBUG
+    /// UI-test bootstrap. Clears **both** directions of carryover so one seeded
+    /// launch cannot inherit the previous one's portions.
+    ///
+    /// `resetPortions()` alone is not enough: it clears today's entries and the
+    /// reservations *made* today, but an incoming reservation was made
+    /// yesterday, so its `sourceDate` is yesterday and it survives. A screenshot
+    /// or a test that never mentioned carryover would then render 午餐已留 1 份
+    /// inherited from an earlier launch.
+    ///
+    /// Unlike `DayRhythmStore.applyUITestDayTypeIfRequested`, this cannot be a
+    /// static UserDefaults write from `App.init`: this store loads its contents
+    /// in `init`, which runs before that body. It therefore has to go through
+    /// the live instance, from the seed that is about to write portions.
+    ///
+    /// Never runs for a real user: compiled out of release, and inert without a
+    /// `UITEST_` argument.
+    func applyUITestResetIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("UITEST_") }) else { return }
+        resetPortions()
+        for slot in MealSlot.allCases {
+            cancelIncomingReservation(slot: slot)
+        }
+    }
+#endif
+
     func resetPortions(on date: Date? = nil) {
         pruneIfNeeded()
         let date = date ?? currentDate()

@@ -3,23 +3,24 @@ import Foundation
 /// Presentation-only ordering for the Home dashboard's supporting content.
 /// Business priority remains owned by `HomeDashboardSummary`; this only keeps
 /// the visual and VoiceOver order deterministic once a state is already known.
+///
+/// There is no reminder section here. Home V2 folded every attention fact —
+/// expiring inventory, prepared batches, low stock, purchased-awaiting-stock-in
+/// and pending shopping — into the single named `需要处理` list built from
+/// `HomeDashboardSummary.attentionItems`. That list is the only Home attention
+/// presentation path; a second one is exactly the duplication it removed.
 enum HomeDashboardSupplementarySection: Hashable {
-    case reminder
     case clipboardPrompt
     case moduleIssues
 }
 
 enum HomeDashboardPresentation {
     static func supplementarySections(
-        hasReminder: Bool,
         showsClipboardPrompt: Bool,
         hasModuleIssues: Bool
     ) -> [HomeDashboardSupplementarySection] {
         var sections: [HomeDashboardSupplementarySection] = []
 
-        if hasReminder {
-            sections.append(.reminder)
-        }
         if showsClipboardPrompt {
             sections.append(.clipboardPrompt)
         }

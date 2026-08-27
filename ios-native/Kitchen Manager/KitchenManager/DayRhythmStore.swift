@@ -250,6 +250,8 @@ final class DayRhythmStore: ObservableObject {
             dayType = .quick
         } else if arguments.contains(uiTestMealPrepDayArgument) {
             dayType = .mealPrep
+        } else if arguments.contains(uiTestCookingDayArgument) {
+            dayType = .cooking
         } else {
             dayType = .flexible
         }
@@ -266,6 +268,11 @@ final class DayRhythmStore: ObservableObject {
     /// Opt in to the meal-prep board. Ignored when the quick argument is also
     /// present, so an existing quick-day test cannot change meaning.
     static let uiTestMealPrepDayArgument = "UITEST_FORCE_MEAL_PREP_DAY"
+    /// Opt in to a 做饭日. Lowest precedence of the three, so no existing test
+    /// changes meaning. Needed because 做饭日 and 自由日 share the recommendation
+    /// surface but not its wording — 今天做什么 · 还没决定 versus 今天怎么吃 — and
+    /// the difference is only reachable by pinning the day type.
+    static let uiTestCookingDayArgument = "UITEST_FORCE_COOKING_DAY"
 #endif
 
     private func persistTodayState() {

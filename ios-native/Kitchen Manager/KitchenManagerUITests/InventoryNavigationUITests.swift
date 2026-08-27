@@ -252,8 +252,10 @@ final class InventoryNavigationUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_HOME_DASHBOARD"]
         app.launch()
 
-        let expiredReminder = app.buttons["home.inventory.expired.button"]
+        // Home V2: the 已过期 count chip is a named row (过期生菜 · 已过期 1 天).
+        let expiredReminder = app.buttons["home.attention.expired.过期生菜"]
         XCTAssertTrue(expiredReminder.waitForExistence(timeout: 5))
+        XCTAssertTrue(scrollHomeUntilHittable(expiredReminder, in: app), "首页待处理行不可达")
         expiredReminder.tap()
 
         let clear = app.buttons["清除"]
@@ -310,6 +312,15 @@ final class InventoryNavigationUITests: XCTestCase {
         assertFilteredDualRiskSummary(in: app)
     }
 
+    /// 需要处理 sits below the primary region, so a row can start off-screen.
+    private func scrollHomeUntilHittable(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        for _ in 0..<8 {
+            if element.exists && element.isHittable { return true }
+            app.swipeUp()
+        }
+        return element.exists && element.isHittable
+    }
+
     private func assertFilteredDualRiskSummary(
         in app: XCUIApplication,
         file: StaticString = #filePath,
@@ -321,8 +332,10 @@ final class InventoryNavigationUITests: XCTestCase {
         XCTAssertTrue(homeTab.waitForExistence(timeout: 5), "首页 Tab 缺失", file: file, line: line)
         homeTab.tap()
 
-        let expiringReminder = app.buttons["home.inventory.expiring.button"]
+        // Home V2: 即将到期 2 became one row per item, soonest first.
+        let expiringReminder = app.buttons["home.attention.expiring.嫩豆腐"]
         XCTAssertTrue(expiringReminder.waitForExistence(timeout: 5), "首页临期提醒缺失", file: file, line: line)
+        XCTAssertTrue(scrollHomeUntilHittable(expiringReminder, in: app), "首页临期行不可达", file: file, line: line)
         expiringReminder.tap()
 
         let expiring = app.staticTexts["2 项即将到期"]

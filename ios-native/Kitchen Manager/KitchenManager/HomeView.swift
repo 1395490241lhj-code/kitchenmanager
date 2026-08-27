@@ -67,24 +67,31 @@ struct HomeView: View {
         HomeDashboardSummary(
             inventory: kitchenStore.inventory,
             todayPlans: kitchenStore.todayPlans,
-            shoppingItems: kitchenStore.shoppingItems
+            shoppingItems: kitchenStore.shoppingItems,
+            // Read-only. A batch going off used to be invisible on Home unless
+            // today happened to be a 备餐日; 需要处理 now sees it on every day.
+            preparedComponents: kitchenStore.preparedComponents
         )
     }
 
-    /// Carryover phrases for the header line, today's food first: what is already
-    /// waiting for this lunch, then what tonight is holding back for tomorrow.
+    /// Food an earlier day set aside for *today*. It is today's food, so it
+    /// belongs to Today Context.
+    ///
     /// Independent of the eat-out state — a portion set aside still exists even
-    /// when the meal is marked as eaten out.
-    private var portionSummaries: [String] {
-        var summaries: [String] = []
-        if let incoming = mealPortionStore.incomingReservation(slot: .lunch) {
-            summaries.append(MealPortionCopy.targetDaySummary(incoming.portions))
-        }
+    /// when the meal is marked as eaten out, and marking a meal 外食 must never
+    /// make food that exists disappear.
+    private var incomingCarryoverSummaries: [String] {
+        guard let incoming = mealPortionStore.incomingReservation(slot: .lunch) else { return [] }
+        return [MealPortionCopy.targetDaySummary(incoming.portions)]
+    }
+
+    /// Food tonight is holding back for *tomorrow*. It is not today's food and
+    /// it is not an attribute of today's rhythm, so it is a footer line rather
+    /// than another fragment concatenated onto the day summary.
+    private var outgoingCarryoverSummary: String? {
         let dinner = mealPortionStore.portionPlan(slot: .dinner)
-        if dinner.hasReservation {
-            summaries.append(MealPortionCopy.sourceDaySummary(dinner.reservedForNextLunchPortions))
-        }
-        return summaries
+        guard dinner.hasReservation else { return nil }
+        return MealPortionCopy.sourceDaySummary(dinner.reservedForNextLunchPortions)
     }
 
     /// Takes one portion off the batch the user tapped. Reuses the P1-B
@@ -119,102 +126,66 @@ struct HomeView: View {
 
     var body: some View {
         // `dashboard` is a computed property: reading it re-filters the whole
-        // inventory, today's plans and the shopping list, and the cost is
-        // linear in inventory size. Body used to read it three times (the
-        // card, the primary action, and the reminder section — four when a
-        // reminder is showing). Building it once here and passing that one
-        // value around keeps every reader on identical data as well.
+        // inventory, the prepared batches, today's plans and the shopping list,
+        // and the cost is linear in those. Building it once here and passing
+        // that one value around keeps every reader on identical data as well.
         let dashboard = self.dashboard
-        let supplementaryReminder = supplementaryReminder(for: dashboard)
+        let primaryTask = HomePrimaryTask.resolve(
+            dayType: dayRhythmStore.effectiveDayType(),
+            dinnerIntent: dayRhythmStore.intent(for: .dinner),
+            planState: dashboard.todayPlanState,
+            totalPlanCount: dashboard.totalPlanCount,
+            completedPlanCount: dashboard.completedPlanCount
+        )
         let homeRecommendation = recommendationStore.recommendedRecipes.first { recommendation in
             !kitchenStore.todayPlans.contains { $0.recipeID == recommendation.recipe.id }
         } ?? recommendationStore.currentRecommendation
+        let needsAttention = primaryTask.needsAttention(from: dashboard.attentionItems)
         return ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HomeDashboardHeader(
+            // Home V2's three layers, in this order and at three deliberately
+            // different weights: what kind of day this is, the one thing to do,
+            // and what else is worth handling. Everything else on this page is
+            // secondary status and must stay lighter than all three.
+            VStack(alignment: .leading, spacing: 24) {
+                HomeTodayContext(
                     householdName: householdName,
                     isRestoringAccount: authStore.activity == .restoring,
                     shouldShowHousehold: headerModel.shouldShowHousehold,
                     dayType: dayRhythmStore.effectiveDayType(),
                     eatOutSlots: MealSlot.allCases.filter { dayRhythmStore.intent(for: $0) == .eatOut },
-                    portionSummaries: portionSummaries,
+                    incomingCarryover: incomingCarryoverSummaries,
                     onOpenDayRhythm: { activeSheet = .todayRhythm }
                 )
 
-                if dashboard.totalPlanCount > 0 {
-                    TodayPlanSummaryCard(
-                        dashboard: dashboard,
-                        onViewPlan: { isShowingTodayPlan = true },
-                        onSelectPlan: { selectedPlan = $0 }
-                    )
-                }
+                primarySection(
+                    task: primaryTask,
+                    dashboard: dashboard,
+                    recommendation: homeRecommendation
+                )
 
-                // A quick day replaces the recommendation slot rather than adding
-                // to it: Home never shows both, and the section order is unchanged.
-                switch HomeRecommendationSlot.slot(for: dayRhythmStore.effectiveDayType()) {
-                case .quickMeal:
-                    let quickMeal = QuickMealAssemblyEngine.assemble(
-                        inventory: kitchenStore.inventory,
-                        preparedComponents: kitchenStore.preparedComponents
-                    )
-                    HomeQuickMealSection(
-                        content: QuickMealHomeContent.resolve(
-                            result: quickMeal,
-                            isEatingOutTonight: dayRhythmStore.intent(for: .dinner) == .eatOut,
-                            storedIndex: quickMealIndex,
-                            preparedComponents: kitchenStore.preparedComponents
-                        ),
-                        onRotate: {
-                            quickMealIndex = QuickMealRotation.nextIndex(
-                                stored: quickMealIndex,
-                                count: quickMeal.suggestions.count
-                            )
-                        },
-                        onUsePreparedPortion: usePreparedPortion
-                    )
-                case .mealPrepBoard:
-                    HomeMealPrepBoardSection(
-                        entries: MealPrepBoard.entries(from: kitchenStore.preparedComponents),
-                        onAdd: { isShowingPreparedComponents = true }
-                    )
-                case .recipeRecommendation:
-                    HomeRecommendationSection(
-                        recommendation: homeRecommendation,
-                        isLoading: recipeStore.isLoading && recommendationStore.recommendedRecipes.isEmpty,
-                        isGenerating: recommendationStore.isGeneratingRecommendations,
-                        errorMessage: recommendationStore.recommendationError,
-                        isDisplayingSamples: recipeStore.isDisplayingSamples,
-                        isAddedToToday: homeRecommendation.map {
-                            recommendation in kitchenStore.todayPlans.contains { $0.recipeID == recommendation.recipe.id }
-                        } ?? false,
-                        inventoryNames: kitchenStore.availableInventory.map(\.name),
-                        expiringNames: kitchenStore.expiringItems.map(\.name),
-                        onAddToToday: addRecommendationToPlan,
-                        onViewRecipe: { selectedRecipe = $0 },
-                        onRefresh: generateAIRecommendations,
-                        onViewAll: { isShowingRecommendations = true }
-                    )
-                }
+                HomeNeedsAttentionSection(
+                    items: needsAttention.visible,
+                    additionalCount: needsAttention.additional,
+                    onSelect: handleAttention,
+                    onViewAll: { navigationStore.showInventory(.all) }
+                )
 
-                HomeInventoryAttentionSummary(dashboard: dashboard) {
-                    handleReminder($0)
+                // Tomorrow's food is not today's context. It sits below the
+                // page's own three layers rather than inside the day summary,
+                // where it used to be concatenated onto the rhythm line and read
+                // as another attribute of today.
+                if let outgoing = outgoingCarryoverSummary {
+                    HomeCarryoverFooterRow(text: outgoing)
                 }
 
                 ForEach(
                     HomeDashboardPresentation.supplementarySections(
-                        hasReminder: supplementaryReminder != nil,
                         showsClipboardPrompt: shouldShowClipboardPrompt,
                         hasModuleIssues: !moduleIssues.isEmpty
                     ),
                     id: \.self
                 ) { section in
                     switch section {
-                    case .reminder:
-                        if let reminder = supplementaryReminder {
-                            HomeAttentionReminderRow(reminder: reminder) {
-                                handleReminder(reminder)
-                            }
-                        }
                     case .clipboardPrompt:
                         if let changeCount = clipboardPromptChangeCount {
                             ClipboardRecipeImportPrompt(
@@ -245,7 +216,10 @@ struct HomeView: View {
         }
         .safeAreaPadding(.bottom, 112)
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(headerModel.title)
+        // Deliberately stable. Home V2 expresses its state in the primary
+        // task's own heading (今天做什么 / 今天做这些 / 今天怎么吃 / 今天备的菜 /
+        // 今晚), so the navigation layer never moves under the reader.
+        .navigationTitle("今天")
         // Same rule Inventory and Recipes use: large at normal sizes, collapsing
         // to inline at Accessibility sizes where a large title would otherwise
         // take most of the first screen. Home used to render its greeting inside
@@ -554,16 +528,6 @@ struct HomeView: View {
         )
     }
 
-    private func supplementaryReminder(for dashboard: HomeDashboardSummary) -> HomeAttentionReminder? {
-        if dashboard.purchasedShoppingCount > 0 {
-            return .purchasedAwaitingStockIn(count: dashboard.purchasedShoppingCount)
-        }
-        if dashboard.pendingShoppingCount > 0 {
-            return .pendingShopping(count: dashboard.pendingShoppingCount)
-        }
-        return nil
-    }
-
     private func loadDefaultRecommendationsIfNeeded() {
         recommendationStore.loadDefaultRecommendations(
             recipes: sourceRecipes,
@@ -588,18 +552,120 @@ struct HomeView: View {
         showToast(alreadyAdded ? "已在今天" : "已加入今天", style: alreadyAdded ? .warning : .success)
     }
 
-    private func handleReminder(_ reminder: HomeAttentionReminder) {
-        switch reminder {
-        case .purchasedAwaitingStockIn:
-            navigationStore.showShoppingStockIn()
+    /// Home's single primary region. The heading comes from `HomePrimaryTask`
+    /// and the content follows from its kind, so there is exactly one place
+    /// where "what is this screen for right now" is decided.
+    ///
+    /// Everything below the content is a *link*, never a second card with its
+    /// own prominent button. That is the whole difference between decision mode
+    /// and execution mode: the capability stays, the weight does not.
+    @ViewBuilder
+    private func primarySection(
+        task: HomePrimaryTask,
+        dashboard: HomeDashboardSummary,
+        recommendation: RecipeRecommendation?
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomePrimaryHeader(task: task)
+
+            switch task.kind {
+            case .eatOut:
+                HomeEatOutPrimary()
+
+            case .planExecution:
+                TodayPlanSummaryCard(
+                    dashboard: dashboard,
+                    onViewPlan: { isShowingTodayPlan = true },
+                    onSelectPlan: { selectedPlan = $0 }
+                )
+
+            case .recipeRecommendation:
+                HomeRecommendationSection(
+                    recommendation: recommendation,
+                    isLoading: recipeStore.isLoading && recommendationStore.recommendedRecipes.isEmpty,
+                    isGenerating: recommendationStore.isGeneratingRecommendations,
+                    errorMessage: recommendationStore.recommendationError,
+                    isDisplayingSamples: recipeStore.isDisplayingSamples,
+                    isAddedToToday: recommendation.map { candidate in
+                        kitchenStore.todayPlans.contains { $0.recipeID == candidate.recipe.id }
+                    } ?? false,
+                    inventoryNames: kitchenStore.availableInventory.map(\.name),
+                    expiringNames: kitchenStore.expiringItems.map(\.name),
+                    onAddToToday: addRecommendationToPlan,
+                    onViewRecipe: { selectedRecipe = $0 },
+                    onRefresh: generateAIRecommendations,
+                    onViewAll: { isShowingRecommendations = true }
+                )
+
+            case .quickMeal:
+                let quickMeal = QuickMealAssemblyEngine.assemble(
+                    inventory: kitchenStore.inventory,
+                    preparedComponents: kitchenStore.preparedComponents
+                )
+                HomeQuickMealSection(
+                    content: QuickMealHomeContent.resolve(
+                        result: quickMeal,
+                        isEatingOutTonight: dayRhythmStore.intent(for: .dinner) == .eatOut,
+                        storedIndex: quickMealIndex,
+                        preparedComponents: kitchenStore.preparedComponents
+                    ),
+                    onRotate: {
+                        quickMealIndex = QuickMealRotation.nextIndex(
+                            stored: quickMealIndex,
+                            count: quickMeal.suggestions.count
+                        )
+                    },
+                    onUsePreparedPortion: usePreparedPortion
+                )
+
+            case .mealPrepBoard:
+                HomeMealPrepBoardSection(
+                    entries: MealPrepBoard.entries(from: kitchenStore.preparedComponents),
+                    onAdd: { isShowingPreparedComponents = true }
+                )
+            }
+
+            // Execution mode keeps recommendation one tap away and nothing more.
+            if task.showsRecommendationLink {
+                HomeSecondaryLinkRow(
+                    title: "想再加一道",
+                    systemImage: "sparkles",
+                    symbolTint: AppTheme.aiAccentForeground,
+                    identifier: "home.recommendation.moreLink",
+                    action: { isShowingRecommendations = true }
+                )
+            }
+
+            // A plan that exists but is not today's headline. Reachable, never
+            // prominent: Home must not say 今晚外食 and 开始准备 in one breath.
+            if task.secondaryPlanCount > 0 {
+                HomeSecondaryLinkRow(
+                    title: "今日仍有 \(task.secondaryPlanCount) 道计划",
+                    systemImage: "list.bullet",
+                    symbolTint: AppTheme.textSecondary,
+                    identifier: "home.plan.secondaryLink",
+                    action: { isShowingTodayPlan = true }
+                )
+            }
+        }
+    }
+
+    /// Every 需要处理 row goes to the place that can actually resolve it. The
+    /// destinations are the ones Home already used; only the row shapes changed.
+    private func handleAttention(_ item: HomeAttentionItem) {
+        switch item.kind {
         case .expiredInventory:
             navigationStore.showInventory(.expired)
         case .expiringInventory:
             navigationStore.showInventory(.expiringSoon)
-        case .pendingShopping:
-            navigationStore.selectedTab = .shopping
         case .lowStock:
             navigationStore.showInventory(.lowStock)
+        case .preparedExpiring:
+            isShowingPreparedComponents = true
+        case .purchasedAwaitingStockIn:
+            navigationStore.showShoppingStockIn()
+        case .pendingShopping:
+            navigationStore.selectedTab = .shopping
         }
     }
 }
@@ -705,31 +771,93 @@ private struct ClipboardRecipeImportPrompt: View {
 /// What stays here is what a `navigationTitle` cannot express — and it lands in
 /// the same place Recipes already puts "全部菜谱 · 19 道": a secondary line
 /// directly beneath the title.
-private struct HomeDashboardHeader: View {
+// MARK: - 1. Today Context
+//
+// Deliberately not a card. The day is stated in plain type directly on the
+// grouped canvas, so the page opens with a fact rather than with a container,
+// and the primary region below is the first surface the eye lands on.
+//
+// Before Home V2 this was a `.footnote` secondary line that read
+// 快手日 · 晚餐外食 · 午餐已留 1 份. That put the single most consequential state
+// on the screen — the one that decides what the whole primary region shows — at
+// the lowest weight on the page, next to the date and the household name.
+private struct HomeTodayContext: View {
     let householdName: String?
     let isRestoringAccount: Bool
     let shouldShowHousehold: Bool
     let dayType: DayType
+    /// Only the meals that differ from the default. `household` is the norm and
+    /// is never spelled out.
     let eatOutSlots: [MealSlot]
-    let portionSummaries: [String]
+    /// Food an earlier day left for today. Today's food, so it belongs here.
+    let incomingCarryover: [String]
     let onOpenDayRhythm: () -> Void
 
     private var dateText: String { HomeDatePresentation.text(for: .now) }
 
+    /// Everything that departs from an ordinary version of this day.
+    private var exceptions: [String] {
+        eatOutSlots.map(\.eatOutSummary) + incomingCarryover
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(dateText)
-                .font(.footnote)
+                .font(.subheadline)
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 .foregroundStyle(.secondary)
-            // Today's rhythm belongs to the same secondary line as the date, not
-            // to a card of its own — Home's sections stay exactly as they were.
-            HomeDayRhythmRow(
-                dayType: dayType,
-                eatOutSlots: eatOutSlots,
-                portionSummaries: portionSummaries,
-                action: onOpenDayRhythm
-            )
+                .accessibilityIdentifier("home.today.date")
+
+            Button(action: onOpenDayRhythm) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: dayType.homeSymbolName)
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(dayType.homeTint)
+                            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                            .accessibilityHidden(true)
+                        Text(dayType.homeSummaryTitle)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                            .accessibilityHidden(true)
+                        Spacer(minLength: 0)
+                    }
+                    // The sentence that makes the day type stop reading as
+                    // metadata: it says what today is for, in the reader's own
+                    // words, and the primary region below follows from it.
+                    // No identifiers on these: they are inside a Button whose
+                    // own accessibility label already carries every word (see
+                    // `accessibilityLabel` below), and a SwiftUI accessibility
+                    // modifier on an ancestor overrides its descendants' — so an
+                    // id here would silently erase `home.dayRhythm.row`.
+                    Text(dayType.homeExplanation)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !exceptions.isEmpty {
+                        Text(exceptions.joined(separator: " · "))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                // Deliberately uncapped below the symbol: the explanation
+                // follows the full Dynamic Type range and wraps at Accessibility
+                // sizes, pushing the rest of Home down. Keeping every word
+                // legible outranks keeping the primary task on the first screen.
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint("查看并调整今天的用餐安排")
+            .accessibilityIdentifier("home.dayRhythm.row")
+
             if shouldShowHousehold, let householdName {
                 Label(householdName, systemImage: "person.2")
                     .font(.footnote)
@@ -746,11 +874,138 @@ private struct HomeDashboardHeader: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("home.dashboard.header")
+    }
+
+    private var accessibilityLabel: String {
+        (["今天：\(dayType.homeSummaryTitle)", dayType.homeExplanation] + exceptions)
+            .joined(separator: "，")
     }
 }
 
+extension DayType {
+    /// Home only. Kept beside the day's other display values rather than in a
+    /// view, so the four rhythms cannot drift apart across surfaces.
+    var homeSymbolName: String {
+        switch self {
+        case .cooking: return "fork.knife"
+        case .quick: return "bolt.fill"
+        case .mealPrep: return "shippingbox.fill"
+        case .flexible: return "sun.max.fill"
+        }
+    }
+
+    /// Semantic roles only — cooking green for the cooking path, management blue
+    /// for the put-by/production day, neutral for a day with no fixed shape.
+    /// 快手日 borrows the `warningInk` hue because it reads as "quick", not
+    /// because anything is wrong; it is a text-safe token either way.
+    var homeTint: Color {
+        switch self {
+        case .cooking: return AppTheme.cookingAccentForeground
+        case .quick: return AppTheme.warningInk
+        case .mealPrep: return AppTheme.managementAccentForeground
+        case .flexible: return AppTheme.textSecondary
+        }
+    }
+}
+
+// MARK: - 2. One primary task
+
+/// The heading for Home's single primary region. This is where the page's state
+/// is visible, which is what lets the navigation title stay a stable 今天.
+private struct HomePrimaryHeader: View {
+    let task: HomePrimaryTask
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                title
+                detail
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                title
+                detail
+            }
+        }
+    }
+
+    private var title: some View {
+        Text(task.title)
+            .font(.title2.weight(.bold))
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("home.primary.title")
+    }
+
+    @ViewBuilder private var detail: some View {
+        if let detail = task.detail {
+            Text(detail)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("home.primary.detail")
+        }
+    }
+}
+
+/// Tonight is settled. Home states that and stops — it does not invent a task,
+/// and it does not quietly fall back to proposing a meal.
+private struct HomeEatOutPrimary: View {
+    var body: some View {
+        Text("今天不用准备晚餐")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                Color(.secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+            )
+            .accessibilityIdentifier("home.primary.eatOut")
+    }
+}
+
+/// A link that sits under the primary content. Never a card, never prominent —
+/// this shape is how a demoted capability stays reachable.
+private struct HomeSecondaryLinkRow: View {
+    let title: String
+    let systemImage: String
+    var symbolTint: Color = AppTheme.brand
+    let identifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.subheadline)
+                    .foregroundStyle(symbolTint)
+                    .frame(width: 22)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.brand)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: AppTheme.minimumHitTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// Execution mode's content: what was already decided, and one way to start.
+///
+/// The card no longer carries a `.title3` heading of its own — `HomePrimaryHeader`
+/// owns the title now, which is what stops Home from showing three or four
+/// same-weight section headings competing for the same attention.
 private struct TodayPlanSummaryCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -759,54 +1014,40 @@ private struct TodayPlanSummaryCard: View {
     let onSelectPlan: (MealPlanItem) -> Void
 
     var body: some View {
-        if let plan = dashboard.displayedPlans.first {
+        if let leadPlan = dashboard.displayedPlans.first {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("今日计划")
-                        .font(.title3.weight(.semibold))
-                        .accessibilityAddTraits(.isHeader)
-                        .accessibilityIdentifier("home.today.plan.card")
-                    Text(planProgressText)
+                VStack(spacing: 0) {
+                    ForEach(Array(dashboard.displayedPlans.enumerated()), id: \.element.id) { index, plan in
+                        planRow(plan)
+                        if index < dashboard.displayedPlans.count - 1 {
+                            Divider().padding(.leading, 34)
+                        }
+                    }
+                }
+
+                if dashboard.additionalPlanCount > 0 {
+                    Text("另有 \(dashboard.additionalPlanCount) 道")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
+                        .accessibilityIdentifier("home.today.plan.overflow")
                 }
 
-                Button {
-                    onSelectPlan(plan)
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: plan.isCooked ? "checkmark.circle" : "fork.knife.circle")
-                            .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
-                            .font(.title3)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(plan.recipeName)
-                                .font(.headline)
-                                .foregroundStyle(plan.isCooked ? .secondary : .primary)
-                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                            Text(planSubtitle(plan))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 8)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                            .accessibilityHidden(true)
-                    }
-                    .frame(minHeight: AppTheme.minimumHitTarget)
-                    .contentShape(Rectangle())
+                // The one prominent control on the whole page in this state.
+                Button(leadPlan.isCooked ? "查看菜谱" : "开始准备") {
+                    onSelectPlan(leadPlan)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(plan.recipeName)，\(plan.isCooked ? "已完成" : "\(plan.servings) 人份，未完成")")
-                .accessibilityHint("打开菜谱并开始准备")
-                .accessibilityIdentifier("home.today.plan.row.\(plan.recipeID)")
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.cookingActionFill)
+                .foregroundStyle(AppTheme.onCookingAction)
+                .homeActionControl()
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("home.today.plan.start")
 
-                ViewThatFits(in: .horizontal) {
-                    planActions(axis: .horizontal, plan: plan)
-                    planActions(axis: .vertical, plan: plan)
-                }
+                Button("查看全部", action: onViewPlan)
+                    .foregroundStyle(AppTheme.brand)
+                    .homeActionControl()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("home.today.plan.viewAll")
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -814,51 +1055,47 @@ private struct TodayPlanSummaryCard: View {
         }
     }
 
-    private func planActions(axis: Axis, plan: MealPlanItem) -> some View {
-        Group {
-            if axis == .horizontal {
-                HStack(spacing: 8) { actionButtons(plan: plan) }
-            } else {
-                VStack(spacing: 8) { actionButtons(plan: plan) }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func actionButtons(plan: MealPlanItem) -> some View {
-        Button(plan.isCooked ? "查看菜谱" : "开始准备") {
+    private func planRow(_ plan: MealPlanItem) -> some View {
+        Button {
             onSelectPlan(plan)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: plan.isCooked ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
+                    .font(.title3)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plan.recipeName)
+                        .font(.headline)
+                        .foregroundStyle(plan.isCooked ? .secondary : .primary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: AppTheme.minimumHitTarget)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.borderedProminent)
-        .tint(AppTheme.cookingActionFill)
-        .foregroundStyle(AppTheme.onCookingAction)
-        .homeActionControl()
-        .frame(maxWidth: .infinity)
-        .accessibilityIdentifier("home.today.plan.start")
-
-        Button("查看全部", action: onViewPlan)
-            .foregroundStyle(AppTheme.brand)
-            .homeActionControl()
-            .frame(maxWidth: .infinity)
-            .accessibilityIdentifier("home.today.plan.viewAll")
-    }
-
-    private var planProgressText: String {
-        switch dashboard.todayPlanState {
-        case .empty: ""
-        case .active: "\(dashboard.totalPlanCount) 道待完成"
-        case .partial: "已完成 \(dashboard.completedPlanCount)/\(dashboard.totalPlanCount)"
-        case .completed: "已全部完成"
-        }
-    }
-
-    private func planSubtitle(_ plan: MealPlanItem) -> String {
-        let remaining = max(0, dashboard.totalPlanCount - 1)
-        let status = plan.isCooked ? "已完成" : "\(plan.servings) 人份"
-        return remaining > 0 ? "\(status) · 另有 \(remaining) 道" : status
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(plan.recipeName)，\(plan.isCooked ? "已完成" : "\(plan.servings) 人份，未完成")")
+        .accessibilityHint("打开菜谱并开始准备")
+        .accessibilityIdentifier("home.today.plan.row.\(plan.recipeID)")
     }
 }
 
+/// Decision mode's content. Unchanged in behaviour — same recommendation, same
+/// three actions, same loading / error / sample states. What changed is that it
+/// no longer owns a `.title3` heading and no longer sits beside a Today Plan
+/// card of equal weight: `HomePrimaryHeader` names it, and it renders only when
+/// it *is* the primary task.
 private struct HomeRecommendationSection: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -877,28 +1114,6 @@ private struct HomeRecommendationSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    sectionTitle
-                    Spacer(minLength: 8)
-                    refreshButton
-                    viewAllButton
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    sectionTitle
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 8) {
-                            refreshButton
-                            viewAllButton
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            refreshButton
-                            viewAllButton
-                        }
-                    }
-                }
-            }
-
             if isDisplayingSamples {
                 SampleFallbackNotice(isRetrying: isLoading, onRetry: nil)
             }
@@ -930,24 +1145,18 @@ private struct HomeRecommendationSection: View {
                     .foregroundStyle(AppTheme.warningInk)
                     .accessibilityIdentifier("home.recommendation.error")
             }
+
+            // The refresh and browse affordances live below the card rather than
+            // beside a section title, so nothing competes with the primary
+            // heading. AI stays visually subordinate to cooking, as before.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { auxiliaryButtons }
+                VStack(alignment: .leading, spacing: 0) { auxiliaryButtons }
+            }
         }
     }
 
-    private var sectionTitle: some View {
-        Text("今日推荐")
-            .font(.title3.weight(.semibold))
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier("home.recommendation.section")
-    }
-
-    private var viewAllButton: some View {
-        Button("查看全部", action: onViewAll)
-            .foregroundStyle(AppTheme.brand)
-            .homeActionControl()
-            .accessibilityIdentifier("home.recommendation.viewAll")
-    }
-
-    private var refreshButton: some View {
+    @ViewBuilder private var auxiliaryButtons: some View {
         Button(action: onRefresh) {
             HStack(spacing: 6) {
                 if isGenerating {
@@ -956,16 +1165,28 @@ private struct HomeRecommendationSection: View {
                         .tint(AppTheme.aiAccentForeground)
                 } else {
                     Image(systemName: "sparkles")
+                        .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                 }
                 Text(isGenerating ? "正在生成…" : "AI 换几道")
             }
+            .font(.subheadline.weight(.medium))
             .foregroundStyle(AppTheme.aiAccentForeground)
+            .frame(minHeight: AppTheme.minimumHitTarget)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.bordered)
-        .tint(AppTheme.aiAccentForeground.opacity(0.30))
-        .homeActionControl()
+        .buttonStyle(.plain)
         .disabled(isGenerating)
         .accessibilityIdentifier("home.recommendation.refresh")
+
+        Button(action: onViewAll) {
+            Text("查看全部")
+                .font(.subheadline.weight(.medium))
+                .frame(minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
+        }
+        .foregroundStyle(AppTheme.brand)
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("home.recommendation.viewAll")
     }
 
     private func recommendationCard(_ recommendation: RecipeRecommendation) -> some View {
@@ -986,43 +1207,25 @@ private struct HomeRecommendationSection: View {
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 .accessibilityIdentifier("home.recommendation.reason")
 
-            ViewThatFits(in: .horizontal) {
-                recommendationActions(recipe, axis: .horizontal)
-                recommendationActions(recipe, axis: .vertical)
-            }
+            Button(isAddedToToday ? "已加入今天" : "加入今天") { onAddToToday(recipe) }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.cookingActionFill)
+                .foregroundStyle(AppTheme.onCookingAction)
+                .homeActionControl()
+                .disabled(isAddedToToday)
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("home.recommendation.addToday")
+
+            Button("查看菜谱") { onViewRecipe(recipe) }
+                .buttonStyle(.bordered)
+                .tint(AppTheme.cookingAccentForeground.opacity(0.45))
+                .foregroundStyle(AppTheme.cookingAccentForeground)
+                .homeActionControl()
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("home.recommendation.viewRecipe")
         }
         .padding(16)
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
-    }
-
-    private func recommendationActions(_ recipe: Recipe, axis: Axis) -> some View {
-        Group {
-            if axis == .horizontal {
-                HStack(spacing: 8) { recommendationButtons(recipe) }
-            } else {
-                VStack(spacing: 8) { recommendationButtons(recipe) }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func recommendationButtons(_ recipe: Recipe) -> some View {
-        Button(isAddedToToday ? "已加入今天" : "加入今天") { onAddToToday(recipe) }
-            .buttonStyle(.borderedProminent)
-            .tint(AppTheme.cookingActionFill)
-            .foregroundStyle(AppTheme.onCookingAction)
-            .homeActionControl()
-            .disabled(isAddedToToday)
-            .frame(maxWidth: .infinity)
-            .accessibilityIdentifier("home.recommendation.addToday")
-
-        Button("查看菜谱") { onViewRecipe(recipe) }
-            .buttonStyle(.bordered)
-            .tint(AppTheme.cookingAccentForeground.opacity(0.45))
-            .foregroundStyle(AppTheme.cookingAccentForeground)
-            .homeActionControl()
-            .frame(maxWidth: .infinity)
-            .accessibilityIdentifier("home.recommendation.viewRecipe")
     }
 
     private func recommendationReason(_ recipe: Recipe) -> String {
@@ -1042,68 +1245,191 @@ private struct HomeRecommendationSection: View {
     }
 }
 
-private struct HomeInventoryAttentionSummary: View {
-    let dashboard: HomeDashboardSummary
-    let action: (HomeAttentionReminder) -> Void
-
-    private var reminders: [HomeAttentionReminder] {
-        var result: [HomeAttentionReminder] = []
-        if dashboard.expiredCount > 0 { result.append(.expiredInventory(count: dashboard.expiredCount)) }
-        if dashboard.expiringSoonCount > 0 { result.append(.expiringInventory(count: dashboard.expiringSoonCount)) }
-        if dashboard.lowStockCount > 0 { result.append(.lowStock(count: dashboard.lowStockCount)) }
-        return result
-    }
+// MARK: - 3. Needs attention
+//
+// Replaces the count chips (即将到期 2) and the separate shopping reminder row
+// with one lightweight, named list. A count could not be acted on from Home and
+// did not say which food was at risk; a named row can be read and tapped.
+//
+// The section is deliberately quieter than the primary task: a `.subheadline`
+// label rather than a `.title3` heading, and plain rows rather than a card with
+// its own controls.
+private struct HomeNeedsAttentionSection: View {
+    let items: [HomeAttentionItem]
+    let additionalCount: Int
+    let onSelect: (HomeAttentionItem) -> Void
+    let onViewAll: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("库存待处理")
-                .font(.title3.weight(.semibold))
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("home.inventory.summary")
-
-            if reminders.isEmpty {
-                Label("今天没有需要处理的食材", systemImage: "checkmark.circle")
-                    .font(.subheadline)
+        if items.isEmpty {
+            // A single reassuring line, with no heading above it. An empty
+            // section should not claim a heading's worth of the page.
+            Label("今天没有需要处理的食材", systemImage: "checkmark.circle")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+                .accessibilityIdentifier("home.attention.healthy")
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("需要处理")
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .frame(minHeight: AppTheme.minimumHitTarget)
-                    .accessibilityIdentifier("home.inventory.healthy")
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 8) { reminderButtons(reminders) }
-                    if reminders.count > 2 {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) { reminderButtons(Array(reminders.prefix(2))) }
-                            reminderButtons(Array(reminders.dropFirst(2)))
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.leading, 4)
+                    .accessibilityIdentifier("home.attention.section")
+
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        HomeAttentionRow(item: item) { onSelect(item) }
+                        if index < items.count - 1 || additionalCount > 0 {
+                            Divider().padding(.leading, 34)
                         }
                     }
-                    VStack(alignment: .leading, spacing: 8) { reminderButtons(reminders) }
+
+                    // Never a silent cap: what the list left out is stated and
+                    // reachable.
+                    if additionalCount > 0 {
+                        Button(action: onViewAll) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .frame(width: 22)
+                                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                                    .accessibilityHidden(true)
+                                Text("还有 \(additionalCount) 项")
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppTheme.brand)
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                                    .accessibilityHidden(true)
+                            }
+                            .frame(minHeight: AppTheme.minimumHitTarget)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("home.attention.overflow")
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 2)
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
+                )
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct HomeAttentionRow: View {
+    let item: HomeAttentionItem
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: item.kind.systemImage)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(item.kind.tint)
+                    .frame(width: 22)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityHidden(true)
+                // Name first, always. At Accessibility sizes the detail stacks
+                // under it rather than truncating either half.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        Text(item.name).foregroundStyle(.primary)
+                        Text("·").foregroundStyle(.secondary)
+                        Text(item.detail).foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.name).foregroundStyle(.primary)
+                        Text(item.detail).foregroundStyle(.secondary)
+                    }
+                }
+                .font(.subheadline)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: AppTheme.minimumHitTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.name)，\(item.detail)")
+        .accessibilityHint(item.kind.accessibilityHint)
+        .accessibilityIdentifier(item.kind.identifier(for: item))
+    }
+}
+
+private extension HomeAttentionItem.Kind {
+    var systemImage: String {
+        switch self {
+        case .expiredInventory: "exclamationmark.circle.fill"
+        case .preparedExpiring: "takeoutbag.and.cup.and.straw.fill"
+        case .expiringInventory: "clock.fill"
+        case .purchasedAwaitingStockIn: "shippingbox.fill"
+        case .pendingShopping: "cart.fill"
+        case .lowStock: "shippingbox"
+        }
     }
 
-    @ViewBuilder
-    private func reminderButtons(_ reminders: [HomeAttentionReminder]) -> some View {
-        ForEach(reminders, id: \.identifier) { reminder in
-            Button { action(reminder) } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: reminder.compactSystemImage)
-                        .foregroundStyle(reminder.compactTint)
-                        .accessibilityHidden(true)
-                    Text(reminder.compactTitle)
-                        .foregroundStyle(AppTheme.textPrimary)
-                }
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: AppTheme.minimumHitTarget)
-                    .background(reminder.compactTint.opacity(0.10), in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(reminder.compactTitle)
-            .accessibilityHint("查看并处理")
-            .accessibilityIdentifier(reminder.identifier)
+    var tint: Color {
+        switch self {
+        case .expiredInventory: AppTheme.inventoryExpired
+        case .preparedExpiring: AppTheme.warningInk
+        case .expiringInventory: AppTheme.inventoryExpiring
+        case .purchasedAwaitingStockIn, .pendingShopping: AppTheme.primary
+        case .lowStock: AppTheme.textSecondary
         }
+    }
+
+    var accessibilityHint: String {
+        switch self {
+        case .expiredInventory, .expiringInventory: "查看并处理这项食材"
+        case .preparedExpiring: "打开备餐记录"
+        case .purchasedAwaitingStockIn: "确认后计入现有库存"
+        case .pendingShopping: "继续完成本次买菜清单"
+        case .lowStock: "查看需要补充的常备食材"
+        }
+    }
+
+    /// The two batch operations keep the identifiers they have always had, so
+    /// the existing stock-in and shopping tests still address the same control.
+    /// Per-item rows are addressed by name, which is what a test asserting
+    /// "Home names the food" needs to look for.
+    func identifier(for item: HomeAttentionItem) -> String {
+        switch self {
+        case .purchasedAwaitingStockIn: "home.shopping.stockIn.button"
+        case .pendingShopping: "home.shopping.pending.button"
+        case .expiredInventory: "home.attention.expired.\(item.name)"
+        case .expiringInventory: "home.attention.expiring.\(item.name)"
+        case .preparedExpiring: "home.attention.prepared.\(item.name)"
+        case .lowStock: "home.attention.lowStock.\(item.name)"
+        }
+    }
+}
+
+/// Tomorrow's food, stated once, below everything the page is actually about.
+private struct HomeCarryoverFooterRow: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "arrow.turn.down.right")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.leading, 4)
+            .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+            .accessibilityIdentifier("home.carryover.outgoing")
     }
 }
 
@@ -1113,136 +1439,6 @@ private extension View {
             .controlSize(.regular)
             .buttonBorderShape(.capsule)
             .frame(minHeight: AppTheme.minimumHitTarget)
-    }
-}
-
-private extension HomeAttentionReminder {
-    var compactTitle: String {
-        switch self {
-        case .expiredInventory(let count): "已过期 \(count)"
-        case .expiringInventory(let count): "即将到期 \(count)"
-        case .lowStock(let count): "需补货 \(count)"
-        case .purchasedAwaitingStockIn(let count): "待入库 \(count)"
-        case .pendingShopping(let count): "待购买 \(count)"
-        }
-    }
-
-    var compactSystemImage: String {
-        switch self {
-        case .expiredInventory: "exclamationmark.circle.fill"
-        case .expiringInventory: "clock.fill"
-        case .lowStock: "shippingbox"
-        case .purchasedAwaitingStockIn: "shippingbox.fill"
-        case .pendingShopping: "cart.fill"
-        }
-    }
-
-    var compactTint: Color {
-        switch self {
-        case .expiredInventory: AppTheme.inventoryExpired
-        case .expiringInventory: AppTheme.inventoryExpiring
-        case .lowStock: AppTheme.textSecondary
-        case .purchasedAwaitingStockIn, .pendingShopping: AppTheme.primary
-        }
-    }
-
-    var identifier: String {
-        switch self {
-        case .purchasedAwaitingStockIn: "home.shopping.stockIn.button"
-        case .expiredInventory: "home.inventory.expired.button"
-        case .expiringInventory: "home.inventory.expiring.button"
-        case .pendingShopping: "home.shopping.pending.button"
-        case .lowStock: "home.inventory.lowstock.button"
-        }
-    }
-}
-
-private struct HomeAttentionReminderRow: View {
-    let reminder: HomeAttentionReminder
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: systemImage)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 28)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text(subtitle)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
-            }
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 15)
-        .padding(.vertical, 8)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
-        .accessibilityIdentifier(identifier)
-        .accessibilityLabel("\(title)，\(subtitle)")
-        .accessibilityHint("双击查看并处理")
-    }
-
-    private var title: String {
-        switch reminder {
-        case .purchasedAwaitingStockIn(let count): "\(count) 项已购买食材等待入库"
-        case .expiredInventory(let count): "\(count) 项食材已过期"
-        case .expiringInventory(let count): "\(count) 项食材即将到期"
-        case .pendingShopping(let count): "买菜清单还有 \(count) 项未完成"
-        case .lowStock(let count): "\(count) 项常备食材库存不足"
-        }
-    }
-
-    private var subtitle: String {
-        switch reminder {
-        case .purchasedAwaitingStockIn: "确认后计入现有库存"
-        case .expiredInventory: "查看并处理已过期食材"
-        case .expiringInventory: "优先安排使用这些食材"
-        case .pendingShopping: "继续完成本次买菜清单"
-        case .lowStock: "查看需要补充的常备食材"
-        }
-    }
-
-    private var systemImage: String {
-        switch reminder {
-        case .purchasedAwaitingStockIn: "shippingbox.fill"
-        case .expiredInventory: "exclamationmark.circle.fill"
-        case .expiringInventory: "clock.fill"
-        case .pendingShopping: "cart.fill"
-        case .lowStock: "shippingbox"
-        }
-    }
-
-    private var tint: Color {
-        switch reminder {
-        case .purchasedAwaitingStockIn: AppTheme.primary
-        case .expiredInventory: AppTheme.inventoryExpired
-        case .expiringInventory: AppTheme.warning
-        case .pendingShopping: AppTheme.primary
-        case .lowStock: AppTheme.warning
-        }
-    }
-
-    private var identifier: String {
-        switch reminder {
-        case .purchasedAwaitingStockIn: "home.shopping.stockIn.button"
-        case .expiredInventory: "home.inventory.expired.button"
-        case .expiringInventory: "home.inventory.expiring.button"
-        case .pendingShopping: "home.shopping.pending.button"
-        case .lowStock: "home.inventory.lowstock.button"
-        }
     }
 }
 
@@ -1328,19 +1524,53 @@ private struct HomeModuleIssues: View {
 }
 
 #Preview("空首页") {
-    VStack(alignment: .leading, spacing: 28) {
-        HomeDashboardHeader(
+    VStack(alignment: .leading, spacing: 24) {
+        HomeTodayContext(
             householdName: nil,
             isRestoringAccount: false,
             shouldShowHousehold: false,
             dayType: .flexible,
             eatOutSlots: [],
-            portionSummaries: [],
+            incomingCarryover: [],
             onOpenDayRhythm: {}
         )
-        HomeInventoryAttentionSummary(
-            dashboard: HomeDashboardSummary(inventory: [], todayPlans: [], shoppingItems: []),
-            action: { _ in }
+        HomeNeedsAttentionSection(items: [], additionalCount: 0, onSelect: { _ in }, onViewAll: {})
+    }
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
+#Preview("需要处理 — 具名行") {
+    HomeNeedsAttentionSection(
+        items: [
+            HomeAttentionItem(id: "1", kind: .expiredInventory, name: "过期生菜", detail: "已过期 1 天"),
+            HomeAttentionItem(id: "2", kind: .preparedExpiring, name: "卤鸡腿", detail: "建议明天前吃完"),
+            HomeAttentionItem(id: "3", kind: .expiringInventory, name: "上海青", detail: "明天到期"),
+            HomeAttentionItem(id: "4", kind: .lowStock, name: "鸡蛋", detail: "库存偏低")
+        ],
+        additionalCount: 2,
+        onSelect: { _ in },
+        onViewAll: {}
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
+#Preview("今晚外食") {
+    VStack(alignment: .leading, spacing: 12) {
+        HomePrimaryHeader(
+            task: HomePrimaryTask.resolve(
+                dayType: .cooking, dinnerIntent: .eatOut,
+                planState: .active, totalPlanCount: 1, completedPlanCount: 0
+            )
+        )
+        HomeEatOutPrimary()
+        HomeSecondaryLinkRow(
+            title: "今日仍有 1 道计划",
+            systemImage: "list.bullet",
+            symbolTint: AppTheme.textSecondary,
+            identifier: "home.plan.secondaryLink",
+            action: {}
         )
     }
     .padding()
@@ -1348,7 +1578,15 @@ private struct HomeModuleIssues: View {
 }
 
 #Preview("深色模式") {
-    HomeAttentionReminderRow(reminder: .expiringInventory(count: 2), action: {})
+    HomeNeedsAttentionSection(
+        items: [
+            HomeAttentionItem(id: "1", kind: .expiringInventory, name: "上海青", detail: "明天到期"),
+            HomeAttentionItem(id: "2", kind: .lowStock, name: "鸡蛋", detail: "库存偏低")
+        ],
+        additionalCount: 0,
+        onSelect: { _ in },
+        onViewAll: {}
+    )
     .padding()
     .background(Color(.systemGroupedBackground))
     .preferredColorScheme(.dark)
@@ -1383,9 +1621,14 @@ private struct HomeModuleIssues: View {
 }
 
 #Preview("待入库提醒") {
-    HomeAttentionReminderRow(reminder: .purchasedAwaitingStockIn(count: 2), action: {})
-        .padding()
-        .background(Color(.systemGroupedBackground))
+    HomeNeedsAttentionSection(
+        items: [HomeAttentionItem(id: "1", kind: .purchasedAwaitingStockIn, name: "已买的 2 项", detail: "等待入库")],
+        additionalCount: 0,
+        onSelect: { _ in },
+        onViewAll: {}
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
 }
 
 #Preview("剪贴板提示") {
@@ -1402,13 +1645,13 @@ private struct HomeModuleIssues: View {
 
 #Preview("长名称") {
     VStack(alignment: .leading, spacing: 20) {
-        HomeDashboardHeader(
+        HomeTodayContext(
             householdName: "一个同样很长、仍需完整理解的家庭名称",
             isRestoringAccount: false,
             shouldShowHousehold: true,
             dayType: .cooking,
             eatOutSlots: [.lunch, .dinner],
-            portionSummaries: [MealPortionCopy.sourceDaySummary(2)],
+            incomingCarryover: [MealPortionCopy.targetDaySummary(2)],
             onOpenDayRhythm: {}
         )
         TodayPlanSummaryCard(

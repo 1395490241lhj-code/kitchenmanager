@@ -18,7 +18,7 @@ final class QuickMealPreparedUsageUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_QUICK_MEAL_PREPARED", "UITEST_FORCE_QUICK_DAY"] + extraArguments
         app.launch()
         XCTAssertTrue(
-            app.staticTexts["home.quickMeal.section"].waitForExistence(timeout: 10),
+            app.staticTexts["home.quickMeal.title"].waitForExistence(timeout: 10),
             "the quick slot must be showing before anything else is asserted"
         )
         return app
@@ -109,7 +109,14 @@ final class QuickMealPreparedUsageUITests: XCTestCase {
             "the empty state takes over; no stale card, no crash from a stale index"
         )
         XCTAssertFalse(preparedRow(in: app).exists)
-        XCTAssertTrue(app.staticTexts["home.quickMeal.section"].exists, "the section itself stays put")
+        // Home V2: the quick surface no longer owns a section title, so what has
+        // to stay put is the primary region's own heading. The day is still a
+        // quick day and the question is still 今天怎么吃 — only the answer is gone.
+        XCTAssertEqual(
+            app.staticTexts["home.primary.title"].label,
+            "今天怎么吃",
+            "the primary region itself stays put"
+        )
         attachScreenshot(of: app, named: "quick-meal-prepared-exhausted")
     }
 

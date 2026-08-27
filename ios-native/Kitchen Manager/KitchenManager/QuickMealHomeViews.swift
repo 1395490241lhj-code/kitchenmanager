@@ -117,11 +117,16 @@ enum QuickMealRotation {
     }
 }
 
-/// Home's quick-day surface. It stands in the recommendation slot rather than
-/// adding a section, so the page keeps its 今日计划 → 推荐位 → 库存待处理 shape.
+/// Home's quick-day content.
+///
+/// Home V2: the title moved out. `HomePrimaryHeader` says 今天怎么吃, and this
+/// renders only when the quick meal *is* the primary task, so the section no
+/// longer carries a `.title3` heading competing with the plan and the inventory
+/// summary. Nothing about assembly, ranking, rotation, the three-suggestion
+/// limit or prepared-portion usage changed.
 ///
 /// Takes plain values rather than reading stores, so previews render it without
-/// an environment object — the same arrangement `HomeDayRhythmRow` uses.
+/// an environment object.
 struct HomeQuickMealSection: View {
     let content: QuickMealHomeContent
     let onRotate: () -> Void
@@ -131,13 +136,11 @@ struct HomeQuickMealSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("今晚快手吃")
-                .font(.title3.weight(.semibold))
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("home.quickMeal.section")
-
             switch content {
             case .eatingOut:
+                // Unreachable from Home V2 — `HomePrimaryTask` resolves an
+                // eat-out dinner before the quick slot is ever built. Kept
+                // because the content type is shared and must stay total.
                 statusRow("今晚已安排外食", identifier: "home.quickMeal.eatOut")
             case .suggestion(let suggestion, let canRotate, let preparedUsages):
                 suggestionCard(suggestion, canRotate: canRotate, preparedUsages: preparedUsages)
