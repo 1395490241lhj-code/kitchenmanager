@@ -42,10 +42,24 @@ enum HomeRecommendationSlot: Equatable {
     }
 }
 
+/// A prepared batch this suggestion is using, and how much of it is left.
+///
+/// Resolved by looking the provenance id up in the live batches rather than by
+/// carrying portion counts through the engine — that is exactly what keeping
+/// `QuickMealCandidateSource` on every component was for, and it keeps the
+/// candidate free of one domain's fields.
+struct QuickMealPreparedUsage: Equatable, Identifiable {
+    let id: UUID
+    let name: String
+    let portionsRemaining: Int
+
+    var remainingText: String { "备餐剩 \(portionsRemaining) 份" }
+}
+
 /// Everything Home needs to draw the quick slot, decided in one pure place so
 /// the rules are testable without a running view.
 enum QuickMealHomeContent: Equatable {
-    case suggestion(QuickMealSuggestion, canRotate: Bool)
+    case suggestion(QuickMealSuggestion, canRotate: Bool, preparedUsages: [QuickMealPreparedUsage])
     /// Dinner is being eaten out. The suggestion is hidden, never deleted.
     case eatingOut
     /// Nothing stands up; the text is the engine's gap in plain language. Home
@@ -55,7 +69,8 @@ enum QuickMealHomeContent: Equatable {
     static func resolve(
         result: QuickMealAssemblyResult,
         isEatingOutTonight: Bool,
-        storedIndex: Int
+        storedIndex: Int,
+        preparedComponents: [PreparedComponent] = []
     ) -> QuickMealHomeContent {
         // Checked before the suggestions: an evening that is already settled does
         // not need a proposal, and the assembly data stays untouched underneath.
@@ -64,7 +79,34 @@ enum QuickMealHomeContent: Equatable {
         guard result.suggestions.indices.contains(index) else {
             return .unavailable(result.gaps.first?.homeMessage ?? QuickMealGap.nothingUsable.homeMessage)
         }
-        return .suggestion(result.suggestions[index], canRotate: result.suggestions.count > 1)
+        let suggestion = result.suggestions[index]
+        return .suggestion(
+            suggestion,
+            canRotate: result.suggestions.count > 1,
+            preparedUsages: preparedUsages(in: suggestion, among: preparedComponents)
+        )
+    }
+
+    /// One entry per prepared batch the suggestion uses, in the order its
+    /// components appear. Inventory components get none — a bag of rice has no
+    /// provenance worth naming.
+    static func preparedUsages(
+        in suggestion: QuickMealSuggestion,
+        among preparedComponents: [PreparedComponent]
+    ) -> [QuickMealPreparedUsage] {
+        var seen = Set<UUID>()
+        return suggestion.components.compactMap { component in
+            guard case .preparedComponent(let id) = component.source,
+                  seen.insert(id).inserted,
+                  // Matched by id, never by name: two batches can share a name.
+                  let batch = preparedComponents.first(where: { $0.id == id })
+            else { return nil }
+            return QuickMealPreparedUsage(
+                id: batch.id,
+                name: batch.name,
+                portionsRemaining: batch.portionsRemaining
+            )
+        }
     }
 }
 
@@ -99,6 +141,9 @@ enum QuickMealRotation {
 struct HomeQuickMealSection: View {
     let content: QuickMealHomeContent
     let onRotate: () -> Void
+    /// Called with the batch's own id, so the store decrements exactly the
+    /// record the user tapped — never one that merely shares a name.
+    var onUsePreparedPortion: (UUID) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -110,8 +155,8 @@ struct HomeQuickMealSection: View {
             switch content {
             case .eatingOut:
                 statusRow("今晚已安排外食", identifier: "home.quickMeal.eatOut")
-            case .suggestion(let suggestion, let canRotate):
-                suggestionCard(suggestion, canRotate: canRotate)
+            case .suggestion(let suggestion, let canRotate, let preparedUsages):
+                suggestionCard(suggestion, canRotate: canRotate, preparedUsages: preparedUsages)
             case .unavailable(let message):
                 statusRow(message, identifier: "home.quickMeal.empty")
             }
@@ -120,7 +165,11 @@ struct HomeQuickMealSection: View {
 
     /// Lighter than the recipe card on purpose: a title, one line of components,
     /// and one secondary action. No image, no primary button, no metadata row.
-    private func suggestionCard(_ suggestion: QuickMealSuggestion, canRotate: Bool) -> some View {
+    private func suggestionCard(
+        _ suggestion: QuickMealSuggestion,
+        canRotate: Bool,
+        preparedUsages: [QuickMealPreparedUsage]
+    ) -> some View {
         let components = suggestion.components.map(\.name).joined(separator: " · ")
         return VStack(alignment: .leading, spacing: 8) {
             Text(suggestion.displayTitle)
@@ -133,11 +182,22 @@ struct HomeQuickMealSection: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("home.quickMeal.components")
 
+            // One row per batch, each with its own button. Deliberately not a
+            // single "finish this meal" action: using a portion changes only
+            // that batch, and says nothing about the rice or the greens.
+            ForEach(preparedUsages) { usage in
+                preparedUsageRow(usage)
+            }
+
             if canRotate {
-                Button("换一个", action: onRotate)
-                    .font(.subheadline.weight(.medium))
+                Button(action: onRotate) {
+                    Text("换一个")
+                        .font(.subheadline.weight(.medium))
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .contentShape(Rectangle())
+                }
                     .foregroundStyle(AppTheme.brand)
-                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("home.quickMeal.rotate")
                     .accessibilityHint("换一个今晚的快手组合")
             }
@@ -152,6 +212,49 @@ struct HomeQuickMealSection: View {
         // rotate button still reachable as its own element.
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(suggestion.displayTitle)，\(components)")
+    }
+
+    private func preparedUsageRow(_ usage: QuickMealPreparedUsage) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                preparedUsageLabel(usage)
+                Spacer(minLength: 8)
+                preparedUsageButton(usage)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                preparedUsageLabel(usage)
+                preparedUsageButton(usage)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func preparedUsageLabel(_ usage: QuickMealPreparedUsage) -> some View {
+        Text("\(usage.name) · \(usage.remainingText)")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("home.quickMeal.prepared.\(usage.id.uuidString)")
+    }
+
+    private func preparedUsageButton(_ usage: QuickMealPreparedUsage) -> some View {
+        // The height has to be inside the label: a `.frame` applied to the
+        // Button itself leaves the hit target — and the accessibility frame —
+        // the size of the text, which measured 18pt. Same shape as
+        // `HomeDayRhythmRow`.
+        Button {
+            onUsePreparedPortion(usage.id)
+        } label: {
+            Text("使用 1 份")
+                .font(.subheadline.weight(.medium))
+                .frame(minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
+        }
+            .foregroundStyle(AppTheme.brand)
+            .buttonStyle(.plain)
+            // Names the batch so it is unambiguous when a meal uses two.
+            .accessibilityLabel("使用 1 份\(usage.name)")
+            .accessibilityHint("\(usage.remainingText)")
+            .accessibilityIdentifier("home.quickMeal.usePrepared.\(usage.id.uuidString)")
     }
 
     private func statusRow(_ message: String, identifier: String) -> some View {
@@ -176,11 +279,27 @@ private func previewItem(_ name: String) -> InventoryItem {
 }
 
 @MainActor
-private func previewContent(_ names: [String], index: Int = 0) -> QuickMealHomeContent {
+private func previewContent(
+    _ names: [String],
+    prepared: [PreparedComponent] = [],
+    index: Int = 0
+) -> QuickMealHomeContent {
     QuickMealHomeContent.resolve(
-        result: QuickMealAssemblyEngine.assemble(inventory: names.map(previewItem)),
+        result: QuickMealAssemblyEngine.assemble(
+            inventory: names.map(previewItem),
+            preparedComponents: prepared
+        ),
         isEatingOutTonight: false,
-        storedIndex: index
+        storedIndex: index,
+        preparedComponents: prepared
+    )
+}
+
+@MainActor
+private func previewBatch(_ name: String, _ portions: Int) -> PreparedComponent {
+    PreparedComponent(
+        name: name, portionsRemaining: portions, state: .cooked, storage: .refrigerated,
+        preparedAt: Date(), expiryDate: Calendar.current.date(byAdding: .day, value: 3, to: Date())!
     )
 }
 
@@ -194,6 +313,29 @@ private func previewContent(_ names: [String], index: Int = 0) -> QuickMealHomeC
     HomeQuickMealSection(content: previewContent(["米饭", "卤牛肉", "上海青"]), onRotate: {})
         .padding()
         .background(Color(.systemGroupedBackground))
+}
+
+#Preview("快手 — 用到备餐") {
+    HomeQuickMealSection(
+        content: previewContent(["米饭", "上海青"], prepared: [previewBatch("卤牛肉", 3)]),
+        onRotate: {},
+        onUsePreparedPortion: { _ in }
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
+#Preview("快手 — 两个备餐") {
+    HomeQuickMealSection(
+        content: previewContent(
+            ["米饭"],
+            prepared: [previewBatch("卤牛肉", 3), previewBatch("卤鸡腿", 1)]
+        ),
+        onRotate: {},
+        onUsePreparedPortion: { _ in }
+    )
+    .padding()
+    .background(Color(.systemGroupedBackground))
 }
 
 #Preview("快手 — 今晚外食") {

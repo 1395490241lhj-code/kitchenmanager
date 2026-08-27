@@ -458,6 +458,25 @@ struct ContentView: View {
             ])
             navigationStore.selectedTab = .inventory
         }
+        // UI-test-only seed for the prepared-component usage loop: two ordinary
+        // staples plus one cooked batch, which is exactly the combination that
+        // makes 牛肉青菜饭 stand up. Pair it with UITEST_FORCE_QUICK_DAY.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_QUICK_MEAL_PREPARED") else { return }
+            kitchenStore.clearAllLocalData()
+            let now = Date()
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "米饭", quantity: 1, unit: "份", expiryDate: Calendar.current.date(byAdding: .day, value: 3, to: now)),
+                InventoryImportItem(name: "上海青", quantity: 1, unit: "份", expiryDate: Calendar.current.date(byAdding: .day, value: 4, to: now))
+            ])
+            kitchenStore.addPreparedComponent(
+                PreparedComponent(
+                    name: "卤牛肉", portionsRemaining: 3, state: .cooked, storage: .refrigerated,
+                    preparedAt: now,
+                    expiryDate: Calendar.current.date(byAdding: .day, value: 3, to: now) ?? now
+                )
+            )
+        }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_INVENTORY") else { return }
             kitchenStore.clearAllLocalData()

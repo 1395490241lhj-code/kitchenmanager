@@ -38,7 +38,7 @@ final class QuickMealHomeContentTests: XCTestCase {
     }
 
     private func shown(_ content: QuickMealHomeContent) -> QuickMealSuggestion? {
-        if case .suggestion(let suggestion, _) = content { return suggestion }
+        if case .suggestion(let suggestion, _, _) = content { return suggestion }
         return nil
     }
 
@@ -79,14 +79,14 @@ final class QuickMealHomeContentTests: XCTestCase {
     }
 
     func testASingleSuggestionOffersNoRotation() {
-        guard case .suggestion(_, let canRotate) = content(["挂面", "卤牛肉", "上海青"]) else {
+        guard case .suggestion(_, let canRotate, _) = content(["挂面", "卤牛肉", "上海青"]) else {
             return XCTFail("expected a suggestion")
         }
         XCTAssertFalse(canRotate)
     }
 
     func testSeveralSuggestionsOfferRotation() {
-        guard case .suggestion(_, let canRotate) = content(["米饭", "卤牛肉", "上海青"]) else {
+        guard case .suggestion(_, let canRotate, _) = content(["米饭", "卤牛肉", "上海青"]) else {
             return XCTFail("expected a suggestion")
         }
         XCTAssertTrue(canRotate)

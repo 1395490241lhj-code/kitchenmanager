@@ -86,6 +86,24 @@ struct HomeView: View {
         return summaries
     }
 
+    /// Takes one portion off the batch the user tapped. Reuses the P1-B
+    /// store API rather than decrementing here, so there is only ever one
+    /// implementation of what "eating a portion" means.
+    ///
+    /// Nothing else is touched: no inventory consumption, no restock, no
+    /// shopping line, no plan. `preparedComponents` is published, so the
+    /// suggestions recompute on their own — the current one is never patched
+    /// by hand, and if the batch was the last portion the existing index clamp
+    /// handles whatever the list becomes.
+    private func usePreparedPortion(_ id: UUID) {
+        guard let previous = kitchenStore.consumePreparedPortion(id: id) else { return }
+        showToast(
+            previous.portionsRemaining > 1
+                ? "已使用 1 份\(previous.name)，还剩 \(previous.portionsRemaining - 1) 份"
+                : "\(previous.name)已用完"
+        )
+    }
+
     private var moduleIssues: [HomeDashboardModuleIssue] {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_MODULE_ISSUES") {
@@ -142,14 +160,16 @@ struct HomeView: View {
                         content: QuickMealHomeContent.resolve(
                             result: quickMeal,
                             isEatingOutTonight: dayRhythmStore.intent(for: .dinner) == .eatOut,
-                            storedIndex: quickMealIndex
+                            storedIndex: quickMealIndex,
+                            preparedComponents: kitchenStore.preparedComponents
                         ),
                         onRotate: {
                             quickMealIndex = QuickMealRotation.nextIndex(
                                 stored: quickMealIndex,
                                 count: quickMeal.suggestions.count
                             )
-                        }
+                        },
+                        onUsePreparedPortion: usePreparedPortion
                     )
                 case .recipeRecommendation:
                     HomeRecommendationSection(
