@@ -42,6 +42,7 @@ struct HomeView: View {
     @State private var toastStyle: AppFeedbackStyle = .success
     @State private var isShowingTodayPlan = false
     @State private var isShowingRecommendations = false
+    @State private var isShowingPreparedComponents = false
     @State private var selectedPlan: MealPlanItem?
     @State private var selectedRecipe: Recipe?
     @State private var clipboardPromptState = ClipboardPromptSessionState()
@@ -171,6 +172,11 @@ struct HomeView: View {
                         },
                         onUsePreparedPortion: usePreparedPortion
                     )
+                case .mealPrepBoard:
+                    HomeMealPrepBoardSection(
+                        entries: MealPrepBoard.entries(from: kitchenStore.preparedComponents),
+                        onAdd: { isShowingPreparedComponents = true }
+                    )
                 case .recipeRecommendation:
                     HomeRecommendationSection(
                         recommendation: homeRecommendation,
@@ -261,6 +267,11 @@ struct HomeView: View {
         }
         .navigationDestination(isPresented: $isShowingRecommendations) {
             RecipeRecommendationBrowserView()
+        }
+        // Reuses the existing management page rather than rebuilding an editor
+        // inside the board.
+        .navigationDestination(isPresented: $isShowingPreparedComponents) {
+            PreparedComponentsView()
         }
         // Same pattern TodayPlanDetailView already uses for its rows: an
         // explicit selection + `navigationDestination(item:)`, never

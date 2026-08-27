@@ -90,10 +90,21 @@ final class QuickFoodProfileClassifierTests: XCTestCase {
         XCTAssertEqual(pickle.preparationState, .cooked)
     }
 
-    func testCornIsAVegetableAndNotSweptUpByTheRiceTerms() {
+    func testCornIsBothAStapleAndAVegetableAndNotSweptUpByTheRiceTerms() {
         let corn = profile("玉米")
         XCTAssertTrue(corn.has(.vegetable))
-        XCTAssertNil(corn.form)
+        XCTAssertTrue(corn.has(.carb), "a cob is an ordinary weekday staple")
+        // The original point of this test still stands: 玉米 must not be rice.
+        XCTAssertEqual(corn.form, .corn)
+        XCTAssertNotEqual(corn.form, .rice)
+    }
+
+    func testCornOilIsASeasoningRatherThanAStaple() {
+        // Added with the corn role: without it, a bottle of oil would inherit
+        // 玉米's new carb role and could be offered as the base of a plate.
+        let oil = profile("玉米油")
+        XCTAssertEqual(oil.roles, [.seasoning])
+        XCTAssertNil(oil.form)
     }
 
     func testFlourIsACarbButNotAnAssemblableForm() {

@@ -38,6 +38,10 @@ enum QuickFoodForm: String, CaseIterable {
     case wonton
     case bread
     case tuber
+    /// 玉米. Its own form rather than a tuber: it carries both a staple and a
+    /// vegetable role like a tuber does, but it is neither stored nor cooked
+    /// like one, and Component Meal orders staples by form.
+    case corn
     /// A finished dish rather than an ingredient: 剩菜, 熟食, 卤味, 盒饭.
     case preparedDish
 }
@@ -166,6 +170,9 @@ enum QuickFoodProfileClassifier {
         if contains(name, flourTerms) { return nil }
         if contains(name, riceNoodleTerms) { return .riceNoodle }
         if contains(name, noodleTerms) { return .noodle }
+        // Before the rice terms for the same reason those terms spell every
+        // grain out instead of matching a bare 米: 玉米 is not rice.
+        if contains(name, cornTerms) { return .corn }
         if contains(name, riceTerms) { return .rice }
         if contains(name, tuberTerms) { return .tuber }
         return nil
@@ -189,6 +196,13 @@ enum QuickFoodProfileClassifier {
         case .tuber:
             // 土豆 is genuinely both in home cooking; recording only one would
             // force a false choice.
+            roles.insert(.carb)
+            roles.insert(.vegetable)
+        case .corn:
+            // Same double role, and for the same reason: a cob can be the staple
+            // of a plate or the vegetable on it. Which one it is on any given
+            // plate is the assembling layer's decision, not the classifier's —
+            // and no layer may let one cob be both at once.
             roles.insert(.carb)
             roles.insert(.vegetable)
         case .preparedDish, .none:
@@ -222,7 +236,7 @@ enum QuickFoodProfileClassifier {
 
     private static let seasoningTerms = [
         "盐", "糖", "生抽", "老抽", "酱油", "醋", "料酒", "黄酒", "蚝油", "鱼露",
-        "香油", "芝麻油", "食用油", "菜籽油", "花生油", "橄榄油", "植物油", "调和油", "猪油",
+        "香油", "芝麻油", "食用油", "菜籽油", "花生油", "橄榄油", "植物油", "调和油", "猪油", "玉米油",
         "豆瓣酱", "郫县豆瓣", "甜面酱", "黄豆酱", "芝麻酱", "辣椒酱", "番茄酱", "沙茶酱",
         "牛肉酱", "虾酱", "火锅底料", "高汤", "味精", "鸡精",
         "胡椒", "花椒", "辣椒粉", "干辣椒", "八角", "桂皮", "香叶", "孜然", "五香粉", "十三香",
@@ -249,6 +263,9 @@ enum QuickFoodProfileClassifier {
     private static let riceTerms = ["米饭", "大米", "糙米", "白米", "小米", "糯米", "饭"]
     private static let cookedRiceTerms = ["米饭", "白饭", "剩饭", "熟饭", "炒饭", "盖饭"]
     private static let tuberTerms = ["土豆", "红薯", "紫薯", "山药", "芋头"]
+    /// Only the cob itself. 玉米淀粉 is caught by the seasoning table above and
+    /// 玉米油 was added to it, so neither reaches here.
+    private static let cornTerms = ["玉米"]
 
     private static let proteinTerms = [
         "猪肉", "牛肉", "羊肉", "鸡肉", "鸡胸", "鸡腿", "鸡翅", "鸭肉", "排骨", "肉末", "绞肉", "肉片", "肉丝",

@@ -500,7 +500,7 @@ enum QuickMealTitleBuilder {
         case .noodle: return "面"
         case .dumpling: return "饺子"
         case .wonton: return "馄饨"
-        case .riceNoodle, .bread, .tuber, .preparedDish, .none: return spoken(component)
+        case .riceNoodle, .bread, .tuber, .corn, .preparedDish, .none: return spoken(component)
         }
     }
 

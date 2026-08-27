@@ -13,10 +13,23 @@ struct PreparedComponentsView: View {
     @EnvironmentObject private var store: KitchenStore
     @State private var editing: PreparedComponent?
     @State private var isAdding = false
+    @State private var isAssembling = false
     @State private var toastMessage: String?
 
     var body: some View {
         List {
+            // Component Meal's only entry point. It lives here rather than on
+            // Home because a 主食 + 蛋白 + 蔬菜 plate is a meal structure, not a
+            // day rhythm — no DayType owns it and Home gains no section for it.
+            Section {
+                Button("搭配一顿") { isAssembling = true }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.brand)
+                    .frame(minHeight: ChromeMetrics.minimumRowHeight)
+                    .accessibilityIdentifier("prepared.assemble")
+                    .accessibilityHint("用现有食材配一份主食、蛋白和蔬菜")
+            }
+
             if store.preparedComponents.isEmpty {
                 ContentUnavailableView(
                     "还没有备餐",
@@ -60,6 +73,9 @@ struct PreparedComponentsView: View {
         }
         .sheet(item: $editing) { component in
             PreparedComponentEditor(component: component)
+        }
+        .sheet(isPresented: $isAssembling) {
+            ComponentMealView()
         }
         .overlay(alignment: .bottom) {
             if let toastMessage {
@@ -116,10 +132,17 @@ private struct PreparedComponentRow: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
-            Button("吃掉一份", action: onConsume)
-                .font(.subheadline.weight(.medium))
+            // The height belongs inside the label. Applied to the Button it
+            // leaves the hit target — and the accessibility frame — the size of
+            // the text, which measures 18pt; P1-D found the same shape on Home
+            // and this row had it too.
+            Button(action: onConsume) {
+                Text("吃掉一份")
+                    .font(.subheadline.weight(.medium))
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .contentShape(Rectangle())
+            }
                 .foregroundStyle(AppTheme.brand)
-                .frame(minHeight: AppTheme.minimumHitTarget)
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("prepared.consume.\(component.id.uuidString)")
         }
@@ -132,7 +155,36 @@ private struct PreparedComponentRow: View {
     /// mean to finish the batch, not a safety claim the app is in a position
     /// to make.
     private var expiryText: String {
-        "建议 \(component.expiryDate.formatted(.dateTime.month().day())) 前吃完"
+        // Shared with the Home board so both read 8月31日 rather than Aug 31.
+        "建议 \(MealPrepBoard.dateText(for: component.expiryDate)) 前吃完"
+    }
+}
+
+// MARK: - Name hint
+//
+// A batch's roles are inferred from its name — nothing on `PreparedComponent`
+// records them, and this phase deliberately did not add a role picker or change
+// the schema. When a name places nowhere, the batch is simply invisible to the
+// assembling layers, which is silent and confusing. So the editor says so.
+//
+// It never guesses. An unrecognised name stays unrecognised: letting it stand
+// in as a generic finished dish would put a batch into suggestions on the
+// strength of nothing at all.
+
+enum PreparedComponentNameHint {
+    static let message = "这个名称可能无法用于智能搭配，建议写具体一些，例如「鸡肉」或「卤鸡腿」。"
+
+    /// True when the name places nowhere at all — no role *and* no form. A name
+    /// like 剩菜 or 卤味 carries no role either, but its form still lets Quick
+    /// Meal use it as a finished dish, so warning about it would be wrong.
+    ///
+    /// An empty name gets no hint: the save button is already disabled, and a
+    /// warning about nothing the user has typed yet would just be noise.
+    static func needsHint(for name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let profile = QuickFoodProfileClassifier.profile(for: trimmed)
+        return profile.roles.isEmpty && profile.form == nil
     }
 }
 
@@ -185,6 +237,15 @@ private struct PreparedComponentEditor: View {
                     }
                     .frame(minHeight: ChromeMetrics.minimumRowHeight)
                     .accessibilityIdentifier("prepared.editor.portions")
+                } footer: {
+                    // Advisory only — saving is never blocked, and no role is
+                    // guessed on the user's behalf. A name that places nowhere
+                    // simply will not turn up in 快手 or 搭配一顿, and saying so
+                    // here is cheaper than leaving them to notice the absence.
+                    if PreparedComponentNameHint.needsHint(for: name) {
+                        Text(PreparedComponentNameHint.message)
+                            .accessibilityIdentifier("prepared.editor.nameHint")
+                    }
                 }
 
                 Section {

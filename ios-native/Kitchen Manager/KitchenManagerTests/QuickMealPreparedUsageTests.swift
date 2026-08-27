@@ -52,7 +52,7 @@ final class QuickMealPreparedUsageTests: XCTestCase {
         )
     }
 
-    private func usages(_ content: QuickMealHomeContent) -> [QuickMealPreparedUsage] {
+    private func usages(_ content: QuickMealHomeContent) -> [PreparedPortionUsage] {
         if case .suggestion(_, _, let usages) = content { return usages }
         return []
     }

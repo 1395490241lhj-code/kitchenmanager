@@ -50,20 +50,26 @@ final class QuickMealHomeContentTests: XCTestCase {
         XCTAssertEqual(HomeRecommendationSlot.slot(for: .flexible), .recipeRecommendation)
     }
 
-    func testMealPrepStillUsesOrdinaryRecipeRecommendationForNow() {
-        XCTAssertEqual(
-            HomeRecommendationSlot.slot(for: .mealPrep),
-            .recipeRecommendation,
-            "batch cooking gets its own surface later; it must not borrow the quick one"
-        )
+    func testMealPrepNowGetsItsOwnBoard() {
+        // P0-3D parked 备餐日 on ordinary recipe recommendation and said batch
+        // cooking would get its own surface later. This is later: it never
+        // borrowed the quick one, and now it borrows nothing.
+        XCTAssertEqual(HomeRecommendationSlot.slot(for: .mealPrep), .mealPrepBoard)
+        XCTAssertNotEqual(HomeRecommendationSlot.slot(for: .mealPrep), .quickMeal)
     }
 
     func testEveryDayTypeResolvesToExactlyOneSlot() {
-        // Home must never end up rendering both, so the mapping has to be total.
+        // Home must never end up rendering two, so the mapping has to be total.
         for dayType in DayType.allCases {
             let slot = HomeRecommendationSlot.slot(for: dayType)
-            XCTAssertTrue(slot == .quickMeal || slot == .recipeRecommendation)
+            XCTAssertTrue(slot == .quickMeal || slot == .recipeRecommendation || slot == .mealPrepBoard)
         }
+    }
+
+    func testNoDayTypeShowsAComponentMeal() {
+        // A component meal is a meal structure, not a day rhythm. It is reached
+        // from the prepared-components page and owns no slot here.
+        XCTAssertEqual(Set(DayType.allCases.map(HomeRecommendationSlot.slot(for:))).count, 3)
     }
 
     // MARK: - What the quick slot shows

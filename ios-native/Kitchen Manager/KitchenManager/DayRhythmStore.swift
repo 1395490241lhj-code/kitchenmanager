@@ -245,7 +245,14 @@ final class DayRhythmStore: ObservableObject {
     static func applyUITestDayTypeIfRequested(userDefaults: UserDefaults = .standard) {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains(where: { $0.hasPrefix("UITEST_") }) else { return }
-        let dayType: DayType = arguments.contains(uiTestQuickDayArgument) ? .quick : .flexible
+        let dayType: DayType
+        if arguments.contains(uiTestQuickDayArgument) {
+            dayType = .quick
+        } else if arguments.contains(uiTestMealPrepDayArgument) {
+            dayType = .mealPrep
+        } else {
+            dayType = .flexible
+        }
         let store = DayRhythmStore(userDefaults: userDefaults)
         // Clears any leftover override and eat-out meal as well as the rhythm.
         store.resetToday()
@@ -256,6 +263,9 @@ final class DayRhythmStore: ObservableObject {
 
     /// Opt in to the quick-day surface. Absent, a UI-test launch is `.flexible`.
     static let uiTestQuickDayArgument = "UITEST_FORCE_QUICK_DAY"
+    /// Opt in to the meal-prep board. Ignored when the quick argument is also
+    /// present, so an existing quick-day test cannot change meaning.
+    static let uiTestMealPrepDayArgument = "UITEST_FORCE_MEAL_PREP_DAY"
 #endif
 
     private func persistTodayState() {

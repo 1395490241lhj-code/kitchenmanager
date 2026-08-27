@@ -477,6 +477,38 @@ struct ContentView: View {
                 )
             )
         }
+        // UI-test-only seed for the meal-prep board and the component meal:
+        // two staples plus one cooked batch, which is the 红薯 + 卤鸡腿 + 西兰花
+        // plate. The second batch has a later date so board ordering is visible.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_COMPONENT_MEAL") else { return }
+            kitchenStore.clearAllLocalData()
+            let now = Date()
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "红薯", quantity: 2, unit: "份", expiryDate: Calendar.current.date(byAdding: .day, value: 6, to: now)),
+                InventoryImportItem(name: "西兰花", quantity: 2, unit: "份", expiryDate: Calendar.current.date(byAdding: .day, value: 5, to: now))
+            ])
+            kitchenStore.addPreparedComponent(
+                PreparedComponent(
+                    name: "卤鸡腿", portionsRemaining: 3, state: .cooked, storage: .refrigerated,
+                    preparedAt: now,
+                    expiryDate: Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now
+                )
+            )
+            kitchenStore.addPreparedComponent(
+                PreparedComponent(
+                    name: "腌鸡肉", portionsRemaining: 2, state: .prepped, storage: .refrigerated,
+                    preparedAt: now,
+                    expiryDate: Calendar.current.date(byAdding: .day, value: 4, to: now) ?? now
+                )
+            )
+        }
+        // Clears everything and stays put. `UITEST_SEED_EMPTY_INVENTORY` also
+        // switches to the inventory tab, which is wrong for a Home empty state.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_KITCHEN") else { return }
+            kitchenStore.clearAllLocalData()
+        }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_INVENTORY") else { return }
             kitchenStore.clearAllLocalData()

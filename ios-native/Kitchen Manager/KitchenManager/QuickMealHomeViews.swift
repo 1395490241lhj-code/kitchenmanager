@@ -27,39 +27,32 @@ extension QuickMealGap {
 
 /// What occupies Home's single recommendation slot today.
 ///
-/// Only `.quick` swaps it. `.cooking`, `.flexible` and — for this version —
-/// `.mealPrep` all keep ordinary recipe recommendation, which nothing here
-/// touches. Home never shows both at once.
+/// `.cooking` and `.flexible` keep ordinary recipe recommendation, which nothing
+/// here touches. `.quick` and `.mealPrep` each swap the slot for the thing that
+/// day is actually about — Home never shows two of these at once, and no day
+/// gains a second permanent section.
+///
+/// Component Meal is deliberately absent: it is a meal *structure*, not a day
+/// rhythm, so it lives behind an entry point on the prepared-components page
+/// rather than on any DayType.
 enum HomeRecommendationSlot: Equatable {
     case recipeRecommendation
     case quickMeal
+    case mealPrepBoard
 
     static func slot(for dayType: DayType) -> HomeRecommendationSlot {
         switch dayType {
         case .quick: return .quickMeal
-        case .cooking, .flexible, .mealPrep: return .recipeRecommendation
+        case .mealPrep: return .mealPrepBoard
+        case .cooking, .flexible: return .recipeRecommendation
         }
     }
-}
-
-/// A prepared batch this suggestion is using, and how much of it is left.
-///
-/// Resolved by looking the provenance id up in the live batches rather than by
-/// carrying portion counts through the engine — that is exactly what keeping
-/// `QuickMealCandidateSource` on every component was for, and it keeps the
-/// candidate free of one domain's fields.
-struct QuickMealPreparedUsage: Equatable, Identifiable {
-    let id: UUID
-    let name: String
-    let portionsRemaining: Int
-
-    var remainingText: String { "备餐剩 \(portionsRemaining) 份" }
 }
 
 /// Everything Home needs to draw the quick slot, decided in one pure place so
 /// the rules are testable without a running view.
 enum QuickMealHomeContent: Equatable {
-    case suggestion(QuickMealSuggestion, canRotate: Bool, preparedUsages: [QuickMealPreparedUsage])
+    case suggestion(QuickMealSuggestion, canRotate: Bool, preparedUsages: [PreparedPortionUsage])
     /// Dinner is being eaten out. The suggestion is hidden, never deleted.
     case eatingOut
     /// Nothing stands up; the text is the engine's gap in plain language. Home
@@ -88,25 +81,16 @@ enum QuickMealHomeContent: Equatable {
     }
 
     /// One entry per prepared batch the suggestion uses, in the order its
-    /// components appear. Inventory components get none — a bag of rice has no
-    /// provenance worth naming.
+    /// components appear. The matching rule itself is shared with Component
+    /// Meal — see `PreparedPortionUsage.resolve`.
     static func preparedUsages(
         in suggestion: QuickMealSuggestion,
         among preparedComponents: [PreparedComponent]
-    ) -> [QuickMealPreparedUsage] {
-        var seen = Set<UUID>()
-        return suggestion.components.compactMap { component in
-            guard case .preparedComponent(let id) = component.source,
-                  seen.insert(id).inserted,
-                  // Matched by id, never by name: two batches can share a name.
-                  let batch = preparedComponents.first(where: { $0.id == id })
-            else { return nil }
-            return QuickMealPreparedUsage(
-                id: batch.id,
-                name: batch.name,
-                portionsRemaining: batch.portionsRemaining
-            )
-        }
+    ) -> [PreparedPortionUsage] {
+        PreparedPortionUsage.resolve(
+            sources: suggestion.components.map(\.source),
+            among: preparedComponents
+        )
     }
 }
 
@@ -168,7 +152,7 @@ struct HomeQuickMealSection: View {
     private func suggestionCard(
         _ suggestion: QuickMealSuggestion,
         canRotate: Bool,
-        preparedUsages: [QuickMealPreparedUsage]
+        preparedUsages: [PreparedPortionUsage]
     ) -> some View {
         let components = suggestion.components.map(\.name).joined(separator: " · ")
         return VStack(alignment: .leading, spacing: 8) {
@@ -186,7 +170,11 @@ struct HomeQuickMealSection: View {
             // single "finish this meal" action: using a portion changes only
             // that batch, and says nothing about the rice or the greens.
             ForEach(preparedUsages) { usage in
-                preparedUsageRow(usage)
+                PreparedPortionUsageRow(
+                    usage: usage,
+                    identifierPrefix: "home.quickMeal",
+                    onUse: onUsePreparedPortion
+                )
             }
 
             if canRotate {
@@ -212,49 +200,6 @@ struct HomeQuickMealSection: View {
         // rotate button still reachable as its own element.
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(suggestion.displayTitle)，\(components)")
-    }
-
-    private func preparedUsageRow(_ usage: QuickMealPreparedUsage) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                preparedUsageLabel(usage)
-                Spacer(minLength: 8)
-                preparedUsageButton(usage)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                preparedUsageLabel(usage)
-                preparedUsageButton(usage)
-            }
-        }
-        .accessibilityElement(children: .contain)
-    }
-
-    private func preparedUsageLabel(_ usage: QuickMealPreparedUsage) -> some View {
-        Text("\(usage.name) · \(usage.remainingText)")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .accessibilityIdentifier("home.quickMeal.prepared.\(usage.id.uuidString)")
-    }
-
-    private func preparedUsageButton(_ usage: QuickMealPreparedUsage) -> some View {
-        // The height has to be inside the label: a `.frame` applied to the
-        // Button itself leaves the hit target — and the accessibility frame —
-        // the size of the text, which measured 18pt. Same shape as
-        // `HomeDayRhythmRow`.
-        Button {
-            onUsePreparedPortion(usage.id)
-        } label: {
-            Text("使用 1 份")
-                .font(.subheadline.weight(.medium))
-                .frame(minHeight: AppTheme.minimumHitTarget)
-                .contentShape(Rectangle())
-        }
-            .foregroundStyle(AppTheme.brand)
-            .buttonStyle(.plain)
-            // Names the batch so it is unambiguous when a meal uses two.
-            .accessibilityLabel("使用 1 份\(usage.name)")
-            .accessibilityHint("\(usage.remainingText)")
-            .accessibilityIdentifier("home.quickMeal.usePrepared.\(usage.id.uuidString)")
     }
 
     private func statusRow(_ message: String, identifier: String) -> some View {
