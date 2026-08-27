@@ -13,7 +13,14 @@ import Foundation
 
 /// What the primary region is showing. One case per genuinely different task —
 /// not one case per view.
-enum HomePrimaryTaskKind: Equatable {
+/// `nonisolated` because it is a payload-free presentation enum with no state
+/// of any kind. Under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` an unannotated
+/// declaration is implicitly `@MainActor`, which made its *synthesized*
+/// `Equatable` conformance an isolated conformance — unusable from a nonisolated
+/// `XCTAssertEqual`, and an error in the Swift 6 language mode. Enums carrying a
+/// raw value (see `HomeAttentionItem.Kind`) avoid this because their `==` comes
+/// from the stdlib's nonisolated `RawRepresentable` conformance instead.
+nonisolated enum HomePrimaryTaskKind: Equatable {
     /// Tonight is already settled outside the household. There is no task.
     case eatOut
     /// A Today Plan exists and is the thing to do. Execution mode.

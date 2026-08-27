@@ -8,7 +8,7 @@ import SwiftUI
 // receipt scanning, and shopping-list generation. `KitchenStore` delegates its own
 // name/unit normalization here instead of keeping a second copy.
 
-enum IngredientNormalizer {
+nonisolated enum IngredientNormalizer {
     private static let nameAliases: [String: String] = [
         "tomato": "番茄", "tomatoes": "番茄", "西红柿": "番茄",
         "egg": "鸡蛋", "eggs": "鸡蛋", "large eggs": "鸡蛋",

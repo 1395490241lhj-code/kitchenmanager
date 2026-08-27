@@ -62,7 +62,7 @@ enum PreparationState: String, CaseIterable {
 }
 
 /// One item's position on all three axes.
-struct QuickFoodProfile: Equatable {
+nonisolated struct QuickFoodProfile: Equatable {
     var roles: Set<MealComponentRole>
     var form: QuickFoodForm?
     var preparationState: PreparationState
@@ -105,7 +105,7 @@ struct QuickFoodProfile: Equatable {
 // not 番茄), pickles before the generic 腌 marker (腌黄瓜 is ready to eat,
 // 腌鸡肉 is not), and 米粉 before 大米 (a rice noodle is not rice).
 
-enum QuickFoodProfileClassifier {
+nonisolated enum QuickFoodProfileClassifier {
     /// The single entry point. Callers with a structured preparation state pass
     /// it in and it wins; callers without one get the name inference unchanged.
     ///

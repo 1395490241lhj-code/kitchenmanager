@@ -90,7 +90,10 @@ struct HomeDashboardSummary: Equatable {
     }
 }
 
-enum HomeTodayPlanState: Equatable {
+/// `nonisolated` for the same reason as `HomePrimaryTaskKind`: a payload-free
+/// value with a synthesized `Equatable` conformance that has to be usable from
+/// nonisolated test code.
+nonisolated enum HomeTodayPlanState: Equatable {
     case empty
     case active
     case partial
@@ -235,7 +238,7 @@ extension HomeAttentionItem {
 
     /// Soonest first, then a stable key. Items without a date sort last so a
     /// missing expiry never jumps the queue.
-    private static func inventoryOrder(_ lhs: InventoryItem, _ rhs: InventoryItem) -> Bool {
+    nonisolated private static func inventoryOrder(_ lhs: InventoryItem, _ rhs: InventoryItem) -> Bool {
         switch (lhs.expiryDate, rhs.expiryDate) {
         case let (left?, right?) where left != right:
             return left < right
@@ -254,7 +257,7 @@ extension HomeAttentionItem {
 
     /// Same tie-breaking chain `MealPrepBoard` uses, so a batch never appears in
     /// one order on the board and another in 需要处理.
-    private static func preparedOrder(_ lhs: PreparedComponent, _ rhs: PreparedComponent) -> Bool {
+    nonisolated private static func preparedOrder(_ lhs: PreparedComponent, _ rhs: PreparedComponent) -> Bool {
         if lhs.expiryDate != rhs.expiryDate { return lhs.expiryDate < rhs.expiryDate }
         if lhs.preparedAt != rhs.preparedAt { return lhs.preparedAt < rhs.preparedAt }
         if lhs.name != rhs.name {

@@ -60,7 +60,7 @@ struct QuickMealCandidate: Equatable {
 extension QuickMealCandidate {
     /// Inventory: the name is all there is to go on, so the profile is inferred
     /// exactly as it was before this change.
-    init(inventoryItem item: InventoryItem) {
+    nonisolated init(inventoryItem item: InventoryItem) {
         self.init(
             source: .inventory(item.id),
             name: item.name,
@@ -73,7 +73,7 @@ extension QuickMealCandidate {
     /// that axis is passed in rather than guessed from 卤 / 腌 in the name.
     /// Roles and form still come from the name — a batch called 卤鸡腿 is protein
     /// because of what it is, and no structured field records that yet.
-    init(preparedComponent component: PreparedComponent) {
+    nonisolated init(preparedComponent component: PreparedComponent) {
         self.init(
             source: .preparedComponent(component.id),
             name: component.name,
@@ -90,7 +90,7 @@ extension PreparedComponentState {
     /// The one explicit mapping between the prepared-component domain and Quick
     /// Meal's wider vocabulary. Total by construction: a batch can only ever be
     /// one of these two, so there is no default case to get wrong.
-    var quickMealPreparationState: PreparationState {
+    nonisolated var quickMealPreparationState: PreparationState {
         switch self {
         case .prepped: return .prepped
         case .cooked: return .cooked

@@ -13,7 +13,7 @@ import Foundation
 // any write to inventory, plans or recipes.
 
 /// One candidate filling one slot of a template.
-struct QuickMealComponent: Equatable {
+nonisolated struct QuickMealComponent: Equatable {
     enum Slot: String {
         case carb
         case protein
@@ -403,10 +403,10 @@ enum QuickMealAssemblyEngine {
 enum QuickMealTitleBuilder {
     /// Longest first, so 已熟 is stripped before 熟. Deliberately no "生": 生菜
     /// and 生姜 are names, not raw versions of 菜 and 姜.
-    private static let stateMarkers = ["已熟", "冷冻", "速冻", "新鲜", "熟", "卤", "腌", "剩"]
+    nonisolated private static let stateMarkers = ["已熟", "冷冻", "速冻", "新鲜", "熟", "卤", "腌", "剩"]
 
     /// Only where the stock name and the spoken name genuinely differ.
-    private static let spokenNames = [
+    nonisolated private static let spokenNames = [
         "上海青": "青菜",
         "小白菜": "青菜",
         "油麦菜": "青菜",
@@ -507,7 +507,7 @@ enum QuickMealTitleBuilder {
     /// The item name as a person would say it: no storage or preparation prefix,
     /// and the common spoken form where it differs. A prepared dish keeps its
     /// name whole — stripping 剩 from 剩菜 would leave "菜".
-    private static func spoken(_ component: QuickMealComponent) -> String {
+    nonisolated private static func spoken(_ component: QuickMealComponent) -> String {
         var name = component.name.trimmingCharacters(in: .whitespacesAndNewlines)
         if component.profile.form != .preparedDish {
             // Never strip down to a single character — 腌菜 must not become 菜.
