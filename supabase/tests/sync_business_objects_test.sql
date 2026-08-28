@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
-select plan(46);
+select plan(51);
 
 select has_table('public', 'inventory_items', 'inventory_items exists');
 select has_table('public', 'shopping_items', 'shopping_items exists');
@@ -151,6 +151,29 @@ select ok(
    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'apply_sync_mutation'),
   'the mutation RPC still pins search_path to pg_catalog after being replaced'
+);
+
+-- `20260828000100` adds the ready-to-cook preparation axis. It is a new
+-- orthogonal column: deliberately NOT the PWA-owned `kind` (raw/dry/staple)
+-- and not a third value grafted onto `is_staple`.
+select has_column('public', 'inventory_items', 'preparation_kind', 'inventory preparation_kind exists');
+select col_type_is('public', 'inventory_items', 'preparation_kind', 'text', 'preparation_kind is text (project idiom: text + CHECK, no enum type)');
+select col_not_null('public', 'inventory_items', 'preparation_kind', 'preparation_kind is NOT NULL — none is the only no-preparation value');
+select is(
+  (select column_default from information_schema.columns
+   where table_schema = 'public' and table_name = 'inventory_items' and column_name = 'preparation_kind'),
+  '''none''::text',
+  'preparation_kind defaults to none'
+);
+-- Equality, not LIKE containment: a widened vocabulary (e.g. a third value)
+-- must fail here, not slip past a substring match.
+select is(
+  (select pg_get_constraintdef(oid)
+   from pg_constraint
+   where conrelid = 'public.inventory_items'::regclass
+     and conname = 'inventory_items_preparation_kind_check'),
+  'CHECK ((preparation_kind = ANY (ARRAY[''none''::text, ''readyToCook''::text])))',
+  'preparation_kind CHECK vocabulary is exactly none/readyToCook'
 );
 
 select * from finish();

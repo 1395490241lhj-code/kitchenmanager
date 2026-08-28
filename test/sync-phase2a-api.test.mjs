@@ -6,7 +6,7 @@ const require = createRequire(import.meta.url);
 const { MAX_POSTGRES_BIGINT, parseCursor, parseVersion, serializeCursor } = require('../src/server/sync/cursor');
 const { deterministicSyncEntityId, isUuid } = require('../src/server/sync/stable-id');
 const { validateChangesQuery, validateEntityData, validateMutation, validateMutationsRequest } = require('../src/server/sync/validation');
-const { ENTITY_DEFINITIONS, ENTITY_TYPES } = require('../src/server/sync/entities');
+const { DB_FIELD_NAMES, ENTITY_DEFINITIONS, ENTITY_TYPES, fromDatabaseRecord } = require('../src/server/sync/entities');
 const { createSyncService } = require('../src/server/sync/service');
 const { createSupabaseSyncRepository } = require('../src/server/sync/repository');
 const { createSyncHandlers, registerSyncRoutes } = require('../src/server/sync/routes');
@@ -227,6 +227,67 @@ test('unsupported and protected fields are still rejected on a partial update', 
   assert.throws(() => validateEntityData('inventory_item', { notAColumn: 1 }, { isCreate: false }));
   assert.throws(() => validateEntityData('inventory_item', { version: 2 }, { isCreate: false }));
   assert.throws(() => validateMutation(inventoryMutation({ baseVersion: 3, data: { notAColumn: 1 } })));
+});
+
+// --- P2 preparation axis (20260828000100) ---------------------------------
+//
+// `preparationKind` is orthogonal to `isStaple` and never touches the
+// PWA-owned `kind`. It is non-nullable ('none' is the only "no preparation"
+// value) and its 'readyToCook' spelling matches the Swift rawValue verbatim.
+
+test('preparationKind accepts exactly its two-value vocabulary', () => {
+  for (const value of ['none', 'readyToCook']) {
+    assert.deepEqual(
+      validateEntityData('inventory_item', { preparationKind: value }, { isCreate: false }),
+      { preparationKind: value }
+    );
+  }
+});
+
+test('preparationKind rejects out-of-vocabulary, null, and empty values', () => {
+  for (const value of ['braised', 'readytocook', null, '']) {
+    assert.throws(
+      () => validateEntityData('inventory_item', { preparationKind: value }, { isCreate: false }),
+      SyncError,
+      String(value)
+    );
+  }
+});
+
+test('an update that omits preparationKind stays omitted — no default is materialized', () => {
+  const value = validateEntityData('inventory_item', { quantity: 1 }, { isCreate: false });
+  assert.equal('preparationKind' in value, false);
+  // A create may omit it too: the RPC's default_data supplies 'none'.
+  const created = validateMutation(inventoryMutation({ baseVersion: 0 })).data;
+  assert.equal('preparationKind' in created, false);
+});
+
+test('preparationKind maps to the preparation_kind column', () => {
+  assert.equal(DB_FIELD_NAMES.preparationKind, 'preparation_kind');
+});
+
+test('a pre-P2 database record without preparation_kind maps without inventing the key', () => {
+  // Historical sync_changes rows snapshotted before the migration simply lack
+  // the column. The read mapping must pass them through untouched — never
+  // materialize a wire key the stored record does not carry.
+  const record = fromDatabaseRecord('inventory_item', {
+    id: entityId, household_id: householdA, version: 3,
+    name: '三文鱼', normalized_name: '三文鱼', is_staple: false
+  });
+  assert.equal('preparationKind' in record, false);
+  assert.equal(record.name, '三文鱼');
+});
+
+test('a record carrying preparation_kind surfaces it as preparationKind', () => {
+  const record = fromDatabaseRecord('inventory_item', {
+    id: entityId, household_id: householdA, version: 4,
+    name: '三文鱼', normalized_name: '三文鱼',
+    is_staple: true, preparation_kind: 'readyToCook'
+  });
+  assert.equal(record.preparationKind, 'readyToCook');
+  // Both axes travel independently: the combined state is legal on the wire,
+  // and resolving it (staple > readyToCook > ordinary) is the P3 client's job.
+  assert.equal(record.isStaple, true);
 });
 
 test('delete accepts no business data and preserves BIGINT baseVersion as string', () => {

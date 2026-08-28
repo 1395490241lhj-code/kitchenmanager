@@ -76,7 +76,8 @@ test('migration manifest: the real repository migrations directory is currently 
     '20260713000100',
     '20260713000200',
     '20260716000100',
-    '20260827000100'
+    '20260827000100',
+    '20260828000100'
   ]);
 });
 

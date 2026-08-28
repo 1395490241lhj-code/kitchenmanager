@@ -113,6 +113,52 @@ begin
   ) then
     raise exception 'phase2a verification failed: mutation idempotency key is invalid';
   end if;
+
+  -- P2 (20260828000100): the ready-to-cook preparation axis. Column shape
+  -- first — existence alone is not enough, because a nullable or
+  -- differently-defaulted copy of the column would break the RPC contract.
+  -- (aliased: the enclosing block declares a `table_name` variable that
+  -- would otherwise shadow the information_schema column of the same name)
+  if not exists (
+    select 1 from information_schema.columns c
+    where c.table_schema = 'public' and c.table_name = 'inventory_items'
+      and c.column_name = 'preparation_kind'
+      and c.is_nullable = 'NO'
+      and c.column_default = '''none''::text'
+  ) then
+    raise exception 'phase2a verification failed: inventory_items.preparation_kind is missing, nullable, or does not default to none';
+  end if;
+
+  -- Equality, not LIKE containment: a hosted CHECK that was widened past the
+  -- two-value vocabulary must fail here, not slip past a substring match.
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.inventory_items'::regclass
+      and conname = 'inventory_items_preparation_kind_check'
+      and pg_get_constraintdef(oid) =
+        'CHECK ((preparation_kind = ANY (ARRAY[''none''::text, ''readyToCook''::text])))'
+  ) then
+    raise exception 'phase2a verification failed: preparation_kind CHECK vocabulary is missing or wrong';
+  end if;
+
+  -- The deployed mutation RPC must be the current (P2, PATCH-era) body.
+  -- Grant/trigger/policy counts cannot distinguish a stale function body —
+  -- `20260716000100` sat undetected on this project for six weeks exactly
+  -- because nothing here read what was actually deployed. `patch_data`
+  -- proves the 20260827000100 PATCH rewrite; the preparation_kind strings
+  -- prove the 20260828000100 allowlist + create-default additions.
+  if not exists (
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = 'apply_sync_mutation'
+      and position('patch_data' in pg_get_functiondef(p.oid)) > 0
+      and position('''preparation_kind''' in pg_get_functiondef(p.oid)) > 0
+      and position('"preparation_kind":"none"' in pg_get_functiondef(p.oid)) > 0
+  ) then
+    raise exception 'phase2a verification failed: deployed apply_sync_mutation body predates PATCH/preparation_kind (stale function body)';
+  end if;
 end
 $phase2a_verify$;
 

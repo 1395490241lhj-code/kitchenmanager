@@ -38,6 +38,11 @@ const ENTITY_DEFINITIONS = Object.freeze({
       stapleNote: common.string(1000, { nullable: true }), stapleCategory: common.string(100, { nullable: true }),
       stapleTrackingMode: common.string(20, { enum: ['quantity', 'status'], default: 'quantity' }),
       stapleAvailabilityStatus: common.string(20, { enum: ['available', 'low', 'missing'], default: 'available' }),
+      // The preparation axis, orthogonal to `isStaple` (staple axis) and
+      // never stored in the PWA-owned `kind` column. Non-nullable: 'none' is
+      // the only "no preparation" value, so an explicit null is rejected.
+      // 'readyToCook' is camelCase to match the Swift rawValue exactly.
+      preparationKind: common.string(20, { enum: ['none', 'readyToCook'], default: 'none' }),
       sortOrder: common.integer({ min: -1000000, max: 1000000, default: 0 })
     }
   },
@@ -128,7 +133,7 @@ const DB_FIELD_NAMES = Object.freeze({
   unitType: 'unit_type', outOfStockAt: 'out_of_stock_at', cookedCount: 'cooked_count', lastCookedAt: 'last_cooked_at',
   isStaple: 'is_staple', lowStockThreshold: 'low_stock_threshold', defaultRestockQuantity: 'default_restock_quantity',
   autoSuggestRestock: 'auto_suggest_restock', stapleNote: 'staple_note', stapleCategory: 'staple_category',
-  stapleTrackingMode: 'staple_tracking_mode', stapleAvailabilityStatus: 'staple_availability_status', sortOrder: 'sort_order',
+  stapleTrackingMode: 'staple_tracking_mode', stapleAvailabilityStatus: 'staple_availability_status', preparationKind: 'preparation_kind', sortOrder: 'sort_order',
   quantityText: 'quantity_text', sourceDetail: 'source_detail', isDone: 'is_done', stockedIn: 'stocked_in',
   stockedInAt: 'stocked_in_at', completedAt: 'completed_at', recipeId: 'recipe_id', recipeName: 'recipe_name',
   plannedDate: 'planned_date', isCooked: 'is_cooked', cookedAt: 'cooked_at', occurredAt: 'occurred_at',

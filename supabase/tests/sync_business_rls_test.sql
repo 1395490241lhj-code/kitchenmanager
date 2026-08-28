@@ -13,7 +13,7 @@
 -- direct-SQL, Docker-local coverage of the same invariants as defense in
 -- depth, independent of the Express layer.
 begin;
-select plan(51);
+select plan(59);
 
 -- Two households (auto-created by the handle_new_auth_user trigger), two
 -- users, no cross-membership — A and B must never see each other's data.
@@ -727,6 +727,111 @@ select ok(
   (select difficulty = '简单' and sort_order = 1
    from public.user_recipes where id = '55555555-5555-4555-8555-555555555565'::uuid),
   'user_recipe: an unsent column is preserved while the sent one is written'
+);
+
+-- ---------------------------------------------------------------------------
+-- P2 preparation axis (20260828000100_inventory_preparation_kind).
+--
+-- `preparation_kind` is orthogonal to both `is_staple` (staple sync axis)
+-- and the PWA-owned `kind`. Row 557 was created above by a payload that
+-- never mentioned it, so it also proves the create-time default. The row is
+-- currently at version 3 (create → iOS update → quantity update; the
+-- rejected/conflicted mutations in between never advanced it).
+-- ---------------------------------------------------------------------------
+
+-- a create that never sent the key landed on the canonical default.
+select is(
+  (select preparation_kind from public.inventory_items where id = '55555555-5555-4555-8555-555555555557'::uuid),
+  'none',
+  'a create that never sends preparation_kind lands on none'
+);
+
+-- the camelCase vocabulary value is accepted and stored verbatim.
+select is(
+  (
+    select (public.apply_sync_mutation(
+      'household', current_setting('pgtap.household_a')::uuid,
+      '44444444-4444-4444-8444-444444444473'::uuid,
+      'inventory_item', '55555555-5555-4555-8555-555555555557'::uuid,
+      'upsert', 3, now(), '{"preparation_kind":"readyToCook"}'::jsonb
+    ) ->> 'status')
+  ),
+  'applied',
+  'a preparation_kind-only PATCH update applies'
+);
+select is(
+  (select preparation_kind from public.inventory_items where id = '55555555-5555-4555-8555-555555555557'::uuid),
+  'readyToCook',
+  'readyToCook is stored verbatim (camelCase matches the Swift rawValue)'
+);
+
+-- an update that omits the key preserves the ready-to-cook state — this is
+-- the exact PATCH guarantee that stops a future PWA write from degrading a
+-- ready-to-cook row it has never heard of.
+do $$
+begin
+  perform public.apply_sync_mutation(
+    'household', current_setting('pgtap.household_a')::uuid,
+    '44444444-4444-4444-8444-444444444474'::uuid,
+    'inventory_item', '55555555-5555-4555-8555-555555555557'::uuid,
+    'upsert', 4, now(), '{"quantity":7}'::jsonb
+  );
+end;
+$$;
+select is(
+  (select preparation_kind from public.inventory_items where id = '55555555-5555-4555-8555-555555555557'::uuid),
+  'readyToCook',
+  'an upsert that omits preparation_kind preserves readyToCook'
+);
+
+-- the column is NOT NULL: none is the only "no preparation" value, so an
+-- explicit null is a rejection, never a clear.
+select is(
+  (
+    select (public.apply_sync_mutation(
+      'household', current_setting('pgtap.household_a')::uuid,
+      '44444444-4444-4444-8444-444444444475'::uuid,
+      'inventory_item', '55555555-5555-4555-8555-555555555557'::uuid,
+      'upsert', 5, now(), '{"preparation_kind":null}'::jsonb
+    ) ->> 'errorCode')
+  ),
+  'invalid_payload',
+  'an explicit null preparation_kind is rejected, not cleared'
+);
+
+-- an out-of-vocabulary value fails the CHECK constraint.
+select is(
+  (
+    select (public.apply_sync_mutation(
+      'household', current_setting('pgtap.household_a')::uuid,
+      '44444444-4444-4444-8444-444444444476'::uuid,
+      'inventory_item', '55555555-5555-4555-8555-555555555557'::uuid,
+      'upsert', 5, now(), '{"preparation_kind":"braised"}'::jsonb
+    ) ->> 'errorCode')
+  ),
+  'invalid_payload',
+  'an out-of-vocabulary preparation_kind is rejected by the CHECK constraint'
+);
+
+-- a staple-axis-only update beside a stored readyToCook applies — there is
+-- deliberately no cross-axis CHECK, because a PATCH touching one axis must
+-- not be rejected on stored state the client cannot see.
+select is(
+  (
+    select (public.apply_sync_mutation(
+      'household', current_setting('pgtap.household_a')::uuid,
+      '44444444-4444-4444-8444-444444444477'::uuid,
+      'inventory_item', '55555555-5555-4555-8555-555555555557'::uuid,
+      'upsert', 5, now(), '{"is_staple":true}'::jsonb
+    ) ->> 'status')
+  ),
+  'applied',
+  'a staple-only update beside a stored readyToCook applies — no cross-axis CHECK'
+);
+select ok(
+  (select is_staple and preparation_kind = 'readyToCook'
+   from public.inventory_items where id = '55555555-5555-4555-8555-555555555557'::uuid),
+  'is_staple=true with preparation_kind=readyToCook is a legal stored combination; decode precedence (staple > readyToCook > ordinary) is a P3 client concern'
 );
 
 -- recipe_favorites and frequent_recipes have exactly one client-writable

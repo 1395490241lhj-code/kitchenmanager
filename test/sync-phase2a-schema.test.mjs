@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 
@@ -14,6 +14,20 @@ const patchMigrationUrl = new URL(
   import.meta.url
 );
 const patchSql = readFileSync(patchMigrationUrl, 'utf8');
+
+// The live RPC contract is whichever migration (re)defines apply_sync_mutation
+// last. Binding the semantic assertions below to one hardcoded filename would
+// let them keep passing against a superseded definition — the exact failure
+// mode f0c9619 fixed on the auth side — so resolve the newest definition and
+// assert against that.
+const migrationsDirUrl = new URL('../supabase/migrations/', import.meta.url);
+const migrationFilenames = readdirSync(migrationsDirUrl)
+  .filter(name => name.endsWith('.sql'))
+  .sort();
+const rpcMigrationName = [...migrationFilenames].reverse().find(name =>
+  readFileSync(new URL(name, migrationsDirUrl), 'utf8')
+    .includes('create or replace function public.apply_sync_mutation'));
+const rpcSql = readFileSync(new URL(rpcMigrationName, migrationsDirUrl), 'utf8');
 
 const require = createRequire(import.meta.url);
 const { DB_FIELD_NAMES, ENTITY_DEFINITIONS, ENTITY_TYPES } = require('../src/server/sync/entities');
@@ -162,7 +176,10 @@ test('pgTAP object audit covers tables, RLS, triggers, indexes, and closed DML',
     new URL('../supabase/tests/sync_business_objects_test.sql', import.meta.url),
     'utf8'
   );
-  assert.match(source, /select plan\(46\)/);
+  assert.match(source, /select plan\(51\)/);
+  assert.match(source, /inventory preparation_kind exists/);
+  assert.match(source, /preparation_kind defaults to none/);
+  assert.match(source, /preparation_kind CHECK vocabulary is exactly none\/readyToCook/);
   assert.match(source, /all nine mutable entity tables have version\/audit triggers/);
   assert.match(source, /inventory direct DML has no RLS policy/);
   assert.match(source, /household cursor index exists/);
@@ -171,12 +188,14 @@ test('pgTAP object audit covers tables, RLS, triggers, indexes, and closed DML',
   assert.match(source, /authenticated direct inventory INSERT remains revoked/);
 });
 
-// --- 20260827000100: mutation PATCH semantics ------------------------------
+// --- the current apply_sync_mutation definition (resolved above) -----------
 
 test('the PATCH migration replaces the RPC without editing the reviewed foundation migration', () => {
   assert.match(patchSql, /create or replace function public\.apply_sync_mutation/);
-  // Schema-only migration boundary: replacing a function must not smuggle in
-  // a table/column change.
+  // The PATCH migration's own boundary was schema-free: replacing the
+  // function without smuggling in a table/column change. (20260828000100
+  // legitimately pairs an ALTER TABLE with its RPC replacement — that
+  // boundary is asserted in its own test below, per file, not globally.)
   assert.doesNotMatch(patchSql, /create table|alter table|drop (table|column|function)/i);
   // 20260713000200 still carries its original whole-column update, untouched.
   assert.match(sql, /from unnest\(column_names\) item/);
@@ -184,31 +203,31 @@ test('the PATCH migration replaces the RPC without editing the reviewed foundati
 });
 
 test('an update writes only the columns the client actually sent', () => {
-  assert.match(patchSql, /from jsonb_object_keys\(patch_data\) item/);
+  assert.match(rpcSql, /from jsonb_object_keys\(patch_data\) item/);
   // The update no longer walks the whole per-entity allowlist...
-  assert.doesNotMatch(patchSql, /from unnest\(column_names\) item/);
+  assert.doesNotMatch(rpcSql, /from unnest\(column_names\) item/);
   // ...but the allowlist itself still gates which keys are even accepted.
-  assert.match(patchSql, /not \(key = any\(column_names\)\)/);
-  assert.match(patchSql, /mutation contains unsupported fields/);
+  assert.match(rpcSql, /not \(key = any\(column_names\)\)/);
+  assert.match(rpcSql, /mutation contains unsupported fields/);
   // Every identifier reaching SQL is still quoted, never interpolated raw.
-  assert.match(patchSql, /format\('%I', item\)/);
-  assert.doesNotMatch(patchSql, /table_name\s*:=\s*p_entity_type/i);
+  assert.match(rpcSql, /format\('%I', item\)/);
+  assert.doesNotMatch(rpcSql, /table_name\s*:=\s*p_entity_type/i);
 });
 
 test('a single-column update avoids the parenthesized multi-column form', () => {
-  assert.match(patchSql, /array_length\(update_names, 1\) = 1/);
-  assert.match(patchSql, /'%I = \(select source\.%I from jsonb_populate_record/);
-  assert.match(patchSql, /'\(%s\) = \(select %s from jsonb_populate_record/);
+  assert.match(rpcSql, /array_length\(update_names, 1\) = 1/);
+  assert.match(rpcSql, /'%I = \(select source\.%I from jsonb_populate_record/);
+  assert.match(rpcSql, /'\(%s\) = \(select %s from jsonb_populate_record/);
 });
 
 test('server-side defaults are applied by the insert branch only', () => {
   // default_data is folded in exactly once, into the create-only payload.
-  assert.equal(patchSql.match(/default_data \|\|/g)?.length, 1);
-  assert.match(patchSql, /create_data := default_data \|\| p_data/);
-  assert.match(patchSql, /system_data := create_data \|\| jsonb_build_object/);
+  assert.equal(rpcSql.match(/default_data \|\|/g)?.length, 1);
+  assert.match(rpcSql, /create_data := default_data \|\| p_data/);
+  assert.match(rpcSql, /system_data := create_data \|\| jsonb_build_object/);
   // The update executes against the client's own payload.
-  assert.match(patchSql, /using patch_data, p_entity_id, p_scope_id, p_base_version/);
-  assert.match(patchSql, /using patch_data, p_entity_id, actor, p_base_version/);
+  assert.match(rpcSql, /using patch_data, p_entity_id, p_scope_id, p_base_version/);
+  assert.match(rpcSql, /using patch_data, p_entity_id, actor, p_base_version/);
 });
 
 test('every create-time default the validator dropped is supplied by the RPC instead', () => {
@@ -216,7 +235,7 @@ test('every create-time default the validator dropped is supplied by the RPC ins
   // RPC is now the only thing standing between a sparse create and a NOT NULL
   // violation. Adding a defaulted field to entities.js without adding it here
   // would break creates for that entity at runtime, not at review time.
-  const caseBlock = patchSql.slice(patchSql.indexOf('case p_entity_type'), patchSql.indexOf('end case;'));
+  const caseBlock = rpcSql.slice(rpcSql.indexOf('case p_entity_type'), rpcSql.indexOf('end case;'));
   for (const entityType of ENTITY_TYPES) {
     const chunk = caseBlock.slice(caseBlock.indexOf(`when '${entityType}' then`));
     const nextWhen = chunk.slice(1).search(/\n\s*when '/);
@@ -237,47 +256,47 @@ test('every create-time default the validator dropped is supplied by the RPC ins
 });
 
 test('required fields must be present only on a create, but must be valid whenever sent', () => {
-  assert.match(patchSql, /coalesce\(p_base_version, 0\) = 0 and exists \([\s\S]*not \(create_data \? required_key\)/);
-  assert.match(patchSql, /where patch_data \? required_key[\s\S]*btrim\(patch_data ->> required_key\) = ''/);
+  assert.match(rpcSql, /coalesce\(p_base_version, 0\) = 0 and exists \([\s\S]*not \(create_data \? required_key\)/);
+  assert.match(rpcSql, /where patch_data \? required_key[\s\S]*btrim\(patch_data ->> required_key\) = ''/);
 });
 
 test('an upsert naming no column is rejected instead of rewriting the row', () => {
-  assert.match(patchSql, /p_operation = 'upsert' and patch_data = '\{\}'::jsonb/);
-  assert.match(patchSql, /error_code := 'empty_update'/);
+  assert.match(rpcSql, /p_operation = 'upsert' and patch_data = '\{\}'::jsonb/);
+  assert.match(rpcSql, /error_code := 'empty_update'/);
 });
 
 test('the request hash covers the client payload, never server-side defaults', () => {
-  assert.match(patchSql, /sha256\(convert_to\(jsonb_build_object[\s\S]*'data', patch_data/);
-  assert.doesNotMatch(patchSql, /normalized_data/);
-  assert.match(patchSql, /ledger\.request_hash <> request_hash/);
-  assert.match(patchSql, /idempotency_mismatch/);
+  assert.match(rpcSql, /sha256\(convert_to\(jsonb_build_object[\s\S]*'data', patch_data/);
+  assert.doesNotMatch(rpcSql, /normalized_data/);
+  assert.match(rpcSql, /ledger\.request_hash <> request_hash/);
+  assert.match(rpcSql, /idempotency_mismatch/);
 });
 
 test('the PATCH migration preserves the original RPC safety and tombstone contract', () => {
-  assert.match(patchSql, /security definer[\s\S]*set search_path = pg_catalog/);
-  assert.match(patchSql, /actor uuid := auth\.uid\(\)/);
-  assert.match(patchSql, /private\.is_household_member\(p_scope_id, actor\)/);
-  assert.match(patchSql, /p_scope_type = 'user'[\s\S]*p_scope_id <> actor/);
-  assert.match(patchSql, /scope_kind <> p_scope_type/);
-  assert.match(patchSql, /pg_advisory_xact_lock/);
+  assert.match(rpcSql, /security definer[\s\S]*set search_path = pg_catalog/);
+  assert.match(rpcSql, /actor uuid := auth\.uid\(\)/);
+  assert.match(rpcSql, /private\.is_household_member\(p_scope_id, actor\)/);
+  assert.match(rpcSql, /p_scope_type = 'user'[\s\S]*p_scope_id <> actor/);
+  assert.match(rpcSql, /scope_kind <> p_scope_type/);
+  assert.match(rpcSql, /pg_advisory_xact_lock/);
   // Tombstone / version / conflict behaviour is carried over verbatim.
-  assert.match(patchSql, /set deleted_at = clock_timestamp\(\)/);
-  assert.match(patchSql, /deleted_at = null where id = \$2/);
-  assert.match(patchSql, /result_status := 'conflict'; error_code := 'stale_version'/);
+  assert.match(rpcSql, /set deleted_at = clock_timestamp\(\)/);
+  assert.match(rpcSql, /deleted_at = null where id = \$2/);
+  assert.match(rpcSql, /result_status := 'conflict'; error_code := 'stale_version'/);
   for (const code of ['not_found', 'invalid_create_version', 'already_deleted', 'invalid_payload']) {
-    assert.match(patchSql, new RegExp(`'${code}'`));
+    assert.match(rpcSql, new RegExp(`'${code}'`));
   }
-  assert.doesNotMatch(patchSql, /delete\s+from\s+public\./i);
-  assert.doesNotMatch(patchSql, /insert into public\.sync_changes/i);
+  assert.doesNotMatch(rpcSql, /delete\s+from\s+public\./i);
+  assert.doesNotMatch(rpcSql, /insert into public\.sync_changes/i);
 });
 
-test('the PATCH migration keeps the RPC grants closed and carries no credential', () => {
-  assert.match(patchSql, /revoke all on function public\.apply_sync_mutation[^;]+from public, anon/);
-  assert.match(patchSql, /grant execute on function public\.apply_sync_mutation[^;]+to authenticated/);
-  assert.doesNotMatch(patchSql, /grant\s+(insert|update|delete|all)[^;]*to authenticated/i);
-  assert.doesNotMatch(patchSql, /service[_ -]?role/i);
-  assert.doesNotMatch(patchSql, /supabase_db_password|authorization:\s*bearer|eyJ[a-zA-Z0-9_-]+\./i);
-  assert.doesNotMatch(patchSql, /db\s+push|--linked/i);
+test('the current RPC migration keeps the grants closed and carries no credential', () => {
+  assert.match(rpcSql, /revoke all on function public\.apply_sync_mutation[^;]+from public, anon/);
+  assert.match(rpcSql, /grant execute on function public\.apply_sync_mutation[^;]+to authenticated/);
+  assert.doesNotMatch(rpcSql, /grant\s+(insert|update|delete|all)[^;]*to authenticated/i);
+  assert.doesNotMatch(rpcSql, /service[_ -]?role/i);
+  assert.doesNotMatch(rpcSql, /supabase_db_password|authorization:\s*bearer|eyJ[a-zA-Z0-9_-]+\./i);
+  assert.doesNotMatch(rpcSql, /db\s+push|--linked/i);
 });
 
 test('pgTAP behavioural coverage exists for PATCH semantics', () => {
@@ -285,7 +304,7 @@ test('pgTAP behavioural coverage exists for PATCH semantics', () => {
     new URL('../supabase/tests/sync_business_rls_test.sql', import.meta.url),
     'utf8'
   );
-  assert.match(source, /select plan\(51\)/);
+  assert.match(source, /select plan\(59\)/);
   assert.match(source, /an iOS upsert never clears the PWA-owned inventory_items\.kind/);
   assert.match(source, /default_data never resets is_frozen\/cooked_count on an update/);
   assert.match(source, /an explicit null clears the column it names/);
@@ -297,4 +316,85 @@ test('pgTAP behavioural coverage exists for PATCH semantics', () => {
     'weekly_meal_plan', 'weekly_meal_plan_item', 'user_recipe']) {
     assert.match(source, new RegExp(`${entity}: an unsent column is preserved`));
   }
+});
+
+// --- 20260828000100: inventory preparation_kind ----------------------------
+
+test('the P2 migration pairs the column with its RPC replacement atomically', () => {
+  // The resolver above must land on the P2 migration — if a later migration
+  // replaces the RPC again, this pin forces the same review this file gives
+  // every schema change.
+  assert.equal(rpcMigrationName, '20260828000100_inventory_preparation_kind.sql');
+  // The column: NOT NULL, constant default, named CHECK with the exact
+  // two-value vocabulary.
+  assert.match(rpcSql, /alter table public\.inventory_items\s*\n\s*add column preparation_kind text not null default 'none'/);
+  assert.match(rpcSql, /constraint inventory_items_preparation_kind_check\s*\n\s*check \(preparation_kind in \('none', 'readyToCook'\)\)/);
+  // Atomic: with the column present but the old default_data, the RPC's
+  // insert branch supplies an explicit NULL (suppressing the column DEFAULT)
+  // and every inventory create is silently rejected — so the ALTER TABLE and
+  // the CREATE OR REPLACE must land in one transaction.
+  assert.match(rpcSql, /^begin;$/m);
+  assert.match(rpcSql, /^commit;$/m);
+  const alterAt = rpcSql.indexOf('alter table public.inventory_items');
+  assert.ok(rpcSql.indexOf('begin;') < alterAt, 'begin; must precede the ALTER TABLE');
+  assert.ok(alterAt < rpcSql.indexOf('create or replace function public.apply_sync_mutation'));
+  // ...and commit; must close AFTER the RPC replacement — a commit between
+  // the ALTER and the CREATE OR REPLACE would defeat the atomicity.
+  assert.ok(
+    rpcSql.indexOf('create or replace function public.apply_sync_mutation') < rpcSql.lastIndexOf('commit;'),
+    'commit; must follow the RPC replacement'
+  );
+  assert.equal(rpcSql.match(/^commit;$/gm).length, 1, 'exactly one commit');
+  // Backfill rides on ADD COLUMN DEFAULT only: a migration-time UPDATE would
+  // trip prepare_household_sync_row's auth.uid() guard, bump versions, and
+  // flood the change feed.
+  assert.doesNotMatch(rpcSql, /update\s+public\.inventory_items/i);
+  assert.doesNotMatch(rpcSql, /drop (table|column|function)/i);
+  // The RPC delta itself: allowlisted and create-defaulted.
+  assert.match(rpcSql, /'preparation_kind'\]/);
+  assert.match(rpcSql, /"preparation_kind":"none"/);
+});
+
+test('the RPC column allowlists and the server entity definitions never drift', () => {
+  // fromDatabaseRecord silently drops any pulled column that is missing from
+  // ENTITY_DEFINITIONS, and toDatabaseData feeds the RPC allowlist — so the
+  // two sides must name exactly the same columns, in both directions, for
+  // every entity type.
+  const caseBlock = rpcSql.slice(rpcSql.indexOf('case p_entity_type'), rpcSql.indexOf('end case;'));
+  // Entity-level drift first: an RPC branch for an entity the server does not
+  // define would otherwise escape the per-entity loop below, which iterates
+  // server-side ENTITY_TYPES only.
+  const rpcEntities = [...caseBlock.matchAll(/when '([a-z_]+)' then/g)].map(([, name]) => name);
+  assert.deepEqual([...rpcEntities].sort(), [...ENTITY_TYPES].sort());
+  for (const entityType of ENTITY_TYPES) {
+    const chunk = caseBlock.slice(caseBlock.indexOf(`when '${entityType}' then`));
+    const nextWhen = chunk.slice(1).search(/\n\s*when '/);
+    const entitySql = nextWhen === -1 ? chunk : chunk.slice(0, nextWhen + 1);
+    const declared = entitySql.match(/column_names := array\[([^\]]+)\]/);
+    const allowlisted = declared[1].split(',').map(item => item.trim().replace(/^'|'$/g, ''));
+    const defined = Object.keys(ENTITY_DEFINITIONS[entityType].fields)
+      .map(fieldName => DB_FIELD_NAMES[fieldName] || fieldName);
+    assert.deepEqual([...allowlisted].sort(), [...defined].sort(), entityType);
+  }
+});
+
+test('the sync remote verifier pins the P2 column and the deployed RPC body', () => {
+  // The remote verifier is the only check that runs against the hosted
+  // database. Until now it audited counts and grants but never a column or a
+  // function body, so a stale deployed RPC passed it — the same drift class
+  // f0c9619 closed for auth. Pin the new assertions here so removing them
+  // fails at review time, not only against a live database.
+  const source = readFileSync(
+    new URL('../supabase/remote-verify/sync_business_remote_verify.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(source, /column_name = 'preparation_kind'/);
+  assert.match(source, /is_nullable = 'NO'/);
+  assert.match(source, /column_default = '''none''::text'/);
+  assert.match(source, /inventory_items_preparation_kind_check/);
+  assert.match(source, /pg_get_functiondef/);
+  assert.match(source, /position\('patch_data' in pg_get_functiondef/);
+  assert.match(source, /"preparation_kind":"none"/);
+  assert.match(source, /stale function body/);
+  assert.doesNotMatch(source, /select\s+email|service[_ -]?role|eyJ[a-zA-Z0-9_-]+\./i);
 });

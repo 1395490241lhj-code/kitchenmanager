@@ -151,6 +151,8 @@ frequent_recipe
 - 缺席与 `null` 是两条**不同**的指令，不能互相替代。要清空一个字段必须显式发 `null`。
 - 客户端**不需要**了解全部列。一个只认识部分字段的客户端做 upsert，不会影响它没发送的列——
   这正是 iOS 与 PWA 能共用 `inventory_items` 而互不破坏的前提。
+  **唯一的规范性例外见 §4.2**：把 `isStaple` 与 `preparationKind` 投影成单一本地分类模型的
+  客户端，在改变该分类时必须同时发送两个字段。
 - **服务端默认值只在 create 时应用。** update 不会把没发送的字段回灌成默认值，
   因此一次 iOS upsert 不再把 `is_frozen` 重置为 `false`、把 `cooked_count` 重置为 `0`。
 - **required 字段的"必须存在"只约束 create。** update 可以完全不发 `name`，
@@ -177,6 +179,46 @@ JSON key 顺序也不影响 hash（服务端按字段定义顺序规范化，Pos
 > 「是否曾有客户端在该环境启用过 sync」，而不是 ledger 的行数。
 >
 > 无论哪种情况，该迁移**必须在启用 sync 之前完成**。
+
+### 4.2 inventory `preparationKind`（P2 preparation axis）
+
+`20260828000100_inventory_preparation_kind` 为 `inventory_items` 增加 ready-to-cook
+preparation 轴（iOS `InventoryItemKind.readyToCook` 的 sync 表达）：
+
+| 层 | 定义 |
+| --- | --- |
+| DB 列 | `preparation_kind text not null default 'none'`，CHECK `('none','readyToCook')` |
+| wire 字段 | `preparationKind`，枚举 `none \| readyToCook`（`readyToCook` 与 Swift rawValue 逐字一致） |
+| create 缺席 | RPC `default_data` 落 `'none'` |
+| update 缺席 | 保持存储值不变（§4.1 PATCH 规则，未改动） |
+| 显式 `null` | **拒绝**（列非 nullable；`none` 是唯一的"无 preparation"值） |
+| 词表外值 | 拒绝（Express `invalid_field` / DB CHECK `invalid_payload`） |
+
+所有权边界不变：
+
+- `inventory_items.kind` 完全属于 PWA 的 `raw/dry/staple` 语义，本轮未修改、未重释；
+- `is_staple` 仍是 staple 轴的 canonical sync 表达；
+- `preparationKind` 是与二者正交的第三列，不是三值 `ordinary/staple/readyToCook` 枚举。
+
+`isStaple=true` 且 `preparationKind='readyToCook'` 是**合法的** wire/存储组合——
+故意不加 cross-axis CHECK：PATCH 允许一次只动一个轴，数据库若按客户端看不见的
+存储状态拒绝这种 sparse update，会把合法请求变成不可诊断的 `invalid_payload`。
+把组合态解析回单一分类是客户端 decode 的职责，precedence 为
+`staple > readyToCook > ordinary`（P3 实现）。
+
+**Paired-write 规则（规范性）**：任何把 `isStaple` + `preparationKind` 投影为单一本地
+分类模型的客户端，在**改变该分类**时，必须从同一份本地 snapshot **同时发送两个字段**，
+按此规范化映射：
+
+```text
+ordinary    -> isStaple=false, preparationKind=none
+staple      -> isStaple=true,  preparationKind=none
+readyToCook -> isStaple=false, preparationKind=readyToCook
+```
+
+只修改 quantity / expiry / note 等无关字段的 mutation 仍然是普通 sparse PATCH，
+**不**要求携带这两个分类字段。完全不知道 `preparationKind` 的客户端（如当前 PWA）
+继续只写自己认识的字段：§4.1 的 PATCH 语义保证它们的写入不会清掉 preparation 状态。
 
 单项 status：
 
@@ -218,8 +260,16 @@ mutation 响应的 `cursor` 只是本批 applied/duplicate 结果中的最大 se
 
 ## 7. 部署与尚未启用
 
-- development 已应用 `20260713000200`，并完成真实 Auth/RLS、RPC、mutation、cursor、实体 mapper 与本地 Express smoke。production 未部署。
-- `20260827000100_sync_mutation_patch_semantics`（§4.1 的 PATCH 语义）**尚未 apply 到任何环境**，包括 development。它与 Express 侧的 `validateEntityData` 改动是一对：单独部署任何一半都不会改变现有行为，两半都到位后缺席字段才真正保持不变。
+- development 已应用 `20260713000200` 与 `20260827000100`（§4.1 的 PATCH 语义已在
+  hosted development 运行），并完成真实 Auth/RLS、RPC、mutation、cursor、实体 mapper
+  与本地 Express smoke。production 未部署。
+- `20260828000100_inventory_preparation_kind`（§4.2）**尚未 apply 到任何环境**，包括
+  development。它与 Express 侧 `entities.js` 的 `preparationKind` 定义是一对，且顺序
+  敏感：必须先 migration（列 + RPC 原子落地）、再部署 Express——新 Express 对旧 RPC
+  发送 `preparation_kind` 会触发 `unsupported fields` raise，整个 HTTP 请求以 503 失败
+  （batch 逐条独立提交，raise 之前的条目可能已经生效；按原 mutationId 重试仍然
+  idempotency-安全，但该条 mutation 在 RPC 更新前会一直失败）；旧 Express 对新
+  schema 则会在 pull 映射中静默丢弃该列。
 - iOS 已有 disabled-by-default 的 DTO、pending queue、per-scope cursor、transport/coordinator 和 inventory POC；没有 App/Auth 自动调用点。
 - PWA SyncEngine 与其他 iOS domain adapter。
 - Guest bootstrap/merge、冲突 UI、自动或后台同步。
