@@ -263,13 +263,31 @@ mutation 响应的 `cursor` 只是本批 applied/duplicate 结果中的最大 se
 - development 已应用 `20260713000200` 与 `20260827000100`（§4.1 的 PATCH 语义已在
   hosted development 运行），并完成真实 Auth/RLS、RPC、mutation、cursor、实体 mapper
   与本地 Express smoke。production 未部署。
-- `20260828000100_inventory_preparation_kind`（§4.2）**尚未 apply 到任何环境**，包括
-  development。它与 Express 侧 `entities.js` 的 `preparationKind` 定义是一对，且顺序
-  敏感：必须先 migration（列 + RPC 原子落地）、再部署 Express——新 Express 对旧 RPC
-  发送 `preparation_kind` 会触发 `unsupported fields` raise，整个 HTTP 请求以 503 失败
-  （batch 逐条独立提交，raise 之前的条目可能已经生效；按原 mutationId 重试仍然
-  idempotency-安全，但该条 mutation 在 RPC 更新前会一直失败）；旧 Express 对新
-  schema 则会在 pull 映射中静默丢弃该列。
+- `20260828000100_inventory_preparation_kind`（§4.2）**已 apply 到 hosted
+  development**：hosted migration history 现为 5/5，§4.2 的列、CHECK 词表、RPC
+  allowlist 与 create default 均已通过 remote verifier。配套的 Express 侧
+  `entities.js` `preparationKind` 定义已随 `afe1035` 在 Render 收敛。production
+  未部署。
+
+  该 migration 与 Express 定义是一对且顺序敏感——必须先 migration（列 + RPC 原子
+  落地）、再部署 Express。**该顺序在本次 rollout 中已被满足**，以下仍记录其原因：
+  新 Express 对旧 RPC 发送 `preparation_kind` 会触发 `unsupported fields` raise，
+  整个 HTTP 请求以 503 失败（batch 逐条独立提交，raise 之前的条目可能已经生效；
+  按原 mutationId 重试仍然 idempotency-安全，但该条 mutation 在 RPC 更新前会一直
+  失败）；旧 Express 对新 schema 则会在 pull 映射中静默丢弃该列。任何未来重放该
+  rollout 的环境仍须遵守同一顺序。
+- 客户端侧的 §4.2 round-trip（decode precedence `staple > readyToCook >
+  ordinary`、paired-write、merge 分类比较）已随 `8132ae5` 进入 canonical `main`。
+  该 commit 只含 iOS 代码、iOS/静态测试与 `INVENTORY_MERGE_CONTRACT.md`，**没有任何
+  server / schema / PWA 改动**，因此 Render 的 `renderCommit` 是否已前进到该 commit
+  与本契约无关，也不是它的 gate。
+- **以上都不代表 sync 已 production-enabled。** 所有 committed configuration 中的
+  sync / merge / smoke / dogfood / diagnostics flag 仍然全部是 `NO`；数据库与服务端
+  具备该能力，但没有任何客户端路径会走到它。此外，remote hydration 写入 SwiftData
+  后 `KitchenStore.inventory` 不会 reload，下一次本地 `replaceInventory` 可能用 stale
+  in-memory 状态覆盖刚同步下来的行——这是一个**全字段、全生命周期**的缺陷，与
+  preparation 轴无关，且是 sync enablement 的 hard blocker。在它修复并验证之前，
+  不得开启上述任何 flag。
 - iOS 已有 disabled-by-default 的 DTO、pending queue、per-scope cursor、transport/coordinator 和 inventory POC；没有 App/Auth 自动调用点。
 - PWA SyncEngine 与其他 iOS domain adapter。
 - Guest bootstrap/merge、冲突 UI、自动或后台同步。
