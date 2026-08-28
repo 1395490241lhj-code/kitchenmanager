@@ -70,11 +70,34 @@ test("all non-staple inventory creation flows receive one conservative expiry su
   assert.match(addInventory, /Self\.mergeOrAppendInventoryItem\(/);
   assert.match(importInventory, /Self\.mergeOrAppendInventoryItem\([\s\S]*category: item\.category/);
   assert.match(mergeInventory, /InventoryExpirySuggestion\.suggestedExpiryDate\([\s\S]*category: category/);
-  assert.match(mergeInventory, /let effectiveExpiryDate = expiryDate \?\? \(isStaple[\s\S]*\? nil[\s\S]*suggestedExpiryDate/);
+
+  // `19dd940` moved classification onto InventoryItemKind: `isStaple` became a
+  // projection of `kind == .staple`, and this decision now reads
+  // `kind.tracksExpiry` with the ternary's branches swapped. The behaviour is
+  // unchanged, so pin the flag's meaning first — otherwise redefining
+  // `tracksExpiry` would leave the assertions below vacuously true — then the
+  // one statement it drives, rather than one long source string spanning it.
+  assert.match(store, /var tracksExpiry: Bool \{ self != \.staple \}/);
+  const effectiveExpiry = mergeInventory.slice(
+    mergeInventory.indexOf("let effectiveExpiryDate"),
+    mergeInventory.indexOf("#if DEBUG")
+  );
+  assert.match(effectiveExpiry, /kind\.tracksExpiry/);
+  assert.match(effectiveExpiry, /expiryDate \?\? suggestedExpiryDate \?\?/);
+  assert.match(effectiveExpiry, /value: 7/);
+  assert.match(effectiveExpiry, /^\s*: nil$/m);
   assert.match(receipt, /let explicitExpiryDate = item\.expiryDate/);
   assert.match(receipt, /let suggestedExpiryDate = explicitExpiryDate \?\?[\s\S]*InventoryExpirySuggestion\.suggestedExpiryDate/);
   assert.match(receipt, /InventoryImportItem\([\s\S]*expiryDate: \$0\.expiryDate,[\s\S]*category: \$0\.category/);
-  assert.match(receipt, /private var manualItems: \[InventoryImportItem\][\s\S]*expiryDate: \$0\.expiryDate/);
+  // Manual drafts hold a date even while classified 常备, so the save site is
+  // what decides: a non-expiry-tracking kind is sent undated rather than
+  // carrying a date the store would drop anyway.
+  const manualItems = receipt.slice(
+    receipt.indexOf("private var manualItems: [InventoryImportItem]"),
+    receipt.indexOf("private func refreshManualDrafts(")
+  );
+  assert.match(manualItems, /expiryDate: \$0\.kind\.tracksExpiry \? \$0\.expiryDate : nil/);
+  assert.match(manualItems, /kind: \$0\.kind/);
 });
 
 test("expiry rules are bounded to known fresh categories and skip shelf-stable foods", () => {
