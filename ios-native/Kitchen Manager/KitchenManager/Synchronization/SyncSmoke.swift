@@ -340,6 +340,16 @@ final class SyncSmokeController: ObservableObject {
         guard !isRunning else { return }
         isRunning = true
         statusMessage = nil
+        // R1: this runner drives `SyncCoordinator` directly, on the app's
+        // *shared* container — so it writes `InventoryRecord` behind
+        // `KitchenStore`'s back exactly like `GuestMergeController` does, and
+        // needs the same whole-operation consistency window. Opened before
+        // the first `stageUpsert`, closed on every exit below.
+        kitchenStore.beginInventorySyncConsistencyWindow()
+        // Sample `before` from durable truth, not from an array that may
+        // already be stale — otherwise the unchanged-counts check below can
+        // fail for the very condition this whole boundary exists to fix.
+        _ = kitchenStore.reconcileInventoryFromPersistence()
         let before = GuestDataCounts(
             inventory: kitchenStore.inventory.count,
             shopping: kitchenStore.shoppingItems.count,
@@ -347,7 +357,12 @@ final class SyncSmokeController: ObservableObject {
             hasWeeklyPlan: kitchenStore.weeklyPlan != nil,
             userRecipes: recipeStore.userRecipes.count
         )
-        defer { isRunning = false }
+        defer {
+            // Runs on every exit, including the throwing paths. Keeps the
+            // inventory locked when the durable read failed.
+            _ = kitchenStore.endInventorySyncConsistencyWindow()
+            isRunning = false
+        }
 
         do {
             let runner = SyncSmokeRunner(
@@ -356,6 +371,12 @@ final class SyncSmokeController: ObservableObject {
                 persistence: persistence
             )
             _ = try await runner.run(using: authStore)
+            // Reconcile *before* sampling `after`, so the unchanged-counts
+            // check compares durable truth against the pre-run snapshot
+            // rather than an in-memory array that never moved either way.
+            // Reconcile (not close — the `defer` owns closing, once) so the
+            // unchanged-counts check compares durable truth on both sides.
+            guard kitchenStore.reconcileInventoryFromPersistence() else { throw SyncSmokeError.validationFailed }
             let after = GuestDataCounts(
                 inventory: kitchenStore.inventory.count,
                 shopping: kitchenStore.shoppingItems.count,

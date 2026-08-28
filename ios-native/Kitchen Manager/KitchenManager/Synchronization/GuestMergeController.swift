@@ -491,6 +491,70 @@ final class GuestMergeController: ObservableObject {
         }
     }
 
+    // MARK: - R1: whole-operation inventory consistency boundary
+
+    /// R1: the inbound half of the composition-root wiring `ContentView`
+    /// already does for the outbound half (`KitchenStore.onInventoryChanged`).
+    /// `KitchenStore` still imports nothing about Auth/Sync; this controller
+    /// only ever asks it to open/close a consistency window.
+    ///
+    /// Weak so the controller never keeps the app's store alive, but a `nil`
+    /// store is emphatically **not** "skip reconciliation" — see
+    /// `withInventoryConsistencyBoundary`.
+    weak var kitchenStore: KitchenStore?
+
+    static let inventoryConsistencyUnavailableMessage = "库存同步暂不可用：缺少本地库存状态绑定。"
+
+    /// Wraps a whole operation that may write `InventoryRecord` through
+    /// `SwiftDataSyncPersistence`.
+    ///
+    /// The window must open before the operation's *first* durable inventory
+    /// write, not merely around the coordinator run: `confirmMerge` and
+    /// `rollback` both write `InventoryRecord` while staging
+    /// (`InventorySyncAdapter.stageUpsert`/`stageDelete` →
+    /// `commitInventoryAndSync`), which happens before `runOnce` is reached
+    /// and can fail partway. Closing it in a `defer`-equivalent position — on
+    /// every exit, including an early `return` from `body` and any partial
+    /// staging failure — is what makes "durable write happened, memory never
+    /// caught up" unreachable.
+    ///
+    /// Fails closed: without a reconciliation target the operation does not
+    /// start at all. Running a coordinator that can write durable inventory
+    /// with nowhere to reconcile to is precisely the R1 state this boundary
+    /// exists to prevent, so degrading to "sync anyway" would be worse than
+    /// not syncing.
+    private func withInventoryConsistencyBoundary(_ body: () async -> Void) async {
+        guard let kitchenStore else {
+            lastErrorMessage = Self.inventoryConsistencyUnavailableMessage
+            lastSyncErrorMessage = Self.inventoryConsistencyUnavailableMessage
+            return
+        }
+        kitchenStore.beginInventorySyncConsistencyWindow()
+        await body()
+        if !kitchenStore.endInventorySyncConsistencyWindow() {
+            lastSyncErrorMessage = KitchenStore.inventoryReconciliationFailedNotice
+            lastErrorMessage = KitchenStore.inventoryReconciliationFailedNotice
+        }
+    }
+
+    func confirmMerge(authStore: AuthStore) async {
+        await withInventoryConsistencyBoundary { [self] in
+            await performConfirmMerge(authStore: authStore)
+        }
+    }
+
+    func rollback(authStore: AuthStore) async {
+        await withInventoryConsistencyBoundary { [self] in
+            await performRollback(authStore: authStore)
+        }
+    }
+
+    func syncNow(authStore: AuthStore, householdId: UUID) async {
+        await withInventoryConsistencyBoundary { [self] in
+            await performSyncNow(authStore: authStore, householdId: householdId)
+        }
+    }
+
     // MARK: Confirm + controlled upload (existing SyncCoordinator/adapter only)
 
     /// Explicit user confirmation. Uploads only `plan.readyToUpload`
@@ -501,7 +565,7 @@ final class GuestMergeController: ObservableObject {
     /// modified by this path. Takes the live `AuthStore` reference (never a
     /// raw token) so the caller — always a View — never needs to see or hold
     /// a token value.
-    func confirmMerge(authStore: AuthStore) async {
+    private func performConfirmMerge(authStore: AuthStore) async {
         guard isFeatureEnabled else { return }
         guard var current = session, let plan = current.plan else { return }
         guard current.status == .previewReady || current.status == .awaitingConfirmation || current.status == .conflict else { return }
@@ -772,7 +836,7 @@ final class GuestMergeController: ObservableObject {
     /// to keep-remote. Idempotent: safe to call again if a prior attempt
     /// partially failed. Takes the live `AuthStore` reference (never a raw
     /// token), same as `confirmMerge`.
-    func rollback(authStore: AuthStore) async {
+    private func performRollback(authStore: AuthStore) async {
         guard var current = session else { return }
         guard current.status == .completed || current.status == .rollbackPending else { return }
         if let deadline = current.rollbackAvailableUntil, Date() > deadline {
@@ -888,7 +952,7 @@ final class GuestMergeController: ObservableObject {
     /// tapping "立即同步库存". Never called from App startup, sign-in, a
     /// timer, or a background task. Scoped to `.inventoryItem` only, exactly
     /// like every other entry point in this file.
-    func syncNow(authStore: AuthStore, householdId: UUID) async {
+    private func performSyncNow(authStore: AuthStore, householdId: UUID) async {
         guard isFeatureEnabled else {
             lastSyncErrorMessage = "库存同步尚未开启。"
             return

@@ -16,6 +16,160 @@ final class KitchenStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: - R1b: the central inventory edit gate
+
+    func testLockedInventoryRefusesADirectIndexedWriteAndTellsTheUser() {
+        store.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nil)
+        let before = store.inventory
+
+        store.beginInventorySyncConsistencyWindow()
+        // Exactly what a SwiftUI Binding does — never a KitchenStore method.
+        store.inventory[0].quantity = 999
+
+        XCTAssertEqual(store.inventory, before, "the refused edit must not survive in memory")
+        XCTAssertEqual(store.inventoryNotice, KitchenStore.inventoryLockedForSyncNotice)
+        XCTAssertTrue(store.isInventoryLockedForSync)
+    }
+
+    func testLockedInventoryRefusesInsertsAndDeletesToo() {
+        store.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nil)
+        let before = store.inventory
+
+        store.beginInventorySyncConsistencyWindow()
+        store.inventory.append(InventoryItem(name: "新增", quantity: 1, unit: "个", expiryDate: nil))
+        XCTAssertEqual(store.inventory, before)
+        store.inventory.removeAll()
+        XCTAssertEqual(store.inventory, before)
+    }
+
+    func testRefusedEditNeverReachesTheOutboundHookAndPublishesAtMostTheRevert() {
+        store.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nil)
+        var outboundCalls = 0
+        store.onInventoryChanged = { _, _ in outboundCalls += 1 }
+
+        store.beginInventorySyncConsistencyWindow()
+        store.inventory[0].quantity = 999
+        store.inventory[0].quantity = 998
+        store.inventory[0].quantity = 997
+
+        XCTAssertEqual(outboundCalls, 0, "a refused edit must never stage anything outbound")
+        XCTAssertEqual(store.inventory.first?.quantity, 1)
+        XCTAssertEqual(store.inventoryNotice, KitchenStore.inventoryLockedForSyncNotice)
+    }
+
+    func testEditingResumesOnceTheWindowCloses() {
+        store.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nil)
+        store.beginInventorySyncConsistencyWindow()
+        store.inventory[0].quantity = 999
+        XCTAssertEqual(store.inventory.first?.quantity, 1)
+
+        XCTAssertTrue(store.endInventorySyncConsistencyWindow())
+        XCTAssertFalse(store.isInventoryLockedForSync)
+        XCTAssertNil(store.inventoryNotice, "the transient lock notice must be cleared once editing resumes")
+
+        store.inventory[0].quantity = 5
+        XCTAssertEqual(store.inventory.first?.quantity, 5)
+    }
+
+    /// R1b, second half: the `didSet` gate only guards *publishes*. These bulk
+    /// paths write the database from the in-memory snapshot **before** they
+    /// publish, so a locked window has to refuse them up front — otherwise
+    /// they would replay a stale whole-table snapshot over rows a sync just
+    /// wrote, and only then have their publish reverted.
+    func testLockedInventoryRefusesConsumption() {
+        store.addInventory(name: "番茄", quantity: 5, unit: "个", expiryDate: nil)
+        let item = store.inventory[0]
+        let draft = InventoryConsumptionDraft(
+            id: "d1", ingredientName: "番茄", normalizedName: "番茄",
+            requiredQuantity: 2, requiredUnit: "个", matchedInventoryID: item.id,
+            currentQuantity: 5, consumedQuantity: 2, resultingQuantity: 3,
+            isSelected: true, warning: nil, sourceRecipeNames: []
+        )
+
+        store.beginInventorySyncConsistencyWindow()
+        let record = store.applyConsumption([draft], planIDs: [], recipeID: nil, recipeName: "番茄炒蛋")
+
+        XCTAssertEqual(store.inventory.first?.quantity, 5, "inventory must be untouched")
+        XCTAssertFalse(
+            store.consumptionRecords.contains { $0.id == record.id },
+            "the record must not be committed — the caller reads this to mean 'not applied'"
+        )
+        XCTAssertEqual(store.consumptionNotice, KitchenStore.inventoryLockedForSyncNotice)
+    }
+
+    func testLockedInventoryRefusesUndoConsumption() {
+        store.addInventory(name: "番茄", quantity: 5, unit: "个", expiryDate: nil)
+        let item = store.inventory[0]
+        let draft = InventoryConsumptionDraft(
+            id: "d1", ingredientName: "番茄", normalizedName: "番茄",
+            requiredQuantity: 2, requiredUnit: "个", matchedInventoryID: item.id,
+            currentQuantity: 5, consumedQuantity: 2, resultingQuantity: 3,
+            isSelected: true, warning: nil, sourceRecipeNames: []
+        )
+        let record = store.applyConsumption([draft], planIDs: [], recipeID: nil, recipeName: "番茄炒蛋")
+        XCTAssertEqual(store.inventory.first?.quantity, 3)
+
+        store.beginInventorySyncConsistencyWindow()
+        store.undoConsumption(record)
+
+        XCTAssertEqual(store.inventory.first?.quantity, 3, "the undo must not have been applied")
+        XCTAssertEqual(store.consumptionNotice, KitchenStore.inventoryLockedForSyncNotice)
+    }
+
+    func testLockedInventoryRefusesShoppingStockIn() {
+        store.addShopping(name: "牛奶", quantity: 1, unit: "盒")
+        let shoppingItem = store.shoppingItems[0]
+        store.toggleShopping(shoppingItem)
+        XCTAssertTrue(store.shoppingItems.first?.isDone == true)
+
+        store.beginInventorySyncConsistencyWindow()
+        store.stockInCompletedShopping()
+
+        XCTAssertTrue(store.inventory.isEmpty, "nothing may be stocked in while locked")
+        XCTAssertEqual(store.shoppingItems.count, 1, "the shopping list must be untouched too")
+        XCTAssertEqual(store.shoppingNotice, KitchenStore.inventoryLockedForSyncNotice)
+    }
+
+    func testLockedInventoryRefusesBackupRestore() throws {
+        store.addInventory(name: "番茄", quantity: 5, unit: "个", expiryDate: nil)
+        let backup = try store.exportBackupData()
+
+        store.beginInventorySyncConsistencyWindow()
+        XCTAssertThrowsError(try store.restoreBackupData(backup), "a restore is a whole-table replacement and must be refused")
+        XCTAssertEqual(store.inventory.first?.quantity, 5)
+    }
+
+    /// The window is owned by a *count*, not a bool: `syncNow` and
+    /// `confirmMerge` are guarded by different mutual-exclusion flags, so a
+    /// second operation that returns early from one of its own guards must not
+    /// unlock the window the first one is still holding.
+    func testNestedConsistencyWindowsOnlyUnlockWhenTheOutermostCloses() {
+        store.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nil)
+
+        store.beginInventorySyncConsistencyWindow()
+        store.beginInventorySyncConsistencyWindow()
+        XCTAssertTrue(store.endInventorySyncConsistencyWindow(), "the inner close still reconciles")
+        XCTAssertTrue(store.isInventoryLockedForSync, "but must not release the outer operation's lock")
+
+        store.inventory[0].quantity = 99
+        XCTAssertEqual(store.inventory.first?.quantity, 1, "edits stay refused while the outer window is open")
+
+        XCTAssertTrue(store.endInventorySyncConsistencyWindow())
+        XCTAssertFalse(store.isInventoryLockedForSync)
+        store.inventory[0].quantity = 99
+        XCTAssertEqual(store.inventory.first?.quantity, 99)
+    }
+
+    func testReconciliationIsANoOpWhenDurableStateAlreadyMatches() {
+        store.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nil)
+        var publishes = 0
+        let cancellable = store.$inventory.dropFirst().sink { _ in publishes += 1 }
+        defer { cancellable.cancel() }
+
+        XCTAssertTrue(store.reconcileInventoryFromPersistence())
+        XCTAssertEqual(publishes, 0, "an unchanged reconciliation must not republish the array")
+    }
+
     private let farFuture = DateComponents(calendar: .current, year: 2999, month: 1, day: 1).date!
     private let farFuture2 = DateComponents(calendar: .current, year: 2999, month: 6, day: 1).date!
 

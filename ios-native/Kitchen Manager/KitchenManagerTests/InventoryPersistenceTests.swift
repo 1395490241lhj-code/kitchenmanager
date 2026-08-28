@@ -90,6 +90,77 @@ final class InventoryPersistenceTests: XCTestCase {
         XCTAssertEqual(try persistence.loadInventory(), [kept])
     }
 
+    // MARK: - R1: the didSet path persists a row-scoped diff
+
+    /// The `didSet` path must not replay the whole in-memory array. A row a
+    /// stale snapshot never knew about (one another `ModelContext` inserted)
+    /// must survive an edit to a different row.
+    func testOrdinaryEditOnlyWritesTheRowsItActuallyChanged() throws {
+        let persistence = try makePersistence()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let edited = makeItem(name: "鸡蛋")
+        try persistence.replaceInventory(with: [edited])
+        let store = KitchenStore(userDefaults: defaults, inventoryPersistence: persistence)
+        XCTAssertEqual(store.inventory.map(\.id), [edited.id])
+
+        // A row written behind the store's back, exactly as a remote apply does.
+        let unseen = makeItem(name: "远端新增")
+        try persistence.upsert(unseen)
+
+        store.inventory[0].quantity = 42
+
+        let stored = try persistence.loadInventory()
+        XCTAssertEqual(Set(stored.map(\.id)), Set([edited.id, unseen.id]), "an unrelated row must not be deleted by an edit elsewhere")
+        XCTAssertEqual(stored.first(where: { $0.id == edited.id })?.quantity, 42)
+    }
+
+    /// The mirror case: a row the stale snapshot still holds but the database
+    /// no longer has must not be re-inserted by an edit to another row.
+    func testOrdinaryEditDoesNotResurrectARowDeletedBehindTheStore() throws {
+        let persistence = try makePersistence()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let edited = makeItem(name: "鸡蛋")
+        let doomed = makeItem(name: "会被删除")
+        try persistence.replaceInventory(with: [edited, doomed])
+        let store = KitchenStore(userDefaults: defaults, inventoryPersistence: persistence)
+        XCTAssertEqual(store.inventory.count, 2)
+
+        try persistence.delete(id: doomed.id)
+
+        let index = try XCTUnwrap(store.inventory.firstIndex(where: { $0.id == edited.id }))
+        store.inventory[index].quantity = 42
+
+        XCTAssertEqual(try persistence.loadInventory().map(\.id), [edited.id], "a deleted row must stay deleted")
+    }
+
+    /// A genuine local delete must still delete.
+    func testLocalDeleteStillRemovesTheRow() throws {
+        let persistence = try makePersistence()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kept = makeItem(name: "鸡蛋")
+        let removed = makeItem(name: "牛奶")
+        try persistence.replaceInventory(with: [kept, removed])
+        let store = KitchenStore(userDefaults: defaults, inventoryPersistence: persistence)
+
+        store.inventory.removeAll { $0.id == removed.id }
+
+        XCTAssertEqual(try persistence.loadInventory().map(\.id), [kept.id])
+    }
+
+    /// Bulk paths that mean "replace the table with exactly this" must keep
+    /// meaning that — `clearAllLocalData` is the canonical one.
+    func testClearAllLocalDataStillEmptiesTheTable() throws {
+        let persistence = try makePersistence()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        try persistence.replaceInventory(with: [makeItem(name: "鸡蛋"), makeItem(name: "牛奶")])
+        let store = KitchenStore(userDefaults: defaults, inventoryPersistence: persistence)
+
+        store.clearAllLocalData()
+
+        XCTAssertTrue(try persistence.loadInventory().isEmpty)
+        XCTAssertTrue(store.inventory.isEmpty)
+    }
+
     func testStoreRestartReadsSameSwiftDataContainer() throws {
         let persistence = try makePersistence()
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
@@ -200,4 +271,5 @@ private final class FailingTestInventoryPersistence: InventoryPersistenceProtoco
     func upsert(_ item: InventoryItem) throws { throw ExpectedFailure() }
     func delete(id: UUID) throws { throw ExpectedFailure() }
     func deleteAll() throws { throw ExpectedFailure() }
+    func applyChanges(upserting items: [InventoryItem], deleting ids: [UUID]) throws { throw ExpectedFailure() }
 }

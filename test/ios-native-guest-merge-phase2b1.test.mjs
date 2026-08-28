@@ -78,7 +78,7 @@ test('conflicts are only resolved by explicit user choice, never automatically',
 });
 
 test('rollback is scoped to only this session\'s own created records, and uses soft delete via stageDelete', () => {
-  const rollbackSection = controller.slice(controller.indexOf('func rollback'));
+  const rollbackSection = controller.slice(controller.indexOf('func performRollback'));
   assert.match(rollbackSection, /current\.createdEntityIds/);
   assert.match(rollbackSection, /adapter\.stageDelete/);
   assert.doesNotMatch(rollbackSection, /deleteAll|physically|DELETE FROM/i);
@@ -132,8 +132,8 @@ test('no View ever calls AuthStore.currentAccessToken() directly — only AuthSt
   assert.doesNotMatch(content, /currentAccessToken/);
   // GuestMergeController itself must route every token read through the one
   // provider type, never call the accessor directly from confirmMerge/rollback.
-  const confirmSection = controller.slice(controller.indexOf('func confirmMerge'), controller.indexOf('func rollback'));
-  const rollbackSection = controller.slice(controller.indexOf('func rollback'));
+  const confirmSection = controller.slice(controller.indexOf('func performConfirmMerge'), controller.indexOf('func performRollback'));
+  const rollbackSection = controller.slice(controller.indexOf('func performRollback'));
   assert.doesNotMatch(confirmSection, /currentAccessToken/);
   assert.doesNotMatch(rollbackSection, /currentAccessToken/);
   assert.match(controller, /final class AuthStoreCredentialProvider: SyncAccessTokenProviding/);
@@ -181,7 +181,7 @@ test('Phase 2B-2.5: the original entity id is never simultaneously staged as kee
 });
 
 test('Phase 2B-2.5: rollback only ever references entity ids recorded in createdEntityIds (the fork), never the original candidate id directly', () => {
-  const rollbackSection = controller.slice(controller.indexOf('func rollback'));
+  const rollbackSection = controller.slice(controller.indexOf('func performRollback'));
   assert.match(rollbackSection, /for entityId in current\.createdEntityIds/);
   assert.doesNotMatch(rollbackSection, /candidate\.localItemId/);
   // The read-back loop after upload must record the forked id (not the
@@ -246,14 +246,14 @@ test('Phase 2B-3: merge preview still never creates a PendingMutation (unchanged
 });
 
 test('Phase 2B-3: syncNow only ever scopes to the inventory_item entity type, and only via the existing SyncCoordinator/adapter', () => {
-  const syncNowSection = controller.slice(controller.indexOf('func syncNow'), controller.indexOf('func pendingInventoryCount'));
+  const syncNowSection = controller.slice(controller.indexOf('func performSyncNow'), controller.indexOf('func pendingInventoryCount'));
   assert.match(syncNowSection, /SyncCoordinator\(configuration: SyncConfiguration\(isEnabled: true\), persistence: persistence, transport: transport\)/);
   assert.doesNotMatch(syncNowSection, /SyncEntityType\.(shoppingItem|todayPlan|weeklyMealPlan|weeklyMealPlanItem|userRecipe|recipeFavorite|frequentRecipe)/);
   assert.doesNotMatch(syncNowSection, /KM_SYNC_ENABLED|SyncConfiguration\.load/);
 });
 
 test('Phase 2B-3: syncNow refuses without the network flag and without a signed-in user, mirroring confirmMerge/rollback', () => {
-  const syncNowSection = controller.slice(controller.indexOf('func syncNow'), controller.indexOf('func pendingInventoryCount'));
+  const syncNowSection = controller.slice(controller.indexOf('func performSyncNow'), controller.indexOf('func pendingInventoryCount'));
   assert.match(syncNowSection, /guard isFeatureEnabled else/);
   assert.match(syncNowSection, /guard let userId = authStore\.currentUserID else/);
 });
@@ -668,7 +668,7 @@ test('Phase 2B-8: a remote snapshot fingerprint concept exists and folds into th
 });
 
 test('Phase 2B-8: confirmMerge revalidates the remote fingerprint before staging any mutation, and rejects a stale plan', () => {
-  const confirmStart = controller.indexOf('func confirmMerge(authStore: AuthStore) async {');
+  const confirmStart = controller.indexOf('func performConfirmMerge(authStore: AuthStore) async {');
   const stageStart = controller.indexOf('for candidate in toUpload');
   assert.ok(confirmStart >= 0 && stageStart > confirmStart, 'confirmMerge must exist and stage candidates after its own body starts');
   const preStageBody = controller.slice(confirmStart, stageStart);

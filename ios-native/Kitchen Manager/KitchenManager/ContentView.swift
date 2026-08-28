@@ -99,6 +99,13 @@ struct KitchenManagerApp: App {
                 await guestMergeControllerInstance.handleInventoryDidChange(old: old, new: new, userId: userId, householdId: householdId)
             }
         }
+        // R1: the inbound direction of the same boundary — a sync operation
+        // that writes `InventoryRecord` through its own `ModelContext` must
+        // be able to re-hydrate this store afterwards. Set here and only
+        // here, symmetrically with `onInventoryChanged` above; without it
+        // every inventory sync operation fails closed rather than running
+        // with nowhere to reconcile to.
+        guestMergeControllerInstance.kitchenStore = kitchenStoreInstance
 
         _kitchenStore = StateObject(wrappedValue: kitchenStoreInstance)
         _authStore = StateObject(wrappedValue: authStoreInstance)

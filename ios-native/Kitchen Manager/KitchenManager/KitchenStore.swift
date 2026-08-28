@@ -511,7 +511,19 @@ struct InventoryImportItem: Hashable {
 final class KitchenStore: ObservableObject {
     @Published var inventory: [InventoryItem] = [] {
         didSet {
-            persistInventoryIfNeeded()
+            // R1b: the *central* edit gate. It has to live here rather than
+            // in a View, because a SwiftUI `Binding` writes straight into
+            // `inventory[index]` (see `PantryStaples.swift`'s id-resolved
+            // binding) and never passes through a `KitchenStore` method, so
+            // a `.disabled(isSyncing)` modifier could not prove anything.
+            // While a sync consistency window is open, an ordinary local
+            // mutation is refused outright: it is not persisted, not staged
+            // outbound, and not kept in memory.
+            if isInventoryLockedForSync, !isPublishingDurableInventory {
+                revertLockedInventoryEdit(to: oldValue)
+                return
+            }
+            persistInventoryIfNeeded(previous: oldValue)
             Self.rescheduleNotificationsIfEnabled(for: inventory)
             // Phase B3: skipped during the startup load for the same reason
             // `persistInventoryIfNeeded()` is — the assignment below in
@@ -563,7 +575,32 @@ final class KitchenStore: ObservableObject {
     private let weeklyPlanKey = WeeklyPlanMigration.legacyKey
     private let consumptionRecordsKey = ConsumptionMigration.legacyRecordsKey
     private var isLoading = true
+    /// Suppresses *this one* publish from writing through to persistence and
+    /// from staging an outbound mutation. Always set and cleared around a
+    /// single synchronous assignment — never held across an `await`.
     private var suppressInventoryPersistence = false
+    /// R1b: true for the whole duration of a sync operation that may write
+    /// `InventoryRecord` behind this store's back, and deliberately *kept*
+    /// true when the closing reconciliation fails — a still-stale in-memory
+    /// array must not be editable, or the very next edit reproduces R1.
+    /// Unlike `suppressInventoryPersistence`, this one is expected to span
+    /// `await`s.
+    @Published private(set) var isInventoryLockedForSync = false
+    /// Lets a publish of state that is *already durable truth* through the
+    /// closed gate — reconciliation, and the reset paths that wrote the
+    /// database before publishing. Never set for an ordinary local edit.
+    private var isPublishingDurableInventory = false
+    /// How many sync operations currently own the window. A plain bool was
+    /// wrong: `syncNow` and `confirmMerge` are guarded by *different* mutual-
+    /// exclusion flags (`isSyncing` vs `isBusy`), so a merge that returns
+    /// early from one of its own guards while a sync is still awaiting would
+    /// have closed the sync's window and re-opened editing mid-flight.
+    private var inventorySyncWindowDepth = 0
+    /// Re-entrancy guard for the synchronous revert that undoes a refused
+    /// edit. The revert assignment re-enters `didSet`; this makes that inner
+    /// pass a pure no-op instead of a second revert, a second notice, or an
+    /// unbounded recursion.
+    private var isRevertingLockedInventoryEdit = false
     private var suppressShoppingPersistence = false
     private var suppressPlanPersistence = false
     private var suppressConsumptionPersistence = false
@@ -907,9 +944,7 @@ final class KitchenStore: ObservableObject {
             #endif
             return
         }
-        suppressInventoryPersistence = true
-        inventory = []
-        suppressInventoryPersistence = false
+        publishDurableInventory([])
         suppressPlanPersistence = true
         plans = []
         suppressPlanPersistence = false
@@ -1004,6 +1039,19 @@ final class KitchenStore: ObservableObject {
         recipeID: String?,
         recipeName: String
     ) -> InventoryConsumptionRecord {
+        // R1b: this path writes the database from the in-memory snapshot
+        // *before* publishing, so the `didSet` gate cannot protect it — it
+        // has to refuse up front or it would replay a stale snapshot over
+        // rows a sync just wrote. The caller treats a record that is absent
+        // from `consumptionRecords` as "not applied" (see
+        // `InventoryConsumptionDraftState.confirm`), which is exactly right.
+        guard !refuseBulkInventoryChangeIfLocked() else {
+            consumptionNotice = Self.inventoryLockedForSyncNotice
+            return InventoryConsumptionRecord(
+                id: UUID(), date: Date(), recipeID: recipeID,
+                recipeName: recipeName, planIDs: planIDs, items: []
+            )
+        }
         var recordItems: [InventoryConsumptionRecordItem] = []
         var updatedInventory = inventory
 
@@ -1071,9 +1119,7 @@ final class KitchenStore: ObservableObject {
             #endif
             return record
         }
-        suppressInventoryPersistence = true
-        inventory = updatedInventory
-        suppressInventoryPersistence = false
+        publishDurableInventory(updatedInventory)
         suppressConsumptionPersistence = true
         consumptionRecords = updatedRecords
         suppressConsumptionPersistence = false
@@ -1085,6 +1131,11 @@ final class KitchenStore: ObservableObject {
     /// specific plans should flip back to "not cooked" is ambiguous once other state
     /// may have changed since the record was created.
     func undoConsumption(_ record: InventoryConsumptionRecord) {
+        // R1b — same reason as `applyConsumption`.
+        guard !refuseBulkInventoryChangeIfLocked() else {
+            consumptionNotice = Self.inventoryLockedForSyncNotice
+            return
+        }
         guard let recordIndex = consumptionRecords.firstIndex(where: { $0.id == record.id }),
               !consumptionRecords[recordIndex].isUndone else { return }
         var updatedInventory = inventory
@@ -1110,9 +1161,7 @@ final class KitchenStore: ObservableObject {
             #endif
             return
         }
-        suppressInventoryPersistence = true
-        inventory = updatedInventory
-        suppressInventoryPersistence = false
+        publishDurableInventory(updatedInventory)
         suppressConsumptionPersistence = true
         consumptionRecords = updatedRecords
         suppressConsumptionPersistence = false
@@ -1336,6 +1385,12 @@ final class KitchenStore: ObservableObject {
     }
 
     func restoreBackupData(_ data: Data) throws {
+        // R1b — same reason as `applyConsumption`. A restore is a whole-table
+        // replacement, so running it against a table a sync is concurrently
+        // writing would discard the sync's rows outright.
+        guard !refuseBulkInventoryChangeIfLocked() else {
+            throw KitchenBackupError.inventoryPersistenceFailed
+        }
         let backup: KitchenBackupPayload
         do {
             backup = try JSONDecoder().decode(KitchenBackupPayload.self, from: data)
@@ -1393,9 +1448,7 @@ final class KitchenStore: ObservableObject {
             }
             throw KitchenBackupError.inventoryPersistenceFailed
         }
-        suppressInventoryPersistence = true
-        inventory = backup.inventory
-        suppressInventoryPersistence = false
+        publishDurableInventory(backup.inventory)
         suppressPlanPersistence = true
         plans = backup.plans
         suppressPlanPersistence = false
@@ -1436,6 +1489,11 @@ final class KitchenStore: ObservableObject {
     }
 
     func stockInCompletedShopping() {
+        // R1b — same reason as `applyConsumption`.
+        guard !refuseBulkInventoryChangeIfLocked() else {
+            shoppingNotice = Self.inventoryLockedForSyncNotice
+            return
+        }
         let completed = shoppingItems.filter(\.isDone)
         var updated = inventory
         for item in completed {
@@ -1469,9 +1527,7 @@ final class KitchenStore: ObservableObject {
             return
         }
 
-        suppressInventoryPersistence = true
-        inventory = updated
-        suppressInventoryPersistence = false
+        publishDurableInventory(updated)
         suppressShoppingPersistence = true
         shoppingItems = remainingShoppingItems
         suppressShoppingPersistence = false
@@ -1517,16 +1573,142 @@ final class KitchenStore: ObservableObject {
         return day.meals.flatMap(\.recipes)
     }
 
-    private func persistInventoryIfNeeded() {
+    /// R1 defence-in-depth: persist only the rows this publish actually
+    /// changed, instead of replaying the whole in-memory array.
+    ///
+    /// The old `replaceInventory(with: inventory)` deleted every stored row
+    /// absent from the snapshot and re-inserted every row present in it, so a
+    /// snapshot that had gone stale relative to a sync write did collateral
+    /// damage far beyond the row the user touched: it erased remotely
+    /// inserted rows and resurrected remotely deleted ones. A row-scoped diff
+    /// makes both structurally impossible, whatever the state of the rest of
+    /// the array.
+    ///
+    /// This deliberately changes only the `didSet` path. The explicit
+    /// `replaceInventory(with:)` call sites elsewhere in this type
+    /// (`restoreBackupData`, the consumption/stock-in bulk writes) mean
+    /// "replace the table with exactly this", and keep saying so.
+    ///
+    /// Same-row staleness is *not* this method's job — an edit to a row that
+    /// changed remotely is a genuine conflict, and R1b's edit gate is what
+    /// keeps the window in which one could be produced from existing.
+    private func persistInventoryIfNeeded(previous: [InventoryItem]) {
         guard !isLoading, !suppressInventoryPersistence else { return }
+        let previousByID = Dictionary(previous.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+        var currentIDs = Set<UUID>()
+        var upserts: [InventoryItem] = []
+        for item in inventory {
+            currentIDs.insert(item.id)
+            guard previousByID[item.id] != item else { continue }
+            upserts.append(item)
+        }
+        let deletions = previousByID.keys.filter { !currentIDs.contains($0) }
         do {
-            try inventoryPersistence.replaceInventory(with: inventory)
+            // One transaction, so a batch publish can never leave a committed
+            // prefix on disk with the remainder only in memory.
+            try inventoryPersistence.applyChanges(upserting: upserts, deleting: deletions)
         } catch {
             inventoryNotice = "库存保存失败，请稍后重试。"
             #if DEBUG
             print("[InventoryPersistence] save failed: \(error)")
             #endif
         }
+    }
+
+    // MARK: - R1 / R1b: inventory sync consistency boundary
+
+    static let inventoryLockedForSyncNotice = "正在同步库存，请稍后再试。"
+    static let inventoryReconciliationFailedNotice = "同步后无法读取本地库存，库存已暂时锁定，请稍后重试同步。"
+
+    /// Opens the consistency window. Must be called *before* the first
+    /// durable inventory write an operation can make — for the merge and
+    /// rollback paths that is the staging step, which writes `InventoryRecord`
+    /// through `SwiftDataSyncPersistence.commitInventoryAndSync` well before
+    /// any coordinator run.
+    func beginInventorySyncConsistencyWindow() {
+        inventorySyncWindowDepth += 1
+        isInventoryLockedForSync = true
+    }
+
+    /// Closes the window — but only if reconciliation succeeded. A failed
+    /// load leaves the lock in place on purpose (see
+    /// `isInventoryLockedForSync`); call this again to retry once the cause
+    /// is gone. Returns whether the store is now consistent and editable.
+    @discardableResult
+    func endInventorySyncConsistencyWindow() -> Bool {
+        if inventorySyncWindowDepth > 0 { inventorySyncWindowDepth -= 1 }
+        let reconciled = reconcileInventoryFromPersistence()
+        // An outer operation still owns the window: reconcile (always safe and
+        // useful) but leave the gate closed for it.
+        guard inventorySyncWindowDepth == 0 else { return reconciled }
+        if reconciled {
+            isInventoryLockedForSync = false
+            if inventoryNotice == Self.inventoryLockedForSyncNotice
+                || inventoryNotice == Self.inventoryReconciliationFailedNotice {
+                inventoryNotice = nil
+            }
+        }
+        return reconciled
+    }
+
+    /// Re-hydrates the in-memory array from durable storage after another
+    /// `ModelContext` may have written `InventoryRecord`. Never persists and
+    /// never stages an outbound mutation — a reconciliation is not a user
+    /// edit, and treating it as one would echo every pulled change straight
+    /// back out again. Returns whether the durable read succeeded.
+    @discardableResult
+    func reconcileInventoryFromPersistence() -> Bool {
+        let fresh: [InventoryItem]
+        do {
+            fresh = try inventoryPersistence.loadInventory()
+        } catch {
+            inventoryNotice = Self.inventoryReconciliationFailedNotice
+            #if DEBUG
+            print("[InventoryReconciliation] load failed: \(error)")
+            #endif
+            return false
+        }
+        guard fresh != inventory else { return true }
+        publishDurableInventory(fresh)
+        return true
+    }
+
+    /// Publishes an array that is *already* the durable truth: bypasses the
+    /// edit gate (which exists to stop ordinary local edits racing a sync),
+    /// writes nothing back, and stages nothing outbound. Both flags are
+    /// cleared before this returns and nothing here awaits, so no other
+    /// main-actor work can interleave with the open window.
+    private func publishDurableInventory(_ items: [InventoryItem]) {
+        isPublishingDurableInventory = true
+        suppressInventoryPersistence = true
+        defer {
+            suppressInventoryPersistence = false
+            isPublishingDurableInventory = false
+        }
+        inventory = items
+    }
+
+    /// R1b: the gate in `didSet` only protects publishes. These bulk paths
+    /// write the database *before* publishing, from the in-memory snapshot —
+    /// so during an open consistency window they would replay a stale
+    /// snapshot over rows a sync had just written, and only then have their
+    /// publish refused. They have to be refused up front instead.
+    private func refuseBulkInventoryChangeIfLocked() -> Bool {
+        guard isInventoryLockedForSync else { return false }
+        inventoryNotice = Self.inventoryLockedForSyncNotice
+        return true
+    }
+
+    /// Undoes a local edit refused by the open consistency window. The
+    /// assignment below re-enters `didSet`, where the re-entrancy guard turns
+    /// that inner pass into a no-op — so the revert performs no persistence
+    /// write, stages nothing outbound, and emits exactly one notice.
+    private func revertLockedInventoryEdit(to previous: [InventoryItem]) {
+        guard !isRevertingLockedInventoryEdit else { return }
+        isRevertingLockedInventoryEdit = true
+        defer { isRevertingLockedInventoryEdit = false }
+        inventory = previous
+        inventoryNotice = Self.inventoryLockedForSyncNotice
     }
 
     private func persistShoppingIfNeeded() {

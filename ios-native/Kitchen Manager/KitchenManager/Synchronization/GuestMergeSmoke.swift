@@ -225,6 +225,7 @@ final class GuestMergeSmokeRunner {
             persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
             transportFactory: transportFactory
         )
+        baselineController.kitchenStore = kitchenStore
         await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore)
         await baselineController.confirmMerge(authStore: authStoreA)
         guard baselineController.session?.status == .completed else {
@@ -261,6 +262,7 @@ final class GuestMergeSmokeRunner {
             persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
             transportFactory: transportFactory
         )
+        controller.kitchenStore = kitchenStore
         await controller.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, remoteTransport: transportA)
         let mutationsAfter = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
         let inventoryCountAfter = try await fetchRemoteInventoryCount(transport: transportA, scope: scope)
@@ -340,6 +342,7 @@ final class GuestMergeSmokeRunner {
             persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
             transportFactory: transportFactory
         )
+        restartedController.kitchenStore = kitchenStore
         await restartedController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, remoteTransport: transportA)
         guard restartedController.session?.id == sessionIdBeforeRestart,
               restartedController.plan?.candidates.first(where: { $0.localItemId == quantityConflictLocal.id })?.userChoice == .keepLocal else {
@@ -525,6 +528,7 @@ final class GuestMergeSmokeRunner {
             let baselineController = GuestMergeController(
                 persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
             )
+            baselineController.kitchenStore = kitchenStore
             await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore)
             await baselineController.confirmMerge(authStore: authStoreA)
             guard baselineController.session?.status == .completed else {
@@ -535,6 +539,7 @@ final class GuestMergeSmokeRunner {
             let controller = GuestMergeController(
                 persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
             )
+            controller.kitchenStore = kitchenStore
             await controller.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, remoteTransport: transportA)
             guard controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.conflictReason == .quantityMismatch else {
                 throw GuestMergeSmokeError.validationFailed("expected quantity conflict against the real baseline")
@@ -634,6 +639,7 @@ final class GuestMergeSmokeRunner {
             let controller = GuestMergeController(
                 persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
             )
+            controller.kitchenStore = kitchenStore
 
             // 1-2: enrolled create stages a pending mutation at baseVersion 0.
             let markerName = "__inventory_crud_smoke_\(marker)"
@@ -767,6 +773,7 @@ final class GuestMergeSmokeRunner {
                 dogfoodConfiguration: InventorySyncDogfoodConfiguration(isDogfoodEnabled: true, diagnosticsEnabled: true),
                 transportFactory: transportFactory
             )
+            controller.kitchenStore = kitchenStore
 
             // 1: create, stage, manual sync.
             kitchenStore.importInventory([InventoryImportItem(name: markerName, quantity: 2, unit: "个", expiryDate: nil)])
@@ -823,6 +830,7 @@ final class GuestMergeSmokeRunner {
                 dogfoodConfiguration: InventorySyncDogfoodConfiguration(isDogfoodEnabled: true, diagnosticsEnabled: true),
                 transportFactory: transportFactory
             )
+            controller.kitchenStore = kitchenStore
             await controller.syncNow(authStore: authStoreA, householdId: householdId)
             guard controller.lastSyncOutcome == .completed else {
                 throw GuestMergeSmokeError.validationFailed("post-restart duplicate-safe sync did not complete")
@@ -927,6 +935,7 @@ final class GuestMergeSmokeRunner {
             let baselineController = GuestMergeController(
                 persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
             )
+            baselineController.kitchenStore = kitchenStore
             await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore)
             await baselineController.confirmMerge(authStore: authStoreA)
             guard baselineController.session?.status == .completed else {
@@ -954,6 +963,7 @@ final class GuestMergeSmokeRunner {
             let controller = GuestMergeController(
                 persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
             )
+            controller.kitchenStore = kitchenStore
             await controller.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, authStore: authStoreA)
 
             // 4 (section 四 A): remote count must reflect reality, never 0.
