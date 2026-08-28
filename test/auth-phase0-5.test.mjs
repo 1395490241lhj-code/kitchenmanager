@@ -253,6 +253,13 @@ test('remote object verifier checks constraints, all triggers/policies, and pers
   assert.match(source, /policy set differs from migration/);
   assert.match(source, /profiles\/auth\.users foreign key is invalid/);
   assert.match(source, /membership role constraint is missing/);
+  // `20260716000100_account_deletion_lifecycle` relaxed households.created_by
+  // from ON DELETE RESTRICT to SET NULL. This verifier asserted the old shape
+  // for six weeks without failing, because the migration had never reached
+  // the hosted project — pin the current expectation so the next such drift
+  // fails here rather than only against a real database.
+  assert.match(source, /household creator foreign key must be ON DELETE SET NULL/);
+  assert.doesNotMatch(source, /confrelid = 'public\.profiles'::regclass\s*\n\s*and confdeltype = 'r'/);
   assert.match(source, /duplicate personal household detected/);
   assert.match(source, /personal household owner membership is missing/);
   assert.doesNotMatch(source, /select\s+email|raw_user_meta_data|encrypted_password/i);

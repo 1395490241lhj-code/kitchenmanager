@@ -83,14 +83,20 @@ begin
     raise exception 'phase0 verification failed: profiles/auth.users foreign key is invalid';
   end if;
 
+  -- `households.created_by` is ON DELETE SET NULL, not RESTRICT. Phase 2D-2's
+  -- `20260716000100_account_deletion_lifecycle` deliberately relaxed it (and
+  -- dropped the column's NOT NULL) so a deleted account's remaining
+  -- attribution can be anonymized to NULL instead of a stale creator row
+  -- permanently blocking the profile's removal. RESTRICT here would mean the
+  -- account-deletion lifecycle migration is missing or was reverted.
   if not exists (
     select 1 from pg_constraint
     where conrelid = 'public.households'::regclass
       and contype = 'f'
       and confrelid = 'public.profiles'::regclass
-      and confdeltype = 'r'
+      and confdeltype = 'n'
   ) then
-    raise exception 'phase0 verification failed: household creator foreign key is invalid';
+    raise exception 'phase0 verification failed: household creator foreign key must be ON DELETE SET NULL (account-deletion ownership anonymization)';
   end if;
 
   if (select count(*) from pg_constraint
