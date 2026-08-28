@@ -179,7 +179,17 @@ function validateField(value, rule, fieldName, entityType) {
   }
 }
 
-function validateEntityData(entityType, input) {
+// Update mutations are a PATCH: an absent key means "leave this column
+// alone", so it must never be materialized into a `null`/default here. Doing
+// so is what let an iOS upsert blank out columns it has never heard of
+// (`kind`, `purchase_date`, `cooked_count`, ...). An explicit `null` keeps
+// its own, different meaning: clear the field.
+//
+// `isCreate` defaults to `true` — the strict reading — so any caller that
+// does not say otherwise still gets the full required-field enforcement.
+// Server-side defaults are only ever applied by the RPC's insert branch,
+// which is the one place that knows the row does not exist yet.
+function validateEntityData(entityType, input, { isCreate = true } = {}) {
   if (!isPlainObject(input)) fail('invalid_data', 'mutation.data 必须是对象。');
   const definition = getEntityDefinition(entityType);
   for (const key of Object.keys(input)) {
@@ -192,11 +202,7 @@ function validateEntityData(entityType, input) {
   for (const [fieldName, rule] of Object.entries(definition.fields)) {
     const value = input[fieldName];
     if (value === undefined) {
-      if (rule.required) fail('missing_field', `缺少 ${fieldName}。`);
-      if ('default' in rule) output[fieldName] = rule.default;
-      else if (rule.type.endsWith('Array')) output[fieldName] = [];
-      else if (rule.type === 'jsonObject') output[fieldName] = {};
-      else output[fieldName] = null;
+      if (rule.required && isCreate) fail('missing_field', `缺少 ${fieldName}。`);
       continue;
     }
     output[fieldName] = validateField(value, rule, fieldName, entityType);
@@ -232,7 +238,12 @@ function validateMutation(input) {
     mutationId: input.mutationId.toLowerCase(), entityType: input.entityType,
     entityId: input.entityId.toLowerCase(), operation: 'upsert',
     baseVersion: baseVersion === null ? null : baseVersion.toString(), clientUpdatedAt,
-    data: validateEntityData(input.entityType, input.data)
+    // A create is exactly the case the RPC also treats as one: baseVersion 0
+    // or absent. Only then must every required field be present; an update
+    // that simply did not re-send `name` keeps the stored one.
+    data: validateEntityData(input.entityType, input.data, {
+      isCreate: baseVersion === null || baseVersion === 0n
+    })
   };
 }
 

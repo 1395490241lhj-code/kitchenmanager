@@ -70,7 +70,14 @@ test('migration manifest: filename pattern requires a 14-digit timestamp and a s
 test('migration manifest: the real repository migrations directory is currently well-formed', () => {
   const result = loadMigrationManifest(path.join(ROOT, 'supabase', 'migrations'));
   assert.equal(result.valid, true, JSON.stringify(result.errors));
-  assert.equal(result.entries.length, 3);
+  // Pinned deliberately: adding a migration is a reviewed act, so it should
+  // require touching this list rather than silently passing.
+  assert.deepEqual(result.entries.map((entry) => entry.version), [
+    '20260713000100',
+    '20260713000200',
+    '20260716000100',
+    '20260827000100'
+  ]);
 });
 
 test('migration manifest: DEFAULT_MIGRATIONS_DIR resolves to the real repository migrations directory', () => {

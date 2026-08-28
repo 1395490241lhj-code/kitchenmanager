@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const { MAX_POSTGRES_BIGINT, parseCursor, parseVersion, serializeCursor } = require('../src/server/sync/cursor');
 const { deterministicSyncEntityId, isUuid } = require('../src/server/sync/stable-id');
 const { validateChangesQuery, validateEntityData, validateMutation, validateMutationsRequest } = require('../src/server/sync/validation');
+const { ENTITY_DEFINITIONS, ENTITY_TYPES } = require('../src/server/sync/entities');
 const { createSyncService } = require('../src/server/sync/service');
 const { createSupabaseSyncRepository } = require('../src/server/sync/repository');
 const { createSyncHandlers, registerSyncRoutes } = require('../src/server/sync/routes');
@@ -147,6 +148,85 @@ test('recipe and snapshot validation enforce item count, text, depth, and schema
     occurredAt: '2026-07-13T12:00:00Z',
     items: [{ ingredientName: '鸡蛋', consumedQuantity: 1, previousQuantity: 6, resultingQuantity: 5, unit: '个', sql: 'drop' }]
   }));
+});
+
+// --- PATCH semantics (20260827000100) -------------------------------------
+//
+// An update sends only what changed. The validator used to expand that back
+// into a full record, materializing every absent optional field as
+// null/default, which is what let one client blank columns owned by another.
+
+test('an update payload keeps only the fields the client actually sent', () => {
+  const value = validateMutation(inventoryMutation({ baseVersion: 3, data: { quantity: 2 } }));
+  assert.deepEqual(value.data, { quantity: 2 });
+});
+
+test('an update may omit a required field, but a create may not', () => {
+  assert.deepEqual(
+    validateMutation(inventoryMutation({ baseVersion: 3, data: { quantity: 2 } })).data,
+    { quantity: 2 }
+  );
+  for (const baseVersion of [0, null]) {
+    assert.throws(() => validateMutation(inventoryMutation({ baseVersion, data: { quantity: 2 } })));
+  }
+});
+
+test('a required field that is sent is validated on an update too', () => {
+  for (const name of ['', '   ', null]) {
+    assert.throws(() => validateMutation(inventoryMutation({ baseVersion: 3, data: { name } })));
+  }
+});
+
+test('an explicit null is preserved and never confused with an absent key', () => {
+  const value = validateMutation(inventoryMutation({
+    baseVersion: 3, data: { expiryDate: null, stapleNote: null }
+  }));
+  assert.deepEqual(value.data, { expiryDate: null, stapleNote: null });
+  assert.equal('expiryDate' in value.data, true);
+  assert.equal('quantity' in value.data, false);
+});
+
+test('every sync entity keeps update payloads sparse, not just inventory', () => {
+  const samples = {
+    inventory_item: { quantity: 1 },
+    shopping_item: { isDone: true },
+    today_plan: { servings: 3 },
+    consumption_record: { isUndone: true },
+    weekly_meal_plan: { servings: 2 },
+    weekly_meal_plan_item: { sortOrder: 3 },
+    user_recipe: { sortOrder: 1 },
+    recipe_favorite: { recipeId: 'sample-mapotofu' },
+    frequent_recipe: { recipeId: 'sample-mapotofu' }
+  };
+  // Fails the moment a new entity type is added without PATCH coverage.
+  assert.deepEqual(Object.keys(samples).sort(), [...ENTITY_TYPES].sort());
+  for (const [entityType, data] of Object.entries(samples)) {
+    assert.deepEqual(validateEntityData(entityType, data, { isCreate: false }), data, entityType);
+  }
+});
+
+test('server-side defaults never reach the payload an update sends', () => {
+  const defaulted = Object.entries(ENTITY_DEFINITIONS.inventory_item.fields)
+    .filter(([, rule]) => 'default' in rule)
+    .map(([fieldName]) => fieldName);
+  assert.ok(defaulted.length > 0);
+  const value = validateEntityData('inventory_item', { quantity: 1 }, { isCreate: false });
+  // Because no default is folded in here, changing one in entities.js cannot
+  // retroactively change the request_hash of a mutation a client already staged.
+  for (const fieldName of defaulted) assert.equal(fieldName in value, false, fieldName);
+});
+
+test('payload key order is canonicalized by the field definition, not by the client', () => {
+  const ordered = validateEntityData('inventory_item', { quantity: 1, unit: '个' }, { isCreate: false });
+  const reordered = validateEntityData('inventory_item', { unit: '个', quantity: 1 }, { isCreate: false });
+  assert.deepEqual(Object.keys(ordered), Object.keys(reordered));
+  assert.equal(JSON.stringify(ordered), JSON.stringify(reordered));
+});
+
+test('unsupported and protected fields are still rejected on a partial update', () => {
+  assert.throws(() => validateEntityData('inventory_item', { notAColumn: 1 }, { isCreate: false }));
+  assert.throws(() => validateEntityData('inventory_item', { version: 2 }, { isCreate: false }));
+  assert.throws(() => validateMutation(inventoryMutation({ baseVersion: 3, data: { notAColumn: 1 } })));
 });
 
 test('delete accepts no business data and preserves BIGINT baseVersion as string', () => {

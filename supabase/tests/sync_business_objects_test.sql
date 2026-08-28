@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public, pg_catalog;
-select plan(44);
+select plan(46);
 
 select has_table('public', 'inventory_items', 'inventory_items exists');
 select has_table('public', 'shopping_items', 'shopping_items exists');
@@ -136,6 +136,22 @@ select ok(
 );
 select col_type_is('public', 'sync_changes', 'entity_id', 'uuid', 'change entity ID is UUID');
 select col_type_is('public', 'sync_changes', 'record_data', 'jsonb', 'change stores its transaction-time snapshot');
+
+-- `20260827000100` replaces apply_sync_mutation in place. A replacement that
+-- lost `security definer` or its pinned search_path would be a silent
+-- privilege/schema-shadowing regression, so both are audited here rather than
+-- assumed from the fact that the function still exists.
+select ok(
+  (select p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'apply_sync_mutation'),
+  'the mutation RPC is still SECURITY DEFINER after being replaced'
+);
+select ok(
+  (select 'search_path=pg_catalog' = any(coalesce(p.proconfig, array[]::text[]))
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'apply_sync_mutation'),
+  'the mutation RPC still pins search_path to pg_catalog after being replaced'
+);
 
 select * from finish();
 rollback;

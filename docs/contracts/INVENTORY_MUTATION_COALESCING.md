@@ -50,6 +50,25 @@ and `.testUpdateThenUpdateCoalescesIntoOneUpdateMutation` both assert the
 `.testUpdateThenDeleteCoalescesIntoASingleDeleteIntent` asserts the same
 `mutationId` carries through an update-then-delete merge.
 
+## Coalescing stays a whole-snapshot replace
+
+`20260827000100_sync_mutation_patch_semantics` made the *server's* update
+semantics a PATCH: `apply_sync_mutation` writes only the keys a payload
+actually contains. That changes nothing here, and the two rules must not be
+conflated:
+
+- **The client payload may still be a complete snapshot.** `InventorySyncAdapter.payload(for:)`
+  emits every field it owns on every upsert, and the coalescing table above
+  still *replaces* a pending payload wholesale rather than merging into it.
+- **The server writes only the keys it actually received.** Fields the iOS
+  payload never mentions (`kind`, `purchase_date`, `cooked_count`, ...) keep
+  their stored values instead of being blanked.
+
+Making the client emit sparse payloads would break the "replace the payload in
+place" rule: a second edit that only carried the changed field would silently
+drop the keys the first one had staged. Whole-snapshot on the client, PATCH on
+the server — that pairing is deliberate.
+
 ## What does *not* change
 
 `SyncCoordinator.push`/`pull` are entirely unaware that coalescing exists —

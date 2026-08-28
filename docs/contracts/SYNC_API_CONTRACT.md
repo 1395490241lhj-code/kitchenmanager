@@ -135,11 +135,54 @@ frequent_recipe
 }
 ```
 
+### 4.1 upsert 是 PATCH，不是整行替换
+
+`data` 里**实际出现的字段才会被写入**。这是 `20260827000100_sync_mutation_patch_semantics`
+定义的语义，适用于**每一个** entity type，不只是 `inventory_item`。
+
+| payload 中的写法 | 含义 |
+| --- | --- |
+| 字段缺席（key 不存在） | **保持数据库当前值不变** |
+| 字段为显式 `null` | **清除该字段**（列必须 nullable，否则 `rejected/invalid_payload`） |
+| 字段为具体值 | 写入该值 |
+
+推论，客户端必须据此实现：
+
+- 缺席与 `null` 是两条**不同**的指令，不能互相替代。要清空一个字段必须显式发 `null`。
+- 客户端**不需要**了解全部列。一个只认识部分字段的客户端做 upsert，不会影响它没发送的列——
+  这正是 iOS 与 PWA 能共用 `inventory_items` 而互不破坏的前提。
+- **服务端默认值只在 create 时应用。** update 不会把没发送的字段回灌成默认值，
+  因此一次 iOS upsert 不再把 `is_frozen` 重置为 `false`、把 `cooked_count` 重置为 `0`。
+- **required 字段的"必须存在"只约束 create。** update 可以完全不发 `name`，
+  已存储的值保持不变；但只要发了，值就必须合法——`null` 或空白字符串一律 `400 missing_field`。
+  create 判定与 `invalid_create_version` 同一条件：`baseVersion` 为 `0` 或 `null`。
+- 对**已存在**的记录发出 `data` 为 `{}` 的 upsert，返回 `rejected` + `errorCode: "empty_update"`，
+  不会写入任何列。
+- 未在 entity 白名单内的字段仍然是 `400 unknown_field`，白名单本身未放宽。
+
+`request_hash`（idempotency 键的载荷部分）覆盖的是**客户端实际发送并通过校验的 payload**，
+不含服务端补出的默认值。因此调整某个字段的默认值，不会改变客户端已经暂存的 mutation 的 hash；
+JSON key 顺序也不影响 hash（服务端按字段定义顺序规范化，Postgres 侧 `jsonb` 再次规范化）。
+
+> [!warning] 一次性的 idempotency 断裂
+> 该 hash 定义与旧函数不同。旧函数记录在 `sync_mutations` 里的 mutation 若在迁移后被重放，
+> 会得到 `idempotency_mismatch`。
+>
+> 安全条件是「sync 关闭，**且 ledger 中不存在仍可能由客户端重放的旧 mutation**」——
+> **不是**「ledger 必须为空」。历史遗留的惰性 smoke/test ledger 记录可以存在：它们的
+> `mutationId` 每次运行都是新生成的，没有任何客户端会重发，因此跨迁移边界不受影响。
+> 需要防的只有一种情况——某个客户端仍持有一条已进入 ledger、但它尚未记录到结果的
+> pending mutation，并在迁移后按原 `mutationId` 重试。这种记录只可能由启用过 sync 的
+> 客户端产生，且**无法从服务端观测**（pending 队列是设备本地状态），所以判断依据是
+> 「是否曾有客户端在该环境启用过 sync」，而不是 ledger 的行数。
+>
+> 无论哪种情况，该迁移**必须在启用 sync 之前完成**。
+
 单项 status：
 
 - `applied`：业务记录、version、change 和 ledger 在同一事务提交。
 - `conflict`：baseVersion 过期；返回当前 serverRecord/version，不写 change。
-- `rejected`：字段、创建版本、已删除/不存在或 idempotency payload 不一致。
+- `rejected`：字段、创建版本、已删除/不存在、空 update（`empty_update`）或 idempotency payload 不一致。
 - `duplicate`：相同用户、mutationId、canonical payload 已处理；不再次写业务记录/change。返回原 status、version、sequence 的最小元数据，不重复保存完整业务正文。
 
 创建要求 baseVersion 为 `0` 或 `null`；更新/删除必须与当前 version 完全相同。delete 不接受 data，写 `deleted_at`，不执行物理 DELETE。恢复墓碑是一条基于当前 tombstone version 的 upsert。
@@ -176,6 +219,7 @@ mutation 响应的 `cursor` 只是本批 applied/duplicate 结果中的最大 se
 ## 7. 部署与尚未启用
 
 - development 已应用 `20260713000200`，并完成真实 Auth/RLS、RPC、mutation、cursor、实体 mapper 与本地 Express smoke。production 未部署。
+- `20260827000100_sync_mutation_patch_semantics`（§4.1 的 PATCH 语义）**尚未 apply 到任何环境**，包括 development。它与 Express 侧的 `validateEntityData` 改动是一对：单独部署任何一半都不会改变现有行为，两半都到位后缺席字段才真正保持不变。
 - iOS 已有 disabled-by-default 的 DTO、pending queue、per-scope cursor、transport/coordinator 和 inventory POC；没有 App/Auth 自动调用点。
 - PWA SyncEngine 与其他 iOS domain adapter。
 - Guest bootstrap/merge、冲突 UI、自动或后台同步。

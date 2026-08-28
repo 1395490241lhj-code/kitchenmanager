@@ -32,6 +32,10 @@ function createAtomicContractRepository() {
   const records = new Map();
   const ledger = new Map();
   const changes = [];
+  // Every `data` object this repository was handed, in call order. Asserting
+  // on it is the part of PATCH semantics the Express layer genuinely owns:
+  // whether a field the client never set reaches the RPC at all.
+  const receivedPayloads = [];
   let sequence = 0n;
 
   function account(accessToken) {
@@ -44,6 +48,7 @@ function createAtomicContractRepository() {
     records,
     ledger,
     changes,
+    receivedPayloads,
     async bootstrap({ accessToken }) {
       const value = account(accessToken);
       const syncScopes = [
@@ -64,8 +69,12 @@ function createAtomicContractRepository() {
       const value = account(accessToken);
       if (scopeType === 'household' && !value.households.some(item => item.id === scopeId)) throw new Error('forbidden test household');
       if (scopeType === 'user' && value.user.id !== scopeId) throw new Error('forbidden test user');
+      receivedPayloads.push(mutation.data);
       const ledgerKey = `${value.user.id}:${mutation.mutationId}`;
-      const requestHash = stableJson({ scopeType, scopeId, ...mutation });
+      // Mirrors the RPC: the hash covers the client's own payload, and jsonb
+      // key-order normalization is modelled by stableJson's key sort.
+      const { mutationId: _id, ...hashed } = mutation;
+      const requestHash = stableJson({ scopeType, scopeId, ...hashed });
       const prior = ledger.get(ledgerKey);
       if (prior) {
         if (prior.requestHash !== requestHash) {
@@ -91,12 +100,16 @@ function createAtomicContractRepository() {
         result = { mutationId: mutation.mutationId, entityId: mutation.entityId, status: 'rejected', errorCode: 'invalid_create_version' };
       } else if (current && (mutation.baseVersion === null || BigInt(mutation.baseVersion) !== BigInt(current.version))) {
         result = { mutationId: mutation.mutationId, entityId: mutation.entityId, status: 'conflict', version: current.version, errorCode: 'stale_version', serverRecord: current.data };
+      } else if (current && mutation.operation === 'upsert' && !Object.keys(mutation.data || {}).length) {
+        result = { mutationId: mutation.mutationId, entityId: mutation.entityId, status: 'rejected', errorCode: 'empty_update' };
       } else {
         const version = current ? (BigInt(current.version) + 1n).toString() : '1';
         const operation = mutation.operation === 'delete' ? 'delete' : 'upsert';
+        // PATCH: an upsert writes over the stored record rather than
+        // replacing it, so a column the client never mentioned survives.
         const data = operation === 'delete'
           ? { id: mutation.entityId, deleted_at: '2026-07-13T12:00:00Z', version }
-          : { id: mutation.entityId, ...mutation.data, version };
+          : { ...(current?.data || {}), id: mutation.entityId, ...mutation.data, version };
         records.set(recordKey, { scopeType, scopeId, entityType: mutation.entityType, entityId: mutation.entityId, version, operation, data });
         sequence += 1n;
         changes.push({
@@ -197,6 +210,150 @@ test('reusing mutationId with a different canonical payload is rejected without 
   assert.equal(mismatch.results[0].status, 'rejected');
   assert.equal(mismatch.results[0].errorCode, 'idempotency_mismatch');
   assert.equal(repository.changes.length, 1);
+});
+
+// --- PATCH semantics (20260827000100) -------------------------------------
+//
+// The repository double above models the replaced RPC. What these cases
+// verify on the real code path is the Express half of the fix: which keys
+// actually leave the server. Direct-SQL coverage of the RPC half lives in
+// supabase/tests/sync_business_rls_test.sql.
+
+const pwaShapedInventory = {
+  name: '三文鱼', normalizedName: '三文鱼', quantity: 2, unit: '份',
+  kind: 'raw', purchaseDate: '2026-08-01', shelfLifeDays: 5, stockStatus: 'ok',
+  dryPrep: '泡发 30 分钟', gear: '冰箱', unitType: 'weight',
+  outOfStockAt: '2026-08-10T00:00:00Z', lastCookedAt: '2026-08-05T00:00:00Z',
+  isFrozen: true, cookedCount: 3
+};
+
+// Exactly the key set InventorySyncAdapter.payload(for:) builds today.
+const iosShapedInventory = {
+  name: '三文鱼', normalizedName: '三文鱼', quantity: 1, unit: '份',
+  isStaple: false, autoSuggestRestock: false, stapleTrackingMode: 'quantity',
+  stapleAvailabilityStatus: 'available', sortOrder: 0, expiryDate: '2026-09-01',
+  lowStockThreshold: null, defaultRestockQuantity: null, stapleNote: null, stapleCategory: null
+};
+
+test('an upsert never sends a field the client did not set', async () => {
+  const repository = createAtomicContractRepository();
+  const service = createSyncService({ repository });
+  await apply(service, authA, householdA, [mutation({
+    mutationId: '10000000-0000-4000-8000-000000000020', data: pwaShapedInventory
+  })]);
+  await apply(service, authA, householdA, [mutation({
+    mutationId: '10000000-0000-4000-8000-000000000021', baseVersion: '1', data: iosShapedInventory
+  })]);
+
+  const sent = repository.receivedPayloads.at(-1);
+  assert.deepEqual(Object.keys(sent).sort(), Object.keys(iosShapedInventory).sort());
+  for (const absent of ['kind', 'purchaseDate', 'shelfLifeDays', 'stockStatus', 'dryPrep',
+    'gear', 'unitType', 'outOfStockAt', 'lastCookedAt', 'isFrozen', 'cookedCount']) {
+    assert.equal(absent in sent, false, absent);
+  }
+});
+
+test('an iOS-shaped upsert leaves every column it never mentions intact', async () => {
+  const repository = createAtomicContractRepository();
+  const service = createSyncService({ repository });
+  await apply(service, authA, householdA, [mutation({
+    mutationId: '10000000-0000-4000-8000-000000000022', data: pwaShapedInventory
+  })]);
+  await apply(service, authA, householdA, [mutation({
+    mutationId: '10000000-0000-4000-8000-000000000023', baseVersion: '1', data: iosShapedInventory
+  })]);
+
+  const stored = repository.records.get(`inventory_item:${inventoryId}`).data;
+  assert.equal(stored.kind, 'raw');
+  assert.equal(stored.purchaseDate, '2026-08-01');
+  assert.equal(stored.shelfLifeDays, 5);
+  assert.equal(stored.stockStatus, 'ok');
+  assert.equal(stored.dryPrep, '泡发 30 分钟');
+  assert.equal(stored.gear, '冰箱');
+  assert.equal(stored.unitType, 'weight');
+  assert.equal(stored.outOfStockAt, '2026-08-10T00:00:00.000Z');
+  assert.equal(stored.lastCookedAt, '2026-08-05T00:00:00.000Z');
+  assert.equal(stored.isFrozen, true);
+  assert.equal(stored.cookedCount, 3);
+  // ...while the columns it did send are written.
+  assert.equal(stored.quantity, 1);
+  assert.equal(stored.expiryDate, '2026-09-01');
+  // ...and an explicit null still clears one.
+  assert.equal(stored.stapleNote, null);
+});
+
+test('an update that omits a required field keeps the stored value', async () => {
+  const repository = createAtomicContractRepository();
+  const service = createSyncService({ repository });
+  await apply(service, authA, householdA, [mutation({ mutationId: '10000000-0000-4000-8000-000000000024' })]);
+  const result = await apply(service, authA, householdA, [mutation({
+    mutationId: '10000000-0000-4000-8000-000000000025', baseVersion: '1', data: { quantity: 4 }
+  })]);
+  assert.equal(result.results[0].status, 'applied');
+  assert.equal(repository.records.get(`inventory_item:${inventoryId}`).data.name, '鸡蛋');
+});
+
+test('an upsert naming no column at all is rejected as empty_update', async () => {
+  const repository = createAtomicContractRepository();
+  const service = createSyncService({ repository });
+  await apply(service, authA, householdA, [mutation({ mutationId: '10000000-0000-4000-8000-000000000026' })]);
+  const result = await apply(service, authA, householdA, [mutation({
+    mutationId: '10000000-0000-4000-8000-000000000027', baseVersion: '1', data: {}
+  })]);
+  assert.equal(result.results[0].status, 'rejected');
+  assert.equal(result.results[0].errorCode, 'empty_update');
+  assert.equal(repository.records.get(`inventory_item:${inventoryId}`).data.name, '鸡蛋');
+});
+
+test('the same payload in a different key order is one mutation, not a mismatch', async () => {
+  const repository = createAtomicContractRepository();
+  const service = createSyncService({ repository });
+  const mutationId = '10000000-0000-4000-8000-000000000028';
+  const first = await apply(service, authA, householdA, [mutation({
+    mutationId, data: { name: '鸡蛋', normalizedName: '鸡蛋', quantity: 6, unit: '个' }
+  })]);
+  const reordered = await apply(service, authA, householdA, [mutation({
+    mutationId, data: { unit: '个', quantity: 6, normalizedName: '鸡蛋', name: '鸡蛋' }
+  })]);
+  assert.equal(first.results[0].status, 'applied');
+  assert.equal(reordered.results[0].status, 'duplicate');
+  assert.equal(repository.changes.length, 1);
+});
+
+test('every entity type sends a sparse update, and single-column entities still apply', async () => {
+  const repository = createAtomicContractRepository();
+  const service = createSyncService({ repository });
+  const cases = [
+    ['inventory_item', 'household', { name: '鸡蛋', normalizedName: '鸡蛋', unit: '个' }, { quantity: 4 }, 'unit', '个'],
+    ['shopping_item', 'household', { name: '牛奶', normalizedName: '牛奶', remark: '低脂' }, { isDone: true }, 'remark', '低脂'],
+    ['today_plan', 'household', { recipeName: '番茄炒蛋', plannedDate: '2026-08-27', recipeId: 'r-1' }, { servings: 3 }, 'recipeId', 'r-1'],
+    ['consumption_record', 'household', { occurredAt: '2026-08-27T10:00:00Z', recipeId: 'r-2' }, { isUndone: true }, 'recipeId', 'r-2'],
+    ['weekly_meal_plan', 'household', { weekStart: '2026-08-24', summary: '本周概要' }, { servings: 2 }, 'summary', '本周概要'],
+    ['weekly_meal_plan_item', 'household', { planId: inventoryId, dayIndex: 0, mealIndex: 0, recipeTitle: '番茄炒蛋', mealTitle: '晚餐' }, { sortOrder: 3 }, 'mealTitle', '晚餐'],
+    ['user_recipe', 'household', { title: '家常豆腐', difficulty: '简单' }, { sortOrder: 1 }, 'difficulty', '简单'],
+    // recipe_favorite/frequent_recipe expose a single client-writable column,
+    // so "an unsent column survives" is not expressible for them — what they
+    // must prove instead is that a single-column update still applies.
+    ['recipe_favorite', 'user', { recipeId: 'sample-mapotofu' }, { recipeId: 'sample-mapotofu' }, 'recipeId', 'sample-mapotofu'],
+    ['frequent_recipe', 'user', { recipeId: 'sample-gongbao' }, { recipeId: 'sample-gongbao' }, 'recipeId', 'sample-gongbao']
+  ];
+  assert.equal(cases.length, 9);
+
+  let counter = 30;
+  for (const [entityType, scope, created, patched, column, preserved] of cases) {
+    const entityId = `e0000000-0000-4000-8000-0000000000${String(counter).padStart(2, '0')}`;
+    const scopeId = scope === 'household' ? householdA : userA;
+    const create = mutation({ mutationId: `10000000-0000-4000-8000-0000000000${counter}`, entityType, entityId, data: created });
+    counter += 1;
+    const update = mutation({ mutationId: `10000000-0000-4000-8000-0000000000${counter}`, entityType, entityId, baseVersion: '1', data: patched });
+    counter += 1;
+
+    await apply(service, authA, scopeId, [create], scope);
+    const result = await apply(service, authA, scopeId, [update], scope);
+    assert.equal(result.results[0].status, 'applied', entityType);
+    assert.deepEqual(repository.receivedPayloads.at(-1), patched, entityType);
+    assert.equal(repository.records.get(`${entityType}:${entityId}`).data[column], preserved, entityType);
+  }
 });
 
 test('different entity types share one monotonic sequence space', async () => {
