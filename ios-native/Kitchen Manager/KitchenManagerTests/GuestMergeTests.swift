@@ -180,6 +180,122 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(plan.candidates.first?.conflictReason, .metadataMismatch, "isStaple/threshold differences must not be silently overwritten by an upload")
     }
 
+    // MARK: - Sync P3: preparation classification in the merge planner
+
+    /// The core P3 regression. Before P3 the planner compared only the
+    /// `isStaple` projection, and `.readyToCook` and `.ordinary` both project
+    /// to `false` — so this pair was classified as a clean no-op, landed in
+    /// `exactMatches`, was shown to the user as 无需处理, and was never staged.
+    /// The local ready-to-cook state was lost with no user-visible trace.
+    func testReadyToCookVersusOrdinaryIsDetectedRatherThanTreatedAsANoOp() {
+        let local = InventoryItem(name: "腌鸡翅", quantity: 4, unit: "个", expiryDate: nil, kind: .readyToCook)
+        let remote = RemoteInventorySnapshotItem(
+            id: local.id, name: "腌鸡翅", unit: "个", quantity: 4, expiryDate: nil, kind: .ordinary
+        )
+        let plan = InventoryMergePlanner.makePlan(
+            sessionId: UUID(), householdId: householdA, localItems: [local], knownRemoteItems: [remote]
+        )
+        XCTAssertEqual(
+            plan.candidates.first?.conflictReason, .metadataMismatch,
+            "a ready-to-cook vs ordinary difference must never be mistaken for a true no-op"
+        )
+        XCTAssertTrue(plan.exactMatches.isEmpty, "the pair must not be reported to the user as 无需处理")
+    }
+
+    func testStapleVersusReadyToCookIsDetected() {
+        let local = InventoryItem(name: "大米", quantity: 5, unit: "袋", expiryDate: nil, kind: .staple)
+        let remote = RemoteInventorySnapshotItem(
+            id: local.id, name: "大米", unit: "袋", quantity: 5, expiryDate: nil, kind: .readyToCook
+        )
+        let plan = InventoryMergePlanner.makePlan(
+            sessionId: UUID(), householdId: householdA, localItems: [local], knownRemoteItems: [remote]
+        )
+        XCTAssertEqual(plan.candidates.first?.conflictReason, .metadataMismatch)
+    }
+
+    func testMatchingClassificationDoesNotFabricateAConflict() {
+        for kind in InventoryItemKind.allCases {
+            let local = InventoryItem(name: "鸡翅", quantity: 4, unit: "个", expiryDate: nil, kind: kind)
+            let remote = RemoteInventorySnapshotItem(
+                id: local.id, name: "鸡翅", unit: "个", quantity: 4, expiryDate: nil, kind: kind
+            )
+            let plan = InventoryMergePlanner.makePlan(
+                sessionId: UUID(), householdId: householdA, localItems: [local], knownRemoteItems: [remote]
+            )
+            XCTAssertNil(plan.candidates.first?.conflictReason, "\(kind) on both sides is a genuine no-op")
+            XCTAssertEqual(plan.candidates.first?.action, .skip, "\(kind)")
+        }
+    }
+
+    func testRemoteSnapshotHashSeesAPreparationOnlyDrift() throws {
+        let id = UUID()
+        func snapshot(_ kind: InventoryItemKind) -> RemoteInventorySnapshotItem {
+            RemoteInventorySnapshotItem(id: id, name: "腌鸡翅", unit: "个", quantity: 4, expiryDate: nil, kind: kind)
+        }
+        // Both sides project to `isStaple == false`, so hashing only the
+        // projection would let this drift slip through confirmMerge's
+        // pre-write re-verification unnoticed.
+        XCTAssertNotEqual(
+            InventoryMergePlanner.remoteSnapshotHash([snapshot(.ordinary)]),
+            InventoryMergePlanner.remoteSnapshotHash([snapshot(.readyToCook)])
+        )
+        XCTAssertEqual(
+            InventoryMergePlanner.remoteSnapshotHash([snapshot(.readyToCook)]),
+            InventoryMergePlanner.remoteSnapshotHash([snapshot(.readyToCook)]),
+            "the hash must still be stable for an unchanged snapshot"
+        )
+    }
+
+    func testLocalClassificationChangeInvalidatesAnAlreadyGeneratedPlan() {
+        var local = InventoryItem(name: "腌鸡翅", quantity: 4, unit: "个", expiryDate: nil, kind: .ordinary)
+        let remote = RemoteInventorySnapshotItem(
+            id: local.id, name: "腌鸡翅", unit: "个", quantity: 4, expiryDate: nil, kind: .ordinary
+        )
+        let plan = InventoryMergePlanner.makePlan(
+            sessionId: UUID(), householdId: householdA, localItems: [local], knownRemoteItems: [remote]
+        )
+        XCTAssertTrue(InventoryMergePlanner.isPlanStillValid(plan, against: [local]))
+        local.kind = .readyToCook
+        XCTAssertFalse(
+            InventoryMergePlanner.isPlanStillValid(plan, against: [local]),
+            "classification changes the merge outcome, so a plan generated before the edit must be regenerated"
+        )
+    }
+
+    func testClassificationIsMetadataAndNeverPartOfIdentity() {
+        // Two remote rows sharing one business key but differing only by
+        // classification must stay one ambiguous bucket — classification must
+        // not split them into two separately matchable identities, and must
+        // not change the dedup behaviour. (The PWA's `kind` identity semantics
+        // are deliberately not imported here.)
+        let local = InventoryItem(name: "鸡翅", quantity: 4, unit: "个", expiryDate: nil, kind: .readyToCook)
+        let plan = InventoryMergePlanner.makePlan(
+            sessionId: UUID(), householdId: householdA, localItems: [local],
+            knownRemoteItems: [
+                RemoteInventorySnapshotItem(id: UUID(), name: "鸡翅", unit: "个", quantity: 4, expiryDate: nil, kind: .ordinary),
+                RemoteInventorySnapshotItem(id: UUID(), name: "鸡翅", unit: "个", quantity: 4, expiryDate: nil, kind: .readyToCook)
+            ]
+        )
+        XCTAssertEqual(plan.candidates.first?.conflictReason, .multipleRemoteCandidates)
+
+        // The same two rows, differing only by classification, must also fall
+        // into one identity bucket when matched by business key rather than
+        // by stable id: a `.readyToCook` local row still finds an `.ordinary`
+        // remote row under a *different* id as an ambiguous duplicate. If
+        // classification had leaked into the matching key, the local row
+        // would find no match at all and escape into `.create`, silently
+        // duplicating the household's record.
+        let ambiguous = InventoryMergePlanner.makePlan(
+            sessionId: UUID(), householdId: householdA,
+            localItems: [InventoryItem(name: "鸡翅", quantity: 4, unit: "个", expiryDate: nil, kind: .readyToCook)],
+            knownRemoteItems: [
+                RemoteInventorySnapshotItem(id: UUID(), name: "鸡翅", unit: "个", quantity: 4, expiryDate: nil, kind: .ordinary)
+            ]
+        )
+        XCTAssertEqual(ambiguous.candidates.first?.conflictReason, .ambiguousDuplicate)
+        XCTAssertNotEqual(ambiguous.candidates.first?.action, .create, "classification must not split one identity into two")
+    }
+
     func testKeepBothIsTheOnlyChoiceThatCreatesASecondRecordForASameIdConflict() throws {
         // Same stable id on both sides (a certain, definite identity, not an
         // ambiguous different-id match) with a quantity conflict: keepLocal
@@ -529,6 +645,46 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(forkedLocalItem?.name, "苹果")
         let originalLocalItem = try await persistence.inventoryItem(id: sharedId)
         XCTAssertNotNil(originalLocalItem, "the original local Guest record must never be removed")
+    }
+
+    /// End-to-end Sync P3: a ready-to-cook classification difference must be
+    /// surfaced as a conflict, and resolving it `keepLocal` must upload both
+    /// classification axes together, from the one local snapshot.
+    func testReadyToCookConflictUploadsBothClassificationAxesTogether() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [
+            InventoryItem(id: sharedId, name: "腌鸡翅", quantity: 4, unit: "个", expiryDate: nil, kind: .readyToCook)
+        ]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        // The household's remote row is ordinary: same id, same name/unit,
+        // same quantity, no expiry — the classification is the only difference.
+        await transport.seedRemoteChange(
+            id: sharedId, name: "腌鸡翅", unit: "个", quantity: 4,
+            isStaple: false, preparationKind: "none", version: "3", sequence: "1"
+        )
+        let controller = GuestMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        await controller.preparePreview(
+            userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport
+        )
+        let candidate = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
+        XCTAssertEqual(candidate.conflictReason, .metadataMismatch)
+
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        XCTAssertEqual(controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.action, .update)
+
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+
+        let sentPayload = await transport.lastReceivedPayload(for: sharedId)
+        let uploaded = try XCTUnwrap(sentPayload)
+        XCTAssertEqual(uploaded["isStaple"], .bool(false), "the staple axis must travel with the preparation axis")
+        XCTAssertEqual(uploaded["preparationKind"], .string("readyToCook"))
+        XCTAssertNil(uploaded["kind"], "`kind` is the PWA-owned column and must never be uploaded by this client")
     }
 
     func testSameIdKeepBothForkWorksForExpiryAndMetadataConflictsToo() async throws {
@@ -4089,7 +4245,8 @@ private actor SimulatedMergeTransport: SyncTransport {
     /// exists remotely (e.g. from another device, or a prior test phase).
     func seedRemoteChange(
         id: UUID, name: String, unit: String, quantity: Double, expiryDate: Date? = nil,
-        isStaple: Bool = false, stapleCategory: String? = nil, lowStockThreshold: Double? = nil,
+        isStaple: Bool = false, preparationKind: String? = nil,
+        stapleCategory: String? = nil, lowStockThreshold: Double? = nil,
         version: String, sequence: String
     ) {
         var data: [String: SyncJSONValue] = [
@@ -4098,6 +4255,11 @@ private actor SimulatedMergeTransport: SyncTransport {
             "unit": .string(unit),
             "isStaple": .bool(isStaple)
         ]
+        // Left absent by default so the existing callers keep simulating the
+        // historical, pre-P2 change records that carry no preparation axis.
+        if let preparationKind {
+            data["preparationKind"] = .string(preparationKind)
+        }
         if let expiryDate {
             data["expiryDate"] = .string(Self.iso8601.string(from: expiryDate))
         }
@@ -4161,10 +4323,19 @@ private actor SimulatedMergeTransport: SyncTransport {
     /// version was used rather than inferring it indirectly from outcomes.
     func lastReceivedBaseVersion(for entityId: UUID) -> String? { receivedBaseVersions[entityId] }
 
+    private var receivedPayloads: [UUID: [String: SyncJSONValue]] = [:]
+
+    /// Exposes the exact payload the client put on the wire for an entity, so
+    /// a test can assert on the real uploaded fields rather than inferring
+    /// them from the local staging queue (which `confirmMerge` clears once the
+    /// mutation is applied).
+    func lastReceivedPayload(for entityId: UUID) -> [String: SyncJSONValue]? { receivedPayloads[entityId] }
+
     func sendMutations(scope: SyncScope, mutations requests: [SyncMutation]) async throws -> SyncMutationBatchResponse {
         var results: [SyncMutationResult] = []
         for request in requests {
             receivedBaseVersions[request.entityId] = request.baseVersion?.rawValue
+            if let data = request.data { receivedPayloads[request.entityId] = data }
             // A seeded entity simulates a remote record the client didn't
             // know about racing this create — the client's baseVersion (from
             // a fresh InventorySyncAdapter.stageUpsert on an item with no

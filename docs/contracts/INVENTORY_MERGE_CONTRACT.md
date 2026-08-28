@@ -47,11 +47,65 @@ resolved — same id ⇒ `expiryMismatch`; different id, same key ⇒
 `ambiguousDuplicate` (looks like a different batch under a new id, so the
 match is not narrowed to "just an expiry issue").
 
-`isStaple` / `stapleCategory` / `lowStockThreshold` / `defaultRestockQuantity`
-/ `autoSuggestRestock` / `stapleTrackingMode` / `stapleAvailabilityStatus` are
-"metadata" fields: tracked so a same-id difference is surfaced as an explicit
-`metadataMismatch` conflict, but — like `quantity` — never part of the
-matching key itself, and never silently overwritten by an upload.
+`kind` (the full classification) / `stapleCategory` / `lowStockThreshold` /
+`defaultRestockQuantity` / `autoSuggestRestock` / `stapleTrackingMode` /
+`stapleAvailabilityStatus` are "metadata" fields: tracked so a same-id
+difference is surfaced as an explicit `metadataMismatch` conflict, but — like
+`quantity` — never part of the matching key itself, and never silently
+overwritten by an upload.
+
+**Classification is compared as the whole `InventoryItemKind`, not as its
+`isStaple` projection** (sync P3). `.ordinary` and `.readyToCook` both project
+to `isStaple == false`, so comparing the projection reported a genuine
+ready-to-cook difference as a clean no-op — the candidate landed in
+`exactMatches`, was shown to the user as 无需处理, and was never staged, so the
+local ready-to-cook state was lost with no user-visible trace.
+`RemoteInventorySnapshotItem` therefore stores `kind` and exposes `isStaple` as
+a computed projection, exactly as `InventoryItem` does; the wire's orthogonal
+`isStaple` + `preparationKind` pair is resolved into that one axis once, in
+`InventorySyncAdapter`, with precedence `staple > readyToCook > ordinary`
+(`SYNC_API_CONTRACT.md` §4.2).
+
+An unrecognised `preparationKind` (an out-of-vocabulary future value, a wrong
+JSON type, an explicit null) decodes to `.ordinary` and never throws:
+`SyncCoordinator.pull` abandons the page and leaves the cursor unadvanced if
+`applyRemote` throws, so a fail-closed decode would wedge every later change
+behind one record, permanently and with no way to self-heal. The accepted cost:
+because every inventory upsert this client sends is a full snapshot, the next
+local edit of that row — an unrelated quantity or expiry change just as much as
+a classification change — normalises the unknown value to `none` server-side.
+The P2 Express enum and the database CHECK make an out-of-vocabulary value
+unreachable under the current protocol, so this is a forward-compatibility
+trade-off, not a live hosted-data risk.
+
+The same full-snapshot mechanism also collapses the **legal**
+`is_staple=true` + `preparation_kind='readyToCook'` combination, with no
+unknown value involved: such a row decodes to `.staple` by precedence, and this
+client's next upsert of it — again, an unrelated quantity edit is enough —
+writes back `isStaple=true, preparationKind=none`, erasing the preparation half
+it never represented locally. That is exactly what §4.2's normalisation map
+asks a client with a single local classification axis to do, so it is
+contract-sanctioned rather than a defect; it is recorded here because a second
+sync client that writes the combination would see this client flatten it. Not
+reachable today — the PWA has no sync path that writes `is_staple`.
+
+Classification remains **metadata, never identity**: it is compared only after
+a candidate's identity has been settled, and `normalizedKey` is still name +
+unit alone. Two remote rows differing only by classification therefore stay a
+single ambiguous bucket (`multipleRemoteCandidates`) rather than becoming two
+separately matchable identities. The PWA's own `inventory_items.kind` identity
+semantics are deliberately not imported here.
+
+Both fingerprints cover classification, so drift on either side invalidates a
+plan rather than slipping through: `remoteSnapshotHash` folds in
+`item.kind.rawValue` (a remote `.ordinary ⇄ .readyToCook` flip leaves
+`isStaple` false on both sides, so hashing the projection would let it pass
+`confirmMerge`'s pre-write re-verification unnoticed), and `planHash` folds it
+in for local items too (a purely local `.ordinary → .readyToCook` edit turns a
+clean `skip` into a `metadataMismatch`, so a plan generated before that edit
+must be regenerated, not reused). Adding classification changed both hash
+inputs; any plan persisted before sync P3 is simply regenerated on its next
+validation, which is the intended safe behaviour.
 
 ## Candidate resolution
 

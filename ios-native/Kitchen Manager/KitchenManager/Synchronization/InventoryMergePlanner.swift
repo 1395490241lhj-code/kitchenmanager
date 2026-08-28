@@ -21,7 +21,14 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
     let unit: String
     let quantity: Double
     let expiryDate: Date?
-    let isStaple: Bool
+    /// The single stored classification axis, mirroring `InventoryItem.kind`
+    /// exactly. The wire's orthogonal `isStaple` + `preparationKind` pair is
+    /// resolved once, in `InventorySyncAdapter.decodeInventory`, and only the
+    /// result travels here. `isStaple` below stays available as a projection
+    /// so the staple-oriented merge code reads unchanged — deliberately *not*
+    /// a second stored field, which could drift out of step with `kind` and
+    /// would make every comparison site remember to check twice.
+    let kind: InventoryItemKind
     let stapleCategory: String?
     let lowStockThreshold: Double?
     let defaultRestockQuantity: Double?
@@ -34,6 +41,13 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
     /// the correct baseVersion for an `.update`.
     let remoteVersion: SyncCursorValue
 
+    /// Reads and writes `kind`, exactly as `InventoryItem.isStaple` does.
+    var isStaple: Bool { kind == .staple }
+
+    /// `kind` wins when given; `isStaple` is still accepted so the merge,
+    /// smoke and test call sites that predate the preparation axis keep
+    /// working unchanged and simply resolve to `.staple` / `.ordinary` —
+    /// never to `.readyToCook`. Mirrors `InventoryItem.init` deliberately.
     init(
         id: UUID,
         name: String,
@@ -41,6 +55,7 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
         quantity: Double,
         expiryDate: Date?,
         isStaple: Bool = false,
+        kind: InventoryItemKind? = nil,
         stapleCategory: String? = nil,
         lowStockThreshold: Double? = nil,
         defaultRestockQuantity: Double? = nil,
@@ -54,7 +69,7 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
         self.unit = unit
         self.quantity = quantity
         self.expiryDate = expiryDate
-        self.isStaple = isStaple
+        self.kind = kind ?? (isStaple ? .staple : .ordinary)
         self.stapleCategory = stapleCategory
         self.lowStockThreshold = lowStockThreshold
         self.defaultRestockQuantity = defaultRestockQuantity
@@ -172,7 +187,12 @@ nonisolated enum InventoryMergePlanner {
             fields.append(item.unit)
             fields.append(String(item.quantity))
             fields.append(expiry)
-            fields.append(String(item.isStaple))
+            // The whole classification, not just its staple projection: a
+            // remote row moving between `.ordinary` and `.readyToCook`
+            // leaves `isStaple` false in both states, so hashing the
+            // projection would let that drift through the pre-write
+            // re-verification unnoticed.
+            fields.append(item.kind.rawValue)
             fields.append(category)
             fields.append(threshold)
             fields.append(restockQuantity)
@@ -190,7 +210,11 @@ nonisolated enum InventoryMergePlanner {
         var components: [String] = [sessionId.uuidString.lowercased(), householdId.uuidString.lowercased()]
         for item in localItems.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
             let expiry = item.expiryDate.map { String($0.timeIntervalSince1970) } ?? "nil"
-            components.append("\(item.id.uuidString.lowercased()):\(item.quantity):\(item.unit):\(expiry)")
+            // Classification is folded in because it changes the merge
+            // outcome: a purely local `.ordinary -> .readyToCook` edit turns
+            // a clean `skip` into a `metadataMismatch` conflict, so a plan
+            // generated before that edit must be regenerated, not reused.
+            components.append("\(item.id.uuidString.lowercased()):\(item.quantity):\(item.unit):\(expiry):\(item.kind.rawValue)")
         }
         // Folding the remote fingerprint in here (rather than only storing it
         // alongside) means any remote drift — a version bump, a create, a
@@ -296,7 +320,13 @@ nonisolated enum InventoryMergePlanner {
     }
 
     private static func hasMetadataMismatch(local: InventoryItem, remote: RemoteInventorySnapshotItem) -> Bool {
-        local.isStaple != remote.isStaple
+        // The full classification, not `isStaple`: `.ordinary` and
+        // `.readyToCook` both project to `isStaple == false`, so comparing
+        // the projection would silently pass a real ready-to-cook difference
+        // off as a true no-op. Classification stays *metadata* here — it is
+        // compared only after identity has already been settled, and is
+        // never part of `normalizedKey` or the candidate matching itself.
+        local.kind != remote.kind
             || local.stapleCategory != remote.stapleCategory
             || local.lowStockThreshold != remote.lowStockThreshold
             || local.defaultRestockQuantity != remote.defaultRestockQuantity

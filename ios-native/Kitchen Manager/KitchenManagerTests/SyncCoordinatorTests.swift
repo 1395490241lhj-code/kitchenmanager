@@ -192,6 +192,51 @@ final class SyncCoordinatorTests: XCTestCase {
         XCTAssertEqual(cursor.value.rawValue, "9")
     }
 
+    /// Sync P3: an out-of-vocabulary `preparationKind` must never stall the
+    /// change feed. Because `pull` abandons the whole page and leaves the
+    /// cursor unadvanced the moment `applyRemote` throws, a fail-closed decode
+    /// of an unknown future preparation value would permanently wedge every
+    /// later change behind it, with no way for the client to self-heal. The
+    /// unknown value therefore falls back to `.ordinary` and the page
+    /// completes normally.
+    ///
+    /// The cost is real and is accepted deliberately: because every upsert
+    /// this client sends is a full snapshot, the next local edit of that row
+    /// — an unrelated quantity or expiry change just as much as a
+    /// classification change — normalises the unknown value to `"none"`
+    /// server-side. Losing one row's forward-compatible value beats wedging
+    /// every later change behind it.
+    func testUnknownPreparationValueDoesNotPoisonTheChangeFeed() async throws {
+        let (_, persistence) = try makePersistence()
+        let poisonID = UUID()
+        let followerID = UUID()
+        var poison = inventoryChange(id: poisonID, version: "2", sequence: "5").data
+        poison["preparationKind"] = .string("braised")
+        let transport = MockSyncTransport(
+            bootstrap: bootstrap(scopes: [scope]),
+            changes: SyncChangesResponse(
+                scopeType: scope.type, scopeId: scope.id, cursor: try SyncCursorValue("6"),
+                hasMore: false,
+                changes: [
+                    SyncChangeEnvelope(
+                        sequence: try SyncCursorValue("5"), entityType: .inventoryItem, entityId: poisonID,
+                        operation: .upsert, version: try SyncCursorValue("2"), changedAt: Date(), data: poison
+                    ),
+                    inventoryChange(id: followerID, version: "2", sequence: "6")
+                ]
+            )
+        )
+        let coordinator = makeCoordinator(persistence: persistence, transport: transport)
+        let outcome = await coordinator.runOnce(authentication: auth())
+        let poisoned = try await persistence.inventoryItem(id: poisonID)
+        let follower = try await persistence.inventoryItem(id: followerID)
+        let cursor = try await persistence.cursor(for: scope)
+        XCTAssertEqual(outcome, .completed)
+        XCTAssertEqual(poisoned?.kind, .ordinary, "an unknown preparation value falls back rather than throwing")
+        XCTAssertNotNil(follower, "the record behind the unknown value must still be applied")
+        XCTAssertEqual(cursor.value.rawValue, "6", "the cursor must advance past a record this client cannot fully understand")
+    }
+
     func testRunOnceRejectsConcurrentReentry() async throws {
         let (_, persistence) = try makePersistence()
         let transport = MockSyncTransport(bootstrap: bootstrap(scopes: []), bootstrapDelay: .milliseconds(100))

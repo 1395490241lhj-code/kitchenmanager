@@ -182,6 +182,168 @@ final class SyncPersistenceAndInventoryAdapterTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<PendingMutationRecord>()).isEmpty)
     }
 
+    // MARK: - Sync P3: preparation-kind round trip
+
+    func testClassificationEncodesBothAxesFromTheSameSnapshot() async throws {
+        let (_, persistence) = try makePersistence()
+        let adapter = InventorySyncAdapter(persistence: persistence)
+        let expectations: [(kind: InventoryItemKind, isStaple: Bool, preparation: String)] = [
+            (.ordinary, false, "none"),
+            (.staple, true, "none"),
+            (.readyToCook, false, "readyToCook")
+        ]
+        for expectation in expectations {
+            let item = InventoryItem(name: "鸡翅", quantity: 6, unit: "个", expiryDate: nil, kind: expectation.kind)
+            let payload = try JSONDecoder().decode(
+                [String: SyncJSONValue].self, from: adapter.encodedPayload(for: item)
+            )
+            XCTAssertEqual(payload["isStaple"], .bool(expectation.isStaple), "\(expectation.kind) staple axis")
+            // Asserting the exact string already rules out `.null` here
+            // (`preparation_kind` is NOT NULL server-side, so an explicit
+            // null is rejected rather than read as "none"). The structural
+            // guard against ever *writing* `.null` lives in the Node suite,
+            // `test/ios-native-guest-merge-phase2b1.test.mjs`.
+            XCTAssertEqual(payload["preparationKind"], .string(expectation.preparation), "\(expectation.kind) preparation axis")
+            XCTAssertNil(
+                payload["kind"],
+                "`kind` is the PWA-owned column (raw/dry/staple) — this client must never write it"
+            )
+        }
+    }
+
+    func testStagedUpsertUsesTheOneSharedPayloadEncoder() async throws {
+        let (_, persistence) = try makePersistence()
+        let adapter = InventorySyncAdapter(persistence: persistence)
+        let item = InventoryItem(name: "腌鸡翅", quantity: 4, unit: "个", expiryDate: nil, kind: .readyToCook)
+        _ = try await adapter.stageUpsert(item: item, scope: scope)
+        let queue = try await persistence.pendingMutations(scope: scope, maxAttempts: 5)
+        let stagedPayload = try XCTUnwrap(queue.first).decodedPayload()
+        let sharedPayload = try JSONDecoder().decode(
+            [String: SyncJSONValue].self, from: adapter.encodedPayload(for: item)
+        )
+        XCTAssertEqual(
+            stagedPayload, sharedPayload,
+            "stageUpsert and encodedPayload must go through the same private payload(for:) — never a second, drifting encoder"
+        )
+        XCTAssertEqual(stagedPayload["isStaple"], .bool(false))
+        XCTAssertEqual(stagedPayload["preparationKind"], .string("readyToCook"))
+        XCTAssertNil(stagedPayload["kind"])
+    }
+
+    func testDecodeResolvesClassificationPrecedenceAndNeverThrowsOnAnUnknownValue() async throws {
+        let (_, persistence) = try makePersistence()
+        let adapter = InventorySyncAdapter(persistence: persistence)
+        let cases: [(label: String, axes: [String: SyncJSONValue], expected: InventoryItemKind)] = [
+            ("legacy record carrying neither axis", [:], .ordinary),
+            ("legacy staple record written before the preparation column existed", ["isStaple": .bool(true)], .staple),
+            ("explicit none", ["isStaple": .bool(false), "preparationKind": .string("none")], .ordinary),
+            ("readyToCook", ["isStaple": .bool(false), "preparationKind": .string("readyToCook")], .readyToCook),
+            // Legal stored combination — the database deliberately carries no
+            // cross-axis CHECK, so precedence is the client's job.
+            ("staple outranks readyToCook", ["isStaple": .bool(true), "preparationKind": .string("readyToCook")], .staple),
+            // The four forward-compatibility fallbacks. None of these may
+            // throw: SyncCoordinator.pull abandons the whole page and leaves
+            // the cursor unadvanced if applyRemote throws, so one unparseable
+            // record would poison the change feed permanently.
+            ("unknown future vocabulary value", ["preparationKind": .string("braised")], .ordinary),
+            ("wrong JSON type: number", ["preparationKind": .number(1)], .ordinary),
+            ("wrong JSON type: bool", ["preparationKind": .bool(true)], .ordinary),
+            ("explicit null", ["preparationKind": .null], .ordinary)
+        ]
+        for testCase in cases {
+            let id = UUID()
+            var data: [String: SyncJSONValue] = [
+                "name": .string("鸡翅"), "quantity": .number(2), "unit": .string("个")
+            ]
+            for (key, value) in testCase.axes { data[key] = value }
+            let envelope = SyncChangeEnvelope(
+                sequence: try SyncCursorValue("1"), entityType: .inventoryItem, entityId: id,
+                operation: .upsert, version: try SyncCursorValue("1"), changedAt: Date(), data: data
+            )
+            let outcome = try await adapter.applyRemote(envelope, scope: scope)
+            let stored = try await persistence.inventoryItem(id: id)
+            XCTAssertEqual(outcome, .applied, testCase.label)
+            XCTAssertEqual(stored?.kind, testCase.expected, testCase.label)
+        }
+    }
+
+    func testClassificationRoundTripsThroughTheWire() async throws {
+        for kind in InventoryItemKind.allCases {
+            let (_, persistence) = try makePersistence()
+            let adapter = InventorySyncAdapter(persistence: persistence)
+            let id = UUID()
+            let item = InventoryItem(id: id, name: "鸡翅", quantity: 3, unit: "个", expiryDate: nil, kind: kind)
+            let payload = try JSONDecoder().decode(
+                [String: SyncJSONValue].self, from: adapter.encodedPayload(for: item)
+            )
+            let envelope = SyncChangeEnvelope(
+                sequence: try SyncCursorValue("1"), entityType: .inventoryItem, entityId: id,
+                operation: .upsert, version: try SyncCursorValue("1"), changedAt: Date(), data: payload
+            )
+            let outcome = try await adapter.applyRemote(envelope, scope: scope)
+            let restored = try await persistence.inventoryItem(id: id)
+            XCTAssertEqual(outcome, .applied, "\(kind)")
+            XCTAssertEqual(restored?.kind, kind, "\(kind) must survive encode -> wire -> decode unchanged")
+        }
+    }
+
+    func testRemoteApplyHydratesClassificationWithoutRunningDomainSideEffects() async throws {
+        let (container, persistence) = try makePersistence()
+        let adapter = InventorySyncAdapter(persistence: persistence)
+        let id = UUID()
+
+        func apply(version: String, axes: [String: SyncJSONValue]) async throws -> InventoryRemoteApplyOutcome {
+            var data: [String: SyncJSONValue] = [
+                "name": .string("鸡翅"), "quantity": .number(4), "unit": .string("个")
+            ]
+            for (key, value) in axes { data[key] = value }
+            return try await adapter.applyRemote(
+                SyncChangeEnvelope(
+                    sequence: try SyncCursorValue(version), entityType: .inventoryItem, entityId: id,
+                    operation: .upsert, version: try SyncCursorValue(version), changedAt: Date(), data: data
+                ),
+                scope: scope
+            )
+        }
+        func storedRecord() throws -> InventoryRecord {
+            let context = ModelContext(container)
+            return try XCTUnwrap(context.fetch(FetchDescriptor<InventoryRecord>()).first { $0.id == id })
+        }
+
+        _ = try await apply(version: "1", axes: [
+            "preparationKind": .string("readyToCook"), "expiryDate": .string("2026-09-01")
+        ])
+        XCTAssertEqual(try storedRecord().kindRawValue, "readyToCook")
+
+        // A remote demotion back to ordinary must genuinely clear the stored
+        // ready-to-cook state, not leave the old raw value behind.
+        _ = try await apply(version: "2", axes: ["preparationKind": .string("none")])
+        XCTAssertEqual(try storedRecord().kindRawValue, "ordinary")
+
+        // A remote `.staple` writes the staple classification, but remote
+        // state hydration is not a domain classification change: it must not
+        // run `KitchenStore.setInventoryKind` / `saveStaple`, both of which
+        // clear the expiry date and the shelf-only settings when a *user*
+        // promotes a row. Everything the remote sent therefore survives
+        // verbatim. (The surviving expiry date on a staple row is the
+        // pre-existing R2 invariant gap, not something P3 introduces.)
+        _ = try await apply(version: "3", axes: [
+            "isStaple": .bool(true),
+            "preparationKind": .string("none"),
+            "expiryDate": .string("2026-09-01"),
+            "lowStockThreshold": .number(2),
+            "stapleNote": .string("冷冻层"),
+            "stapleCategory": .string("肉类")
+        ])
+        let staple = try storedRecord()
+        XCTAssertEqual(staple.kindRawValue, "staple")
+        XCTAssertTrue(staple.isStaple)
+        XCTAssertEqual(staple.lowStockThreshold, 2)
+        XCTAssertEqual(staple.stapleNote, "冷冻层")
+        XCTAssertEqual(staple.stapleCategory, "肉类")
+        XCTAssertNotNil(staple.expiryDate, "hydration must not run the domain's staple expiry cleanup")
+    }
+
     private func makePersistence() throws -> (ModelContainer, SwiftDataSyncPersistence) {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(

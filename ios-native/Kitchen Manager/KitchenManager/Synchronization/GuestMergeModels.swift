@@ -273,8 +273,14 @@ nonisolated enum InventoryMergeConflictReason: String, Codable, Sendable {
     /// same tracked entity.
     case expiryMismatch
     /// Same stable id, quantity and expiry both match, but some other
-    /// tracked field (`isStaple`, staple category/threshold/restock/tracking
-    /// mode/availability) differs. Never silently overwritten by an upload.
+    /// tracked field (the full `InventoryItemKind` classification, staple
+    /// category/threshold/restock/tracking mode/availability) differs. Never
+    /// silently overwritten by an upload.
+    ///
+    /// Classification is compared as the whole kind, not as its `isStaple`
+    /// projection: `.ordinary` and `.readyToCook` both project to `false`, so
+    /// a genuine ready-to-cook difference reaches this case even though the
+    /// staple flag matches on both sides.
     case metadataMismatch
     /// A different id shares the same business key (normalizedName + unit),
     /// and the expiry situation is not clearly compatible (one side has an

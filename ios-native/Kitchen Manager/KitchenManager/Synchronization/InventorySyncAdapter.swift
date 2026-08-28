@@ -156,7 +156,11 @@ nonisolated struct InventorySyncAdapter: Sendable {
             unit: item.unit,
             quantity: item.quantity,
             expiryDate: item.expiryDate,
-            isStaple: item.isStaple,
+            // `decodeInventory` has already resolved the wire's two
+            // classification axes through `classification(_:)`; carrying the
+            // resolved `kind` (rather than re-deriving anything here) keeps
+            // the precedence rule implemented in exactly one place.
+            kind: item.kind,
             stapleCategory: item.stapleCategory,
             lowStockThreshold: item.lowStockThreshold,
             defaultRestockQuantity: item.defaultRestockQuantity,
@@ -253,6 +257,21 @@ nonisolated struct InventorySyncAdapter: Sendable {
             "quantity": .number(item.quantity),
             "unit": .string(item.unit),
             "isStaple": .bool(item.isStaple),
+            // The preparation axis (`SYNC_API_CONTRACT.md` §4.2), orthogonal
+            // to `isStaple` and written from the *same* `item` snapshot, so
+            // the pair can never drift: `isStaple` is itself a projection of
+            // `item.kind`, and this line reads the same property.
+            //
+            // Three things this must never be:
+            // - `.null` — the column is NOT NULL and an explicit null is
+            //   rejected; `"none"` is the only "no preparation" value.
+            // - `item.kind.rawValue` — that sends the out-of-vocabulary
+            //   `"staple"` for a staple row, which the Express enum and the
+            //   database CHECK both reject.
+            // - written under the key `"kind"` — that is a *different*,
+            //   PWA-owned column (`raw`/`dry`/`staple` semantics) which this
+            //   client neither reads nor writes.
+            "preparationKind": .string(item.kind == .readyToCook ? "readyToCook" : "none"),
             "autoSuggestRestock": .bool(item.autoSuggestRestock),
             "stapleTrackingMode": .string(item.stapleTrackingMode.rawValue),
             "stapleAvailabilityStatus": .string(item.stapleAvailabilityStatus.rawValue),
@@ -275,7 +294,7 @@ nonisolated struct InventorySyncAdapter: Sendable {
             quantity: number(change.data["quantity"]) ?? 0,
             unit: string(change.data["unit"]) ?? "",
             expiryDate: date(change.data["expiryDate"]),
-            isStaple: bool(change.data["isStaple"]) ?? false,
+            kind: classification(change.data),
             createdAt: date(change.data["createdAt"]),
             updatedAt: date(change.data["updatedAt"]) ?? change.changedAt,
             lowStockThreshold: number(change.data["lowStockThreshold"]),
@@ -287,6 +306,67 @@ nonisolated struct InventorySyncAdapter: Sendable {
             stapleAvailabilityStatus: StapleAvailabilityStatus(rawValue: string(change.data["stapleAvailabilityStatus"]) ?? "")
                 ?? ((number(change.data["quantity"]) ?? 0) <= 0 ? .missing : .available)
         )
+    }
+
+    /// Resolves the wire's two orthogonal classification axes — `isStaple`
+    /// and `preparationKind` — into the one local `InventoryItemKind`. This
+    /// is the single place that precedence is implemented; every other read
+    /// path takes the already-resolved `kind`.
+    ///
+    /// Precedence is fixed by `docs/contracts/SYNC_API_CONTRACT.md` §4.2 as
+    /// `staple > readyToCook > ordinary`. It has to be an explicit order
+    /// rather than an either/or, because `isStaple = true` together with
+    /// `preparationKind = "readyToCook"` is a *legal* stored combination:
+    /// the database deliberately carries no cross-axis CHECK so that a
+    /// sparse PATCH can move one axis at a time without the other axis's
+    /// unseen stored value turning a valid request into an undiagnosable
+    /// rejection.
+    ///
+    /// Everything that is not exactly `"readyToCook"` resolves to
+    /// `.ordinary`, and nothing here throws. A missing key (a change record
+    /// written before the P2 preparation column existed), `"none"`, an
+    /// out-of-vocabulary future value, a wrong JSON type and an explicit
+    /// null all take the same fallback. Throwing would be far more damaging
+    /// than falling back: `SyncCoordinator.pull` aborts the whole page and
+    /// leaves the cursor unadvanced when `applyRemote` throws, so a single
+    /// unparseable record would poison the entire change feed permanently
+    /// with no way to self-heal. Falling back also matches how every other
+    /// field in `decodeInventory` already behaves — `name` is the only field
+    /// whose absence is fatal.
+    ///
+    /// The wire vocabulary is matched literally rather than handed to the
+    /// local enum's own raw-value initialiser: the enum's vocabulary
+    /// (`ordinary`/`staple`/`readyToCook`) is not the preparation column's
+    /// vocabulary (`none`/`readyToCook`), so reusing it would silently accept
+    /// a `"staple"` preparation value that no server would ever send.
+    ///
+    /// The accepted cost of that fallback, stated precisely: every inventory
+    /// upsert this client sends is a *full snapshot* (`payload(for:)` always
+    /// writes the whole known field set, and the staging queue replaces a
+    /// coalesced payload wholesale rather than merging field by field). So
+    /// once an unknown future preparation value has been read as `.ordinary`,
+    /// **any** subsequent local upsert for that row normalises it to `"none"`
+    /// server-side — an unrelated quantity, expiry or note edit just as much
+    /// as a deliberate classification change. That is a real forward-
+    /// compatibility loss, traded knowingly against a decode failure wedging
+    /// the whole change feed. An out-of-vocabulary value is not reachable
+    /// under the current protocol at all — the P2 Express enum and the
+    /// database CHECK both reject one — so no hosted row can be in that state
+    /// today.
+    ///
+    /// The same full-snapshot mechanism collapses the *legal*
+    /// `isStaple=true` + `preparationKind="readyToCook"` combination too, and
+    /// that needs no unknown value to happen. Such a row decodes to `.staple`
+    /// by precedence, and this client's next upsert of it — again, an
+    /// unrelated quantity edit is enough — writes back
+    /// `isStaple=true, preparationKind="none"`, erasing the preparation half
+    /// it never represented locally. The collapse is what the contract's
+    /// normalisation map asks a single-axis client to do, not a bug; it is
+    /// recorded here because a second sync client writing that combination
+    /// would see this client quietly flatten it.
+    private func classification(_ data: [String: SyncJSONValue]) -> InventoryItemKind {
+        if bool(data["isStaple"]) == true { return .staple }
+        return string(data["preparationKind"]) == "readyToCook" ? .readyToCook : .ordinary
     }
 
     private func string(_ value: SyncJSONValue?) -> String? {

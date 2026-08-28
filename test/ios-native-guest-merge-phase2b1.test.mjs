@@ -450,6 +450,44 @@ test('Phase 2B-4: the payload encoder is shared (InventorySyncAdapter.encodedPay
   assert.match(controller, /adapter\.encodedPayload\(for: item\)/);
 });
 
+test('Sync P3: the classification pair is written from one snapshot, and the PWA-owned `kind` column is never touched', () => {
+  // Both axes live in the single private payload builder, so a
+  // classification change can never send one half without the other.
+  assert.match(inventorySyncAdapter, /"isStaple": \.bool\(item\.isStaple\)/);
+  assert.match(inventorySyncAdapter, /"preparationKind": \.string\(item\.kind == \.readyToCook \? "readyToCook" : "none"\)/);
+  // `kind` is the PWA's own raw/dry/staple column. Writing it from here
+  // would corrupt the other client's data, and `preparation_kind` is
+  // NOT NULL so an explicit null is rejected rather than read as "none".
+  // Anchored to line-start so these match a dictionary key literal only —
+  // never prose in a doc comment that happens to name the field.
+  assert.doesNotMatch(inventorySyncAdapter, /^\s*"kind":/m);
+  assert.doesNotMatch(inventorySyncAdapter, /^\s*"preparationKind": \.null/m);
+  assert.doesNotMatch(inventorySyncAdapter, /^\s*value\["preparationKind"\] = .*\.null/m);
+});
+
+test('Sync P3: decode precedence is staple > readyToCook > ordinary, resolved in exactly one place', () => {
+  assert.match(inventorySyncAdapter, /private func classification\(_ data: \[String: SyncJSONValue\]\) -> InventoryItemKind/);
+  assert.match(inventorySyncAdapter, /if bool\(data\["isStaple"\]\) == true \{ return \.staple \}/);
+  assert.match(inventorySyncAdapter, /string\(data\["preparationKind"\]\) == "readyToCook" \? \.readyToCook : \.ordinary/);
+  // The local enum's vocabulary is not the wire's preparation vocabulary —
+  // `InventoryItemKind(rawValue:)` would silently accept "staple".
+  assert.doesNotMatch(inventorySyncAdapter, /InventoryItemKind\(rawValue:/);
+  // The resolved kind travels onward; precedence is never re-implemented.
+  assert.match(inventorySyncAdapter, /kind: classification\(change\.data\)/);
+  assert.match(inventorySyncAdapter, /kind: item\.kind,/);
+});
+
+test('Sync P3: the merge planner compares and hashes the whole classification, not its isStaple projection', () => {
+  assert.match(planner, /let kind: InventoryItemKind/);
+  assert.match(planner, /var isStaple: Bool \{ kind == \.staple \}/);
+  assert.match(planner, /local\.kind != remote\.kind/);
+  assert.doesNotMatch(planner, /local\.isStaple != remote\.isStaple/);
+  assert.match(planner, /fields\.append\(item\.kind\.rawValue\)/);
+  assert.match(planner, /:\\\(item\.kind\.rawValue\)/);
+  // Classification stays metadata: the matching key is still name + unit.
+  assert.match(planner, /return "\\\(normalizedName\)\|\\\(normalizedUnit\)"/);
+});
+
 test('Phase 2B-5: both new dogfood flags default NO in every committed configuration', () => {
   for (const value of [sharedConfig, exampleConfig]) {
     assert.match(value, /INVENTORY_SYNC_DOGFOOD_ENABLED\s*=\s*NO/);
