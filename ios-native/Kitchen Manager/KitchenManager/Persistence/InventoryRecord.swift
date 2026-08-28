@@ -9,6 +9,12 @@ final class InventoryRecord {
     var unit: String
     var expiryDate: Date?
     var isStaple: Bool
+    /// Optional purely for migration safety: an existing store predates this
+    /// property, and an optional addition is always lightweight-migratable.
+    /// A nil value means "written before kinds existed" and resolves from
+    /// `isStaple`, so old rows keep their exact previous behaviour and are
+    /// never guessed into `.readyToCook`.
+    var kindRawValue: String?
     var createdAt: Date?
     var updatedAt: Date?
     var lowStockThreshold: Double?
@@ -26,6 +32,7 @@ final class InventoryRecord {
         unit = item.unit
         expiryDate = item.expiryDate
         isStaple = item.isStaple
+        kindRawValue = item.kind.rawValue
         createdAt = item.createdAt
         updatedAt = item.updatedAt
         lowStockThreshold = item.lowStockThreshold
@@ -44,7 +51,8 @@ final class InventoryRecord {
             quantity: quantity,
             unit: unit,
             expiryDate: expiryDate,
-            isStaple: isStaple,
+            kind: kindRawValue.flatMap(InventoryItemKind.init(rawValue:))
+                ?? (isStaple ? .staple : .ordinary),
             createdAt: createdAt,
             updatedAt: updatedAt,
             lowStockThreshold: lowStockThreshold,
@@ -64,6 +72,7 @@ final class InventoryRecord {
         unit = item.unit
         expiryDate = item.expiryDate
         isStaple = item.isStaple
+        kindRawValue = item.kind.rawValue
         createdAt = item.createdAt
         updatedAt = item.updatedAt
         lowStockThreshold = item.lowStockThreshold

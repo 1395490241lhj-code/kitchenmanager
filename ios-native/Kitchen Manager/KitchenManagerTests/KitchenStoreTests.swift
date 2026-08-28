@@ -56,10 +56,17 @@ final class KitchenStoreTests: XCTestCase {
     func test_addInventory_oneNilOneExplicitExpiry_merges_andAdoptsTheExplicitDate() {
         // Every ordinary ingredient name now gets a real auto-suggested date
         // even when `expiryDate: nil` is passed (Part 4 rule change — 大米
-        // itself now suggests 180 days rather than nil). `isStaple: true` is
-        // the only remaining reliable way to force a truly nil expiry here.
-        store.addInventory(name: "大米", quantity: 2, unit: "袋", expiryDate: nil, isStaple: true)
-        store.addInventory(name: "大米", quantity: 1, unit: "袋", expiryDate: farFuture, isStaple: true)
+        // itself now suggests 180 days rather than nil), so the undated row is
+        // seeded directly. It used to be produced with `isStaple: true`, which
+        // no longer works and should never have: a staple is not date-tracked,
+        // so it must not adopt an explicit date either (see
+        // `InventoryItemKindTests`). The rule under test here — an undated row
+        // adopts the date of the batch merged into it — is unchanged, and this
+        // is exactly the shape legacy undated data still has.
+        store.inventory = [
+            InventoryItem(name: "大米", quantity: 2, unit: "袋", expiryDate: nil)
+        ]
+        store.addInventory(name: "大米", quantity: 1, unit: "袋", expiryDate: farFuture)
         XCTAssertEqual(store.inventory.count, 1)
         XCTAssertEqual(store.inventory[0].expiryDate, farFuture)
         XCTAssertEqual(store.inventory[0].quantity, 3)

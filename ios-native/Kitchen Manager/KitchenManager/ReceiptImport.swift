@@ -34,6 +34,9 @@ private struct ManualInventoryDraft: Identifiable, Hashable {
     var name: String
     var quantity: Double
     var unit: String
+    var kind: InventoryItemKind = .ordinary
+    /// Held even while the draft is a staple, so switching 常备 → 普通 back and
+    /// forth does not lose the date. What is *saved* is decided by `kind`.
     var expiryDate: Date
     /// Set only by a genuine user interaction with the DatePicker (never by
     /// the initial auto-suggestion), so re-parsing the raw text as the user
@@ -290,7 +293,7 @@ final class ReceiptImportStore: ObservableObject {
                 quantity: $0.quantity,
                 unit: $0.unit,
                 expiryDate: $0.expiryDate,
-                isStaple: $0.category == "常备",
+                kind: $0.category == "常备" ? .staple : .ordinary,
                 category: $0.category
             )
         }
@@ -534,16 +537,33 @@ struct RecordFoodSheet: View {
                     VStack(alignment: .leading, spacing: 8) {
                         manualDraftFields($draft)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            if dynamicTypeSize.isAccessibilitySize {
-                                expiryDatePicker($draft, isAccessibilitySize: true)
-                            } else {
-                                expiryDatePicker($draft, isAccessibilitySize: false)
+                        Picker("类型", selection: $draft.kind) {
+                            ForEach(InventoryItemKind.allCases) { Text($0.title).tag($0) }
+                        }
+                        // Same reason as the inventory detail screen: an
+                        // identifier or label on the Picker container would
+                        // replace the segment labels users actually hear.
+                        .pickerStyle(.segmented)
+
+                        if draft.kind.tracksExpiry {
+                            VStack(alignment: .leading, spacing: 2) {
+                                if dynamicTypeSize.isAccessibilitySize {
+                                    expiryDatePicker($draft, isAccessibilitySize: true)
+                                } else {
+                                    expiryDatePicker($draft, isAccessibilitySize: false)
+                                }
+                                Text(draft.kind == .readyToCook
+                                     ? "系统根据食材类型自动建议，可手动调整。预制食材不会用于 AI 创作菜谱。"
+                                     : "系统根据食材类型自动建议，可手动调整")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityIdentifier("manualInventoryExpiryHint")
                             }
-                            Text("系统根据食材类型自动建议，可手动调整")
+                        } else {
+                            Text("常备食材按库存量跟踪，默认不设置保质期。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .accessibilityIdentifier("manualInventoryExpiryHint")
+                                .accessibilityIdentifier("manualInventoryStapleHint")
                         }
                     }
                 }
@@ -631,7 +651,11 @@ struct RecordFoodSheet: View {
                 name: $0.name,
                 quantity: $0.quantity,
                 unit: $0.unit,
-                expiryDate: $0.expiryDate
+                // A staple is saved undated; `mergeOrAppendInventoryItem`
+                // enforces that too, but not sending a date at all keeps the
+                // intent visible at the call site.
+                expiryDate: $0.kind.tracksExpiry ? $0.expiryDate : nil,
+                kind: $0.kind
             )
         }
     }
@@ -654,11 +678,13 @@ struct RecordFoodSheet: View {
                 let quantity = parsed.quantity ?? 1
                 let key = "\(IngredientNormalizer.matchKey(name))|\(IngredientNormalizer.normalizedUnit(unit))"
 
-                if let existing = existingDraftsByKey[key], existing.hasUserEditedExpiry {
+                let existing = existingDraftsByKey[key]
+                if let existing, existing.hasUserEditedExpiry {
                     return ManualInventoryDraft(
                         name: name,
                         quantity: quantity,
                         unit: unit,
+                        kind: existing.kind,
                         expiryDate: existing.expiryDate,
                         hasUserEditedExpiry: true
                     )
@@ -669,6 +695,7 @@ struct RecordFoodSheet: View {
                     name: name,
                     quantity: quantity,
                     unit: unit,
+                    kind: existing?.kind ?? .ordinary,
                     expiryDate: suggestedDate
                 )
             }

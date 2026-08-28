@@ -91,7 +91,7 @@ struct AIGeneratorView: View {
                 Button {
                     Task {
                         if await generatorStore.generate(
-                            inventory: kitchenStore.availableInventory
+                            inventory: kitchenStore.recipeCreationInventory
                         ) {
                             isShowingConfirmation = true
                         }
@@ -117,7 +117,7 @@ struct AIGeneratorView: View {
         .navigationTitle("AI 做菜")
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            generatorStore.prepareInventory(kitchenStore.availableInventory)
+            generatorStore.prepareInventory(kitchenStore.recipeCreationInventory)
             #if DEBUG
             // Deterministic UI-test seeds for the confirmation screen, which
             // normally requires a real AI generation. A valid draft exercises
@@ -167,14 +167,14 @@ struct AIGeneratorView: View {
     @ViewBuilder
     private var inventorySection: some View {
         Section {
-            if kitchenStore.availableInventory.isEmpty {
+            if kitchenStore.recipeCreationInventory.isEmpty {
                 ContentUnavailableView(
                     "冰箱里还没有食材",
                     systemImage: "shippingbox",
                     description: Text("仍然可以手动输入想使用的食材。")
                 )
             } else {
-                ForEach(kitchenStore.availableInventory) { item in
+                ForEach(kitchenStore.recipeCreationInventory) { item in
                     Button {
                         if generatorStore.selectedInventoryIDs.contains(item.id) {
                             generatorStore.selectedInventoryIDs.remove(item.id)
@@ -213,12 +213,12 @@ struct AIGeneratorView: View {
         } header: {
             Text("从冰箱选择")
         } footer: {
-            if !kitchenStore.availableInventory.isEmpty {
+            if !kitchenStore.recipeCreationInventory.isEmpty {
                 HStack {
                     Button("全选临期食材") {
-                        generatorStore.selectAllExpiring(kitchenStore.availableInventory)
+                        generatorStore.selectAllExpiring(kitchenStore.recipeCreationInventory)
                     }
-                    .disabled(kitchenStore.expiringItems.isEmpty)
+                    .disabled(kitchenStore.recipeCreationExpiringItems.isEmpty)
                     Spacer()
                     Button("清除选择") {
                         generatorStore.selectedInventoryIDs.removeAll()
@@ -308,7 +308,7 @@ private struct AIRecipeConfirmationView: View {
                         Button("重新生成", systemImage: "arrow.clockwise") {
                             Task {
                                 await generatorStore.generate(
-                                    inventory: kitchenStore.availableInventory,
+                                    inventory: kitchenStore.recipeCreationInventory,
                                     regenerate: true
                                 )
                             }

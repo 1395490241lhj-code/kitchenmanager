@@ -395,8 +395,8 @@ struct HomeView: View {
                 Task {
                     await recommendationStore.searchRecommendations(
                         recipes: sourceRecipes,
-                        inventory: kitchenStore.availableInventory.map(\.name),
-                        expiringIngredients: kitchenStore.expiringItems.map(\.name)
+                        inventory: kitchenStore.recipeCreationInventory.map(\.name),
+                        expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
                     )
                 }
             }
@@ -531,16 +531,16 @@ struct HomeView: View {
     private func loadDefaultRecommendationsIfNeeded() {
         recommendationStore.loadDefaultRecommendations(
             recipes: sourceRecipes,
-            inventory: kitchenStore.availableInventory.map(\.name),
-            expiringIngredients: kitchenStore.expiringItems.map(\.name)
+            inventory: kitchenStore.recipeCreationInventory.map(\.name),
+            expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
         )
     }
 
     private func generateAIRecommendations() {
         Task {
             await recommendationStore.generateNewRecommendations(
-                inventory: kitchenStore.availableInventory.map(\.name),
-                expiringIngredients: kitchenStore.expiringItems.map(\.name)
+                inventory: kitchenStore.recipeCreationInventory.map(\.name),
+                expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
             )
         }
     }
@@ -589,8 +589,8 @@ struct HomeView: View {
                     isAddedToToday: recommendation.map { candidate in
                         kitchenStore.todayPlans.contains { $0.recipeID == candidate.recipe.id }
                     } ?? false,
-                    inventoryNames: kitchenStore.availableInventory.map(\.name),
-                    expiringNames: kitchenStore.expiringItems.map(\.name),
+                    inventoryNames: kitchenStore.recipeCreationInventory.map(\.name),
+                    expiringNames: kitchenStore.recipeCreationExpiringItems.map(\.name),
                     onAddToToday: addRecommendationToPlan,
                     onViewRecipe: { selectedRecipe = $0 },
                     onRefresh: generateAIRecommendations,
@@ -2363,7 +2363,7 @@ struct RecipeRecommendationBrowserView: View {
     }
 
     private func recommendationBadge(_ recipe: Recipe) -> String {
-        let names = kitchenStore.availableInventory.map(\.name)
+        let names = kitchenStore.recipeCreationInventory.map(\.name)
         let matches = recipe.ingredients.filter { ingredient in
             names.contains { ingredient.localizedCaseInsensitiveContains($0) }
         }.count
@@ -2371,7 +2371,7 @@ struct RecipeRecommendationBrowserView: View {
     }
 
     private func recommendationReason(_ recipe: Recipe) -> String {
-        let expiringNames = kitchenStore.expiringItems.map(\.name)
+        let expiringNames = kitchenStore.recipeCreationExpiringItems.map(\.name)
         if let name = expiringNames.first(where: { expiring in
             recipe.ingredients.contains { $0.localizedCaseInsensitiveContains(expiring) }
         }) {
@@ -2392,8 +2392,8 @@ struct RecipeRecommendationBrowserView: View {
     private func loadDefaultRecommendationsIfNeeded() {
         recommendationStore.loadDefaultRecommendations(
             recipes: sourceRecipes,
-            inventory: kitchenStore.availableInventory.map(\.name),
-            expiringIngredients: kitchenStore.expiringItems.map(\.name)
+            inventory: kitchenStore.recipeCreationInventory.map(\.name),
+            expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
         )
     }
 
@@ -2402,8 +2402,8 @@ struct RecipeRecommendationBrowserView: View {
         Task {
             await recommendationStore.searchRecommendations(
                 recipes: sourceRecipes,
-                inventory: kitchenStore.availableInventory.map(\.name),
-                expiringIngredients: kitchenStore.expiringItems.map(\.name)
+                inventory: kitchenStore.recipeCreationInventory.map(\.name),
+                expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
             )
         }
     }
@@ -2412,8 +2412,8 @@ struct RecipeRecommendationBrowserView: View {
         isSearchFocused = false
         recommendationStore.clearSearch(
             recipes: sourceRecipes,
-            inventory: kitchenStore.availableInventory.map(\.name),
-            expiringIngredients: kitchenStore.expiringItems.map(\.name)
+            inventory: kitchenStore.recipeCreationInventory.map(\.name),
+            expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
         )
     }
 
@@ -2421,8 +2421,8 @@ struct RecipeRecommendationBrowserView: View {
         isSearchFocused = false
         Task {
             await recommendationStore.generateNewRecommendations(
-                inventory: kitchenStore.availableInventory.map(\.name),
-                expiringIngredients: kitchenStore.expiringItems.map(\.name)
+                inventory: kitchenStore.recipeCreationInventory.map(\.name),
+                expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
             )
         }
     }

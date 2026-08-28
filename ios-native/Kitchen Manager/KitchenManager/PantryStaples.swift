@@ -386,7 +386,28 @@ struct InventoryItemDetailView: View {
                         .keyboardType(.decimalPad)
                     TextField("单位", text: binding(\.unit, default: ""))
                 }
-                if !store.inventory[index].isStaple {
+                // Two toggles rather than a three-way picker, deliberately:
+                // `设为常备食材` keeps the exact label, placement and semantics
+                // it has always had (an XCUITest for a real device crash drives
+                // it), and the second toggle only appears where it can apply.
+                // They are two views of one stored `kind`, never two fields —
+                // both write through `KitchenStore.setInventoryKind`.
+                Section("食材类型") {
+                    Toggle("设为常备食材", isOn: Binding(
+                        get: { store.inventory.first(where: { $0.id == itemID })?.isStaple ?? false },
+                        set: { store.setInventoryKind(itemID, to: $0 ? .staple : .ordinary) }
+                    ))
+                    if !store.inventory[index].isStaple {
+                        Toggle("预制 / 即烹", isOn: Binding(
+                            get: { store.inventory.first(where: { $0.id == itemID })?.kind == .readyToCook },
+                            set: { store.setInventoryKind(itemID, to: $0 ? .readyToCook : .ordinary) }
+                        ))
+                    }
+                    Text(store.inventory[index].kind.caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if store.inventory[index].kind.tracksExpiry {
                     Section("保质期") {
                         Toggle("设置保质期", isOn: Binding(
                             get: { store.inventory.first(where: { $0.id == itemID })?.expiryDate != nil },
@@ -419,19 +440,8 @@ struct InventoryItemDetailView: View {
                         }
                     }
                 }
-                Section("常备货架") {
-                    Toggle("设为常备食材", isOn: Binding(
-                        get: { store.inventory.first(where: { $0.id == itemID })?.isStaple ?? false },
-                        set: { enabled in
-                            if enabled {
-                                guard let idx = store.inventory.firstIndex(where: { $0.id == itemID }) else { return }
-                                store.inventory[idx].isStaple = true
-                            } else {
-                                store.cancelStaple(itemID)
-                            }
-                        }
-                    ))
-                    if store.inventory[index].isStaple {
+                if store.inventory[index].isStaple {
+                    Section("常备货架") {
                         Picker("跟踪方式", selection: binding(\.stapleTrackingMode, default: .quantity)) {
                             ForEach(StapleTrackingMode.allCases) { Text($0.title).tag($0) }
                         }

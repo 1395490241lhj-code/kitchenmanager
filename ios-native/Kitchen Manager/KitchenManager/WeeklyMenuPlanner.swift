@@ -579,7 +579,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         mealsPerDayOverride: Int? = nil,
         dishesPerMealOverride: Int? = nil
     ) -> AIWeeklyMenuRequest {
-        let inventoryPayload = kitchenStore.availableInventory.map { item in
+        let inventoryPayload = kitchenStore.recipeCreationInventory.map { item in
             WeeklyMenuInventoryPayload(
                 name: item.name,
                 quantity: item.quantity,
@@ -1206,7 +1206,7 @@ struct WeeklyMenuResultView: View {
     }
 
     private func inventoryCoverage(for recipe: WeeklyMealPlanRecipe) -> (uses: Int, missing: Int) {
-        let names = kitchenStore.availableInventory.map(\.name)
+        let names = kitchenStore.recipeCreationInventory.map(\.name)
         let uses = recipe.ingredients.filter { ingredient in
             names.contains { ingredient.localizedCaseInsensitiveContains($0) }
         }.count

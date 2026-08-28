@@ -72,13 +72,65 @@ final class AppNavigationStore: ObservableObject {
     }
 }
 
+/// What kind of thing an inventory row is. One stored axis, three mutually
+/// exclusive values — deliberately *not* a second boolean beside `isStaple`,
+/// which is now a projection of this enum rather than its own stored fact.
+///
+/// The two behaviours that actually differ per kind are declared here, so no
+/// call site re-derives them from a name, a category string or a keyword table:
+/// whether the row is date-tracked at all, and whether an AI recipe may treat
+/// it as raw material.
+enum InventoryItemKind: String, Codable, CaseIterable, Identifiable, Sendable {
+    /// Ordinary groceries. Date-tracked, and free material for a new recipe.
+    case ordinary
+    /// The pantry shelf: rice, salt, soy sauce. Tracked by stock level, never
+    /// by an expiry date, but still perfectly good as a seasoning or support
+    /// ingredient in a generated recipe.
+    case staple
+    /// Already marinated, pre-seasoned, wrapped or otherwise part-made: 腌好的
+    /// 冷冻鱼柳, 调味鸡翅, 包好的饺子. Kept, counted and date-tracked exactly like
+    /// ordinary inventory, but it is a finished preparation, not raw material,
+    /// so a recipe-*creation* prompt must never be handed it.
+    case readyToCook
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .ordinary: return "普通"
+        case .staple: return "常备"
+        case .readyToCook: return "预制"
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .ordinary: return "按保质期跟踪，可用于 AI 创作菜谱。"
+        case .staple: return "按库存量跟踪，默认不跟踪保质期。可作为调味或辅助食材参与 AI 创作。"
+        case .readyToCook: return "已腌制 / 预制 / 即烹，正常跟踪保质期，但不会用于 AI 创作菜谱。"
+        }
+    }
+
+    /// Staples are stock-tracked, not date-tracked: nothing may invent an
+    /// expiry date for one. Ready-to-cook food spoils like anything else and
+    /// keeps the ordinary date behaviour.
+    var tracksExpiry: Bool { self != .staple }
+
+    /// Whether a recipe-creation request may use this row as an ingredient.
+    /// Ready-to-cook food is excluded — it is already a dish.
+    var canInspireRecipeCreation: Bool { self != .readyToCook }
+}
+
 struct InventoryItem: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var quantity: Double
     var unit: String
     var expiryDate: Date?
-    var isStaple = false
+    /// The single stored classification axis. `isStaple` below is its
+    /// projection, kept so the sync, merge, restock and pantry-shelf code that
+    /// has always spoken in terms of "is this a staple" needs no rewrite.
+    var kind: InventoryItemKind = .ordinary
     /// Optional so inventories saved before lifecycle cards existed remain decodable.
     /// New normal inventory batches record this once and never overwrite it on edits.
     var createdAt: Date?
@@ -95,12 +147,28 @@ struct InventoryItem: Identifiable, Codable, Hashable {
     var stapleTrackingMode: StapleTrackingMode = .quantity
     var stapleAvailabilityStatus: StapleAvailabilityStatus = .available
 
+    /// Reads and writes `kind`. Setting it false only demotes an actual staple
+    /// back to ordinary — it never silently reclassifies a ready-to-cook row.
+    var isStaple: Bool {
+        get { kind == .staple }
+        set {
+            if newValue {
+                kind = .staple
+            } else if kind == .staple {
+                kind = .ordinary
+            }
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
-        case id, name, quantity, unit, expiryDate, isStaple, createdAt, updatedAt, lowStockThreshold
+        case id, name, quantity, unit, expiryDate, isStaple, kind, createdAt, updatedAt, lowStockThreshold
         case defaultRestockQuantity, autoSuggestRestock, stapleNote, stapleCategory
         case stapleTrackingMode, stapleAvailabilityStatus
     }
 
+    /// `kind` wins when given; `isStaple` remains accepted so the sync,
+    /// merge-smoke and test call sites that predate `InventoryItemKind` keep
+    /// working unchanged and simply resolve to `.staple` / `.ordinary`.
     init(
         id: UUID = UUID(),
         name: String,
@@ -108,6 +176,7 @@ struct InventoryItem: Identifiable, Codable, Hashable {
         unit: String,
         expiryDate: Date?,
         isStaple: Bool = false,
+        kind: InventoryItemKind? = nil,
         createdAt: Date? = nil,
         updatedAt: Date? = nil,
         lowStockThreshold: Double? = nil,
@@ -123,7 +192,7 @@ struct InventoryItem: Identifiable, Codable, Hashable {
         self.quantity = quantity
         self.unit = unit
         self.expiryDate = expiryDate
-        self.isStaple = isStaple
+        self.kind = kind ?? (isStaple ? .staple : .ordinary)
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.lowStockThreshold = lowStockThreshold
@@ -142,7 +211,12 @@ struct InventoryItem: Identifiable, Codable, Hashable {
         quantity = try container.decode(Double.self, forKey: .quantity)
         unit = try container.decode(String.self, forKey: .unit)
         expiryDate = try container.decodeIfPresent(Date.self, forKey: .expiryDate)
-        isStaple = try container.decodeIfPresent(Bool.self, forKey: .isStaple) ?? false
+        // Payloads written before `kind` existed carry only `isStaple`, so they
+        // decode to `.staple` / `.ordinary` — never to `.readyToCook`. Nothing
+        // reclassifies old rows from their names.
+        let legacyIsStaple = try container.decodeIfPresent(Bool.self, forKey: .isStaple) ?? false
+        kind = try container.decodeIfPresent(InventoryItemKind.self, forKey: .kind)
+            ?? (legacyIsStaple ? .staple : .ordinary)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         lowStockThreshold = try container.decodeIfPresent(Double.self, forKey: .lowStockThreshold)
@@ -153,6 +227,30 @@ struct InventoryItem: Identifiable, Codable, Hashable {
         stapleTrackingMode = try container.decodeIfPresent(StapleTrackingMode.self, forKey: .stapleTrackingMode) ?? .quantity
         stapleAvailabilityStatus = try container.decodeIfPresent(StapleAvailabilityStatus.self, forKey: .stapleAvailabilityStatus)
             ?? (quantity <= 0 ? .missing : .available)
+    }
+
+    /// Written by hand because `isStaple` is computed: the synthesized encoder
+    /// would silently drop it, and backups/legacy payloads still read that key.
+    /// Both keys are emitted, so a backup taken here still restores correctly
+    /// in a build that predates `kind`.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(quantity, forKey: .quantity)
+        try container.encode(unit, forKey: .unit)
+        try container.encodeIfPresent(expiryDate, forKey: .expiryDate)
+        try container.encode(isStaple, forKey: .isStaple)
+        try container.encode(kind, forKey: .kind)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(lowStockThreshold, forKey: .lowStockThreshold)
+        try container.encodeIfPresent(defaultRestockQuantity, forKey: .defaultRestockQuantity)
+        try container.encode(autoSuggestRestock, forKey: .autoSuggestRestock)
+        try container.encodeIfPresent(stapleNote, forKey: .stapleNote)
+        try container.encodeIfPresent(stapleCategory, forKey: .stapleCategory)
+        try container.encode(stapleTrackingMode, forKey: .stapleTrackingMode)
+        try container.encode(stapleAvailabilityStatus, forKey: .stapleAvailabilityStatus)
     }
 
     var isAvailable: Bool { quantity > 0 }
@@ -388,8 +486,25 @@ struct InventoryImportItem: Hashable {
     var quantity: Double
     var unit: String
     var expiryDate: Date?
-    var isStaple = false
+    var kind: InventoryItemKind = .ordinary
     var category: String?
+
+    init(
+        name: String,
+        quantity: Double,
+        unit: String,
+        expiryDate: Date?,
+        isStaple: Bool = false,
+        kind: InventoryItemKind? = nil,
+        category: String? = nil
+    ) {
+        self.name = name
+        self.quantity = quantity
+        self.unit = unit
+        self.expiryDate = expiryDate
+        self.kind = kind ?? (isStaple ? .staple : .ordinary)
+        self.category = category
+    }
 }
 
 @MainActor
@@ -562,10 +677,31 @@ final class KitchenStore: ObservableObject {
     }
 
     var availableInventory: [InventoryItem] { inventory.filter(\.isAvailable) }
+    /// Staples are excluded structurally, not because they happen to have no
+    /// date: a pantry item is tracked by stock level, so it must never reach an
+    /// expiry or expiring-soon surface even if a legacy row still carries a
+    /// date written before staples stopped being date-tracked.
     var expiringItems: [InventoryItem] {
         inventory
-            .filter { $0.isAvailable && $0.isExpiringSoon }
+            .filter { $0.isAvailable && !$0.isStaple && $0.isExpiringSoon }
             .sorted { ($0.remainingDays ?? 999) < ($1.remainingDays ?? 999) }
+    }
+
+    /// The ingredient candidate list every recipe-creation path must start
+    /// from — AI generation, AI recommendation and the local ranking that
+    /// shares their pool. Ready-to-cook rows are dropped here, one layer
+    /// *above* any prompt or request payload, so no service is ever asked to
+    /// please-ignore them.
+    var recipeCreationInventory: [InventoryItem] {
+        availableInventory.filter(\.kind.canInspireRecipeCreation)
+    }
+
+    /// The expiring subset of the same pool, for the "use this up first" hint
+    /// that travels with a recipe-creation request. Ready-to-cook food still
+    /// appears in the ordinary `expiringItems` alerts — it just cannot steer a
+    /// recipe that would be invented around it.
+    var recipeCreationExpiringItems: [InventoryItem] {
+        expiringItems.filter(\.kind.canInspireRecipeCreation)
     }
     var sortedFreshInventory: [InventoryItem] {
         inventory
@@ -592,6 +728,7 @@ final class KitchenStore: ObservableObject {
         unit: String,
         expiryDate: Date?,
         isStaple: Bool = false,
+        kind: InventoryItemKind? = nil,
         category: String? = nil
     ) {
         var updated = inventory
@@ -600,7 +737,7 @@ final class KitchenStore: ObservableObject {
             quantity: quantity,
             unit: unit,
             expiryDate: expiryDate,
-            isStaple: isStaple,
+            kind: kind ?? (isStaple ? .staple : .ordinary),
             category: category,
             into: &updated
         )
@@ -626,7 +763,7 @@ final class KitchenStore: ObservableObject {
                 quantity: item.quantity,
                 unit: item.unit,
                 expiryDate: item.expiryDate,
-                isStaple: item.isStaple,
+                kind: item.kind,
                 category: item.category,
                 into: &updated
             )
@@ -641,7 +778,7 @@ final class KitchenStore: ObservableObject {
         quantity: Double,
         unit: String,
         expiryDate: Date?,
-        isStaple: Bool,
+        kind: InventoryItemKind,
         category: String?,
         into inventory: inout [InventoryItem]
     ) {
@@ -659,9 +796,11 @@ final class KitchenStore: ObservableObject {
             for: cleanName,
             category: category
         )
-        let effectiveExpiryDate = expiryDate ?? (isStaple
-            ? nil
-            : (suggestedExpiryDate ?? Calendar.current.date(byAdding: .day, value: 7, to: Date())))
+        // A staple is never date-tracked, so an explicitly supplied date is
+        // dropped too rather than becoming a fake expiry on the pantry shelf.
+        let effectiveExpiryDate: Date? = kind.tracksExpiry
+            ? (expiryDate ?? suggestedExpiryDate ?? Calendar.current.date(byAdding: .day, value: 7, to: Date()))
+            : nil
         #if DEBUG
         logInventoryAdd(
             rawInput: name,
@@ -679,8 +818,15 @@ final class KitchenStore: ObservableObject {
                 && Self.expiryDatesCanMerge($0.expiryDate, effectiveExpiryDate)
         }) {
             inventory[index].quantity += safeQuantity
-            inventory[index].isStaple = inventory[index].isStaple || isStaple
-            if inventory[index].expiryDate == nil { inventory[index].expiryDate = effectiveExpiryDate }
+            // A more specific incoming kind promotes an ordinary row (the old
+            // `isStaple || isStaple` rule, generalised); an already-classified
+            // row is never silently reclassified by a later import.
+            if inventory[index].kind == .ordinary { inventory[index].kind = kind }
+            if inventory[index].kind.tracksExpiry {
+                if inventory[index].expiryDate == nil { inventory[index].expiryDate = effectiveExpiryDate }
+            } else {
+                inventory[index].expiryDate = nil
+            }
             #if DEBUG
             print("[InventoryAdd] mergedIntoExistingItemID=\(inventory[index].id) savedItemExpiry=\(logDate(inventory[index].expiryDate))")
             #endif
@@ -690,7 +836,7 @@ final class KitchenStore: ObservableObject {
                 quantity: safeQuantity,
                 unit: cleanUnit,
                 expiryDate: effectiveExpiryDate,
-                isStaple: isStaple,
+                kind: kind,
                 createdAt: Date()
             )
             inventory.append(newItem)
@@ -1081,7 +1227,11 @@ final class KitchenStore: ObservableObject {
             inventory[index].name = cleanName
             inventory[index].quantity = max(0, quantity)
             inventory[index].unit = cleanUnit
-            inventory[index].isStaple = true
+            inventory[index].kind = .staple
+            // Promoting an existing ordinary row to the pantry shelf drops the
+            // date it was carrying. Leaving it behind was the actual reason a
+            // staple could still show up in 即将过期 / 已过期.
+            inventory[index].expiryDate = nil
             inventory[index].lowStockThreshold = minimumQuantity
             inventory[index].defaultRestockQuantity = defaultRestockQuantity
             inventory[index].autoSuggestRestock = autoSuggestRestock
@@ -1128,14 +1278,45 @@ final class KitchenStore: ObservableObject {
     }
 
     func cancelStaple(_ id: UUID) {
+        setInventoryKind(id, to: .ordinary)
+    }
+
+    /// The one place an inventory row changes classification. Every consequence
+    /// of the change lives here, so the add sheet, the detail screen and the
+    /// pantry shelf cannot each implement a slightly different version of it:
+    ///
+    /// - leaving `.staple` drops the shelf-only settings and stops its restock
+    ///   notification, exactly as `cancelStaple` always did;
+    /// - leaving `.staple` also re-seeds an expiry date, because the row is
+    ///   date-tracked again and an undated ordinary item is not a state the
+    ///   rest of the app expects;
+    /// - becoming `.staple` clears the date rather than parking a far-future
+    ///   one, so "not tracked" is genuinely absent, not disguised.
+    func setInventoryKind(_ id: UUID, to kind: InventoryItemKind) {
         guard let index = inventory.firstIndex(where: { $0.id == id }) else { return }
-        PantryRestockNotificationScheduler.remove(for: id)
-        inventory[index].isStaple = false
-        inventory[index].lowStockThreshold = nil
-        inventory[index].defaultRestockQuantity = nil
-        inventory[index].autoSuggestRestock = false
-        inventory[index].stapleNote = nil
-        inventory[index].stapleCategory = nil
+        let previousKind = inventory[index].kind
+        guard previousKind != kind else { return }
+        inventory[index].kind = kind
+
+        if previousKind == .staple {
+            PantryRestockNotificationScheduler.remove(for: id)
+            inventory[index].lowStockThreshold = nil
+            inventory[index].defaultRestockQuantity = nil
+            inventory[index].autoSuggestRestock = false
+            inventory[index].stapleNote = nil
+            inventory[index].stapleCategory = nil
+        }
+
+        if kind.tracksExpiry {
+            if inventory[index].expiryDate == nil {
+                inventory[index].expiryDate = InventoryExpirySuggestion.suggestedExpiryDate(
+                    for: inventory[index].name
+                ) ?? Calendar.current.date(byAdding: .day, value: 7, to: Date())
+            }
+        } else {
+            inventory[index].expiryDate = nil
+        }
+        inventory[index].updatedAt = Date()
     }
 
     func deleteInventory(_ id: UUID) {
@@ -1263,7 +1444,7 @@ final class KitchenStore: ObservableObject {
                 quantity: item.quantity,
                 unit: item.unit,
                 expiryDate: nil,
-                isStaple: false,
+                kind: .ordinary,
                 category: nil,
                 into: &updated
             )

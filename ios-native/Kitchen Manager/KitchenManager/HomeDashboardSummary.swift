@@ -47,9 +47,16 @@ struct HomeDashboardSummary: Equatable {
         totalPlanCount = todayPlans.count
         completedPlanCount = completedPlans.count
 
-        let expiredItems = inventory.filter { $0.isAvailable && $0.expiryStatus == .expired }
+        // Staples are stock-tracked, never date-tracked — the same rule as
+        // `KitchenStore.expiringItems`, restated here because Home builds its
+        // attention list from raw inventory rather than from that property.
+        // Ready-to-cook food is deliberately NOT excluded: it spoils, and its
+        // exclusion is only from recipe creation.
+        let expiredItems = inventory.filter {
+            $0.isAvailable && !$0.isStaple && $0.expiryStatus == .expired
+        }
         let expiringItems = inventory.filter {
-            $0.isAvailable && ($0.expiryStatus == .today || $0.expiryStatus == .soon)
+            $0.isAvailable && !$0.isStaple && ($0.expiryStatus == .today || $0.expiryStatus == .soon)
         }
         let lowStockItems = inventory.filter {
             $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
