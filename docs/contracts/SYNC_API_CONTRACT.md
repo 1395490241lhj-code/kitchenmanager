@@ -262,12 +262,16 @@ mutation 响应的 `cursor` 只是本批 applied/duplicate 结果中的最大 se
 
 - development 已应用 `20260713000200` 与 `20260827000100`（§4.1 的 PATCH 语义已在
   hosted development 运行），并完成真实 Auth/RLS、RPC、mutation、cursor、实体 mapper
-  与本地 Express smoke。production 未部署。
+  与本地 Express smoke。尚不存在独立的 production Supabase project，因此这些迁移只
+  落在 hosted development；inventory sync 也**未 production-enabled**，从未发生过
+  production sync rollout。
 - `20260828000100_inventory_preparation_kind`（§4.2）**已 apply 到 hosted
   development**：hosted migration history 现为 5/5，§4.2 的列、CHECK 词表、RPC
   allowlist 与 create default 均已通过 remote verifier。配套的 Express 侧
-  `entities.js` `preparationKind` 定义已随 `afe1035` 在 Render 收敛。production
-  未部署。
+  `entities.js` `preparationKind` 定义已随 `afe1035` 在 Render 收敛——即 Render 上
+  运行的服务端**确实**已具备该契约能力。同一句话不要读成「production 已上线」：
+  尚不存在独立的 production Supabase project，且 inventory sync **未
+  production-enabled**，从未发生过 production sync rollout。
 
   该 migration 与 Express 定义是一对且顺序敏感——必须先 migration（列 + RPC 原子
   落地）、再部署 Express。**该顺序在本次 rollout 中已被满足**，以下仍记录其原因：
