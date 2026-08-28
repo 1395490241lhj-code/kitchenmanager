@@ -287,11 +287,15 @@ mutation 响应的 `cursor` 只是本批 applied/duplicate 结果中的最大 se
   与本契约无关，也不是它的 gate。
 - **以上都不代表 sync 已 production-enabled。** 所有 committed configuration 中的
   sync / merge / smoke / dogfood / diagnostics flag 仍然全部是 `NO`；数据库与服务端
-  具备该能力，但没有任何客户端路径会走到它。此外，remote hydration 写入 SwiftData
-  后 `KitchenStore.inventory` 不会 reload，下一次本地 `replaceInventory` 可能用 stale
-  in-memory 状态覆盖刚同步下来的行——这是一个**全字段、全生命周期**的缺陷，与
-  preparation 轴无关，且是 sync enablement 的 hard blocker。在它修复并验证之前，
-  不得开启上述任何 flag。
+  具备该能力，但没有任何客户端路径会走到它。此前记录在这里的 R1（remote hydration
+  写入 SwiftData 后 `KitchenStore.inventory` 不 reload，下一次本地 `replaceInventory`
+  用 stale in-memory 状态覆盖刚同步下来的行）**已随 `21bd030` 修复并验证**：一致性
+  窗口在操作的第一次 durable 写之前打开、退出时 reconcile，`didSet` 路径改为 row-scoped
+  diff，编辑在窗口开启期间被 `KitchenStore` 中央拒绝。
+  **但 sync enablement 仍被阻塞**：同一轮审计发现 Guest merge 的 `rollback` 会删除
+  用户自己的本地 guest `InventoryRecord`（`createdEntityIds` 对 `create` candidate 记录
+  的是本地条目自身的 id），其修复位于 `InventorySyncAdapter` / `SyncPersistence` 层且
+  尚未实施。在它修复并验证之前，不得开启上述任何 flag。
 - iOS 已有 disabled-by-default 的 DTO、pending queue、per-scope cursor、transport/coordinator 和 inventory POC；没有 App/Auth 自动调用点。
 - PWA SyncEngine 与其他 iOS domain adapter。
 - Guest bootstrap/merge、冲突 UI、自动或后台同步。
