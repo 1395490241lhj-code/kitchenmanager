@@ -233,7 +233,7 @@ final class SyncSmokeRunner {
                 deletedAt: nil,
                 updatedAt: Date()
             ))
-            _ = try await adapter.stageDelete(entityId: item.id, scope: scope)
+            _ = try await adapter.stageDeleteRemovingLocalRecord(entityId: item.id, scope: scope)
             try await requireCompleted(await coordinator.runOnce(authentication: authentication, scopes: [scope]))
             let deletedMetadata = try await requireMetadata(for: item.id, state: .synced, version: "3")
             let deleteCursor = try await persistence.cursor(for: scope)
@@ -314,7 +314,7 @@ final class SyncSmokeRunner {
             deletedAt: nil,
             updatedAt: Date()
         ))
-        _ = try await adapter.stageDelete(entityId: itemID, scope: scope)
+        _ = try await adapter.stageDeleteRemovingLocalRecord(entityId: itemID, scope: scope)
         _ = await coordinator.runOnce(authentication: authentication, scopes: [scope])
     }
 }

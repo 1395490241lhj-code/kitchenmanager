@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const root = new URL('../ios-native/Kitchen Manager/', import.meta.url);
 const read = path => readFileSync(new URL(path, root), 'utf8');
@@ -24,6 +24,8 @@ const inventorySyncAdapter = read('KitchenManager/Synchronization/InventorySyncA
 const dogfoodConfig = read('KitchenManager/Synchronization/InventorySyncDogfoodConfiguration.swift');
 const diagnostics = read('KitchenManager/Synchronization/InventorySyncDiagnostics.swift');
 const consistencyChecker = read('KitchenManager/Synchronization/InventorySyncConsistencyChecker.swift');
+const guestMergeSmoke = read('KitchenManager/Synchronization/GuestMergeSmoke.swift');
+const syncSmoke = read('KitchenManager/Synchronization/SyncSmoke.swift');
 const diagnosticsView = read('KitchenManager/Synchronization/InventorySyncDiagnosticsView.swift');
 
 test('Phase 2B keeps INVENTORY_SYNC_ENABLED disabled by default, independent of SYNC_ENABLED', () => {
@@ -77,11 +79,82 @@ test('conflicts are only resolved by explicit user choice, never automatically',
   assert.doesNotMatch(planner, /userChoice = \.keep/);
 });
 
-test('rollback is scoped to only this session\'s own created records, and uses soft delete via stageDelete', () => {
+test('rollback is scoped to only this session\'s own created records, and uses a remote-only soft delete', () => {
   const rollbackSection = controller.slice(controller.indexOf('func performRollback'));
   assert.match(rollbackSection, /current\.createdEntityIds/);
-  assert.match(rollbackSection, /adapter\.stageDelete/);
+  assert.match(rollbackSection, /adapter\.stageRemoteDeletePreservingLocal/);
   assert.doesNotMatch(rollbackSection, /deleteAll|physically|DELETE FROM/i);
+});
+
+test('R3: rollback never uses the destructive local-removing delete helper', () => {
+  const rollbackSection = controller.slice(controller.indexOf('func performRollback'));
+  assert.doesNotMatch(
+    rollbackSection,
+    /stageDeleteRemovingLocalRecord|commitInventoryAndSync|removeInventory/,
+    'rollback must never physically delete a local durable InventoryRecord'
+  );
+  // The whole controller — CRUD hook included — never *calls* the destructive
+  // helper. (Its doc comment names it, to say precisely that.)
+  assert.doesNotMatch(controller, /adapter\.stageDeleteRemovingLocalRecord/);
+});
+
+test('R3: the destructive delete helper has zero production consumers — smoke/marker cleanup only', () => {
+  // Enumerated from the tree rather than from a hand-written file list, so a
+  // newly added production file that calls it is caught too.
+  const allowedCallers = new Set(['GuestMergeSmoke.swift', 'SyncSmoke.swift']);
+  const swiftSources = [];
+  const walk = dir => {
+    for (const entry of readdirSync(new URL(dir, root), { withFileTypes: true })) {
+      if (entry.isDirectory()) walk(`${dir}${entry.name}/`);
+      else if (entry.name.endsWith('.swift')) swiftSources.push([entry.name, `${dir}${entry.name}`]);
+    }
+  };
+  walk('KitchenManager/');
+  assert.ok(swiftSources.length > 20, 'the production source walk must actually have found the sources');
+  for (const [name, path] of swiftSources) {
+    if (allowedCallers.has(name)) continue;
+    assert.doesNotMatch(
+      read(path),
+      /\.stageDeleteRemovingLocalRecord\(/,
+      `${name} must not call the destructive delete helper`
+    );
+  }
+  // The adapter still declares it, and both smoke harnesses still use it.
+  assert.match(inventorySyncAdapter, /func stageDeleteRemovingLocalRecord\(/);
+  assert.match(guestMergeSmoke, /\.stageDeleteRemovingLocalRecord\(/);
+  assert.match(syncSmoke, /\.stageDeleteRemovingLocalRecord\(/);
+});
+
+test('R3: the remote-only delete helper stages a mutation and never writes InventoryRecord', () => {
+  const helper = inventorySyncAdapter.slice(inventorySyncAdapter.indexOf('func stageRemoteDeletePreservingLocal'));
+  const body = helper.slice(0, helper.indexOf('\n    }'));
+  assert.match(body, /persistence\.stageInventoryMutation/);
+  assert.doesNotMatch(body, /commitInventoryAndSync|removeInventory|mutateInventory/);
+  // No ambiguous boolean parameter: the two intentions are separated by name.
+  // (The doc comment may *mention* `preserveLocal:` to say why it was rejected.)
+  assert.doesNotMatch(inventorySyncAdapter, /preserveLocal:\s*Bool/);
+});
+
+test('R3: ordinary user deletion still deletes locally and stages the remote delete separately', () => {
+  // KitchenStore owns the local deletion; the sync layer only stages intent.
+  const crudHook = controller.slice(controller.indexOf('func stageMutationIfEligible'));
+  assert.match(crudHook, /persistence\.stageInventoryMutation/);
+  assert.doesNotMatch(crudHook, /stageDeleteRemovingLocalRecord|removeInventory/);
+});
+
+test('R3: a rolled-back, remotely-tombstoned row can never be resurrected by a later local edit', () => {
+  assert.match(eligibility, /case remotelyDeleted/);
+  // Covers every intent — a `.create` carve-out would be an unguarded way back
+  // into the resurrect path this rule exists to close.
+  assert.match(
+    eligibility,
+    /state == \.synced, scopedMetadata\.deletedAt != nil \{[\s\S]{0,120}\.localOnly\(reason: \.remotelyDeleted\)/
+  );
+  assert.doesNotMatch(eligibility, /deletedAt != nil, intent != \.create/);
+  // The tombstone metadata is the shield against a repeated tombstone pull
+  // deleting the preserved local row — rollback must not clear it.
+  const rollbackSection = controller.slice(controller.indexOf('func performRollback'));
+  assert.doesNotMatch(rollbackSection, /deleteMetadata/);
 });
 
 test('merge sessions are bound to (userId, householdId, entityType), never a bare device-shared key', () => {

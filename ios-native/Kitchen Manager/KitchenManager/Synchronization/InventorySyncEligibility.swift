@@ -38,6 +38,14 @@ nonisolated enum InventorySyncEligibilityResult: Equatable, Sendable {
         case noHousehold
         case notEnrolled
         case noExistingMetadata
+        /// R3: the entity's own remote row is already a tombstone
+        /// (`state == .synced` with a `deletedAt`), while its local row was
+        /// deliberately preserved — a rolled-back Guest merge is the path
+        /// that produces this pairing. Staging anything further for it would
+        /// either resurrect the remote row (the contract defines an upsert at
+        /// the tombstone's version as exactly that) or re-delete something
+        /// already deleted, so the row goes back to being local-only.
+        case remotelyDeleted
     }
 }
 
@@ -82,6 +90,43 @@ nonisolated enum InventorySyncEligibility {
         if let scopedMetadata {
             if scopedMetadata.state == .conflicted { return .blockedByConflict }
             if scopedMetadata.state == .pendingDelete, intent != .delete { return .blockedByPendingDelete }
+            // R3: the entity's remote row is a confirmed tombstone
+            // (`.synced` *with* a `deletedAt`) while a local row for the same
+            // id still exists — the state a rolled-back Guest merge leaves
+            // behind, since rollback withdraws the remote entity but never
+            // deletes the local one.
+            //
+            // Without this, an ordinary later edit of that preserved row is
+            // `.eligible` at exactly the tombstone's own version, and
+            // `SYNC_API_CONTRACT.md` §4 defines an upsert at the current
+            // tombstone version as the *resurrect* operation — so a single
+            // unrelated quantity edit would silently undo the user's rollback
+            // and republish the row to the household. A `.delete` has nothing
+            // left to express either: the remote entity is already deleted.
+            //
+            // The metadata is deliberately kept rather than cleared. It is
+            // also what makes a later pull of this entity's own tombstone
+            // resolve as `.duplicate` in `InventorySyncAdapter.applyRemote`
+            // (its `remoteVersion >= change.version` check runs before the
+            // delete branch) instead of physically deleting the preserved
+            // local row — clearing it to "make the row Guest-local again"
+            // would reintroduce the same data loss through the pull path.
+            //
+            // Ordinary user deletion is unaffected: it removes the local row,
+            // so no later intent for that id can arise, and a genuinely new
+            // item is a new UUID with no metadata at all.
+            //
+            // `.create` is covered too, deliberately. Intent is derived purely
+            // from "this id was absent from the previous array", so a create
+            // for an id that *already* has scoped metadata is never a genuinely
+            // new item — and it is the more dangerous of the three, because the
+            // fresh-stage path would compute `baseVersion` from the tombstone's
+            // own version and write `deletedAt: nil`, resurrecting the entity
+            // and destroying the shield in one step. Exempting it would leave
+            // an unguarded way into exactly what this rule exists to prevent.
+            if scopedMetadata.state == .synced, scopedMetadata.deletedAt != nil {
+                return .localOnly(reason: .remotelyDeleted)
+            }
         }
 
         // Queue cap: only ever blocks a genuinely *new* pending mutation

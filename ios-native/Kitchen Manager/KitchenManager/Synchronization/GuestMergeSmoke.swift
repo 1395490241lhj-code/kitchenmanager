@@ -393,7 +393,7 @@ final class GuestMergeSmokeRunner {
 
         // Clean up this dedicated marker immediately — it is not tracked by
         // any GuestMergeSession's own rollback.
-        _ = try await duplicateAdapter.stageDelete(entityId: duplicateMarkerId, scope: scope)
+        _ = try await duplicateAdapter.stageDeleteRemovingLocalRecord(entityId: duplicateMarkerId, scope: scope)
         _ = await duplicateCoordinator.runOnce(authentication: authenticationA, scopes: [scope])
 
         // MARK: 13. Logout mid-run stops further requests.
@@ -1059,7 +1059,7 @@ final class GuestMergeSmokeRunner {
         let coordinator = SyncCoordinator(configuration: SyncConfiguration(isEnabled: true), persistence: persistence, transport: transport)
         let authentication = SyncAuthenticationContext(userID: userId, isAuthenticated: true)
         for id in entityIds {
-            _ = try? await adapter.stageDelete(entityId: id, scope: scope)
+            _ = try? await adapter.stageDeleteRemovingLocalRecord(entityId: id, scope: scope)
         }
         _ = await coordinator.runOnce(authentication: authentication, scopes: [scope])
     }

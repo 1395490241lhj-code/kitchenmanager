@@ -509,11 +509,12 @@ final class GuestMergeController: ObservableObject {
     /// `SwiftDataSyncPersistence`.
     ///
     /// The window must open before the operation's *first* durable inventory
-    /// write, not merely around the coordinator run: `confirmMerge` and
-    /// `rollback` both write `InventoryRecord` while staging
-    /// (`InventorySyncAdapter.stageUpsert`/`stageDelete` →
+    /// write, not merely around the coordinator run: `confirmMerge` writes
+    /// `InventoryRecord` while staging (`InventorySyncAdapter.stageUpsert` →
     /// `commitInventoryAndSync`), which happens before `runOnce` is reached
-    /// and can fail partway. Closing it in a `defer`-equivalent position — on
+    /// and can fail partway. Since R3, `rollback`'s own staging is remote-only
+    /// — but it still needs the same window, because the coordinator run it
+    /// performs can write durable inventory through the pull path. Closing it in a `defer`-equivalent position — on
     /// every exit, including an early `return` from `body` and any partial
     /// staging failure — is what makes "durable write happened, memory never
     /// caught up" unreachable.
@@ -836,6 +837,16 @@ final class GuestMergeController: ObservableObject {
     /// to keep-remote. Idempotent: safe to call again if a prior attempt
     /// partially failed. Takes the live `AuthStore` reference (never a raw
     /// token), same as `confirmMerge`.
+    ///
+    /// R3 — the invariant this method must never break: **rollback withdraws
+    /// what the merge published to the household, and never removes a local
+    /// durable `InventoryRecord` from the store.** `createdEntityIds` names *remote*
+    /// entities; for a plain `.create` candidate the same UUID is also the id
+    /// of a local row the user owned before the merge ever ran, and for a
+    /// same-id `keepBoth` fork it is a local row the merge created but that the
+    /// user can already see and edit. Both are preserved. Staging therefore
+    /// goes through `stageRemoteDeletePreservingLocal`, never the destructive
+    /// `stageDeleteRemovingLocalRecord`.
     private func performRollback(authStore: AuthStore) async {
         guard var current = session else { return }
         guard current.status == .completed || current.status == .rollbackPending else { return }
@@ -876,7 +887,77 @@ final class GuestMergeController: ObservableObject {
             for entityId in current.createdEntityIds {
                 let existing = try await persistence.metadata(entityType: .inventoryItem, entityId: entityId)
                 if existing?.state == .synced, existing?.deletedAt != nil { continue }
-                _ = try await adapter.stageDelete(entityId: entityId, scope: scope)
+                // An earlier attempt's delete mutation may still be queued with
+                // its attempt budget spent. `stageInventoryMutation`'s
+                // `(.delete, .delete)` branch deliberately reuses an
+                // already-queued delete rather than adding a second one — right
+                // for ordinary CRUD — but the reused record keeps its
+                // `attemptCount`, and `pendingMutations(scope:maxAttempts:)`
+                // stops handing an exhausted mutation to the coordinator. Left
+                // alone, the attempt after the budget ran out would push
+                // nothing, report `rollback_delete_not_applied`, and go on doing
+                // so until the rollback window expired — the merge permanently
+                // published with no way to withdraw it.
+                //
+                // An explicit user retry earns a fresh attempt budget, but it
+                // must be the **same mutation**, not a replacement. A failed
+                // push is ambiguous: the delete may have reached the server,
+                // tombstoned the entity and had only its *response* lost. The
+                // server's idempotency ledger is keyed on `mutationId`, so
+                // re-sending the original id is answered `duplicate` with the
+                // original version — which `resolvePending` converges exactly
+                // like an `applied`. A fresh id is invisible to that ledger and
+                // is judged on its `baseVersion` alone, which is stale precisely
+                // because the version bump was in the lost response: the server
+                // answers `conflict`, the entity's metadata sticks at
+                // `.conflicted`, and the session can never reach `.rolledBack`
+                // no matter how often the user retries.
+                //
+                // Requeueing in place is not expressible through the persistence
+                // protocol, so this discards and re-saves the identical
+                // mutation, carrying `mutationId`, `baseVersion` and payload
+                // over verbatim and resetting only the attempt bookkeeping.
+                // Only a `.failed` record is requeued; a `pending`/`inFlight`
+                // one is still the coordinator's to finish.
+                if let spent = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: entityId),
+                   spent.status == .failed {
+                    try await persistence.discardPendingMutation(id: spent.mutationId)
+                    try await persistence.savePending(PendingMutation(
+                        mutationId: spent.mutationId,
+                        entityType: spent.entityType,
+                        entityId: spent.entityId,
+                        scope: spent.scope,
+                        operation: spent.operation,
+                        baseVersion: spent.baseVersion,
+                        payloadData: spent.payloadData,
+                        clientUpdatedAt: spent.clientUpdatedAt,
+                        createdAt: spent.createdAt,
+                        attemptCount: 0,
+                        lastAttemptAt: nil,
+                        lastErrorCode: nil,
+                        status: .pending
+                    ))
+                    entityIdsToVerify.append(entityId)
+                    continue
+                }
+                let staging = try await adapter.stageRemoteDeletePreservingLocal(entityId: entityId, scope: scope)
+                guard case .staged = staging else {
+                    // `.cancelled` is the create+delete collapse: staging
+                    // removed this entity's pending record *and* its
+                    // `SyncMetadata` instead of queueing anything. Nothing will
+                    // be pushed, and the retained-tombstone shield that keeps a
+                    // later tombstone pull from removing the preserved local row
+                    // is gone with it. Fail loudly and stay retryable rather
+                    // than verify an entity nothing was staged for.
+                    current.status = .completed
+                    current.lastErrorCode = "rollback_staging_cancelled"
+                    current.updatedAt = Date()
+                    try await persistence.saveGuestMergeSession(current)
+                    session = current
+                    lastErrorMessage = "回滚未完全生效，请重试。"
+                    crashReporter.addBreadcrumb(.rollbackFailed, metadata: ["errorCode": "rollback_staging_cancelled"])
+                    return
+                }
                 entityIdsToVerify.append(entityId)
             }
             let configuration = SyncConfiguration(isEnabled: true)
@@ -913,9 +994,11 @@ final class GuestMergeController: ObservableObject {
             // *applied* delete moves this entity's own `SyncMetadata` to
             // `.synced` with `deletedAt` set (`resolvePending`'s `.applied`
             // case); `.conflict` leaves it `.conflicted`, `.rejected` leaves
-            // it exactly as `stageDelete` set it (`.pendingDelete`) — neither
-            // is ever `.synced`. Confirm every entity staged this attempt
-            // reached that state before ever reporting `.rolledBack`.
+            // it in whatever pre-push state staging produced (`.pendingDelete`,
+            // or `.failed` if an earlier attempt had already exhausted its
+            // budget) — neither is ever `.synced` with a `deletedAt`. Confirm
+            // every entity staged this attempt reached that state before ever
+            // reporting `.rolledBack`.
             for entityId in entityIdsToVerify {
                 let resultingMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: entityId)
                 let deleteApplied = resultingMetadata?.state == .synced && resultingMetadata?.deletedAt != nil

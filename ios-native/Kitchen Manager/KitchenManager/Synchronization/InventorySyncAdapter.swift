@@ -95,7 +95,29 @@ nonisolated struct InventorySyncAdapter: Sendable {
     }
     #endif
 
-    func stageDelete(
+    /// **Destructive — removes the local `InventoryRecord` as well as staging
+    /// the remote delete**, both in one transaction.
+    ///
+    /// This is the smoke/marker-cleanup helper: it exists for a row this
+    /// process created purely as a probe and now wants gone from both sides.
+    /// Production inventory CRUD and Guest-merge rollback must never call it.
+    ///
+    /// - Ordinary user deletion does not go through here at all: `KitchenStore`
+    ///   removes the durable row itself and `GuestMergeController`'s CRUD hook
+    ///   stages the remote delete through
+    ///   `SyncPersistenceProtocol.stageInventoryMutation`.
+    /// - Rollback must use `stageRemoteDeletePreservingLocal` — an entity id in
+    ///   `GuestMergeSession.createdEntityIds` names a *remote* entity this
+    ///   session created, and (outside the same-id `keepBoth` fork) the very
+    ///   same UUID is the id of a local row the user owned long before the
+    ///   merge. Deleting it locally is user data loss, which
+    ///   `INVENTORY_MERGE_CONTRACT.md` has always forbidden.
+    ///
+    /// The naming, not a `preserveLocal:` flag, is what keeps those two
+    /// intentions apart: a boolean would leave ownership ambiguous at every
+    /// call site and re-open exactly this defect the next time someone
+    /// defaults it.
+    func stageDeleteRemovingLocalRecord(
         entityId: UUID,
         scope: SyncScope,
         now: Date = Date(),
@@ -136,6 +158,39 @@ nonisolated struct InventorySyncAdapter: Sendable {
             mutation: mutation
         )
         return mutationId
+    }
+
+    /// Stages a **remote-only** delete: the server is told the entity is gone,
+    /// and the local `InventoryRecord` is left exactly as it is.
+    ///
+    /// R3: this is what Guest-merge rollback needs. `createdEntityIds` records
+    /// the entities this session created *remotely*; for a plain `.create`
+    /// candidate that id is also the primary key of a local row the user
+    /// already owned, so undoing the merge must never touch it. Rollback's
+    /// invariant is therefore: it may withdraw what the merge published to the
+    /// household, but it never removes a local durable inventory row from the
+    /// store — not the user's original, and not a `keepBoth` fork either.
+    /// Restoring the exact pre-merge local state is a separate feature that
+    /// would need its own provenance model and product semantics.
+    ///
+    /// Deliberately reuses `stageInventoryMutation`, the same primitive
+    /// ordinary CRUD deletions already use, rather than adding a second
+    /// staging implementation: it writes only `SyncMetadata` and a
+    /// `PendingMutation`, never `InventoryRecord`, and its coalescing rules
+    /// make a repeated delete for the same entity reuse the already-queued
+    /// mutation id instead of queueing a second one.
+    func stageRemoteDeletePreservingLocal(
+        entityId: UUID,
+        scope: SyncScope,
+        now: Date = Date()
+    ) async throws -> InventoryMutationStagingOutcome {
+        try await persistence.stageInventoryMutation(
+            entityId: entityId,
+            scope: scope,
+            operation: .delete,
+            payloadData: Data("{}".utf8),
+            now: now
+        )
     }
 
     /// Pure, read-only decode of a pulled change into a

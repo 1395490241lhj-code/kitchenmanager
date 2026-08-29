@@ -262,14 +262,109 @@ with `duplicate`, not a second row.
 
 ## Rollback
 
-Only `GuestMergeSession.createdEntityIds` (records this session itself
-created) are eligible. Each is soft-deleted via
-`InventorySyncAdapter.stageDelete(entityId:scope:)` +
-`SyncCoordinator.runOnce`, using the record's current `baseVersion` — never a
-hardcoded or stale version. Idempotent: rolling back an already-`rolledBack`
-session is a no-op; a partially-failed rollback may be retried and will only
-re-attempt ids not yet confirmed deleted. Never a physical delete of the
-change feed, idempotency ledger, or local Guest data.
+Only `GuestMergeSession.createdEntityIds` are eligible. That field means
+**entities this session created remotely** — never "objects this session
+created locally". For a plain `.create` candidate the recorded id is the local
+Guest item's *own* id, because a merge deliberately publishes a local row under
+the UUID it already has; the same UUID therefore names both a remote entity the
+merge created and a local row the user has owned all along.
+
+**Rollback withdraws what the merge published to the household. It never
+removes a local durable `InventoryRecord` from the store.** Concretely:
+
+| Merge path | Remote effect of rollback | Local effect of rollback |
+| --- | --- | --- |
+| `create` | the created entity is soft-deleted | none — the Guest row is preserved |
+| `update` | none — never entered `createdEntityIds` | none |
+| `keepRemote` / `skip` | none | none |
+| same-id `keepBoth` (fork) | only the fork's remote entity is soft-deleted; the pre-existing remote row is untouched | none — **both** the user's original row and the session-created fork row are preserved |
+
+Restoring the exact pre-merge *local* state is a different feature: it needs a
+provenance model and its own product semantics, and is explicitly not what
+rollback does.
+
+Two delete helpers, separated by name rather than by a boolean flag:
+
+- `InventorySyncAdapter.stageRemoteDeletePreservingLocal(entityId:scope:)` —
+  remote-only. Writes `SyncMetadata` and a `PendingMutation` through
+  `stageInventoryMutation` (the same primitive ordinary CRUD deletions use) and
+  never touches `InventoryRecord`. **This is what rollback uses.**
+- `InventorySyncAdapter.stageDeleteRemovingLocalRecord(entityId:scope:)` —
+  destructive: stages the remote delete *and* removes the local row in one
+  transaction. Smoke/marker cleanup only; it has no production consumer.
+
+Ordinary user deletion uses neither: `KitchenStore` removes the durable row and
+`GuestMergeController.handleInventoryDidChange` stages the remote delete
+separately. A rollback fix must never turn that into a preserve-local.
+
+Rollback stages against each record's current `baseVersion` — never a hardcoded
+or stale version — then runs `SyncCoordinator.runOnce` and only reports
+`rolledBack` once every id staged in that attempt reached `.synced` with a
+`deletedAt`. Idempotent: rolling back an already-`rolledBack` session is a
+no-op; a partially-failed rollback may be retried and will only re-attempt ids
+not yet confirmed deleted. Never a physical delete of the change feed,
+idempotency ledger, or local Guest data.
+
+### Retrying a failed delete keeps its `mutationId`
+
+A failed push is **ambiguous**: the delete may have reached the server,
+tombstoned the entity, and had only its *response* lost. So a retry re-sends the
+original mutation rather than staging a replacement — same `mutationId`, same
+`baseVersion`, same payload, with only the attempt bookkeeping reset.
+
+That is what makes the retry converge. The server's idempotency ledger is keyed
+on `mutationId`, so the resend is answered `duplicate` carrying the original
+version, which `resolvePending` settles exactly like an `applied` — the entity
+reaches `.synced` with its `deletedAt`, verification passes, and the session
+reaches `rolledBack`. A freshly minted id would be invisible to that ledger and
+judged on its `baseVersion` alone; that version is stale precisely because the
+bump was in the lost response, so the server answers `conflict`, the entity's
+metadata sticks at `.conflicted`, and no number of retries can ever complete the
+rollback.
+
+The attempt reset is required as well as the id: `stageInventoryMutation`'s
+`(.delete, .delete)` branch reuses the queued mutation verbatim, so without it
+the spent `attemptCount` would keep the mutation invisible to
+`pendingMutations(scope:maxAttempts:)` and rollback would report
+`rollback_delete_not_applied` until the window expired.
+
+If staging ever collapses to `.cancelled` (the create+delete case, which also
+removes the entity's metadata and with it the tombstone shield), rollback fails
+with `rollback_staging_cancelled` and stays retryable — it never verifies, or
+reports success for, an entity nothing was staged for.
+
+### After a rollback: the preserved row is local-only
+
+A rolled-back entity keeps its `SyncMetadata` — `.synced`, with a `deletedAt`
+and the tombstone's own `remoteVersion`. That metadata is load-bearing in both
+directions and must not be cleared:
+
+- **Outbound.** `InventorySyncEligibility` returns
+  `.localOnly(reason: .remotelyDeleted)` for any `.update` or `.delete` intent
+  on such a row. Without it, an ordinary later edit would be eligible at exactly
+  the tombstone's version — which `SYNC_API_CONTRACT.md` defines as the
+  *resurrect* upsert — so an unrelated quantity edit would silently undo the
+  user's rollback and republish the row to the household.
+- **Inbound.** It is also what makes a later pull of *that same tombstone*
+  resolve as `duplicate` in `InventorySyncAdapter.applyRemote` (the
+  `remoteVersion >= change.version` check runs before the delete branch) instead
+  of deleting the preserved local row. Clearing the metadata to "make the row
+  Guest-local again" would reintroduce the same data loss through the pull path.
+
+  The inbound protection is scoped precisely to that: it absorbs replays of the
+  tombstone the rollback itself produced. It is **not** a general shield. A
+  later remote change at a *higher* version still applies normally — if another
+  household member resurrects the entity and deletes it again, that newer
+  tombstone removes the local row, which is the correct propagation of someone
+  else's deletion rather than a rollback defect.
+
+Ordinary deletion is unaffected by this rule: it removes the local row, so no
+later intent for that id can arise, and a genuinely new item carries a new UUID
+with no metadata at all. The rule covers `.create` as well as `.update` and
+`.delete`: intent is derived from "this id was absent before", so a create for
+an id that already carries scoped metadata is never a genuinely new item, and it
+is the one intent whose staging path would both resurrect the entity and clear
+the `deletedAt` shield.
 
 ## Access token handling
 

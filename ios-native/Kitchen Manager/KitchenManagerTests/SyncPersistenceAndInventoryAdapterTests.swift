@@ -120,7 +120,7 @@ final class SyncPersistenceAndInventoryAdapterTests: XCTestCase {
         queue = try await persistence.pendingMutations(scope: scope, maxAttempts: 5)
         XCTAssertTrue(queue.contains { $0.baseVersion?.rawValue == "2" })
 
-        _ = try await adapter.stageDelete(entityId: item.id, scope: scope, mutationId: UUID())
+        _ = try await adapter.stageDeleteRemovingLocalRecord(entityId: item.id, scope: scope, mutationId: UUID())
         let deletedItem = try await persistence.inventoryItem(id: item.id)
         let deletedMetadata = try await persistence.metadata(entityType: .inventoryItem, entityId: item.id)
         XCTAssertNil(deletedItem)

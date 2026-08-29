@@ -1054,7 +1054,12 @@ final class GuestMergeTests: XCTestCase {
     func testRollbackOnlyRemovesSessionCreatedRecordsAndKeepsLocalData() async throws {
         let (kitchen, persistence) = try makeSharedStores()
         let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
-        let controller = makeMergeController(persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        // R3: built through `makeRollbackController`, which requires the store
+        // the assertions read and proves it shares the persistence actor's
+        // container. Wired to `scratchKitchenStore` (the old default) this test
+        // asserted on an array nothing ever reconciled, and kept passing while
+        // the durable row was being deleted.
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: transport)
         let authStore = await signedInAuthStore(userID: userA)
         await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
         await controller.confirmMerge(authStore: authStore)
@@ -1066,7 +1071,10 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(controller.session?.status, .rolledBack)
         let deletedRemotely = await transport.isSoftDeleted(itemId)
         XCTAssertTrue(deletedRemotely)
-        // Local Guest data must never be deleted by a rollback.
+        // Local Guest data must never be deleted by a rollback — asserted on
+        // durable storage first, then on the reconciled in-memory array.
+        let durable = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(durable)
         XCTAssertTrue(kitchen.inventory.contains { $0.id == itemId })
     }
 
@@ -1100,7 +1108,7 @@ final class GuestMergeTests: XCTestCase {
     func testRollbackAfterControllerRelaunchStillDeletesSessionCreatedRecord() async throws {
         let (kitchen, sharedPersistence) = try makeSharedStores()
         let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
-        let controllerA = makeMergeController(persistence: sharedPersistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        let controllerA = try await makeRollbackController(persistence: sharedPersistence, kitchenStore: kitchen, transport: transport)
         let authStore = await signedInAuthStore(userID: userA)
         await controllerA.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
         await controllerA.confirmMerge(authStore: authStore)
@@ -1113,7 +1121,7 @@ final class GuestMergeTests: XCTestCase {
         // on-disk container, and a brand-new controller instance — exactly
         // what a fresh `InventoryMergePromptView`/result screen would do.
         let relaunchedPersistence = SwiftDataSyncPersistence(modelContainer: sharedPersistence.modelContainer)
-        let controllerB = makeMergeController(persistence: relaunchedPersistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: { _ in transport })
+        let controllerB = try await makeRollbackController(persistence: relaunchedPersistence, kitchenStore: kitchen, transport: transport)
         await controllerB.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
         XCTAssertEqual(controllerB.session?.id, sessionId, "the completed, still-rollback-eligible session must survive a relaunch's preparePreview, not be silently replaced")
         XCTAssertEqual(controllerB.session?.createdEntityIds, [itemId])
@@ -1123,6 +1131,8 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(controllerB.session?.status, .rolledBack)
         let deletedRemotely = await transport.isSoftDeleted(itemId)
         XCTAssertTrue(deletedRemotely, "rollback must never report .rolledBack unless the entity this session created was actually soft-deleted remotely")
+        let durableAfterRelaunch = try await relaunchedPersistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(durableAfterRelaunch, "local Guest data must never be deleted by a rollback")
         XCTAssertTrue(kitchen.inventory.contains { $0.id == itemId }, "local Guest data must never be deleted by a rollback")
     }
 
@@ -4671,6 +4681,566 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(kitchen.inventory.first?.quantity, 5, "and the sync's own reconciliation still happened")
     }
 
+
+    // MARK: - R3: rollback must never delete a durable local inventory row
+
+    /// Every test in this section asserts on **durable** persistence
+    /// (`persistence.inventoryItem(id:)`), not only on `KitchenStore.inventory`.
+    /// The pre-R3 rollback tests asserted on an in-memory array belonging to a
+    /// `KitchenStore` the controller under test was never wired to, so they
+    /// passed while the durable `InventoryRecord` had already been deleted.
+    /// `makeRollbackController` closes that hole structurally.
+
+    /// R3-A. A plain `.create` merge candidate records the **local Guest
+    /// item's own id** in `createdEntityIds` (local and remote deliberately
+    /// share the UUID), so rolling the merge back must soft-delete the remote
+    /// row and leave the user's own local row completely untouched.
+    func testR3RollbackPreservesDurableLocalRowForACreatedEntity() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: transport)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+        let durableBefore = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(durableBefore, "precondition: the Guest row is durable before the rollback")
+
+        await controller.rollback(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let deletedRemotely = await transport.isSoftDeleted(itemId)
+        XCTAssertTrue(deletedRemotely, "rollback must soft-delete the remote entity this session created")
+        let durableAfter = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(
+            durableAfter,
+            "R3: rollback must never physically delete the user's own durable local InventoryRecord"
+        )
+        XCTAssertTrue(
+            kitchen.inventory.contains { $0.id == itemId },
+            "R3: and after R1 reconciliation the preserved row must still be in the user's kitchen"
+        )
+    }
+
+    /// R3-B. Same invariant across an App relaunch: a brand-new persistence
+    /// actor over the same on-disk container and a brand-new controller, which
+    /// is what a freshly presented merge-result screen builds.
+    func testR3RollbackAfterRelaunchPreservesDurableLocalRow() async throws {
+        let (kitchen, sharedPersistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controllerA = try await makeRollbackController(persistence: sharedPersistence, kitchenStore: kitchen, transport: transport)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controllerA.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controllerA.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controllerA.session?.status, .completed)
+        let itemId = try XCTUnwrap(controllerA.session?.createdEntityIds.first)
+
+        let relaunchedPersistence = SwiftDataSyncPersistence(modelContainer: sharedPersistence.modelContainer)
+        let controllerB = try await makeRollbackController(persistence: relaunchedPersistence, kitchenStore: kitchen, transport: transport)
+        await controllerB.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        XCTAssertEqual(controllerB.session?.createdEntityIds, [itemId])
+
+        await controllerB.rollback(authStore: authStore)
+
+        XCTAssertEqual(controllerB.session?.status, .rolledBack)
+        let deletedRemotely = await transport.isSoftDeleted(itemId)
+        XCTAssertTrue(deletedRemotely)
+        let durableAfterRelaunchRollback = try await relaunchedPersistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(
+            durableAfterRelaunchRollback,
+            "R3: a rollback after relaunch must preserve the durable local row too"
+        )
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == itemId })
+    }
+
+    /// R3-C (focused). After a rollback the preserved local row keeps its
+    /// `SyncMetadata` — `.synced` with a `deletedAt` and the tombstone's own
+    /// version. Left unguarded, `InventorySyncEligibility` reads that as an
+    /// ordinary synced row and calls a later local edit eligible at exactly
+    /// the tombstone version, which `SYNC_API_CONTRACT.md` §4 defines as the
+    /// *resurrect* upsert — silently undoing the rollback remotely.
+    func testR3TombstonedMetadataMakesALaterLocalEditLocalOnly() {
+        let tombstoned = SyncMetadata(
+            entityType: .inventoryItem, entityId: UUID(), scope: SyncScope(type: .household, id: householdA),
+            remoteVersion: try! SyncCursorValue("7"), state: .synced, lastSyncedAt: Date(),
+            lastErrorCode: nil, lastErrorAt: nil, deletedAt: Date(), updatedAt: Date()
+        )
+        let enrollment = InventorySyncEnrollment(
+            userId: userA, householdId: householdA, status: .enrolled, enrolledAt: Date(),
+            mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
+        )
+        let update = InventorySyncEligibility.evaluate(
+            isFeatureEnabled: true, userId: userA, householdId: householdA,
+            enrollment: enrollment, existingMetadata: tombstoned, intent: .update
+        )
+        XCTAssertEqual(
+            update, .localOnly(reason: .remotelyDeleted),
+            "R3: editing a row whose remote entity is tombstoned must stay local-only, never resurrect it"
+        )
+        let delete = InventorySyncEligibility.evaluate(
+            isFeatureEnabled: true, userId: userA, householdId: householdA,
+            enrollment: enrollment, existingMetadata: tombstoned, intent: .delete
+        )
+        XCTAssertEqual(
+            delete, .localOnly(reason: .remotelyDeleted),
+            "R3: the remote entity is already deleted — a second remote delete has nothing to express"
+        )
+        // `.create` is covered too. Intent is derived from "this id was absent
+        // from the previous array", so a create carrying metadata that already
+        // exists is never a genuinely new item — and it is the most dangerous
+        // intent to let through, since the fresh-stage path would compute
+        // baseVersion from the tombstone's own version and write
+        // `deletedAt: nil`, resurrecting the entity and clearing the shield in
+        // one step.
+        let create = InventorySyncEligibility.evaluate(
+            isFeatureEnabled: true, userId: userA, householdId: householdA,
+            enrollment: enrollment, existingMetadata: tombstoned, intent: .create
+        )
+        XCTAssertEqual(
+            create, .localOnly(reason: .remotelyDeleted),
+            "R3: a create against tombstoned metadata must never resurrect the entity either"
+        )
+        // A genuinely new item — no metadata at all — is untouched by the rule.
+        let genuinelyNew = InventorySyncEligibility.evaluate(
+            isFeatureEnabled: true, userId: userA, householdId: householdA,
+            enrollment: enrollment, existingMetadata: nil, intent: .create
+        )
+        XCTAssertEqual(genuinelyNew, .eligible(baseVersion: nil))
+    }
+
+    /// R3-C end-to-end: the same protection driven through the real rollback
+    /// and the real CRUD hook, proving no mutation is staged and the remote
+    /// entity stays tombstoned.
+    func testR3LocalEditOfAPreservedRowAfterRollbackStagesNothingAndKeepsRemoteTombstoned() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: transport)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controller.confirmMerge(authStore: authStore)
+        await controller.rollback(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+        let scope = SyncScope(type: .household, id: householdA)
+        let pendingBefore = try await persistence.pendingMutations(scope: scope, maxAttempts: .max).count
+
+        let preservedRow = try await persistence.inventoryItem(id: itemId)
+        let preserved = try XCTUnwrap(preservedRow)
+        var edited = preserved
+        edited.quantity += 5
+        await controller.handleInventoryDidChange(old: [preserved], new: [edited], userId: userA, householdId: householdA)
+
+        let pendingAfter = try await persistence.pendingMutations(scope: scope, maxAttempts: .max).count
+        XCTAssertEqual(pendingAfter, pendingBefore, "R3: editing a preserved, remotely-tombstoned row must stage nothing")
+        let stagedForEntity = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: itemId)
+        XCTAssertNil(
+            stagedForEntity,
+            "R3: no resurrect mutation may be queued for a tombstoned entity"
+        )
+        let stillDeleted = await transport.isSoftDeleted(itemId)
+        XCTAssertTrue(stillDeleted, "R3: the remote entity must stay tombstoned")
+        let survivedTheEdit = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(survivedTheEdit, "R3: refusing to stage must never cost the user the local row")
+    }
+
+    /// R3-D. The metadata this test inspects is deliberately *kept* rather than
+    /// cleared: it is what makes a later pull of this entity's own tombstone
+    /// read as a duplicate instead of physically deleting the preserved local
+    /// row. Clearing it to "make the row Guest-local again" would reintroduce
+    /// the same data loss through the pull path.
+    func testR3RepeatedTombstonePullDoesNotDeleteThePreservedLocalRow() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: transport)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controller.confirmMerge(authStore: authStore)
+        await controller.rollback(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+        let metadata = try await persistence.metadata(entityType: .inventoryItem, entityId: itemId)
+        XCTAssertNotNil(metadata, "R3: the tombstone metadata is the shield — it must not be cleared")
+        let tombstoneVersion = try XCTUnwrap(metadata?.remoteVersion)
+
+        // The same tombstone is delivered again by a later pull (a resumed
+        // cursor, a second device's page, a retried run).
+        let adapter = InventorySyncAdapter(persistence: persistence)
+        let outcome = try await adapter.applyRemote(
+            SyncChangeEnvelope(
+                sequence: try SyncCursorValue("99"), entityType: .inventoryItem, entityId: itemId,
+                operation: .delete, version: tombstoneVersion, changedAt: Date(),
+                data: ["deletedAt": .string(ISO8601DateFormatter().string(from: Date()))]
+            ),
+            scope: SyncScope(type: .household, id: householdA)
+        )
+
+        XCTAssertEqual(outcome, .duplicate, "the entity's own retained metadata must absorb its tombstone")
+        let durableAfterTombstonePull = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(
+            durableAfterTombstonePull,
+            "R3: a repeated tombstone pull must never delete the preserved local row"
+        )
+    }
+
+    /// R3-E. `keepBoth` on a same-id conflict: the fork's *remote* row is what
+    /// the session created, so only that is tombstoned. Both local rows — the
+    /// user's original and the session-created fork — are preserved, per the
+    /// R3 invariant that rollback never physically deletes a local durable row.
+    func testR3ForkRollbackTombstonesOnlyTheForkRemoteAndPreservesBothLocalRows() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: transport)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepBoth)
+        let forkedId = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.forkedLocalItemId)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        XCTAssertEqual(controller.session?.createdEntityIds, [forkedId])
+
+        await controller.rollback(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let forkDeleted = await transport.isSoftDeleted(forkedId)
+        XCTAssertTrue(forkDeleted, "the fork's remote row is what this session created")
+        let originalDeleted = await transport.isSoftDeleted(sharedId)
+        XCTAssertFalse(originalDeleted, "the pre-existing remote row must never be touched by a rollback")
+        let durableOriginal = try await persistence.inventoryItem(id: sharedId)
+        XCTAssertNotNil(durableOriginal, "the user's original local row is preserved")
+        let durableFork = try await persistence.inventoryItem(id: forkedId)
+        XCTAssertNotNil(
+            durableFork,
+            "R3: the fork's local row is preserved too — restoring the pre-merge local state is a separate, provenance-bearing feature"
+        )
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == sharedId })
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == forkedId })
+    }
+
+    /// R3-F. An `.update` candidate targets a remote row this session did not
+    /// create, so it never enters `createdEntityIds` and rollback is a complete
+    /// no-op for it — neither side is deleted.
+    func testR3UpdateCandidateIsNeverRolledBack() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [InventoryItem(id: sharedId, name: "苹果", quantity: 3, unit: "个", expiryDate: nil)]
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(id: sharedId, name: "苹果", unit: "个", quantity: 2, version: "5", sequence: "1")
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: transport)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        XCTAssertEqual(controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.action, .update)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        XCTAssertEqual(controller.session?.createdEntityIds, [], "an update never creates a remote entity, so it is never rollback-eligible")
+
+        await controller.rollback(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let deleted = await transport.isSoftDeleted(sharedId)
+        XCTAssertFalse(deleted, "rollback must never tombstone a pre-existing remote row it only updated")
+        let durableUpdated = try await persistence.inventoryItem(id: sharedId)
+        XCTAssertNotNil(durableUpdated)
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == sharedId })
+    }
+
+    /// R3-G. Repeating a rollback must not delete local data, must not stage a
+    /// second delete mutation for the same entity, and must stay idempotent.
+    func testR3RepeatedRollbackKeepsLocalDataAndStagesNoSecondDelete() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: transport)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controller.confirmMerge(authStore: authStore)
+        await controller.rollback(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+        let scope = SyncScope(type: .household, id: householdA)
+        let pendingAfterFirst = try await persistence.allPendingMutations(scope: scope).count
+
+        await controller.rollback(authStore: authStore)
+
+        XCTAssertEqual(controller.session?.status, .rolledBack)
+        let pendingAfterSecond = try await persistence.allPendingMutations(scope: scope).count
+        XCTAssertEqual(
+            pendingAfterSecond, pendingAfterFirst,
+            "a repeated rollback must not stage a second delete mutation"
+        )
+        let durableAfterRepeat = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(durableAfterRepeat, "R3: and must not delete local data")
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == itemId })
+    }
+
+    /// R3-H. Partial failure: one entity's delete applies, the other conflicts.
+    /// The session must stay rollback-eligible, both local rows must survive,
+    /// and a retry must only re-stage the entity that is still outstanding.
+    func testR3PartiallyFailedRollbackPreservesBothLocalRowsAndRetriesOnlyTheOutstandingOne() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        kitchen.importInventory([
+            InventoryImportItem(name: "苹果", quantity: 1, unit: "个", expiryDate: nil),
+            InventoryImportItem(name: "牛奶", quantity: 1, unit: "盒", expiryDate: nil)
+        ])
+        let inner = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: inner)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        let createdIds = try XCTUnwrap(controller.session?.createdEntityIds)
+        XCTAssertEqual(createdIds.count, 2)
+        let conflictingId = try XCTUnwrap(createdIds.first)
+        let succeedingId = try XCTUnwrap(createdIds.last)
+
+        let conflicting = ConflictInjectingTransport(inner: inner, conflictEntityId: conflictingId)
+        let partial = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: conflicting)
+        await partial.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await partial.rollback(authStore: authStore)
+
+        XCTAssertEqual(partial.session?.status, .completed, "a partially applied rollback must stay rollback-eligible")
+        let succeeded = await inner.isSoftDeleted(succeedingId)
+        XCTAssertTrue(succeeded)
+        let conflicted = await inner.isSoftDeleted(conflictingId)
+        XCTAssertFalse(conflicted)
+        let durableSucceeding = try await persistence.inventoryItem(id: succeedingId)
+        XCTAssertNotNil(durableSucceeding, "R3: a confirmed remote delete never removes the local row")
+        let durableConflicting = try await persistence.inventoryItem(id: conflictingId)
+        XCTAssertNotNil(durableConflicting, "R3: nor does a failed one")
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == succeedingId })
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == conflictingId })
+
+        // Retry against a healthy transport: only the still-outstanding entity
+        // is re-staged, and it now completes.
+        let succeedingMetadataBeforeRetry = try await persistence.metadata(entityType: .inventoryItem, entityId: succeedingId)
+        let retry = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: inner)
+        await retry.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await retry.rollback(authStore: authStore)
+
+        // The already-confirmed entity is skipped, not re-staged: its metadata
+        // is byte-for-byte what the first attempt left, and no fresh mutation
+        // was queued for it.
+        let succeedingMetadataAfterRetry = try await persistence.metadata(entityType: .inventoryItem, entityId: succeedingId)
+        XCTAssertEqual(succeedingMetadataAfterRetry, succeedingMetadataBeforeRetry, "an already-deleted entity must not be re-staged")
+        let succeedingPending = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: succeedingId)
+        XCTAssertNil(succeedingPending, "and must not leave a second delete mutation behind")
+        XCTAssertEqual(retry.session?.status, .rolledBack)
+        let nowDeleted = await inner.isSoftDeleted(conflictingId)
+        XCTAssertTrue(nowDeleted)
+        let durableSucceedingAfterRetry = try await persistence.inventoryItem(id: succeedingId)
+        XCTAssertNotNil(durableSucceedingAfterRetry)
+        let durableConflictingAfterRetry = try await persistence.inventoryItem(id: conflictingId)
+        XCTAssertNotNil(durableConflictingAfterRetry)
+    }
+
+    /// R3-J. Rollback must stay retryable after repeated transport failures.
+    ///
+    /// `stageInventoryMutation`'s `(.delete, .delete)` branch deliberately
+    /// reuses the already-queued mutation instead of adding a second one —
+    /// correct for ordinary CRUD, but it also means the reused mutation keeps
+    /// its spent `attemptCount`, and `pendingMutations(scope:maxAttempts:)`
+    /// stops handing an exhausted mutation to the coordinator. Without an
+    /// explicit reset, the sixth tap of Rollback (default
+    /// `maxMutationAttempts` = 5) would push nothing at all, report
+    /// `rollback_delete_not_applied`, and keep doing so until the rollback
+    /// window expired — the merge permanently published with no way to
+    /// withdraw it. The destructive helper this replaced never hit that,
+    /// because it inserted a brand-new mutation on every attempt.
+    func testR3RollbackStaysRetryableAfterRepeatedTransportFailures() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let healthy = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: healthy)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+
+        // Six offline attempts — one more than the default attempt budget.
+        let offline = PushFailingTransport(inner: healthy)
+        let offlineController = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: offline)
+        await offlineController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        for _ in 0..<6 {
+            await offlineController.rollback(authStore: authStore)
+            XCTAssertEqual(offlineController.session?.status, .completed, "a failed rollback must stay rollback-eligible")
+        }
+        let stillThere = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(stillThere, "R3: a failing rollback must not cost the user the local row either")
+
+        // Back online: the retry must still be able to push a delete.
+        let recovered = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: healthy)
+        await recovered.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await recovered.rollback(authStore: authStore)
+
+        XCTAssertEqual(recovered.session?.status, .rolledBack, "rollback must never become permanently impossible after transient failures")
+        let deletedRemotely = await healthy.isSoftDeleted(itemId)
+        XCTAssertTrue(deletedRemotely)
+        let preserved = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(preserved)
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == itemId })
+    }
+
+    /// R3-K. Ambiguous success: the rollback's delete reaches the server and
+    /// tombstones the entity, and only then is the response lost. The client
+    /// sees a plain transport failure and cannot tell "never arrived" from
+    /// "applied, answer lost".
+    ///
+    /// This is the case that decides whether a retry may re-stage under a
+    /// *new* `mutationId`: a new id is invisible to the server's idempotency
+    /// ledger, so the retry is judged on its `baseVersion` alone — which is
+    /// stale, because the version bump is exactly what the lost response
+    /// carried — and comes back `conflict`, leaving the session unable to ever
+    /// reach `.rolledBack`. Preserving the original id makes the same retry a
+    /// ledger `duplicate`, which `resolvePending` converges exactly like an
+    /// `applied`.
+    func testR3RollbackConvergesWhenTheDeleteAppliedButItsResponseWasLost() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let server = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: server)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+
+        let lossy = LostResponseTransport(inner: server)
+        let lossyController = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: lossy)
+        await lossyController.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+
+        await lossyController.rollback(authStore: authStore)
+
+        // The server really did tombstone it; the client just never heard back.
+        let tombstonedAfterLostResponse = await server.isSoftDeleted(itemId)
+        XCTAssertTrue(tombstonedAfterLostResponse, "precondition: the server-side effect must land before the injected failure")
+        XCTAssertNotEqual(lossyController.session?.status, .rolledBack, "the client cannot claim success from a lost response")
+        XCTAssertEqual(lossyController.session?.status, .completed, "and must stay rollback-eligible")
+        let idsAfterFirstTap = await lossy.receivedMutationIds
+        let m1 = try XCTUnwrap(idsAfterFirstTap.first)
+
+        // The user taps Rollback again.
+        await lossyController.rollback(authStore: authStore)
+
+        let sentIds = await lossy.receivedMutationIds
+        let m2 = try XCTUnwrap(sentIds.last)
+        XCTAssertEqual(
+            m2, m1,
+            "R3: the retry of an ambiguously-failed delete must keep its original mutationId, or the server's idempotency ledger cannot recognise it"
+        )
+        XCTAssertEqual(lossyController.session?.status, .rolledBack, "the retry must converge, not stall forever")
+
+        // Convergence must not have cost anything, in either direction.
+        let preserved = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(preserved, "R3: the local durable row survives an ambiguous-success rollback")
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == itemId })
+        let stillTombstoned = await server.isSoftDeleted(itemId)
+        XCTAssertTrue(stillTombstoned, "the entity stays tombstoned — no resurrection")
+        let metadata = try await persistence.metadata(entityType: .inventoryItem, entityId: itemId)
+        XCTAssertEqual(metadata?.state, .synced)
+        XCTAssertNotNil(metadata?.deletedAt, "the tombstone shield survives too")
+        let leftover = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: itemId)
+        XCTAssertNil(leftover, "a converged rollback leaves no pending mutation behind")
+
+        // A further tap is a guarded no-op: no new request, no state change.
+        let idsBeforeThirdTap = await lossy.receivedMutationIds.count
+        await lossyController.rollback(authStore: authStore)
+        let idsAfterThirdTap = await lossy.receivedMutationIds.count
+        XCTAssertEqual(idsAfterThirdTap, idsBeforeThirdTap, "no infinite retry — a rolled-back session stops sending")
+        XCTAssertEqual(lossyController.session?.status, .rolledBack)
+        let stillPreserved = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(stillPreserved)
+    }
+
+    /// R3-L. The `.cancelled` staging outcome, driven end-to-end.
+    ///
+    /// `stageInventoryMutation` collapses a create+delete pair by removing the
+    /// entity's pending record *and* its `SyncMetadata` and staging nothing.
+    /// For rollback that is doubly wrong: nothing would be pushed, and the
+    /// retained tombstone metadata that keeps a later tombstone pull from
+    /// removing the preserved local row is gone. It must fail loudly and stay
+    /// retryable rather than verify an entity nothing was staged for.
+    ///
+    /// Reached without any synthetic state: a server that omits the optional
+    /// `version` field leaves `.synced` metadata with no `remoteVersion`, and
+    /// an ordinary post-merge edit then queues the upsert the delete collapses
+    /// against.
+    func testR3RollbackFailsLoudlyWhenStagingCollapsesToCancelled() async throws {
+        let (kitchen, persistence) = try makeSharedStores()
+        let server = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        let versionless = VersionOmittingTransport(inner: server)
+        let controller = try await makeRollbackController(persistence: persistence, kitchenStore: kitchen, transport: versionless)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, authStore: authStore)
+        await controller.confirmMerge(authStore: authStore)
+        XCTAssertEqual(controller.session?.status, .completed)
+        let itemId = try XCTUnwrap(controller.session?.createdEntityIds.first)
+        let metadataAfterMerge = try await persistence.metadata(entityType: .inventoryItem, entityId: itemId)
+        XCTAssertEqual(metadataAfterMerge?.state, .synced)
+        XCTAssertNil(metadataAfterMerge?.remoteVersion, "precondition: the omitted version is what makes the collapse reachable")
+
+        // An ordinary post-merge edit queues the upsert the delete collapses against.
+        let mergedRow = try await persistence.inventoryItem(id: itemId)
+        let merged = try XCTUnwrap(mergedRow)
+        var edited = merged
+        edited.quantity += 1
+        await controller.handleInventoryDidChange(old: [merged], new: [edited], userId: userA, householdId: householdA)
+        let queuedUpsert = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: itemId)
+        XCTAssertEqual(queuedUpsert?.operation, .upsert, "precondition: an upsert must be queued for the collapse to happen")
+
+        await controller.rollback(authStore: authStore)
+
+        XCTAssertNotEqual(controller.session?.status, .rolledBack, "a rollback that staged nothing must never report success")
+        XCTAssertEqual(controller.session?.status, .completed, "and must stay rollback-eligible")
+        XCTAssertEqual(controller.session?.lastErrorCode, "rollback_staging_cancelled")
+        let preserved = try await persistence.inventoryItem(id: itemId)
+        XCTAssertNotNil(preserved, "R3: a collapsed staging must not cost the user the local row either")
+        XCTAssertTrue(kitchen.inventory.contains { $0.id == itemId })
+        let deletedRemotely = await server.isSoftDeleted(itemId)
+        XCTAssertFalse(deletedRemotely, "nothing was staged, so nothing can have been deleted remotely")
+    }
+
+    /// R3-I. The regression R3 must never cause: an ordinary user deletion is
+    /// still a real local deletion. It does not go through the merge adapter's
+    /// destructive helper at all — `KitchenStore` removes the durable row and
+    /// `handleInventoryDidChange` stages the remote delete separately.
+    func testR3NormalUserDeletionStillRemovesTheDurableRowAndStagesOneRemoteDelete() async throws {
+        let (kitchen, persistence) = try await enrolledStores()
+        let controller = makeMergeController(
+            persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in SimulatedMergeTransport(userID: self.userA, householdID: self.householdA) },
+            kitchenStore: kitchen
+        )
+        let id = UUID()
+        let item = InventoryItem(id: id, name: "西红柿", quantity: 2, unit: "个", expiryDate: nil)
+        kitchen.inventory = [item]
+        await controller.handleInventoryDidChange(old: [], new: [item], userId: userA, householdId: householdA)
+        let scope = SyncScope(type: .household, id: householdA)
+        // Make it a genuinely remote-known row, so the delete is a real remote
+        // delete rather than a create+delete that coalesces away.
+        try await persistence.saveMetadata(SyncMetadata(
+            entityType: .inventoryItem, entityId: id, scope: scope,
+            remoteVersion: try SyncCursorValue("4"), state: .synced, lastSyncedAt: Date(),
+            lastErrorCode: nil, lastErrorAt: nil, deletedAt: nil, updatedAt: Date()
+        ))
+        let durableBeforeDeletion = try await persistence.inventoryItem(id: id)
+        XCTAssertNotNil(durableBeforeDeletion)
+
+        kitchen.inventory = []
+        await controller.handleInventoryDidChange(old: [item], new: [], userId: userA, householdId: householdA)
+
+        let durableAfterDeletion = try await persistence.inventoryItem(id: id)
+        XCTAssertNil(
+            durableAfterDeletion,
+            "R3 must not turn an ordinary user deletion into a preserve-local"
+        )
+        let staged = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: id)
+        XCTAssertEqual(staged?.operation, .delete, "the remote delete is still staged, exactly once")
+        let deletes = try await persistence.allPendingMutations(scope: scope).filter { $0.entityId == id && $0.operation == .delete }
+        XCTAssertEqual(deletes.count, 1)
+    }
+
     /// Small convenience for T8, which needs a controller only to reach
     /// `handleInventoryDidChange`.
     private func controller(for persistence: any SyncPersistenceProtocol) -> GuestMergeController {
@@ -4752,6 +5322,89 @@ final class GuestMergeTests: XCTestCase {
     /// service — used so `confirmMerge`/`rollback` exercise the exact same
     /// `authStore.currentUserID`/`currentAccessToken()` code path a View
     /// would use, instead of a raw token string.
+    /// Proves — in the direction the assertions actually depend on — that
+    /// `kitchenStore` and `persistence` are backed by the same
+    /// `ModelContainer`, by writing a sentinel row through the persistence
+    /// actor and requiring the store to see it when it reconciles.
+    ///
+    /// Checking instead that the store's first in-memory item also exists
+    /// durably would prove only id coincidence: two stores over different
+    /// containers pass that as soon as they happen to share a UUID, and it
+    /// exercises store-write → persistence-read, while every
+    /// `kitchen.inventory.contains {...}` assertion depends on
+    /// persistence-write → store-read (`reconcileInventoryFromPersistence` →
+    /// `loadInventory`). The sentinel's id is freshly minted, so coincidence
+    /// is impossible, and it is removed again before the fixture is used.
+    ///
+    /// Fails hard rather than warning: a mis-wired fixture must not go on to
+    /// produce a green, meaningless result.
+    private func assertSharesOneInventoryContainer(
+        _ kitchenStore: KitchenStore,
+        _ persistence: SwiftDataSyncPersistence,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let sentinelId = UUID()
+        let scope = SyncScope(type: .household, id: householdA)
+        func metadata(deletedAt: Date?) -> SyncMetadata {
+            SyncMetadata(
+                entityType: .inventoryItem, entityId: sentinelId, scope: scope,
+                remoteVersion: try! SyncCursorValue("1"), state: .synced, lastSyncedAt: Date(),
+                lastErrorCode: nil, lastErrorAt: nil, deletedAt: deletedAt, updatedAt: Date()
+            )
+        }
+        try await persistence.applyRemoteInventory(
+            item: InventoryItem(id: sentinelId, name: "__container-probe__", quantity: 1, unit: "个", expiryDate: nil),
+            removeInventory: false,
+            metadata: metadata(deletedAt: nil)
+        )
+        let reconciled = kitchenStore.reconcileInventoryFromPersistence()
+        let sawSentinel = reconciled && kitchenStore.inventory.contains { $0.id == sentinelId }
+
+        try await persistence.applyRemoteInventory(item: nil, removeInventory: true, metadata: metadata(deletedAt: Date()))
+        try await persistence.deleteMetadata(entityType: .inventoryItem, entityId: sentinelId)
+        _ = kitchenStore.reconcileInventoryFromPersistence()
+        XCTAssertFalse(
+            kitchenStore.inventory.contains { $0.id == sentinelId },
+            "the probe must leave the fixture exactly as it found it",
+            file: file, line: line
+        )
+
+        guard sawSentinel else {
+            XCTFail(
+                "the KitchenStore under assertion and the SyncPersistence under test must share one ModelContainer",
+                file: file, line: line
+            )
+            throw XCTSkip("mis-wired rollback fixture")
+        }
+    }
+
+    /// Every R3 rollback test builds its controller through here.
+    ///
+    /// The pre-R3 rollback tests passed while the durable row was already
+    /// deleted, because `makeMergeController` defaulted `kitchenStore` to
+    /// `scratchKitchenStore` — a store over its *own* container — while the
+    /// assertions read a different `KitchenStore` that nothing ever
+    /// reconciled. Both parameters are required here, and the probe below
+    /// proves at runtime that the store and the persistence actor really do
+    /// see the same durable rows, so that mis-wiring cannot silently return.
+    private func makeRollbackController(
+        persistence: SwiftDataSyncPersistence,
+        kitchenStore: KitchenStore,
+        transport: any SyncTransport,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws -> GuestMergeController {
+        try await assertSharesOneInventoryContainer(kitchenStore, persistence, file: file, line: line)
+        let controller = GuestMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport }
+        )
+        controller.kitchenStore = kitchenStore
+        return controller
+    }
+
     private func signedInAuthStore(userID: UUID, token: String = "test-token") async -> AuthStore {
         let store = AuthStore(
             authService: FakeGuestMergeAuthService(userID: userID, token: token),
@@ -5349,6 +6002,134 @@ private actor SecondPageFailingTransport: SyncTransport {
 
 /// Reads pass through (so `confirmMerge`'s preview fingerprint re-verification
 /// succeeds and staging is reached), but the coordinator's first call fails.
+/// Passes reads through but fails every `sendMutations` — so a rollback's push
+/// phase fails as a transport error, exactly like an offline device, and each
+/// attempt burns one of the mutation's attempts.
+private actor PushFailingTransport: SyncTransport {
+    private let inner: SimulatedMergeTransport
+
+    init(inner: SimulatedMergeTransport) { self.inner = inner }
+
+    func bootstrap() async throws -> SyncBootstrapResponse { try await inner.bootstrap() }
+
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
+        try await inner.fetchChanges(scope: scope, after: cursor, limit: limit)
+    }
+
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse {
+        throw SyncError.transport
+    }
+}
+
+/// Models the ambiguous-success case a real network produces: the server
+/// applies the mutation and *then* the response is lost, so the effect exists
+/// while the client only ever sees a transport failure.
+///
+/// It also models the two server behaviours that decide whether the client's
+/// retry can converge, both taken from `docs/contracts/SYNC_API_CONTRACT.md` §4:
+///
+/// - **Idempotency ledger.** A repeat carrying the *same* `mutationId` is
+///   answered `duplicate` with the original outcome's version — the business
+///   record is not written a second time.
+/// - **Optimistic concurrency.** A *different* mutation deleting the same,
+///   already-tombstoned entity necessarily carries the pre-delete
+///   `baseVersion` (the client never learned the tombstone's version, since
+///   that is the response that was lost), so it is answered `conflict` /
+///   `stale_version`.
+private actor LostResponseTransport: SyncTransport {
+    private let inner: SimulatedMergeTransport
+    private var ledger: [UUID: SyncMutationResult] = [:]
+    private var tombstoned: Set<UUID> = []
+    private var dropNextResponse = true
+    private var sentMutationIds: [UUID] = []
+    var receivedMutationIds: [UUID] { sentMutationIds }
+
+    init(inner: SimulatedMergeTransport) { self.inner = inner }
+
+    func bootstrap() async throws -> SyncBootstrapResponse { try await inner.bootstrap() }
+
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
+        try await inner.fetchChanges(scope: scope, after: cursor, limit: limit)
+    }
+
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse {
+        sentMutationIds.append(contentsOf: mutations.map(\.mutationId))
+
+        var replayed: [SyncMutationResult] = []
+        var fresh: [SyncMutation] = []
+        for mutation in mutations {
+            if let known = ledger[mutation.mutationId] {
+                replayed.append(SyncMutationResult(
+                    mutationId: known.mutationId, entityId: known.entityId, status: .duplicate,
+                    version: known.version, sequence: known.sequence, errorCode: nil,
+                    originalStatus: known.status, serverRecord: nil
+                ))
+            } else if mutation.operation == .delete, tombstoned.contains(mutation.entityId) {
+                replayed.append(SyncMutationResult(
+                    mutationId: mutation.mutationId, entityId: mutation.entityId, status: .conflict,
+                    version: nil, sequence: nil, errorCode: "stale_version",
+                    originalStatus: nil, serverRecord: nil
+                ))
+            } else {
+                fresh.append(mutation)
+            }
+        }
+
+        var results = replayed
+        var cursor = SyncCursorValue.zero
+        if !fresh.isEmpty {
+            // The write really happens server-side, before any failure below.
+            let response = try await inner.sendMutations(scope: scope, mutations: fresh)
+            cursor = response.cursor
+            for result in response.results where result.status == .applied {
+                ledger[result.mutationId] = result
+                if fresh.contains(where: { $0.mutationId == result.mutationId && $0.operation == .delete }) {
+                    tombstoned.insert(result.entityId)
+                }
+            }
+            results.append(contentsOf: response.results)
+        }
+
+        if dropNextResponse, !fresh.isEmpty {
+            // The server is now committed; the client will never see this.
+            dropNextResponse = false
+            throw SyncError.transport
+        }
+        return SyncMutationBatchResponse(results: results, cursor: cursor)
+    }
+}
+
+/// Applies every mutation for real but omits the optional `version` from the
+/// result, which `SyncMutationResult.version: SyncCursorValue?` permits on the
+/// wire. That is the only way a conformant client ends up holding `.synced`
+/// metadata with no `remoteVersion`, which is in turn the precondition for
+/// `stageInventoryMutation`'s create+delete collapse (`.cancelled`).
+private actor VersionOmittingTransport: SyncTransport {
+    private let inner: SimulatedMergeTransport
+
+    init(inner: SimulatedMergeTransport) { self.inner = inner }
+
+    func bootstrap() async throws -> SyncBootstrapResponse { try await inner.bootstrap() }
+
+    func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
+        try await inner.fetchChanges(scope: scope, after: cursor, limit: limit)
+    }
+
+    func sendMutations(scope: SyncScope, mutations: [SyncMutation]) async throws -> SyncMutationBatchResponse {
+        let response = try await inner.sendMutations(scope: scope, mutations: mutations)
+        return SyncMutationBatchResponse(
+            results: response.results.map { result in
+                SyncMutationResult(
+                    mutationId: result.mutationId, entityId: result.entityId, status: result.status,
+                    version: nil, sequence: result.sequence, errorCode: result.errorCode,
+                    originalStatus: result.originalStatus, serverRecord: result.serverRecord
+                )
+            },
+            cursor: response.cursor
+        )
+    }
+}
+
 private actor BootstrapFailingTransport: SyncTransport {
     private let inner: SimulatedMergeTransport
 
