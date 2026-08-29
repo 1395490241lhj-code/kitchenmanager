@@ -287,15 +287,38 @@ mutation 响应的 `cursor` 只是本批 applied/duplicate 结果中的最大 se
   与本契约无关，也不是它的 gate。
 - **以上都不代表 sync 已 production-enabled。** 所有 committed configuration 中的
   sync / merge / smoke / dogfood / diagnostics flag 仍然全部是 `NO`；数据库与服务端
-  具备该能力，但没有任何客户端路径会走到它。此前记录在这里的 R1（remote hydration
-  写入 SwiftData 后 `KitchenStore.inventory` 不 reload，下一次本地 `replaceInventory`
-  用 stale in-memory 状态覆盖刚同步下来的行）**已随 `21bd030` 修复并验证**：一致性
-  窗口在操作的第一次 durable 写之前打开、退出时 reconcile，`didSet` 路径改为 row-scoped
-  diff，编辑在窗口开启期间被 `KitchenStore` 中央拒绝。
-  **但 sync enablement 仍被阻塞**：同一轮审计发现 Guest merge 的 `rollback` 会删除
-  用户自己的本地 guest `InventoryRecord`（`createdEntityIds` 对 `create` candidate 记录
-  的是本地条目自身的 id），其修复位于 `InventorySyncAdapter` / `SyncPersistence` 层且
-  尚未实施。在它修复并验证之前，不得开启上述任何 flag。
+  具备该能力，但没有任何客户端路径会走到它。
+
+  两个先后记录在这里的 production-runtime blocker 现均已关闭：
+
+  - **R1 / R1b** —— remote hydration 写入 SwiftData 后 `KitchenStore.inventory` 不
+    reload，下一次本地 `replaceInventory` 用 stale in-memory 状态覆盖刚同步下来的行。
+    **production / controller runtime fixed and clean-tree validated**（`21bd030`）：
+    一致性窗口在操作的第一次 durable 写之前打开、退出时 reconcile，`didSet` 路径改为
+    row-scoped diff，编辑在窗口开启期间被 `KitchenStore` 中央拒绝。
+  - **R3** —— Guest merge 的 `rollback` 会物理删除用户自己的本地 guest
+    `InventoryRecord`（`createdEntityIds` 对 `create` candidate 记录的是本地条目自身
+    的 id）。**production-runtime rollback blocker fixed, clean-tree validated,
+    integrated to canonical main at `fadd26e`**：rollback 改走 remote-only 的
+    staging 路径，本地 durable 行一律保留；tombstone 后的本地编辑不得复活远端行；
+    歧义失败的重试保留原 `mutationId` 以借服务端幂等 ledger 收敛。客户端侧的语义
+    细化记录在 `INVENTORY_MERGE_CONTRACT.md` 的 Rollback 节；本契约的 §1–§6 未因此
+    改变。
+
+  因此：**no known production-runtime inventory-sync HARD BLOCKER remains。**
+
+  > [!warning] 这不是启用许可
+  > **inventory sync is NOT production-enabled**；**dogfood has NOT been enabled**；
+  > **all sync / merge / smoke / dogfood / diagnostics flags remain `NO`**；启用之前
+  > 仍然需要一道**独立的 pre-dogfood enablement gate**。该 gate 之前已知的前置项至少
+  > 包括：`GuestMergeSmoke` 中绕过一致性窗口的 direct-call caveat（DEBUG-only、
+  > 当前不可达，但若用作 dogfood 验收 harness 则必须先修）、以及一份正式的
+  > pre-dogfood enablement checklist。
+  >
+  > 其余已知 follow-up（remote staple hydration 的 `tracksExpiry` 不变量、rollback
+  > 不撤销 `InventorySyncEnrollment`、rollback 重试 requeue 的 two-commit crash
+  > window、`PreparedComponent` 的持久化 bug）**都不是** production-runtime hard
+  > blocker，不要在本节被读成 enablement 的门。
 - iOS 已有 disabled-by-default 的 DTO、pending queue、per-scope cursor、transport/coordinator 和 inventory POC；没有 App/Auth 自动调用点。
 - PWA SyncEngine 与其他 iOS domain adapter。
 - Guest bootstrap/merge、冲突 UI、自动或后台同步。
