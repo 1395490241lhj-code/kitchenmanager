@@ -33,13 +33,10 @@ struct KitchenManagerApp: App {
                 recipePreferencePersistence: persistence.recipePreferences
             )
         )
-        let kitchenStoreInstance = KitchenStore(
-            inventoryPersistence: persistence.inventory,
-            shoppingListPersistence: persistence.shoppingList,
-            todayPlanPersistence: persistence.todayPlan,
-            consumptionPersistence: persistence.consumption,
-            weeklyPlanPersistence: persistence.weeklyPlan
-        )
+        // The whole bundle, never a hand-listed subset: naming persistences one
+        // by one is how `preparedComponents` was left out and prepared batches
+        // ended up in an isolated in-memory container that dies with the app.
+        let kitchenStoreInstance = KitchenStore(persistence: persistence)
         #if DEBUG
         // The generic account fixture resets local data and adds 测试库存 under a
         // fresh UUID on every launch. That is fine for single-launch tests, but

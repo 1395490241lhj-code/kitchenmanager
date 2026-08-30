@@ -616,6 +616,33 @@ final class KitchenStore: ObservableObject {
     private let weeklyPlanPersistence: WeeklyPlanPersistenceProtocol
     private let preparedComponentPersistence: PreparedComponentPersistenceProtocol
 
+    /// The composition-root initializer. `nil` on the designated initializer
+    /// below is a *test and preview* convenience — it quietly substitutes an
+    /// isolated in-memory container for whatever was not passed, which is
+    /// exactly the right behaviour for a `#Preview` and exactly the wrong
+    /// behaviour for the app, where a forgotten argument means that module's
+    /// data silently stops reaching disk. Taking the whole bundle means the app
+    /// never names dependencies one at a time, so it cannot leave one out.
+    ///
+    /// This is a safer call site, not an enforced one: the designated
+    /// initializer below is still reachable from the app target, so the app
+    /// composition root is additionally guarded at source level by
+    /// `test/ios-native-kitchen-store-composition.test.mjs`.
+    convenience init(
+        userDefaults: UserDefaults = .standard,
+        persistence: KitchenPersistenceBundle
+    ) {
+        self.init(
+            userDefaults: userDefaults,
+            inventoryPersistence: persistence.inventory,
+            shoppingListPersistence: persistence.shoppingList,
+            todayPlanPersistence: persistence.todayPlan,
+            consumptionPersistence: persistence.consumption,
+            weeklyPlanPersistence: persistence.weeklyPlan,
+            preparedComponentPersistence: persistence.preparedComponents
+        )
+    }
+
     init(
         userDefaults: UserDefaults = .standard,
         inventoryPersistence: InventoryPersistenceProtocol? = nil,
