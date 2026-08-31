@@ -1847,6 +1847,7 @@ struct TodayPlanDetailView: View {
     @State private var activeSheet: TodayPlanSheet?
     @State private var planPendingRemoval: MealPlanItem?
     @State private var isShowingWeeklyPlanner = false
+    @State private var isShowingPlanner = false
     @State private var isShowingShoppingGeneration = false
     @State private var toastMessage: String?
     @State private var toastStyle: AppFeedbackStyle = .success
@@ -1926,10 +1927,30 @@ struct TodayPlanDetailView: View {
                     }
                 }
                 .foregroundStyle(.primary)
+
+                Button {
+                    isShowingPlanner = true
+                } label: {
+                    HStack {
+                        Image(systemName: "calendar.badge.clock")
+                            .foregroundStyle(AppTheme.brand)
+                        VStack(alignment: .leading) {
+                            Text("查看本周安排 · 特殊计划")
+                                .font(.subheadline.bold())
+                            Text("同一周的计划与特殊计划")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("today.plan.planner.link")
             }
         }
         .navigationTitle("今天的计划")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $isShowingPlanner) {
+            PlannerView()
+        }
         .navigationDestination(isPresented: $isShowingWeeklyPlanner) {
             WeeklyMenuPlannerView()
         }

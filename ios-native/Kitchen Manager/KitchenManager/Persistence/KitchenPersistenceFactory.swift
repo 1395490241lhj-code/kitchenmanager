@@ -11,6 +11,7 @@ struct KitchenPersistenceBundle {
     let userRecipes: UserRecipePersistenceProtocol
     let recipePreferences: RecipePreferencePersistenceProtocol
     let preparedComponents: PreparedComponentPersistenceProtocol
+    let specialPlans: SpecialPlanPersistenceProtocol
     let sync: any SyncPersistenceProtocol
 }
 
@@ -42,6 +43,7 @@ enum KitchenPersistenceFactory {
             GuestMergeSessionRecord.self,
             InventorySyncEnrollmentRecord.self,
             PreparedComponentRecord.self,
+            SpecialPlanRecord.self,
             configurations: configuration
         )
     }
@@ -59,6 +61,7 @@ enum KitchenPersistenceFactory {
             userRecipes: SwiftDataUserRecipePersistence(container: container),
             recipePreferences: SwiftDataRecipePreferencePersistence(container: container),
             preparedComponents: SwiftDataPreparedComponentPersistence(container: container),
+            specialPlans: SwiftDataSpecialPlanPersistence(container: container),
             sync: SwiftDataSyncPersistence(modelContainer: container)
         )
     }
@@ -83,6 +86,7 @@ enum KitchenPersistenceFactory {
                 userRecipes: FailingUserRecipePersistence(error),
                 recipePreferences: FailingRecipePreferencePersistence(error),
                 preparedComponents: FailingPreparedComponentPersistence(underlyingError: error),
+                specialPlans: FailingSpecialPlanPersistence(underlyingError: error),
                 sync: FailingSyncPersistence()
             )
         }

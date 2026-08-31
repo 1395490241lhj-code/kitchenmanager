@@ -458,6 +458,37 @@ struct ContentView: View {
         // UI-test-only seed hook: only runs when KitchenManagerUITests passes this
         // launch argument, so it never fires for a real user or a normal debug run.
         .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_SPECIAL_PLAN") else { return }
+            kitchenStore.clearAllLocalData()
+            let calendar = Calendar.current
+            // Anchor the event to this week's Saturday (Monday + 5) so the
+            // planner's default "current week" view always shows it, and the
+            // meal to this week's Monday so Home renders execution mode. Using
+            // today + N would drift into the next week depending on run day.
+            let todayStart = calendar.startOfDay(for: Date())
+            let monday = PlannerProjection.startOfWeek(containing: todayStart, calendar: calendar)
+            let eventDate = calendar.date(byAdding: .day, value: 5, to: monday) ?? monday
+            let scheduled = calendar.date(byAdding: .hour, value: 18, to: eventDate) ?? eventDate
+            var plan = SpecialPlan(
+                title: "朋友聚餐",
+                scheduledAt: scheduled,
+                peopleCount: 7,
+                constraintNotes: ["1 人不吃辣"],
+                notes: "测试聚餐",
+                dishes: [
+                    SpecialPlanDish(recipeID: "sample-mapotofu", recipeName: "麻婆豆腐"),
+                    SpecialPlanDish(recipeID: "sample-tomato-eggs", recipeName: "番茄炒鸡蛋")
+                ]
+            )
+            plan.createdAt = Date()
+            plan.updatedAt = plan.createdAt
+            kitchenStore.addSpecialPlan(plan)
+            // A Monday meal makes Home render the plan card (execution mode),
+            // which is the entry point the smoke test taps.
+            kitchenStore.addPlan(recipe: Recipe.samples[0], servings: 2)
+            navigationStore.selectedTab = .today
+        }
+        .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_INVENTORY") else { return }
             kitchenStore.clearAllLocalData()
             let now = Date()

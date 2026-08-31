@@ -589,12 +589,16 @@ final class KitchenStore: ObservableObject {
     /// restock, shopping matching and recipe recommendation all treat an
     /// `InventoryItem` as a purchasable raw ingredient, which these are not.
     @Published var preparedComponents: [PreparedComponent] = [] { didSet { persistPreparedComponentsIfNeeded() } }
+    /// Event-level special plans (multi-dish events). A separate planning source
+    /// from `plans`; `PlannerProjection` merges the two for the Planner surface.
+    @Published var specialPlans: [SpecialPlan] = [] { didSet { persistSpecialPlansIfNeeded() } }
     @Published var inventoryNotice: String?
     @Published var shoppingNotice: String?
     @Published var planNotice: String?
     @Published var consumptionNotice: String?
     @Published var weeklyPlanNotice: String?
     @Published var preparedComponentNotice: String?
+    @Published var specialPlanNotice: String?
 
     private let inventoryKey = InventoryMigration.legacyInventoryKey
     private let plansKey = TodayPlanMigration.legacyPlansKey
@@ -633,6 +637,7 @@ final class KitchenStore: ObservableObject {
     private var suppressConsumptionPersistence = false
     private var suppressWeeklyPlanPersistence = false
     private var suppressPreparedComponentPersistence = false
+    private var suppressSpecialPlanPersistence = false
     /// Defaults to the real app defaults so every existing call site (`KitchenStore()`)
     /// is unaffected; tests inject an isolated `UserDefaults(suiteName:)` instead.
     private let userDefaults: UserDefaults
@@ -642,6 +647,7 @@ final class KitchenStore: ObservableObject {
     private let consumptionPersistence: ConsumptionPersistenceProtocol
     private let weeklyPlanPersistence: WeeklyPlanPersistenceProtocol
     private let preparedComponentPersistence: PreparedComponentPersistenceProtocol
+    private let specialPlanPersistence: SpecialPlanPersistenceProtocol
 
     /// The composition-root initializer. `nil` on the designated initializer
     /// below is a *test and preview* convenience — it quietly substitutes an
@@ -666,7 +672,8 @@ final class KitchenStore: ObservableObject {
             todayPlanPersistence: persistence.todayPlan,
             consumptionPersistence: persistence.consumption,
             weeklyPlanPersistence: persistence.weeklyPlan,
-            preparedComponentPersistence: persistence.preparedComponents
+            preparedComponentPersistence: persistence.preparedComponents,
+            specialPlanPersistence: persistence.specialPlans
         )
     }
 
@@ -677,10 +684,12 @@ final class KitchenStore: ObservableObject {
         todayPlanPersistence: TodayPlanPersistenceProtocol? = nil,
         consumptionPersistence: ConsumptionPersistenceProtocol? = nil,
         weeklyPlanPersistence: WeeklyPlanPersistenceProtocol? = nil,
-        preparedComponentPersistence: PreparedComponentPersistenceProtocol? = nil
+        preparedComponentPersistence: PreparedComponentPersistenceProtocol? = nil,
+        specialPlanPersistence: SpecialPlanPersistenceProtocol? = nil
     ) {
         let defaultBundle: KitchenPersistenceBundle?
-        if inventoryPersistence == nil || shoppingListPersistence == nil || todayPlanPersistence == nil || consumptionPersistence == nil || weeklyPlanPersistence == nil || preparedComponentPersistence == nil {
+        if inventoryPersistence == nil || shoppingListPersistence == nil || todayPlanPersistence == nil || consumptionPersistence == nil || weeklyPlanPersistence == nil || preparedComponentPersistence == nil
+            || specialPlanPersistence == nil {
             defaultBundle = KitchenPersistenceFactory.isolatedInMemory()
         } else {
             defaultBundle = nil
@@ -692,6 +701,7 @@ final class KitchenStore: ObservableObject {
         self.consumptionPersistence = consumptionPersistence ?? defaultBundle!.consumption
         self.weeklyPlanPersistence = weeklyPlanPersistence ?? defaultBundle!.weeklyPlan
         self.preparedComponentPersistence = preparedComponentPersistence ?? defaultBundle!.preparedComponents
+        self.specialPlanPersistence = specialPlanPersistence ?? defaultBundle!.specialPlans
         let defaults = userDefaults
         do {
             inventory = try InventoryMigration.migrateIfNeeded(
@@ -762,6 +772,15 @@ final class KitchenStore: ObservableObject {
             preparedComponentNotice = "备餐记录暂时无法读取，原始数据仍保留在设备上。"
             #if DEBUG
             print("[PreparedComponentPersistence] load failed: \(error)")
+            #endif
+        }
+        do {
+            specialPlans = try self.specialPlanPersistence.loadPlans()
+        } catch {
+            specialPlans = []
+            specialPlanNotice = "特殊计划暂时无法读取，原始数据仍保留在设备上。"
+            #if DEBUG
+            print("[SpecialPlanPersistence] load failed: \(error)")
             #endif
         }
         isLoading = false
@@ -985,7 +1004,9 @@ final class KitchenStore: ObservableObject {
         let previousConsumptionRecords = consumptionRecords
         let previousWeeklyPlan = weeklyPlan
         let previousPreparedComponents = preparedComponents
+        let previousSpecialPlans = specialPlans
         do {
+            try specialPlanPersistence.deleteAll()
             try preparedComponentPersistence.deleteAll()
             try weeklyPlanPersistence.deleteAll()
             try consumptionPersistence.deleteAll()
@@ -999,6 +1020,7 @@ final class KitchenStore: ObservableObject {
             try? consumptionPersistence.replaceRecords(with: previousConsumptionRecords)
             try? weeklyPlanPersistence.replacePlan(with: previousWeeklyPlan)
             try? preparedComponentPersistence.replaceComponents(with: previousPreparedComponents)
+            try? specialPlanPersistence.replacePlans(with: previousSpecialPlans)
             inventoryNotice = "厨房数据暂时无法清除，请稍后重试。"
             #if DEBUG
             print("[KitchenPersistence] clear failed: \(error)")
@@ -1021,6 +1043,9 @@ final class KitchenStore: ObservableObject {
         suppressPreparedComponentPersistence = true
         preparedComponents = []
         suppressPreparedComponentPersistence = false
+        suppressSpecialPlanPersistence = true
+        specialPlans = []
+        suppressSpecialPlanPersistence = false
         [inventoryKey, plansKey, shoppingKey, weeklyPlanKey, consumptionRecordsKey].forEach {
             defaults.removeObject(forKey: $0)
         }
@@ -1029,6 +1054,97 @@ final class KitchenStore: ObservableObject {
         planNotice = nil
         consumptionNotice = nil
         weeklyPlanNotice = nil
+    }
+
+    // MARK: - Special plans
+
+    func addSpecialPlan(_ plan: SpecialPlan) {
+        guard !plan.title.isEmpty else { return }
+        if let index = specialPlans.firstIndex(where: { $0.id == plan.id }) {
+            specialPlans[index] = plan
+        } else {
+            specialPlans.append(plan)
+        }
+    }
+
+    func updateSpecialPlan(_ plan: SpecialPlan) {
+        guard !plan.title.isEmpty else { return }
+        guard let index = specialPlans.firstIndex(where: { $0.id == plan.id }) else { return }
+        specialPlans[index] = plan
+    }
+
+    @discardableResult
+    func removeSpecialPlan(id: UUID) -> SpecialPlan? {
+        guard let index = specialPlans.firstIndex(where: { $0.id == id }) else { return nil }
+        // Deleting a special plan never touches recipes: `specialPlans` only
+        // references recipe ids, so this is a pure plan-row removal.
+        return specialPlans.remove(at: index)
+    }
+
+    /// Adds or replaces a dish reference on an existing plan. The dish only
+    /// stores `recipeID` + a display `recipeName` snapshot; the `Recipe` itself
+    /// stays the source of truth in `RecipeStore`.
+    @discardableResult
+    func addDish(_ dish: SpecialPlanDish, toSpecialPlan id: UUID) -> Bool {
+        guard let index = specialPlans.firstIndex(where: { $0.id == id }) else { return false }
+        var updated = specialPlans[index]
+        guard !updated.dishes.contains(where: { $0.recipeID == dish.recipeID }) else { return false }
+        updated.dishes.append(dish)
+        updated.updatedAt = Date()
+        specialPlans[index] = updated
+        return true
+    }
+
+    @discardableResult
+    func removeDish(id: UUID, fromSpecialPlan planID: UUID) -> Bool {
+        guard let index = specialPlans.firstIndex(where: { $0.id == planID }) else { return false }
+        var updated = specialPlans[index]
+        let before = updated.dishes.count
+        updated.dishes.removeAll { $0.id == id }
+        guard updated.dishes.count != before else { return false }
+        updated.updatedAt = Date()
+        specialPlans[index] = updated
+        return true
+    }
+
+    @discardableResult
+    func moveDish(_ dishID: UUID, inSpecialPlan planID: UUID, to index: Int) -> Bool {
+        guard let planIndex = specialPlans.firstIndex(where: { $0.id == planID }),
+              let from = specialPlans[planIndex].dishes.firstIndex(where: { $0.id == dishID }) else {
+            return false
+        }
+        var updated = specialPlans[planIndex]
+        let dish = updated.dishes.remove(at: from)
+        let clamped = min(max(index, 0), updated.dishes.count)
+        updated.dishes.insert(dish, at: clamped)
+        updated.updatedAt = Date()
+        specialPlans[planIndex] = updated
+        return true
+    }
+
+    @discardableResult
+    func setDishCooked(_ dishID: UUID, inSpecialPlan planID: UUID, isCooked: Bool) -> Bool {
+        guard let planIndex = specialPlans.firstIndex(where: { $0.id == planID }),
+              let dishIndex = specialPlans[planIndex].dishes.firstIndex(where: { $0.id == dishID }) else {
+            return false
+        }
+        var updated = specialPlans[planIndex]
+        updated.dishes[dishIndex].isCooked = isCooked
+        updated.updatedAt = Date()
+        specialPlans[planIndex] = updated
+        return true
+    }
+
+    private func persistSpecialPlansIfNeeded() {
+        guard !isLoading, !suppressSpecialPlanPersistence else { return }
+        do {
+            try specialPlanPersistence.replacePlans(with: specialPlans)
+        } catch {
+            specialPlanNotice = "特殊计划保存失败，请稍后重试。"
+            #if DEBUG
+            print("[SpecialPlanPersistence] save failed: \(error)")
+            #endif
+        }
     }
 
     func addPlan(recipe: Recipe, servings: Int = 1) {
@@ -1447,7 +1563,8 @@ final class KitchenStore: ObservableObject {
             shoppingItems: shoppingItems,
             weeklyPlan: weeklyPlan,
             consumptionRecords: consumptionRecords,
-            preparedComponents: preparedComponents
+            preparedComponents: preparedComponents,
+            specialPlans: specialPlans
         ))
     }
 
@@ -1467,6 +1584,8 @@ final class KitchenStore: ObservableObject {
         let previousInventory = inventory
         let previousShoppingItems = shoppingItems
         let previousPlans = plans
+        let previousPreparedComponents = preparedComponents
+        let previousSpecialPlans = specialPlans
         do {
             try inventoryPersistence.replaceInventory(with: backup.inventory)
             do {
@@ -1509,6 +1628,17 @@ final class KitchenStore: ObservableObject {
                 try? weeklyPlanPersistence.replacePlan(with: weeklyPlan)
                 throw KitchenBackupError.preparedComponentPersistenceFailed
             }
+            do {
+                try specialPlanPersistence.replacePlans(with: backup.specialPlans)
+            } catch {
+                try? inventoryPersistence.replaceInventory(with: previousInventory)
+                try? shoppingListPersistence.replaceShoppingItems(with: previousShoppingItems)
+                try? todayPlanPersistence.replacePlans(with: previousPlans)
+                try? consumptionPersistence.replaceRecords(with: consumptionRecords)
+                try? weeklyPlanPersistence.replacePlan(with: weeklyPlan)
+                try? preparedComponentPersistence.replaceComponents(with: previousPreparedComponents)
+                throw KitchenBackupError.specialPlanPersistenceFailed
+            }
         } catch {
             if let backupError = error as? KitchenBackupError {
                 throw backupError
@@ -1531,6 +1661,9 @@ final class KitchenStore: ObservableObject {
         suppressPreparedComponentPersistence = true
         preparedComponents = backup.preparedComponents
         suppressPreparedComponentPersistence = false
+        suppressSpecialPlanPersistence = true
+        specialPlans = backup.specialPlans
+        suppressSpecialPlanPersistence = false
     }
 
     func toggleShopping(_ item: KitchenShoppingItem) {
@@ -1917,10 +2050,15 @@ struct KitchenBackupPayload: Codable {
     /// a backup written before prepared components existed restores as empty
     /// rather than failing.
     var preparedComponents: [PreparedComponent]
+    /// Added in the Planner foundation slice. Decoded with `decodeIfPresent`
+    /// like every other field, so backups written before special plans existed
+    /// restore as empty rather than failing.
+    var specialPlans: [SpecialPlan]
 
     enum CodingKeys: String, CodingKey {
         case format, version, exportedAt, inventory, plans, shoppingItems, weeklyPlan, consumptionRecords
         case preparedComponents
+        case specialPlans
     }
 
     init(
@@ -1929,7 +2067,8 @@ struct KitchenBackupPayload: Codable {
         shoppingItems: [KitchenShoppingItem],
         weeklyPlan: WeeklyMealPlan?,
         consumptionRecords: [InventoryConsumptionRecord],
-        preparedComponents: [PreparedComponent] = []
+        preparedComponents: [PreparedComponent] = [],
+        specialPlans: [SpecialPlan] = []
     ) {
         self.inventory = inventory
         self.plans = plans
@@ -1937,6 +2076,7 @@ struct KitchenBackupPayload: Codable {
         self.weeklyPlan = weeklyPlan
         self.consumptionRecords = consumptionRecords
         self.preparedComponents = preparedComponents
+        self.specialPlans = specialPlans
     }
 
     init(from decoder: Decoder) throws {
@@ -1950,6 +2090,7 @@ struct KitchenBackupPayload: Codable {
         weeklyPlan = try container.decodeIfPresent(WeeklyMealPlan.self, forKey: .weeklyPlan)
         consumptionRecords = try container.decodeIfPresent([InventoryConsumptionRecord].self, forKey: .consumptionRecords) ?? []
         preparedComponents = try container.decodeIfPresent([PreparedComponent].self, forKey: .preparedComponents) ?? []
+        specialPlans = try container.decodeIfPresent([SpecialPlan].self, forKey: .specialPlans) ?? []
     }
 }
 
@@ -1961,6 +2102,7 @@ enum KitchenBackupError: LocalizedError {
     case consumptionPersistenceFailed
     case weeklyPlanPersistenceFailed
     case preparedComponentPersistenceFailed
+    case specialPlanPersistenceFailed
 
     var errorDescription: String? {
         switch self {
@@ -1978,6 +2120,8 @@ enum KitchenBackupError: LocalizedError {
             return "备份中的周菜单暂时无法保存，请稍后重试。"
         case .preparedComponentPersistenceFailed:
             return "备份中的备餐记录暂时无法保存，请稍后重试。"
+        case .specialPlanPersistenceFailed:
+            return "备份中的特殊计划暂时无法保存，请稍后重试。"
         }
     }
 }
