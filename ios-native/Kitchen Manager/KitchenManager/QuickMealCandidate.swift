@@ -65,7 +65,11 @@ extension QuickMealCandidate {
             source: .inventory(item.id),
             name: item.name,
             profile: QuickFoodProfileClassifier.profile(for: item.name),
-            expiryDate: item.expiryDate
+            // R2: the semantic date. `isExpiringSoon` is the top-priority
+            // tiebreak in both the quick-meal and component-meal rankers, so a
+            // staple's stale date would otherwise outrank food that is really
+            // about to spoil.
+            expiryDate: item.effectiveExpiryDate
         )
     }
 

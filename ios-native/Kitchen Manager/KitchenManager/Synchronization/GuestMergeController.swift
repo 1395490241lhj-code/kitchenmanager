@@ -385,6 +385,44 @@ final class GuestMergeController: ObservableObject {
         return updated
     }
 
+    /// R2 — the opaque-expiry carry-forward.
+    ///
+    /// A staple has no expiry semantics on iOS: `effectiveExpiryDate` is `nil`,
+    /// the detail screen hides the field entirely, and the merge card shows no
+    /// date for it. The household's row may still hold one. Resolving an
+    /// unrelated conflict (quantity, staple metadata, …) as `keepLocal` means
+    /// "my visible values win" — it is not the user authorising the erasure of
+    /// a field they were never shown. But the outbound payload is a full
+    /// snapshot, so uploading the local row verbatim would send
+    /// `expiryDate: null` and destroy it.
+    ///
+    /// Adopting the remote value into the local row (rather than patching this
+    /// one payload) is deliberate: it is what makes *every later* unrelated
+    /// full-snapshot upsert keep retransmitting the value. It is not a semantic
+    /// leak — the projection guarantees every product reader still sees `nil`.
+    ///
+    /// Scope, deliberately narrow:
+    /// - both sides must project to the **same** kind, and that kind must not
+    ///   track expiry. A genuine classification difference (local `.ordinary`
+    ///   vs remote `.staple`) is a real decision the user made about a visible
+    ///   field, and keeps `keepLocal`'s plain meaning;
+    /// - when both sides hold an opaque value, the remote one wins: the
+    ///   household already has it, and a choice made without ever seeing the
+    ///   field cannot be read as picking the local one.
+    nonisolated static func carryingForwardOpaqueExpiry(
+        into local: InventoryItem,
+        from remote: RemoteInventorySnapshotItem?
+    ) -> InventoryItem {
+        guard let remote,
+              remote.kind == local.kind,
+              !local.kind.tracksExpiry,
+              let remoteRawExpiry = remote.expiryDate
+        else { return local }
+        var carried = local
+        carried.expiryDate = remoteRawExpiry
+        return carried
+    }
+
     private func snapshot(of items: [InventoryItem]) -> [GuestInventorySnapshotItem] {
         items.prefix(GuestMergeSession.maxSnapshotItems).map {
             GuestInventorySnapshotItem(id: $0.id, name: $0.name, unit: $0.unit, quantity: $0.quantity, expiryDate: $0.expiryDate)
@@ -622,6 +660,11 @@ final class GuestMergeController: ObservableObject {
         // Reject rather than silently recompute-and-continue: the whole
         // point of this gate is that stale-remote-data must never reach
         // `stageUpsert`.
+        // R2: the same re-verification read is the only place `confirmMerge`
+        // sees the household's *raw* rows, so it is also where the opaque
+        // expiry carry-forward below gets its value. Hoisted out of the `if`
+        // for that reason only — the guard's behaviour is unchanged.
+        var remoteById: [UUID: RemoteInventorySnapshotItem] = [:]
         if let previewHash = plan.remoteSnapshotHash {
             let currentRemoteItems: [RemoteInventorySnapshotItem]
             do {
@@ -630,6 +673,7 @@ final class GuestMergeController: ObservableObject {
                 lastErrorMessage = "无法确认家庭库存最新状态，请重试。"
                 return
             }
+            remoteById = Dictionary(currentRemoteItems.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
             let currentHash = InventoryMergePlanner.remoteSnapshotHash(currentRemoteItems)
             guard currentHash == previewHash else {
                 current.status = .previewReady
@@ -709,7 +753,12 @@ final class GuestMergeController: ObservableObject {
                         ))
                     }
                 }
-                _ = try await adapter.stageUpsert(item: localItem, scope: scope)
+                _ = try await adapter.stageUpsert(
+                    item: Self.carryingForwardOpaqueExpiry(
+                        into: localItem, from: remoteById[candidate.localItemId]
+                    ),
+                    scope: scope
+                )
             }
 
             let configuration = SyncConfiguration(isEnabled: true)

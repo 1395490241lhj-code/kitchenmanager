@@ -305,7 +305,10 @@ enum ExpiryNotificationScheduler {
 
         var scheduledIDs: [String] = []
         for item in inventory where item.isAvailable {
-            guard let expiryDate = item.expiryDate else { continue }
+            // R2: the *semantic* date, never the stored one. A pantry staple is
+            // stock-tracked, so a date left behind by older data must not turn
+            // into a 「快到期了」 push about a bottle of soy sauce.
+            guard let expiryDate = item.effectiveExpiryDate else { continue }
             for leadTime in leadTimes {
                 guard let dayStart = Calendar.current.date(
                     byAdding: .day,

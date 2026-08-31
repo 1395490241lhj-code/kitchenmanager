@@ -47,6 +47,32 @@ resolved — same id ⇒ `expiryMismatch`; different id, same key ⇒
 `ambiguousDuplicate` (looks like a different batch under a new id, so the
 match is not narrowed to "just an expiry issue").
 
+**The dates compared here are *semantic*, not raw (R2).** Storage and the wire
+may legally retain a raw `expiryDate` on a row whose projected iOS kind does
+not track expiry — from data written before staples stopped being date-tracked,
+from a restored backup, or from a remote row this client projects onto
+`.staple`. Nothing rewrites such a row. What changes is only what is
+*believed*: `InventoryItemKind.effectiveExpiryDate(raw:)` is the single owner
+of "does this classification have an expiry at all", and every product-semantic
+reader — notifications, consumption ordering, quick/component-meal ranking, AI
+priority signals, shopping coverage, expiry status text, the conflict card, the
+merge comparator and both plan hashes — resolves the date through it.
+
+So for two rows that both project to `.staple`:
+
+```
+local  raw expiry = d1      semantic expiry = nil
+remote raw expiry = d2      semantic expiry = nil
+```
+
+⇒ **no `expiryMismatch` merely because `d1 != d2`.** `.ordinary` and
+`.readyToCook` are date-tracked and keep their existing behaviour exactly: a
+real difference between two real dates is still a real conflict.
+
+This is deliberately *not* a storage or wire rule. The contract does **not**
+say `is_staple = true ⇒ expiry_date IS NULL`; no such constraint exists in the
+database, the RPC or the Express payload validation, and none is being added.
+
 `kind` (the full classification) / `stapleCategory` / `lowStockThreshold` /
 `defaultRestockQuantity` / `autoSuggestRestock` / `stapleTrackingMode` /
 `stapleAvailabilityStatus` are "metadata" fields: tracked so a same-id
@@ -259,6 +285,75 @@ Duplicate-safe: `PendingMutation.mutationId` is stable per candidate for the
 lifetime of the session, and the server's existing idempotency ledger
 (`docs/SYNC_API_CONTRACT.md`) already answers a repeated identical mutation
 with `duplicate`, not a second row.
+
+### Opaque expiry carry-forward on `keepLocal` (R2)
+
+The outbound payload is a **full snapshot** — `payload(for:)` always writes
+every known field, and the staging queue replaces a coalesced payload wholesale
+rather than merging field by field (`INVENTORY_MUTATION_COALESCING.md`). For a
+row whose projected kind does not track expiry, that combination used to be
+destructive: the household's raw date is invisible on this client, so uploading
+the local row verbatim sent `expiryDate: null` and erased it.
+
+`keepLocal` decides the **visible, semantic** merge fields. It is not the user
+authorising a change to a field they were never shown. Therefore, when
+
+```
+local projected kind == remote projected kind
+&& that kind does not track expiry
+```
+
+the remote raw expiry is **opaque household data** that carries forward:
+
+1. it is adopted into the resolved **local durable row**
+   (`GuestMergeController.carryingForwardOpaqueExpiry`, applied at the single
+   `stageUpsert` call site — `stageUpsert` writes the `InventoryRecord` and the
+   staged payload from the same item);
+2. the immediate merge upload retransmits it;
+3. **every later unrelated full-snapshot upsert keeps retransmitting it** — a
+   quantity, note or staple-metadata edit included. Adopting it into durable
+   state rather than patching one payload is what makes point 3 true.
+
+Adopting it locally is not a semantic leak: the projection above guarantees
+every product reader still sees `nil`.
+
+When both sides hold an opaque value (`d1` locally, `d2` remotely), **`d2`
+carries forward.** The household already holds it, and a choice made without
+ever seeing the field cannot be read as selecting the local one.
+
+Scope, deliberately narrow:
+
+- the rule applies **only** when both sides project to the *same*
+  untracked-expiry kind. A genuine classification difference (local `.ordinary`
+  vs remote `.staple`) is a real decision about a visible field and keeps
+  `keepLocal`'s plain meaning — no carry-forward;
+- `keepRemote` and `skip` stage nothing, so the remote value is untouched;
+- `keepBoth` is unchanged: the fork path never overwrites the matched remote
+  row, so no hidden remote data can be destroyed through it.
+
+**Legal `isStaple=true` + `preparationKind="readyToCook"`** (`SYNC_API_CONTRACT.md`
+§4.2) still projects to `.staple` under the unchanged precedence
+`staple > readyToCook > ordinary`. Its semantic expiry is `nil` and its raw
+expiry is **not** lost — the rule preserves it like any other staple, and does
+not widen the documented `preparationKind` collapse.
+
+#### Writer nuance
+
+The two halves of the write-side invariant are different, and only the first
+one clears:
+
+- **promotion or creation into an untracked-expiry kind normalizes a
+  newly-written expiry away** — `setInventoryKind`, `saveStaple` promoting an
+  ordinary row, `addInventory`/import merging into a row it promotes, and the
+  receipt-import draft conversion. Nothing may *invent* a date for the pantry
+  shelf;
+- **a row that is already a staple and already carries an opaque raw expiry
+  keeps it through unrelated edits** — a stock-in merged into it, or a
+  threshold/note/quantity save from the pantry form. Erasing there would send
+  `expiryDate: null` on the next full-snapshot upsert and destroy the
+  household's value, defeating the carry-forward above.
+
+It is therefore inaccurate to say "every writer clears a staple's expiry".
 
 ## Rollback
 

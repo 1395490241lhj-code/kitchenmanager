@@ -5420,6 +5420,278 @@ final class GuestMergeTests: XCTestCase {
     /// in the real App) so a Guest inventory item written through the store
     /// is visible to `persistence.inventoryItem(id:)` during an upload.
     /// Seeds one Guest inventory item ("番茄") by default.
+    // MARK: - R2: keepLocal must not destroy a staple's opaque remote expiry
+    //
+    // A staple has no expiry semantics locally, so iOS never shows or edits the
+    // field. The household's row may still hold one. Resolving an unrelated
+    // conflict as `keepLocal` means "my quantity/metadata wins" — it is not the
+    // user authorising the erasure of a hidden field they were never shown.
+
+    private func stapleExpiry() -> Date {
+        DateComponents(calendar: .current, year: 2026, month: 9, day: 30).date!
+    }
+
+    private func expiryString(inPayload payload: [String: SyncJSONValue]?) -> String? {
+        guard case .string(let value)? = payload?["expiryDate"] else { return nil }
+        return value
+    }
+
+    func testKeepLocalOnAQuantityConflictPreservesAStaplesRemoteExpiry() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        let remoteExpiry = stapleExpiry()
+        kitchen.inventory = [
+            InventoryItem(id: sharedId, name: "大米", quantity: 1, unit: "袋", expiryDate: nil, kind: .staple)
+        ]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(
+            id: sharedId, name: "大米", unit: "袋", quantity: 5, expiryDate: remoteExpiry,
+            isStaple: true, version: "5", sequence: "1"
+        )
+        await transport.seedExistingRemote(id: sharedId, staleBaseVersion: "5")
+
+        let controller = makeMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport },
+            kitchenStore: kitchen
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+
+        let candidate = try XCTUnwrap(controller.plan?.candidates.first(where: { $0.localItemId == sharedId }))
+        XCTAssertEqual(candidate.conflictReason, .quantityMismatch, "数量冲突本身必须保留")
+        XCTAssertNil(candidate.localExpiryDate, "常备行的冲突卡片不展示保质期")
+
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        let uploaded = expiryString(inPayload: await transport.lastReceivedPayload(for: sharedId))
+        XCTAssertEqual(
+            uploaded, "2026-09-30",
+            "keepLocal 只代表本机的可见字段获胜，不是授权抹掉用户从未看到的远端保质期"
+        )
+        let local = try XCTUnwrap(kitchen.inventory.first(where: { $0.id == sharedId }))
+        XCTAssertEqual(local.expiryDate, remoteExpiry, "远端 raw 值必须落进本地 durable 状态，否则下一次编辑会再次清掉它")
+        XCTAssertNil(local.effectiveExpiryDate, "语义投影仍然是 nil —— raw 值进入本地存储不是语义泄漏")
+    }
+
+    func testKeepLocalOnAMetadataConflictPreservesAStaplesRemoteExpiry() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        let remoteExpiry = stapleExpiry()
+        // Same quantity: the conflict is metadata only, proving the rule is not
+        // a quantity-path special case.
+        kitchen.inventory = [
+            InventoryItem(
+                id: sharedId, name: "大米", quantity: 5, unit: "袋", expiryDate: nil,
+                kind: .staple, stapleCategory: "主食"
+            )
+        ]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(
+            id: sharedId, name: "大米", unit: "袋", quantity: 5, expiryDate: remoteExpiry,
+            isStaple: true, stapleCategory: "干货", version: "5", sequence: "1"
+        )
+        await transport.seedExistingRemote(id: sharedId, staleBaseVersion: "5")
+
+        let controller = makeMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport },
+            kitchenStore: kitchen
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        XCTAssertEqual(
+            controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.conflictReason,
+            .metadataMismatch
+        )
+
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        let uploaded = expiryString(inPayload: await transport.lastReceivedPayload(for: sharedId))
+        XCTAssertEqual(
+            uploaded, "2026-09-30",
+            "metadata 冲突路径同样不得抹掉隐藏的远端保质期"
+        )
+        XCTAssertEqual(kitchen.inventory.first(where: { $0.id == sharedId })?.expiryDate, remoteExpiry)
+    }
+
+    /// `SYNC_API_CONTRACT.md` §4.2 calls `isStaple=true` + `preparationKind=readyToCook`
+    /// legal. It projects to `.staple`, so it takes the same carry-forward rule
+    /// and must not lose its date either.
+    func testKeepLocalPreservesTheExpiryOfTheLegalStaplePlusReadyToCookRow() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        let remoteExpiry = stapleExpiry()
+        kitchen.inventory = [
+            InventoryItem(id: sharedId, name: "调味鸡翅", quantity: 1, unit: "只", expiryDate: nil, kind: .staple)
+        ]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(
+            id: sharedId, name: "调味鸡翅", unit: "只", quantity: 6, expiryDate: remoteExpiry,
+            isStaple: true, preparationKind: "readyToCook", version: "5", sequence: "1"
+        )
+        await transport.seedExistingRemote(id: sharedId, staleBaseVersion: "5")
+
+        let controller = makeMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport },
+            kitchenStore: kitchen
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        let uploaded = expiryString(inPayload: await transport.lastReceivedPayload(for: sharedId))
+        XCTAssertEqual(
+            uploaded, "2026-09-30",
+            "合法的 staple + readyToCook 组合的日期同样不得被 keepLocal 抹掉"
+        )
+    }
+
+    /// The whole point of putting the value in durable local state rather than
+    /// patching one payload: a later unrelated edit must keep retransmitting it.
+    func testALaterUnrelatedEditStillRetransmitsTheCarriedForwardExpiry() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        let remoteExpiry = stapleExpiry()
+        kitchen.inventory = [
+            InventoryItem(id: sharedId, name: "大米", quantity: 1, unit: "袋", expiryDate: nil, kind: .staple)
+        ]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(
+            id: sharedId, name: "大米", unit: "袋", quantity: 5, expiryDate: remoteExpiry,
+            isStaple: true, version: "5", sequence: "1"
+        )
+        await transport.seedExistingRemote(id: sharedId, staleBaseVersion: "5")
+
+        let controller = makeMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport },
+            kitchenStore: kitchen
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        // Real later-edit routes, not a detached struct: both of these once
+        // nulled the adopted date, so a fix that only reached the merge payload
+        // would be undone by an ordinary stock-in or a pantry-form save.
+        kitchen.addInventory(name: "大米", quantity: 1, unit: "袋", expiryDate: nil, isStaple: true)
+        XCTAssertEqual(
+            kitchen.inventory.first(where: { $0.id == sharedId })?.expiryDate, remoteExpiry,
+            "入库合并进一个已经是常备的行，不得抹掉它携带的 opaque 值"
+        )
+        try kitchen.saveStaple(
+            id: sharedId, name: "大米", quantity: 9, unit: "袋",
+            minimumQuantity: 2, defaultRestockQuantity: nil, autoSuggestRestock: false,
+            note: nil, category: nil
+        )
+
+        var edited = try XCTUnwrap(kitchen.inventory.first(where: { $0.id == sharedId }))
+        XCTAssertEqual(edited.expiryDate, remoteExpiry, "常备行的日常编辑同样不得抹掉它")
+        edited.quantity = 9
+
+        let payload = try JSONSerialization.jsonObject(
+            with: try InventorySyncAdapter(persistence: persistence).encodedPayload(for: edited)
+        ) as? [String: Any]
+        XCTAssertEqual(
+            payload?["expiryDate"] as? String, "2026-09-30",
+            "raw 值已经在本地 durable 状态里，所以后续任何 full-snapshot upsert 都继续原样回传"
+        )
+        XCTAssertNil(edited.effectiveExpiryDate, "语义投影仍然是 nil")
+    }
+
+    /// Both sides project to an untracked-expiry kind, so neither raw value is
+    /// visible to the user and no `expiryMismatch` is raised. The household's
+    /// value is the one that carries forward: iOS deliberately does not expose
+    /// the field, so a merge choice cannot be read as authorising a change to it.
+    func testWhenBothSidesHoldOpaqueDatesTheRemoteOneCarriesForward() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        let localLegacy = DateComponents(calendar: .current, year: 2025, month: 1, day: 1).date!
+        let remoteExpiry = stapleExpiry()
+        kitchen.inventory = [
+            InventoryItem(id: sharedId, name: "大米", quantity: 1, unit: "袋", expiryDate: localLegacy, kind: .staple)
+        ]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(
+            id: sharedId, name: "大米", unit: "袋", quantity: 5, expiryDate: remoteExpiry,
+            isStaple: true, version: "5", sequence: "1"
+        )
+        await transport.seedExistingRemote(id: sharedId, staleBaseVersion: "5")
+
+        let controller = makeMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport },
+            kitchenStore: kitchen
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        XCTAssertNotEqual(
+            controller.plan?.candidates.first(where: { $0.localItemId == sharedId })?.conflictReason,
+            .expiryMismatch,
+            "两边语义 expiry 都是 nil，不该产生保质期冲突"
+        )
+
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        let uploaded = expiryString(inPayload: await transport.lastReceivedPayload(for: sharedId))
+        XCTAssertEqual(
+            uploaded, "2026-09-30",
+            "家庭当前持有的 d2 是 carry-forward 值，用户没有在看不到该字段的情况下选择 d1"
+        )
+        XCTAssertNil(kitchen.inventory.first(where: { $0.id == sharedId })?.effectiveExpiryDate)
+    }
+
+    /// The rule is scoped to "both sides project to the same untracked-expiry
+    /// kind". A genuine classification difference is a different decision and
+    /// must not silently inherit the remote date.
+    func testTheCarryForwardRuleDoesNotApplyWhenTheProjectedKindsDiffer() async throws {
+        let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)
+        let sharedId = UUID()
+        kitchen.inventory = [
+            InventoryItem(id: sharedId, name: "大米", quantity: 5, unit: "袋", expiryDate: nil, kind: .ordinary)
+        ]
+
+        let transport = SimulatedMergeTransport(userID: userA, householdID: householdA)
+        await transport.seedRemoteChange(
+            id: sharedId, name: "大米", unit: "袋", quantity: 5, expiryDate: stapleExpiry(),
+            isStaple: true, version: "5", sequence: "1"
+        )
+        await transport.seedExistingRemote(id: sharedId, staleBaseVersion: "5")
+
+        let controller = makeMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in transport },
+            kitchenStore: kitchen
+        )
+        await controller.preparePreview(userId: userA, householdId: householdA, kitchenStore: kitchen, remoteTransport: transport)
+        await controller.resolveConflict(candidateId: sharedId, choice: .keepLocal)
+        let authStore = await signedInAuthStore(userID: userA)
+        await controller.confirmMerge(authStore: authStore)
+
+        XCTAssertNil(
+            kitchen.inventory.first(where: { $0.id == sharedId })?.expiryDate,
+            "本机是 ordinary、远端是 staple —— 用户选择了本机分类，不适用 opaque carry-forward"
+        )
+    }
+
     private func makeSharedStores(seedGuestInventory: Bool = true) throws -> (KitchenStore, SwiftDataSyncPersistence) {
         let container = try ModelContainer(
             for: InventoryRecord.self, ShoppingItemRecord.self, TodayPlanRecord.self,

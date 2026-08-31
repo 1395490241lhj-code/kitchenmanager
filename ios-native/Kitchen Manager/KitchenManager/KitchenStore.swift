@@ -114,7 +114,29 @@ enum InventoryItemKind: String, Codable, CaseIterable, Identifiable, Sendable {
     /// Staples are stock-tracked, not date-tracked: nothing may invent an
     /// expiry date for one. Ready-to-cook food spoils like anything else and
     /// keeps the ordinary date behaviour.
-    var tracksExpiry: Bool { self != .staple }
+    nonisolated var tracksExpiry: Bool { self != .staple }
+
+    /// R2 — the one and only owner of "does this classification have a
+    /// *semantic* expiry date". Every product-semantic reader (notifications,
+    /// FEFO, quick-meal ranking, AI priority, shopping coverage, merge
+    /// comparison) resolves the date through here.
+    ///
+    /// Two *write*-side sites still spell the same shape out inline — the
+    /// add/import merge below and `ReceiptImport`'s draft conversion. They
+    /// decide what to store rather than how to read it, and both are pinned by
+    /// Node source guards, so they are deliberately left as they are.
+    ///
+    /// The split this exists to hold: raw storage and the wire stay lossless,
+    /// so a row may physically carry `.staple` together with a date — written
+    /// before staples stopped being date-tracked, restored from a backup, or
+    /// pulled from a remote row this client projects onto `.staple`. R2 never
+    /// rewrites such a row; it only stops the date from being *believed*.
+    /// `nonisolated` because the merge planner is a pure, nonisolated value
+    /// layer and must be able to project a date without hopping to the main
+    /// actor — the app target's `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
+    /// would otherwise isolate this the way it isolated the pure helpers
+    /// cleaned up in `e81bd1c`.
+    nonisolated func effectiveExpiryDate(raw: Date?) -> Date? { tracksExpiry ? raw : nil }
 
     /// Whether a recipe-creation request may use this row as an ingredient.
     /// Ready-to-cook food is excluded — it is already a dish.
@@ -255,8 +277,13 @@ struct InventoryItem: Identifiable, Codable, Hashable {
 
     var isAvailable: Bool { quantity > 0 }
 
+    /// The date this row *means*, as opposed to the date it stores. Delegates
+    /// to the single owner on `InventoryItemKind`; see the note there for why
+    /// `expiryDate` itself is deliberately left untouched.
+    nonisolated var effectiveExpiryDate: Date? { kind.effectiveExpiryDate(raw: expiryDate) }
+
     var remainingDays: Int? {
-        guard let expiryDate else { return nil }
+        guard let expiryDate = effectiveExpiryDate else { return nil }
         return Calendar.current.dateComponents(
             [.day],
             from: Calendar.current.startOfDay(for: Date()),
@@ -285,7 +312,7 @@ struct InventoryItem: Identifiable, Codable, Hashable {
     /// How much of the known storage lifetime has elapsed. Older records without a
     /// creation timestamp intentionally return nil instead of inventing a start date.
     var expiryProgress: Double? {
-        guard let expiryDate else { return nil }
+        guard let expiryDate = effectiveExpiryDate else { return nil }
         guard let referenceDate = createdAt ?? updatedAt else { return nil }
         guard expiryDate > referenceDate else { return 1 }
         let elapsed = Date().timeIntervalSince(referenceDate)
@@ -885,10 +912,17 @@ final class KitchenStore: ObservableObject {
             // A more specific incoming kind promotes an ordinary row (the old
             // `isStaple || isStaple` rule, generalised); an already-classified
             // row is never silently reclassified by a later import.
+            let previousKind = inventory[index].kind
             if inventory[index].kind == .ordinary { inventory[index].kind = kind }
             if inventory[index].kind.tracksExpiry {
                 if inventory[index].expiryDate == nil { inventory[index].expiryDate = effectiveExpiryDate }
-            } else {
+            } else if previousKind.tracksExpiry {
+                // R2: clear on an actual *promotion* — the row was date-tracked
+                // a moment ago and must not keep a date on the pantry shelf.
+                // A row that was already a staple keeps whatever it stores: a
+                // stock-in must not destroy an opaque value (see
+                // `GuestMergeController.carryingForwardOpaqueExpiry`), and the
+                // projection already hides it from every product reader.
                 inventory[index].expiryDate = nil
             }
             #if DEBUG
@@ -1303,11 +1337,17 @@ final class KitchenStore: ObservableObject {
             inventory[index].name = cleanName
             inventory[index].quantity = max(0, quantity)
             inventory[index].unit = cleanUnit
+            let wasAlreadyStaple = inventory[index].kind == .staple
             inventory[index].kind = .staple
             // Promoting an existing ordinary row to the pantry shelf drops the
             // date it was carrying. Leaving it behind was the actual reason a
             // staple could still show up in 即将过期 / 已过期.
-            inventory[index].expiryDate = nil
+            //
+            // R2: only on that promotion. Saving an *already* staple — a
+            // threshold or note edit from the pantry form — must not erase an
+            // opaque stored value, or the next full-snapshot upsert would send
+            // `expiryDate: null` and destroy the household's date.
+            if !wasAlreadyStaple { inventory[index].expiryDate = nil }
             inventory[index].lowStockThreshold = minimumQuantity
             inventory[index].defaultRestockQuantity = defaultRestockQuantity
             inventory[index].autoSuggestRestock = autoSuggestRestock

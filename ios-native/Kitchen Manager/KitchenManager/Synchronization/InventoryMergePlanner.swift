@@ -44,6 +44,12 @@ nonisolated struct RemoteInventorySnapshotItem: Equatable, Sendable {
     /// Reads and writes `kind`, exactly as `InventoryItem.isStaple` does.
     var isStaple: Bool { kind == .staple }
 
+    /// R2 — the semantic date, mirroring `InventoryItem.effectiveExpiryDate`
+    /// and delegating to the same single owner. `expiryDate` above stays the
+    /// raw wire value so the snapshot remains a lossless view of the remote
+    /// row; only comparison and hashing use this.
+    var effectiveExpiryDate: Date? { kind.effectiveExpiryDate(raw: expiryDate) }
+
     /// `kind` wins when given; `isStaple` is still accepted so the merge,
     /// smoke and test call sites that predate the preparation axis keep
     /// working unchanged and simply resolve to `.staple` / `.ordinary` —
@@ -177,7 +183,11 @@ nonisolated enum InventoryMergePlanner {
     static func remoteSnapshotHash(_ items: [RemoteInventorySnapshotItem]) -> String {
         var components: [String] = []
         for item in items.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
-            let expiry: String = item.expiryDate.map { String($0.timeIntervalSince1970) } ?? "nil"
+            // R2: the semantic date, so a remote staple's stored date neither
+            // creates a phantom conflict nor destabilises the hash. Drift on a
+            // staple row is still caught — `remoteVersion` is folded in below
+            // and every server write bumps it.
+            let expiry: String = item.effectiveExpiryDate.map { String($0.timeIntervalSince1970) } ?? "nil"
             let category: String = item.stapleCategory ?? "nil"
             let threshold: String = item.lowStockThreshold.map { String($0) } ?? "nil"
             let restockQuantity: String = item.defaultRestockQuantity.map { String($0) } ?? "nil"
@@ -209,7 +219,9 @@ nonisolated enum InventoryMergePlanner {
     static func planHash(sessionId: UUID, householdId: UUID, localItems: [InventoryItem], remoteSnapshotHash: String? = nil) -> String {
         var components: [String] = [sessionId.uuidString.lowercased(), householdId.uuidString.lowercased()]
         for item in localItems.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
-            let expiry = item.expiryDate.map { String($0.timeIntervalSince1970) } ?? "nil"
+            // R2: the semantic date on the local side too — normalising only
+            // one side would flip the phantom conflict rather than remove it.
+            let expiry = item.effectiveExpiryDate.map { String($0.timeIntervalSince1970) } ?? "nil"
             // Classification is folded in because it changes the merge
             // outcome: a purely local `.ordinary -> .readyToCook` edit turns
             // a clean `skip` into a `metadataMismatch` conflict, so a plan
@@ -243,7 +255,7 @@ nonisolated enum InventoryMergePlanner {
         case 0:
             return InventoryMergeCandidate(
                 localItemId: local.id, name: local.name, unit: local.unit,
-                localQuantity: local.quantity, localExpiryDate: local.expiryDate,
+                localQuantity: local.quantity, localExpiryDate: local.effectiveExpiryDate,
                 remoteItemId: nil, remoteQuantity: nil, remoteExpiryDate: nil, remoteVersion: nil,
                 action: .create, conflictReason: nil, userChoice: nil
             )
@@ -254,7 +266,7 @@ nonisolated enum InventoryMergePlanner {
             // auto-select one. Requires an explicit user choice.
             return InventoryMergeCandidate(
                 localItemId: local.id, name: local.name, unit: local.unit,
-                localQuantity: local.quantity, localExpiryDate: local.expiryDate,
+                localQuantity: local.quantity, localExpiryDate: local.effectiveExpiryDate,
                 remoteItemId: nil, remoteQuantity: nil, remoteExpiryDate: nil, remoteVersion: nil,
                 action: .skip, conflictReason: .multipleRemoteCandidates, userChoice: nil
             )
@@ -290,14 +302,25 @@ nonisolated enum InventoryMergePlanner {
         func candidate(action: InventoryMergeAction, reason: InventoryMergeConflictReason?) -> InventoryMergeCandidate {
             InventoryMergeCandidate(
                 localItemId: local.id, name: local.name, unit: local.unit,
-                localQuantity: local.quantity, localExpiryDate: local.expiryDate,
-                remoteItemId: remote.id, remoteQuantity: remote.quantity, remoteExpiryDate: remote.expiryDate,
+                localQuantity: local.quantity, localExpiryDate: local.effectiveExpiryDate,
+                remoteItemId: remote.id, remoteQuantity: remote.quantity, remoteExpiryDate: remote.effectiveExpiryDate,
                 remoteVersion: remote.remoteVersion,
                 action: action, conflictReason: reason, userChoice: nil
             )
         }
 
-        let expiryIdentity = ExpiryIdentity.classify(local.expiryDate, remote.expiryDate)
+        // R2: both sides projected through the same owner. A staple has no
+        // expiry semantics, so `(nil, storedDate)` must not become a
+        // `保质期不同` conflict the user is asked to resolve.
+        //
+        // Removing it closes one route to a destructive upload; a staple can
+        // still reach the conflict UI through `quantityMismatch` or
+        // `metadataMismatch`, where `keepLocal` uploads a full snapshot of the
+        // local row. That second route is closed separately, and without
+        // touching the payload, by
+        // `GuestMergeController.carryingForwardOpaqueExpiry` — the wire stays
+        // lossless.
+        let expiryIdentity = ExpiryIdentity.classify(local.effectiveExpiryDate, remote.effectiveExpiryDate)
         guard expiryIdentity == .compatible else {
             // A different-id match with an incompatible expiry looks like a
             // different batch; a same-id match with an incompatible expiry
