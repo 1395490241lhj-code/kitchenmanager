@@ -38,21 +38,61 @@ protocol AIRecommendationProviding {
         excludedRecipeNames: [String],
         count: Int
     ) async throws -> [RecipeRecommendation]
+
+    /// Whatever actually served the most recent request. Lets the store tell an
+    /// explicit Apple choice apart from an offline reroute without re-deciding.
+    var lastExecutionProvider: RecommendationExecutionProvider? { get }
+}
+
+extension AIRecommendationProviding {
+    var lastExecutionProvider: RecommendationExecutionProvider? { nil }
 }
 
 struct AIRecommendationService: AIRecommendationProviding {
     private let chatService: AIChatService
     private let userDefaults: UserDefaults
     private let appleGenerator: any AppleRecipeCandidateGenerating
+    private let network: any NetworkAvailabilityProviding
+    private let appleEligibility: (AppleEligibilityRequest) -> AppleEligibility
+    private let executionRecorder = ExecutionRecorder()
 
     init(
         chatService: AIChatService = AIChatService(),
         userDefaults: UserDefaults = .standard,
-        appleGenerator: any AppleRecipeCandidateGenerating = AppleFoundationModelCandidateGenerator()
+        appleGenerator: any AppleRecipeCandidateGenerating = AppleFoundationModelCandidateGenerator(),
+        network: any NetworkAvailabilityProviding = PathMonitorNetworkAvailabilityProvider.shared,
+        appleEligibility: @escaping (AppleEligibilityRequest) -> AppleEligibility = {
+            AppleRecommendationPolicy.evaluate($0)
+        }
     ) {
         self.chatService = chatService
         self.userDefaults = userDefaults
         self.appleGenerator = appleGenerator
+        self.network = network
+        self.appleEligibility = appleEligibility
+    }
+
+    var lastExecutionProvider: RecommendationExecutionProvider? {
+        executionRecorder.value
+    }
+
+    /// Reference box so the executed provider survives the `struct`'s value
+    /// semantics without turning the whole service into a class.
+    private final class ExecutionRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: RecommendationExecutionProvider?
+
+        var value: RecommendationExecutionProvider? {
+            lock.lock()
+            defer { lock.unlock() }
+            return stored
+        }
+
+        func record(_ provider: RecommendationExecutionProvider?) {
+            lock.lock()
+            stored = provider
+            lock.unlock()
+        }
     }
 
     func generateRecommendations(
@@ -64,8 +104,29 @@ struct AIRecommendationService: AIRecommendationProviding {
         count: Int
     ) async throws -> [RecipeRecommendation] {
         let requestedCount = min(max(count, 1), 8)
+        executionRecorder.record(nil)
         let provider = AIRecommendationProvider.selected(in: userDefaults)
+        let eligibilityRequest = AppleEligibilityRequest(query: query, preferences: preferences)
+
+        // Routing decision. Only an explicitly unavailable network path may
+        // reroute a cloud choice; a cloud *failure* never does.
+        let route: RecommendationExecutionProvider
         if provider == .apple {
+            route = .appleExplicit
+        } else if network.currentAvailability.isExplicitlyOffline {
+            switch appleEligibility(eligibilityRequest) {
+            case .eligible:
+                route = .appleOfflineFallback
+            case .ineligible(let error):
+                // Offline and the device model cannot serve this request:
+                // fail fast instead of firing a doomed cloud request.
+                throw AppleRecommendationError.offlineWithoutUsableLocalModel(error.localizedDescription)
+            }
+        } else {
+            route = provider == .groq ? .groq : .gemini
+        }
+
+        if route == .appleExplicit || route == .appleOfflineFallback {
             let started = Date()
             let candidates = try await appleGenerator.generateCandidates(
                 query: query,
@@ -82,8 +143,9 @@ struct AIRecommendationService: AIRecommendationProviding {
                 excludedRecipeNames: excludedRecipeNames,
                 count: requestedCount
             )
+            executionRecorder.record(route)
             #if DEBUG
-            print("[AIRecommendationProvider] provider=apple latencyMs=\(Int(Date().timeIntervalSince(started) * 1_000)) count=\(recommendations.count)")
+            print("[AIRecommendationProvider] provider=\(route.rawValue) latencyMs=\(Int(Date().timeIntervalSince(started) * 1_000)) count=\(recommendations.count)")
             #endif
             return recommendations
         }
@@ -126,6 +188,7 @@ struct AIRecommendationService: AIRecommendationProviding {
             taskType: "recommendation",
             provider: provider.rawValue
         )
+        executionRecorder.record(route)
         #if DEBUG
         print("[AIRecommendationProvider] provider=\(provider.rawValue) latencyMs=\(Int(Date().timeIntervalSince(started) * 1_000))")
         #endif
@@ -191,6 +254,10 @@ final class HomeRecommendationStore: ObservableObject {
     @Published private(set) var isSearchingRecommendations = false
     @Published private(set) var isGeneratingRecommendations = false
     @Published private(set) var recommendationError: String?
+    /// Lightweight, non-blocking notice for the automatic offline reroute.
+    /// Cleared on every new request so it never outlives the result it describes.
+    @Published private(set) var recommendationNotice: String?
+    @Published private(set) var lastExecutionProvider: RecommendationExecutionProvider?
 
     private let aiService: any AIRecommendationProviding
     private var requestTask: Task<[RecipeRecommendation], Error>?
@@ -220,6 +287,17 @@ final class HomeRecommendationStore: ObservableObject {
         return recommendedRecipes[currentRecommendationIndex]
     }
 
+    /// Reads whatever actually served the request and turns an offline reroute
+    /// into the user-facing notice. The persisted provider setting is never
+    /// touched here — only this transient per-request state.
+    private func recordExecutionOutcome() {
+        let executed = aiService.lastExecutionProvider
+        lastExecutionProvider = executed
+        recommendationNotice = executed == .appleOfflineFallback
+            ? "离线，使用设备端 Apple Intelligence"
+            : nil
+    }
+
     func loadDefaultRecommendations(
         recipes: [Recipe],
         inventory: [String],
@@ -241,6 +319,7 @@ final class HomeRecommendationStore: ObservableObject {
             )
         )
         recommendationError = nil
+        recommendationNotice = nil
         hasLoadedRecommendationsForSession = true
     }
 
@@ -253,6 +332,7 @@ final class HomeRecommendationStore: ObservableObject {
         let query = Self.normalizedQuery(searchQuery)
         searchQuery = query
         recommendationError = nil
+        recommendationNotice = nil
 
         guard !query.isEmpty else {
             lastCompletedSearchQuery = ""
@@ -299,6 +379,7 @@ final class HomeRecommendationStore: ObservableObject {
             guard activeRequestID == requestID, !Task.isCancelled else { return }
             let merged = deduplicated(local + ai, limit: 8)
             apply(merged)
+            recordExecutionOutcome()
             lastCompletedSearchQuery = query
             hasLoadedRecommendationsForSession = true
         } catch is CancellationError {
@@ -328,6 +409,7 @@ final class HomeRecommendationStore: ObservableObject {
         activeRequestID = requestID
         isGeneratingRecommendations = true
         recommendationError = nil
+        recommendationNotice = nil
         let previous = recommendedRecipes
         let excluded = previous.map { $0.recipe.title }
         let query = Self.normalizedQuery(searchQuery)
@@ -352,6 +434,7 @@ final class HomeRecommendationStore: ObservableObject {
                 recommendationError = "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
             } else {
                 apply(ai)
+                recordExecutionOutcome()
                 hasLoadedRecommendationsForSession = true
             }
         } catch is CancellationError {
@@ -375,6 +458,7 @@ final class HomeRecommendationStore: ObservableObject {
         searchQuery = ""
         lastCompletedSearchQuery = ""
         recommendationError = nil
+        recommendationNotice = nil
         apply(
             localRecommendations(
                 recipes: recipes,

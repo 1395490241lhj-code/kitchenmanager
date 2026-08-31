@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModels
+import Network
 import SwiftUI
 
 enum AIRecommendationProvider: String, CaseIterable, Identifiable {
@@ -70,6 +71,64 @@ struct AppleRecipeCandidate: Equatable {
     let requiredIngredients: [String]
 }
 
+/// Which model actually served a recommendation request. `appleExplicit` and
+/// `appleOfflineFallback` both run the on-device model, but only the first one
+/// reflects a user choice — the UI and tests must be able to tell them apart.
+enum RecommendationExecutionProvider: String, Equatable {
+    case gemini
+    case groq
+    case appleExplicit
+    case appleOfflineFallback
+}
+
+/// The network path state, not backend reachability. `.unavailable` is the only
+/// value that may reroute a request; `.unknown` deliberately behaves like
+/// `.available` so a monitoring gap never silently downgrades the user's choice.
+enum NetworkAvailability: Equatable {
+    case available
+    case unavailable
+    case unknown
+
+    var isExplicitlyOffline: Bool { self == .unavailable }
+}
+
+protocol NetworkAvailabilityProviding: Sendable {
+    var currentAvailability: NetworkAvailability { get }
+}
+
+/// Production connectivity source. Reports only whether a network path exists;
+/// it never claims the AI backend is reachable.
+final class PathMonitorNetworkAvailabilityProvider: NetworkAvailabilityProviding, @unchecked Sendable {
+    static let shared = PathMonitorNetworkAvailabilityProvider()
+
+    private let monitor = NWPathMonitor()
+    private let lock = NSLock()
+    private var latest: NetworkAvailability = .unknown
+
+    init(startImmediately: Bool = true) {
+        monitor.pathUpdateHandler = { [weak self] path in
+            self?.store(path.status == .satisfied ? .available : .unavailable)
+        }
+        if startImmediately {
+            monitor.start(queue: DispatchQueue(label: "com.kitchenmanager.network-availability"))
+        }
+    }
+
+    deinit { monitor.cancel() }
+
+    var currentAvailability: NetworkAvailability {
+        lock.lock()
+        defer { lock.unlock() }
+        return latest
+    }
+
+    private func store(_ value: NetworkAvailability) {
+        lock.lock()
+        latest = value
+        lock.unlock()
+    }
+}
+
 protocol AppleRecipeCandidateGenerating {
     func generateCandidates(
         query: String,
@@ -81,10 +140,60 @@ protocol AppleRecipeCandidateGenerating {
     ) async throws -> [AppleRecipeCandidate]
 }
 
+/// Every free-text field of a recommendation request that could carry a dietary
+/// restriction. The repo has no structured allergy/restriction model, so the
+/// policy inspects all of the text the user can actually influence rather than
+/// only the search query.
+struct AppleEligibilityRequest {
+    let query: String
+    let preferences: [String]
+
+    var restrictionBearingText: [String] { [query] + preferences }
+}
+
+enum AppleEligibility {
+    case eligible
+    case ineligible(AppleRecommendationError)
+}
+
+/// Single source of truth for "may the on-device model serve this request?".
+/// Both the explicit Apple selection and the offline fallback route go through
+/// this; neither is allowed to re-derive its own restriction check.
+enum AppleRecommendationPolicy {
+    /// ponytail: free-text keyword screen, the only restriction signal the repo
+    /// has. Replace with the structured field if a dietary model ever lands.
+    static let strictRestrictionKeywords = [
+        "过敏", "忌口", "禁忌", "不得", "不能吃", "不吃", "纯素", "无麸质", "allerg", "gluten-free"
+    ]
+
+    static func evaluate(
+        _ request: AppleEligibilityRequest,
+        modelAvailability: @autoclosure () -> AppleEligibility = modelAvailabilityStatus()
+    ) -> AppleEligibility {
+        if containsStrictRestriction(request) {
+            return .ineligible(.strictRestrictionUnsupported)
+        }
+        return modelAvailability()
+    }
+
+    static func modelAvailabilityStatus() -> AppleEligibility {
+        AppleFoundationModelCandidateGenerator.isAvailable
+            ? .eligible
+            : .ineligible(.unavailable(AppleFoundationModelCandidateGenerator.availabilityText))
+    }
+
+    static func containsStrictRestriction(_ request: AppleEligibilityRequest) -> Bool {
+        request.restrictionBearingText.contains { text in
+            strictRestrictionKeywords.contains { text.localizedCaseInsensitiveContains($0) }
+        }
+    }
+}
+
 enum AppleRecommendationError: LocalizedError {
     case unavailable(String)
     case strictRestrictionUnsupported
     case invalidResponse
+    case offlineWithoutUsableLocalModel(String)
 
     var errorDescription: String? {
         switch self {
@@ -94,6 +203,8 @@ enum AppleRecommendationError: LocalizedError {
             "设备端推荐不能可靠执行过敏或严格忌口，请改用 Gemini 或 Groq。"
         case .invalidResponse:
             "设备端模型没有返回可用的菜谱候选。"
+        case .offlineWithoutUsableLocalModel(let detail):
+            "当前离线，设备端模型也无法用于这次推荐：\(detail)"
         }
     }
 }
@@ -148,13 +259,18 @@ struct AppleFoundationModelCandidateGenerator: AppleRecipeCandidateGenerating {
         guard #available(iOS 26.0, *) else {
             throw AppleRecommendationError.unavailable(Self.availabilityText)
         }
-        guard !Self.containsStrictRestriction(query) else {
-            throw AppleRecommendationError.strictRestrictionUnsupported
-        }
-
         let model = SystemLanguageModel.default
-        guard model.isAvailable else {
-            throw AppleRecommendationError.unavailable(Self.availabilityText)
+        let request = AppleEligibilityRequest(query: query, preferences: preferences)
+        switch AppleRecommendationPolicy.evaluate(
+            request,
+            modelAvailability: model.isAvailable
+                ? .eligible
+                : .ineligible(.unavailable(Self.availabilityText))
+        ) {
+        case .eligible:
+            break
+        case .ineligible(let error):
+            throw error
         }
 
         let requestedCount = min(max(count, 1), 8)
@@ -179,11 +295,6 @@ struct AppleFoundationModelCandidateGenerator: AppleRecipeCandidateGenerating {
         }
         guard !candidates.isEmpty else { throw AppleRecommendationError.invalidResponse }
         return candidates
-    }
-
-    private static func containsStrictRestriction(_ query: String) -> Bool {
-        ["过敏", "忌口", "不得", "不能吃", "不吃", "纯素", "无麸质", "allerg", "gluten-free"]
-            .contains { query.localizedCaseInsensitiveContains($0) }
     }
 }
 

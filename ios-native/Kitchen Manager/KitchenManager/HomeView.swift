@@ -585,6 +585,7 @@ struct HomeView: View {
                     isLoading: recipeStore.isLoading && recommendationStore.recommendedRecipes.isEmpty,
                     isGenerating: recommendationStore.isGeneratingRecommendations,
                     errorMessage: recommendationStore.recommendationError,
+                    noticeMessage: recommendationStore.recommendationNotice,
                     isDisplayingSamples: recipeStore.isDisplayingSamples,
                     isAddedToToday: recommendation.map { candidate in
                         kitchenStore.todayPlans.contains { $0.recipeID == candidate.recipe.id }
@@ -1103,6 +1104,7 @@ private struct HomeRecommendationSection: View {
     let isLoading: Bool
     let isGenerating: Bool
     let errorMessage: String?
+    let noticeMessage: String?
     let isDisplayingSamples: Bool
     let isAddedToToday: Bool
     let inventoryNames: [String]
@@ -1144,6 +1146,13 @@ private struct HomeRecommendationSection: View {
                     .font(.caption)
                     .foregroundStyle(AppTheme.warningInk)
                     .accessibilityIdentifier("home.recommendation.error")
+            }
+
+            if let noticeMessage {
+                Label(noticeMessage, systemImage: "bolt.horizontal.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("home.recommendation.notice")
             }
 
             // The refresh and browse affordances live below the card rather than
@@ -2170,6 +2179,13 @@ struct RecipeRecommendationBrowserView: View {
                     Label(error, systemImage: "exclamationmark.circle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                if let notice = recommendationStore.recommendationNotice {
+                    Label(notice, systemImage: "bolt.horizontal.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("recommendation.notice")
                 }
             }
             .padding(.horizontal, 20)
