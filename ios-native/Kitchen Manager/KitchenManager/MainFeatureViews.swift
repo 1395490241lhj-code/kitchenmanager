@@ -1654,6 +1654,8 @@ struct SettingsView: View {
             }
 
             Section("AI") {
+                AIRecommendationProviderSettingsRow()
+
                 NavigationLink {
                     AIServiceDiagnosticsView(authStore: authStore)
                 } label: {
@@ -1692,13 +1694,6 @@ struct SettingsView: View {
             }
 
             #if DEBUG
-            Section("Apple Foundation Models Spike") {
-                NavigationLink("在设备上运行") {
-                    OnDeviceFoundationModelsSpikeView()
-                }
-                .accessibilityIdentifier("settings.foundationModelsSpike.link")
-            }
-
             if syncSmokeController.isAvailable {
                 Section("开发者") {
                     Text("当前使用内置 AI 与 Render 后端；技术配置不在正式版本显示。")

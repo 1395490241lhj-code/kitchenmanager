@@ -15,6 +15,7 @@ final class AIChatServiceTests: XCTestCase {
         let prompt: String
         let taskType: String
         let imageBase64: String?
+        let provider: String?
     }
 
     func test_request_hitsAIChatEndpoint_withPromptTaskTypeAndImage() async throws {
@@ -33,6 +34,24 @@ final class AIChatServiceTests: XCTestCase {
         XCTAssertEqual(body.prompt, "帮我推荐一道菜")
         XCTAssertEqual(body.taskType, "recommend")
         XCTAssertEqual(body.imageBase64, "BASE64DATA")
+        XCTAssertNil(body.provider)
+    }
+
+    func test_request_sendsExplicitCloudProviderWithoutChangingResponseHandling() async throws {
+        MockURLProtocol.install { _ in .init(statusCode: 200, data: Data(#"{"content":"结果"}"#.utf8)) }
+        let service = makeService()
+
+        for provider in ["gemini", "groq"] {
+            let content = try await service.request(
+                prompt: "推荐一道菜",
+                taskType: "recommendation",
+                provider: provider
+            )
+            let request = try XCTUnwrap(MockURLProtocol.capturedRequests().last)
+            let body = try JSONDecoder().decode(CapturedBody.self, from: try XCTUnwrap(request.httpBody))
+            XCTAssertEqual(body.provider, provider)
+            XCTAssertEqual(content, "结果")
+        }
     }
 
     func test_request_callerSuppliedTimeout_isUsedOnTheRequest() async throws {

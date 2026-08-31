@@ -41,7 +41,19 @@ protocol AIRecommendationProviding {
 }
 
 struct AIRecommendationService: AIRecommendationProviding {
-    private let chatService = AIChatService()
+    private let chatService: AIChatService
+    private let userDefaults: UserDefaults
+    private let appleGenerator: any AppleRecipeCandidateGenerating
+
+    init(
+        chatService: AIChatService = AIChatService(),
+        userDefaults: UserDefaults = .standard,
+        appleGenerator: any AppleRecipeCandidateGenerating = AppleFoundationModelCandidateGenerator()
+    ) {
+        self.chatService = chatService
+        self.userDefaults = userDefaults
+        self.appleGenerator = appleGenerator
+    }
 
     func generateRecommendations(
         query: String,
@@ -52,6 +64,30 @@ struct AIRecommendationService: AIRecommendationProviding {
         count: Int
     ) async throws -> [RecipeRecommendation] {
         let requestedCount = min(max(count, 1), 8)
+        let provider = AIRecommendationProvider.selected(in: userDefaults)
+        if provider == .apple {
+            let started = Date()
+            let candidates = try await appleGenerator.generateCandidates(
+                query: query,
+                inventory: inventory,
+                expiringIngredients: expiringIngredients,
+                preferences: preferences,
+                excludedRecipeNames: excludedRecipeNames,
+                count: requestedCount
+            )
+            let recommendations = AppleRecommendationBuilder.makeRecommendations(
+                candidates: candidates,
+                inventory: inventory,
+                expiringIngredients: expiringIngredients,
+                excludedRecipeNames: excludedRecipeNames,
+                count: requestedCount
+            )
+            #if DEBUG
+            print("[AIRecommendationProvider] provider=apple latencyMs=\(Int(Date().timeIntervalSince(started) * 1_000)) count=\(recommendations.count)")
+            #endif
+            return recommendations
+        }
+
         let prompt = """
         你是 Kitchen Manager 的家庭菜谱推荐助手。请推荐 \(requestedCount) 道真实、合理、适合家庭烹饪的菜。
 
@@ -84,10 +120,15 @@ struct AIRecommendationService: AIRecommendationProviding {
         }
         """
 
+        let started = Date()
         let cleaned = try await chatService.request(
             prompt: prompt,
-            taskType: "recommendation"
+            taskType: "recommendation",
+            provider: provider.rawValue
         )
+        #if DEBUG
+        print("[AIRecommendationProvider] provider=\(provider.rawValue) latencyMs=\(Int(Date().timeIntervalSince(started) * 1_000))")
+        #endif
         guard let contentData = cleaned.data(using: .utf8) else {
             throw AIRecommendationServiceError.invalidResponse
         }
@@ -271,7 +312,7 @@ final class HomeRecommendationStore: ObservableObject {
                 recommendedRecipes = previous
                 repairIndex()
             }
-            recommendationError = "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
+            recommendationError = recommendationErrorMessage(for: error)
         }
         finishSearch(requestID)
     }
@@ -319,7 +360,7 @@ final class HomeRecommendationStore: ObservableObject {
             guard activeRequestID == requestID else { return }
             recommendedRecipes = previous
             repairIndex()
-            recommendationError = "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
+            recommendationError = recommendationErrorMessage(for: error)
         }
         finishGeneration(requestID)
     }
@@ -493,6 +534,13 @@ final class HomeRecommendationStore: ObservableObject {
     private func preferenceKeywords(in query: String) -> [String] {
         ["清淡", "川菜", "下饭菜", "酸辣", "简单", "快手", "30分钟以内", "两个人"]
             .filter { query.contains($0) }
+    }
+
+    private func recommendationErrorMessage(for error: Error) -> String {
+        if let appleError = error as? AppleRecommendationError {
+            return appleError.localizedDescription
+        }
+        return "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
     }
 
     private func deduplicated(

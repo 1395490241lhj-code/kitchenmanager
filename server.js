@@ -1242,7 +1242,11 @@ app.post('/api/ai-chat', async (req, res) => {
   const prompt = String(body.prompt || '').trim();
   const imageBase64 = body.imageBase64 ? String(body.imageBase64) : '';
   const taskType = String(body.taskType || 'general').trim().slice(0, 40) || 'general';
-  const chatConfig = resolveAiProviderConfig(imageBase64 ? 'groq' : AI_CHAT_PROVIDER, {
+  const requestedProvider = String(body.provider || '').trim().toLowerCase();
+  const recommendationProvider = taskType === 'recommendation' && ['gemini', 'groq'].includes(requestedProvider)
+    ? requestedProvider
+    : AI_CHAT_PROVIDER;
+  const chatConfig = resolveAiProviderConfig(imageBase64 ? 'groq' : recommendationProvider, {
     model: imageBase64 ? OPENAI_VISION_MODEL : undefined
   });
 

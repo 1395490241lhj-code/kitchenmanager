@@ -360,6 +360,34 @@ test('/api/ai-chat 文本可切 Gemini，图片仍强制走 Groq vision SDK', as
   assert.equal(imageServer.openAiRequests[0].requestOptions.timeout, 45000);
 });
 
+test('/api/ai-chat 只允许 recommendation 显式选择 Gemini 或 Groq', async () => {
+  const groqServer = loadServerWithMocks({
+    env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  const groqRes = await runPost(groqServer.app, '/api/ai-chat', {
+    prompt: '推荐一道菜',
+    taskType: 'recommendation',
+    provider: 'groq'
+  });
+
+  assert.equal(groqRes.statusCode, 200);
+  assert.equal(groqServer.openAiClientOptions[0].baseURL, 'https://api.groq.com/openai/v1');
+  assert.equal(groqServer.openAiRequests[0].payload.model, 'openai/gpt-oss-120b');
+
+  const unchangedServer = loadServerWithMocks({
+    env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  const unchangedRes = await runPost(unchangedServer.app, '/api/ai-chat', {
+    prompt: '小票解析',
+    taskType: 'receipt',
+    provider: 'groq'
+  });
+
+  assert.equal(unchangedRes.statusCode, 200);
+  assert.equal(unchangedServer.openAiClientOptions[0].apiKey, 'gemini-secret');
+  assert.equal(unchangedServer.openAiRequests[0].payload.model, 'gemini-3.6-flash');
+});
+
 function createRecipeProviderResponse(payload) {
   const content = /菜谱证据抽取器/.test(payload.messages?.[0]?.content || '')
     ? JSON.stringify({

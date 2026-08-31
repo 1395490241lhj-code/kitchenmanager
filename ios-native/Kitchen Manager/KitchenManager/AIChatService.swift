@@ -19,11 +19,16 @@ struct AIChatService {
         prompt: String,
         taskType: String,
         imageBase64: String? = nil,
-        timeout: TimeInterval = 50
+        timeout: TimeInterval = 50,
+        provider: String? = nil
     ) async throws -> String {
         do {
             return try await requestDetailed(
-                prompt: prompt, taskType: taskType, imageBase64: imageBase64, timeout: timeout
+                prompt: prompt,
+                taskType: taskType,
+                imageBase64: imageBase64,
+                timeout: timeout,
+                provider: provider
             ).content
         } catch let error as AIChatServiceError {
             if case .emptyResponse = error { throw AIChatServiceError.invalidResponse }
@@ -39,7 +44,8 @@ struct AIChatService {
         prompt: String,
         taskType: String,
         imageBase64: String? = nil,
-        timeout: TimeInterval = 50
+        timeout: TimeInterval = 50,
+        provider: String? = nil
     ) async throws -> DetailedResult {
         let endpoint: APIEndpoint
         do {
@@ -48,7 +54,8 @@ struct AIChatService {
                 body: AIChatRequest(
                     prompt: prompt,
                     taskType: taskType,
-                    imageBase64: imageBase64
+                    imageBase64: imageBase64,
+                    provider: provider
                 ),
                 timeout: timeout
             )
@@ -92,6 +99,7 @@ private struct AIChatRequest: Encodable {
     let prompt: String
     let taskType: String
     let imageBase64: String?
+    let provider: String?
 }
 
 private struct AIChatResponse: Decodable {

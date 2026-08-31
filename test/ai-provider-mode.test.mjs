@@ -1171,7 +1171,9 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   assert.match(aiClient, /code,/);
   assert.match(server, /request_too_large/);
   assert.match(server, /bad_json/);
-  assert.match(aiChatRoute, /resolveAiProviderConfig\(imageBase64 \? 'groq' : AI_CHAT_PROVIDER/);
+  // 图片路径仍强制 groq vision；文本路径只接受 recommendation 的显式云端 provider，其余仍回落默认配置。
+  assert.match(aiChatRoute, /resolveAiProviderConfig\(imageBase64 \? 'groq' : recommendationProvider/);
+  assert.match(aiChatRoute, /taskType === 'recommendation' && \['gemini', 'groq'\]\.includes\(requestedProvider\)\s*\n\s*\? requestedProvider\s*\n\s*: AI_CHAT_PROVIDER/);
   assert.match(aiChatRoute, /postChatCompletion\(\{/);
   assert.match(aiChatRoute, /estimateBase64EncodedBytes\(imageBase64\)/);
   assert.match(aiChatRoute, /sendAiUpstreamError\(res, err\)/);
