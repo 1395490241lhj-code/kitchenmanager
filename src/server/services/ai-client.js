@@ -121,6 +121,13 @@ function redactSecret(value) {
 
 function sendAiJsonError(res, status, code, error, extra = {}) {
   const safeStatus = Number.isInteger(status) && status >= 400 && status < 600 ? status : 502;
+  // 标准 HTTP 语义优先：只要调用方给出了 retryAfterSeconds，就同时发出 Retry-After
+  // 响应头，客户端不必依赖我们的私有字段。值只反映本桶的窗口剩余时间，不含其他
+  // 用户或桶的任何信息。
+  const retryAfterSeconds = extra.retryAfterSeconds;
+  if (Number.isInteger(retryAfterSeconds) && retryAfterSeconds > 0) {
+    res.set('Retry-After', String(retryAfterSeconds));
+  }
   return res.status(safeStatus).json({
     error,
     status: safeStatus,

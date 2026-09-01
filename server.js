@@ -86,6 +86,7 @@ const {
 const {
   isAuthMeRateLimited,
   isAiRateLimited,
+  aiRateLimitRetryAfterSeconds,
   isImportRateLimited
 } = require('./src/server/services/rate-limit');
 const {
@@ -1244,7 +1245,11 @@ function aiTimeoutSource(info) {
 }
 
 app.post('/api/ai-chat', async (req, res) => {
-  if (isAiRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。');
+  if (isAiRateLimited(req)) {
+    return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。', {
+      retryAfterSeconds: aiRateLimitRetryAfterSeconds(req)
+    });
+  }
 
   const body = req.body || {};
   const prompt = String(body.prompt || '').trim();
@@ -1796,7 +1801,11 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
 
 // AI 解析路由：文本与最终草稿使用 import provider；图片 evidence 固定使用 Groq vision。
 app.post('/api/ai-parse', async (req, res) => {
-  if (isAiRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。');
+  if (isAiRateLimited(req)) {
+    return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。', {
+      retryAfterSeconds: aiRateLimitRetryAfterSeconds(req)
+    });
+  }
   const text = String((req.body && req.body.text) || '').trim();
   const imageBase64 = (req.body && req.body.imageBase64) || null;
   const sourceMetadata = req.body && req.body.sourceMetadata && typeof req.body.sourceMetadata === 'object'

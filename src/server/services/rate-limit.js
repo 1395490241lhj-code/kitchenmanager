@@ -51,6 +51,21 @@ function isBucketRateLimited(req, buckets, max) {
   return bucket.count > max;
 }
 
+// 固定窗口：桶在 bucket.start + AI_RATE_LIMIT_WINDOW_MS 整体重置，所以「还要等多久」
+// 就是当前窗口的剩余时间。只读，不推进计数——必须在 isBucketRateLimited 之后调用。
+// 没有桶时返回整个窗口长度（保守），秒数至少为 1，避免客户端拿到 0 立刻重试。
+function bucketRetryAfterSeconds(req, buckets, now = Date.now()) {
+  const bucket = buckets.get(getClientIp(req));
+  const elapsed = bucket ? now - bucket.start : 0;
+  const remainingMs = Math.max(0, AI_RATE_LIMIT_WINDOW_MS - elapsed);
+  return Math.max(1, Math.ceil(remainingMs / 1000));
+}
+
+// AI 桶的剩余窗口秒数，用于 429 的标准 Retry-After。
+function aiRateLimitRetryAfterSeconds(req, now = Date.now()) {
+  return bucketRetryAfterSeconds(req, aiRateLimitBuckets, now);
+}
+
 // 共享 AI 桶：所有会打到上游模型/转录或产生外网抓取的普通接口。
 function isAiRateLimited(req) {
   return isBucketRateLimited(req, aiRateLimitBuckets, AI_RATE_LIMIT_MAX);
@@ -74,8 +89,10 @@ function isAuthMeRateLimited(req) {
 
 module.exports = {
   aiRateLimitBuckets,
+  aiRateLimitRetryAfterSeconds,
   authMeRateLimitBuckets,
   aiRateLimitLastSweepAt,
+  bucketRetryAfterSeconds,
   getClientIp,
   importRateLimitBuckets,
   isAiRateLimited,
