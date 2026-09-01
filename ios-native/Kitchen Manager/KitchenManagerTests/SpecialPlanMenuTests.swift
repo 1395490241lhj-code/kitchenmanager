@@ -83,6 +83,25 @@ final class SpecialPlanMenuTests: XCTestCase {
         ["name": name, "ingredients": ingredients, "steps": steps, "source": "ai", "reason": "适合聚餐"]
     }
 
+    private func draftDish(
+        _ title: String = "清蒸鱼",
+        ingredients: [String] = ["鱼 1 条"],
+        seasonings: [String] = [],
+        steps: [String] = ["蒸熟"]
+    ) -> SpecialPlanMenuDraftDish {
+        SpecialPlanMenuDraftDish(
+            title: title,
+            ingredients: ingredients,
+            seasonings: seasonings,
+            steps: steps,
+            tags: [],
+            cookingTime: nil,
+            difficulty: nil,
+            reason: nil,
+            existingRecipeID: nil
+        )
+    }
+
     private func makeBundle() throws -> KitchenPersistenceBundle {
         try KitchenPersistenceFactory.bundle(
             container: KitchenPersistenceFactory.makeContainer(
@@ -137,6 +156,94 @@ final class SpecialPlanMenuTests: XCTestCase {
     }
 
     // MARK: - Generation
+
+    func testStrictNoSpicyConstraintRecognitionIsNarrow() {
+        for note in [
+            "1 人不吃辣", "有人不能吃辣", "不要辣", "完全不辣",
+            "no spicy food", "not spicy", "can't eat spicy", "can’t eat spicy",
+            "does not eat spicy", "no chili"
+        ] {
+            XCTAssertTrue(
+                SpecialPlanConstraintPolicy(constraintNotes: [note]).requiresNonSpicyFood,
+                "expected strict policy for: \(note)"
+            )
+        }
+
+        for note in ["少辣", "微辣可以", "不要太辣", "prefers mild", "多放蔬菜"] {
+            XCTAssertFalse(
+                SpecialPlanConstraintPolicy(constraintNotes: [note]).requiresNonSpicyFood,
+                "soft or unrelated preference must stay non-strict: \(note)"
+            )
+        }
+    }
+
+    func testNoSpicyValidatorRejectsHighConfidenceMarkers() {
+        let policy = SpecialPlanConstraintPolicy(constraintNotes: ["1 人不吃辣"])
+        let violatingDishes = [
+            draftDish("宫保鸡丁（微辣）"),
+            draftDish("麻辣香锅"),
+            draftDish(ingredients: ["干辣椒 5 个"]),
+            draftDish(seasonings: ["辣椒油 1 勺"]),
+            draftDish(ingredients: ["chili oil 1 tbsp"]),
+            draftDish(seasonings: ["hot sauce to taste"]),
+            draftDish(steps: ["拌入 sriracha 后上桌"])
+        ]
+
+        for dish in violatingDishes {
+            XCTAssertFalse(policy.allows(dish), "must reject: \(dish)")
+        }
+    }
+
+    func testNoSpicyValidatorAllowsPepperFalsePositiveCasesAndOrdinaryDish() {
+        let policy = SpecialPlanConstraintPolicy(constraintNotes: ["有人不吃辣"])
+        for dish in [
+            draftDish(ingredients: ["甜椒 1 个"]),
+            draftDish(ingredients: ["彩椒 2 个"]),
+            draftDish(ingredients: ["bell pepper 1"]),
+            draftDish("清蒸鲈鱼", ingredients: ["鲈鱼 1 条", "姜 3 片"])
+        ] {
+            XCTAssertTrue(policy.allows(dish), "must allow: \(dish)")
+        }
+    }
+
+    func testConstraintAbsentLeavesCurrentGenerationBehaviorUnchanged() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        var plan = samplePlan()
+        plan.constraintNotes = []
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([aiDish("麻辣香锅"), aiDish("清蒸鱼")]))
+        ])
+        let draft = makeDraftStore(responder)
+
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        XCTAssertEqual(draft.dishes.map(\.title), ["麻辣香锅", "清蒸鱼"])
+        XCTAssertNil(draft.errorMessage)
+    }
+
+    func testOneViolatingDishRejectsWholeGenerationWithoutCanonicalWrites() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([
+                aiDish("清蒸鱼"),
+                aiDish("凉拌黄瓜"),
+                aiDish("干煸牛肉", ingredients: ["牛肉 300 克", "干辣椒 5 个"])
+            ]))
+        ])
+        let draft = makeDraftStore(responder)
+
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        XCTAssertTrue(draft.dishes.isEmpty, "a violating response must not become a usable draft")
+        XCTAssertEqual(draft.errorMessage, SpecialPlanMenuGeneratorError.hardConstraintViolation.errorDescription)
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, "rejection must create no recipe")
+        XCTAssertEqual(kitchenStore.specialPlans.first?.dishes, [], "rejection must not mutate the plan")
+    }
 
     func testSuccessfulGenerationOnlyProducesATransientDraft() async throws {
         let kitchenStore = try makeKitchenStore()
@@ -296,6 +403,8 @@ final class SpecialPlanMenuTests: XCTestCase {
         XCTAssertTrue(brief.contains("7 人"), "brief must carry the headcount, got: \(brief)")
         XCTAssertTrue(brief.contains("1 人不吃辣"), "brief must carry constraints, got: \(brief)")
         XCTAssertTrue(brief.contains("朋友聚餐"))
+        XCTAssertTrue(brief.contains("所有共享菜都必须完全不辣"))
+        XCTAssertTrue(brief.contains("不要生成需要用户自行去辣"))
         XCTAssertTrue(
             brief.contains("禁止按人数推算"),
             "the brief must not ask for scaled quantities"
@@ -355,6 +464,34 @@ final class SpecialPlanMenuTests: XCTestCase {
         XCTAssertTrue(replacement.excludedRecipeNames.contains("蒜蓉虾"))
         XCTAssertTrue(replacement.additionalRequest?.contains("不要生成整桌套餐") == true)
         XCTAssertTrue(replacement.additionalRequest?.contains("盆菜") == true)
+        XCTAssertTrue(replacement.additionalRequest?.contains("所有共享菜都必须完全不辣") == true)
+    }
+
+    func testViolatingReplacementPreservesEveryExistingDish() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([aiDish("红烧牛腩"), aiDish("蒜蓉虾"), aiDish("凉拌黄瓜")])),
+            .success(try response([aiDish("香辣鸡丁")]))
+        ])
+        let draft = makeDraftStore(responder)
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        let before = draft.dishes
+
+        await draft.replaceDish(
+            id: before[1].id,
+            for: plan,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        )
+
+        XCTAssertEqual(draft.dishes, before, "a violating replacement must never enter the draft")
+        XCTAssertEqual(draft.errorMessage, SpecialPlanMenuGeneratorError.hardConstraintViolation.errorDescription)
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty)
+        XCTAssertEqual(kitchenStore.specialPlans.first?.dishes, [])
     }
 
     func testFailedReplacementPreservesTheOriginalDish() async throws {

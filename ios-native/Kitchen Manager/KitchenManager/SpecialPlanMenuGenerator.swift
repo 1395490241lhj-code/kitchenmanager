@@ -33,6 +33,7 @@ enum SpecialPlanMenuGeneratorError: LocalizedError, Equatable {
     case invalidResponse
     case emptyMenu
     case tooFewDishes
+    case hardConstraintViolation
 
     var errorDescription: String? {
         switch self {
@@ -42,7 +43,52 @@ enum SpecialPlanMenuGeneratorError: LocalizedError, Equatable {
             return "这次没有生成可用的菜品，请重试。"
         case .tooFewDishes:
             return "这次生成的菜品太少，请重试。"
+        case .hardConstraintViolation:
+            return "这次生成的菜单没有完全满足“不吃辣”的要求，请重新生成。"
         }
+    }
+}
+
+/// A deliberately narrow policy derived from the user's canonical free-text
+/// constraints. It is not a general dietary or allergen model.
+struct SpecialPlanConstraintPolicy: Equatable {
+    let requiresNonSpicyFood: Bool
+
+    init(constraintNotes: [String]) {
+        requiresNonSpicyFood = constraintNotes.contains { note in
+            let normalized = Self.normalized(note)
+            let compact = normalized.filter { !$0.isWhitespace }
+            return ["不吃辣", "不能吃辣", "不要辣", "完全不辣"].contains { compact.contains($0) }
+                || [
+                    "no spicy food", "not spicy", "can't eat spicy", "cannot eat spicy",
+                    "does not eat spicy", "doesn't eat spicy", "no chili", "no chilli"
+                ].contains { normalized.contains($0) }
+        }
+    }
+
+    func allows(_ dish: SpecialPlanMenuDraftDish) -> Bool {
+        guard requiresNonSpicyFood else { return true }
+        if dish.title.contains("辣") { return false }
+
+        let searchable = [dish.title] + dish.ingredients + dish.seasonings + dish.steps
+        return !searchable.contains { value in
+            let normalized = Self.normalized(value)
+            return Self.spicyMarkers.contains { normalized.contains($0) }
+        }
+    }
+
+    private static let spicyMarkers = [
+        "辣椒", "小米辣", "辣椒油", "红油", "辣豆瓣酱", "老干妈", "麻辣", "香辣", "酸辣", "辣子",
+        "chili", "chilli", "hot sauce", "sriracha", "gochujang", "jalapeño", "jalapeno", "cayenne",
+        "red pepper flakes"
+    ]
+
+    private static func normalized(_ value: String) -> String {
+        value
+            .lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .split(whereSeparator: \Character.isWhitespace)
+            .joined(separator: " ")
     }
 }
 
@@ -94,6 +140,7 @@ struct SpecialPlanMenuGenerator {
         guard dishes.count >= SpecialPlanMenuBounds.minimumDishes else {
             throw SpecialPlanMenuGeneratorError.tooFewDishes
         }
+        try Self.validateHardConstraints(dishes, for: plan)
         return Array(dishes.prefix(SpecialPlanMenuBounds.maximumDishes))
     }
 
@@ -119,6 +166,7 @@ struct SpecialPlanMenuGenerator {
         guard let dish = Self.dishes(from: response, existingRecipes: existingRecipes).first else {
             throw SpecialPlanMenuGeneratorError.emptyMenu
         }
+        try Self.validateHardConstraints([dish], for: plan)
         return dish
     }
 
@@ -188,6 +236,9 @@ struct SpecialPlanMenuGenerator {
         parts.append("开饭时间：\(SpecialPlan.timeText(plan.scheduledAt))。")
         if !plan.constraintNotes.isEmpty {
             parts.append("必须遵守的忌口或要求：\(plan.constraintNotes.joined(separator: "；"))。")
+        }
+        if SpecialPlanConstraintPolicy(constraintNotes: plan.constraintNotes).requiresNonSpicyFood {
+            parts.append("硬性约束：所有共享菜都必须完全不辣。不得生成辣、微辣、麻辣等辣味菜，不得把辣椒、辣椒油、辣酱或可选辣椒作为核心调味，也不要生成需要用户自行去辣才能满足约束的菜谱。")
         }
         if !plan.notes.isEmpty {
             parts.append("补充说明：\(plan.notes)。")
@@ -272,5 +323,15 @@ struct SpecialPlanMenuGenerator {
 
     static func normalizedName(_ value: String) -> String {
         value.lowercased().filter { !$0.isWhitespace && !$0.isPunctuation }
+    }
+
+    private static func validateHardConstraints(
+        _ dishes: [SpecialPlanMenuDraftDish],
+        for plan: SpecialPlan
+    ) throws {
+        let policy = SpecialPlanConstraintPolicy(constraintNotes: plan.constraintNotes)
+        guard dishes.allSatisfy(policy.allows) else {
+            throw SpecialPlanMenuGeneratorError.hardConstraintViolation
+        }
     }
 }
