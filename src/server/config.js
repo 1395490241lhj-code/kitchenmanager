@@ -65,6 +65,11 @@ const IMPORT_RATE_LIMIT_MAX = 10;
 const AUTH_ME_RATE_LIMIT_MAX = 60;
 const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
 
+// 跨实例共享限流用的 Redis/Valkey 兼容连接串（Render Key Value 的 internal
+// URL）。未配置时保持进程内计数，即当前行为——所以这段配置可以先于资源上线，
+// 不会改变任何现有部署的行为。这里只读环境变量，绝不打印它的值。
+const RATE_LIMIT_REDIS_URL = String(process.env.RATE_LIMIT_REDIS_URL || '').trim();
+
 // Account deletion is rare and destructive — a much tighter bucket than
 // /api/me, keyed the same way (userId:IP). A provider-native password
 // reauthentication is converted into a short-lived, server-side, single-use
@@ -285,6 +290,7 @@ module.exports = {
   ACCOUNT_DELETION_RATE_LIMIT_MAX,
   ACCOUNT_DELETION_REAUTH_TTL_MS,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
+  RATE_LIMIT_REDIS_URL,
   SYNC_READ_RATE_LIMIT_WINDOW_MS,
   SYNC_READ_RATE_LIMIT_MAX,
   SYNC_MUTATION_RATE_LIMIT_WINDOW_MS,

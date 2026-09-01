@@ -41,6 +41,7 @@ const {
   AI_RATE_LIMIT_MAX,
   IMPORT_RATE_LIMIT_MAX,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
+  RATE_LIMIT_REDIS_URL,
   SUPABASE_AUTH_CONFIG_ERRORS,
   describeSupabaseAuthConfig,
   TRUST_PROXY_HOPS,
@@ -86,12 +87,15 @@ const {
 const {
   isAuthMeRateLimited,
   isAiRateLimited,
-  aiRateLimitRetryAfterSeconds,
+  checkAiRateLimit,
+  hasSharedAiRateLimitStore,
+  setSharedAiRateLimitStore,
   isImportRateLimited
 } = require('./src/server/services/rate-limit');
 const {
   SSRF_ERROR
 } = require('./src/server/services/ssrf-guard');
+const { createSharedWindowStore } = require('./src/server/services/shared-window-store');
 const {
   buildVideoUrlSelectionDiagnostics,
   decidePageTextPreference,
@@ -179,6 +183,36 @@ if (Number.isInteger(TRUST_PROXY_HOPS) && TRUST_PROXY_HOPS > 0) {
   console.log(`[server] trust proxy hops: ${TRUST_PROXY_HOPS}`);
 } else {
   console.log('[server] trust proxy disabled');
+}
+
+// ── 跨实例共享的 AI 限流计数 ────────────────────────────────────────────────
+// Render 同时跑多个实例，进程内计数意味着每个实例各记各的数，同一客户端会随机
+// 命中不同计数。配置 RATE_LIMIT_REDIS_URL 后，30/10min 才真正表示"一个身份在
+// 整个服务上的 30 次"。未配置时保持现有进程内行为，所以这段代码可以先于资源
+// 上线部署。只打印是否启用，绝不打印连接串。
+if (RATE_LIMIT_REDIS_URL) {
+  try {
+    // 延迟 require：没有配置共享 store 的部署不需要装这个依赖。
+    const { createClient } = require('redis');
+    const client = createClient({ url: RATE_LIMIT_REDIS_URL });
+    // 限流计数是可丢失的：连接错误只记录类别，绝不抛到请求路径上。
+    client.on('error', () => {
+      observabilityLogger.log('limiter_store_error', 'warn', { resultCode: 'limiter_store_unavailable' });
+    });
+    client.connect().catch(() => {
+      observabilityLogger.log('limiter_store_error', 'warn', { resultCode: 'limiter_store_connect_failed' });
+    });
+    setSharedAiRateLimitStore(createSharedWindowStore({
+      client,
+      onError: (category) => observabilityLogger.log('limiter_store_error', 'warn', { resultCode: category })
+    }));
+    console.log('[server] AI rate limit store: shared');
+  } catch (error) {
+    // 依赖缺失或 URL 非法：退回进程内计数而不是让服务起不来。
+    console.warn('[server] AI rate limit store: shared store unavailable, falling back to in-memory');
+  }
+} else {
+  console.log('[server] AI rate limit store: in-memory (per instance)');
 }
 
 // ── Supabase auth 启动期脱敏配置检查 ────────────────────────────────────────
@@ -1244,10 +1278,24 @@ function aiTimeoutSource(info) {
   return info.status === 504 ? 'upstream_response' : undefined;
 }
 
+// 只记录限流后端与剩余时间，用来在生产上证明限流走的是共享 store 而不是每实例
+// 各记各的。绝不记录原始 IP、限流 key、prompt 或任何用户内容。
+function logAiRateLimited(req, limit, route) {
+  observabilityLogger.log('ai_rate_limited', 'warn', {
+    requestId: req.requestId,
+    route,
+    limiterBackend: limit.backend,
+    retryAfterSeconds: limit.retryAfterSeconds,
+    resultCode: 'rate_limited'
+  });
+}
+
 app.post('/api/ai-chat', async (req, res) => {
-  if (isAiRateLimited(req)) {
+  const aiLimit = await checkAiRateLimit(req);
+  if (aiLimit.limited) {
+    logAiRateLimited(req, aiLimit, '/api/ai-chat');
     return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。', {
-      retryAfterSeconds: aiRateLimitRetryAfterSeconds(req)
+      retryAfterSeconds: aiLimit.retryAfterSeconds
     });
   }
 
@@ -1801,9 +1849,11 @@ app.post('/api/recipe-import-from-url', async (req, res) => {
 
 // AI 解析路由：文本与最终草稿使用 import provider；图片 evidence 固定使用 Groq vision。
 app.post('/api/ai-parse', async (req, res) => {
-  if (isAiRateLimited(req)) {
+  const parseLimit = await checkAiRateLimit(req);
+  if (parseLimit.limited) {
+    logAiRateLimited(req, parseLimit, '/api/ai-parse');
     return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。', {
-      retryAfterSeconds: aiRateLimitRetryAfterSeconds(req)
+      retryAfterSeconds: parseLimit.retryAfterSeconds
     });
   }
   const text = String((req.body && req.body.text) || '').trim();

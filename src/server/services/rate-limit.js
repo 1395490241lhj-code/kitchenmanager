@@ -15,6 +15,10 @@ const importRateLimitBuckets = new Map();
 const authMeRateLimitBuckets = new Map();
 let aiRateLimitLastSweepAt = 0;
 
+// 保守假设：真实实例数由 Render 决定且会变，limiter 不应依赖一个它无法验证的
+// 数字。取一个小的固定值，只在共享 store 故障期间生效。
+const SHARED_STORE_ASSUMED_INSTANCES = 3;
+
 // 惰性回收：限流桶按 IP 建、此前从不删除，长跑实例会缓慢累积陌生 IP 的过期桶。
 // 每分钟至多整扫一次，把窗口外的桶清掉；单次扫描 O(IP 数)，挂在限流检查入口即可。
 function sweepAiRateLimitBuckets(now) {
@@ -66,6 +70,47 @@ function aiRateLimitRetryAfterSeconds(req, now = Date.now()) {
   return bucketRetryAfterSeconds(req, aiRateLimitBuckets, now);
 }
 
+// ── 跨实例共享的 AI 限流 ─────────────────────────────────────────────────────
+// Render 会同时跑多个实例，进程内 Map 意味着每个实例各记各的数：同一个客户端
+// 会随机落到不同计数上（生产实测：429 之后 1 秒即 200；"全新"会话第 3 次就
+// 429）。配置了共享 store 之后，30/10min 才第一次真正表示"一个身份在整个服务
+// 上的 30 次"。配额与 key 都不变，只有计数的存放位置变了。
+let sharedAiStore = null;
+
+function setSharedAiRateLimitStore(store) {
+  sharedAiStore = store || null;
+}
+
+function hasSharedAiRateLimitStore() {
+  return Boolean(sharedAiStore);
+}
+
+// store 短暂不可用时的策略：既不能让 limiter 故障把 AI 功能整个打死，也不能
+// 无保护地放行昂贵的 provider 调用。这里退回本进程计数，但**配额按实例数收紧**
+// （下取整、至少 1），这样 N 个实例加起来仍不超过全局配额，不会退回成当前这种
+// "每实例一份完整 30 次"的放大问题。
+function degradedInstanceMax(max, instanceCount = SHARED_STORE_ASSUMED_INSTANCES) {
+  return Math.max(1, Math.floor(max / Math.max(1, instanceCount)));
+}
+
+// 返回 { limited, retryAfterSeconds, backend }。backend 用于结构化日志，
+// 让生产可以证明限流到底走的是共享 store 还是降级路径。
+async function checkAiRateLimit(req, now = Date.now()) {
+  const key = `ai:${getClientIp(req)}`;
+  if (sharedAiStore) {
+    try {
+      const { count, retryAfterSeconds } = await sharedAiStore.consume(key, AI_RATE_LIMIT_WINDOW_MS, now);
+      return { limited: count > AI_RATE_LIMIT_MAX, retryAfterSeconds, backend: 'shared' };
+    } catch (error) {
+      sharedAiStore._onError?.('limiter_store_unavailable');
+      const limited = isBucketRateLimited(req, aiRateLimitBuckets, degradedInstanceMax(AI_RATE_LIMIT_MAX));
+      return { limited, retryAfterSeconds: aiRateLimitRetryAfterSeconds(req, now), backend: 'degraded' };
+    }
+  }
+  const limited = isAiRateLimited(req);
+  return { limited, retryAfterSeconds: aiRateLimitRetryAfterSeconds(req, now), backend: 'memory' };
+}
+
 // 共享 AI 桶：所有会打到上游模型/转录或产生外网抓取的普通接口。
 function isAiRateLimited(req) {
   return isBucketRateLimited(req, aiRateLimitBuckets, AI_RATE_LIMIT_MAX);
@@ -93,11 +138,15 @@ module.exports = {
   authMeRateLimitBuckets,
   aiRateLimitLastSweepAt,
   bucketRetryAfterSeconds,
+  checkAiRateLimit,
+  degradedInstanceMax,
   getClientIp,
+  hasSharedAiRateLimitStore,
   importRateLimitBuckets,
   isAiRateLimited,
   isAuthMeRateLimited,
   isBucketRateLimited,
   isImportRateLimited,
+  setSharedAiRateLimitStore,
   sweepAiRateLimitBuckets
 };

@@ -1159,11 +1159,21 @@ test('后端 AI 代理不暴露密钥，并包含长度限制与限流', () => {
   assert.doesNotMatch(rateLimit, /req\.headers\[['"]x-forwarded-for['"]\]/);
   assert.match(rateLimit, /function getClientIp\(req\) \{\s*\n\s*return req\.ip \|\| req\.socket\?\.remoteAddress \|\| 'unknown';/);
   // 昂贵接口全部挂限流：普通 AI/抓取/媒体走共享桶，整链路导入走更严的独立桶。
-  for (const route of ['xhs-extract', 'media/extract-audio', 'media/extract-frames', 'media/transcribe', 'ai-parse']) {
+  // 打到模型的两条路由（ai-chat / ai-parse）走跨实例共享计数的 checkAiRateLimit；
+  // 其余仍是进程内的 isAiRateLimited。两者都必须真的挂上限流。
+  for (const route of ['xhs-extract', 'media/extract-audio', 'media/extract-frames', 'media/transcribe']) {
     const idx = server.indexOf(`'/api/${route}'`);
     assert.ok(idx > 0, `route ${route} exists`);
     assert.match(server.slice(idx, idx + 300), /isAiRateLimited\(req\)/, `${route} 应挂共享限流`);
   }
+  for (const route of ['ai-chat', 'ai-parse']) {
+    const idx = server.indexOf(`'/api/${route}'`);
+    assert.ok(idx > 0, `route ${route} exists`);
+    assert.match(server.slice(idx, idx + 300), /await checkAiRateLimit\(req\)/, `${route} 应挂跨实例共享限流`);
+  }
+  // 共享 store 只改计数的存放位置，配额与窗口必须保持不变。
+  assert.match(rateLimit, /AI_RATE_LIMIT_MAX\b/);
+  assert.doesNotMatch(rateLimit, /AI_RATE_LIMIT_MAX \* /, '不得按实例数放大配额');
   const importIdx = server.indexOf("'/api/recipe-import-from-url'");
   assert.match(server.slice(importIdx, importIdx + 300), /isImportRateLimited\(req\)/);
   assert.match(server, /res\.json\(\{ content: cleaned \}\)/);
