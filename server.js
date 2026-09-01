@@ -68,6 +68,7 @@ const {
   getUpstreamAiErrorInfo,
   sendAiUpstreamError,
   isRateLimitExceeded,
+  isTransientProviderFailure,
   isJsonValidateFailedError,
   getRecipeDraftResponseFormat,
   getAiMessageContent,
@@ -1235,6 +1236,13 @@ function cleanAiChatContent(content) {
   return stripped;
 }
 
+// Which layer ended the request: our own SDK deadline, or the provider's own
+// gateway timeout. Shared by the primary-attempt and final failure logs.
+function aiTimeoutSource(info) {
+  if (info.code === 'ECONNABORTED') return 'server_sdk_deadline';
+  return info.status === 504 ? 'upstream_response' : undefined;
+}
+
 app.post('/api/ai-chat', async (req, res) => {
   if (isAiRateLimited(req)) return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。');
 
@@ -1267,7 +1275,17 @@ app.post('/api/ai-chat', async (req, res) => {
   ];
   const startedAt = Date.now();
   const isWeeklyMenuPlan = taskType === 'weekly-menu-plan';
-  const timeoutMs = isWeeklyMenuPlan ? 60000 : 45000;
+  // Menu planning is the one task with a measured long tail (successful Gemini
+  // samples: 28s / 29s / 41.8s / 43.5s) *and* a measured failure mode where the
+  // provider never answers at all. It gets a primary budget that covers the
+  // observed tail, then one Groq attempt (measured 0.5–5.2s) rather than a
+  // longer wait on the same provider. Worst case 45 + 20 = 65s, against the
+  // iOS weekly planner's own 100s request deadline — see WeeklyMenuPlanner.
+  const timeoutMs = 45000;
+  const fallbackTimeoutMs = 20000;
+  const fallbackProvider = isWeeklyMenuPlan && !imageBase64 && chatConfig.provider !== 'groq'
+    ? resolveAiProviderConfig('groq')
+    : null;
   const logContext = {
     requestId: req.requestId,
     route: '/api/ai-chat',
@@ -1278,21 +1296,52 @@ app.post('/api/ai-chat', async (req, res) => {
     attempt: 1
   };
 
+  // Same prompt, same messages, same response contract — only the transport
+  // provider changes, so the client cannot tell which one answered.
+  const attemptProvider = (config, timeout) => postChatCompletion({
+    provider: config.provider,
+    model: config.model,
+    messages,
+    temperature: 0.2,
+    responseFormat: isWeeklyMenuPlan,
+    reasoningEffort: imageBase64 ? 'none' : null,
+    timeout
+  });
+
+  let attemptContext = logContext;
   try {
-    const resp = await postChatCompletion({
-      provider: chatConfig.provider,
-      model: chatConfig.model,
-      messages,
-      temperature: 0.2,
-      responseFormat: isWeeklyMenuPlan,
-      reasoningEffort: imageBase64 ? 'none' : null,
-      timeout: timeoutMs
-    });
+    let resp;
+    try {
+      resp = await attemptProvider(chatConfig, timeoutMs);
+    } catch (primaryErr) {
+      if (!fallbackProvider || !isTransientProviderFailure(primaryErr)) throw primaryErr;
+      const primaryInfo = getUpstreamAiErrorInfo(primaryErr);
+      observabilityLogger.log('ai_chat_failed', 'warn', {
+        ...logContext,
+        status: primaryInfo.status,
+        durationMs: Date.now() - startedAt,
+        resultCode: primaryInfo.code,
+        timeoutSource: aiTimeoutSource(primaryInfo),
+        upstreamRequestId: primaryInfo.upstreamRequestId,
+        fallbackTriggered: true,
+        fallbackProvider: fallbackProvider.provider
+      });
+      attemptContext = {
+        ...logContext,
+        provider: fallbackProvider.provider,
+        primaryProvider: chatConfig.provider,
+        fallbackTriggered: true,
+        fallbackReason: primaryInfo.code,
+        timeoutMs: fallbackTimeoutMs,
+        attempt: 2
+      };
+      resp = await attemptProvider(fallbackProvider, fallbackTimeoutMs);
+    }
     const content = getAiMessageContent(resp);
     const cleaned = cleanAiChatContent(content);
     if (!cleaned) {
       observabilityLogger.log('ai_empty_response', {
-        ...logContext,
+        ...attemptContext,
         status: 502,
         durationMs: Date.now() - startedAt,
         resultCode: 'empty_response',
@@ -1301,7 +1350,7 @@ app.post('/api/ai-chat', async (req, res) => {
       return sendAiJsonError(res, 502, 'empty_response', 'AI 服务暂时不可用。');
     }
     observabilityLogger.log('ai_chat_completed', {
-      ...logContext,
+      ...attemptContext,
       status: 200,
       durationMs: Date.now() - startedAt,
       resultCode: 'success',
@@ -1311,13 +1360,11 @@ app.post('/api/ai-chat', async (req, res) => {
   } catch (err) {
     const info = getUpstreamAiErrorInfo(err);
     observabilityLogger.log('ai_chat_failed', 'warn', {
-      ...logContext,
+      ...attemptContext,
       status: info.status,
       durationMs: Date.now() - startedAt,
       resultCode: info.code,
-      timeoutSource: info.code === 'ECONNABORTED'
-        ? 'server_sdk_deadline'
-        : (info.status === 504 ? 'upstream_response' : undefined),
+      timeoutSource: aiTimeoutSource(info),
       upstreamRequestId: info.upstreamRequestId
     });
     return sendAiUpstreamError(res, err);

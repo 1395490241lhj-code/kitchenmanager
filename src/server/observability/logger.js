@@ -43,7 +43,11 @@ const ALLOWED_LOG_FIELDS = new Set([
   'timeoutMs',
   'timeoutSource',
   'requestSizeBytes',
-  'attempt'
+  'attempt',
+  'primaryProvider',
+  'fallbackTriggered',
+  'fallbackProvider',
+  'fallbackReason'
 ]);
 
 // Irreversible, short, stable per-process identity for log correlation only.

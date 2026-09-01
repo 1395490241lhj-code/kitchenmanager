@@ -360,14 +360,14 @@ test('/api/ai-chat 文本可切 Gemini，图片仍强制走 Groq vision SDK', as
   assert.equal(imageServer.openAiRequests[0].requestOptions.timeout, 45000);
 });
 
-test('/api/ai-chat 只给 weekly-menu-plan 60 秒 SDK budget，其他 task 保持 45 秒', async () => {
+test('/api/ai-chat weekly-menu-plan 用 45 秒主 budget 并启用 JSON 模式，其他 task 不启用', async () => {
   const weeklyServer = loadServerWithMocks();
   const weeklyRes = await runPost(weeklyServer.app, '/api/ai-chat', {
     prompt: '规划聚餐菜单',
     taskType: 'weekly-menu-plan'
   });
   assert.equal(weeklyRes.statusCode, 200);
-  assert.equal(weeklyServer.openAiRequests[0].requestOptions.timeout, 60000);
+  assert.equal(weeklyServer.openAiRequests[0].requestOptions.timeout, 45000);
   assert.deepEqual(weeklyServer.openAiRequests[0].payload.response_format, { type: 'json_object' });
 
   const ordinaryServer = loadServerWithMocks();
@@ -407,7 +407,7 @@ test('/api/ai-chat timeout log 区分 server SDK deadline 且不记录 prompt �
   const parsed = JSON.parse(failure);
   assert.equal(parsed.provider, 'gemini');
   assert.equal(parsed.taskType, 'weekly-menu-plan');
-  assert.equal(parsed.timeoutMs, 60000);
+  assert.equal(parsed.timeoutMs, 45000);
   assert.equal(parsed.timeoutSource, 'server_sdk_deadline');
   assert.equal(parsed.resultCode, 'ECONNABORTED');
   assert.equal(parsed.attempt, 1);
@@ -434,6 +434,154 @@ test('/api/ai-chat observability 不记录客户端自由文本 taskType', async
   assert.ok(completed);
   assert.equal(JSON.parse(completed).taskType, 'other');
   assert.doesNotMatch(logLines, /private user text/);
+});
+
+// --- weekly-menu-plan provider fallback -------------------------------------
+//
+// Gemini stays primary. Groq is a single fallback attempt, and only for a
+// failure another provider could plausibly survive.
+
+const WEEKLY_MENU_BODY = { prompt: '规划 7 人聚餐菜单', taskType: 'weekly-menu-plan' };
+
+function loadWeeklyMenuServer(primaryFailure, { groqCreate } = {}) {
+  let calls = 0;
+  const server = loadServerWithMocks({
+    env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    openAiCreate: async (payload, requestOptions) => {
+      calls += 1;
+      if (calls === 1) {
+        if (typeof primaryFailure === 'function') throw primaryFailure();
+        throw primaryFailure;
+      }
+      if (groqCreate) return groqCreate(payload, requestOptions);
+      return { data: { choices: [{ message: { content: '{"days":[]}' } }] } };
+    }
+  });
+  return { ...server, attempts: () => calls };
+}
+
+function upstreamStatusError(status) {
+  const err = new Error(`upstream ${status}`);
+  err.status = status;
+  err.response = { status, data: { error: { code: `http_${status}` } } };
+  return err;
+}
+
+for (const status of [429, 502, 503, 504]) {
+  test(`/api/ai-chat weekly-menu-plan: Gemini ${status} 触发一次 Groq fallback`, async () => {
+    const server = loadWeeklyMenuServer(() => upstreamStatusError(status));
+    const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+    assert.equal(res.statusCode, 200);
+    assert.equal(server.attempts(), 2);
+    assert.equal(server.openAiRequests[1].requestOptions.timeout, 20000);
+  });
+}
+
+test('/api/ai-chat weekly-menu-plan: Gemini SDK 超时触发 Groq fallback', async () => {
+  const server = loadWeeklyMenuServer(() => {
+    const err = new Error('timed out');
+    err.code = 'ECONNABORTED';
+    return err;
+  });
+  const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+  assert.equal(res.statusCode, 200);
+  assert.equal(server.attempts(), 2);
+});
+
+test('/api/ai-chat weekly-menu-plan: Gemini 成功时绝不调用 Groq', async () => {
+  const server = loadServerWithMocks({
+    env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    openAiCreate: async () => ({ data: { choices: [{ message: { content: '{"days":[1]}' } }] } })
+  });
+  const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+  assert.equal(res.statusCode, 200);
+  assert.equal(server.openAiRequests.length, 1);
+  assert.equal(server.openAiRequests[0].requestOptions.timeout, 45000);
+});
+
+for (const status of [400, 401, 403, 404, 422]) {
+  test(`/api/ai-chat weekly-menu-plan: Gemini ${status} 不触发 fallback`, async () => {
+    const server = loadWeeklyMenuServer(() => upstreamStatusError(status));
+    const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+    assert.equal(server.attempts(), 1);
+    assert.equal(res.statusCode, status);
+  });
+}
+
+test('/api/ai-chat weekly-menu-plan: 内部编程错误不触发 fallback', async () => {
+  const server = loadWeeklyMenuServer(() => new TypeError('x is not a function'));
+  const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+  assert.equal(server.attempts(), 1);
+  assert.equal(res.statusCode, 502);
+});
+
+test('/api/ai-chat: 非 weekly-menu-plan 任务不会 fallback', async () => {
+  const server = loadWeeklyMenuServer(() => upstreamStatusError(503));
+  const res = await runPost(server.app, '/api/ai-chat', { prompt: '推荐一道菜', taskType: 'recommendation' });
+  assert.equal(server.attempts(), 1);
+  assert.equal(res.statusCode, 503);
+});
+
+test('/api/ai-chat weekly-menu-plan: fallback 保留 prompt 与 JSON 模式，且不暴露 provider 给客户端', async () => {
+  const server = loadWeeklyMenuServer(() => upstreamStatusError(503));
+  const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(Object.keys(res.body), ['content']);
+  const [primary, fallback] = server.openAiRequests;
+  assert.deepEqual(fallback.payload.messages, primary.payload.messages);
+  assert.deepEqual(fallback.payload.response_format, { type: 'json_object' });
+  assert.notEqual(fallback.payload.model, primary.payload.model);
+});
+
+test('/api/ai-chat weekly-menu-plan: 两个 provider 都失败时返回可恢复错误且不吞掉第二次错误', async () => {
+  const server = loadWeeklyMenuServer(() => upstreamStatusError(504), {
+    groqCreate: async () => { throw upstreamStatusError(503); }
+  });
+  const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+  assert.equal(server.attempts(), 2);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.upstreamStatus, 503);
+});
+
+test('/api/ai-chat weekly-menu-plan: fallback 日志含 provider/原因/耗时且不泄露 prompt 或 key', async () => {
+  let logLines = '';
+  const originalWrite = process.stdout.write;
+  process.stdout.write = (line) => { logLines += String(line); return true; };
+  try {
+    const server = loadWeeklyMenuServer(() => upstreamStatusError(503));
+    const res = await runPost(server.app, '/api/ai-chat', { prompt: 'secret dinner prompt', taskType: 'weekly-menu-plan' });
+    assert.equal(res.statusCode, 200);
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+
+  const lines = logLines.split('\n')
+    .filter(line => line.trim().startsWith('{'))
+    .map(line => JSON.parse(line));
+  const failed = lines.find(line => line.event === 'ai_chat_failed');
+  assert.equal(failed.provider, 'gemini');
+  assert.equal(failed.fallbackTriggered, true);
+  assert.equal(failed.fallbackProvider, 'groq');
+  assert.equal(failed.attempt, 1);
+  assert.ok(Number.isFinite(failed.durationMs));
+
+  const completed = lines.find(line => line.event === 'ai_chat_completed');
+  assert.equal(completed.provider, 'groq');
+  assert.equal(completed.primaryProvider, 'gemini');
+  assert.equal(completed.fallbackReason, 'http_503');
+  assert.equal(completed.attempt, 2);
+  assert.equal(completed.timeoutMs, 20000);
+
+  assert.doesNotMatch(logLines, /secret dinner prompt|gemini-secret/);
+});
+
+test('/api/ai-chat weekly-menu-plan: 两次尝试的预算之和留有 iOS 客户端 deadline 余量', async () => {
+  const server = loadWeeklyMenuServer(() => upstreamStatusError(504));
+  await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+  const total = server.openAiRequests.reduce((sum, item) => sum + item.requestOptions.timeout, 0);
+  assert.equal(total, 65000);
+  // WeeklyMenuPlanner.swift sends timeout: 100 for this task.
+  assert.ok(total < 100000);
 });
 
 test('/api/ai-chat 只允许 recommendation 显式选择 Gemini 或 Groq', async () => {

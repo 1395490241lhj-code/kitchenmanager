@@ -205,6 +205,30 @@ function isRateLimitExceeded(status, code) {
     || numericStatus === 429;
 }
 
+// A provider failure that another provider could plausibly survive. Deliberately
+// narrow: a bare programmer error carries no status, no response and no SDK
+// marker, so it can never burn a second provider attempt. 4xx other than 429 is
+// our own bad request (or bad credentials) and would fail identically anywhere.
+const TRANSIENT_UPSTREAM_STATUSES = new Set([429, 502, 503, 504]);
+const TRANSIENT_TRANSPORT_CODES = new Set(['ECONNABORTED', 'ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EAI_AGAIN']);
+
+function isTransientProviderFailure(err) {
+  if (!err) return false;
+  const constructorName = err?.constructor?.name;
+  const isSdkTimeout = (typeof OpenAI.APIConnectionTimeoutError === 'function' && err instanceof OpenAI.APIConnectionTimeoutError)
+    || constructorName === 'APIConnectionTimeoutError';
+  const isSdkConnection = (typeof OpenAI.APIConnectionError === 'function' && err instanceof OpenAI.APIConnectionError)
+    || constructorName === 'APIConnectionError';
+  if (isSdkTimeout || isSdkConnection) return true;
+  if (TRANSIENT_TRANSPORT_CODES.has(String(err.code || ''))) return true;
+  const status = Number.isInteger(err?.response?.status)
+    ? err.response.status
+    : Number.isInteger(err?.status)
+      ? err.status
+      : null;
+  return status !== null && TRANSIENT_UPSTREAM_STATUSES.has(status);
+}
+
 function isJsonValidateFailedError(err) {
   const info = getUpstreamAiErrorInfo(err);
   return Number(info.status) === 400 && String(info.code || '').trim().toLowerCase() === 'json_validate_failed';
@@ -322,6 +346,7 @@ module.exports = {
   getUpstreamAiErrorInfo,
   sendAiUpstreamError,
   isRateLimitExceeded,
+  isTransientProviderFailure,
   isJsonValidateFailedError,
   supportsRecipeDraftStrictStructuredOutputs,
   getRecipeDraftResponseFormat,
