@@ -283,7 +283,11 @@ final class SpecialPlanMenuTests: XCTestCase {
         let request = try XCTUnwrap(responder.requests.first)
         XCTAssertEqual(request.numberOfDays, 1)
         XCTAssertEqual(request.mealsPerDay, 1)
-        XCTAssertEqual(request.servings, 7)
+        XCTAssertEqual(
+            request.servings,
+            1,
+            "the shared weekly prompt scales quantities from servings; Special Plans have no base yield"
+        )
         XCTAssertEqual(request.dishesPerMeal, SpecialPlanMenuBounds.suggestedDishCount(peopleCount: 7))
 
         let brief = try XCTUnwrap(request.additionalRequest)
@@ -293,7 +297,7 @@ final class SpecialPlanMenuTests: XCTestCase {
         XCTAssertTrue(brief.contains("1 人不吃辣"), "brief must carry constraints, got: \(brief)")
         XCTAssertTrue(brief.contains("朋友聚餐"))
         XCTAssertTrue(
-            brief.contains("不要按人数换算食材用量"),
+            brief.contains("禁止按人数推算"),
             "the brief must not ask for scaled quantities"
         )
     }
@@ -349,6 +353,8 @@ final class SpecialPlanMenuTests: XCTestCase {
         XCTAssertEqual(replacement.dishesPerMeal, 1)
         XCTAssertTrue(replacement.excludedRecipeNames.contains("红烧牛腩"))
         XCTAssertTrue(replacement.excludedRecipeNames.contains("蒜蓉虾"))
+        XCTAssertTrue(replacement.additionalRequest?.contains("不要生成整桌套餐") == true)
+        XCTAssertTrue(replacement.additionalRequest?.contains("盆菜") == true)
     }
 
     func testFailedReplacementPreservesTheOriginalDish() async throws {

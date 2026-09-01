@@ -112,7 +112,8 @@ struct SpecialPlanMenuGenerator {
             inventory: inventory,
             expiringItems: expiringItems,
             existingRecipes: existingRecipes,
-            excludedRecipeNames: excludedRecipeNames
+            excludedRecipeNames: excludedRecipeNames,
+            additionalInstruction: "当前只替换菜单中的一道菜。请生成一道普通、可独立上桌的菜，不要生成整桌套餐、拼盘、盆菜、火锅或多菜合一，并保持与其余菜搭配。"
         )
         let response = try await service.generatePlan(request: request)
         guard let dish = Self.dishes(from: response, existingRecipes: existingRecipes).first else {
@@ -131,7 +132,8 @@ struct SpecialPlanMenuGenerator {
         inventory: [InventoryItem],
         expiringItems: [InventoryItem],
         existingRecipes: [Recipe],
-        excludedRecipeNames: [String]
+        excludedRecipeNames: [String],
+        additionalInstruction: String? = nil
     ) -> AIWeeklyMenuRequest {
         let inventoryPayload = inventory.map { item in
             WeeklyMenuInventoryPayload(
@@ -152,11 +154,17 @@ struct SpecialPlanMenuGenerator {
                 difficulty: recipe.difficulty
             )
         }
+        let requestNotes = [eventBrief(for: plan), additionalInstruction]
+            .compactMap { $0 }
+            .joined(separator: " ")
         return AIWeeklyMenuRequest(
             numberOfDays: 1,
             mealsPerDay: 1,
             dishesPerMeal: max(1, min(dishCount, SpecialPlanMenuBounds.maximumDishes)),
-            servings: plan.peopleCount,
+            // The shared weekly prompt uses servings to estimate quantities.
+            // Special Plans have no canonical recipe yield, so headcount stays
+            // in the event brief and this field must remain neutral.
+            servings: 1,
             cuisines: [],
             flavors: [],
             maxCookingTime: nil,
@@ -164,7 +172,7 @@ struct SpecialPlanMenuGenerator {
             avoidRepeatedMainIngredients: true,
             excludedIngredients: [],
             allowNewAIRecipes: true,
-            additionalRequest: eventBrief(for: plan),
+            additionalRequest: requestNotes,
             inventory: Array(inventoryPayload),
             existingRecipes: Array(recipeSummaries),
             excludedRecipeNames: excludedRecipeNames
@@ -185,7 +193,7 @@ struct SpecialPlanMenuGenerator {
             parts.append("补充说明：\(plan.notes)。")
         }
         parts.append("请按聚餐场合安排菜品数量与荤素搭配，适合多人分享。")
-        parts.append("只给出菜品与做法，不要按人数换算食材用量。")
+        parts.append("只给出菜品与做法。ingredients 中的用量只能是普通菜谱自身的原始用量，禁止按人数推算，也不要出现与 \(plan.peopleCount) 人一一对应的数量模式；数量与单位之间留空格，无法确定时写“适量”。")
         return parts.joined(separator: " ")
     }
 
