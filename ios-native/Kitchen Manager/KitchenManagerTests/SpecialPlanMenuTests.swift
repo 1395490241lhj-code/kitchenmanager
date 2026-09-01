@@ -157,6 +157,54 @@ final class SpecialPlanMenuTests: XCTestCase {
 
     // MARK: - Generation
 
+    func testSpecialPlanRequestCapsRecipeContextForOneMeal() {
+        let recipes = (0..<25).map { index in
+            recipe(id: "recipe-\(index)", title: "菜 \(index)")
+        }
+
+        let request = SpecialPlanMenuGenerator.makeRequest(
+            for: samplePlan(),
+            dishCount: 6,
+            inventory: [],
+            expiringItems: [],
+            existingRecipes: recipes,
+            excludedRecipeNames: []
+        )
+
+        XCTAssertEqual(request.existingRecipes.count, 20)
+        XCTAssertEqual(request.existingRecipes.map(\.id), recipes.prefix(20).map(\.id))
+    }
+
+    func testStrictNoSpicyRequestExcludesOnlyKnownSpicyRecipeContext() {
+        let recipes = [
+            recipe(id: "spicy", title: "家常肉片", ingredients: ["猪肉", "干辣椒"]),
+            recipe(id: "safe", title: "清蒸鲈鱼", ingredients: ["鲈鱼", "姜"])
+        ]
+
+        let request = SpecialPlanMenuGenerator.makeRequest(
+            for: samplePlan(),
+            dishCount: 6,
+            inventory: [],
+            expiringItems: [],
+            existingRecipes: recipes,
+            excludedRecipeNames: []
+        )
+
+        XCTAssertEqual(request.existingRecipes.map(\.id), ["safe"])
+
+        var unconstrained = samplePlan()
+        unconstrained.constraintNotes = []
+        let unchanged = SpecialPlanMenuGenerator.makeRequest(
+            for: unconstrained,
+            dishCount: 6,
+            inventory: [],
+            expiringItems: [],
+            existingRecipes: recipes,
+            excludedRecipeNames: []
+        )
+        XCTAssertEqual(unchanged.existingRecipes.map(\.id), ["spicy", "safe"])
+    }
+
     func testStrictNoSpicyConstraintRecognitionIsNarrow() {
         for note in [
             "1 人不吃辣", "有人不能吃辣", "不要辣", "完全不辣",

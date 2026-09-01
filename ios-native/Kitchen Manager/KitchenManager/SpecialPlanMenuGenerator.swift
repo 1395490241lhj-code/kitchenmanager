@@ -67,10 +67,24 @@ struct SpecialPlanConstraintPolicy: Equatable {
     }
 
     func allows(_ dish: SpecialPlanMenuDraftDish) -> Bool {
-        guard requiresNonSpicyFood else { return true }
-        if dish.title.contains("辣") { return false }
+        allows(
+            title: dish.title,
+            ingredients: dish.ingredients,
+            seasonings: dish.seasonings,
+            steps: dish.steps
+        )
+    }
 
-        let searchable = [dish.title] + dish.ingredients + dish.seasonings + dish.steps
+    func allows(
+        title: String,
+        ingredients: [String],
+        seasonings: [String],
+        steps: [String]
+    ) -> Bool {
+        guard requiresNonSpicyFood else { return true }
+        if title.contains("辣") { return false }
+
+        let searchable = [title] + ingredients + seasonings + steps
         return !searchable.contains { value in
             let normalized = Self.normalized(value)
             return Self.spicyMarkers.contains { normalized.contains($0) }
@@ -134,7 +148,7 @@ struct SpecialPlanMenuGenerator {
             existingRecipes: existingRecipes,
             excludedRecipeNames: excludedRecipeNames
         )
-        let response = try await service.generatePlan(request: request)
+        let response = try await response(for: request, operation: "generate")
         let dishes = Self.dishes(from: response, existingRecipes: existingRecipes)
         guard !dishes.isEmpty else { throw SpecialPlanMenuGeneratorError.emptyMenu }
         guard dishes.count >= SpecialPlanMenuBounds.minimumDishes else {
@@ -162,7 +176,7 @@ struct SpecialPlanMenuGenerator {
             excludedRecipeNames: excludedRecipeNames,
             additionalInstruction: "当前只替换菜单中的一道菜。请生成一道普通、可独立上桌的菜，不要生成整桌套餐、拼盘、盆菜、火锅或多菜合一，并保持与其余菜搭配。"
         )
-        let response = try await service.generatePlan(request: request)
+        let response = try await response(for: request, operation: "replacement")
         guard let dish = Self.dishes(from: response, existingRecipes: existingRecipes).first else {
             throw SpecialPlanMenuGeneratorError.emptyMenu
         }
@@ -192,7 +206,20 @@ struct SpecialPlanMenuGenerator {
                 isExpiringSoon: (item.remainingDays ?? 999) <= 3
             )
         }
-        let recipeSummaries = existingRecipes.prefix(60).map { recipe in
+        let policy = SpecialPlanConstraintPolicy(constraintNotes: plan.constraintNotes)
+        let compatibleRecipes = existingRecipes.lazy.filter { recipe in
+            policy.allows(
+                title: recipe.title,
+                ingredients: recipe.ingredients,
+                seasonings: recipe.seasonings,
+                steps: recipe.steps
+            )
+        }
+        // One event needs at most ten dishes. Keeping the first twenty compatible recipes
+        // preserves every user recipe first (RecipeStore orders them ahead of
+        // the remote library) without sending the weekly planner's 60-recipe
+        // context for a single meal.
+        let recipeSummaries = compatibleRecipes.prefix(20).map { recipe in
             WeeklyMenuRecipeSummary(
                 id: recipe.id,
                 title: recipe.title,
@@ -332,6 +359,40 @@ struct SpecialPlanMenuGenerator {
         let policy = SpecialPlanConstraintPolicy(constraintNotes: plan.constraintNotes)
         guard dishes.allSatisfy(policy.allows) else {
             throw SpecialPlanMenuGeneratorError.hardConstraintViolation
+        }
+    }
+
+    private func response(
+        for request: AIWeeklyMenuRequest,
+        operation: String
+    ) async throws -> AIWeeklyMenuResponse {
+        #if DEBUG
+        let start = Date()
+        print(
+            "[SpecialPlanAI] operation=\(operation) stage=request-start "
+                + "inventory=\(request.inventory.count) recipes=\(request.existingRecipes.count) "
+                + "excluded=\(request.excludedRecipeNames.count) targetDishes=\(request.dishesPerMeal)"
+        )
+        #endif
+        do {
+            let result = try await service.generatePlan(request: request)
+            #if DEBUG
+            print(
+                "[SpecialPlanAI] operation=\(operation) stage=structured-decode-succeeded "
+                    + "elapsedMs=\(Int(Date().timeIntervalSince(start) * 1_000))"
+            )
+            #endif
+            return result
+        } catch {
+            #if DEBUG
+            let nsError = error as NSError
+            print(
+                "[SpecialPlanAI] operation=\(operation) stage=request-failed "
+                    + "elapsedMs=\(Int(Date().timeIntervalSince(start) * 1_000)) "
+                    + "cancelled=\(Task.isCancelled) domain=\(nsError.domain) code=\(nsError.code)"
+            )
+            #endif
+            throw error
         }
     }
 }

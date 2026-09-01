@@ -47,6 +47,9 @@ struct AIChatService {
         timeout: TimeInterval = 50,
         provider: String? = nil
     ) async throws -> DetailedResult {
+        #if DEBUG
+        let diagnosticStart = Date()
+        #endif
         let endpoint: APIEndpoint
         do {
             endpoint = try APIEndpoint.json(
@@ -63,6 +66,13 @@ struct AIChatService {
             throw AIChatServiceError.invalidResponse
         }
 
+        #if DEBUG
+        print(
+            "[AIChat] task=\(taskType) stage=request-start bytes=\(endpoint.body?.count ?? 0) "
+                + "messages=1 provider=\(provider ?? "default") timeout=\(Int(timeout))s"
+        )
+        #endif
+
         var attempt = 0
         let raw: APIClient.RawResponse
         while true {
@@ -70,10 +80,36 @@ struct AIChatService {
                 raw = try await apiClient.sendRawDetailed(endpoint)
                 break
             } catch let APIError.rateLimited(retryAfter) where attempt < maxRateLimitRetries {
+                #if DEBUG
+                print(
+                    "[AIChat] task=\(taskType) stage=rate-limited attempt=\(attempt + 1) "
+                        + "retryAfter=\(retryAfter.map(String.init(describing:)) ?? "none")"
+                )
+                #endif
                 let exponentialDelay = pow(2.0, Double(attempt))
                 let delay = max(retryAfter ?? 0, exponentialDelay)
                 try await sleep(UInt64(delay * 1_000_000_000))
                 attempt += 1
+            } catch {
+                #if DEBUG
+                let nsError = error as NSError
+                let elapsedMs = Int(Date().timeIntervalSince(diagnosticStart) * 1_000)
+                let responseCode: String
+                switch error as? APIError {
+                case .server(let status, let payload):
+                    responseCode = "status=\(status) serverCode=\(payload?.code ?? "unknown")"
+                case .rateLimited:
+                    responseCode = "status=429 serverCode=rate_limited"
+                default:
+                    responseCode = "status=none serverCode=none"
+                }
+                print(
+                    "[AIChat] task=\(taskType) stage=request-failed attempt=\(attempt + 1) "
+                        + "elapsedMs=\(elapsedMs) cancelled=\(Task.isCancelled) "
+                        + "\(responseCode) domain=\(nsError.domain) code=\(nsError.code)"
+                )
+                #endif
+                throw error
             }
         }
 
@@ -81,6 +117,9 @@ struct AIChatService {
             AIChatResponse.self,
             from: raw.data
         ) else {
+            #if DEBUG
+            print("[AIChat] task=\(taskType) stage=envelope-decode-failed status=\(raw.metadata.statusCode)")
+            #endif
             throw AIChatServiceError.invalidResponse
         }
 
@@ -91,6 +130,13 @@ struct AIChatService {
         guard !content.isEmpty else {
             throw AIChatServiceError.emptyResponse
         }
+        #if DEBUG
+        let elapsedMs = Int(Date().timeIntervalSince(diagnosticStart) * 1_000)
+        print(
+            "[AIChat] task=\(taskType) stage=request-succeeded status=\(raw.metadata.statusCode) "
+                + "attempt=\(attempt + 1) elapsedMs=\(elapsedMs)"
+        )
+        #endif
         return DetailedResult(content: content, metadata: raw.metadata)
     }
 }
