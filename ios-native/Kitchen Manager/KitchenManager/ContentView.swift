@@ -469,13 +469,17 @@ struct ContentView: View {
             let monday = PlannerProjection.startOfWeek(containing: todayStart, calendar: calendar)
             let eventDate = calendar.date(byAdding: .day, value: 5, to: monday) ?? monday
             let scheduled = calendar.date(byAdding: .hour, value: 18, to: eventDate) ?? eventDate
+            // The AI-menu tests need the same event with no menu yet, which is
+            // the only state that offers 「AI 帮我设计菜单」 as the empty action.
+            let startsWithoutAMenu = ProcessInfo.processInfo.arguments
+                .contains("UITEST_SEED_SPECIAL_PLAN_EMPTY_MENU")
             var plan = SpecialPlan(
                 title: "朋友聚餐",
                 scheduledAt: scheduled,
                 peopleCount: 7,
                 constraintNotes: ["1 人不吃辣"],
                 notes: "测试聚餐",
-                dishes: [
+                dishes: startsWithoutAMenu ? [] : [
                     SpecialPlanDish(recipeID: "sample-mapotofu", recipeName: "麻婆豆腐"),
                     SpecialPlanDish(recipeID: "sample-tomato-eggs", recipeName: "番茄炒鸡蛋")
                 ]

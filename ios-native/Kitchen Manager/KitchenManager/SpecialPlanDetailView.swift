@@ -4,21 +4,29 @@ import SwiftUI
 
 struct SpecialPlanDetailView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
+    @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let planID: UUID
     /// Deleting is owned by the Planner, which also holds the navigation path
     /// and pops this screen in the same update.
     let onDelete: () -> Void
     @State private var sheet: SpecialPlanDetailSheet?
+    /// Transient AI menu state. Owned by the screen, never persisted: leaving
+    /// the detail discards any unsaved draft.
+    @StateObject private var menuDraft = SpecialPlanMenuDraftStore()
 
     private enum SpecialPlanDetailSheet: Identifiable {
         case edit(SpecialPlan)
         case picker
+        case shopping([Recipe])
+        case draftDish(SpecialPlanMenuDraftDish)
 
         var id: String {
             switch self {
             case .edit(let plan): "edit-\(plan.id.uuidString)"
             case .picker: "picker"
+            case .shopping: "shopping"
+            case .draftDish(let dish): "draft-\(dish.id.uuidString)"
             }
         }
     }
@@ -54,20 +62,23 @@ struct SpecialPlanDetailView: View {
                 }
             }
 
-            Section {
-                if plan.dishes.isEmpty {
-                    Text("还没有菜品，从菜谱库添加。")
+            if menuDraft.hasDraft || menuDraft.isGenerating {
+                draftSection(plan)
+            } else {
+                menuSection(plan)
+            }
+
+            if let message = menuDraft.errorMessage {
+                Section {
+                    Label(message, systemImage: "exclamationmark.triangle")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(indexedDishes(plan), id: \.element.id) { _, dish in
-                        dishRow(dish, plan: plan)
-                    }
+                        .foregroundStyle(AppTheme.warningInk)
+                        .accessibilityIdentifier("planner.menu.error")
                 }
-            } header: {
-                Text("菜单")
-            } footer: {
-                Text("菜品引用菜谱库，删除计划不会删除菜谱。")
+            }
+
+            if !plan.dishes.isEmpty, menuDraft.hasDraft == false {
+                shoppingSection(plan)
             }
         }
         .navigationTitle(plan.title)
@@ -121,8 +132,186 @@ struct SpecialPlanDetailView: View {
                         kitchenStore.addDish(dish, toSpecialPlan: planID)
                     }
                 }
+            case .shopping(let recipes):
+                NavigationStack {
+                    ShoppingListGenerationView(
+                        source: .selectedRecipes(recipes, servings: 1)
+                    )
+                }
+            case .draftDish(let dish):
+                NavigationStack {
+                    SpecialPlanDraftDishView(dish: dish)
+                }
             }
         }
+    }
+
+    // MARK: - Canonical menu
+
+    @ViewBuilder
+    private func menuSection(_ plan: SpecialPlan) -> some View {
+        Section {
+            if plan.dishes.isEmpty {
+                Text("还没有菜品，可以让 AI 按人数和忌口设计一份，或从菜谱库添加。")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(indexedDishes(plan), id: \.element.id) { _, dish in
+                    dishRow(dish, plan: plan)
+                }
+            }
+
+            Button {
+                Task {
+                    await menuDraft.generate(
+                        for: plan,
+                        kitchenStore: kitchenStore,
+                        recipeStore: recipeStore
+                    )
+                }
+            } label: {
+                Label(
+                    plan.dishes.isEmpty ? "AI 帮我设计菜单" : "AI 重新设计菜单",
+                    systemImage: "sparkles"
+                )
+                .frame(minHeight: AppTheme.minimumHitTarget)
+            }
+            .foregroundStyle(AppTheme.aiAccentForeground)
+            .disabled(menuDraft.isBusy)
+            .accessibilityIdentifier("planner.menu.generate")
+        } header: {
+            Text("菜单")
+        } footer: {
+            Text("菜品引用菜谱库，删除计划不会删除菜谱。")
+        }
+    }
+
+    // MARK: - Transient AI draft
+
+    @ViewBuilder
+    private func draftSection(_ plan: SpecialPlan) -> some View {
+        Section {
+            if menuDraft.isGenerating {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("正在设计菜单…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(minHeight: AppTheme.minimumHitTarget)
+                .accessibilityIdentifier("planner.menu.generating")
+            } else {
+                ForEach(menuDraft.dishes) { dish in
+                    draftRow(dish, plan: plan)
+                }
+
+                Button {
+                    guard menuDraft.save(
+                        to: planID,
+                        kitchenStore: kitchenStore,
+                        recipeStore: recipeStore
+                    ) else { return }
+                } label: {
+                    Label("保存菜单", systemImage: "square.and.arrow.down")
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                }
+                .disabled(menuDraft.isBusy)
+                .accessibilityIdentifier("planner.menu.save")
+
+                Button("放弃这份草稿") {
+                    menuDraft.discard()
+                }
+                .foregroundStyle(.secondary)
+                .frame(minHeight: AppTheme.minimumHitTarget)
+                .accessibilityIdentifier("planner.menu.discard")
+            }
+        } header: {
+            Text("AI 菜单草稿")
+        } footer: {
+            Text("保存前这些菜谱不会进入菜谱库。当前菜单按聚餐规模设计，食材用量仍是菜谱原始用量。")
+        }
+    }
+
+    private func draftRow(_ dish: SpecialPlanMenuDraftDish, plan: SpecialPlan) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(dish.title)
+                    .font(.headline)
+                    // Leaf-level, never on the enclosing VStack: an
+                    // accessibility identifier on a container overrides every
+                    // descendant's, which would erase the per-dish button ids
+                    // below (same rule the Home section ids follow).
+                    .accessibilityIdentifier("planner.menu.draft.dish.\(dish.id.uuidString)")
+                if dish.isExistingRecipe {
+                    Text("菜谱库")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                if menuDraft.replacingDishID == dish.id {
+                    ProgressView()
+                }
+            }
+            if let reason = dish.reason, !reason.isEmpty {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 16) {
+                Button("查看") {
+                    sheet = .draftDish(dish)
+                }
+                .accessibilityIdentifier("planner.menu.draft.view.\(dish.id.uuidString)")
+
+                Button("换一道") {
+                    Task {
+                        await menuDraft.replaceDish(
+                            id: dish.id,
+                            for: plan,
+                            kitchenStore: kitchenStore,
+                            recipeStore: recipeStore
+                        )
+                    }
+                }
+                .accessibilityIdentifier("planner.menu.draft.replace.\(dish.id.uuidString)")
+
+                Button("移除", role: .destructive) {
+                    menuDraft.removeDish(id: dish.id)
+                }
+                .accessibilityIdentifier("planner.menu.draft.remove.\(dish.id.uuidString)")
+            }
+            .font(.subheadline)
+            .buttonStyle(.borderless)
+            .disabled(menuDraft.isBusy || menuDraft.replacingDishID != nil)
+        }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Shopping
+
+    @ViewBuilder
+    private func shoppingSection(_ plan: SpecialPlan) -> some View {
+        Section {
+            Button {
+                sheet = .shopping(resolvedRecipes(plan))
+            } label: {
+                Label("查看购物需求", systemImage: "cart")
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+            }
+            .disabled(resolvedRecipes(plan).isEmpty)
+            .accessibilityIdentifier("planner.shopping.open")
+        } header: {
+            Text("购物需求")
+        } footer: {
+            Text("按菜谱原始用量与当前库存比对，人数尚未用于精确换算用量。")
+        }
+    }
+
+    /// The recipes this plan's dishes point at. A dish whose recipe was deleted
+    /// is skipped rather than fabricated, matching how the Today Plan handles a
+    /// missing recipe.
+    private func resolvedRecipes(_ plan: SpecialPlan) -> [Recipe] {
+        plan.dishes.compactMap { recipeStore.recipe(id: $0.recipeID) }
     }
 
     private func indexedDishes(_ plan: SpecialPlan) -> [(offset: Int, element: SpecialPlanDish)] {
@@ -170,6 +359,42 @@ struct SpecialPlanDetailView: View {
     }
 }
 
-/// Simple dish add flow: a searchable picker over `RecipeStore.recipesForDisplay`.
-/// Deliberately not the full `RecipeListView` (which owns its own routes and
-/// mutations); this sheet only ever adds a reference.
+// MARK: - Draft dish preview
+
+/// Read-only look at what the AI proposed, before it becomes a recipe. Shows
+/// the same fields the recipe editor would, so the user can judge the dish
+/// without it entering the library first.
+struct SpecialPlanDraftDishView: View {
+    @Environment(\.dismiss) private var dismiss
+    let dish: SpecialPlanMenuDraftDish
+
+    var body: some View {
+        List {
+            if let reason = dish.reason, !reason.isEmpty {
+                Section("推荐理由") {
+                    Text(reason)
+                }
+            }
+            Section("食材") {
+                ForEach(dish.ingredients, id: \.self) { Text($0) }
+            }
+            if !dish.seasonings.isEmpty {
+                Section("调料与辅料") {
+                    ForEach(dish.seasonings, id: \.self) { Text($0) }
+                }
+            }
+            Section("步骤") {
+                ForEach(Array(dish.steps.enumerated()), id: \.offset) { index, step in
+                    Text("\(index + 1). \(step)")
+                }
+            }
+        }
+        .navigationTitle(dish.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("完成") { dismiss() }
+            }
+        }
+    }
+}
