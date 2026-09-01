@@ -138,6 +138,19 @@ final class SpecialPlanMenuUITests: XCTestCase {
                 || app.navigationBars.count > 0,
             "shopping preview did not open"
         )
+
+        let add = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "加入买菜清单（")
+        ).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 10), "shopping confirmation action missing")
+        add.tap()
+        let imported = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "shopping.section.")
+        ).firstMatch
+        XCTAssertTrue(
+            imported.waitForExistence(timeout: 10),
+            "confirming generated shopping items must switch tabs without crashing"
+        )
     }
 
     /// Spec 27: a failed generation surfaces an error and keeps the saved menu.

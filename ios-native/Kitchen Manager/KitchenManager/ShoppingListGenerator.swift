@@ -635,8 +635,6 @@ final class ShoppingListGenerationStore: ObservableObject {
         }
         kitchenStore.addShoppingItems(additions)
 
-        let selectedIDs = Set(selected.map(\.id))
-        missingItems.removeAll { selectedIDs.contains($0.id) }
         hasImported = true
         return selected.count
     }
@@ -733,7 +731,7 @@ struct ShoppingListGenerationView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.managementActionFill)
                 .foregroundStyle(AppTheme.onManagementAction)
-                .disabled(store.selectedCount == 0)
+                .disabled(store.selectedCount == 0 || store.hasImported)
                 .padding()
                 .frame(maxWidth: .infinity)
                 .background(.bar)
