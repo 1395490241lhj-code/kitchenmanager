@@ -173,6 +173,9 @@ test('logger: ALLOWED_LOG_FIELDS is an explicit allowlist, not derived from call
   assert.ok(ALLOWED_LOG_FIELDS instanceof Set);
   assert.ok(ALLOWED_LOG_FIELDS.has('requestId'));
   assert.ok(ALLOWED_LOG_FIELDS.has('userHash'));
+  assert.ok(ALLOWED_LOG_FIELDS.has('provider'));
+  assert.ok(ALLOWED_LOG_FIELDS.has('timeoutSource'));
+  assert.ok(ALLOWED_LOG_FIELDS.has('requestSizeBytes'));
   assert.ok(!ALLOWED_LOG_FIELDS.has('email'));
   assert.ok(!ALLOWED_LOG_FIELDS.has('token'));
   assert.ok(!ALLOWED_LOG_FIELDS.has('body'));

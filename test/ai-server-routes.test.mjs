@@ -360,6 +360,82 @@ test('/api/ai-chat 文本可切 Gemini，图片仍强制走 Groq vision SDK', as
   assert.equal(imageServer.openAiRequests[0].requestOptions.timeout, 45000);
 });
 
+test('/api/ai-chat 只给 weekly-menu-plan 60 秒 SDK budget，其他 task 保持 45 秒', async () => {
+  const weeklyServer = loadServerWithMocks();
+  const weeklyRes = await runPost(weeklyServer.app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单',
+    taskType: 'weekly-menu-plan'
+  });
+  assert.equal(weeklyRes.statusCode, 200);
+  assert.equal(weeklyServer.openAiRequests[0].requestOptions.timeout, 60000);
+  assert.deepEqual(weeklyServer.openAiRequests[0].payload.response_format, { type: 'json_object' });
+
+  const ordinaryServer = loadServerWithMocks();
+  const ordinaryRes = await runPost(ordinaryServer.app, '/api/ai-chat', {
+    prompt: '推荐一道菜',
+    taskType: 'recommendation'
+  });
+  assert.equal(ordinaryRes.statusCode, 200);
+  assert.equal(ordinaryServer.openAiRequests[0].requestOptions.timeout, 45000);
+  assert.equal(ordinaryServer.openAiRequests[0].payload.response_format, undefined);
+});
+
+test('/api/ai-chat timeout log 区分 server SDK deadline 且不记录 prompt 或 key', async () => {
+  let logLines = '';
+  const originalWrite = process.stdout.write;
+  process.stdout.write = (line) => { logLines += String(line); return true; };
+  try {
+    const { app } = loadServerWithMocks({
+      env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+      openAiCreate: async () => {
+        const error = new Error('timed out with gemini-secret');
+        error.code = 'ECONNABORTED';
+        throw error;
+      }
+    });
+    const res = await runPost(app, '/api/ai-chat', {
+      prompt: 'private weekly menu prompt',
+      taskType: 'weekly-menu-plan'
+    });
+    assert.equal(res.statusCode, 504);
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+
+  const failure = logLines.split('\n').find(line => line.includes('"event":"ai_chat_failed"'));
+  assert.ok(failure);
+  const parsed = JSON.parse(failure);
+  assert.equal(parsed.provider, 'gemini');
+  assert.equal(parsed.taskType, 'weekly-menu-plan');
+  assert.equal(parsed.timeoutMs, 60000);
+  assert.equal(parsed.timeoutSource, 'server_sdk_deadline');
+  assert.equal(parsed.resultCode, 'ECONNABORTED');
+  assert.equal(parsed.attempt, 1);
+  assert.ok(parsed.requestSizeBytes > 0);
+  assert.doesNotMatch(logLines, /private weekly menu prompt|gemini-secret/);
+});
+
+test('/api/ai-chat observability 不记录客户端自由文本 taskType', async () => {
+  let logLines = '';
+  const originalWrite = process.stdout.write;
+  process.stdout.write = (line) => { logLines += String(line); return true; };
+  try {
+    const { app } = loadServerWithMocks();
+    const res = await runPost(app, '/api/ai-chat', {
+      prompt: '普通请求',
+      taskType: 'private user text'
+    });
+    assert.equal(res.statusCode, 200);
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+
+  const completed = logLines.split('\n').find(line => line.includes('"event":"ai_chat_completed"'));
+  assert.ok(completed);
+  assert.equal(JSON.parse(completed).taskType, 'other');
+  assert.doesNotMatch(logLines, /private user text/);
+});
+
 test('/api/ai-chat 只允许 recommendation 显式选择 Gemini 或 Groq', async () => {
   const groqServer = loadServerWithMocks({
     env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }

@@ -1265,6 +1265,18 @@ app.post('/api/ai-chat', async (req, res) => {
     { role: 'system', content: `Kitchen Manager task: ${taskType}. Return only the requested content.` },
     { role: 'user', content: userContent }
   ];
+  const startedAt = Date.now();
+  const isWeeklyMenuPlan = taskType === 'weekly-menu-plan';
+  const timeoutMs = isWeeklyMenuPlan ? 60000 : 45000;
+  const logContext = {
+    requestId: req.requestId,
+    route: '/api/ai-chat',
+    provider: chatConfig.provider,
+    taskType: /^[a-z0-9-]{1,40}$/.test(taskType) ? taskType : 'other',
+    timeoutMs,
+    requestSizeBytes: Buffer.byteLength(prompt, 'utf8'),
+    attempt: 1
+  };
 
   try {
     const resp = await postChatCompletion({
@@ -1272,23 +1284,42 @@ app.post('/api/ai-chat', async (req, res) => {
       model: chatConfig.model,
       messages,
       temperature: 0.2,
-      responseFormat: false,
+      responseFormat: isWeeklyMenuPlan,
       reasoningEffort: imageBase64 ? 'none' : null,
-      timeout: 45000
+      timeout: timeoutMs
     });
     const content = getAiMessageContent(resp);
     const cleaned = cleanAiChatContent(content);
     if (!cleaned) {
       observabilityLogger.log('ai_empty_response', {
-        requestId: req.requestId,
-        route: '/api/ai-chat',
+        ...logContext,
+        status: 502,
+        durationMs: Date.now() - startedAt,
         resultCode: 'empty_response',
         ...summarizeAiResponse(resp)
       });
       return sendAiJsonError(res, 502, 'empty_response', 'AI 服务暂时不可用。');
     }
+    observabilityLogger.log('ai_chat_completed', {
+      ...logContext,
+      status: 200,
+      durationMs: Date.now() - startedAt,
+      resultCode: 'success',
+      ...summarizeAiResponse(resp)
+    });
     return res.json({ content: cleaned });
   } catch (err) {
+    const info = getUpstreamAiErrorInfo(err);
+    observabilityLogger.log('ai_chat_failed', 'warn', {
+      ...logContext,
+      status: info.status,
+      durationMs: Date.now() - startedAt,
+      resultCode: info.code,
+      timeoutSource: info.code === 'ECONNABORTED'
+        ? 'server_sdk_deadline'
+        : (info.status === 504 ? 'upstream_response' : undefined),
+      upstreamRequestId: info.upstreamRequestId
+    });
     return sendAiUpstreamError(res, err);
   }
 });

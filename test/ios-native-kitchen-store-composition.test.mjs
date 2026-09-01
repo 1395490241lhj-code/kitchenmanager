@@ -80,14 +80,16 @@ test("the bundle initializer forwards every persistence KitchenStore accepts", (
     ["consumptionPersistence", "consumption"],
     ["weeklyPlanPersistence", "weeklyPlan"],
     ["preparedComponentPersistence", "preparedComponents"],
+    ["specialPlanPersistence", "specialPlans"],
   ]) {
     assert.match(convenience, new RegExp(`${parameter}: persistence\\.${field}\\b`));
   }
 });
 
-test("the durable application container carries the prepared-component model", () => {
+test("the durable application container carries the local planning models", () => {
   assert.match(factory, /static func makeContainer\(configuration: ModelConfiguration\)/);
-  assert.match(factory, /PreparedComponentRecord\.self,\s*\n\s*configurations: configuration/);
+  assert.match(factory, /PreparedComponentRecord\.self,/);
+  assert.match(factory, /SpecialPlanRecord\.self,\s*\n\s*configurations: configuration/);
   assert.match(factory, /static func application\(\) -> KitchenPersistenceBundle \{\s*\n\s*makeBundle\(isStoredInMemoryOnly: false\)/);
   assert.match(factory, /preparedComponents: SwiftDataPreparedComponentPersistence\(container: container\)/);
 });

@@ -23,7 +23,8 @@ picks this up — no log-shipping dependency was added):
 ```
 requestId, method, route, status, durationMs, authState, userHash,
 routeCategory, mutationCountBucket, resultCode, metric, value,
-retryAfterSeconds, minimumVersion, minimumBuild, checks, reason
+retryAfterSeconds, minimumVersion, minimumBuild, checks, reason,
+provider, taskType, timeoutMs, timeoutSource, requestSizeBytes, attempt
 ```
 
 Anything else passed to `log(event, fields)` is silently dropped — this is
@@ -31,6 +32,12 @@ deliberately stricter than redacting known-bad field names (a denylist only
 protects against names already thought of; an allowlist protects against
 names nobody thought of yet, including a future accidental `{ email }` or
 `{ body: req.body }`).
+
+`/api/ai-chat` emits one completion, empty-response, or failure event with only
+the provider/task category, elapsed time, bounded timeout source, request byte
+count, attempt number, and response-shape metadata. It never logs the prompt,
+request body, generated content, inventory, menu, or credentials; a client
+`taskType` that is not a lowercase token is logged as `other`.
 
 `hashUserId(userId)` produces a 16-character truncated SHA-256 digest — an
 irreversible, stable-per-user, short identifier for log correlation, never

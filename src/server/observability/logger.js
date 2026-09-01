@@ -37,7 +37,13 @@ const ALLOWED_LOG_FIELDS = new Set([
   'toolCallsCount',
   'promptTokens',
   'completionTokens',
-  'reasoningTokens'
+  'reasoningTokens',
+  'provider',
+  'taskType',
+  'timeoutMs',
+  'timeoutSource',
+  'requestSizeBytes',
+  'attempt'
 ]);
 
 // Irreversible, short, stable per-process identity for log correlation only.
