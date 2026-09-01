@@ -80,6 +80,9 @@ struct AIServiceFailure: Codable, Equatable, Sendable {
         case AIChatServiceError.invalidResponse:
             category = .responseFormat; status = nil
             upstreamCode = nil; upstreamMessage = nil
+        case AIChatServiceError.rateLimited:
+            category = .rateLimited; status = 429
+            upstreamCode = "rate_limited"; upstreamMessage = error.localizedDescription
         default:
             category = imageRequest ? .imageUpload : .server; status = nil
             upstreamCode = nil; upstreamMessage = nil
