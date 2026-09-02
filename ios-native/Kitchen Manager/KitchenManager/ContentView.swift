@@ -489,7 +489,7 @@ struct ContentView: View {
             kitchenStore.addSpecialPlan(plan)
             // A Monday meal makes Home render the plan card (execution mode),
             // which is the entry point the smoke test taps.
-            kitchenStore.addPlan(recipe: Recipe.samples[0], servings: 2)
+            kitchenStore.addPlan(recipe: Recipe.samples[0], plannedServings: 2)
             navigationStore.selectedTab = .today
         }
         .task {
@@ -603,7 +603,7 @@ struct ContentView: View {
             kitchenStore.addShopping(name: "青菜", quantity: 1, unit: "份")
             kitchenStore.addPlans(
                 Recipe.samples.prefix(1).enumerated().map { offset, recipe in
-                    (recipe: recipe, servings: offset + 1)
+                    (recipe: recipe, plannedServings: Int?(offset + 1))
                 }
             )
             navigationStore.selectedTab = .today
@@ -619,7 +619,7 @@ struct ContentView: View {
                 tags: [],
                 ingredients: ["番茄 2 个"],
                 steps: ["炖熟。"]
-            ), servings: 4)
+            ), plannedServings: 4)
             navigationStore.selectedTab = .today
         }
         .task {
@@ -672,7 +672,7 @@ struct ContentView: View {
             mealPortionStore.applyUITestResetIfRequested()
             kitchenStore.addPlans(
                 Recipe.samples.prefix(2).enumerated().map { offset, recipe in
-                    (recipe: recipe, servings: offset + 1)
+                    (recipe: recipe, plannedServings: Int?(offset + 1))
                 }
             )
             dayRhythmStore.setIntent(.eatOut, for: .dinner)

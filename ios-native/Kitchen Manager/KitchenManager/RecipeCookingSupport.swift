@@ -9,12 +9,33 @@ import UserNotifications
 @MainActor
 final class RecipeCookingSession: ObservableObject {
     @Published var servings: Int
+    /// The recipe's own yield, so the session can tell "cook 4 servings of a
+    /// 4-serving recipe" (unchanged quantities) from "cook 4 of a 1-serving
+    /// recipe" (4x). Without it, `servings` was applied as a raw multiplier and
+    /// a 4-serving recipe viewed at 4 人份 showed quantities for sixteen.
+    let baseServings: Int?
     @Published private(set) var checkedIngredientIndexes: Set<Int> = []
     @Published private(set) var completedStepIndexes: Set<Int> = []
     @Published private(set) var currentStepIndex = 0
 
-    init(servings: Int = 1) {
+    init(servings: Int = 1, baseServings: Int? = nil) {
         self.servings = min(max(servings, 1), 12)
+        self.baseServings = Recipe.validatedBaseServings(baseServings)
+    }
+
+    /// What to multiply written quantities by for display.
+    ///
+    /// `1` whenever the recipe never stated a yield: the quantities are then the
+    /// only honest thing to show, and inventing a base of 1 would silently
+    /// multiply them by the chosen headcount.
+    var displayMultiplier: Double {
+        RecipeQuantityScaler.factor(baseServings: baseServings, targetServings: servings) ?? 1
+    }
+
+    /// True only when the multiplier reflects a real base -> target conversion,
+    /// so the UI can avoid claiming a scaled amount it did not compute.
+    var isScaled: Bool {
+        RecipeQuantityScaler.factor(baseServings: baseServings, targetServings: servings) != nil
     }
 
     func toggleIngredient(at index: Int) {

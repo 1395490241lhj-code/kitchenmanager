@@ -44,7 +44,7 @@ final class SpecialPlanSchemaUpgradeTests: XCTestCase {
 
     func testUpgradeOpensAndKeepsExistingData() throws {
         let legacy = try makeLegacyContainer()
-        let plan = MealPlanItem(recipeID: "recipe", recipeName: "番茄炒蛋", servings: 2)
+        let plan = MealPlanItem(recipeID: "recipe", recipeName: "番茄炒蛋", plannedServings: 2)
         try SwiftDataTodayPlanPersistence(container: legacy).replacePlans(with: [plan])
 
         _ = try KitchenPersistenceFactory.makeContainer(

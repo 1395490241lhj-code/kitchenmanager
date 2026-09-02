@@ -372,7 +372,10 @@ final class AIRecipeGeneratorStore: ObservableObject {
 
     func addToPlan(_ kitchenStore: KitchenStore, recipe: Recipe? = nil) throws -> Recipe {
         let recipe = try recipe ?? currentRecipe()
-        kitchenStore.addPlan(recipe: recipe, servings: generatedDraft?.baseServings ?? servings)
+        // Explicit provenance: the user chose this headcount in the generator's
+        // own stepper and the prompt wrote quantities for it, so it is a real
+        // target for this plan rather than an inherited default.
+        kitchenStore.addPlan(recipe: recipe, plannedServings: generatedDraft?.baseServings ?? servings)
         hasAddedCurrentDraftToPlan = true
         return recipe
     }

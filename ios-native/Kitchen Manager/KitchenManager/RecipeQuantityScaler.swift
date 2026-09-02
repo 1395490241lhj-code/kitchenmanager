@@ -4,10 +4,9 @@ import Foundation
 ///
 /// Deliberately tiny and free of any plan, view or store: given a base yield
 /// and an *explicit* target, it returns a factor or a scaled number. It never
-/// guesses a target, because the only value currently available to guess from
-/// (`MealPlanItem.servings`) carries three conflicting meanings and would make
-/// every derived quantity confidently wrong. Callers pass a target a human
-/// actually stated.
+/// guesses a target: callers pass one a human actually stated, which is why
+/// `MealPlanItem.plannedServings` is optional rather than defaulting to a
+/// number nobody chose.
 ///
 /// Text parsing and presentation stay where they already live:
 /// `RecipeServingScaler` renders cooking-view lines and `IngredientParser`
@@ -45,4 +44,3 @@ enum RecipeQuantityScaler {
         return quantity * factor
     }
 }
-

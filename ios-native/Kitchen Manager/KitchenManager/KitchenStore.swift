@@ -490,8 +490,59 @@ struct MealPlanItem: Identifiable, Codable, Hashable {
     var recipeID: String
     var recipeName: String
     var date = Date()
-    var servings = 1
+    /// How many recipe servings this plan is actually preparing — the numerator
+    /// a future scaler divides by `Recipe.baseServings`.
+    ///
+    /// `nil` means nobody stated a target. That case has to be representable:
+    /// this field previously defaulted to `1` and carried three different
+    /// meanings depending on who wrote it (an unset placeholder from the
+    /// one-tap add buttons, a recipe yield the user chose in the AI generator,
+    /// and the weekly planner's household headcount). Scaling quantities by a
+    /// number that might be any of those would be confidently wrong, so the
+    /// ambiguity is removed at the source rather than guessed at downstream.
+    ///
+    /// It is not a headcount, not `SpecialPlan.peopleCount`, not
+    /// `MealPortionPlan` (which tracks portions eaten now vs. kept for later),
+    /// and not the recipe's own base yield.
+    var plannedServings: Int?
     var isCooked = false
+
+    enum CodingKeys: String, CodingKey {
+        case id, recipeID, recipeName, date, plannedServings, isCooked
+    }
+
+    init(
+        id: UUID = UUID(),
+        recipeID: String,
+        recipeName: String,
+        date: Date = Date(),
+        plannedServings: Int? = nil,
+        isCooked: Bool = false
+    ) {
+        self.id = id
+        self.recipeID = recipeID
+        self.recipeName = recipeName
+        self.date = date
+        self.plannedServings = Recipe.validatedBaseServings(plannedServings)
+        self.isCooked = isCooked
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        recipeID = try container.decode(String.self, forKey: .recipeID)
+        recipeName = try container.decode(String.self, forKey: .recipeName)
+        date = try container.decodeIfPresent(Date.self, forKey: .date) ?? Date()
+        // A backup written before this field existed carries only the old
+        // `servings`, whose provenance is unknowable: a stored 4 could be a
+        // real target or a household headcount. Deliberately dropped rather
+        // than migrated — losing a hint that may have been right is better than
+        // feeding a headcount into ingredient maths as if it were a target.
+        plannedServings = Recipe.validatedBaseServings(
+            try container.decodeIfPresent(Int.self, forKey: .plannedServings)
+        )
+        isCooked = try container.decodeIfPresent(Bool.self, forKey: .isCooked) ?? false
+    }
 }
 
 private extension String {
@@ -1147,13 +1198,15 @@ final class KitchenStore: ObservableObject {
         }
     }
 
-    func addPlan(recipe: Recipe, servings: Int = 1) {
-        addPlans([(recipe, servings)])
+    /// `plannedServings` defaults to `nil`, not `1`: a caller that has not asked
+    /// the user how much to make must not silently assert one serving.
+    func addPlan(recipe: Recipe, plannedServings: Int? = nil) {
+        addPlans([(recipe, plannedServings)])
     }
 
     /// Applies multi-recipe additions to one local snapshot so week-plan imports
     /// publish and persist only their final, deduplicated result.
-    func addPlans(_ additions: [(recipe: Recipe, servings: Int)]) {
+    func addPlans(_ additions: [(recipe: Recipe, plannedServings: Int?)]) {
         var updated = plans
         let today = Date()
         for addition in additions {
@@ -1166,7 +1219,9 @@ final class KitchenStore: ObservableObject {
                     recipeID: addition.recipe.id,
                     recipeName: addition.recipe.title,
                     date: today,
-                    servings: min(max(addition.servings, 1), 12)
+                    // Validated, never clamped: an out-of-range value is not
+                    // silently reshaped into a plausible-looking target.
+                    plannedServings: addition.plannedServings
                 )
             )
         }

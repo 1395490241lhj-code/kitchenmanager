@@ -277,7 +277,7 @@ extension SpecialPlanPersistenceTests {
         plan.createdAt = Date()
         plan.updatedAt = plan.createdAt
         store.addSpecialPlan(plan)
-        store.addPlans([(recipe: Recipe.samples[0], servings: 2)])
+        store.addPlans([(recipe: Recipe.samples[0], plannedServings: Int?(2))])
 
         XCTAssertEqual(store.specialPlans.count, 1, "seed special plan must be in the store")
         XCTAssertEqual(store.plans.count, 1)

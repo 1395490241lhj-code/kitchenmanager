@@ -371,7 +371,10 @@ final class CookConsumptionStore: ObservableObject {
                 unresolved.append(plan.recipeName)
                 continue
             }
-            inputs.append(.init(recipe: recipe, servings: plan.servings))
+            // `nil` target -> 1, so an unstated plan cannot raise the
+            // "you picked a different headcount" warning. Consumption still
+            // never rescales quantities.
+            inputs.append(.init(recipe: recipe, servings: plan.plannedServings ?? 1))
         }
         unresolvedPlanNames = unresolved
         drafts = planner.plan(for: inputs, inventory: kitchenStore.inventory)

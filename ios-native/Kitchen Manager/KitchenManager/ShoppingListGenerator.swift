@@ -487,7 +487,10 @@ struct ShoppingListGenerator {
                     warnings.append("「\(plan.recipeName)」的菜谱信息缺失，已跳过")
                     return nil
                 }
-                return (recipe, plan.servings)
+                // No stated target means no serving conversion is being claimed;
+                // 1 keeps quantities exactly as written, which is what this
+                // generator still does in every case. Scaling arrives later.
+                return (recipe, plan.plannedServings ?? 1)
             }
             return (resolved, warnings)
 

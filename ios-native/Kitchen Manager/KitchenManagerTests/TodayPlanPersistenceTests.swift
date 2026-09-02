@@ -13,7 +13,7 @@ final class TodayPlanPersistenceTests: XCTestCase {
         recipeID: String = "recipe-1",
         recipeName: String = "番茄炒蛋",
         date: Date = Date(timeIntervalSince1970: 1_700_000_000),
-        servings: Int = 2,
+        plannedServings: Int? = 2,
         isCooked: Bool = false
     ) -> MealPlanItem {
         MealPlanItem(
@@ -21,7 +21,7 @@ final class TodayPlanPersistenceTests: XCTestCase {
             recipeID: recipeID,
             recipeName: recipeName,
             date: date,
-            servings: servings,
+            plannedServings: plannedServings,
             isCooked: isCooked
         )
     }
@@ -66,12 +66,12 @@ final class TodayPlanPersistenceTests: XCTestCase {
     func testUpsertUpdatesSameIDInsteadOfDuplicating() throws {
         let persistence = try makePersistence()
         let id = UUID()
-        try persistence.upsert(makePlan(id: id, servings: 1))
-        try persistence.upsert(makePlan(id: id, recipeName: "更新后的菜", servings: 4, isCooked: true))
+        try persistence.upsert(makePlan(id: id, plannedServings: 1))
+        try persistence.upsert(makePlan(id: id, recipeName: "更新后的菜", plannedServings: 4, isCooked: true))
         let loaded = try persistence.loadPlans()
         XCTAssertEqual(loaded.count, 1)
         XCTAssertEqual(loaded[0].recipeName, "更新后的菜")
-        XCTAssertEqual(loaded[0].servings, 4)
+        XCTAssertEqual(loaded[0].plannedServings, 4)
         XCTAssertTrue(loaded[0].isCooked)
     }
 
@@ -109,8 +109,8 @@ final class TodayPlanPersistenceTests: XCTestCase {
         let persistence = try makePersistence()
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let legacy = [
-            makePlan(recipeID: "remote", recipeName: "远程菜", servings: 1),
-            makePlan(recipeID: "user", recipeName: "用户菜", servings: 4, isCooked: true)
+            makePlan(recipeID: "remote", recipeName: "远程菜", plannedServings: 1),
+            makePlan(recipeID: "user", recipeName: "用户菜", plannedServings: 4, isCooked: true)
         ]
         let data = try JSONEncoder().encode(legacy)
         defaults.set(data, forKey: TodayPlanMigration.legacyPlansKey)
@@ -138,12 +138,12 @@ final class TodayPlanPersistenceTests: XCTestCase {
         let persistence = try makePersistence()
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let sharedID = UUID()
-        let persisted = makePlan(id: sharedID, recipeName: "SwiftData 优先", servings: 8)
+        let persisted = makePlan(id: sharedID, recipeName: "SwiftData 优先", plannedServings: 8)
         let missing = makePlan(recipeID: "missing", recipeName: "旧计划补充")
         try persistence.upsert(persisted)
         defaults.set(
             try JSONEncoder().encode([
-                makePlan(id: sharedID, recipeName: "旧数据", servings: 1),
+                makePlan(id: sharedID, recipeName: "旧数据", plannedServings: 1),
                 missing
             ]),
             forKey: TodayPlanMigration.legacyPlansKey
@@ -156,7 +156,7 @@ final class TodayPlanPersistenceTests: XCTestCase {
 
         XCTAssertEqual(migrated.count, 2)
         XCTAssertEqual(migrated.first(where: { $0.id == sharedID })?.recipeName, "SwiftData 优先")
-        XCTAssertEqual(migrated.first(where: { $0.id == sharedID })?.servings, 8)
+        XCTAssertEqual(migrated.first(where: { $0.id == sharedID })?.plannedServings, 8)
         XCTAssertTrue(migrated.contains(where: { $0.id == missing.id }))
     }
 
@@ -178,17 +178,17 @@ final class TodayPlanPersistenceTests: XCTestCase {
         let bundle = KitchenPersistenceFactory.isolatedInMemory()
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let store = makeStore(defaults: defaults, bundle: bundle)
-        store.addPlan(recipe: recipe(), servings: 3)
+        store.addPlan(recipe: recipe(), plannedServings: 3)
         let id = try XCTUnwrap(store.plans.first?.id)
         store.plans[0].recipeName = "改名后"
-        store.plans[0].servings = 5
+        store.plans[0].plannedServings = 5
         store.setPlanCooked(id, isCooked: true)
         store.setPlanCooked(id, isCooked: false)
 
         let restarted = makeStore(defaults: defaults, bundle: bundle)
         XCTAssertEqual(restarted.plans.count, 1)
         XCTAssertEqual(restarted.plans[0].recipeName, "改名后")
-        XCTAssertEqual(restarted.plans[0].servings, 5)
+        XCTAssertEqual(restarted.plans[0].plannedServings, 5)
         XCTAssertFalse(restarted.plans[0].isCooked)
         restarted.removePlan(restarted.plans[0])
         XCTAssertTrue(try bundle.todayPlan.loadPlans().isEmpty)
@@ -214,7 +214,7 @@ final class TodayPlanPersistenceTests: XCTestCase {
         store.addPlans([(first, 2), (first, 4), (recipe(id: "b", title: "B"), 3)])
         cancellable.cancel()
         XCTAssertEqual(store.plans.map(\.recipeID), ["a", "b"])
-        XCTAssertEqual(store.plans.map(\.servings), [2, 3])
+        XCTAssertEqual(store.plans.map(\.plannedServings), [2, 3])
         XCTAssertEqual(publishedCounts, [0, 2])
         XCTAssertEqual(persistence.replaceCallCount - baselineWrites, 1)
     }
@@ -227,7 +227,7 @@ final class TodayPlanPersistenceTests: XCTestCase {
         let savedRecipe = recipe()
         try recipeStore.saveUserRecipe(savedRecipe)
         let store = makeStore(defaults: defaults, bundle: bundle)
-        store.addPlan(recipe: savedRecipe, servings: 2)
+        store.addPlan(recipe: savedRecipe, plannedServings: 2)
         let generator = ShoppingListGenerator()
         let before = generator.generate(
             source: .todayPlans(store.plans),

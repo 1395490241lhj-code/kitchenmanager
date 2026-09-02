@@ -104,7 +104,7 @@ final class RecipeCookingSupportTests: XCTestCase {
         let bundle = KitchenPersistenceFactory.isolatedInMemory()
         let store = KitchenStore(userDefaults: defaults, inventoryPersistence: bundle.inventory, shoppingListPersistence: bundle.shoppingList, todayPlanPersistence: bundle.todayPlan, consumptionPersistence: bundle.consumption, weeklyPlanPersistence: bundle.weeklyPlan)
         let recipe = Recipe.samples[0]
-        store.addPlan(recipe: recipe, servings: 2)
+        store.addPlan(recipe: recipe, plannedServings: 2)
         let plan = try! XCTUnwrap(store.todayPlans.first)
         XCTAssertFalse(plan.isCooked)
         store.markPlanCooked(plan)

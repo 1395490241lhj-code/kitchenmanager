@@ -520,15 +520,19 @@ final class WeeklyMenuPlannerStore: ObservableObject {
     }
 
     func addRecipeToTodayPlan(_ recipe: WeeklyMealPlanRecipe, kitchenStore: KitchenStore) {
-        kitchenStore.addPlan(recipe: Self.domainRecipe(from: recipe), servings: generatedPlan?.servings ?? 1)
+        // `generatedPlan.servings` is the household headcount for the week, not
+        // a per-dish target: four people sharing three dishes do not want four
+        // servings of each. It stays on the weekly plan and never becomes a
+        // per-recipe numerator.
+        kitchenStore.addPlan(recipe: Self.domainRecipe(from: recipe))
     }
 
     func addDayToTodayPlan(dayIndex: Int, kitchenStore: KitchenStore) {
         guard let day = generatedPlan?.days.first(where: { $0.dayIndex == dayIndex }) else { return }
-        let servings = generatedPlan?.servings ?? 1
         let additions = day.meals
             .flatMap(\.recipes)
-            .map { (recipe: Self.domainRecipe(from: $0), servings: servings) }
+            // Same reason as above: household headcount is not a per-dish target.
+            .map { (recipe: Self.domainRecipe(from: $0), plannedServings: Int?.none) }
         kitchenStore.addPlans(additions)
     }
 

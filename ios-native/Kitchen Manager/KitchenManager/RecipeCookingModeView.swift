@@ -104,7 +104,7 @@ struct RecipeCookingModeView: View {
                                 session.toggleIngredient(at: index)
                             } label: {
                                 Label(
-                                    RecipeServingScaler.scaledText(ingredient, multiplier: Double(session.servings)),
+                                    RecipeServingScaler.scaledText(ingredient, multiplier: session.displayMultiplier),
                                     systemImage: session.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle"
                                 )
                                 .frame(maxWidth: .infinity, alignment: .leading)

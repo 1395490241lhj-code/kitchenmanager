@@ -4,8 +4,10 @@ import Foundation
 //
 // The unit is always a *portion* (份), never a headcount. A portion can later be
 // split per person or per component; a headcount cannot. This is deliberately a
-// separate axis from `MealPlanItem.servings`, which carries three conflicting
-// meanings across the app and is documented as not rescaling quantities — see
+// separate axis from `MealPlanItem.plannedServings`, which is how many recipe
+// servings a plan prepares. The two can disagree on purpose: cooking four
+// servings and eating two tonight is `plannedServings = 4` with two portions
+// kept for later. Quantities are still not rescaled — see
 // `ShoppingListGeneratorTests.test_servingsOtherThanOne_addsWarning_...`.
 //
 // Nothing here drives ingredient, inventory or shopping quantity maths. These

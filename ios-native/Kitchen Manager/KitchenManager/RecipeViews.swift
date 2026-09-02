@@ -398,7 +398,13 @@ struct RecipeDetailView: View {
     init(recipe: Recipe, todayPlan: MealPlanItem? = nil) {
         self.recipe = recipe
         self.todayPlan = todayPlan
-        _cookingSession = StateObject(wrappedValue: RecipeCookingSession(servings: todayPlan?.servings ?? 1))
+        // Falls back to the recipe's own yield, not to 1: with no stated target
+        // the honest default is "cook it as written". `baseServings` lets the
+        // session convert instead of multiplying blind.
+        _cookingSession = StateObject(wrappedValue: RecipeCookingSession(
+            servings: todayPlan?.plannedServings ?? recipe.baseServings ?? 1,
+            baseServings: recipe.baseServings
+        ))
     }
 
     private var cookingSteps: [String] { recipe.steps.filter { !$0.hasPrefix("小贴士：") } }
@@ -615,7 +621,7 @@ struct RecipeDetailView: View {
             HStack(spacing: 12) {
                 Image(systemName: cookingSession.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(cookingSession.checkedIngredientIndexes.contains(index) ? AppTheme.success : .secondary)
-                Text(RecipeServingScaler.scaledText(value, multiplier: Double(cookingSession.servings)))
+                Text(RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))
                     .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
                     .foregroundStyle(.primary)
                 Spacer(minLength: 0)
@@ -625,7 +631,7 @@ struct RecipeDetailView: View {
         .frame(minHeight: AppTheme.minimumHitTarget)
         .contentShape(Rectangle())
         .accessibilityIdentifier("recipe.detail.ingredient.\(index)")
-        .accessibilityLabel("\(RecipeServingScaler.scaledText(value, multiplier: Double(cookingSession.servings)))，\(cookingSession.checkedIngredientIndexes.contains(index) ? "已准备" : "未准备")")
+        .accessibilityLabel("\(RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))，\(cookingSession.checkedIngredientIndexes.contains(index) ? "已准备" : "未准备")")
     }
 }
 

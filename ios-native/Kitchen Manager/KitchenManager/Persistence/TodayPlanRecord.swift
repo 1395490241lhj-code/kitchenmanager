@@ -7,7 +7,14 @@ final class TodayPlanRecord {
     var recipeID: String
     var recipeName: String
     var date: Date
-    var servings: Int
+    /// `nil` when nobody stated a target for this plan. Optional so the
+    /// unstated case survives a round trip instead of reappearing as `1`.
+    ///
+    /// SwiftData adds a new optional attribute as `nil` for existing rows,
+    /// which is exactly the intended migration: the old `servings` column held
+    /// three different meanings with no way to tell them apart, so it is not
+    /// carried over. See `MealPlanItem.plannedServings`.
+    var plannedServings: Int?
     var isCooked: Bool
     /// Persistence-only ordering metadata. `MealPlanItem` and the backup format stay unchanged.
     var sortIndex: Int
@@ -17,7 +24,7 @@ final class TodayPlanRecord {
         recipeID = item.recipeID
         recipeName = item.recipeName
         date = item.date
-        servings = item.servings
+        plannedServings = item.plannedServings
         isCooked = item.isCooked
         self.sortIndex = sortIndex
     }
@@ -28,7 +35,7 @@ final class TodayPlanRecord {
             recipeID: recipeID,
             recipeName: recipeName,
             date: date,
-            servings: servings,
+            plannedServings: plannedServings,
             isCooked: isCooked
         )
     }
@@ -37,7 +44,7 @@ final class TodayPlanRecord {
         recipeID = item.recipeID
         recipeName = item.recipeName
         date = item.date
-        servings = item.servings
+        plannedServings = item.plannedServings
         isCooked = item.isCooked
         self.sortIndex = sortIndex
     }

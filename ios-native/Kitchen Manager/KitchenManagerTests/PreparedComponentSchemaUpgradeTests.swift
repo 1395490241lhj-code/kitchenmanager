@@ -78,7 +78,7 @@ final class PreparedComponentSchemaUpgradeTests: XCTestCase {
 
     private let inventory = InventoryItem(name: "鸡腿", quantity: 6, unit: "只", expiryDate: nil)
     private let shopping = KitchenShoppingItem(name: "牛奶", quantity: 1, unit: "盒")
-    private let plan = MealPlanItem(recipeID: "recipe", recipeName: "番茄炒蛋", servings: 2)
+    private let plan = MealPlanItem(recipeID: "recipe", recipeName: "番茄炒蛋", plannedServings: 2)
     private let recipe = Recipe(
         id: "user-upgrade", title: "升级用户菜谱", cookingTime: 20, difficulty: "简单",
         tags: ["测试"], ingredients: ["鸡腿 2 只"], steps: ["做好"]

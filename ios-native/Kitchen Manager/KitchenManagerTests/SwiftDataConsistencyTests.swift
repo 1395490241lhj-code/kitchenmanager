@@ -116,7 +116,7 @@ final class SwiftDataConsistencyTests: XCTestCase {
         let bundle = KitchenPersistenceFactory.isolatedInMemory()
         let inventory = InventoryItem(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: nil)
         let shopping = KitchenShoppingItem(name: "牛奶", isDone: true)
-        let plan = MealPlanItem(recipeID: "recipe", recipeName: "番茄炒蛋", servings: 2, isCooked: true)
+        let plan = MealPlanItem(recipeID: "recipe", recipeName: "番茄炒蛋", plannedServings: 2, isCooked: true)
         let consumption = InventoryConsumptionRecord(
             id: UUID(), date: Date(), recipeID: "recipe", recipeName: "番茄炒蛋",
             planIDs: [plan.id], items: [], isUndone: true

@@ -265,7 +265,8 @@ struct PlannerView: View {
                 PlannerRow(
                     entry: entry,
                     title: meal.recipeName,
-                    detail: meal.isCooked ? "已完成" : "\(meal.servings) 人份",
+                    // An unstated target shows nothing rather than "1 人份".
+                    detail: meal.isCooked ? "已完成" : (meal.plannedServings.map { "\($0) 人份" } ?? ""),
                     identifier: "planner.meal.\(meal.id.uuidString)"
                 )
             }
@@ -309,4 +310,3 @@ extension SpecialPlan {
         return parts.joined(separator: " · ")
     }
 }
-

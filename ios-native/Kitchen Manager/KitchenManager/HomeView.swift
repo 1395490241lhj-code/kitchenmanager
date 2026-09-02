@@ -1071,7 +1071,9 @@ private struct TodayPlanSummaryCard: View {
                         .font(.headline)
                         .foregroundStyle(plan.isCooked ? .secondary : .primary)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                    Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份")
+                    // No target stated means no serving count to show. Printing
+                    // "1 人份" would assert a choice the user never made.
+                    Text(plan.isCooked ? "已完成" : (plan.plannedServings.map { "\($0) 人份" } ?? "今天"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -1086,7 +1088,7 @@ private struct TodayPlanSummaryCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(plan.recipeName)，\(plan.isCooked ? "已完成" : "\(plan.servings) 人份，未完成")")
+        .accessibilityLabel("\(plan.recipeName)，\(plan.isCooked ? "已完成" : (plan.plannedServings.map { "\($0) 人份，未完成" } ?? "未完成"))")
         .accessibilityHint("打开菜谱并开始准备")
         .accessibilityIdentifier("home.today.plan.row.\(plan.recipeID)")
     }
@@ -1519,9 +1521,9 @@ private struct HomeModuleIssues: View {
         dashboard: HomeDashboardSummary(
             inventory: [],
             todayPlans: [
-                MealPlanItem(recipeID: "1", recipeName: "番茄炒蛋", servings: 2),
-                MealPlanItem(recipeID: "2", recipeName: "清炒时蔬", servings: 1),
-                MealPlanItem(recipeID: "3", recipeName: "紫菜蛋花汤", servings: 3, isCooked: true)
+                MealPlanItem(recipeID: "1", recipeName: "番茄炒蛋", plannedServings: 2),
+                MealPlanItem(recipeID: "2", recipeName: "清炒时蔬", plannedServings: 1),
+                MealPlanItem(recipeID: "3", recipeName: "紫菜蛋花汤", plannedServings: 3, isCooked: true)
             ],
             shoppingItems: []
         ),
@@ -1605,7 +1607,7 @@ private struct HomeModuleIssues: View {
     TodayPlanSummaryCard(
         dashboard: HomeDashboardSummary(
             inventory: [],
-            todayPlans: [MealPlanItem(recipeID: "1", recipeName: "家常豆腐", servings: 2)],
+            todayPlans: [MealPlanItem(recipeID: "1", recipeName: "家常豆腐", plannedServings: 2)],
             shoppingItems: []
         ),
         onViewPlan: {},
@@ -1619,7 +1621,7 @@ private struct HomeModuleIssues: View {
     TodayPlanSummaryCard(
         dashboard: HomeDashboardSummary(
             inventory: [],
-            todayPlans: [MealPlanItem(recipeID: "1", recipeName: "红烧豆腐", servings: 2, isCooked: true)],
+            todayPlans: [MealPlanItem(recipeID: "1", recipeName: "红烧豆腐", plannedServings: 2, isCooked: true)],
             shoppingItems: []
         ),
         onViewPlan: {},
@@ -1666,7 +1668,7 @@ private struct HomeModuleIssues: View {
         TodayPlanSummaryCard(
             dashboard: HomeDashboardSummary(
                 inventory: [],
-                todayPlans: [MealPlanItem(recipeID: "long", recipeName: "一份菜名很长但仍应保持清晰易读的家常晚餐", servings: 4)],
+                todayPlans: [MealPlanItem(recipeID: "long", recipeName: "一份菜名很长但仍应保持清晰易读的家常晚餐", plannedServings: 4)],
                 shoppingItems: []
             ),
             onViewPlan: {},
@@ -2020,7 +2022,7 @@ struct TodayPlanDetailView: View {
                         Text(plan.recipeName)
                             .font(.headline)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份 · 今天")
+                        Text(plan.isCooked ? "已完成" : (plan.plannedServings.map { "\($0) 人份 · 今天" } ?? "今天"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -2033,7 +2035,7 @@ struct TodayPlanDetailView: View {
                             .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(plan.recipeName).font(.headline)
-                            Text(plan.isCooked ? "已完成" : "\(plan.servings) 人份 · 今天")
+                            Text(plan.isCooked ? "已完成" : (plan.plannedServings.map { "\($0) 人份 · 今天" } ?? "今天"))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()

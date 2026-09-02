@@ -21,8 +21,8 @@ final class PlannerProjectionTests: XCTestCase {
         )!
     }
 
-    private func meal(_ id: String, date: Date, servings: Int = 2) -> MealPlanItem {
-        MealPlanItem(id: UUID(), recipeID: id, recipeName: id, date: date, servings: servings)
+    private func meal(_ id: String, date: Date, plannedServings: Int? = 2) -> MealPlanItem {
+        MealPlanItem(id: UUID(), recipeID: id, recipeName: id, date: date, plannedServings: plannedServings)
     }
 
     private func special(_ id: String, date: Date, people: Int = 7) -> SpecialPlan {
