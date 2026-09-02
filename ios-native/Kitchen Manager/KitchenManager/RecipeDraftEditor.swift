@@ -3,7 +3,14 @@ import SwiftUI
 struct EditableRecipeDraft: Equatable {
     var id = "user-ai-\(UUID().uuidString.lowercased())"
     var title = ""
-    var servings = 2
+    /// The base yield the finished recipe will carry, or `nil` when nobody has
+    /// stated one.
+    ///
+    /// Deliberately optional: this used to default to `2` and be dropped on
+    /// save, which was harmless only because it was discarded. Now that it
+    /// reaches `Recipe`, a non-optional default would turn "nobody said" into
+    /// "the recipe serves 2" for every AI, imported and legacy draft.
+    var baseServings: Int?
     var cookingTime: Int?
     var difficulty = ""
     var tagsText = ""
@@ -46,6 +53,7 @@ struct EditableRecipeDraft: Equatable {
             ingredients: ingredients,
             seasonings: seasonings,
             steps: steps + tips,
+            baseServings: baseServings,
             source: source
         )
     }
@@ -96,12 +104,45 @@ struct RecipeDraftEditorSections: View {
     @Binding var draft: EditableRecipeDraft
     var showsExtendedFields = false
 
+    /// Base yield has three states, not two: a stated number, "not stated", and
+    /// the act of stating one. A bare Stepper can only express a number, so
+    /// opening a legacy recipe would silently invent a yield just by rendering.
+    /// The opt-in row keeps "未标注" a real, preserved answer.
+    @ViewBuilder
+    private var baseServingsControl: some View {
+        if let baseServings = draft.baseServings {
+            Stepper(
+                "基准份量：\(baseServings) 人份",
+                value: Binding(
+                    get: { baseServings },
+                    set: { draft.baseServings = $0 }
+                ),
+                in: Recipe.validBaseServings
+            )
+            .accessibilityIdentifier("recipe.draft.baseServings.stepper")
+            Button("清除基准份量") { draft.baseServings = nil }
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("recipe.draft.baseServings.clear")
+        } else {
+            HStack {
+                Text("基准份量")
+                Spacer()
+                Text("未标注").foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("recipe.draft.baseServings.unset")
+            // 2 is this control's starting point once the user asks for one —
+            // never a value the app assumes on their behalf.
+            Button("设置基准份量") { draft.baseServings = 2 }
+                .accessibilityIdentifier("recipe.draft.baseServings.set")
+        }
+    }
+
     var body: some View {
         Section("基本信息") {
             TextField("菜名", text: $draft.title)
 
             if showsExtendedFields {
-                Stepper("人数：\(draft.servings) 人", value: $draft.servings, in: 1...12)
+                baseServingsControl
                 TextField(
                     "烹饪时间（分钟）",
                     value: $draft.cookingTime,

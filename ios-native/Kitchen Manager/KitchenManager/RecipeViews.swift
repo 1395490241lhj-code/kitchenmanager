@@ -410,6 +410,17 @@ struct RecipeDetailView: View {
                 recipeHero
 
                 RecipeDetailSection("份量", systemImage: "person.2") {
+                    // The recipe's own yield, distinct from the cooking-session
+                    // multiplier below: this is what the written quantities mean,
+                    // and "未标注" is a real answer for recipes that never said.
+                    HStack {
+                        Text("基准份量")
+                        Spacer()
+                        Text(recipe.baseServings.map { "\($0) 人份" } ?? "未标注")
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityIdentifier("recipe.detail.baseServings")
+
                     Stepper(value: $cookingSession.servings, in: 1...12) {
                         Text("当前份量：\(cookingSession.servings) 人份")
                     }
@@ -702,11 +713,16 @@ private struct RecipeEditView: View {
 
     init(recipe: Recipe) {
         _draft = State(initialValue: EditableRecipeDraft(
-            id: recipe.id, title: recipe.title, cookingTime: recipe.cookingTime,
+            id: recipe.id, title: recipe.title,
+            // Carried through verbatim, including `nil`: editing a recipe that
+            // never stated a yield must not invent one.
+            baseServings: recipe.baseServings,
+            cookingTime: recipe.cookingTime,
             difficulty: recipe.difficulty ?? "", tagsText: recipe.tags.joined(separator: "，"),
             ingredientsText: recipe.ingredients.joined(separator: "\n"), seasoningsText: recipe.seasonings.joined(separator: "\n"),
             stepsText: recipe.steps.filter { !$0.hasPrefix("小贴士：") }.joined(separator: "\n"),
-            tipsText: recipe.steps.compactMap { $0.hasPrefix("小贴士：") ? String($0.dropFirst("小贴士：".count)) : nil }.joined(separator: "\n"), source: recipe.source
+            tipsText: recipe.steps.compactMap { $0.hasPrefix("小贴士：") ? String($0.dropFirst("小贴士：".count)) : nil }.joined(separator: "\n"),
+            source: recipe.source
         ))
     }
 

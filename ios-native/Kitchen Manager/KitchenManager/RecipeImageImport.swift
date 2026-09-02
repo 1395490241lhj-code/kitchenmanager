@@ -77,7 +77,10 @@ struct RecipeImageExtractionService {
 
         var draft = EditableRecipeDraft(
             title: name,
-            servings: min(max(response.recipe.servings ?? 2, 1), 12),
+            // Only a yield the photographed recipe actually stated. The old
+            // `?? 2` was a display placeholder; promoting it to a stored base
+            // yield would invent a denominator the source never gave.
+            baseServings: Recipe.validatedBaseServings(response.recipe.servings),
             cookingTime: response.recipe.cookingTime,
             difficulty: response.recipe.difficulty ?? "",
             tagsText: response.recipe.tags.joined(separator: "，"),

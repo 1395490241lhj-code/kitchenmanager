@@ -226,7 +226,12 @@ struct AIGeneratedRecipeService {
 
         return EditableRecipeDraft(
             title: name,
-            servings: min(max(dto.servings ?? fallbackServings, 1), 12),
+            // The user picked this headcount and the prompt is instructed to
+            // write quantities for it ("按 servings 调整用量"), so the generated
+            // quantities really do correspond to it — a genuine base yield, not
+            // a placeholder. `validatedBaseServings` drops anything the model
+            // returns outside the supported range instead of clamping it.
+            baseServings: Recipe.validatedBaseServings(dto.servings ?? fallbackServings),
             cookingTime: dto.cookingTime,
             difficulty: dto.difficulty ?? "",
             tagsText: dto.tags.joined(separator: "，"),
@@ -367,7 +372,7 @@ final class AIRecipeGeneratorStore: ObservableObject {
 
     func addToPlan(_ kitchenStore: KitchenStore, recipe: Recipe? = nil) throws -> Recipe {
         let recipe = try recipe ?? currentRecipe()
-        kitchenStore.addPlan(recipe: recipe, servings: generatedDraft?.servings ?? servings)
+        kitchenStore.addPlan(recipe: recipe, servings: generatedDraft?.baseServings ?? servings)
         hasAddedCurrentDraftToPlan = true
         return recipe
     }

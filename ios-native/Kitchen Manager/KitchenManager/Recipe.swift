@@ -10,10 +10,29 @@ nonisolated struct Recipe: Identifiable, Hashable, Codable {
     let ingredients: [String]
     let seasonings: [String]
     let steps: [String]
+    /// How many servings the written ingredient quantities produce — the
+    /// denominator any future scaling divides by.
+    ///
+    /// `nil` means unknown, which is the honest state for every recipe written
+    /// before this field existed and for any source that does not state a
+    /// yield. It is never defaulted to a guess: a fabricated denominator would
+    /// silently corrupt every quantity derived from it.
+    let baseServings: Int?
     var source: RecipeSourceMetadata? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, title, cookingTime, difficulty, tags, ingredients, seasonings, steps, source
+        case id, title, cookingTime, difficulty, tags, ingredients, seasonings, steps, baseServings, source
+    }
+
+    /// The only range the product offers anywhere (the editor stepper, the AI
+    /// request, `MealPlanItem`). A value outside it is not clamped into range:
+    /// a source claiming 50 servings is confused, and silently storing 12 would
+    /// hide that rather than surface it.
+    static let validBaseServings = 1...12
+
+    static func validatedBaseServings(_ value: Int?) -> Int? {
+        guard let value, validBaseServings.contains(value) else { return nil }
+        return value
     }
 
     init(
@@ -25,6 +44,7 @@ nonisolated struct Recipe: Identifiable, Hashable, Codable {
         ingredients: [String],
         seasonings: [String] = [],
         steps: [String],
+        baseServings: Int? = nil,
         source: RecipeSourceMetadata? = nil
     ) {
         self.id = id
@@ -36,6 +56,7 @@ nonisolated struct Recipe: Identifiable, Hashable, Codable {
         self.ingredients = seasonings.isEmpty ? classified.ingredients : RecipeIngredientClassifier.unique(ingredients)
         self.seasonings = RecipeIngredientClassifier.unique(seasonings.isEmpty ? classified.seasonings : seasonings)
         self.steps = steps.map(EditableRecipeDraft.cleanStep).filter { !$0.isEmpty }
+        self.baseServings = Self.validatedBaseServings(baseServings)
         self.source = source
     }
 
@@ -55,6 +76,11 @@ nonisolated struct Recipe: Identifiable, Hashable, Codable {
         seasonings = RecipeIngredientClassifier.unique(explicitSeasonings ?? classified.seasonings)
         steps = (try container.decodeIfPresent([String].self, forKey: .steps) ?? [])
             .map(EditableRecipeDraft.cleanStep).filter { !$0.isEmpty }
+        // Absent in every recipe stored before this field existed, and in any
+        // backup taken then. Those decode as unknown rather than as a guess.
+        baseServings = Self.validatedBaseServings(
+            try container.decodeIfPresent(Int.self, forKey: .baseServings)
+        )
         source = try container.decodeIfPresent(RecipeSourceMetadata.self, forKey: .source)
     }
 
