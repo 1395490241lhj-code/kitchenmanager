@@ -13,17 +13,29 @@ struct SpecialPlanDetailView: View {
     @State private var sheet: SpecialPlanDetailSheet?
     /// Transient AI menu state. Owned by the screen, never persisted: leaving
     /// the detail discards any unsaved draft.
-    @StateObject private var menuDraft = SpecialPlanMenuDraftStore()
+    @StateObject private var menuDraft: SpecialPlanMenuDraftStore
+
+    /// `initialDraft` is the menu the creation sheet composed before this plan
+    /// existed; the detail opens straight onto it.
+    init(
+        planID: UUID,
+        initialDraft: [SpecialPlanMenuDraftDish] = [],
+        onDelete: @escaping () -> Void
+    ) {
+        self.planID = planID
+        self.onDelete = onDelete
+        _menuDraft = StateObject(wrappedValue: SpecialPlanMenuDraftStore(dishes: initialDraft))
+    }
 
     private enum SpecialPlanDetailSheet: Identifiable {
-        case edit(SpecialPlan)
+        case compose(SpecialPlan)
         case picker
-        case shopping([Recipe])
+        case shopping([Recipe], usesHomeInventory: Bool)
         case draftDish(SpecialPlanMenuDraftDish)
 
         var id: String {
             switch self {
-            case .edit(let plan): "edit-\(plan.id.uuidString)"
+            case .compose(let plan): "compose-\(plan.id.uuidString)"
             case .picker: "picker"
             case .shopping: "shopping"
             case .draftDish(let dish): "draft-\(dish.id.uuidString)"
@@ -49,17 +61,32 @@ struct SpecialPlanDetailView: View {
     private func content(_ plan: SpecialPlan) -> some View {
         List {
             Section {
+                if !plan.requestText.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("需求")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(plan.requestText)
+                            .font(.subheadline)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("planner.special.request")
+                }
                 LabeledContent("时间", value: Self.detailDateText(plan.scheduledAt))
                 LabeledContent("人数", value: "\(plan.peopleCount) 人")
                     .accessibilityIdentifier("planner.special.peopleCount")
                 if !plan.constraintNotes.isEmpty {
                     ForEach(plan.constraintNotes, id: \.self) { note in
-                        LabeledContent("备注", value: note)
+                        LabeledContent("要求", value: note)
                     }
                 }
                 if !plan.notes.isEmpty {
                     LabeledContent("说明", value: plan.notes)
                 }
+                LabeledContent("食材", value: plan.usesHomeInventory ? "参考家中库存" : "不参考家中库存")
+                    .accessibilityIdentifier("planner.special.inventory")
+            } footer: {
+                Text("时间、人数和要求由 AI 从你的描述里读出，没写到的会按常见情况补上；想改就重新描述一次。")
             }
 
             if menuDraft.hasDraft || menuDraft.isGenerating {
@@ -97,10 +124,10 @@ struct SpecialPlanDetailView: View {
                         .accessibilityLabel("更多操作")
                 }
                 Button {
-                    sheet = .edit(plan)
+                    sheet = .compose(plan)
                 } label: {
                     Image(systemName: "pencil")
-                        .accessibilityLabel("编辑特殊计划")
+                        .accessibilityLabel("重新描述这次做饭")
                 }
                 .accessibilityIdentifier("planner.special.edit")
                 Button {
@@ -114,16 +141,10 @@ struct SpecialPlanDetailView: View {
         }
         .sheet(item: $sheet) { sheet in
             switch sheet {
-            case .edit(let plan):
-                SpecialPlanFormSheet(mode: .edit(plan)) { draft in
-                    var updated = plan
-                    updated.title = draft.title
-                    updated.scheduledAt = draft.scheduledAt
-                    updated.peopleCount = draft.peopleCount
-                    updated.constraintNotes = draft.constraintNotes
-                    updated.notes = draft.notes
-                    updated.updatedAt = Date()
-                    kitchenStore.updateSpecialPlan(updated)
+            case .compose(let plan):
+                SpecialPlanComposerSheet(mode: .edit(plan)) { result in
+                    kitchenStore.updateSpecialPlan(result.plan)
+                    menuDraft.adopt(result.dishes)
                 }
             case .picker:
                 NavigationStack {
@@ -132,10 +153,11 @@ struct SpecialPlanDetailView: View {
                         kitchenStore.addDish(dish, toSpecialPlan: planID)
                     }
                 }
-            case .shopping(let recipes):
+            case .shopping(let recipes, let usesHomeInventory):
                 NavigationStack {
                     ShoppingListGenerationView(
-                        source: .selectedRecipes(recipes, servings: 1)
+                        source: .selectedRecipes(recipes, servings: 1),
+                        reconcilesAgainstInventory: usesHomeInventory
                     )
                 }
             case .draftDish(let dish):
@@ -152,7 +174,7 @@ struct SpecialPlanDetailView: View {
     private func menuSection(_ plan: SpecialPlan) -> some View {
         Section {
             if plan.dishes.isEmpty {
-                Text("还没有菜品，可以让 AI 按人数和忌口设计一份，或从菜谱库添加。")
+                Text("还没有菜品。可以让 AI 按你的描述设计一份，或从菜谱库添加。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -228,7 +250,7 @@ struct SpecialPlanDetailView: View {
         } header: {
             Text("AI 菜单草稿")
         } footer: {
-            Text("保存前这些菜谱不会进入菜谱库。当前菜单按聚餐规模设计，食材用量仍是菜谱原始用量。")
+            Text("保存前这些菜谱不会进入菜谱库。")
         }
     }
 
@@ -293,7 +315,7 @@ struct SpecialPlanDetailView: View {
     private func shoppingSection(_ plan: SpecialPlan) -> some View {
         Section {
             Button {
-                sheet = .shopping(resolvedRecipes(plan))
+                sheet = .shopping(resolvedRecipes(plan), usesHomeInventory: plan.usesHomeInventory)
             } label: {
                 Label("查看购物需求", systemImage: "cart")
                     .frame(minHeight: AppTheme.minimumHitTarget)
@@ -303,7 +325,10 @@ struct SpecialPlanDetailView: View {
         } header: {
             Text("购物需求")
         } footer: {
-            Text("按菜谱原始用量与当前库存比对，人数尚未用于精确换算用量。")
+            Text(plan.usesHomeInventory
+                 ? "购物需求已结合家中现有库存计算。"
+                 : "未参考家中库存，按菜谱所需用量列出。")
+                .accessibilityIdentifier("planner.shopping.footer")
         }
     }
 

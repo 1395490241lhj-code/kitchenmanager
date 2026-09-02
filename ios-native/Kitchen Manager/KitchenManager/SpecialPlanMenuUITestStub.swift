@@ -42,20 +42,24 @@ struct SpecialPlanMenuUITestStub: SpecialPlanMenuRequesting {
         // XCUITest, which needs longer than a render frame to query the tree.
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         if shouldFail { throw StubFailure() }
-        return try Self.response(dishCount: request.dishesPerMeal)
+        return try Self.response(dishCount: request.dishesPerMeal, event: request.eventRequest)
     }
 
     /// Built through the real decoder so the stub cannot drift from the DTO the
     /// production path parses.
-    private static func response(dishCount: Int) throws -> AIWeeklyMenuResponse {
+    private static func response(dishCount: Int, event: WeeklyMenuEventRequest?) throws -> AIWeeklyMenuResponse {
         // A single-dish request is a targeted replacement; anything larger is a
         // full menu, answered with exactly the requested count so the real
-        // cardinality check passes the way a good response would. Distinct
-        // names keep the replacement observable in the UI.
+        // cardinality check passes the way a good response would (0 means the
+        // model chooses: the stub chooses four). Distinct names keep the
+        // replacement observable in the UI.
         let fullMenu = ["红烧牛腩", "蒜蓉虾", "凉拌黄瓜", "清炒时蔬", "番茄蛋汤", "白灼菜心"]
-        let names = dishCount <= 1
-            ? ["清蒸鲈鱼"]
-            : Array(fullMenu.prefix(min(dishCount, fullMenu.count)))
+        let names: [String]
+        switch dishCount {
+        case 1: names = ["清蒸鲈鱼"]
+        case 0: names = Array(fullMenu.prefix(4))
+        default: names = Array(fullMenu.prefix(min(dishCount, fullMenu.count)))
+        }
         let recipes: [[String: Any]] = names.map { name -> [String: Any] in
             [
                 "name": name,
@@ -71,7 +75,7 @@ struct SpecialPlanMenuUITestStub: SpecialPlanMenuRequesting {
                 "baseServings": SpecialPlanMenuBounds.aiRecipeBaseServings
             ]
         }
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "days": [[
                 "dayIndex": 0,
                 "meals": [["mealIndex": 0, "title": "晚餐", "recipes": recipes]]
@@ -79,6 +83,20 @@ struct SpecialPlanMenuUITestStub: SpecialPlanMenuRequesting {
             "shoppingItems": [],
             "warnings": []
         ]
+        if let event {
+            // A deterministic "reading" of the request: the title reflects one
+            // keyword so an edit is observable, the date is today at 18:30 so
+            // the plan lands in the visible week, the headcount echoes the
+            // request's stated number.
+            let today = String(event.today.prefix(10))
+            payload["event"] = [
+                "title": event.request.contains("火锅") ? "周末火锅局" : "周六朋友聚餐",
+                "scheduledAt": "\(today) 18:30",
+                "peopleCount": SpecialPlanRequestReading(requestText: event.request).peopleCount ?? 4,
+                "constraintNotes": event.request.contains("不吃辣") ? ["1 人不吃辣"] : [],
+                "notes": ""
+            ] as [String: Any]
+        }
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try JSONDecoder().decode(AIWeeklyMenuResponse.self, from: data)
     }

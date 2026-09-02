@@ -161,10 +161,21 @@ final class SpecialPlanMenuUITests: XCTestCase {
             "the saved menu must survive reopening the detail"
         )
 
-        // The shopping preview reuses the existing generation screen.
+        // No per-dish servings control anywhere on the saved menu.
+        XCTAssertEqual(app.steppers.count, 0, "the rejected per-dish servings UI must not return")
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "调整份量")).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "本次份量")).firstMatch.exists)
+
+        // The shopping preview reuses the existing generation screen. The stub
+        // writes 主料 200 克 per dish; six dishes as written are 1200, never
+        // 7-person maths.
         scrollUntilExists(app.buttons["planner.shopping.open"], in: app)
         app.buttons["planner.shopping.open"].tap()
         XCTAssertTrue(app.textFields["主料"].waitForExistence(timeout: 10), "shopping preview did not open")
+        let quantities = app.textFields.allElementsBoundByIndex
+            .compactMap { $0.value as? String }
+            .map { $0.filter(\.isNumber) }
+        XCTAssertTrue(quantities.contains("1200"), "as-written total expected; saw \(quantities)")
 
         let add = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "加入买菜清单（")

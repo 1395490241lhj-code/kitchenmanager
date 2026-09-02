@@ -17,13 +17,11 @@ enum PlannerRoute: Hashable {
 
 private enum PlannerSheet: Identifiable {
     case create
-    case edit(SpecialPlan)
     case pickRecipe(planID: UUID, planIndex: Int)
 
     var id: String {
         switch self {
         case .create: "create"
-        case .edit(let plan): "edit-\(plan.id.uuidString)"
         case .pickRecipe(planID: let id, planIndex: let index): "pick-\(id.uuidString)-\(index)"
         }
     }
@@ -101,6 +99,11 @@ struct PlannerView: View {
     @State private var path: [PlannerRoute] = []
     @State private var weekStart: Date
     @State private var sheet: PlannerSheet?
+    /// A menu the creation sheet composed for a plan that was just added. Held
+    /// until the detail for that plan is pushed, which seeds its draft store;
+    /// cleared when that detail leaves the path so a reopened plan never
+    /// resurrects a draft the user already dismissed.
+    @State private var pendingDraft: (planID: UUID, dishes: [SpecialPlanMenuDraftDish])?
     private let calendar: Calendar
     private let now: Date
 
@@ -151,7 +154,10 @@ struct PlannerView: View {
                     switch route {
                     case .specialPlan(let id):
                         if kitchenStore.specialPlans.contains(where: { $0.id == id }) {
-                            SpecialPlanDetailView(planID: id) {
+                            SpecialPlanDetailView(
+                                planID: id,
+                                initialDraft: pendingDraft?.planID == id ? pendingDraft?.dishes ?? [] : []
+                            ) {
                                 deleteSpecialPlan(id: id)
                             }
                         } else {
@@ -168,35 +174,13 @@ struct PlannerView: View {
                 .sheet(item: $sheet) { sheet in
                     switch sheet {
                     case .create:
-                        SpecialPlanFormSheet(
-                            mode: .create,
-                            onSave: { draft in
-                                var plan = SpecialPlan(
-                                    title: draft.title,
-                                    scheduledAt: draft.scheduledAt,
-                                    peopleCount: draft.peopleCount,
-                                    constraintNotes: draft.constraintNotes,
-                                    notes: draft.notes
-                                )
-                                plan.createdAt = Date()
-                                plan.updatedAt = plan.createdAt
-                                kitchenStore.addSpecialPlan(plan)
-                            }
-                        )
-                    case .edit(let plan):
-                        SpecialPlanFormSheet(
-                            mode: .edit(plan),
-                            onSave: { draft in
-                                var updated = plan
-                                updated.title = draft.title
-                                updated.scheduledAt = draft.scheduledAt
-                                updated.peopleCount = draft.peopleCount
-                                updated.constraintNotes = draft.constraintNotes
-                                updated.notes = draft.notes
-                                updated.updatedAt = Date()
-                                kitchenStore.updateSpecialPlan(updated)
-                            }
-                        )
+                        // The week view has no selected day, so the composer
+                        // gets no context date: the request names the date, or
+                        // the interpretation falls back on its own.
+                        SpecialPlanComposerSheet(mode: .create(contextDate: nil)) { result in
+                            kitchenStore.addSpecialPlan(result.plan)
+                            pendingDraft = (result.plan.id, result.dishes)
+                        }
                     case .pickRecipe(let planID, _):
                         NavigationStack {
                             RecipePickerView { recipe in
@@ -208,6 +192,19 @@ struct PlannerView: View {
                             }
                         }
                     }
+                }
+                .onChange(of: sheet?.id) { _, current in
+                    // Push the new plan's detail once the composer has fully
+                    // dismissed, so the draft is on screen without a second tap.
+                    guard current == nil, let pending = pendingDraft else { return }
+                    if !path.contains(.specialPlan(pending.planID)) {
+                        path.append(.specialPlan(pending.planID))
+                    }
+                }
+                .onChange(of: path) { _, current in
+                    guard let pending = pendingDraft,
+                          !current.contains(.specialPlan(pending.planID)) else { return }
+                    pendingDraft = nil
                 }
         }
     }

@@ -655,11 +655,15 @@ final class ShoppingListGenerationStore: ObservableObject {
 
     var selectedCount: Int { missingItems.filter(\.isSelected).count }
 
+    /// `reconcilesAgainstInventory == false` lists the recipes' full
+    /// requirements without subtracting anything from the home kitchen — the
+    /// Special Plan case for a meal cooked elsewhere.
     func generate(
         source: ShoppingGenerationSource,
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore,
-        includeSeasonings: Bool = false
+        includeSeasonings: Bool = false,
+        reconcilesAgainstInventory: Bool = true
     ) {
         self.source = source
         isGenerating = true
@@ -668,7 +672,7 @@ final class ShoppingListGenerationStore: ObservableObject {
 
         let draft = generator.generate(
             source: source,
-            inventory: kitchenStore.inventory,
+            inventory: reconcilesAgainstInventory ? kitchenStore.inventory : [],
             existingShoppingItems: kitchenStore.shoppingItems,
             recipeStore: recipeStore,
             includeSeasonings: includeSeasonings
@@ -739,13 +743,20 @@ struct ShoppingListGenerationView: View {
     @StateObject private var store = ShoppingListGenerationStore()
     @AppStorage("shoppingIncludesSeasonings") private var includeSeasonings = false
     let source: ShoppingGenerationSource
+    /// Off only for a Special Plan that does not use home inventory.
+    var reconcilesAgainstInventory: Bool = true
 
     var body: some View {
         List {
             Section("概览") {
                 LabeledContent("菜谱", value: "\(store.recipeCount) 道")
                 LabeledContent("所需食材", value: "\(store.missingItems.count + store.coveredItems.count) 项")
-                LabeledContent("已有库存", value: "\(store.coveredItems.count) 项")
+                if reconcilesAgainstInventory {
+                    LabeledContent("已有库存", value: "\(store.coveredItems.count) 项")
+                } else {
+                    LabeledContent("家中库存", value: "未参考")
+                        .accessibilityIdentifier("shopping.generation.noInventory")
+                }
                 LabeledContent("需要购买", value: "\(store.missingItems.count) 项")
                 Toggle("包含调料", isOn: $includeSeasonings)
             }
@@ -817,7 +828,8 @@ struct ShoppingListGenerationView: View {
                 source: source,
                 kitchenStore: kitchenStore,
                 recipeStore: recipeStore,
-                includeSeasonings: includeSeasonings
+                includeSeasonings: includeSeasonings,
+                reconcilesAgainstInventory: reconcilesAgainstInventory
             )
         }
     }

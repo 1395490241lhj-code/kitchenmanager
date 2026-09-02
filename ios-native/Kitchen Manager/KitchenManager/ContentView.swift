@@ -479,6 +479,10 @@ struct ContentView: View {
                 peopleCount: 7,
                 constraintNotes: ["1 人不吃辣"],
                 notes: "测试聚餐",
+                requestText: "这周六 7 个人一起吃饭，1 人不吃辣",
+                // The seed is a home-cooked meal: shopping keeps reconciling
+                // against inventory the way the pre-composer tests expect.
+                usesHomeInventory: true,
                 dishes: startsWithoutAMenu ? [] : [
                     SpecialPlanDish(recipeID: "sample-mapotofu", recipeName: "麻婆豆腐"),
                     SpecialPlanDish(recipeID: "sample-tomato-eggs", recipeName: "番茄炒鸡蛋")
