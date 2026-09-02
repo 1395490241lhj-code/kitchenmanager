@@ -14,8 +14,16 @@ import Foundation
 /// Sanity bounds for a generated menu. The AI decides the actual composition;
 /// these only stop a malformed or runaway response from becoming a menu.
 enum SpecialPlanMenuBounds {
-    static let minimumDishes = 2
     static let maximumDishes = 10
+
+    /// The fewest mapped dishes a menu may have to count as the menu that was
+    /// asked for. One short is tolerated (a dropped course is easy to add);
+    /// anything shorter is not the requested menu and is rejected rather than
+    /// shown, so a 2-dish answer to a 6-dish request never becomes a draft.
+    /// Never below 2: a single dish is not a menu whatever was requested.
+    static func minimumDishes(requested: Int) -> Int {
+        max(2, requested - 1)
+    }
 
     /// Every recipe the AI writes for a Special Plan states its quantities for
     /// this many servings.
@@ -156,9 +164,10 @@ struct SpecialPlanMenuGenerator {
         existingRecipes: [Recipe],
         excludedRecipeNames: [String] = []
     ) async throws -> [SpecialPlanMenuDraftDish] {
+        let requestedDishes = SpecialPlanMenuBounds.suggestedDishCount(peopleCount: plan.peopleCount)
         let request = Self.makeRequest(
             for: plan,
-            dishCount: SpecialPlanMenuBounds.suggestedDishCount(peopleCount: plan.peopleCount),
+            dishCount: requestedDishes,
             inventory: inventory,
             expiringItems: expiringItems,
             existingRecipes: existingRecipes,
@@ -167,7 +176,7 @@ struct SpecialPlanMenuGenerator {
         let response = try await response(for: request, operation: "generate")
         let dishes = Self.dishes(from: response, existingRecipes: existingRecipes)
         guard !dishes.isEmpty else { throw SpecialPlanMenuGeneratorError.emptyMenu }
-        guard dishes.count >= SpecialPlanMenuBounds.minimumDishes else {
+        guard dishes.count >= SpecialPlanMenuBounds.minimumDishes(requested: requestedDishes) else {
             throw SpecialPlanMenuGeneratorError.tooFewDishes
         }
         try Self.validateBaseYield(dishes)

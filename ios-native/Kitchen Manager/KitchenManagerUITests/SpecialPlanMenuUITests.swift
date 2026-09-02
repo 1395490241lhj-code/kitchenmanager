@@ -49,6 +49,34 @@ final class SpecialPlanMenuUITests: XCTestCase {
         )
     }
 
+    /// A six-dish menu pushes the actions below the fold of the lazy List,
+    /// where they are absent from the AX tree until scrolled into view.
+    @discardableResult
+    private func scrollUntilExists(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        var remaining = 6
+        while !element.exists && remaining > 0 {
+            app.swipeUp()
+            remaining -= 1
+        }
+        return element.waitForExistence(timeout: 5)
+    }
+
+    private func scrollUpUntilExists(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        var remaining = 6
+        while !element.exists && remaining > 0 {
+            app.swipeDown()
+            remaining -= 1
+        }
+        return element.waitForExistence(timeout: 5)
+    }
+
+    private func tapSave(in app: XCUIApplication) {
+        let save = app.buttons["planner.menu.save"]
+        scrollUntilExists(save, in: app)
+        save.tap()
+    }
+
+
     /// Spec 20 + 21 + 22: an empty plan offers generation, shows a loading
     /// state, and lands on a draft.
     func testEmptyPlanGeneratesADraftMenu() {
@@ -71,8 +99,10 @@ final class SpecialPlanMenuUITests: XCTestCase {
             app.staticTexts["红烧牛腩"].waitForExistence(timeout: 10),
             "draft menu never appeared"
         )
-        XCTAssertEqual(draftRows(in: app).count, 3, "the stub menu has three dishes")
-        XCTAssertTrue(app.buttons["planner.menu.save"].exists, "save action missing on a draft")
+        // Six rows no longer fit one screen and a lazy List mounts only what
+        // is visible, so the count is checked by scrolling to the last dish.
+        XCTAssertTrue(scrollUntilExists(app.staticTexts["白灼菜心"], in: app), "the 7-person seed asks for six dishes; the sixth is missing")
+        XCTAssertTrue(scrollUntilExists(app.buttons["planner.menu.save"], in: app), "save action missing on a draft")
     }
 
     /// Spec 23: replacing one dish changes only that dish.
@@ -96,7 +126,7 @@ final class SpecialPlanMenuUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["红烧牛腩"].exists, "the targeted dish should be gone")
         XCTAssertTrue(app.staticTexts["蒜蓉虾"].exists, "sibling dishes must be untouched")
         XCTAssertTrue(app.staticTexts["凉拌黄瓜"].exists, "sibling dishes must be untouched")
-        XCTAssertEqual(draftRows(in: app).count, 3, "replacement must not change the dish count")
+        XCTAssertTrue(scrollUntilExists(app.staticTexts["白灼菜心"], in: app), "replacement must not change the dish count")
     }
 
     /// Spec 24 + 25 + 26: saving turns the draft canonical, the菜单 survives
@@ -107,15 +137,15 @@ final class SpecialPlanMenuUITests: XCTestCase {
         app.buttons["planner.menu.generate"].tap()
         XCTAssertTrue(app.staticTexts["红烧牛腩"].waitForExistence(timeout: 10))
 
-        app.buttons["planner.menu.save"].tap()
+        tapSave(in: app)
 
         // The draft section is replaced by the canonical menu.
         XCTAssertTrue(
-            app.buttons["planner.shopping.open"].waitForExistence(timeout: 10),
+            scrollUntilExists(app.buttons["planner.shopping.open"], in: app),
             "shopping preview action missing after save"
         )
         XCTAssertEqual(draftRows(in: app).count, 0, "the draft must be cleared after saving")
-        XCTAssertTrue(app.staticTexts["红烧牛腩"].exists, "saved dish missing from the canonical menu")
+        XCTAssertTrue(scrollUpUntilExists(app.staticTexts["红烧牛腩"], in: app), "saved dish missing from the canonical menu")
 
         // Leave and reopen: the menu is persisted, not view state.
         app.navigationBars["朋友聚餐"].buttons.firstMatch.tap()
@@ -132,12 +162,9 @@ final class SpecialPlanMenuUITests: XCTestCase {
         )
 
         // The shopping preview reuses the existing generation screen.
+        scrollUntilExists(app.buttons["planner.shopping.open"], in: app)
         app.buttons["planner.shopping.open"].tap()
-        XCTAssertTrue(
-            app.staticTexts["主料"].waitForExistence(timeout: 10)
-                || app.navigationBars.count > 0,
-            "shopping preview did not open"
-        )
+        XCTAssertTrue(app.textFields["主料"].waitForExistence(timeout: 10), "shopping preview did not open")
 
         let add = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "加入买菜清单（")

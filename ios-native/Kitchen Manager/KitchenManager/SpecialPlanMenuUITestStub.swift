@@ -49,11 +49,14 @@ struct SpecialPlanMenuUITestStub: SpecialPlanMenuRequesting {
     /// production path parses.
     private static func response(dishCount: Int) throws -> AIWeeklyMenuResponse {
         // A single-dish request is a targeted replacement; anything larger is a
-        // full menu. Distinct names keep the replacement observable in the UI.
+        // full menu, answered with exactly the requested count so the real
+        // cardinality check passes the way a good response would. Distinct
+        // names keep the replacement observable in the UI.
+        let fullMenu = ["红烧牛腩", "蒜蓉虾", "凉拌黄瓜", "清炒时蔬", "番茄蛋汤", "白灼菜心"]
         let names = dishCount <= 1
             ? ["清蒸鲈鱼"]
-            : ["红烧牛腩", "蒜蓉虾", "凉拌黄瓜"]
-        let recipes: [[String: Any]] = names.map { name in
+            : Array(fullMenu.prefix(min(dishCount, fullMenu.count)))
+        let recipes: [[String: Any]] = names.map { name -> [String: Any] in
             [
                 "name": name,
                 "ingredients": ["主料 200 克", "配菜 1 份"],

@@ -135,7 +135,10 @@ final class SpecialPlanMenuTests: XCTestCase {
         )
     }
 
-    private func samplePlan(people: Int = 7) -> SpecialPlan {
+    /// Two people by default: that requests a 3-dish menu, so the two-dish
+    /// fixtures used throughout still clear the one-short cardinality floor.
+    /// Tests about headcount pass `people: 7` explicitly.
+    private func samplePlan(people: Int = 2) -> SpecialPlan {
         SpecialPlan(
             title: "朋友聚餐",
             scheduledAt: Date(timeIntervalSince1970: 1_750_000_000),
@@ -1006,5 +1009,65 @@ final class SpecialPlanMenuTests: XCTestCase {
         let beef = try XCTUnwrap(generated.missingItems.first { $0.displayName.contains("牛腩") })
         XCTAssertEqual(beef.requiredQuantity, 500, "no target means no scaling, even with a known base")
         XCTAssertNotEqual(beef.requiredQuantity, 875, "7 people must never become a numerator")
+    }
+
+    // MARK: - Shared draft helper
+
+    private func generatedDraft(
+        _ dishes: [[String: Any]],
+        kitchenStore: KitchenStore,
+        recipeStore: RecipeStore,
+        plan: SpecialPlan,
+        extraOutcomes: [FakeMenuResponder.Outcome] = []
+    ) async throws -> SpecialPlanMenuDraftStore {
+        let responder = FakeMenuResponder(outcomes: [.success(try response(dishes))] + extraOutcomes)
+        let draft = makeDraftStore(responder)
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        return draft
+    }
+
+    // MARK: - Menu cardinality is one authoritative check
+
+    /// A 7-person plan asks for 6 dishes. One short is tolerated; shorter is
+    /// not the menu that was asked for and never becomes a draft, whatever
+    /// the response looked like on the wire.
+    private func assertCardinality(mapped: Int, accepted: Bool, file: StaticString = #filePath, line: UInt = #line) async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan(people: 7)
+        XCTAssertEqual(SpecialPlanMenuBounds.suggestedDishCount(peopleCount: 7), 6, file: file, line: line)
+        kitchenStore.addSpecialPlan(plan)
+        let names = ["红烧牛腩", "蒜蓉虾", "清蒸鱼", "炒时蔬", "番茄汤", "凉拌黄瓜"]
+        let draft = try await generatedDraft(
+            names.prefix(mapped).map { aiDish($0) },
+            kitchenStore: kitchenStore, recipeStore: recipeStore, plan: plan
+        )
+        if accepted {
+            XCTAssertEqual(draft.dishes.count, mapped, file: file, line: line)
+            XCTAssertNil(draft.errorMessage, file: file, line: line)
+        } else {
+            XCTAssertTrue(draft.dishes.isEmpty, "a short menu must not become a draft", file: file, line: line)
+            XCTAssertEqual(
+                draft.errorMessage,
+                mapped == 0
+                    ? SpecialPlanMenuGeneratorError.emptyMenu.errorDescription
+                    : SpecialPlanMenuGeneratorError.tooFewDishes.errorDescription,
+                file: file, line: line
+            )
+        }
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, file: file, line: line)
+        XCTAssertEqual(kitchenStore.specialPlans.first?.dishes, [], file: file, line: line)
+    }
+
+    func testRequestedSixMappedSixIsAccepted() async throws { try await assertCardinality(mapped: 6, accepted: true) }
+    func testRequestedSixMappedFiveIsAccepted() async throws { try await assertCardinality(mapped: 5, accepted: true) }
+    func testRequestedSixMappedThreeIsRejected() async throws { try await assertCardinality(mapped: 3, accepted: false) }
+    func testRequestedSixMappedTwoIsRejected() async throws { try await assertCardinality(mapped: 2, accepted: false) }
+    func testRequestedSixMappedZeroIsEmptyMenu() async throws { try await assertCardinality(mapped: 0, accepted: false) }
+
+    func testMinimumDishesNeverDropsBelowTwo() {
+        XCTAssertEqual(SpecialPlanMenuBounds.minimumDishes(requested: 6), 5)
+        XCTAssertEqual(SpecialPlanMenuBounds.minimumDishes(requested: 3), 2)
+        XCTAssertEqual(SpecialPlanMenuBounds.minimumDishes(requested: 1), 2)
     }
 }
