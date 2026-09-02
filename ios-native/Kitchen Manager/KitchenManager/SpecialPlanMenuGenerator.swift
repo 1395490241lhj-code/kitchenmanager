@@ -8,6 +8,11 @@ import Foundation
 // tolerant `AIWeeklyMenuResponse` decoding rather than standing up a second AI
 // service, prompt, transport or DTO family.
 //
+// The user's input is one natural-language request. The same round trip that
+// writes the menu also returns the model's reading of that request (title,
+// date, headcount, constraints) as an `event` object, so composing a plan is
+// one AI call, not an interpretation call followed by a menu call.
+//
 // Nothing here writes canonical state: generation produces a transient draft
 // that only the draft store holds until the user accepts it.
 
@@ -21,8 +26,9 @@ enum SpecialPlanMenuBounds {
     /// anything shorter is not the requested menu and is rejected rather than
     /// shown, so a 2-dish answer to a 6-dish request never becomes a draft.
     /// Never below 2: a single dish is not a menu whatever was requested.
-    static func minimumDishes(requested: Int) -> Int {
-        max(2, requested - 1)
+    /// `nil` means the request stated no count and the model chose one.
+    static func minimumDishes(requested: Int?) -> Int {
+        max(2, (requested ?? 0) - 1)
     }
 
     /// Every recipe the AI writes for a Special Plan states its quantities for
@@ -36,8 +42,8 @@ enum SpecialPlanMenuBounds {
     /// declares this value or the generation is rejected.
     static let aiRecipeBaseServings = 4
 
-    /// A starting suggestion for the model, not a computed portion figure —
-    /// the repo has no canonical recipe yield to scale against.
+    /// A starting suggestion for the model when the request names a headcount
+    /// but no dish count — not a computed portion figure.
     static func suggestedDishCount(peopleCount: Int) -> Int {
         switch peopleCount {
         case ..<3: return 3
@@ -60,7 +66,7 @@ enum SpecialPlanMenuGeneratorError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            return "暂时无法生成菜单。请稍后重试，或调整人数与备注。"
+            return "暂时无法生成菜单。请稍后重试，或换一种说法描述这次做饭。"
         case .emptyMenu:
             return "这次没有生成可用的菜品，请重试。"
         case .tooFewDishes:
@@ -73,8 +79,162 @@ enum SpecialPlanMenuGeneratorError: LocalizedError, Equatable {
     }
 }
 
-/// A deliberately narrow policy derived from the user's canonical free-text
-/// constraints. It is not a general dietary or allergen model.
+// MARK: - Deterministic request reading
+
+/// The two numbers that have to be fixed *before* the model is asked, read
+/// from the request text locally so they never depend on the model's own
+/// account of what it was asked.
+///
+/// - A stated dish count ("6 道", "5–6 道菜") becomes the exact count the
+///   request asks for and the floor the cardinality check enforces.
+/// - A stated headcount ("7 个人") sizes the menu when no dish count is given.
+/// - Neither stated: the model chooses, and only the absolute floor applies.
+///
+/// This is a reading of numbers, not an understanding of the sentence; the
+/// model still interprets the request as a whole.
+struct SpecialPlanRequestReading: Equatable {
+    let requestedDishCount: Int?
+    let peopleCount: Int?
+
+    init(requestText: String) {
+        requestedDishCount = Self.dishCount(in: requestText)
+        peopleCount = Self.peopleCount(in: requestText)
+    }
+
+    /// The count sent as `dishesPerMeal`; `nil` lets the model decide.
+    var dishesToRequest: Int? {
+        if let requestedDishCount {
+            return min(max(requestedDishCount, 1), SpecialPlanMenuBounds.maximumDishes)
+        }
+        if let peopleCount {
+            return SpecialPlanMenuBounds.suggestedDishCount(peopleCount: peopleCount)
+        }
+        return nil
+    }
+
+    private static let numeral = #"(?<![\d第])(?<!第\s)(\d{1,2}|[一二两三四五六七八九十]{1,2})"#
+
+    /// "6 道", "六道菜", "5-6 道", "5～6 个菜": a range reads as its upper bound.
+    /// An ordinal ("第 2 道菜") is not a count.
+    static func dishCount(in text: String) -> Int? {
+        let pattern = numeral + #"(?:\s*[-–~～到至]\s*"# + numeral + #")?\s*(?:道|个\s*菜)"#
+        guard let match = firstMatch(of: pattern, in: text) else { return nil }
+        let upper = match.count > 2 && !match[2].isEmpty ? match[2] : nil
+        return number(from: upper ?? match[1])
+    }
+
+    /// "7 个人", "七位", "3 口人". A count that describes a constraint rather
+    /// than the table ("1 人不吃辣", "2 人忌口") is skipped; the largest
+    /// remaining count is the table.
+    static func peopleCount(in text: String) -> Int? {
+        let pattern = numeral + #"\s*(?:个|位|口)?\s*人(?!不|忌|吃素|过敏|素食|是)"#
+        let counts = allMatches(of: pattern, in: text).compactMap { number(from: $0[1]) }
+        return counts.max()
+    }
+
+    private static func number(from token: String) -> Int? {
+        if let value = Int(token) { return value }
+        let digits: [Character: Int] = [
+            "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
+            "六": 6, "七": 7, "八": 8, "九": 9, "十": 10
+        ]
+        let chars = Array(token)
+        switch chars.count {
+        case 1: return digits[chars[0]]
+        case 2 where chars[0] == "十": return digits[chars[1]].map { 10 + $0 }
+        case 2 where chars[1] == "十": return digits[chars[0]].map { $0 * 10 }
+        default: return nil
+        }
+    }
+
+    private static func firstMatch(of pattern: String, in text: String) -> [String]? {
+        allMatches(of: pattern, in: text).first
+    }
+
+    private static func allMatches(of pattern: String, in text: String) -> [[String]] {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.matches(in: text, range: range).map { match in
+            (0..<match.numberOfRanges).map { index in
+                guard let range = Range(match.range(at: index), in: text) else { return "" }
+                return String(text[range])
+            }
+        }
+    }
+}
+
+// MARK: - Interpretation
+
+/// What the model read out of the request, already parsed into app types.
+/// Every field is optional except the constraint list: the caller decides the
+/// fallback for a missing title or date, and the plan records that it was a
+/// fallback by keeping the raw request beside it.
+struct SpecialPlanInterpretation: Equatable {
+    var title: String?
+    var scheduledAt: Date?
+    var peopleCount: Int?
+    var constraintNotes: [String]
+    var notes: String
+
+    static let empty = SpecialPlanInterpretation(
+        title: nil, scheduledAt: nil, peopleCount: nil, constraintNotes: [], notes: ""
+    )
+
+    init(title: String?, scheduledAt: Date?, peopleCount: Int?, constraintNotes: [String], notes: String) {
+        self.title = title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.scheduledAt = scheduledAt
+        self.peopleCount = peopleCount.flatMap { (1...99).contains($0) ? $0 : nil }
+        self.constraintNotes = SpecialPlan.normalizedConstraintNotes(constraintNotes)
+        self.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    init(event: AIWeeklyMenuEventDTO?, calendar: Calendar = .current) {
+        self.init(
+            title: event?.title,
+            scheduledAt: event?.scheduledAt.flatMap { Self.date(from: $0, calendar: calendar) },
+            peopleCount: event?.peopleCount,
+            constraintNotes: event?.constraintNotes ?? [],
+            notes: event?.notes ?? ""
+        )
+    }
+
+    /// "yyyy-MM-dd HH:mm" in the user's calendar, with the ISO shapes a model
+    /// tends to produce instead. A bare date means 18:00, matching the prompt.
+    static func date(from text: String, calendar: Calendar = .current) -> Date? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.lowercased() != "null" else { return nil }
+        for format in ["yyyy-MM-dd HH:mm", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss"] {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.dateFormat = format
+            if let date = formatter.date(from: trimmed) { return date }
+        }
+        let dayOnly = DateFormatter()
+        dayOnly.locale = Locale(identifier: "en_US_POSIX")
+        dayOnly.calendar = calendar
+        dayOnly.timeZone = calendar.timeZone
+        dayOnly.dateFormat = "yyyy-MM-dd"
+        if let day = dayOnly.date(from: trimmed) {
+            return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day)
+        }
+        let iso = ISO8601DateFormatter()
+        return iso.date(from: trimmed)
+    }
+}
+
+/// One successful composition: the model's reading of the request plus the
+/// menu it wrote for it.
+struct SpecialPlanComposition: Equatable {
+    var interpretation: SpecialPlanInterpretation
+    var dishes: [SpecialPlanMenuDraftDish]
+}
+
+// MARK: - Constraint policy
+
+/// A deliberately narrow policy derived from the user's words. It is not a
+/// general dietary or allergen model.
 struct SpecialPlanConstraintPolicy: Equatable {
     let requiresNonSpicyFood: Bool
 
@@ -88,6 +248,17 @@ struct SpecialPlanConstraintPolicy: Equatable {
                     "does not eat spicy", "doesn't eat spicy", "no chili", "no chilli"
                 ].contains { normalized.contains($0) }
         }
+    }
+
+    /// The raw request is always consulted alongside the derived notes, so a
+    /// hard constraint the user typed holds even if the model's reading
+    /// dropped it.
+    init(requestText: String, constraintNotes: [String]) {
+        self.init(constraintNotes: constraintNotes + [requestText])
+    }
+
+    init(plan: SpecialPlan) {
+        self.init(requestText: plan.requestText, constraintNotes: plan.constraintNotes)
     }
 
     func allows(_ dish: SpecialPlanMenuDraftDish) -> Bool {
@@ -141,11 +312,30 @@ protocol SpecialPlanMenuRequesting {
 /// Production path: the existing weekly service, unchanged.
 extension WeeklyMenuPlannerService: SpecialPlanMenuRequesting {}
 
+// MARK: - Generator
+
 /// Builds the request and maps the shared weekly response onto special plan
 /// draft dishes. Pure translation plus validation — the network call itself
 /// stays in `WeeklyMenuPlannerService`.
 struct SpecialPlanMenuGenerator {
+    /// Everything a request needs besides the inventory pool. Built by the
+    /// draft store from either a fresh composer input or an existing plan.
+    struct Input: Equatable {
+        /// The user's words. For a plan written before the composer, the
+        /// legacy fields rendered as one sentence (`SpecialPlan.effectiveRequestText`).
+        var requestText: String
+        /// Derived notes already on the plan, if any. Only strengthens the
+        /// hard-constraint check; the request text is always consulted too.
+        var constraintNotes: [String] = []
+        var usesHomeInventory: Bool
+        /// A Planner day the composer was opened from, when the request itself
+        /// may name no date.
+        var contextDate: Date? = nil
+    }
+
     var service: any SpecialPlanMenuRequesting = SpecialPlanMenuGenerator.defaultService()
+    var calendar: Calendar = .current
+    var now: () -> Date = Date.init
 
     /// Production always returns the real weekly service. Only a UI-test launch
     /// argument swaps in the canned responder below, so a normal debug run and
@@ -157,83 +347,106 @@ struct SpecialPlanMenuGenerator {
         return WeeklyMenuPlannerService()
     }
 
-    func generateMenu(
-        for plan: SpecialPlan,
+    /// One round trip: the model reads the request and writes the menu.
+    func composeMenu(
+        _ input: Input,
         inventory: [InventoryItem],
-        expiringItems: [InventoryItem],
         existingRecipes: [Recipe],
         excludedRecipeNames: [String] = []
-    ) async throws -> [SpecialPlanMenuDraftDish] {
-        let requestedDishes = SpecialPlanMenuBounds.suggestedDishCount(peopleCount: plan.peopleCount)
+    ) async throws -> SpecialPlanComposition {
+        let reading = SpecialPlanRequestReading(requestText: input.requestText)
         let request = Self.makeRequest(
-            for: plan,
-            dishCount: requestedDishes,
+            input,
+            dishCount: reading.dishesToRequest,
             inventory: inventory,
-            expiringItems: expiringItems,
             existingRecipes: existingRecipes,
-            excludedRecipeNames: excludedRecipeNames
+            excludedRecipeNames: excludedRecipeNames,
+            calendar: calendar,
+            now: now()
         )
-        let response = try await response(for: request, operation: "generate")
+        let response = try await response(for: request, operation: "compose")
         let dishes = Self.dishes(from: response, existingRecipes: existingRecipes)
         guard !dishes.isEmpty else { throw SpecialPlanMenuGeneratorError.emptyMenu }
-        guard dishes.count >= SpecialPlanMenuBounds.minimumDishes(requested: requestedDishes) else {
+        guard dishes.count >= SpecialPlanMenuBounds.minimumDishes(requested: reading.dishesToRequest) else {
             throw SpecialPlanMenuGeneratorError.tooFewDishes
         }
+        let interpretation = SpecialPlanInterpretation(event: response.event, calendar: calendar)
         try Self.validateBaseYield(dishes)
-        try Self.validateHardConstraints(dishes, for: plan)
-        return Array(dishes.prefix(SpecialPlanMenuBounds.maximumDishes))
+        try Self.validateHardConstraints(
+            dishes,
+            policy: SpecialPlanConstraintPolicy(
+                requestText: input.requestText,
+                constraintNotes: input.constraintNotes + interpretation.constraintNotes
+            )
+        )
+        return SpecialPlanComposition(
+            interpretation: interpretation,
+            dishes: Array(dishes.prefix(SpecialPlanMenuBounds.maximumDishes))
+        )
     }
 
     /// One replacement dish, using the same single-dish override shape the
-    /// weekly planner uses for 替换这道: one day, one meal, one dish.
+    /// weekly planner uses for 替换这道: one day, one meal, one dish. Starts
+    /// from the plan's own request and constraints, never from a transcript.
     func generateReplacement(
         for plan: SpecialPlan,
         inventory: [InventoryItem],
-        expiringItems: [InventoryItem],
         existingRecipes: [Recipe],
         excludedRecipeNames: [String]
     ) async throws -> SpecialPlanMenuDraftDish {
         let request = Self.makeRequest(
-            for: plan,
+            Input(plan: plan),
             dishCount: 1,
             inventory: inventory,
-            expiringItems: expiringItems,
             existingRecipes: existingRecipes,
             excludedRecipeNames: excludedRecipeNames,
-            additionalInstruction: "当前只替换菜单中的一道菜。请生成一道普通、可独立上桌的菜，不要生成整桌套餐、拼盘、盆菜、火锅或多菜合一，并保持与其余菜搭配。"
+            additionalInstruction: "当前只替换菜单中的一道菜。请生成一道普通、可独立上桌的菜，不要生成整桌套餐、拼盘、盆菜、火锅或多菜合一，并保持与其余菜搭配。event 对象仍需返回，但只用于核对。",
+            calendar: calendar,
+            now: now()
         )
         let response = try await response(for: request, operation: "replacement")
         guard let dish = Self.dishes(from: response, existingRecipes: existingRecipes).first else {
             throw SpecialPlanMenuGeneratorError.emptyMenu
         }
         try Self.validateBaseYield([dish])
-        try Self.validateHardConstraints([dish], for: plan)
+        try Self.validateHardConstraints([dish], policy: SpecialPlanConstraintPolicy(plan: plan))
         return dish
     }
 
     // MARK: - Request construction
 
-    /// Event constraints travel as `additionalRequest`, which the shared prompt
-    /// already embeds verbatim in its condition JSON.
+    /// Event instructions travel as `additionalRequest`, which the shared prompt
+    /// already embeds verbatim in its condition JSON; the user's words travel
+    /// separately and verbatim as `eventRequest`.
+    ///
+    /// `dishCount == nil` asks the model to choose (`dishesPerMeal: 0`).
     static func makeRequest(
-        for plan: SpecialPlan,
-        dishCount: Int,
+        _ input: Input,
+        dishCount: Int?,
         inventory: [InventoryItem],
-        expiringItems: [InventoryItem],
         existingRecipes: [Recipe],
         excludedRecipeNames: [String],
-        additionalInstruction: String? = nil
+        additionalInstruction: String? = nil,
+        calendar: Calendar = .current,
+        now: Date = Date()
     ) -> AIWeeklyMenuRequest {
-        let inventoryPayload = inventory.map { item in
-            WeeklyMenuInventoryPayload(
-                name: item.name,
-                quantity: item.quantity,
-                unit: item.unit,
-                remainingDays: item.remainingDays,
-                isExpiringSoon: (item.remainingDays ?? 999) <= 3
-            )
-        }
-        let policy = SpecialPlanConstraintPolicy(constraintNotes: plan.constraintNotes)
+        // The whole inventory gate for AI: a plan cooked away from home sends
+        // nothing, so the model cannot prefer food that is not at the venue.
+        let inventoryPayload: [WeeklyMenuInventoryPayload] = input.usesHomeInventory
+            ? inventory.map { item in
+                WeeklyMenuInventoryPayload(
+                    name: item.name,
+                    quantity: item.quantity,
+                    unit: item.unit,
+                    remainingDays: item.remainingDays,
+                    isExpiringSoon: (item.remainingDays ?? 999) <= 3
+                )
+            }
+            : []
+        let policy = SpecialPlanConstraintPolicy(
+            requestText: input.requestText,
+            constraintNotes: input.constraintNotes
+        )
         let compatibleRecipes = existingRecipes.lazy.filter { recipe in
             policy.allows(
                 title: recipe.title,
@@ -256,50 +469,66 @@ struct SpecialPlanMenuGenerator {
                 difficulty: recipe.difficulty
             )
         }
-        let requestNotes = [eventBrief(for: plan), additionalInstruction]
+        let requestNotes = [eventBrief(for: input, policy: policy), additionalInstruction]
             .compactMap { $0 }
             .joined(separator: " ")
         return AIWeeklyMenuRequest(
             numberOfDays: 1,
             mealsPerDay: 1,
-            dishesPerMeal: max(1, min(dishCount, SpecialPlanMenuBounds.maximumDishes)),
+            dishesPerMeal: dishCount.map { max(1, min($0, SpecialPlanMenuBounds.maximumDishes)) } ?? 0,
             // The shared weekly prompt uses servings to estimate quantities.
-            // Special Plans have no canonical recipe yield, so headcount stays
-            // in the event brief and this field must remain neutral.
+            // Special Plan recipes are written for a fixed base yield instead,
+            // so this field must remain neutral.
             servings: 1,
             cuisines: [],
             flavors: [],
             maxCookingTime: nil,
-            prioritizeExpiringIngredients: true,
+            prioritizeExpiringIngredients: input.usesHomeInventory,
             avoidRepeatedMainIngredients: true,
             excludedIngredients: [],
             allowNewAIRecipes: true,
             additionalRequest: requestNotes,
-            inventory: Array(inventoryPayload),
+            inventory: inventoryPayload,
             existingRecipes: Array(recipeSummaries),
-            excludedRecipeNames: excludedRecipeNames
+            excludedRecipeNames: excludedRecipeNames,
+            eventRequest: WeeklyMenuEventRequest(
+                request: input.requestText,
+                today: Self.dayText(now, calendar: calendar),
+                fallbackDate: input.contextDate.map { Self.dayText($0, calendar: calendar) }
+            )
         )
     }
 
-    /// The canonical event state, rendered for the model. peopleCount shapes the
-    /// menu's size and composition; it deliberately never asks for scaled
-    /// ingredient quantities, because no recipe here carries a base yield.
-    static func eventBrief(for plan: SpecialPlan) -> String {
+    /// The standing rules for a Special Plan, rendered for the model. The
+    /// request itself is not repeated here; it travels as `eventRequest`.
+    static func eventBrief(for input: Input, policy: SpecialPlanConstraintPolicy) -> String {
         var parts: [String] = []
-        parts.append("这是一次「\(plan.title)」，共 \(plan.peopleCount) 人一起吃。")
-        parts.append("开饭时间：\(SpecialPlan.timeText(plan.scheduledAt))。")
-        if !plan.constraintNotes.isEmpty {
-            parts.append("必须遵守的忌口或要求：\(plan.constraintNotes.joined(separator: "；"))。")
+        parts.append("这是一次特殊安排（聚餐、宴客或某一顿的专门规划），用户的原话在 eventRequest.request 里，请以它为准安排菜单。")
+        if !input.constraintNotes.isEmpty {
+            parts.append("必须遵守的忌口或要求：\(input.constraintNotes.joined(separator: "；"))。")
         }
-        if SpecialPlanConstraintPolicy(constraintNotes: plan.constraintNotes).requiresNonSpicyFood {
+        if policy.requiresNonSpicyFood {
             parts.append("硬性约束：所有共享菜都必须完全不辣。不得生成辣、微辣、麻辣等辣味菜，不得把辣椒、辣椒油、辣酱或可选辣椒作为核心调味，也不要生成需要用户自行去辣才能满足约束的菜谱。")
         }
-        if !plan.notes.isEmpty {
-            parts.append("补充说明：\(plan.notes)。")
+        if input.usesHomeInventory {
+            parts.append("这次在家做饭：inventory 是家中现有食材，优先使用，尤其是 isExpiringSoon 为 true 的。")
+        } else {
+            parts.append("这次不参考家中库存（可能不在家做饭）：inventory 为空不代表没有食材，请自由选用合适的食材，缺的都可以购买，不要因为库存为空而缩减菜单或改用简陋的菜。")
         }
-        parts.append("请按聚餐场合安排菜品数量与荤素搭配，适合多人分享。")
-        parts.append("只给出菜品与做法。每一道新菜谱都必须按 \(SpecialPlanMenuBounds.aiRecipeBaseServings) 人份的标准家常菜谱书写用量，并在该菜的 baseServings 字段里如实填写 \(SpecialPlanMenuBounds.aiRecipeBaseServings)。ingredients 与 seasonings 中的所有数量都要对应这份 \(SpecialPlanMenuBounds.aiRecipeBaseServings) 人份菜谱，禁止按 \(plan.peopleCount) 人推算，也不要出现与 \(plan.peopleCount) 人一一对应的数量模式（例如 \(plan.peopleCount) 只虾、每人一个）。\(plan.peopleCount) 人只用来决定上几道菜和荤素搭配，不影响单道菜的用量。数量与单位之间留空格，无法确定时写“适量”。")
+        parts.append("请按场合安排菜品数量与荤素搭配，适合多人分享。")
+        parts.append("只给出菜品与做法。每一道新菜谱都必须按 \(SpecialPlanMenuBounds.aiRecipeBaseServings) 人份的标准家常菜谱书写用量，并在该菜的 baseServings 字段里如实填写 \(SpecialPlanMenuBounds.aiRecipeBaseServings)。ingredients 与 seasonings 中的所有数量都要对应这份 \(SpecialPlanMenuBounds.aiRecipeBaseServings) 人份菜谱，禁止按就餐人数推算，也不要出现与就餐人数一一对应的数量模式（例如每人一只虾）。就餐人数只用来决定上几道菜和荤素搭配，不影响单道菜的用量。数量与单位之间留空格，无法确定时写“适量”。")
         return parts.joined(separator: " ")
+    }
+
+    /// "2026-09-02 星期三" in the user's calendar; the anchor the model resolves
+    /// relative dates against.
+    static func dayText(_ date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd EEEE"
+        return formatter.string(from: date)
     }
 
     // MARK: - Response mapping
@@ -385,9 +614,8 @@ struct SpecialPlanMenuGenerator {
 
     private static func validateHardConstraints(
         _ dishes: [SpecialPlanMenuDraftDish],
-        for plan: SpecialPlan
+        policy: SpecialPlanConstraintPolicy
     ) throws {
-        let policy = SpecialPlanConstraintPolicy(constraintNotes: plan.constraintNotes)
         guard dishes.allSatisfy(policy.allows) else {
             throw SpecialPlanMenuGeneratorError.hardConstraintViolation
         }
@@ -444,4 +672,39 @@ struct SpecialPlanMenuGenerator {
             throw error
         }
     }
+}
+
+extension SpecialPlanMenuGenerator.Input {
+    /// Regeneration and replacement start from the plan as saved: its own
+    /// words when it has them, otherwise the legacy fields rendered as one
+    /// request so a plan from before the composer keeps generating the way it
+    /// always did.
+    init(plan: SpecialPlan) {
+        self.init(
+            requestText: plan.effectiveRequestText,
+            constraintNotes: plan.constraintNotes,
+            usesHomeInventory: plan.usesHomeInventory,
+            contextDate: plan.scheduledAt
+        )
+    }
+}
+
+extension SpecialPlan {
+    /// The request that regeneration reuses. A plan written before the
+    /// composer has no `requestText`; its structured fields are its request.
+    var effectiveRequestText: String {
+        if !requestText.isEmpty { return requestText }
+        var parts = ["这是一次「\(title)」，共 \(peopleCount) 人一起吃，开饭时间 \(Self.timeText(scheduledAt))。"]
+        if !constraintNotes.isEmpty {
+            parts.append("要求：\(constraintNotes.joined(separator: "；"))。")
+        }
+        if !notes.isEmpty {
+            parts.append("补充说明：\(notes)。")
+        }
+        return parts.joined(separator: " ")
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

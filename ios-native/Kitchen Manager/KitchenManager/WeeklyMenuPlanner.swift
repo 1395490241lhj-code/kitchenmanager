@@ -72,9 +72,25 @@ struct WeeklyMenuRecipeSummary: Encodable {
     let difficulty: String?
 }
 
+/// The Special Plan composer's one addition to the shared request: the user's
+/// verbatim description of the meal plus the date context needed to resolve
+/// relative phrases like 这周六. Present only for Special Plans; the weekly
+/// planner never sets it, so its prompt and responses are unchanged.
+struct WeeklyMenuEventRequest: Encodable {
+    /// The user's original words, untouched.
+    let request: String
+    /// "yyyy-MM-dd EEEE" in the user's calendar, e.g. "2026-09-02 星期三".
+    let today: String
+    /// Only set when the composer was opened from a specific Planner day and
+    /// the request itself names no date.
+    let fallbackDate: String?
+}
+
 struct AIWeeklyMenuRequest: Encodable {
     let numberOfDays: Int
     let mealsPerDay: Int
+    /// `0` lets the model choose the count from the request; any other value
+    /// is exact. Only Special Plans send `0`.
     let dishesPerMeal: Int
     let servings: Int
     let cuisines: [String]
@@ -88,6 +104,43 @@ struct AIWeeklyMenuRequest: Encodable {
     let inventory: [WeeklyMenuInventoryPayload]
     let existingRecipes: [WeeklyMenuRecipeSummary]
     let excludedRecipeNames: [String]
+    let eventRequest: WeeklyMenuEventRequest?
+
+    init(
+        numberOfDays: Int,
+        mealsPerDay: Int,
+        dishesPerMeal: Int,
+        servings: Int,
+        cuisines: [String],
+        flavors: [String],
+        maxCookingTime: Int?,
+        prioritizeExpiringIngredients: Bool,
+        avoidRepeatedMainIngredients: Bool,
+        excludedIngredients: [String],
+        allowNewAIRecipes: Bool,
+        additionalRequest: String?,
+        inventory: [WeeklyMenuInventoryPayload],
+        existingRecipes: [WeeklyMenuRecipeSummary],
+        excludedRecipeNames: [String],
+        eventRequest: WeeklyMenuEventRequest? = nil
+    ) {
+        self.numberOfDays = numberOfDays
+        self.mealsPerDay = mealsPerDay
+        self.dishesPerMeal = dishesPerMeal
+        self.servings = servings
+        self.cuisines = cuisines
+        self.flavors = flavors
+        self.maxCookingTime = maxCookingTime
+        self.prioritizeExpiringIngredients = prioritizeExpiringIngredients
+        self.avoidRepeatedMainIngredients = avoidRepeatedMainIngredients
+        self.excludedIngredients = excludedIngredients
+        self.allowNewAIRecipes = allowNewAIRecipes
+        self.additionalRequest = additionalRequest
+        self.inventory = inventory
+        self.existingRecipes = existingRecipes
+        self.excludedRecipeNames = excludedRecipeNames
+        self.eventRequest = eventRequest
+    }
 }
 
 // MARK: - Response DTOs
@@ -213,10 +266,52 @@ struct AIWeeklyShoppingItemDTO: Decodable {
     }
 }
 
+/// The model's reading of a Special Plan request, returned in the same
+/// response as the menu. Every field is optional and decoding never fails on
+/// this object: a missing or malformed reading costs the plan a derived
+/// field, never the menu.
+struct AIWeeklyMenuEventDTO: Decodable {
+    let title: String?
+    /// "yyyy-MM-dd HH:mm" in the user's local time, or nil when the request
+    /// named no date.
+    let scheduledAt: String?
+    let peopleCount: Int?
+    let constraintNotes: [String]?
+    let notes: String?
+
+    enum CodingKeys: String, CodingKey {
+        case title, scheduledAt, scheduled_at, peopleCount, people_count, constraintNotes, constraint_notes, notes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        title = try? container.decode(String.self, forKey: .title)
+        scheduledAt = (try? container.decode(String.self, forKey: .scheduledAt))
+            ?? (try? container.decode(String.self, forKey: .scheduled_at))
+        peopleCount = (try? container.decode(Int.self, forKey: .peopleCount))
+            ?? (try? container.decode(Int.self, forKey: .people_count))
+        constraintNotes = (try? container.decode([String].self, forKey: .constraintNotes))
+            ?? (try? container.decode([String].self, forKey: .constraint_notes))
+        notes = try? container.decode(String.self, forKey: .notes)
+    }
+}
+
 struct AIWeeklyMenuResponse: Decodable {
     let days: [AIWeeklyMenuDayDTO]
     let shoppingItems: [AIWeeklyShoppingItemDTO]?
     let warnings: [String]?
+    /// Present only when the request carried an `eventRequest`.
+    let event: AIWeeklyMenuEventDTO?
+
+    enum CodingKeys: String, CodingKey { case days, shoppingItems, warnings, event }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        days = try container.decode([AIWeeklyMenuDayDTO].self, forKey: .days)
+        shoppingItems = try? container.decode([AIWeeklyShoppingItemDTO].self, forKey: .shoppingItems)
+        warnings = try? container.decode([String].self, forKey: .warnings)
+        event = try? container.decode(AIWeeklyMenuEventDTO.self, forKey: .event)
+    }
 }
 
 enum WeeklyMenuPlannerError: LocalizedError {
@@ -272,10 +367,10 @@ struct WeeklyMenuPlannerService {
         - 遵守 maxCookingTime、cuisines、flavors 和 excludedIngredients。
         - 不要出现重复菜名，也不要使用 excludedRecipeNames 中的菜。
         - 缺少的食材列在 shoppingItems 中，数量按 servings 估算，未知时可以省略数量或填“适量”。
-        - 只返回 JSON 对象，不要 Markdown、代码围栏或额外解释。
+        - 只返回 JSON 对象，不要 Markdown、代码围栏或额外解释。\(Self.eventInstructions(for: request))
 
         严格 JSON 格式：
-        {
+        {\(request.eventRequest == nil ? "" : Self.eventSchema)
           "days": [
             {
               "dayIndex": 0,
@@ -321,6 +416,34 @@ struct WeeklyMenuPlannerService {
         }
         return response
     }
+
+    /// Extra rules for a Special Plan request, each on its own line after the
+    /// shared rules. Empty for the weekly planner, so its prompt is
+    /// byte-for-byte what it was.
+    static func eventInstructions(for request: AIWeeklyMenuRequest) -> String {
+        guard let event = request.eventRequest else { return "" }
+        var lines = [
+            "- dishesPerMeal 为 0 时，由你根据 eventRequest 里的人数与场合决定这一顿的菜数（3 到 8 道）。",
+            "- eventRequest.request 是用户对这次做饭的原话，是最重要的条件：场合、人数、日期时间、忌口、菜系、菜数、复杂程度、想吃的食材都以它为准。",
+            "- 同时在返回 JSON 里额外给出 event 对象，如实解读这段原话：title 是简短活动名（如「周六朋友聚餐」）；peopleCount 是就餐人数（没说时按场合估计）；constraintNotes 是必须遵守的忌口或要求，每条一句；notes 是其他偏好摘要，没有则为空字符串。",
+            "- scheduledAt 用 \"yyyy-MM-dd HH:mm\" 表示，以 eventRequest.today 为今天推算「这周六」「明天」等相对日期；用户只说了日期没说时间时按 18:00；完全没说日期时填 null。"
+        ]
+        if let fallback = event.fallbackDate {
+            lines.append("- 用户没说日期时可以按 \(fallback) 这一天安排。")
+        }
+        return lines.map { "\n        " + $0 }.joined()
+    }
+
+    static let eventSchema = """
+
+          "event": {
+            "title": "周六朋友聚餐",
+            "scheduledAt": "2026-09-05 18:30",
+            "peopleCount": 7,
+            "constraintNotes": ["1 人不吃辣"],
+            "notes": "想吃鱼和牛肉，不要太复杂"
+          },
+        """
 }
 
 // MARK: - Input state

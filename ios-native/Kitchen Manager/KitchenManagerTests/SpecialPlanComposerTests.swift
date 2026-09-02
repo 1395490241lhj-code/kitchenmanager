@@ -1,0 +1,538 @@
+import XCTest
+import SwiftData
+@testable import KitchenManager
+
+/// The AI composer: one natural-language request → one AI round trip →
+/// derived plan fields + menu draft, with the home-inventory switch gating
+/// both what the model sees and what shopping subtracts.
+@MainActor
+final class SpecialPlanComposerTests: XCTestCase {
+    private var storeURL: URL!
+    private var defaultsSuiteName: String!
+
+    override func setUpWithError() throws {
+        storeURL = FileManager.default.temporaryDirectory
+            .appending(path: "specialplan-composer-\(UUID().uuidString).store")
+        defaultsSuiteName = "specialplan-composer-\(UUID().uuidString)"
+    }
+
+    override func tearDownWithError() throws {
+        for suffix in ["", "-shm", "-wal"] {
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: storeURL.path + suffix))
+        }
+        UserDefaults().removePersistentDomain(forName: defaultsSuiteName)
+        storeURL = nil
+        defaultsSuiteName = nil
+    }
+
+    // MARK: - Fixtures
+
+    private final class FakeMenuResponder: SpecialPlanMenuRequesting, @unchecked Sendable {
+        private(set) var requests: [AIWeeklyMenuRequest] = []
+        var responses: [AIWeeklyMenuResponse]
+        struct TransportFailure: Error {}
+
+        init(responses: [AIWeeklyMenuResponse]) { self.responses = responses }
+
+        func generatePlan(request: AIWeeklyMenuRequest) async throws -> AIWeeklyMenuResponse {
+            requests.append(request)
+            guard !responses.isEmpty else { throw TransportFailure() }
+            return responses.removeFirst()
+        }
+    }
+
+    private let sampleRequest = "这周六去朋友家做饭，7 个人，1 个人不吃辣，想做 6 道左右中式家常菜，不要太复杂，最好有鱼和牛肉。"
+
+    private func aiDish(_ name: String, ingredients: [String] = ["牛腩 500 克"]) -> [String: Any] {
+        [
+            "name": name, "ingredients": ingredients, "steps": ["炖煮"],
+            "source": "ai", "reason": "适合聚餐",
+            "baseServings": SpecialPlanMenuBounds.aiRecipeBaseServings
+        ]
+    }
+
+    private func response(_ dishes: [[String: Any]], event: [String: Any]? = nil) throws -> AIWeeklyMenuResponse {
+        var payload: [String: Any] = [
+            "days": [["dayIndex": 0, "meals": [["mealIndex": 0, "title": "晚餐", "recipes": dishes]]]],
+            "shoppingItems": [], "warnings": []
+        ]
+        if let event { payload["event"] = event }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try JSONDecoder().decode(AIWeeklyMenuResponse.self, from: data)
+    }
+
+    private func sixDishes() -> [[String: Any]] {
+        ["红烧牛腩", "清蒸鲈鱼", "蒜蓉虾", "白灼菜心", "番茄蛋汤", "凉拌黄瓜"].map { aiDish($0) }
+    }
+
+    private let sampleEvent: [String: Any] = [
+        "title": "周六朋友聚餐",
+        "scheduledAt": "2026-09-05 18:30",
+        "peopleCount": 7,
+        "constraintNotes": ["1 人不吃辣"],
+        "notes": "想吃鱼和牛肉，不要太复杂"
+    ]
+
+    private func makeKitchenStore() throws -> KitchenStore {
+        KitchenStore(
+            userDefaults: UserDefaults(suiteName: defaultsSuiteName)!,
+            persistence: try KitchenPersistenceFactory.bundle(
+                container: KitchenPersistenceFactory.makeContainer(
+                    configuration: ModelConfiguration(url: storeURL)
+                )
+            )
+        )
+    }
+
+    private func makeRecipeStore() -> RecipeStore {
+        RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+    }
+
+    private func generator(_ responder: FakeMenuResponder) -> SpecialPlanMenuGenerator {
+        var generator = SpecialPlanMenuGenerator(service: responder)
+        generator.calendar = Calendar(identifier: .gregorian)
+        generator.now = { Date(timeIntervalSince1970: 1_788_000_000) }
+        return generator
+    }
+
+    private func input(_ text: String? = nil, usesHomeInventory: Bool = false) -> SpecialPlanMenuGenerator.Input {
+        SpecialPlanMenuGenerator.Input(requestText: text ?? sampleRequest, usesHomeInventory: usesHomeInventory)
+    }
+
+    // MARK: - Deterministic reading of the request
+
+    func testReadingExtractsStatedDishCountAndHeadcount() {
+        let reading = SpecialPlanRequestReading(requestText: "周六7个人1人不吃辣中式6道")
+        XCTAssertEqual(reading.peopleCount, 7, "the constraint's 1 人 is not the table")
+        XCTAssertEqual(reading.requestedDishCount, 6)
+        XCTAssertEqual(reading.dishesToRequest, 6)
+    }
+
+    func testReadingHandlesRangesChineseNumeralsAndAbsence() {
+        XCTAssertEqual(SpecialPlanRequestReading(requestText: "想做 5–6 道中式家常菜").requestedDishCount, 6)
+        XCTAssertEqual(SpecialPlanRequestReading(requestText: "做六道菜").requestedDishCount, 6)
+        XCTAssertEqual(SpecialPlanRequestReading(requestText: "做 4 个菜就够").requestedDishCount, 4)
+        XCTAssertEqual(SpecialPlanRequestReading(requestText: "我们家三口人").peopleCount, 3)
+        XCTAssertEqual(SpecialPlanRequestReading(requestText: "十二个人一起").peopleCount, 12)
+
+        let bare = SpecialPlanRequestReading(requestText: "随便做点好吃的")
+        XCTAssertNil(bare.requestedDishCount)
+        XCTAssertNil(bare.peopleCount)
+        XCTAssertNil(bare.dishesToRequest, "nothing stated: the model chooses")
+
+        let constraintOnly = SpecialPlanRequestReading(requestText: "1 人不吃辣")
+        XCTAssertNil(constraintOnly.peopleCount, "a constraint headcount never becomes the table")
+
+        XCTAssertNil(SpecialPlanRequestReading(requestText: "第 2 道菜换成鱼").requestedDishCount, "an ordinal is not a count")
+        XCTAssertNil(SpecialPlanRequestReading(requestText: "100 人的宴席").peopleCount, "no digit-boundary false match")
+    }
+
+    func testHeadcountAloneSizesTheMenuThroughTheExistingSuggestion() {
+        XCTAssertEqual(
+            SpecialPlanRequestReading(requestText: "这周六 7 个人吃饭").dishesToRequest,
+            SpecialPlanMenuBounds.suggestedDishCount(peopleCount: 7)
+        )
+    }
+
+    func testHardNonSpicyConstraintIsReadFromTheRawRequest() {
+        XCTAssertTrue(SpecialPlanConstraintPolicy(requestText: sampleRequest, constraintNotes: []).requiresNonSpicyFood)
+        XCTAssertFalse(SpecialPlanConstraintPolicy(requestText: "7 个人吃火锅", constraintNotes: []).requiresNonSpicyFood)
+    }
+
+    // MARK: - One round trip
+
+    func testComposeIsOneAICallThatReturnsBothReadingAndMenu() async throws {
+        let responder = FakeMenuResponder(responses: [try response(sixDishes(), event: sampleEvent)])
+        let composition = try await generator(responder).composeMenu(input(), inventory: [], existingRecipes: [])
+
+        XCTAssertEqual(responder.requests.count, 1, "interpretation and menu come from one round trip")
+        XCTAssertEqual(composition.dishes.count, 6)
+        let reading = composition.interpretation
+        XCTAssertEqual(reading.title, "周六朋友聚餐")
+        XCTAssertEqual(reading.peopleCount, 7)
+        XCTAssertEqual(reading.constraintNotes, ["1 人不吃辣"])
+        XCTAssertEqual(reading.notes, "想吃鱼和牛肉，不要太复杂")
+        let expected = DateComponents(
+            calendar: Calendar(identifier: .gregorian), timeZone: .current,
+            year: 2026, month: 9, day: 5, hour: 18, minute: 30
+        ).date
+        XCTAssertEqual(reading.scheduledAt, expected)
+    }
+
+    func testRequestCarriesTheUsersWordsVerbatimAndTheDateAnchor() async throws {
+        let responder = FakeMenuResponder(responses: [try response(sixDishes(), event: sampleEvent)])
+        _ = try await generator(responder).composeMenu(input(), inventory: [], existingRecipes: [])
+
+        let request = try XCTUnwrap(responder.requests.first)
+        XCTAssertEqual(request.eventRequest?.request, sampleRequest)
+        XCTAssertEqual(request.eventRequest?.today.count, "2026-09-05 星期六".count)
+        XCTAssertEqual(request.dishesPerMeal, 6, "the stated 6 道 is the exact count asked for")
+        XCTAssertEqual(request.servings, 1)
+        XCTAssertNil(request.eventRequest?.fallbackDate)
+    }
+
+    func testStructuredMenuSchemaCarriesNoServingsTarget() throws {
+        let request = SpecialPlanMenuGenerator.makeRequest(
+            input(), dishCount: 6, inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        let json = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
+        XCTAssertFalse(json.contains("targetServings"))
+        XCTAssertFalse(json.contains("suggestedPlannedServings"))
+        XCTAssertFalse(json.contains("plannedServings"))
+        // The prompt block the weekly service adds for events asks for the
+        // reading, never for portions.
+        let instructions = WeeklyMenuPlannerService.eventInstructions(for: request)
+        XCTAssertTrue(instructions.contains("peopleCount"))
+        XCTAssertFalse(instructions.contains("份量"))
+    }
+
+    func testWeeklyPlannerRequestsAreUntouched() throws {
+        let weekly = AIWeeklyMenuRequest(
+            numberOfDays: 7, mealsPerDay: 1, dishesPerMeal: 2, servings: 2,
+            cuisines: [], flavors: [], maxCookingTime: nil,
+            prioritizeExpiringIngredients: true, avoidRepeatedMainIngredients: true,
+            excludedIngredients: [], allowNewAIRecipes: true, additionalRequest: nil,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        let json = String(decoding: try JSONEncoder().encode(weekly), as: UTF8.self)
+        XCTAssertFalse(json.contains("eventRequest"), "a nil event request is omitted from the weekly JSON")
+        XCTAssertEqual(WeeklyMenuPlannerService.eventInstructions(for: weekly), "")
+    }
+
+    // MARK: - Derived plan fields
+
+    func testMakePlanPersistsTheRawRequestAndTheInventorySwitch() async throws {
+        let responder = FakeMenuResponder(responses: [try response(sixDishes(), event: sampleEvent)])
+        let composition = try await generator(responder).composeMenu(input(), inventory: [], existingRecipes: [])
+        let plan = composition.interpretation.makePlan(
+            requestText: sampleRequest, usesHomeInventory: false, contextDate: nil
+        )
+
+        XCTAssertEqual(plan.requestText, sampleRequest)
+        XCTAssertFalse(plan.usesHomeInventory)
+        XCTAssertEqual(plan.title, "周六朋友聚餐")
+        XCTAssertEqual(plan.peopleCount, 7)
+        XCTAssertEqual(plan.constraintNotes, ["1 人不吃辣"])
+        XCTAssertEqual(plan.scheduledAt, composition.interpretation.scheduledAt)
+        XCTAssertTrue(plan.dishes.isEmpty, "the menu stays a draft until saved")
+    }
+
+    func testMissingReadingFallsBackWithoutAForm() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = DateComponents(calendar: calendar, timeZone: .current, year: 2026, month: 9, day: 2, hour: 10).date!
+        let empty = SpecialPlanInterpretation.empty
+
+        // Title: the opening words of the request. Headcount: the number the
+        // request states. Date: tonight, because it is still morning.
+        let plan = empty.makePlan(
+            requestText: "周六 7 个人吃饭，1 人不吃辣", usesHomeInventory: false,
+            contextDate: nil, now: now, calendar: calendar
+        )
+        XCTAssertEqual(plan.title, "周六 7 个人吃饭")
+        XCTAssertEqual(plan.peopleCount, 7)
+        XCTAssertEqual(calendar.component(.hour, from: plan.scheduledAt), 18)
+        XCTAssertTrue(calendar.isDate(plan.scheduledAt, inSameDayAs: now))
+
+        // Opened from a Planner day: that day at 18:00 wins over tonight.
+        let saturday = calendar.date(byAdding: .day, value: 3, to: now)!
+        let contextual = empty.makePlan(
+            requestText: "随便", usesHomeInventory: false,
+            contextDate: saturday, now: now, calendar: calendar
+        )
+        XCTAssertTrue(calendar.isDate(contextual.scheduledAt, inSameDayAs: saturday))
+        XCTAssertEqual(calendar.component(.hour, from: contextual.scheduledAt), 18)
+        XCTAssertEqual(contextual.peopleCount, 2, "nothing stated anywhere: the smallest table")
+
+        // Evening already: tomorrow night.
+        let evening = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: now)!
+        let late = empty.makePlan(
+            requestText: "", usesHomeInventory: false, contextDate: nil, now: evening, calendar: calendar
+        )
+        XCTAssertEqual(late.title, "特殊安排")
+        XCTAssertTrue(calendar.isDate(late.scheduledAt, inSameDayAs: calendar.date(byAdding: .day, value: 1, to: now)!))
+    }
+
+    func testDateParsingAcceptsTheShapesAModelProduces() {
+        let calendar = Calendar(identifier: .gregorian)
+        let full = SpecialPlanInterpretation.date(from: "2026-09-05 18:30", calendar: calendar)
+        XCTAssertEqual(full.map { calendar.component(.minute, from: $0) }, 30)
+        let dayOnly = SpecialPlanInterpretation.date(from: "2026-09-05", calendar: calendar)
+        XCTAssertEqual(dayOnly.map { calendar.component(.hour, from: $0) }, 18)
+        XCTAssertNotNil(SpecialPlanInterpretation.date(from: "2026-09-05T18:30", calendar: calendar))
+        XCTAssertNil(SpecialPlanInterpretation.date(from: "null", calendar: calendar))
+        XCTAssertNil(SpecialPlanInterpretation.date(from: "", calendar: calendar))
+    }
+
+    func testEditAppliesTheNewReadingOntoTheExistingPlan() async throws {
+        var existing = SpecialPlanInterpretation.empty.makePlan(
+            requestText: "周六 4 个人", usesHomeInventory: true, contextDate: nil
+        )
+        existing.dishes = [SpecialPlanDish(recipeID: "r1", recipeName: "麻婆豆腐")]
+        let responder = FakeMenuResponder(responses: [try response(sixDishes(), event: sampleEvent)])
+        let composition = try await generator(responder).composeMenu(input(), inventory: [], existingRecipes: [])
+        let updated = composition.interpretation.apply(
+            to: existing, requestText: sampleRequest, usesHomeInventory: false
+        )
+
+        XCTAssertEqual(updated.id, existing.id)
+        XCTAssertEqual(updated.dishes, existing.dishes, "editing the description does not touch the saved menu")
+        XCTAssertEqual(updated.requestText, sampleRequest)
+        XCTAssertFalse(updated.usesHomeInventory)
+        XCTAssertEqual(updated.title, "周六朋友聚餐")
+        XCTAssertEqual(updated.peopleCount, 7)
+    }
+
+    func testEditWithoutANewDateKeepsTheExactPreviousTime() async throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let lunch = DateComponents(calendar: calendar, timeZone: .current, year: 2026, month: 9, day: 5, hour: 12, minute: 15).date!
+        var existing = SpecialPlanInterpretation.empty.makePlan(requestText: "周六 4 个人", usesHomeInventory: true, contextDate: nil)
+        existing.scheduledAt = lunch
+        let noDateEvent: [String: Any] = ["title": "周六火锅", "peopleCount": 4, "constraintNotes": []]
+        let responder = FakeMenuResponder(responses: [try response(sixDishes(), event: noDateEvent)])
+        let composition = try await generator(responder).composeMenu(input("周六 4 个人吃火锅"), inventory: [], existingRecipes: [])
+        let updated = composition.interpretation.apply(to: existing, requestText: "周六 4 个人吃火锅", usesHomeInventory: true)
+        XCTAssertEqual(updated.scheduledAt, lunch, "a re-description that names no date must not move the meal to 18:00")
+        XCTAssertEqual(updated.title, "周六火锅")
+    }
+
+    // MARK: - Hard constraints
+
+    func testNonSpicyIsEnforcedFromTheRawRequestEvenIfTheReadingDroppedIt() async throws {
+        var dishes = sixDishes()
+        dishes[0] = aiDish("麻辣牛腩", ingredients: ["牛腩 500 克", "辣椒 3 个"])
+        let noConstraintEvent: [String: Any] = ["title": "聚餐", "peopleCount": 7, "constraintNotes": []]
+        let responder = FakeMenuResponder(responses: [try response(dishes, event: noConstraintEvent)])
+        do {
+            _ = try await generator(responder).composeMenu(input(), inventory: [], existingRecipes: [])
+            XCTFail("a spicy dish must reject the whole composition")
+        } catch {
+            XCTAssertEqual(error as? SpecialPlanMenuGeneratorError, .hardConstraintViolation)
+        }
+    }
+
+    // MARK: - Cardinality stays one authoritative check
+
+    func testStatedSixDishesReturnedThreeIsRejected() async throws {
+        let responder = FakeMenuResponder(responses: [try response(Array(sixDishes().prefix(3)), event: sampleEvent)])
+        do {
+            _ = try await generator(responder).composeMenu(input(), inventory: [], existingRecipes: [])
+            XCTFail("three dishes are not the six that were asked for")
+        } catch {
+            XCTAssertEqual(error as? SpecialPlanMenuGeneratorError, .tooFewDishes)
+        }
+    }
+
+    func testStatedSixDishesReturnedFiveIsAccepted() async throws {
+        let responder = FakeMenuResponder(responses: [try response(Array(sixDishes().prefix(5)), event: sampleEvent)])
+        let composition = try await generator(responder).composeMenu(input(), inventory: [], existingRecipes: [])
+        XCTAssertEqual(composition.dishes.count, 5)
+    }
+
+    func testUnstatedCountLetsTheModelChooseAboveTheAbsoluteFloor() async throws {
+        let responder = FakeMenuResponder(responses: [try response(Array(sixDishes().prefix(2)), event: sampleEvent)])
+        let composition = try await generator(responder).composeMenu(
+            input("随便做点好吃的"), inventory: [], existingRecipes: []
+        )
+        XCTAssertEqual(responder.requests.first?.dishesPerMeal, 0, "0 asks the model to choose the count")
+        XCTAssertEqual(composition.dishes.count, 2)
+
+        let single = FakeMenuResponder(responses: [try response(Array(sixDishes().prefix(1)), event: sampleEvent)])
+        do {
+            _ = try await generator(single).composeMenu(input("随便做点好吃的"), inventory: [], existingRecipes: [])
+            XCTFail("one dish is never a menu")
+        } catch {
+            XCTAssertEqual(error as? SpecialPlanMenuGeneratorError, .tooFewDishes)
+        }
+    }
+
+    // MARK: - Inventory switch: AI side
+
+    private func stockedKitchenStore() throws -> KitchenStore {
+        let store = try makeKitchenStore()
+        store.addInventory(name: "牛腩", quantity: 300, unit: "克", expiryDate: Date().addingTimeInterval(86_400 * 5))
+        store.addInventory(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: Date().addingTimeInterval(86_400 * 10))
+        return store
+    }
+
+    func testInventoryOffSendsNoHomeInventoryToTheModel() async throws {
+        let kitchenStore = try stockedKitchenStore()
+        XCTAssertFalse(kitchenStore.recipeCreationInventory.isEmpty, "fixture must have inventory to withhold")
+        let responder = FakeMenuResponder(responses: [try response(sixDishes(), event: sampleEvent)])
+        let draft = SpecialPlanMenuDraftStore(generator: generator(responder))
+        await draft.compose(input(usesHomeInventory: false), kitchenStore: kitchenStore, recipeStore: makeRecipeStore())
+
+        let request = try XCTUnwrap(responder.requests.first)
+        XCTAssertTrue(request.inventory.isEmpty, "off means the model never sees the refrigerator")
+        XCTAssertFalse(request.prioritizeExpiringIngredients)
+        XCTAssertTrue(request.additionalRequest?.contains("不参考家中库存") == true)
+        XCTAssertFalse(request.additionalRequest?.contains("牛腩") == true)
+    }
+
+    func testInventoryOnSendsTheRelevantInventoryToTheModel() async throws {
+        let kitchenStore = try stockedKitchenStore()
+        let responder = FakeMenuResponder(responses: [try response(sixDishes(), event: sampleEvent)])
+        let draft = SpecialPlanMenuDraftStore(generator: generator(responder))
+        await draft.compose(input(usesHomeInventory: true), kitchenStore: kitchenStore, recipeStore: makeRecipeStore())
+
+        let request = try XCTUnwrap(responder.requests.first)
+        XCTAssertEqual(Set(request.inventory.map(\.name)), Set(kitchenStore.recipeCreationInventory.map(\.name)))
+        XCTAssertTrue(request.prioritizeExpiringIngredients)
+        XCTAssertTrue(request.additionalRequest?.contains("在家做饭") == true)
+    }
+
+    // MARK: - Replacement retains the original intent
+
+    private func savedPlan(usesHomeInventory: Bool) -> SpecialPlan {
+        SpecialPlan(
+            title: "周六朋友聚餐",
+            scheduledAt: Date(timeIntervalSince1970: 1_788_100_000),
+            peopleCount: 7,
+            constraintNotes: ["1 人不吃辣"],
+            requestText: sampleRequest,
+            usesHomeInventory: usesHomeInventory
+        )
+    }
+
+    func testReplacementReusesTheRawRequestConstraintsAndInventorySwitch() async throws {
+        for usesHomeInventory in [false, true] {
+            let kitchenStore = try stockedKitchenStore()
+            let plan = savedPlan(usesHomeInventory: usesHomeInventory)
+            kitchenStore.addSpecialPlan(plan)
+            let responder = FakeMenuResponder(responses: [
+                try response(sixDishes(), event: sampleEvent),
+                try response([aiDish("清炒时蔬", ingredients: ["时蔬 300 克"])], event: sampleEvent)
+            ])
+            let draft = SpecialPlanMenuDraftStore(generator: generator(responder))
+            await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: makeRecipeStore())
+            await draft.replaceDish(id: draft.dishes[0].id, for: plan, kitchenStore: kitchenStore, recipeStore: makeRecipeStore())
+
+            XCTAssertEqual(responder.requests.count, 2)
+            let replacement = responder.requests[1]
+            XCTAssertEqual(replacement.dishesPerMeal, 1)
+            XCTAssertEqual(replacement.eventRequest?.request, sampleRequest, "the original words travel with every replacement")
+            XCTAssertTrue(replacement.additionalRequest?.contains("所有共享菜都必须完全不辣") == true)
+            XCTAssertEqual(replacement.inventory.isEmpty, !usesHomeInventory, "replacement obeys the switch: \(usesHomeInventory)")
+            XCTAssertEqual(draft.dishes[0].title, "清炒时蔬")
+            XCTAssertEqual(draft.dishes.count, 6)
+        }
+    }
+
+    func testSpicyReplacementIsRejectedFromTheRawRequestAlone() async throws {
+        let kitchenStore = try makeKitchenStore()
+        var plan = savedPlan(usesHomeInventory: false)
+        plan.constraintNotes = []   // the reading dropped it; the words still say 不吃辣
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(responses: [
+            try response(sixDishes(), event: sampleEvent),
+            try response([aiDish("辣子鸡", ingredients: ["鸡 500 克", "干辣椒 50 克"])], event: sampleEvent)
+        ])
+        let draft = SpecialPlanMenuDraftStore(generator: generator(responder))
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: makeRecipeStore())
+        let original = draft.dishes[0]
+        await draft.replaceDish(id: original.id, for: plan, kitchenStore: kitchenStore, recipeStore: makeRecipeStore())
+        XCTAssertEqual(draft.dishes[0], original)
+        XCTAssertEqual(draft.errorMessage, SpecialPlanMenuGeneratorError.hardConstraintViolation.errorDescription)
+    }
+
+    func testLegacyPlanWithoutARequestRegeneratesFromItsFields() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let legacy = SpecialPlan(
+            title: "朋友聚餐", scheduledAt: Date(), peopleCount: 7,
+            constraintNotes: ["1 人不吃辣"], notes: "在家吃", usesHomeInventory: true
+        )
+        kitchenStore.addSpecialPlan(legacy)
+        let responder = FakeMenuResponder(responses: [try response(sixDishes(), event: sampleEvent)])
+        let draft = SpecialPlanMenuDraftStore(generator: generator(responder))
+        await draft.generate(for: legacy, kitchenStore: kitchenStore, recipeStore: makeRecipeStore())
+
+        let request = try XCTUnwrap(responder.requests.first)
+        XCTAssertEqual(request.dishesPerMeal, SpecialPlanMenuBounds.suggestedDishCount(peopleCount: 7))
+        XCTAssertTrue(request.eventRequest?.request.contains("朋友聚餐") == true)
+        XCTAssertTrue(request.eventRequest?.request.contains("7 人") == true)
+        XCTAssertTrue(request.eventRequest?.request.contains("1 人不吃辣") == true)
+        XCTAssertEqual(draft.dishes.count, 6)
+    }
+
+    // MARK: - Inventory switch: shopping side
+
+    private func beefRecipe() -> Recipe {
+        Recipe(
+            id: "special-ai-beef", title: "红烧牛腩", cookingTime: nil, difficulty: nil, tags: [],
+            ingredients: ["牛腩 500 克"], steps: ["炖"], baseServings: SpecialPlanMenuBounds.aiRecipeBaseServings
+        )
+    }
+
+    private func beefRequirement(
+        usesHomeInventory: Bool,
+        kitchenStore: KitchenStore
+    ) throws -> IngredientRequirement {
+        let store = ShoppingListGenerationStore()
+        store.generate(
+            source: .selectedRecipes([beefRecipe()], servings: 1),
+            kitchenStore: kitchenStore,
+            recipeStore: makeRecipeStore(),
+            reconcilesAgainstInventory: usesHomeInventory
+        )
+        return try XCTUnwrap((store.missingItems + store.coveredItems).first { $0.displayName.contains("牛腩") })
+    }
+
+    func testInventoryOffShoppingListsTheRecipeQuantityUntouched() throws {
+        let kitchenStore = try stockedKitchenStore()   // 300 g beef at home
+        let beef = try beefRequirement(usesHomeInventory: false, kitchenStore: kitchenStore)
+        XCTAssertEqual(beef.requiredQuantity, 500)
+        XCTAssertEqual(beef.missingQuantity, 500, "food at home is not food at the venue")
+        XCTAssertNil(beef.availableQuantity)
+        XCTAssertFalse(beef.isCoveredByInventory)
+    }
+
+    func testInventoryOnShoppingSubtractsUsableHomeStock() throws {
+        let kitchenStore = try stockedKitchenStore()
+        let beef = try beefRequirement(usesHomeInventory: true, kitchenStore: kitchenStore)
+        XCTAssertEqual(beef.requiredQuantity, 500)
+        XCTAssertEqual(beef.availableQuantity, 300)
+        XCTAssertEqual(beef.missingQuantity, 200)
+    }
+
+    func testInventoryOnStillIgnoresExpiredStock() throws {
+        let kitchenStore = try makeKitchenStore()
+        kitchenStore.addInventory(name: "牛腩", quantity: 300, unit: "克", expiryDate: Date().addingTimeInterval(-86_400 * 2))
+        let beef = try beefRequirement(usesHomeInventory: true, kitchenStore: kitchenStore)
+        XCTAssertEqual(beef.missingQuantity, 500, "expiry semantics are the generator's, unchanged")
+    }
+
+    func testSpecialPlanShoppingUsesWrittenQuantitiesRegardlessOfHeadcount() throws {
+        // 7 people, 4-serving recipe: neither number reaches the scaler.
+        let kitchenStore = try makeKitchenStore()
+        let beef = try beefRequirement(usesHomeInventory: false, kitchenStore: kitchenStore)
+        XCTAssertEqual(beef.requiredQuantity, 500)
+        XCTAssertNotEqual(beef.requiredQuantity, 875)
+        XCTAssertNotEqual(beef.requiredQuantity, 125)
+    }
+
+    func testNormalMealScalingIsUnchanged() throws {
+        let recipeStore = makeRecipeStore()
+        let recipe = beefRecipe()
+        try recipeStore.saveUserRecipe(recipe)
+        let draft = ShoppingListGenerator().generate(
+            source: .todayPlans([MealPlanItem(recipeID: recipe.id, recipeName: recipe.title, plannedServings: 6)]),
+            inventory: [], existingShoppingItems: [], recipeStore: recipeStore
+        )
+        let beef = try XCTUnwrap(draft.missingItems.first { $0.displayName.contains("牛腩") })
+        XCTAssertEqual(beef.requiredQuantity, 750, "a Normal Meal with a stated target still scales 4 → 6")
+    }
+
+    // MARK: - The draft never carries a serving target
+
+    func testDraftDishHasNoServingTargetEvenIfTheResponseVolunteersOne() async throws {
+        var dishes = sixDishes()
+        dishes[0]["suggestedPlannedServings"] = 7
+        let responder = FakeMenuResponder(responses: [try response(dishes, event: sampleEvent)])
+        let composition = try await generator(responder).composeMenu(input(), inventory: [], existingRecipes: [])
+        let mirror = Mirror(reflecting: composition.dishes[0])
+        XCTAssertFalse(
+            mirror.children.contains { ($0.label ?? "").lowercased().contains("plannedservings") },
+            "the draft dish model has no per-dish target field"
+        )
+        XCTAssertEqual(composition.dishes[0].baseServings, SpecialPlanMenuBounds.aiRecipeBaseServings)
+    }
+}

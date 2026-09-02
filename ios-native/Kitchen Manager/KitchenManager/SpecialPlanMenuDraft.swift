@@ -67,40 +67,79 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
 
     private let generator: SpecialPlanMenuGenerator
 
-    init(generator: SpecialPlanMenuGenerator = SpecialPlanMenuGenerator()) {
+    /// `dishes` seeds a draft that was composed elsewhere — the creation sheet
+    /// generates before the plan exists, then hands the menu to the detail.
+    init(
+        generator: SpecialPlanMenuGenerator = SpecialPlanMenuGenerator(),
+        dishes: [SpecialPlanMenuDraftDish] = []
+    ) {
         self.generator = generator
+        self.dishes = dishes
     }
 
     var hasDraft: Bool { !dishes.isEmpty }
     var isBusy: Bool { isGenerating }
 
-    // MARK: - Generation
+    // MARK: - Composition
 
+    /// The composer's one action: read the request and write a menu in a single
+    /// round trip. On success the draft holds the menu and the model's reading
+    /// of the request is returned for the caller to turn into plan fields. On
+    /// failure the previous draft is untouched and `nil` is returned.
+    @discardableResult
+    func compose(
+        _ input: SpecialPlanMenuGenerator.Input,
+        kitchenStore: KitchenStore,
+        recipeStore: RecipeStore,
+        excludedRecipeNames: [String] = []
+    ) async -> SpecialPlanInterpretation? {
+        guard !isBusy else { return nil }
+        isGenerating = true
+        errorMessage = nil
+        // A failed generation must leave the previous draft untouched.
+        let previous = dishes
+        defer { isGenerating = false }
+
+        do {
+            let composition = try await generator.composeMenu(
+                input,
+                // The full creation pool is offered; the generator sends none
+                // of it when the plan does not use home inventory.
+                inventory: kitchenStore.recipeCreationInventory,
+                existingRecipes: recipeStore.recipes,
+                excludedRecipeNames: excludedRecipeNames
+            )
+            dishes = composition.dishes
+            return composition.interpretation
+        } catch {
+            dishes = previous
+            errorMessage = Self.message(for: error)
+            return nil
+        }
+    }
+
+    /// Regenerates the menu for a plan that already exists, from the plan's
+    /// own saved request. The model's reading of the request is discarded
+    /// here: the plan's fields were settled when it was created or edited.
     func generate(
         for plan: SpecialPlan,
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore
     ) async {
-        guard !isBusy else { return }
-        isGenerating = true
-        errorMessage = nil
-        // A failed generation must leave the previous draft untouched.
-        let previous = dishes
+        await compose(
+            SpecialPlanMenuGenerator.Input(plan: plan),
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore,
+            excludedRecipeNames: plan.dishes.map(\.recipeName)
+        )
+    }
 
-        do {
-            let generated = try await generator.generateMenu(
-                for: plan,
-                inventory: kitchenStore.recipeCreationInventory,
-                expiringItems: kitchenStore.recipeCreationExpiringItems,
-                existingRecipes: recipeStore.recipes,
-                excludedRecipeNames: plan.dishes.map(\.recipeName)
-            )
-            dishes = generated
-        } catch {
-            dishes = previous
-            errorMessage = Self.message(for: error)
-        }
-        isGenerating = false
+    /// Adopts a draft composed by another store instance (the creation or edit
+    /// sheet), replacing whatever this one held.
+    func adopt(_ newDishes: [SpecialPlanMenuDraftDish]) {
+        dishes = newDishes
+        errorMessage = nil
+        replacingDishID = nil
     }
 
     // MARK: - Targeted replacement
@@ -126,7 +165,6 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
             var replacement = try await generator.generateReplacement(
                 for: plan,
                 inventory: kitchenStore.recipeCreationInventory,
-                expiringItems: kitchenStore.recipeCreationExpiringItems,
                 existingRecipes: recipeStore.recipes,
                 excludedRecipeNames: exclusions
             )
@@ -188,5 +226,86 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
         (error as? LocalizedError)?.errorDescription
             ?? SpecialPlanMenuGeneratorError.invalidResponse.errorDescription
             ?? "操作失败，请稍后重试。"
+    }
+}
+
+// MARK: - Turning a reading into plan fields
+
+extension SpecialPlanInterpretation {
+    /// A brand-new plan from the composer. Fields the model did not read are
+    /// filled with the least surprising value and stay visible on the detail,
+    /// where the user can re-describe the meal to change them:
+    ///
+    /// - title: the model's, else the request's opening words;
+    /// - date: the model's, else the Planner day the sheet was opened from at
+    ///   18:00, else the next 18:00 from now;
+    /// - headcount: the model's, else a number the request states, else 2.
+    func makePlan(
+        requestText: String,
+        usesHomeInventory: Bool,
+        contextDate: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> SpecialPlan {
+        let created = now
+        return SpecialPlan(
+            title: resolvedTitle(requestText: requestText),
+            scheduledAt: resolvedDate(contextDate: contextDate, now: now, calendar: calendar),
+            peopleCount: resolvedPeopleCount(requestText: requestText),
+            constraintNotes: constraintNotes,
+            notes: notes,
+            requestText: requestText,
+            usesHomeInventory: usesHomeInventory,
+            createdAt: created,
+            updatedAt: created
+        )
+    }
+
+    /// An edited plan: the same derivation, applied onto the existing plan so
+    /// its id, dishes and creation time survive. The previous date is the
+    /// fallback when the new request names none.
+    func apply(
+        to plan: SpecialPlan,
+        requestText: String,
+        usesHomeInventory: Bool,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> SpecialPlan {
+        var updated = plan
+        updated.title = resolvedTitle(requestText: requestText)
+        // A re-description that names no date keeps the plan's exact time,
+        // not a 18:00 re-reading of the same day.
+        updated.scheduledAt = scheduledAt ?? plan.scheduledAt
+        updated.peopleCount = resolvedPeopleCount(requestText: requestText)
+        updated.constraintNotes = SpecialPlan.normalizedConstraintNotes(constraintNotes)
+        updated.notes = notes
+        updated.requestText = requestText.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.usesHomeInventory = usesHomeInventory
+        updated.updatedAt = now
+        return updated
+    }
+
+    func resolvedTitle(requestText: String) -> String {
+        if let title { return title }
+        let opening = requestText
+            .split(whereSeparator: { "，。,.；;！!？?\n".contains($0) })
+            .first.map(String.init)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if opening.isEmpty { return "特殊安排" }
+        return String(opening.prefix(12))
+    }
+
+    func resolvedDate(contextDate: Date?, now: Date, calendar: Calendar) -> Date {
+        if let scheduledAt { return scheduledAt }
+        if let contextDate {
+            return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: contextDate) ?? contextDate
+        }
+        let tonight = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now) ?? now
+        if tonight > now { return tonight }
+        return calendar.date(byAdding: .day, value: 1, to: tonight) ?? tonight
+    }
+
+    func resolvedPeopleCount(requestText: String) -> Int {
+        peopleCount ?? SpecialPlanRequestReading(requestText: requestText).peopleCount ?? 2
     }
 }

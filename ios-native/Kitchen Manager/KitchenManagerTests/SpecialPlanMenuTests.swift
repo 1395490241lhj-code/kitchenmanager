@@ -138,13 +138,17 @@ final class SpecialPlanMenuTests: XCTestCase {
     /// Two people by default: that requests a 3-dish menu, so the two-dish
     /// fixtures used throughout still clear the one-short cardinality floor.
     /// Tests about headcount pass `people: 7` explicitly.
-    private func samplePlan(people: Int = 2) -> SpecialPlan {
+    /// The request text states the same headcount, because that is what now
+    /// sizes the menu; the structured fields are what the composer derived.
+    private func samplePlan(people: Int = 2, usesHomeInventory: Bool = true) -> SpecialPlan {
         SpecialPlan(
             title: "朋友聚餐",
             scheduledAt: Date(timeIntervalSince1970: 1_750_000_000),
             peopleCount: people,
             constraintNotes: ["1 人不吃辣"],
             notes: "在家吃",
+            requestText: "这周六 \(people) 个人一起吃饭，1 人不吃辣，在家吃",
+            usesHomeInventory: usesHomeInventory,
             dishes: []
         )
     }
@@ -174,10 +178,9 @@ final class SpecialPlanMenuTests: XCTestCase {
         }
 
         let request = SpecialPlanMenuGenerator.makeRequest(
-            for: samplePlan(),
+            .init(plan: samplePlan()),
             dishCount: 6,
             inventory: [],
-            expiringItems: [],
             existingRecipes: recipes,
             excludedRecipeNames: []
         )
@@ -193,10 +196,9 @@ final class SpecialPlanMenuTests: XCTestCase {
         ]
 
         let request = SpecialPlanMenuGenerator.makeRequest(
-            for: samplePlan(),
+            .init(plan: samplePlan()),
             dishCount: 6,
             inventory: [],
-            expiringItems: [],
             existingRecipes: recipes,
             excludedRecipeNames: []
         )
@@ -205,11 +207,11 @@ final class SpecialPlanMenuTests: XCTestCase {
 
         var unconstrained = samplePlan()
         unconstrained.constraintNotes = []
+        unconstrained.requestText = "这周六 2 个人一起吃饭"
         let unchanged = SpecialPlanMenuGenerator.makeRequest(
-            for: unconstrained,
+            .init(plan: unconstrained),
             dishCount: 6,
             inventory: [],
-            expiringItems: [],
             existingRecipes: recipes,
             excludedRecipeNames: []
         )
@@ -270,6 +272,7 @@ final class SpecialPlanMenuTests: XCTestCase {
         let recipeStore = makeRecipeStore()
         var plan = samplePlan()
         plan.constraintNotes = []
+        plan.requestText = "这周六 2 个人一起吃饭，在家吃"
         kitchenStore.addSpecialPlan(plan)
         let responder = FakeMenuResponder(outcomes: [
             .success(try response([aiDish("麻辣香锅"), aiDish("清蒸鱼")]))
@@ -454,18 +457,21 @@ final class SpecialPlanMenuTests: XCTestCase {
             1,
             "the shared weekly prompt scales quantities from servings; Special Plans have no base yield"
         )
-        XCTAssertEqual(request.dishesPerMeal, SpecialPlanMenuBounds.suggestedDishCount(peopleCount: 7))
+        XCTAssertEqual(
+            request.dishesPerMeal,
+            SpecialPlanMenuBounds.suggestedDishCount(peopleCount: 7),
+            "the headcount stated in the request sizes the menu"
+        )
+
+        // The user's words travel verbatim, once, as the event request.
+        XCTAssertEqual(request.eventRequest?.request, plan.requestText)
 
         let brief = try XCTUnwrap(request.additionalRequest)
-        // Exact interpolated values: a broken interpolation would ship the
-        // literal source text to the model.
-        XCTAssertTrue(brief.contains("7 人"), "brief must carry the headcount, got: \(brief)")
         XCTAssertTrue(brief.contains("1 人不吃辣"), "brief must carry constraints, got: \(brief)")
-        XCTAssertTrue(brief.contains("朋友聚餐"))
         XCTAssertTrue(brief.contains("所有共享菜都必须完全不辣"))
         XCTAssertTrue(brief.contains("不要生成需要用户自行去辣"))
         XCTAssertTrue(
-            brief.contains("禁止按 7 人推算"),
+            brief.contains("禁止按就餐人数推算"),
             "the brief must not ask for scaled quantities"
         )
         XCTAssertTrue(
@@ -477,8 +483,12 @@ final class SpecialPlanMenuTests: XCTestCase {
             "the brief must name the field the response has to declare"
         )
         XCTAssertTrue(
-            brief.contains("7 人只用来决定上几道菜"),
+            brief.contains("就餐人数只用来决定上几道菜"),
             "headcount must be scoped to menu size, not quantities"
+        )
+        XCTAssertFalse(
+            brief.contains("suggestedPlannedServings") || brief.contains("targetServings"),
+            "no per-dish serving target is ever requested"
         )
     }
 
@@ -714,7 +724,11 @@ final class SpecialPlanMenuTests: XCTestCase {
     func testAcceptedDishesFeedTheExistingShoppingGeneratorWithoutHeadcountScaling() async throws {
         let kitchenStore = try makeKitchenStore()
         let recipeStore = makeRecipeStore()
-        let plan = samplePlan(people: 7)
+        var plan = samplePlan(people: 7)
+        // Seven at the table, two dishes asked for: the headcount is the
+        // structured field under test, the stated count keeps the fixture a
+        // valid menu.
+        plan.requestText = "这周六 7 个人一起吃饭，做 2 道菜就够，1 人不吃辣"
         kitchenStore.addSpecialPlan(plan)
 
         let responder = FakeMenuResponder(outcomes: [
@@ -986,7 +1000,8 @@ final class SpecialPlanMenuTests: XCTestCase {
         // stay as written. P4-B supplies the numerator.
         let kitchenStore = try makeKitchenStore()
         let recipeStore = makeRecipeStore()
-        let plan = samplePlan(people: 7)
+        var plan = samplePlan(people: 7)
+        plan.requestText = "这周六 7 个人一起吃饭，做 2 道菜就够，1 人不吃辣"
         kitchenStore.addSpecialPlan(plan)
         let responder = FakeMenuResponder(outcomes: [
             .success(try response([
