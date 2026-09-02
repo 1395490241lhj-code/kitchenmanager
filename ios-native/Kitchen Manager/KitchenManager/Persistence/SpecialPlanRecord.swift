@@ -36,6 +36,8 @@ final class SpecialPlanRecord {
             peopleCount: peopleCount,
             constraintNotes: payload.constraintNotes,
             notes: payload.notes,
+            requestText: payload.requestText,
+            usesHomeInventory: payload.usesHomeInventory,
             dishes: payload.dishes,
             createdAt: createdAt,
             updatedAt: updatedAt
@@ -57,11 +59,34 @@ final class SpecialPlanRecord {
 private struct PlanPayload: Codable {
     var constraintNotes: [String]
     var notes: String
+    /// Added with the AI composer. Absent in rows written before it.
+    var requestText: String
+    /// Added with the AI composer. A row written before it has no value and
+    /// keeps the behaviour it always had: reconcile against home inventory
+    /// (`SpecialPlan.legacyUsesHomeInventory`). Only a plan the composer
+    /// created can say `false`.
+    var usesHomeInventory: Bool
     var dishes: [SpecialPlanDish]
 
     init(plan: SpecialPlan) {
         constraintNotes = plan.constraintNotes
         notes = plan.notes
+        requestText = plan.requestText
+        usesHomeInventory = plan.usesHomeInventory
         dishes = plan.dishes
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case constraintNotes, notes, requestText, usesHomeInventory, dishes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        constraintNotes = try container.decodeIfPresent([String].self, forKey: .constraintNotes) ?? []
+        notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        requestText = try container.decodeIfPresent(String.self, forKey: .requestText) ?? ""
+        usesHomeInventory = try container.decodeIfPresent(Bool.self, forKey: .usesHomeInventory)
+            ?? SpecialPlan.legacyUsesHomeInventory
+        dishes = try container.decodeIfPresent([SpecialPlanDish].self, forKey: .dishes) ?? []
     }
 }

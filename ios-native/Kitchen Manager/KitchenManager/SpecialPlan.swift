@@ -9,12 +9,17 @@ import Foundation
 // It deliberately *does not* copy recipe data. Each dish keeps a stable id plus
 // the `recipeID` into `RecipeStore` and a `recipeName` display snapshot; the
 // recipe remains the single source of truth. Deliberately thin: no servings per
-// dish (there is no canonical recipe yield to scale against — see
-// `ShoppingListGeneratorTests` servings warnings), no inventory reservation, no
-// budget, no prep timeline in this foundation slice.
+// dish (a Special Plan cooks its recipes as written — see the P4-A base-yield
+// contract), no inventory reservation, no budget, no prep timeline.
+//
+// The user describes the event in one natural-language request (`requestText`).
+// `title`, `scheduledAt`, `peopleCount` and `constraintNotes` are *derived*
+// from that request by the menu generation call and are kept as display and
+// validation state; the request itself remains the canonical statement of
+// intent that regeneration and replacement start from.
 
 /// One planned dish inside a `SpecialPlan`. References, never owns, a `Recipe`.
-struct SpecialPlanDish: Identifiable, Codable, Hashable {
+nonisolated struct SpecialPlanDish: Identifiable, Codable, Hashable {
     var id = UUID()
     /// The recipe's canonical id in `RecipeStore.recipe(id:)`.
     var recipeID: String
@@ -38,7 +43,12 @@ struct SpecialPlanDish: Identifiable, Codable, Hashable {
 
 /// A special plan event. `scheduledAt` carries the full date+time; Planner groups
 /// it by local calendar day.
-struct SpecialPlan: Identifiable, Codable, Hashable {
+nonisolated struct SpecialPlan: Identifiable, Codable, Hashable {
+    /// What a plan written before `usesHomeInventory` existed means. Those plans
+    /// were always reconciled against the home refrigerator, so a missing value
+    /// decodes as `true`; only a plan created through the composer says `false`.
+    static let legacyUsesHomeInventory = true
+
     var id = UUID()
     var title: String
     var scheduledAt: Date
@@ -47,6 +57,13 @@ struct SpecialPlan: Identifiable, Codable, Hashable {
     /// explicitly out of scope — these are user-confirmed notes, not guarantees.
     var constraintNotes: [String]
     var notes: String
+    /// The user's original natural-language request, verbatim. Empty for plans
+    /// created before the composer existed. Never rewritten by the app.
+    var requestText: String
+    /// Whether this meal is cooked from the home kitchen. `false` means the
+    /// home refrigerator is neither shown to the AI nor subtracted from the
+    /// shopping list, because food on this phone is not food at the venue.
+    var usesHomeInventory: Bool
     var dishes: [SpecialPlanDish]
     var createdAt: Date
     var updatedAt: Date
@@ -58,6 +75,8 @@ struct SpecialPlan: Identifiable, Codable, Hashable {
         peopleCount: Int = 2,
         constraintNotes: [String] = [],
         notes: String = "",
+        requestText: String = "",
+        usesHomeInventory: Bool = false,
         dishes: [SpecialPlanDish] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -66,15 +85,51 @@ struct SpecialPlan: Identifiable, Codable, Hashable {
         self.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         self.scheduledAt = scheduledAt
         self.peopleCount = min(max(peopleCount, 1), 99)
-        self.constraintNotes = constraintNotes.map {
+        self.constraintNotes = Self.normalizedConstraintNotes(constraintNotes)
+        self.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.requestText = requestText.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.usesHomeInventory = usesHomeInventory
+        self.dishes = dishes
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    static func normalizedConstraintNotes(_ notes: [String]) -> [String] {
+        notes.map {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }.filter { !$0.isEmpty }.reduce(into: []) { result, line in
             if !result.contains(line) { result.append(line) }
         }
-        self.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.dishes = dishes
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
+    }
+
+    // MARK: Codable
+    //
+    // Backups encode this type directly, so a backup written before the
+    // composer existed lacks `requestText` and `usesHomeInventory`. Decoding
+    // fills them with the legacy meaning rather than failing or silently
+    // switching an old plan's shopping behaviour.
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, scheduledAt, peopleCount, constraintNotes, notes
+        case requestText, usesHomeInventory, dishes, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(UUID.self, forKey: .id),
+            title: try container.decode(String.self, forKey: .title),
+            scheduledAt: try container.decode(Date.self, forKey: .scheduledAt),
+            peopleCount: try container.decodeIfPresent(Int.self, forKey: .peopleCount) ?? 2,
+            constraintNotes: try container.decodeIfPresent([String].self, forKey: .constraintNotes) ?? [],
+            notes: try container.decodeIfPresent(String.self, forKey: .notes) ?? "",
+            requestText: try container.decodeIfPresent(String.self, forKey: .requestText) ?? "",
+            usesHomeInventory: try container.decodeIfPresent(Bool.self, forKey: .usesHomeInventory)
+                ?? Self.legacyUsesHomeInventory,
+            dishes: try container.decodeIfPresent([SpecialPlanDish].self, forKey: .dishes) ?? [],
+            createdAt: try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date(),
+            updatedAt: try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+        )
     }
 
     /// Aggregate display summary, e.g. "朋友聚餐 · 7 人 · 18:30".

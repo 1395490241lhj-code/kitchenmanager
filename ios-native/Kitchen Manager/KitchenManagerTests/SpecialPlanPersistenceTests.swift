@@ -232,6 +232,83 @@ final class SpecialPlanPersistenceTests: XCTestCase {
         XCTAssertEqual(instanceC.specialPlans.first?.dishes.first?.isCooked, false)
     }
 
+    // MARK: - Home-inventory switch
+
+    func testNewPlanDefaultsToNotUsingHomeInventory() {
+        let fresh = SpecialPlan(title: "去朋友家", scheduledAt: Date())
+        XCTAssertFalse(fresh.usesHomeInventory)
+        XCTAssertEqual(fresh.requestText, "")
+    }
+
+    func testInventorySwitchAndRequestSurviveARestartInBothStates() throws {
+        for usesHomeInventory in [false, true] {
+            var p = plan("开关 \(usesHomeInventory)")
+            p.requestText = "这周六 7 个人吃饭，1 人不吃辣"
+            p.usesHomeInventory = usesHomeInventory
+            do {
+                let store = try makeStore()
+                store.addSpecialPlan(p)
+            }
+            let reopened = try makeStore()
+            let loaded = try XCTUnwrap(reopened.specialPlans.first { $0.id == p.id })
+            XCTAssertEqual(loaded.usesHomeInventory, usesHomeInventory)
+            XCTAssertEqual(loaded.requestText, "这周六 7 个人吃饭，1 人不吃辣")
+            XCTAssertEqual(loaded, p)
+        }
+    }
+
+    /// A row written before the switch existed has no value in its payload.
+    /// It keeps the behaviour it always had — reconcile against home
+    /// inventory — rather than silently switching to the new default.
+    func testLegacyRowWithoutTheSwitchReadsAsUsingHomeInventory() throws {
+        let legacy = plan("老计划")
+        let record = try SpecialPlanRecord(plan: legacy)
+        // Exactly the JSON the previous build wrote: no requestText, no switch.
+        record.payloadData = try JSONSerialization.data(withJSONObject: [
+            "constraintNotes": ["1 人不吃辣"],
+            "notes": "测试",
+            "dishes": []
+        ])
+        let decoded = try record.specialPlan()
+        XCTAssertTrue(decoded.usesHomeInventory, "legacy plans keep subtracting home inventory")
+        XCTAssertEqual(decoded.requestText, "")
+        XCTAssertEqual(decoded.constraintNotes, ["1 人不吃辣"])
+
+        // And a legacy row that goes through the store keeps that value on
+        // its next save instead of being rewritten to the new default.
+        let bundle = try makeBundle()
+        try bundle.specialPlans.upsert(decoded)
+        let reloaded = try XCTUnwrap(bundle.specialPlans.loadPlans().first { $0.id == legacy.id })
+        XCTAssertTrue(reloaded.usesHomeInventory)
+    }
+
+    func testLegacyBackupPlanWithoutTheSwitchRestoresAsUsingHomeInventory() throws {
+        let legacyPlan: [String: Any] = [
+            "id": UUID().uuidString,
+            "title": "旧备份",
+            "scheduledAt": 1_750_000_000.0 - 978_307_200,
+            "peopleCount": 5,
+            "constraintNotes": [],
+            "notes": "",
+            "dishes": [],
+            "createdAt": 0,
+            "updatedAt": 0
+        ]
+        let data = try JSONSerialization.data(withJSONObject: legacyPlan)
+        let decoded = try JSONDecoder().decode(SpecialPlan.self, from: data)
+        XCTAssertTrue(decoded.usesHomeInventory)
+        XCTAssertEqual(decoded.requestText, "")
+        XCTAssertEqual(decoded.peopleCount, 5)
+
+        // A current backup round-trips the explicit value, including false.
+        var p = plan("新备份")
+        p.usesHomeInventory = false
+        p.requestText = "去朋友家做饭"
+        let roundTripped = try JSONDecoder().decode(SpecialPlan.self, from: JSONEncoder().encode(p))
+        XCTAssertEqual(roundTripped, p)
+        XCTAssertFalse(roundTripped.usesHomeInventory)
+    }
+
     /// A backup written before special plans existed has no `specialPlans` key
     /// at all; it must restore as empty rather than failing the whole payload.
     func testLegacyBackupWithoutSpecialPlansDecodesAsEmpty() throws {
