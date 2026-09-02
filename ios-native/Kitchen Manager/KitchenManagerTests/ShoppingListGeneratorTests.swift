@@ -191,17 +191,25 @@ final class ShoppingListGeneratorTests: XCTestCase {
         XCTAssertNil(draft.missingItems[0].warning)
     }
 
-    func test_servingsOtherThanOne_addsWarning_becauseQuantityIsNotActuallyRescaled() {
-        // Documented current behavior (not a bug fixed in this pass — see
-        // final report): requesting a serving count other than 1 does NOT
-        // scale ingredient quantities. It only adds a warning telling the
-        // user to double check, which the warning text itself states
-        // explicitly ("用量未按人数换算").
-        let draftDoubled = generate(recipe(title: "菜", ingredients: ["番茄 2个"]), servings: 4)
-        let draftSingle = generate(recipe(title: "菜", ingredients: ["番茄 2个"]), servings: 1)
-        XCTAssertEqual(draftDoubled.missingItems[0].requiredQuantity, draftSingle.missingItems[0].requiredQuantity, "quantity is not rescaled by servings in the current implementation")
-        XCTAssertNotNil(draftDoubled.missingItems[0].warning)
-        XCTAssertTrue(draftDoubled.missingItems[0].warning?.contains("人数") ?? false)
+    /// Supersedes `test_servingsOtherThanOne_addsWarning_becauseQuantityIsNotActuallyRescaled`.
+    ///
+    /// That test pinned the old behaviour: a serving count other than 1 warned
+    /// instead of scaling, because no recipe recorded the yield its quantities
+    /// were written for. `Recipe.baseServings` now supplies that denominator,
+    /// so a stated target genuinely rescales — and the warning is reserved for
+    /// the case that is still unscalable: a target with no base to divide by.
+    func test_targetWithoutBaseYield_warnsInsteadOfScaling() {
+        let unscalable = generate(recipe(title: "菜", ingredients: ["番茄 2个"]), servings: 4)
+        let asWritten = generate(recipe(title: "菜", ingredients: ["番茄 2个"]), servings: 1)
+        XCTAssertEqual(
+            unscalable.missingItems[0].requiredQuantity,
+            asWritten.missingItems[0].requiredQuantity,
+            "without a base yield there is nothing to scale from"
+        )
+        XCTAssertTrue(
+            unscalable.missingItems[0].warning?.contains("基准份量") ?? false,
+            "the user asked for an amount we cannot honour, and must be told"
+        )
     }
 
     func test_missingQuantity_isNeverNegative() {

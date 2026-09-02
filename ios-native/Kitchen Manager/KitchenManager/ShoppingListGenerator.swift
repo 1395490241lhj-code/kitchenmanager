@@ -349,6 +349,38 @@ enum ShoppingGenerationSource {
     case selectedRecipes([Recipe], servings: Int)
 }
 
+/// One use of one recipe, reduced to the only thing quantity maths needs.
+///
+/// `targetServings` is `nil` whenever nobody stated how much to make. That has
+/// to stay distinguishable all the way down: collapsing it to `1` here would
+/// silently claim a one-serving target and, for a recipe written for four,
+/// quarter every quantity. Plan types, headcounts, leftovers and UI state stop
+/// at this boundary — the generator never learns which screen asked.
+struct PlannedRecipeUsage {
+    let recipe: Recipe
+    let targetServings: Int?
+
+    /// The multiplier for this recipe's written quantities, and whether it
+    /// represents a real conversion.
+    ///
+    /// - both known: the honest base -> target factor.
+    /// - target unknown: 1, because "as written" is the only defensible
+    ///   reading of a recipe nobody set a target for. Not a claim that the
+    ///   target is one serving.
+    /// - base unknown but target stated: 1 plus a flag, because the user did
+    ///   ask for an amount and we cannot honour it. The caller warns.
+    var scaling: (factor: Double, isScaled: Bool, wantsScalingButCannot: Bool) {
+        guard let targetServings else { return (1, false, false) }
+        guard let factor = RecipeQuantityScaler.factor(
+            baseServings: recipe.baseServings,
+            targetServings: targetServings
+        ) else {
+            return (1, false, true)
+        }
+        return (factor, true, false)
+    }
+}
+
 // MARK: - Generator
 //
 // Deterministic, synchronous, local logic — no AI call in this pass. Reused by every
@@ -363,8 +395,8 @@ struct ShoppingListGenerator {
         recipeStore: RecipeStore,
         includeSeasonings: Bool = false
     ) -> ShoppingGenerationDraft {
-        let (recipesWithServings, sourceWarnings) = resolveRecipes(for: source, recipeStore: recipeStore)
-        guard !recipesWithServings.isEmpty else {
+        let (usages, sourceWarnings) = resolveRecipes(for: source, recipeStore: recipeStore)
+        guard !usages.isEmpty else {
             return ShoppingGenerationDraft(
                 missingItems: [],
                 coveredItems: [],
@@ -374,9 +406,15 @@ struct ShoppingListGenerator {
         }
 
         var merged: [String: IngredientRequirement] = [:]
-        var servingsMismatch: Set<String> = []
+        // Ingredients whose recipe wanted scaling but had no base yield to
+        // scale from. Tracked per ingredient because one draft can mix a
+        // scalable recipe with an unscalable one.
+        var baseYieldMissing: Set<String> = []
 
-        for (recipe, servings) in recipesWithServings {
+        for usage in usages {
+            let recipe = usage.recipe
+            // Resolved once per recipe, not per ingredient line.
+            let scaling = usage.scaling
             for line in Self.ingredientLines(from: recipe, includeSeasonings: includeSeasonings) {
                 let parsed = IngredientParser.parse(line)
                 let normalized = IngredientNormalizer.normalizedName(parsed.displayName)
@@ -402,7 +440,11 @@ struct ShoppingListGenerator {
                 )
 
                 if let quantity = canonicalQuantity {
-                    requirement.requiredQuantity = (requirement.requiredQuantity ?? 0) + quantity
+                    // Scale before aggregating and at full precision. Rounding
+                    // per recipe would compound: two 1.2-egg requirements are
+                    // 2.4 eggs (3 to buy), not ceil(1.2) twice (4).
+                    let scaled = RecipeQuantityScaler.scale(quantity: quantity, factor: scaling.factor)
+                    requirement.requiredQuantity = (requirement.requiredQuantity ?? 0) + scaled
                 } else {
                     requirement.isVague = true
                 }
@@ -410,7 +452,7 @@ struct ShoppingListGenerator {
                     requirement.sourceRecipeIDs.append(recipe.id)
                     requirement.sourceRecipeNames.append(recipe.title)
                 }
-                if servings != 1 { servingsMismatch.insert(key) }
+                if scaling.wantsScalingButCannot { baseYieldMissing.insert(key) }
 
                 merged[key] = requirement
             }
@@ -422,8 +464,15 @@ struct ShoppingListGenerator {
                 requirement.warning = requirement.isVague ? "用量为“适量”，请确认是否需要购买" : "请确认数量"
             } else if requirement.isVague {
                 requirement.warning = "部分菜谱未标注具体用量，已按可识别的用量合计"
-            } else if servingsMismatch.contains(key) {
-                requirement.warning = "菜谱没有标注份量，用量未按人数换算，请确认"
+            } else if baseYieldMissing.contains(key) {
+                requirement.warning = "菜谱未标注基准份量，用量未按计划份量换算，请确认"
+            }
+            // Countable things are bought whole, and only after aggregating
+            // every recipe's contribution. Mass and volume keep their exact
+            // value: 875 g is a real amount, 4.5 eggs is not.
+            if let required = requirement.requiredQuantity,
+               Self.isCountableUnit(requirement.unit) {
+                requirement.requiredQuantity = required.rounded(.up)
             }
             merged[key] = requirement
         }
@@ -464,43 +513,63 @@ struct ShoppingListGenerator {
         return ShoppingGenerationDraft(
             missingItems: missing.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending },
             coveredItems: covered.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending },
-            recipeCount: recipesWithServings.count,
+            recipeCount: usages.count,
             warnings: sourceWarnings
         )
+    }
+
+    /// Units bought as whole things. Mass and volume are deliberately absent:
+    /// rounding 875 g up would invent grams nobody needs. Drawn from the
+    /// parser's existing unit list rather than a new unit ontology.
+    private static let countableUnits: Set<String> = [
+        "个", "颗", "只", "根", "块", "片", "瓣", "把", "盒", "包", "瓶", "袋",
+        "束", "卷", "头", "打", "听", "罐", "份"
+    ]
+
+    static func isCountableUnit(_ unit: String?) -> Bool {
+        guard let unit else { return false }
+        return countableUnits.contains(unit)
     }
 
     private func resolveRecipes(
         for source: ShoppingGenerationSource,
         recipeStore: RecipeStore
-    ) -> (recipes: [(recipe: Recipe, servings: Int)], warnings: [String]) {
+    ) -> (usages: [PlannedRecipeUsage], warnings: [String]) {
         switch source {
+        // A caller-supplied count. `1` is this API's "as written" default
+        // rather than a stated target, so it does not trigger scaling.
         case .recipe(let recipe, let servings):
-            return ([(recipe, servings)], [])
+            return ([PlannedRecipeUsage(recipe: recipe, targetServings: servings == 1 ? nil : servings)], [])
 
         case .selectedRecipes(let recipes, let servings):
-            return (recipes.map { ($0, servings) }, [])
+            return (
+                recipes.map {
+                    PlannedRecipeUsage(recipe: $0, targetServings: servings == 1 ? nil : servings)
+                },
+                []
+            )
 
         case .todayPlans(let plans):
             var warnings: [String] = []
-            let resolved: [(Recipe, Int)] = plans.compactMap { plan in
+            let resolved: [PlannedRecipeUsage] = plans.compactMap { plan in
                 guard let recipe = recipeStore.recipe(id: plan.recipeID) else {
                     warnings.append("「\(plan.recipeName)」的菜谱信息缺失，已跳过")
                     return nil
                 }
-                // No stated target means no serving conversion is being claimed;
-                // 1 keeps quantities exactly as written, which is what this
-                // generator still does in every case. Scaling arrives later.
-                return (recipe, plan.plannedServings ?? 1)
+                // The one path with a trustworthy target: `plannedServings` is
+                // only set where a human actually chose an amount. `nil` flows
+                // through as "as written".
+                return PlannedRecipeUsage(recipe: recipe, targetServings: plan.plannedServings)
             }
             return (resolved, warnings)
 
         case .weeklyPlan(let plan):
-            var resolved: [(Recipe, Int)] = []
+            var resolved: [PlannedRecipeUsage] = []
             for day in plan.days {
                 for meal in day.meals {
                     for recipe in meal.recipes {
-                        resolved.append((
-                            Recipe(
+                        resolved.append(PlannedRecipeUsage(
+                            recipe: Recipe(
                                 id: recipe.existingRecipeID ?? recipe.id,
                                 title: recipe.title,
                                 cookingTime: recipe.cookingTime,
@@ -510,7 +579,10 @@ struct ShoppingListGenerator {
                                 seasonings: recipe.seasonings ?? [],
                                 steps: recipe.steps
                             ),
-                            plan.servings
+                            // `plan.servings` is the household headcount for the
+                            // week, not a per-dish target. It must not become a
+                            // scaling numerator.
+                            targetServings: nil
                         ))
                     }
                 }

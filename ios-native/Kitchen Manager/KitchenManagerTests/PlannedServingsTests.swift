@@ -137,10 +137,13 @@ final class PlannedServingsTests: XCTestCase {
         )
     }
 
-    // MARK: - Shopping still does not scale
+    // MARK: - The direct recipe source still uses the recipe as written
+    //
+    // Superseded in part by `ShoppingScalingTests`: shopping now scales, but
+    // only from a plan carrying a stated `plannedServings`. This source takes a
+    // caller-supplied count with no such provenance, so it stays as written.
 
-    func testShoppingDoesNotScaleEvenWithBaseAndTargetKnown() {
-        let store = makeStore()
+    func testDirectRecipeSourceIsNotScaledByItsServingsArgument() {
         let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
         let recipe = sampleRecipe(baseServings: 4)
         let generator = ShoppingListGenerator()
@@ -149,16 +152,6 @@ final class PlannedServingsTests: XCTestCase {
             source: .recipe(recipe, servings: 1), inventory: [],
             existingShoppingItems: [], recipeStore: recipeStore
         )
-        let halved = generator.generate(
-            source: .recipe(recipe, servings: 2), inventory: [],
-            existingShoppingItems: [], recipeStore: recipeStore
-        )
-        XCTAssertEqual(
-            asWritten.missingItems.first?.requiredQuantity,
-            halved.missingItems.first?.requiredQuantity,
-            "P2 clarifies semantics only — shopping scaling is a later phase"
-        )
-        _ = store
+        XCTAssertEqual(asWritten.missingItems.first?.requiredQuantity, 2)
     }
 }
-
