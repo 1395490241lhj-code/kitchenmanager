@@ -508,6 +508,30 @@ for (const status of [400, 401, 403, 404, 422]) {
   });
 }
 
+test('/api/ai-chat weekly-menu-plan: 上游 json_validate_failed（模型输出非法 JSON）触发一次 Groq fallback', async () => {
+  const server = loadWeeklyMenuServer(() => {
+    const err = new Error('json_validate_failed');
+    err.status = 400;
+    err.response = { status: 400, data: { error: { code: 'json_validate_failed', message: 'Failed to validate JSON' } } };
+    return err;
+  });
+  const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+  assert.equal(server.attempts(), 2);
+  assert.equal(res.statusCode, 200);
+});
+
+test('/api/ai-chat weekly-menu-plan: 其他 400 code 仍不触发 fallback', async () => {
+  const server = loadWeeklyMenuServer(() => {
+    const err = new Error('bad request');
+    err.status = 400;
+    err.response = { status: 400, data: { error: { code: 'invalid_request_error' } } };
+    return err;
+  });
+  const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);
+  assert.equal(server.attempts(), 1);
+  assert.equal(res.statusCode, 400);
+});
+
 test('/api/ai-chat weekly-menu-plan: 内部编程错误不触发 fallback', async () => {
   const server = loadWeeklyMenuServer(() => new TypeError('x is not a function'));
   const res = await runPost(server.app, '/api/ai-chat', WEEKLY_MENU_BODY);

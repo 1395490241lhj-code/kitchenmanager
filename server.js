@@ -1367,7 +1367,13 @@ app.post('/api/ai-chat', async (req, res) => {
     try {
       resp = await attemptProvider(chatConfig, timeoutMs);
     } catch (primaryErr) {
-      if (!fallbackProvider || !isTransientProviderFailure(primaryErr)) throw primaryErr;
+      // `json_validate_failed` is the provider reporting that its own model
+      // produced invalid JSON under response_format — a generation failure
+      // wearing a 400, not a bad request from us (the same request succeeds
+      // on the next attempt). It is the one 400 another provider can
+      // plausibly survive; every other 4xx still fails fast.
+      const recoverable = isTransientProviderFailure(primaryErr) || isJsonValidateFailedError(primaryErr);
+      if (!fallbackProvider || !recoverable) throw primaryErr;
       const primaryInfo = getUpstreamAiErrorInfo(primaryErr);
       observabilityLogger.log('ai_chat_failed', 'warn', {
         ...logContext,
