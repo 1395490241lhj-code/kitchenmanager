@@ -23,6 +23,13 @@ struct SpecialPlanMenuDraftDish: Identifiable, Equatable {
     var reason: String?
     /// Non-nil when the AI picked a recipe the user already owns.
     var existingRecipeID: String?
+    /// The yield this dish's quantities were written for, as declared by the
+    /// model and already validated against the generation contract.
+    ///
+    /// Carried rather than re-derived at save time: the saved recipe's yield
+    /// has to trace back to what the response actually said, not to a constant
+    /// the save path re-asserts on its own.
+    var baseServings: Int?
 
     var isExistingRecipe: Bool { existingRecipeID != nil }
 
@@ -38,7 +45,9 @@ struct SpecialPlanMenuDraftDish: Identifiable, Equatable {
             tags: tags,
             ingredients: ingredients,
             seasonings: seasonings,
-            steps: steps.isEmpty ? ["暂未提供详细步骤。"] : steps
+            steps: steps.isEmpty ? ["暂未提供详细步骤。"] : steps,
+            // From the validated response, never re-asserted here.
+            baseServings: baseServings
         )
     }
 }

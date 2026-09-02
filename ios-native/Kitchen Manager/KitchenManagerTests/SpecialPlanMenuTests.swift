@@ -78,9 +78,16 @@ final class SpecialPlanMenuTests: XCTestCase {
     private func aiDish(
         _ name: String,
         ingredients: [String] = ["牛腩 500 克"],
-        steps: [String] = ["炖煮"]
+        steps: [String] = ["炖煮"],
+        baseServings: Int? = SpecialPlanMenuBounds.aiRecipeBaseServings
     ) -> [String: Any] {
-        ["name": name, "ingredients": ingredients, "steps": steps, "source": "ai", "reason": "适合聚餐"]
+        var dish: [String: Any] = [
+            "name": name, "ingredients": ingredients, "steps": steps,
+            "source": "ai", "reason": "适合聚餐"
+        ]
+        // Omitted entirely when nil, which is how a non-compliant response looks.
+        if let baseServings { dish["baseServings"] = baseServings }
+        return dish
     }
 
     private func draftDish(
@@ -98,7 +105,8 @@ final class SpecialPlanMenuTests: XCTestCase {
             cookingTime: nil,
             difficulty: nil,
             reason: nil,
-            existingRecipeID: nil
+            existingRecipeID: nil,
+            baseServings: SpecialPlanMenuBounds.aiRecipeBaseServings
         )
     }
 
@@ -454,8 +462,20 @@ final class SpecialPlanMenuTests: XCTestCase {
         XCTAssertTrue(brief.contains("所有共享菜都必须完全不辣"))
         XCTAssertTrue(brief.contains("不要生成需要用户自行去辣"))
         XCTAssertTrue(
-            brief.contains("禁止按人数推算"),
+            brief.contains("禁止按 7 人推算"),
             "the brief must not ask for scaled quantities"
+        )
+        XCTAssertTrue(
+            brief.contains("4 人份"),
+            "the brief must state the contracted base yield, got: \(brief)"
+        )
+        XCTAssertTrue(
+            brief.contains("baseServings"),
+            "the brief must name the field the response has to declare"
+        )
+        XCTAssertTrue(
+            brief.contains("7 人只用来决定上几道菜"),
+            "headcount must be scoped to menu size, not quantities"
         )
     }
 
@@ -723,5 +743,268 @@ final class SpecialPlanMenuTests: XCTestCase {
         // canonical base yield.
         XCTAssertEqual(beef.requiredQuantity, 400)
         XCTAssertNotEqual(beef.requiredQuantity, 400 * 7)
+    }
+
+    // MARK: - Base yield contract
+    //
+    // Every recipe the AI writes for a Special Plan must declare the contracted
+    // base yield. The value is fixed by the product so the response can be
+    // checked against it; a model free to pick its own denominator could state
+    // one number while sizing quantities for another, and nothing downstream
+    // could tell.
+
+    func testGenerationAcceptsADraftWhereEveryDishDeclaresTheContractedYield() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([aiDish("红烧牛腩"), aiDish("蒜蓉虾")]))
+        ])
+        let draft = makeDraftStore(responder)
+
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        XCTAssertEqual(draft.dishes.count, 2)
+        XCTAssertTrue(
+            draft.dishes.allSatisfy { $0.baseServings == SpecialPlanMenuBounds.aiRecipeBaseServings },
+            "the draft must carry the yield the response declared"
+        )
+        XCTAssertNil(draft.errorMessage)
+    }
+
+    /// Whole-draft rejection: accepting the compliant dishes and dropping one
+    /// would hand the user a menu quietly missing a course.
+    func testOneDishMissingTheYieldRejectsTheWholeGeneration() async throws {
+        try await assertGenerationRejected(secondDishYield: nil)
+    }
+
+    func testDishDeclaringADifferentYieldIsRejected() async throws {
+        try await assertGenerationRejected(secondDishYield: 2)
+    }
+
+    /// The failure that matters most: 7 is the event headcount, and a response
+    /// echoing it means the model sized quantities per guest.
+    func testDishDeclaringTheEventHeadcountIsRejected() async throws {
+        try await assertGenerationRejected(secondDishYield: 7)
+    }
+
+    func testOutOfRangeYieldIsRejected() async throws {
+        try await assertGenerationRejected(secondDishYield: 0)
+        try await assertGenerationRejected(secondDishYield: 99)
+    }
+
+    private func assertGenerationRejected(
+        secondDishYield: Int?,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([
+                aiDish("红烧牛腩"),
+                aiDish("蒜蓉虾", baseServings: secondDishYield)
+            ]))
+        ])
+        let draft = makeDraftStore(responder)
+
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        XCTAssertTrue(draft.dishes.isEmpty, "no usable draft", file: file, line: line)
+        XCTAssertNotNil(draft.errorMessage, "the user must be told to retry", file: file, line: line)
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, "no recipe may be written", file: file, line: line)
+        XCTAssertEqual(
+            kitchenStore.specialPlans.first?.dishes, [],
+            "the plan must be untouched", file: file, line: line
+        )
+    }
+
+    // MARK: - Replacement obeys the same contract
+
+    func testReplacementDeclaringTheWrongYieldPreservesTheOriginalDish() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([aiDish("红烧牛腩"), aiDish("蒜蓉虾")])),
+            .success(try response([aiDish("清蒸鱼", baseServings: 7)]))
+        ])
+        let draft = makeDraftStore(responder)
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        let before = draft.dishes
+
+        await draft.replaceDish(
+            id: before[0].id, for: plan,
+            kitchenStore: kitchenStore, recipeStore: recipeStore
+        )
+
+        XCTAssertEqual(draft.dishes, before, "a rejected replacement changes nothing")
+        XCTAssertNotNil(draft.errorMessage)
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty)
+    }
+
+    // MARK: - Save carries the declared yield through
+
+    func testSavedRecipeCarriesTheDeclaredYield() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([aiDish("红烧牛腩"), aiDish("蒜蓉虾")]))
+        ])
+        let draft = makeDraftStore(responder)
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        XCTAssertTrue(draft.save(to: plan.id, kitchenStore: kitchenStore, recipeStore: recipeStore))
+
+        XCTAssertEqual(recipeStore.userRecipes.count, 2)
+        XCTAssertTrue(
+            recipeStore.userRecipes.allSatisfy {
+                $0.baseServings == SpecialPlanMenuBounds.aiRecipeBaseServings
+            },
+            "the saved yield must be the one the response declared"
+        )
+    }
+
+    /// A recipe the user already owns keeps its own yield: this contract governs
+    /// only recipes the AI writes.
+    func testReusingAnExistingRecipeDoesNotOverwriteItsYield() async throws {
+        try await reuseExistingRecipeYieldCheck()
+    }
+
+    /// The yield must survive the app being closed: it is persisted recipe
+    /// state, not something the draft holds in memory.
+    func testSavedYieldSurvivesAReopen() async throws {
+        // One on-disk store, opened twice: the second open is the "reopen".
+        let bundle = try makeBundle()
+        let kitchenStore = KitchenStore(
+            userDefaults: UserDefaults(suiteName: defaultsSuiteName)!,
+            persistence: bundle
+        )
+        let defaultsSuite = UUID().uuidString
+        let recipeStore = RecipeStore(
+            userDefaults: UserDefaults(suiteName: defaultsSuite)!,
+            userRecipePersistence: bundle.userRecipes,
+            recipePreferencePersistence: bundle.recipePreferences
+        )
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([aiDish("红烧牛腩"), aiDish("蒜蓉虾")]))
+        ])
+        let draft = makeDraftStore(responder)
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertTrue(draft.save(to: plan.id, kitchenStore: kitchenStore, recipeStore: recipeStore))
+
+        let reopenedBundle = try makeBundle()
+        let reopened = RecipeStore(
+            userDefaults: UserDefaults(suiteName: defaultsSuite)!,
+            userRecipePersistence: reopenedBundle.userRecipes,
+            recipePreferencePersistence: reopenedBundle.recipePreferences
+        )
+
+        XCTAssertEqual(reopened.userRecipes.count, 2)
+        XCTAssertTrue(
+            reopened.userRecipes.allSatisfy {
+                $0.baseServings == SpecialPlanMenuBounds.aiRecipeBaseServings
+            },
+            "the declared yield must be persisted, not held only in the draft"
+        )
+        UserDefaults().removePersistentDomain(forName: defaultsSuite)
+    }
+
+    private func reuseExistingRecipeYieldCheck() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let existing = Recipe(
+            id: "user-existing", title: "红烧牛腩", cookingTime: nil, difficulty: nil,
+            tags: [], ingredients: ["牛腩 500 克"], steps: ["炖煮"], baseServings: 2
+        )
+        try recipeStore.saveUserRecipe(existing)
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([aiDish("红烧牛腩"), aiDish("蒜蓉虾")]))
+        ])
+        let draft = makeDraftStore(responder)
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertTrue(draft.save(to: plan.id, kitchenStore: kitchenStore, recipeStore: recipeStore))
+
+        XCTAssertEqual(
+            recipeStore.recipe(id: "user-existing")?.baseServings, 2,
+            "an existing recipe keeps the yield it already recorded"
+        )
+    }
+
+    // MARK: - Shopping still needs a numerator
+
+    /// The AI picked a recipe the user owned, and it disappeared before the
+    /// save. The dish is written as a new recipe carrying the user's content,
+    /// which never declared a yield — so it stays nil rather than acquiring the
+    /// AI contract's number, and the save still succeeds.
+    func testDishFromADeletedExistingRecipeSavesWithoutAYield() async throws {
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan()
+        kitchenStore.addSpecialPlan(plan)
+
+        let orphaned = SpecialPlanMenuDraftDish(
+            title: "白灼菜心",
+            ingredients: ["菜心 300 克"],
+            seasonings: [],
+            steps: ["焯水"],
+            tags: [],
+            cookingTime: nil,
+            difficulty: nil,
+            reason: nil,
+            existingRecipeID: "deleted-recipe",
+            baseServings: nil
+        )
+
+        let saved = try SpecialPlanMenuAcceptance.acceptMenu(
+            dishes: [orphaned, draftDish()],
+            planID: plan.id,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        )
+
+        XCTAssertEqual(saved.count, 2)
+        let written = try XCTUnwrap(recipeStore.userRecipes.first { $0.title == "白灼菜心" })
+        XCTAssertNil(written.baseServings, "an unstated yield stays nil")
+    }
+
+    func testKnownBaseYieldAloneDoesNotScaleSpecialPlanShopping() async throws {
+        // The denominator now exists, but no dish states a target, so quantities
+        // stay as written. P4-B supplies the numerator.
+        let kitchenStore = try makeKitchenStore()
+        let recipeStore = makeRecipeStore()
+        let plan = samplePlan(people: 7)
+        kitchenStore.addSpecialPlan(plan)
+        let responder = FakeMenuResponder(outcomes: [
+            .success(try response([
+                aiDish("红烧牛腩", ingredients: ["牛腩 500 克"]),
+                aiDish("蒜蓉虾", ingredients: ["虾 300 克"])
+            ]))
+        ])
+        let draft = makeDraftStore(responder)
+        await draft.generate(for: plan, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        _ = draft.save(to: plan.id, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        let saved = try XCTUnwrap(kitchenStore.specialPlans.first)
+        let recipes = saved.dishes.compactMap { recipeStore.recipe(id: $0.recipeID) }
+        XCTAssertEqual(recipes.first?.baseServings, SpecialPlanMenuBounds.aiRecipeBaseServings)
+
+        let generated = ShoppingListGenerator().generate(
+            source: .selectedRecipes(recipes, servings: 1),
+            inventory: [], existingShoppingItems: [], recipeStore: recipeStore
+        )
+        let beef = try XCTUnwrap(generated.missingItems.first { $0.displayName.contains("牛腩") })
+        XCTAssertEqual(beef.requiredQuantity, 500, "no target means no scaling, even with a known base")
+        XCTAssertNotEqual(beef.requiredQuantity, 875, "7 people must never become a numerator")
     }
 }

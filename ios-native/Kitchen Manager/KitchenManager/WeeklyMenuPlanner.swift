@@ -105,13 +105,20 @@ struct AIWeeklyMenuRecipeDTO: Decodable {
     let difficulty: String?
     let reason: String?
     let source: String?
+    /// The yield the model says its written quantities produce.
+    ///
+    /// Optional at this layer on purpose: the weekly planner never asks for it
+    /// and its responses will not carry it, so requiring it here would break
+    /// weekly generation. Special Plan is the only caller that demands a value,
+    /// and it enforces that in its own adapter.
+    let baseServings: Int?
 
     enum CodingKeys: String, CodingKey {
         case existingRecipeID, existingRecipeId, recipeId, recipeID
         case name, title
         case ingredients, steps, method, tags
         case cookingTime, cooking_time
-        case difficulty, reason, source
+        case difficulty, reason, source, baseServings
     }
 
     init(from decoder: Decoder) throws {
@@ -128,6 +135,7 @@ struct AIWeeklyMenuRecipeDTO: Decodable {
         difficulty = try? container.decode(String.self, forKey: .difficulty)
         reason = try? container.decode(String.self, forKey: .reason)
         source = try? container.decode(String.self, forKey: .source)
+        baseServings = try? container.decode(Int.self, forKey: .baseServings)
 
         if let value = try? container.decode(Int.self, forKey: .cookingTime) {
             cookingTime = value

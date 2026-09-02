@@ -17,6 +17,17 @@ enum SpecialPlanMenuBounds {
     static let minimumDishes = 2
     static let maximumDishes = 10
 
+    /// Every recipe the AI writes for a Special Plan states its quantities for
+    /// this many servings.
+    ///
+    /// A product convention, not a claim that Chinese dishes are inherently
+    /// four-serving. Letting the model pick its own denominator would make the
+    /// number and the quantities come from the same unreliable source: a
+    /// response could say 4 while sizing for 2, and nothing downstream could
+    /// tell. Fixing it makes the contract checkable — the response either
+    /// declares this value or the generation is rejected.
+    static let aiRecipeBaseServings = 4
+
     /// A starting suggestion for the model, not a computed portion figure —
     /// the repo has no canonical recipe yield to scale against.
     static func suggestedDishCount(peopleCount: Int) -> Int {
@@ -34,6 +45,9 @@ enum SpecialPlanMenuGeneratorError: LocalizedError, Equatable {
     case emptyMenu
     case tooFewDishes
     case hardConstraintViolation
+    /// A dish did not declare the required base yield, so its quantities have
+    /// no trustworthy denominator.
+    case baseYieldContractViolation
 
     var errorDescription: String? {
         switch self {
@@ -45,6 +59,8 @@ enum SpecialPlanMenuGeneratorError: LocalizedError, Equatable {
             return "这次生成的菜品太少，请重试。"
         case .hardConstraintViolation:
             return "这次生成的菜单没有完全满足“不吃辣”的要求，请重新生成。"
+        case .baseYieldContractViolation:
+            return "这次生成的菜谱没有标注标准份量，请重新生成。"
         }
     }
 }
@@ -154,6 +170,7 @@ struct SpecialPlanMenuGenerator {
         guard dishes.count >= SpecialPlanMenuBounds.minimumDishes else {
             throw SpecialPlanMenuGeneratorError.tooFewDishes
         }
+        try Self.validateBaseYield(dishes)
         try Self.validateHardConstraints(dishes, for: plan)
         return Array(dishes.prefix(SpecialPlanMenuBounds.maximumDishes))
     }
@@ -180,6 +197,7 @@ struct SpecialPlanMenuGenerator {
         guard let dish = Self.dishes(from: response, existingRecipes: existingRecipes).first else {
             throw SpecialPlanMenuGeneratorError.emptyMenu
         }
+        try Self.validateBaseYield([dish])
         try Self.validateHardConstraints([dish], for: plan)
         return dish
     }
@@ -271,7 +289,7 @@ struct SpecialPlanMenuGenerator {
             parts.append("补充说明：\(plan.notes)。")
         }
         parts.append("请按聚餐场合安排菜品数量与荤素搭配，适合多人分享。")
-        parts.append("只给出菜品与做法。ingredients 中的用量只能是普通菜谱自身的原始用量，禁止按人数推算，也不要出现与 \(plan.peopleCount) 人一一对应的数量模式；数量与单位之间留空格，无法确定时写“适量”。")
+        parts.append("只给出菜品与做法。每一道新菜谱都必须按 \(SpecialPlanMenuBounds.aiRecipeBaseServings) 人份的标准家常菜谱书写用量，并在该菜的 baseServings 字段里如实填写 \(SpecialPlanMenuBounds.aiRecipeBaseServings)。ingredients 与 seasonings 中的所有数量都要对应这份 \(SpecialPlanMenuBounds.aiRecipeBaseServings) 人份菜谱，禁止按 \(plan.peopleCount) 人推算，也不要出现与 \(plan.peopleCount) 人一一对应的数量模式（例如 \(plan.peopleCount) 只虾、每人一个）。\(plan.peopleCount) 人只用来决定上几道菜和荤素搭配，不影响单道菜的用量。数量与单位之间留空格，无法确定时写“适量”。")
         return parts.joined(separator: " ")
     }
 
@@ -344,7 +362,11 @@ struct SpecialPlanMenuGenerator {
             cookingTime: dto.cookingTime,
             difficulty: dto.difficulty,
             reason: dto.reason,
-            existingRecipeID: nil
+            existingRecipeID: nil,
+            // Carried verbatim from the response, including a wrong or missing
+            // value: `validateBaseYield` rejects it rather than correcting it,
+            // so a saved yield always reflects what the model actually said.
+            baseServings: dto.baseServings
         )
     }
 
@@ -359,6 +381,24 @@ struct SpecialPlanMenuGenerator {
         let policy = SpecialPlanConstraintPolicy(constraintNotes: plan.constraintNotes)
         guard dishes.allSatisfy(policy.allows) else {
             throw SpecialPlanMenuGeneratorError.hardConstraintViolation
+        }
+    }
+
+    /// Every newly written dish must declare the contracted base yield.
+    ///
+    /// Whole-draft, not per dish: accepting four correct dishes and dropping a
+    /// fifth would leave the user a menu quietly missing a course. A wrong or
+    /// absent value is a rejection, never a local correction — stamping the
+    /// expected number onto a response that said something else would fabricate
+    /// exactly the provenance this contract exists to establish.
+    ///
+    /// Dishes resolved to a recipe the user already owns are exempt: their yield
+    /// is whatever that recipe already records, and this contract governs only
+    /// recipes the AI writes.
+    static func validateBaseYield(_ dishes: [SpecialPlanMenuDraftDish]) throws {
+        let newlyWritten = dishes.filter { !$0.isExistingRecipe }
+        guard newlyWritten.allSatisfy({ $0.baseServings == SpecialPlanMenuBounds.aiRecipeBaseServings }) else {
+            throw SpecialPlanMenuGeneratorError.baseYieldContractViolation
         }
     }
 

@@ -62,7 +62,10 @@ struct SpecialPlanMenuUITestStub: SpecialPlanMenuRequesting {
                 "cookingTime": 30,
                 "difficulty": "简单",
                 "reason": "适合多人分享",
-                "source": "ai"
+                "source": "ai",
+                // The contracted base yield. A response omitting it is rejected
+                // by generation, so the stub must state it like a real one.
+                "baseServings": SpecialPlanMenuBounds.aiRecipeBaseServings
             ]
         }
         let payload: [String: Any] = [

@@ -44,6 +44,16 @@ enum SpecialPlanMenuAcceptance {
         guard kitchenStore.specialPlans.contains(where: { $0.id == planID }) else {
             throw SpecialPlanMenuAcceptanceError.planMissing
         }
+        // Defence in depth on the only path that writes a generated recipe.
+        // Generation already rejects a non-conforming draft, so this is the
+        // same rule rather than a second one: reaching here with a bad yield
+        // means the draft came from somewhere else, and writing it would
+        // fabricate the provenance the contract exists to establish.
+        do {
+            try SpecialPlanMenuGenerator.validateBaseYield(dishes)
+        } catch {
+            throw SpecialPlanMenuAcceptanceError.recipeSaveFailed(dishes.first?.title ?? "")
+        }
 
         var references: [SpecialPlanDish] = []
         // Only ids this call actually inserted; a reused recipe must never be
