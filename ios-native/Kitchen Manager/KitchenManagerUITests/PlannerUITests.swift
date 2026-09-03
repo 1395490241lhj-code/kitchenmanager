@@ -53,6 +53,54 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["朋友聚餐"].waitForExistence(timeout: 5))
     }
 
+    /// The routing gap this covers, and why it is worth a test of its own.
+    ///
+    /// Every other way into the planner runs through today's plan detail, which
+    /// Home only offers once a plan for today exists. On a day with nothing
+    /// planned the whole planner — and with it every special plan — was
+    /// unreachable: the screens worked, and no tap sequence led to them. The
+    /// suite did not catch it because its seeds always created a today plan
+    /// first, which is exactly the precondition that was missing in real use.
+    ///
+    /// So this starts from a genuinely empty Home and takes only taps a normal
+    /// user can see, all the way to the composer.
+    func testEmptyHomeStillReachesTheSpecialPlanComposer() {
+        let app = launch("UITEST_SEED_EMPTY_HOME", "UITEST_SPECIAL_PLAN_AI_MENU")
+
+        // Precondition: Home has no today plan, so the plan-gated route is gone.
+        XCTAssertTrue(app.buttons["home.planner.weekLink"].waitForExistence(timeout: 10), "week planner link missing on an empty Home")
+        XCTAssertFalse(app.buttons["home.today.plan.viewAll"].exists, "fixture must have no today plan")
+        XCTAssertFalse(app.buttons["home.plan.secondaryLink"].exists, "fixture must have no today plan")
+
+        app.buttons["home.planner.weekLink"].tap()
+        XCTAssertTrue(app.navigationBars["本周安排"].waitForExistence(timeout: 10), "the week planner did not open from Home")
+
+        app.buttons["planner.special.create"].tap()
+        XCTAssertTrue(
+            app.staticTexts["这次想怎么做饭？"].waitForExistence(timeout: 10),
+            "the simplified composer did not appear"
+        )
+        XCTAssertTrue(anyElement(app, "planner.compose.request").exists, "request field missing")
+        XCTAssertTrue(app.switches["planner.compose.inventory"].exists, "inventory switch missing")
+        XCTAssertTrue(app.buttons["planner.compose.generate"].exists, "generate action missing")
+    }
+
+    /// The link is navigation, not a second headline: it stays a plain row and
+    /// never becomes a competing card, on a day with plans or without.
+    func testWeekPlannerLinkStaysSecondaryInBothHomeModes() {
+        let empty = launch("UITEST_SEED_EMPTY_HOME")
+        let link = empty.buttons["home.planner.weekLink"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        XCTAssertEqual(link.label, "本周安排", "the row says only where it goes")
+        empty.terminate()
+
+        // With a today plan the prominent path is still the plan card; the link
+        // is present in addition to it, not instead of it.
+        let seeded = launch("UITEST_SEED_SPECIAL_PLAN")
+        XCTAssertTrue(seeded.buttons["home.today.plan.viewAll"].waitForExistence(timeout: 10), "the plan card must still lead the page")
+        XCTAssertTrue(seeded.buttons["home.planner.weekLink"].exists, "the link must survive execution mode")
+    }
+
     func testSeededSpecialPlanAppearsAndShowsDishes() {
         let app = launch("UITEST_SEED_SPECIAL_PLAN")
         openSeededPlanDetail(from: app)

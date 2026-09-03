@@ -41,6 +41,10 @@ struct HomeView: View {
     @State private var toastMessage: String?
     @State private var toastStyle: AppFeedbackStyle = .success
     @State private var isShowingTodayPlan = false
+    /// The week planner, reachable from Home on every day. Separate from
+    /// `isShowingTodayPlan`: that one opens today's plan, this one opens the
+    /// week and the special plans that live on it.
+    @State private var isShowingWeekPlanner = false
     @State private var isShowingRecommendations = false
     @State private var isShowingPreparedComponents = false
     @State private var selectedPlan: MealPlanItem?
@@ -238,6 +242,11 @@ struct HomeView: View {
         }
         .navigationDestination(isPresented: $isShowingTodayPlan) {
             TodayPlanDetailView()
+        }
+        // A sheet, matching how TodayPlanDetailView already presents it, so the
+        // planner keeps one presentation shape wherever it is opened from.
+        .sheet(isPresented: $isShowingWeekPlanner) {
+            PlannerView()
         }
         .navigationDestination(isPresented: $isShowingRecommendations) {
             RecipeRecommendationBrowserView()
@@ -648,6 +657,20 @@ struct HomeView: View {
                     action: { isShowingTodayPlan = true }
                 )
             }
+
+            // The week, and the special plans that live on it. Unconditional on
+            // purpose: every other route to the planner runs through today's
+            // plan detail, so a day with nothing planned had no way to reach
+            // next Saturday's dinner at all — the screen existed and could not
+            // be opened. It stays a link rather than a card because planning
+            // ahead is never today's primary task.
+            HomeSecondaryLinkRow(
+                title: "本周安排",
+                systemImage: "calendar",
+                symbolTint: AppTheme.textSecondary,
+                identifier: "home.planner.weekLink",
+                action: { isShowingWeekPlanner = true }
+            )
         }
     }
 
