@@ -220,7 +220,10 @@ struct HomeView: View {
             .padding(.bottom, 24)
         }
         .safeAreaPadding(.bottom, 112)
-        .background(Color(.systemGroupedBackground))
+        // Home no longer groups its content into cards, so the grouped-grey
+        // backdrop has nothing left to separate. The page is the surface.
+        .background(Color(.systemBackground))
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
         // Deliberately stable. Home V2 expresses its state in the primary
         // task's own heading (今天做什么 / 今天做这些 / 今天怎么吃 / 今天备的菜 /
         // 今晚), so the navigation layer never moves under the reader.
@@ -563,6 +566,33 @@ struct HomeView: View {
         showToast(alreadyAdded ? "已在今天" : "已加入今天", style: alreadyAdded ? .warning : .success)
     }
 
+    /// Tonight's hero copy. Every number is counted from the plans on screen or
+    /// read from the recipes they name; nothing is stored beside them.
+    private func heroModel(for dashboard: HomeDashboardSummary) -> HomeMealHeroModel {
+        let plans = dashboard.displayedPlans
+        let minutes = plans.reduce(into: 0) { total, plan in
+            total += recipeStore.recipe(id: plan.recipeID)?.cookingTime ?? 0
+        }
+        let readiness = HomeMealReadinessProjection.readiness(
+            plans: plans,
+            recipes: { recipeStore.recipe(id: $0) },
+            inventory: kitchenStore.inventory
+        )
+        return HomeMealHeroModel.make(
+            plans: plans,
+            totalDishCount: dashboard.totalPlanCount,
+            cookingMinutes: minutes > 0 ? minutes : nil,
+            readiness: readiness
+        ) ?? HomeMealHeroModel(
+            title: "今天的菜",
+            sideDishes: [],
+            timing: nil,
+            duration: nil,
+            dishCount: 0,
+            readiness: nil
+        )
+    }
+
     /// Home's single primary region. The heading comes from `HomePrimaryTask`
     /// and the content follows from its kind, so there is exactly one place
     /// where "what is this screen for right now" is decided.
@@ -586,6 +616,7 @@ struct HomeView: View {
             case .planExecution:
                 TodayPlanSummaryCard(
                     dashboard: dashboard,
+                    hero: heroModel(for: dashboard),
                     onViewPlan: { isShowingTodayPlan = true },
                     onSelectPlan: { selectedPlan = $0 }
                 )
@@ -869,6 +900,11 @@ private struct HomeTodayContext: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
+                        // Context, not content. At accessibility sizes this
+                        // sentence was taking most of the first screen and
+                        // pushing the dish and its action below the fold; the
+                        // day it describes is already named above it in full.
+                        .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
                     if !exceptions.isEmpty {
                         Text(exceptions.joined(separator: " · "))
                             .font(.footnote)
@@ -1040,17 +1076,43 @@ private struct TodayPlanSummaryCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let dashboard: HomeDashboardSummary
+    /// Tonight's hero copy, already resolved from real plans by `HomeView`.
+    let hero: HomeMealHeroModel
     let onViewPlan: () -> Void
     let onSelectPlan: (MealPlanItem) -> Void
 
     var body: some View {
         if let leadPlan = dashboard.displayedPlans.first {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(spacing: 0) {
-                    ForEach(Array(dashboard.displayedPlans.enumerated()), id: \.element.id) { index, plan in
-                        planRow(plan)
-                        if index < dashboard.displayedPlans.count - 1 {
-                            Divider().padding(.leading, 34)
+            VStack(alignment: .leading, spacing: 18) {
+                // With one dish the hero *is* that dish's row: the identifier,
+                // label and destination move onto it rather than disappearing,
+                // so the dish stays openable and VoiceOver still announces its
+                // serving count and completion state.
+                if dashboard.displayedPlans.count == 1 {
+                    Button {
+                        onSelectPlan(leadPlan)
+                    } label: {
+                        heroView.contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(planAccessibilityLabel(leadPlan))
+                    .accessibilityHint("打开菜谱并开始准备")
+                    .accessibilityIdentifier("home.today.plan.row.\(leadPlan.recipeID)")
+                } else {
+                    heroView
+                }
+
+                // The individual dishes stay reachable as plain rows. With a
+                // single dish the hero has already named it, so repeating it
+                // directly underneath is the same fact twice.
+                if dashboard.displayedPlans.count > 1 {
+                    VStack(spacing: 0) {
+                        ForEach(Array(dashboard.displayedPlans.enumerated()), id: \.element.id) { index, plan in
+                            planRow(plan)
+                            if index < dashboard.displayedPlans.count - 1 {
+                                Divider()
+                            }
                         }
                     }
                 }
@@ -1062,32 +1124,20 @@ private struct TodayPlanSummaryCard: View {
                         .accessibilityIdentifier("home.today.plan.overflow")
                 }
 
-                // The one prominent control on the whole page in this state.
-                Button(leadPlan.isCooked ? "查看菜谱" : "开始准备") {
-                    onSelectPlan(leadPlan)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.cookingActionFill)
-                .foregroundStyle(AppTheme.onCookingAction)
-                .homeActionControl()
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("home.today.plan.start")
-
-                // Named after where it goes, not after how much it shows. It
-                // used to read 查看全部, the same words the recommendation card
-                // uses for a completely different destination, and a reader who
-                // learned it there had no way to tell this one apart — least of
-                // all with VoiceOver, where the card around it is not there to
-                // disambiguate. `今天的计划` is the destination's own title.
-                Button("今天的计划", action: onViewPlan)
-                    .foregroundStyle(AppTheme.brand)
-                    .homeActionControl()
-                    .frame(maxWidth: .infinity)
-                    .accessibilityIdentifier("home.today.plan.viewAll")
+                // One dominant action, and one text-level alternative beside it.
+                // Two equally filled pills is the pattern this replaced.
+                HomeActionPair(
+                    primaryTitle: leadPlan.isCooked ? "查看菜谱" : "开始准备",
+                    primarySymbol: leadPlan.isCooked ? "book" : "play.fill",
+                    primaryIdentifier: "home.today.plan.start",
+                    primaryAction: { onSelectPlan(leadPlan) },
+                    secondaryTitle: "今天的计划",
+                    secondaryTint: AppTheme.brand,
+                    secondaryIdentifier: "home.today.plan.viewAll",
+                    secondaryAction: onViewPlan
+                )
             }
-            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         }
     }
 
@@ -1123,9 +1173,29 @@ private struct TodayPlanSummaryCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(plan.recipeName)，\(plan.isCooked ? "已完成" : (plan.plannedServings.map { "\($0) 人份，未完成" } ?? "未完成"))")
+        .accessibilityLabel(planAccessibilityLabel(plan))
         .accessibilityHint("打开菜谱并开始准备")
         .accessibilityIdentifier("home.today.plan.row.\(plan.recipeID)")
+    }
+
+    /// One wording for a plan, wherever it is drawn — the hero when it is the
+    /// only dish, a row when it is one of several.
+    private func planAccessibilityLabel(_ plan: MealPlanItem) -> String {
+        let state = plan.isCooked
+            ? "已完成"
+            : (plan.plannedServings.map { "\($0) 人份，未完成" } ?? "未完成")
+        return "\(plan.recipeName)，\(state)"
+    }
+
+    private var heroView: some View {
+        HomeMealHero(
+            title: hero.title,
+            sideDishes: hero.sideDishes,
+            timing: hero.timing,
+            duration: hero.duration,
+            dishCount: hero.dishCount,
+            readiness: hero.readiness
+        )
     }
 }
 
@@ -1237,41 +1307,52 @@ private struct HomeRecommendationSection: View {
 
     private func recommendationCard(_ recommendation: RecipeRecommendation) -> some View {
         let recipe = recommendation.recipe
-        return VStack(alignment: .leading, spacing: 10) {
-            Text(recipe.title)
-                .font(.title3.weight(.bold))
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                .accessibilityIdentifier("home.recommendation.title")
-            Text(ingredientSummary(recipe))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                .accessibilityIdentifier("home.recommendation.ingredients")
-            Text(recommendation.reason ?? recommendationReason(recipe))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                .accessibilityIdentifier("home.recommendation.reason")
+        // Same hero grammar as an existing plan: the dish leads, its metadata
+        // sits on one quiet line, and a single action follows. A proposal and a
+        // decision should not look like two different products.
+        return VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(recipe.title)
+                    .font(.system(dynamicTypeSize.isAccessibilitySize ? .title : .largeTitle, design: .serif, weight: .semibold))
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("home.recommendation.title")
 
-            Button(isAddedToToday ? "已加入今天" : "加入今天") { onAddToToday(recipe) }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.cookingActionFill)
-                .foregroundStyle(AppTheme.onCookingAction)
-                .homeActionControl()
-                .disabled(isAddedToToday)
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("home.recommendation.addToday")
+                Text(ingredientSummary(recipe))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
+                    .accessibilityIdentifier("home.recommendation.ingredients")
 
-            Button("查看菜谱") { onViewRecipe(recipe) }
-                .buttonStyle(.bordered)
-                .tint(AppTheme.cookingAccentForeground.opacity(0.45))
-                .foregroundStyle(AppTheme.cookingAccentForeground)
-                .homeActionControl()
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("home.recommendation.viewRecipe")
+                Rectangle()
+                    .fill(.quaternary)
+                    .frame(height: 1)
+                    .padding(.top, 16)
+                    .padding(.bottom, 10)
+
+                Text(recommendation.reason ?? recommendationReason(recipe))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
+                    .accessibilityIdentifier("home.recommendation.reason")
+            }
+
+            HomeActionPair(
+                primaryTitle: isAddedToToday ? "已加入今天" : "加入今天",
+                primarySymbol: isAddedToToday ? "checkmark" : "plus",
+                primaryIdentifier: "home.recommendation.addToday",
+                primaryAction: { onAddToToday(recipe) },
+                isPrimaryDisabled: isAddedToToday,
+                secondaryTitle: "查看菜谱",
+                secondaryTint: AppTheme.cookingAccentForeground,
+                secondaryIdentifier: "home.recommendation.viewRecipe",
+                secondaryAction: { onViewRecipe(recipe) }
+            )
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func recommendationReason(_ recipe: Recipe) -> String {
@@ -1360,12 +1441,6 @@ private struct HomeNeedsAttentionSection: View {
                         .accessibilityIdentifier("home.attention.overflow")
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 2)
-                .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                )
             }
         }
     }
@@ -1562,6 +1637,7 @@ private struct HomeModuleIssues: View {
             ],
             shoppingItems: []
         ),
+        hero: HomeMealHeroModel(title: "番茄炒蛋", sideDishes: ["清炒时蔬", "紫菜蛋花汤"], timing: nil, duration: "35 分钟", dishCount: 3, readiness: HomeMealReadiness(ready: 4, total: 6)),
         onViewPlan: {},
         onSelectPlan: { _ in }
     )
@@ -1645,6 +1721,7 @@ private struct HomeModuleIssues: View {
             todayPlans: [MealPlanItem(recipeID: "1", recipeName: "家常豆腐", plannedServings: 2)],
             shoppingItems: []
         ),
+        hero: HomeMealHeroModel(title: "家常豆腐", sideDishes: [], timing: nil, duration: "20 分钟", dishCount: 1, readiness: HomeMealReadiness(ready: 3, total: 3)),
         onViewPlan: {},
         onSelectPlan: { _ in }
     )
@@ -1659,6 +1736,7 @@ private struct HomeModuleIssues: View {
             todayPlans: [MealPlanItem(recipeID: "1", recipeName: "红烧豆腐", plannedServings: 2, isCooked: true)],
             shoppingItems: []
         ),
+        hero: HomeMealHeroModel(title: "红烧豆腐", sideDishes: [], timing: nil, duration: "25 分钟", dishCount: 1, readiness: nil),
         onViewPlan: {},
         onSelectPlan: { _ in }
     )
@@ -1705,6 +1783,14 @@ private struct HomeModuleIssues: View {
                 inventory: [],
                 todayPlans: [MealPlanItem(recipeID: "long", recipeName: "一份菜名很长但仍应保持清晰易读的家常晚餐", plannedServings: 4)],
                 shoppingItems: []
+            ),
+            hero: HomeMealHeroModel(
+                title: "一份菜名很长但仍应保持清晰易读的家常晚餐",
+                sideDishes: [],
+                timing: nil,
+                duration: "90 分钟",
+                dishCount: 1,
+                readiness: HomeMealReadiness(ready: 2, total: 7)
             ),
             onViewPlan: {},
             onSelectPlan: { _ in }
@@ -2089,8 +2175,7 @@ struct TodayPlanDetailView: View {
         guard let plan = kitchenStore.weeklyPlan else {
             return "按顿数、人数生成一周安排"
         }
-        let dishCount = plan.days.reduce(0) { $0 + $1.meals.reduce(0) { $0 + $1.recipes.count } }
-        return "已安排 \(plan.days.count) 天 · \(dishCount) 道菜"
+        return "已安排 \(plan.dayCount) 天 · \(plan.dishCount) 道菜"
     }
 
     private func showToast(_ message: String, style: AppFeedbackStyle = .success) {

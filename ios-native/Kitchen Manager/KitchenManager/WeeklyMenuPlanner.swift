@@ -51,6 +51,20 @@ struct WeeklyMealPlan: Codable, Hashable {
     var servings: Int
     var summary: String?
     var createdAt: Date
+
+    /// The number of dishes this plan actually contains, always counted from
+    /// the plan's own contents.
+    ///
+    /// Presentation must never carry its own dish total alongside the recipes:
+    /// a stored count and an edited menu drift apart silently, and the screen
+    /// then states a number the plan does not hold. This was computed inline
+    /// inside a private view property, where no test could reach it.
+    var dishCount: Int {
+        days.reduce(0) { $0 + $1.meals.reduce(0) { $0 + $1.recipes.count } }
+    }
+
+    /// Days actually present in the plan, for the same reason.
+    var dayCount: Int { days.count }
 }
 
 // MARK: - Request DTOs
