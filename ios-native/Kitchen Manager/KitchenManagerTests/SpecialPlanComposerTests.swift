@@ -226,6 +226,9 @@ final class SpecialPlanComposerTests: XCTestCase {
         XCTAssertFalse(prompt.contains("baseServings"), "weekly never asks for the Special Plan yield")
         XCTAssertFalse(prompt.contains("\"event\""))
         XCTAssertFalse(prompt.contains("必须恰好生成"))
+        // The weekly planner always fixes a count, so its cardinality sentence
+        // stays byte-for-byte what it was before the zero-dish clause fix.
+        XCTAssertTrue(prompt.contains("- 每天恰好生成 mealsPerDay 顿，每顿恰好 dishesPerMeal 道菜，mealIndex 从 0 开始。"))
     }
 
     // MARK: - Dish-count contract: prompt target == validated target
@@ -309,16 +312,43 @@ final class SpecialPlanComposerTests: XCTestCase {
         XCTAssertFalse(instructions.contains("菜系、菜数"))
     }
 
+    /// Asserted on the generated prompt, not on the constant that feeds it:
+    /// removing the interpolation at the response-shape line must fail this.
     func testEventResponseShapeDeclaresTheContractedBaseYield() throws {
-        let request = SpecialPlanMenuGenerator.makeRequest(
-            input(), dishCount: 6, inventory: [], existingRecipes: [], excludedRecipeNames: []
-        )
+        let prompt = try prompt(for: sampleRequest)
         XCTAssertTrue(
-            WeeklyMenuPlannerService.baseServingsSchemaLine
-                .contains("\"baseServings\": \(SpecialPlanMenuBounds.aiRecipeBaseServings)"),
-            "the field the validator requires is shown in the response shape, not only in prose"
+            prompt.contains("\"baseServings\": \(SpecialPlanMenuBounds.aiRecipeBaseServings)"),
+            "the field the client hard-rejects on is declared in the model-facing response shape"
         )
-        XCTAssertNotNil(request.eventRequest, "the shape line is emitted only for event requests")
+        // Inside the recipe object of the response shape, not loose in the prose.
+        let shape = try XCTUnwrap(prompt.range(of: "严格 JSON 格式：")).upperBound
+        XCTAssertTrue(
+            prompt[shape...].contains("\"baseServings\": \(SpecialPlanMenuBounds.aiRecipeBaseServings)"),
+            "declared in the JSON shape block the model copies, not only in the condition prose"
+        )
+    }
+
+    // MARK: - Dish-count cardinality wording
+
+    func testFixedCountPromptDemandsExactlyThatCountAndNothingElse() throws {
+        let prompt = try prompt(for: "这周六 7 个人一起吃饭，1 人不吃辣")
+        XCTAssertTrue(prompt.contains("每顿恰好 dishesPerMeal 道菜，"))
+        XCTAssertTrue(prompt.contains("\"dishesPerMeal\":6"))
+        XCTAssertTrue(prompt.contains("必须恰好生成 6 道菜"))
+        XCTAssertFalse(prompt.contains("3 到 8 道"), "the model must not also be told to choose")
+    }
+
+    /// `dishesPerMeal == 0` means "you choose", never "produce zero dishes".
+    /// The exact-count clause used to be stated unconditionally, so this prompt
+    /// demanded 恰好 0 道菜 while also asking for 3 to 8.
+    func testModelChoosesPromptNeverDemandsZeroDishes() throws {
+        let prompt = try prompt(for: "随便做点好吃的")
+        XCTAssertTrue(prompt.contains("\"dishesPerMeal\":0"))
+        XCTAssertFalse(prompt.contains("恰好 0"))
+        XCTAssertFalse(prompt.contains("每顿恰好 dishesPerMeal 道菜"))
+        XCTAssertFalse(prompt.contains("必须恰好生成"))
+        XCTAssertTrue(prompt.contains("3 到 8 道"), "the intended model-choice policy is retained")
+        XCTAssertTrue(prompt.contains("每天恰好生成 mealsPerDay 顿，mealIndex 从 0 开始。"))
     }
 
     func testWeeklyPlannerRequestsAreUntouched() throws {

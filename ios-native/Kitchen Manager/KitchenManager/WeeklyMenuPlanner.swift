@@ -376,7 +376,7 @@ struct WeeklyMenuPlannerService {
 
         要求：
         - 恰好生成 numberOfDays 天，dayIndex 从 0 开始，不遗漏也不多余。
-        - 每天恰好生成 mealsPerDay 顿，每顿恰好 dishesPerMeal 道菜，mealIndex 从 0 开始。
+        - 每天恰好生成 mealsPerDay 顿，\(Self.dishCardinalityClause(for: request))mealIndex 从 0 开始。
         - 每道菜必须标注 source："existing" 表示来自 existingRecipes（此时 existingRecipeID 必须是 existingRecipes 中真实存在的 id），"ai" 表示全新菜谱（此时必须给出完整 ingredients 和 steps）。
         - allowNewAIRecipes 为 false 时，只能使用 existingRecipes 里的菜，绝不能出现 source 为 ai 的菜；existingRecipes 为空时如实说明无法安排。
         - 优先使用 inventory 中的食材，尤其是 isExpiringSoon 为 true 的食材，可以安排在前几天。
@@ -420,6 +420,18 @@ struct WeeklyMenuPlannerService {
           "warnings": []
         }
         """
+    }
+
+    /// The exact-count clause of the cardinality rule.
+    ///
+    /// `dishesPerMeal == 0` is the request saying "you choose the count", not a
+    /// request for zero dishes, so the clause must be absent in that case.
+    /// Stating it anyway left the prompt demanding 恰好 0 道菜 while the event
+    /// rules asked for 3 to 8; a model resolving that in favour of the
+    /// cardinality rule returns an empty meal. Every request that fixes a count
+    /// — the weekly planner always does — keeps the sentence byte-for-byte.
+    static func dishCardinalityClause(for request: AIWeeklyMenuRequest) -> String {
+        request.dishesPerMeal > 0 ? "每顿恰好 dishesPerMeal 道菜，" : ""
     }
 
     /// Extra rules for a Special Plan request, each on its own line after the
