@@ -13,11 +13,11 @@ final class SpecialPlanNormalSessionUITests: XCTestCase {
     }
 
     private func openSeededPlan(in app: XCUIApplication) {
-        XCTAssertTrue(app.buttons["home.today.plan.viewAll"].waitForExistence(timeout: 15))
-        app.buttons["home.today.plan.viewAll"].tap()
-        XCTAssertTrue(app.buttons["today.plan.planner.link"].waitForExistence(timeout: 10))
-        app.buttons["today.plan.planner.link"].tap()
-        XCTAssertTrue(app.navigationBars["本周安排"].waitForExistence(timeout: 10))
+        // Home's own unconditional planner route — the same one a user takes,
+        // and no longer dependent on today happening to have a plan.
+        XCTAssertTrue(app.buttons["home.planner.link"].waitForExistence(timeout: 15))
+        app.buttons["home.planner.link"].tap()
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10))
         let entry = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "planner.special.entry.")
         ).firstMatch
@@ -104,7 +104,7 @@ final class SpecialPlanNormalSessionUITests: XCTestCase {
         // 4. Back to the planner, then terminate and relaunch: the menu is
         //    persisted state, not view state.
         app.navigationBars["朋友聚餐"].buttons.firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["本周安排"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10))
         app.terminate()
         app.launchArguments = []   // no seeding: prove it came off disk
         app.launch()

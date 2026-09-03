@@ -121,7 +121,11 @@ struct PlannerView: View {
     var body: some View {
         NavigationStack(path: $path) {
             weekList
-                .navigationTitle("本周安排")
+                // Not 本周安排: the toolbar pages to any week, and the list holds
+                // ordinary meals as well as special plans. The week actually on
+                // screen is stated by the range row at the top of the list, so
+                // the title does not repeat it.
+                .navigationTitle("用餐计划")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -144,8 +148,12 @@ struct PlannerView: View {
                         Button {
                             sheet = .create
                         } label: {
+                            // 新建计划, not 新建特殊计划: the composer writes an
+                            // ordinary multi-dish menu just as readily, and the
+                            // narrower label made the one control that creates
+                            // anything here sound like it did not apply.
                             Image(systemName: "plus")
-                                .accessibilityLabel("新建特殊计划")
+                                .accessibilityLabel("新建计划")
                         }
                         .accessibilityIdentifier("planner.special.create")
                     }
@@ -235,15 +243,36 @@ struct PlannerView: View {
                 ),
                 calendar: calendar
             )
-            ForEach(groups) { group in
-                Section(PlannerDateText.day(group.day, calendar: calendar)) {
-                    if group.entries.isEmpty {
-                        Text("暂无安排")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(group.entries) { entry in
-                            row(for: entry)
+            // A week with nothing on it said 暂无安排 seven times and offered no
+            // way to create anything: the only control that does is a bare `+`
+            // glyph in the toolbar. Seven repetitions of the same absence are
+            // not week context — the range row above already carries that — so
+            // an entirely empty week collapses to one state that names the
+            // absence once and can be acted on.
+            if groups.allSatisfy(\.entries.isEmpty) {
+                Section {
+                    ContentUnavailableView {
+                        Label("这一周还没有安排", systemImage: "calendar")
+                    } description: {
+                        Text("说一句想怎么吃，就能生成这一餐的菜单。")
+                    } actions: {
+                        Button("新建计划") { sheet = .create }
+                            .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("planner.empty.create")
+                    }
+                }
+                .listRowBackground(Color.clear)
+            } else {
+                ForEach(groups) { group in
+                    Section(PlannerDateText.day(group.day, calendar: calendar)) {
+                        if group.entries.isEmpty {
+                            Text("暂无安排")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(group.entries) { entry in
+                                row(for: entry)
+                            }
                         }
                     }
                 }

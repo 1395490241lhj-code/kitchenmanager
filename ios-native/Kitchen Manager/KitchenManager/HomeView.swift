@@ -41,10 +41,11 @@ struct HomeView: View {
     @State private var toastMessage: String?
     @State private var toastStyle: AppFeedbackStyle = .success
     @State private var isShowingTodayPlan = false
-    /// The week planner, reachable from Home on every day. Separate from
-    /// `isShowingTodayPlan`: that one opens today's plan, this one opens the
-    /// week and the special plans that live on it.
-    @State private var isShowingWeekPlanner = false
+    /// The planner, reachable from Home on every day. Separate from
+    /// `isShowingTodayPlan`: that one opens today's plan, this one opens every
+    /// meal and special plan beyond today. Home's only unconditional route to
+    /// it, and the only one there is — see D-031.
+    @State private var isShowingPlanner = false
     @State private var isShowingRecommendations = false
     @State private var isShowingPreparedComponents = false
     @State private var selectedPlan: MealPlanItem?
@@ -243,9 +244,10 @@ struct HomeView: View {
         .navigationDestination(isPresented: $isShowingTodayPlan) {
             TodayPlanDetailView()
         }
-        // A sheet, matching how TodayPlanDetailView already presents it, so the
-        // planner keeps one presentation shape wherever it is opened from.
-        .sheet(isPresented: $isShowingWeekPlanner) {
+        // A sheet, which is the shape the planner has always been presented in.
+        // Home is now its only entry point, so this is also the only place that
+        // shape is decided.
+        .sheet(isPresented: $isShowingPlanner) {
             PlannerView()
         }
         .navigationDestination(isPresented: $isShowingRecommendations) {
@@ -658,19 +660,23 @@ struct HomeView: View {
                 )
             }
 
-            // The week, and the special plans that live on it. Unconditional on
-            // purpose: every other route to the planner runs through today's
-            // plan detail, so a day with nothing planned had no way to reach
-            // next Saturday's dinner at all — the screen existed and could not
-            // be opened. It stays a link rather than a card because planning
-            // ahead is never today's primary task.
+            // Everything beyond today: later meals, and the special plans that
+            // sit among them. Unconditional on purpose, and now Home's *only*
+            // route to the planner — the deep one through today's plan detail
+            // was removed in D-031 once this one had been verified on a device.
+            //
+            // It stays a link rather than a card because planning ahead is
+            // never today's primary task. The extra top padding is the only
+            // thing marking the boundary the two links above do not cross:
+            // those are about today, this one is not.
             HomeSecondaryLinkRow(
-                title: "本周安排",
+                title: "用餐计划",
                 systemImage: "calendar",
                 symbolTint: AppTheme.textSecondary,
-                identifier: "home.planner.weekLink",
-                action: { isShowingWeekPlanner = true }
+                identifier: "home.planner.link",
+                action: { isShowingPlanner = true }
             )
+            .padding(.top, 4)
         }
     }
 
@@ -1067,7 +1073,13 @@ private struct TodayPlanSummaryCard: View {
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("home.today.plan.start")
 
-                Button("查看全部", action: onViewPlan)
+                // Named after where it goes, not after how much it shows. It
+                // used to read 查看全部, the same words the recommendation card
+                // uses for a completely different destination, and a reader who
+                // learned it there had no way to tell this one apart — least of
+                // all with VoiceOver, where the card around it is not there to
+                // disambiguate. `今天的计划` is the destination's own title.
+                Button("今天的计划", action: onViewPlan)
                     .foregroundStyle(AppTheme.brand)
                     .homeActionControl()
                     .frame(maxWidth: .infinity)
@@ -1872,7 +1884,6 @@ struct TodayPlanDetailView: View {
     @State private var activeSheet: TodayPlanSheet?
     @State private var planPendingRemoval: MealPlanItem?
     @State private var isShowingWeeklyPlanner = false
-    @State private var isShowingPlanner = false
     @State private var isShowingShoppingGeneration = false
     @State private var toastMessage: String?
     @State private var toastStyle: AppFeedbackStyle = .success
@@ -1936,6 +1947,12 @@ struct TodayPlanDetailView: View {
                 }
             }
 
+            // The AI weekly-menu generator, and only it. The planner used to sit
+            // directly beneath it as 查看本周安排 · 特殊计划 — two adjacent rows
+            // with the same icon, both saying 本周, going to two unrelated
+            // screens. That route was removed in D-031 (Home reaches the planner
+            // in one tap now, on every day), and what is left says plainly that
+            // this is the generator rather than the planner.
             Section {
                 Button {
                     isShowingWeeklyPlanner = true
@@ -1944,7 +1961,7 @@ struct TodayPlanDetailView: View {
                         Image(systemName: "calendar.badge.clock")
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading) {
-                            Text(kitchenStore.weeklyPlan == nil ? "规划本周菜单" : "查看本周计划")
+                            Text(kitchenStore.weeklyPlan == nil ? "AI 生成一周菜单" : "查看已生成的一周菜单")
                                 .font(.subheadline.bold())
                             Text(weeklyPlanSubtitle)
                                 .font(.caption).foregroundStyle(.secondary)
@@ -1952,30 +1969,11 @@ struct TodayPlanDetailView: View {
                     }
                 }
                 .foregroundStyle(.primary)
-
-                Button {
-                    isShowingPlanner = true
-                } label: {
-                    HStack {
-                        Image(systemName: "calendar.badge.clock")
-                            .foregroundStyle(AppTheme.brand)
-                        VStack(alignment: .leading) {
-                            Text("查看本周安排 · 特殊计划")
-                                .font(.subheadline.bold())
-                            Text("同一周的计划与特殊计划")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .foregroundStyle(.primary)
-                .accessibilityIdentifier("today.plan.planner.link")
+                .accessibilityIdentifier("today.plan.weeklyMenu.link")
             }
         }
         .navigationTitle("今天的计划")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $isShowingPlanner) {
-            PlannerView()
-        }
         .navigationDestination(isPresented: $isShowingWeeklyPlanner) {
             WeeklyMenuPlannerView()
         }

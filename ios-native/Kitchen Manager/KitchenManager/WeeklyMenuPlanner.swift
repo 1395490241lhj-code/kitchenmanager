@@ -972,7 +972,9 @@ struct WeeklyMenuPlannerView: View {
                 }
             }
         }
-        .navigationTitle("规划本周菜单")
+        // Matches the row that opens it. 本周 is deliberately not used here: it
+        // is the planner's old word, and this screen is a separate generator.
+        .navigationTitle("生成一周菜单")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isShowingResult) {
             WeeklyMenuResultView(store: store)

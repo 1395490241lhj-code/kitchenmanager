@@ -17,13 +17,14 @@ final class SpecialPlanMenuUITests: XCTestCase {
     }
 
     private func openSeededPlanDetail(from app: XCUIApplication) {
-        let viewAll = app.buttons["home.today.plan.viewAll"]
-        XCTAssertTrue(viewAll.waitForExistence(timeout: 10), "today plan card missing on Home")
-        viewAll.tap()
-        let plannerLink = app.buttons["today.plan.planner.link"]
-        XCTAssertTrue(plannerLink.waitForExistence(timeout: 5), "planner entry link missing")
+        // The canonical route, which is also the only one: Home reaches the
+        // planner in one tap on every day. This used to go through the today
+        // plan card, a path that only existed when the seed had created a plan
+        // for today — see D-030's lesson and D-031.
+        let plannerLink = app.buttons["home.planner.link"]
+        XCTAssertTrue(plannerLink.waitForExistence(timeout: 10), "planner entry link missing on Home")
         plannerLink.tap()
-        XCTAssertTrue(app.navigationBars["本周安排"].waitForExistence(timeout: 5), "planner did not open")
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "planner did not open")
 
         // Narrowed to buttons: the row is a NavigationLink. A descendants(.any)
         // predicate scan over the whole week view is slow enough to time out.
@@ -149,7 +150,7 @@ final class SpecialPlanMenuUITests: XCTestCase {
 
         // Leave and reopen: the menu is persisted, not view state.
         app.navigationBars["朋友聚餐"].buttons.firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["本周安排"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
         let card = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "planner.special.entry.")
         ).firstMatch
