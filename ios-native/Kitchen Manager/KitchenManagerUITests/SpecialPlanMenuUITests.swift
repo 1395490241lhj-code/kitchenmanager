@@ -214,4 +214,59 @@ final class SpecialPlanMenuUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["番茄炒鸡蛋"].exists, "a failed generation must keep the saved menu")
         XCTAssertEqual(draftRows(in: app).count, 0, "a failed generation must not leave a draft")
     }
+
+    /// The contract the live E2E depends on, pinned against the deterministic
+    /// stub so it never has to be proven by a provider: replacing a dish that
+    /// is *off screen* is observed through that row's own id, promptly, and
+    /// not by waiting for the set of mounted rows to differ.
+    ///
+    /// The seven-person seed asks for six dishes and the stub's sixth, 白灼菜心,
+    /// sits below the fold. The test scrolls to it, fires the replacement,
+    /// scrolls back to the top so the row unmounts, and then asks the shared
+    /// helper what happened — which must be "清蒸鲈鱼 is in that slot" within a
+    /// few seconds, because the stub answers in 1.5 s. The old approach could
+    /// only time out here.
+    func testReplacingAnOffScreenDishIsObservedByItsOwnRow() {
+        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU")
+        openSeededPlanDetail(from: app)
+        app.buttons["planner.menu.generate"].tap()
+        XCTAssertEqual(SpecialPlanDraftObservation.waitForGeneration(in: app, timeout: 15), .accepted)
+
+        // Locate the last dish by scrolling to it, and take its stable id.
+        let last = app.staticTexts["白灼菜心"]
+        XCTAssertTrue(SpecialPlanDraftObservation.scroll(to: last, in: app), "sixth dish must be reachable by bounded scrolling")
+        let identifier = last.identifier
+        XCTAssertTrue(identifier.hasPrefix(SpecialPlanDraftObservation.dishPrefix), "dish title carries its slot id, got: \(identifier)")
+        let target = SpecialPlanDraftObservation.Row(
+            id: String(identifier.dropFirst(SpecialPlanDraftObservation.dishPrefix.count)),
+            title: "白灼菜心"
+        )
+
+        // Fire the replacement, then push the row off screen before looking.
+        let replaceButton = SpecialPlanDraftObservation.replaceButton(for: target.id, in: app)
+        XCTAssertTrue(replaceButton.isHittable)
+        replaceButton.tap()
+        for _ in 0..<4 { app.swipeDown() }
+        XCTAssertFalse(
+            SpecialPlanDraftObservation.titleElement(for: target.id, in: app).exists,
+            "precondition: the target row must be unmounted while the reply is pending"
+        )
+
+        // The observation must find the row again and read the new title,
+        // well inside the budget the live test allows.
+        let started = Date()
+        let deadline = started.addingTimeInterval(20)
+        var observed: String?
+        while Date() < deadline, observed == nil {
+            if let title = SpecialPlanDraftObservation.locateTitle(for: target.id, in: app), title.label != target.title {
+                observed = title.label
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+        let elapsed = Date().timeIntervalSince(started)
+        XCTAssertEqual(observed, "清蒸鲈鱼", "the off-screen slot must show the replacement dish")
+        XCTAssertLessThan(elapsed, 20, "an off-screen replacement must be observed promptly, took \(elapsed)s")
+        // Untargeted dishes are untouched — checked by their own rows.
+        XCTAssertTrue(SpecialPlanDraftObservation.scroll(to: app.staticTexts["红烧牛腩"], in: app, direction: .up))
+    }
 }
