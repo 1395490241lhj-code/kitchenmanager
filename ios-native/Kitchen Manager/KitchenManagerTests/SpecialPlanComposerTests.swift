@@ -186,6 +186,141 @@ final class SpecialPlanComposerTests: XCTestCase {
         XCTAssertFalse(instructions.contains("份量"))
     }
 
+    // MARK: - Prompt bytes
+
+    /// Asserted on the real prompt, not on a fragment: the count the prompt
+    /// states, the shape it shows and the count the client validates all have
+    /// to agree in the bytes that actually reach the model.
+    private func prompt(for text: String) throws -> String {
+        let reading = SpecialPlanRequestReading(requestText: text)
+        return try WeeklyMenuPlannerService.prompt(for: SpecialPlanMenuGenerator.makeRequest(
+            input(text), dishCount: reading.dishesToRequest,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        ))
+    }
+
+    func testPromptStatesOneDishCountAndShowsTheRequiredBaseYield() throws {
+        let text = "这周六 7 个人一起吃饭，1 人不吃辣"
+        let prompt = try prompt(for: text)
+        XCTAssertTrue(prompt.contains("\"dishesPerMeal\":6"), "the fixed target travels in the condition JSON")
+        XCTAssertTrue(prompt.contains("必须恰好生成 6 道菜"))
+        XCTAssertTrue(prompt.contains("\"baseServings\": 4"), "the response shape declares the required yield")
+        XCTAssertFalse(prompt.contains("菜系、菜数"))
+        XCTAssertFalse(prompt.contains("请按场合安排菜品数量"))
+        XCTAssertFalse(prompt.contains("3 到 8 道"))
+        XCTAssertEqual(
+            SpecialPlanMenuBounds.minimumDishes(requested: SpecialPlanRequestReading(requestText: text).dishesToRequest),
+            5
+        )
+    }
+
+    func testWeeklyPromptShowsNeitherEventFieldNorBaseYield() throws {
+        let weekly = AIWeeklyMenuRequest(
+            numberOfDays: 7, mealsPerDay: 1, dishesPerMeal: 2, servings: 2,
+            cuisines: [], flavors: [], maxCookingTime: nil,
+            prioritizeExpiringIngredients: true, avoidRepeatedMainIngredients: true,
+            excludedIngredients: [], allowNewAIRecipes: true, additionalRequest: nil,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        let prompt = try WeeklyMenuPlannerService.prompt(for: weekly)
+        XCTAssertFalse(prompt.contains("baseServings"), "weekly never asks for the Special Plan yield")
+        XCTAssertFalse(prompt.contains("\"event\""))
+        XCTAssertFalse(prompt.contains("必须恰好生成"))
+    }
+
+    // MARK: - Dish-count contract: prompt target == validated target
+
+    /// The number the prompt asks for and the number the cardinality check
+    /// enforces come from one reading of the request, and the prompt no longer
+    /// grants the raw request authority over the count on top of it. A model
+    /// obeying the prompt therefore cannot answer with a count the client
+    /// deterministically rejects.
+    private func dishCountContract(for text: String) -> (target: Int?, prompt: String, minimum: Int) {
+        let reading = SpecialPlanRequestReading(requestText: text)
+        let request = SpecialPlanMenuGenerator.makeRequest(
+            input(text), dishCount: reading.dishesToRequest,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        return (
+            reading.dishesToRequest,
+            WeeklyMenuPlannerService.eventInstructions(for: request)
+                + SpecialPlanMenuGenerator.eventBrief(
+                    for: input(text),
+                    policy: SpecialPlanConstraintPolicy(requestText: text, constraintNotes: [])
+                ),
+            SpecialPlanMenuBounds.minimumDishes(requested: reading.dishesToRequest)
+        )
+    }
+
+    func testHeadcountOnlyRequestAsksThePromptForTheSameCountItValidates() {
+        let contract = dishCountContract(for: "这周六 7 个人一起吃饭，1 人不吃辣")
+        XCTAssertEqual(contract.target, 6, "7 people sizes the menu at 6")
+        XCTAssertTrue(contract.prompt.contains("必须恰好生成 6 道菜"))
+        XCTAssertEqual(contract.minimum, 5, "one short of the asked-for 6 stays tolerated")
+    }
+
+    func testExplicitDishCountOverridesTheHeadcountSuggestionOnBothSides() {
+        let contract = dishCountContract(for: "这周六 7 个人一起吃饭，1 人不吃辣，做 4 道菜")
+        XCTAssertEqual(contract.target, 4, "the stated count wins over suggestedDishCount(7)")
+        XCTAssertTrue(contract.prompt.contains("必须恰好生成 4 道菜"))
+        XCTAssertEqual(contract.minimum, 3)
+
+        let six = dishCountContract(for: "这周六 7 个人一起吃饭，1 人不吃辣，做 6 道中式家常菜")
+        XCTAssertEqual(six.target, 6)
+        XCTAssertTrue(six.prompt.contains("必须恰好生成 6 道菜"))
+        XCTAssertEqual(six.minimum, 5)
+    }
+
+    /// The regression this contract exists for: the prompt used to name 菜数
+    /// among the fields the raw request decided, while the client rejected any
+    /// count below `minimumDishes`. A model could obey the prompt and still be
+    /// rejected.
+    func testPromptNeverLetsTheRawRequestOverrideAFixedDishCount() {
+        let contract = dishCountContract(for: "这周六 7 个人一起吃饭，1 人不吃辣")
+        XCTAssertFalse(
+            contract.prompt.contains("菜系、菜数"),
+            "the raw request is no longer authoritative for the count"
+        )
+        XCTAssertFalse(
+            contract.prompt.contains("请按场合安排菜品数量"),
+            "the brief no longer invites the model to choose its own count"
+        )
+        XCTAssertFalse(
+            contract.prompt.contains("3 到 8 道"),
+            "the model-chooses rule must not fire when the app fixed a count"
+        )
+    }
+
+    func testModelChoosesTheCountOnlyWhenNothingSizesTheMenu() {
+        let contract = dishCountContract(for: "随便做点好吃的")
+        XCTAssertNil(contract.target)
+        XCTAssertTrue(contract.prompt.contains("3 到 8 道"), "nothing stated: the model still chooses")
+        XCTAssertFalse(contract.prompt.contains("必须恰好生成"))
+        XCTAssertEqual(contract.minimum, 2, "only the absolute floor applies")
+    }
+
+    func testReplacementAsksForExactlyOneDishRegardlessOfTheStatedMenuSize() throws {
+        // The plan's own request says 6 道; a replacement must still be one dish.
+        let request = SpecialPlanMenuGenerator.makeRequest(
+            input(), dishCount: 1, inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        let instructions = WeeklyMenuPlannerService.eventInstructions(for: request)
+        XCTAssertTrue(instructions.contains("必须恰好生成 1 道菜"))
+        XCTAssertFalse(instructions.contains("菜系、菜数"))
+    }
+
+    func testEventResponseShapeDeclaresTheContractedBaseYield() throws {
+        let request = SpecialPlanMenuGenerator.makeRequest(
+            input(), dishCount: 6, inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        XCTAssertTrue(
+            WeeklyMenuPlannerService.baseServingsSchemaLine
+                .contains("\"baseServings\": \(SpecialPlanMenuBounds.aiRecipeBaseServings)"),
+            "the field the validator requires is shown in the response shape, not only in prose"
+        )
+        XCTAssertNotNil(request.eventRequest, "the shape line is emitted only for event requests")
+    }
+
     func testWeeklyPlannerRequestsAreUntouched() throws {
         let weekly = AIWeeklyMenuRequest(
             numberOfDays: 7, mealsPerDay: 1, dishesPerMeal: 2, servings: 2,

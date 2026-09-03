@@ -515,7 +515,10 @@ struct SpecialPlanMenuGenerator {
         } else {
             parts.append("这次不参考家中库存（可能不在家做饭）：inventory 为空不代表没有食材，请自由选用合适的食材，缺的都可以购买，不要因为库存为空而缩减菜单或改用简陋的菜。")
         }
-        parts.append("请按场合安排菜品数量与荤素搭配，适合多人分享。")
+        // Not the dish count: that is fixed before the request is built and
+        // stated once, as dishesPerMeal, so the prompt and the cardinality
+        // check downstream ask for the same number.
+        parts.append("请按场合安排荤素搭配，适合多人分享。")
         parts.append("只给出菜品与做法。每一道新菜谱都必须按 \(SpecialPlanMenuBounds.aiRecipeBaseServings) 人份的标准家常菜谱书写用量，并在该菜的 baseServings 字段里如实填写 \(SpecialPlanMenuBounds.aiRecipeBaseServings)。ingredients 与 seasonings 中的所有数量都要对应这份 \(SpecialPlanMenuBounds.aiRecipeBaseServings) 人份菜谱，禁止按就餐人数推算，也不要出现与就餐人数一一对应的数量模式（例如每人一只虾）。就餐人数只用来决定上几道菜和荤素搭配，不影响单道菜的用量。数量与单位之间留空格，无法确定时写“适量”。")
         return parts.joined(separator: " ")
     }

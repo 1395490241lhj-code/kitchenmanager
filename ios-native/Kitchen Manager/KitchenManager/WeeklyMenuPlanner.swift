@@ -342,6 +342,25 @@ struct WeeklyMenuPlannerService {
     private let chatService = AIChatService()
 
     func generatePlan(request: AIWeeklyMenuRequest) async throws -> AIWeeklyMenuResponse {
+        let content = try await chatService.request(
+            prompt: try Self.prompt(for: request),
+            taskType: "weekly-menu-plan",
+            timeout: 100
+        )
+        guard let data = content.data(using: .utf8),
+              let response = try? JSONDecoder().decode(AIWeeklyMenuResponse.self, from: data) else {
+            throw WeeklyMenuPlannerError.invalidResponse
+        }
+        guard !response.days.isEmpty else {
+            throw WeeklyMenuPlannerError.emptyPlan
+        }
+        return response
+    }
+
+    /// The exact bytes sent to the model. Extracted from `generatePlan` so the
+    /// request/response contract it states can be asserted directly instead of
+    /// only through a live call.
+    static func prompt(for request: AIWeeklyMenuRequest) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let requestData = try encoder.encode(request)
@@ -349,7 +368,7 @@ struct WeeklyMenuPlannerService {
             throw WeeklyMenuPlannerError.invalidResponse
         }
 
-        let prompt = """
+        return """
         你是 Kitchen Manager 的一周菜单规划助手。请根据下面的条件生成菜单。
 
         条件 JSON：
@@ -388,7 +407,7 @@ struct WeeklyMenuPlannerService {
                       "cookingTime": 30,
                       "difficulty": "简单",
                       "reason": "推荐原因",
-                      "source": "existing"
+                      "source": "existing"\(request.eventRequest == nil ? "" : Self.baseServingsSchemaLine)
                     }
                   ]
                 }
@@ -401,20 +420,6 @@ struct WeeklyMenuPlannerService {
           "warnings": []
         }
         """
-
-        let content = try await chatService.request(
-            prompt: prompt,
-            taskType: "weekly-menu-plan",
-            timeout: 100
-        )
-        guard let data = content.data(using: .utf8),
-              let response = try? JSONDecoder().decode(AIWeeklyMenuResponse.self, from: data) else {
-            throw WeeklyMenuPlannerError.invalidResponse
-        }
-        guard !response.days.isEmpty else {
-            throw WeeklyMenuPlannerError.emptyPlan
-        }
-        return response
     }
 
     /// Extra rules for a Special Plan request, each on its own line after the
@@ -422,9 +427,15 @@ struct WeeklyMenuPlannerService {
     /// byte-for-byte what it was.
     static func eventInstructions(for request: AIWeeklyMenuRequest) -> String {
         guard let event = request.eventRequest else { return "" }
+        // The dish count is the one condition the app fixes before asking, so
+        // that the number the prompt asks for and the number the client
+        // validates are the same number. Everything else in the request is
+        // still read from the user's own words.
         var lines = [
-            "- dishesPerMeal 为 0 时，由你根据 eventRequest 里的人数与场合决定这一顿的菜数（3 到 8 道）。",
-            "- eventRequest.request 是用户对这次做饭的原话，是最重要的条件：场合、人数、日期时间、忌口、菜系、菜数、复杂程度、想吃的食材都以它为准。",
+            request.dishesPerMeal > 0
+                ? "- 这一顿的菜数已由应用确定为 \(request.dishesPerMeal) 道：必须恰好生成 \(request.dishesPerMeal) 道菜。即使 eventRequest.request 没有写明菜数，也不要自行增减。"
+                : "- dishesPerMeal 为 0 时，由你根据 eventRequest 里的人数与场合决定这一顿的菜数（3 到 8 道）。",
+            "- eventRequest.request 是用户对这次做饭的原话，是最重要的条件：场合、人数、日期时间、忌口、菜系、复杂程度、想吃的食材都以它为准；唯独菜数不由它决定，以上一条为准。",
             "- 同时在返回 JSON 里额外给出 event 对象，如实解读这段原话：title 是简短活动名（如「周六朋友聚餐」）；peopleCount 是就餐人数（没说时按场合估计）；constraintNotes 是必须遵守的忌口或要求，每条一句；notes 是其他偏好摘要，没有则为空字符串。",
             "- scheduledAt 用 \"yyyy-MM-dd HH:mm\" 表示，以 eventRequest.today 为今天推算「这周六」「明天」等相对日期；用户只说了日期没说时间时按 18:00；完全没说日期时填 null。"
         ]
@@ -433,6 +444,12 @@ struct WeeklyMenuPlannerService {
         }
         return lines.map { "\n        " + $0 }.joined()
     }
+
+    /// The base yield a Special Plan dish must declare. Shown in the response
+    /// shape rather than only in prose, because the client rejects a whole
+    /// generation whose dishes omit it. Absent for the weekly planner, which
+    /// neither asks for nor writes this field.
+    static let baseServingsSchemaLine = ",\n                      \"baseServings\": \(SpecialPlanMenuBounds.aiRecipeBaseServings)"
 
     static let eventSchema = """
 
