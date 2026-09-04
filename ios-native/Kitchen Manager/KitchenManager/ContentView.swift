@@ -236,6 +236,36 @@ struct KitchenManagerApp: App {
 }
 
 #if DEBUG
+/// Dishes for the `UITEST_SEED_HOME_FULL_DAY` visual-acceptance state.
+/// Ordinary recipes, so the hero, the dish list and the readiness count all
+/// read exactly as they would for a real evening.
+private enum HomeFullDayFixture {
+    static let dishes: [Recipe] = Recipe.samples + [
+        Recipe(
+            id: "fixture-garlic-greens",
+            title: "蒜蓉上海青",
+            cookingTime: 10,
+            difficulty: "简单",
+            tags: ["家常菜"],
+            ingredients: ["上海青 350 克", "大蒜 3 瓣"],
+            seasonings: ["盐 1 克"],
+            steps: ["洗净沥干。", "蒜末爆香后下锅快炒。"],
+            baseServings: 2
+        ),
+        Recipe(
+            id: "fixture-seaweed-soup",
+            title: "紫菜蛋花汤",
+            cookingTime: 8,
+            difficulty: "简单",
+            tags: ["汤"],
+            ingredients: ["紫菜 5 克", "鸡蛋 1 个"],
+            seasonings: ["盐 1 克"],
+            steps: ["水开后下紫菜。", "淋入蛋液即可。"],
+            baseServings: 2
+        )
+    ]
+}
+
 private enum RecipeUITestSeed {
     static var isolatesRecipeStore: Bool {
         let arguments = ProcessInfo.processInfo.arguments
@@ -590,6 +620,33 @@ struct ContentView: View {
             }
             navigationStore.selectedTab = .inventory
         }
+        // Same shape as the large fixture, plus a real Today Plan, long names
+        // and long units — the states Phase 1B has to be reviewed against.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_INVENTORY_TONIGHT") else { return }
+            kitchenStore.clearAllLocalData()
+            recipeStore.clearLocalData()
+            let now = Date()
+            let day: (Int) -> Date? = { Calendar.current.date(byAdding: .day, value: $0, to: now) }
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "上海青", quantity: 350, unit: "克", expiryDate: day(0)),
+                InventoryImportItem(name: "嫩豆腐", quantity: 2, unit: "盒", expiryDate: day(1)),
+                InventoryImportItem(name: "猪肉末", quantity: 1.25, unit: "千克", expiryDate: day(2)),
+                InventoryImportItem(name: "自制猪骨高汤", quantity: 1500, unit: "毫升", expiryDate: day(3)),
+                InventoryImportItem(name: "番茄", quantity: 12, unit: "个", expiryDate: day(5)),
+                InventoryImportItem(name: "鸡蛋", quantity: 8, unit: "个", expiryDate: day(9)),
+                InventoryImportItem(name: "过期酸奶", quantity: 2, unit: "杯", expiryDate: day(-2)),
+                InventoryImportItem(name: "大米", quantity: 1, unit: "袋", expiryDate: nil, isStaple: true),
+                InventoryImportItem(name: "生抽", quantity: 0, unit: "瓶", expiryDate: nil, isStaple: true)
+            ])
+            for recipe in HomeFullDayFixture.dishes {
+                recipeStore.add(recipe)
+            }
+            kitchenStore.addPlans(
+                HomeFullDayFixture.dishes.map { (recipe: $0, plannedServings: Int?(2)) }
+            )
+            navigationStore.selectedTab = .inventory
+        }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_DASHBOARD") else { return }
             kitchenStore.clearAllLocalData()
@@ -807,6 +864,34 @@ struct ContentView: View {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_ERROR") else { return }
             kitchenStore.clearAllLocalData()
             kitchenStore.inventoryNotice = "库存保存失败，请稍后重试。"
+            navigationStore.selectedTab = .today
+        }
+        // Visual-acceptance fixture: several dishes tonight *and* more things
+        // to handle than 需要处理 shows, so the overflow contract and the
+        // page's length are both visible in one state. Seeds data only — no
+        // product behaviour is special-cased for it.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_FULL_DAY") else { return }
+            kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
+            let now = Date()
+            let day: (Int) -> Date? = { Calendar.current.date(byAdding: .day, value: $0, to: now) }
+            kitchenStore.importInventory([
+                InventoryImportItem(name: "过期生菜", quantity: 1, unit: "颗", expiryDate: day(-1)),
+                InventoryImportItem(name: "过期酸奶", quantity: 2, unit: "杯", expiryDate: day(-2)),
+                InventoryImportItem(name: "临期牛奶", quantity: 1, unit: "盒", expiryDate: day(1)),
+                InventoryImportItem(name: "临期豆腐", quantity: 1, unit: "盒", expiryDate: day(1)),
+                InventoryImportItem(name: "临期香菇", quantity: 1, unit: "袋", expiryDate: day(2)),
+                InventoryImportItem(name: "大米", quantity: 1, unit: "袋", expiryDate: nil, isStaple: true)
+            ])
+            if let riceIndex = kitchenStore.inventory.firstIndex(where: { $0.name == "大米" }) {
+                kitchenStore.inventory[riceIndex].lowStockThreshold = 2
+            }
+            kitchenStore.addShopping(name: "鸡蛋", quantity: 1, unit: "盒")
+            kitchenStore.addShopping(name: "青菜", quantity: 1, unit: "份")
+            kitchenStore.addPlans(
+                HomeFullDayFixture.dishes.map { (recipe: $0, plannedServings: Int?(2)) }
+            )
             navigationStore.selectedTab = .today
         }
         .task {

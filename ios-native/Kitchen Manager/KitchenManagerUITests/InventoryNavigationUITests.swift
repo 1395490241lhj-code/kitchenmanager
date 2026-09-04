@@ -247,9 +247,12 @@ final class InventoryNavigationUITests: XCTestCase {
         attachScreenshot(of: app, named: "inventory-accessibility-xxxl")
     }
 
-    func testFilteredInventoryClearButtonPublishesMinimumHitTarget() throws {
+    func testFilteredInventoryAllSummaryControlClearsFilterAndPublishesMinimumHitTarget() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["UITEST_SEED_HOME_DASHBOARD"]
+        app.launchArguments = [
+            "UITEST_SEED_HOME_DASHBOARD",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"
+        ]
         app.launch()
 
         // Home V2: the 已过期 count chip is a named row (过期生菜 · 已过期 1 天).
@@ -258,58 +261,88 @@ final class InventoryNavigationUITests: XCTestCase {
         XCTAssertTrue(scrollHomeUntilHittable(expiredReminder, in: app), "首页待处理行不可达")
         expiredReminder.tap()
 
-        let clear = app.buttons["清除"]
-        XCTAssertTrue(clear.waitForExistence(timeout: 5))
-        XCTAssertTrue(clear.isHittable, "筛选清除按钮不可点击")
+        let picker = app.segmentedControls["inventory.filter.picker"]
+        XCTAssertTrue(picker.buttons["已过期"].waitForExistence(timeout: 5))
+        XCTAssertTrue(picker.buttons["已过期"].isSelected)
+
+        let all = app.buttons["inventory.summary.all"]
+        XCTAssertTrue(all.waitForExistence(timeout: 5))
+        XCTAssertTrue(all.isHittable, "在库 summary control 不可点击")
         XCTAssertGreaterThanOrEqual(
-            clear.frame.height,
+            all.frame.height,
             43.5,
-            "筛选清除按钮发布的实际可点击高度不足 44pt：\(clear.frame)"
+            "在库 summary control 发布的实际可点击高度不足 44pt：\(all.frame)"
         )
+        all.tap()
+        XCTAssertTrue(picker.buttons["全部"].isSelected)
+        XCTAssertTrue(app.staticTexts["临期牛奶"].waitForExistence(timeout: 5))
     }
 
-    func testDualRiskSummaryUsesSingleLineColumnsOrTrueVerticalFallback() throws {
+    func testSummaryControlsExposeDerivedCountsAndFilterMatchingResults() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["UITEST_SEED_INVENTORY_LARGE"]
+        app.launchArguments = [
+            "UITEST_SEED_INVENTORY_LARGE",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"
+        ]
         app.launch()
 
-        let expiring = app.staticTexts["2 项即将到期"]
-        let restock = app.staticTexts["1 项需补货"]
-        XCTAssertTrue(expiring.waitForExistence(timeout: 5), "临期摘要缺失")
-        XCTAssertTrue(restock.exists, "补货摘要缺失")
+        let all = assertSummaryControl("inventory.summary.all", label: "13 项在库", in: app)
+        let expiring = assertSummaryControl("inventory.summary.expiringSoon", label: "2 项即将到期", in: app)
+        let lowStock = assertSummaryControl("inventory.summary.lowStock", label: "1 项需要补货", in: app)
 
-        let sameRow = abs(expiring.frame.midY - restock.frame.midY) < 2
-        let verticallyStacked = restock.frame.minY >= expiring.frame.maxY - 1
-        XCTAssertTrue(
-            sameRow || verticallyStacked,
-            "双风险摘要既非同一单行，也非真正纵向排列：临期=\(expiring.frame)，补货=\(restock.frame)"
-        )
-        XCTAssertFalse(expiring.frame.intersects(restock.frame), "双风险摘要发生重叠")
+        expiring.tap()
+        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["临期"].isSelected)
+        XCTAssertTrue(app.staticTexts["嫩豆腐"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["小番茄"].exists)
+        XCTAssertFalse(app.staticTexts["西兰花"].exists)
 
-        if sameRow {
-            XCTAssertLessThan(expiring.frame.height, 30, "横向临期摘要发生内部换行：\(expiring.frame)")
-            XCTAssertLessThan(restock.frame.height, 30, "横向补货摘要发生内部换行：\(restock.frame)")
-        } else {
-            XCTAssertEqual(expiring.frame.minX, restock.frame.minX, accuracy: 2, "纵向风险摘要未左对齐")
-        }
+        lowStock.tap()
+        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["缺货"].isSelected)
+        XCTAssertTrue(app.staticTexts["鸡蛋"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["橄榄油"].exists)
+        XCTAssertFalse(app.staticTexts["嫩豆腐"].exists)
+
+        all.tap()
+        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["全部"].isSelected)
+        XCTAssertTrue(app.staticTexts["西兰花"].waitForExistence(timeout: 3))
     }
 
-    func testFilteredDualRiskSummaryKeepsCompleteText() throws {
+    func testHomeRiskRouteSelectsInteractiveSummaryFilter() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["UITEST_SEED_INVENTORY_LARGE"]
+        app.launchArguments = [
+            "UITEST_SEED_INVENTORY_LARGE",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"
+        ]
         app.launch()
-        assertFilteredDualRiskSummary(in: app)
+        openExpiringInventoryFromHome(in: app)
+
+        assertSummaryControl("inventory.summary.all", label: "13 项在库", in: app)
+        assertSummaryControl("inventory.summary.expiringSoon", label: "2 项即将到期", in: app)
+        assertSummaryControl("inventory.summary.lowStock", label: "1 项需要补货", in: app)
+        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["临期"].isSelected)
+        assertExpiringResults(in: app)
         attachScreenshot(of: app, named: "inventory-filtered-dual-risk")
     }
 
-    func testFilteredDualRiskSummaryKeepsCompleteTextAtAccessibilityXXXL() throws {
+    func testInteractiveSummaryContractAtAccessibilityXXXL() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "UITEST_SEED_INVENTORY_LARGE",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
         ]
         app.launch()
-        assertFilteredDualRiskSummary(in: app)
+        openExpiringInventoryFromHome(in: app)
+
+        assertSummaryControl("inventory.summary.all", label: "13 项在库", in: app)
+        assertSummaryControl("inventory.summary.expiringSoon", label: "2 项即将到期", in: app)
+        assertSummaryControl("inventory.summary.lowStock", label: "1 项需要补货", in: app)
+
+        let filterMenu = app.buttons["inventory.filter.menu"]
+        XCTAssertTrue(filterMenu.waitForExistence(timeout: 5), "Accessibility size 应使用原生筛选菜单")
+        XCTAssertEqual(filterMenu.label, "筛选")
+        XCTAssertEqual(filterMenu.value as? String, "临期")
+        XCTAssertTrue(filterMenu.isHittable)
+        assertExpiringResults(in: app)
     }
 
     /// 需要处理 sits below the primary region, so a row can start off-screen.
@@ -321,7 +354,7 @@ final class InventoryNavigationUITests: XCTestCase {
         return element.exists && element.isHittable
     }
 
-    private func assertFilteredDualRiskSummary(
+    private func openExpiringInventoryFromHome(
         in app: XCUIApplication,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -337,32 +370,32 @@ final class InventoryNavigationUITests: XCTestCase {
         XCTAssertTrue(expiringReminder.waitForExistence(timeout: 5), "首页临期提醒缺失", file: file, line: line)
         XCTAssertTrue(scrollHomeUntilHittable(expiringReminder, in: app), "首页临期行不可达", file: file, line: line)
         expiringReminder.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5), file: file, line: line)
+    }
 
-        let expiring = app.staticTexts["2 项即将到期"]
-        let restock = app.staticTexts["1 项需补货"]
-        XCTAssertTrue(expiring.waitForExistence(timeout: 5), "筛选状态下临期摘要缺失", file: file, line: line)
-        XCTAssertTrue(restock.waitForExistence(timeout: 5), "筛选状态下补货摘要缺失", file: file, line: line)
+    @discardableResult
+    private func assertSummaryControl(
+        _ identifier: String,
+        label: String,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> XCUIElement {
+        let control = app.buttons[identifier]
+        XCTAssertTrue(control.waitForExistence(timeout: 5), "\(identifier) 缺失", file: file, line: line)
+        XCTAssertEqual(control.label, label, "summary control 的完整语义错误", file: file, line: line)
+        XCTAssertTrue(control.isHittable, "\(identifier) 不可点击", file: file, line: line)
+        return control
+    }
 
-        XCTAssertEqual(expiring.label, "2 项即将到期", "临期摘要文字不完整", file: file, line: line)
-        XCTAssertEqual(restock.label, "1 项需补货", "补货摘要文字不完整", file: file, line: line)
-        XCTAssertFalse(expiring.frame.intersects(restock.frame), "筛选状态下双风险摘要发生重叠", file: file, line: line)
-        XCTAssertLessThanOrEqual(expiring.frame.maxX, app.windows.firstMatch.frame.maxX, "临期摘要被裁出屏幕", file: file, line: line)
-        XCTAssertLessThanOrEqual(restock.frame.maxX, app.windows.firstMatch.frame.maxX, "补货摘要被裁出屏幕", file: file, line: line)
-
-        let sameRow = abs(expiring.frame.midY - restock.frame.midY) < 2
-        let verticallyStacked = restock.frame.minY >= expiring.frame.maxY - 1
-        XCTAssertTrue(
-            sameRow || verticallyStacked,
-            "筛选状态下双风险摘要既非完整横排，也非真正纵排：临期=\(expiring.frame)，补货=\(restock.frame)",
-            file: file,
-            line: line
-        )
-        if sameRow {
-            XCTAssertLessThan(expiring.frame.height, 30, "筛选状态下临期摘要发生内部换行：\(expiring.frame)", file: file, line: line)
-            XCTAssertLessThan(restock.frame.height, 30, "筛选状态下补货摘要发生内部换行：\(restock.frame)", file: file, line: line)
-        } else {
-            XCTAssertEqual(expiring.frame.minX, restock.frame.minX, accuracy: 4, "筛选状态下纵向风险摘要未左对齐", file: file, line: line)
-        }
+    private func assertExpiringResults(
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(app.staticTexts["嫩豆腐"].waitForExistence(timeout: 3), file: file, line: line)
+        XCTAssertTrue(app.staticTexts["小番茄"].exists, file: file, line: line)
+        XCTAssertFalse(app.staticTexts["西兰花"].exists, "4 天后的食材不属于临期结果", file: file, line: line)
     }
 
     /// The pantry empty state's CTA is the only way into the staple flow from
@@ -473,14 +506,12 @@ final class InventoryNavigationUITests: XCTestCase {
         XCTAssertTrue(title.exists, "食材 标题缺失")
         XCTAssertLessThan(title.frame.height, 40, "Accessibility XXXL 下页面标题仍在失控放大")
 
-        // The summary is chrome and must stay a minority of the screen rather
-        // than pushing the list off it. `accessibilityElement(children: .ignore)`
-        // publishes it as a container element, not a static text, so match on any
-        // descendant carrying the combined label.
-        let summary = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS %@", "项食材在库")
-        ).firstMatch
+        // The interactive summary is chrome and must stay a minority of the
+        // screen rather than pushing the list off it. Address the real control,
+        // not a particular visual text composition.
+        let summary = app.buttons["inventory.summary.all"]
         XCTAssertTrue(summary.waitForExistence(timeout: 5), "总库存摘要缺失")
+        XCTAssertEqual(summary.label, "13 项在库")
         XCTAssertLessThan(
             summary.frame.height,
             app.windows.firstMatch.frame.height * 0.25,

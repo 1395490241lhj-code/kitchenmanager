@@ -248,7 +248,11 @@ final class HomeDashboardUITests: XCTestCase {
     // The categories are the same; what they render is not.
 
     func testAttentionRowsNameTheFoodAndOpenTheMatchingFilter() throws {
-        let app = launchSeededDashboard()
+        let app = launch(
+            "UITEST_SEED_HOME_DASHBOARD",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"
+        )
+        XCTAssertTrue(app.staticTexts["home.primary.title"].waitForExistence(timeout: 5))
 
         let expired = app.buttons["home.attention.expired.过期生菜"]
         XCTAssertTrue(expired.waitForExistence(timeout: 5))
@@ -260,7 +264,11 @@ final class HomeDashboardUITests: XCTestCase {
         makeHittable(expired, in: app)
         expired.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["正在查看：已过期"].waitForExistence(timeout: 5))
+        let expiredFilter = app.segmentedControls["inventory.filter.picker"].buttons["已过期"]
+        XCTAssertTrue(expiredFilter.waitForExistence(timeout: 5))
+        XCTAssertTrue(expiredFilter.isSelected, "Home 的过期提醒必须打开已过期筛选。")
+        XCTAssertTrue(app.staticTexts["过期生菜"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["临期牛奶"].exists, "临期项目不应出现在已过期结果中。")
     }
 
     /// New. A prepared batch going off used to be invisible outside a 备餐日.
