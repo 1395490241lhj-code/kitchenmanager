@@ -79,6 +79,16 @@ const {
   repairRecipeJsonContent
 } = require('./src/server/services/ai-client');
 const {
+  getSpecialPlanResponseFormat,
+  isSchemaUnsupportedError,
+  describe: describeSpecialPlanSchema
+} = require('./src/server/services/special-plan-schema');
+// Default off. The strict Special Plan schema uses schema keywords this repo
+// has not yet observed either provider accept on this route, and a rejected
+// keyword is a 400 outside the transient set — no fallback covers it, so the
+// user would lose a menu they get today. Enable only after a provider probe.
+const SPECIAL_PLAN_SCHEMA_ENABLED = String(process.env.AI_SPECIAL_PLAN_SCHEMA || '').trim().toUpperCase() === 'YES';
+const {
   safeParseJsonText,
   extractBalancedJsonObject,
   parseJsonParseCall,
@@ -1304,6 +1314,15 @@ app.post('/api/ai-chat', async (req, res) => {
   const imageBase64 = body.imageBase64 ? String(body.imageBase64) : '';
   const taskType = String(body.taskType || 'general').trim().slice(0, 40) || 'general';
   const requestedProvider = String(body.provider || '').trim().toLowerCase();
+  // Special Plan is the only caller that fixes a dish count before asking, and
+  // the only one whose client rejects a whole generation over that count and
+  // over the declared base yield. It may ask for those two terms to be
+  // enforced by the response schema instead of by prose.
+  const specialPlanDishCount = Number.isInteger(body.specialPlanDishCount)
+    && body.specialPlanDishCount >= 1
+    && body.specialPlanDishCount <= 10
+    ? body.specialPlanDishCount
+    : null;
   const recommendationProvider = taskType === 'recommendation' && ['gemini', 'groq'].includes(requestedProvider)
     ? requestedProvider
     : AI_CHAT_PROVIDER;
@@ -1346,20 +1365,89 @@ app.post('/api/ai-chat', async (req, res) => {
     taskType: /^[a-z0-9-]{1,40}$/.test(taskType) ? taskType : 'other',
     timeoutMs,
     requestSizeBytes: Buffer.byteLength(prompt, 'utf8'),
-    attempt: 1
+    attempt: 1,
+    // Without this there is no way to tell, after enabling the flag, whether a
+    // failure came from the schema or from the model.
+    specialPlanSchema: SPECIAL_PLAN_SCHEMA_ENABLED && specialPlanDishCount !== null
+      ? describeSpecialPlanSchema(chatConfig.provider).contract
+      : 'none'
   };
 
   // Same prompt, same messages, same response contract — only the transport
   // provider changes, so the client cannot tell which one answered.
-  const attemptProvider = (config, timeout) => postChatCompletion({
-    provider: config.provider,
-    model: config.model,
-    messages,
-    temperature: 0.2,
-    responseFormat: isWeeklyMenuPlan,
-    reasoningEffort: imageBase64 ? 'none' : null,
-    timeout
-  });
+  // Which contract each attempt actually used, so a Groq legacy success can
+  // never be reported as a strict-schema success.
+  const responseFormatFor = (config) => {
+    if (!isWeeklyMenuPlan) return false;
+    if (!SPECIAL_PLAN_SCHEMA_ENABLED || specialPlanDishCount === null) return true;
+    // Gemini only. getSpecialPlanResponseFormat returns null for every other
+    // provider, so the Groq fallback keeps the JSON-object contract it has
+    // production history with rather than a weakened schema under the same
+    // name. The client validators stay the trust boundary on both paths.
+    return getSpecialPlanResponseFormat({
+      provider: config.provider,
+      dishCount: specialPlanDishCount
+    }) || true;
+  };
+  // Which of the four outcomes the answering attempt actually had. Written by
+  // whichever attempt returns, so a legacy-degraded success can never be
+  // reported as a strict-schema success.
+  let schemaOutcome = 'not_attempted';
+  let menuContract = 'legacy_weekly';
+  // A provider that rejects a schema keyword answers 400, which is neither
+  // transient nor `json_validate_failed` — the cross-provider fallback does
+  // not cover it, and without this the strict schema would turn a working
+  // generation into a hard error. The recovery for "this provider will not
+  // take my schema" is the same provider with the JSON-object format that has
+  // always worked, not a different provider and not a different prompt. It is
+  // a request-format compatibility degrade, not a content retry: the response
+  // is still validated exactly as before.
+  const attemptProvider = async (config, timeout) => {
+    const responseFormat = responseFormatFor(config);
+    const send = (format, budget) => postChatCompletion({
+      provider: config.provider,
+      model: config.model,
+      messages,
+      temperature: 0.2,
+      responseFormat: format,
+      reasoningEffort: imageBase64 ? 'none' : null,
+      timeout: budget
+    });
+    const sentSchema = responseFormat && responseFormat !== true;
+    if (!sentSchema) {
+      schemaOutcome = 'not_attempted';
+      menuContract = config.provider === 'groq' && specialPlanDishCount !== null
+        ? 'groq_legacy_fallback'
+        : 'legacy_weekly';
+      return send(responseFormat, timeout);
+    }
+    try {
+      const resp = await send(responseFormat, timeout);
+      // The only path that may be cited as evidence the strict schema worked.
+      schemaOutcome = 'accepted';
+      menuContract = 'gemini_strict';
+      return resp;
+    } catch (err) {
+      // Only a proven response-format rejection degrades. Everything else —
+      // auth, 404, 429, 5xx, timeouts, json_validate_failed — is rethrown with
+      // its existing handling intact.
+      if (!isSchemaUnsupportedError(err)) throw err;
+      const info = getUpstreamAiErrorInfo(err);
+      schemaOutcome = 'rejected_degraded';
+      menuContract = 'gemini_legacy_degrade';
+      observabilityLogger.log('ai_schema_rejected', 'warn', {
+        ...logContext,
+        provider: config.provider,
+        status: 400,
+        resultCode: info.code,
+        menuContract,
+        schemaOutcome
+      });
+      // A rejection arrives fast; the degrade runs on the shorter budget so the
+      // worst case stays inside the client's own request deadline.
+      return send(true, Math.min(timeout, fallbackTimeoutMs));
+    }
+  };
 
   let attemptContext = logContext;
   try {
@@ -1413,6 +1501,8 @@ app.post('/api/ai-chat', async (req, res) => {
       status: 200,
       durationMs: Date.now() - startedAt,
       resultCode: 'success',
+      schemaOutcome,
+      menuContract,
       ...summarizeAiResponse(resp)
     });
     return res.json({ content: cleaned });
@@ -1424,7 +1514,9 @@ app.post('/api/ai-chat', async (req, res) => {
       durationMs: Date.now() - startedAt,
       resultCode: info.code,
       timeoutSource: aiTimeoutSource(info),
-      upstreamRequestId: info.upstreamRequestId
+      upstreamRequestId: info.upstreamRequestId,
+      schemaOutcome,
+      menuContract
     });
     return sendAiUpstreamError(res, err);
   }

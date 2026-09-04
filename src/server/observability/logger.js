@@ -47,7 +47,14 @@ const ALLOWED_LOG_FIELDS = new Set([
   'primaryProvider',
   'fallbackTriggered',
   'fallbackProvider',
-  'fallbackReason'
+  'fallbackReason',
+  // Strict Special Plan response schema. `schemaOutcome` is what makes a
+  // legacy-degraded success distinguishable from a strict-schema success, so
+  // acceptance evidence can never be read off the wrong one. Both are
+  // enum-like and provider-derived; neither can carry prompt text or a key.
+  'specialPlanSchema',
+  'menuContract',
+  'schemaOutcome'
 ]);
 
 // Irreversible, short, stable per-process identity for log correlation only.

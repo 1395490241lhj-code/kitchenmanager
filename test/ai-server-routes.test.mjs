@@ -3561,3 +3561,494 @@ test('上游错误没有 request-id 时保持原有错误响应形状', async ()
   assert.equal(res.body.code, 'upstream_error');
   assert.equal(Object.hasOwn(res.body, 'upstreamRequestId'), false);
 });
+
+// --- Special Plan strict response schema (default off) ---------------------
+
+const SPECIAL_PLAN_SCHEMA_ENV = { AI_SPECIAL_PLAN_SCHEMA: 'YES' };
+
+function specialPlanRecipes(payload) {
+  return payload.response_format.json_schema.schema
+    .properties.days.items.properties.meals.items.properties.recipes;
+}
+
+test('Special Plan schema 默认关闭：weekly-menu-plan 仍是 json_object', async () => {
+  const { app, openAiRequests } = loadServerWithMocks();
+  const res = await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+  });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(openAiRequests[0].payload.response_format, { type: 'json_object' });
+});
+
+test('开启后 Special Plan 请求用 strict json_schema，并把菜数钉成 exactly N（Gemini）', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  const res = await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+  });
+  assert.equal(res.statusCode, 200);
+  const format = openAiRequests[0].payload.response_format;
+  assert.equal(format.type, 'json_schema');
+  assert.equal(format.json_schema.name, 'special_plan_menu');
+  assert.equal(format.json_schema.strict, true);
+  const recipes = specialPlanRecipes(openAiRequests[0].payload);
+  assert.equal(recipes.minItems, 6);
+  assert.equal(recipes.maxItems, 6);
+});
+
+test('target 4 时 schema 动态变成 exactly 4', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 4
+  });
+  const recipes = specialPlanRecipes(openAiRequests[0].payload);
+  assert.equal(recipes.minItems, 4);
+  assert.equal(recipes.maxItems, 4);
+});
+
+test('没有固定菜数时不构造 exact-zero schema，退回 json_object', async () => {
+  for (const dishCount of [undefined, 0, null, 11, '6']) {
+    const { app, openAiRequests } = loadServerWithMocks({
+      env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+    });
+    await runPost(app, '/api/ai-chat', {
+      prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: dishCount
+    });
+    assert.deepEqual(
+      openAiRequests[0].payload.response_format, { type: 'json_object' },
+      `dishCount ${String(dishCount)} must not build a schema`
+    );
+  }
+});
+
+test('AI 新菜 baseServings 被 schema 钉成 4，复用的已有菜谱不被迫声称 4', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+  });
+  const variants = specialPlanRecipes(openAiRequests[0].payload).items.anyOf;
+  const ai = variants.find(v => v.properties.source.enum[0] === 'ai');
+  const existing = variants.find(v => v.properties.source.enum[0] === 'existing');
+  assert.deepEqual(ai.properties.baseServings, { type: 'integer', enum: [4] });
+  assert.ok(ai.required.includes('baseServings'));
+  assert.ok(!('baseServings' in existing.properties), 'a reused recipe keeps its own yield');
+  assert.ok(!existing.required.includes('baseServings'));
+});
+
+test('Special Plan schema 不改变 provider 顺序、超时预算与 fallback 触发条件', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+  });
+  assert.equal(openAiRequests[0].payload.model, 'gemini-3.6-flash');
+  assert.equal(openAiRequests[0].requestOptions.timeout, 45000);
+});
+
+test('非 weekly-menu-plan 的 task 即使带 specialPlanDishCount 也不加 schema', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({ env: SPECIAL_PLAN_SCHEMA_ENV });
+  await runPost(app, '/api/ai-chat', {
+    prompt: '推荐一道菜', taskType: 'recommendation', specialPlanDishCount: 6
+  });
+  assert.equal(openAiRequests[0].payload.response_format, undefined);
+});
+
+test('provider 拒绝 schema 时同 provider 降级回 json_object，而不是把可用菜单变成硬失败', async () => {
+  const payloads = [];
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    openAiCreate: async (payload) => {
+      payloads.push(payload);
+      if (payload.response_format?.type === 'json_schema') {
+        const error = new Error('bad request');
+        error.status = 400;
+        error.response = {
+          status: 400,
+          data: { error: { code: 'invalid_request_error', param: 'response_format', message: 'Invalid schema: unknown keyword minItems' } }
+        };
+        throw error;
+      }
+      return { choices: [{ message: { content: '{"days":[]}' } }] };
+    }
+  });
+  const res = await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+  });
+  assert.equal(res.statusCode, 200, 'a rejected schema must not cost the user their menu');
+  assert.equal(payloads.length, 2, 'exactly one degrade, no loop');
+  assert.equal(payloads[0].response_format.type, 'json_schema');
+  assert.deepEqual(payloads[1].response_format, { type: 'json_object' });
+  // Same provider: the degrade is a request-format issue, not a provider issue.
+  assert.ok(openAiRequests.every(r => r.payload.model === 'gemini-3.6-flash'));
+});
+
+test('schema 降级不吞掉 json_validate_failed —— 那条仍然走既有跨 provider fallback', async () => {
+  const payloads = [];
+  const { app } = loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    openAiCreate: async (payload) => {
+      payloads.push(payload);
+      if (payloads.length === 1) {
+        const error = new Error('json_validate_failed');
+        error.status = 400;
+        error.response = { status: 400, data: { error: { code: 'json_validate_failed' } } };
+        throw error;
+      }
+      return { choices: [{ message: { content: '{"days":[]}' } }] };
+    }
+  });
+  const res = await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(payloads.length, 2);
+  assert.equal(payloads[1].model, 'openai/gpt-oss-120b', 'json_validate_failed still crosses to Groq');
+});
+
+test('AI 菜的 ingredients / steps 不能是空数组 —— 客户端正是按这两项丢菜的', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+  });
+  const ai = specialPlanRecipes(openAiRequests[0].payload).items.anyOf
+    .find(v => v.properties.source.enum[0] === 'ai');
+  assert.equal(ai.properties.ingredients.minItems, 1);
+  assert.equal(ai.properties.steps.minItems, 1);
+});
+
+test('每个 strict object 的 required 覆盖全部声明属性', async () => {
+  const { getSpecialPlanResponseFormat } = await import('../src/server/services/special-plan-schema.js');
+  const walk = (node, path, problems) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) return node.forEach((n, i) => walk(n, `${path}[${i}]`, problems));
+    if (node.type === 'object') {
+      const props = Object.keys(node.properties || {});
+      const required = node.required || [];
+      if (node.additionalProperties !== false) problems.push(`${path}: additionalProperties not false`);
+      const missing = props.filter(p => !required.includes(p));
+      if (missing.length) problems.push(`${path}: required omits ${missing.join(',')}`);
+    }
+    Object.entries(node).forEach(([k, v]) => walk(v, `${path}.${k}`, problems));
+  };
+  const format = getSpecialPlanResponseFormat({ provider: 'gemini', dishCount: 6 });
+  const problems = [];
+  walk(format.json_schema.schema, 'gemini', problems);
+  assert.deepEqual(problems, [], `schema violates strict mode: ${problems.join(' | ')}`);
+});
+
+test('Special Plan 的 baseServings 常量在 Swift 与 server schema 之间保持一致', async () => {
+  const { readFileSync } = await import('node:fs');
+  const swift = readFileSync(
+    new URL('../ios-native/Kitchen Manager/KitchenManager/SpecialPlanMenuGenerator.swift', import.meta.url),
+    'utf8'
+  );
+  const match = swift.match(/static let aiRecipeBaseServings\s*=\s*(\d+)/);
+  assert.ok(match, 'SpecialPlanMenuBounds.aiRecipeBaseServings must stay findable');
+  const { AI_RECIPE_BASE_SERVINGS } = await import('../src/server/services/special-plan-schema.js');
+  // Divergence is a total-failure mode, not a degradation: the provider would
+  // be pinned to one value by the schema and the client would reject every
+  // generation for declaring it.
+  assert.equal(
+    Number(match[1]), AI_RECIPE_BASE_SERVINGS,
+    'the schema enum and the client validator must pin the same base yield'
+  );
+});
+
+// --- degrade predicate: positive evidence only ------------------------------
+
+function schemaErrorFactory(makeError) {
+  return loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+    openAiCreate: async (payload) => {
+      if (payload.response_format?.type === 'json_schema') throw makeError();
+      return { choices: [{ message: { content: '{"days":[]}' } }] };
+    }
+  });
+}
+
+test('降级只认「provider 明说 response_format/schema 不接受」，不认任意 400', async () => {
+  // Positive evidence, in each form the providers actually use.
+  const degrades = [
+    () => Object.assign(new Error('x'), { status: 400, response: { status: 400, data: { error: { param: 'response_format', message: 'unsupported' } } } }),
+    () => Object.assign(new Error('x'), { status: 400, response: { status: 400, data: { error: { code: 'invalid_request_error', message: 'Invalid json_schema: minItems not supported' } } } }),
+    () => Object.assign(new Error('x'), { status: 400, response: { status: 400, data: { error: { message: 'structured output is not supported for this model' } } } })
+  ];
+  for (const makeError of degrades) {
+    const { app } = schemaErrorFactory(makeError);
+    const res = await runPost(app, '/api/ai-chat', {
+      prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+    });
+    assert.equal(res.statusCode, 200, 'a proven schema rejection degrades');
+  }
+});
+
+test('降级绝不掩盖 auth / 404 / 429 / 5xx / 超时 / 无证据的 400', async () => {
+  const mustNotDegrade = [
+    ['401', () => Object.assign(new Error('x'), { status: 401, response: { status: 401, data: { error: { message: 'invalid api key' } } } }), 401],
+    ['403', () => Object.assign(new Error('x'), { status: 403, response: { status: 403, data: { error: { message: 'forbidden' } } } }), 403],
+    ['404', () => Object.assign(new Error('x'), { status: 404, response: { status: 404, data: { error: { message: 'model not found' } } } }), 404],
+    ['bare 400', () => Object.assign(new Error('x'), { status: 400, response: { status: 400, data: { error: { code: 'invalid_request_error', message: 'messages: too long' } } } }), 400]
+  ];
+  for (const [label, makeError, expected] of mustNotDegrade) {
+    const { app } = schemaErrorFactory(makeError);
+    const res = await runPost(app, '/api/ai-chat', {
+      prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+    });
+    assert.equal(res.statusCode, expected, `${label} must surface, not degrade to legacy`);
+  }
+});
+
+test('429 / 5xx / 超时 仍走既有跨 provider fallback，而不是 schema 降级', async () => {
+  for (const makeError of [
+    () => Object.assign(new Error('x'), { status: 429, response: { status: 429, data: { error: { message: 'rate limited' } } } }),
+    () => Object.assign(new Error('x'), { status: 503, response: { status: 503, data: { error: { message: 'overloaded' } } } }),
+    () => Object.assign(new Error('timed out'), { code: 'ECONNABORTED' })
+  ]) {
+    const payloads = [];
+    const { app } = loadServerWithMocks({
+      env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+      openAiCreate: async (payload) => {
+        payloads.push(payload);
+        if (payloads.length === 1) throw makeError();
+        return { choices: [{ message: { content: '{"days":[]}' } }] };
+      }
+    });
+    const res = await runPost(app, '/api/ai-chat', {
+      prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+    });
+    assert.equal(res.statusCode, 200);
+    assert.equal(payloads[1].model, 'openai/gpt-oss-120b', 'crosses provider, not a same-provider degrade');
+  }
+});
+
+// --- telemetry: the four states are distinguishable -------------------------
+
+function captureLogs() {
+  const lines = [];
+  const original = process.stdout.write;
+  process.stdout.write = (line) => { lines.push(String(line)); return true; };
+  return { lines, restore: () => { process.stdout.write = original; } };
+}
+
+test('strict schema 遥测能区分 accepted / rejected_degraded / not_attempted', async () => {
+  const cases = [
+    ['accepted', async (payload) => ({ choices: [{ message: { content: '{"days":[]}' } }] }), 6],
+    ['rejected_degraded', async (payload) => {
+      if (payload.response_format?.type === 'json_schema') {
+        throw Object.assign(new Error('x'), { status: 400, response: { status: 400, data: { error: { param: 'response_format', message: 'no' } } } });
+      }
+      return { choices: [{ message: { content: '{"days":[]}' } }] };
+    }, 6],
+    ['not_attempted', async () => ({ choices: [{ message: { content: '{"days":[]}' } }] }), null]
+  ];
+  for (const [expected, openAiCreate, dishCount] of cases) {
+    const capture = captureLogs();
+    try {
+      const { app } = loadServerWithMocks({
+        env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+        openAiCreate
+      });
+      const res = await runPost(app, '/api/ai-chat', {
+        prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: dishCount
+      });
+      assert.equal(res.statusCode, 200);
+    } finally {
+      capture.restore();
+    }
+    const completed = capture.lines.filter(l => l.includes('ai_chat_completed'));
+    assert.ok(completed.length, `${expected}: expected a completion event`);
+    assert.ok(
+      completed.some(l => l.includes(`"schemaOutcome":"${expected}"`)),
+      `${expected}: completion event must say so, got ${completed.join('')}`
+    );
+    // A degraded success must never be readable as a strict-schema success.
+    if (expected === 'rejected_degraded') {
+      assert.ok(!completed.some(l => l.includes('"schemaOutcome":"accepted"')));
+      assert.ok(capture.lines.some(l => l.includes('ai_schema_rejected')));
+    }
+  }
+});
+
+test('遥测不记录 prompt 或密钥', async () => {
+  const capture = captureLogs();
+  try {
+    const { app } = loadServerWithMocks({
+      env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+    });
+    await runPost(app, '/api/ai-chat', {
+      prompt: '这周六 7 个人一起吃饭，1 人不吃辣', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+    });
+  } finally {
+    capture.restore();
+  }
+  const all = capture.lines.join('');
+  assert.ok(!all.includes('gemini-secret'), 'no key in logs');
+  assert.ok(!all.includes('1 人不吃辣'), 'no prompt in logs');
+});
+
+test('Special Plan strict schema 不含 shoppingItems —— 购物是确定性推导的', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  await runPost(app, '/api/ai-chat', {
+    prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6
+  });
+  const schema = openAiRequests[0].payload.response_format.json_schema.schema;
+  assert.ok(!('shoppingItems' in schema.properties));
+  assert.deepEqual(schema.required, ['event', 'days', 'warnings']);
+});
+
+// --- final architecture: Gemini strict primary, Groq legacy fallback --------
+
+function geminiPrimary(extra = {}) {
+  return { ...SPECIAL_PLAN_SCHEMA_ENV, AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret', ...extra };
+}
+const SPECIAL_PLAN_BODY = { prompt: '规划聚餐菜单', taskType: 'weekly-menu-plan', specialPlanDishCount: 6 };
+const OK = { choices: [{ message: { content: '{"days":[]}' } }] };
+
+function transportError(status) {
+  if (status === 'timeout') return Object.assign(new Error('t'), { code: 'ECONNABORTED' });
+  return Object.assign(new Error('x'), { status, response: { status, data: { error: { message: 'x' } } } });
+}
+function jsonValidateFailed() {
+  return Object.assign(new Error('x'), {
+    status: 400,
+    response: { status: 400, data: { error: { code: 'json_validate_failed', message: 'invalid json' } } }
+  });
+}
+function schemaRejection() {
+  return Object.assign(new Error('x'), {
+    status: 400,
+    response: { status: 400, data: { error: { param: 'response_format', message: 'unsupported keyword' } } }
+  });
+}
+
+test('Gemini Special Plan 走 strict schema：exact cardinality + base4', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({ env: geminiPrimary() });
+  const res = await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
+  assert.equal(res.statusCode, 200);
+  assert.equal(openAiRequests.length, 1, 'Gemini only, no extra provider call');
+  const format = openAiRequests[0].payload.response_format;
+  assert.equal(format.json_schema.name, 'special_plan_menu');
+  const recipes = specialPlanRecipes(openAiRequests[0].payload);
+  assert.equal(recipes.minItems, 6);
+  assert.equal(recipes.maxItems, 6);
+  const ai = recipes.items.anyOf.find(v => v.properties.source.enum[0] === 'ai');
+  assert.deepEqual(ai.properties.baseServings, { type: 'integer', enum: [4] });
+});
+
+test('Groq fallback 用 legacy json_object，绝不带 Special Plan strict schema', async () => {
+  for (const err of [transportError(429), transportError(503), transportError('timeout'), jsonValidateFailed()]) {
+    const payloads = [];
+    const { app } = loadServerWithMocks({
+      env: geminiPrimary(),
+      openAiCreate: async (payload) => {
+        payloads.push(payload);
+        if (payloads.length === 1) throw err;
+        return OK;
+      }
+    });
+    const res = await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
+    assert.equal(res.statusCode, 200);
+    assert.equal(payloads.length, 2, 'exactly one fallback, no loop');
+    assert.equal(payloads[0].response_format.type, 'json_schema', 'Gemini got strict');
+    assert.equal(payloads[1].model, 'openai/gpt-oss-120b');
+    assert.deepEqual(payloads[1].response_format, { type: 'json_object' }, 'Groq gets the legacy contract');
+  }
+});
+
+test('Gemini schema 不被接受时同 provider 降级一次，且不额外触发 Groq', async () => {
+  const payloads = [];
+  const { app } = loadServerWithMocks({
+    env: geminiPrimary(),
+    openAiCreate: async (payload) => {
+      payloads.push(payload);
+      if (payload.response_format?.type === 'json_schema') throw schemaRejection();
+      return OK;
+    }
+  });
+  const res = await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
+  assert.equal(res.statusCode, 200);
+  assert.equal(payloads.length, 2, 'one degrade only');
+  assert.ok(payloads.every(p => p.model === 'gemini-3.6-flash'), 'same provider, no extra Groq call');
+  assert.deepEqual(payloads[1].response_format, { type: 'json_object' });
+});
+
+test('没有 strict → legacy → strict 的循环：整轮最多两次上游调用', async () => {
+  for (const err of [schemaRejection(), transportError(503), jsonValidateFailed()]) {
+    const payloads = [];
+    const { app } = loadServerWithMocks({
+      env: geminiPrimary(),
+      openAiCreate: async (payload) => {
+        payloads.push(payload);
+        if (payloads.length === 1) throw err;
+        return OK;
+      }
+    });
+    await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
+    assert.ok(payloads.length <= 2, `expected <= 2 upstream calls, got ${payloads.length}`);
+    // A strict schema is never sent twice, and never to Groq.
+    const strict = payloads.filter(p => p.response_format?.type === 'json_schema');
+    assert.ok(strict.length <= 1);
+    assert.ok(strict.every(p => p.model === 'gemini-3.6-flash'));
+  }
+});
+
+test('普通 Weekly 在两个 provider 上都保持 legacy 行为', async () => {
+  for (const env of [geminiPrimary(), { ...SPECIAL_PLAN_SCHEMA_ENV }]) {
+    const { app, openAiRequests } = loadServerWithMocks({ env });
+    const res = await runPost(app, '/api/ai-chat', { prompt: '规划一周菜单', taskType: 'weekly-menu-plan' });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(openAiRequests[0].payload.response_format, { type: 'json_object' });
+  }
+});
+
+test('遥测点名实际使用的 contract，Groq legacy 成功不会被记成 strict 成功', async () => {
+  const cases = [
+    ['gemini_strict', async () => OK, null],
+    ['groq_legacy_fallback', (() => {
+      let n = 0;
+      return async () => { n += 1; if (n === 1) throw transportError(503); return OK; };
+    })(), null],
+    ['gemini_legacy_degrade', async (payload) => {
+      if (payload.response_format?.type === 'json_schema') throw schemaRejection();
+      return OK;
+    }, null]
+  ];
+  for (const [expected, openAiCreate] of cases) {
+    const capture = captureLogs();
+    try {
+      const { app } = loadServerWithMocks({ env: geminiPrimary(), openAiCreate });
+      const res = await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
+      assert.equal(res.statusCode, 200);
+    } finally {
+      capture.restore();
+    }
+    const completed = capture.lines.filter(l => l.includes('ai_chat_completed'));
+    assert.ok(
+      completed.some(l => l.includes(`"menuContract":"${expected}"`)),
+      `${expected}: got ${completed.join('')}`
+    );
+    if (expected !== 'gemini_strict') {
+      assert.ok(!completed.some(l => l.includes('"schemaOutcome":"accepted"')),
+        `${expected} must not read as a strict-schema success`);
+    }
+  }
+});
+
+test('flag 关闭时 Special Plan 与今天完全一致', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' }
+  });
+  const res = await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(openAiRequests[0].payload.response_format, { type: 'json_object' });
+});

@@ -345,7 +345,8 @@ struct WeeklyMenuPlannerService {
         let content = try await chatService.request(
             prompt: try Self.prompt(for: request),
             taskType: "weekly-menu-plan",
-            timeout: 100
+            timeout: 100,
+            specialPlanDishCount: Self.schemaDishCount(for: request)
         )
         guard let data = content.data(using: .utf8),
               let response = try? JSONDecoder().decode(AIWeeklyMenuResponse.self, from: data) else {
@@ -355,6 +356,17 @@ struct WeeklyMenuPlannerService {
             throw WeeklyMenuPlannerError.emptyPlan
         }
         return response
+    }
+
+    /// The dish count the server may ask the provider to enforce in the
+    /// response schema.
+    ///
+    /// Only a Special Plan request qualifies, and only one that fixed a count:
+    /// the ordinary weekly planner keeps its tolerant JSON-object format, and
+    /// a request that lets the model choose has no cardinality to enforce.
+    static func schemaDishCount(for request: AIWeeklyMenuRequest) -> Int? {
+        guard request.eventRequest != nil, request.dishesPerMeal > 0 else { return nil }
+        return request.dishesPerMeal
     }
 
     /// The exact bytes sent to the model. Extracted from `generatePlan` so the
@@ -384,8 +396,7 @@ struct WeeklyMenuPlannerService {
         - 避免连续多顿使用同一主食材。
         - 同一天尽量荤素搭配。
         - 遵守 maxCookingTime、cuisines、flavors 和 excludedIngredients。
-        - 不要出现重复菜名，也不要使用 excludedRecipeNames 中的菜。
-        - 缺少的食材列在 shoppingItems 中，数量按 servings 估算，未知时可以省略数量或填“适量”。
+        - 不要出现重复菜名，也不要使用 excludedRecipeNames 中的菜。\(Self.shoppingRule(for: request))
         - 只返回 JSON 对象，不要 Markdown、代码围栏或额外解释。\(Self.eventInstructions(for: request))
 
         严格 JSON 格式：
@@ -398,25 +409,12 @@ struct WeeklyMenuPlannerService {
                   "mealIndex": 0,
                   "title": "晚餐",
                   "recipes": [
-                    {
-                      "existingRecipeID": "已有菜谱的 id 或 null",
-                      "name": "菜名",
-                      "ingredients": ["食材 1"],
-                      "steps": ["步骤 1"],
-                      "tags": ["标签"],
-                      "cookingTime": 30,
-                      "difficulty": "简单",
-                      "reason": "推荐原因",
-                      "source": "existing"\(request.eventRequest == nil ? "" : Self.baseServingsSchemaLine)
-                    }
+        \(Self.recipeShape(for: request))
                   ]
                 }
               ]
             }
-          ],
-          "shoppingItems": [
-            {"name": "鸡胸肉", "quantity": 2, "unit": "块", "reason": "还缺 1 块"}
-          ],
+          ],\(Self.shoppingShape(for: request))
           "warnings": []
         }
         """
@@ -457,11 +455,79 @@ struct WeeklyMenuPlannerService {
         return lines.map { "\n        " + $0 }.joined()
     }
 
-    /// The base yield a Special Plan dish must declare. Shown in the response
-    /// shape rather than only in prose, because the client rejects a whole
-    /// generation whose dishes omit it. Absent for the weekly planner, which
-    /// neither asks for nor writes this field.
-    static let baseServingsSchemaLine = ",\n                      \"baseServings\": \(SpecialPlanMenuBounds.aiRecipeBaseServings)"
+    /// `shoppingItems` is a weekly-only field.
+    ///
+    /// `WeeklyMenuPlannerStore.makePlan` is its one consumer. Special Plan
+    /// shopping is deterministic — `ShoppingListGenerator` aggregates the
+    /// accepted recipes' own ingredients and reconciles against the home
+    /// kitchen only when the plan says to — so an AI-estimated quantity must
+    /// never become a Special Plan shopping number. Asking for the field
+    /// anyway would spend output on something nothing reads, and would put a
+    /// second, untrusted source of shopping quantities in the response.
+    static func shoppingRule(for request: AIWeeklyMenuRequest) -> String {
+        guard request.eventRequest == nil else { return "" }
+        return "\n- 缺少的食材列在 shoppingItems 中，数量按 servings 估算，未知时可以省略数量或填“适量”。"
+    }
+
+    static func shoppingShape(for request: AIWeeklyMenuRequest) -> String {
+        guard request.eventRequest == nil else { return "" }
+        return """
+
+          "shoppingItems": [
+            {"name": "鸡胸肉", "quantity": 2, "unit": "块", "reason": "还缺 1 块"}
+          ],
+        """
+    }
+
+    /// The recipe object(s) the response shape shows.
+    ///
+    /// A Special Plan dish is one of two disjoint shapes, and showing them as
+    /// one merged object is worse than showing neither: a dish the model
+    /// writes carries its own ingredients, steps and the contracted
+    /// `baseServings`, while a dish it reuses carries only the id of the
+    /// recipe the user already owns. A single example mixing `existingRecipeID`
+    /// with a recipe body and `source: "existing"` describes a dish that
+    /// neither branch of the response schema accepts, and steers the model
+    /// toward the branch that cannot carry a recipe at all.
+    ///
+    /// The weekly planner keeps its original single example byte-for-byte: it
+    /// has no strict schema and no base-yield contract to describe.
+    static func recipeShape(for request: AIWeeklyMenuRequest) -> String {
+        guard request.eventRequest != nil else { return weeklyRecipeShape }
+        return """
+                    {
+                      "source": "ai",
+                      "name": "菜名",
+                      "ingredients": ["食材 1"],
+                      "steps": ["步骤 1"],
+                      "tags": ["标签"],
+                      "cookingTime": 30,
+                      "difficulty": "简单",
+                      "reason": "推荐原因",
+                      "baseServings": \(SpecialPlanMenuBounds.aiRecipeBaseServings)
+                    },
+                    {
+                      "source": "existing",
+                      "existingRecipeID": "existingRecipes 中真实存在的 id",
+                      "name": "菜名",
+                      "reason": "推荐原因"
+                    }
+        """
+    }
+
+    static let weeklyRecipeShape = """
+                    {
+                      "existingRecipeID": "已有菜谱的 id 或 null",
+                      "name": "菜名",
+                      "ingredients": ["食材 1"],
+                      "steps": ["步骤 1"],
+                      "tags": ["标签"],
+                      "cookingTime": 30,
+                      "difficulty": "简单",
+                      "reason": "推荐原因",
+                      "source": "existing"
+                    }
+        """
 
     static let eventSchema = """
 

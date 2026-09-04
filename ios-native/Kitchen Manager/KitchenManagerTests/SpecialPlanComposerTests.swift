@@ -229,6 +229,10 @@ final class SpecialPlanComposerTests: XCTestCase {
         // The weekly planner always fixes a count, so its cardinality sentence
         // stays byte-for-byte what it was before the zero-dish clause fix.
         XCTAssertTrue(prompt.contains("- 每天恰好生成 mealsPerDay 顿，每顿恰好 dishesPerMeal 道菜，mealIndex 从 0 开始。"))
+        // The weekly response shape keeps its single merged recipe example: it
+        // has no strict schema and no base-yield contract to describe.
+        XCTAssertTrue(prompt.contains("\"existingRecipeID\": \"已有菜谱的 id 或 null\""))
+        XCTAssertFalse(prompt.contains("\"source\": \"ai\""))
     }
 
     // MARK: - Dish-count contract: prompt target == validated target
@@ -312,6 +316,27 @@ final class SpecialPlanComposerTests: XCTestCase {
         XCTAssertFalse(instructions.contains("菜系、菜数"))
     }
 
+    /// The two dish shapes are disjoint, and the response schema accepts only
+    /// those two. A merged example — `existingRecipeID` beside a recipe body,
+    /// labelled `source: "existing"` — describes a dish neither branch allows
+    /// and steers the model toward the branch that cannot carry a recipe.
+    func testEventResponseShapeShowsTheTwoDishShapesSeparately() throws {
+        let prompt = try prompt(for: sampleRequest)
+        XCTAssertTrue(prompt.contains("\"source\": \"ai\""))
+        XCTAssertTrue(prompt.contains("\"source\": \"existing\""))
+        XCTAssertTrue(prompt.contains("\"existingRecipeID\": \"existingRecipes 中真实存在的 id\""))
+        XCTAssertFalse(
+            prompt.contains("\"existingRecipeID\": \"已有菜谱的 id 或 null\""),
+            "the merged weekly example must not be shown for an event request"
+        )
+        // The reused shape carries no recipe body and no yield claim.
+        let existing = try XCTUnwrap(prompt.range(of: "\"source\": \"existing\""))
+        let tail = prompt[existing.upperBound...]
+        let block = tail[..<(tail.range(of: "}")?.lowerBound ?? tail.endIndex)]
+        XCTAssertFalse(block.contains("baseServings"))
+        XCTAssertFalse(block.contains("ingredients"))
+    }
+
     /// Asserted on the generated prompt, not on the constant that feeds it:
     /// removing the interpolation at the response-shape line must fail this.
     func testEventResponseShapeDeclaresTheContractedBaseYield() throws {
@@ -326,6 +351,177 @@ final class SpecialPlanComposerTests: XCTestCase {
             prompt[shape...].contains("\"baseServings\": \(SpecialPlanMenuBounds.aiRecipeBaseServings)"),
             "declared in the JSON shape block the model copies, not only in the condition prose"
         )
+    }
+
+    // MARK: - The schema-shaped response is the one the client can use
+
+    /// The end-to-end version of the prompt/schema agreement: a response built
+    /// to satisfy the strict schema exactly must decode and map. If the schema
+    /// demanded a shape the client cannot read, structured output would turn
+    /// every generation into an empty menu — the failure the merged response
+    /// example would have caused.
+    func testAResponseShapedExactlyLikeTheStrictSchemaDecodesAndMaps() throws {
+        let json = """
+        {"event":{"title":"周六聚餐","scheduledAt":"2026-09-05 18:00","peopleCount":7,        "constraintNotes":["1 人不吃辣"],"notes":""},        "days":[{"dayIndex":0,"meals":[{"mealIndex":0,"title":"晚餐","recipes":[        {"source":"ai","name":"清蒸鲈鱼","ingredients":["鲈鱼 600 g"],"steps":["蒸 8 分钟"],        "tags":["家常"],"cookingTime":20,"difficulty":"简单","reason":"清淡","baseServings":4},        {"source":"existing","existingRecipeID":"r-1","name":"番茄炒蛋","reason":"家常"}]}]}],        "shoppingItems":[{"name":"鲈鱼","quantity":1,"unit":"条","reason":"缺"}],"warnings":[]}
+        """
+        let existing = Recipe(
+            id: "r-1", title: "番茄炒蛋", cookingTime: nil, difficulty: nil, tags: [],
+            ingredients: ["鸡蛋 3 个"], seasonings: [], steps: ["炒"]
+        )
+        let decoded = try JSONDecoder().decode(
+            AIWeeklyMenuResponse.self, from: Data(json.utf8)
+        )
+        let dishes = SpecialPlanMenuGenerator.dishes(from: decoded, existingRecipes: [existing])
+
+        XCTAssertEqual(dishes.count, 2, "both schema variants must survive mapping")
+
+        let written = try XCTUnwrap(dishes.first { !$0.isExistingRecipe })
+        XCTAssertEqual(written.title, "清蒸鲈鱼")
+        XCTAssertEqual(written.baseServings, SpecialPlanMenuBounds.aiRecipeBaseServings)
+        XCTAssertFalse(written.ingredients.isEmpty)
+        XCTAssertFalse(written.steps.isEmpty)
+
+        let reused = try XCTUnwrap(dishes.first { $0.isExistingRecipe })
+        XCTAssertEqual(reused.existingRecipeID, "r-1")
+        XCTAssertNil(reused.baseServings, "a reused recipe keeps its own yield, never a stamped 4")
+
+        // The whole draft passes the validator the schema is meant to satisfy.
+        XCTAssertNoThrow(try SpecialPlanMenuGenerator.validateBaseYield(dishes))
+
+        // The event reading survives too, including the date the prompt formats.
+        let interpretation = SpecialPlanInterpretation(event: decoded.event)
+        XCTAssertEqual(interpretation.peopleCount, 7)
+        XCTAssertEqual(interpretation.constraintNotes, ["1 人不吃辣"])
+        XCTAssertNotNil(interpretation.scheduledAt)
+    }
+
+    // MARK: - Schema cardinality handed to the server
+
+    /// The count the server may pin in the response schema is the same fixed
+    /// count the prompt states and the client validates — never a third number,
+    /// and never present when the model is the one choosing.
+    func testSchemaDishCountIsSentOnlyForAFixedSpecialPlanCount() {
+        let fixed = SpecialPlanMenuGenerator.makeRequest(
+            input("这周六 7 个人一起吃饭，1 人不吃辣"), dishCount: 6,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        XCTAssertEqual(WeeklyMenuPlannerService.schemaDishCount(for: fixed), 6)
+        XCTAssertEqual(WeeklyMenuPlannerService.schemaDishCount(for: fixed), fixed.dishesPerMeal)
+
+        let modelChooses = SpecialPlanMenuGenerator.makeRequest(
+            input("随便做点好吃的"), dishCount: nil,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        XCTAssertEqual(modelChooses.dishesPerMeal, 0)
+        XCTAssertNil(
+            WeeklyMenuPlannerService.schemaDishCount(for: modelChooses),
+            "no fixed count means no cardinality to enforce, never an exact-zero schema"
+        )
+
+        let replacement = SpecialPlanMenuGenerator.makeRequest(
+            input(), dishCount: 1,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        XCTAssertEqual(WeeklyMenuPlannerService.schemaDishCount(for: replacement), 1)
+    }
+
+    func testOrdinaryWeeklyRequestsNeverAskForTheSpecialPlanSchema() {
+        let weekly = AIWeeklyMenuRequest(
+            numberOfDays: 7, mealsPerDay: 1, dishesPerMeal: 2, servings: 2,
+            cuisines: [], flavors: [], maxCookingTime: nil,
+            prioritizeExpiringIngredients: true, avoidRepeatedMainIngredients: true,
+            excludedIngredients: [], allowNewAIRecipes: true, additionalRequest: nil,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        XCTAssertEqual(weekly.dishesPerMeal, 2)
+        XCTAssertNil(
+            WeeklyMenuPlannerService.schemaDishCount(for: weekly),
+            "the weekly planner keeps its tolerant JSON-object format"
+        )
+    }
+
+    // MARK: - shoppingItems is a weekly-only field
+
+    /// `WeeklyMenuPlannerStore.makePlan` is the only consumer of
+    /// `response.shoppingItems`, and Special Plan never reads it: shopping for
+    /// a Special Plan is derived by `ShoppingListGenerator` from the accepted
+    /// recipes' own ingredients. Asking the model for quantities nothing reads
+    /// would put a second, untrusted source of shopping numbers in the answer.
+    func testSpecialPlanPromptNeverAsksForShoppingItems() throws {
+        let prompt = try prompt(for: sampleRequest)
+        XCTAssertFalse(prompt.contains("shoppingItems"))
+        XCTAssertFalse(prompt.contains("缺少的食材列在"))
+    }
+
+    func testWeeklyPromptStillAsksForShoppingItems() throws {
+        let weekly = AIWeeklyMenuRequest(
+            numberOfDays: 7, mealsPerDay: 1, dishesPerMeal: 2, servings: 2,
+            cuisines: [], flavors: [], maxCookingTime: nil,
+            prioritizeExpiringIngredients: true, avoidRepeatedMainIngredients: true,
+            excludedIngredients: [], allowNewAIRecipes: true, additionalRequest: nil,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        let prompt = try WeeklyMenuPlannerService.prompt(for: weekly)
+        XCTAssertTrue(prompt.contains("\n- 缺少的食材列在 shoppingItems 中，数量按 servings 估算，未知时可以省略数量或填“适量”。\n"))
+        XCTAssertTrue(prompt.contains("\"shoppingItems\": ["))
+        XCTAssertTrue(prompt.contains("{\"name\": \"鸡胸肉\", \"quantity\": 2, \"unit\": \"块\", \"reason\": \"还缺 1 块\"}"))
+    }
+
+    /// The weekly response shape, byte-for-byte as `3c786b0` emitted it.
+    ///
+    /// Splitting the shape into interpolated pieces is exactly the kind of
+    /// change that silently reindents a prompt: an interpolation result lands
+    /// in the finished string, where the outer literal's indentation has
+    /// already been stripped, so a nested literal that looks aligned in the
+    /// source is not. This pins the bytes rather than the intent.
+    func testWeeklyResponseShapeKeepsItsExactIndentation() throws {
+        let weekly = AIWeeklyMenuRequest(
+            numberOfDays: 7, mealsPerDay: 1, dishesPerMeal: 2, servings: 2,
+            cuisines: [], flavors: [], maxCookingTime: nil,
+            prioritizeExpiringIngredients: true, avoidRepeatedMainIngredients: true,
+            excludedIngredients: [], allowNewAIRecipes: true, additionalRequest: nil,
+            inventory: [], existingRecipes: [], excludedRecipeNames: []
+        )
+        let prompt = try WeeklyMenuPlannerService.prompt(for: weekly)
+        // Written as explicit lines: a nested multi-line literal strips its own
+        // indentation, which is precisely the trap being guarded against.
+        let recipeShape = [
+            #"          "recipes": ["#,
+            #"            {"#,
+            #"              "existingRecipeID": "已有菜谱的 id 或 null","#,
+            #"              "name": "菜名","#,
+            #"              "ingredients": ["食材 1"],"#,
+            #"              "steps": ["步骤 1"],"#,
+            #"              "tags": ["标签"],"#,
+            #"              "cookingTime": 30,"#,
+            #"              "difficulty": "简单","#,
+            #"              "reason": "推荐原因","#,
+            #"              "source": "existing""#,
+            #"            }"#,
+            #"          ]"#
+        ].joined(separator: "\n")
+        XCTAssertTrue(prompt.contains(recipeShape), "weekly recipe shape reindented")
+
+        let shoppingShape = [
+            #"  "shoppingItems": ["#,
+            #"    {"name": "鸡胸肉", "quantity": 2, "unit": "块", "reason": "还缺 1 块"}"#,
+            #"  ],"#
+        ].joined(separator: "\n")
+        XCTAssertTrue(prompt.contains(shoppingShape), "weekly shopping shape reindented")
+    }
+
+    /// A Special Plan response that omits shoppingItems entirely still decodes:
+    /// the field is optional in the shared DTO, so dropping it from the
+    /// contract cannot break mapping.
+    func testSpecialPlanResponseWithoutShoppingItemsStillDecodes() throws {
+        let json = """
+        {"event":{"title":"周六聚餐","scheduledAt":"2026-09-05 18:00","peopleCount":7,        "constraintNotes":[],"notes":""},        "days":[{"dayIndex":0,"meals":[{"mealIndex":0,"title":"晚餐","recipes":[        {"source":"ai","name":"清蒸鲈鱼","ingredients":["鲈鱼 600 g"],"steps":["蒸 8 分钟"],        "tags":[],"cookingTime":20,"difficulty":"简单","reason":"清淡","baseServings":4}]}]}],        "warnings":[]}
+        """
+        let decoded = try JSONDecoder().decode(AIWeeklyMenuResponse.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.shoppingItems)
+        let dishes = SpecialPlanMenuGenerator.dishes(from: decoded, existingRecipes: [])
+        XCTAssertEqual(dishes.count, 1)
+        XCTAssertNoThrow(try SpecialPlanMenuGenerator.validateBaseYield(dishes))
     }
 
     // MARK: - Dish-count cardinality wording

@@ -19,7 +19,8 @@ struct AIChatService {
         taskType: String,
         imageBase64: String? = nil,
         timeout: TimeInterval = 50,
-        provider: String? = nil
+        provider: String? = nil,
+        specialPlanDishCount: Int? = nil
     ) async throws -> String {
         do {
             return try await requestDetailed(
@@ -27,7 +28,8 @@ struct AIChatService {
                 taskType: taskType,
                 imageBase64: imageBase64,
                 timeout: timeout,
-                provider: provider
+                provider: provider,
+                specialPlanDishCount: specialPlanDishCount
             ).content
         } catch let error as AIChatServiceError {
             if case .emptyResponse = error { throw AIChatServiceError.invalidResponse }
@@ -44,7 +46,8 @@ struct AIChatService {
         taskType: String,
         imageBase64: String? = nil,
         timeout: TimeInterval = 50,
-        provider: String? = nil
+        provider: String? = nil,
+        specialPlanDishCount: Int? = nil
     ) async throws -> DetailedResult {
         #if DEBUG
         let diagnosticStart = Date()
@@ -57,7 +60,8 @@ struct AIChatService {
                     prompt: prompt,
                     taskType: taskType,
                     imageBase64: imageBase64,
-                    provider: provider
+                    provider: provider,
+                    specialPlanDishCount: specialPlanDishCount
                 ),
                 timeout: timeout
             )
@@ -142,6 +146,11 @@ private struct AIChatRequest: Encodable {
     let taskType: String
     let imageBase64: String?
     let provider: String?
+    /// Special Plan only: the dish count the app fixed before asking, so the
+    /// server can ask the provider to enforce that cardinality in the response
+    /// schema rather than only in the prompt. Omitted by every other caller,
+    /// and by a Special Plan request that lets the model choose its own count.
+    let specialPlanDishCount: Int?
 }
 
 private struct AIChatResponse: Decodable {
