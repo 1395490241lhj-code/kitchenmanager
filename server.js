@@ -83,10 +83,11 @@ const {
   isSchemaUnsupportedError,
   describe: describeSpecialPlanSchema
 } = require('./src/server/services/special-plan-schema');
-// Default off. The strict Special Plan schema uses schema keywords this repo
-// has not yet observed either provider accept on this route, and a rejected
-// keyword is a 400 outside the transient set — no fallback covers it, so the
-// user would lose a menu they get today. Enable only after a provider probe.
+// Default off. Gemini was observed accepting this schema in a bounded probe,
+// but it has never run on this route in production, so the flag stays off
+// until a deliberate rollout. A refused keyword is a 400 outside the transient
+// set, which is why the route degrades that one case on the same provider
+// rather than letting it become a lost menu.
 const SPECIAL_PLAN_SCHEMA_ENABLED = String(process.env.AI_SPECIAL_PLAN_SCHEMA || '').trim().toUpperCase() === 'YES';
 const {
   safeParseJsonText,
@@ -1351,8 +1352,10 @@ app.post('/api/ai-chat', async (req, res) => {
   // samples: 28s / 29s / 41.8s / 43.5s) *and* a measured failure mode where the
   // provider never answers at all. It gets a primary budget that covers the
   // observed tail, then one Groq attempt (measured 0.5–5.2s) rather than a
-  // longer wait on the same provider. Worst case 45 + 20 = 65s, against the
-  // iOS weekly planner's own 100s request deadline — see WeeklyMenuPlanner.
+  // longer wait on the same provider. Worst case is 45 + 20 = 65s normally,
+  // and 45 + 20 + 20 = 85s in the one flag-on case where a refused schema
+  // degrades on Gemini and that degraded call then fails transiently — still
+  // inside the iOS weekly planner's own 100s deadline, see WeeklyMenuPlanner.
   const timeoutMs = 45000;
   const fallbackTimeoutMs = 20000;
   const fallbackProvider = isWeeklyMenuPlan && !imageBase64 && chatConfig.provider !== 'groq'
@@ -1373,8 +1376,10 @@ app.post('/api/ai-chat', async (req, res) => {
       : 'none'
   };
 
-  // Same prompt, same messages, same response contract — only the transport
-  // provider changes, so the client cannot tell which one answered.
+  // Same prompt and same messages on every attempt. The response *format* can
+  // differ — only Gemini is offered the strict Special Plan schema — but every
+  // path returns the same JSON contract to the client, which validates it
+  // identically either way.
   // Which contract each attempt actually used, so a Groq legacy success can
   // never be reported as a strict-schema success.
   const responseFormatFor = (config) => {
@@ -1415,8 +1420,11 @@ app.post('/api/ai-chat', async (req, res) => {
     });
     const sentSchema = responseFormat && responseFormat !== true;
     if (!sentSchema) {
-      schemaOutcome = 'not_attempted';
-      menuContract = config.provider === 'groq' && specialPlanDishCount !== null
+      // Never downgrade a recorded rejection: if an earlier attempt sent the
+      // schema and was refused, that stays the story of this request even
+      // though the attempt that answered did not attempt a schema.
+      if (schemaOutcome !== 'rejected_degraded') schemaOutcome = 'not_attempted';
+      menuContract = specialPlanDishCount !== null && SPECIAL_PLAN_SCHEMA_ENABLED && config.provider !== 'gemini'
         ? 'groq_legacy_fallback'
         : 'legacy_weekly';
       return send(responseFormat, timeout);
@@ -1477,6 +1485,9 @@ app.post('/api/ai-chat', async (req, res) => {
         ...logContext,
         provider: fallbackProvider.provider,
         primaryProvider: chatConfig.provider,
+        // The fallback provider never receives the strict schema, so the
+        // primary's label must not travel with the answer that Groq gave.
+        specialPlanSchema: describeSpecialPlanSchema(fallbackProvider.provider).contract,
         fallbackTriggered: true,
         fallbackReason: primaryInfo.code,
         timeoutMs: fallbackTimeoutMs,

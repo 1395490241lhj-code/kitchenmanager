@@ -91,9 +91,8 @@ const EVENT = {
   required: ['title', 'scheduledAt', 'peopleCount', 'constraintNotes', 'notes']
 };
 
-/// The canonical schema, in the dialect the OpenAI structured-output subset
-/// accepts. `dishCount` records the cardinality the request asked for; the
-/// array bounds that would enforce it are added per-provider by `translate`.
+/// The schema sent to Gemini. `dishCount` is the fixed target the request
+/// asked for, enforced by the `minItems`/`maxItems` pair on `recipes`.
 function buildCanonicalSchema(dishCount) {
   return {
     type: 'object',
@@ -209,15 +208,12 @@ function getSpecialPlanResponseFormat({ provider, dishCount } = {}) {
 /// every other provider is reported as the legacy contract it really uses, so
 /// a Groq success can never be logged as a strict-schema success.
 function describe(provider) {
-  return supportsStrictSchema(provider)
-    ? { contract: 'gemini_strict', enforcesDishCount: true, enforcesBaseServings: true }
-    : { contract: 'legacy_json_object', enforcesDishCount: false, enforcesBaseServings: false };
+  return { contract: supportsStrictSchema(provider) ? 'gemini_strict' : 'legacy_json_object' };
 }
 
 module.exports = {
   AI_RECIPE_BASE_SERVINGS,
   isSchemaUnsupportedError,
-  buildCanonicalSchema,
   describe,
   getSpecialPlanResponseFormat
 };

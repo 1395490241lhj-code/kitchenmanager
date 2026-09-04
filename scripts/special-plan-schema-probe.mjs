@@ -71,12 +71,7 @@ if (!config.key) throw new Error(`no API key in env for ${provider}`);
 if (!promptPath) throw new Error('pass the path to a dumped production prompt');
 
 const prompt = readFileSync(promptPath, 'utf8');
-const responseFormat = getSpecialPlanResponseFormat({
-  provider,
-  baseUrl: config.baseUrl,
-  model: config.model,
-  dishCount: DISH_COUNT
-});
+const responseFormat = getSpecialPlanResponseFormat({ provider, dishCount: DISH_COUNT });
 if (!responseFormat) throw new Error(`${provider}/${config.model} builds no strict schema`);
 
 console.log(`probe ${provider} ${config.model} — ${JSON.stringify(describe(provider))}`);

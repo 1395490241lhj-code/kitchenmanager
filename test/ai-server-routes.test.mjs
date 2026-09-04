@@ -3982,8 +3982,34 @@ test('Gemini schema 不被接受时同 provider 降级一次，且不额外触�
   assert.deepEqual(payloads[1].response_format, { type: 'json_object' });
 });
 
-test('没有 strict → legacy → strict 的循环：整轮最多两次上游调用', async () => {
-  for (const err of [schemaRejection(), transportError(503), jsonValidateFailed()]) {
+test('调用链有界：strict 只发一次、只发给 Gemini，整轮最多三次上游调用', async () => {
+  // The deep path the earlier version of this test could not reach: the schema
+  // is refused, the same-provider degrade is attempted, and that degraded call
+  // then fails transiently so the existing cross-provider fallback applies.
+  // Three upstream calls, which is the documented worst case — not a loop.
+  const payloads = [];
+  const { app } = loadServerWithMocks({
+    env: geminiPrimary(),
+    openAiCreate: async (payload) => {
+      payloads.push(payload);
+      if (payload.response_format?.type === 'json_schema') throw schemaRejection();
+      if (payloads.length === 2) throw transportError(503);
+      return OK;
+    }
+  });
+  const res = await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
+  assert.equal(res.statusCode, 200);
+  assert.equal(payloads.length, 3, 'schema → same-provider degrade → Groq legacy');
+  assert.equal(payloads[0].response_format.type, 'json_schema');
+  assert.equal(payloads[0].model, 'gemini-3.6-flash');
+  assert.deepEqual(payloads[1].response_format, { type: 'json_object' });
+  assert.equal(payloads[1].model, 'gemini-3.6-flash', 'the degrade stays on the same provider');
+  assert.deepEqual(payloads[2].response_format, { type: 'json_object' });
+  assert.equal(payloads[2].model, 'openai/gpt-oss-120b', 'Groq gets the legacy contract');
+});
+
+test('无论哪条失败路径，strict schema 都不会发两次、也不会发给 Groq', async () => {
+  for (const err of [schemaRejection(), transportError(503), transportError(429), jsonValidateFailed()]) {
     const payloads = [];
     const { app } = loadServerWithMocks({
       env: geminiPrimary(),
@@ -3994,12 +4020,38 @@ test('没有 strict → legacy → strict 的循环：整轮最多两次上游�
       }
     });
     await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
-    assert.ok(payloads.length <= 2, `expected <= 2 upstream calls, got ${payloads.length}`);
-    // A strict schema is never sent twice, and never to Groq.
+    assert.ok(payloads.length <= 3, `expected <= 3 upstream calls, got ${payloads.length}`);
     const strict = payloads.filter(p => p.response_format?.type === 'json_schema');
-    assert.ok(strict.length <= 1);
-    assert.ok(strict.every(p => p.model === 'gemini-3.6-flash'));
+    assert.ok(strict.length <= 1, 'the strict schema is never sent twice');
+    assert.ok(strict.every(p => p.model === 'gemini-3.6-flash'), 'and never to Groq');
   }
+});
+
+test('被拒绝的 schema 不会被后续 attempt 抹成 not_attempted', async () => {
+  const capture = captureLogs();
+  try {
+    let n = 0;
+    const { app } = loadServerWithMocks({
+      env: geminiPrimary(),
+      openAiCreate: async (payload) => {
+        n += 1;
+        if (payload.response_format?.type === 'json_schema') throw schemaRejection();
+        if (n === 2) throw transportError(503);
+        return OK;
+      }
+    });
+    const res = await runPost(app, '/api/ai-chat', SPECIAL_PLAN_BODY);
+    assert.equal(res.statusCode, 200);
+  } finally {
+    capture.restore();
+  }
+  const completed = capture.lines.filter(l => l.includes('ai_chat_completed'));
+  assert.ok(completed.some(l => l.includes('"schemaOutcome":"rejected_degraded"')),
+    `the rejection must survive onto the answering line, got ${completed.join('')}`);
+  assert.ok(!completed.some(l => l.includes('"schemaOutcome":"accepted"')));
+  // The Groq answer must not be labelled with the primary's strict contract.
+  assert.ok(completed.some(l => l.includes('"specialPlanSchema":"legacy_json_object"')),
+    'the answering provider\'s contract is what gets logged');
 });
 
 test('普通 Weekly 在两个 provider 上都保持 legacy 行为', async () => {
