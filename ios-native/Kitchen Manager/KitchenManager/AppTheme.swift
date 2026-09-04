@@ -89,6 +89,11 @@ enum AppTheme {
 
     static let textPrimary = adaptive(light: 0x1D1D1F, dark: 0xF5F5F7)
     static let textSecondary = adaptive(light: 0x6E6E73, dark: 0xC7C7CC)
+    /// The page surface Home and Inventory render on. Warm stone in the
+    /// approved visual language; plain system background elsewhere.
+    static var canvas: Color {
+        KitchenTheme.canvas
+    }
     static let surface = adaptive(light: 0xFFFFFF, dark: 0x1C1C1E)
     static let secondarySurface = adaptive(light: 0xF5F5F7, dark: 0x2C2C2E)
     static let separator = adaptive(light: 0xD2D2D7, dark: 0x48484A)

@@ -35,21 +35,14 @@ struct HomeActionPair: View {
         Button(action: primaryAction) {
             Label(primaryTitle, systemImage: primarySymbol)
                 .font(.callout.weight(.semibold))
-                .padding(.horizontal, 4)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.regular)
-        .buttonBorderShape(.capsule)
-        .tint(AppTheme.cookingActionFill)
-        .foregroundStyle(AppTheme.onCookingAction)
-        .frame(minHeight: AppTheme.minimumHitTarget)
+        .buttonStyle(KitchenButtonStyle(role: .primary))
         .disabled(isPrimaryDisabled)
         .accessibilityIdentifier(primaryIdentifier)
 
         Button(secondaryTitle, action: secondaryAction)
-            .font(.callout)
-            .tint(secondaryTint)
-            .frame(minHeight: AppTheme.minimumHitTarget)
+            .font(.callout.weight(.medium))
+            .buttonStyle(KitchenButtonStyle(role: .secondary))
             .accessibilityIdentifier(secondaryIdentifier)
     }
 }

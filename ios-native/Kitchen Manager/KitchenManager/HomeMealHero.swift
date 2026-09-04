@@ -27,10 +27,17 @@ struct HomeMealHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            KitchenStatusRail(color: KitchenTheme.sage, length: 32)
+                .padding(.bottom, 12)
+
             // Semantic style, not a fixed point size: the exploration's 44pt was
             // evidence about proportion on one device, never an API.
             Text(title)
-                .font(.system(isAccessibilitySize ? .title : .largeTitle, design: .serif, weight: .semibold))
+                .font(.system(
+                    isAccessibilitySize ? .title : .largeTitle,
+                    design: KitchenTheme.heroFontDesign,
+                    weight: .semibold
+                ))
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
@@ -128,7 +135,7 @@ struct HomeMealHero: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(.quaternary)
                     Capsule()
-                        .fill(AppTheme.cookingAccentForeground)
+                        .fill(KitchenTheme.sage)
                         .opacity(0.75)
                         .frame(width: max(proxy.size.width * readiness.fraction, readiness.ready > 0 ? 6 : 0))
                 }

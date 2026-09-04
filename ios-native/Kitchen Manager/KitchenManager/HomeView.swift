@@ -222,7 +222,7 @@ struct HomeView: View {
         .safeAreaPadding(.bottom, 112)
         // Home no longer groups its content into cards, so the grouped-grey
         // backdrop has nothing left to separate. The page is the surface.
-        .background(Color(.systemBackground))
+        .background(AppTheme.canvas)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
         // Deliberately stable. Home V2 expresses its state in the primary
         // task's own heading (今天做什么 / 今天做这些 / 今天怎么吃 / 今天备的菜 /
@@ -673,7 +673,7 @@ struct HomeView: View {
                 HomeSecondaryLinkRow(
                     title: "想再加一道",
                     systemImage: "sparkles",
-                    symbolTint: AppTheme.aiAccentForeground,
+                    symbolTint: KitchenTheme.aiIndigo,
                     identifier: "home.recommendation.moreLink",
                     action: { isShowingRecommendations = true }
                 )
@@ -1030,12 +1030,13 @@ private struct HomeEatOutPrimary: View {
     }
 }
 
-/// A link that sits under the primary content. Never a card, never prominent —
-/// this shape is how a demoted capability stays reachable.
+/// Level 4 — a navigation row. It sits under the primary content and is never
+/// prominent, but it is a visible tappable surface rather than a line of text:
+/// a demoted capability still has to look like something you can press.
 private struct HomeSecondaryLinkRow: View {
     let title: String
     let systemImage: String
-    var symbolTint: Color = AppTheme.brand
+    var symbolTint: Color = KitchenTheme.cookingGreen
     let identifier: String
     let action: () -> Void
 
@@ -1050,7 +1051,7 @@ private struct HomeSecondaryLinkRow: View {
                     .accessibilityHidden(true)
                 Text(title)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.brand)
+                    .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
@@ -1060,6 +1061,9 @@ private struct HomeSecondaryLinkRow: View {
                     .accessibilityHidden(true)
             }
             .frame(minHeight: AppTheme.minimumHitTarget)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 0)
+            .kitchenGroupedSurface()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1103,6 +1107,13 @@ private struct TodayPlanSummaryCard: View {
                     heroView
                 }
 
+                // A four-plus-dish plan already needs an overflow row. Keep the
+                // primary action ahead of that preview so compact-height phones
+                // do not bury it several screens below the hero.
+                if dashboard.additionalPlanCount > 0 {
+                    actions(leadPlan)
+                }
+
                 // The individual dishes stay reachable as plain rows. With a
                 // single dish the hero has already named it, so repeating it
                 // directly underneath is the same fact twice.
@@ -1124,21 +1135,32 @@ private struct TodayPlanSummaryCard: View {
                         .accessibilityIdentifier("home.today.plan.overflow")
                 }
 
-                // One dominant action, and one text-level alternative beside it.
-                // Two equally filled pills is the pattern this replaced.
-                HomeActionPair(
-                    primaryTitle: leadPlan.isCooked ? "查看菜谱" : "开始准备",
-                    primarySymbol: leadPlan.isCooked ? "book" : "play.fill",
-                    primaryIdentifier: "home.today.plan.start",
-                    primaryAction: { onSelectPlan(leadPlan) },
-                    secondaryTitle: "今天的计划",
-                    secondaryTint: AppTheme.brand,
-                    secondaryIdentifier: "home.today.plan.viewAll",
-                    secondaryAction: onViewPlan
-                )
+                if dashboard.additionalPlanCount == 0 {
+                    actions(leadPlan)
+                }
             }
+            // One surface, because this whole region is the evening's
+            // interactive object: the dish, its dishes, and the two things you
+            // can do about it. Not a card per section.
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .kitchenFeatureSurface()
         }
+    }
+
+    private func actions(_ leadPlan: MealPlanItem) -> some View {
+        // One dominant action, and one text-level alternative beside it.
+        // Two equally filled pills is the pattern this replaced.
+        HomeActionPair(
+            primaryTitle: leadPlan.isCooked ? "查看菜谱" : "开始准备",
+            primarySymbol: leadPlan.isCooked ? "book" : "play.fill",
+            primaryIdentifier: "home.today.plan.start",
+            primaryAction: { onSelectPlan(leadPlan) },
+            secondaryTitle: "今天的计划",
+            secondaryTint: KitchenTheme.cookingGreen,
+            secondaryIdentifier: "home.today.plan.viewAll",
+            secondaryAction: onViewPlan
+        )
     }
 
     private func planRow(_ plan: MealPlanItem) -> some View {
@@ -1278,7 +1300,7 @@ private struct HomeRecommendationSection: View {
                 if isGenerating {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(AppTheme.aiAccentForeground)
+                        .tint(KitchenTheme.aiIndigo)
                 } else {
                     Image(systemName: "sparkles")
                         .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
@@ -1286,11 +1308,12 @@ private struct HomeRecommendationSection: View {
                 Text(isGenerating ? "正在生成…" : "AI 换几道")
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(AppTheme.aiAccentForeground)
             .frame(minHeight: AppTheme.minimumHitTarget)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        // Level 3 — utility. Compact bordered controls, so AI stays visually
+        // subordinate to the cooking action while still reading as a control.
+        .kitchenUtilityButton(tint: KitchenTheme.aiIndigo)
         .disabled(isGenerating)
         .accessibilityIdentifier("home.recommendation.refresh")
 
@@ -1300,8 +1323,7 @@ private struct HomeRecommendationSection: View {
                 .frame(minHeight: AppTheme.minimumHitTarget)
                 .contentShape(Rectangle())
         }
-        .foregroundStyle(AppTheme.brand)
-        .buttonStyle(.plain)
+        .kitchenUtilityButton(tint: KitchenTheme.cookingGreen)
         .accessibilityIdentifier("home.recommendation.viewAll")
     }
 
@@ -1312,8 +1334,15 @@ private struct HomeRecommendationSection: View {
         // decision should not look like two different products.
         return VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 0) {
+                KitchenStatusRail(color: KitchenTheme.sage, length: 32)
+                    .padding(.bottom, 12)
+
                 Text(recipe.title)
-                    .font(.system(dynamicTypeSize.isAccessibilitySize ? .title : .largeTitle, design: .serif, weight: .semibold))
+                    .font(.system(
+                        dynamicTypeSize.isAccessibilitySize ? .title : .largeTitle,
+                        design: KitchenTheme.heroFontDesign,
+                        weight: .semibold
+                    ))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
@@ -1352,7 +1381,12 @@ private struct HomeRecommendationSection: View {
                 secondaryAction: { onViewRecipe(recipe) }
             )
         }
+        // The recommendation is the other interactive object Home offers, so
+        // it carries the same surface as an existing plan. A proposal and a
+        // decision should sit at the same level, not on different materials.
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .kitchenFeatureSurface()
     }
 
     private func recommendationReason(_ recipe: Recipe) -> String {
@@ -1441,6 +1475,12 @@ private struct HomeNeedsAttentionSection: View {
                         .accessibilityIdentifier("home.attention.overflow")
                     }
                 }
+                // A grouped surface, because these rows are one list of things
+                // to act on rather than page text. Quieter than the primary
+                // region: no controls of its own, just a place to tap.
+                .padding(.horizontal, 14)
+                .padding(.vertical, 2)
+                .kitchenGroupedSurface()
             }
         }
     }
@@ -1642,7 +1682,7 @@ private struct HomeModuleIssues: View {
         onSelectPlan: { _ in }
     )
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(KitchenTheme.canvas)
 }
 
 #Preview("空首页") {
@@ -1659,7 +1699,7 @@ private struct HomeModuleIssues: View {
         HomeNeedsAttentionSection(items: [], additionalCount: 0, onSelect: { _ in }, onViewAll: {})
     }
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(KitchenTheme.canvas)
 }
 
 #Preview("需要处理 — 具名行") {
@@ -1675,7 +1715,7 @@ private struct HomeModuleIssues: View {
         onViewAll: {}
     )
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(KitchenTheme.canvas)
 }
 
 #Preview("今晚外食") {
@@ -1696,7 +1736,7 @@ private struct HomeModuleIssues: View {
         )
     }
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(KitchenTheme.canvas)
 }
 
 #Preview("深色模式") {
@@ -1710,7 +1750,7 @@ private struct HomeModuleIssues: View {
         onViewAll: {}
     )
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(KitchenTheme.canvas)
     .preferredColorScheme(.dark)
 }
 
@@ -1741,7 +1781,7 @@ private struct HomeModuleIssues: View {
         onSelectPlan: { _ in }
     )
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(KitchenTheme.canvas)
 }
 
 #Preview("待入库提醒") {
@@ -1752,19 +1792,19 @@ private struct HomeModuleIssues: View {
         onViewAll: {}
     )
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(KitchenTheme.canvas)
 }
 
 #Preview("剪贴板提示") {
     ClipboardRecipeImportPrompt(onPaste: { _ in }, onIgnore: {})
         .padding()
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
 }
 
 #Preview("本地保存问题") {
     HomeModuleIssues(issues: [.inventory], action: { _ in })
         .padding()
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
 }
 
 #Preview("长名称") {
@@ -1797,26 +1837,26 @@ private struct HomeModuleIssues: View {
         )
     }
     .padding()
-    .background(Color(.systemGroupedBackground))
+    .background(KitchenTheme.canvas)
 }
 
 #Preview("首页 Toast — 成功") {
     FeedbackToast(message: "已保存到菜谱库", style: .success)
         .padding()
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
 }
 
 #Preview("首页 Toast — 提醒 / 深色") {
     FeedbackToast(message: "请先完成当前的导入操作", style: .warning)
         .padding()
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
         .preferredColorScheme(.dark)
 }
 
 #Preview("首页 Toast — 错误 / 大字号") {
     FeedbackToast(message: "库存保存失败，请稍后重试。", style: .error)
         .padding()
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
         .dynamicTypeSize(.accessibility3)
 }
 
@@ -2320,7 +2360,7 @@ struct RecipeRecommendationBrowserView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
         .navigationTitle("推荐")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: recipeStore.recipes.count) {
@@ -2370,7 +2410,7 @@ struct RecipeRecommendationBrowserView: View {
             }
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
+            .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
 
             Button(action: performRecommendationSearch) {
                 Group {
@@ -2499,10 +2539,10 @@ struct RecipeRecommendationBrowserView: View {
             .buttonStyle(.plain)
         }
         .padding(16)
-        .background(AppTheme.secondarySurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+                    .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-                .stroke(AppTheme.separator.opacity(0.28), lineWidth: 0.5)
+                .stroke(KitchenTheme.separator.opacity(0.28), lineWidth: 0.5)
         }
         .shadow(color: AppTheme.cardShadow(opacity: 0.035), radius: 9, y: 4)
     }

@@ -89,12 +89,6 @@ struct SpecialPlanDetailView: View {
                 Text("时间、人数和要求由 AI 从你的描述里读出，没写到的会按常见情况补上；想改就重新描述一次。")
             }
 
-            if menuDraft.hasDraft || menuDraft.isGenerating {
-                draftSection(plan)
-            } else {
-                menuSection(plan)
-            }
-
             if let message = menuDraft.errorMessage {
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle")
@@ -102,6 +96,12 @@ struct SpecialPlanDetailView: View {
                         .foregroundStyle(AppTheme.warningInk)
                         .accessibilityIdentifier("planner.menu.error")
                 }
+            }
+
+            if menuDraft.hasDraft || menuDraft.isGenerating {
+                draftSection(plan)
+            } else {
+                menuSection(plan)
             }
 
             if !plan.dishes.isEmpty, menuDraft.hasDraft == false {

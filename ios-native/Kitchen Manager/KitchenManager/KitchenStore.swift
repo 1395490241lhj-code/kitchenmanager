@@ -20,6 +20,20 @@ enum InventoryFocus: Equatable {
         case .lowStock: "库存不足"
         }
     }
+
+    /// The short form for a filter control, where the surrounding control
+    /// already says what is being filtered.
+    var shortTitle: String {
+        switch self {
+        case .all: "全部"
+        case .expired: "已过期"
+        case .expiringSoon: "临期"
+        case .lowStock: "缺货"
+        }
+    }
+
+    /// Every case, in the order a filter control offers them.
+    static let filterOrder: [InventoryFocus] = [.all, .expiringSoon, .expired, .lowStock]
 }
 
 /// Stable, user-facing Inventory notice text shared by the store and the

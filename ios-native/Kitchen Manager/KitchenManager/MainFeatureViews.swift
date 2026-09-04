@@ -39,6 +39,16 @@ struct InventoryView: View {
         RestockSuggestionEngine().generate(kitchenStore: store, recipeStore: recipeStore)
     }
 
+    /// Which of tonight's dishes each stocked food is already spoken for by.
+    /// Built once per render rather than per row: every row would otherwise
+    /// re-parse every recipe line in today's plan.
+    private var tonightSummaries: [String: String] {
+        InventoryTonightLinkage.summaries(
+            plans: store.todayPlans,
+            recipes: { recipeStore.recipe(id: $0) }
+        )
+    }
+
     private var focusedFreshInventory: [InventoryItem] {
         switch navigationStore.inventoryFocus {
         case .all:
@@ -89,42 +99,30 @@ struct InventoryView: View {
 
     var body: some View {
         List {
-            if navigationStore.inventoryFocus != .all {
-                Section {
-                    LabeledContent {
-                        Button {
-                            navigationStore.inventoryFocus = .all
-                        } label: {
-                            Text("清除")
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(AppTheme.primary.opacity(0.08), in: Capsule())
-                                .frame(minHeight: AppTheme.minimumHitTarget)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(AppTheme.primary)
-                    } label: {
-                        Label("正在查看：\(navigationStore.inventoryFocus.title)", systemImage: "line.3.horizontal.decrease.circle")
-                            .fontWeight(.medium)
-                            .foregroundStyle(AppTheme.primary)
-                    }
-                    .font(.subheadline)
-                    .accessibilityElement(children: .contain)
-                }
-            }
-
+            let tonight = tonightSummaries
+            // The control layer: the counts *are* the filters, and the picker
+            // names the same `InventoryFocus` the list already filters by. The
+            // read-only summary row and the separate "正在查看 … 清除" banner
+            // both collapse into this one surface.
+            //
+            // It stays on screen whenever the kitchen has anything in it, even
+            // when the current filter matches nothing: the control that got you
+            // into an empty result is the one that has to get you out of it.
             if !hasSearchQuery && !store.inventory.isEmpty {
                 Section {
-                    InventorySummaryRow(
-                        availableCount: store.availableInventory.count,
+                    InventoryControlStrip(
+                        totalCount: store.inventory.count,
                         expiringCount: store.expiringItems.count,
                         lowStockCount: store.inventory.filter {
                             $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
-                        }.count
+                        }.count,
+                        focus: $navigationStore.inventoryFocus
                     )
-                    .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                    .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 12, trailing: 20))
+                    .listRowBackground(AppTheme.canvas)
+                    .listRowSeparator(.hidden)
                 }
+                .listSectionSeparator(.hidden)
             }
 
             if hasSearchQuery && !hasSearchResults {
@@ -167,12 +165,31 @@ struct InventoryView: View {
                             Button {
                                 onSelectItem(item.id)
                             } label: {
-                                InventoryFoodCard(item: item)
+                                InventoryFoodCard(
+                                    item: item,
+                                    tonight: InventoryTonightLinkage.summary(for: item, in: tonight)
+                                )
                             }
                             .buttonStyle(.plain)
+                            .listRowBackground(AppTheme.canvas)
+                            .listRowSeparator(
+                                .hidden
+                            )
                             .accessibilityIdentifier("inventory.item.\(item.id.uuidString)")
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("删除", role: .destructive) {
+                                    itemPendingDeletion = item
+                                }
+                            }
+                            // The same two destinations the row already has,
+                            // surfaced without a swipe. No new behaviour: open
+                            // is the row's own tap, delete is the swipe action
+                            // and still goes through the confirmation alert.
+                            .contextMenu {
+                                Button("查看详情", systemImage: "info.circle") {
+                                    onSelectItem(item.id)
+                                }
+                                Button("删除", systemImage: "trash", role: .destructive) {
                                     itemPendingDeletion = item
                                 }
                             }
@@ -290,29 +307,45 @@ struct InventoryView: View {
                     }
                 }
             }
+
+            // Clearance for the floating tab bar as a real trailing row rather
+            // than a safe-area inset: with `.listStyle(.plain)` the inset is
+            // consumed by the scroll edge effect, and the final row came to
+            // rest underneath the expanded bar.
+            Section {
+                Color.clear
+                    .frame(height: ChromeMetrics.bottomClearance)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .accessibilityHidden(true)
+            }
+            .listSectionSeparator(.hidden)
         }
-        .listStyle(.insetGrouped)
+        // Open page surface: section titles, rows and hairlines directly on the
+        // page. The grouped style wrapped every section in a rounded card, which
+        // is the shape this replaced.
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(AppTheme.canvas)
+        .environment(\.defaultMinListHeaderHeight, 0)
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
         // One list-level clearance for the floating tab bar, rather than padding
         // each row: an empty spacer in the bottom safe area, so the last
         // ingredient, the staple empty-state text and CTA, and the final search
         // result can all come to rest fully above the expanded bar.
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: ChromeMetrics.bottomClearance)
-                .accessibilityHidden(true)
-        }
         .navigationTitle("食材")
         // Large title at normal sizes; at Accessibility sizes it would take
         // most of the first screen, so it collapses to the inline title — still
         // a VoiceOver heading, never truncated or scale-compressed.
         .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
-        // Placement is explicit at Accessibility sizes. With `.automatic` and an
-        // inline title, UIKit pins the search bar to a fixed ~63pt that cannot
-        // fit Accessibility XXXL text, so the magnifier and the "搜索食材" prompt
-        // were clipped away and the bar rendered as an empty grey capsule.
-        // `.navigationBarDrawer(displayMode: .always)` lets the drawer size to its
-        // content (~124pt at XXXL) so both actually draw. Normal sizes keep
-        // `.automatic` — the standard hidden-until-pulled-down behavior.
+        // Placement is explicit at Accessibility sizes, and stays that way.
+        // With `.automatic` and an inline title, UIKit pins the search bar to a
+        // fixed ~63pt that cannot fit Accessibility XXXL text: the magnifier and
+        // the "搜索食材" prompt are clipped away and the bar renders as an empty
+        // grey capsule. Verified again in Phase 1B by removing this and
+        // reproducing exactly that empty capsule, so the cost — a taller field
+        // at XXXL only — is deliberate. Normal sizes keep `.automatic`, the
+        // standard hidden-until-pulled-down behavior.
         .searchable(
             text: $searchText,
             placement: dynamicTypeSize.isAccessibilitySize
@@ -449,19 +482,19 @@ private struct InventoryNoticeOverlay: View {
 #Preview("库存提示 — 成功") {
     InventoryNoticeOverlay(notice: "已添加 2 项食材", onDismiss: {})
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
 }
 
 #Preview("库存提示 — 错误") {
     InventoryNoticeOverlay(notice: "库存保存失败，请稍后重试。", onDismiss: {})
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
 }
 
 #Preview("库存提示 — 深色") {
     InventoryNoticeOverlay(notice: "库存保存失败，请稍后重试。", onDismiss: {})
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
         .preferredColorScheme(.dark)
 }
 
@@ -469,124 +502,8 @@ private struct InventoryNoticeOverlay: View {
     InventoryNoticeOverlay(notice: "库存保存失败，请稍后重试。", onDismiss: {})
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .padding()
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
         .dynamicTypeSize(.accessibility3)
-}
-
-private struct InventorySummaryRow: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    let availableCount: Int
-    let expiringCount: Int
-    let lowStockCount: Int
-
-    var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                verticalSummary
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        primaryCount
-                            .fixedSize(horizontal: true, vertical: false)
-                        Spacer(minLength: 12)
-                        horizontalStatus
-                    }
-                    verticalSummary
-                }
-            }
-        }
-        .frame(minHeight: 44)
-        // The summary is a derived overview of the sections below it, so it is
-        // capped: still visibly enlarged, but it cannot push the ingredients it
-        // describes off the first screen.
-        .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(summaryAccessibilityLabel)
-    }
-
-    /// Number stays the prominent element and the "在库" label stays secondary.
-    /// At Accessibility sizes the pair stacks so neither has to shrink, and the
-    /// count drops from `.title3` to `.headline` so only one level of the
-    /// summary reads as a heading.
-    @ViewBuilder
-    private var primaryCount: some View {
-        let count = Text("\(availableCount) 项")
-            .font((dynamicTypeSize.isAccessibilitySize ? Font.headline : Font.title3).weight(.semibold))
-            .monospacedDigit()
-        let caption = Text("在库")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 2) {
-                count
-                caption
-            }
-        } else {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                count
-                caption
-            }
-        }
-    }
-
-    private var verticalSummary: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            primaryCount
-            verticalStatus
-        }
-    }
-
-    @ViewBuilder
-    private var horizontalStatus: some View {
-        if expiringCount > 0 || lowStockCount > 0 {
-            HStack(spacing: 12) {
-                if expiringCount > 0 {
-                    riskItem("\(expiringCount) 项即将到期", systemImage: "calendar.badge.exclamationmark")
-                }
-                if lowStockCount > 0 {
-                    riskItem("\(lowStockCount) 项需补货", systemImage: "cart.badge.minus")
-                }
-            }
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder
-    private var verticalStatus: some View {
-        if expiringCount > 0 || lowStockCount > 0 {
-            VStack(alignment: .leading, spacing: 4) {
-                if expiringCount > 0 {
-                    riskItem("\(expiringCount) 项即将到期", systemImage: "calendar.badge.exclamationmark")
-                }
-                if lowStockCount > 0 {
-                    riskItem("\(lowStockCount) 项需补货", systemImage: "cart.badge.minus")
-                }
-            }
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func riskItem(_ text: String, systemImage: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: systemImage)
-                .accessibilityHidden(true)
-            Text(text)
-        }
-        // Keep the icon and its complete text together in either candidate.
-        // Label can collapse to its icon when ViewThatFits measures a
-        // filtered List row with a tight proposal.
-        .fixedSize(horizontal: true, vertical: false)
-    }
-
-    private var summaryAccessibilityLabel: String {
-        var values = ["\(availableCount) 项食材在库"]
-        if expiringCount > 0 { values.append("\(expiringCount) 项即将到期") }
-        if lowStockCount > 0 { values.append("\(lowStockCount) 项需要补货") }
-        return values.joined(separator: "，")
-    }
 }
 
 /// The one "section title + item count" header for every grouped list in the
@@ -621,6 +538,10 @@ private struct ListSectionHeader: View {
 private struct InventoryFoodCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let item: InventoryItem
+    /// `今晚 · 蒜蓉上海青` when tonight's plan uses this food. Resolved by the
+    /// caller from real plans, so the row states a relationship rather than
+    /// recomputing one.
+    var tonight: String? = nil
 
     private var statusText: String {
         item.isAvailable ? item.expiryStatusText : "缺货 · \(item.expiryStatusText)"
@@ -630,90 +551,102 @@ private struct InventoryFoodCard: View {
         item.isAvailable ? item.expiryStatus.color : .red
     }
 
-    private var statusSymbol: String {
-        if !item.isAvailable { return "exclamationmark.circle.fill" }
-        return switch item.expiryStatus {
-        case .expired: "xmark.circle.fill"
-        case .today, .soon: "calendar.badge.exclamationmark"
-        case .upcoming: "calendar"
-        case .normal: "checkmark.circle"
-        case .unknown: "calendar.badge.questionmark"
-        }
+    /// Only genuinely urgent food is coloured. Everything healthy reads as
+    /// ordinary secondary text, so the eye lands on what actually needs a
+    /// decision instead of on a wall of status.
+    private var showsUrgency: Bool {
+        !item.isAvailable || item.isExpiringSoon
     }
 
     var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                accessibilityLayout
-            } else {
-                standardLayout
+            HStack(alignment: .top, spacing: 12) {
+                KitchenStatusRail(color: markerColor, length: 28, vertical: true)
+                    .padding(.top, 2)
+                if dynamicTypeSize.isAccessibilitySize {
+                    accessibilityLayout
+                } else {
+                    standardLayout
+                }
             }
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(item.name)，\(item.quantity.formatted()) \(item.unit)，\(statusText)")
+        .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("打开食材详情")
     }
 
+    private var accessibilityLabel: String {
+        var parts = ["\(item.name)，\(item.quantity.formatted()) \(item.unit)，\(statusText)"]
+        if let tonight { parts.append(tonight) }
+        return parts.joined(separator: "，")
+    }
+
+    private var markerColor: Color {
+        if tonight != nil { return KitchenTheme.sage }
+        if item.stapleStatus == .low || item.stapleStatus == .outOfStock { return KitchenTheme.ochre }
+        if !item.isAvailable || item.expiryStatus == .expired || item.isExpiringSoon { return KitchenTheme.terracotta }
+        return KitchenTheme.separator
+    }
+
+    /// name → quantity on one line, then the quiet secondary line, then the
+    /// tonight relation. No status glyph: the wording already says it, and a
+    /// symbol per row turned the list into an icon column.
     private var standardLayout: some View {
-        HStack(alignment: .center, spacing: 12) {
-            statusIcon
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(item.name)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    Spacer(minLength: 12)
-                    // Higher layout priority so a long ingredient name wraps
-                    // rather than squeezing the quantity out of the row.
-                    quantityLabel.layoutPriority(1)
-                }
-                statusLabel
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(item.name)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 12)
+                // Higher layout priority so a long ingredient name wraps
+                // rather than squeezing the quantity out of the row.
+                quantityLabel.layoutPriority(1)
             }
+            statusLabel
+            tonightLabel
         }
     }
 
     /// One unambiguous vertical order at Accessibility sizes: name, then expiry
-    /// status, then quantity — all left-aligned in a single column beside the
-    /// icon. Nothing is pushed to the trailing edge, so the quantity can never be
+    /// status, then quantity — all left-aligned in a single column. Nothing is
+    /// pushed to the trailing edge, so the quantity can never be
     /// squeezed into a narrow column or wrapped onto an unrelated line. Every
     /// string keeps unrestricted Dynamic Type: no `lineLimit(1)`, no
     /// `minimumScaleFactor` — the row just grows taller.
     private var accessibilityLayout: some View {
-        HStack(alignment: .top, spacing: 12) {
-            statusIcon
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.name)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                statusLabel
-                quantityLabel
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(item.name)
+                .font(.body.weight(.medium))
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+            statusLabel
+            quantityLabel
+            tonightLabel
         }
-    }
-
-    private var statusIcon: some View {
-        Image(systemName: statusSymbol)
-            .font(.body.weight(.semibold))
-            .foregroundStyle(statusColor)
-            // Glyph tracks text size up to a limit and then holds, so it stays
-            // inside its fixed slot instead of crowding out the food name.
-            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-            .frame(width: 28, height: 28)
-            .accessibilityHidden(true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var statusLabel: some View {
         Text(statusText)
             .font(.footnote)
-            .foregroundStyle(statusColor)
+            .foregroundStyle(showsUrgency ? statusColor : Color.secondary)
             .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var tonightLabel: some View {
+        if let tonight {
+            Text(tonight)
+                .font(.caption)
+                .foregroundStyle(AppTheme.cookingAccentForeground)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .accessibilityHidden(true)
+        }
     }
 
     private var quantityLabel: some View {
