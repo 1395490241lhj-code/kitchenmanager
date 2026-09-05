@@ -20,7 +20,7 @@ struct KitchenButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(foreground)
             .padding(.horizontal, role == .utility ? 4 : 16)
-            .frame(minHeight: AppTheme.minimumHitTarget)
+            .frame(minHeight: KitchenTheme.controlHeight)
             .background(background, in: .rect(cornerRadius: radius, style: .continuous))
             .overlay {
                 if role != .primary && role != .utility {
@@ -60,13 +60,13 @@ struct KitchenButtonStyle: ButtonStyle {
 /// ochre = replenishment, neutral = ordinary.
 struct KitchenStatusRail: View {
     let color: Color
-    var length: CGFloat = 32
+    var length: CGFloat = KitchenTheme.contextRailLength
     var vertical = false
 
     var body: some View {
         Capsule()
             .fill(color)
-            .frame(width: vertical ? 3 : length, height: vertical ? length : 3)
+            .frame(width: vertical ? KitchenTheme.railThickness : length, height: vertical ? length : KitchenTheme.railThickness)
             .accessibilityHidden(true)
     }
 }
@@ -97,5 +97,131 @@ extension View {
                 .fill(KitchenTheme.separator)
                 .frame(height: 0.5)
         }
+    }
+}
+
+struct KitchenIconBadge: View {
+    let systemImage: String
+    let tint: Color
+    var size: CGFloat = KitchenTheme.iconSize
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: size * 0.44, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: size, height: size)
+            .background(
+                tint.opacity(0.12),
+                in: .rect(cornerRadius: size * 0.32, style: .continuous)
+            )
+            .accessibilityHidden(true)
+    }
+}
+
+struct KitchenContextualLabel: View {
+    let text: String
+    var tint: Color = KitchenTheme.sage
+
+    var body: some View {
+        HStack(spacing: KitchenTheme.railTextGap) {
+            KitchenStatusRail(color: tint, length: KitchenTheme.contextRailLength)
+            Text(text)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .dynamicTypeSize(...ChromeMetrics.headerTypeLimit)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+struct KitchenReadinessChip: View {
+    let readiness: HomeMealReadiness
+
+    var body: some View {
+        HStack(spacing: 7) {
+            KitchenIconBadge(
+                systemImage: readiness.ready >= readiness.total && readiness.total > 0
+                    ? "checkmark.circle.fill"
+                    : "basket.fill",
+                tint: KitchenTheme.sage,
+                size: KitchenTheme.statusIconSize
+            )
+            Text(readiness.summary)
+                .font(.footnote.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(KitchenTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            KitchenTheme.elevatedSurface.opacity(0.65),
+            in: .rect(cornerRadius: KitchenTheme.compactRadius, style: .continuous)
+        )
+    }
+}
+
+struct KitchenSectionLabel: View {
+    let title: String
+    let count: Int
+    var tint: Color = KitchenTheme.sage
+
+    var body: some View {
+        HStack(spacing: KitchenTheme.railTextGap) {
+            KitchenStatusRail(color: tint, length: KitchenTheme.contextRailLength)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+            Text("\(count) 项")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .textCase(nil)
+        .dynamicTypeSize(...ChromeMetrics.headerTypeLimit)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+struct KitchenPressFeedbackStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.55 : 1)
+    }
+}
+
+/// Metadata wraps as text at larger sizes; numbers retain emphasis within
+/// each group without splitting units into independent layout children.
+struct KitchenMetadataText: View {
+    let text: String
+
+    private var attributed: AttributedString {
+        var result = AttributedString()
+        var token = ""
+        var numeric = false
+        func appendToken() {
+            guard !token.isEmpty else { return }
+            var part = AttributedString(token)
+            part.font = numeric ? .footnote.monospacedDigit().weight(.semibold) : .footnote
+            part.foregroundColor = numeric ? KitchenTheme.textPrimary : KitchenTheme.textSecondary
+            result.append(part)
+        }
+        for character in text {
+            let nextNumeric = character.isNumber || character == ":"
+            if nextNumeric != numeric {
+                appendToken()
+                token = ""
+                numeric = nextNumeric
+            }
+            token.append(character)
+        }
+        appendToken()
+        return result
+    }
+
+    var body: some View {
+        Text(attributed)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

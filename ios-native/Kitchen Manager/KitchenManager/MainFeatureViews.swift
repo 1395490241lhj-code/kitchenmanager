@@ -118,7 +118,7 @@ struct InventoryView: View {
                         }.count,
                         focus: $navigationStore.inventoryFocus
                     )
-                    .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 12, trailing: 20))
+                    .listRowInsets(EdgeInsets(top: 8, leading: KitchenTheme.pageGutter, bottom: 12, trailing: KitchenTheme.pageGutter))
                     .listRowBackground(AppTheme.canvas)
                     .listRowSeparator(.hidden)
                 }
@@ -172,6 +172,7 @@ struct InventoryView: View {
                             }
                             .buttonStyle(.plain)
                             .listRowBackground(AppTheme.canvas)
+                            .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter, bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
                             .listRowSeparator(
                                 .hidden
                             )
@@ -195,7 +196,9 @@ struct InventoryView: View {
                             }
                         }
                     } header: {
-                        ListSectionHeader(title: "食材", count: displayedFreshInventory.count)
+                        KitchenSectionLabel(title: "食材", count: displayedFreshInventory.count)
+                            .textCase(nil)
+                            .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter, bottom: 0, trailing: KitchenTheme.pageGutter))
                     }
                 }
 
@@ -212,11 +215,19 @@ struct InventoryView: View {
                                     PantryStapleRow(item: item)
                                 }
                                 .buttonStyle(.plain)
+                                .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter, bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                                .listRowBackground(AppTheme.canvas)
+                                .listRowSeparator(.hidden)
                             }
                         }
                     } header: {
                         HStack {
-                            ListSectionHeader(title: "常备食材", count: displayedStaples.count)
+                            KitchenSectionLabel(
+                                title: "常备食材",
+                                count: displayedStaples.count,
+                                tint: KitchenTheme.ochre
+                            )
+                            .textCase(nil)
                             Spacer()
                             Menu {
                                 Picker("筛选", selection: $stapleFilter) {
@@ -232,6 +243,7 @@ struct InventoryView: View {
                             .accessibilityIdentifier("inventory.staple.filter.button")
                             .accessibilityLabel("常备食材筛选：\(stapleFilter.rawValue)")
                         }
+                        .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter, bottom: 0, trailing: KitchenTheme.pageGutter))
                     }
                 } else if !hasSearchQuery && store.pantryStaples.isEmpty && !store.inventory.isEmpty {
                     // No section header here: the ContentUnavailableView title
@@ -561,7 +573,7 @@ private struct InventoryFoodCard: View {
     var body: some View {
         Group {
             HStack(alignment: .top, spacing: 12) {
-                KitchenStatusRail(color: markerColor, length: 28, vertical: true)
+                KitchenStatusRail(color: markerColor, length: KitchenTheme.stateRailLength, vertical: true)
                     .padding(.top, 2)
                 if dynamicTypeSize.isAccessibilitySize {
                     accessibilityLayout

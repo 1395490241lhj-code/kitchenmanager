@@ -151,11 +151,12 @@ struct PantryStapleRow: View {
 
     private var statusIcon: some View {
         Image(systemName: item.stapleStatus == .outOfStock ? "cabinet.fill" : "cabinet")
+            .font(.body)
             .foregroundStyle(item.stapleStatus.color)
             // Glyph tracks text size up to a limit and then holds, matching the
             // fresh-inventory rows, so it never crowds out the staple name.
             .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-            .frame(width: 28)
+            .frame(width: KitchenTheme.iconSize)
     }
 
     private var labels: some View {

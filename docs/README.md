@@ -10,6 +10,7 @@
 - 仓库侧时点快照：[`PROJECT_STATUS.md`](../PROJECT_STATUS.md)——审计/历史上下文，不是 canonical 当前状态
 - 已进入 main 的重要变化：[`CHANGELOG.md`](../CHANGELOG.md)
 - Agent 入口：[`AGENTS.md`](../AGENTS.md)
+- iOS Home / Inventory 设计语言：[`design/KITCHEN_DESIGN_LANGUAGE.md`](design/KITCHEN_DESIGN_LANGUAGE.md)（production visual gate 草案）。
 - 产品原则：[`product/PRINCIPLES.md`](product/PRINCIPLES.md)
 - 架构概览：[`architecture/OVERVIEW.md`](architecture/OVERVIEW.md)
 - 开发工作流：[`development/WORKFLOW.md`](development/WORKFLOW.md)

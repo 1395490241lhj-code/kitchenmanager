@@ -27,11 +27,9 @@ struct HomeMealHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            KitchenStatusRail(color: KitchenTheme.sage, length: 32)
-                .padding(.bottom, 12)
 
-            // Semantic style, not a fixed point size: the exploration's 44pt was
-            // evidence about proportion on one device, never an API.
+
+            // Semantic title sizing preserves Dynamic Type reflow.
             Text(title)
                 .font(.system(
                     isAccessibilitySize ? .title : .largeTitle,
@@ -56,7 +54,7 @@ struct HomeMealHero: View {
                 Rectangle()
                     .fill(.quaternary)
                     .frame(height: 1)
-                    .padding(.top, 16)
+                    .padding(.top, 12)
                     .padding(.bottom, 10)
 
                 statusLine
@@ -80,70 +78,20 @@ struct HomeMealHero: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    @ViewBuilder
     private var statusLine: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Group {
-                if isAccessibilitySize {
-                    // Deliberately two lines: one wrapping line collides the
-                    // timing with the readiness count and reads as a mistake.
-                    VStack(alignment: .leading, spacing: 4) {
-                        metaText
-                        readinessText
-                    }
-                } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        metaText
-                        Spacer(minLength: 8)
-                        readinessText
-                    }
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            if let metaLine {
+                KitchenMetadataText(text: metaLine)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
             }
-            .font(.footnote.weight(.medium))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
-
-            readinessRule
+            if let readiness, readiness.total > 0 {
+                KitchenReadinessChip(readiness: readiness)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(statusAccessibilityLabel)
         .accessibilityIdentifier("home.hero.status")
-    }
-
-    @ViewBuilder
-    private var metaText: some View {
-        if let metaLine {
-            Text(metaLine).monospacedDigit()
-        }
-    }
-
-    @ViewBuilder
-    private var readinessText: some View {
-        if let readiness {
-            Text(readiness.summary)
-                .monospacedDigit()
-                .foregroundStyle(AppTheme.cookingAccentForeground)
-        }
-    }
-
-    /// A hairline, not a progress bar. Signature width so it reads as a mark on
-    /// the page rather than as a meter to be filled.
-    @ViewBuilder
-    private var readinessRule: some View {
-        if let readiness, readiness.total > 0 {
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.quaternary)
-                    Capsule()
-                        .fill(KitchenTheme.sage)
-                        .opacity(0.75)
-                        .frame(width: max(proxy.size.width * readiness.fraction, readiness.ready > 0 ? 6 : 0))
-                }
-            }
-            .frame(height: 2)
-            .frame(maxWidth: 190, alignment: .leading)
-            .accessibilityHidden(true)
-        }
     }
 
     private var statusAccessibilityLabel: String {

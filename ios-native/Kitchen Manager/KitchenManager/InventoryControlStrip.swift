@@ -25,8 +25,8 @@ struct InventoryControlStrip: View {
                     counts
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.horizontal, KitchenTheme.consolePadding)
+            .padding(.vertical, KitchenTheme.consoleVerticalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 KitchenTheme.statusSurface,
@@ -41,7 +41,7 @@ struct InventoryControlStrip: View {
         let items = countItems
         return HStack(alignment: .top, spacing: 10) {
             ForEach(items, id: \.focus) { item in
-                countButton(item)
+                consoleCountButton(item)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -54,7 +54,7 @@ struct InventoryControlStrip: View {
             spacing: 8
         ) {
             ForEach(countItems, id: \.focus) { item in
-                countButton(item)
+                consoleCountButton(item)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -117,7 +117,7 @@ struct InventoryControlStrip: View {
         return items
     }
 
-    private func countButton(_ item: CountItem) -> some View {
+    private func consoleCountButton(_ item: CountItem) -> some View {
         Button {
             focus = item.focus
         } label: {
@@ -134,16 +134,10 @@ struct InventoryControlStrip: View {
                     }
                 }
             }
-            .frame(minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: KitchenTheme.controlHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .overlay(alignment: .bottomLeading) {
-            KitchenStatusRail(
-                color: item.tint,
-                length: focus == item.focus ? 30 : 14
-            )
-        }
+        .buttonStyle(KitchenPressFeedbackStyle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(item.accessibilityLabel)
         .accessibilityHint("筛选食材")
