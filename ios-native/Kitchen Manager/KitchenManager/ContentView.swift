@@ -26,9 +26,16 @@ struct KitchenManagerApp: App {
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
 
     init() {
+        #if DEBUG
+        let persistence = RecipeRegressionFixture.isEnabled ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
+        let recipeTestDefaults = RecipeRegressionFixture.isEnabled ? UserDefaults(suiteName: "recipe-regression-\(UUID().uuidString)")! : .standard
+        #else
         let persistence = KitchenPersistenceFactory.application()
+        let recipeTestDefaults = UserDefaults.standard
+        #endif
         _recipeStore = StateObject(
             wrappedValue: RecipeStore(
+                userDefaults: recipeTestDefaults,
                 userRecipePersistence: persistence.userRecipes,
                 recipePreferencePersistence: persistence.recipePreferences
             )
@@ -36,7 +43,13 @@ struct KitchenManagerApp: App {
         // The whole bundle, never a hand-listed subset: naming persistences one
         // by one is how `preparedComponents` was left out and prepared batches
         // ended up in an isolated in-memory container that dies with the app.
+        #if DEBUG
+        let kitchenStoreInstance = RecipeRegressionFixture.isEnabled
+            ? KitchenStore(userDefaults: recipeTestDefaults, persistence: persistence)
+            : KitchenStore(persistence: persistence)
+        #else
         let kitchenStoreInstance = KitchenStore(persistence: persistence)
+        #endif
         #if DEBUG
         // The generic account fixture resets local data and adds 测试库存 under a
         // fresh UUID on every launch. That is fine for single-launch tests, but
@@ -56,7 +69,11 @@ struct KitchenManagerApp: App {
             }
         }
         #endif
+        #if DEBUG
+        let authStoreInstance = RecipeRegressionFixture.isEnabled ? AuthStore.guestPreview() : AuthenticationAssembly.make()
+        #else
         let authStoreInstance = AuthenticationAssembly.make()
+        #endif
         #if DEBUG
         let guestMergeControllerInstance: GuestMergeController
         if AccountLifecycleFixture.active != nil {
@@ -458,6 +475,9 @@ struct ContentView: View {
         #endif
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
+            #if DEBUG
+            guard !RecipeRegressionFixture.isEnabled else { return }
+            #endif
             await authStore.start()
         }
         // Deliberately a separate `.task` from the auth restore above rather
@@ -468,7 +488,7 @@ struct ContentView: View {
         // Both run concurrently now; neither reads the other's state.
         .task {
             #if DEBUG
-            guard !RecipeUITestSeed.isolatesRecipeStore else { return }
+            guard !RecipeRegressionFixture.isEnabled, !RecipeUITestSeed.isolatesRecipeStore else { return }
             #endif
             if recipeStore.remoteRecipes.isEmpty {
                 await recipeStore.loadRecipes()
@@ -478,13 +498,25 @@ struct ContentView: View {
             // Initial check after launch completes — auth restoring runs
             // concurrently above and never blocks this; a pending shared
             // import is a purely local, guest-safe read.
+            #if DEBUG
+            guard !RecipeRegressionFixture.isEnabled else { return }
+            #endif
             sharedImportCoordinator.refresh(isAnotherImportFlowPresented: false)
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
+            #if DEBUG
+            guard !RecipeRegressionFixture.isEnabled else { return }
+            #endif
             sharedImportCoordinator.refresh(isAnotherImportFlowPresented: false)
         }
         #if DEBUG
+        .task {
+            guard RecipeRegressionFixture.isEnabled else { return }
+            for recipe in RecipeRegressionFixture.recipes.reversed() { recipeStore.add(recipe) }
+            recipeStore.toggleFavorite("regression-mapo")
+            navigationStore.selectedTab = .recipes
+        }
         // UI-test-only seed hook: only runs when KitchenManagerUITests passes this
         // launch argument, so it never fires for a real user or a normal debug run.
         .task {

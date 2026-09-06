@@ -145,28 +145,28 @@ struct RecipeListView: View {
 
             if hasActiveFilters {
                 Section {
-                    LabeledContent {
-                        Button {
-                            clearFilters()
-                        } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(activeFilterDescription)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(KitchenTheme.textPrimary)
+                            .padding(.horizontal, KitchenTheme.modulePadding)
+                            .padding(.vertical, 8)
+                            .background(KitchenTheme.elevatedSurface, in: .rect(cornerRadius: KitchenTheme.compactRadius))
+                        Button { clearFilters() } label: {
                             Text("清除")
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(AppTheme.brand.opacity(0.08), in: Capsule())
-                                .frame(minHeight: AppTheme.minimumHitTarget)
+                                .frame(minWidth: KitchenTheme.controlHeight, minHeight: KitchenTheme.controlHeight)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(AppTheme.brand)
-                        .accessibilityIdentifier("recipe.filter.clear")
-                    } label: {
-                        Label(activeFilterDescription, systemImage: "line.3.horizontal.decrease.circle")
-                            .fontWeight(.medium)
-                            .foregroundStyle(AppTheme.brand)
+                            .buttonStyle(KitchenButtonStyle(role: .utility))
+                            .accessibilityIdentifier("recipe.filter.clear")
                     }
-                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("recipe.filter.active")
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 8, leading: KitchenTheme.pageGutter, bottom: 8, trailing: KitchenTheme.pageGutter))
+
                 }
             }
 
@@ -183,7 +183,7 @@ struct RecipeListView: View {
                         Button("清除搜索") {
                             searchText = ""
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(KitchenButtonStyle(role: .primary))
                         .tint(AppTheme.cookingActionFill)
                         .foregroundStyle(AppTheme.onCookingAction)
                         .frame(minHeight: AppTheme.minimumHitTarget)
@@ -193,7 +193,7 @@ struct RecipeListView: View {
                         Button("添加菜谱", systemImage: "plus") {
                             route = .manual
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(KitchenButtonStyle(role: .primary))
                         .tint(AppTheme.cookingActionFill)
                         .foregroundStyle(AppTheme.onCookingAction)
                         .accessibilityIdentifier("recipe.empty.add")
@@ -210,16 +210,23 @@ struct RecipeListView: View {
                             )
                         }
                         .accessibilityIdentifier("recipe.list.\(recipe.id)")
+                        .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 8, leading: KitchenTheme.pageGutter, bottom: 8, trailing: KitchenTheme.pageGutter))
+                            .listRowSeparatorTint(KitchenTheme.separator)
                     }
                 } header: {
-                    Text(resultSectionTitle)
-                        .textCase(nil)
+                    Group {
+                        KitchenContextualLabel(text: resultSectionTitle, tint: KitchenTheme.textSecondary)
+
+                    }
+                    .listRowInsets(EdgeInsets(top: 16, leading: KitchenTheme.pageGutter, bottom: 8, trailing: KitchenTheme.pageGutter))
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .listRowSpacing(0)
         .scrollContentBackground(.hidden)
-        .background(Color(.systemGroupedBackground))
+        .background(KitchenTheme.canvas)
         .safeAreaInset(edge: .bottom) {
             Color.clear
                 .frame(height: ChromeMetrics.bottomClearance)
@@ -326,7 +333,7 @@ private struct RecipeListRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(recipe.title)
-                .font(.body.weight(.semibold))
+                .font(.headline)
                 .foregroundStyle(.primary)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
 
@@ -363,16 +370,14 @@ private struct RecipeListRow: View {
     }
 
     private var metadata: some View {
-        Text(recipe.summaryText)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: true, vertical: false)
+        Group {
+            KitchenMetadataText(text: recipe.summaryText)
+        }
     }
 
     private var availabilityStatus: some View {
         HStack(spacing: 4) {
-            Image(systemName: availability == "可直接做" ? "checkmark.circle.fill" : "basket")
-                .accessibilityHidden(true)
+
             Text(availability)
         }
             .font(.footnote.weight(.medium))
@@ -412,32 +417,33 @@ struct RecipeDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: KitchenTheme.sectionSpacing) {
                 recipeHero
 
-                RecipeDetailSection("份量", systemImage: "person.2") {
-                    // The recipe's own yield, distinct from the cooking-session
-                    // multiplier below: this is what the written quantities mean,
-                    // and "未标注" is a real answer for recipes that never said.
-                    HStack {
-                        Text("基准份量")
-                        Spacer()
-                        Text(recipe.baseServings.map { "\($0) 人份" } ?? "未标注")
-                            .foregroundStyle(.secondary)
-                    }
-                    .accessibilityIdentifier("recipe.detail.baseServings")
-
+                RecipeDetailSection("份量") {
                     Stepper(value: $cookingSession.servings, in: 1...12) {
-                        Text("当前份量：\(cookingSession.servings) 人份")
+                        Text("\(cookingSession.servings) 人份")
+                            .font(.headline).monospacedDigit()
+                            .accessibilityLabel("当前份量：\(cookingSession.servings) 人份")
                     }
+                    .frame(minHeight: KitchenTheme.controlHeight)
                     .accessibilityIdentifier("recipe.detail.servings")
 
-                    Text("仅调整当前查看和烹饪会话的用量，不会修改原始菜谱。")
+                    Text(recipe.baseServings.map { base in
+                        cookingSession.servings == base ? "与基准份量一致" : "基准 \(base) 人份"
+                    } ?? "基准未标注，用量保留原文")
+                    .font(.footnote)
+                    .foregroundStyle(KitchenTheme.textSecondary)
+                    .accessibilityLabel(recipe.baseServings.map { "基准份量 \($0) 人份" } ?? "基准份量未标注，用量保留原文")
+                    .accessibilityIdentifier("recipe.detail.baseServings")
+
+                    Text("仅调整当前查看和烹饪用量，不修改原始菜谱。")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(KitchenTheme.textSecondary)
+
                 }
 
-                RecipeDetailSection("食材", systemImage: "basket") {
+                RecipeDetailSection("食材") {
                     if recipe.ingredients.isEmpty {
                         Text("暂未记录食材")
                             .foregroundStyle(.secondary)
@@ -449,14 +455,14 @@ struct RecipeDetailView: View {
                 }
 
                 if !recipe.seasonings.isEmpty {
-                    RecipeDetailSection("调料与辅料", systemImage: "leaf") {
+                    RecipeDetailSection("调料与辅料") {
                         ForEach(Array(recipe.seasonings.enumerated()), id: \.offset) { index, value in
                             ingredientRow(value, index: recipe.ingredients.count + index)
                         }
                     }
                 }
 
-                RecipeDetailSection("步骤", systemImage: "list.number") {
+                RecipeDetailSection("步骤") {
                     if cookingSteps.isEmpty {
                         Text("暂未记录制作步骤")
                             .foregroundStyle(.secondary)
@@ -468,7 +474,7 @@ struct RecipeDetailView: View {
                 }
 
                 if !tips.isEmpty {
-                    RecipeDetailSection("小贴士", systemImage: "lightbulb") {
+                    RecipeDetailSection("小贴士") {
                         ForEach(tips, id: \.self) { tip in
                             Label(tip, systemImage: "lightbulb")
                                 .font(.body)
@@ -478,16 +484,16 @@ struct RecipeDetailView: View {
                 }
 
             }
-            .padding(.horizontal)
+            .padding(.horizontal, KitchenTheme.pageGutter)
             .padding(.top, 20)
             .padding(.bottom, 24)
         }
-        .background(Color(.systemBackground))
+        .background(KitchenTheme.canvas)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 0) {
                 Divider()
                 startCookingAction
-                    .padding(.horizontal)
+                    .padding(.horizontal, KitchenTheme.pageGutter)
                     .padding(.top, 8)
                     // Gap between the CTA and the bottom system safe area. The tab
                     // bar is hidden for this destination, so the inset now sits
@@ -560,18 +566,13 @@ struct RecipeDetailView: View {
     private var recipeHero: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(recipe.title)
+                .fontDesign(KitchenTheme.heroFontDesign)
                 .font(dynamicTypeSize.isAccessibilitySize ? .headline.weight(.bold) : .largeTitle.weight(.bold))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if dynamicTypeSize.isAccessibilitySize {
-                recipeMetadataVertical
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    recipeMetadataHorizontal
-                    recipeMetadataVertical
-                }
-            }
+            KitchenMetadataText(text: [recipe.summaryText, "\(cookingSession.servings) 人份"].joined(separator: " · "))
+
 
             if !recipe.tags.isEmpty {
                 Text(recipe.tags.joined(separator: " · "))
@@ -582,32 +583,12 @@ struct RecipeDetailView: View {
         }
     }
 
-    private var recipeMetadataHorizontal: some View {
-        HStack(spacing: 14) {
-            Label("\(cookingSession.servings) 人份", systemImage: "person.2")
-            if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
-            if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
-        }
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-    }
-
-    private var recipeMetadataVertical: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label("\(cookingSession.servings) 人份", systemImage: "person.2")
-            if let cookingTime = recipe.cookingTime { Label("约 \(cookingTime) 分钟", systemImage: "clock") }
-            if let difficulty = recipe.difficulty, !difficulty.isEmpty { Label(difficulty, systemImage: "chart.bar") }
-        }
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-    }
-
     private var startCookingAction: some View {
         Button { isShowingCookingMode = true } label: {
             Label("开始烹饪", systemImage: "flame.fill")
                 .frame(maxWidth: .infinity)
         }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(KitchenButtonStyle(role: .primary))
             .tint(AppTheme.cookingActionFill)
             .foregroundStyle(AppTheme.onCookingAction)
             .font(.headline)
@@ -621,10 +602,13 @@ struct RecipeDetailView: View {
             HStack(spacing: 12) {
                 Image(systemName: cookingSession.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(cookingSession.checkedIngredientIndexes.contains(index) ? AppTheme.success : .secondary)
-                Text(RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))
-                    .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
-                    .foregroundStyle(.primary)
-                Spacer(minLength: 0)
+                Group {
+                    RecipeIngredientText(text: RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))
+
+                }
+                .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
+                .foregroundStyle(.primary)
+
             }
         }
         .buttonStyle(.plain)
@@ -637,27 +621,34 @@ struct RecipeDetailView: View {
 
 private struct RecipeDetailSection<Content: View>: View {
     let title: String
-    let systemImage: String
     @ViewBuilder let content: Content
 
-    init(_ title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+    init(_ title: String, @ViewBuilder content: () -> Content) {
         self.title = title
-        self.systemImage = systemImage
         self.content = content()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .accessibilityAddTraits(.isHeader)
-            VStack(alignment: .leading, spacing: 12) {
-                content
+            KitchenContextualLabel(text: title, tint: KitchenTheme.textSecondary)
+
+            Group {
+                if title == "份量" {
+                    sectionContent
+                        .padding(.horizontal, KitchenTheme.modulePadding)
+                        .padding(.vertical, KitchenTheme.consoleVerticalPadding)
+                        .background(KitchenTheme.elevatedSurface, in: .rect(cornerRadius: KitchenTheme.functionalRadius))
+                } else {
+                    sectionContent
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+    private var sectionContent: some View {
+        VStack(alignment: .leading, spacing: 4) { content }
+    }
+
 }
 
 private struct RecipeStepRow: View {
@@ -670,11 +661,12 @@ private struct RecipeStepRow: View {
                 .font(.subheadline.monospacedDigit().weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 28, height: 28)
-                .background(AppTheme.secondarySurface, in: Circle())
+
             Text(text)
                 .font(.body)
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(5).padding(.bottom, 16)
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("recipe.detail.step.\(number - 1)")
@@ -734,6 +726,8 @@ private struct RecipeEditView: View {
 
     var body: some View {
         Form { RecipeDraftEditorSections(draft: $draft, showsExtendedFields: true) }
+            .contentMargins(.horizontal, KitchenTheme.pageGutter, for: .scrollContent)
+            .scrollContentBackground(.hidden).background(KitchenTheme.canvas)
             .navigationTitle("编辑菜谱").navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("保存") { do { try store.replaceUserRecipe(draft.makeRecipe()); dismiss() } catch { errorMessage = error.localizedDescription } }.disabled(!draft.isSaveEligible) }
             .alert("无法保存", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("好", role: .cancel) {} } message: { Text(errorMessage ?? "请检查内容。") }

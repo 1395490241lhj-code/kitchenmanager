@@ -139,16 +139,24 @@ struct RecipeDraftEditorSections: View {
 
     var body: some View {
         Section("基本信息") {
-            TextField("菜名", text: $draft.title)
+            LabeledContent("菜名") {
+                TextField("菜名", text: $draft.title)
+                    .multilineTextAlignment(.trailing)
+            }
+
 
             if showsExtendedFields {
                 baseServingsControl
-                TextField(
-                    "烹饪时间（分钟）",
-                    value: $draft.cookingTime,
-                    format: .number
-                )
-                .keyboardType(.numberPad)
+                LabeledContent("烹饪时间") {
+                    HStack(spacing: 4) {
+                        TextField("烹饪时间（分钟）", value: $draft.cookingTime, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityLabel("烹饪时间（分钟）")
+                        Text("分钟").foregroundStyle(KitchenTheme.textSecondary)
+                    }
+                }
+
                 Picker("难度", selection: $draft.difficulty) {
                     Text("未设置").tag("")
                     Text("简单").tag("简单")
@@ -157,8 +165,12 @@ struct RecipeDraftEditorSections: View {
                 }
             }
 
-            TextField("标签，用逗号分隔", text: $draft.tagsText, axis: .vertical)
-                .lineLimit(2...4)
+            LabeledContent("标签") {
+                TextField("标签，用逗号分隔", text: $draft.tagsText, axis: .vertical)
+                    .lineLimit(2...4)
+                    .multilineTextAlignment(.trailing)
+            }
+
         }
 
         Section("食材") {

@@ -230,8 +230,11 @@ final class RecipeCookingModeUITests: XCTestCase {
         let progress = app.staticTexts["recipe.cooking.progress.label"]
         XCTAssertTrue(complete.waitForExistence(timeout: 5))
         XCTAssertTrue(progress.label.hasPrefix("0 /"))
+        // XCUI subtracts fractional frame coordinates: a 44pt layout can report
+        // 43.99999999999994. Absorb representation error, not a smaller hit target.
+        let frameRoundingEpsilon: CGFloat = 1e-9
         for control in [previous, ingredients, next] {
-            XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44 - frameRoundingEpsilon)
         }
         XCTAssertFalse(previous.isEnabled)
         XCTAssertTrue(ingredients.isEnabled)

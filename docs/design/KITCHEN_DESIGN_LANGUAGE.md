@@ -3,12 +3,14 @@
 **Editorial Structure + Tactile Utility + Semantic Restraint**
 
 Status: canonical production design language, visually approved.
-Scope: native iOS Home and Inventory. Other destinations retain their existing semantics
-and presentation until deliberately brought into this language. No recipe media dependency.
+Scope: native iOS Home, Inventory and Recipes. Other destinations retain their existing
+semantics and presentation until deliberately brought into this language. The next adoption
+boundary is Shopping, followed by Meal Plan / Planner and Profile / Settings. No recipe media dependency.
 
 Implementation owners: `KitchenTheme.swift` (geometry/material/color),
 `KitchenControls.swift` (controls, labels, metadata and marks), `HomeMealHero.swift`
-(meal composition), `InventoryControlStrip.swift` (interactive console).
+(meal composition), `InventoryControlStrip.swift` (interactive console), and
+`RecipeViews.swift` / `RecipeCookingModeView.swift` (recipe reading and cooking).
 
 ## Roles
 
@@ -105,6 +107,35 @@ single visual selection authority.
 Inventory is more open than Home. Names, quantities, status, and tonight linkage
 remain visible rather than being removed to shorten the page. Common staples
 obey the same gutter as fresh ingredients.
+
+## Recipes application
+
+Recipes uses less semantic color than Inventory: information is primarily typographic,
+with forest reserved for the primary cooking action. Do not add decorative vertical
+status rails, ingredient cards or repeated utility icons.
+
+- Library uses open editorial rows: dish name first, metadata second, at most two useful
+  tag/context lines, and subordinate availability. It is not a wall of cards.
+- Detail uses a no-photo typography hero. Title, metadata and context establish hierarchy;
+  no fake media placeholder or decorative hero card is required.
+- Servings uses a compact Module Surface. Current servings is primary and base servings
+  is supporting. Known base servings scale written quantities; an unknown base preserves
+  the original amounts. Adjusting the cooking session never changes the stored recipe.
+- Ingredients and seasonings use open checklist rows. Quantities align to the trailing
+  content rail, with names and long quantities wrapping naturally without collision.
+- Static steps use plain numbers and readable, Dynamic Type Chinese body text. Long text
+  remains scrollable; the last step must clear the pinned Start Cooking action.
+- Cooking Mode groups the current step in a Module Surface. The timer is utility;
+  next/finish is the dominant primary action. Large text may place controls below the
+  fold, where they must remain reachable.
+- The editor retains its native utility Form. Populated fields keep persistent labels;
+  the cooking-time input itself communicates its meaning, minutes and current value.
+  Form group edges use the 20pt page gutter; native cell content keeps its own inset.
+  This native containment is intentional and does not require a second editor theme.
+
+Library, filter controls, detail sections and Cooking Mode share KitchenTheme.pageGutter.
+Contained servings/current-step content uses modulePadding inside that coordinate.
+Use the existing roles and controls; Recipes does not introduce a new design-system role.
 
 ## Accessibility and interaction
 
